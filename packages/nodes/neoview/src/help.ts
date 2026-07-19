@@ -18,6 +18,7 @@ export const help = {
         "Run `xiranite neoview presentation-cache-stats --json` for the shared L3 cache budget and hit counters.",
         "Run `xiranite neoview diagnostics --json` for a path-free process, scheduler, cache and queue snapshot.",
         "Run `xiranite neoview diagnostics-history-export --connect http://127.0.0.1:41000 --format csv --output diagnostics.csv` for bounded diagnostics history from the running backend.",
+        "Run `xiranite neoview settings-backup-scheduled --yes` from a task scheduler to create due configured backups.",
         "Run `xiranite neoview reader-data-inspect <backup.json> --json` before importing legacy history and bookmarks.",
       ],
     },
@@ -64,6 +65,12 @@ export const help = {
         command: "xiranite neoview thumbnail-db-cleanup --kind expired --days 30 --limit 500 --yes --json",
         description: "Delete at most 500 expired file thumbnails while preserving every folder thumbnail.",
       }],
+    },
+    {
+      title: "Run configured automatic backup",
+      command: "xiranite neoview settings-backup-scheduled --yes --json",
+      description: "Create one due verified bundle and prune only older verified automatic bundles.",
+      examples: [],
     },
     {
       title: "Inspect runtime diagnostics",

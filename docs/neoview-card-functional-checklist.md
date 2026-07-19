@@ -16,7 +16,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`pending=13`，`partial=53`，`complete=8`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`pending=12`，`partial=54`，`complete=8`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -585,7 +585,7 @@
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：完整保留 list、content、banner、thumbnail 的信息密度、缩略图位置、选中/hover/focus 表现；目标内部可用更清晰的 mode 名。
   - 源码：`components/FolderList.svelte`、`components/FolderListItem.svelte`、`components/FolderToolbar/ViewModeButtons.svelte`
-  - 测试：待补
+  - 测试：`neoview.folder.banner-density`
   - 计划测试：`neoview.folder.view-compact`、`neoview.folder.view-cover-list`、`neoview.folder.view-mosaic-list`、`neoview.folder.view-details`、`neoview.folder.view-cover-grid`、`neoview.folder.view-mosaic-grid`
   - 备注：当前已提供 compact、cover-list、mosaic-list、details、cover-grid、mosaic-grid 六种内部模式，并复用同一 catalog/selection/focus/sort/EMM 状态；仍需完成原版 list/content/banner/thumbnail 的逐项视觉与设置持久化验收。
 - [ ] `folder.view.details` 详细信息视图与列
@@ -613,11 +613,11 @@
 ### preview（3）
 
 - [ ] `folder.view.hover-preview` Hover 预览与延迟
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：支持关闭及 200/500/800/1200ms 延迟；离开、滚动、切标签和卸载立即取消过期预览。
   - 源码：`components/FolderListItem.svelte`、`components/FolderToolbar/tabs/DisplayTab.svelte`
-  - 测试：待补
-  - 计划测试：无
+  - 测试：`neoview.folder.hover-preview-delay`、`neoview.folder.hover-preview-cancel`
+  - 计划测试：`neoview.folder.hover-preview-e2e`
   - 备注：不得为离屏项生成预览。
 - [ ] `folder.view.folder-mosaic` 文件夹 4/9/16 图多预览
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
@@ -895,9 +895,9 @@
   - 六维：`core=N/A transport=N/A gui=- cli=- tui=- evidence=-`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：仅对可恢复删除提供撤销，恢复冲突与过期状态明确；永久删除不伪装可撤销。
   - 源码：`components/SelectionBar.svelte`、`components/FolderToolbar/ActionButtons.svelte`
-  - 测试：待补
+  - 测试：`neoview.file-operations.trash-restore`、`neoview.file-operations.trash-restore-stale`
   - 计划测试：无
-  - 备注：需平台能力声明。
+  - 备注：后端 platform/receipt 已有 capability-aware Windows restore 与 stale-path 证据；GUI/CLI/TUI 的 undo transport、恢复冲突展示、跨进程 claim 和完整 FolderMain 交互仍待完成，因此维持 pending。
 - [ ] `folder.op.bookmark` 添加/移除书签
   - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：单项/批量加入书签列表，重复项、列表选择、移除和虚拟源实时同步。
@@ -1162,7 +1162,7 @@
 |---|---|---:|---:|---|---|---|
 | `preloadStatus` | 预加载状态 | core | partial | `core=C transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/info/PreloadStatusCard.svelte` | 预读、渐进加载、流传输和全局调度；XR `preload-status` |
 | `bookInfo` | 书籍信息 | core | partial | `core=C transport=C gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/BookInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `book-information` |
-| `infoOverlay` | 信息悬浮窗 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/InfoOverlayCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据 |
+| `infoOverlay` | 信息悬浮窗 | deferred | partial | `core=C transport=C gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/InfoOverlayCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `info-overlay` |
 | `imageInfo` | 图像信息 | core | partial | `core=C transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/info/ImageInfoCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `image-information` |
 | `storage` | 存储信息 | core | partial | `core=C transport=C gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/StorageCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `storage-information` |
 | `time` | 时间信息 | core | partial | `core=C transport=C gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/TimeCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `time-information` |
@@ -1336,9 +1336,9 @@
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：The active frame anchor is displayed as a 1-based current page with the session book total; a zero-page book renders 0 / 0 without starting preload work.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/stores/book/core.svelte.ts`
-  - 测试：`neoview.preload-status.current-page`、`neoview.preload-status.e2e`
+  - 测试：`neoview.preload-status.current-page`、`neoview.preload-status.e2e`、`neoview.preload-status.resident-1920x1080`、`neoview.preload-status.no-session`
   - 计划测试：`neoview.card.preload-status-live`
-  - 备注：The React Card derives this field from the active session frame and book snapshot; focused coverage freezes the zero-page 0 / 0 boundary without rendering nearby-page work, and Chromium covers an active book.
+  - 备注：The React Card derives this field from the active session frame and book snapshot; before a session it keeps the legacy 0 / 0 summary shell resident, while Chromium covers both the empty and active states.
 - [ ] `preload.memory-pool` 显示服务端呈现缓存容量
   - 六维：`core=C transport=C gui=P cli=C tui=P evidence=P`；阻塞：`gui`、`tui`、`evidence`
   - 目标：The Card displays server-owned presentation cache entries, bytes, maximum bytes, usage and leases from the shared diagnostics snapshot without presenting the browser predecode retained limit as the legacy memory pool.
@@ -1392,16 +1392,16 @@
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Diagnostics and browser predecode failures degrade independently through stable loading, empty, partial, error, retry and disposed states without showing stale previous-session metrics.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/api/pageManager.ts`
-  - 测试：`neoview.preload-status.states`、`neoview.preload-status.session-switch`
+  - 测试：`neoview.preload-status.states`、`neoview.preload-status.session-switch`、`neoview.preload-status.resident-1920x1080`、`neoview.preload-status.no-session`
   - 计划测试：`neoview.preload-status.retry`、`neoview.preload-status.partial-metrics`
-  - 备注：The Card covers loading, empty/zero-page, partial diagnostics, sanitized error, retry and disposed browser-event states. Diagnostics are owned by sessionId: same-session refresh/errors retain the latest value, while a new session synchronously projects empty metrics until its own snapshot arrives and obsolete requests cannot publish.
+  - 备注：The Card covers loading, resident pre-session, empty/zero-page, partial diagnostics, sanitized error, retry and disposed browser-event states. Diagnostics are owned by sessionId: same-session refresh/errors retain the latest value, while a new session synchronously projects empty metrics until its own snapshot arrives and obsolete requests cannot publish.
 - [x] `preload.shell` 保持共享 Card 外壳行为
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Preload Status remains independently lazy, hideable, dockable, collapsible, movable, resizable and window-capable with its Loader icon, Info Panel default and visible/expanded defaults.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
-  - 测试：`neoview.card.parallel-core`、`neoview.card.zero-mount`、`neoview.settings.card-layout`、`neoview.preload-status.chunk`、`neoview.preload-status.action-chunk`、`neoview.preload-status.e2e`、`neoview.card.header-icon`
+  - 测试：`neoview.card.parallel-core`、`neoview.card.zero-mount`、`neoview.settings.card-layout`、`neoview.preload-status.chunk`、`neoview.preload-status.action-chunk`、`neoview.preload-status.e2e`、`neoview.card.header-icon`、`neoview.preload-status.resident-1920x1080`
   - 计划测试：无
-  - 备注：The shared shell, source-verified Loader header icon, lazy registry and collapse zero-DOM lifecycle are gated. The base Card is a 7,709-byte deferred chunk and its action controller is a separate 2,368-byte second-level chunk; independent CardWindow chrome remains owned by the shared window migration.
+  - 备注：The shared shell, source-verified Loader header icon, lazy registry, resident pre-session body and collapse zero-DOM lifecycle are gated. The base Card is a 7,709-byte deferred chunk and its action controller is a separate 2,368-byte second-level chunk; independent CardWindow chrome remains owned by the shared window migration.
 - [ ] `preload.data-contract` 共享有界 preload 与 diagnostics DTO
   - 六维：`core=C transport=C gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：GUI, CLI and TUI share one versioned, path-free contract for session generation, plan, telemetry, bounded performance metrics and server cache capacity with cancellation and stale-result semantics.
@@ -1434,9 +1434,9 @@
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：The two-column summary, compact memory meter, three-column nearby grid and current/cached/cold hierarchy remain readable without overlap or horizontal overflow in a common 1920x1080 desktop viewport and its approximately 320px sidebar.
   - 源码：`src/lib/cards/info/PreloadStatusCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
-  - 测试：`neoview.preload-status.e2e`、`neoview.preload-status.ui`、`neoview.card.preload-status-live`
+  - 测试：`neoview.preload-status.e2e`、`neoview.preload-status.ui`、`neoview.card.preload-status-live`、`neoview.preload-status.resident-1920x1080`
   - 计划测试：`neoview.preload-status.visual-baseline`
-  - 备注：Scripted Playwright characterization now compares the legacy CardWindow and the XR Reader at the same 1920x1080 viewport. It freezes the two-column summary, compact 10px labels and approximately 320px sidebar geometry; the earlier 420x360 capture is retained only as historical stress evidence, not as the visual baseline. React preserves that skeleton, restores legacy KB/MB precision and cached emerald hierarchy, then adds separately labelled browser/server states and safe actions. Active-state pixel baseline and shared independent-window parity remain pending.
+  - 备注：Scripted Playwright characterization compares the legacy CardWindow and XR Reader at 1920x1080. The resident harness now verifies the legacy two-column empty summary before opening, while the active target verifies compact labels, memory meter, nearby grid and server/browser state hierarchy; independent-window pixel parity remains pending.
 - [ ] `preload.image-stability` 状态观察与控制不重挂活动媒体
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Event updates, diagnostics refresh, retry, cancel and clear preserve the active Reader media node and asset URL and issue zero duplicate requests for the active asset.
@@ -1768,7 +1768,7 @@
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：No session is zero DOM; unavailable media is a stable empty state; base metadata and optional probe failures remain independently visible and retryable.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.metadata.cards`、`neoview.image-information.zero-session`、`neoview.image-information.probe-degradation`
+  - 测试：`neoview.metadata.cards`、`neoview.image-information.resident-empty`、`neoview.image-information.probe-degradation`、`neoview.image-information.metadata-retry`
   - 计划测试：无
   - 备注：Base and probe loading, empty, error and independently named retry states are covered.
 - [ ] `image-information.base-fields` 显示类型、名称和源尺寸
@@ -1831,7 +1831,7 @@
   - 六维：`core=C transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：Unmount, navigation and session close abort active probing; obsolete generation results never replace the current page.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.image-information.navigation-cancel`、`neoview.image-information.video-cancel`、`neoview.image-information.session-release`、`neoview.image-information.ffprobe-abort`
+  - 测试：`neoview.image-information.navigation-cancel`、`neoview.image-information.video-cancel`、`neoview.image-information.session-release`、`neoview.image-information.ffprobe-abort`、`neoview.image-information.card-hide`
   - 计划测试：无
   - 备注：GUI, application, route and process cancellation are covered; CLI/TUI consumers remain pending.
 - [ ] `image-information.shell` 复用通用 Card 外壳
@@ -1852,7 +1852,7 @@
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Legacy field order, conditional rows, label hierarchy and compact geometry remain readable on desktop and 420x360 viewports.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
-  - 测试：`neoview.image-information.image-fields`、`neoview.image-information.video-fields`、`neoview.image-information.image-e2e`
+  - 测试：`neoview.image-information.image-fields`、`neoview.image-information.video-fields`、`neoview.image-information.image-e2e`、`neoview.image-information.resident-empty-1920x1080`
   - 计划测试：无
   - 备注：Desktop and 420x360 Chromium prove the legacy order and compact geometry without clipping or horizontal overflow.
 - [ ] `image-information.image-stability` 信息探测不重挂活动媒体
@@ -2002,7 +2002,7 @@
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：The Card has stable loading, empty, partial-metric, error and retry states and never shows stale page storage data as current.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.storage-information.states`、`neoview.storage-information.diagnostics-retry`、`neoview.storage-information.partial-metrics`、`neoview.metadata.cancel`
+  - 测试：`neoview.storage-information.states`、`neoview.storage-information.metadata-retry`、`neoview.storage-information.diagnostics-retry`、`neoview.storage-information.retry-accessibility`、`neoview.storage-information.partial-metrics`、`neoview.metadata.cancel`
   - 计划测试：无
   - 备注：Diagnostics failure leaves legacy metadata visible; loading/error/retry are accessible target extensions.
 - [ ] `storage.shell` 共享 Card 外壳行为
@@ -2023,7 +2023,7 @@
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Hidden or collapsed Cards do no work; metadata is shared per generation; diagnostics are fetched once on activation and cancellation/disposal prevents stale publication.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.card.zero-mount`、`neoview.storage-information.states`、`neoview.storage-information.diagnostics-cancel`、`neoview.storage-information.e2e`
+  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.card.zero-mount`、`neoview.storage-information.states`、`neoview.storage-information.inactive-cancel`、`neoview.storage-information.diagnostics-cancel`、`neoview.storage-information.e2e`
   - 计划测试：无
   - 备注：Storage has no polling loop; the single activation request aborts on unmount and E2E observes exactly one diagnostics request.
 - [ ] `storage.persistence` 仅持久化共享 Card 布局
@@ -2037,7 +2037,7 @@
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：The Card uses grouped semantic description data; shell and retry controls have keyboard operation and accessible names.
   - 源码：`src/lib/cards/info/StorageCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`
-  - 测试：`neoview.card.collapse`、`neoview.storage-information.diagnostics-retry`、`neoview.storage-information.legacy-fields`
+  - 测试：`neoview.card.collapse`、`neoview.storage-information.diagnostics-retry`、`neoview.storage-information.retry-accessibility`、`neoview.storage-information.legacy-fields`
   - 计划测试：无
   - 备注：Description groups, named resource heading and a native retry button provide the target keyboard and screen-reader contract.
 - [x] `storage.ui-parity` 桌面与窄 Card 视觉几何
@@ -2138,9 +2138,9 @@
   - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：The shared DTO distinguishes filesystem, archive-entry and book-source timestamps; unavailable fields stay unknown.
   - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/types/metadata.ts`
-  - 测试：`neoview.time-information.archive-source`、`neoview.time-information.archive-invalid`、`neoview.headless.navigation`、`neoview.time-information.projection`、`neoview.time-information.cli-projection`、`neoview.tui.reader`、`neoview.time-information.e2e`
+  - 测试：`neoview.time-information.archive-source`、`neoview.time-information.archive-invalid`、`neoview.time-information.book-source-fallback`、`neoview.headless.navigation`、`neoview.time-information.projection`、`neoview.time-information.cli-projection`、`neoview.tui.reader`、`neoview.time-information.e2e`
   - 计划测试：无
-  - 备注：The shared projection preserves filesystem, archive-entry, book-source and unknown labels in both Chinese and English; this remains an intentional XR extension required by the frozen functional scope.
+  - 备注：The shared projection preserves filesystem, archive-entry, book-source and unknown labels in both Chinese and English. An entirely empty page projection may use book-source timestamps; a page with an explicit source remains authoritative even when individual fields are unavailable.
 - [ ] `time.format` 本地时区与未知值格式
   - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Finite timestamps use zh-CN local time; missing or invalid values render an em dash.
@@ -2277,14 +2277,14 @@
 
 | Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|---|
-| `switchToast` | 切换提示 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/SwitchToastCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据 |
+| `switchToast` | 切换提示 | integration | partial | `core=C transport=C gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/SwitchToastCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `switch-toast` |
 | `sidebarControl` | 边栏控制 | integration | partial | `core=N/A transport=N/A gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/SidebarControlCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知；XR `sidebar-control` |
-| `colorFilter` | 颜色滤镜 | integration | partial | `core=P transport=P gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 |
-| `imageTrim` | 图像裁剪 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 |
-| `pageTransition` | 翻页动画 | deferred | partial | `core=C transport=C gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 |
-| `animatedVideoMode` | 动图视频模式 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AnimatedVideoModeCard.svelte` | 动图、视频、字幕和播放控制 |
+| `colorFilter` | 颜色滤镜 | integration | partial | `core=P transport=P gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `color-filter` |
+| `imageTrim` | 图像裁剪 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
+| `pageTransition` | 翻页动画 | deferred | partial | `core=C transport=C gui=P cli=P tui=- evidence=P` | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `page-transition` |
+| `animatedVideoMode` | 动图视频模式 | integration | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/AnimatedVideoModeCard.svelte` | 动图、视频、字幕和播放控制；XR `animated-video-mode` |
 | `ambientBackground` | 动态背景 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AmbientBackgroundCard.svelte` | 主题接管、阅读背景和空页面背景 |
-| `sidebarHeight` | 侧边栏高度 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/SidebarHeightCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知 |
+| `sidebarHeight` | 侧边栏高度 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/SidebarHeightCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知；XR `sidebar-height` |
 | `thumbnailMaintenance` | 缩略图维护 | integration | partial | `core=C transport=C gui=P cli=C tui=N/A evidence=P` | `src/lib/cards/properties/ThumbnailMaintenanceCard.svelte` | 统一缩略图生成、持久化、数据库维护与迁移；XR `thumbnail-maintenance` |
 
 #### `switchToast` 切换提示
@@ -2504,7 +2504,7 @@
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：All four edges update canonical pinned configuration; keyboard/touch users receive an explicit equivalent to legacy right click.
   - 源码：`src/lib/cards/info/SidebarControlCard.svelte`、`src/lib/stackview/layers/SidebarControlLayer.svelte`、`src/lib/stores/ui.svelte.ts`
-  - 测试：`neoview.card.sidebar-control.edges`、`neoview.card.sidebar-control.context-pin`、`neoview.sidebar-control.e2e`
+  - 测试：`neoview.card.sidebar-control.edges`、`neoview.card.sidebar-control.context-pin`、`neoview.card.sidebar-control.disabled`、`neoview.sidebar-control.e2e`
   - 计划测试：`neoview.shell.pinned`
   - 备注：Completed by the shared controlled Shell, canonical revisioned configuration, deferred Card/layer chunks and desktop/constrained Chromium evidence.
 - [x] `sidebar-control.lock-cycle` 保持自动/锁定展开/锁定隐藏三态
@@ -2853,13 +2853,13 @@
   - 测试：`neoview.color-filter.scope`
   - 计划测试：`neoview.color-filter.scope`、`neoview.color-filter.scope-precedence`
   - 备注：Global TOML precedence is complete; book-specific override remains pending.
-- [ ] `color-filter.states` 加载、条件、提交、错误与回滚状态
-  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+- [x] `color-filter.states` 加载、条件、提交、错误与回滚状态
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The Card covers lazy loading, loaded defaults, colorize-disabled conditional content, active edits, pending persistence, validation failure, write failure with rollback, retry, reset and disposed states without stale visual state.
   - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/stores/filterStore.svelte.ts`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.color-filter.hydration-race`、`neoview.color-filter.persistence`、`neoview.color-filter.ui`
-  - 计划测试：`neoview.color-filter.states`、`neoview.color-filter.rollback`、`neoview.color-filter.retry`
-  - 备注：Conditional, rollback and stale hydration states are covered; explicit retry UI remains pending.
+  - 测试：`neoview.color-filter.hydration-race`、`neoview.color-filter.persistence`、`neoview.color-filter.ui`、`neoview.color-filter.states`、`neoview.color-filter.rollback`、`neoview.color-filter.retry`
+  - 计划测试：无
+  - 备注：Conditional, rollback, pending-save, stale hydration and explicit retry states are covered by the Card and Store tests.
 - [x] `color-filter.shell` 共享 Card 外壳与独立窗口行为
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：colorFilter retains its 颜色滤镜 title, Palette icon, control Panel default, hideability, independent lazy boundary and shared docked/window Card behaviors.
@@ -2892,9 +2892,9 @@
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：The Card and SVG definitions load only when needed, subscriptions dispose on collapse/hide/window close, current-node sampling is cancelled or made stale on page/session changes, and all owned DOM/cache state is released without affecting the active reader image.
   - 源码：`src/lib/cards/info/ColorFilterCard.svelte`、`src/lib/stores/filterStore.svelte.ts`、`src/lib/stackview/components/FrameImage.svelte`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.color-filter.black-white-detection`、`neoview.color-filter.registry`
-  - 计划测试：`neoview.color-filter.lifecycle`、`neoview.color-filter.sample-cancel`、`neoview.color-filter.dispose`
-  - 备注：Card loading, bounded sampling and cleanup are implemented; a dedicated stale-sample lifecycle test remains pending.
+  - 测试：`neoview.color-filter.black-white-detection`、`neoview.color-filter.registry`、`neoview.color-filter.lifecycle`
+  - 计划测试：`neoview.color-filter.sample-cancel`、`neoview.color-filter.dispose`
+  - 备注：Card visibility and subscription cleanup are covered; current-node stale-sample cancellation and full owned-resource disposal remain pending outside this Card-only change.
 - [ ] `color-filter.image-stability` 滤镜操作保持活动媒体身份与解码链
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Changing any filter preserves the exact current img node and asset URL, causes zero duplicate asset requests/decodes, creates no sharp/Blob variant and does not remount the ReaderFrame.
@@ -3030,33 +3030,33 @@
 ##### 专用源码级验收项
 
 - [ ] `page-transition.enable` 启用并条件挂载翻页动画设置
-  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：The Card preserves the legacy disabled default and only mounts type, duration, easing and preview controls while enabled.
   - 源码：`src/lib/cards/info/PageTransitionCard.svelte`
-  - 测试：`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.ui`
-  - 计划测试：`neoview.page-transition.surfaces`
-  - 备注：GUI and canonical persistence are complete; CLI/TUI controls remain pending.
+  - 测试：`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.ui`、`neoview.page-transition.surfaces`
+  - 计划测试：`neoview.page-transition.tui-surface`
+  - 备注：CLI and GUI controls are complete; TUI controls remain pending.
 - [ ] `page-transition.types` 六种旧版动画类型
-  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：The shared enum preserves none, fade, slide, slideUp, zoom and flip IDs, labels and order.
   - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/stores/pageTransitionStore.svelte.ts`
-  - 测试：`neoview.page-transition.types`、`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.ui`
-  - 计划测试：`neoview.page-transition.surfaces`
-  - 备注：All six IDs, labels and order are shared; CLI/TUI selection surfaces remain pending.
+  - 测试：`neoview.page-transition.types`、`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.ui`、`neoview.page-transition.surfaces`
+  - 计划测试：`neoview.page-transition.tui-surface`
+  - 备注：All six IDs, labels and order are shared; CLI selection is complete and TUI remains pending.
 - [ ] `page-transition.duration` 0..500ms 时长控制
-  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：The GUI exposes 0..500ms in 10ms steps while the shared imported-value codec remains bounded.
   - 源码：`src/lib/cards/info/PageTransitionCard.svelte`
-  - 测试：`neoview.page-transition.bounds`、`neoview.page-transition.slider-commit`、`neoview.page-transition.http`
-  - 计划测试：`neoview.page-transition.surfaces`
-  - 备注：The GUI uses 0..500ms/10ms and commits at interaction end; CLI/TUI remain pending.
+  - 测试：`neoview.page-transition.bounds`、`neoview.page-transition.slider-commit`、`neoview.page-transition.http`、`neoview.page-transition.surfaces`
+  - 计划测试：`neoview.page-transition.tui-surface`
+  - 备注：The GUI uses 0..500ms/10ms; CLI uses the same 0..500ms boundary and TUI remains pending.
 - [ ] `page-transition.easing` 七种旧版缓动
-  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：The shared enum and CSS projection preserve all seven easing IDs, labels, order and cubic-bezier values.
   - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/stores/pageTransitionStore.svelte.ts`
-  - 测试：`neoview.page-transition.easing`、`neoview.page-transition.css`、`neoview.page-transition.http`、`neoview.page-transition.ui`
-  - 计划测试：`neoview.page-transition.surfaces`
-  - 备注：All seven IDs and exact CSS values are shared; CLI/TUI remain pending.
+  - 测试：`neoview.page-transition.easing`、`neoview.page-transition.css`、`neoview.page-transition.http`、`neoview.page-transition.ui`、`neoview.page-transition.surfaces`
+  - 计划测试：`neoview.page-transition.tui-surface`
+  - 备注：All seven IDs and exact CSS values are shared; CLI selection is complete and TUI remains pending.
 - [x] `page-transition.preview` Card 内无副作用预览
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Hover preview uses current duration/easing and never navigates, requests media or changes Reader session.
@@ -3086,26 +3086,26 @@
   - 计划测试：无
   - 备注：Runtime suppression leaves the persisted enabled preference unchanged.
 - [ ] `page-transition.reset` 一次恢复全部默认值
-  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：One explicit reset restores all four defaults and commits exactly one canonical mutation.
   - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/stores/pageTransitionStore.svelte.ts`
-  - 测试：`neoview.page-transition.reset`、`neoview.page-transition.http`、`neoview.page-transition.ui`
-  - 计划测试：`neoview.page-transition.surfaces`
-  - 备注：GUI reset is one aggregate mutation; CLI/TUI commands remain pending.
+  - 测试：`neoview.page-transition.reset`、`neoview.page-transition.http`、`neoview.page-transition.ui`、`neoview.page-transition.surfaces`
+  - 计划测试：`neoview.page-transition.tui-surface`
+  - 备注：GUI and CLI reset are one aggregate mutation; TUI remains pending.
 - [ ] `page-transition.persistence` 旧 localStorage 一次导入并写入唯一 TOML
-  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：Import neoview-page-transition-settings once and persist only [nodes.neoview.image.page_transition] through strict serialized atomic PATCH with rollback.
   - 源码：`src/lib/stores/pageTransitionStore.svelte.ts`
-  - 测试：`neoview.page-transition.legacy-import`、`neoview.page-transition.toml`、`neoview.page-transition.persistence`、`neoview.page-transition.http`
-  - 计划测试：`neoview.page-transition.persistence-surfaces`
-  - 备注：Legacy localStorage imports once into canonical TOML; CLI/TUI persistence entry points remain pending.
+  - 测试：`neoview.page-transition.legacy-import`、`neoview.page-transition.toml`、`neoview.page-transition.persistence`、`neoview.page-transition.http`、`neoview.page-transition.surfaces`
+  - 计划测试：`neoview.page-transition.persistence-tui`
+  - 备注：Legacy localStorage imports once into canonical TOML; CLI persistence is complete and TUI remains pending.
 - [ ] `page-transition.data-contract` 严格有界共享设置 DTO
-  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：One browser-safe DTO validates booleans, exact enums and bounded duration for GUI, CLI and TUI.
   - 源码：`src/lib/stores/pageTransitionStore.svelte.ts`
-  - 测试：`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.client`、`neoview.page-transition.hydration-race`
-  - 计划测试：`neoview.page-transition.surfaces`
-  - 备注：Domain, HTTP and GUI share one strict DTO; CLI/TUI exposure remains pending.
+  - 测试：`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.client`、`neoview.page-transition.hydration-race`、`neoview.page-transition.surfaces`
+  - 计划测试：`neoview.page-transition.tui-surface`
+  - 备注：Domain, HTTP, GUI and CLI share one strict DTO; TUI exposure remains pending.
 - [ ] `page-transition.states` 加载、条件、提交、错误与回滚状态
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：The Card covers lazy loading, disabled conditional content, preview, pending write, rollback, reset and disposal without stale state.
@@ -3156,12 +3156,12 @@
   - 计划测试：`neoview.page-transition.navigation-performance`、`neoview.page-transition.surface-performance`
   - 备注：O(1) runtime and 3.7/2.0/5.7 KiB deferred chunks are proven; unified navigation and CLI/TUI timings remain pending.
 - [ ] `page-transition.deviations` 记录存储、提交和减少动态效果改进
-  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：Document localStorage-to-TOML migration, slider end-only persistence, failure rollback and reduced-motion suppression while preserving legacy type/easing math and control hierarchy.
   - 源码：`src/lib/stores/pageTransitionStore.svelte.ts`、`src/lib/stackview/layers/CurrentFrameLayer.svelte`
-  - 测试：`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.legacy-import`、`neoview.page-transition.slider-commit`、`neoview.page-transition.reduced-motion`、`neoview.page-transition.persistence`
-  - 计划测试：`neoview.page-transition.surfaces`
-  - 备注：XR replaces localStorage with TOML, end-only slider writes and reduced-motion suppression while preserving legacy math.
+  - 测试：`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.legacy-import`、`neoview.page-transition.slider-commit`、`neoview.page-transition.reduced-motion`、`neoview.page-transition.persistence`、`neoview.page-transition.surfaces`
+  - 计划测试：`neoview.page-transition.tui-surface`
+  - 备注：XR replaces localStorage with TOML, end-only slider writes and reduced-motion suppression; CLI uses the same strict persistence contract and TUI remains pending.
 
 #### `animatedVideoMode` 动图视频模式
 
@@ -3286,8 +3286,8 @@
   - 六维：`core=C transport=C gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：The Card has one in-flight operation, disables duplicate commands, distinguishes initial loading, unavailable 501, temporary 503, success and sanitized failure states, aborts work on unmount and ignores stale completions.
   - 源码：`src/lib/components/panels/emm/ThumbnailDbMaintenanceCard.svelte`
-  - 测试：`neoview.thumbnail.maintenance-cancel-service`、`neoview.thumbnail.maintenance-cancel-http`、`neoview.thumbnail-maintenance.card`、`neoview.thumbnail-maintenance.card-lifecycle`、`neoview.thumbnail-maintenance.e2e`
-  - 计划测试：`neoview.thumbnail-maintenance.cancel-ui`
+  - 测试：`neoview.thumbnail.maintenance-cancel-service`、`neoview.thumbnail.maintenance-cancel-http`、`neoview.thumbnail-maintenance.card`、`neoview.thumbnail-maintenance.card-lifecycle`、`neoview.thumbnail-maintenance.cancel-ui`、`neoview.thumbnail-maintenance.e2e`
+  - 计划测试：无
   - 备注：There is no interval polling; refresh is initial-load, explicit-command and explicit-refresh only.
 - [ ] `thumbnail-maintenance.data-boundary` 沿用唯一 NeoView 兼容数据库与共享 writer
   - 六维：`core=C transport=C gui=C cli=C tui=N/A evidence=P`；阻塞：`evidence`
@@ -3638,7 +3638,7 @@
 | `upscaleStatus` | 处理状态 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleStatusCard.svelte` | 超分模型、预览、队列、缓存与保存 |
 | `upscaleCache` | 缓存管理 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleCacheCard.svelte` | 超分模型、预览、队列、缓存与保存 |
 | `upscaleConditions` | 条件超分 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleConditionsCard.svelte` | 超分模型、预览、队列、缓存与保存 |
-| `progressiveUpscale` | 预超分 | deferred | partial | `core=C transport=P gui=- cli=P tui=- evidence=P` | `src/lib/cards/upscale/ProgressiveUpscaleCard.svelte` | 超分模型、预览、队列、缓存与保存 |
+| `progressiveUpscale` | 预超分 | deferred | partial | `core=C transport=P gui=- cli=P tui=P evidence=P` | `src/lib/cards/upscale/ProgressiveUpscaleCard.svelte` | 超分模型、预览、队列、缓存与保存 |
 
 #### `upscaleControl` 超分控制
 
@@ -3799,12 +3799,12 @@
   - 计划测试：无
   - 备注：The canonical page policy plans once before resolving the opaque artifact fingerprint; preload warms the injected streaming store without exposing a raw destination, and authenticated HTTP returns only a session-scoped opaque digest URL. Remote headless validates artifact/outcome and preload DTO discriminants before publishing them to CLI consumers.
 - [ ] `progressive-upscale.cache` Bounded upscale artifact cache
-  - 六维：`core=C transport=C gui=- cli=- tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=- cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Replace the legacy unbounded in-memory Blob map and PyO3 cache with one streaming, byte-budgeted artifact store supporting fingerprint invalidation, current-book/age/all cleanup, stats and opaque asset leases without reading high-resolution outputs wholly into JS memory.
   - 源码：`src/lib/core/preloadPipeline.ts`、`src/lib/cards/upscale/UpscaleCacheCard.svelte`
-  - 测试：`neoview.super-resolution.artifact-stream-lease`、`neoview.super-resolution.artifact-maintenance`、`neoview.super-resolution.artifact-dedup-accounting`、`neoview.super-resolution.artifact-streaming-rss`、`neoview.super-resolution.artifact-demand-cancel`、`neoview.super-resolution.artifact-corrupt`、`neoview.super-resolution.preload-http`
-  - 计划测试：`neoview.super-resolution.cache-controls`
-  - 备注：A dedicated cacache streaming store provides byte/age/book/all maintenance, integrity validation, atomic publication, demand-counted singleflight and opaque read leases. Authenticated HTTP streams those leases with ETag/HEAD/cancel semantics; user-facing controls remain pending.
+  - 测试：`neoview.super-resolution.artifact-stream-lease`、`neoview.super-resolution.artifact-maintenance`、`neoview.super-resolution.artifact-dedup-accounting`、`neoview.super-resolution.artifact-streaming-rss`、`neoview.super-resolution.artifact-demand-cancel`、`neoview.super-resolution.artifact-corrupt`、`neoview.super-resolution.preload-http`、`neoview.super-resolution.cache-controls-http`、`neoview.super-resolution.cache-controls-remote`、`neoview.super-resolution.cache-controls-cli`、`neoview.super-resolution.cache-controls.tui`、`neoview.super-resolution.cache-controls.tui.cancel`、`neoview.super-resolution.cache-controls.tui.launch`
+  - 计划测试：`neoview.super-resolution.cache-controls-gui`
+  - 备注：A dedicated cacache streaming store provides byte/age/book/all maintenance, integrity validation, atomic publication, demand-counted singleflight and opaque read leases. The authenticated session route exposes strict stats and confirmed age/current-book/all maintenance; current-book is resolved to the opaque book ID only inside the backend. Remote Headless validates the complete wire DTO with Zod, while --connect CLI and OpenTUI reuse the running store and refuse local/offline cache ownership. OpenTUI marks every mutation destructive, forwards cancellation and closes each temporary remote session exactly once. GUI controls remain pending.
 - [ ] `progressive-upscale.lifecycle` Open, navigation, release and dispose lifecycle
   - 六维：`core=C transport=C gui=- cli=- tui=- evidence=C`；阻塞：`gui`、`cli`、`tui`
   - 目标：Start only after an enabled plan/dwell, cancel on navigation or session release, await active work during dispose, release archive inputs and provider processes, and leave zero timers/tasks after the Reader closes.
@@ -4229,13 +4229,13 @@
   - 测试：`neoview.history.card`、`neoview.history.batch-remove`、`neoview.history.context-actions`、`neoview.history.context-actions-e2e`、`neoview.history.thumbnail-reload-e2e`、`neoview.library.http`、`neoview.history.thumbnail-e2e`
   - 计划测试：无
   - 备注：Single/double-click and explicit resume plus confirmed single/batch history removal exist. A second-level lazy context menu now reuses authenticated host actions for system-open, reveal, copy path/name, add-bookmark and isolated thumbnail reload while preserving the shared Folder-style entry and thumbnail surfaces. Browse/new-tab, tree pin and tag editing remain pending.
-- [ ] `history.cleanup` 清理失效、最旧、过期、目录与全部历史
-  - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+- [x] `history.cleanup` 清理失效、最旧、过期、目录与全部历史
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：Bounded, cancellable cleanup supports confirmed missing paths, oldest count, timestamp cutoff, folder scope and clear-all without deleting unrelated progress or bookmarks.
   - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte`、`src/lib/components/panels/folderPanel/components/FolderToolbar/CleanupOptionsDialog.svelte`、`src/lib/stores/unifiedHistory.svelte.ts`
-  - 测试：`neoview.library.cleanup-invalid`、`neoview.library.cleanup-cancel`、`neoview.library.cli`、`neoview.history.cleanup-oldest`、`neoview.history.cleanup-oldest-cancel`、`neoview.history.cleanup-oldest-http`、`neoview.history.cleanup-oldest-composition`、`neoview.library.cleanup-folder`、`neoview.library.cleanup-folder-sqlite`、`neoview.library.advanced-cleanup`、`neoview.history.cleanup-state-sqlite`、`neoview.bookmark.advanced-cleanup-sqlite`、`neoview.history.cleanup-e2e`、`neoview.history.cleanup-client`、`neoview.history.cleanup-gui`、`neoview.history.cleanup-folder-gui`、`neoview.history.cleanup-cancel-gui`、`neoview.history.cleanup-lazy-chunk`
+  - 测试：`neoview.library.cleanup-invalid`、`neoview.library.cleanup-cancel`、`neoview.library.cli`、`neoview.library.tui`、`neoview.history.cleanup-headless`、`neoview.history.cleanup-cli`、`neoview.history.cleanup-tui`、`neoview.history.cleanup-tui-cancel`、`neoview.history.cleanup-oldest`、`neoview.history.cleanup-oldest-cancel`、`neoview.history.cleanup-oldest-http`、`neoview.history.cleanup-oldest-composition`、`neoview.library.cleanup-folder`、`neoview.library.cleanup-folder-sqlite`、`neoview.library.advanced-cleanup`、`neoview.history.cleanup-state-sqlite`、`neoview.bookmark.advanced-cleanup-sqlite`、`neoview.history.cleanup-e2e`、`neoview.history.cleanup-client`、`neoview.history.cleanup-gui`、`neoview.history.cleanup-folder-gui`、`neoview.history.cleanup-cancel-gui`、`neoview.history.cleanup-lazy-chunk`
   - 计划测试：无
-  - 备注：Core and authenticated HTTP cover bounded cancellable invalid-path and timestamp-cutoff cleanup, atomic deterministic oldest-count cleanup, legacy case-insensitive raw folder-prefix cleanup, and confirmed clear-all. The independently lazy React dialog preserves the legacy count/day/folder/all controls, adds invalid-path cleanup, requires confirmation, exposes pending/cancel/result/error states, reuses the host directory picker and refreshes only after success. Desktop and 420x360 Chromium prove the real route and stable Reader image; explicit CLI/TUI cleanup controls remain pending.
+  - 备注：Core and authenticated HTTP cover bounded cancellable invalid-path and timestamp-cutoff cleanup, atomic deterministic oldest-count cleanup, legacy case-insensitive raw folder-prefix cleanup, and confirmed clear-all. The independently lazy React dialog preserves the legacy count/day/folder/all controls, adds invalid-path cleanup, requires confirmation, exposes pending/cancel/result/error states, reuses the host directory picker and refreshes only after success. Desktop and 420x360 Chromium prove the real route and stable Reader image. CLI and OpenTUI now expose confirmed timestamp, oldest-count, folder, clear-all and invalid-path cleanup through the same Headless controller; OpenTUI cancellation aborts oldest cleanup before its atomic transaction starts.
 - [ ] `history.sync-folder` 同步历史选择到文件夹 Panel
   - 六维：`core=N/A transport=N/A gui=- cli=- tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：A default-off History-specific toggle optionally reveals the selected source parent in the shared folder surface without changing the history source or opening duplicate sessions.
@@ -4254,7 +4254,7 @@
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Stable loading, empty, request error, action error, retry, cleanup pending/result and invalid-path states retain usable rows when optional thumbnail or metadata work fails.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/virtualPathLoader.ts`、`src/lib/stores/unifiedHistory.svelte.ts`
-  - 测试：`neoview.history.card`、`neoview.library.lifecycle`
+  - 测试：`neoview.history.card`、`neoview.library.lifecycle`、`neoview.history.inactive-zero-work`、`neoview.history.empty`、`neoview.history.focus-refresh`
   - 计划测试：`neoview.history.states`、`neoview.history.e2e`
   - 备注：React has empty, request error, refresh and action error states; retry, partial thumbnail/metadata and cleanup feedback are incomplete.
 - [ ] `history.persistence` 迁移业务历史并持久化独立视图设置
@@ -4282,14 +4282,14 @@
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Rows, search, view/filter controls, menus, selection and destructive dialogs are keyboard/touch operable with accessible names, input guards, visible focus and focus restoration.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`
-  - 测试：`neoview.history.card`、`neoview.history.selection`、`neoview.history.selection-keyboard`、`neoview.history.thumbnail-e2e`
+  - 测试：`neoview.history.card`、`neoview.history.selection`、`neoview.history.selection-keyboard`、`neoview.history.focus-refresh`、`neoview.history.thumbnail-e2e`
   - 计划测试：无
   - 备注：The multiselect list and named selection controls support Space/Enter, grid-aware arrows, Home/End, Ctrl/Cmd+A, Delete and Escape. Focus returns to the same stable item after view changes; search focus, keyboard context menus and dialog-close focus restoration remain pending.
 - [ ] `history.ui-parity` 保持旧版历史信息密度与响应式几何
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Progress, time, read/bookmark state, folder-style media hierarchy and toolbar density remain readable at desktop and 420x360 without overlap or horizontal overflow.
   - 源码：`src/lib/cards/history/HistoryListCard.svelte`、`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`
-  - 测试：`neoview.history.views`、`neoview.history.thumbnail-e2e`、`neoview.history.selection`
+  - 测试：`neoview.history.views`、`neoview.history.thumbnail-e2e`、`neoview.history.selection`、`neoview.history.ui-1920x1080`
   - 计划测试：无
   - 备注：Desktop and 420x360 Chromium prove compact/content rows, two-column banners and three-column thumbnails preserve cover media, progress hierarchy, selection density and zero horizontal overflow; read/bookmark badges and the full toolbar remain pending.
 - [ ] `history.performance` 有界分页、DOM、缩略图、清理与独立 chunk
@@ -4657,13 +4657,13 @@
   - 测试：`neoview.bookmark.card`、`neoview.library.bookmarks`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.context-actions`、`neoview.bookmark.context-capabilities`、`neoview.bookmark.context-actions-e2e`、`neoview.bookmark.thumbnail-refresh-client`、`neoview.thumbnail.library-register-refresh`、`neoview.bookmark.thumbnail-reload-e2e`
   - 计划测试：无
   - 备注：Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides copy path/name, system-open, Explorer reveal and bounded single-source thumbnail reload with capability-aware disabled states. Rename, tags and new-tab actions remain pending.
-- [ ] `bookmark.batch-edit` 批量编辑书签与列表成员关系
-  - 六维：`core=C transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
+- [x] `bookmark.batch-edit` 批量编辑书签与列表成员关系
+  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：Selected bookmarks can be added to multiple lists or removed through one bounded operation.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/stores/bookmark.svelte.ts`
-  - 测试：`neoview.bookmark.batch-contract`、`neoview.bookmark.batch-delete`、`neoview.bookmark.batch-edit`、`neoview.bookmark.thumbnail-e2e`
+  - 测试：`neoview.bookmark.batch-contract`、`neoview.bookmark.batch-delete`、`neoview.bookmark.batch-edit`、`neoview.bookmark.batch-headless`、`neoview.bookmark.batch-cli`、`neoview.bookmark.batch-tui`、`neoview.library.cli`、`neoview.library.tui`、`neoview.bookmark.thumbnail-e2e`
   - 计划测试：无
-  - 备注：GUI sends one bounded authenticated request for multi-list membership and one for confirmed delete; explicit CLI/TUI batch commands remain pending.
+  - 备注：GUI, CLI and OpenTUI reuse one bounded application operation for exact multi-list membership and one atomic operation for confirmed delete. CLI uses repeatable --id/--list values; OpenTUI accepts explicit comma-separated ID fields and forwards its run cancellation signal. All validation, custom-list existence checks, duplicate rejection and the 500-item limit remain in ReaderLibraryService.
 - [ ] `bookmark.data-contract` GUI/CLI/TUI 共用书签契约
   - 六维：`core=C transport=N/A gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：All surfaces share canonical source identity, list membership, favorite state and timestamps without a second bookmark store.
@@ -4675,7 +4675,7 @@
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Stable loading, empty, request error, action error, retry and invalid-path states retain existing rows when optional thumbnails fail.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`
-  - 测试：`neoview.library.lifecycle`、`neoview.bookmark.active-list-fallback`、`neoview.bookmark.active-list-rollback`
+  - 测试：`neoview.library.lifecycle`、`neoview.bookmark.active-list-fallback`、`neoview.bookmark.active-list-rollback`、`neoview.bookmark.inactive-zero-work`、`neoview.bookmark.empty`
   - 计划测试：无
   - 备注：Initial list-directory loading has a bounded skeleton, invalid persisted list IDs fall back before any bookmark query, and a failed preference write restores the confirmed list with an alert. Invalid source-path presentation and independent thumbnail failure remain partial.
 - [ ] `bookmark.persistence` 持久化列表、活动筛选与 Card 布局
@@ -4703,14 +4703,14 @@
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：List tabs, rows, selection, menus and destructive confirmations are keyboard/touch operable with stable accessible names.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/utils/keyboardHandler.ts`
-  - 测试：`neoview.bookmark.card`、`neoview.bookmark.context-actions`、`neoview.bookmark.context-capabilities`、`neoview.bookmark.context-actions-e2e`
+  - 测试：`neoview.bookmark.card`、`neoview.bookmark.context-actions`、`neoview.bookmark.context-capabilities`、`neoview.bookmark.context-actions-e2e`、`neoview.bookmark.focus-restoration`
   - 计划测试：无
-  - 备注：Rows and context actions have stable accessible names, destructive removal uses the shared confirmation contract, and desktop/card Chromium exercise the real pointer menu. Shift+F10 and post-confirm focus restoration remain pending.
+  - 备注：Rows and context actions have stable accessible names, destructive removal uses the shared confirmation contract, and desktop/card Chromium exercise the real pointer menu. The active custom-list delete path now restores focus to the all-list tab after confirmation; Shift+F10 remains pending.
 - [x] `bookmark.ui-parity` 保持旧版文件条目信息密度
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Folder-style thumbnails, title/path hierarchy, action density and selection states fit desktop and 420x360 Cards without overlap.
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
-  - 测试：`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.selection`、`neoview.bookmark.context-actions-e2e`
+  - 测试：`neoview.bookmark.view-modes`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.selection`、`neoview.bookmark.context-actions-e2e`、`neoview.bookmark.ui-1920x1080`
   - 计划测试：无
   - 备注：Desktop and 420x360 Chromium cover compact/content rows, two-column banners and three-column thumbnails with cover fit, shared selection state, host context actions, stable Reader media and zero horizontal overflow.
 - [ ] `bookmark.performance` 有界 DOM、可见缩略图与独立 chunk
@@ -5451,72 +5451,72 @@
   - 六维：`core=C transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：All legacy core and provider actions map to stable XR IDs; devices and radial slots reference the same catalog without embedding callbacks in persisted data.
   - 源码：`src/lib/actions/actionRegistry.ts`、`src/lib/stores/keybindings/keyMappings.svelte.ts`
-  - 测试：`neoview.bindings.action-catalog`、`neoview.bindings.action-executor`、`neoview.bindings.action-executor-react`、`neoview.bindings.video-actions`、`neoview.bindings.video-actions-react`、`neoview.bindings.video-controller`、`neoview.bindings.video-surface`、`neoview.bindings.adjacent-book-client`、`neoview.control.adjacent-book`、`neoview.control.adjacent-book-rollback`、`neoview.bindings.action-dispatch-headless`、`neoview.bindings.action-dispatch-capability`、`neoview.bindings.action-dispatch-cli`、`neoview.bindings.action-dispatch-tui`、`neoview.bindings.action-capability`、`neoview.bindings.context-routing`、`neoview.bindings.config`
-  - 计划测试：无
-  - 备注：All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The GUI executor closes page/adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial, slideshow and all 11 video actions. Video actions control the registered native HTMLVideoElement, retain multiple bindings per action, use configured playback-rate bounds and preserve legacy seek-mode page-action remapping. CLI/TUI dispatch share a capability-aware headless executor for page/directional/adjacent navigation and close, while returning explicit unsupported results for GUI-only actions. Destructive file, upscale, remaining viewer toggles and dynamic Card actions remain pending.
+  - 测试：`neoview.bindings.action-catalog`、`neoview.bindings.action-executor`、`neoview.bindings.action-executor-react`、`neoview.bindings.video-actions`、`neoview.bindings.video-actions-react`、`neoview.bindings.video-controller`、`neoview.bindings.video-surface`、`neoview.video.lifecycle-react`、`neoview.bindings.video-player-e2e`、`neoview.bindings.adjacent-book-client`、`neoview.control.adjacent-book`、`neoview.control.adjacent-book-rollback`、`neoview.bindings.action-dispatch-headless`、`neoview.bindings.action-dispatch-capability`、`neoview.bindings.action-dispatch-cli`、`neoview.bindings.action-dispatch-tui`、`neoview.bindings.action-capability`、`neoview.bindings.context-routing`、`neoview.bindings.config`、`neoview.bindings.viewer-toggle-provider`
+  - 计划测试：`neoview.bindings.viewer-toggle-page-info`
+  - 备注：All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The GUI executor closes page/adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial, slideshow and all 11 video actions. The settings editor now filters its action selector to the actual GUI provider set, while unsupported registry IDs remain available for migration/reporting and return false rather than inventing state. Persistent page/book/boundary toast and info-overlay toggles now route through their existing atomic stores; the page-info action shares the same viewer toggle provider as the thumbnail-strip button and is covered by React/store tests. Desktop and 420x360 Chromium cover the real binding settings/runtime flow, including context isolation, rollback, import, mouse/wheel/area, gamepad and ray-menu dispatch. Video actions control the registered native HTMLVideoElement, retain multiple bindings per action, use configured playback-rate bounds and preserve legacy seek-mode page-action remapping. The source control hierarchy now composes media-chrome with shadcn controls, restores hover/keyboard visibility, automatic WebVTT subtitles, subtitle styling, throttled progress restore/flush and desktop/420x360 streamed-video evidence. CLI/TUI dispatch share a capability-aware headless executor for page/directional/adjacent navigation and close, while returning explicit unsupported results for GUI-only actions. Manual external subtitle selection, destructive file, upscale, remaining viewer toggles and dynamic Card actions remain pending.
 - [ ] `bindings.context-routing` 按活动操作上下文解析绑定
-  - 六维：`core=C transport=N/A gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=N/A gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Global, reader, video, panel, editor and modal contexts have deterministic priority; editable/IME targets suppress Reader actions and the same input may map differently across contexts.
   - 源码：`src/lib/stores/keybindings/constants.ts`、`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
-  - 测试：`neoview.bindings.context-routing`、`neoview.bindings.dom-context`、`neoview.bindings.keyboard-runtime`、`neoview.bindings.video-surface`、`neoview.bindings.video-actions-react`
+  - 测试：`neoview.bindings.context-routing`、`neoview.bindings.dom-context`、`neoview.bindings.e2e`、`neoview.bindings.keyboard-runtime`、`neoview.bindings.video-surface`、`neoview.bindings.video-actions-react`、`neoview.bindings.video-player-e2e`、`neoview.bindings.context-stack-headless`、`neoview.bindings.context-stack-isolation`、`neoview.bindings.context-stack-cli`、`neoview.bindings.context-stack-tui`
   - 计划测试：无
-  - 备注：The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. The native video surface now advertises the video context and routes multiple bindings plus seek-mode remapping through the shared executor. CLI/TUI context-stack projection remains pending.
+  - 备注：The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. Desktop and 420x360 Chromium prove Reader navigation, binding persistence and editor isolation in the real settings flow. The native video surface advertises the video context, routes multiple bindings plus seek-mode remapping through the shared executor, and preserves interactive media controls in the DOM context at desktop and 420x360; those video/modal edge cases keep GUI evidence partial. Headless, CLI and TUI now consume the same ordered context stack and preserve editor/modal isolation.
 - [ ] `bindings.keyboard` 键盘与修饰键绑定
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Dynamic keyboard bindings use a maintained hotkey engine, preserve physical codes/modifiers, ignore repeat/composition and remain disabled in incompatible contexts.
   - 源码：`src/lib/components/dialogs/KeyBindingPanel.svelte`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
-  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.recording`、`neoview.bindings.keyboard-hold`、`neoview.bindings.keyboard-hold-editor`、`neoview.bindings.keyboard-hold-runtime`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.recording-focus`、`neoview.bindings.keyboard-hold`、`neoview.bindings.keyboard-hold-editor`、`neoview.bindings.keyboard-hold-runtime`
   - 计划测试：无
   - 备注：react-hotkeys-hook owns runtime matching, key-down/key-up lifecycle and capture-phase chord recording. The editor exposes physical codes, modifiers and bounded hold timing; Enter hold opens the radial menu after 450 ms and key-up/blur/unmount cancel pending timers.
 - [ ] `bindings.mouse` 鼠标按键绑定
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Left/middle/right/side buttons and click/double-click/press/hold variants resolve through the same action/context route without stealing unbound pointer input.
   - 源码：`src/lib/components/dialogs/MouseSettingsPanel.svelte`、`src/lib/components/dialogs/MouseKeyRecorder.svelte`
-  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`、`neoview.bindings.mouse-press`、`neoview.bindings.mouse-hold-runtime`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`、`neoview.bindings.mouse-press`、`neoview.bindings.mouse-hold-runtime`、`neoview.bindings.devices-e2e`
   - 计划测试：无
-  - 备注：Buttons 0..7 and click/double-click/press/hold descriptors are editable and routed outside interactive controls. @use-gesture owns pointer recording and configurable hold duration/movement cancellation; Browser pointer evidence remains pending.
+  - 备注：Buttons 0..7 and click/double-click/press/hold descriptors are editable and routed outside interactive controls. @use-gesture owns pointer recording and configurable hold duration/movement cancellation; desktop and 420x360 Chromium prove click and middle-button hold routing, while side-button and recorder evidence remain pending.
 - [ ] `bindings.wheel` 滚轮方向绑定
   - 六维：`core=C transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Up/down wheel gestures and modifiers use the maintained gesture engine and prevent default only when a binding handles the event.
   - 源码：`src/lib/components/dialogs/MouseSettingsPanel.svelte`、`src/lib/components/dialogs/MouseKeyRecorder.svelte`
-  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`、`neoview.bindings.devices-e2e`
   - 计划测试：无
-  - 备注：@use-gesture/react owns runtime and recording; direction and all four modifiers are editable, and interactive controls are excluded. Modifier recording and runtime still require Browser E2E.
+  - 备注：@use-gesture/react owns runtime and recording; direction and all four modifiers are editable, and interactive controls are excluded. Desktop and 420x360 Chromium prove Ctrl+wheel dispatch; modifier recording remains pending.
 - [ ] `bindings.area-click` 九宫格区域点击
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Configurable viewport areas resolve clicks without coupling bindings to pixel coordinates.
   - 源码：`src/lib/components/dialogs/MouseRecordingArea.svelte`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
-  - 测试：`neoview.bindings.area-grid`、`neoview.bindings.area-editor`、`neoview.bindings.area-runtime`
+  - 测试：`neoview.bindings.area-grid`、`neoview.bindings.area-editor`、`neoview.bindings.area-runtime`、`neoview.bindings.devices-e2e`
   - 计划测试：无
-  - 备注：The shared bounded 3x3 geometry, visual selector and Reader pointer route support left/middle/right click, double-click and press with area precedence over generic mouse bindings. Desktop and 420x360 Chromium geometry remain pending.
+  - 备注：The shared bounded 3x3 geometry, visual selector and Reader pointer route support left/middle/right click, double-click and press with area precedence over generic mouse bindings. Desktop and 420x360 Chromium prove top-left area press routing; per-area visual regression remains pending.
 - [ ] `bindings.touch` 触控滑动绑定
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：One-to-three-finger directional swipes, taps and configurable long-press use the maintained gesture engine, respect active context and release all pointer work on unmount.
   - 源码：`src/lib/components/dialogs/GestureSettingsPanel.svelte`、`src/lib/components/dialogs/GestureVisualizer.svelte`
-  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`、`neoview.bindings.touch-hold-runtime`
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`、`neoview.bindings.touch-recording`、`neoview.bindings.touch-recording-e2e`、`neoview.bindings.touch-hold-runtime`
   - 计划测试：无
   - 备注：Directional swipe, tap and configurable long-press descriptors for one to three fingers are editable and routed through @use-gesture/react outside interactive controls; real-device E2E remains pending.
 - [ ] `bindings.mouse-gesture` 鼠标轨迹手势
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Recorded direction sequences match with a bounded gesture engine and visual preview.
   - 源码：`src/lib/components/dialogs/MouseGestureRecorder.svelte`、`src/lib/stackview/layers/GestureLayer.svelte`
-  - 测试：`neoview.bindings.mouse-gesture-core`、`neoview.bindings.mouse-gesture`、`neoview.bindings.mouse-gesture-editor`、`neoview.bindings.mouse-gesture-recording`、`neoview.bindings.mouse-gesture-runtime`
+  - 测试：`neoview.bindings.mouse-gesture-core`、`neoview.bindings.mouse-gesture`、`neoview.bindings.mouse-gesture-editor`、`neoview.bindings.mouse-gesture-recording`、`neoview.bindings.mouse-gesture-runtime`、`neoview.bindings.devices-e2e`
   - 计划测试：无
-  - 备注：@use-gesture owns drag lifecycle while a shared pure quantizer emits at most 16 non-repeating direction segments. The Card supports button, instant/hold trigger, timing, sequence editing and live directional recording preview; real Chromium trajectory evidence remains pending.
+  - 备注：@use-gesture owns drag lifecycle while a shared pure quantizer emits at most 16 non-repeating direction segments. The Card supports button, instant/hold trigger, timing, sequence editing and live directional recording preview; desktop and 420x360 Chromium now prove a configured right/down trajectory dispatch without leaking the middle-button hold action.
 - [ ] `bindings.gamepad` 标准手柄按钮绑定
   - 六维：`core=C transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：XR adds standard Gamepad buttons through a maintained listener, starts polling only when an enabled gamepad binding exists and routes through the same action/context map.
   - 源码：`src/lib/stores/keybindings/types.ts`
-  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`
-  - 计划测试：无
-  - 备注：gamepad.js owns runtime and modal button recording; connection state and Chromium gamepad injection remain pending. This is an XR extension, not legacy parity.
+  - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.device-recording`、`neoview.bindings.gamepad-e2e`
+  - 计划测试：`neoview.bindings.gamepad-connection`
+  - 备注：gamepad.js owns runtime and modal button recording; enabled bindings start polling only while the Reader is active, and desktop plus 420x360 Chromium fixtures inject a standard button press through the shared context executor. The recorder now exposes gamepad.js connected/disconnected state and removes all three listeners on unmount; live recorder-state browser evidence remains pending. This is an XR extension, not legacy parity.
 - [ ] `bindings.radial-menu` 径向菜单配置与运行时
   - 六维：`core=C transport=C gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Menu definitions, slots, trigger binding, hold/toggle mode and hit testing share the action registry and canonical persistence.
   - 源码：`src/lib/components/dialogs/RadialMenuSettingsPanel.svelte`、`src/lib/components/radial/RadialInputLayer.svelte`、`src/lib/stores/radialMenu/core.svelte.ts`
-  - 测试：`neoview.bindings.radial-config`、`neoview.bindings.radial-validation`、`neoview.bindings.radial-legacy-shape`、`neoview.bindings.radial-persistence`、`neoview.bindings.radial-http`、`neoview.bindings.radial-client`、`neoview.bindings.radial-runtime`、`neoview.radial-menu.editor`、`neoview.bindings.keyboard-hold-runtime`
+  - 测试：`neoview.bindings.radial-config`、`neoview.bindings.radial-validation`、`neoview.bindings.radial-legacy-shape`、`neoview.bindings.radial-persistence`、`neoview.bindings.radial-http`、`neoview.bindings.radial-client`、`neoview.bindings.radial-runtime`、`neoview.radial-menu.editor`、`neoview.bindings.keyboard-hold-runtime`、`neoview.bindings.radial-pointer-e2e`
   - 计划测试：无
-  - 备注：All 13 ray-menu TypeScript files are copied byte-for-byte from source revision a4c4e074. React lazily adapts the original NeoViewRayMenu overlay and a complete settings editor covers enablement, menus, three layers, recursive slots, actions/cross-menu jumps, ordering, geometry, preview, reset and independent persistence. Right-button press, one-finger long-press and Enter hold open it; pointer/touch Chromium geometry and legacy toggle-mode evidence remain pending.
+  - 备注：All 13 ray-menu TypeScript files are copied byte-for-byte from source revision a4c4e074. React lazily adapts the original NeoViewRayMenu overlay and a complete settings editor covers enablement, menus, three layers, recursive slots, actions/cross-menu jumps, ordering, geometry, preview, reset and independent persistence. Right-button press, one-finger long-press and Enter hold open it; desktop and 420x360 Chromium prove right-button geometry including empty-menu state, while touch and legacy toggle-mode evidence remain pending.
 - [ ] `bindings.conflicts` 冲突检测、禁用与删除
   - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
   - 目标：Enabled bindings with the same normalized input in one context are blocked; disabled collisions remain editable and every row can be enabled, disabled or deleted.
@@ -5528,9 +5528,9 @@
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Keyboard, pointer, touch and gamepad recorders capture one bounded input with cancel/clear and no action leakage.
   - 源码：`src/lib/components/dialogs/KeyBindingPanel.svelte`、`src/lib/components/dialogs/MouseKeyRecorder.svelte`、`src/lib/components/dialogs/GestureVisualizer.svelte`
-  - 测试：`neoview.bindings.recording`、`neoview.bindings.recording-ime`、`neoview.bindings.device-recording`、`neoview.bindings.mouse-gesture-recording`
-  - 计划测试：无
-  - 备注：react-hotkeys-hook records keyboard chords with IME isolation; @use-gesture/react records pointer, wheel, touch and bounded mouse trajectories with live direction preview; gamepad.js records standard buttons. Real touch and virtual-gamepad Chromium evidence remain pending.
+  - 测试：`neoview.bindings.recording-focus`、`neoview.bindings.recording-ime`、`neoview.bindings.device-recording`、`neoview.bindings.mouse-gesture-recording`
+  - 计划测试：`neoview.bindings.recording`
+  - 备注：react-hotkeys-hook records keyboard chords with IME isolation and restores the triggering control after completion/cancel; @use-gesture/react records pointer, wheel, touch and bounded mouse trajectories with live direction preview; gamepad.js records standard buttons. Desktop Chromium now proves virtual-gamepad dispatch, while real touch recorder evidence remains pending.
 - [ ] `bindings.data-contract` 严格有界多设备 DTO
   - 六维：`core=C transport=N/A gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：A versioned bounded DTO accepts only known actions, contexts and device descriptors, rejects executable fields, duplicate IDs and ambiguous enabled bindings.
@@ -5542,37 +5542,37 @@
   - 六维：`core=C transport=N/A gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Runtime writes only [nodes.neoview.bindings].items through the atomic config store and restores defaults with one command.
   - 源码：`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/radialMenu/core.svelte.ts`
-  - 测试：`neoview.bindings.config`、`neoview.bindings.reset`、`neoview.bindings.reset-ui`、`neoview.bindings.radial-toml-shape`、`neoview.bindings.legacy-import-cli`、`neoview.bindings.config-service`、`neoview.bindings.tui`、`neoview.bindings.config-cli`
+  - 测试：`neoview.bindings.config`、`neoview.bindings.reset`、`neoview.bindings.reset-ui`、`neoview.bindings.radial-toml-shape`、`neoview.bindings.legacy-import-cli`、`neoview.bindings.config-service`、`neoview.bindings.tui`、`neoview.bindings.config-cli`、`neoview.bindings.rollback-e2e`
   - 计划测试：无
-  - 备注：GUI HTTP persists canonical items atomically; CLI list/apply/reset and the terminal interaction inspect/apply/reset use the same strict parser and cross-process-locked config service. Real CLI roundtrips preserve multiple records for one action, while GUI failure rollback browser evidence remains pending.
+  - 备注：GUI HTTP persists canonical items atomically; CLI list/apply/reset and the terminal interaction inspect/apply/reset use the same strict parser and cross-process-locked config service. Real CLI roundtrips preserve multiple records for one action, and desktop Chromium now proves a failed GUI PATCH leaves the edited draft visible without replacing it with the last confirmed configuration.
 - [ ] `bindings.legacy-import` 一次性导入旧绑定与径向菜单
   - 六维：`core=C transport=N/A gui=P cli=C tui=P evidence=P`；阻塞：`gui`、`tui`、`evidence`
   - 目标：Legacy appSettings.keybindings/radialMenus and bindings.keybindings/radial_menus import once with a report and never remain a second runtime store.
   - 源码：`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stores/radialMenu/core.svelte.ts`、`src/lib/cards/settings/BindingsSettingsCard.svelte`
-  - 测试：`neoview.settings.codec`、`neoview.bindings.reset`、`neoview.bindings.legacy-action-conversion`、`neoview.bindings.legacy-action-report`、`neoview.bindings.legacy-conflicts`、`neoview.bindings.legacy-radial`、`neoview.bindings.legacy-radial-report`、`neoview.bindings.legacy-import-transaction`、`neoview.bindings.legacy-import-cli`
+  - 测试：`neoview.settings.codec`、`neoview.bindings.reset`、`neoview.bindings.legacy-action-conversion`、`neoview.bindings.legacy-action-report`、`neoview.bindings.legacy-conflicts`、`neoview.bindings.legacy-radial`、`neoview.bindings.legacy-radial-report`、`neoview.bindings.legacy-import-transaction`、`neoview.bindings.legacy-import-cli`、`neoview.bindings.legacy-import-ui`、`neoview.bindings.legacy-import-e2e`
   - 计划测试：无
-  - 备注：The canonical settings-import transaction converts appSettings and raw localStorage sources for keybindings and radial menus, expands every legacy bindings/contextBindings entry into independent XR records, preserves ambiguous records as disabled, maps global/viewer/videoPlayer contexts and all supported devices, converts menus/layers/recursive slots/cross-menu jumps and legacy action IDs, reports every downgrade, and atomically round-trips through production TOML. A GUI/TUI import projection remains pending.
+  - 备注：The canonical settings-import transaction converts appSettings and raw localStorage sources for keybindings and radial menus, expands every legacy bindings/contextBindings entry into independent XR records, preserves ambiguous records as disabled, maps global/viewer/videoPlayer contexts and all supported devices, converts menus/layers/recursive slots/cross-menu jumps and legacy action IDs, reports every downgrade, and atomically round-trips through production TOML. GUI now exposes inspect-before-import with merge/overwrite, refreshes canonical runtime state, and is covered by desktop/420x360 Chromium inspect/import flows; TUI import projection remains pending.
 - [ ] `bindings.states` 搜索、空、冲突、保存与错误状态
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：The editor exposes search/filter, empty, enabled/disabled, conflict, saving, success, failure and reset states without replacing the confirmed runtime configuration on failure.
   - 源码：`src/lib/components/dialogs/UnifiedBindingPanel.svelte`
-  - 测试：`neoview.bindings.editor`、`neoview.bindings.conflict-ui`、`neoview.bindings.reset-ui`、`neoview.bindings.e2e`
+  - 测试：`neoview.bindings.editor`、`neoview.bindings.conflict-ui`、`neoview.bindings.reset-ui`、`neoview.bindings.e2e`、`neoview.bindings.rollback-e2e`
   - 计划测试：无
-  - 备注：Core states and real PATCH success are covered in Chromium; interactive recording states and failed HTTP rollback E2E remain pending.
+  - 备注：Core states, real PATCH success and failed HTTP rollback are covered in Chromium; interactive recording state and its focus restoration remain pending.
 - [ ] `bindings.accessibility` 输入保护与无障碍等价操作
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Every row/control is named and keyboard operable; editor, IME and recording contexts suppress Reader actions; touch/mouse-only operations have accessible equivalents.
   - 源码：`src/lib/components/dialogs/UnifiedBindingPanel.svelte`、`src/lib/components/dialogs/KeyBindingPanel.svelte`
-  - 测试：`neoview.bindings.dom-context`、`neoview.bindings.editor`
+  - 测试：`neoview.bindings.dom-context`、`neoview.bindings.editor`、`neoview.bindings.recording-focus`、`neoview.bindings.e2e`
   - 计划测试：无
-  - 备注：Native controls and DOM context suppression are covered; focus restoration, recorder capture and screen-reader E2E remain pending.
+  - 备注：Native controls, DOM context suppression and keyboard/device recorder focus restoration are covered by component tests plus desktop/420x360 settings E2E; screen-reader E2E and real touch recorder capture remain pending.
 - [ ] `bindings.lifecycle` 按需监听并完整释放
   - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：One keyboard listener and one gesture route are stable; gamepad polling exists only with enabled bindings and all listener/gesture/recording work stops on unmount or hidden document.
   - 源码：`src/lib/stores/keybindings/core.svelte.ts`、`src/lib/stackview/layers/GestureLayer.svelte`、`src/lib/components/radial/RadialInputLayer.svelte`
-  - 测试：`neoview.bindings.dom-context`、`neoview.bindings.keyboard-hold-runtime`、`neoview.bindings.radial-runtime`、`neoview.bindings.video-lifecycle`
+  - 测试：`neoview.bindings.dom-context`、`neoview.bindings.keyboard-hold-runtime`、`neoview.bindings.radial-runtime`、`neoview.bindings.video-lifecycle`、`neoview.video.lifecycle-react`、`neoview.bindings.video-player-e2e`
   - 计划测试：无
-  - 备注：Framework adapters clean up on unmount, keyboard hold timers cancel on key-up/blur/config replacement, the copied ray-menu removes its global listeners on close, gamepad is conditionally loaded, and the external video controller releases ended listeners while falling back across mounted double-page videos. Focused listener-count and visibility E2E remain pending.
+  - 备注：Framework adapters clean up on unmount, keyboard hold timers cancel on key-up/blur/config replacement, the copied ray-menu removes its global listeners on close, and gamepad is conditionally loaded. The external video controller releases ended listeners while falling back across mounted double-page videos; page-scoped subtitle/progress requests abort on replacement, progress writes throttle to five seconds and flush durably on end/unmount, while real Chromium proves hover visibility at desktop and 420x360. A full-system listener-count E2E remains pending.
 - [x] `bindings.shell` 延迟设置 Card 与旧层级
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Operations Binding remains a deferred Settings Card with the legacy search/filter/list hierarchy and no Reader-entry editor code.

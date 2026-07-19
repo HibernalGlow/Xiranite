@@ -50,6 +50,8 @@ import { projectReaderBookInformation } from "./domain/book/BookInformationProje
 import { projectReaderTimeInformation } from "./domain/page/TimeInformationProjection.js"
 import { commitNeoviewConfig } from "./platform/config/NeoviewConfigStore.js"
 import { loadNeoviewRuntimeConfig } from "./platform/config/loadNeoviewRuntimeConfig.js"
+import { loadReaderBackupScheduleConfig } from "./platform/backup/ReaderBackupScheduleConfig.js"
+import { ReaderBackupScheduleRunner } from "./platform/backup/ReaderBackupScheduleRunner.js"
 import { parseNeoviewBookmarkListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig } from "./application/config/ReaderRuntimeConfig.js"
 import { formatReaderPageTransition, type ReaderPageTransitionPatch } from "./page-transition.js"
 import type { ReaderInputBinding, ReaderInputContext, ReaderInputDescriptor } from "./domain/input/ReaderInputBindings.js"
@@ -75,7 +77,7 @@ const COMMANDS = new Set([
   "input-bindings-list", "input-bindings-apply", "input-bindings-reset",
   "book-settings-get", "book-settings-set", "book-settings-legacy-inspect", "book-settings-legacy-import",
   "settings-export", "settings-portable-inspect", "settings-portable-import",
-  "settings-backup",
+  "settings-backup", "settings-backup-scheduled",
   "settings-backup-inspect", "settings-backup-restore",
   "reader-data-inspect", "reader-data-import",
   "search-history-inspect", "search-history-import",
@@ -372,6 +374,11 @@ export async function runProgram(
     await runSettingsBackup(resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
     return
   }
+  if (command === "settings-backup-scheduled") {
+    if (parsed.positionals.length) throw usage("settings-backup-scheduled does not accept a destination directory.")
+    await runSettingsBackupScheduled(parsed, host, dependencies)
+    return
+  }
   if (command === "settings-backup-inspect" || command === "settings-backup-restore") {
     if (parsed.positionals.length !== 1) throw usage(`${command} requires exactly one backup bundle directory.`)
     await runSettingsBackupRead(command, resolve(host.cwd, parsed.positionals[0]!), parsed, host, dependencies)
@@ -599,6 +606,10 @@ function validateCommandOptions(command: string, parsed: ParsedArguments): void 
     return
   }
   if (command === "settings-backup") {
+    rejectOptions(parsed, new Set(["--yes", "--config", "--database", "--json"]))
+    return
+  }
+  if (command === "settings-backup-scheduled") {
     rejectOptions(parsed, new Set(["--yes", "--config", "--database", "--json"]))
     return
   }
@@ -1804,6 +1815,7 @@ function thumbnailMaintenancePlan(command: string, parsed: ParsedArguments): Thu
   }
   if (kind === "invalid") {
     if (parsed.values.has("--days")) throw usage("--days is only valid with --kind expired.")
+    if (parsed.values.has("--prefix")) throw usage("--prefix is only valid with --kind path-prefix.")
     const limit = integerOption(parsed, "--limit", 1, 500, 500)
     return { kind, limit, scanLimit: integerOption(parsed, "--scan-limit", 1, 2_000, 500) }
   }
@@ -1817,6 +1829,7 @@ function thumbnailMaintenancePlan(command: string, parsed: ParsedArguments): Thu
   }
   const limit = integerOption(parsed, "--limit", 1, 1_000, 500)
   if (parsed.values.has("--scan-limit")) throw usage("--scan-limit is only valid with --kind invalid.")
+  if (parsed.values.has("--prefix")) throw usage("--prefix is only valid with --kind path-prefix.")
   if (kind === "empty") {
     if (parsed.values.has("--days")) throw usage("--days is only valid with --kind expired.")
     return { kind, limit }
@@ -2329,6 +2342,40 @@ async function runSettingsBackup(
   }
   if (parsed.booleans.has("--json")) writeJson(host, output)
   else writeLine(host, `NeoView backup created: ${destination} (${output.settingsBytes + output.databaseBytes} bytes)`)
+}
+
+async function runSettingsBackupScheduled(
+  parsed: ParsedArguments,
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (!parsed.booleans.has("--yes")) throw usage("settings-backup-scheduled requires --yes because it creates and prunes automatic backup bundles.")
+  const options = { configPath: oneValue(parsed, "--config"), cwd: host.cwd, env: host.env }
+  const schedule = await loadReaderBackupScheduleConfig(options)
+  if (!schedule.enabled) {
+    const output = { status: "disabled" as const }
+    if (parsed.booleans.has("--json")) writeJson(host, output)
+    else writeLine(host, "Automatic NeoView backups are disabled.")
+    return
+  }
+  const service = await (dependencies.createBackupBundleService ?? createReaderBackupBundleService)({
+    ...options,
+    thumbnailDatabasePath: oneValue(parsed, "--database"),
+  })
+  const result = await new ReaderBackupScheduleRunner(schedule, service).runIfDue()
+  if (parsed.booleans.has("--json")) {
+    writeJson(host, result)
+    return
+  }
+  if (result.status === "created") {
+    writeLine(host, `Automatic NeoView backup created (${result.pruned} old bundle(s) pruned).`)
+    return
+  }
+  if (result.status === "not-due") {
+    writeLine(host, `Automatic NeoView backup is not due until ${new Date(result.dueAt).toISOString()}.`)
+    return
+  }
+  writeLine(host, "Automatic NeoView backup skipped because another scheduled run holds the lock.")
 }
 
 async function runSettingsBackupRead(
@@ -2844,6 +2891,7 @@ function formatCliHelp(): string {
     "  settings-portable-inspect <json>  Validate a portable Xiranite settings export",
     "  settings-portable-import <json>   Import a portable settings export",
     "  settings-backup <directory>        Create a verified settings + thumbnails.db bundle",
+    "  settings-backup-scheduled          Run one configured automatic backup check (--yes)",
     "  settings-backup-inspect <directory> Verify a backup bundle without mutation",
     "  settings-backup-restore <directory> Restore offline with explicit quarantine",
     "  book-settings-get <book>            Read inherited/effective per-book settings",

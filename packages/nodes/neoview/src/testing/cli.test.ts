@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { describe, expect, it, vi } from "vitest"
@@ -948,6 +948,52 @@ describe("NeoView CLI", () => {
       databaseQuickCheck: "ok",
       originalQuarantined: true,
     })
+  })
+
+  it("[neoview.settings.backup-scheduled-cli] runs one due configured backup and requires confirmation", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-scheduled-backup-cli-"))
+    const configPath = join(directory, "xiranite.config.toml")
+    const automaticRoot = join(directory, "automatic")
+    const createdAt = new Map<string, number>()
+    const create = vi.fn(async (destinationPath: string) => {
+      await mkdir(destinationPath)
+      createdAt.set(destinationPath, 123)
+      return { destinationPath, manifest: {} }
+    })
+    const inspect = vi.fn(async (bundlePath: string) => ({
+      bundlePath,
+      manifest: {
+        format: "Xiranite/NeoViewBackup" as const,
+        version: 1 as const,
+        createdAt: createdAt.get(bundlePath)!,
+        settings: { name: "settings.json", bytes: 1, sha256: "a".repeat(64), format: "Xiranite/NeoViewConfig" as const, version: 1 as const, omittedSensitivePaths: [] },
+        database: { name: "thumbnails.db", bytes: 1, sha256: "b".repeat(64), compatibility: "current", quickCheck: "ok" as const },
+      },
+      settings: { format: "Xiranite/NeoViewConfig" as const, version: 1 as const, exportedAt: 123, nodeConfig: {}, omittedSensitivePaths: [] },
+      database: { sourcePath: bundlePath, verifiedPath: bundlePath, bytes: 1, compatibility: "current" as const, quickCheck: "ok" as const },
+    }))
+    const dependencies = { ...testPlatformDependencies, createBackupBundleService: async () => ({ create, inspect, restore: vi.fn() }) }
+    try {
+      await writeFile(configPath, [
+        "[nodes.neoview.backup]",
+        "enabled = true",
+        'directory = "automatic"',
+        "interval_hours = 6",
+        "retain_count = 2",
+        "",
+      ].join("\n"), "utf8")
+      await expect(runProgram(["settings-backup-scheduled", "--config", configPath], host([]), dependencies)).rejects.toThrow("requires --yes")
+      const output: unknown[] = []
+      await runProgram(["settings-backup-scheduled", "--config", configPath, "--yes", "--json"], host(output), dependencies)
+      expect(JSON.parse(output.join(""))).toMatchObject({ status: "created", createdAt: 123, pruned: 0 })
+      expect(create).toHaveBeenCalledOnce()
+      expect(String(create.mock.calls[0]?.[0]).replace(/\\/g, "/")).toContain("/automatic/xiranite-neoview-auto-")
+      const bundles = await readdir(automaticRoot)
+      expect(bundles).toHaveLength(1)
+      expect(await readFile(join(automaticRoot, bundles[0]!, ".xiranite-neoview-auto-backup.json"), "utf8")).toContain("Xiranite/NeoViewAutoBackup")
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   it("[neoview.reader-data.cli] previews safely and requires confirmation before shared-store import", async () => {

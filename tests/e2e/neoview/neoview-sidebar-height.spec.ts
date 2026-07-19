@@ -31,3 +31,19 @@ test("[neoview.sidebar-height.ui-1920x1080] [neoview.sidebar-height.geometry] pr
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
   await page.screenshot({ path: "output/playwright/neoview-sidebar-height-interaction-1920x1080.png", fullPage: false })
 })
+
+test("[neoview.sidebar-height.visual-constrained] reflows the geometry editor at Card width without losing controls", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 420, height: 360 })
+  await page.route(/^https:\/\/fonts\.(?:googleapis|gstatic)\.com\//, (route) => route.abort())
+  await page.goto("/tests/e2e/neoview/neoview-sidebar-height-harness.html", { waitUntil: "domcontentloaded" })
+  await expect(page).toHaveTitle("NeoView Sidebar Height Harness")
+
+  const editor = page.locator('[data-neoview-card="sidebar-height"]')
+  await expect(editor).toBeVisible()
+  await expect(editor.locator('[data-sidebar-geometry="left"]')).toBeVisible()
+  await expect(editor.locator('[data-sidebar-geometry="right"]')).toBeVisible()
+  await expect(editor.getByRole("slider")).toHaveCount(10)
+  await expect(editor.getByRole("switch")).toHaveCount(2)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+  await page.screenshot({ path: testInfo.outputPath("neoview-sidebar-height-420x360.png"), fullPage: false })
+})

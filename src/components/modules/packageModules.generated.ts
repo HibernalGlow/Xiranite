@@ -5,6 +5,7 @@ import type { AppNodeEntry, HeadlessNodePackage, NodeDef, NodeEntry, NodeHelp } 
 export const PACKAGE_MODULES = [
   { id: "audiov", name: "AudioV", version: "0.1.0", category: "video", description: "Extract audio tracks from video files with a native ffmpeg workflow.", icon: "AudioLines", keywords: ["ffmpeg", "audio", "video", "media"] },
   { id: "bandia", name: "Bandia", version: "0.1.0", category: "file", description: "Batch extract, compress, repack, and export archive paths with Bandizip.", icon: "FileArchive", keywords: ["archive", "bandizip", "extract", "compress", "efu"] },
+  { id: "batong", name: "BATONG", version: "0.1.0", category: "dev", description: "Migrate drawing-workflow coding-agent sessions with Baton.", icon: "Route", keywords: ["baton", "session", "migration", "claude", "codex", "drawing"] },
   { id: "bitv", name: "BitV", version: "0.1.0", category: "video", description: "Analyze video bitrate with ffprobe and classify files without overwriting existing data.", icon: "Gauge", keywords: ["video", "bitrate", "ffprobe", "classification"] },
   { id: "classf", name: "ClassF", version: "0.1.0", category: "file", description: "Orchestrate SameA artist extraction, CrashU matching, and MigrateF classification transfers.", icon: "Workflow", keywords: ["samea", "crashu", "migratef", "classify", "transfer", "archive"] },
   { id: "classq", name: "ClassQ", version: "0.1.0", category: "file", description: "Find keyword folders and plan sibling items into wait folders.", icon: "FolderTree", keywords: ["classify", "keyword", "folders", "wait"] },
@@ -55,6 +56,7 @@ export const PACKAGE_MODULES = [
 export const packageModuleLoaders = {
   audiov: () => import("@/nodes/audiov/entry") as Promise<{ default: AppNodeEntry }>,
   bandia: () => import("@/nodes/bandia/entry") as Promise<{ default: AppNodeEntry }>,
+  batong: () => import("@xiranite/node-batong") as Promise<{ default: NodeEntry }>,
   bitv: () => import("@/nodes/bitv/entry") as Promise<{ default: AppNodeEntry }>,
   classf: () => import("@/nodes/classf/entry") as Promise<{ default: AppNodeEntry }>,
   classq: () => import("@/nodes/classq/entry") as Promise<{ default: AppNodeEntry }>,
@@ -105,6 +107,7 @@ export const packageModuleLoaders = {
 export const nodeHelpLoaders = {
   audiov: () => import("@xiranite/node-audiov/help") as Promise<{ help: NodeHelp }>,
   bandia: () => import("@xiranite/node-bandia/help") as Promise<{ help: NodeHelp }>,
+  batong: () => import("@xiranite/node-batong/help") as Promise<{ help: NodeHelp }>,
   bitv: () => import("@xiranite/node-bitv/help") as Promise<{ help: NodeHelp }>,
   classf: () => import("@xiranite/node-classf/help") as Promise<{ help: NodeHelp }>,
   classq: () => import("@xiranite/node-classq/help") as Promise<{ help: NodeHelp }>,

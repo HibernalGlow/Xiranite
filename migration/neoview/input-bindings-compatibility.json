@@ -281,10 +281,11 @@
         "neoview.bindings.action-capability",
         "neoview.bindings.context-routing",
         "neoview.bindings.config",
-        "neoview.bindings.viewer-toggle-provider",
+        "neoview.bindings.viewer-toggle-provider"
+      ],
+      "plannedTestIds": [
         "neoview.bindings.viewer-toggle-page-info"
       ],
-      "plannedTestIds": [],
       "notes": "All 61 legacy core/provider actions plus two XR actions have stable IDs, labels, categories and legacy mappings. The GUI executor closes page/adjacent-book navigation, zoom, rotation, page mode/direction, fullscreen, shell, file open/close, radial, slideshow and all 11 video actions. The settings editor now filters its action selector to the actual GUI provider set, while unsupported registry IDs remain available for migration/reporting and return false rather than inventing state. Persistent page/book/boundary toast and info-overlay toggles now route through their existing atomic stores; the page-info action shares the same viewer toggle provider as the thumbnail-strip button and is covered by React/store tests. Desktop and 420x360 Chromium cover the real binding settings/runtime flow, including context isolation, rollback, import, mouse/wheel/area, gamepad and ray-menu dispatch. Video actions control the registered native HTMLVideoElement, retain multiple bindings per action, use configured playback-rate bounds and preserve legacy seek-mode page-action remapping. The source control hierarchy now composes media-chrome with shadcn controls, restores hover/keyboard visibility, automatic WebVTT subtitles, subtitle styling, throttled progress restore/flush and desktop/420x360 streamed-video evidence. CLI/TUI dispatch share a capability-aware headless executor for page/directional/adjacent navigation and close, while returning explicit unsupported results for GUI-only actions. Manual external subtitle selection, destructive file, upscale, remaining viewer toggles and dynamic Card actions remain pending."
     },
     {
@@ -349,7 +350,7 @@
       "testIds": [
         "neoview.bindings.devices",
         "neoview.bindings.editor",
-        "neoview.bindings.recording",
+        "neoview.bindings.recording-focus",
         "neoview.bindings.keyboard-hold",
         "neoview.bindings.keyboard-hold-editor",
         "neoview.bindings.keyboard-hold-runtime"
@@ -531,10 +532,11 @@
         "neoview.bindings.devices",
         "neoview.bindings.editor",
         "neoview.bindings.device-recording",
-        "neoview.bindings.gamepad-e2e",
+        "neoview.bindings.gamepad-e2e"
+      ],
+      "plannedTestIds": [
         "neoview.bindings.gamepad-connection"
       ],
-      "plannedTestIds": [],
       "notes": "gamepad.js owns runtime and modal button recording; enabled bindings start polling only while the Reader is active, and desktop plus 420x360 Chromium fixtures inject a standard button press through the shared context executor. The recorder now exposes gamepad.js connected/disconnected state and removes all three listeners on unmount; live recorder-state browser evidence remains pending. This is an XR extension, not legacy parity."
     },
     {
@@ -628,13 +630,14 @@
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.bindings.recording",
         "neoview.bindings.recording-focus",
         "neoview.bindings.recording-ime",
         "neoview.bindings.device-recording",
         "neoview.bindings.mouse-gesture-recording"
       ],
-      "plannedTestIds": [],
+      "plannedTestIds": [
+        "neoview.bindings.recording"
+      ],
       "notes": "react-hotkeys-hook records keyboard chords with IME isolation and restores the triggering control after completion/cancel; @use-gesture/react records pointer, wheel, touch and bounded mouse trajectories with live direction preview; gamepad.js records standard buttons. Desktop Chromium now proves virtual-gamepad dispatch, while real touch recorder evidence remains pending."
     },
     {
