@@ -2299,7 +2299,7 @@ function videoProcessSnapshot(
 
 function schedulerSnapshot(
   scheduler: ResourceScheduler | undefined,
-): (() => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>) | undefined {
+): (() => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>> | undefined) | undefined {
   const source = scheduler as (ResourceScheduler & {
     snapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>>
   }) | undefined
@@ -2312,7 +2312,7 @@ function schedulerSnapshot(
 
 function sharedSchedulerSnapshot(
   scheduler: ResourceScheduler | undefined,
-): (() => ReaderSharedSchedulerDiagnostics) | undefined {
+): (() => ReaderSharedSchedulerDiagnostics | undefined) | undefined {
   const source = scheduler as (ResourceScheduler & { snapshot?: () => unknown }) | undefined
   if (typeof source?.snapshot !== "function") return undefined
   return () => {
