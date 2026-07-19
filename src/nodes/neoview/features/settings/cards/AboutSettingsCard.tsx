@@ -9,7 +9,7 @@ import { SettingsCardSection, SettingsCardShell } from "../SettingsCardShell"
 const CAPABILITIES = [
   { name: "阅读与会话", detail: "目录/归档阅读、进度恢复、历史与书签" },
   { name: "边栏与卡片", detail: "左右边栏、面板布局、卡片显隐与高度" },
-  { name: "操作绑定", detail: "键盘/鼠标/触控/手柄与径向菜单" },
+  { name: "操作绑定", detail: "快捷键绑定与轮盘菜单（同卡双 Tab）" },
   { name: "影像与媒体", detail: "图片/视频格式、动图与字幕默认值" },
   { name: "超分", detail: "后端契约可用；侧栏超分卡按能力逐步接入" },
   { name: "数据迁移", detail: "旧 NeoView 设置 inspect/import" },
