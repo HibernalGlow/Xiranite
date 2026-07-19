@@ -837,19 +837,22 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
-        "cli": "pending",
-        "tui": "pending",
-        "evidence": "pending"
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.clip-path",
-        "neoview.image-trim.clip-path"
+        "neoview.image-trim.clip-path-gui",
+        "neoview.image-trim.transport-linked",
+        "neoview.image-trim.cli",
+        "neoview.image-trim.tui"
       ],
-      "notes": "Browser-safe clip-path projection is covered by ReaderImageTrim tests and the PageImage harness; automatic detection composition remains pending."
+      "plannedTestIds": [],
+      "notes": "A typed inset contract replaces CSS-string parsing, preserves legacy max-edge composition and rejects crops with no visible area. PageImage and PageVideo accept presentation crops on the existing media element; the separate automatic horizontal-page split feature remains pending."
     },
     {
       "id": "image-trim.effective-dimensions",
@@ -865,18 +868,18 @@
         "TUI"
       ],
       "capabilityStatus": {
-        "core": "pending",
+        "core": "complete",
         "transport": "pending",
         "gui": "pending",
         "cli": "pending",
         "tui": "pending",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.image-trim.effective-dimensions"
       ],
-      "notes": "Source dimensions and CSS presentation dimensions remain distinct."
+      "plannedTestIds": [],
+      "notes": "The browser-safe core reports rounded visible pixel dimensions and aspect ratio from the same typed inset composition without creating another asset. Wiring those dimensions into GUI layout and headless inspection remains pending."
     },
     {
       "id": "image-trim.persistence",

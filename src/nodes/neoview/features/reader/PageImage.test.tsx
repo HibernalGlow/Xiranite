@@ -53,6 +53,20 @@ describe("PageImage", () => {
     expect(unregister).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.image-trim.clip-path-gui] composes a presentation crop on the committed image without another media node", () => {
+    const source = page()
+    const view = render(<PageImage
+      page={source}
+      imageTrim={imageTrimPort()}
+      presentationCropInsets={{ top: 0, right: 50, bottom: 0, left: 0 }}
+    />)
+
+    const image = view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')!
+    expect(image.style.clipPath).toBe("inset(10% 50% 20% 30%)")
+    expect(view.container.querySelectorAll("img")).toHaveLength(1)
+    expect(view.container.querySelector("canvas")).toBeNull()
+  })
+
   it("[neoview.image-trim.active-image] registers only the decoded committed image and unregisters it without remounting", async () => {
     const unregister = vi.fn()
     const registerImage = vi.fn(() => unregister)

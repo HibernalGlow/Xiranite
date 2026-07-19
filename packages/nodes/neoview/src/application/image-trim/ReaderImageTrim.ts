@@ -37,6 +37,19 @@ export interface ReaderImageTrimPatch {
   autoTrimTarget?: ReaderImageTrimTarget
 }
 
+export interface ReaderImageCropInsets {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+export interface ReaderImageTrimDimensions {
+  width: number
+  height: number
+  aspectRatio: number
+}
+
 export type ReaderImageTrimMutation = ReaderImageTrimPatch | { reset: "defaults" }
 
 /** The plain object shape used at persistence boundaries. */
@@ -193,10 +206,50 @@ export function serializeReaderImageTrim(value: ReaderImageTrimSettings): Reader
 
 export const toReaderImageTrimJson = serializeReaderImageTrim
 
-export function readerImageTrimClipPath(value: ReaderImageTrimSettings): string | undefined {
+export function readerImageTrimInsets(value: ReaderImageTrimSettings): ReaderImageCropInsets | undefined {
   const settings = normalizeReaderImageTrim(value)
   if (!settings.enabled || settings.top === 0 && settings.bottom === 0 && settings.left === 0 && settings.right === 0) return undefined
-  return `inset(${settings.top}% ${settings.right}% ${settings.bottom}% ${settings.left}%)`
+  return { top: settings.top, right: settings.right, bottom: settings.bottom, left: settings.left }
+}
+
+export function mergeReaderImageCropInsets(
+  trim: ReaderImageCropInsets | undefined,
+  presentation: ReaderImageCropInsets | undefined,
+): ReaderImageCropInsets | undefined {
+  if (!trim) return presentation ? normalizeReaderImageCropInsets(presentation) : undefined
+  if (!presentation) return normalizeReaderImageCropInsets(trim)
+  const first = normalizeReaderImageCropInsets(trim)
+  const second = normalizeReaderImageCropInsets(presentation)
+  return {
+    top: Math.max(first.top, second.top),
+    right: Math.max(first.right, second.right),
+    bottom: Math.max(first.bottom, second.bottom),
+    left: Math.max(first.left, second.left),
+  }
+}
+
+export function readerImageTrimClipPath(
+  value: ReaderImageTrimSettings,
+  presentation?: ReaderImageCropInsets,
+): string | undefined {
+  const insets = mergeReaderImageCropInsets(readerImageTrimInsets(value), presentation)
+  return insets ? `inset(${insets.top}% ${insets.right}% ${insets.bottom}% ${insets.left}%)` : undefined
+}
+
+export function readerImageTrimEffectiveDimensions(
+  dimensions: { width: number; height: number },
+  value: ReaderImageTrimSettings,
+  presentation?: ReaderImageCropInsets,
+): ReaderImageTrimDimensions {
+  if (!Number.isFinite(dimensions.width) || dimensions.width <= 0 || !Number.isFinite(dimensions.height) || dimensions.height <= 0) {
+    throw new RangeError("Image trim dimensions must be positive finite numbers")
+  }
+  const insets = mergeReaderImageCropInsets(readerImageTrimInsets(value), presentation)
+  if (!insets) return { width: dimensions.width, height: dimensions.height, aspectRatio: dimensions.width / dimensions.height }
+  const width = Math.round(dimensions.width * (1 - (insets.left + insets.right) / 100))
+  const height = Math.round(dimensions.height * (1 - (insets.top + insets.bottom) / 100))
+  if (width <= 0 || height <= 0) throw new RangeError("Image crop insets must leave a visible area")
+  return { width, height, aspectRatio: width / height }
 }
 
 export function isReaderImageTrimTarget(value: unknown): value is ReaderImageTrimTarget {
@@ -206,6 +259,24 @@ export function isReaderImageTrimTarget(value: unknown): value is ReaderImageTri
 function first(source: Record<string, unknown>, ...keys: readonly string[]): unknown {
   for (const key of keys) if (key in source) return source[key]
   return undefined
+}
+
+function normalizeReaderImageCropInsets(value: ReaderImageCropInsets): ReaderImageCropInsets {
+  const result = {
+    top: cropInset(value.top, "top"),
+    right: cropInset(value.right, "right"),
+    bottom: cropInset(value.bottom, "bottom"),
+    left: cropInset(value.left, "left"),
+  }
+  if (result.top + result.bottom >= 100 || result.left + result.right >= 100) {
+    throw new RangeError("Image crop insets must leave a visible area")
+  }
+  return result
+}
+
+function cropInset(value: number, name: string): number {
+  if (!Number.isFinite(value) || value < 0 || value >= 100) throw new RangeError(`Image crop ${name} must be between 0 and 100`)
+  return value
 }
 
 function normalizeStep(value: unknown, minimum: number, maximum: number, step: number, fallback: number): number {
