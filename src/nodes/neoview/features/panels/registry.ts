@@ -27,6 +27,8 @@ import type {
   ReaderPageListPreferencesDto,
   ReaderPreloadActionResultDto,
   ReaderRuntimeConfigDto,
+  ReaderSuperResolutionConfigDto,
+  ReaderSuperResolutionPreferencesDto,
   ReaderMediaConfigDto,
   ReaderMediaPatchDto,
   ReaderSettingsMigrationImportResult,
@@ -87,6 +89,8 @@ export interface ReaderPanelContext {
   imageTrim?: ReaderImageTrimPort
   media?: ReaderMediaConfigDto
   onMediaChange?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
+  superResolution?: ReaderSuperResolutionConfigDto
+  onSuperResolutionChange?(patch: ReaderSuperResolutionPreferencesDto): Promise<ReaderSuperResolutionConfigDto>
 }
 
 export interface ReaderPanelDefinition {

@@ -1,13 +1,13 @@
 import type { ReaderRotation } from "@xiranite/node-neoview/ui-core"
 
-import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderPageDto, ReaderSubtitleConfigDto } from "../../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderPageDto, ReaderSubtitleConfigDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { PageImage } from "./PageImage"
 import { PageVideo } from "./PageVideo"
 
-export function PageMedia({ page, rotation, scale, fallbackSize, colorFilter, imageTrim, videoController, sessionId, client, media, onSubtitleConfigChange, onVideoListEnded }: {
+export function PageMedia({ page, rotation, scale, fallbackSize, colorFilter, imageTrim, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVideoListEnded }: {
   page: ReaderPageDto
   rotation?: ReaderRotation
   scale?: number
@@ -18,12 +18,13 @@ export function PageMedia({ page, rotation, scale, fallbackSize, colorFilter, im
   sessionId?: string
   client?: ReaderHttpClient
   media?: ReaderMediaConfigDto
+  superResolution?: ReaderSuperResolutionConfigDto
   onSubtitleConfigChange?: (patch: Partial<ReaderSubtitleConfigDto>) => Promise<void>
   onVideoListEnded: () => void
 }) {
   return page.mediaKind === "video" ? (
     <PageVideo page={page} rotation={rotation} scale={scale} fallbackSize={fallbackSize} controller={videoController} sessionId={sessionId} client={client} media={media} onSubtitleConfigChange={onSubtitleConfigChange} onListEnded={onVideoListEnded} />
   ) : (
-    <PageImage page={page} rotation={rotation} scale={scale} colorFilter={colorFilter} imageTrim={imageTrim} />
+    <PageImage page={page} rotation={rotation} scale={scale} colorFilter={colorFilter} imageTrim={imageTrim} sessionId={sessionId} client={client} superResolution={superResolution} />
   )
 }

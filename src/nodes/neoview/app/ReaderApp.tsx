@@ -296,6 +296,7 @@ export function ReaderApp({
   const [inputBindings, setInputBindings] = useState<ReaderInputBindingsConfig>(() => structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const [radialMenu, setRadialMenu] = useState<ReaderRadialMenuConfig>(() => structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
   const [media, setMedia] = useState<ReaderMediaConfigDto>()
+  const [superResolution, setSuperResolution] = useState<ReaderRuntimeConfigDto["superResolution"]>()
   const [radialMenuRequest, setRadialMenuRequest] = useState<{ id: number; x: number; y: number }>()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
@@ -321,6 +322,7 @@ export function ReaderApp({
     const controller = new AbortController()
     void clientRef.current.config(controller.signal).then((config) => {
       setMedia(config.media)
+      setSuperResolution(config.superResolution)
       videoController.configure(config.media)
       if (viewDefaultsGenerationRef.current === 0) {
         viewDefaultsRef.current = config.viewDefaults
@@ -479,6 +481,13 @@ export function ReaderApp({
     const updated = await client.updateMedia({ media: patch })
     setMedia(updated)
     videoController.configure(updated)
+    return updated
+  }
+
+  async function persistSuperResolution(patch: NonNullable<ReaderRuntimeConfigDto["superResolution"]>["preferences"]) {
+    if (!client.updateSuperResolution) throw new Error("当前 Reader 不支持超分配置写入")
+    const updated = await client.updateSuperResolution({ superResolution: { preferences: patch } })
+    setSuperResolution(updated)
     return updated
   }
 
@@ -1236,6 +1245,8 @@ export function ReaderApp({
     imageTrim,
     media,
     onMediaChange: persistAnimatedVideoMode,
+    superResolution,
+    onSuperResolutionChange: persistSuperResolution,
     onSidebarLayout: commitSidebarLayout,
     onBoardLayout: commitBoardLayout,
     viewDefaults,
@@ -1310,6 +1321,7 @@ export function ReaderApp({
                 sessionId={session.sessionId}
                 client={client}
                 media={media}
+                superResolution={superResolution}
                 onSubtitleConfigChange={persistSubtitleConfig}
                 imageTrim={imageTrim}
                 onVideoListEnded={() => void navigate("next")}

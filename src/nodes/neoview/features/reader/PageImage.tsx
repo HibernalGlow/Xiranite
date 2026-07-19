@@ -11,7 +11,7 @@ import {
 import { readerImageTrimClipPath } from "@xiranite/node-neoview/image-trim"
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 
-import type { ReaderPageDto } from "../../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderPageDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 
@@ -21,14 +21,24 @@ export interface PageImageProps {
   scale?: number
   colorFilter?: ReaderColorFilterPort
   imageTrim?: ReaderImageTrimPort
+  sessionId?: string
+  client?: ReaderHttpClient
+  superResolution?: ReaderSuperResolutionConfigDto
 }
 
 const NOOP_SUBSCRIBE = () => () => undefined
 const DEFAULT_COLOR_FILTER_SNAPSHOT = () => DEFAULT_READER_COLOR_FILTER
 const DEFAULT_IMAGE_TRIM_SNAPSHOT = () => undefined
 
-export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim }: PageImageProps) {
+export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, sessionId, client, superResolution }: PageImageProps) {
   const imageRef = useRef<HTMLImageElement>(null)
+  const upscaleTarget = useUpscaleTarget(page, sessionId, client, superResolution)
+  const targetIdentity = imageIdentity(upscaleTarget)
+  const targetIdentityRef = useRef(targetIdentity)
+  targetIdentityRef.current = targetIdentity
+  const [committedPage, setCommittedPage] = useState(page)
+  const committedIdentity = imageIdentity(committedPage)
+  const pendingPage = committedIdentity === targetIdentity ? undefined : upscaleTarget
   const generatedId = useId()
   const filterId = `neoview-color-filter-${generatedId.replaceAll(":", "")}`
   const settings = useSyncExternalStore(
@@ -42,7 +52,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim }:
     imageTrim?.getSnapshot ?? DEFAULT_IMAGE_TRIM_SNAPSHOT,
   )
   const [blackAndWhite, setBlackAndWhite] = useState<boolean>()
-  const dimensions = page.dimensions
+  const dimensions = committedPage.dimensions
   const measured = dimensions !== undefined && scale !== undefined
   const rotated = dimensions ? rotatePresentationSize(dimensions, rotation) : undefined
   const colorizeAllowed = settings.colorizeEnabled && (!settings.onlyBlackAndWhite || blackAndWhite === true)
@@ -68,7 +78,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim }:
       active = false
       element.removeEventListener("load", sample)
     }
-  }, [page.assetUrl, page.contentVersion, settings.colorizeEnabled, settings.onlyBlackAndWhite])
+  }, [committedPage.assetUrl, committedPage.contentVersion, settings.colorizeEnabled, settings.onlyBlackAndWhite])
 
   const imageStyle: React.CSSProperties = {
     ...(measured ? {
@@ -87,25 +97,100 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim }:
   return (
     <div
       className={measured ? "relative shrink-0 overflow-hidden" : "contents"}
-      data-reader-page-box={page.id}
+      data-reader-page-box={committedPage.id}
+      data-reader-page-target={upscaleTarget.id}
       data-reader-colorize-allowed={colorizeAllowed ? "true" : "false"}
       style={measured ? { width: rotated!.width * scale, height: rotated!.height * scale } : undefined}
     >
       <ColorizationFilter id={filterId} settings={settings} tables={tables} />
-      <img
-        ref={imageRef}
-        crossOrigin="anonymous"
-        src={page.assetUrl}
-        alt={page.name}
-        draggable={false}
-        decoding="async"
-        fetchPriority="high"
-        className="max-h-full min-h-0 max-w-full select-none object-contain"
-        data-reader-page-image={page.id}
-        style={imageStyle}
-      />
+      {[committedPage, ...(pendingPage ? [pendingPage] : [])].map((candidate) => {
+        const identity = imageIdentity(candidate)
+        const pending = identity !== committedIdentity
+        return (
+          <img
+            key={identity}
+            ref={pending ? undefined : imageRef}
+            crossOrigin="anonymous"
+            src={candidate.assetUrl}
+            alt={candidate.name}
+            draggable={false}
+            decoding="async"
+            fetchPriority="high"
+            className="max-h-full min-h-0 max-w-full select-none object-contain"
+            data-reader-page-image={pending ? undefined : candidate.id}
+            data-reader-page-image-pending={pending ? candidate.id : undefined}
+            style={pending ? PENDING_IMAGE_STYLE : imageStyle}
+            onLoad={pending ? (event) => {
+              void commitDecodedImage(event.currentTarget, candidate, identity, targetIdentityRef, setCommittedPage)
+            } : undefined}
+          />
+        )
+      })}
     </div>
   )
+}
+
+function useUpscaleTarget(
+  page: ReaderPageDto,
+  sessionId: string | undefined,
+  client: ReaderHttpClient | undefined,
+  config: ReaderSuperResolutionConfigDto | undefined,
+): ReaderPageDto {
+  const enabled = config?.provider !== "disabled" && config?.preferences.autoUpscaleEnabled === true
+  const sourceIdentity = imageIdentity(page)
+  const pageRef = useRef(page)
+  pageRef.current = page
+  const [artifact, setArtifact] = useState<{ sourceIdentity: string; page: ReaderPageDto }>()
+  const configRevision = JSON.stringify(config?.preferences ?? {})
+
+  useEffect(() => {
+    if (!enabled || !sessionId || !client?.upscalePage) return
+    const controller = new AbortController()
+    const sourcePage = pageRef.current
+    void client.upscalePage(sessionId, sourcePage.id, "automatic-current", controller.signal).then((result) => {
+      if (controller.signal.aborted || !result.artifactUrl || !result.version) return
+      setArtifact({
+        sourceIdentity,
+        page: {
+          ...sourcePage,
+          assetUrl: result.artifactUrl,
+          contentVersion: `${sourcePage.contentVersion}:upscale:${result.version}`,
+          mimeType: result.contentType ?? sourcePage.mimeType,
+          byteLength: result.bytes ?? sourcePage.byteLength,
+        },
+      })
+    }).catch(() => undefined)
+    return () => controller.abort()
+  }, [client, configRevision, enabled, sessionId, sourceIdentity])
+
+  return enabled && artifact?.sourceIdentity === sourceIdentity ? artifact.page : page
+}
+
+const PENDING_IMAGE_STYLE: React.CSSProperties = {
+  position: "fixed",
+  width: 1,
+  height: 1,
+  opacity: 0,
+  pointerEvents: "none",
+}
+
+function imageIdentity(page: ReaderPageDto): string {
+  return `${page.id}:${page.contentVersion}:${page.assetUrl}`
+}
+
+async function commitDecodedImage(
+  image: HTMLImageElement,
+  page: ReaderPageDto,
+  identity: string,
+  targetIdentityRef: React.RefObject<string>,
+  commit: React.Dispatch<React.SetStateAction<ReaderPageDto>>,
+): Promise<void> {
+  try {
+    await image.decode?.()
+  } catch {
+    if (!image.complete || image.naturalWidth <= 0) return
+  }
+  if (targetIdentityRef.current === identity) commit(page)
 }
 
 function ColorizationFilter({ id, settings, tables }: {
