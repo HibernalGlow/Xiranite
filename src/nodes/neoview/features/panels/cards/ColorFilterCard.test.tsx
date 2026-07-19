@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { StrictMode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { createReaderColorFilterStore } from "../../color-filter/ReaderColorFilterStore"
 import DockedColorFilterCard, { ColorFilterCard } from "./ColorFilterCard"
@@ -56,5 +57,15 @@ describe("ColorFilterCard", () => {
     render(<DockedColorFilterCard colorFilter={store} panelActive={false} disabled client={{} as never} onGoTo={() => undefined} />)
     expect(screen.getByRole("slider", { name: "亮度" }).hasAttribute("disabled")).toBe(false)
     expect(document.querySelector('[data-neoview-card="color-filter"]')?.getAttribute("data-panel-active")).toBe("false")
+  })
+
+  it("settles the save state under React Strict Mode", async () => {
+    const store = createReaderColorFilterStore({ persist: async (settings) => settings })
+    render(<StrictMode><ColorFilterCard store={store} /></StrictMode>)
+
+    fireEvent.click(screen.getByText("\u53cd\u8272"))
+
+    await waitFor(() => expect(screen.getByText("\u5df2\u4fdd\u5b58", { exact: true })).toBeTruthy())
+    expect(screen.getByRole("checkbox", { name: "\u53cd\u8272" }).getAttribute("data-state")).toBe("checked")
   })
 })

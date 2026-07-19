@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { StrictMode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { createReaderPageTransitionStore } from "../../page-transition/ReaderPageTransitionStore"
 import DockedPageTransitionCard, { PageTransitionCard } from "./PageTransitionCard"
@@ -55,5 +56,16 @@ describe("PageTransitionCard", () => {
     render(<DockedPageTransitionCard pageTransition={store} panelActive={false} disabled client={{} as never} onGoTo={() => undefined} />)
     expect(screen.getByRole("checkbox", { name: "启用翻页动画" }).hasAttribute("disabled")).toBe(false)
     expect(document.querySelector('[data-neoview-card="page-transition"]')?.getAttribute("data-panel-active")).toBe("false")
+  })
+
+  it("keeps the enabled value and settles the save state under React Strict Mode", async () => {
+    const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
+    render(<StrictMode><PageTransitionCard store={store} /></StrictMode>)
+
+    const toggle = screen.getByRole("checkbox", { name: "\u542f\u7528\u7ffb\u9875\u52a8\u753b" })
+    fireEvent.click(toggle)
+
+    await waitFor(() => expect(screen.getByText("\u5df2\u4fdd\u5b58", { exact: true })).toBeTruthy())
+    expect(toggle.getAttribute("data-state")).toBe("checked")
   })
 })

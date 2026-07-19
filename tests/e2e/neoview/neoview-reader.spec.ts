@@ -8,6 +8,8 @@ import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import { startBackend } from "../../../packages/backend/src/index"
 import { createZipFixture, deterministicBytes, type ZipFixture } from "../../../packages/nodes/neoview/test/fixture-builders/create-zip-fixture"
 
+test.use({ viewport: { width: 1920, height: 1080 } })
+
 const ONE_PIXEL_PNG = Uint8Array.from(Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
   "base64",
@@ -2338,6 +2340,9 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
     && response.request().postData()?.includes('"pageTransition"') === true)
   await pageTransitionToggle.click()
   expect((await transitionResponse).status()).toBe(200)
+  await expect(pageTransitionToggle).toBeChecked()
+  await expect(pageTransitionCard.getByText("\u5df2\u4fdd\u5b58", { exact: true })).toBeVisible()
+  expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toMatch(/\[nodes\.neoview\.image\.page_transition\][\s\S]*enabled = true/)
 
   const colorFilterCard = rightSidebar.locator('[data-neoview-card="color-filter"]')
   await colorFilterCard.scrollIntoViewIfNeeded()
@@ -2359,6 +2364,9 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
   await page.mouse.up()
   expect((await filterResponse).status()).toBe(200)
   expect(colorFilterPatches).toBe(1)
+  await expect(colorFilterCard.getByText("\u5df2\u4fdd\u5b58", { exact: true })).toBeVisible()
+  expect(await brightness.inputValue()).not.toBe("100")
+  expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toMatch(/\[nodes\.neoview\.image\.color_filter\][\s\S]*brightness = (?!100\b)\d+/)
   expect(await image.getAttribute("data-sidebar-control-image-instance")).toBe("stable")
 
   const keepOpenResponse = page.waitForResponse((response) => response.url() === `${backend.url}/reader/config`

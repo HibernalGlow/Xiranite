@@ -24,7 +24,10 @@ export function PageTransitionCard({ store, disabled = false, dataPanelActive = 
   const [saveState, setSaveState] = useState<SaveState>({ phase: "idle" })
   const mountedRef = useRef(true)
   const retryRef = useRef<(() => Promise<void>)>()
-  useEffect(() => () => { mountedRef.current = false }, [])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
   const preview = projectReaderPageTransitionCss(settings, "next")
   const runMutation = useCallback((operation: () => Promise<void>, retry = operation) => {
     retryRef.current = retry
