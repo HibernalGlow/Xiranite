@@ -114,6 +114,7 @@ const CONTEXT_VISUAL: Readonly<Record<ReaderInputContext, { label: string; icon:
   reader: { label: "阅读器", icon: BookOpen, className: "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300" },
   video: { label: "视频", icon: Video, className: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300" },
   panel: { label: "面板", icon: PanelRight, className: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300" },
+  shell: { label: "界面栏", icon: AppWindow, className: "border-cyan-500/30 bg-cyan-500/10 text-cyan-800 dark:text-cyan-300" },
   editor: { label: "编辑器", icon: Pencil, className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
   modal: { label: "对话框", icon: Layers, className: "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300" },
 }
@@ -853,7 +854,8 @@ function uniqueBindingId(bindings: readonly ReaderInputBinding[], prefix: string
 
 function defaultContextForAction(action: ReaderInputAction): ReaderInputContext {
   if (action.startsWith("video.")) return "video"
-  if (action.startsWith("shell.") || action.startsWith("viewer.")) return "reader"
+  if (action.startsWith("shell.")) return "shell"
+  if (action.startsWith("viewer.")) return "reader"
   if (action.startsWith("file.") || action === "reader.open-settings") return "global"
   if (action.startsWith("radial.")) return "reader"
   return "reader"

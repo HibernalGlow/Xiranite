@@ -34,6 +34,7 @@ describe("ReaderEdgeShell", () => {
     }}><div>viewport</div></ReaderEdgeShell>)
 
     expect(document.querySelector('[data-reader-edge="top"]')?.className).toContain("z-[80]")
+    expect(document.querySelector('[data-reader-edge="top"]')?.getAttribute("data-input-context")).toBe("shell")
     expect(document.querySelector('[data-reader-edge="right"]')?.className).toContain("z-[85]")
     expect(document.querySelector('[data-reader-edge="bottom"]')?.className).toContain("z-[60]")
   })

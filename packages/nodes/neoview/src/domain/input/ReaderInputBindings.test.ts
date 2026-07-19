@@ -22,6 +22,17 @@ describe("ReaderInputBindings", () => {
     expect(matchingReaderInputBinding(bindings, { device: "keyboard", code: "KeyK" }, ["modal"])).toBeUndefined()
   })
 
+  it("[neoview.bindings.shell-isolation] keeps reader and global bindings out of application chrome", () => {
+    const input = { device: "keyboard", code: "KeyK" } as const
+    const bindings: ReaderInputBinding[] = [
+      { id: "global", action: "reader.open-settings", context: "global", enabled: true, input },
+      { id: "reader", action: "reader.next-page", context: "reader", enabled: true, input },
+    ]
+    expect(matchingReaderInputBinding(bindings, input, ["shell"])).toBeUndefined()
+    bindings.push({ id: "shell", action: "shell.toggle-top-toolbar-pin", context: "shell", enabled: true, input })
+    expect(matchingReaderInputBinding(bindings, input, ["shell"])?.id).toBe("shell")
+  })
+
   it("[neoview.bindings.conflicts] detects enabled collisions only inside one context", () => {
     const bindings: ReaderInputBinding[] = [
       { id: "one", action: "reader.next-page", context: "reader", enabled: true, input: { device: "gamepad", button: 5 } },

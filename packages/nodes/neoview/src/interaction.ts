@@ -15,7 +15,7 @@ import type {
 import type { ReaderFileTreeHeadlessController } from "./core.js"
 import type { ReaderLibraryHeadlessController } from "./core.js"
 import type { ReaderFileMutation, ReaderFileOperationService } from "./core.js"
-import type { ReaderInputBinding, ReaderInputBindingsConfig, ReaderInputContext, ReaderInputDescriptor } from "./domain/input/ReaderInputBindings.js"
+import { READER_INPUT_CONTEXTS, type ReaderInputBinding, type ReaderInputBindingsConfig, type ReaderInputContext, type ReaderInputDescriptor } from "./domain/input/ReaderInputBindings.js"
 import { createReaderBookSettingsMigrationFileController, createReaderFileOperationService, createReaderFileTreeController, createReaderHeadlessController, createReaderLibraryHeadlessController } from "./platform.js"
 import type {
   ReaderBookSettingsMigrationFileImportResult,
@@ -1522,7 +1522,7 @@ function parseInputDescriptor(value: unknown): ReaderInputDescriptor | undefined
 function parseInputContexts(value: unknown): ReaderInputContext[] {
   try {
     const parsed = JSON.parse(String(value ?? "[\"reader\"]")) as unknown
-    return Array.isArray(parsed) ? parsed.filter((entry): entry is ReaderInputContext => entry === "global" || entry === "reader" || entry === "video" || entry === "panel" || entry === "editor" || entry === "modal") : ["reader"]
+    return Array.isArray(parsed) ? parsed.filter((entry): entry is ReaderInputContext => READER_INPUT_CONTEXTS.includes(entry as ReaderInputContext)) : ["reader"]
   } catch {
     return ["reader"]
   }

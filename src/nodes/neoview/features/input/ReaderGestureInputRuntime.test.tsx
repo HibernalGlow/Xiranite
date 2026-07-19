@@ -1,8 +1,9 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { useRef } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { ReaderInputBindingsConfig, ReaderInputDescriptor } from "@xiranite/node-neoview/ui-core"
+import { matchingReaderInputBinding, type ReaderInputBindingsConfig, type ReaderInputDescriptor } from "@xiranite/node-neoview/ui-core"
 import { ReaderGestureInputRuntime } from "./ReaderGestureInputRuntime"
+import { readerInputContexts } from "./ReaderInputRouter"
 
 afterEach(() => {
   cleanup()
@@ -95,6 +96,32 @@ describe("ReaderGestureInputRuntime", () => {
     expect(dispatch).not.toHaveBeenCalled()
     expect(claimPointer).not.toHaveBeenCalled()
   })
+
+  it("[neoview.bindings.shell-gesture-isolation] blocks global and reader wheel, hold and touch bindings in shell chrome", () => {
+    vi.useFakeTimers()
+    const execute = vi.fn()
+    const config: ReaderInputBindingsConfig = { bindings: [
+      { id: "wheel", action: "reader.next-page", context: "global", enabled: true, input: { device: "wheel", direction: "down" } },
+      { id: "hold", action: "radial.open-default", context: "reader", enabled: true, input: { device: "mouse", button: 2, action: "hold", durationMs: 300 } },
+      { id: "tap", action: "reader.previous-page", context: "reader", enabled: true, input: { device: "touch", gesture: "tap", fingers: 1 } },
+    ] }
+    const dispatch = vi.fn((input: ReaderInputDescriptor, target: EventTarget | null) => {
+      const binding = matchingReaderInputBinding(config.bindings, input, readerInputContexts(target))
+      if (binding) execute(binding.action)
+      return Boolean(binding)
+    })
+    render(<Harness config={config} dispatch={dispatch} claimPointer={vi.fn()} />)
+    const shell = screen.getByTestId("gesture-shell")
+
+    fireEvent.wheel(shell, { deltaY: 20 })
+    fireEvent.pointerDown(shell, { pointerType: "mouse", pointerId: 31, button: 2, buttons: 2, clientX: 10, clientY: 10 })
+    act(() => vi.advanceTimersByTime(300))
+    fireEvent.pointerUp(shell, { pointerType: "mouse", pointerId: 31, button: 2, clientX: 10, clientY: 10 })
+    fireEvent.pointerDown(shell, { pointerType: "touch", pointerId: 32, button: 0, clientX: 10, clientY: 10 })
+    fireEvent.pointerUp(shell, { pointerType: "touch", pointerId: 32, button: 0, clientX: 10, clientY: 10 })
+
+    expect(execute).not.toHaveBeenCalled()
+  })
 })
 
 function Harness({ config, claimPointer, dispatch }: {
@@ -105,6 +132,7 @@ function Harness({ config, claimPointer, dispatch }: {
   const target = useRef<HTMLDivElement | null>(null)
   return (
     <div ref={target} data-testid="gesture-target">
+      <div data-testid="gesture-shell" data-input-context="shell">toolbar chrome</div>
       <button type="button" role="switch" aria-checked="false" aria-label="着色" />
       <input type="range" aria-label="亮度" min={50} max={150} defaultValue={100} />
       <ReaderGestureInputRuntime config={config} target={target} claimPointer={claimPointer} dispatch={dispatch} />
