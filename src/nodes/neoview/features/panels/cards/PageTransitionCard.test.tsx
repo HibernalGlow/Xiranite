@@ -27,9 +27,10 @@ describe("PageTransitionCard", () => {
     expect(persist.mock.calls[0]?.[0].duration).toBe(240)
   })
 
-  it("does not disable the switch when navigation is busy", () => {
+  it("keeps the resident Card mounted while its panel is inactive", () => {
     const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
-    render(<DockedPageTransitionCard pageTransition={store} disabled client={{} as never} onGoTo={() => undefined} />)
+    render(<DockedPageTransitionCard pageTransition={store} panelActive={false} disabled client={{} as never} onGoTo={() => undefined} />)
     expect(screen.getByRole("checkbox", { name: "启用翻页动画" }).hasAttribute("disabled")).toBe(false)
+    expect(document.querySelector('[data-neoview-card="page-transition"]')?.getAttribute("data-panel-active")).toBe("false")
   })
 })
