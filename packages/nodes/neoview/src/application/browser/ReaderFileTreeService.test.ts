@@ -65,6 +65,39 @@ describe("ReaderFileTreeService", () => {
     await browser[Symbol.asyncDispose]()
   })
 
+  it("[neoview.folder.size-close] drains a directory scan before closing its session", async () => {
+    let finishMeasure!: () => void
+    const browser = new ReaderFileTreeService({
+      async read(path) {
+        return { path, entries: [{ name: "nested", path: `${path}/nested`, kind: "directory", readerSupported: true }] }
+      },
+    }, undefined, undefined, {
+      directorySizeProvider: {
+        measure() {
+          return new Promise((resolve) => {
+            finishMeasure = () => resolve({ bytes: 12, fileCount: 3 })
+          })
+        },
+      },
+    })
+    const opened = await browser.open("C:/books")
+    const sizes = browser.directorySizes(opened.sessionId, opened.generation, ["C:/books/nested"])
+    await vi.waitFor(() => expect(finishMeasure).toBeTypeOf("function"))
+
+    let closeFinished = false
+    const closing = browser.close(opened.sessionId).then((closed) => {
+      closeFinished = true
+      return closed
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(closeFinished).toBe(false)
+
+    finishMeasure()
+    await expect(sizes).rejects.toMatchObject({ name: "AbortError" })
+    await expect(closing).resolves.toBe(true)
+    expect(closeFinished).toBe(true)
+  })
+
   it("[neoview.memory-pressure.file-tree] clears rebuildable tree metadata and background sizes without losing the current listing", async () => {
     let scanning = false
     const browser = new ReaderFileTreeService({

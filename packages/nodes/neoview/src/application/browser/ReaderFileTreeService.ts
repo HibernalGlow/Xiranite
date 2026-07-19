@@ -174,6 +174,7 @@ interface BrowserSession {
   treeWatchWaiters: Set<() => void>
   searches: Set<ReaderFileTreeSearchHandle>
   directorySizeOperations: Set<AbortController>
+  directorySizeWaiters: Set<Promise<void>>
   directorySizeCache: Map<string, number>
 }
 
@@ -255,6 +256,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       treeWatchWaiters: new Set(),
       searches: new Set(),
       directorySizeOperations: new Set(),
+      directorySizeWaiters: new Set(),
       directorySizeCache: new Map(),
     }
     if (this.#sessions.size >= 8) await this.close(this.#sessions.keys().next().value as string)
@@ -353,6 +355,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       treeWatchWaiters: new Set(),
       searches: new Set(),
       directorySizeOperations: new Set(),
+      directorySizeWaiters: new Set(),
       directorySizeCache: new Map(),
     }
     if (this.#sessions.size >= 8) {
@@ -409,6 +412,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       treeWatchWaiters: new Set(),
       searches: new Set(),
       directorySizeOperations: new Set(),
+      directorySizeWaiters: new Set(),
       directorySizeCache: new Map(),
     }
     if (this.#sessions.size >= 8) await this.close(this.#sessions.keys().next().value as string)
@@ -803,7 +807,10 @@ export class ReaderFileTreeService implements AsyncDisposable {
     if (uniquePaths.some((path) => !directories.has(path))) throw new Error("Directory size paths must belong to the current browser listing.")
     const controller = new AbortController()
     const unlinkAbort = forwardAbort(signal, controller)
+    let complete!: () => void
+    const completion = new Promise<void>((resolve) => { complete = resolve })
     session.directorySizeOperations.add(controller)
+    session.directorySizeWaiters.add(completion)
     try {
       const results = await pMap(uniquePaths, async (path): Promise<ReaderDirectorySizeBatchItem> => {
         controller.signal.throwIfAborted()
@@ -829,6 +836,8 @@ export class ReaderFileTreeService implements AsyncDisposable {
     } finally {
       unlinkAbort()
       session.directorySizeOperations.delete(controller)
+      session.directorySizeWaiters.delete(completion)
+      complete()
     }
   }
 
@@ -921,9 +930,11 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const listingReload = session.listingReload
     abortListingReload(session)
     abortDirectorySizeOperations(session)
+    const directorySizeWaiters = [...session.directorySizeWaiters]
     this.#sessions.delete(sessionId)
     await Promise.all([...session.searches].map((search) => search.close()))
     await listingReload?.catch(() => undefined)
+    await Promise.all(directorySizeWaiters)
     await this.#closeWatcher(session)
     return true
   }
@@ -939,8 +950,10 @@ export class ReaderFileTreeService implements AsyncDisposable {
       const listingReload = session.listingReload
       abortListingReload(session)
       abortDirectorySizeOperations(session)
+      const directorySizeWaiters = [...session.directorySizeWaiters]
       await Promise.all([...session.searches].map((search) => search.close()))
       await listingReload?.catch(() => undefined)
+      await Promise.all(directorySizeWaiters)
       await this.#closeWatcher(session)
     }
   }
@@ -1148,9 +1161,10 @@ export class ReaderFileTreeService implements AsyncDisposable {
   }
 }
 
-function abortDirectorySizeOperations(session: BrowserSession): void {
+function abortDirectorySizeOperations(session: BrowserSession): readonly Promise<void>[] {
   for (const controller of session.directorySizeOperations) controller.abort(new DOMException("Reader directory generation changed", "AbortError"))
   session.directorySizeOperations.clear()
+  return [...session.directorySizeWaiters]
 }
 
 function assertCurrentGeneration(session: BrowserSession, generation: number, operation: string): void {
