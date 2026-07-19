@@ -12,7 +12,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 
-import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderPageDto, ReaderSubtitleConfigDto } from "../../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderPageDto, ReaderSubtitleConfigDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import type { ReaderPageTransitionPort } from "../page-transition/ReaderPageTransitionStore"
@@ -20,7 +20,7 @@ import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { ReaderPageTransitionLayer } from "../page-transition/ReaderPageTransitionLayer"
 import { PageMedia } from "./PageMedia"
 
-export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, onSubtitleConfigChange, onVideoListEnded }: {
+export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   presentation: ReaderPresentation
   colorFilter?: ReaderColorFilterPort
@@ -30,6 +30,7 @@ export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageT
   sessionId: string
   client: ReaderHttpClient
   media?: ReaderMediaConfigDto
+  superResolution?: ReaderSuperResolutionConfigDto
   onSubtitleConfigChange(patch: Partial<ReaderSubtitleConfigDto>): Promise<void>
   onVideoListEnded: () => void
 }) {
@@ -67,9 +68,9 @@ export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageT
               height: frameSize.height * scale,
             } : undefined}
           >
-            {pages.map((page) => (
+            {pages.map((page, slotIndex) => (
               <PageMedia
-                key={`${page.id}:${page.contentVersion}`}
+                key={`${page.mediaKind}:${slotIndex}`}
                 page={page}
                 rotation={presentation.rotation}
                 scale={scale}
@@ -80,6 +81,7 @@ export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageT
                 sessionId={sessionId}
                 client={client}
                 media={media}
+                superResolution={superResolution}
                 onSubtitleConfigChange={onSubtitleConfigChange}
                 onVideoListEnded={onVideoListEnded}
               />

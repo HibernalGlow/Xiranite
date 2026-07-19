@@ -7,6 +7,20 @@ afterEach(() => {
 })
 
 describe("reader-http-client", () => {
+  it("[neoview.super-resolution.current-page-client] requests an authenticated automatic artifact URL", async () => {
+    const result = { status: "hit", artifactUrl: "http://127.0.0.1:41000/reader/s/reader-1/upscale-artifact/digest", contentType: "image/png", bytes: 42, version: "v2" } as const
+    const fetchMock = vi.fn(async () => Response.json(result))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.upscalePage!("reader/1", "page 1")).resolves.toEqual(result)
+
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(String(url)).toBe("http://127.0.0.1:41000/reader/s/reader%2F1/pages/page%201/upscale-artifact?trigger=automatic-current")
+    expect(init).toMatchObject({ method: "POST" })
+    expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
   it("[neoview.color-filter.client] sends one authenticated aggregate config mutation", async () => {
     const colorFilter = {
       colorizeEnabled: false, colorizePreset: "redAndBlueGray", customColors: [], onlyBlackAndWhite: false,

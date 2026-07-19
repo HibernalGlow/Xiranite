@@ -1,5 +1,6 @@
 /**
  * @migrated-from src/lib/cards/upscale/ProgressiveUpscaleCard.svelte
+ * @migrated-from src/lib/cards/upscale/UpscaleControlCard.svelte
  * @source-hash sha256:83acedf9cae856ef8224b45bcd63b1d8dc6e9f7312161eb649f07ed9dd6f99ef
  * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/upscale/ProgressiveUpscaleCard.tsx
  * @source-ui-inventory migration/neoview/progressive-upscale-compatibility.json#sourceUiInventory
@@ -34,13 +35,19 @@ const MAX_PAGE_OPTIONS = [5, 10, 20, 50, 100, 999]
 type ProgressivePreferences = typeof DEFAULT_PREFERENCES
 type Feedback = { tone: "success" | "warning" | "error"; text: string }
 
-export default function ProgressiveUpscaleCard({ client, session, disabled, panelActive = true }: ReaderPanelContext) {
-  const [config, setConfig] = useState<ReaderSuperResolutionConfigDto>()
+export default function ProgressiveUpscaleCard({ client, session, disabled, panelActive = true, superResolution, onSuperResolutionChange }: ReaderPanelContext) {
+  const [config, setConfig] = useState<ReaderSuperResolutionConfigDto>(superResolution)
   const [preferences, setPreferences] = useState<ProgressivePreferences>(DEFAULT_PREFERENCES)
   const [feedback, setFeedback] = useState<Feedback>()
   const [countdown, setCountdown] = useState<number>()
   const generationRef = useRef(0)
   const commitQueueRef = useRef(Promise.resolve())
+
+  useEffect(() => {
+    if (!superResolution) return
+    setConfig(superResolution)
+    setPreferences(normalizePreferences(superResolution.preferences))
+  }, [superResolution])
 
   useEffect(() => {
     const generation = ++generationRef.current
@@ -93,13 +100,15 @@ export default function ProgressiveUpscaleCard({ client, session, disabled, pane
   function commit(patch: ReaderSuperResolutionPreferencesDto, next: ProgressivePreferences) {
     setPreferences(next)
     setFeedback(undefined)
-    if (!client.updateSuperResolution) {
+    if (!onSuperResolutionChange && !client.updateSuperResolution) {
       setFeedback({ tone: "warning", text: "当前 Reader 不支持超分配置写入" })
       return
     }
     commitQueueRef.current = commitQueueRef.current.then(async () => {
       try {
-        const updated = await client.updateSuperResolution!({ superResolution: { preferences: patch } })
+        const updated = onSuperResolutionChange
+          ? await onSuperResolutionChange(patch)
+          : await client.updateSuperResolution!({ superResolution: { preferences: patch } })
         setConfig(updated)
         setPreferences(normalizePreferences(updated.preferences))
         setFeedback({ tone: "success", text: "超分设置已保存" })
@@ -117,6 +126,19 @@ export default function ProgressiveUpscaleCard({ client, session, disabled, pane
   return (
     <div className="space-y-3 text-xs" data-neoview-progressive-upscale="true" data-upscale-provider={config?.provider ?? "unknown"}>
       <div className="flex items-center justify-between">
+        <label className="text-xs font-medium" htmlFor="neoview-auto-upscale">自动超分</label>
+        <Switch
+          id="neoview-auto-upscale"
+          checked={preferences.autoUpscaleEnabled}
+          onCheckedChange={(value) => updatePreference("autoUpscaleEnabled", value)}
+          disabled={disabled || config?.provider === "disabled"}
+          aria-label="自动超分"
+        />
+      </div>
+      <p className="-mt-1 text-[10px] text-muted-foreground">切换图片时自动执行超分（全局主开关）</p>
+
+      <div className="border-t border-border pt-3">
+      <div className="flex items-center justify-between">
         <label className="text-xs font-medium" htmlFor="neoview-pre-upscale">预超分</label>
         <Switch
           id="neoview-pre-upscale"
@@ -127,6 +149,7 @@ export default function ProgressiveUpscaleCard({ client, session, disabled, pane
         />
       </div>
       <p className="-mt-1 text-[10px] text-muted-foreground">预加载相邻页面并后台超分</p>
+      </div>
 
       {!isAutoEnabled ? <div className="rounded bg-amber-500/10 p-2 text-[10px] text-amber-600">需要先启用“自动超分”才能生效</div> : null}
 

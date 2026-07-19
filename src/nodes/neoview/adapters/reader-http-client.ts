@@ -702,6 +702,14 @@ export interface ReaderSuperResolutionPatchDto {
   superResolution: { preferences: ReaderSuperResolutionPreferencesDto }
 }
 
+export interface ReaderUpscaleArtifactResultDto {
+  status: "hit" | "shared" | "generated" | "skipped" | "bypassed" | "rejected"
+  artifactUrl?: string
+  contentType?: string
+  bytes?: number
+  version?: string
+}
+
 export interface ReaderSubtitleConfigDto {
   fontSize: number
   color: string
@@ -999,6 +1007,7 @@ export interface ReaderHttpClient {
   updateInfoOverlay?(patch: ReaderInfoOverlayConfigPatch, signal?: AbortSignal): Promise<ReaderInfoOverlaySettings>
   updateImageTrim?(patch: ReaderImageTrimConfigPatch, signal?: AbortSignal): Promise<ReaderImageTrimSettings>
   updateSuperResolution?(patch: ReaderSuperResolutionPatchDto, signal?: AbortSignal): Promise<ReaderSuperResolutionConfigDto>
+  upscalePage?(sessionId: string, pageId: string, trigger?: "manual" | "automatic-current", signal?: AbortSignal): Promise<ReaderUpscaleArtifactResultDto>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal): Promise<ReaderSessionDto | undefined>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
@@ -1259,6 +1268,10 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.superResolution!),
+    upscalePage: (sessionId, pageId, trigger = "automatic-current", signal) => request<ReaderUpscaleArtifactResultDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/pages/${encodeURIComponent(pageId)}/upscale-artifact?${new URLSearchParams({ trigger })}`,
+      { method: "POST", signal },
+    ),
     open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
