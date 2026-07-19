@@ -7,6 +7,7 @@ import type { ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
 import type { ReaderMediaProgressService, ReaderMediaProgressUpdate } from "../reader/ReaderMediaProgressService.js"
 import type { ReaderMediaProgressRecord } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderService, ReaderSession } from "../reader/contracts.js"
+import type { ReaderSubtitleService, ReaderSubtitleTrack } from "../reader/ReaderSubtitleService.js"
 import type { ReaderBookMetadataService, ReaderBookStaticMetadata } from "../metadata/ReaderBookMetadataService.js"
 import type {
   ReaderBookSettingsDefaults,
@@ -169,6 +170,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
     private readonly adjacentBooks?: ReaderAdjacentBookService,
     private readonly emmMetadata?: ReaderEmmMetadataService,
     private readonly superResolution?: ReaderHeadlessSuperResolutionPort,
+    private readonly subtitles?: ReaderSubtitleService,
   ) {
     this.#service = service
     this.#disposeDependencies = disposeDependencies
@@ -278,6 +280,21 @@ export class ReaderHeadlessController implements AsyncDisposable {
       await source.close().catch(() => undefined)
       throw error
     }
+  }
+
+  listSubtitles(pageIndex: number): readonly ReaderSubtitleTrack[] {
+    const { session, page } = this.#requireSubtitlePage(pageIndex)
+    return this.subtitles!.list(session.id, page.id)
+  }
+
+  async renderSubtitle(
+    pageIndex: number,
+    assetId: string,
+    signal?: AbortSignal,
+  ): Promise<{ bytes: Uint8Array; contentVersion: string }> {
+    const { session, page } = this.#requireSubtitlePage(pageIndex)
+    signal?.throwIfAborted()
+    return this.subtitles!.render(session.id, page.id, assetId, signal)
   }
 
   async upscalePage(
@@ -505,6 +522,16 @@ export class ReaderHeadlessController implements AsyncDisposable {
       throw new Error("The open Reader book does not contain video media.")
     }
     return session
+  }
+
+  #requireSubtitlePage(pageIndex: number): { session: ReaderSession; page: ReaderPage } {
+    assertPageIndex(pageIndex)
+    const session = this.#requireSession()
+    const page = session.book.pages[pageIndex]
+    if (!page) throw new RangeError(`Reader page index is out of range: ${pageIndex}`)
+    if (page.mediaKind !== "video") throw new Error("Reader video page was not found.")
+    if (!this.subtitles) throw new Error("Reader subtitles are unavailable.")
+    return { session, page }
   }
 
   #assertOpen(): void {

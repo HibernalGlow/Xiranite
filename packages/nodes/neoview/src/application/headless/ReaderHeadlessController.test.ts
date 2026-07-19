@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
-import type { ReaderBook } from "../../domain/book/book.js"
+import type { ReaderBook, ReaderSubtitleAsset } from "../../domain/book/book.js"
 import type { PageSource } from "../../domain/page/page-content.js"
 import type { ReaderBookLoadOptions } from "../../ports/ReaderBookLoader.js"
+import type { ReaderSubtitleConverter } from "../../ports/ReaderSubtitleConverter.js"
 import type { ReaderBookSettingsRecord, ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
 import type { ReaderEmmOverrideRecord, ReaderEmmOverrideStore, ReaderEmmOverrides } from "../../ports/ReaderEmmOverrideStore.js"
 import { CoreReaderService } from "../reader/ReaderService.js"
@@ -10,6 +11,7 @@ import { ReaderBookSettingsService } from "../reader/ReaderBookSettingsService.j
 import type { ReaderAdjacentBookService } from "../reader/ReaderAdjacentBookService.js"
 import { ReaderBookMetadataService } from "../metadata/ReaderBookMetadataService.js"
 import { ReaderEmmMetadataService } from "../metadata/ReaderEmmMetadataService.js"
+import { ReaderSubtitleService } from "../reader/ReaderSubtitleService.js"
 import { ReaderHeadlessController, type ReaderHeadlessSuperResolutionPort } from "./ReaderHeadlessController.js"
 
 describe("ReaderHeadlessController", () => {
@@ -165,6 +167,124 @@ describe("ReaderHeadlessController", () => {
       await expect(controller.openPageStream(3)).rejects.toThrow("out of range")
     } finally {
       await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.subtitle.headless] lists and renders matching tracks without exposing source paths", async () => {
+    const service = new CoreReaderService(async () => subtitleVideoBook("D:/private/clip.mp4", [
+      subtitleAsset("clip.zh-CN.srt"),
+      subtitleAsset("other.srt"),
+      subtitleAsset("clip.srt"),
+    ]))
+    const subtitles = new ReaderSubtitleService(service, async () => ({
+      async convertToWebVtt(bytes) { return bytes },
+    }))
+    const controller = new ReaderHeadlessController(
+      service,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      subtitles,
+    )
+    try {
+      await controller.open({ path: "D:/private/clip.mp4" })
+      const tracks = controller.listSubtitles(0)
+      expect(tracks).toEqual([
+        { id: "subtitle-clip.srt", name: "clip.srt", format: "srt", contentVersion: "v1" },
+        { id: "subtitle-clip.zh-CN.srt", name: "clip.zh-CN.srt", format: "srt", contentVersion: "v1" },
+      ])
+      expect(JSON.stringify(tracks)).not.toContain("D:/private")
+
+      const rendered = await controller.renderSubtitle(0, "subtitle-clip.srt")
+      expect([...rendered.bytes]).toEqual([...new TextEncoder().encode("subtitle")])
+      expect(rendered.contentVersion).toBe("v1")
+      expect(JSON.stringify(rendered)).not.toContain("D:/private")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.subtitle.headless-cancellation] propagates cancellation and closes the subtitle source", async () => {
+    const sourceClosed = vi.fn(async () => undefined)
+    let conversionStarted: (() => void) | undefined
+    const started = new Promise<void>((resolve) => { conversionStarted = resolve })
+    const service = new CoreReaderService(async () => subtitleVideoBook("D:/private/clip.mp4", [
+      subtitleAsset("clip.srt", completedSubtitleSource(sourceClosed)),
+    ]))
+    const converter: ReaderSubtitleConverter = {
+      async convertToWebVtt(_bytes, _format, signal) {
+        conversionStarted?.()
+        await new Promise<never>((_resolve, reject) => {
+          if (signal?.aborted) {
+            reject(signal.reason)
+            return
+          }
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
+        })
+        throw new Error("unreachable")
+      },
+    }
+    const subtitles = new ReaderSubtitleService(service, async () => converter)
+    const controller = new ReaderHeadlessController(
+      service,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      subtitles,
+    )
+    const abortController = new AbortController()
+    try {
+      await controller.open({ path: "D:/private/clip.mp4" })
+      const rendering = controller.renderSubtitle(0, "subtitle-clip.srt", abortController.signal)
+      await started
+      abortController.abort(new DOMException("page changed", "AbortError"))
+      await expect(rendering).rejects.toMatchObject({ name: "AbortError" })
+      expect(sourceClosed).toHaveBeenCalledOnce()
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.subtitle.headless-lifecycle] rejects invalid, non-video, unavailable and closed requests", async () => {
+    const service = new CoreReaderService(async () => book("D:/private/book.cbz", []))
+    const subtitles = new ReaderSubtitleService(service, async () => ({
+      async convertToWebVtt(bytes) { return bytes },
+    }))
+    const controller = new ReaderHeadlessController(
+      service,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      subtitles,
+    )
+    try {
+      await controller.open({ path: "D:/private/book.cbz" })
+      expect(() => controller.listSubtitles(0)).toThrow("video page")
+      await expect(controller.renderSubtitle(3, "subtitle-missing.srt")).rejects.toThrow("out of range")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+    expect(() => controller.listSubtitles(0)).toThrow("closed")
+    await expect(controller.renderSubtitle(0, "subtitle-missing.srt")).rejects.toThrow("closed")
+
+    const unavailable = new ReaderHeadlessController(new CoreReaderService(async () => subtitleVideoBook("D:/clip.mp4", [])))
+    try {
+      await unavailable.open({ path: "D:/clip.mp4" })
+      expect(() => unavailable.listSubtitles(0)).toThrow("unavailable")
+    } finally {
+      await unavailable[Symbol.asyncDispose]()
     }
   })
 
@@ -459,6 +579,40 @@ function videoBook(path: string): ReaderBook {
       mediaKind: "video",
       mimeType: "video/mp4",
     }],
+  }
+}
+
+function subtitleVideoBook(path: string, subtitleAssets: readonly ReaderSubtitleAsset[]): ReaderBook {
+  return { ...videoBook(path), subtitleAssets }
+}
+
+function subtitleAsset(name: string, source: PageSource = completedSubtitleSource()): ReaderSubtitleAsset {
+  return {
+    id: `subtitle-${name}`,
+    name,
+    sourcePath: `D:/private/${name}`,
+    format: "srt",
+    byteLength: 8,
+    contentVersion: "v1",
+    content: { async load() { return source } },
+  }
+}
+
+function completedSubtitleSource(onClose = vi.fn(async () => undefined)): PageSource {
+  return {
+    byteLength: 8,
+    contentType: "text/plain",
+    rangeSupported: false,
+    async open() {
+      return new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("subtitle"))
+          controller.close()
+        },
+      })
+    },
+    close: onClose,
+    [Symbol.asyncDispose]: onClose,
   }
 }
 
