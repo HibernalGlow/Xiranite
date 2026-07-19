@@ -7,7 +7,7 @@
  * @source-hash sha256:c823ae6af0f8659ac7cccdaaa2eedfbbb8c8be5088b5148288bb57f3caf4acb5
  * @migration-status adapted
  */
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   AlignHorizontalSpaceAround,
   AlignVerticalSpaceAround,
@@ -76,7 +76,7 @@ const FIT_MODE_ICONS = {
   "fit-right": AlignRight,
 } as const
 
-type ExpandedPanel = "zoom" | "rotate" | "slideshow"
+type ExpandedPanel = "zoom" | "rotate" | "hover-scroll" | "slideshow"
 
 export function ReaderViewToolbar({
   disabled,
@@ -86,6 +86,9 @@ export function ReaderViewToolbar({
   onChange,
   onLayoutChange,
   onDirectionChange,
+  hoverScrollEnabled = true,
+  hoverScrollSpeed = 2,
+  onHoverScrollChange,
   slideshow,
   onSlideshowChange,
 }: {
@@ -96,6 +99,9 @@ export function ReaderViewToolbar({
   onChange(presentation: ReaderPresentation): void
   onLayoutChange(patch: Partial<ReaderLayout>): void
   onDirectionChange(direction: ReadingDirection): void
+  hoverScrollEnabled?: boolean
+  hoverScrollSpeed?: number
+  onHoverScrollChange?(patch: { enabled?: boolean; speed?: number }): void | Promise<void>
   slideshow: ReaderSlideshow
   onSlideshowChange(patch: ReaderSlideshowPatch["slideshow"]): void | Promise<void>
 }) {
@@ -150,7 +156,18 @@ export function ReaderViewToolbar({
         </div>
         <Button title={direction === "left-to-right" ? "从左到右" : "从右到左"} aria-label="切换阅读方向" aria-pressed={direction === "right-to-left"} type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={() => onDirectionChange(direction === "left-to-right" ? "right-to-left" : "left-to-right")}>{direction === "left-to-right" ? <ArrowRight /> : <ArrowLeft />}</Button>
         <Button title="旋转设置" aria-label="展开旋转设置" aria-expanded={expanded === "rotate"} type="button" size="icon-sm" variant={expanded === "rotate" ? "default" : "ghost"} disabled={disabled} onClick={() => toggle("rotate")}><RotateCw /></Button>
-        <Button title="悬停滚动尚待迁移" aria-label="悬停滚动" type="button" size="icon-sm" variant="ghost" disabled><MousePointer2 /></Button>
+        <Button
+          title={`悬停滚动：${hoverScrollEnabled ? "开" : "关"}（右键设置）`}
+          aria-label="悬停滚动"
+          aria-pressed={hoverScrollEnabled}
+          aria-expanded={expanded === "hover-scroll"}
+          type="button"
+          size="icon-sm"
+          variant={hoverScrollEnabled || expanded === "hover-scroll" ? "default" : "ghost"}
+          disabled={disabled || !onHoverScrollChange}
+          onClick={() => void onHoverScrollChange?.({ enabled: !hoverScrollEnabled })}
+          onContextMenu={(event) => { event.preventDefault(); toggle("hover-scroll") }}
+        ><MousePointer2 /></Button>
         <Button title="幻灯片设置" aria-label="展开幻灯片设置" aria-expanded={expanded === "slideshow"} type="button" size="icon-sm" variant={expanded === "slideshow" ? "default" : "ghost"} disabled={disabled} onClick={() => toggle("slideshow")}><Play /></Button>
         <Button title="放大镜尚待迁移" aria-label="放大镜" type="button" size="icon-sm" variant="ghost" disabled><Search /></Button>
       </div>
@@ -158,11 +175,39 @@ export function ReaderViewToolbar({
         <div className="flex min-h-12 flex-wrap items-center justify-center gap-1 overflow-x-auto border-t border-border/50 bg-muted/18 px-3 py-2" data-reader-toolbar-row="expanded" data-reader-toolbar-panel={expanded}>
           {expanded === "zoom" ? <ZoomPanel disabled={disabled} layout={layout} presentation={presentation} onChange={onChange} onLayoutChange={onLayoutChange} /> : null}
           {expanded === "rotate" ? <RotatePanel disabled={disabled} presentation={presentation} onChange={onChange} /> : null}
+          {expanded === "hover-scroll" ? <HoverScrollPanel disabled={disabled} enabled={hoverScrollEnabled} speed={hoverScrollSpeed} onChange={onHoverScrollChange} /> : null}
           {expanded === "slideshow" ? <ReaderSlideshowToolbar slideshow={slideshow} disabled={disabled} onChange={onSlideshowChange} /> : null}
         </div>
       ) : null}
     </div>
   )
+}
+
+function HoverScrollPanel({ disabled, enabled, speed, onChange }: { disabled?: boolean; enabled: boolean; speed: number; onChange?(patch: { enabled?: boolean; speed?: number }): void | Promise<void> }) {
+  const [draftSpeed, setDraftSpeed] = useState(speed)
+  const committedSpeedRef = useRef(speed)
+  useEffect(() => {
+    committedSpeedRef.current = speed
+    setDraftSpeed(speed)
+  }, [speed])
+  const commitSpeed = () => {
+    const clamped = Math.max(0.5, Math.min(10, draftSpeed))
+    setDraftSpeed(clamped)
+    if (clamped !== committedSpeedRef.current) {
+      committedSpeedRef.current = clamped
+      void onChange?.({ speed: clamped })
+    }
+  }
+  return <>
+    <span className="mr-2 text-xs text-muted-foreground">悬停滚动</span>
+    <Button type="button" size="sm" className="h-7 px-3" variant={enabled ? "default" : "outline"} aria-pressed={enabled} disabled={disabled || !onChange} onClick={() => void onChange?.({ enabled: !enabled })}>{enabled ? "已启用" : "已禁用"}</Button>
+    <Separator />
+    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+      <span>倍率</span>
+      <input aria-label="悬停滚动倍率" className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-muted" type="range" min={0.5} max={10} step={0.5} value={draftSpeed} disabled={disabled || !onChange} onChange={(event) => setDraftSpeed(Number(event.currentTarget.value))} onPointerUp={commitSpeed} onKeyUp={commitSpeed} onBlur={commitSpeed} />
+      <span className="w-10 text-center tabular-nums">{draftSpeed.toFixed(1)}x</span>
+    </label>
+  </>
 }
 
 function ZoomPanel({ disabled, layout, presentation, onChange, onLayoutChange }: { disabled?: boolean; layout: ReaderLayout; presentation: ReaderPresentation; onChange(value: ReaderPresentation): void; onLayoutChange(patch: Partial<ReaderLayout>): void }) {

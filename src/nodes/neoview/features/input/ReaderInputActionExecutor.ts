@@ -18,6 +18,11 @@ interface ReaderInfoOverlayActionPort {
   update(patch: { enabled?: boolean }): Promise<void>
 }
 
+interface ReaderHoverScrollActionPort {
+  getSnapshot(): { enabled: boolean }
+  update(patch: { enabled: boolean }): Promise<void>
+}
+
 export interface ReaderInputActionSession {
   pageCount: number
   pageIndex: number
@@ -48,6 +53,7 @@ export interface ReaderInputActionControls {
   viewerToggles?: ReaderViewerTogglePort
   switchToast?: ReaderSwitchToastActionPort
   infoOverlay?: ReaderInfoOverlayActionPort
+  hoverScroll?: ReaderHoverScrollActionPort
   slideshow: {
     toggle(): void
     stop(): void
@@ -110,6 +116,12 @@ export function executeReaderInputAction(action: ReaderInputAction, controls: Re
       const settings = controls.infoOverlay?.getSnapshot()
       if (!settings || !controls.infoOverlay) return false
       void controls.infoOverlay.update({ enabled: !settings.enabled }).catch(() => undefined)
+      return true
+    }
+    case "viewer.toggle-hover-scroll": {
+      const settings = controls.hoverScroll?.getSnapshot()
+      if (!settings || !controls.hoverScroll) return false
+      void controls.hoverScroll.update({ enabled: !settings.enabled }).catch(() => undefined)
       return true
     }
     case "file.open": void controls.openFile(); return true

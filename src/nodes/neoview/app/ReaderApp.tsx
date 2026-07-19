@@ -76,6 +76,9 @@ type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
   fitMode: DEFAULT_READER_PRESENTATION.fitMode,
   pageMode: "single",
+  splitWidePages: false,
+  hoverScrollEnabled: true,
+  hoverScrollSpeed: 2,
 } satisfies ReaderRuntimeConfigDto["viewDefaults"]
 const INITIAL_HISTORY_LIST_PREFERENCES: ReaderHistoryListPreferencesDto = {
   viewMode: "compact",
@@ -326,9 +329,10 @@ export function ReaderApp({
       setSuperResolution(config.superResolution)
       videoController.configure(config.media)
       if (viewDefaultsGenerationRef.current === 0) {
-        viewDefaultsRef.current = config.viewDefaults
-        confirmedViewDefaultsRef.current = config.viewDefaults
-        setViewDefaults(config.viewDefaults)
+        const normalizedViewDefaults = { ...INITIAL_VIEW_DEFAULTS, ...config.viewDefaults }
+        viewDefaultsRef.current = normalizedViewDefaults
+        confirmedViewDefaultsRef.current = normalizedViewDefaults
+        setViewDefaults(normalizedViewDefaults)
       }
       if (pageListPreferencesGenerationRef.current === 0) {
         pageListPreferencesRef.current = config.pageList
@@ -768,6 +772,10 @@ export function ReaderApp({
       viewerToggles,
       switchToast,
       infoOverlay,
+      hoverScroll: {
+        getSnapshot: () => ({ enabled: viewDefaultsRef.current.hoverScrollEnabled ?? true }),
+        update: ({ enabled }) => persistViewDefaults({ hoverScrollEnabled: enabled }),
+      },
       slideshow: {
         toggle: () => slideshow.toggle(),
         stop: () => slideshow.stop(),
@@ -1228,6 +1236,12 @@ export function ReaderApp({
               onChange={updatePresentation}
               onLayoutChange={(layout) => void updateSessionLayout(layout)}
               onDirectionChange={(direction) => void updateReadingDirection(direction)}
+              hoverScrollEnabled={viewDefaults.hoverScrollEnabled ?? true}
+              hoverScrollSpeed={viewDefaults.hoverScrollSpeed ?? 2}
+              onHoverScrollChange={(patch) => persistViewDefaults({
+                ...(patch.enabled === undefined ? {} : { hoverScrollEnabled: patch.enabled }),
+                ...(patch.speed === undefined ? {} : { hoverScrollSpeed: patch.speed }),
+              })}
               slideshow={slideshow}
               onSlideshowChange={persistSlideshow}
             />
@@ -1384,6 +1398,8 @@ export function ReaderApp({
                 direction={session.frame.direction}
                 totalPages={session.book.pageCount}
                 anchorPageIndex={session.frame.anchorPageIndex}
+                hoverScrollEnabled={viewDefaults.hoverScrollEnabled ?? true}
+                hoverScrollSpeed={viewDefaults.hoverScrollSpeed ?? 2}
                 colorFilter={colorFilter}
                 pageTransition={pageTransition}
                 videoController={videoController}

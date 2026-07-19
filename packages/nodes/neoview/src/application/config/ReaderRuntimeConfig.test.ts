@@ -27,6 +27,8 @@ describe("parseNeoviewRuntimeConfig", () => {
       fitMode: "fit-width",
       pageMode: "double",
       splitWidePages: false,
+      hoverScrollEnabled: true,
+      hoverScrollSpeed: 2,
       orientation: "horizontal",
       autoRotation: "none",
       widePageStretch: "uniform-height",
@@ -170,10 +172,16 @@ describe("parseNeoviewRuntimeConfig", () => {
       sessionOptions: { layout: { pageMode: "single", splitWidePages: true } },
       viewDefaults: { splitWidePages: true },
     })
+    expect(parseNeoviewRuntimeConfig({ image: { hover_scroll_enabled: false, hover_scroll_speed: 4.5 } }).viewDefaults).toMatchObject({
+      hoverScrollEnabled: false,
+      hoverScrollSpeed: 4.5,
+    })
     expect(parseNeoviewViewDefaultsPatch({ viewDefaults: {
       fitMode: "fit-height",
       pageMode: "double",
       splitWidePages: true,
+      hoverScrollEnabled: false,
+      hoverScrollSpeed: 3.5,
       orientation: "vertical",
       autoRotation: "forced-left",
       widePageStretch: "uniform-width",
@@ -182,6 +190,8 @@ describe("parseNeoviewRuntimeConfig", () => {
         fitMode: "fit-height",
         pageMode: "double",
         splitWidePages: true,
+        hoverScrollEnabled: false,
+        hoverScrollSpeed: 3.5,
         orientation: "vertical",
         autoRotation: "forced-left",
         widePageStretch: "uniform-width",
@@ -190,6 +200,8 @@ describe("parseNeoviewRuntimeConfig", () => {
         default_zoom_mode: "fitHeight",
         double_page_view: true,
         split_wide_pages: true,
+        hover_scroll_enabled: false,
+        hover_scroll_speed: 3.5,
         orientation: "vertical",
         auto_rotation: "forcedLeft",
         wide_page_stretch: "uniformWidth",
@@ -200,6 +212,7 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { orientation: "landscape" } })).toThrow("orientation")
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { autoRotation: "clockwise" } })).toThrow("auto rotation")
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { widePageStretch: "cover" } })).toThrow("wide page stretch")
+    expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { hoverScrollSpeed: 12 } })).toThrow("between 0.5 and 10")
   })
 
   it("[neoview.folder.settings] [neoview.folder.search-settings] [neoview.folder.tabs-pin-config] normalizes folder view and legacy search settings", () => {

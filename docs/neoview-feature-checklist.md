@@ -11,13 +11,13 @@
 - 功能：30
 - 最新后端命令：319，全部已映射
 - 最新功能源码：670，全部已映射
-- 派生总体：pending=8，partial=22，complete=0
-- core：complete=0，partial=21，pending=9，not-applicable=0
+- 派生总体：pending=6，partial=24，complete=0
+- core：complete=0，partial=23，pending=7，not-applicable=0
 - transport：complete=0，partial=21，pending=0，not-applicable=9
-- gui：complete=0，partial=8，pending=22，not-applicable=0
+- gui：complete=0，partial=9，pending=21，not-applicable=0
 - cli：complete=0，partial=13，pending=8，not-applicable=9
 - tui：complete=0，partial=7，pending=12，not-applicable=11
-- evidence：complete=0，partial=22，pending=8，not-applicable=0
+- evidence：complete=0，partial=23，pending=7，not-applicable=0
 - 完成规则：每个必需维度必须独立完成并具有该维度的 tracked test evidence；单一 core/HTTP/GUI 路径不能提升整个 feature。
 
 ## 推进表
@@ -36,7 +36,7 @@
 | 10 | `preload-stream-scheduler` | 预读、渐进加载、流传输和全局调度 | partial | migrate | `core=P transport=P gui=P cli=- tui=- evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 26 | 22 | View/Ahead/Background 优先级<br>方向感知预读<br>渐进批次<br>背压<br>快速翻页取消<br>多节点资源配额 |
 | 11 | `thumbnail-system` | 统一缩略图生成、持久化、数据库维护与迁移 | partial | migrate | `core=P transport=P gui=P cli=P tui=- evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 49 | 48 | 原数据库位置沿用<br>只读 schema/WAL 探测<br>批量命中与生成<br>失败记录<br>清理/vacuum/统计<br>V1/V3/V4 单表兼容读取<br>视频和归档缩略图 |
 | 12 | `cache-lifecycle` | 内存、磁盘、索引和资源缓存生命周期 | partial | migrate | `core=P transport=P gui=- cli=- tui=P evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 32 | 15 | 真实字节预算<br>pin 和方向淘汰<br>mtime/hash 失效<br>损坏恢复<br>80% hysteresis<br>session close/hibernate 回收 |
-| 13 | `super-resolution` | 超分模型、预览、队列、缓存与保存 | pending | migrate | `core=- transport=N/A gui=- cli=- tui=- evidence=-` | core, gui, cli, tui, evidence | gui/cli/tui | 65 | 50 | OpenComic system CLI 探测<br>Upscayl daemon<br>waifu2x/realcugan<br>旧 IllustrationJaNai/MangaJaNai 迁移报告<br>tile/scale/TTA/GPU<br>AVIF/JXL 无损输入<br>取消和保存 |
+| 13 | `super-resolution` | 超分模型、预览、队列、缓存与保存 | pending | migrate | `core=- transport=N/A gui=- cli=- tui=- evidence=-` | core, gui, cli, tui, evidence | gui/cli/tui | 65 | 50 | OpenComic system CLI 探测<br>Upscayl daemon<br>waifu2x/realcugan<br>IllustrationJaNai/MangaJaNai<br>tile/scale/TTA/GPU<br>AVIF/JXL 无损输入<br>取消和保存 |
 | 14 | `metadata-dimensions-properties` | 文件信息、图片属性、尺寸扫描和系统元数据 | partial | migrate | `core=P transport=P gui=P cli=P tui=P evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 14 | 15 | 尺寸/格式/大小/时间<br>批量尺寸扫描<br>归档 entry 属性<br>取消扫描<br>系统 shell 元数据 fallback |
 | 15 | `emm-ratings-tags-translation` | EMM 数据库、评分、标签、收藏和翻译 | partial | migrate | `core=P transport=P gui=- cli=P tui=- evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 34 | 42 | 自动/手动数据库路径<br>评分读写<br>收藏与手动标签<br>collect tag 统计<br>翻译字典<br>批量同步和错误恢复 |
 | 16 | `history-bookmarks-progress` | 历史、书签、阅读进度和数据洞察 | partial | migrate | `core=P transport=P gui=- cli=P tui=P evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 1 | 20 | 记录和恢复进度<br>历史大小与自动清理<br>书签排序/搜索<br>历史与文件树联动<br>热力图和连续阅读统计 |
@@ -47,9 +47,9 @@
 | 21 | `settings-import-export-backup` | 设置、完整导入导出、备份、Gist 和 TOML 统一 | partial | migrate | `core=P transport=P gui=- cli=P tui=- evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 12 | 45 | 全部非主题字段可识别<br>模块选择<br>merge/overwrite<br>幂等导入<br>完整备份<br>Gist 同步<br>GUI/CLI/TUI 共用 TOML<br>运行时只写 TOML<br>未知字段报告 |
 | 22 | `startup-window-cli-lifecycle` | 启动参数、窗口状态、托盘、卡片窗口和生命周期 | partial | migrate | `core=P transport=P gui=- cli=P tui=N/A evidence=P` | core, transport, gui, cli, evidence | gui/cli | 7 | 11 | CLI 路径打开<br>窗口大小/位置恢复<br>最小化托盘<br>卡片窗口恢复<br>单实例导航<br>宿主关闭释放所有进程 |
 | 23 | `slideshow` | 幻灯片自动翻页 | partial | migrate | `core=P transport=P gui=- cli=N/A tui=- evidence=P` | core, transport, gui, tui, evidence | gui/tui | 0 | 3 | 开始/暂停<br>间隔<br>循环/随机<br>淡入淡出<br>切书和手动操作协调 |
-| 24 | `ai-ollama-translation` | Ollama、AI 面板和翻译服务 | pending | migrate | `core=- transport=N/A gui=- cli=- tui=N/A evidence=-` | core, gui, cli, evidence | gui/cli | 7 | 24 | 服务探测和模型列表<br>生成请求<br>配置保存<br>取消/错误<br>翻译缓存 |
+| 24 | `ai-ollama-translation` | Ollama、AI 面板和翻译服务 | partial | migrate | `core=P transport=N/A gui=- cli=- tui=N/A evidence=-` | core, gui, cli, evidence | gui/cli | 7 | 24 | 服务探测和模型列表<br>生成请求<br>配置保存<br>取消/错误<br>翻译缓存 |
 | 25 | `performance-benchmark-diagnostics` | 性能设置、基准、系统监控和诊断 | partial | migrate | `core=P transport=P gui=P cli=P tui=N/A evidence=P` | core, transport, gui, cli, evidence | gui/cli | 21 | 44 | 冷/热基准<br>算法对照<br>系统 CPU/RSS/GPU 观测<br>任务队列状态<br>报告导出<br>基准不污染用户缓存 |
-| 26 | `image-effects-transitions` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 | pending | migrate | `core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-` | core, gui, evidence | gui | 0 | 10 | 自动/手动裁边<br>颜色滤镜开关与参数<br>页面切换动画<br>长图悬停滚动和速度<br>切页后清理上一页效果状态 |
+| 26 | `image-effects-transitions` | 图片裁边、颜色滤镜、页面过渡和悬停滚动 | partial | migrate | `core=P transport=N/A gui=P cli=N/A tui=N/A evidence=P` | core, gui, evidence | gui | 0 | 10 | 自动/手动裁边<br>颜色滤镜开关与参数<br>页面切换动画<br>长图悬停滚动和速度<br>切页后清理上一页效果状态 |
 | 27 | `card-windows-tabs` | 卡片注册、卡片布局、独立窗口和通用标签页 | pending | migrate | `core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-` | core, gui, evidence | gui | 0 | 15 | 卡片注册和动态渲染<br>折叠/排序/显隐<br>卡片独立窗口<br>标签创建/切换/关闭/恢复<br>未知卡片配置兼容 |
 | 28 | `playlist-quick-library` | 播放列表和快速库 | pending | migrate | `core=- transport=N/A gui=- cli=- tui=- evidence=-` | core, gui, cli, tui, evidence | gui/cli/tui | 0 | 3 | 创建/删除/重命名播放列表<br>添加和移除书籍<br>播放列表顺序<br>快速库目标增删和打开<br>最终 HEAD 中占位入口需 characterization 后补齐 |
 | 29 | `ipc-protocol-transport` | 旧 IPC、内置协议、批处理和 Worker 数据传输迁移 | partial | migrate | `core=P transport=P gui=- cli=P tui=- evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 3 | 24 | 控制面只传小对象<br>图片字节走 loopback HTTP<br>无 Base64/大 JSON 主链<br>批处理有界<br>取消和背压<br>旧协议设置可导入但不保留双实现 |
@@ -246,11 +246,11 @@
 - 端：gui、cli、tui
 - 设置：`image.enableSuperResolution`、`image.superResolutionModel`、`image.currentImageUpscaleEnabled`、`upscalePanelSettings`
 - 数据：model manifests、upscale cache、system CLI paths
-- 行为：OpenComic system CLI 探测；Upscayl daemon；waifu2x/realcugan；旧 IllustrationJaNai/MangaJaNai 仅迁移报告；tile/scale/TTA/GPU；AVIF/JXL 无损输入；取消和保存
+- 行为：OpenComic system CLI 探测；Upscayl daemon；waifu2x/realcugan；IllustrationJaNai/MangaJaNai；tile/scale/TTA/GPU；AVIF/JXL 无损输入；取消和保存
 - 测试：`neoview.super-resolution.abort`、`neoview.super-resolution.acquire-failure`、`neoview.super-resolution.capability-abort`、`neoview.super-resolution.capability-cache`、`neoview.super-resolution.composition`、`neoview.super-resolution.composition-disabled`、`neoview.super-resolution.composition-uninstalled`、`neoview.super-resolution.config`、`neoview.super-resolution.config-defaults`、`neoview.super-resolution.config-validation`、`neoview.super-resolution.custom-model-collision`、`neoview.super-resolution.custom-model-config`、`neoview.super-resolution.custom-model-registration`、`neoview.super-resolution.daemon-capability`、`neoview.super-resolution.explicit-path`、`neoview.super-resolution.gpu-lease`、`neoview.super-resolution.lazy`、`neoview.super-resolution.legacy-conditions`、`neoview.super-resolution.legacy-preferences`、`neoview.super-resolution.legacy-settings-import`、`neoview.super-resolution.legacy-validation`、`neoview.super-resolution.no-overwrite`、`neoview.super-resolution.output-lock`、`neoview.super-resolution.page-archive-materialize`、`neoview.super-resolution.page-file-fast-path`、`neoview.super-resolution.page-policy-skip`、`neoview.super-resolution.page-release`、`neoview.super-resolution.page-validation`、`neoview.super-resolution.path-probe`、`neoview.super-resolution.policy-composition`、`neoview.super-resolution.policy-default`、`neoview.super-resolution.policy-metadata`、`neoview.super-resolution.policy-priority`、`neoview.super-resolution.policy-skip`、`neoview.super-resolution.policy-trigger`、`neoview.super-resolution.policy-validation`、`neoview.super-resolution.probe-cache`、`neoview.super-resolution.provider-abort`、`neoview.super-resolution.provider-capability`、`neoview.super-resolution.provider-daemon-fallback`、`neoview.super-resolution.provider-dispose`、`neoview.super-resolution.provider-lazy`、`neoview.super-resolution.provider-output`、`neoview.super-resolution.provider-run`、`neoview.super-resolution.preferences-config`、`neoview.super-resolution.runtime-loader`、`neoview.super-resolution.runtime-loader-contract`、`neoview.super-resolution.runtime-loader-missing`、`neoview.super-resolution.runtime-model-filter`、`neoview.super-resolution.toml`、`neoview.super-resolution.trusted-fallback`、`neoview.super-resolution.validation`
 - 计划测试：无
 - 性能基准：`upscale-cold`、`upscale-warm`
-- 已知差异：Versioned TOML preferences/conditions and legacy native/panel/localStorage import are implemented; unknown model IDs are reported and excluded from executable conditions. MangaJaNai is replaced by the unified pipeline, so its legacy directory is reported and ignored rather than converted to a runtime manifest.；All three installed Windows system CLIs pass the deterministic small-corpus GPU benchmark; the installed Upscayl build does not advertise daemon mode and is therefore run as a controlled short process. Larger real-page/driver coverage remains pending.；The system-only fork is not yet available through a remote immutable dependency.
+- 已知差异：Versioned TOML preferences/conditions and legacy native/panel/localStorage import are implemented; unknown model IDs are reported and excluded from executable conditions, while legacy MangaJaNai directory conversion still requires an explicit custom-model manifest.；All three installed Windows system CLIs pass the deterministic small-corpus GPU benchmark; the installed Upscayl build does not advertise daemon mode and is therefore run as a controlled short process. Larger real-page/driver coverage remains pending.；The system-only fork is not yet available through a remote immutable dependency.
 
 ### 文件信息、图片属性、尺寸扫描和系统元数据（`metadata-dimensions-properties`）
 
@@ -404,18 +404,18 @@
 
 ### Ollama、AI 面板和翻译服务（`ai-ollama-translation`）
 
-- 派生总体：`pending`
+- 派生总体：`partial`
 - 处置：`migrate`
-- 六维：`core=- transport=N/A gui=- cli=- tui=N/A evidence=-`
+- 六维：`core=P transport=N/A gui=- cli=- tui=N/A evidence=-`
 - 阻塞维度：`core`、`gui`、`cli`、`evidence`
 - 端：gui、cli
 - 设置：`aiApiConfig`
 - 数据：AI API config、translation cache
 - 行为：服务探测和模型列表；生成请求；配置保存；取消/错误；翻译缓存
-- 测试：待补
+- 测试：`neoview.ai.translation-cache`、`neoview.ai.translation-cancel`、`neoview.ai.ollama-client`
 - 计划测试：无
 - 性能基准：无专项
-- 已知差异：无
+- 已知差异：已提供可注入的 Ollama 探测/模型列表/非流式翻译与内存缓存核心；TOML 配置、旧 ai_translation 持久缓存、LibreTranslate、GUI 和 CLI 尚未接线
 
 ### 性能设置、基准、系统监控和诊断（`performance-benchmark-diagnostics`）
 
@@ -427,25 +427,25 @@
 - 设置：`performance`
 - 数据：benchmark reports、pipeline latency
 - 行为：冷/热基准；算法对照；系统 CPU/RSS/GPU 观测；任务队列状态；报告导出；基准不污染用户缓存
-- 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.wire-schema`、`neoview.diagnostics.http`、`neoview.diagnostics.runtime-http`、`neoview.diagnostics.backend`、`neoview.diagnostics.cli`、`neoview.diagnostics.cli-connect`、`neoview.video-process.scheduler`、`neoview.video-process.composition`、`neoview.diagnostics.scheduler-telemetry-cli`、`xiranite.scheduler.telemetry`、`neoview.memory-pressure.route`、`neoview.memory-pressure.solid-http`、`neoview.preload.telemetry-http`、`neoview.preload.performance-telemetry`、`neoview.react.predecode`、`neoview.react.cbz-e2e`、`neoview.thumbnail.react-e2e`
+- 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.wire-schema`、`neoview.diagnostics.http`、`neoview.diagnostics.history-export-http`、`neoview.diagnostics.history-cli-connect`、`neoview.diagnostics.runtime-http`、`neoview.diagnostics.backend`、`neoview.diagnostics.cli`、`neoview.diagnostics.cli-connect`、`neoview.video-process.scheduler`、`neoview.video-process.composition`、`neoview.diagnostics.scheduler-telemetry-cli`、`xiranite.scheduler.telemetry`、`neoview.memory-pressure.route`、`neoview.memory-pressure.solid-http`、`neoview.preload.telemetry-http`、`neoview.preload.performance-telemetry`、`neoview.react.predecode`、`neoview.react.cbz-e2e`、`neoview.thumbnail.react-e2e`
 - 计划测试：无
 - 性能基准：`neoview-full-suite`、`reader-loopback-pipeline`、`presentation-retention-real-image`、`reader-hot-page-turn`、`build-chunk`
-- 已知差异：当前提供无副作用瞬时快照、宿主资源池 lease/queue wait、archive/browser owner payload、统一 cache lease 及预读性能累计指标；core 导出的 Zod passthrough wire schema 已用于远程 CLI/TUI，React 窄 diagnostics DTO 尚待切换；GPU 利用率、时间序列采样、算法对照和报告导出仍待迁移
+- 已知差异：当前提供无副作用瞬时快照、宿主资源池 lease/queue wait、archive/browser owner payload、统一 cache lease 及预读性能累计指标；HTTP JSON/CSV history export 与远程有界 history adapter 已完成，CLI/TUI history 命令入口和 React 窄 diagnostics DTO 尚待切换；GPU 利用率、自动时间序列采样和算法对照仍待迁移
 
 ### 图片裁边、颜色滤镜、页面过渡和悬停滚动（`image-effects-transitions`）
 
-- 派生总体：`pending`
+- 派生总体：`partial`
 - 处置：`migrate`
-- 六维：`core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-`
+- 六维：`core=P transport=N/A gui=P cli=N/A tui=N/A evidence=P`
 - 阻塞维度：`core`、`gui`、`evidence`
 - 端：gui
 - 设置：`image.hoverScrollEnabled`、`image.hoverScrollSpeed`
 - 数据：trim state、filter state、transition state
 - 行为：自动/手动裁边；颜色滤镜开关与参数；页面切换动画；长图悬停滚动和速度；切页后清理上一页效果状态
-- 测试：待补
+- 测试：`neoview.color-filter.ui`、`neoview.image-trim.ui`、`neoview.page-transition.runtime`、`neoview.viewer.hover-scroll-runtime`、`neoview.viewer.hover-scroll-toolbar`
 - 计划测试：无
 - 性能基准：`image-effects-frame`
-- 已知差异：无
+- 已知差异：悬停滚动复用 Reader 直接 viewport ref 与原生 scroll offset，不再使用全局 mousemove、selector 查询、MutationObserver 或延时初始化；窄视口的左右减速区按 viewport 宽度自适应，上限仍为旧版 50px
 
 ### 卡片注册、卡片布局、独立窗口和通用标签页（`card-windows-tabs`）
 
@@ -505,4 +505,4 @@
 - 测试：`neoview.clipboard.materialization-service`、`neoview.clipboard.materialization-validation`、`neoview.clipboard.materialization-platform`、`neoview.clipboard.materialization-cleanup`、`neoview.clipboard.materialization-http`、`neoview.file-operations.system-platform`、`neoview.file-operations.system-scheduler`
 - 计划测试：无
 - 性能基准：无专项
-- 已知差异：文本、图片和普通文件复制复用 Xiranite host clipboard；不新增 Reader clipboard backend；归档页复制先创建有 TTL、数量和字节预算的临时文件租约，再由 GUI 调用 host clipboard.writeFiles；旧版 cut 标记仅为进程内状态，迁移为 Reader UI/session 状态；文件剪贴板读取与 clear 已由 Windows 鉴权宿主路由接管；快捷方式解析、Explorer 右键注册和 trash restore 的 GUI/CLI/TUI transport 与跨平台语义仍待迁移
+- 已知差异：文本、图片和普通文件复制复用 Xiranite host clipboard；不新增 Reader clipboard backend；归档页复制先创建有 TTL、数量和字节预算的临时文件租约，再由 GUI 调用 host clipboard.writeFiles；旧版 cut 标记仅为进程内状态，迁移为 Reader UI/session 状态；文件剪贴板读取与 clear 已由 Windows 鉴权宿主路由接管；Explorer 右键注册已由 Windows system capability 与 CLI preview/status/enable/disable 接管，GUI transport 仍待迁移；快捷方式解析和 trash restore 的 GUI/CLI/TUI transport 与跨平台语义仍待迁移

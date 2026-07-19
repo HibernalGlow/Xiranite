@@ -1926,12 +1926,12 @@
       ],
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "pending",
+        "core": "partial",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
       "behaviorCases": [
         "自动/手动裁边",
@@ -1940,12 +1940,20 @@
         "长图悬停滚动和速度",
         "切页后清理上一页效果状态"
       ],
-      "testIds": [],
+      "testIds": [
+        "neoview.color-filter.ui",
+        "neoview.image-trim.ui",
+        "neoview.page-transition.runtime",
+        "neoview.viewer.hover-scroll-runtime",
+        "neoview.viewer.hover-scroll-toolbar"
+      ],
       "plannedTestIds": [],
       "benchmarkIds": [
         "image-effects-frame"
       ],
-      "knownDifferences": []
+      "knownDifferences": [
+        "悬停滚动复用 Reader 直接 viewport ref 与原生 scroll offset，不再使用全局 mousemove、selector 查询、MutationObserver 或延时初始化；窄视口的左右减速区按 viewport 宽度自适应，上限仍为旧版 50px"
+      ]
     },
     {
       "id": "card-windows-tabs",

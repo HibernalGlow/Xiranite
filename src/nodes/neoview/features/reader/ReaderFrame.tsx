@@ -24,10 +24,11 @@ import type { ReaderPageTransitionPort } from "../page-transition/ReaderPageTran
 import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { ReaderPageTransitionLayer } from "../page-transition/ReaderPageTransitionLayer"
 import { PageMedia } from "./PageMedia"
+import { useReaderHoverScroll } from "./useReaderHoverScroll"
 
 const LazyReaderPanoramaFrame = lazy(async () => ({ default: (await import("./ReaderPanoramaFrame")).ReaderPanoramaFrame }))
 
-export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, totalPages, anchorPageIndex, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
+export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, totalPages, anchorPageIndex, hoverScrollEnabled = false, hoverScrollSpeed = 2, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   framePages?: readonly FramePage[]
   presentation: ReaderPresentation
@@ -36,6 +37,8 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
   pageMode?: "single" | "double"
   totalPages: number
   anchorPageIndex: number
+  hoverScrollEnabled?: boolean
+  hoverScrollSpeed?: number
   colorFilter?: ReaderColorFilterPort
   imageTrim?: ReaderImageTrimPort
   pageTransition?: ReaderPageTransitionPort
@@ -50,6 +53,8 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const viewport = useObservedSize(viewportRef, panorama)
+  const hoverScrollPageKey = `${anchorPageIndex}:${framePages?.map((page) => page.part ?? "full").join(",") ?? "full"}`
+  useReaderHoverScroll(viewportRef, { enabled: hoverScrollEnabled && !panorama, speed: hoverScrollSpeed, pageKey: hoverScrollPageKey })
   if (panorama) return <Suspense fallback={null}><LazyReaderPanoramaFrame sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense>
   const frameOrientation = pages.length > 1 ? "horizontal" : presentation.orientation
   const dimensions = pages.flatMap((page, index) => page.dimensions
@@ -83,6 +88,8 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
       data-reader-orientation={presentation.orientation}
       data-reader-wide-page-stretch={presentation.widePageStretch}
       data-reader-effective-scale={scale}
+      data-reader-hover-scroll={hoverScrollEnabled ? "enabled" : "disabled"}
+      data-reader-hover-scroll-speed={hoverScrollSpeed}
     >
       <div className={presentation.fitMode === "fit-left"
         ? "grid h-max min-h-full w-max min-w-full items-center justify-items-start p-2"

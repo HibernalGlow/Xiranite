@@ -660,7 +660,7 @@ export interface ReaderPageListPreferencesPatch {
 
 export interface ReaderRuntimeConfigDto {
   shell: ReaderShellConfigDto
-  viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode; orientation?: ReaderOrientation; autoRotation?: ReaderAutoRotation; widePageStretch?: ReaderWidePageStretch }
+  viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode; splitWidePages?: boolean; hoverScrollEnabled?: boolean; hoverScrollSpeed?: number; orientation?: ReaderOrientation; autoRotation?: ReaderAutoRotation; widePageStretch?: ReaderWidePageStretch }
   pageList: ReaderPageListPreferencesDto
   bookmarkList: ReaderBookmarkListPreferencesDto
   historyList: ReaderHistoryListPreferencesDto
@@ -1048,7 +1048,7 @@ export interface ReaderFolderViewPatch {
 }
 
 export interface ReaderViewDefaultsPatch {
-  viewDefaults: { fitMode?: ReaderFitMode; pageMode?: PageMode; orientation?: ReaderOrientation; autoRotation?: ReaderAutoRotation; widePageStretch?: ReaderWidePageStretch }
+  viewDefaults: { fitMode?: ReaderFitMode; pageMode?: PageMode; splitWidePages?: boolean; hoverScrollEnabled?: boolean; hoverScrollSpeed?: number; orientation?: ReaderOrientation; autoRotation?: ReaderAutoRotation; widePageStretch?: ReaderWidePageStretch }
 }
 
 export interface ReaderSlideshowConfig {

@@ -64,20 +64,26 @@ describe("ReaderInputActionExecutor", () => {
       getSnapshot: vi.fn(() => ({ enabled: true })),
       update: vi.fn(async (_patch: { enabled?: boolean }) => undefined),
     }
-    const controls = fixture({ switchToast, infoOverlay })
+    const hoverScroll = {
+      getSnapshot: vi.fn(() => ({ enabled: true })),
+      update: vi.fn(async (_patch: { enabled: boolean }) => undefined),
+    }
+    const controls = fixture({ switchToast, infoOverlay, hoverScroll })
 
     expect(executeReaderInputAction("viewer.toggle-page-switch-toast", controls)).toBe(true)
     expect(executeReaderInputAction("viewer.toggle-book-switch-toast", controls)).toBe(true)
     expect(executeReaderInputAction("viewer.toggle-boundary-toast", controls)).toBe(true)
     expect(executeReaderInputAction("viewer.toggle-info-overlay", controls)).toBe(true)
+    expect(executeReaderInputAction("viewer.toggle-hover-scroll", controls)).toBe(true)
     expect(switchToast.update).toHaveBeenNthCalledWith(1, { enablePage: false })
     expect(switchToast.update).toHaveBeenNthCalledWith(2, { enableBook: true })
     expect(switchToast.update).toHaveBeenNthCalledWith(3, { enableBoundaryToast: false })
     expect(infoOverlay.update).toHaveBeenCalledWith({ enabled: false })
+    expect(hoverScroll.update).toHaveBeenCalledWith({ enabled: false })
   })
 })
 
-function fixture(overrides: Partial<Pick<ReaderInputActionControls, "switchToast" | "infoOverlay">> = {}): ReaderInputActionControls & Record<"navigate" | "goTo" | "switchBook" | "setPresentation" | "toggleShellEdge", ReturnType<typeof vi.fn>> {
+function fixture(overrides: Partial<Pick<ReaderInputActionControls, "switchToast" | "infoOverlay" | "hoverScroll">> = {}): ReaderInputActionControls & Record<"navigate" | "goTo" | "switchBook" | "setPresentation" | "toggleShellEdge", ReturnType<typeof vi.fn>> {
   const presentation = { ...DEFAULT_READER_PRESENTATION }
   return {
     session: () => ({ pageCount: 100, pageIndex: 10, direction: "right-to-left", pageMode: "single" }),

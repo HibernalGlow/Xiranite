@@ -9,6 +9,8 @@ schema_version = 1
 [nodes.neoview.reader]
 reading_direction = "right-to-left"
 double_page_view = true
+hover_scroll_enabled = true
+hover_scroll_speed = 2.0
 
 [nodes.neoview.reader.subtitle]
 font_size = 24
