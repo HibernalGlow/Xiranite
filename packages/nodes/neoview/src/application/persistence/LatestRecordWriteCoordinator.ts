@@ -4,6 +4,7 @@ export class LatestRecordWriteCoordinator<Key, Record> {
   readonly #running = new Map<Key, Promise<void>>()
   readonly #runningRecords = new Map<Key, Record>()
   #closed = false
+  #closePromise: Promise<void> | undefined
 
   constructor(
     private readonly keyOf: (record: Record) => Key,
@@ -51,12 +52,18 @@ export class LatestRecordWriteCoordinator<Key, Record> {
     }
   }
 
-  async close(): Promise<void> {
-    if (this.#closed) return
+  close(): Promise<void> {
+    if (this.#closePromise) return this.#closePromise
     this.#closed = true
     const keys = new Set([...this.#pending.keys(), ...this.#running.keys(), ...this.#timers.keys()])
-    const writes = await Promise.allSettled([...keys].map((key) => this.flush(key)))
-    const errors = writes.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
-    if (errors.length) throw new AggregateError(errors, "Failed to persist one or more pending records.")
+    const running = [...this.#running.values()]
+    this.#closePromise = Promise.allSettled([
+      ...running,
+      ...[...keys].map((key) => this.flush(key)),
+    ]).then((writes) => {
+      const errors = writes.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
+      if (errors.length) throw new AggregateError(errors, "Failed to persist one or more pending records.")
+    })
+    return this.#closePromise
   }
 }
