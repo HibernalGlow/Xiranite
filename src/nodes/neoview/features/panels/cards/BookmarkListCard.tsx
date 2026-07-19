@@ -13,6 +13,7 @@ import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
+import { readerLibraryListLayout, readerLibraryMediaClassName } from "./shared/readerLibraryEntryLayout"
 
 type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmarkListDto }
 type BookmarkViewMode = "compact" | "content" | "banner" | "thumbnail"
@@ -42,9 +43,14 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
   const [batchListIds, setBatchListIds] = useState<ReadonlySet<string>>(() => new Set(["default"]))
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const [viewMode, setViewMode] = useState<BookmarkViewMode>("compact")
+  const [viewportWidth, setViewportWidth] = useState(320)
   const anchorIndexRef = useRef<number>()
   const listTabRefs = useRef(new Map<string, HTMLButtonElement>())
   const newListButtonRef = useRef<HTMLButtonElement>(null)
+  const listLayout = useMemo(() => readerLibraryListLayout(viewMode, viewportWidth), [viewMode, viewportWidth])
+  const handleViewportWidthChange = useCallback((width: number) => {
+    setViewportWidth((current) => current === width ? current : width)
+  }, [])
   const selectedBookmarks = useMemo(
     () => loadedBookmarks.filter((item) => selectedIds.has(item.id)),
     [loadedBookmarks, selectedIds],
@@ -353,9 +359,8 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
         loadPage={loadPage}
         emptyLabel="当前列表没有书签"
         refreshLabel="刷新书签"
-        itemSize={viewMode === "compact" ? 34 : viewMode === "content" ? 76 : viewMode === "banner" ? 100 : 148}
-        columns={viewMode === "banner" ? 2 : viewMode === "thumbnail" ? 3 : 1}
-        gap={viewMode === "banner" || viewMode === "thumbnail" ? 4 : 0}
+        {...listLayout}
+        onViewportWidthChange={handleViewportWidthChange}
         getItemKey={(item) => item.id}
         onVisibleItemsChange={handleVisibleItems}
         onItemsChange={handleLoadedItems}
@@ -494,7 +499,7 @@ function BookmarkRow({
           kind={item.kind}
           fit="cover"
           loading={thumbnailLoading}
-          className={viewMode === "content" ? "size-16" : "size-full rounded-none"}
+          className={readerLibraryMediaClassName(viewMode)}
         />
       )}
       primary={(

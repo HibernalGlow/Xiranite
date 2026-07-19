@@ -1,6 +1,7 @@
 /**
  * Radial menu settings editor — ring-slot layout inspired by legacy
  * RadialMenuSettingsPanel.svelte, adapted to XR DTO (menus[].layers[]).
+ * Single interactive ring (no separate runtime preview) to keep the card compact.
  */
 import {
   cloneReaderRadialMenuConfig,
@@ -13,6 +14,8 @@ import {
   type ReaderRadialMenuItem,
 } from "@xiranite/node-neoview/ui-core"
 import {
+  ChevronDown,
+  ChevronRight,
   CircleDot,
   Eye,
   Plus,
@@ -28,7 +31,6 @@ import { Switch } from "@/components/ui/switch"
 import type { ReaderRadialMenuPatch } from "../../../adapters/reader-http-client"
 import { GUI_READER_INPUT_ACTIONS } from "../../input/ReaderInputActionCapabilities"
 import { ReaderRadialMenuOverlay } from "../../input/ReaderRadialMenuOverlay"
-import { RadialMenuLivePreview } from "./RadialMenuLivePreview"
 
 const CENTER = 260
 const MIN_SLOT_COUNT = 8
@@ -61,6 +63,7 @@ export function RadialMenuSettingsEditor({
   const [draft, setDraft] = useState(() => cloneReaderRadialMenuConfig(value))
   const [selected, setSelected] = useState<{ level: 1 | 2 | 3; itemId: string }>()
   const [preview, setPreview] = useState(0)
+  const [geometryOpen, setGeometryOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState<string>()
 
@@ -77,7 +80,6 @@ export function RadialMenuSettingsEditor({
     return findItemById(activeMenu.layers[selected.level - 1] ?? [], selected.itemId)
   }, [activeMenu, selected])
 
-  // Drop selection if the item disappeared after an edit.
   useEffect(() => {
     if (selected && !selectedItem) setSelected(undefined)
   }, [selected, selectedItem])
@@ -213,198 +215,185 @@ export function RadialMenuSettingsEditor({
       ? (draft.menus.find((menu) => menu.id === selectedItem.moveToMenuId)?.name ?? "跳转轮盘")
       : "未绑定"
 
+  const hasSlots = activeMenu.layers.some((layer) => layer.length > 0)
+
   return (
-    <div className="grid gap-4" data-neoview-settings-card="radial-menu">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="grid gap-1">
-          <p className="text-xs text-muted-foreground">
-            {draft.enabled ? "已启用" : "已停用"}
-            {" · "}
-            {levelName(layerCount)}菜单
-            {" · "}
-            点击空槽添加，点击已有槽编辑
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs">
-            <span className="text-muted-foreground">启用</span>
-            <Switch
-              checked={draft.enabled}
-              disabled={saving}
-              onCheckedChange={(enabled) => updateDraft((current) => { current.enabled = enabled })}
-              aria-label="启用轮盘"
-            />
-          </label>
-          <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-            value={draft.activeMenuId}
+    <div className="grid gap-3" data-neoview-settings-card="radial-menu">
+      {/* Compact toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs">
+          <Switch
+            checked={draft.enabled}
             disabled={saving}
-            onChange={(event) => switchMenu(event.currentTarget.value)}
-            aria-label="活动轮盘"
-          >
-            {draft.menus.map((menu) => <option key={menu.id} value={menu.id}>{menu.name}</option>)}
-          </select>
+            onCheckedChange={(enabled) => updateDraft((current) => { current.enabled = enabled })}
+            aria-label="启用轮盘"
+          />
+          <span className="text-muted-foreground">启用</span>
+        </label>
+        <select
+          className="h-8 min-w-[7rem] rounded-md border border-input bg-background px-2 text-xs"
+          value={draft.activeMenuId}
+          disabled={saving}
+          onChange={(event) => switchMenu(event.currentTarget.value)}
+          aria-label="活动轮盘"
+        >
+          {draft.menus.map((menu) => <option key={menu.id} value={menu.id}>{menu.name}</option>)}
+        </select>
+        <select
+          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+          value={draft.layerCount}
+          disabled={saving}
+          onChange={(event) => {
+            const next = Number(event.currentTarget.value) as 1 | 2 | 3
+            updateDraft((current) => { current.layerCount = next })
+            if (selected && selected.level > next) setSelected(undefined)
+          }}
+          aria-label="轮盘层数"
+        >
+          <option value={1}>1 层</option>
+          <option value={2}>2 层</option>
+          <option value={3}>3 层</option>
+        </select>
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <Button type="button" size="sm" variant="outline" disabled={saving || draft.menus.length >= 16} onClick={addMenu}>
             <Plus />新轮盘
           </Button>
           <Button type="button" size="sm" variant="ghost" disabled={saving || draft.menus.length <= 1} onClick={deleteMenu}>
-            <Trash2 />删除
+            <Trash2 />
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={saving || !activeMenu.layers.some((layer) => layer.length)}
-            onClick={() => setPreview((current) => current + 1)}
-          >
-            <Eye />预览
+          <Button type="button" size="sm" variant="outline" disabled={saving || !hasSlots} onClick={() => setPreview((n) => n + 1)} title="全屏弹出预览">
+            <Eye />
           </Button>
           <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void commit({ reset: "defaults" })}>
-            <RotateCcw />恢复默认
+            <RotateCcw />
           </Button>
           <Button type="button" size="sm" disabled={saving} onClick={() => void commit({ config: draft })}>
             <Save />保存
           </Button>
         </div>
-      </header>
+      </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(18rem,1fr)_minmax(16rem,20rem)]">
-        <section className="rounded-lg border bg-card/40 p-3">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-medium">轮盘编辑与预览</h3>
-              <p className="text-[11px] text-muted-foreground">左侧点槽编辑；右侧是与运行时相同的轮盘外观（只读）。</p>
-            </div>
-            <label className="grid gap-1 text-[11px] text-muted-foreground">
-              层数
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                value={draft.layerCount}
-                disabled={saving}
-                onChange={(event) => {
-                  const next = Number(event.currentTarget.value) as 1 | 2 | 3
-                  updateDraft((current) => { current.layerCount = next })
-                  if (selected && selected.level > next) setSelected(undefined)
-                }}
-                aria-label="轮盘层数"
-              >
-                <option value={1}>1 层</option>
-                <option value={2}>2 层</option>
-                <option value={3}>3 层</option>
-              </select>
-            </label>
-          </div>
+      <p className="text-[11px] text-muted-foreground">
+        {draft.enabled ? "已启用" : "已停用"} · {levelName(layerCount)} · 点空槽添加，点已有槽编辑
+      </p>
 
-          <div className="grid gap-3 lg:grid-cols-2">
-            <div className="flex min-h-[18rem] justify-center overflow-auto rounded-md border bg-background/40 p-2">
-              <svg viewBox="0 0 520 520" className="h-[min(48vh,24rem)] min-h-[16rem] w-full max-w-[24rem]" role="img" aria-label="轮盘槽位编辑器">
-                <circle cx={CENTER} cy={CENTER} r="252" className="fill-background stroke-border" />
-                {layerCount >= 3 ? <circle cx={CENTER} cy={CENTER} r="180" className="fill-background stroke-border" /> : null}
-                {layerCount >= 2 ? <circle cx={CENTER} cy={CENTER} r="100" className="fill-background stroke-border" /> : null}
-                <circle cx={CENTER} cy={CENTER} r="34" className="fill-background stroke-border" />
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_16rem]">
+        {/* Single interactive ring */}
+        <section className="grid content-start gap-2 rounded-lg border bg-card/40 p-2">
+          <div className="flex justify-center">
+            <svg
+              viewBox="0 0 520 520"
+              className="h-[min(52vh,22rem)] min-h-[16rem] w-full max-w-[22rem]"
+              role="img"
+              aria-label="轮盘槽位编辑器"
+            >
+              <circle cx={CENTER} cy={CENTER} r="252" className="fill-background stroke-border" />
+              {layerCount >= 3 ? <circle cx={CENTER} cy={CENTER} r="180" className="fill-background stroke-border" /> : null}
+              {layerCount >= 2 ? <circle cx={CENTER} cy={CENTER} r="100" className="fill-background stroke-border" /> : null}
+              <circle cx={CENTER} cy={CENTER} r="34" className="fill-background stroke-border" />
 
-                {editorSlots.map((slot) => {
-                  const isSelected = Boolean(slot.item && selected?.itemId === slot.item.id)
-                  return (
-                    <g
-                      key={slot.id}
-                      className={slot.disabled ? "opacity-35" : "cursor-pointer"}
-                      onClick={() => handleSlotClick(slot)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault()
-                          handleSlotClick(slot)
-                        }
-                      }}
-                      tabIndex={slot.disabled ? -1 : 0}
-                      role="button"
-                      aria-label={slot.hint}
-                      aria-pressed={isSelected}
-                    >
-                      <path
-                        d={slot.d}
-                        className={
-                          slot.item
-                            ? isSelected
-                              ? "fill-primary/25 stroke-primary stroke-2"
-                              : "fill-muted/35 stroke-border hover:fill-primary/10"
-                            : "fill-muted/20 stroke-muted-foreground/30 stroke-dashed hover:fill-primary/15 hover:stroke-primary/60"
-                        }
-                      />
-                      {slot.item ? (
-                        <foreignObject x={slot.labelX - 38} y={slot.labelY - 18} width="76" height="36" className="pointer-events-none">
-                          <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center">
-                            <div className="max-w-full truncate px-1 text-[11px] font-medium leading-tight text-foreground">
-                              {shortLabel(slot.label)}
-                            </div>
-                            {slot.item.disabled ? <div className="text-[9px] text-muted-foreground">已禁用</div> : null}
+              {editorSlots.map((slot) => {
+                const isSelected = Boolean(slot.item && selected?.itemId === slot.item.id)
+                return (
+                  <g
+                    key={slot.id}
+                    className={slot.disabled ? "opacity-35" : "cursor-pointer"}
+                    onClick={() => handleSlotClick(slot)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        handleSlotClick(slot)
+                      }
+                    }}
+                    tabIndex={slot.disabled ? -1 : 0}
+                    role="button"
+                    aria-label={slot.hint}
+                    aria-pressed={isSelected}
+                  >
+                    <path
+                      d={slot.d}
+                      className={
+                        slot.item
+                          ? isSelected
+                            ? "fill-primary/25 stroke-primary stroke-2"
+                            : "fill-muted/40 stroke-border hover:fill-primary/10"
+                          : "fill-muted/15 stroke-muted-foreground/30 stroke-dashed hover:fill-primary/15 hover:stroke-primary/60"
+                      }
+                    />
+                    {slot.item ? (
+                      <foreignObject x={slot.labelX - 36} y={slot.labelY - 16} width="72" height="32" className="pointer-events-none">
+                        <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden text-center">
+                          <div className="max-w-full truncate px-1 text-[11px] font-medium leading-tight text-foreground">
+                            {shortLabel(slot.label)}
                           </div>
-                        </foreignObject>
-                      ) : !slot.disabled ? (
-                        <text
-                          x={slot.labelX}
-                          y={slot.labelY}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          className="pointer-events-none fill-muted-foreground text-[18px]"
-                        >
-                          +
-                        </text>
-                      ) : null}
-                    </g>
-                  )
-                })}
+                        </div>
+                      </foreignObject>
+                    ) : !slot.disabled ? (
+                      <text
+                        x={slot.labelX}
+                        y={slot.labelY}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        className="pointer-events-none fill-muted-foreground text-[16px]"
+                      >
+                        +
+                      </text>
+                    ) : null}
+                  </g>
+                )
+              })}
 
-                <circle cx={CENTER} cy={CENTER} r="24" className="fill-card stroke-border" />
-                <text x={CENTER} y={CENTER} textAnchor="middle" dominantBaseline="middle" className="pointer-events-none fill-muted-foreground text-[11px] font-medium">
-                  编辑
-                </text>
-              </svg>
-            </div>
-
-            <div className="grid content-start gap-2">
-              <div>
-                <h4 className="text-xs font-medium">运行时外观</h4>
-                <p className="text-[11px] text-muted-foreground">与阅读器里弹出的轮盘同一组件，随半径/层数/槽位即时刷新。</p>
-              </div>
-              <RadialMenuLivePreview
-                config={draft}
-                menuId={activeMenu.id}
-                className="rounded-md border bg-background/50"
-              />
-            </div>
+              <circle cx={CENTER} cy={CENTER} r="22" className="fill-card stroke-border" />
+              <text x={CENTER} y={CENTER} textAnchor="middle" dominantBaseline="middle" className="pointer-events-none fill-muted-foreground text-[10px] font-medium">
+                {levelName(layerCount)}
+              </text>
+            </svg>
           </div>
 
-          <fieldset className="mt-3 grid gap-2 border-t pt-3 sm:grid-cols-2 lg:grid-cols-5">
-            <legend className="px-1 text-xs font-medium text-muted-foreground">外观与几何</legend>
-            <NumberField label="半径" value={draft.radius} min={60} max={300} onChange={(radius) => updateDraft((current) => { current.radius = radius })} />
-            <NumberField label="内半径" value={draft.innerRadius} min={0} max={Math.min(100, draft.radius - 1)} onChange={(innerRadius) => updateDraft((current) => { current.innerRadius = innerRadius })} />
-            <NumberField label="起始角" value={draft.startAngle} min={-180} max={180} onChange={(startAngle) => updateDraft((current) => { current.startAngle = startAngle })} />
-            <NumberField label="扫过角" value={draft.sweepAngle} min={90} max={360} onChange={(sweepAngle) => updateDraft((current) => { current.sweepAngle = sweepAngle })} />
-            <label className="grid gap-1 text-[11px] text-muted-foreground">
-              样式
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                value={draft.variant}
-                onChange={(event) => updateDraft((current) => { current.variant = event.currentTarget.value as ReaderRadialMenuConfig["variant"] })}
-              >
-                <option value="slice">扇区</option>
-                <option value="bubble">气泡</option>
-              </select>
-            </label>
-          </fieldset>
+          <button
+            type="button"
+            className="flex w-full items-center gap-1 rounded-md px-1 py-1 text-left text-[11px] text-muted-foreground hover:bg-muted/40"
+            onClick={() => setGeometryOpen((open) => !open)}
+            aria-expanded={geometryOpen}
+          >
+            {geometryOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+            外观与几何
+            <span className="ml-auto tabular-nums opacity-80">
+              r{draft.radius} · 内{draft.innerRadius} · {draft.variant === "slice" ? "扇区" : "气泡"}
+            </span>
+          </button>
+          {geometryOpen ? (
+            <div className="grid gap-2 border-t pt-2 sm:grid-cols-2 lg:grid-cols-5">
+              <NumberField label="半径" value={draft.radius} min={60} max={300} onChange={(radius) => updateDraft((current) => { current.radius = radius })} />
+              <NumberField label="内半径" value={draft.innerRadius} min={0} max={Math.min(100, draft.radius - 1)} onChange={(innerRadius) => updateDraft((current) => { current.innerRadius = innerRadius })} />
+              <NumberField label="起始角" value={draft.startAngle} min={-180} max={180} onChange={(startAngle) => updateDraft((current) => { current.startAngle = startAngle })} />
+              <NumberField label="扫过角" value={draft.sweepAngle} min={90} max={360} onChange={(sweepAngle) => updateDraft((current) => { current.sweepAngle = sweepAngle })} />
+              <label className="grid gap-1 text-[11px] text-muted-foreground">
+                样式
+                <select
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  value={draft.variant}
+                  onChange={(event) => updateDraft((current) => { current.variant = event.currentTarget.value as ReaderRadialMenuConfig["variant"] })}
+                >
+                  <option value="slice">扇区</option>
+                  <option value="bubble">气泡</option>
+                </select>
+              </label>
+            </div>
+          ) : null}
         </section>
 
-        <aside className="flex flex-col gap-3 rounded-lg border bg-card/40 p-3">
+        {/* Slot inspector */}
+        <aside className="flex flex-col gap-2.5 rounded-lg border bg-card/40 p-3">
           <div className="grid gap-0.5">
-            <h3 className="text-sm font-medium">槽位管理</h3>
+            <h3 className="text-sm font-medium">槽位</h3>
             <p className="text-[11px] text-muted-foreground">
-              {selectedItem ? `正在编辑${levelName(selected!.level)}槽位` : "点左侧轮盘槽位开始添加或编辑"}
+              {selectedItem ? `${levelName(selected!.level)} · 索引 ${selectedItem.slotIndex}` : "点左侧空槽或已有槽"}
             </p>
           </div>
 
           <label className="grid gap-1 text-xs text-muted-foreground">
-            当前轮盘名
+            轮盘名
             <Input
               value={activeMenu.name}
               maxLength={80}
@@ -422,26 +411,23 @@ export function RadialMenuSettingsEditor({
 
           {selectedItem && selected ? (
             <>
-              <div className="flex items-center gap-2 rounded-lg border bg-background/70 p-3">
-                <div className="grid size-9 place-items-center rounded-md bg-muted">
-                  <CircleDot className="size-4" />
-                </div>
+              <div className="flex items-center gap-2 rounded-md border bg-background/70 px-2.5 py-2">
+                <CircleDot className="size-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">{selectedItem.label || "未命名"}</div>
-                  <div className="truncate text-xs text-muted-foreground">{selectedActionLabel}</div>
+                  <div className="truncate text-[11px] text-muted-foreground">{selectedActionLabel}</div>
                 </div>
               </div>
 
               <label className="grid gap-1 text-xs text-muted-foreground">
-                槽位类型
+                类型
                 <select
                   className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                   value={selectedItem.moveToMenuId ? "moveTo" : "action"}
                   disabled={saving}
                   onChange={(event) => {
                     if (event.currentTarget.value === "moveTo") {
-                      const target = otherMenus[0]?.id
-                      updateSelected({ action: null, moveToMenuId: target })
+                      updateSelected({ action: null, moveToMenuId: otherMenus[0]?.id })
                     } else {
                       updateSelected({ moveToMenuId: undefined, action: selectedItem.action ?? "reader.next-page" })
                     }
@@ -454,7 +440,7 @@ export function RadialMenuSettingsEditor({
 
               {selectedItem.moveToMenuId ? (
                 <label className="grid gap-1 text-xs text-muted-foreground">
-                  目标轮盘
+                  目标
                   <select
                     className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                     value={selectedItem.moveToMenuId}
@@ -472,8 +458,8 @@ export function RadialMenuSettingsEditor({
                     value={selectedItem.action ?? ""}
                     disabled={saving}
                     onChange={(event) => {
-                      const value = event.currentTarget.value
-                      updateSelected({ action: value ? value as ReaderInputAction : null, moveToMenuId: undefined })
+                      const next = event.currentTarget.value
+                      updateSelected({ action: next ? next as ReaderInputAction : null, moveToMenuId: undefined })
                     }}
                   >
                     <option value="">未绑定</option>
@@ -499,45 +485,40 @@ export function RadialMenuSettingsEditor({
                 />
               </label>
 
-              <label className="grid gap-1 text-xs text-muted-foreground">
-                槽位索引
-                <Input
-                  type="number"
-                  min={0}
-                  max={63}
-                  value={selectedItem.slotIndex}
-                  disabled={saving}
-                  onChange={(event) => updateSelected({ slotIndex: Number(event.currentTarget.value) })}
-                />
-              </label>
-
-              <div className="flex items-center justify-between rounded-md border px-3 py-2">
-                <span className="text-xs text-muted-foreground">启用此槽</span>
-                <Switch
-                  checked={!selectedItem.disabled}
-                  disabled={saving}
-                  onCheckedChange={(enabled) => updateSelected({ disabled: enabled ? undefined : true })}
-                  aria-label={`${selectedItem.label}启用`}
-                />
+              <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                <label className="grid gap-1 text-xs text-muted-foreground">
+                  槽位
+                  <Input
+                    type="number"
+                    min={0}
+                    max={63}
+                    value={selectedItem.slotIndex}
+                    disabled={saving}
+                    onChange={(event) => updateSelected({ slotIndex: Number(event.currentTarget.value) })}
+                  />
+                </label>
+                <label className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-xs">
+                  <Switch
+                    checked={!selectedItem.disabled}
+                    disabled={saving}
+                    onCheckedChange={(enabled) => updateSelected({ disabled: enabled ? undefined : true })}
+                    aria-label={`${selectedItem.label}启用`}
+                  />
+                  启用
+                </label>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => moveSelected(-1)}>前移</Button>
                 <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => moveSelected(1)}>后移</Button>
+                <Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={saving} onClick={removeSelected}>
+                  <Trash2 />
+                </Button>
               </div>
-
-              <Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={saving} onClick={removeSelected}>
-                <Trash2 />删除槽位
-              </Button>
             </>
           ) : (
-            <div className="grid flex-1 place-items-center rounded-lg border border-dashed px-4 py-10 text-center">
-              <div className="grid gap-2">
-                <span className="mx-auto grid size-10 place-items-center rounded-full bg-muted text-muted-foreground">
-                  <CircleDot className="size-4" />
-                </span>
-                <p className="text-sm text-muted-foreground">点左侧空槽添加，或点已有槽编辑</p>
-              </div>
+            <div className="grid flex-1 place-items-center rounded-md border border-dashed px-3 py-8 text-center">
+              <p className="text-xs text-muted-foreground">点左侧环上的 + 添加槽位</p>
             </div>
           )}
         </aside>

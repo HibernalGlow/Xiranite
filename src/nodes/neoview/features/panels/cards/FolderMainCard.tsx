@@ -169,6 +169,7 @@ const FolderGridWorkspace = lazy(() => import("./folder/FolderGridWorkspace"))
 const FolderBreadcrumb = lazy(() => import("./folder/FolderBreadcrumb"))
 const FolderSearchPanel = lazy(() => import("./folder/FolderSearchPanel"))
 const FolderTreeWorkspace = lazy(() => import("./folder/FolderTreeWorkspace"))
+const FolderTreePanel = lazy(() => import("./folder/FolderTreePanel"))
 const DirectoryWatch = lazy(() => import("./folder/DirectoryWatch"))
 const FolderTabsHost = lazy(() => import("./folder/FolderTabsHost"))
 const FolderChromeLayout = lazy(() => import("./folder/FolderChromeLayout"))
@@ -254,6 +255,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const [filterBarOpen, setFilterBarOpen] = useState(false)
   const [activeToolbar, setActiveToolbar] = useState<"view" | "sort" | "size" | "more">()
   const [treeOpen, setTreeOpen] = useState(folderView.tree.visible)
+  const [inlineTreeOpen, setInlineTreeOpen] = useState(false)
   const [treeLayout, setTreeLayout] = useState(folderView.tree.layout)
   const [treeSize, setTreeSize] = useState(folderView.tree.size)
   const [viewMode, setViewMode] = useState<FolderViewMode>(folderView.viewMode)
@@ -860,6 +862,20 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     void onFolderView?.({ tree: { visible } })
   }
 
+  function toggleInlineTree() {
+    if (!inlineTreeOpen) {
+      const state = captureCurrentState()
+      if (state) {
+        if (viewUsesVirtuosoList(viewMode)) {
+          listRef.current?.getState((listSnapshot) => setRestoreState({ ...state, listSnapshot }))
+        } else {
+          setRestoreState(state)
+        }
+      }
+    }
+    setInlineTreeOpen((current) => !current)
+  }
+
   function toggleMultiSelectMode() {
     if (multiSelectMode) {
       setSelection(createDirectorySelection(catalog?.generation ?? selection.generation))
@@ -1183,6 +1199,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     }
   }
   const actionHandleItems = [
+    { id: "inline-tree", label: "内联树", preview: inlineTreeOpen ? "恢复当前目录的普通列表" : "在主内容区显示可展开的目录树", icon: <ListTree className="size-4" />, disabled: !client.treeDirectoryBrowser || !catalog, active: inlineTreeOpen, onSelect: toggleInlineTree },
     { id: "thumbnail-refresh-cancel", label: "\u53d6\u6d88\u7f29\u7565\u56fe\u91cd\u8f7d", preview: "\u53d6\u6d88\u6b63\u5728\u8fdb\u884c\u7684\u7f29\u7565\u56fe\u91cd\u8f7d", icon: <RefreshCw className="size-4" />, disabled: !thumbnailRefreshPending, active: thumbnailRefreshPending, onSelect: cancelThumbnailRefresh },
     { id: "thumbnail-refresh-selected", label: "\u91cd\u8f7d\u9009\u4e2d\u7f29\u7565\u56fe", preview: "\u91cd\u8f7d\u5df2\u9009\u6587\u4ef6\u7684\u7f29\u7565\u56fe", icon: <RefreshCw className="size-4" />, disabled: thumbnailRefreshPending || !selectedPaths.size || !client.registerLibraryThumbnails || !viewUsesThumbnails(viewMode), active: thumbnailRefreshPending, onSelect: () => { void refreshSelectedThumbnails() } },
     { id: "thumbnail-refresh", label: "\u91cd\u8f7d\u7f29\u7565\u56fe", preview: "\u91cd\u8f7d\u5f53\u524d\u53ef\u89c1\u9879\u7684\u7f29\u7565\u56fe", icon: <RefreshCw className="size-4" />, disabled: thumbnailRefreshPending || !client.registerLibraryThumbnails || !viewUsesThumbnails(viewMode), active: thumbnailRefreshPending, onSelect: () => { void refreshVisibleThumbnails() } },
@@ -1205,6 +1222,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       data-folder-toolbar-position={tabLayout.toolbarPosition}
       data-folder-tab-position={tabLayout.layout}
       data-folder-view-mode={viewMode}
+      data-folder-inline-tree={inlineTreeOpen || null}
       data-selection-count={selectedCount}
       data-selection-total={catalog?.total ?? 0}
       data-thumbnail-cache-size={thumbnailUrls.size}
@@ -1545,12 +1563,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
           className="min-h-0 min-w-0 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
           data-neoview-folder-list="true"
           data-focused-index={focusedIndex}
-          role={searchOpen ? undefined : "listbox"}
+          role={searchOpen || inlineTreeOpen ? undefined : "listbox"}
           aria-label={searchOpen ? undefined : "文件项目"}
-          aria-activedescendant={searchOpen ? undefined : focusedItemId}
-          tabIndex={0}
-          onKeyDown={handleDirectoryKeyDown}
-          {...emptyAreaHandlers}
+          aria-activedescendant={searchOpen || inlineTreeOpen ? undefined : focusedItemId}
+          tabIndex={inlineTreeOpen ? -1 : 0}
+          onKeyDown={inlineTreeOpen ? undefined : handleDirectoryKeyDown}
+          {...(inlineTreeOpen ? {} : emptyAreaHandlers)}
           style={{ order: treeOpen && (treeLayout === "right" || treeLayout === "bottom") ? 0 : 1, "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%` } as CSSProperties}
         >
         {searchOpen && sessionIdRef.current ? (
@@ -1566,7 +1584,21 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             />
           </Suspense>
         ) : null}
-        {!searchOpen && catalog && catalog.total > 0 && viewUsesVirtuosoList(viewMode) ? (
+        {!searchOpen && inlineTreeOpen && sessionIdRef.current && catalog ? (
+          <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载内联文件树" />}>
+            <FolderTreePanel
+              client={client}
+              sessionId={sessionIdRef.current}
+              currentPath={catalog.path}
+              watching={active && catalog.watching}
+              disabled={disabled || loading}
+              pinnedPaths={[]}
+              onNavigate={(path) => { void navigate({ action: "path", path }, { keepTree: true }) }}
+              onPinnedPathsChange={() => undefined}
+            />
+          </Suspense>
+        ) : null}
+        {!searchOpen && !inlineTreeOpen && catalog && catalog.total > 0 && viewUsesVirtuosoList(viewMode) ? (
           <Virtuoso
             key={virtualKey}
             ref={listRef}
@@ -1604,7 +1636,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             }}
           />
         ) : null}
-        {!searchOpen && catalog && viewMode === "details" ? (
+        {!searchOpen && !inlineTreeOpen && catalog && viewMode === "details" ? (
           <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载详细信息视图" />}>
             <FolderDetailsView
               key={virtualKey}
@@ -1623,7 +1655,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             />
           </Suspense>
         ) : null}
-        {!searchOpen && catalog && catalog.total > 0 && viewUsesGrid(viewMode) ? (
+        {!searchOpen && !inlineTreeOpen && catalog && catalog.total > 0 && viewUsesGrid(viewMode) ? (
           <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载网格视图" />}>
             <FolderGridWorkspace
               virtualKey={virtualKey}
@@ -1649,7 +1681,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             />
           </Suspense>
         ) : null}
-        {!searchOpen && catalog && catalog.total === 0 ? (
+        {!searchOpen && !inlineTreeOpen && catalog && catalog.total === 0 ? (
           <div
             className="grid h-72 place-items-center px-4 text-center text-xs text-muted-foreground"
             data-folder-empty-state="true"

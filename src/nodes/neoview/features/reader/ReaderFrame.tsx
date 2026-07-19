@@ -4,10 +4,13 @@
  * @features panels-toolbar-shell
  * @migration-status adapted
  */
-import { useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import {
   calculateReaderFrameSize,
   calculateReaderScale,
+  calculateReaderPageStretchScales,
+  effectiveReaderRotation,
+  rotatePresentationSize,
   type PresentationSize,
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
@@ -20,9 +23,16 @@ import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { ReaderPageTransitionLayer } from "../page-transition/ReaderPageTransitionLayer"
 import { PageMedia } from "./PageMedia"
 
-export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVideoListEnded }: {
+const LazyReaderPanoramaFrame = lazy(async () => ({ default: (await import("./ReaderPanoramaFrame")).ReaderPanoramaFrame }))
+
+export function ReaderFrame({ pages, presentation, panorama, direction, pageMode, totalPages, anchorPageIndex, colorFilter, imageTrim, pageTransition, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   presentation: ReaderPresentation
+  panorama?: boolean
+  direction?: "left-to-right" | "right-to-left"
+  pageMode?: "single" | "double"
+  totalPages: number
+  anchorPageIndex: number
   colorFilter?: ReaderColorFilterPort
   imageTrim?: ReaderImageTrimPort
   pageTransition?: ReaderPageTransitionPort
@@ -33,12 +43,15 @@ export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageT
   superResolution?: ReaderSuperResolutionConfigDto
   onSubtitleConfigChange(patch: Partial<ReaderSubtitleConfigDto>): Promise<void>
   onVideoListEnded: () => void
+  onVisiblePageChange?: (pageIndex: number) => void
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
-  const viewport = useObservedSize(viewportRef)
+  const viewport = useObservedSize(viewportRef, panorama)
+  if (panorama) return <Suspense fallback={null}><LazyReaderPanoramaFrame sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense>
+  const frameOrientation = pages.length > 1 ? "horizontal" : presentation.orientation
   const dimensions = pages.flatMap((page) => page.dimensions ? [page.dimensions] : [])
   const frameSize = dimensions.length === pages.length
-    ? calculateReaderFrameSize(dimensions, presentation.rotation)
+    ? calculateReaderFrameSize(dimensions, presentation.rotation, frameOrientation, presentation.autoRotation, presentation.widePageStretch)
     : undefined
   const gap = pages.length > 1 ? 4 * (pages.length - 1) : 0
   const available = viewport
@@ -47,6 +60,8 @@ export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageT
   const scale = frameSize && available
     ? calculateReaderScale(presentation.fitMode, frameSize, available, presentation.manualScale)
     : undefined
+  const rotatedDimensions = dimensions.map((dimension) => rotatePresentationSize(dimension, effectiveReaderRotation(presentation.rotation, presentation.autoRotation, dimension)))
+  const pageStretchScales = calculateReaderPageStretchScales(rotatedDimensions, presentation.widePageStretch)
 
   return (
     <div
@@ -56,9 +71,16 @@ export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageT
       data-reader-fit-mode={presentation.fitMode}
       data-reader-manual-scale={presentation.manualScale}
       data-reader-rotation={presentation.rotation}
+      data-reader-auto-rotation={presentation.autoRotation}
+      data-reader-orientation={presentation.orientation}
+      data-reader-wide-page-stretch={presentation.widePageStretch}
       data-reader-effective-scale={scale}
     >
-      <div className="grid h-max min-h-full w-max min-w-full place-items-center p-2">
+      <div className={presentation.fitMode === "fit-left"
+        ? "grid h-max min-h-full w-max min-w-full items-center justify-items-start p-2"
+        : presentation.fitMode === "fit-right"
+          ? "grid h-max min-h-full w-max min-w-full items-center justify-items-end p-2"
+          : "grid h-max min-h-full w-max min-w-full place-items-center p-2"}>
         <ReaderPageTransitionLayer pageIndex={pages[0]?.index} store={pageTransition}>
           <div
             className="flex shrink-0 items-center justify-center gap-1"
@@ -72,8 +94,10 @@ export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageT
               <PageMedia
                 key={`${page.mediaKind}:${slotIndex}`}
                 page={page}
-                rotation={presentation.rotation}
-                scale={scale}
+                rotation={page.dimensions
+                  ? effectiveReaderRotation(presentation.rotation, presentation.autoRotation, page.dimensions)
+                  : presentation.rotation}
+                scale={scale === undefined ? undefined : scale * (pageStretchScales[slotIndex] ?? 1)}
                 fallbackSize={available}
                 colorFilter={colorFilter}
                 imageTrim={imageTrim}
@@ -93,10 +117,11 @@ export function ReaderFrame({ pages, presentation, colorFilter, imageTrim, pageT
   )
 }
 
-function useObservedSize(ref: React.RefObject<HTMLElement | null>): PresentationSize | undefined {
+function useObservedSize(ref: React.RefObject<HTMLElement | null>, inactive = false): PresentationSize | undefined {
   const [size, setSize] = useState<PresentationSize | undefined>(undefined)
 
   useEffect(() => {
+    if (inactive) return
     const element = ref.current
     if (!element) return
     const update = (width: number, height: number) => {
@@ -111,7 +136,7 @@ function useObservedSize(ref: React.RefObject<HTMLElement | null>): Presentation
     })
     observer.observe(element)
     return () => observer.disconnect()
-  }, [ref])
+  }, [inactive, ref])
 
   return size
 }
