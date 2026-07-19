@@ -27,6 +27,8 @@ interface PanelDndContextValue {
 const PanelDndContext = createContext<PanelDndContextValue | null>(null)
 const railId = (side: ReaderPanelSide) => `reader-panel-rail:${side}`
 const disableLayoutAnimation = () => false
+// Clicks must not start a drag: require a real move (or a deliberate long-press on touch).
+export const READER_PANEL_POINTER_ACTIVATION = { distance: 14 } as const
 
 export function ReaderPanelDndProvider({
   shell,
@@ -56,8 +58,8 @@ function ActiveReaderPanelDndProvider({
   const dragShellRef = useRef(shell)
   const baseRef = useRef(shell)
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: READER_PANEL_POINTER_ACTIVATION }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 280, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
