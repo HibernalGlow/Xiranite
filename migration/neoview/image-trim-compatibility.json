@@ -371,7 +371,7 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "partial",
+        "transport": "complete",
         "gui": "complete",
         "cli": "complete",
         "tui": "pending",
@@ -379,13 +379,13 @@
       },
       "testIds": [
         "neoview.image-trim.reset",
+        "neoview.image-trim.reset-http",
         "neoview.image-trim.cli"
       ],
       "plannedTestIds": [
-        "neoview.image-trim.reset-http",
         "neoview.image-trim.reset-tui"
       ],
-      "notes": "The shared codec, CLI and real Chromium Card restore every canonical field in one mutation, hide the disabled editor, clear crop CSS and preserve the active image identity. HTTP-specific reset and TUI wiring remain incomplete."
+      "notes": "The shared codec, authenticated HTTP boundary, CLI and real Chromium Card restore every canonical field in one mutation, hide the disabled editor, clear crop CSS and preserve the active image identity. TUI wiring remains incomplete."
     },
     {
       "id": "image-trim.edges",
@@ -658,7 +658,7 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "partial",
+        "transport": "complete",
         "gui": "complete",
         "cli": "complete",
         "tui": "pending",
@@ -666,13 +666,13 @@
       },
       "testIds": [
         "neoview.image-trim.threshold",
+        "neoview.image-trim.threshold-http",
         "neoview.image-trim.cli"
       ],
       "plannedTestIds": [
-        "neoview.image-trim.threshold-http",
         "neoview.image-trim.threshold-tui"
       ],
-      "notes": "The shared codec, CLI and real Chromium range preserve 5..100 in step-5 increments; keyboard completion persists once and does not start detection. Dedicated HTTP and TUI evidence remains pending."
+      "notes": "The shared codec, authenticated HTTP boundary, CLI and real Chromium range preserve 5..100 in step-5 increments; invalid transport input does not persist, and keyboard completion persists once without starting detection. TUI evidence remains pending."
     },
     {
       "id": "image-trim.target",
@@ -690,7 +690,7 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "partial",
+        "transport": "complete",
         "gui": "complete",
         "cli": "complete",
         "tui": "pending",
@@ -698,13 +698,13 @@
       },
       "testIds": [
         "neoview.image-trim.target",
+        "neoview.image-trim.target-http",
         "neoview.image-trim.cli"
       ],
       "plannedTestIds": [
-        "neoview.image-trim.target-http",
         "neoview.image-trim.target-tui"
       ],
-      "notes": "The shared enum validator, CLI and real Chromium select preserve auto/black/white and reject unknown values without starting detection. Dedicated HTTP/TUI and legacy-import fallback evidence remains pending."
+      "notes": "The shared enum validator, authenticated HTTP boundary, CLI and real Chromium select preserve auto/black/white and reject unknown values without persisting or starting detection. TUI and legacy-import fallback evidence remains pending."
     },
     {
       "id": "image-trim.auto-message",

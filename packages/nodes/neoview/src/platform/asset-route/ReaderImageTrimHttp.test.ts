@@ -9,7 +9,7 @@ import type { NeoviewImageTrimPatch } from "../../application/config/ReaderRunti
 import { ReaderHttpController } from "./ReaderHttpController.js"
 
 describe("Reader image trim HTTP", () => {
-  it("[neoview.image-trim.transport-linked] serializes linked projections against the latest committed state", async () => {
+  it("[neoview.image-trim.transport-linked] [neoview.image-trim.threshold-http] [neoview.image-trim.target-http] [neoview.image-trim.reset-http] serializes validated projections against the latest committed state", async () => {
     let committed: ReaderImageTrimSettings = {
       ...DEFAULT_READER_IMAGE_TRIM,
       top: 10,
@@ -63,6 +63,20 @@ describe("Reader image trim HTTP", () => {
       const invalid = await controller.handle(request({ imageTrim: { top: 46 } }))
       expect(invalid?.status).toBe(400)
       expect(updateImageTrim).toHaveBeenCalledTimes(2)
+
+      const invalidOptions = await controller.handle(request({ imageTrim: { autoTrimThreshold: 12, autoTrimTarget: "gray" } }))
+      expect(invalidOptions?.status).toBe(400)
+      expect(updateImageTrim).toHaveBeenCalledTimes(2)
+
+      const options = await controller.handle(request({ imageTrim: { autoTrimThreshold: 45, autoTrimTarget: "white" } }))
+      expect(options?.status).toBe(200)
+      expect(updateImageTrim).toHaveBeenCalledTimes(3)
+      await expect(options!.json()).resolves.toMatchObject({ imageTrim: { autoTrimThreshold: 45, autoTrimTarget: "white" } })
+
+      const reset = await controller.handle(request({ imageTrim: { reset: "defaults" } }))
+      expect(reset?.status).toBe(200)
+      expect(updateImageTrim).toHaveBeenCalledTimes(4)
+      await expect(reset!.json()).resolves.toMatchObject({ imageTrim: DEFAULT_READER_IMAGE_TRIM })
     } finally {
       await controller[Symbol.asyncDispose]()
     }
