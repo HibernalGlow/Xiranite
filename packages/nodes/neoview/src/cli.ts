@@ -54,11 +54,12 @@ import { commitNeoviewConfig } from "./platform/config/NeoviewConfigStore.js"
 import { loadNeoviewRuntimeConfig } from "./platform/config/loadNeoviewRuntimeConfig.js"
 import { loadReaderBackupScheduleConfig } from "./platform/backup/ReaderBackupScheduleConfig.js"
 import { ReaderBackupScheduleRunner } from "./platform/backup/ReaderBackupScheduleRunner.js"
-import { parseNeoviewBookmarkListPatch, parseNeoviewImageTrimPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig } from "./application/config/ReaderRuntimeConfig.js"
+import { parseNeoviewBookmarkListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig } from "./application/config/ReaderRuntimeConfig.js"
 import { formatReaderPageTransition, type ReaderPageTransitionPatch } from "./page-transition.js"
 import type { ReaderImageTrimPatch } from "./image-trim.js"
 import { READER_INPUT_CONTEXTS, type ReaderInputBinding, type ReaderInputContext, type ReaderInputDescriptor } from "./domain/input/ReaderInputBindings.js"
 import { READER_INPUT_ACTIONS, readerInputActionFromLegacyId, type ReaderInputAction } from "./domain/input/ReaderInputActions.js"
+import { ReaderImageTrimConfigService } from "./platform/config/ReaderImageTrimConfigService.js"
 import { executeReaderHeadlessInputAction } from "./application/headless/ReaderHeadlessInputActionExecutor.js"
 import { executeReaderHeadlessInputBinding } from "./application/headless/ReaderHeadlessInputBindingExecutor.js"
 import {
@@ -308,6 +309,10 @@ export async function runProgram(
   }
   if (command === "input-bindings-ui") {
     await runInputBindingsUi(args.slice(1), host)
+    return
+  }
+  if (command === "image-trim-ui") {
+    await runImageTrimUi(args.slice(1), host)
     return
   }
   if (command === "upscale-cache-ui") {
@@ -650,15 +655,12 @@ async function runImageTrimCommand(
   host: CliHost,
 ): Promise<void> {
   const options = { configPath: oneValue(parsed, "--config"), cwd: host.cwd, env: host.env }
-  let settings = (await loadNeoviewRuntimeConfig(options)).imageTrim
-  if (command !== "image-trim-get") {
-    const imageTrim = command === "image-trim-reset"
-      ? { reset: "defaults" as const }
-      : imageTrimCliPatch(parsed)
-    const { tomlPatch } = parseNeoviewImageTrimPatch({ imageTrim }, settings)
-    const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
-    settings = parseNeoviewRuntimeConfig(committed.nodeConfig).imageTrim
-  }
+  const service = new ReaderImageTrimConfigService(options)
+  const settings = command === "image-trim-get"
+    ? await service.inspect()
+    : command === "image-trim-reset"
+      ? (await service.reset(true)).config
+      : (await service.apply(imageTrimCliPatch(parsed), true)).config
   if (parsed.booleans.has("--json")) writeJson(host, settings)
   else writeLine(host, `Image trim: enabled=${settings.enabled} top=${settings.top}% bottom=${settings.bottom}% left=${settings.left}% right=${settings.right}% links=${settings.linkVertical ? "vertical" : "-"}/${settings.linkHorizontal ? "horizontal" : "-"} threshold=${settings.autoTrimThreshold} target=${settings.autoTrimTarget}`)
 }
@@ -3310,6 +3312,30 @@ async function runInputBindingsUi(args: readonly string[], host: CliHost): Promi
   })
 }
 
+async function runImageTrimUi(args: readonly string[], host: CliHost): Promise<void> {
+  if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView image-trim-ui requires an interactive terminal.")
+  const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
+  const flags = resolveTerminalUiFlags(args, { language: "zh", renderer: "opentui", theme: "nord" })
+  if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
+    throw usage(flags.error ?? `Unknown image-trim-ui argument: ${flags.args[0]}`)
+  }
+  const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
+  if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
+    throw usage(`Unknown terminal theme: ${flags.theme}.`)
+  }
+  const { createNeoviewImageTrimTuiDefinition } = await import("./interaction.js")
+  await runTerminalUi(createNeoviewImageTrimTuiDefinition(
+    flags.language,
+    new ReaderImageTrimConfigService({ cwd: host.cwd, env: host.env }),
+  ), {
+    host,
+    language: flags.language,
+    renderer: flags.renderer,
+    theme: flags.theme,
+    reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["image-trim-ui", ...args] } : undefined,
+  })
+}
+
 async function runUpscaleCacheUi(
   args: readonly string[],
   host: CliHost,
@@ -3438,6 +3464,7 @@ function formatCliHelp(): string {
     "  image-trim-get            Show global image-trim settings",
     "  image-trim-set            Update edges, links, threshold, and target",
     "  image-trim-reset          Restore image-trim defaults",
+    "  image-trim-ui             Open terminal image-trim settings",
     "  input-bindings-list       Inspect canonical multi-device bindings",
     "  input-bindings-apply <json> Apply a complete binding array (--yes)",
     "  input-bindings-reset      Restore canonical defaults (--yes)",
