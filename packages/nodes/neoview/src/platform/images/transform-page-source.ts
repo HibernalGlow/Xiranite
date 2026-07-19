@@ -1,5 +1,6 @@
 import type { ImageTransformRequest } from "../../domain/image/image-transform.js"
 import type { PageSource } from "../../domain/page/page-content.js"
+import { waitWithAbort } from "../../domain/page/wait-with-abort.js"
 import type {
   ImageTransformer,
   ImageTransformExecution,
@@ -27,7 +28,11 @@ export async function transformPageSource(
     : undefined
   let input: ReadableStream<Uint8Array> | undefined
   try {
-    input = await source.open(signal, undefined, { resourceLease: lease })
+    input = await waitWithAbort(
+      source.open(signal, undefined, { resourceLease: lease }),
+      signal,
+      (lateInput) => lateInput.cancel(signal?.reason),
+    )
     const result = await transformer.transform(input, request, signal, {
       ...execution,
       resourceLease: lease,
