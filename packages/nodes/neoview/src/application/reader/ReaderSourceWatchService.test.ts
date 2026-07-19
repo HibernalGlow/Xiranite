@@ -115,4 +115,43 @@ describe("ReaderSourceWatchService", () => {
     await expect(pending).resolves.toEqual({ revision: 1, state: "unavailable", kinds: [], count: 0 })
     await service[Symbol.asyncDispose]()
   })
+
+  it("[neoview.control.source-watch-error-recovery] rebuilds a failed subscription once and receives the next change", async () => {
+    const closeFirst = vi.fn(async () => undefined)
+    const closeSecond = vi.fn(async () => undefined)
+    const publish: Array<Parameters<ReaderSourceWatcher["subscribe"]>[1]> = []
+    const fail: Array<NonNullable<Parameters<ReaderSourceWatcher["subscribe"]>[2]>> = []
+    const subscriptions = [
+      { close: closeFirst, [Symbol.asyncDispose]: closeFirst },
+      { close: closeSecond, [Symbol.asyncDispose]: closeSecond },
+    ]
+    const watcher: ReaderSourceWatcher = {
+      subscribe: vi.fn(async (_source, onChanges, onError) => {
+        publish.push(onChanges)
+        fail.push(onError!)
+        return subscriptions[publish.length - 1]!
+      }),
+    }
+    const service = new ReaderSourceWatchService(watcher, 5_000)
+    const source = { kind: "directory" as const, path: "D:/private" }
+    const first = service.waitForChange("reader-1", source, 0)
+    await vi.waitFor(() => expect(watcher.subscribe).toHaveBeenCalledOnce())
+
+    fail[0]!()
+    fail[0]!()
+    await expect(first).resolves.toEqual({ revision: 1, state: "unavailable", kinds: [], count: 0 })
+    await vi.waitFor(() => expect(closeFirst).toHaveBeenCalledOnce())
+
+    const recovered = service.waitForChange("reader-1", source, 1)
+    await vi.waitFor(() => expect(watcher.subscribe).toHaveBeenCalledTimes(2))
+    expect(closeFirst).toHaveBeenCalledOnce()
+    expect(fail).toHaveLength(2)
+
+    publish[1]!([{ kind: "update" }])
+    await expect(recovered).resolves.toEqual({ revision: 2, state: "changed", kinds: ["update"], count: 1 })
+
+    await service.release("reader-1")
+    expect(closeFirst).toHaveBeenCalledOnce()
+    expect(closeSecond).toHaveBeenCalledOnce()
+  })
 })

@@ -1,6 +1,6 @@
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderFileTreeChangeKind } from "../../ports/ReaderFileTreeWatcher.js"
-import type { ReaderSourceSubscription, ReaderSourceWatcher } from "../../ports/ReaderSourceWatcher.js"
+import type { ReaderSourceChange, ReaderSourceSubscription, ReaderSourceWatcher } from "../../ports/ReaderSourceWatcher.js"
 
 export interface ReaderSourceChangeSnapshot {
   revision: number
@@ -14,6 +14,9 @@ interface WatchState {
   snapshot?: ReaderSourceChangeSnapshot
   subscription?: ReaderSourceSubscription
   opening?: Promise<void>
+  closing?: Promise<void>
+  attemptId: number
+  failed: boolean
   waiters: Set<() => void>
   released: boolean
   releasedPromise: Promise<void>
@@ -54,6 +57,7 @@ export class ReaderSourceWatchService implements AsyncDisposable {
     for (const notify of state.waiters) notify()
     state.waiters.clear()
     await state.opening?.catch(() => undefined)
+    await state.closing?.catch(() => undefined)
     await state.subscription?.close()
   }
 
@@ -70,6 +74,8 @@ export class ReaderSourceWatchService implements AsyncDisposable {
       })
       state = {
         revision: 0,
+        attemptId: 0,
+        failed: false,
         waiters: new Set(),
         released: false,
         releasedPromise,
@@ -81,18 +87,28 @@ export class ReaderSourceWatchService implements AsyncDisposable {
   }
 
   async #ensureOpen(sessionId: string, source: ViewSource, state: WatchState): Promise<void> {
-    if (state.subscription) return
+    if (state.subscription || state.opening || state.released) return
+    await state.closing?.catch(() => undefined)
+    state.closing = undefined
+    if (state.released || this.#states.get(sessionId) !== state) return
+    if (state.subscription || state.opening) return
+    const attemptId = ++state.attemptId
+    state.failed = false
+    const onChanges = (changes: readonly ReaderSourceChange[]) => {
+      this.#publish(sessionId, state, attemptId, {
+        state: "changed",
+        kinds: [...new Set(changes.map(({ kind }) => kind))],
+        count: changes.length,
+      })
+    }
+    const onError = () => this.#handleError(sessionId, state, attemptId)
     if (!state.opening) {
       state.opening = this.watcher.subscribe(
         source,
-        (changes) => this.#publish(sessionId, {
-          state: "changed",
-          kinds: [...new Set(changes.map(({ kind }) => kind))],
-          count: changes.length,
-        }),
-        () => this.#publish(sessionId, { state: "unavailable", kinds: [], count: 0 }),
+        onChanges,
+        onError,
       ).then((subscription) => {
-        if (this.#states.get(sessionId) === state) state.subscription = subscription
+        if (this.#states.get(sessionId) === state && !state.failed) state.subscription = subscription
         else return subscription.close()
       }).finally(() => {
         state.opening = undefined
@@ -103,14 +119,32 @@ export class ReaderSourceWatchService implements AsyncDisposable {
 
   #publish(
     sessionId: string,
+    state: WatchState,
+    attemptId: number,
     change: Omit<ReaderSourceChangeSnapshot, "revision">,
   ): void {
-    const state = this.#states.get(sessionId)
-    if (!state) return
+    if (this.#states.get(sessionId) !== state || state.released || state.attemptId !== attemptId || state.failed) return
     state.revision += 1
     state.snapshot = { revision: state.revision, ...change }
     for (const notify of state.waiters) notify()
     state.waiters.clear()
+  }
+
+  #handleError(sessionId: string, state: WatchState, attemptId: number): void {
+    if (this.#states.get(sessionId) !== state || state.released || state.attemptId !== attemptId || state.failed) return
+    const subscription = state.subscription
+    state.subscription = undefined
+    this.#publish(sessionId, state, attemptId, { state: "unavailable", kinds: [], count: 0 })
+    state.failed = true
+    if (subscription) state.closing = closeQuietly(subscription)
+  }
+}
+
+function closeQuietly(subscription: ReaderSourceSubscription): Promise<void> {
+  try {
+    return Promise.resolve(subscription.close()).catch(() => undefined)
+  } catch {
+    return Promise.resolve()
   }
 }
 
