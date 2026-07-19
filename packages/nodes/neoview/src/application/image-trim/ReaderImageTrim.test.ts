@@ -6,7 +6,9 @@ import {
   normalizeReaderImageTrim,
   parseReaderImageTrimPatch,
   READER_IMAGE_TRIM_TARGETS,
+  mergeReaderImageCropInsets,
   readerImageTrimClipPath,
+  readerImageTrimEffectiveDimensions,
   serializeReaderImageTrim,
 } from "./ReaderImageTrim.js"
 
@@ -122,5 +124,30 @@ describe("ReaderImageTrim", () => {
       left: 20,
     })).toBe("inset(5% 10% 15% 20%)")
     expect(readerImageTrimClipPath(DEFAULT_READER_IMAGE_TRIM)).toBeUndefined()
+  })
+
+  it("[neoview.image-trim.clip-path] composes typed presentation crops without parsing CSS", () => {
+    const settings = { ...DEFAULT_READER_IMAGE_TRIM, enabled: true, top: 5, right: 10, bottom: 15, left: 20 }
+    const presentation = { top: 0, right: 50, bottom: 0, left: 0 }
+    expect(mergeReaderImageCropInsets({ top: 5, right: 10, bottom: 15, left: 20 }, presentation))
+      .toEqual({ top: 5, right: 50, bottom: 15, left: 20 })
+    expect(readerImageTrimClipPath(settings, presentation)).toBe("inset(5% 50% 15% 20%)")
+    expect(readerImageTrimClipPath(DEFAULT_READER_IMAGE_TRIM, presentation)).toBe("inset(0% 50% 0% 0%)")
+    expect(() => mergeReaderImageCropInsets(undefined, { top: 60, right: 0, bottom: 40, left: 0 })).toThrow(/visible area/)
+  })
+
+  it("[neoview.image-trim.effective-dimensions] reports the visible geometry without creating another asset", () => {
+    const settings = { ...DEFAULT_READER_IMAGE_TRIM, enabled: true, top: 5, right: 10, bottom: 15, left: 20 }
+    expect(readerImageTrimEffectiveDimensions({ width: 1200, height: 800 }, settings)).toEqual({
+      width: 840,
+      height: 640,
+      aspectRatio: 1.3125,
+    })
+    expect(readerImageTrimEffectiveDimensions({ width: 1200, height: 800 }, settings, { top: 0, right: 50, bottom: 0, left: 0 })).toEqual({
+      width: 360,
+      height: 640,
+      aspectRatio: 0.5625,
+    })
+    expect(() => readerImageTrimEffectiveDimensions({ width: 0, height: 800 }, settings)).toThrow(/positive finite/)
   })
 })

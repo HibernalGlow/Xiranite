@@ -3158,20 +3158,20 @@
   - 测试：`neoview.image-trim.stale-detection`、`neoview.image-trim.active-image`、`neoview.image-trim.active-physical-page`、`neoview.image-trim.upscale-generation`
   - 计划测试：`neoview.image-trim.generation-trace`
   - 备注：Registration generations abort and reject stale results before preview or persistence, including physical-page ownership and decoded upscale handoff. Bounded trace-id logging is not yet implemented, so core and evidence remain partial.
-- [ ] `image-trim.clip-path` clip-path 合并与投影
-  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+- [x] `image-trim.clip-path` clip-path 合并与投影
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：mergeClipPaths and trimToClipPath retain the legacy coordinate convention, percentage precision and safe composition for nested/frame crops.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.clip-path`、`neoview.image-trim.clip-path`
-  - 备注：Browser-safe clip-path projection is covered by ReaderImageTrim tests and the PageImage harness; automatic detection composition remains pending.
+  - 测试：`neoview.image-trim.clip-path`、`neoview.image-trim.clip-path-gui`、`neoview.image-trim.transport-linked`、`neoview.image-trim.cli`、`neoview.image-trim.tui`
+  - 计划测试：无
+  - 备注：A typed inset contract replaces CSS-string parsing, preserves legacy max-edge composition and rejects crops with no visible area. PageImage and PageVideo accept presentation crops on the existing media element; the separate automatic horizontal-page split feature remains pending.
 - [ ] `image-trim.effective-dimensions` 裁剪后的有效尺寸
-  - 六维：`core=- transport=- gui=- cli=- tui=- evidence=-`；阻塞：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：getEffectiveDimensions reports truthful dimensions after the crop and presentation transform without claiming an additional decoded asset.
   - 源码：`src/lib/stores/imageTrimStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.image-trim.effective-dimensions`
-  - 备注：Source dimensions and CSS presentation dimensions remain distinct.
+  - 测试：`neoview.image-trim.effective-dimensions`
+  - 计划测试：无
+  - 备注：The browser-safe core reports rounded visible pixel dimensions and aspect ratio from the same typed inset composition without creating another asset. Wiring those dimensions into GUI layout and headless inspection remains pending.
 - [x] `image-trim.persistence` 唯一规范 TOML 持久化
   - 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：Before implementation, agree and freeze one versioned [nodes.neoview.image.*] path; serialize strict snake_case fields through a serialized atomic PATCH, preserve unknown fields and roll back on failure.

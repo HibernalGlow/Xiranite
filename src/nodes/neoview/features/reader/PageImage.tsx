@@ -8,7 +8,7 @@ import {
   projectReaderColorFilterTables,
   type ReaderColorFilterSettings,
 } from "@xiranite/node-neoview/color-filter"
-import { readerImageTrimClipPath } from "@xiranite/node-neoview/image-trim"
+import { DEFAULT_READER_IMAGE_TRIM, readerImageTrimClipPath, type ReaderImageCropInsets } from "@xiranite/node-neoview/image-trim"
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
@@ -23,6 +23,7 @@ export interface PageImageProps {
   colorFilter?: ReaderColorFilterPort
   imageTrim?: ReaderImageTrimPort
   imageTrimDetectionActive?: boolean
+  presentationCropInsets?: ReaderImageCropInsets
   sessionId?: string
   client?: ReaderHttpClient
   superResolution?: ReaderSuperResolutionConfigDto
@@ -32,7 +33,7 @@ const NOOP_SUBSCRIBE = () => () => undefined
 const DEFAULT_COLOR_FILTER_SNAPSHOT = () => DEFAULT_READER_COLOR_FILTER
 const DEFAULT_IMAGE_TRIM_SNAPSHOT = () => undefined
 
-export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, imageTrimDetectionActive = true, sessionId, client, superResolution }: PageImageProps) {
+export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, imageTrimDetectionActive = true, presentationCropInsets, sessionId, client, superResolution }: PageImageProps) {
   const imageRef = useRef<HTMLImageElement>(null)
   const sourceIdentity = imageIdentity(page)
   const sourceIdentityRef = useRef(sourceIdentity)
@@ -71,7 +72,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
   const colorizeAllowed = settings.colorizeEnabled && (!settings.onlyBlackAndWhite || blackAndWhite === true)
   const tables = projectReaderColorFilterTables(settings)
   const filter = projectReaderColorFilterCss(settings, { filterId, colorizeAllowed })
-  const trimClipPath = trimSettings ? readerImageTrimClipPath(trimSettings) : undefined
+  const trimClipPath = trimSettings ? readerImageTrimClipPath(trimSettings, presentationCropInsets) : readerImageTrimClipPath(DEFAULT_READER_IMAGE_TRIM, presentationCropInsets)
 
   useEffect(() => {
     if (!imageTrim || !imageTrimDetectionActive || decodedCommittedIdentity !== committedIdentity) return

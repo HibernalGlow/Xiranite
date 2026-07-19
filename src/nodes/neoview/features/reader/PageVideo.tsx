@@ -1,5 +1,5 @@
 import { rotatePresentationSize, type ReaderRotation } from "@xiranite/node-neoview/ui-core"
-import { readerImageTrimClipPath } from "@xiranite/node-neoview/image-trim"
+import { DEFAULT_READER_IMAGE_TRIM, readerImageTrimClipPath, type ReaderImageCropInsets } from "@xiranite/node-neoview/image-trim"
 import { MediaController } from "media-chrome/react"
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react"
 
@@ -10,13 +10,14 @@ import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 
 const DEFAULT_SUBTITLE_CONFIG: ReaderSubtitleConfigDto = { fontSize: 1, color: "#ffffff", backgroundOpacity: 0.7, bottomPercent: 5 }
 
-export function PageVideo({ page, controller, sessionId, client, media, imageTrim, onSubtitleConfigChange, onListEnded, rotation = 0, scale, fallbackSize }: {
+export function PageVideo({ page, controller, sessionId, client, media, imageTrim, presentationCropInsets, onSubtitleConfigChange, onListEnded, rotation = 0, scale, fallbackSize }: {
   page: ReaderPageDto
   controller: ReaderVideoController
   sessionId?: string
   client?: ReaderHttpClient
   media?: ReaderMediaConfigDto
   imageTrim?: ReaderImageTrimPort
+  presentationCropInsets?: ReaderImageCropInsets
   onSubtitleConfigChange?: (patch: Partial<ReaderSubtitleConfigDto>) => Promise<void>
   onListEnded: () => void
   rotation?: ReaderRotation
@@ -134,7 +135,7 @@ export function PageVideo({ page, controller, sessionId, client, media, imageTri
     top: "50%",
     transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
     } : { width: "100%", height: "100%", objectFit: "contain" }),
-    clipPath: trimSettings ? readerImageTrimClipPath(trimSettings) : undefined,
+    clipPath: trimSettings ? readerImageTrimClipPath(trimSettings, presentationCropInsets) : readerImageTrimClipPath(DEFAULT_READER_IMAGE_TRIM, presentationCropInsets),
   }
   const boxStyle = measured
     ? { width: rotated!.width * scale, height: rotated!.height * scale }
