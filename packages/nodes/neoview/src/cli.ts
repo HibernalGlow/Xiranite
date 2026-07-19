@@ -290,6 +290,10 @@ export async function runProgram(
     await runUpscaleCacheUi(args.slice(1), host, dependencies)
     return
   }
+  if (command === "diagnostics-history-ui") {
+    await runDiagnosticsHistoryUi(args.slice(1), host, dependencies)
+    return
+  }
   if (!COMMANDS.has(command)) throw usage(`Unknown NeoView command: ${command}`)
 
   const parsed = parseArguments(args.slice(1), command)
@@ -3033,6 +3037,48 @@ async function runUpscaleCacheUi(
   }
 }
 
+async function runDiagnosticsHistoryUi(
+  args: readonly string[],
+  host: CliHost,
+  dependencies: NeoviewCliDependencies,
+): Promise<void> {
+  if (!host.stdin.isTTY || !host.stdout.isTTY) throw usage("NeoView diagnostics-history-ui requires an interactive terminal.")
+  const connection = parseReaderUiConnectionArgs(args)
+  if (!connection.baseUrl) throw usage("NeoView diagnostics-history-ui requires --connect to the running Reader backend.")
+  const { resolveTerminalUiFlags } = await import("@xiranite/cli-runtime/interaction")
+  const flags = resolveTerminalUiFlags(connection.terminalArgs, { language: "zh", renderer: "opentui", theme: "nord" })
+  if (flags.error || flags.args.length || !flags.language || !flags.renderer) {
+    throw usage(flags.error ?? `Unknown diagnostics-history-ui argument: ${flags.args[0]}`)
+  }
+  const { listTerminalThemes, runTerminalUi } = await import("@xiranite/cli-runtime/terminal")
+  if (flags.theme && flags.theme !== "inherit" && !listTerminalThemes().includes(flags.theme)) {
+    throw usage(`Unknown terminal theme: ${flags.theme}.`)
+  }
+  const fetchHistory = dependencies.fetchRemoteDiagnosticsHistory ?? (async (options: {
+    baseUrl: string
+    token: string
+    sinceMs?: number
+    limit?: number
+  }) => {
+    const { fetchRemoteReaderDiagnosticsHistory } = await import("./platform/remote/RemoteReaderHeadlessController.js")
+    return fetchRemoteReaderDiagnosticsHistory(options)
+  })
+  const { createNeoviewDiagnosticsHistoryTuiDefinition } = await import("./interaction.js")
+  await runTerminalUi(createNeoviewDiagnosticsHistoryTuiDefinition(flags.language, {
+    history: (options) => fetchHistory({
+      baseUrl: connection.baseUrl!,
+      token: connectionToken(connection.tokenVariable, host),
+      ...options,
+    }),
+  }), {
+    host,
+    language: flags.language,
+    renderer: flags.renderer,
+    theme: flags.theme,
+    reexec: process.argv[1] ? { entrypoint: process.argv[1], args: ["diagnostics-history-ui", ...args] } : undefined,
+  })
+}
+
 function usage(message: string): CliUsageError {
   return new CliUsageError(`${message}\n\n${formatCliHelp()}`)
 }
@@ -3125,6 +3171,7 @@ function formatCliHelp(): string {
     "  presentation-cache-clear       Clear unleased L3 entries (--connect uses the running backend)",
     "  diagnostics                    Show process, scheduler, cache and queue diagnostics",
     "  diagnostics-history-export     Export bounded diagnostics history from --connect",
+    "  diagnostics-history-ui         Open remote diagnostics-history export UI (--connect)",
     "  folder-tree <path>              List one lazily loaded directory-tree node",
     "  folder-search <path>            Stream a bounded recursive directory search",
     "  folder-emm-tags                 Suggest EMM catalog and favorite tags",

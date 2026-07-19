@@ -29,6 +29,11 @@ import type {
   RemoteSuperResolutionArtifactCacheCleanupResult,
   RemoteSuperResolutionArtifactCacheSnapshot,
 } from "./platform/remote/RemoteReaderHeadlessController.js"
+import type { ReaderDiagnosticsHistory } from "./application/diagnostics/ReaderDiagnosticsService.js"
+import {
+  exportReaderDiagnosticsHistory,
+  type ReaderDiagnosticsHistoryExportFormat,
+} from "./application/diagnostics/ReaderDiagnosticsHistoryExport.js"
 
 export interface NeoviewTuiInput {
   path: string
@@ -77,6 +82,23 @@ export interface NeoviewUpscaleCacheTuiPort extends AsyncDisposable {
     kind: RemoteSuperResolutionArtifactCacheCleanupKind,
     signal?: AbortSignal,
   ): Promise<RemoteSuperResolutionArtifactCacheCleanupResult>
+}
+
+export interface NeoviewDiagnosticsHistoryTuiInput {
+  format: ReaderDiagnosticsHistoryExportFormat
+  sinceMs?: number
+  limit?: number
+}
+
+export interface NeoviewDiagnosticsHistoryTuiResult {
+  success: boolean
+  message: string
+  history?: ReaderDiagnosticsHistory
+  body?: string
+}
+
+export interface NeoviewDiagnosticsHistoryTuiPort {
+  history(options: { sinceMs?: number; limit?: number }): Promise<ReaderDiagnosticsHistory>
 }
 
 export interface NeoviewBookSettingsMigrationTuiInput {
@@ -298,6 +320,29 @@ export function createNeoviewUpscaleCacheTuiDefinition(
       }
     },
     cancel: () => activeAbort?.abort(),
+  }
+}
+
+export function createNeoviewDiagnosticsHistoryTuiDefinition(
+  language: "zh" | "en" = "zh",
+  port: NeoviewDiagnosticsHistoryTuiPort,
+): TerminalInteractionDefinition<NeoviewDiagnosticsHistoryTuiInput, NeoviewDiagnosticsHistoryTuiResult> {
+  return {
+    schema: createNeoviewDiagnosticsHistoryTuiSchema(language),
+    async run(input) {
+      try {
+        const history = await port.history({ sinceMs: input.sinceMs, limit: input.limit })
+        const exported = exportReaderDiagnosticsHistory(history, input.format)
+        return {
+          success: true,
+          message: `Exported ${history.samples.length} diagnostics sample(s) as ${exported.format}.`,
+          history,
+          body: exported.body,
+        }
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
+      }
+    },
   }
 }
 
@@ -744,6 +789,55 @@ function createNeoviewUpscaleCacheTuiSchema(
       lines: result.snapshot ? upscaleCacheResultLines(result.snapshot) : [],
     }),
   }
+}
+
+function createNeoviewDiagnosticsHistoryTuiSchema(
+  language: "zh" | "en",
+): TerminalInteractionSchema<NeoviewDiagnosticsHistoryTuiInput, NeoviewDiagnosticsHistoryTuiResult> {
+  const zh = language === "zh"
+  return {
+    id: "neoview-diagnostics-history",
+    title: zh ? "NeoView 诊断历史" : "NeoView Diagnostics History",
+    description: zh ? "从运行中的 Reader 导出有界诊断历史" : "Export bounded diagnostics history from the running Reader",
+    initialValues: { format: "json", sinceMs: "", limit: 100 },
+    fields: [
+      { id: "format", label: zh ? "格式" : "Format", kind: "select", options: [
+        { value: "json", label: "JSON" },
+        { value: "csv", label: "CSV" },
+      ] },
+      { id: "sinceMs", label: zh ? "起始时间戳（可选）" : "First timestamp (optional)", kind: "text" },
+      { id: "limit", label: zh ? "样本上限" : "Sample limit", kind: "number", min: 1, max: 1000, step: 1 },
+    ],
+    toInput: (values) => ({
+      format: values.format === "csv" ? "csv" : "json",
+      sinceMs: optionalSafeInteger(values.sinceMs),
+      limit: optionalSafeInteger(values.limit),
+    }),
+    validate: (values, input) => invalidOptionalSafeInteger(values.sinceMs)
+      ? (zh ? "起始时间戳必须是安全整数。" : "First timestamp must be a safe integer.")
+      : input.limit === undefined || input.limit < 1 || input.limit > 1000
+        ? (zh ? "样本上限必须在 1 到 1000 之间。" : "Sample limit must be between 1 and 1000.")
+        : null,
+    preview: (input) => [input.format, `limit=${input.limit}`, ...(input.sinceMs === undefined ? [] : [`sinceMs=${input.sinceMs}`])],
+    isDangerous: () => false,
+    result: (result) => ({
+      success: result.success,
+      message: result.message,
+      lines: result.history
+        ? [`samples=${result.history.samples.length} droppedSamples=${result.history.droppedSamples}`, ...(result.body?.split("\n").filter(Boolean) ?? [])]
+        : [],
+    }),
+  }
+}
+
+function optionalSafeInteger(value: unknown): number | undefined {
+  if (value === undefined || value === null || String(value).trim() === "") return undefined
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) ? parsed : undefined
+}
+
+function invalidOptionalSafeInteger(value: unknown): boolean {
+  return value !== undefined && value !== null && String(value).trim() !== "" && !Number.isSafeInteger(Number(value))
 }
 
 function isUpscaleCacheTuiAction(value: unknown): value is NeoviewUpscaleCacheTuiInput["action"] {
