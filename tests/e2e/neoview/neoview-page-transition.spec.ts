@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test"
 
 test.use({ viewport: { width: 1920, height: 1080 } })
 
-test("[neoview.page-transition.ui-1920x1080] keeps the animation switch interactive and stable", async ({ page }, testInfo) => {
+test("[neoview.page-transition.ui] [neoview.page-transition.ui-1920x1080] [neoview.page-transition.image-identity] keeps the animation switch interactive and stable", async ({ page }, testInfo) => {
   await page.route(/^https:\/\/fonts\.(?:googleapis|gstatic)\.com\//, (route) => route.abort())
   await page.goto("/tests/e2e/neoview/neoview-page-transition-harness.html", { waitUntil: "domcontentloaded" })
   await expect(page).toHaveTitle("NeoView Page Transition Harness")

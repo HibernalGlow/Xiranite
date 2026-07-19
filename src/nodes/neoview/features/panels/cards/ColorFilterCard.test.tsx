@@ -6,7 +6,7 @@ import DockedColorFilterCard, { ColorFilterCard } from "./ColorFilterCard"
 afterEach(cleanup)
 
 describe("ColorFilterCard", () => {
-  it("keeps the legacy controls available without a book", async () => {
+  it("[neoview.color-filter.states] keeps the legacy controls available without a book", async () => {
     const store = createReaderColorFilterStore({ persist: async (settings) => settings })
     render(<ColorFilterCard store={store} />)
     expect(screen.getAllByRole("slider")).toHaveLength(5)
@@ -25,6 +25,19 @@ describe("ColorFilterCard", () => {
     expect(persist).not.toHaveBeenCalled()
     fireEvent.pointerUp(brightness, { pointerId: 1 })
     await waitFor(() => expect(persist).toHaveBeenCalledOnce())
+  })
+
+  it("[neoview.color-filter.retry] retries a failed save from the visible error state", async () => {
+    const persist = vi.fn()
+      .mockRejectedValueOnce(new Error("disk full"))
+      .mockImplementation(async (settings) => settings)
+    const store = createReaderColorFilterStore({ persist })
+    render(<ColorFilterCard store={store} />)
+    fireEvent.click(screen.getByText("反色"))
+    expect((await screen.findByRole("alert")).textContent).toContain("保存失败")
+    fireEvent.click(screen.getByRole("button", { name: "重试" }))
+    await waitFor(() => expect(screen.getByText("已保存", { exact: true })).toBeTruthy())
+    expect(persist).toHaveBeenCalledTimes(2)
   })
 
   it("keeps the resident Card mounted while its panel is inactive", () => {
