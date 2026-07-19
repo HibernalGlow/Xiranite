@@ -95,8 +95,6 @@ export default function ProgressiveUpscaleCard({ client, session, disabled, pane
     return { tone: "muted", label: "待机" }
   }, [countdown, isAutoEnabled, preferences.progressiveEnabled])
 
-  if (!panelActive) return null
-
   function commit(patch: ReaderSuperResolutionPreferencesDto, next: ProgressivePreferences) {
     setPreferences(next)
     setFeedback(undefined)
@@ -124,7 +122,7 @@ export default function ProgressiveUpscaleCard({ client, session, disabled, pane
   }
 
   return (
-    <div className="space-y-3 text-xs" data-neoview-progressive-upscale="true" data-upscale-provider={config?.provider ?? "unknown"}>
+    <div className="space-y-3 text-xs" data-neoview-progressive-upscale="true" data-panel-active={panelActive ? "true" : "false"} data-upscale-provider={config?.provider ?? "unknown"}>
       <div className="flex items-center justify-between">
         <label className="text-xs font-medium" htmlFor="neoview-auto-upscale">自动超分</label>
         <Switch
