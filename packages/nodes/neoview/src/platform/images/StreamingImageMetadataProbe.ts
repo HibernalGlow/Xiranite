@@ -85,27 +85,36 @@ async function waitWithAbort<T>(
     )
     signal.throwIfAborted()
   }
-  let aborted = false
-  let rejectAbort: ((reason: unknown) => void) | undefined
-  const onAbort = () => {
-    aborted = true
-    rejectAbort?.(signal.reason)
-  }
-  const abort = new Promise<never>((_resolve, reject) => {
-    rejectAbort = reject
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const finish = () => {
+      signal.removeEventListener("abort", onAbort)
+    }
+    const onAbort = () => {
+      if (settled) return
+      settled = true
+      finish()
+      reject(signal.reason)
+    }
     signal.addEventListener("abort", onAbort, { once: true })
+    void operation.then(
+      (result) => {
+        if (settled) {
+          void Promise.resolve(disposeLateResult?.(result)).catch(() => undefined)
+          return
+        }
+        settled = true
+        finish()
+        resolve(result)
+      },
+      (error) => {
+        if (settled) return
+        settled = true
+        finish()
+        reject(error)
+      },
+    )
   })
-  void operation.then(
-    (result) => {
-      if (aborted) void Promise.resolve(disposeLateResult?.(result)).catch(() => undefined)
-    },
-    () => undefined,
-  )
-  try {
-    return await Promise.race([operation, abort])
-  } finally {
-    signal.removeEventListener("abort", onAbort)
-  }
 }
 
 async function readWithAbort(

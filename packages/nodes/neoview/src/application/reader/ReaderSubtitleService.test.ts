@@ -27,6 +27,8 @@ describe("ReaderSubtitleService", () => {
   it("[neoview.subtitle.cancellation] cancels the source stream and closes it when GUI demand leaves", async () => {
     const sourceClosed = vi.fn(async () => undefined)
     const streamCancelled = vi.fn()
+    let markPullStarted!: () => void
+    const pullStarted = new Promise<void>((resolve) => { markPullStarted = resolve })
     const source: PageSource = {
       byteLength: 4,
       contentType: "text/plain",
@@ -34,6 +36,7 @@ describe("ReaderSubtitleService", () => {
       async open(signal) {
         return new ReadableStream<Uint8Array>({
           pull() {
+            markPullStarted()
             signal?.throwIfAborted()
           },
           cancel: streamCancelled,
@@ -47,6 +50,7 @@ describe("ReaderSubtitleService", () => {
     const service = new ReaderSubtitleService(reader, async () => ({ async convertToWebVtt(bytes) { return bytes } }))
     const controller = new AbortController()
     const rendering = service.render(session.id, "video-1", "subtitle-clip.srt", controller.signal)
+    await withTimeout(pullStarted, 500)
     controller.abort(new DOMException("page changed", "AbortError"))
 
     await expect(rendering).rejects.toMatchObject({ name: "AbortError" })
@@ -88,6 +92,58 @@ describe("ReaderSubtitleService", () => {
     await expect(withTimeout(rendering, 500)).rejects.toBe(reason)
     expect(streamCancelled).toHaveBeenCalledOnce()
     expect(sourceClosed).toHaveBeenCalledOnce()
+    await reader[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.subtitle.cancellation] returns promptly and closes a subtitle source that loads after cancellation", async () => {
+    const lateSource = Promise.withResolvers<PageSource>()
+    const close = vi.fn(async () => undefined)
+    const asset = subtitle("clip.srt")
+    asset.content = { load: () => lateSource.promise }
+    const reader = new CoreReaderService(async () => subtitleBook([asset]))
+    const session = await reader.openViewSource({ kind: "media", path: "C:/clip.mp4" })
+    const service = new ReaderSubtitleService(reader, async () => ({ async convertToWebVtt(bytes) { return bytes } }))
+    const controller = new AbortController()
+    const rendering = service.render(session.id, "video-1", asset.id, controller.signal)
+
+    controller.abort(new DOMException("page changed", "AbortError"))
+    await expect(withTimeout(rendering, 500)).rejects.toMatchObject({ name: "AbortError" })
+    lateSource.resolve({
+      byteLength: 4,
+      contentType: "text/plain",
+      rangeSupported: false,
+      open: vi.fn(),
+      close,
+      [Symbol.asyncDispose]: close,
+    })
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce())
+    await reader[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.subtitle.cancellation] returns promptly and cancels a subtitle stream that opens after cancellation", async () => {
+    const lateStream = Promise.withResolvers<ReadableStream<Uint8Array>>()
+    const streamCancelled = vi.fn()
+    const sourceClosed = vi.fn(async () => undefined)
+    const open = vi.fn(() => lateStream.promise)
+    const reader = new CoreReaderService(async () => subtitleBook([subtitle("clip.srt", {
+      byteLength: 4,
+      contentType: "text/plain",
+      rangeSupported: false,
+      open,
+      close: sourceClosed,
+      [Symbol.asyncDispose]: sourceClosed,
+    })]))
+    const session = await reader.openViewSource({ kind: "media", path: "C:/clip.mp4" })
+    const service = new ReaderSubtitleService(reader, async () => ({ async convertToWebVtt(bytes) { return bytes } }))
+    const controller = new AbortController()
+    const rendering = service.render(session.id, "video-1", "subtitle-clip.srt", controller.signal)
+
+    await vi.waitFor(() => expect(open).toHaveBeenCalledOnce())
+    controller.abort(new DOMException("page changed", "AbortError"))
+    await expect(withTimeout(rendering, 500)).rejects.toMatchObject({ name: "AbortError" })
+    expect(sourceClosed).toHaveBeenCalledOnce()
+    lateStream.resolve(new ReadableStream<Uint8Array>({ cancel: streamCancelled }))
+    await vi.waitFor(() => expect(streamCancelled).toHaveBeenCalledOnce())
     await reader[Symbol.asyncDispose]()
   })
 
