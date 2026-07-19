@@ -686,11 +686,59 @@ export interface ReaderInputBindingsPatch {
 export interface ReaderSuperResolutionPreferencesDto {
   autoUpscaleEnabled?: boolean
   preUpscaleEnabled?: boolean
+  globalUpscaleEnabled?: boolean
+  currentImageUpscaleEnabled?: boolean
   preloadPages?: number
   backgroundConcurrency?: number
+  showPanelPreview?: boolean
+  defaultModelId?: string
+  defaultScale?: number
+  defaultTileSize?: number
+  defaultTileEnabled?: boolean
+  defaultNoise?: number
+  defaultGpuId?: string
+  defaultTta?: boolean
   progressiveEnabled?: boolean
   progressiveDwellTimeMs?: number
   progressiveMaxPages?: number
+  conditionalEnabled?: boolean
+  conditionalMinWidth?: number
+  conditionalMinHeight?: number
+  conditions?: readonly ReaderSuperResolutionConditionDto[]
+}
+
+export interface ReaderSuperResolutionConditionDto {
+  id: string
+  name: string
+  enabled: boolean
+  priority: number
+  match: {
+    minWidth?: number
+    minHeight?: number
+    maxWidth?: number
+    maxHeight?: number
+    minMegapixels?: number
+    maxMegapixels?: number
+    dimensionMode?: "and" | "or"
+    createdBetween?: readonly [number, number]
+    modifiedBetween?: readonly [number, number]
+    bookPathRegex?: string
+    imagePathRegex?: string
+    matchInnerPath?: boolean
+    excludeFromPreload?: boolean
+    metadata?: Readonly<Record<string, { operator: "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "regex" | "contains"; value: string | number }>>
+  }
+  action: {
+    skip: boolean
+    modelId?: string
+    scale?: number
+    tileSize?: number
+    tileEnabled?: boolean
+    noise?: number
+    gpuId?: string
+    useCache?: boolean
+    tta?: boolean
+  }
 }
 
 export interface ReaderSuperResolutionConfigDto {
