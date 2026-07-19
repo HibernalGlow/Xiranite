@@ -102,7 +102,7 @@ export function ReaderSidebar({
       {panels.map((panel) => {
         const panelActive = edgeActive && panel.id === active?.id
         const cards = cardsForPanel(panel.id, shell, hasSession)
-        const exclusive = cards.length === 1
+        const exclusive = cards.length === 1 && cards[0]?.exclusivePanel === true
         if (!panelActive && !mountedPanels.has(panel.id)) return null
         return (
           <div

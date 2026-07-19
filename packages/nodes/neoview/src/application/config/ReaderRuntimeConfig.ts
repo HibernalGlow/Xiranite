@@ -2297,6 +2297,7 @@ export function parseNeoviewBoardLayoutPatch(value: unknown): {
     }
   })
   const panelById = new Map(panels.map((panel) => [panel.id, panel]))
+  const visibleCardsByPanel = new Map<string, Array<(typeof cards)[number]>>()
   for (const card of cards) {
     const manifest = READER_CARD_MANIFEST_BY_ID.get(card.cardId)
     if (!manifest) continue
@@ -2306,6 +2307,16 @@ export function parseNeoviewBoardLayoutPatch(value: unknown): {
     if (!panel) throw new Error(`reader board patch card ${card.cardId} references missing panel ${card.panelId}.`)
     if (panel.position !== "left" && panel.position !== "right") {
       throw new Error(`reader board patch card ${card.cardId} cannot be placed in a ${panel.position} panel.`)
+    }
+    const panelCards = visibleCardsByPanel.get(card.panelId) ?? []
+    panelCards.push(card)
+    visibleCardsByPanel.set(card.panelId, panelCards)
+  }
+  for (const [panelId, panelCards] of visibleCardsByPanel) {
+    if (panelCards.length < 2) continue
+    const exclusiveCard = panelCards.find((card) => READER_CARD_MANIFEST_BY_ID.get(card.cardId)?.exclusivePanel)
+    if (exclusiveCard) {
+      throw new Error(`reader board patch card ${exclusiveCard.cardId} requires exclusive panel ${panelId}.`)
     }
   }
   const panelState = Object.fromEntries(panels.map(({ id, ...state }) => [id, state]))

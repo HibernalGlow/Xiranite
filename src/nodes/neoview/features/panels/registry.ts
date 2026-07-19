@@ -123,6 +123,7 @@ export interface ReaderCardDefinition {
   id: string
   title: string
   defaultPanel: LegacyPanelId
+  exclusivePanel: boolean
   canHide: boolean
   requiresSession: boolean
   icon?: LucideIcon
@@ -253,6 +254,7 @@ export const CARD_DEFINITIONS: readonly ReaderCardDefinition[] = READER_CARD_MAN
   id: definition.id,
   title: definition.title,
   defaultPanel: definition.defaultPanelId as LegacyPanelId,
+  exclusivePanel: definition.exclusivePanel,
   canHide: definition.canHide,
   requiresSession: definition.requiresSession,
   ...(CARD_ICONS[definition.id] ? { icon: CARD_ICONS[definition.id] } : {}),

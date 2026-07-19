@@ -140,6 +140,14 @@ describe("ReaderSidebar layout gestures", () => {
     expect(screen.getByRole("button", { name: "折叠文件浏览" })).toBeTruthy()
   })
 
+  it("[neoview.card.exclusive-panel] keeps an ordinary single-card panel framed", () => {
+    render(<ReaderSidebar side="right" context={context()} shell={shell()} />)
+
+    expect(screen.getByRole("heading", { name: "信息" })).toBeTruthy()
+    expect(document.querySelector('[data-reader-card="书籍信息"]')?.getAttribute("data-reader-card-chrome")).toBe("default")
+    expect(screen.getByRole("button", { name: "折叠书籍信息" })).toBeTruthy()
+  })
+
   it("[neoview.settings.sessionless-card] exposes only docked setting cards when no book is open", () => {
     const config = shell()
     config.panelLayout.settings = { visible: true, order: 99, position: "left" }

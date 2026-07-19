@@ -22,6 +22,14 @@ describe("NeoView panel and card registries", () => {
     expect(CARD_DEFINITIONS.find((card) => card.id === "history-list")?.canHide).toBe(false)
   })
 
+  it("[neoview.card.exclusive-panel] declares the three full-size cards explicitly", () => {
+    expect(CARD_DEFINITIONS.filter((card) => card.exclusivePanel).map((card) => card.id)).toEqual([
+      "folder-main",
+      "history-list",
+      "bookmark-list",
+    ])
+  })
+
   it("[neoview.shell.registry-compat] preserves unknown old panel configuration", () => {
     expect(resolveLegacyPanels([
       { id: "info", position: "left", order: 4 },

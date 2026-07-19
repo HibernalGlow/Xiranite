@@ -30,6 +30,7 @@ export interface ReaderCardManifestEntry {
   id: string
   title: string
   defaultPanelId: string
+  exclusivePanel: boolean
   defaultVisible: boolean
   defaultExpanded: boolean
   defaultOrder: number
@@ -56,9 +57,9 @@ export const READER_PANEL_MANIFEST = [
 ] as const satisfies readonly ReaderPanelManifestEntry[]
 
 export const READER_CARD_MANIFEST = [
-  card("folder-main", "文件浏览", "folder", true, true, 0, false, false),
-  card("history-list", "历史记录", "history", true, true, 0, false, false),
-  card("bookmark-list", "书签列表", "bookmark", true, true, 0, true, false),
+  exclusiveCard("folder-main", "文件浏览", "folder", true, true, 0, false, false),
+  exclusiveCard("history-list", "历史记录", "history", true, true, 0, false, false),
+  exclusiveCard("bookmark-list", "书签列表", "bookmark", true, true, 0, true, false),
   card("page-navigation", "页面导航", "pageList", true, true, 0, false, true),
   card("book-information", "书籍信息", "info", true, true, 0, false, true),
   card("image-information", "图像信息", "info", true, true, 1, true, true),
@@ -134,11 +135,28 @@ function card<const Id extends string, const PanelId extends string>(
     id,
     title,
     defaultPanelId,
+    exclusivePanel: false,
     defaultVisible,
     defaultExpanded,
     defaultOrder,
     canHide,
     requiresSession,
     ...(settingsSectionId ? { settingsSectionId } : {}),
+  }
+}
+
+function exclusiveCard<const Id extends string, const PanelId extends string>(
+  id: Id,
+  title: string,
+  defaultPanelId: PanelId,
+  defaultVisible: boolean,
+  defaultExpanded: boolean,
+  defaultOrder: number,
+  canHide: boolean,
+  requiresSession: boolean,
+): ReaderCardManifestEntry & { id: Id; defaultPanelId: PanelId } {
+  return {
+    ...card(id, title, defaultPanelId, defaultVisible, defaultExpanded, defaultOrder, canHide, requiresSession),
+    exclusivePanel: true,
   }
 }
