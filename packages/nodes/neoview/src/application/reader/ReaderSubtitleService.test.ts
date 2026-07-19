@@ -55,6 +55,42 @@ describe("ReaderSubtitleService", () => {
     await reader[Symbol.asyncDispose]()
   })
 
+  it("[neoview.subtitle.cancellation] interrupts a non-cooperative pending read within a bounded time", async () => {
+    const sourceClosed = vi.fn(async () => undefined)
+    const streamCancelled = vi.fn()
+    let resolvePullStarted!: () => void
+    const pullStarted = new Promise<void>((resolve) => { resolvePullStarted = resolve })
+    const source: PageSource = {
+      byteLength: 4,
+      contentType: "text/plain",
+      rangeSupported: false,
+      async open() {
+        return new ReadableStream<Uint8Array>({
+          pull() {
+            resolvePullStarted()
+          },
+          cancel: streamCancelled,
+        })
+      },
+      close: sourceClosed,
+      [Symbol.asyncDispose]: sourceClosed,
+    }
+    const reader = new CoreReaderService(async () => subtitleBook([subtitle("clip.srt", source)]))
+    const session = await reader.openViewSource({ kind: "media", path: "C:/clip.mp4" })
+    const service = new ReaderSubtitleService(reader, async () => ({ async convertToWebVtt(bytes) { return bytes } }))
+    const controller = new AbortController()
+    const reason = new DOMException("page changed", "AbortError")
+    const rendering = service.render(session.id, "video-1", "subtitle-clip.srt", controller.signal)
+
+    await withTimeout(pullStarted, 500)
+    controller.abort(reason)
+
+    await expect(withTimeout(rendering, 500)).rejects.toBe(reason)
+    expect(streamCancelled).toHaveBeenCalledOnce()
+    expect(sourceClosed).toHaveBeenCalledOnce()
+    await reader[Symbol.asyncDispose]()
+  })
+
   it("[neoview.subtitle.byte-budget] rejects oversized tracks before opening their content", async () => {
     const load = vi.fn()
     const asset = subtitle("clip.srt")
@@ -118,5 +154,19 @@ function subtitleBook(subtitleAssets: ReaderSubtitleAsset[]): ReaderBook {
     subtitleAssets,
     close,
     [Symbol.asyncDispose]: close,
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Test promise timed out after ${timeoutMs} ms.`)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }

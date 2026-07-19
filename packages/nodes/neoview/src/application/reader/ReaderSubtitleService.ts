@@ -69,7 +69,6 @@ export class ReaderSubtitleService {
       }
       return { bytes: converted, contentVersion: asset.contentVersion }
     } finally {
-      await stream?.cancel("Reader subtitle conversion finished.").catch(() => undefined)
       await source.close().catch(() => undefined)
     }
   }
@@ -102,17 +101,37 @@ async function readBounded(stream: ReadableStream<Uint8Array>, maxBytes: number,
   const reader = stream.getReader()
   const chunks: Uint8Array[] = []
   let total = 0
+  let cancellation: Promise<void> | undefined
+  const cancelReader = (reason: unknown): Promise<void> => {
+    if (!cancellation) {
+      cancellation = reader.cancel(reason).catch(() => undefined)
+    }
+    return cancellation
+  }
+  let rejectAbort: ((reason: unknown) => void) | undefined
+  const onAbort = () => {
+    void cancelReader(signal!.reason)
+    rejectAbort?.(signal!.reason)
+  }
+  const abort = signal
+    ? new Promise<never>((_, reject) => {
+      rejectAbort = reject
+      signal.addEventListener("abort", onAbort, { once: true })
+    })
+    : undefined
   try {
     for (;;) {
       signal?.throwIfAborted()
-      const result = await reader.read()
+      const result = await (abort ? Promise.race([reader.read(), abort]) : reader.read())
+      signal?.throwIfAborted()
       if (result.done) break
       total += result.value.byteLength
       if (total > maxBytes) throw new Error(`Reader subtitle emitted more than the ${maxBytes} byte source budget.`)
       chunks.push(result.value)
     }
   } finally {
-    await reader.cancel("Reader subtitle bytes collected.").catch(() => undefined)
+    signal?.removeEventListener("abort", onAbort)
+    await cancelReader("Reader subtitle bytes collected.")
     reader.releaseLock()
   }
   const output = new Uint8Array(total)
