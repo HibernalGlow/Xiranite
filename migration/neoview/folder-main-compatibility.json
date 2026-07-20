@@ -1061,7 +1061,7 @@
         "neoview.folder.tabs-lifecycle-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "GUI 使用最多 8 个标签的有界宿主，与 backend browser session 上限一致；新标签打开共享 Home，最后一个标签不可关闭。每个标签独立保存当前目录、browser session、导航历史、renderer、选择、焦点与 Virtuoso 视口，切换不重复 POST，关闭会卸载 pane 并释放 watcher、缩略图 context 与 browser session。普通 list/grid/details 始终只显示各标签当前目录的直接子项；Folder Tree 是独立 companion view，不把树层级或磁盘根注入普通列表。标签宿主与标签栏保持 2,291/1,818-byte 二级延迟 chunk，desktop/420x360 Chromium 已验证状态隔离、关闭 DELETE 与活动阅读图片身份稳定。"
+      "notes": "GUI 使用最多 8 个标签的有界宿主，与 backend browser session 上限一致；新标签打开共享 Home，最后一个标签不可关闭。默认布局下单标签仍渲染完整 TabBar，确保复制、固定、新建、重开与布局动作可达；仅用户显式选择 layout=none 时折叠为恢复布局按钮。每个标签独立保存当前目录、browser session、导航历史、renderer、选择、焦点与 Virtuoso 视口，切换不重复 POST，关闭会卸载 pane 并释放 watcher、缩略图 context 与 browser session。普通 list/grid/details 始终只显示各标签当前目录的直接子项；Folder Tree 是独立 companion view，不把树层级或磁盘根注入普通列表。标签宿主与标签栏保持二级延迟 chunk，desktop/420x360 Chromium 已验证状态隔离、关闭 DELETE 与活动阅读图片身份稳定。"
     },
     {
       "id": "folder.tabs.bulk-close",
