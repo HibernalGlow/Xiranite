@@ -276,7 +276,10 @@ describe("FolderMainCard", () => {
 
     fireEvent.click(await ui.findByTitle("C:/books/book.cbz"))
     expect(onOpen).toHaveBeenCalledOnce()
-    expect(onOpen).toHaveBeenCalledWith("C:/books/book.cbz")
+    expect(onOpen).toHaveBeenCalledWith("C:/books/book.cbz", {
+      browserOriginPath: "C:/books",
+      browserOriginEntryPath: "C:/books/book.cbz",
+    })
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
 
     fireEvent.click(ui.getByTitle("C:/books/notes.txt"))
@@ -292,6 +295,72 @@ describe("FolderMainCard", () => {
       expect.any(AbortSignal),
       "C:/books/series",
     ))
+  })
+
+  it("[neoview.folder.penetration-click] opens a resolved terminal on single-click but double-click enters the raw directory", async () => {
+    const opened = page({
+      entries: [{ name: "series", path: "C:/books/series", kind: "directory", readerSupported: true }],
+      total: 1,
+    })
+    const rawDirectory = page({ navigationEntryId: 2, path: "C:/books/series", parentPath: "C:/books", generation: 2 })
+    const resolveFolderPenetration = vi.fn(async () => ({
+      status: "resolved" as const,
+      originPath: "C:/books/series",
+      terminal: { kind: "archive" as const, path: "C:/books/series/book.cbz" },
+      chain: [],
+      reason: "archive" as const,
+    }))
+    const navigateDirectoryBrowser = vi.fn(async () => rawDirectory)
+    const onOpen = vi.fn()
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      navigateDirectoryBrowser,
+      resolveFolderPenetration,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          onOpen={onOpen}
+          onGoTo={vi.fn()}
+          folderView={folderViewConfig({ penetration: { enabled: true, maxDepth: 3, terminalTargets: ["archive", "media-directory"] } })}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+    const entry = await within(view.container).findByTitle("C:/books/series")
+    vi.useFakeTimers()
+    fireEvent.click(entry, { detail: 1 })
+    await act(async () => { await vi.advanceTimersByTimeAsync(179) })
+    expect(onOpen).not.toHaveBeenCalled()
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    expect(onOpen).toHaveBeenCalledWith("C:/books/series/book.cbz", {
+      browserOriginPath: "C:/books",
+      browserOriginEntryPath: "C:/books/series",
+    })
+    expect(resolveFolderPenetration).toHaveBeenCalledWith(
+      "browser-1",
+      "C:/books/series",
+      { maxDepth: 3, terminalTargets: ["archive", "media-directory"] },
+      expect.any(AbortSignal),
+    )
+
+    onOpen.mockClear()
+    resolveFolderPenetration.mockClear()
+    fireEvent.click(entry, { detail: 1 })
+    fireEvent.click(entry, { detail: 2 })
+    await act(async () => { await Promise.resolve() })
+    expect(navigateDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      { action: "path", path: "C:/books/series" },
+      expect.any(AbortSignal),
+      "C:/books/series",
+    )
+    await act(async () => { await vi.advanceTimersByTimeAsync(450) })
+    expect(onOpen).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 
   it("[neoview.browser.card] lazily opens, navigates, and disposes its shared browser session", async () => {
@@ -2441,6 +2510,36 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "back" }, expect.any(AbortSignal), undefined))
   })
 
+  it("[neoview.folder.penetration-toolbar] exposes a top-level toggle and keeps its settings under More", async () => {
+    const onFolderView = vi.fn(async () => undefined)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => page({
+        entries: [{ name: "series", path: "C:/books/series", kind: "directory", readerSupported: true }],
+        total: 1,
+      })),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} onFolderView={onFolderView} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+
+    await ui.findByTitle("C:/books/series")
+    expect(ui.queryByRole("button", { name: "粘贴到当前目录" })).toBeNull()
+    fireEvent.click(ui.getByRole("button", { name: "开启穿透模式" }))
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ penetration: { enabled: true } }))
+
+    openFolderMoreMenu(ui)
+    const trigger = await screen.findByText("穿透模式")
+    fireEvent.pointerMove(trigger, { pointerType: "mouse" })
+    fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" })
+    fireEvent.click(trigger)
+    expect(await screen.findByText("最大深度")).toBeTruthy()
+    expect(document.querySelector('[data-folder-toolbar-menu="penetration"]')).toBeTruthy()
+  })
+
   it("[neoview.folder.view-mosaic-grid] renders the adaptive thumbnail mode through the shared browser catalog", async () => {
     const opened = page({
       total: 3,
@@ -2509,6 +2608,7 @@ function folderViewConfig(overrides: Partial<ReaderFolderViewConfig> = {}): Read
     previewCount: 4,
     thumbnailWidthPercent: 20,
     bannerWidthPercent: 50,
+    penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
     emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
     details: {
       columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],

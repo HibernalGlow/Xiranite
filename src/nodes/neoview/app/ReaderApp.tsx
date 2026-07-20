@@ -548,14 +548,15 @@ export function ReaderApp({
   async function navigate(action: "next" | "previous", slideshowAction = false): Promise<boolean> {
     const current = slideshowSessionRef.current
     const atBoundary = action === "next" ? current?.frame.atEnd : current?.frame.atStart
-    // Tail overflow next-book is resolved here, not on the hot page-turn path:
-    // only the boundary case pays the adjacent-book cost, and the normal
-    // navigate request remains a single small JSON control call.
-    if (action === "next" && atBoundary && tailOverflowRef.current === "next-book") {
+    // Continuous-book overflow is resolved here, not on the hot page-turn path:
+    // only a boundary pays the adjacent-book cost, while normal page turns stay
+    // a single small JSON control call. It is intentionally symmetric so the
+    // first page returns to the previous book's final page.
+    if (atBoundary && tailOverflowRef.current === "next-book") {
       // Guard with the same pending ref as updateNavigation so a repeated key
       // cannot start a second switch while the first is still resolving.
       if (navigationPendingRef.current || busy) return false
-      const switched = await switchAdjacentBook("next")
+      const switched = await switchAdjacentBook(action)
       if (switched) {
         if (!slideshowAction) slideshow.resetOnUserAction()
         return true
