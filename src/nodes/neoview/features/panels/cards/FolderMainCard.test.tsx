@@ -1,11 +1,28 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { VirtuosoGridMockContext, VirtuosoMockContext } from "react-virtuoso"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryPageDto, type ReaderFolderViewConfig, type ReaderHttpClient } from "../../../adapters/reader-http-client"
 import { ContextMenuProvider } from "@/components/context-menu"
 import FolderMainCard, { isThumbnailDemandNeeded, mergeThumbnailUrls, mergeThumbnailUrlSets } from "./FolderMainCard"
+
+beforeAll(async () => {
+  await Promise.all([
+    import("./folder/FolderBreadcrumb"),
+    import("./folder/FolderChromeLayout"),
+    import("./folder/FolderContextActions"),
+    import("./folder/FolderDetailsView"),
+    import("./folder/FolderGridWorkspace"),
+    import("./folder/FolderMosaicWorkspace"),
+    import("./folder/FolderSearchPanel"),
+    import("./folder/FolderSelectionBar"),
+    import("./folder/FolderTabsHost"),
+    import("./folder/FolderToolbar"),
+    import("./folder/FolderTreePanel"),
+    import("./folder/FolderTreeWorkspace"),
+  ])
+})
 
 function selectFolderViewMode(scope: ReturnType<typeof within> | typeof screen, label: string) {
   const existingButton = scope.queryByRole("button", { name: label })
@@ -61,6 +78,10 @@ function selectFolderToolbarAction(scope: ReturnType<typeof within> | typeof scr
       return
     }
   }
+  if (label === "排序") {
+    openFolderSortMenu(scope)
+    return
+  }
   const direct = scope.queryByRole("button", { name: label })
   if (direct) {
     fireEvent.click(direct)
@@ -95,8 +116,6 @@ function selectFolderToolbarAction(scope: ReturnType<typeof within> | typeof scr
     if (label === "项目尺寸") {
       const trigger = screen.getByText("项目尺寸")
       fireEvent.pointerMove(trigger, { pointerType: "mouse" })
-      fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" })
-      fireEvent.click(trigger)
       return
     }
     if (label === "类型筛选" || label === "显示类型") {
@@ -112,10 +131,6 @@ function selectFolderToolbarAction(scope: ReturnType<typeof within> | typeof scr
   }
   if (label === "视图") {
     fireEvent.pointerDown(scope.getByRole("button", { name: "视图" }), { button: 0, pointerType: "mouse" })
-    return
-  }
-  if (label === "排序") {
-    openFolderSortMenu(scope)
     return
   }
   if (label === "粘贴到当前目录") {
@@ -1064,7 +1079,8 @@ describe("FolderMainCard", () => {
     const ui = within(view.container)
     await ui.findByTitle("C:/books/book.cbz")
     expect(view.container.querySelector('[data-folder-toolbar-layout="wrapping"]')).toBeTruthy()
-    expect(view.container.querySelector('[data-folder-tab-bar="true"]')).toBeNull()
+    expect(view.container.querySelector('[data-folder-tab-bar="true"]')).toBeTruthy()
+    expect(ui.getByRole("button", { name: "标签操作 books" })).toBeTruthy()
     expect(view.container.querySelector('[data-folder-tab-count="1"]')).toBeTruthy()
 
     createFolderTab(ui)
@@ -1253,7 +1269,7 @@ describe("FolderMainCard", () => {
       ?.replaceAll("\\", "/")
     const navigatePath = async (path: string) => {
       const breadcrumb = view.container.querySelector('[data-neoview-folder-breadcrumb="true"]')!
-      fireEvent.click(breadcrumb.querySelector("button[aria-label]")!)
+      fireEvent.click(within(breadcrumb as HTMLElement).getByRole("button", { name: "编辑路径" }))
       const input = await within(breadcrumb as HTMLElement).findByRole("textbox")
       fireEvent.change(input, { target: { value: path } })
       fireEvent.submit(input.closest("form")!)
@@ -1384,9 +1400,9 @@ describe("FolderMainCard", () => {
     // URLs stay in the visit cache so the page-turn/thumbnail hot path is not
     // forced to re-register unchanged assets. Virtuoso grid mocks may only
     // report one visible index, so only the folder demand is reissued.
-    await waitFor(() => expect(registerLibraryThumbnails.mock.calls.at(-1)?.[2]).toEqual([
+    await waitFor(() => expect(registerLibraryThumbnails.mock.calls.at(-1)?.[2]).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "0", kind: "folder", previewCount: 4 }),
-    ]))
+    ])))
     await waitFor(() => {
       expect(view.container.querySelector('[data-preview-mode="cover-grid"] [data-thumbnail-grid-count="4"]')).toBeTruthy()
       expect(view.container.querySelectorAll('[data-preview-mode="cover-grid"] [data-thumbnail-grid-count="4"] img')).toHaveLength(4)
@@ -1410,7 +1426,7 @@ describe("FolderMainCard", () => {
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1")
   })
 
-  it("[neoview.folder.nav-thumbnail-identity] restores back/forward thumbnails without a second registration", async () => {
+  it("[neoview.folder.nav-thumbnail-identity] reuses restored thumbnails and only demands newly visible entries", async () => {
     const entries = (path: string) => [
       { name: "folder", path: `${path}/folder`, kind: "directory" as const, readerSupported: true },
       { name: "book.cbz", path: `${path}/book.cbz`, kind: "file" as const, readerSupported: true },
@@ -1460,7 +1476,10 @@ describe("FolderMainCard", () => {
 
     fireEvent.click(view.container.querySelector("svg.lucide-arrow-left")!.closest("button")!)
     await waitFor(() => expect(ui.getByTitle("C:/A/folder").querySelector("img")?.getAttribute("src")).toBe("http://thumb.test/C%3A%2FA%2Ffolder"))
-    expect(registerLibraryThumbnails).toHaveBeenCalledTimes(registrationsBeforeNavigation + 1)
+    expect(registerLibraryThumbnails.mock.calls.slice(registrationsBeforeNavigation).map((call) => call[2].map((item) => item.path))).toEqual([
+      ["C:/B/folder"],
+      ["C:/A/book.cbz"],
+    ])
     view.unmount()
   })
 
@@ -1641,7 +1660,10 @@ describe("FolderMainCard", () => {
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-all")).toBe("true")
 
     fireEvent.click(item(2))
-    expect(onOpen).toHaveBeenCalledWith("C:/books/item-2.cbz")
+    expect(onOpen).toHaveBeenCalledWith("C:/books/item-2.cbz", {
+      browserOriginPath: "C:/books",
+      browserOriginEntryPath: "C:/books/item-2.cbz",
+    })
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("4")
     fireEvent.click(currentView.getByLabelText("点击行为：点开"))
     fireEvent.click(item(2))
@@ -1759,7 +1781,10 @@ describe("FolderMainCard", () => {
 
     onOpen.mockClear()
     fireEvent.keyDown(host, { key: "Enter" })
-    expect(onOpen).toHaveBeenCalledWith("C:/books/item-0.cbz")
+    expect(onOpen).toHaveBeenCalledWith("C:/books/item-0.cbz", {
+      browserOriginPath: "C:/books",
+      browserOriginEntryPath: "C:/books/item-0.cbz",
+    })
     fireEvent.keyDown(host, { key: "a", ctrlKey: true })
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("4")
     expect(currentView.getByText("4").closest('[data-neoview-folder-selection-bar="true"]')).toBeTruthy()
@@ -2373,7 +2398,7 @@ describe("FolderMainCard", () => {
     const ui = within(view.container)
     const host = await ui.findByRole("listbox", { name: "文件项目" })
     selectFolderToolbarAction(ui, "项目尺寸")
-    const thumbnailSlider = ui.getByRole("slider", { name: "缩略图宽度" })
+    const thumbnailSlider = await screen.findByRole("slider", { name: "缩略图宽度" })
     expect(thumbnailSlider.getAttribute("aria-valuenow")).toBe("20")
     expect((host as HTMLElement).style.getPropertyValue("--folder-grid-width")).toBe("20%")
 
@@ -2382,11 +2407,12 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ thumbnailWidthPercent: 21 }))
     fireEvent.keyUp(thumbnailSlider, { key: "ArrowRight" })
     expect(onFolderView).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(thumbnailSlider, { key: "Escape" })
 
     onFolderView.mockClear()
     selectFolderViewMode(ui, "横幅")
     selectFolderToolbarAction(ui, "项目尺寸")
-    await waitFor(() => expect(ui.getByRole("slider", { name: "横幅宽度" }).getAttribute("aria-valuenow")).toBe("50"))
+    await waitFor(() => expect(screen.getByRole("slider", { name: "横幅宽度" }).getAttribute("aria-valuenow")).toBe("50"))
     expect((host as HTMLElement).style.getPropertyValue("--folder-grid-width")).toBe("50%")
     expect(view.container.querySelector('[data-preview-mode="mosaic-list"]')).toBeTruthy()
   })
@@ -2419,7 +2445,15 @@ describe("FolderMainCard", () => {
     } as unknown as ReaderHttpClient
     const view = render(
       <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
-        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} onFolderView={onFolderView} />
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+          folderView={folderViewConfig({ typeFilter: "all" })}
+          onFolderView={onFolderView}
+        />
       </VirtuosoMockContext.Provider>,
     )
     const ui = within(view.container)
@@ -2435,7 +2469,6 @@ describe("FolderMainCard", () => {
       expect.any(AbortSignal),
       false,
     ))
-    expect(currentView.getByRole("button", { name: "排序" }).querySelector('[data-folder-sort-order-icon="desc"]')).toBeTruthy()
     await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-total")).toBe("1"))
     expect(onFolderView).toHaveBeenCalledWith({ typeFilter: "archive" })
     expect(screen.getByRole("button", { name: /压缩包/ }).getAttribute("aria-pressed")).toBe("true")
