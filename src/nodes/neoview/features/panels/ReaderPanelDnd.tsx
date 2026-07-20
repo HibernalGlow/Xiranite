@@ -3,7 +3,7 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
   TouchSensor,
   useDroppable,
   useSensor,
@@ -27,9 +27,10 @@ interface PanelDndContextValue {
 
 const PanelDndContext = createContext<PanelDndContextValue | null>(null)
 const railId = (side: ReaderPanelSide) => `reader-panel-rail:${side}`
+const sidebarId = (side: ReaderPanelSide) => `reader-panel-sidebar:${side}`
 const disableLayoutAnimation = () => false
 // Keep ordinary clicks available for panel switching; dragging requires a deliberate hold.
-export const READER_PANEL_POINTER_ACTIVATION = { delay: 250, tolerance: 8 } as const
+export const READER_PANEL_POINTER_ACTIVATION = { delay: 500, tolerance: 8 } as const
 
 export function ReaderPanelDndProvider({
   shell,
@@ -59,8 +60,8 @@ function ActiveReaderPanelDndProvider({
   const dragShellRef = useRef(shell)
   const baseRef = useRef(shell)
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: READER_PANEL_POINTER_ACTIVATION }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 280, tolerance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: READER_PANEL_POINTER_ACTIVATION }),
+    useSensor(TouchSensor, { activationConstraint: READER_PANEL_POINTER_ACTIVATION }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -85,7 +86,7 @@ function ActiveReaderPanelDndProvider({
         onDragCancel={resetPreview}
       >
         {children}
-        <DragOverlay dropAnimation={null}>
+        <DragOverlay>
           {activePanel ? (
             <div
               className="grid size-9 place-items-center rounded-md border bg-background text-sm shadow-xl"
@@ -195,6 +196,12 @@ export function useReaderPanelRail(side: ReaderPanelSide, fallbackPanels: readon
       </SortableContext>
     ),
   }
+}
+
+export function useReaderPanelDropZone(side: ReaderPanelSide) {
+  const data = useMemo(() => ({ type: "reader-panel-sidebar", side }), [side])
+  const droppable = useDroppable({ id: sidebarId(side), data })
+  return { isOver: droppable.isOver, setNodeRef: droppable.setNodeRef }
 }
 
 export function useReaderPanelTab(panel: ReaderPanelDefinition, side: ReaderPanelSide): {

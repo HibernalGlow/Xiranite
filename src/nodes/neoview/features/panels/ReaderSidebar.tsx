@@ -10,7 +10,7 @@
  * @features panels-toolbar-shell,card-windows-tabs
  * @migration-status adapted
  */
-import { Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Pin, PinOff } from "lucide-react"
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react"
 import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPatch } from "../../adapters/reader-http-client"
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils"
 import { readerShellMaterialDraft, readerShellMaterialStyle } from "../material/ReaderShellMaterial"
 import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
 import { InfoPanelActions } from "./InfoPanelActions"
-import { useReaderPanelRail, useReaderPanelTab } from "./ReaderPanelDnd"
+import { useReaderPanelDropZone, useReaderPanelRail, useReaderPanelTab } from "./ReaderPanelDnd"
 import {
   availablePanels,
   cardsForPanel,
@@ -53,6 +53,11 @@ export function ReaderSidebar({
   const active = panels.find((panel) => panel.id === activePanel) ?? panels[0]
   const layout = shell?.sidebars[side]
   const asideRef = useRef<HTMLElement>(null)
+  const sidebarDropZone = useReaderPanelDropZone(side)
+  const setAsideRef = useCallback((node: HTMLElement | null) => {
+    asideRef.current = node
+    sidebarDropZone.setNodeRef(node)
+  }, [sidebarDropZone.setNodeRef])
   const gestureRef = useRef<SidebarGesture | undefined>(undefined)
   const style = layout && shell ? sidebarStyle(layout, shell, side) : undefined
 
@@ -66,13 +71,15 @@ export function ReaderSidebar({
 
   return (
     <aside
-      ref={asideRef}
+      ref={setAsideRef}
       className={cn(
         "relative flex max-h-full overflow-hidden border-border/55 bg-background/94 shadow-[0_0_32px_rgb(0_0_0/0.26)] backdrop-blur-xl",
         side === "left" ? "border-r" : "flex-row-reverse border-l",
+        sidebarDropZone.isOver && "ring-2 ring-inset ring-primary/45",
       )}
       data-reader-sidebar={side}
       data-reader-edge-chrome={side}
+      data-reader-panel-drop-active={sidebarDropZone.isOver ? "true" : undefined}
       style={style}
       onClick={handleBlankClick}
       onDoubleClick={handleBlankDoubleClick}

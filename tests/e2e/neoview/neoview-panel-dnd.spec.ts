@@ -56,7 +56,7 @@ test("[neoview.sidebar.panel-click-hold] switches on a short click and starts dr
   })
 
   const history = page.locator('[data-reader-panel-rail="left"]').getByRole("button", { name: "历史记录", exact: true })
-  await history.click({ delay: 40 })
+  await history.click({ delay: 300 })
   await expect(page.locator('[data-reader-panel="history"]')).toBeVisible()
   await expect(page.locator('[data-reader-panel-drag-overlay="true"]')).toHaveCount(0)
   expect(boardPatches).toBe(0)
@@ -65,7 +65,7 @@ test("[neoview.sidebar.panel-click-hold] switches on a short click and starts dr
   if (!box) throw new Error("History panel icon is not rendered.")
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.mouse.down()
-  await page.waitForTimeout(300)
+  await page.waitForTimeout(550)
   await expect(page.locator('[data-reader-panel-drag-overlay="true"]')).toBeVisible()
   await page.mouse.up()
 
@@ -75,19 +75,21 @@ test("[neoview.sidebar.panel-click-hold] switches on a short click and starts dr
   expect(runtimeErrors, "NeoView runtime errors during panel click/hold arbitration").toEqual([])
 })
 
-test("[neoview.sidebar.panel-rail-drop] drops a held panel onto either sidebar rail", async ({ page }) => {
+test("[neoview.sidebar.panel-drop-zone] drops a held panel onto either sidebar content area", async ({ page }) => {
   await openReader(page)
   const left = page.locator('[data-reader-panel-rail="left"]')
   const right = page.locator('[data-reader-panel-rail="right"]')
+  const leftSidebar = page.locator('[data-reader-sidebar="left"]')
+  const rightSidebar = page.locator('[data-reader-sidebar="right"]')
 
   const moveRight = page.waitForResponse(isBoardResponse)
-  await dragPanelToRail(left.getByRole("button", { name: "历史记录", exact: true }), right)
+  await dragPanelToSidebar(left.getByRole("button", { name: "历史记录", exact: true }), rightSidebar, "right")
   const movedRight = await moveRight
   expect((await movedRight.json() as { shell: { panelLayout: Record<string, { position: string }> } }).shell.panelLayout.history?.position).toBe("right")
   await expect(right.getByRole("button", { name: "历史记录", exact: true })).toBeVisible()
 
   const moveLeft = page.waitForResponse(isBoardResponse)
-  await dragPanelToRail(right.getByRole("button", { name: "历史记录", exact: true }), left)
+  await dragPanelToSidebar(right.getByRole("button", { name: "历史记录", exact: true }), leftSidebar, "left")
   const movedLeft = await moveLeft
   expect((await movedLeft.json() as { shell: { panelLayout: Record<string, { position: string }> } }).shell.panelLayout.history?.position).toBe("left")
   await expect(left.getByRole("button", { name: "历史记录", exact: true })).toBeVisible()
@@ -186,22 +188,25 @@ async function dragPanel(source: Locator, target: Locator): Promise<void> {
   const targetY = targetBox.y + targetBox.height * 0.82
   await page.mouse.move(sourceX, sourceY)
   await page.mouse.down()
-  await page.waitForTimeout(300)
+  await page.waitForTimeout(550)
   await page.mouse.move(sourceX, sourceY + 8, { steps: 2 })
   await page.mouse.move(targetX, targetY, { steps: 16 })
   await page.waitForTimeout(120)
   await page.mouse.up()
 }
 
-async function dragPanelToRail(source: Locator, rail: Locator): Promise<void> {
+async function dragPanelToSidebar(source: Locator, sidebar: Locator, side: "left" | "right"): Promise<void> {
   const page = source.page()
   const sourceBox = await source.boundingBox()
-  const railBox = await rail.boundingBox()
-  if (!sourceBox || !railBox) throw new Error("Panel drag source or rail target is not rendered.")
+  const sidebarBox = await sidebar.boundingBox()
+  if (!sourceBox || !sidebarBox) throw new Error("Panel drag source or sidebar target is not rendered.")
   await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
   await page.mouse.down()
-  await page.waitForTimeout(300)
-  await page.mouse.move(railBox.x + railBox.width / 2, railBox.y + railBox.height - 12, { steps: 20 })
+  await page.waitForTimeout(550)
+  const targetX = sidebarBox.x + sidebarBox.width * (side === "left" ? 0.7 : 0.3)
+  const targetY = sidebarBox.y + sidebarBox.height * 0.65
+  await page.mouse.move(targetX, targetY, { steps: 20 })
+  await expect(sidebar).toHaveAttribute("data-reader-panel-drop-active", "true")
   await page.waitForTimeout(120)
   await page.mouse.up()
 }
