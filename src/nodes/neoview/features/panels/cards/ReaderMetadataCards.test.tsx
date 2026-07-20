@@ -100,7 +100,7 @@ describe("Reader metadata cards", () => {
     const view = render(<><BookInformationCard {...context} /><ImageInformationCard {...context} /></>)
     await waitFor(() => expect(metadata).toHaveBeenCalledOnce())
     view.unmount()
-    expect(signal?.aborted).toBe(true)
+    await waitFor(() => expect(signal?.aborted).toBe(true))
   })
 
   it("[neoview.storage-information.legacy-fields] preserves path and size while separating bounded resource metrics", async () => {

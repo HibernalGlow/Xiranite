@@ -33,6 +33,10 @@
       "types": "./dist/switch-toast.d.ts",
       "default": "./dist/switch-toast.js"
     },
+    "./time-information": {
+      "types": "./dist/time-information.d.ts",
+      "default": "./dist/time-information.js"
+    },
     "./info-overlay": {
       "types": "./dist/info-overlay.d.ts",
       "default": "./dist/info-overlay.js"

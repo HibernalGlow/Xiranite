@@ -144,7 +144,7 @@
         "gui": "complete",
         "cli": "complete",
         "tui": "complete",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.book.directory",
@@ -180,7 +180,7 @@
         "gui": "complete",
         "cli": "complete",
         "tui": "complete",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.time-information.archive-source",
@@ -214,7 +214,7 @@
         "gui": "complete",
         "cli": "complete",
         "tui": "complete",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.time-information.format",
@@ -245,7 +245,7 @@
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.time-information.states",
@@ -275,16 +275,15 @@
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.card.collapse",
         "neoview.card.resize-bounds",
-        "neoview.settings.card-docking"
-      ],
-      "plannedTestIds": [
+        "neoview.settings.card-docking",
         "neoview.time-information.lazy-chunk"
       ],
+      "plannedTestIds": [],
       "notes": "Shared shell tests apply and the Time-specific production chunk is independently gated."
     },
     {
@@ -308,7 +307,7 @@
         "gui": "complete",
         "cli": "complete",
         "tui": "complete",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.book.directory",
@@ -352,7 +351,8 @@
       "testIds": [
         "neoview.metadata.cancel",
         "neoview.card.zero-mount",
-        "neoview.time-information.generation-stale"
+        "neoview.time-information.generation-stale",
+        "neoview.time-information.strictmode-request"
       ],
       "plannedTestIds": [],
       "notes": "Final-subscriber cancellation and generation replacement are both covered."
@@ -403,7 +403,7 @@
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.time-information.states",
@@ -466,12 +466,12 @@
       "testIds": [
         "neoview.metadata.cards",
         "neoview.metadata.cancel",
-        "neoview.time-information.e2e"
-      ],
-      "plannedTestIds": [
+        "neoview.time-information.e2e",
+        "neoview.time-information.strictmode-request",
         "neoview.time-information.lazy-chunk"
       ],
-      "notes": "The production Time Card chunk is 1816 bytes; its shared projection remains in the deferred 10602-byte ui-core host chunk, and browser evidence confirms one request per generation."
+      "plannedTestIds": [],
+      "notes": "The production Time Card and projection share one deferred 2632-byte chunk, stay outside Reader entry/sidebar chunks, and browser evidence confirms one request per generation under StrictMode."
     },
     {
       "id": "time.deviations",

@@ -1,4 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { StrictMode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderMetadataDto, ReaderSessionDto } from "../../../adapters/reader-http-client"
@@ -7,6 +8,29 @@ import TimeInformationCard from "./TimeInformationCard"
 afterEach(cleanup)
 
 describe("TimeInformationCard lifecycle", () => {
+  it("[neoview.time-information.strictmode-request] shares one metadata request across the StrictMode effect replay", async () => {
+    const metadata = vi.fn(async (): Promise<ReaderMetadataDto> => ({
+      book: {
+        bookId: "book-1",
+        displayName: "demo",
+        sourceKind: "archive",
+        sourcePath: "D:/books/demo.cbz",
+        pageCount: 1,
+        currentPage: 1,
+      },
+    }))
+    const client = { metadata } as unknown as ReaderHttpClient
+
+    render(
+      <StrictMode>
+        <TimeInformationCard client={client} session={session()} panelActive disabled={false} onGoTo={vi.fn()} />
+      </StrictMode>,
+    )
+
+    await waitFor(() => expect(document.querySelector("dl")).toBeTruthy())
+    expect(metadata).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.time-information.inactive-zero-work] keeps the empty shell without metadata while hidden", async () => {
     const metadata = vi.fn(() => new Promise<ReaderMetadataDto>(() => undefined))
     const client = { metadata } as unknown as ReaderHttpClient
