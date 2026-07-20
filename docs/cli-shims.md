@@ -14,7 +14,7 @@
 
 开发完成后请运行 `xr stop`。它会先请求开发主管进程关闭后端和子进程；若终端已被直接关闭且主管进程未响应，才会核验命令行属于当前 Xiranite 工作区后终止记录的遗留进程树。`xr reboot` 会停止后重新启动浏览器开发宿主，`xrd reboot` 对应重启 Wails 开发宿主；额外参数会传给新的启动命令。
 
-`xr ui` 和 `xrd ui` 使用仓库现有的 OpenTUI + React 环境打开开发控制台，分别管理浏览器和 Wails 开发宿主。控制台提供启动、停止、重启、PID 和运行时长；退出控制台会安全停止受管进程。OpenTUI 使用 `split-footer` 只渲染底部控制条，子进程直接继承 stdout/stderr，原始 ANSI 颜色和终端滚动记录不会经过 React 二次渲染，也不执行周期性的 PowerShell/CIM 资源查询。也可从仓库根目录运行 `bun run dev:ui` 或 `bun run dev:desktop:ui`。更新后需重新执行安装命令，才能生成带有这些路由的本地 shim。
+`xr ui` 和 `xrd ui` 使用仓库现有的 OpenTUI + React 环境打开开发控制台，分别管理浏览器和 Wails 开发宿主。控制台提供启动、停止、重启、彩色终端输出、PID 和运行时长；退出控制台会安全停止受管进程。子进程由 Bun 原生 `Terminal` 提供真实 PTY，`@xterm/headless` 负责 ANSI、256 色、TrueColor 和滚动缓冲解析，OpenTUI 只绘制当前可见 viewport；输出刷新合并到最多 20 FPS，空闲时不刷新输出面板，也不执行周期性的 PowerShell/CIM 资源查询。也可从仓库根目录运行 `bun run dev:ui` 或 `bun run dev:desktop:ui`。更新后需重新执行安装命令，才能生成带有这些路由的本地 shim。
 
 默认目标：
 
