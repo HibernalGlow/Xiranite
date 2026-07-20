@@ -88,8 +88,8 @@ describe("NeoView panel and card registries", () => {
   it("[neoview.card.parallel-core] exposes preload and current-book settings without eager loading", () => {
     expect(cardsForPanel("info").map((card) => card.id)).toContain("preload-status")
     expect(CARD_DEFINITIONS.find((card) => card.id === "preload-status")?.icon).toBeTruthy()
-    expect(cardsForPanel("properties").map((card) => card.id)).toEqual(["emm-tags", "book-settings", "thumbnail-architecture-metrics"])
-    expect(cardsForPanel("properties", undefined, false).map((card) => card.id)).toEqual(["emm-tags", "book-settings", "thumbnail-architecture-metrics"])
+    expect(cardsForPanel("properties").map((card) => card.id)).toEqual(["emm-tags", "book-settings", "folder-ratings", "favorite-tags", "emm-sync", "emm-config", "emm-raw-data", "thumbnail-architecture-metrics"])
+    expect(cardsForPanel("properties", undefined, false).map((card) => card.id)).toEqual(["emm-tags", "book-settings", "folder-ratings", "favorite-tags", "emm-sync", "emm-config", "emm-raw-data", "thumbnail-architecture-metrics"])
   })
 
   it("[neoview.insights.registry] exposes daily trend and reading streak cards without requiring a session", () => {

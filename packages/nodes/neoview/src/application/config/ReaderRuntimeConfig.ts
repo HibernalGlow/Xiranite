@@ -90,7 +90,21 @@ export interface NeoviewRuntimeConfig {
   radialMenu: ReaderRadialMenuConfig
   preload: NeoviewPreloadConfig
   systemMonitor: NeoviewSystemMonitorConfig
+  emm: NeoviewEmmConfig
   aiTranslation: NeoviewAiTranslationConfig
+}
+
+export interface NeoviewEmmConfig {
+  enabled: boolean
+  databasePaths: readonly string[]
+  settingPath?: string
+  translationDatabasePath?: string
+  translationPath?: string
+  defaultRating: number
+}
+
+export interface NeoviewEmmPatch {
+  emm: Partial<NeoviewEmmConfig>
 }
 
 export interface NeoviewPreloadConfig {
@@ -178,6 +192,15 @@ export interface NeoviewFolderPenetrationConfig {
   terminalTargets: NeoviewFolderPenetrationTarget[]
 }
 
+export interface NeoviewFolderTagDisplayConfig {
+  tagMode: "all" | "collect" | "none"
+  showRating: boolean
+  showCollectTagCount: boolean
+  showTags: boolean
+  maxTags: number
+  showTooltips: boolean
+}
+
 export interface NeoviewFolderViewConfig {
   homePath: string
   viewMode: NeoviewFolderViewMode
@@ -192,6 +215,7 @@ export interface NeoviewFolderViewConfig {
   typeFilter: NeoviewFolderTypeFilter
   /** Keep development/configuration directories out of normal media browsing. */
   showHiddenFolders: boolean
+  tagDisplay: NeoviewFolderTagDisplayConfig
   penetration: NeoviewFolderPenetrationConfig
   emptyArea: NeoviewFolderEmptyAreaConfig
   details: NeoviewFolderDetailsConfig
@@ -221,6 +245,7 @@ export interface NeoviewFolderViewPatch {
     hoverPreviewDelayMs?: NeoviewFolderHoverPreviewDelay
     typeFilter?: NeoviewFolderTypeFilter
     showHiddenFolders?: boolean
+    tagDisplay?: Partial<NeoviewFolderTagDisplayConfig>
     penetration?: Partial<NeoviewFolderPenetrationConfig>
     emptyArea?: Partial<NeoviewFolderEmptyAreaConfig>
     details?: NeoviewFolderDetailsPatch
@@ -525,6 +550,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
+  tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
   penetration: {
     enabled: false,
     maxDepth: 3,
@@ -619,6 +645,12 @@ export const DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG: NeoviewSystemMonitorConfig =
   enabled: true,
   refreshIntervalMs: 1_000,
   maxSamples: 60,
+}
+
+export const DEFAULT_NEOVIEW_EMM_CONFIG: NeoviewEmmConfig = {
+  enabled: true,
+  databasePaths: Object.freeze([]),
+  defaultRating: 4.2,
 }
 
 export const DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG: NeoviewAiTranslationConfig = {
@@ -734,6 +766,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     radialMenu: parseReaderRadialMenuConfig(undefined),
     preload: DEFAULT_NEOVIEW_PRELOAD_CONFIG,
     systemMonitor: DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
+    emm: DEFAULT_NEOVIEW_EMM_CONFIG,
     aiTranslation: DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG,
   }
   const config = unwrapNeoviewConfigEnvelope(value)
@@ -781,6 +814,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
   const performance = optionalRecord(config.performance, "[nodes.neoview.performance]")
   const systemMonitor = optionalRecord(performance?.monitor, "[nodes.neoview.performance.monitor]")
+  const emm = optionalRecord(config.emm, "[nodes.neoview.emm]")
   const aiTranslation = optionalRecord(config.ai_translation ?? config.aiTranslation, "[nodes.neoview.ai_translation]")
   const superResolution = optionalRecord(config.super_resolution, "[nodes.neoview.super_resolution]")
   const bindings = optionalRecord(config.bindings, "[nodes.neoview.bindings]")
@@ -921,8 +955,66 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     radialMenu: parseReaderRadialMenuConfig(bindings?.radial_menus),
     preload: parsePreloadConfig(performance, image, legacyBook),
     systemMonitor: parseSystemMonitorConfig(systemMonitor),
+    emm: parseEmmConfig(emm),
     aiTranslation: parseAiTranslationConfig(aiTranslation),
   }
+}
+
+function parseEmmConfig(value: Record<string, unknown> | undefined): NeoviewEmmConfig {
+  if (!value) return DEFAULT_NEOVIEW_EMM_CONFIG
+  return {
+    enabled: optionalBoolean(value.enabled, "[nodes.neoview.emm].enabled") ?? DEFAULT_NEOVIEW_EMM_CONFIG.enabled,
+    databasePaths: normalizedEmmPaths(
+      value.database_paths ?? value.databasePaths ?? DEFAULT_NEOVIEW_EMM_CONFIG.databasePaths,
+      "[nodes.neoview.emm].database_paths",
+    ),
+    settingPath: optionalConfigPath(value.setting_path ?? value.settingPath, "[nodes.neoview.emm].setting_path"),
+    translationDatabasePath: optionalConfigPath(value.translation_database_path ?? value.translationDatabasePath, "[nodes.neoview.emm].translation_database_path"),
+    translationPath: optionalConfigPath(value.translation_path ?? value.translationPath, "[nodes.neoview.emm].translation_path"),
+    defaultRating: value.default_rating === undefined && value.defaultRating === undefined
+      ? DEFAULT_NEOVIEW_EMM_CONFIG.defaultRating
+      : boundedNumber(value.default_rating ?? value.defaultRating, 0, 5, DEFAULT_NEOVIEW_EMM_CONFIG.defaultRating, "[nodes.neoview.emm].default_rating"),
+  }
+}
+
+export function parseNeoviewEmmPatch(value: unknown): {
+  patch: NeoviewEmmPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader EMM patch")
+  if (Object.keys(record).some((key) => key !== "emm")) throw new Error("reader EMM patch contains unsupported fields.")
+  const source = requireRecord(record.emm, "reader EMM patch.emm")
+  const allowed = ["enabled", "databasePaths", "settingPath", "translationDatabasePath", "translationPath", "defaultRating"]
+  const unknown = Object.keys(source).filter((key) => !allowed.includes(key))
+  if (unknown.length) throw new Error(`reader EMM patch contains unsupported fields: ${unknown.join(", ")}.`)
+  if (!Object.keys(source).length) throw new Error("reader EMM patch must change at least one field.")
+  const patch: Partial<NeoviewEmmConfig> = {}
+  const toml: Record<string, unknown> = {}
+  if (source.enabled !== undefined) {
+    patch.enabled = requiredBoolean(source.enabled, "reader EMM patch.enabled")
+    toml.enabled = patch.enabled
+  }
+  if (source.databasePaths !== undefined) {
+    patch.databasePaths = normalizedEmmPaths(source.databasePaths, "reader EMM patch.databasePaths")
+    toml.database_paths = patch.databasePaths
+  }
+  if (source.settingPath !== undefined) {
+    patch.settingPath = optionalConfigPath(source.settingPath, "reader EMM patch.settingPath")
+    toml.setting_path = patch.settingPath ?? ""
+  }
+  if (source.translationDatabasePath !== undefined) {
+    patch.translationDatabasePath = optionalConfigPath(source.translationDatabasePath, "reader EMM patch.translationDatabasePath")
+    toml.translation_database_path = patch.translationDatabasePath ?? ""
+  }
+  if (source.translationPath !== undefined) {
+    patch.translationPath = optionalConfigPath(source.translationPath, "reader EMM patch.translationPath")
+    toml.translation_path = patch.translationPath ?? ""
+  }
+  if (source.defaultRating !== undefined) {
+    patch.defaultRating = boundedNumber(source.defaultRating, 0, 5, DEFAULT_NEOVIEW_EMM_CONFIG.defaultRating, "reader EMM patch.defaultRating")
+    toml.default_rating = patch.defaultRating
+  }
+  return { patch: { emm: patch }, tomlPatch: { emm: toml } }
 }
 
 function parseSystemMonitorConfig(value: Record<string, unknown> | undefined): NeoviewSystemMonitorConfig {
@@ -1865,7 +1957,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["homePath", "viewMode", "previewGridEnabled", "previewCount", "contentWidthPercent", "thumbnailWidthPercent", "bannerWidthPercent", "hoverPreviewEnabled", "hoverPreviewDelayMs", "typeFilter", "showHiddenFolders", "penetration", "emptyArea", "details", "search", "tree", "tabs"])
+  const allowed = new Set(["homePath", "viewMode", "previewGridEnabled", "previewCount", "contentWidthPercent", "thumbnailWidthPercent", "bannerWidthPercent", "hoverPreviewEnabled", "hoverPreviewDelayMs", "typeFilter", "showHiddenFolders", "tagDisplay", "penetration", "emptyArea", "details", "search", "tree", "tabs"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
@@ -1917,6 +2009,30 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   if (folder.showHiddenFolders !== undefined) {
     patch.folderView.showHiddenFolders = optionalBoolean(folder.showHiddenFolders, "reader folder view patch.showHiddenFolders")
     toml.show_hidden_folders = patch.folderView.showHiddenFolders
+  }
+  if (folder.tagDisplay !== undefined) {
+    const display = requireRecord(folder.tagDisplay, "reader folder view patch.tagDisplay")
+    const allowedDisplay = new Set(["tagMode", "showRating", "showCollectTagCount", "showTags", "maxTags", "showTooltips"])
+    const unknownDisplay = Object.keys(display).filter((key) => !allowedDisplay.has(key))
+    if (unknownDisplay.length) throw new Error(`reader folder view patch.tagDisplay contains unsupported fields: ${unknownDisplay.join(", ")}.`)
+    const displayPatch: Partial<NeoviewFolderTagDisplayConfig> = {}
+    const displayToml: Record<string, unknown> = {}
+    if (display.tagMode !== undefined) {
+      displayPatch.tagMode = optionalEnum(display.tagMode, "reader folder view patch.tagDisplay.tagMode", ["all", "collect", "none"])!
+      displayToml.tag_mode = displayPatch.tagMode
+    }
+    for (const [key, tomlKey] of [["showRating", "show_rating"], ["showCollectTagCount", "show_collect_tag_count"], ["showTags", "show_tags"], ["showTooltips", "show_tooltips"]] as const) {
+      if (display[key] === undefined) continue
+      displayPatch[key] = requiredBoolean(display[key], `reader folder view patch.tagDisplay.${key}`)
+      displayToml[tomlKey] = displayPatch[key]
+    }
+    if (display.maxTags !== undefined) {
+      displayPatch.maxTags = boundedInteger(display.maxTags, 1, 12, "reader folder view patch.tagDisplay.maxTags")
+      displayToml.max_tags = displayPatch.maxTags
+    }
+    if (!Object.keys(displayPatch).length) throw new Error("reader folder view patch.tagDisplay must change at least one field.")
+    patch.folderView.tagDisplay = displayPatch
+    toml.tag_display = displayToml
   }
   if (folder.penetration !== undefined) {
     const penetration = requireRecord(folder.penetration, "reader folder view patch.penetration")
@@ -2095,6 +2211,7 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
   const tree = optionalRecord(value.tree_view, "[nodes.neoview.folder.tree_view]")
   const tabs = optionalRecord(value.tabs, "[nodes.neoview.folder.tabs]")
   const penetration = optionalRecord(value.penetration, "[nodes.neoview.folder.penetration]")
+  const tagDisplay = optionalRecord(value.tag_display, "[nodes.neoview.folder.tag_display]")
   const hiddenColumns = normalizedDetailColumns(details?.hidden_columns ?? [], "[nodes.neoview.folder.details].hidden_columns", false, false)
     .filter((id) => id !== "name")
   const pinnedLeft = normalizedDetailColumns(details?.pinned_left ?? ["name"], "[nodes.neoview.folder.details].pinned_left", false, false)
@@ -2132,6 +2249,14 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
       ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.typeFilter,
     showHiddenFolders: optionalBoolean(value.show_hidden_folders, "[nodes.neoview.folder].show_hidden_folders")
       ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.showHiddenFolders,
+    tagDisplay: {
+      tagMode: optionalEnum(tagDisplay?.tag_mode ?? tagDisplay?.tagMode, "[nodes.neoview.folder.tag_display].tag_mode", ["all", "collect", "none"]) ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tagDisplay.tagMode,
+      showRating: optionalBoolean(tagDisplay?.show_rating, "[nodes.neoview.folder.tag_display].show_rating") ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tagDisplay.showRating,
+      showCollectTagCount: optionalBoolean(tagDisplay?.show_collect_tag_count, "[nodes.neoview.folder.tag_display].show_collect_tag_count") ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tagDisplay.showCollectTagCount,
+      showTags: optionalBoolean(tagDisplay?.show_tags, "[nodes.neoview.folder.tag_display].show_tags") ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tagDisplay.showTags,
+      maxTags: tagDisplay?.max_tags === undefined ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tagDisplay.maxTags : boundedInteger(tagDisplay.max_tags, 1, 12, "[nodes.neoview.folder.tag_display].max_tags"),
+      showTooltips: optionalBoolean(tagDisplay?.show_tooltips, "[nodes.neoview.folder.tag_display].show_tooltips") ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tagDisplay.showTooltips,
+    },
     penetration: {
       enabled: optionalBoolean(penetration?.enabled, "[nodes.neoview.folder.penetration].enabled")
         ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.enabled,
@@ -3180,6 +3305,22 @@ function optionalConfigPath(value: unknown, path: string): string | undefined {
     throw new Error(`${path} must be an empty string or a non-empty path without NUL.`)
   }
   return value.trim()
+}
+
+function normalizedEmmPaths(value: unknown, path: string): readonly string[] {
+  if (!Array.isArray(value) || value.length > 8) throw new Error(`${path} must be an array containing at most 8 paths.`)
+  const paths: string[] = []
+  const seen = new Set<string>()
+  for (const [index, entry] of value.entries()) {
+    const normalized = optionalConfigPath(entry, `${path}[${index}]`)
+    if (!normalized) throw new Error(`${path}[${index}] must not be empty.`)
+    if (normalized.length > 4096) throw new Error(`${path}[${index}] must contain at most 4096 characters.`)
+    const identity = normalized.replaceAll("\\", "/").toLocaleLowerCase()
+    if (seen.has(identity)) continue
+    seen.add(identity)
+    paths.push(normalized)
+  }
+  return paths
 }
 
 function readerAutoRotation(value: unknown): ReaderAutoRotation {

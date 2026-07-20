@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 2,
+  "featureId": "emm-ratings-tags-translation",
+  "legacyCardId": "emmConfig",
+  "title": "EMM 配置",
+  "panelId": "properties",
+  "priority": "integration",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceHash": "sha256:31aa9e3785d5fbac55a4a07944820b5912c398f644811044026247877dee38a4",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/EmmConfigCard.tsx",
+  "inventorySummary": { "sourceUiGroups": 3, "controlsAndStates": 12, "acceptanceItems": 4, "sourceFiles": 2 },
+  "completionRule": "Complete only after the delegated legacy EMM config component is fully frozen and characterized, canonical [nodes.neoview.emm] persistence covers database/setting/translation paths and enable state, connection validation and live reconfiguration have explicit behavior, and desktop plus constrained Card evidence passes.",
+  "unsupportedNodes": [
+    { "node": "delegated EmmConfig component", "source": "src/lib/cards/properties/EmmConfigCard.svelte", "replacement": "The wrapper prototype freezes only delegation; the XR Card currently restores the verified path and enable controls while the delegated legacy inventory remains partial." }
+  ],
+  "sourceUiInventory": [
+    { "id": "emm-config-ui.source", "title": "EMM 数据源路径", "sourceEvidence": ["src/lib/cards/properties/EmmConfigCard.svelte", "src/lib/components/panels/emm/EmmConfigCard.svelte"], "acceptanceItems": ["启用或禁用外部 EMM 数据源", "配置一个或多个 database.sqlite 路径", "配置 setting.json 与标签翻译字典路径", "恢复 APPDATA 自动发现"], "mappedChecklistIds": ["emm-config.persistence"] },
+    { "id": "emm-config-ui.states", "title": "加载、保存、失败与重启状态", "sourceEvidence": ["src/lib/components/panels/emm/EmmConfigCard.svelte"], "acceptanceItems": ["加载时显示占位状态", "保存中禁用重复操作", "失败使用可访问 alert", "路径变更明确提示后端重启边界"], "mappedChecklistIds": ["emm-config.states", "emm-config.lifecycle"] },
+    { "id": "emm-config-ui.connection", "title": "连接与兼容性验证", "sourceEvidence": ["src/lib/components/panels/emm/EmmConfigCard.svelte"], "acceptanceItems": ["测试数据库存在与 Mangas schema 兼容性", "显示实际命中来源和只读状态", "路径切换后重新组合当前 Reader EMM store"], "mappedChecklistIds": ["emm-config.live-reconfigure"] }
+  ],
+  "items": [
+    {
+      "id": "emm-config.persistence", "category": "settings", "title": "规范化 EMM 路径配置与 TOML 持久化",
+      "sourceEvidence": ["src/lib/cards/properties/EmmConfigCard.svelte", "src/lib/components/panels/emm/EmmConfigCard.svelte"],
+      "targetContract": "Persist enabled, bounded database paths, optional setting.json, translations.db and db.text.json paths plus default rating in [nodes.neoview.emm], retaining portable/APPDATA/LOCALAPPDATA auto-discovery for both database.sqlite and legacy db.sqlite when paths are empty and never writing Reader business tables to xiranite.db.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
+      "testIds": ["neoview.emm-config.runtime", "neoview.emm-config.card", "neoview.emm.config-composition"],
+      "plannedTestIds": ["neoview.emm-config.toml-roundtrip"],
+      "notes": "The external database remains a read-only foreign source; empty database_paths means automatic discovery under portable, APPDATA and LOCALAPPDATA. translations.db is persisted for legacy compatibility but is not yet consumed by the Reader projection."
+    },
+    {
+      "id": "emm-config.states", "category": "states", "title": "加载、保存、恢复默认和失败反馈",
+      "sourceEvidence": ["src/lib/components/panels/emm/EmmConfigCard.svelte"],
+      "targetContract": "Load once when active, disable duplicate writes, keep the draft after failure, expose alert/status feedback and restore the canonical automatic-discovery defaults.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
+      "testIds": ["neoview.emm-config.card"], "plannedTestIds": ["neoview.emm-config.failure"],
+      "notes": "Successful path changes are honest about requiring Reader backend restart until live store replacement is implemented."
+    },
+    {
+      "id": "emm-config.live-reconfigure", "category": "capabilities", "title": "连接测试与运行时数据源切换",
+      "sourceEvidence": ["src/lib/components/panels/emm/EmmConfigCard.svelte"],
+      "targetContract": "Validate file existence and Mangas compatibility through a bounded backend probe, then atomically replace the current read-only EMM composition without exposing SQLite to React or leaking old handles.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": { "core": "pending", "transport": "pending", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending" },
+      "testIds": [], "plannedTestIds": ["neoview.emm-config.connection", "neoview.emm-config.live-reconfigure"],
+      "notes": "The current Card persists valid configuration and documents restart semantics; it does not claim live connection testing."
+    },
+    {
+      "id": "emm-config.lifecycle", "category": "lifecycle", "title": "隐藏零请求与取消迟到配置加载",
+      "sourceEvidence": ["src/lib/cards/properties/EmmConfigCard.svelte"],
+      "targetContract": "Perform no request while hidden, abort config loading on deactivation or unmount and keep persistence writes serialized by the shared config endpoint.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
+      "testIds": ["neoview.emm-config.lifecycle", "neoview.emm-config.card"], "plannedTestIds": ["neoview.emm-config.abort"],
+      "notes": "No polling, filesystem access or SQLite work is added to the browser."
+    }
+  ]
+}

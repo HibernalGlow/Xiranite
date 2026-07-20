@@ -59,6 +59,7 @@ import type {
   ReaderDirectorySortSourceDto,
   ReaderFolderEmptyAreaConfig,
   ReaderFolderPenetrationConfig,
+  ReaderFolderTagDisplayConfig,
   ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
 import {
@@ -69,6 +70,7 @@ import {
   viewUsesThumbnails,
 } from "./DirectoryCatalog"
 import FolderTypeFilterPanel, { folderTypeFilterMeta } from "./FolderTypeFilterBar"
+import FolderTagDisplayMenu from "./FolderTagDisplayMenu"
 
 export type FolderToolbarViewModeOption = {
   value: ReaderFolderViewMode
@@ -111,6 +113,7 @@ export type FolderToolbarProps = {
   typeFilter?: ReaderDirectoryFilterDto
   filterOptions?: readonly ReaderDirectoryFilterDto[]
   showHiddenFolders: boolean
+  tagDisplay: ReaderFolderTagDisplayConfig
   penetration: ReaderFolderPenetrationConfig
   treeOpen: boolean
   canTree: boolean
@@ -148,6 +151,7 @@ export type FolderToolbarProps = {
   onToggleSearch(): void
   onChangeTypeFilter?(filter: ReaderDirectoryFilterDto): void
   onChangeShowHiddenFolders?(showHiddenFolders: boolean): void
+  onTagDisplayChange(patch: Partial<ReaderFolderTagDisplayConfig>): void
   onTogglePenetration(enabled: boolean): void
   onUpdatePenetration(patch: Partial<ReaderFolderPenetrationConfig>): void
   onToggleTree(): void
@@ -190,6 +194,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     typeFilter = "library",
     filterOptions,
     showHiddenFolders,
+    tagDisplay,
     penetration,
     treeOpen,
     canTree,
@@ -227,6 +232,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     onToggleSearch,
     onChangeTypeFilter,
     onChangeShowHiddenFolders,
+    onTagDisplayChange,
     onTogglePenetration,
     onUpdatePenetration,
     onToggleTree,
@@ -486,6 +492,8 @@ export default function FolderToolbar(props: FolderToolbarProps) {
               <Eye className="size-4" />
               显示隐藏文件夹
             </DropdownMenuCheckboxItem>
+
+            <FolderTagDisplayMenu value={tagDisplay} onChange={onTagDisplayChange} />
 
             <DropdownMenuItem onSelect={() => setPenetrationSettingsOpen(true)}>
               <Layers3 className="size-4" />

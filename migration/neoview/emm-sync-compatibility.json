@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 2,
+  "featureId": "emm-ratings-tags-translation",
+  "legacyCardId": "emmSync",
+  "title": "EMM 同步",
+  "panelId": "properties",
+  "priority": "integration",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+  "sourceHash": "sha256:3ba07ed1c95f283dff66592d7b97962cd90b5fe698a57bcae96d875cd5442942",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/EmmSyncCard.tsx",
+  "visualBaseline": "pending: legacy 1920x1080 characterization has not been generated",
+  "visualTarget": "output/playwright/neoview-emm-cards-{desktop,420}.png",
+  "inventorySummary": {
+    "sourceUiGroups": 5,
+    "controlsAndStates": 24,
+    "acceptanceItems": 9,
+    "sourceFiles": 4
+  },
+  "completionRule": "Complete only when the wrapper AST and its delegated legacy EmmSync component have a complete reviewed inventory and scripted characterization; the external EMM source boundary, connection and matching states, refresh, errors and lifecycle are covered; and either legacy scan/write/skip/progress/cancel/conflict behavior is restored through canonical services or its removal is explicitly accepted as a replacement contract. The present connection-status Card remains partial.",
+  "unsupportedNodes": [
+    {
+      "node": "delegated EmmSync component",
+      "source": "src/lib/cards/properties/EmmSyncCard.svelte",
+      "replacement": "The generated wrapper prototype freezes only delegation to $lib/components/panels/emm/EmmSyncCard.svelte; that child must be separately inventoried before legacy sync behavior can be marked complete."
+    },
+    {
+      "node": "emmSyncStore/EMMAPI",
+      "source": "src/lib/components/panels/emm/EmmSyncCard.svelte",
+      "replacement": "XR reads the existing external EMM database through process-side read-only stores and authenticated Reader DTOs; no browser SQLite access or copy into thumbnails.db is allowed."
+    }
+  ],
+  "sourceUiInventory": [
+    {
+      "id": "emm-sync-ui.wrapper",
+      "title": "旧 Card 委托边界",
+      "sourceEvidence": ["src/lib/cards/properties/EmmSyncCard.svelte"],
+      "acceptanceItems": [
+        "属性 Card 只委托给 EmmSync 子组件",
+        "子组件 DOM、控件和状态必须另行冻结",
+        "Card 保持 properties Panel shell 行为"
+      ],
+      "mappedChecklistIds": ["emm-sync.inventory", "emm-sync.ui-parity"]
+    },
+    {
+      "id": "emm-sync-ui.source",
+      "title": "外部 EMM 数据源状态",
+      "sourceEvidence": ["src/lib/components/panels/emm/EmmSyncCard.svelte", "src/lib/services/emmSyncService.ts"],
+      "acceptanceItems": [
+        "自动发现默认 EMM database.sqlite",
+        "支持显式数据库路径",
+        "显示外部源可用或当前书籍未匹配",
+        "数据库失败不伪装为无记录",
+        "外部数据库保持只读"
+      ],
+      "mappedChecklistIds": ["emm-sync.direct-source", "emm-sync.states", "emm-sync.deviations"]
+    },
+    {
+      "id": "emm-sync-ui.progress",
+      "title": "旧扫描和写入进度",
+      "sourceEvidence": ["src/lib/components/panels/emm/EmmSyncCard.svelte", "src/lib/services/emmSyncService.ts"],
+      "acceptanceItems": [
+        "选择当前书籍或目录同步范围",
+        "显示扫描数量",
+        "显示匹配数量",
+        "显示写入数量",
+        "显示跳过数量",
+        "显示错误数量和详细错误",
+        "显示运行中和完成状态"
+      ],
+      "mappedChecklistIds": ["emm-sync.legacy-operation", "emm-sync.states"]
+    },
+    {
+      "id": "emm-sync-ui.commands",
+      "title": "执行、取消、重试和冲突策略",
+      "sourceEvidence": ["src/lib/components/panels/emm/EmmSyncCard.svelte", "src/lib/services/emmSyncService.ts"],
+      "acceptanceItems": [
+        "开始同步命令",
+        "运行中禁用重复开始",
+        "取消进行中的同步",
+        "失败后重试",
+        "选择或显示冲突策略",
+        "重新读取当前实时外部投影"
+      ],
+      "mappedChecklistIds": ["emm-sync.refresh", "emm-sync.legacy-operation", "emm-sync.conflicts"]
+    },
+    {
+      "id": "emm-sync-ui.lifecycle-shell",
+      "title": "加载、错误、隐藏和 Card shell",
+      "sourceEvidence": ["src/lib/cards/properties/EmmSyncCard.svelte", "src/lib/cards/registry.ts"],
+      "acceptanceItems": [
+        "未打开书籍显示独立空态",
+        "检查数据源时显示 loading",
+        "失败显示 alert 和重试",
+        "隐藏或卸载取消请求",
+        "独立 lazy Card 在窄宽度无溢出",
+        "实时读取说明不暗示已写入 thumbnails.db"
+      ],
+      "mappedChecklistIds": ["emm-sync.states", "emm-sync.lifecycle", "emm-sync.ui-parity", "emm-sync.deviations"]
+    }
+  ],
+  "items": [
+    {
+      "id": "emm-sync.inventory",
+      "category": "ast-prototype",
+      "title": "冻结委托子组件的完整逐控件清单",
+      "sourceEvidence": ["src/lib/cards/properties/EmmSyncCard.svelte", "src/lib/components/panels/emm/EmmSyncCard.svelte"],
+      "targetContract": "Extend the reproducible AST review beyond the one-line wrapper so every delegated sync control, conditional block, event and unsupported node is frozen before full migration claims.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.emm-sync.ast-inventory"],
+      "notes": "The current generated prototype records only the wrapper import and is insufficient evidence for the delegated legacy UI."
+    },
+    {
+      "id": "emm-sync.direct-source",
+      "category": "data-contract",
+      "title": "实时外部 EMM 只读数据源",
+      "sourceEvidence": ["src/lib/services/emmSyncService.ts", "src/lib/stores/emmMetadata.svelte.ts"],
+      "targetContract": "Discover or explicitly configure the existing EMM database.sqlite, read Mangas rows by normalized source path in read-only mode and merge missing values behind the canonical Reader metadata service without copying them into thumbnails.db.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-sync.direct-source"],
+      "plannedTestIds": ["neoview.emm.external-locator", "neoview.emm.external-readonly", "neoview.emm.external-merge", "neoview.emm.external-composition", "neoview.emm-sync.default-appdata-e2e"],
+      "notes": "The external EMM database is a foreign read-only source. thumbnails.db remains the NeoView compatibility store, xr overrides keep precedence, and xiranite.db receives no Reader business tables."
+    },
+    {
+      "id": "emm-sync.refresh",
+      "category": "commands",
+      "title": "重新读取当前书籍投影",
+      "sourceEvidence": ["src/lib/cards/properties/EmmSyncCard.svelte"],
+      "targetContract": "Explicitly invalidate the current static metadata request and re-read the external projection with loading, error and duplicate-action protection.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-sync.direct-source"],
+      "plannedTestIds": ["neoview.emm-sync.refresh", "neoview.emm-sync.refresh-error"],
+      "notes": "A reread button exists, but focused duplicate-click and failed refresh coverage is missing."
+    },
+    {
+      "id": "emm-sync.legacy-operation",
+      "category": "capabilities",
+      "title": "扫描、匹配、写入、跳过和进度",
+      "sourceEvidence": ["src/lib/components/panels/emm/EmmSyncCard.svelte", "src/lib/services/emmSyncService.ts"],
+      "targetContract": "If retained, execute current-book or directory synchronization through a bounded canonical service and expose scan, match, write, skip, error and completion progress without browser-owned database access.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.emm-sync.operation", "neoview.emm-sync.progress"],
+      "notes": "The current Card does not perform a legacy synchronization job. This item may be removed only by an explicitly accepted replacement decision."
+    },
+    {
+      "id": "emm-sync.conflicts",
+      "category": "interaction-states",
+      "title": "取消、重试和冲突策略",
+      "sourceEvidence": ["src/lib/components/panels/emm/EmmSyncCard.svelte", "src/lib/services/emmSyncService.ts"],
+      "targetContract": "A retained write operation must support cancellation, recoverable retry and a documented conflict policy while leaving the external EMM database and old NeoView tables unmodified.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.emm-sync.cancel", "neoview.emm-sync.conflict"],
+      "notes": "No sync job currently exists, so job cancellation and conflicts remain unresolved rather than silently not-applicable."
+    },
+    {
+      "id": "emm-sync.states",
+      "category": "interaction-states",
+      "title": "未打开、检查中、未匹配、已连接和错误",
+      "sourceEvidence": ["src/lib/cards/properties/EmmSyncCard.svelte"],
+      "targetContract": "Distinguish no active book, source check, matched record, unmatched record, source unavailable and recoverable transport failure without presenting an empty projection as successful synchronization.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": ["neoview.emm-sync.states"],
+      "notes": "Matched and common error/loading states exist; source-unavailable versus unmatched diagnostics are not yet independently represented."
+    },
+    {
+      "id": "emm-sync.lifecycle",
+      "category": "lifecycle",
+      "title": "静态元数据共享与隐藏取消",
+      "sourceEvidence": ["src/lib/cards/properties/EmmSyncCard.svelte"],
+      "targetContract": "Share one static metadata request with sibling consumers, perform zero work while inactive and cancel or ignore stale completion on deactivation, session replacement and unmount.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-cards.lifecycle", "neoview.emm-sync.direct-source"],
+      "plannedTestIds": ["neoview.emm-sync.session-replace"],
+      "notes": "The current test proves hidden zero work and request sharing with Raw Data; explicit session replacement remains."
+    },
+    {
+      "id": "emm-sync.ui-parity",
+      "category": "ui-parity",
+      "title": "旧同步层级与响应式几何",
+      "sourceEvidence": ["src/lib/cards/properties/EmmSyncCard.svelte", "src/lib/components/panels/emm/EmmSyncCard.svelte"],
+      "targetContract": "Preserve the source sync hierarchy, status language, progress and command density at desktop and constrained widths, or document the accepted status-only replacement against a legacy screenshot.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": ["neoview.emm-sync.legacy-characterization", "neoview.emm-sync.geometry"],
+      "notes": "Target desktop and 420px geometry exists, but the old delegated component is not characterized and its progress UI is absent."
+    },
+    {
+      "id": "emm-sync.deviations",
+      "category": "deviations",
+      "title": "记录实时读取替代预同步缓存",
+      "sourceEvidence": ["src/lib/cards/properties/EmmSyncCard.svelte", "src/lib/services/emmSyncService.ts"],
+      "targetContract": "Document that XR resolves current EMM fields directly from the external read-only database and therefore does not require a preliminary copy into thumbnails.db, while separately deciding the fate of legacy explicit batch-sync commands.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-sync.direct-source"],
+      "plannedTestIds": ["neoview.emm.external-composition", "neoview.emm-sync.replacement-acceptance"],
+      "notes": "Realtime read is implemented and non-destructive. Removal of legacy job controls is recorded but not yet treated as an accepted complete migration."
+    }
+  ]
+}

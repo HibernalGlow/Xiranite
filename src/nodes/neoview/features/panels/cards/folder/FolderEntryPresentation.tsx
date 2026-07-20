@@ -1,7 +1,23 @@
 import { File, FileArchive, FileImage, FileText, Film, Folder, Heart, Music, Star, Tag } from "lucide-react"
+import { createContext, useContext, type ReactNode } from "react"
 
-import type { ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-client"
+import type { ReaderDirectoryEntryDto, ReaderFolderTagDisplayConfig } from "../../../../adapters/reader-http-client"
 import { formatFolderRating } from "./DirectoryCatalog"
+
+export const DEFAULT_FOLDER_TAG_DISPLAY: ReaderFolderTagDisplayConfig = {
+  tagMode: "collect",
+  showRating: true,
+  showCollectTagCount: true,
+  showTags: true,
+  maxTags: 3,
+  showTooltips: true,
+}
+
+const FolderEntryDisplayContext = createContext<ReaderFolderTagDisplayConfig>(DEFAULT_FOLDER_TAG_DISPLAY)
+
+export function FolderEntryDisplayProvider({ value, children }: { value: ReaderFolderTagDisplayConfig; children: ReactNode }) {
+  return <FolderEntryDisplayContext.Provider value={value}>{children}</FolderEntryDisplayContext.Provider>
+}
 
 export function FolderEntryIcon({ entry, className = "size-4" }: { entry: ReaderDirectoryEntryDto; className?: string }) {
   const Icon = getFolderEntryIcon(entry)
@@ -88,13 +104,22 @@ export function FolderEntryMetadata({
   showTags?: boolean
   className?: string
 }) {
+  const display = useContext(FolderEntryDisplayContext)
   const rating = formatFolderRating(entry.rating)
-  const tags = formatFolderTags(entry.tags)
+  const sourceTags = (display.tagMode === "none"
+    ? []
+    : display.tagMode === "collect"
+      ? [...(entry.collectTags ?? (entry.collectTagCount ? entry.tags ?? [] : [])), ...(entry.manualTags ?? [])]
+      : entry.tags ?? []).map((tag) => tag.trim()).filter(Boolean)
+  const shownTags = sourceTags.slice(0, display.maxTags)
+  const hiddenTagCount = sourceTags.length - shownTags.length
+  const tags = shownTags.join(" / ")
+  const tagText = hiddenTagCount > 0 ? `${tags} / +${hiddenTagCount}` : tags
   return (
     <span className={`flex shrink-0 items-center gap-1.5 text-[10px] tabular-nums text-muted-foreground ${className}`}>
-      {showRating ? <span className="inline-flex items-center gap-0.5" title={`评分 ${rating}`}><Star className="size-3" />{rating}</span> : null}
-      {showCollectTagCount ? <span className="inline-flex items-center gap-0.5" title={`收藏标签 ${entry.collectTagCount ?? 0}`}><Heart className="size-3" />{entry.collectTagCount ?? 0}</span> : null}
-      {showTags && tags ? <span className="inline-flex min-w-0 items-center gap-0.5" title={`标签 ${tags}`} data-folder-entry-metadata="tags"><Tag className="size-3 shrink-0" /><span className="max-w-40 truncate">{tags}</span></span> : null}
+      {showRating && display.showRating ? <span className="inline-flex items-center gap-0.5" title={display.showTooltips ? `评分 ${rating}` : undefined}><Star className="size-3" />{rating}</span> : null}
+      {showCollectTagCount && display.showCollectTagCount ? <span className="inline-flex items-center gap-0.5" title={display.showTooltips ? `收藏标签 ${entry.collectTagCount ?? 0}` : undefined}><Heart className="size-3" />{entry.collectTagCount ?? 0}</span> : null}
+      {showTags && display.showTags && display.tagMode !== "none" && tags ? <span className="inline-flex min-w-0 items-center gap-0.5" title={display.showTooltips ? `标签 ${sourceTags.join(" / ")}` : undefined} data-folder-entry-metadata="tags"><Tag className="size-3 shrink-0" /><span className="max-w-40 truncate">{tagText}</span></span> : null}
     </span>
   )
 }

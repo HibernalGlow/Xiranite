@@ -2,7 +2,7 @@ import { render } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { File, FileArchive, FileImage, FileText, Film, Folder, Music } from "lucide-react"
 
-import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata, folderEntryExtension, formatFolderDate, formatFolderSize, formatFolderTagSummary, formatFolderTags, getFolderEntryIcon } from "./FolderEntryPresentation"
+import { FolderEntryDisplayProvider, FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata, folderEntryExtension, formatFolderDate, formatFolderSize, formatFolderTagSummary, formatFolderTags, getFolderEntryIcon } from "./FolderEntryPresentation"
 
 describe("FolderEntryPresentation", () => {
   it("maps legacy file extension groups to semantic icons", () => {
@@ -41,10 +41,36 @@ describe("FolderEntryPresentation", () => {
     expect(formatFolderTagSummary(entry)).toBe("artist:alice / manual:favorite / 2 个收藏标签")
 
     const { container } = render(
-      <FolderEntryMetadata entry={{ name: "book.cbz", path: "D:/book.cbz", kind: "file", readerSupported: true, ...entry }} showRating={false} showCollectTagCount />,
+      <FolderEntryDisplayProvider value={{ tagMode: "all", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true }}>
+        <FolderEntryMetadata entry={{ name: "book.cbz", path: "D:/book.cbz", kind: "file", readerSupported: true, ...entry }} showRating={false} showCollectTagCount />
+      </FolderEntryDisplayProvider>,
     )
     const tags = container.querySelector('[data-folder-entry-metadata="tags"]')
     expect(tags?.textContent).toContain("artist:alice / manual:favorite")
     expect(tags?.getAttribute("title")).toBe("标签 artist:alice / manual:favorite")
+  })
+
+  it("[neoview.folder.tag-display-render] applies the More-menu tag limit and tooltip policy without changing the DTO", () => {
+    const entry = { name: "book.cbz", path: "D:/book.cbz", kind: "file" as const, readerSupported: true, tags: ["artist:alice", "manual:favorite", "ai:recommended"] }
+    const { container } = render(
+      <FolderEntryDisplayProvider value={{ tagMode: "all", showRating: false, showCollectTagCount: false, showTags: true, maxTags: 1, showTooltips: false }}>
+        <FolderEntryMetadata entry={entry} showRating showCollectTagCount />
+      </FolderEntryDisplayProvider>,
+    )
+    const tags = container.querySelector('[data-folder-entry-metadata="tags"]')
+    expect(tags?.textContent).toContain("artist:alice / +2")
+    expect(tags?.getAttribute("title")).toBeNull()
+    expect(container.textContent).not.toContain("4.2")
+  })
+
+  it("[neoview.folder.tag-display-collect] keeps collected EMM tags and manual tags in collect mode", () => {
+    const entry = { name: "book.cbz", path: "D:/book.cbz", kind: "file" as const, readerSupported: true, tags: ["artist:alice", "female:glasses", "manual:favorite"], collectTags: ["female:glasses"], manualTags: ["manual:favorite"] }
+    const { container } = render(
+      <FolderEntryDisplayProvider value={{ tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true }}>
+        <FolderEntryMetadata entry={entry} showRating={false} showCollectTagCount={false} />
+      </FolderEntryDisplayProvider>,
+    )
+    expect(container.textContent).toContain("female:glasses / manual:favorite")
+    expect(container.textContent).not.toContain("artist:alice")
   })
 })

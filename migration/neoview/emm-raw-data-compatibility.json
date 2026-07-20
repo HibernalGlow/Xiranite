@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 2,
+  "featureId": "emm-ratings-tags-translation",
+  "legacyCardId": "emmRawData",
+  "title": "EMM 数据库记录",
+  "panelId": "properties",
+  "priority": "integration",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+  "sourceHash": "sha256:15b65a69f7b7225df35baa20fb3841cb17f32ceb1cce68d9143869dcfbbe03a9",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/EmmRawDataCard.tsx",
+  "visualBaseline": "pending: legacy 1920x1080 characterization has not been generated",
+  "visualTarget": "output/playwright/neoview-emm-cards-{desktop,420}.png",
+  "inventorySummary": {
+    "sourceUiGroups": 5,
+    "controlsAndStates": 30,
+    "acceptanceItems": 12,
+    "sourceFiles": 3
+  },
+  "completionRule": "Complete only when the reviewed AST prototype and scripted legacy characterization are preserved; every source raw field, stable sorting/filtering, field labels, typed formatting, path/URL actions, formatted/raw and copy controls, loading/error/refresh lifecycle, accessibility and responsive evidence are covered. The current bounded Reader projection must remain explicitly partial and must not be described as the SQLite raw row.",
+  "unsupportedNodes": [
+    {
+      "node": "ConstTag",
+      "source": "src/lib/cards/properties/EmmRawDataCard.svelte",
+      "replacement": "Production React must derive field metadata and the original row value before rendering semantic cells and actions."
+    },
+    {
+      "node": "createSvelteTable/infoPanelStore",
+      "source": "src/lib/cards/properties/EmmRawDataCard.svelte",
+      "replacement": "XR currently renders a small memoized table from the authenticated Reader metadata DTO; a bounded raw-record DTO is still required for full parity."
+    }
+  ],
+  "sourceUiInventory": [
+    {
+      "id": "emm-raw-data-ui.fields",
+      "title": "原始字段库存和标签",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "acceptanceItems": [
+        "读取 emmMetadata.raw 的非空字段",
+        "字段按 key 稳定排序",
+        "bundleSize/category/coverHash/coverPath 字段元数据",
+        "createdAt/updatedAt/mtime 日期字段元数据",
+        "exist/filecount/filepath/filesize/hash 字段元数据",
+        "hiddenBook/id/mark/pageCount/posted/readCount 字段元数据",
+        "title/title_jpn/type/url/rating/status/date 字段元数据",
+        "未知字段回退原 key 和 string 类型"
+      ],
+      "mappedChecklistIds": ["emm-raw-data.raw-record", "emm-raw-data.projection", "emm-raw-data.formatting"]
+    },
+    {
+      "id": "emm-raw-data-ui.filter-sort",
+      "title": "过滤、排序和计数",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "acceptanceItems": [
+        "字段和值共用大小写不敏感过滤",
+        "过滤输入保持紧凑高度",
+        "显示原始记录总条数",
+        "字段和值表头可排序",
+        "过滤和排序不改变原始 DTO"
+      ],
+      "mappedChecklistIds": ["emm-raw-data.filter", "emm-raw-data.sort", "emm-raw-data.ui-parity"]
+    },
+    {
+      "id": "emm-raw-data-ui.formatting",
+      "title": "按字段类型格式化",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "acceptanceItems": [
+        "文件大小按 B/KB/MB/GB 格式化",
+        "rating 保留一位小数",
+        "datetime 使用本地时间",
+        "timestamp 按秒转换本地时间",
+        "boolean 显示是或否",
+        "无效值保留原始文本",
+        "tooltip 保留完整 key 和 value"
+      ],
+      "mappedChecklistIds": ["emm-raw-data.formatting", "emm-raw-data.accessibility"]
+    },
+    {
+      "id": "emm-raw-data-ui.actions",
+      "title": "路径、URL、复制和视图动作",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "acceptanceItems": [
+        "path 字段使用可操作按钮在文件管理器定位",
+        "url 字段使用可操作按钮打开外部链接",
+        "切换格式化和原始 JSON 视图",
+        "复制单个字段值",
+        "复制完整原始记录",
+        "显式刷新当前记录",
+        "只读字段与可编辑入口清晰区分"
+      ],
+      "mappedChecklistIds": ["emm-raw-data.actions", "emm-raw-data.view-copy", "emm-raw-data.accessibility"]
+    },
+    {
+      "id": "emm-raw-data-ui.states-shell",
+      "title": "空、加载、错误、生命周期和几何",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte", "src/lib/cards/registry.ts"],
+      "acceptanceItems": [
+        "当前条目无 EMM 记录显示独立空态",
+        "加载状态不伪装为无记录",
+        "失败显示 alert 和显式重试",
+        "隐藏或卸载取消请求",
+        "表格最大高度 192px 并滚动",
+        "字段列和值列保持紧凑密度",
+        "长值截断且完整值可访问",
+        "窄 Card 无横向溢出"
+      ],
+      "mappedChecklistIds": ["emm-raw-data.states", "emm-raw-data.lifecycle", "emm-raw-data.ui-parity", "emm-raw-data.accessibility"]
+    }
+  ],
+  "items": [
+    {
+      "id": "emm-raw-data.raw-record",
+      "category": "data-contract",
+      "title": "有界原始 EMM 记录 DTO",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "targetContract": "Expose a bounded, versioned and read-only projection of the matched external Mangas row with explicit field types, omission rules and source identity through the authenticated Reader metadata boundary.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": ["neoview.emm.external-readonly", "neoview.emm-raw-data.dto", "neoview.emm-raw-data.boundary"],
+      "notes": "The current Card receives only filepath, translatedTitle, pageCount, tagCount and flattened tags. It does not expose the original SQLite row and must not be labelled complete raw-data parity."
+    },
+    {
+      "id": "emm-raw-data.projection",
+      "category": "capabilities",
+      "title": "Reader 已验证字段投影",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "targetContract": "Render only validated current-book fields and bounded tag rows, omit undefined values and keep filtering pure without parsing arbitrary database JSON in React.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": ["neoview.emm-raw-data.projection-bound"],
+      "notes": "This is a deliberate safe first slice, separate from the pending raw-record contract."
+    },
+    {
+      "id": "emm-raw-data.filter",
+      "category": "capabilities",
+      "title": "字段和值过滤",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "targetContract": "Filter the visible bounded rows by case-insensitive key or value text without mutating source order or issuing a new backend request.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-sync.direct-source"],
+      "plannedTestIds": ["neoview.emm-raw-data.filter-empty"],
+      "notes": "The focused test proves a matching filter removes unrelated rows."
+    },
+    {
+      "id": "emm-raw-data.sort",
+      "category": "capabilities",
+      "title": "字段和值排序",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "targetContract": "Provide stable keyboard-operable sorting for key and value columns while retaining canonical source identity.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.emm-raw-data.sort"],
+      "notes": "The current plain table has no sortable headers."
+    },
+    {
+      "id": "emm-raw-data.formatting",
+      "category": "ui-parity",
+      "title": "字段标签和类型格式化",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "targetContract": "Apply the source field-label map and deterministic path, URL, datetime, timestamp, byte-size, number and boolean formatting while preserving raw values in accessible descriptions.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.emm-raw-data.formatting"],
+      "notes": "Current values are plain strings and the source field metadata map has not been restored."
+    },
+    {
+      "id": "emm-raw-data.view-copy",
+      "category": "commands",
+      "title": "格式化/原始视图与复制",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "targetContract": "Switch between the formatted table and bounded raw JSON, copy a field or the complete record and report clipboard failures without exposing unbounded database content.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.emm-raw-data.raw-view", "neoview.emm-raw-data.copy"],
+      "notes": "These checklist requirements are not present in the current React Card."
+    },
+    {
+      "id": "emm-raw-data.actions",
+      "category": "commands",
+      "title": "路径、URL 与显式刷新动作",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "targetContract": "Use authenticated host capabilities for path reveal, safe external URL opening and explicit metadata refresh with capability-aware disabled and error states.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.emm-raw-data.path-action", "neoview.emm-raw-data.url-action", "neoview.emm-raw-data.refresh"],
+      "notes": "The source direct FileSystemAPI/window calls are not copied into React; equivalent host commands remain to be wired."
+    },
+    {
+      "id": "emm-raw-data.states",
+      "category": "interaction-states",
+      "title": "加载、无记录、错误与重试",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "targetContract": "Distinguish no active book, loading, no matched record, empty raw row, recoverable failure, retry and filtered-empty states without leaking stale data across sessions.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-cards.lifecycle", "neoview.emm-sync.direct-source"],
+      "plannedTestIds": ["neoview.emm-raw-data.states", "neoview.emm-raw-data.retry"],
+      "notes": "Loading, missing record and alert exist; the current error has no retry command and filtered-empty is not separately described."
+    },
+    {
+      "id": "emm-raw-data.lifecycle",
+      "category": "lifecycle",
+      "title": "共享静态元数据与隐藏取消",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "targetContract": "Share one static metadata request with sibling Cards, perform zero hidden work and cancel or ignore stale results on deactivation, session replacement or unmount.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-cards.lifecycle", "neoview.emm-sync.direct-source"],
+      "plannedTestIds": ["neoview.emm-raw-data.session-replace"],
+      "notes": "Hidden zero work and request sharing are covered; explicit session replacement remains planned."
+    },
+    {
+      "id": "emm-raw-data.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "表格、过滤和字段动作语义",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "targetContract": "Expose a named filter, semantic table headers, full key/value text for truncated cells and keyboard-operable sorting, copy, path, URL, refresh and retry commands.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-sync.direct-source"],
+      "plannedTestIds": ["neoview.emm-raw-data.accessibility"],
+      "notes": "The current filter and table are named, but sorting and field commands do not exist and full values rely only on title attributes."
+    },
+    {
+      "id": "emm-raw-data.ui-parity",
+      "category": "ui-parity",
+      "title": "紧凑表格和受限 Card 几何",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
+      "targetContract": "Preserve the compact filter/count/table hierarchy, sticky header, bounded scrolling, typed cell affordances and full-value tooltips without horizontal overflow at desktop and constrained widths.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": ["neoview.emm-raw-data.legacy-characterization", "neoview.emm-raw-data.geometry"],
+      "notes": "Target screenshots prove no overflow, but source typed cells and a legacy baseline are missing."
+    },
+    {
+      "id": "emm-raw-data.deviations",
+      "category": "deviations",
+      "title": "记录安全投影不是原始 SQLite 行",
+      "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
+      "targetContract": "Keep the current verified Reader projection explicitly labelled as a bounded first slice; do not expose arbitrary SQLite rows to the browser or claim raw-record parity until a reviewed DTO exists.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": ["neoview.emm-raw-data.replacement-acceptance"],
+      "notes": "The deviation is documented, but it is not accepted as removal of the legacy complete raw-field view."
+    }
+  ]
+}

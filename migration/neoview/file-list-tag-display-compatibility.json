@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 2,
+  "featureId": "emm-ratings-tags-translation",
+  "legacyCardId": "fileListTagDisplay",
+  "title": "文件列表标签",
+  "panelId": "properties",
+  "priority": "integration",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceHash": "sha256:372ef11a089413c212e2cfde37e77d7787dd2a4abe9e1ff42a42ca79ab776e33",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/FileListTagDisplayCard.tsx",
+  "inventorySummary": { "sourceUiGroups": 3, "controlsAndStates": 10, "acceptanceItems": 4, "sourceFiles": 3 },
+  "completionRule": "The legacy standalone Card is intentionally replaced by File Card > More > File information display. Complete only when the replacement preserves the legacy all/collect/none modes (default collect, with manual tags retained), plus bounded quantity and tooltip extensions through one persisted folder tag-display contract across every file view, with responsive interaction evidence.",
+  "unsupportedNodes": [
+    { "node": "delegated FileListTagDisplay component", "source": "src/lib/cards/properties/FileListTagDisplayCard.svelte", "replacement": "The wrapper prototype freezes delegation; the accepted host replacement places the controls beside the File Card views they affect instead of registering another properties Card." }
+  ],
+  "sourceUiInventory": [
+    { "id": "file-list-tag-display-ui.location", "title": "File Card 更多菜单替代入口", "sourceEvidence": ["src/lib/cards/properties/FileListTagDisplayCard.svelte", "src/lib/components/panels/emm/FileListTagDisplayCard.svelte"], "acceptanceItems": ["不注册独立 FileListTagDisplay Card", "在 File Card 更多菜单提供文件信息显示子菜单", "设置作用于所有文件列表与网格视图"], "mappedChecklistIds": ["file-list-tag-display.replacement"] },
+    { "id": "file-list-tag-display-ui.controls", "title": "评分、收藏数、标签、数量和 tooltip", "sourceEvidence": ["src/lib/components/panels/emm/FileListTagDisplayCard.svelte"], "acceptanceItems": ["独立显示或隐藏评分", "独立显示或隐藏收藏标签数", "显示或隐藏 EMM/manual/AI 标签", "限制标签数量并选择是否显示完整值 tooltip"], "mappedChecklistIds": ["file-list-tag-display.settings", "file-list-tag-display.rendering"] },
+    { "id": "file-list-tag-display-ui.sources", "title": "标签来源与命名空间", "sourceEvidence": ["src/lib/components/panels/emm/FileListTagDisplayCard.svelte"], "acceptanceItems": ["按 EMM/manual/AI 来源筛选", "按命名空间筛选", "缺失来源身份时不伪造分类"], "mappedChecklistIds": ["file-list-tag-display.sources"] }
+  ],
+  "items": [
+    {
+      "id": "file-list-tag-display.replacement", "category": "deviations", "title": "以 File Card 更多菜单替代独立 Card",
+      "sourceEvidence": ["src/lib/cards/properties/FileListTagDisplayCard.svelte", "src/lib/components/panels/emm/FileListTagDisplayCard.svelte"],
+      "targetContract": "Do not register another properties Card; place the display policy under File Card > More and consume it through the existing shared entry renderer.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": { "core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
+      "testIds": ["neoview.folder.tag-display-menu"], "plannedTestIds": ["neoview.folder.tag-display-e2e"],
+      "notes": "This replacement is explicitly requested and avoids a remote settings Card disconnected from the affected File Card."
+    },
+    {
+      "id": "file-list-tag-display.settings", "category": "settings", "title": "单一 folder.tag_display 持久化契约",
+      "sourceEvidence": ["src/lib/components/panels/emm/FileListTagDisplayCard.svelte"],
+      "targetContract": "Persist tagMode (all/collect/none, default collect), showRating, showCollectTagCount, showTags, maxTags and showTooltips under [nodes.neoview.folder.tag_display] with bounded validation and no browser-local duplicate state.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
+      "testIds": ["neoview.folder.tag-display-config", "neoview.folder.tag-display-menu", "neoview.folder.tag-display-mode"], "plannedTestIds": [],
+      "notes": "The same ReaderRuntimeConfig folderView mutation path used by the File Card owns persistence."
+    },
+    {
+      "id": "file-list-tag-display.rendering", "category": "capabilities", "title": "共享条目渲染限制数量和 tooltip",
+      "sourceEvidence": ["src/lib/components/panels/emm/FileListTagDisplayCard.svelte"],
+      "targetContract": "Apply the policy in the shared FolderEntryMetadata renderer so compact, list, cover, mosaic and grid entries receive the same bounded tag count and tooltip behavior without new per-row subscriptions.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
+      "testIds": ["neoview.folder.tag-display-render", "neoview.folder.tag-display-collect"], "plannedTestIds": ["neoview.folder.tag-display-views"],
+      "notes": "One React context value is read by row renderers; no global listener or metadata refetch is introduced."
+    },
+    {
+      "id": "file-list-tag-display.sources", "category": "capabilities", "title": "EMM/manual/AI 来源与命名空间筛选",
+      "sourceEvidence": ["src/lib/components/panels/emm/FileListTagDisplayCard.svelte"],
+      "targetContract": "Filter tags by explicit source and namespace identity only when the canonical directory DTO carries those identities; do not infer source from free-form text.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
+      "testIds": ["neoview.folder.emm-tag-sources", "neoview.folder.tag-display-collect"], "plannedTestIds": ["neoview.folder.tag-display-sources"],
+      "notes": "The directory DTO now preserves collected EMM tags and manual tags separately for the legacy collect mode. AI identity and arbitrary per-namespace filtering remain partial."
+    }
+  ]
+}
