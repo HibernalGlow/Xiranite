@@ -26,11 +26,21 @@ describe("image transform request", () => {
     })
   })
 
+  it("[neoview.image.transform-lossless] accepts caller-selected WebP loss mode and quality", () => {
+    const lossless = parseImageTransform(new URLSearchParams("width=640&format=webp&lossless=true&quality=100"))!
+    const lossy = parseImageTransform(new URLSearchParams("width=640&format=webp&lossless=false&quality=68"))!
+    expect(lossless).toMatchObject({ format: "webp", lossless: true, quality: 100 })
+    expect(lossy).toMatchObject({ format: "webp", lossless: false, quality: 68 })
+    expect(imageTransformCacheKey(lossless)).toContain(":lossless:")
+    expect(imageTransformCacheKey(lossy)).not.toContain(":lossless:")
+  })
+
   it("[neoview.image.transform-validation] rejects duplicates, invalid combinations and oversized DPR output", () => {
     expect(() => parseImageTransform(new URLSearchParams("width=1&width=2"))).toThrow("Duplicate")
     expect(() => parseImageTransform(new URLSearchParams("dpr=2"))).toThrow("require width or height")
     expect(() => parseImageTransform(new URLSearchParams("quality=80"))).toThrow("requires format")
     expect(() => parseImageTransform(new URLSearchParams("width=10000&dpr=2"))).toThrow("must not exceed")
     expect(() => parseImageTransform(new URLSearchParams("width=20&format=jxl"))).toThrow("Unsupported format")
+    expect(() => parseImageTransform(new URLSearchParams("width=20&lossless=maybe"))).toThrow("true or false")
   })
 })

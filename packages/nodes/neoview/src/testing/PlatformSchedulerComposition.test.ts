@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { CoreReaderService } from "../application/reader/ReaderService.js"
 import type { ResourceTaskRequest } from "../ports/ResourceScheduler.js"
@@ -11,17 +11,24 @@ import { createReaderAssetRoute, createReaderBookLoader, createReaderHttpControl
 
 const cleanupDirectories: string[] = []
 const cleanupArchives: ZipFixture[] = []
+const previousSharpSetting = process.env.XIRANITE_NEOVIEW_SHARP
 const ONE_PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
   "base64",
 )
 
 afterEach(async () => {
+  if (previousSharpSetting === undefined) delete process.env.XIRANITE_NEOVIEW_SHARP
+  else process.env.XIRANITE_NEOVIEW_SHARP = previousSharpSetting
   await Promise.all(cleanupArchives.splice(0).map((fixture) => fixture.cleanup()))
   await Promise.all(cleanupDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
 describe("NeoView platform composition", () => {
+  beforeEach(() => {
+    process.env.XIRANITE_NEOVIEW_SHARP = "1"
+  })
+
   it("[neoview.asset-route.scheduler-host-injection] routes direct image transforms through the host CPU pool", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-platform-scheduler-"))
     cleanupDirectories.push(directory)

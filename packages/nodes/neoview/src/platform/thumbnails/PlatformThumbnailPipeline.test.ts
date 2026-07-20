@@ -343,7 +343,7 @@ describe("PlatformThumbnailPipeline", () => {
     }
     const lease = pipeline.acquireLibrary(descriptor, { contextId: "folder:mosaic" })
     await expect(lease.ready).resolves.toMatchObject({ bytes: fixtureWebp(12), contentType: "image/webp" })
-    expect(compose).toHaveBeenCalledWith(expect.any(Array), { count: 4, size: 416, quality: 82 }, expect.any(AbortSignal), expect.objectContaining({ kind: "neoview.thumbnail.folder-mosaic" }))
+    expect(compose).toHaveBeenCalledWith(expect.any(Array), { count: 4, size: 416, lossless: false, quality: 82 }, expect.any(AbortSignal), expect.objectContaining({ kind: "neoview.thumbnail.folder-mosaic" }))
     expect(put).not.toHaveBeenCalled()
     lease.release()
     await pipeline.dispose()
@@ -374,7 +374,7 @@ describe("PlatformThumbnailPipeline", () => {
     const lease = pipeline.acquireLibrary(descriptor, { contextId: "folder:mosaic-partial" })
     await expect(lease.ready).resolves.toMatchObject({ bytes: fixtureWebp(12), contentType: "image/webp" })
     expect(transform).toHaveBeenCalledTimes(2)
-    expect(compose).toHaveBeenCalledWith(expect.any(Array), { count: 4, size: 416, quality: 82 }, expect.any(AbortSignal), expect.any(Object))
+    expect(compose).toHaveBeenCalledWith(expect.any(Array), { count: 4, size: 416, lossless: false, quality: 82 }, expect.any(AbortSignal), expect.any(Object))
     expect(closeBad).toHaveBeenCalledOnce()
     expect(closeGood).toHaveBeenCalledOnce()
     lease.release()

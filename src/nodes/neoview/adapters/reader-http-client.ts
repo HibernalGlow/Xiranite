@@ -74,9 +74,6 @@ export interface ReaderPreloadContextDto {
   velocityPagesPerSecond?: number
   stableForMs?: number
   focused?: boolean
-  presentationWidth?: number
-  presentationHeight?: number
-  presentationDpr?: number
 }
 
 export interface ReaderSourceChangeDto {
@@ -1096,6 +1093,9 @@ export interface ReaderUpscalePreloadSnapshotDto {
   cancelled: number
   pending: number
   progress: number
+  totalPages?: number
+  scheduledPages?: number
+  upscaledPages?: number
   startedAt: number
   updatedAt: number
   completedAt?: number

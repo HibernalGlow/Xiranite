@@ -48,8 +48,8 @@ export class SharpImageTransformer implements ImageTransformer {
       switch (request.format) {
         case "jpeg": pipeline = pipeline.jpeg({ quality: request.quality, mozjpeg: true }); break
         case "png": pipeline = pipeline.png({ quality: request.quality, progressive: true }); break
-        case "webp": pipeline = pipeline.webp({ quality: request.quality, smartSubsample: true }); break
-        case "avif": pipeline = pipeline.avif({ quality: request.quality, effort: 4 }); break
+        case "webp": pipeline = pipeline.webp({ quality: request.quality, lossless: request.lossless === true, smartSubsample: true }); break
+        case "avif": pipeline = pipeline.avif({ quality: request.quality, lossless: request.lossless === true, effort: 4 }); break
       }
 
       const duplex = Duplex.toWeb(pipeline)

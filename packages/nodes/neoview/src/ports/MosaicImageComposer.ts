@@ -5,6 +5,7 @@ export type MosaicPreviewCount = 4 | 9 | 16
 export interface MosaicImageComposeRequest {
   count: MosaicPreviewCount
   size: number
+  lossless?: boolean
   quality: number
 }
 

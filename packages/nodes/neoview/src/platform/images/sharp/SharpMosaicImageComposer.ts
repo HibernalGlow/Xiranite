@@ -55,7 +55,7 @@ export class SharpMosaicImageComposer implements MosaicImageComposer {
           channels: 4,
           background: { r: 0, g: 0, b: 0, alpha: 0 },
         },
-      }).composite(composites).webp({ quality: request.quality, smartSubsample: true }).toBuffer()
+      }).composite(composites).webp({ quality: request.quality, lossless: request.lossless === true, smartSubsample: true }).toBuffer()
       signal?.throwIfAborted()
       return { bytes: Uint8Array.from(bytes), contentType: "image/webp" }
     } finally {

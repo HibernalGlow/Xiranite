@@ -459,6 +459,72 @@ describe("ReaderAssetRoute", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.image.transform-bypass] serves original bytes for new and retained transform URLs while Sharp is disabled", async () => {
+    const original = Uint8Array.of(1, 2, 3, 4)
+    const { service, session } = await openDirectoryRoute(original)
+    const transform = vi.fn<ImageTransformer["transform"]>()
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { loadImageTransformer: async () => ({ transform }), bypassImageTransforms: true },
+    )
+    const generated = route.pageUrl(session.id, session.book.pages[0]!.id, {
+      width: 320,
+      dpr: 1,
+      fit: "inside",
+      format: "webp",
+      quality: 82,
+    })
+    expect(new URL(generated).searchParams.has("width")).toBe(false)
+
+    const retained = new URL(generated)
+    retained.searchParams.set("width", "320")
+    retained.searchParams.set("format", "webp")
+    const response = (await route.handle(new Request(retained)))!
+    expect(response.headers.get("content-type")).toBe("image/jpeg")
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(original)
+    expect(transform).not.toHaveBeenCalled()
+    await service[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.image.jxl-transform] keeps caller-selected JXL compatibility transforms while other images bypass", async () => {
+    const source = pageSource(Uint8Array.of(0xff, 0x0a, 1, 2, 3))
+    const service = new CoreReaderService(async () => fixtureBook(source, { name: "page.jxl", mimeType: "image/jxl" }))
+    const session = await service.openViewSource({ kind: "path", path: "opaque" })
+    const transform = vi.fn<ImageTransformer["transform"]>(async (input, request) => {
+      await input.cancel()
+      expect(request).toMatchObject({ format: "webp", lossless: true, quality: 100 })
+      return {
+        contentType: "image/webp",
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue(Uint8Array.of(9, 8, 7))
+            controller.close()
+          },
+        }),
+      }
+    })
+    const route = new ReaderAssetRoute(
+      service,
+      { baseUrl: "http://127.0.0.1:41000", token: "route-token" },
+      { loadImageTransformer: async () => ({ transform }), bypassImageTransforms: true },
+    )
+    const url = route.pageUrl(session.id, "page-1", {
+      dpr: 1,
+      fit: "inside",
+      format: "webp",
+      lossless: true,
+      quality: 100,
+    })
+    expect(new URL(url).searchParams.get("lossless")).toBe("true")
+    const response = (await route.handle(new Request(url)))!
+    expect(response.status, await response.clone().text()).toBe(200)
+    expect(response.headers.get("content-type")).toBe("image/webp")
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(Uint8Array.of(9, 8, 7))
+    expect(transform).toHaveBeenCalledOnce()
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.image.transform-route-shared-lease] releases one shared lease when the HTTP body is cancelled", async () => {
     const release = vi.fn()
     const acquire = vi.fn(async () => ({ release }))
@@ -907,7 +973,7 @@ async function openDirectoryRoute(bytes: Uint8Array) {
   return { service, session, route }
 }
 
-function fixtureBook(source: PageSource): ReaderBook {
+function fixtureBook(source: PageSource, pageOverrides: Partial<ReaderPage> = {}): ReaderBook {
   const page: ReaderPage = {
     id: "page-1",
     index: 0,
@@ -919,6 +985,7 @@ function fixtureBook(source: PageSource): ReaderBook {
     byteLength: 2,
     contentVersion: "v1",
     content: { load: async () => source },
+    ...pageOverrides,
   }
   const close = vi.fn(async () => undefined)
   return {

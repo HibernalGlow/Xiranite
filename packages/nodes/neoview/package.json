@@ -49,6 +49,10 @@
       "types": "./dist/image-trim.d.ts",
       "default": "./dist/image-trim.js"
     },
+    "./super-resolution": {
+      "types": "./dist/super-resolution.d.ts",
+      "default": "./dist/super-resolution.js"
+    },
     "./animated-video": {
       "types": "./dist/animated-video.d.ts",
       "default": "./dist/animated-video.js"

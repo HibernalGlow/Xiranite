@@ -14,35 +14,41 @@ const JXL_CONTAINER_SIGNATURE = Uint8Array.of(0, 0, 0, 12, 0x4a, 0x58, 0x4c, 0x2
 
 type WicFormat = "avif" | "jxl"
 
-export interface WicThumbnail {
-  rgba: Uint8Array
+export interface WicEncodedThumbnail {
+  data: Uint8Array
   width: number
   height: number
-  premultiplied: boolean
+  mimeType: string
 }
 
 export interface WicImageApi {
-  createWicImageThumbnail(options: { data: Uint8Array; maxDimension: number }): Promise<WicThumbnail>
+  createWicImageThumbnailEncoded(options: {
+    data: Uint8Array
+    maxDimension: number
+    format: "jpeg" | "png" | "webp"
+    lossless: boolean
+    quality: number
+  }): Promise<WicEncodedThumbnail>
 }
 
 export interface WindowsWicImageTransformerOptions {
   resourceScheduler?: ResourceScheduler
   loadWic?: () => Promise<WicImageApi>
-  encode?: typeof encodeTransformedImage
+  preferFallbackForLossless?: boolean
 }
 
 export class WindowsWicImageTransformer implements ImageTransformer {
   readonly #fallback: ImageTransformer
   readonly #resourceScheduler: ResourceScheduler
   readonly #loadWic: () => Promise<WicImageApi>
-  readonly #encode: typeof encodeTransformedImage
+  readonly #preferFallbackForLossless: boolean
   #wic?: Promise<WicImageApi>
 
   constructor(fallback: ImageTransformer, options: WindowsWicImageTransformerOptions = {}) {
     this.#fallback = fallback
     this.#resourceScheduler = options.resourceScheduler ?? defaultImageTransformScheduler
     this.#loadWic = options.loadWic ?? loadWicImageApi
-    this.#encode = options.encode ?? encodeTransformedImage
+    this.#preferFallbackForLossless = options.preferFallbackForLossless === true
   }
 
   async transform(
@@ -55,6 +61,10 @@ export class WindowsWicImageTransformer implements ImageTransformer {
     const peeked = await peekInput(input, signal)
     const format = detectWicFormat(peeked.prefix)
     if (!format) return this.#fallback.transform(replayInput(peeked), request, signal, execution)
+    if (request.format === "avif") return this.#fallback.transform(replayInput(peeked), request, signal, execution)
+    if (request.lossless === true && this.#preferFallbackForLossless) {
+      return this.#fallback.transform(replayInput(peeked), request, signal, execution)
+    }
 
     const bytes = await collectInput(peeked, MAX_WIC_INPUT_BYTES, signal)
     const maxDimension = transformedMaxDimension(request)
@@ -71,13 +81,22 @@ export class WindowsWicImageTransformer implements ImageTransformer {
     }, signal)
     let failure: unknown
     try {
-      const thumbnail = await (await this.#getWic()).createWicImageThumbnail({ data: bytes, maxDimension })
+      const thumbnail = await (await this.#getWic()).createWicImageThumbnailEncoded({
+        data: bytes,
+        maxDimension,
+        format: request.format,
+        lossless: request.lossless === true,
+        quality: request.quality,
+      })
       signal?.throwIfAborted()
       validateThumbnail(thumbnail, maxDimension)
-      const encoded = await this.#encode(thumbnail, request, signal)
+      const expectedContentType = imageTransformContentType(request.format)
+      if (thumbnail.mimeType !== expectedContentType) {
+        throw new Error(`WIC encoded thumbnail returned ${thumbnail.mimeType}; expected ${expectedContentType}.`)
+      }
       return {
-        stream: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(encoded); controller.close() } }),
-        contentType: imageTransformContentType(request.format),
+        stream: new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(thumbnail.data); controller.close() } }),
+        contentType: thumbnail.mimeType,
       }
     } catch (error) {
       failure = error
@@ -223,44 +242,16 @@ function transformedMaxDimension(request: Parameters<ImageTransformer["transform
   )
 }
 
-async function encodeTransformedImage(
-  image: WicThumbnail,
-  request: Parameters<ImageTransformer["transform"]>[1],
-  signal?: AbortSignal,
-): Promise<Uint8Array> {
-  const { default: sharp } = await import("sharp")
-  signal?.throwIfAborted()
-  let pipeline = sharp(image.rgba, {
-    raw: { width: image.width, height: image.height, channels: 4, premultiplied: image.premultiplied },
-  })
-  if (request.width !== undefined || request.height !== undefined) {
-    pipeline = pipeline.resize({
-      width: request.width === undefined ? undefined : Math.round(request.width * request.dpr),
-      height: request.height === undefined ? undefined : Math.round(request.height * request.dpr),
-      fit: request.fit,
-      withoutEnlargement: true,
-    })
-  }
-  switch (request.format) {
-    case "jpeg": pipeline = pipeline.jpeg({ quality: request.quality, mozjpeg: true }); break
-    case "png": pipeline = pipeline.png({ quality: request.quality, progressive: true }); break
-    case "webp": pipeline = pipeline.webp({ quality: request.quality, smartSubsample: true }); break
-    case "avif": pipeline = pipeline.avif({ quality: request.quality, effort: 4 }); break
-  }
-  const bytes = await pipeline.toBuffer()
-  signal?.throwIfAborted()
-  return bytes
-}
-
 async function loadWicImageApi(): Promise<WicImageApi> {
   return import("@xiranite/arcthumb-native")
 }
 
-function validateThumbnail(image: WicThumbnail, maxDimension: number): void {
+function validateThumbnail(image: WicEncodedThumbnail, maxDimension: number): void {
   if (!image.width || !image.height || (maxDimension > 0 && (image.width > maxDimension || image.height > maxDimension))) {
     throw new RangeError(`WIC returned invalid dimensions ${image.width}x${image.height}.`)
   }
-  if (image.rgba.byteLength !== image.width * image.height * 4) throw new RangeError("WIC RGBA byte length mismatch.")
+  if (!image.data.byteLength) throw new RangeError("WIC encoded thumbnail is empty.")
+  if (!image.mimeType.startsWith("image/")) throw new Error(`WIC encoded thumbnail has invalid MIME type: ${image.mimeType}`)
 }
 
 function byteStream(bytes: Uint8Array): ReadableStream<Uint8Array> {

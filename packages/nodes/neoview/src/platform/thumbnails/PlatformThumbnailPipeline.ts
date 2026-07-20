@@ -426,6 +426,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       const cached = await this.#trySystemThumbnail({
         sourcePath: page.sourcePath,
         maxEdge: 320,
+        lossless: false,
         quality: 78,
         priority: thumbnailLanePriority(demand.lane),
         ownerId: demand.contextId,
@@ -475,6 +476,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         dpr: 1,
         fit: "inside",
         format: "webp",
+        lossless: false,
         quality: 78,
       }, signal, {
         priority: thumbnailLanePriority(demand.lane),
@@ -532,6 +534,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     const cached = !demandSource.refresh && descriptor.kind === "file" ? await this.#trySystemThumbnail({
       sourcePath: descriptor.path,
       maxEdge: 416,
+      lossless: false,
       quality: 82,
       priority: thumbnailLanePriority(demand.lane),
       ownerId: demand.contextId,
@@ -589,6 +592,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
           dpr: 1,
           fit: "inside",
           format: "webp",
+          lossless: false,
           quality: 82,
         }, signal, {
           priority: thumbnailLanePriority(demand.lane),
@@ -703,6 +707,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         dpr: 1,
         fit: "inside",
         format: "webp",
+        lossless: false,
         quality: 82,
       }, signal, {
         priority: thumbnailLanePriority(demand.lane),
@@ -777,6 +782,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     const result = await (await this.#getMosaicImageComposer()).compose(tiles.map(byteStream), {
       count: descriptor.previewCount,
       size: 416,
+      lossless: false,
       quality: 82,
     }, signal, {
       priority: thumbnailLanePriority(demand.lane),

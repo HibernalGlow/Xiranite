@@ -104,6 +104,9 @@ export interface SuperResolutionPreloadLiveSnapshot {
   cancelled: number
   pending: number
   progress: number
+  totalPages?: number
+  scheduledPages?: number
+  upscaledPages?: number
   startedAt: number
   updatedAt: number
   completedAt?: number
