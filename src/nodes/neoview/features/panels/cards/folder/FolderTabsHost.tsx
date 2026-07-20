@@ -371,7 +371,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
               folderView={{ ...folderView, viewMode: tab.viewMode, previewCount: tab.previewCount }}
               onFolderView={(patch) => updateTabFolderView(tab.id, patch)}
               active={browserActive}
-              tabBar={browserActive && tabs.length > 1 ? tabBar : undefined}
+              tabBar={browserActive ? tabBar : undefined}
               folderTabCount={tabs.length}
               maxFolderTabs={MAX_FOLDER_TABS}
               onCreateTab={createTab}
