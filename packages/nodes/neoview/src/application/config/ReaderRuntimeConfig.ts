@@ -90,6 +90,7 @@ export interface NeoviewRuntimeConfig {
   radialMenu: ReaderRadialMenuConfig
   preload: NeoviewPreloadConfig
   systemMonitor: NeoviewSystemMonitorConfig
+  aiTranslation: NeoviewAiTranslationConfig
 }
 
 export interface NeoviewPreloadConfig {
@@ -620,6 +621,18 @@ export const DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG: NeoviewSystemMonitorConfig =
   maxSamples: 60,
 }
 
+export const DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG: NeoviewAiTranslationConfig = {
+  enabled: false,
+  autoTranslate: false,
+  service: "disabled",
+  ollamaUrl: "http://127.0.0.1:11434",
+  ollamaModel: "",
+  sourceLanguage: "ja",
+  targetLanguage: "zh",
+  promptTemplate: "请将以下{source_lang}文本翻译成{target_lang}，只返回翻译结果，不要解释：\n{text}",
+  memoryCacheEntries: 1_000,
+}
+
 export const DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG: NeoviewSuperResolutionConfig = {
   provider: "opencomic-system",
   maxDaemonsPerGpu: 1,
@@ -721,6 +734,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     radialMenu: parseReaderRadialMenuConfig(undefined),
     preload: DEFAULT_NEOVIEW_PRELOAD_CONFIG,
     systemMonitor: DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
+    aiTranslation: DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG,
   }
   const config = unwrapNeoviewConfigEnvelope(value)
   const schemaVersion = config.schema_version ?? 1
@@ -767,6 +781,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
   const performance = optionalRecord(config.performance, "[nodes.neoview.performance]")
   const systemMonitor = optionalRecord(performance?.monitor, "[nodes.neoview.performance.monitor]")
+  const aiTranslation = optionalRecord(config.ai_translation ?? config.aiTranslation, "[nodes.neoview.ai_translation]")
   const superResolution = optionalRecord(config.super_resolution, "[nodes.neoview.super_resolution]")
   const bindings = optionalRecord(config.bindings, "[nodes.neoview.bindings]")
   const presentationDiskCache = optionalRecord(
@@ -906,6 +921,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     radialMenu: parseReaderRadialMenuConfig(bindings?.radial_menus),
     preload: parsePreloadConfig(performance, image, legacyBook),
     systemMonitor: parseSystemMonitorConfig(systemMonitor),
+    aiTranslation: parseAiTranslationConfig(aiTranslation),
   }
 }
 
@@ -927,6 +943,118 @@ function parseSystemMonitorConfig(value: Record<string, unknown> | undefined): N
       "[nodes.neoview.performance.monitor].max_samples",
     ),
   }
+}
+
+
+function parseAiTranslationConfig(value: Record<string, unknown> | undefined): NeoviewAiTranslationConfig {
+  if (!value) return DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG
+  const service = parseAiTranslationService(
+    value.service ?? value.type,
+    "[nodes.neoview.ai_translation].service",
+    DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG.service,
+  )
+  return {
+    enabled: optionalBoolean(value.enabled, "[nodes.neoview.ai_translation].enabled")
+      ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG.enabled,
+    autoTranslate: optionalBoolean(value.auto_translate ?? value.autoTranslate, "[nodes.neoview.ai_translation].auto_translate")
+      ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG.autoTranslate,
+    service,
+    ollamaUrl: optionalTrimmedString(value.ollama_url ?? value.ollamaUrl, 512, "[nodes.neoview.ai_translation].ollama_url")
+      ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG.ollamaUrl,
+    ollamaModel: optionalTrimmedString(value.ollama_model ?? value.ollamaModel, 256, "[nodes.neoview.ai_translation].ollama_model")
+      ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG.ollamaModel,
+    sourceLanguage: optionalTrimmedString(value.source_language ?? value.sourceLanguage, 32, "[nodes.neoview.ai_translation].source_language")
+      ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG.sourceLanguage,
+    targetLanguage: optionalTrimmedString(value.target_language ?? value.targetLanguage, 32, "[nodes.neoview.ai_translation].target_language")
+      ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG.targetLanguage,
+    promptTemplate: optionalTrimmedString(value.prompt_template ?? value.promptTemplate, 8_192, "[nodes.neoview.ai_translation].prompt_template")
+      ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG.promptTemplate,
+    memoryCacheEntries: boundedIntegerWithFallback(
+      value.memory_cache_entries ?? value.memoryCacheEntries,
+      0,
+      10_000,
+      DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG.memoryCacheEntries,
+      "[nodes.neoview.ai_translation].memory_cache_entries",
+    ),
+  }
+}
+
+function parseAiTranslationService(value: unknown, path: string, fallback: NeoviewAiTranslationService): NeoviewAiTranslationService {
+  if (value === undefined) return fallback
+  if (typeof value !== "string" || !NEOVIEW_AI_TRANSLATION_SERVICES.includes(value as NeoviewAiTranslationService)) {
+    throw new Error(`${path} must be one of ${NEOVIEW_AI_TRANSLATION_SERVICES.join(", ")}.`)
+  }
+  return value as NeoviewAiTranslationService
+}
+
+function optionalTrimmedString(value: unknown, max: number, path: string): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== "string") throw new Error(`${path} must be a string.`)
+  const trimmed = value.trim()
+  if (trimmed.length > max) throw new Error(`${path} must contain at most ${max} characters.`)
+  return trimmed
+}
+
+export function parseNeoviewAiTranslationPatch(value: unknown): {
+  patch: NeoviewAiTranslationPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader AI translation patch")
+  if (Object.keys(record).some((key) => key !== "aiTranslation")) {
+    throw new Error("reader AI translation patch contains unsupported fields.")
+  }
+  const source = requireRecord(record.aiTranslation, "reader AI translation patch.aiTranslation")
+  const allowed = ["enabled", "autoTranslate", "service", "ollamaUrl", "ollamaModel", "sourceLanguage", "targetLanguage", "promptTemplate", "memoryCacheEntries"]
+  const unknown = Object.keys(source).filter((key) => !allowed.includes(key))
+  if (unknown.length) throw new Error(`reader AI translation patch contains unsupported fields: ${unknown.join(", ")}.`)
+  if (!Object.keys(source).length) throw new Error("reader AI translation patch must change at least one field.")
+  const patch: Partial<NeoviewAiTranslationConfig> = {}
+  const toml: Record<string, unknown> = {}
+  if (source.enabled !== undefined) {
+    patch.enabled = requiredBoolean(source.enabled, "reader AI translation patch.enabled")
+    toml.enabled = patch.enabled
+  }
+  if (source.autoTranslate !== undefined) {
+    patch.autoTranslate = requiredBoolean(source.autoTranslate, "reader AI translation patch.autoTranslate")
+    toml.auto_translate = patch.autoTranslate
+  }
+  if (source.service !== undefined) {
+    patch.service = parseAiTranslationService(source.service, "reader AI translation patch.service", DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG.service)
+    toml.service = patch.service
+  }
+  if (source.ollamaUrl !== undefined) {
+    const url = optionalTrimmedString(source.ollamaUrl, 512, "reader AI translation patch.ollamaUrl")
+    if (url === undefined) throw new Error("reader AI translation patch.ollamaUrl must be a string.")
+    const parsed = new URL(url)
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("reader AI translation patch.ollamaUrl must use HTTP or HTTPS.")
+    if (parsed.username || parsed.password) throw new Error("reader AI translation patch.ollamaUrl must not contain credentials.")
+    patch.ollamaUrl = url
+    toml.ollama_url = url
+  }
+  if (source.ollamaModel !== undefined) {
+    patch.ollamaModel = optionalTrimmedString(source.ollamaModel, 256, "reader AI translation patch.ollamaModel") ?? ""
+    toml.ollama_model = patch.ollamaModel
+  }
+  if (source.sourceLanguage !== undefined) {
+    patch.sourceLanguage = optionalTrimmedString(source.sourceLanguage, 32, "reader AI translation patch.sourceLanguage") ?? ""
+    if (!patch.sourceLanguage) throw new Error("reader AI translation patch.sourceLanguage must not be empty.")
+    toml.source_language = patch.sourceLanguage
+  }
+  if (source.targetLanguage !== undefined) {
+    patch.targetLanguage = optionalTrimmedString(source.targetLanguage, 32, "reader AI translation patch.targetLanguage") ?? ""
+    if (!patch.targetLanguage) throw new Error("reader AI translation patch.targetLanguage must not be empty.")
+    toml.target_language = patch.targetLanguage
+  }
+  if (source.promptTemplate !== undefined) {
+    patch.promptTemplate = optionalTrimmedString(source.promptTemplate, 8_192, "reader AI translation patch.promptTemplate") ?? ""
+    if (!patch.promptTemplate) throw new Error("reader AI translation patch.promptTemplate must not be empty.")
+    toml.prompt_template = patch.promptTemplate
+  }
+  if (source.memoryCacheEntries !== undefined) {
+    patch.memoryCacheEntries = boundedInteger(source.memoryCacheEntries, 0, 10_000, "reader AI translation patch.memoryCacheEntries")
+    toml.memory_cache_entries = patch.memoryCacheEntries
+  }
+  return { patch: { aiTranslation: patch }, tomlPatch: { ai_translation: toml } }
 }
 
 export function parseNeoviewSystemMonitorPatch(value: unknown): {

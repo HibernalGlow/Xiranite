@@ -97,6 +97,14 @@ export const READER_CARD_MANIFEST = [
   card("reading-heatmap", "阅读热力", "insights", true, true, 3, true, false),
   card("source-breakdown", "来源拆分", "insights", true, true, 4, true, false),
   card("bookmark-overview", "书签总览", "insights", true, true, 5, true, false),
+  card("ai-service-config", "翻译服务配置", "ai", true, true, 0, true, false),
+  card("ai-api-config", "AI API 配置", "ai", true, true, 1, true, false),
+  card("ai-title-translation", "标题翻译", "ai", true, true, 2, true, false),
+  card("ai-translation-test", "翻译测试", "ai", true, true, 3, true, false),
+  card("ai-translation-cache", "翻译缓存", "ai", true, true, 4, true, false),
+  card("translation-overlay", "翻译叠加层", "ai", false, true, 5, true, false),
+  card("voice-control", "语音控制", "ai", false, true, 6, true, false),
+  card("ai-tags", "AI 标签推断", "ai", false, true, 7, true, false),
 ] as const satisfies readonly ReaderCardManifestEntry[]
 
 export type ReaderPanelId = typeof READER_PANEL_MANIFEST[number]["id"]

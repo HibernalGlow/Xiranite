@@ -540,6 +540,42 @@ export interface ReaderBookmarkListDto {
   system?: boolean
 }
 
+
+export type ReaderAiTranslationServiceDto = "disabled" | "ollama"
+export interface ReaderAiTranslationConfigDto {
+  enabled: boolean
+  autoTranslate: boolean
+  service: ReaderAiTranslationServiceDto
+  ollamaUrl: string
+  ollamaModel: string
+  sourceLanguage: string
+  targetLanguage: string
+  promptTemplate: string
+  memoryCacheEntries: number
+}
+export interface ReaderAiTranslationConfigPatch {
+  aiTranslation: Partial<ReaderAiTranslationConfigDto>
+}
+export interface ReaderOllamaModelDto {
+  name: string
+  digest?: string
+  size?: number
+  parameterSize?: string
+  quantizationLevel?: string
+}
+export interface ReaderAiTranslationResultDto {
+  text: string
+  cached: boolean
+}
+export interface ReaderAiCacheStatsDto {
+  memoryEntries: number
+  persistentEntries: number | null
+}
+export interface ReaderAiCheckDto {
+  online: boolean
+  service: ReaderAiTranslationServiceDto
+}
+
 export interface ReaderLibraryStatisticsDto {
   recentCount: number
   bookmarkCount: number
@@ -881,6 +917,7 @@ export interface ReaderRuntimeConfigDto {
   switchToast?: ReaderSwitchToastSettings
   infoOverlay?: ReaderInfoOverlaySettings
   systemMonitor: ReaderSystemMonitorConfigDto
+  aiTranslation?: ReaderAiTranslationConfigDto
   imageTrim?: ReaderImageTrimSettings
   superResolution?: ReaderSuperResolutionConfigDto
   inputBindings: ReaderInputBindingsConfig
@@ -1356,6 +1393,12 @@ export interface ReaderHttpClient {
   updateSwitchToast?(patch: ReaderSwitchToastConfigPatch, signal?: AbortSignal): Promise<ReaderSwitchToastSettings>
   updateInfoOverlay?(patch: ReaderInfoOverlayConfigPatch, signal?: AbortSignal): Promise<ReaderInfoOverlaySettings>
   updateSystemMonitor?(patch: ReaderSystemMonitorConfigPatch, signal?: AbortSignal): Promise<ReaderSystemMonitorConfigDto>
+  updateAiTranslation?(patch: ReaderAiTranslationConfigPatch, signal?: AbortSignal): Promise<ReaderAiTranslationConfigDto>
+  aiCheck?(signal?: AbortSignal): Promise<ReaderAiCheckDto>
+  aiModels?(signal?: AbortSignal): Promise<readonly ReaderOllamaModelDto[]>
+  aiTranslate?(request: { text: string; sourceLanguage?: string; targetLanguage?: string; model?: string; promptTemplate?: string }, signal?: AbortSignal): Promise<ReaderAiTranslationResultDto>
+  aiCacheStats?(signal?: AbortSignal): Promise<ReaderAiCacheStatsDto>
+  aiClearCache?(scope?: "memory" | "persistent" | "all", signal?: AbortSignal): Promise<{ cleared: number; scope: string }>
   updateImageTrim?(patch: ReaderImageTrimConfigPatch, signal?: AbortSignal): Promise<ReaderImageTrimSettings>
   updateSuperResolution?(patch: ReaderSuperResolutionPatchDto, signal?: AbortSignal): Promise<ReaderSuperResolutionConfigDto>
   upscalePage?(sessionId: string, pageId: string, trigger?: "manual" | "automatic-current", signal?: AbortSignal): Promise<ReaderUpscaleArtifactResultDto>
@@ -2163,6 +2206,35 @@ export function createReaderHttpClient(
       "/reader/library/bookmark-lists",
       { signal },
     ).then((value) => value.items),
+    updateAiTranslation: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((config) => config.aiTranslation ?? {
+      enabled: false,
+      autoTranslate: false,
+      service: "disabled",
+      ollamaUrl: "http://127.0.0.1:11434",
+      ollamaModel: "",
+      sourceLanguage: "ja",
+      targetLanguage: "zh",
+      promptTemplate: "",
+      memoryCacheEntries: 1000,
+    }),
+    aiCheck: (signal) => request<ReaderAiCheckDto>("/reader/ai/check", { signal }),
+    aiModels: (signal) => request<{ items: ReaderOllamaModelDto[] }>("/reader/ai/models", { signal }).then((value) => value.items),
+    aiTranslate: (body, signal) => request<ReaderAiTranslationResultDto>("/reader/ai/translate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    }),
+    aiCacheStats: (signal) => request<ReaderAiCacheStatsDto>("/reader/ai/cache", { signal }),
+    aiClearCache: (scope = "memory", signal) => request<{ cleared: number; scope: string }>(`/reader/ai/cache?scope=${encodeURIComponent(scope)}`, {
+      method: "DELETE",
+      signal,
+    }),
     libraryStatistics: (signal) => request<ReaderLibraryStatisticsDto>(
       "/reader/library/statistics",
       { signal },

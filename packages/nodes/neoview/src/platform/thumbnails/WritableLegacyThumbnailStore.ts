@@ -436,6 +436,13 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     throw new Error("Legacy AI translation count is invalid.")
   }
 
+  async clearAiTranslations(): Promise<number> {
+    this.#assertOpen()
+    // Keep the row identity for thumbs that still store other columns; only drop the AI payload.
+    const result = this.#database.run("UPDATE thumbs SET ai_translation = NULL WHERE ai_translation IS NOT NULL")
+    return result.changes
+  }
+
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true

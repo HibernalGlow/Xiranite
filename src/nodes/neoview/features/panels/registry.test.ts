@@ -113,6 +113,57 @@ describe("NeoView panel and card registries", () => {
     }
   })
 
+  it("[neoview.ai.registry] registers the full AI panel card set", () => {
+    expect(cardsForPanel("ai").map((card) => card.id)).toEqual([
+      "ai-service-config",
+      "ai-api-config",
+      "ai-title-translation",
+      "ai-translation-test",
+      "ai-translation-cache",
+    ])
+    const withOptional = cardsForPanel("ai", {
+      cardLayout: {
+        "ai-service-config": { panelId: "ai", visible: true, expanded: true, order: 0 },
+        "ai-api-config": { panelId: "ai", visible: true, expanded: true, order: 1 },
+        "ai-title-translation": { panelId: "ai", visible: true, expanded: true, order: 2 },
+        "ai-translation-test": { panelId: "ai", visible: true, expanded: true, order: 3 },
+        "ai-translation-cache": { panelId: "ai", visible: true, expanded: true, order: 4 },
+        "translation-overlay": { panelId: "ai", visible: true, expanded: true, order: 5 },
+        "voice-control": { panelId: "ai", visible: true, expanded: true, order: 6 },
+        "ai-tags": { panelId: "ai", visible: true, expanded: true, order: 7 },
+      },
+    } as never).map((card) => card.id)
+    expect(withOptional).toEqual([
+      "ai-service-config",
+      "ai-api-config",
+      "ai-title-translation",
+      "ai-translation-test",
+      "ai-translation-cache",
+      "translation-overlay",
+      "voice-control",
+      "ai-tags",
+    ])
+    for (const id of [
+      "ai-service-config",
+      "ai-api-config",
+      "ai-title-translation",
+      "ai-translation-test",
+      "ai-translation-cache",
+      "translation-overlay",
+      "voice-control",
+      "ai-tags",
+    ] as const) {
+      const definition = CARD_DEFINITIONS.find((card) => card.id === id)
+      expect(definition).toMatchObject({
+        defaultPanel: "ai",
+        requiresSession: false,
+        canHide: true,
+      })
+      expect(definition?.icon).toBeTruthy()
+      expect(definition?.load).toBeTypeOf("function")
+    }
+  })
+
   it("[neoview.emm-tags.registry] exposes the first legacy properties Card as resident and lazy", () => {
     const definition = CARD_DEFINITIONS.find((card) => card.id === "emm-tags")
     expect(definition).toMatchObject({
