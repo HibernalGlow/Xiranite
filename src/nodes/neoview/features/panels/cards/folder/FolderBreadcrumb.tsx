@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Columns3, Copy, Folder, HardDrive, MoreHorizontal, Pencil } from "lucide-react"
+import { ChevronDown, ChevronRight, Columns3, Copy, Folder, HardDrive, MoreHorizontal, Pencil, Plus } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -32,12 +32,15 @@ interface FolderBreadcrumbProps {
   canGoUp?: boolean
   client?: ReaderHttpClient
   sessionId?: string
+  /** When the tab bar is hidden (single tab), show create next to path actions. */
+  canCreateTab?: boolean
+  onCreateTab?(): void
   onNavigate(path: string): void
   onNavigateAction?(action: "back" | "forward" | "up" | "refresh"): void
   onCopyPath?: (path: string) => Promise<void> | void
 }
 
-export function FolderBreadcrumb({ path, disabled = false, loading = false, vertical = false, canGoBack, canGoForward, canGoUp, client, sessionId, onNavigate, onNavigateAction, onCopyPath }: FolderBreadcrumbProps) {
+export function FolderBreadcrumb({ path, disabled = false, loading = false, vertical = false, canGoBack, canGoForward, canGoUp, client, sessionId, canCreateTab = false, onCreateTab, onNavigate, onNavigateAction, onCopyPath }: FolderBreadcrumbProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const blurTimerRef = useRef<ReturnType<typeof setTimeout>>()
@@ -233,6 +236,19 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+          ) : null}
+          {canCreateTab && onCreateTab ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              aria-label="新建文件夹标签"
+              title="新建文件夹标签"
+              disabled={disabled || loading}
+              onClick={onCreateTab}
+            >
+              <Plus />
+            </Button>
           ) : null}
           <Button type="button" size="icon-sm" variant="ghost" aria-label="编辑路径" title="编辑路径" disabled={disabled || loading} onClick={startEditing}><Pencil /></Button>
           <Button type="button" size="icon-sm" variant="ghost" aria-label="复制当前路径" title="复制当前路径" disabled={disabled || loading || !path || !onCopyPath} onClick={() => void copyCurrentPath()}><Copy /></Button>

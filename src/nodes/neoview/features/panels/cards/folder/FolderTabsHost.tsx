@@ -58,7 +58,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
   BrowserPane: ComponentType<FolderBrowserPaneProps>
 }) {
   const initialRef = useRef<ReturnType<typeof initialFolderTabs> | null>(null)
-  initialRef.current ??= initialFolderTabs(context.sourcePath ?? folderView.homePath, folderView)
+  initialRef.current ??= initialFolderTabs(resolveFolderStartupPath(context.sourcePath, folderView.homePath), folderView)
   const tabSequenceRef = useRef(initialRef.current.sequence)
   const tabAccessHistoryRef = useRef<readonly string[]>([initialRef.current.activeTabId])
   const cloneProvidersRef = useRef(new Map<string, FolderBrowserCloneProvider>())
@@ -406,11 +406,12 @@ function initialFolderTabs(path: string, folderView: ReaderFolderViewConfig) {
 }
 
 function createFolderTab(id: string, path: string, folderView: ReaderFolderViewConfig): FolderTabDescriptor {
+  const startupPath = resolveFolderStartupPath(path, folderView.homePath)
   return {
     id,
-    sourcePath: path,
-    currentPath: path,
-    title: folderTabTitle(path),
+    sourcePath: startupPath,
+    currentPath: startupPath,
+    title: folderTabTitle(startupPath),
     viewMode: folderView.viewMode,
     previewCount: folderView.previewCount,
     viewDirty: false,
@@ -466,4 +467,12 @@ function sameFolderOrChild(folderPath: string, sourcePath: string): boolean {
   const separator = source.lastIndexOf("/")
   const parent = separator < 0 ? source : source.slice(0, separator).replace(/\/+$/u, "")
   return parent === folder || parent === `${folder}:`
+}
+
+function resolveFolderStartupPath(sourcePath: string | undefined, homePath: string | undefined): string {
+  const source = sourcePath?.trim()
+  if (source) return source
+  const home = homePath?.trim()
+  if (home) return home
+  return ""
 }

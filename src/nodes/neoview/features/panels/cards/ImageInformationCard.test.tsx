@@ -141,8 +141,10 @@ describe("ImageInformationCard", () => {
     })
     view.rerender(<ImageInformationCard client={readerClient} session={session(page("video"))} panelActive={false} disabled={false} onGoTo={vi.fn()} />)
 
-    expect(metadataSignal?.aborted).toBe(true)
-    expect(probeSignal?.aborted).toBe(true)
+    await waitFor(() => {
+      expect(metadataSignal?.aborted).toBe(true)
+      expect(probeSignal?.aborted).toBe(true)
+    })
     metadataDeferred.resolve(metadata("video"))
     probeDeferred.resolve({ pageId: "page-1", contentVersion: "v1", mediaKind: "video", videoCodec: "late" })
     await Promise.resolve()

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-client"
@@ -49,5 +49,67 @@ describe("FolderGridWorkspace banner entries", () => {
     expect(info?.querySelector('[title^="收藏标签"]')).toBeTruthy()
     expect(info?.querySelector('[data-folder-entry-metadata="tags"]')?.getAttribute("title")).toBe("标签 artist:alice / manual:favorite")
     expect(info?.textContent).not.toContain(entry.path)
+  })
+
+  it("[neoview.folder.thumbnail-empty] leaves a folder thumbnail area empty when no content preview exists", () => {
+    const entry: ReaderDirectoryEntryDto = {
+      name: "empty-folder",
+      path: "D:/library/empty-folder",
+      kind: "directory",
+      readerSupported: true,
+    }
+
+    render(
+      <DirectoryBannerItem
+        itemId="folder-item-0"
+        entry={entry}
+        index={0}
+        disabled={false}
+        selected={false}
+        focused={false}
+        showRating={false}
+        showCollectTagCount={false}
+        visualMode="mosaic-list"
+        thumbnailUrl={undefined}
+        hoverPreviewEnabled={false}
+        hoverPreviewDelayMs={500}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    const thumbnail = screen.getByRole("button").querySelector('[data-folder-thumbnail="true"]')
+    expect(thumbnail).toBeTruthy()
+    expect(thumbnail?.children).toHaveLength(0)
+  })
+
+  it("[neoview.folder.thumbnail-error] hides a failed capability image instead of showing a broken image", () => {
+    const entry: ReaderDirectoryEntryDto = {
+      name: "missing-preview",
+      path: "D:/library/missing-preview",
+      kind: "directory",
+      readerSupported: true,
+    }
+
+    render(
+      <DirectoryBannerItem
+        itemId="folder-item-0"
+        entry={entry}
+        index={0}
+        disabled={false}
+        selected={false}
+        focused={false}
+        showRating={false}
+        showCollectTagCount={false}
+        visualMode="mosaic-list"
+        thumbnailUrl="/reader/library/t/unavailable"
+        hoverPreviewEnabled={false}
+        hoverPreviewDelayMs={500}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    const image = screen.getByRole("button").querySelector("img")!
+    fireEvent.error(image)
+    expect(image.hidden).toBe(true)
   })
 })

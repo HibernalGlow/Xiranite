@@ -148,15 +148,15 @@ describe("ReaderSidebar layout gestures", () => {
     expect(screen.getByRole("button", { name: "折叠书籍信息" })).toBeTruthy()
   })
 
-  it("[neoview.settings.sessionless-card] exposes only docked setting cards when no book is open", () => {
+  it("[neoview.settings.sessionless-card] docks settings as a multi-card panel without exclusive chrome", () => {
     const config = shell()
     config.panelLayout.settings = { visible: true, order: 99, position: "left" }
-    config.cardLayout["panel-layout-settings"] = { panelId: "settings", visible: true, expanded: false, order: 0 }
     render(<ReaderSidebar side="left" context={context(false)} shell={config} />)
     fireEvent.click(screen.getByRole("button", { name: "设置" }))
 
-    expect(screen.queryByRole("heading", { name: "设置" })).toBeNull()
-    expect(screen.queryByRole("button", { name: "展开面板布局设置" })).toBeNull()
+    // Settings is multi-card, so it keeps the panel title chrome (unlike exclusive folder/history/bookmark).
+    expect(screen.getByRole("heading", { name: "设置" })).toBeTruthy()
+    expect(document.querySelector('[data-reader-panel="settings"]')?.className).not.toContain("h-full")
     expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
   })
 
@@ -173,7 +173,18 @@ describe("ReaderSidebar layout gestures", () => {
     expect(document.querySelector('[data-reader-panel-cache="history"]')).toBeTruthy()
     expect(document.querySelector('[data-reader-panel-cache="bookmark"]')).toBeTruthy()
     expect(document.querySelector('[data-reader-panel-cache="pageList"]')).toBeTruthy()
-    expect(document.querySelector('[data-reader-panel-cache="settings"]')).toBeNull()
+    // Settings is default-visible on the left rail and mounts with the resident panel cache.
+    expect(document.querySelector('[data-reader-panel-cache="settings"]')).toBeTruthy()
+  })
+
+  it("[neoview.card.exclusive-fill] exclusive single-card panels fill the sidebar pane", () => {
+    render(<ReaderSidebar side="left" context={context()} shell={shell()} />)
+
+    const folderPanel = document.querySelector<HTMLElement>('[data-reader-panel-cache="folder"]')!
+    expect(folderPanel.className).toContain("h-full")
+    expect(folderPanel.querySelector('[data-reader-card-chrome="none"]')?.className).toContain("h-full")
+    expect(folderPanel.querySelector('[data-reader-card-chrome="none"]')?.className).toContain("w-full")
+    expect(document.querySelector('[data-reader-panel-cache="folder"] h2')).toBeNull()
   })
 
   it("[neoview.sidebar-height.blank-collapse] collapses only blank sidebar clicks in the configured mode", () => {

@@ -115,8 +115,8 @@ export function ReaderSidebar({
           <div
             key={panel.id}
             className={cn(
-              "min-w-0 flex-1 overscroll-contain",
-              exclusive ? "relative flex min-h-0 flex-col overflow-hidden" : "overflow-y-auto",
+              "min-h-0 min-w-0 flex-1 overscroll-contain",
+              exclusive ? "relative flex h-full min-h-0 flex-col overflow-hidden" : "overflow-y-auto",
             )}
             hidden={!panelActive}
             aria-hidden={!panelActive || undefined}
@@ -151,7 +151,7 @@ export function ReaderSidebar({
                 onPointerCancel={cancelGesture}
               >↕</button>
             ) : null}
-            <div className={cn(exclusive ? "flex min-h-0 flex-1" : "grid gap-2 px-3 py-3")}>
+            <div className={cn(exclusive ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden" : "grid gap-2 px-3 py-3")}>
               {cards.map((card) => {
                 const Card = lazyReaderCard(card.id)
                 const cardLayout = shell?.cardLayout[card.id]
@@ -348,17 +348,25 @@ function ReaderPanelIconButton({
     <button
       ref={sortable.setNodeRef}
       type="button"
-      title={panel.canMove ? `${panel.title}（可拖动）` : panel.title}
+      title={panel.canMove ? `${panel.title}（拖动可调整顺序）` : panel.title}
       aria-label={panel.title}
       aria-current={active ? "page" : undefined}
       aria-roledescription={panel.canMove ? "可拖动面板" : undefined}
       className={cn(
         "grid size-9 shrink-0 place-items-center rounded-md text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active ? "bg-primary/90 text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-        sortable.dragging && "cursor-grabbing",
+        panel.canMove && !sortable.dragging && "cursor-pointer",
+        sortable.dragging && "cursor-grabbing opacity-40",
       )}
       style={sortable.style}
-      onClick={onActivate}
+      // Activate on pointer-up style click only when we did not start a drag.
+      onClick={(event) => {
+        if (sortable.dragging) {
+          event.preventDefault()
+          return
+        }
+        onActivate()
+      }}
       {...sortable.attributes}
       {...sortable.listeners}
     >

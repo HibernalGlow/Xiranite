@@ -206,15 +206,11 @@ export function viewUsesBanner(mode: ReaderFolderViewMode): boolean {
 }
 
 export function viewUsesThumbnailGrid(mode: ReaderFolderViewMode): boolean {
-  return mode === "cover-grid" || mode === "mosaic-grid"
-}
-
-export function viewUsesMosaic(mode: ReaderFolderViewMode): boolean {
-  return mode === "mosaic-list" || mode === "mosaic-grid"
+  return mode === "cover-grid"
 }
 
 export function viewUsesThumbnails(mode: ReaderFolderViewMode): boolean {
-  return mode === "cover-list" || mode === "mosaic-list" || mode === "cover-grid" || mode === "mosaic-grid"
+  return mode === "cover-list" || mode === "mosaic-list" || mode === "cover-grid"
 }
 
 export function viewUsesVirtuosoList(mode: ReaderFolderViewMode): boolean {
