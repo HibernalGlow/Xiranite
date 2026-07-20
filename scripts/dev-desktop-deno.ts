@@ -1,8 +1,10 @@
 import { startBackend } from "../packages/backend/src/index"
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
+import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { resolveManagedFrontendUrl } from "./dev-frontend-url"
 import { desktopRuntimePermissionArgs, resolveDenoCommand } from "./deno-desktop-command"
 
+const devSessionStartedAt = Date.now()
 const args = process.argv.slice(2)
 const frontendUrl = await resolveManagedFrontendUrl()
 const frontend = new URL(frontendUrl)
@@ -94,18 +96,23 @@ async function isFrontendReachable(): Promise<boolean> {
 let desktop: ReturnType<typeof Bun.spawn> | null = null
 let stopping = false
 
-function stop() {
+async function stop() {
   if (stopping) return
   stopping = true
   backend?.close()
   vite.kill()
   desktop?.kill()
-  void removeBackendDevManifest()
+  await Promise.all([removeBackendDevManifest(), removeDevSession()])
 }
 
-process.on("SIGINT", stop)
-process.on("SIGTERM", stop)
-process.on("exit", () => backend?.close())
+await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid], script: "dev-desktop-deno", startedAt: devSessionStartedAt })
+const stopRequestPoll = setInterval(() => {
+  void consumeDevSessionStopRequest().then((requested) => { if (requested) void stop() })
+}, 100)
+stopRequestPoll.unref()
+process.on("SIGINT", () => { void stop() })
+process.on("SIGTERM", () => { void stop() })
+process.on("exit", () => { backend?.close(); void removeDevSession() })
 
 try {
   await waitForFrontend()
@@ -138,12 +145,13 @@ try {
       XIRANITE_BACKEND_TOKEN: backend.token,
     },
   })
+  await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid, desktop.pid], script: "dev-desktop-deno", startedAt: devSessionStartedAt })
 
   const exitCode = await desktop.exited
-  stop()
+  await stop()
   process.exit(exitCode ?? 0)
 } catch (error) {
-  stop()
+  await stop()
   console.error(error)
   process.exit(1)
 }

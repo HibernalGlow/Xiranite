@@ -1,6 +1,8 @@
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
+import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { resolveManagedFrontendUrl } from "./dev-frontend-url"
 
+const devSessionStartedAt = Date.now()
 process.env.XIRANITE_LAZY_NODE_BUILD = "1"
 process.env.XIRANITE_NODE_SOURCE = "1"
 process.env.XIRANITE_NODE_SOURCE_HMR ??= "1"
@@ -66,19 +68,23 @@ const vite = Bun.spawn([
 })
 
 let stopping = false
-function stop() {
+async function stop() {
   if (stopping) return
   stopping = true
   backend?.close()
   vite.kill()
-  void removeBackendDevManifest()
+  await Promise.all([removeBackendDevManifest(), removeDevSession()])
 }
 
-process.on("SIGINT", stop)
-process.on("SIGTERM", stop)
-process.on("exit", () => backend?.close())
+await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid], script: "dev-with-backend", startedAt: devSessionStartedAt })
+const stopRequestPoll = setInterval(() => {
+  void consumeDevSessionStopRequest().then((requested) => { if (requested) void stop() })
+}, 100)
+stopRequestPoll.unref()
+process.on("SIGINT", () => { void stop() })
+process.on("SIGTERM", () => { void stop() })
+process.on("exit", () => { backend?.close(); void removeDevSession() })
 
 const exitCode = await vite.exited
-backend?.close()
-await removeBackendDevManifest()
+await stop()
 process.exit(exitCode ?? 0)
