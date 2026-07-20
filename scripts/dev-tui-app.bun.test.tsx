@@ -17,8 +17,8 @@ test("renders and routes development lifecycle actions", async () => {
   const controller: DevTuiController = {
     snapshot: () => snapshot,
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener) },
-    start: async () => { actions.push("start"); update({ phase: "running", pid: 42, startedAt: Date.now(), message: "running" }) },
-    stop: async () => { actions.push("stop"); update({ phase: "stopped", pid: undefined, message: "stopped" }) },
+    start: async () => { actions.push("start"); update({ phase: "running", pid: 42, startedAt: Date.now(), message: "运行中" }) },
+    stop: async () => { actions.push("stop"); update({ phase: "stopped", pid: undefined, message: "已停止" }) },
     restart: async () => { actions.push("restart") },
     clearOutput: () => { actions.push("clear") },
     resize: () => undefined,
@@ -33,14 +33,16 @@ test("renders and routes development lifecycle actions", async () => {
   }
   try {
     await act(async () => setup.renderOnce())
-    expect(setup.captureCharFrame()).toContain("XIRANITE // DEV CONTROL")
-    expect(setup.captureCharFrame()).toContain("PTY OUTPUT")
+    const initialFrame = setup.captureCharFrame()
+    expect(initialFrame).toContain("XIRANITE // 开发控制台")
+    expect(initialFrame).toContain("终端输出")
+    expect(initialFrame).not.toMatch(/DEV CONTROL|PTY OUTPUT|Start|Stop|Reboot|Clear|Ready/)
     await click("dev-start")
     await click("dev-restart")
     await click("dev-clear")
     await click("dev-stop")
     await click("dev-exit")
-    expect(setup.captureCharFrame()).toContain("Exit stops the managed session")
+    expect(setup.captureCharFrame()).toContain("退出将停止当前受管会话")
     await click("dev-exit-confirm")
     expect(actions).toEqual(["start", "restart", "clear", "stop"])
     expect(exited).toBe(1)

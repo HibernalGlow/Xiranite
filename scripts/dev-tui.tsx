@@ -7,16 +7,16 @@ import { ManagedDevTuiController, type DevTarget } from "./dev-tui-controller"
 
 const [targetArg, ...args] = process.argv.slice(2)
 if (targetArg === "--help" || targetArg === "-h") {
-  console.log("Usage: bun scripts/dev-tui.tsx <dev|dev:desktop> [dev arguments]")
+  console.log("用法：bun scripts/dev-tui.tsx <dev|dev:desktop> [启动参数]")
   process.exit(0)
 }
 if (targetArg !== "dev" && targetArg !== "dev:desktop") {
-  console.error("Expected dev target: dev or dev:desktop")
+  console.error("开发目标必须是 dev 或 dev:desktop")
   process.exit(2)
 }
 
 const target = targetArg as DevTarget
-const controller = new ManagedDevTuiController(target, target === "dev" ? "XR Browser" : "XRD Desktop", args)
+const controller = new ManagedDevTuiController(target, target === "dev" ? "XR 浏览器" : "XRD 桌面", args)
 await controller.detectExistingSession()
 
 const renderer = await createCliRenderer({
