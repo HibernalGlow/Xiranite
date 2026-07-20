@@ -375,6 +375,7 @@ export {
   ReaderOpdsClient,
   ReaderOpdsHttpError,
   ReaderOpdsParseError,
+  buildReaderOpdsSearchUrl,
   parseReaderOpdsCatalog,
   type ReaderOpdsCatalog,
   type ReaderOpdsCredentialProvider,
@@ -384,6 +385,7 @@ export {
   type ReaderOpdsLink,
   type ReaderOpdsNavigationEntry,
   type ReaderOpdsPublication,
+  type ReaderOpdsSearchParameters,
 } from "./platform/opds/ReaderOpdsClient.js"
 export { normalizeArchiveRange } from "./domain/archive/archive-range.js"
 export { buildFrameSnapshot, type BuildFrameInput } from "./domain/frame/frame-builder.js"

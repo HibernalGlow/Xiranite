@@ -21,6 +21,11 @@ describe("ReaderOpdsHttpController", () => {
     expect((await controller.handle(request("/reader/opds/catalog", { method: "POST" })))?.status).toBe(405)
     expect((await controller.handle(request("/reader/opds/missing")))?.status).toBe(404)
     expect(await controller.handle(request("/other"))).toBeUndefined()
+
+    const search = await controller.handle(request("/reader/opds/search?template=https%3A%2F%2Fcatalog.example%2Fsearch%7B%3Fquery%7D&query=space+opera"))
+    expect(search?.status).toBe(200)
+    expect(read).toHaveBeenLastCalledWith("https://catalog.example/search?query=space%20opera", expect.any(AbortSignal))
+    expect((await controller.handle(request("/reader/opds/search?query=missing")))?.status).toBe(400)
   })
 
   it("[neoview.opds.http-errors] preserves bounded upstream authentication evidence", async () => {
