@@ -12,11 +12,36 @@ try {
   page.on("console", (message) => {
     if (message.type() === "error") console.error(`console: ${message.text()}`)
   })
+  if (options.legacyCard || options.legacyToolbar) {
+    await page.route("**/src/main.ts*", (route) => route.fulfill({
+      status: 200,
+      contentType: "application/javascript",
+      body: "import '/src/app.css';\n// characterization shell intentionally skips the legacy application bootstrap\n",
+    }))
+  }
+  if (options.legacySetup === "system-monitor") {
+    await page.route("**/src/lib/mocks/tauriMock.ts*", async (route) => {
+      const response = await route.fetch()
+      const source = await response.text()
+      const marker = "const mockResponses = {"
+      if (!source.includes(marker)) throw new Error("Legacy Tauri mock response map was not found.")
+      const fixture = `const mockResponses = { get_system_stats: {
+          cpu_usage: [12, 24, 36, 48, 18, 30, 42, 54],
+          memory_total: ${32 * 1024 ** 3}, memory_used: ${12 * 1024 ** 3},
+          memory_free: ${20 * 1024 ** 3}, memory_cached: ${4 * 1024 ** 3},
+          uptime: ${3 * 86_400 + 7 * 3_600}, load_avg: [1.25, 0.8, 0.5],
+          network_rx_bytes: ${8 * 1024 ** 2}, network_tx_bytes: ${2 * 1024 ** 2},
+          disk_total_bytes: ${2 * 1024 ** 4}, disk_used_bytes: ${768 * 1024 ** 3},
+          disk_free_bytes: ${1_280 * 1024 ** 3}
+        },`
+      await route.fulfill({ response, body: source.replace(marker, fixture) })
+    })
+  }
   console.log(`opening ${options.url}`)
   await page.goto(options.url, { waitUntil: options.waitUntil, timeout: 30_000 })
   console.log("page loaded")
   if (options.legacyCard) {
-    await mountLegacyCard(page, options.legacyCard, options.legacySetup)
+    await withTimeout(mountLegacyCard(page, options.legacyCard, options.legacySetup), 30_000, "legacy Card mount")
     console.log(`mounted legacy card ${options.legacyCard} (${options.legacySetup})`)
   }
   if (options.legacyToolbar) {
@@ -40,11 +65,7 @@ try {
     await expand.click()
     await page.getByText("匹配规则", { exact: true }).first().waitFor({ state: "visible", timeout: 30_000 })
   }
-  if (options.waitLabel) {
-    const label = page.getByText(options.waitLabel, { exact: true }).first()
-    await label.waitFor({ state: "visible", timeout: 30_000 })
-    console.log(`found ${options.waitLabel}`)
-  } else if (options.checkLabel) {
+  if (options.checkLabel) {
     const label = page.getByText(options.checkLabel, { exact: true }).first()
     await label.waitFor({ state: "visible", timeout: 30_000 })
     await label.click()
@@ -55,6 +76,11 @@ try {
     await target.click()
     console.log(`clicked ${options.clickSelector}`)
   }
+  if (options.waitLabel) {
+    const label = page.getByText(options.waitLabel, { exact: true }).first()
+    await label.waitFor({ state: "visible", timeout: 30_000 })
+    console.log(`found ${options.waitLabel}`)
+  }
   if (options.waitMs > 0) await page.waitForTimeout(options.waitMs)
   await Promise.race([
     page.evaluate(() => document.fonts.ready),
@@ -64,7 +90,21 @@ try {
   await page.screenshot({ path: options.output, fullPage: false })
   console.log(options.output)
 } finally {
-  await browser.close()
+  await withTimeout(browser.close(), 10_000, "browser close")
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
 }
 
 function parseArgs(args: readonly string[]) {
@@ -153,33 +193,41 @@ async function mountLegacyCard(
 ): Promise<void> {
   await page.evaluate(async ({ cardId, setup }) => {
     const load = (path: string): Promise<any> => import(/* @vite-ignore */ path)
-    const store = await load("/src/lib/stores/upscale/upscalePanelStore.svelte.ts")
+    if (setup === "system-monitor") {
+      localStorage.setItem("neoview-monitor-isMonitoring", "false")
+      localStorage.setItem("neoview-monitor-refreshInterval", "1000")
+    }
+    const upscaleSetup = new Set(["model", "status", "cache", "conditions"])
+    const store = upscaleSetup.has(setup)
+      ? await load("/src/lib/stores/upscale/upscalePanelStore.svelte.ts")
+      : undefined
     if (setup === "model") {
-      store.isPyO3Available.value = true
-      store.availableModels.value = ["MODEL_WAIFU2X_CUNET_UP2X", "MODEL_REALCUGAN_PRO_UP3X", "ILLUSJANAI_DAT2_X4"]
-      store.selectedModel.value = "MODEL_WAIFU2X_CUNET_UP2X"
-      store.tileEnabled.value = true
-      store.tileSize.value = 256
+      store!.isPyO3Available.value = true
+      store!.availableModels.value = ["MODEL_WAIFU2X_CUNET_UP2X", "MODEL_REALCUGAN_PRO_UP3X", "ILLUSJANAI_DAT2_X4"]
+      store!.selectedModel.value = "MODEL_WAIFU2X_CUNET_UP2X"
+      store!.tileEnabled.value = true
+      store!.tileSize.value = 256
     } else if (setup === "status") {
       const { upscaleStore } = await load("/src/lib/stackview/stores/upscaleStore.svelte.ts")
       upscaleStore.setEnabled(true)
     } else if (setup === "cache") {
-      store.cacheStats.value = { totalFiles: 48, totalSize: 384 * 1024 * 1024, cacheDir: "D:/NeoView/cache/pyo3-upscale" }
+      store!.cacheStats.value = { totalFiles: 48, totalSize: 384 * 1024 * 1024, cacheDir: "D:/NeoView/cache/pyo3-upscale" }
     } else if (setup === "conditions") {
       const { getDefaultConditionPresets } = await load("/src/lib/utils/upscale/conditions.ts")
-      store.autoUpscaleEnabled.value = true
-      store.conditionalUpscaleEnabled.value = true
-      store.conditionsList.value = getDefaultConditionPresets()
+      store!.autoUpscaleEnabled.value = true
+      store!.conditionalUpscaleEnabled.value = true
+      store!.conditionsList.value = getDefaultConditionPresets()
     }
-    const [{ mount }, { default: CardRenderer }] = await Promise.all([
+    const [{ mount }, { default: CardRenderer }, { cardRegistry }] = await Promise.all([
       load("/node_modules/.vite/deps/svelte.js"),
       load("/src/lib/cards/CardRenderer.svelte"),
+      load("/src/lib/cards/registry.ts"),
     ])
-    const width = setup === "conditions" ? 760 : 380
+    const width = setup === "conditions" ? 760 : setup === "system-monitor" ? 680 : 380
     document.body.innerHTML = `<main style="width: ${width}px; margin: 48px; color: var(--foreground)"><div id="legacy-card"></div></main>`
     mount(CardRenderer, {
       target: document.getElementById("legacy-card")!,
-      props: { cardId, panelId: "upscale" },
+      props: { cardId, panelId: cardRegistry[cardId]?.defaultPanel ?? "upscale" },
     })
   }, { cardId, setup })
 }
