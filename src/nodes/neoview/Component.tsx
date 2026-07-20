@@ -4,14 +4,17 @@ import { ReaderApp } from "./app/ReaderApp"
 
 export interface NeoViewCardState extends Record<string, unknown> {
   path?: string
+  browserOriginPath?: string | null
 }
 
 export function Component({ host }: NodeComponentProps<NeoViewCardState>) {
   "use no memo"
   const initialPath = host.state.getData()?.path
+  const initialBrowserOriginPath = host.state.getData()?.browserOriginPath ?? undefined
   return (
     <ReaderApp
       initialPath={initialPath}
+      initialBrowserOriginPath={initialBrowserOriginPath}
       pickFile={host.localFiles?.pickFiles
         ? async () => (await host.localFiles!.pickFiles!({
           title: "打开漫画或图片",
@@ -21,7 +24,7 @@ export function Component({ host }: NodeComponentProps<NeoViewCardState>) {
       pickDirectory={host.localFiles?.pickDirectory}
       copyText={host.clipboard?.writeText}
       copyFiles={host.clipboard?.writeFiles}
-      onPathCommitted={(path) => host.state.patchData({ path })}
+      onPathCommitted={(path, browserOriginPath) => host.state.patchData({ path, browserOriginPath: browserOriginPath ?? null })}
     />
   )
 }

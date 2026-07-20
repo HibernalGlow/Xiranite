@@ -38,7 +38,7 @@ describe("ReaderApp", () => {
     expect(firstImage.tagName).toBe("IMG")
     expect(firstImage.getAttribute("src")).toContain("page-1")
     expect(document.querySelector("canvas")).toBeNull()
-    expect(committed).toHaveBeenCalledWith("D:/books/demo.cbz")
+    expect(committed).toHaveBeenCalledWith("D:/books/demo.cbz", undefined)
 
     // After open, the path textbox is replaced by the breadcrumb; page turns
     // are driven by the reader surface keybindings.
@@ -146,7 +146,7 @@ describe("ReaderApp", () => {
       updateSessionOptions: vi.fn(),
       close: vi.fn(async () => undefined),
     }
-    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} onPathCommitted={committed} />)
+    render(<ReaderApp initialPath="D:/books/demo.cbz" initialBrowserOriginPath="D:/books" client={client} onPathCommitted={committed} />)
 
     fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
@@ -163,7 +163,7 @@ describe("ReaderApp", () => {
     fireEvent.keyDown(reader, { key: "b", code: "KeyB" })
     await screen.findByRole("img", { name: "001.jpg" })
     await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal)))
-    await waitFor(() => expect(committed).toHaveBeenLastCalledWith("D:/books/Book 2.cbz"))
+    await waitFor(() => expect(committed).toHaveBeenLastCalledWith("D:/books/Book 2.cbz", "D:/books"))
   })
 
   it("[neoview.reader.next-book-tail] switches books at the last page when tailOverflow is next-book", async () => {
