@@ -60,6 +60,43 @@ describe("ReaderHierarchicalBookTraversal", () => {
       penetration: { maxDepth: 1 },
     })).resolves.toMatchObject({ path: "C:/Library/deep/one/two/book.cbz" })
   })
+
+  it("[neoview.folder.penetration-mixed-order] queues child books after a directory's direct media", async () => {
+    const listing = provider({
+      "C:/Library": [directory("C:/Library/artist"), directory("C:/Library/z-after")],
+      "C:/Library/artist": [file("C:/Library/artist/001.avif", false), file("C:/Library/artist/002.avif", false), directory("C:/Library/artist/4")],
+      "C:/Library/artist/4": [file("C:/Library/artist/4/book.cbz", true)],
+      "C:/Library/z-after": [file("C:/Library/z-after/book.cbz", true)],
+    })
+    const penetration = new ReaderFolderPenetrationResolver(listing)
+    const traversal = new ReaderHierarchicalBookTraversal(listing, undefined, isBook, penetration)
+    const mixedCursor = {
+      rootPath: "C:/Library",
+      frames: [{
+        directoryPath: "C:/Library",
+        currentEntryPath: "C:/Library/artist",
+        selfTerminal: true,
+      }],
+    }
+
+    const child = await traversal.resolve({
+      source: { kind: "path", path: "C:/Library/artist" },
+      direction: "next",
+      cursor: mixedCursor,
+    })
+    expect(child?.path).toBe("C:/Library/artist/4/book.cbz")
+    const after = await traversal.resolve({
+      source: { kind: "archive", path: child!.path },
+      direction: "next",
+      cursor: child!.cursor,
+    })
+    expect(after?.path).toBe("C:/Library/z-after/book.cbz")
+    await expect(traversal.resolve({
+      source: { kind: "archive", path: child!.path },
+      direction: "previous",
+      cursor: child!.cursor,
+    })).resolves.toMatchObject({ path: "C:/Library/artist" })
+  })
 })
 
 function provider(entriesByPath: Record<string, readonly ReaderDirectoryEntry[]>): ReaderDirectoryListingProvider {

@@ -18,12 +18,14 @@ describe("Reader adjacent-book HTTP", () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-hierarchical-http-"))
     roots.push(root)
     const a = join(root, "A")
+    const aChild = join(a, "4")
     const b1 = join(root, "B", "Book 1")
     const b2 = join(root, "B", "Book 2")
     const c = join(root, "C", "nested")
-    await Promise.all([mkdir(a, { recursive: true }), mkdir(b1, { recursive: true }), mkdir(b2, { recursive: true }), mkdir(c, { recursive: true })])
+    await Promise.all([mkdir(aChild, { recursive: true }), mkdir(b1, { recursive: true }), mkdir(b2, { recursive: true }), mkdir(c, { recursive: true })])
     await Promise.all([
       writeFile(join(a, "1.jpg"), Uint8Array.of(1)),
+      writeFile(join(aChild, "1.jpg"), Uint8Array.of(6)),
       writeFile(join(b1, "1.jpg"), Uint8Array.of(2)),
       writeFile(join(b2, "1.jpg"), Uint8Array.of(3)),
       writeFile(join(b2, "2.jpg"), Uint8Array.of(4)),
@@ -33,18 +35,18 @@ describe("Reader adjacent-book HTTP", () => {
     try {
       const opened = await request(controller, "/reader/sessions", "POST", {
         path: a,
-        provenance: { browserOriginPath: root, browserOriginEntryPath: a },
+        provenance: { browserOriginPath: root, browserOriginEntryPath: a, browserOriginSelfTerminal: true },
       })
       expect(opened.status).toBe(201)
       let current = await opened.json() as { sessionId: string; book: { displayName: string }; frame: { anchorPageIndex: number } }
       const names: string[] = []
-      for (let index = 0; index < 3; index += 1) {
+      for (let index = 0; index < 4; index += 1) {
         const switched = await request(controller, `/reader/s/${current.sessionId}/adjacent-book`, "POST", { direction: "next" })
         expect(switched.status).toBe(201)
         current = await switched.json() as typeof current
         names.push(current.book.displayName)
       }
-      expect(names).toEqual(["Book 1", "Book 2", "nested"])
+      expect(names).toEqual(["4", "Book 1", "Book 2", "nested"])
 
       const previous = await request(controller, `/reader/s/${current.sessionId}/adjacent-book`, "POST", { direction: "previous" })
       expect(previous.status).toBe(201)

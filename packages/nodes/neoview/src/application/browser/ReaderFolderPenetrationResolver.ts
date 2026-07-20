@@ -11,6 +11,7 @@ import type {
 const DEFAULT_MAXIMUM_CACHE_ENTRIES = 512
 const DEFAULT_CACHE_TTL_MS = 30_000
 const HARD_MAXIMUM_DEPTH = 32
+const MINIMUM_MIXED_DIRECTORY_MEDIA = 2
 const ARCHIVE_EXTENSIONS = new Set(["zip", "cbz", "rar", "cbr", "7z", "cb7"])
 const DOCUMENT_EXTENSIONS = new Set(["pdf", "epub"])
 const SIDECAR_EXTENSIONS = new Set([
@@ -22,6 +23,7 @@ export type ReaderFolderPenetrationReason =
   | "archive"
   | "document"
   | "media-directory"
+  | "mixed-media-directory"
   | "file"
   | "multiple-primary-items"
   | "empty"
@@ -45,6 +47,8 @@ export interface ReaderFolderPenetrationResolution {
   status: "resolved" | "branch" | "empty" | "blocked"
   originPath: string
   terminal?: { kind: ReaderFolderPenetrationTerminalKind; path: string }
+  directMediaCount?: number
+  deferredDirectoryCount?: number
   chain: readonly ReaderFolderPenetrationStep[]
   reason: ReaderFolderPenetrationReason
 }
@@ -191,6 +195,19 @@ export class ReaderFolderPenetrationResolver {
           return result("empty", originPath, chain, "empty")
         }
         return result("branch", originPath, chain, terminalFiles.length > 1 ? "multiple-primary-items" : "unsupported-content")
+      }
+
+      if (classified.media.length >= MINIMUM_MIXED_DIRECTORY_MEDIA && terminalFiles.length === 0 && !hasBlockingFiles
+        && policy.terminalTargets.has("media-directory")) {
+        return {
+          status: "resolved",
+          originPath,
+          terminal: { kind: "media-directory", path: listing.path },
+          chain,
+          reason: "mixed-media-directory",
+          directMediaCount: classified.media.length,
+          deferredDirectoryCount: classified.directories.length,
+        }
       }
 
       if (classified.directories.length === 1 && terminalFiles.length === 0 && !hasBlockingFiles) {

@@ -42,6 +42,29 @@ describe("ReaderFolderPenetrationResolver", () => {
     await expect(resolver.resolve("/text")).resolves.toMatchObject({ status: "empty", reason: "empty" })
   })
 
+  it("[neoview.folder.penetration-mixed-media] opens direct media before deferring child folders", async () => {
+    const resolver = new ReaderFolderPenetrationResolver(provider({
+      "/artist": {
+        path: "/artist",
+        entries: [
+          directory("/artist/4"),
+          file("/artist/001.avif"),
+          file("/artist/001.json", false),
+          file("/artist/002.avif"),
+          file("/artist/002.json", false),
+        ],
+      },
+    }))
+
+    await expect(resolver.resolve("/artist")).resolves.toMatchObject({
+      status: "resolved",
+      terminal: { kind: "media-directory", path: "/artist" },
+      reason: "mixed-media-directory",
+      directMediaCount: 2,
+      deferredDirectoryCount: 1,
+    })
+  })
+
   it("[neoview.folder.penetration-ambiguous] keeps multi-target and mixed directories as branches", async () => {
     const resolver = new ReaderFolderPenetrationResolver(provider({
       "/many": { path: "/many", entries: [file("/many/a.cbz"), file("/many/b.cbz")] },

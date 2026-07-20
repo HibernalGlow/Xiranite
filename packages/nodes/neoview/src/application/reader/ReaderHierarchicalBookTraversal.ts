@@ -1,4 +1,4 @@
-import { dirname } from "node:path"
+import { basename, dirname } from "node:path"
 
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderDirectoryEntry, ReaderDirectoryListingProvider } from "../../ports/ReaderDirectoryListingProvider.js"
@@ -17,6 +17,8 @@ const HARD_MAXIMUM_TRAVERSAL_DEPTH = 32
 export interface ReaderBookTraversalFrame {
   directoryPath: string
   currentEntryPath: string
+  /** The directory itself is a media book that precedes its child entries. */
+  selfTerminal?: boolean
 }
 
 export interface ReaderBookTraversalCursor {
@@ -73,6 +75,32 @@ export class ReaderHierarchicalBookTraversal {
     for (let frameIndex = frames.length - 1; frameIndex >= 0; frameIndex -= 1) {
       signal?.throwIfAborted()
       const frame = frames[frameIndex]!
+      if (frame.selfTerminal && request.direction === "previous" && frameIndex < frames.length - 1) {
+        const selfFrames = frames.slice(0, frameIndex + 1)
+        return {
+          path: frame.currentEntryPath,
+          name: basename(frame.currentEntryPath),
+          cursor: { rootPath: cursor.rootPath, frames: selfFrames },
+        }
+      }
+      if (frame.selfTerminal && request.direction === "next" && frameIndex === frames.length - 1) {
+        const nestedEntries = await this.#entries(frame.currentEntryPath, sort, request.randomSeed, signal)
+        const nested = await this.#scan(
+          nestedEntries,
+          0,
+          "next",
+          frames.slice(0, frameIndex + 1),
+          frame.currentEntryPath,
+          cursor.rootPath,
+          sort,
+          request.penetration,
+          request.randomSeed,
+          visited,
+          frameIndex + 1,
+          signal,
+        )
+        if (nested) return nested
+      }
       const entries = await this.#entries(frame.directoryPath, sort, request.randomSeed, signal)
       const currentIndex = entries.findIndex((entry) => this.pathIdentity(entry.path) === this.pathIdentity(frame.currentEntryPath))
       const start = request.direction === "next"
@@ -127,7 +155,10 @@ export class ReaderHierarchicalBookTraversal {
 
       const resolution = await this.penetrationResolver.resolve(entry.path, penetration, signal)
       if (resolution.status === "resolved" && resolution.terminal) {
-        return { path: resolution.terminal.path, name: entry.name, cursor: { rootPath, frames: candidateFrames } }
+        const terminalFrames = resolution.reason === "mixed-media-directory"
+          ? [...parentFrames, { ...frame, selfTerminal: true }]
+          : candidateFrames
+        return { path: resolution.terminal.path, name: entry.name, cursor: { rootPath, frames: terminalFrames } }
       }
       if (resolution.status === "empty") continue
       if (resolution.status === "blocked" && (resolution.reason === "permission" || resolution.reason === "cycle")) {
