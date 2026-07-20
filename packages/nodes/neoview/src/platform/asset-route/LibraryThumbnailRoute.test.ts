@@ -175,6 +175,27 @@ describe("LibraryThumbnailRoute", () => {
     await pipeline.dispose()
   })
 
+  it("[neoview.thumbnail.library-register-latency] publishes asset URLs without awaiting batch prewarm", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-library-thumbnail-latency-"))
+    roots.push(root)
+    const sourcePath = join(root, "cover.png")
+    await writeFile(sourcePath, Uint8Array.of(1))
+    const pipeline = new PlatformThumbnailPipeline()
+    let finishPrewarm: (() => void) | undefined
+    vi.spyOn(pipeline, "prewarmLibrary").mockImplementation(() => new Promise((resolve) => {
+      finishPrewarm = () => resolve({ requested: 1, databaseHits: 0, primed: 0 })
+    }))
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+
+    const response = await route.handle(registerRequest(sourcePath, 0, true))
+
+    expect(response?.status).toBe(201)
+    expect(((await response?.json()) as { items: unknown[] }).items).toHaveLength(1)
+    finishPrewarm?.()
+    route.close()
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.library-stable-url] keeps a deterministic asset alive while another context retains it", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-library-thumbnail-shared-"))
     roots.push(root)
