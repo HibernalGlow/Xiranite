@@ -434,6 +434,18 @@ export interface ReaderRecentDto {
   updatedAt: number
 }
 
+export interface ReaderFolderProgressSummaryDto {
+  path: string
+  bookCount: number
+  completedBooks: number
+  readPages: number
+  totalPages: number
+  progressPercent?: number
+  lastReadAt?: number
+  scannedRecords: number
+  truncated: boolean
+}
+
 export interface ReaderRecentBatchRemoveResultDto {
   deleted: number
   missingIds: readonly string[]
@@ -1378,6 +1390,7 @@ export interface ReaderHttpClient {
   pasteDirectoryClipboard?(destinationPath: string, signal?: AbortSignal): Promise<ReaderDirectorySelectionOperationSnapshotDto>
   clearDirectoryClipboard?(signal?: AbortSignal): Promise<ReaderDirectoryClipboardSnapshotDto>
   listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
+  summarizeFolderProgress?(path: string, signal?: AbortSignal): Promise<ReaderFolderProgressSummaryDto>
   removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
   removeRecents?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResultDto>
   cleanupRecents?(request: ReaderRecentCleanupRequestDto, signal?: AbortSignal): Promise<ReaderRecentCleanupResultDto>
@@ -1989,6 +2002,10 @@ export function createReaderHttpClient(
       `/reader/library/recents?offset=${offset}&limit=${limit}`,
       { signal },
     ).then((value) => value.items),
+    summarizeFolderProgress: (path, signal) => request<ReaderFolderProgressSummaryDto>(
+      `/reader/library/progress/folder?path=${encodeURIComponent(path)}`,
+      { signal },
+    ),
     removeRecent: (bookId, signal) => request<void>(`/reader/library/recents/${encodeURIComponent(bookId)}`, {
       method: "DELETE",
       signal,
