@@ -69,6 +69,29 @@ describe("ReaderPanoramaFrame", () => {
     expect(frameWindow).toHaveBeenCalled()
     expect(listPages).not.toHaveBeenCalled()
   })
+
+  it("covers the complete frame-window batch without leaving an interior placeholder", async () => {
+    const frameWindow = vi.fn(async (_sessionId: string, center: number, radius: number) => {
+      const start = Math.max(0, center - radius)
+      const end = Math.min(11, center + radius)
+      const visiblePages = Array.from({ length: end - start + 1 }, (_, offset) => page(start + offset))
+      return {
+        frames: [],
+        centerIndex: center,
+        radius,
+        visiblePages,
+      }
+    })
+    render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 1080, itemHeight: 800 }}>
+        <div style={{ height: 1080, width: 1920 }}>
+          <ReaderPanoramaFrame sessionId="reader-window" totalPages={12} anchorPageIndex={0} currentPages={[page(0)]} pageMode="single" direction="left-to-right" presentation={{ ...DEFAULT_READER_PRESENTATION, orientation: "horizontal" }} videoController={{} as ReaderVideoController} client={{ frameWindow } as ReaderHttpClient} onSubtitleConfigChange={vi.fn()} onVideoListEnded={vi.fn()} />
+        </div>
+      </VirtuosoMockContext.Provider>,
+    )
+    await waitFor(() => expect(frameWindow).toHaveBeenCalledWith("reader-window", 6, 6, expect.any(AbortSignal)))
+    await waitFor(() => expect(document.querySelector('[data-panorama-placeholder="1"]')).toBeNull())
+  })
 })
 
 function page(index: number): ReaderPageDto {
