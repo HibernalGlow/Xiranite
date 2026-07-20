@@ -101,6 +101,15 @@ describe("parseNeoviewRuntimeConfig", () => {
     } } })).toThrow("directory")
   })
 
+  it("[neoview.preload.config-runtime] consolidates canonical and legacy candidate budgets with a safety cap", () => {
+    expect(parseNeoviewRuntimeConfig({ performance: { preload_pages: 7, preload_items: 3 } }).preload).toEqual({ maxCandidatePages: 7 })
+    expect(parseNeoviewRuntimeConfig({ performance: { preLoadSize: 5 } }).preload).toEqual({ maxCandidatePages: 5 })
+    expect(parseNeoviewRuntimeConfig({ image: { preloadCount: 6 } }).preload).toEqual({ maxCandidatePages: 6 })
+    expect(parseNeoviewRuntimeConfig({ reader: { book: { preloadPages: 8 } } }).preload).toEqual({ maxCandidatePages: 8 })
+    expect(parseNeoviewRuntimeConfig({ performance: { preload_pages: 999 } }).preload).toEqual({ maxCandidatePages: 32 })
+    expect(() => parseNeoviewRuntimeConfig({ performance: { preload_pages: -1 } })).toThrow("preload_pages")
+  })
+
   it("[neoview.slideshow.config] normalizes legacy settings and writes one canonical TOML shape", () => {
     expect(parseNeoviewRuntimeConfig({
       slideshow: { interval_seconds: 12, loop: true, fade_transition: false },

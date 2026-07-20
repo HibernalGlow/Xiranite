@@ -88,6 +88,11 @@ export interface NeoviewRuntimeConfig {
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
+  preload: NeoviewPreloadConfig
+}
+
+export interface NeoviewPreloadConfig {
+  maxCandidatePages: number
 }
 
 export interface NeoviewFileTreeConfig {
@@ -557,6 +562,10 @@ export const DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG: NeoviewPresentation
   minFreeBytes: 512 * 1024 * 1024,
 }
 
+export const DEFAULT_NEOVIEW_PRELOAD_CONFIG: NeoviewPreloadConfig = {
+  maxCandidatePages: 4,
+}
+
 export const DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG: NeoviewSuperResolutionConfig = {
   provider: "opencomic-system",
   maxDaemonsPerGpu: 1,
@@ -656,6 +665,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     presentationDiskCache: DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
     inputBindings: parseNeoviewInputBindingsConfig(undefined),
     radialMenu: parseReaderRadialMenuConfig(undefined),
+    preload: DEFAULT_NEOVIEW_PRELOAD_CONFIG,
   }
   const config = unwrapNeoviewConfigEnvelope(value)
   const schemaVersion = config.schema_version ?? 1
@@ -836,7 +846,30 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
     inputBindings: parseNeoviewInputBindingsConfig(bindings),
     radialMenu: parseReaderRadialMenuConfig(bindings?.radial_menus),
+    preload: parsePreloadConfig(performance, image, legacyBook),
   }
+}
+
+function parsePreloadConfig(
+  performance: Record<string, unknown> | undefined,
+  image: Record<string, unknown> | undefined,
+  legacyBook: Record<string, unknown> | undefined,
+): NeoviewPreloadConfig {
+  const requested = boundedIntegerWithFallback(
+    performance?.preload_pages
+      ?? performance?.preloadPages
+      ?? performance?.preload_items
+      ?? performance?.preLoadSize
+      ?? image?.preload_count
+      ?? image?.preloadCount
+      ?? legacyBook?.preload_pages
+      ?? legacyBook?.preloadPages,
+    0,
+    1_000,
+    DEFAULT_NEOVIEW_PRELOAD_CONFIG.maxCandidatePages,
+    "[nodes.neoview.performance].preload_pages",
+  )
+  return { maxCandidatePages: Math.min(requested, 32) }
 }
 
 function parseSuperResolutionConfig(value: Record<string, unknown> | undefined): NeoviewSuperResolutionConfig {

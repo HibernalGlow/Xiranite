@@ -70,7 +70,7 @@ import type { SuperResolutionPreloadControlPort } from "../../ports/SuperResolut
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
-import type { ReaderPreloadContext, ReaderPreloadPlan } from "../../application/preloading/PreloadCoordinator.js"
+import type { ReaderPreloadContext, ReaderPreloadCoordinatorOptions, ReaderPreloadPlan } from "../../application/preloading/PreloadCoordinator.js"
 import type { ReaderPreloadOutcome, ReaderPreloadPerformanceMetrics } from "../../application/preloading/PreloadTelemetry.js"
 import { deriveReaderPreloadResourceContext } from "../../application/preloading/PreloadResourceContext.js"
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
@@ -239,6 +239,7 @@ export interface ReaderSessionDto {
 export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions & {
   memoryPressureMonitor?: ReaderMemoryPressureMonitor
   sessionOptions?: Partial<ReaderSessionOptions>
+  preloadOptions?: ReaderPreloadCoordinatorOptions
   thumbnailStore?: ReaderThumbnailStore
   loadSystemThumbnailProvider?: SystemThumbnailProviderLoader
   loadVideoThumbnailProvider?: VideoThumbnailProviderLoader
@@ -453,6 +454,7 @@ export class ReaderHttpController implements AsyncDisposable {
       options.progressStore || undefined,
       options.bookSettingsStore,
       lockedPageOrder(options.book),
+      options.preloadOptions,
     )
     this.#bookSettings = options.bookSettingsStore ? new ReaderBookSettingsService(options.bookSettingsStore) : undefined
     this.#emmMetadata = options.emmOverrideStore ? new ReaderEmmMetadataService(options.emmOverrideStore) : undefined

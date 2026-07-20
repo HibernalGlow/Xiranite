@@ -4,7 +4,13 @@ import { LRUCache } from "lru-cache"
 import type { FrameSnapshot, ReaderGeneration, ReaderPagePart } from "../../domain/frame/frame.js"
 import type { PageId, ReaderPage } from "../../domain/page/page.js"
 import type { ImageMetadataProbe } from "../../ports/ImageMetadataProbe.js"
-import { ReaderPreloadCoordinator, type ReaderNavigationIntent, type ReaderPreloadContext, type ReaderPreloadPlan } from "../preloading/PreloadCoordinator.js"
+import {
+  ReaderPreloadCoordinator,
+  type ReaderNavigationIntent,
+  type ReaderPreloadContext,
+  type ReaderPreloadCoordinatorOptions,
+  type ReaderPreloadPlan,
+} from "../preloading/PreloadCoordinator.js"
 import { ReaderPreloadTelemetry, type ReaderPreloadReport, type ReaderPreloadReportResult, type ReaderPreloadTelemetrySnapshot } from "../preloading/PreloadTelemetry.js"
 import {
   DEFAULT_READER_SESSION_OPTIONS,
@@ -53,6 +59,7 @@ export class CoreReaderSession implements ReaderSession {
     onClose?: (sessionId: ReaderSessionId, snapshot: FrameSnapshot) => void | Promise<void>,
     metadataProbe?: ImageMetadataProbe,
     initialPageOrder?: ReaderPageOrderPatch,
+    preloadOptions?: ReaderPreloadCoordinatorOptions,
   ) {
     assertBook(book)
     this.id = id
@@ -66,7 +73,7 @@ export class CoreReaderSession implements ReaderSession {
     this.#options = mergeOptions(DEFAULT_READER_SESSION_OPTIONS, options)
     this.#onClose = onClose
     this.#metadataProbe = metadataProbe
-    this.#preload = new ReaderPreloadCoordinator(this.#pages)
+    this.#preload = new ReaderPreloadCoordinator(this.#pages, preloadOptions)
   }
 
   get pages(): readonly ReaderPage[] {

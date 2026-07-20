@@ -21,7 +21,7 @@ describe("ReaderPreloadCoordinator", () => {
 
   it("[neoview.preload.plan-double] reuses frame pairing for double-page and RTL", () => {
     const pages = pageFixture(9)
-    const coordinator = new ReaderPreloadCoordinator(pages, { aheadFrames: 1 })
+    const coordinator = new ReaderPreloadCoordinator(pages, { aheadFrames: 1, maxCandidatePages: 5 })
     const current = frame(pages, 1, "double", "right-to-left")
     expect(current.pages.map((page) => page.pageIndex)).toEqual([2, 1])
     const plan = coordinator.update(current, "next")
@@ -87,6 +87,18 @@ describe("ReaderPreloadCoordinator", () => {
       candidates: [],
     })
     expect(() => new ReaderPreloadCoordinator(pages, { maxSpeculativeQueueWaitMs: 60_001 })).toThrow("maxSpeculativeQueueWaitMs")
+  })
+
+  it("[neoview.preload.config-budget] caps candidate pages without separating page ids from indexes", () => {
+    const pages = pageFixture(12)
+    const plan = new ReaderPreloadCoordinator(pages, { maxCandidatePages: 3 })
+      .update(frame(pages, 3, "double"), "next")
+    expect(plan.candidates.flatMap((candidate) => candidate.pageIndexes)).toHaveLength(3)
+    expect(plan.candidates.flatMap((candidate) => candidate.pageIds)).toEqual(
+      plan.candidates.flatMap((candidate) => candidate.pageIndexes.map((index) => `page-${index}`)),
+    )
+    expect(new ReaderPreloadCoordinator(pages, { maxCandidatePages: 0 }).update(frame(pages, 3, "single"), "next").candidates).toEqual([])
+    expect(() => new ReaderPreloadCoordinator(pages, { maxCandidatePages: 33 })).toThrow("maxCandidatePages")
   })
 
   it("handles empty/end frames and validates budgets", () => {
