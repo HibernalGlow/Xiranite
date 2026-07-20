@@ -9,6 +9,7 @@ export interface ReaderThumbnailSurfaceProps {
   kind?: "file" | "folder" | "page"
   fit?: "cover" | "contain"
   loading?: boolean
+  imageLoading?: "eager" | "lazy"
   className?: string
   imageClassName?: string
   fallback?: ReactNode
@@ -21,6 +22,7 @@ export function ReaderThumbnailSurface({
   kind = "page",
   fit = "cover",
   loading = false,
+  imageLoading = "lazy",
   className,
   imageClassName,
   fallback,
@@ -65,7 +67,7 @@ export function ReaderThumbnailSurface({
               <img
                 src={candidate}
                 alt=""
-                loading="lazy"
+                loading={imageLoading}
                 decoding="async"
                 draggable={false}
                 className={cn("size-full select-none object-contain", imageClassName)}
@@ -79,7 +81,7 @@ export function ReaderThumbnailSurface({
         <img
           src={visibleUrls[0]}
           alt=""
-          loading="lazy"
+          loading={imageLoading}
           decoding="async"
           draggable={false}
           className={cn("size-full select-none", fit === "contain" ? "object-contain" : "object-cover", imageClassName)}

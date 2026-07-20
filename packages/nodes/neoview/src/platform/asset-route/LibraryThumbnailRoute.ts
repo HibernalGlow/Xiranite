@@ -118,11 +118,9 @@ export class LibraryThumbnailRoute {
     } finally {
       this.#pipeline.releaseContext(refreshContextId)
     }
-    try {
-      await this.#pipeline.prewarmLibrary(described.filter(({ item }) => !item.refresh).flatMap(({ sources }) => sources), { signal: request.signal })
-    } catch (error) {
-      if (request.signal.aborted || isAbortError(error)) throw error
-    }
+    const prewarmSources = described
+      .filter(({ item }) => !item.refresh)
+      .flatMap(({ sources }) => sources)
     const latest = this.#contexts.get(parsed.contextId)
     if (latest && parsed.generation < latest.generation) return jsonResponse({ error: "Thumbnail generation is stale" }, 409)
     const context: ContextRecord = latest ?? { generation: parsed.generation, assetIds: new Set() }
@@ -147,6 +145,10 @@ export class LibraryThumbnailRoute {
         contentVersion: sources.map((source) => source.contentVersion).join("|"),
       }
     })
+    // Publish capabilities as soon as sources are described. Visible <img> requests can
+    // then start immediately and share the coordinator flight with this best-effort cache
+    // prime instead of waiting for the slowest batch-store lookup before receiving a URL.
+    void this.#pipeline.prewarmLibrary(prewarmSources, { signal: request.signal }).catch(() => undefined)
     return jsonResponse({ contextId: parsed.contextId, generation: parsed.generation, items }, 201)
   }
 

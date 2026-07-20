@@ -194,7 +194,7 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
     >
       <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
         {thumbnailUrl
-          ? <ReaderThumbnailSurface url={thumbnailUrl} urls={thumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" className="size-full rounded-none bg-transparent" />
+          ? <ReaderThumbnailSurface url={thumbnailUrl} urls={thumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" imageLoading="eager" className="size-full rounded-none bg-transparent" />
           : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
       <span className="grid min-w-0 content-center gap-0.5 px-2 py-1.5" data-folder-entry-info="two-line">
@@ -242,7 +242,7 @@ export function DirectoryGridItem({ itemId, entry, index, disabled, selected, fo
     >
       <span className="grid aspect-[2/3] w-full min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true" data-folder-thumbnail-orientation="portrait">
         {thumbnailUrl
-          ? <ReaderThumbnailSurface url={thumbnailUrl} urls={thumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" className="size-full rounded-none bg-transparent" />
+          ? <ReaderThumbnailSurface url={thumbnailUrl} urls={thumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" imageLoading="eager" className="size-full rounded-none bg-transparent" />
           : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
       <span className="flex min-w-0 items-center gap-1 border-t px-1.5 py-1.5">

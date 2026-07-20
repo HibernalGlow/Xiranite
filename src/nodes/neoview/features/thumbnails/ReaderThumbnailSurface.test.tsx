@@ -45,6 +45,11 @@ describe("ReaderThumbnailSurface", () => {
     expect(view.container.querySelector("img")).toBeNull()
   })
 
+  it("allows virtualized visible thumbnails to bypass native lazy-load scheduling", () => {
+    const view = render(<ReaderThumbnailSurface url="/visible.webp" imageLoading="eager" />)
+    expect(view.container.querySelector("img")?.getAttribute("loading")).toBe("eager")
+  })
+
   it("reports natural dimensions for adaptive thumbnail layouts", () => {
     const onDimensions = vi.fn()
     const view = render(<ReaderThumbnailSurface url="/adaptive.webp" onDimensions={onDimensions} />)

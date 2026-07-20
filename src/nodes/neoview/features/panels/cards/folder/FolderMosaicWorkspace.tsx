@@ -333,6 +333,7 @@ function DirectoryMosaicItem({
                 urls={thumbnailUrls}
                 kind={entry.kind === "directory" ? "folder" : "file"}
                 fit="contain"
+                imageLoading="eager"
                 className="size-full rounded-none bg-transparent"
                 onDimensions={(width, height) => onDimensions(entry.path, width, height)}
               />
