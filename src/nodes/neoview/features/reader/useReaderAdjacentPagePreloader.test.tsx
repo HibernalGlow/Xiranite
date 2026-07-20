@@ -77,7 +77,26 @@ describe("useReaderAdjacentPagePreloader", () => {
     }))
 
     await waitFor(() => expect(client.listPages).toHaveBeenCalledWith("reader-1", 2, 3, expect.any(AbortSignal)))
-    await waitFor(() => expect(preload).toHaveBeenCalledWith([pages[1], pages[3]], 7))
+    await waitFor(() => expect(preload).toHaveBeenCalledWith([pages[3], pages[1]], 7))
+  })
+
+  it("[neoview.react.predecode] warms frame metadata before decoding adjacent images", async () => {
+    const pages = [page(3), page(4), page(5)]
+    const frameWindow = vi.fn(async () => ({ frames: [], centerIndex: 4, radius: 1, visiblePages: pages }))
+    const client = clientWith({ frameWindow })
+    const preload = vi.fn()
+
+    renderHook(() => useReaderAdjacentPagePreloader({
+      client,
+      sessionId: "reader-1",
+      activePageIndex: 4,
+      totalPages: 20,
+      preload,
+    }))
+
+    await waitFor(() => expect(frameWindow).toHaveBeenCalledWith("reader-1", 4, 1, expect.any(AbortSignal)))
+    await waitFor(() => expect(preload).toHaveBeenCalledWith([pages[0], pages[2]]))
+    expect(client.listPages).not.toHaveBeenCalled()
   })
 
   it("[neoview.preload.cancel-session] aborts discovery and stays idle while speculative work is disabled", () => {

@@ -2,7 +2,7 @@
  * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/ai/AiTitleTranslationCard.tsx
  * @migration-status adapted
  */
-import { Languages } from "lucide-react"
+import { Info, Languages } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { Label } from "@/components/ui/label"
@@ -51,40 +51,64 @@ function AiTitleTranslationContent({ client, disabled }: ReaderPanelContext) {
   }
 
   return (
-    <div className="space-y-4 text-xs" data-neoview-card="ai-title-translation">
+    <div className="space-y-3 text-xs" data-neoview-card="ai-title-translation">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Languages className="size-4 text-muted-foreground" />
-          <Label>启用 AI 标题翻译</Label>
+        <div className="flex items-center gap-1.5">
+          <Languages className="size-3.5 text-muted-foreground" />
+          <Label className="text-xs font-medium">启用 AI 标题翻译</Label>
         </div>
         <Switch
+          className="scale-90"
           checked={config.enabled}
           disabled={disabled || busy}
-          onCheckedChange={(checked) => void patch({ enabled: checked, service: checked && config.service === "disabled" ? "ollama" : config.service })}
+          onCheckedChange={(checked) => void patch({
+            enabled: checked,
+            service: checked && config.service === "disabled" ? "ollama" : config.service,
+          })}
         />
       </div>
 
       {config.enabled ? (
         <>
           <div className="flex items-center justify-between gap-3">
-            <Label className="text-sm">自动翻译无 EMM 翻译的标题</Label>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs">自动翻译无 EMM 翻译的标题</Label>
+              <span title="当文件没有 EMM 翻译标题时，自动使用 AI 翻译日文标题">
+                <Info className="size-3 text-muted-foreground" />
+              </span>
+            </div>
             <Switch
+              className="scale-75"
               checked={config.autoTranslate}
               disabled={disabled || busy}
               onCheckedChange={(checked) => void patch({ autoTranslate: checked })}
             />
           </div>
-          <div className="rounded-md border bg-muted/30 p-3 space-y-1">
-            <div className="flex justify-between"><span className="text-muted-foreground">当前服务</span><span>{config.service === "ollama" ? `Ollama (${config.ollamaModel || "未选模型"})` : "未配置"}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">语言</span><span className="tabular-nums">{config.sourceLanguage} → {config.targetLanguage}</span></div>
+
+          <div className="space-y-1 rounded-md border border-border/50 bg-muted/20 p-2.5 text-[11px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">当前服务</span>
+              <span className="font-medium">
+                {config.service === "ollama"
+                  ? `Ollama (${config.ollamaModel || "未选模型"})`
+                  : "未配置"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">语言</span>
+              <span className="tabular-nums">{config.sourceLanguage} → {config.targetLanguage}</span>
+            </div>
           </div>
+
           {config.service === "disabled" ? (
-            <p className="text-amber-600 dark:text-amber-400">请在“翻译服务配置”中启用 Ollama。</p>
+            <p className="text-[11px] text-amber-600 dark:text-amber-400">
+              请在“翻译服务配置”中启用 Ollama。
+            </p>
           ) : null}
         </>
       ) : null}
 
-      {error ? <div role="alert" className="text-destructive">{error}</div> : null}
+      {error ? <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-[11px] text-destructive">{error}</div> : null}
     </div>
   )
 }

@@ -27,13 +27,14 @@ export interface PageImageProps {
   sessionId?: string
   client?: ReaderHttpClient
   superResolution?: ReaderSuperResolutionConfigDto
+  onCommittedPage?: (page: ReaderPageDto) => void
 }
 
 const NOOP_SUBSCRIBE = () => () => undefined
 const DEFAULT_COLOR_FILTER_SNAPSHOT = () => DEFAULT_READER_COLOR_FILTER
 const DEFAULT_IMAGE_TRIM_SNAPSHOT = () => undefined
 
-export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, imageTrimDetectionActive = true, presentationCropInsets, sessionId, client, superResolution }: PageImageProps) {
+export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, imageTrimDetectionActive = true, presentationCropInsets, sessionId, client, superResolution, onCommittedPage }: PageImageProps) {
   const imageRef = useRef<HTMLImageElement>(null)
   const sourceIdentity = imageIdentity(page)
   const sourceIdentityRef = useRef(sourceIdentity)
@@ -145,11 +146,15 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
             data-reader-page-image={pending ? undefined : candidate.id}
             data-reader-page-image-pending={pending ? candidate.id : undefined}
             data-reader-page-image-decoded={!pending && decodedCommittedIdentity === identity ? candidate.id : undefined}
-            style={pending ? PENDING_IMAGE_STYLE : imageStyle}
+            style={pending ? { ...imageStyle, visibility: "hidden", pointerEvents: "none" } : imageStyle}
             onLoad={(event) => {
               if (pending) {
-                void commitDecodedImage(event.currentTarget, candidate, identity, targetIdentityRef, setCommittedPage).then((committed) => {
-                  if (!committed) return
+                void decodeTargetImage(event.currentTarget, identity, targetIdentityRef).then((decoded) => {
+                  if (!decoded) return
+                  // Parent frame geometry and the visible bitmap must commit in
+                  // one React batch, especially when orientation changes.
+                  onCommittedPage?.(candidate)
+                  setCommittedPage(candidate)
                   setDecodedCommittedIdentity(identity)
                   if (identity === sourceIdentityRef.current) setDecodedSourceIdentity(identity)
                 })
@@ -217,28 +222,17 @@ function useUpscaleTarget(
   return enabled && artifact?.sourceIdentity === sourceIdentity ? artifact.page : page
 }
 
-const PENDING_IMAGE_STYLE: React.CSSProperties = {
-  position: "fixed",
-  width: 1,
-  height: 1,
-  opacity: 0,
-  pointerEvents: "none",
-}
-
 function imageIdentity(page: ReaderPageDto): string {
   return `${page.id}:${page.contentVersion}:${page.assetUrl}`
 }
 
-async function commitDecodedImage(
+async function decodeTargetImage(
   image: HTMLImageElement,
-  page: ReaderPageDto,
   identity: string,
   targetIdentityRef: React.RefObject<string>,
-  commit: React.Dispatch<React.SetStateAction<ReaderPageDto>>,
 ): Promise<boolean> {
   if (!await decodeImage(image)) return false
   if (targetIdentityRef.current !== identity) return false
-  commit(page)
   return true
 }
 

@@ -7,7 +7,7 @@
  * @migration-status partial
  * @unsupported live upscale outcome counts remain transport-pending; settings and bounded preload status are available.
  */
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 
 import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
@@ -15,6 +15,7 @@ import type {
   ReaderSuperResolutionConfigDto,
   ReaderSuperResolutionPreferencesDto,
 } from "../../../adapters/reader-http-client"
+import { EMPTY_READER_UPSCALE_PRELOAD_SNAPSHOTS, readerUpscalePreloadSnapshot, subscribeReaderUpscalePreload } from "../../reader/ReaderUpscalePreloadStore"
 import type { ReaderPanelContext } from "../registry"
 
 const DEFAULT_PREFERENCES: Required<Pick<ReaderSuperResolutionPreferencesDto, "autoUpscaleEnabled" | "preUpscaleEnabled" | "preloadPages" | "backgroundConcurrency" | "progressiveEnabled" | "progressiveDwellTimeMs" | "progressiveMaxPages">> = {
@@ -39,7 +40,7 @@ export default function ProgressiveUpscaleCard({ client, session, disabled, pane
   const [config, setConfig] = useState<ReaderSuperResolutionConfigDto>(superResolution)
   const [preferences, setPreferences] = useState<ProgressivePreferences>(DEFAULT_PREFERENCES)
   const [feedback, setFeedback] = useState<Feedback>()
-  const [countdown, setCountdown] = useState<number>()
+  const [clock, setClock] = useState(() => Date.now())
   const generationRef = useRef(0)
   const commitQueueRef = useRef(Promise.resolve())
 
@@ -69,31 +70,43 @@ export default function ProgressiveUpscaleCard({ client, session, disabled, pane
     }
   }, [client])
 
+  const sessionId = session?.sessionId ?? ""
+  const subscribePreloads = useCallback((listener: () => void) => sessionId
+    ? subscribeReaderUpscalePreload(sessionId, listener)
+    : () => undefined, [sessionId])
+  const getPreloads = useCallback(() => sessionId ? readerUpscalePreloadSnapshot(sessionId) : EMPTY_READER_UPSCALE_PRELOAD_SNAPSHOTS, [sessionId])
+  const preloads = useSyncExternalStore(subscribePreloads, getPreloads, getPreloads)
+
+  const progressive = preloads.find((snapshot) => snapshot.mode === "progressive")
   useEffect(() => {
-    if (!preferences.progressiveEnabled || !preferences.autoUpscaleEnabled || !session || disabled) {
-      setCountdown(undefined)
-      return
-    }
-    const seconds = Math.max(0, Math.ceil(preferences.progressiveDwellTimeMs / 1_000))
-    setCountdown(seconds)
-    const timer = window.setInterval(() => {
-      setCountdown((current) => current === undefined ? undefined : Math.max(0, current - 1))
-    }, 1_000)
+    if (progressive?.state !== "countdown") return
+    setClock(Date.now())
+    const timer = window.setInterval(() => setClock(Date.now()), 250)
     return () => window.clearInterval(timer)
-  }, [disabled, preferences.autoUpscaleEnabled, preferences.progressiveDwellTimeMs, preferences.progressiveEnabled, session?.frame.generation, session])
+  }, [progressive?.generation, progressive?.startedAt, progressive?.state])
 
   const totalPages = session?.book.pageCount ?? 0
-  const pendingCount = (session?.preload?.candidates.near ?? 0)
-    + (session?.preload?.candidates.ahead ?? 0)
-    + (session?.preload?.candidates.background ?? 0)
+  const pendingCount = preloads.reduce((total, snapshot) => total + snapshot.pending, 0)
+  const settledCount = preloads.reduce((total, snapshot) => total + snapshot.settled, 0)
+  const plannedCount = preloads.reduce((total, snapshot) => total + snapshot.planned, 0)
   const isAutoEnabled = preferences.autoUpscaleEnabled
-  const progressLabel = totalPages > 0 ? `0 / ${totalPages}` : "0 / 0"
+  const progressLabel = totalPages > 0 ? `${Math.min(settledCount, totalPages)} / ${totalPages}` : "0 / 0"
   const status = useMemo(() => {
     if (!preferences.progressiveEnabled || !isAutoEnabled) return undefined
-    if (countdown !== undefined && countdown > 0) return { tone: "amber", label: `${countdown}秒后触发` }
-    if (countdown === 0) return { tone: "green", label: "即将触发" }
+    if (!progressive) return { tone: "muted" as const, label: "等待调度" }
+    if (progressive.state === "countdown") {
+      const remaining = Math.max(0, Math.ceil((progressive.startedAt + preferences.progressiveDwellTimeMs - clock) / 1_000))
+      return remaining > 0 ? { tone: "amber" as const, label: `${remaining}秒后触发` } : { tone: "green" as const, label: "即将触发" }
+    }
+    if (progressive.state === "queued" || progressive.state === "running") return { tone: "cyan" as const, label: "触发中" }
+    if (progressive.state === "completed") return { tone: "green" as const, label: "已完成" }
+    if (progressive.state === "failed") return { tone: "red" as const, label: "失败" }
+    if (progressive.state === "cancelled") return { tone: "amber" as const, label: "已取消" }
+    if (progressive.state === "paused") return { tone: "amber" as const, label: "已暂停" }
+    if (progressive.state === "disabled") return { tone: "amber" as const, label: "未启用" }
+    if (progressive.state === "empty") return { tone: "muted" as const, label: "无待处理页" }
     return { tone: "muted", label: "待机" }
-  }, [countdown, isAutoEnabled, preferences.progressiveEnabled])
+  }, [clock, isAutoEnabled, preferences.progressiveDwellTimeMs, preferences.progressiveEnabled, progressive])
 
   function commit(patch: ReaderSuperResolutionPreferencesDto, next: ProgressivePreferences) {
     setPreferences(next)
@@ -185,7 +198,7 @@ export default function ProgressiveUpscaleCard({ client, session, disabled, pane
           <span className="font-mono text-xs text-emerald-600">{progressLabel}</span>
         </div>
         {pendingCount > 0 ? <div className="flex items-center justify-between"><span className="text-muted-foreground">队列中</span><span className="font-mono text-xs text-cyan-600">{pendingCount}</span></div> : null}
-        {totalPages > 0 ? <Progress value={0} className="h-1.5" aria-label="超分完成进度" /> : null}
+        {totalPages > 0 ? <Progress value={plannedCount > 0 ? (settledCount / plannedCount) * 100 : 0} className="h-1.5" aria-label="超分完成进度" /> : null}
         {status ? <div className="flex items-center justify-between"><span className="text-muted-foreground">递进状态</span><span className={`font-mono text-xs ${statusToneClass(status.tone)}`} data-upscale-progressive-status={status.tone}>{status.label}</span></div> : null}
       </div>
 
@@ -202,10 +215,11 @@ function normalizePreferences(value: ReaderSuperResolutionPreferencesDto | undef
   }
 }
 
-function statusToneClass(tone: "cyan" | "amber" | "green" | "muted"): string {
+function statusToneClass(tone: "cyan" | "amber" | "green" | "red" | "muted"): string {
   if (tone === "cyan") return "text-cyan-600"
   if (tone === "amber") return "text-amber-600"
   if (tone === "green") return "text-emerald-600"
+  if (tone === "red") return "text-destructive"
   return "text-muted-foreground"
 }
 

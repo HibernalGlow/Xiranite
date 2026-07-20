@@ -2656,6 +2656,7 @@ function folderViewConfig(overrides: Partial<ReaderFolderViewConfig> = {}): Read
     previewCount: 4,
     thumbnailWidthPercent: 20,
     bannerWidthPercent: 50,
+    tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
     penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
     emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
     details: {

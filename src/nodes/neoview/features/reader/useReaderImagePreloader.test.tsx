@@ -22,17 +22,37 @@ describe("useReaderImagePreloader", () => {
     const mark = vi.spyOn(performance, "mark").mockImplementation(() => ({}) as PerformanceMark)
     const pages = Array.from({ length: 5 }, (_, index) => page(index))
     const controls: Array<ReturnType<typeof useReaderImagePreloader>> = []
-    const view = render(<Fixture sessionId="reader-1" pages={pages} onControl={(value) => { controls.push(value) }} />)
+    const view = render(<Fixture sessionId="reader-1" pages={pages.slice(0, 1)} onControl={(value) => { controls.push(value) }} />)
 
-    await waitFor(() => expect(instances).toHaveLength(5))
-    await waitFor(() => expect(mark).toHaveBeenCalledWith(READER_PREFETCH_READY_MARK, { detail: 4 }))
+    await waitFor(() => expect(instances).toHaveLength(1))
+    await waitFor(() => expect(mark).toHaveBeenCalledWith(READER_PREFETCH_READY_MARK, { detail: 0 }))
+    expect(instances.every((image) => image.src.startsWith("http://127.0.0.1"))).toBe(true)
+    expect(instances.every((image) => image.crossOrigin === "anonymous")).toBe(true)
+    expect(instances[0]!.fetchPriority).toBe("high")
+
+    view.rerender(<Fixture sessionId="reader-1" pages={pages.slice(1, 2)} />)
+    await waitFor(() => expect(instances).toHaveLength(2))
+    await waitFor(() => expect(mark).toHaveBeenCalledWith(READER_PREFETCH_READY_MARK, { detail: 1 }))
     expect(instances[0]!.src).toBe("")
-    expect(instances.slice(1).every((image) => image.src.startsWith("http://127.0.0.1"))).toBe(true)
-
-    view.rerender(<Fixture sessionId="reader-1" pages={pages} />)
-    expect(instances).toHaveLength(5)
+    expect(instances).toHaveLength(2)
     view.rerender(<Fixture sessionId="reader-2" pages={[]} />)
     expect(instances.every((image) => image.src === "")).toBe(true)
+  })
+
+  it("[neoview.react.predecode-pixel-budget] admits only the nearest high-resolution pages", async () => {
+    const instances: FakeImage[] = []
+    vi.stubGlobal("Image", class extends FakeImage {
+      constructor() {
+        super()
+        instances.push(this)
+      }
+    })
+    vi.spyOn(performance, "mark").mockImplementation(() => ({}) as PerformanceMark)
+    const pages = Array.from({ length: 4 }, (_, index) => ({ ...page(index), dimensions: { width: 4160, height: 6240 } }))
+    render(<Fixture sessionId="reader-1" pages={pages} />)
+
+    await waitFor(() => expect(instances).toHaveLength(1))
+    await waitFor(() => expect(instances.map((image) => image.src)).toEqual([pages[0]!.assetUrl]))
   })
 
   it("[neoview.preload.cancel-session] releases speculative images without waiting for unmount", async () => {
@@ -45,7 +65,7 @@ describe("useReaderImagePreloader", () => {
     })
     let control: ReturnType<typeof useReaderImagePreloader> | undefined
     render(<Fixture sessionId="reader-1" pages={[page(1), page(2)]} onControl={(value) => { control = value }} />)
-    await waitFor(() => expect(instances).toHaveLength(2))
+    await waitFor(() => expect(instances).toHaveLength(1))
 
     control!.cancel()
 
@@ -86,8 +106,10 @@ function TelemetryFixture({ page, report }: { page: ReaderPageDto; report: (sess
 
 class FakeImage {
   src = ""
+  crossOrigin: string | null = null
   decoding: "async" | "sync" | "auto" = "auto"
   fetchPriority: "high" | "low" | "auto" = "auto"
+  loading: "eager" | "lazy" = "eager"
   decode = vi.fn(async () => undefined)
 }
 

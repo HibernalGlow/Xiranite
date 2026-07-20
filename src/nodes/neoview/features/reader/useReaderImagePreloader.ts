@@ -3,7 +3,10 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import type { ReaderPageDto, ReaderPreloadEventDto } from "../../adapters/reader-http-client"
 import { readerPreloadStatusStore } from "./ReaderPreloadStatusStore"
 
-const MAX_PREDECODED_IMAGES = 4
+const MAX_PREDECODED_IMAGES = 1
+const MAX_PREDECODED_PIXELS = 60_000_000
+const MAX_CONCURRENT_PREDECODES = 1
+const PREDECODE_START_DELAY_MS = 350
 export const READER_PREFETCH_READY_MARK = "neoview-reader-prefetch-ready"
 
 interface PreloadedImage {
@@ -14,6 +17,7 @@ interface PreloadedImage {
   generation?: number
   startedAt: number
   loadedAt?: number
+  started: boolean
   terminal: boolean
 }
 
@@ -28,6 +32,10 @@ export function useReaderImagePreloader(
   reportEvents?: (sessionId: string, generation: number, events: readonly ReaderPreloadEventDto[]) => void,
 ): ReaderImagePreloader {
   const imagesRef = useRef(new Map<string, PreloadedImage>())
+  const queueRef = useRef<string[]>([])
+  const activeRef = useRef(new Set<string>())
+  const pumpRef = useRef<() => void>(() => undefined)
+  const pumpTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const reportEventsRef = useRef(reportEvents)
   const pendingReportsRef = useRef(new Map<string, { sessionId: string; generation: number; events: ReaderPreloadEventDto[] }>())
   const reportTimerRef = useRef<ReturnType<typeof setTimeout>>()
@@ -61,13 +69,53 @@ export function useReaderImagePreloader(
     const images = imagesRef.current
     for (const [assetUrl, entry] of images) {
       if (preserveAssetUrls.has(assetUrl)) continue
-      report(entry, entry.terminal ? "evicted" : "cancelled", { activeLeases: Math.max(0, images.size - 1) })
+      if (entry.started) report(entry, entry.terminal ? "evicted" : "cancelled", { activeLeases: Math.max(0, images.size - 1) })
       entry.terminal = true
       entry.image.src = ""
       images.delete(assetUrl)
       if (sessionId) readerPreloadStatusStore.evict(sessionId, entry.pageIndex)
     }
+    queueRef.current = queueRef.current.filter((assetUrl) => images.has(assetUrl))
+    if (!queueRef.current.length && pumpTimerRef.current !== undefined) {
+      clearTimeout(pumpTimerRef.current)
+      pumpTimerRef.current = undefined
+    }
   }, [report, sessionId])
+
+  const pump = useCallback(() => {
+    const images = imagesRef.current
+    const active = activeRef.current
+    while (active.size < MAX_CONCURRENT_PREDECODES) {
+      const assetUrl = queueRef.current.shift()
+      if (!assetUrl) break
+      const entry = images.get(assetUrl)
+      if (!entry || entry.started || entry.terminal) continue
+      const image = entry.image
+      entry.started = true
+      entry.startedAt = performance.now()
+      active.add(assetUrl)
+      image.onload = () => { entry.loadedAt = performance.now() }
+      image.src = assetUrl
+      if (sessionId) readerPreloadStatusStore.begin(sessionId, entry.pageIndex)
+      report(entry, "started", { activeLeases: images.size })
+      void image.decode().then(() => {
+        if (images.get(assetUrl)?.image !== image || entry.terminal) return
+        entry.terminal = true
+        if (sessionId) readerPreloadStatusStore.ready(sessionId, entry.pageIndex)
+        report(entry, "ready", preloadMetrics(entry, images.size))
+        performance.mark(READER_PREFETCH_READY_MARK, { detail: entry.pageIndex })
+      }).catch(() => {
+        if (images.get(assetUrl)?.image !== image || entry.terminal) return
+        entry.terminal = true
+        if (sessionId) readerPreloadStatusStore.fail(sessionId, entry.pageIndex)
+        report(entry, "failed", preloadMetrics(entry, images.size))
+      }).finally(() => {
+        active.delete(assetUrl)
+        pumpRef.current()
+      })
+    }
+  }, [report, sessionId])
+  pumpRef.current = pump
 
   useEffect(() => {
     const images = imagesRef.current
@@ -81,8 +129,18 @@ export function useReaderImagePreloader(
   const preload = useCallback((pages: readonly ReaderPageDto[], generation?: number) => {
     if (typeof Image === "undefined" || !sessionId) return
     const images = imagesRef.current
-    for (const page of pages) {
-      if (page.mediaKind !== "image" || images.has(page.assetUrl)) continue
+    const admitted = admitPredecodePages(pages)
+    const admittedUrls = new Set(admitted.map((page) => page.assetUrl))
+    releaseRetained(admittedUrls)
+    for (const [pageOffset, page] of admitted.entries()) {
+      const existing = images.get(page.assetUrl)
+      if (existing) {
+        if (pageOffset === 0 && !existing.started) {
+          existing.image.fetchPriority = "high"
+          queueRef.current = [page.assetUrl, ...queueRef.current.filter((assetUrl) => assetUrl !== page.assetUrl)]
+        }
+        continue
+      }
       const image = new Image()
       const entry: PreloadedImage = {
         image,
@@ -90,43 +148,26 @@ export function useReaderImagePreloader(
         pageIndex: page.index,
         byteLength: page.byteLength,
         generation,
-        startedAt: performance.now(),
+        startedAt: 0,
+        started: false,
         terminal: false,
       }
+      // Match PageImage's CORS request mode so Chromium can reuse the same
+      // fetched and decoded image resource instead of loading the URL twice.
+      image.crossOrigin = "anonymous"
       image.decoding = "async"
-      image.fetchPriority = "low"
-      image.onload = () => { entry.loadedAt = performance.now() }
-      image.src = page.assetUrl
+      image.loading = "eager"
+      image.fetchPriority = pageOffset === 0 ? "high" : "low"
       images.set(page.assetUrl, entry)
-      readerPreloadStatusStore.begin(sessionId, page.index)
-      report(entry, "started", { activeLeases: images.size })
-      void image.decode().then(() => {
-        if (images.get(page.assetUrl)?.image !== image) return
-        entry.terminal = true
-        readerPreloadStatusStore.ready(sessionId, page.index)
-        report(entry, "ready", preloadMetrics(entry, images.size))
-        performance.mark(READER_PREFETCH_READY_MARK, { detail: page.index })
-      }).catch(() => {
-        if (images.get(page.assetUrl)?.image === image) {
-          entry.terminal = true
-          readerPreloadStatusStore.fail(sessionId, page.index)
-          report(entry, "failed", preloadMetrics(entry, images.size))
-        }
-      })
+      queueRef.current.push(page.assetUrl)
     }
-    while (images.size > MAX_PREDECODED_IMAGES) {
-      const oldestUrl = images.keys().next().value
-      if (!oldestUrl) break
-      const oldest = images.get(oldestUrl)
-      images.delete(oldestUrl)
-      if (oldest) {
-        report(oldest, oldest.terminal ? "evicted" : "cancelled", { activeLeases: Math.max(0, images.size) })
-        oldest.terminal = true
-        oldest.image.src = ""
-        readerPreloadStatusStore.evict(sessionId, oldest.pageIndex)
-      }
+    if (pumpTimerRef.current === undefined) {
+      pumpTimerRef.current = setTimeout(() => {
+        pumpTimerRef.current = undefined
+        pump()
+      }, PREDECODE_START_DELAY_MS)
     }
-  }, [report, sessionId])
+  }, [pump, releaseRetained, sessionId])
 
   const cancel = useCallback(() => {
     releaseRetained()
@@ -134,6 +175,20 @@ export function useReaderImagePreloader(
   }, [releaseRetained, sessionId])
 
   return useMemo(() => ({ preload, cancel, releaseRetained }), [cancel, preload, releaseRetained])
+}
+
+function admitPredecodePages(pages: readonly ReaderPageDto[]): ReaderPageDto[] {
+  const admitted: ReaderPageDto[] = []
+  let pixels = 0
+  for (const page of pages) {
+    if (page.mediaKind !== "image") continue
+    if (admitted.length >= MAX_PREDECODED_IMAGES) break
+    const pagePixels = page.dimensions ? page.dimensions.width * page.dimensions.height : 0
+    if (admitted.length > 0 && pagePixels > 0 && pixels + pagePixels > MAX_PREDECODED_PIXELS) break
+    admitted.push(page)
+    pixels += pagePixels
+  }
+  return admitted
 }
 
 function preloadMetrics(entry: PreloadedImage, activeLeases: number): ReaderPreloadEventDto["metrics"] {

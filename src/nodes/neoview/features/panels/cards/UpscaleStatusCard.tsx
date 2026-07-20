@@ -2,16 +2,16 @@ import { Check, ImageOff, Loader2, SkipForward, X } from "lucide-react"
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
 
 import { Switch } from "@/components/ui/switch"
-import type { ReaderUpscalePreloadSnapshotDto } from "../../../adapters/reader-http-client"
 import {
   EMPTY_READER_UPSCALE_ARTIFACT_SNAPSHOT,
   readerUpscaleArtifactSnapshot,
   subscribeReaderUpscaleArtifact,
 } from "../../reader/ReaderUpscaleArtifactStore"
+import { EMPTY_READER_UPSCALE_PRELOAD_SNAPSHOTS, readerUpscalePreloadSnapshot, subscribeReaderUpscalePreload } from "../../reader/ReaderUpscalePreloadStore"
 import type { ReaderPanelContext } from "../registry"
 import { useSuperResolutionPreferences } from "./useSuperResolutionPreferences"
 
-export default function UpscaleStatusCard({ client, session, disabled, panelActive = true, superResolution, onSuperResolutionConfigChange }: ReaderPanelContext) {
+export default function UpscaleStatusCard({ client, session, disabled, superResolution, onSuperResolutionConfigChange }: ReaderPanelContext) {
   const page = session?.visiblePages.find((candidate) => candidate.index === session.frame.anchorPageIndex) ?? session?.visiblePages[0]
   const sessionId = session?.sessionId ?? ""
   const pageId = page?.id ?? ""
@@ -21,23 +21,15 @@ export default function UpscaleStatusCard({ client, session, disabled, panelActi
     : EMPTY_READER_UPSCALE_ARTIFACT_SNAPSHOT, [pageId, sessionId])
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
   const { preferences, commit } = useSuperResolutionPreferences(client, superResolution, onSuperResolutionConfigChange)
-  const [preloads, setPreloads] = useState<readonly ReaderUpscalePreloadSnapshotDto[]>([])
+  const subscribePreloads = useCallback((listener: () => void) => sessionId
+    ? subscribeReaderUpscalePreload(sessionId, listener)
+    : () => undefined, [sessionId])
+  const getPreloads = useCallback(() => sessionId ? readerUpscalePreloadSnapshot(sessionId) : EMPTY_READER_UPSCALE_PRELOAD_SNAPSHOTS, [sessionId])
+  const preloads = useSyncExternalStore(subscribePreloads, getPreloads, getPreloads)
   const [useUpscaled, setUseUpscaled] = useState(true)
   const [zoomOpen, setZoomOpen] = useState(false)
   const [size, setSize] = useState({ width: 400, height: 450 })
   const resizeRef = useRef<{ direction: string; x: number; y: number; width: number; height: number }>()
-
-  useEffect(() => {
-    if (!panelActive || !session || !client.upscalePreloadSnapshots) return
-    const controller = new AbortController()
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const refresh = async () => {
-      try { setPreloads(await client.upscalePreloadSnapshots!(session.sessionId, controller.signal)) } catch { /* status remains last-known */ }
-      if (!controller.signal.aborted) timer = setTimeout(refresh, 2_000)
-    }
-    void refresh()
-    return () => { controller.abort(); if (timer) clearTimeout(timer) }
-  }, [client, panelActive, session])
 
   useEffect(() => () => {
     window.removeEventListener("pointermove", resizeWindow)

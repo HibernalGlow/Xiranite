@@ -73,7 +73,7 @@ import {
   toggleDirectorySelection,
   type DirectorySelectionModel,
 } from "./folder/DirectorySelection"
-import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./folder/FolderEntryPresentation"
+import { DEFAULT_FOLDER_TAG_DISPLAY, FolderEntryDisplayProvider, FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./folder/FolderEntryPresentation"
 import { FolderHoverPreview } from "./folder/FolderHoverPreview"
 import { FolderClipboardProvider, useFolderClipboard } from "./folder/FolderClipboard"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
@@ -145,6 +145,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
+  tagDisplay: DEFAULT_FOLDER_TAG_DISPLAY,
   penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
@@ -322,8 +323,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       if (sourcePath && sameFolderOrChild(catalogRef.current.path, sourcePath)) {
         focusSourceEntry(sourcePath)
       }
-    }
       return
+    }
     if (startupBrowserPathRef.current) void openBrowser(startupBrowserPathRef.current)
   }, [sourcePath])
 
@@ -1478,6 +1479,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   }
 
   return (
+    <FolderEntryDisplayProvider value={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}>
     <div
       className="flex h-full min-h-0 min-w-0 w-full flex-1 gap-2"
       data-neoview-folder-card={active || null}
@@ -1588,6 +1590,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             typeFilter={catalog?.filter ?? folderView.typeFilter ?? "library"}
             filterOptions={catalog?.filterOptions}
             showHiddenFolders={catalog?.showHiddenFolders ?? folderView.showHiddenFolders ?? false}
+            tagDisplay={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}
             penetration={penetration}
             treeOpen={treeOpen}
             canTree={Boolean(client.treeDirectoryBrowser)}
@@ -1629,6 +1632,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             onToggleSearch={() => setSearchOpen((current) => !current)}
             onChangeTypeFilter={(filter) => { void updateFilter(filter) }}
             onChangeShowHiddenFolders={(showHiddenFolders) => { void updateHiddenFolders(showHiddenFolders) }}
+            onTagDisplayChange={(tagDisplay) => { void onFolderView?.({ tagDisplay }) }}
             onTogglePenetration={(enabled) => { void updatePenetration({ enabled }) }}
             onUpdatePenetration={(patch) => { void updatePenetration(patch) }}
             onToggleTree={toggleTree}
@@ -1895,6 +1899,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         </FolderChromeLayout>
       </Suspense>
     </div>
+    </FolderEntryDisplayProvider>
   )
 }
 

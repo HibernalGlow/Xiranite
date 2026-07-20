@@ -8,7 +8,7 @@ import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { PageImage } from "./PageImage"
 import { PageVideo } from "./PageVideo"
 
-export function PageMedia({ page, rotation, scale, fallbackSize, colorFilter, imageTrim, imageTrimDetectionActive, presentationCropInsets, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVideoListEnded }: {
+export function PageMedia({ page, rotation, scale, fallbackSize, colorFilter, imageTrim, imageTrimDetectionActive, presentationCropInsets, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVideoListEnded, onCommittedPage }: {
   page: ReaderPageDto
   rotation?: ReaderRotation
   scale?: number
@@ -24,10 +24,11 @@ export function PageMedia({ page, rotation, scale, fallbackSize, colorFilter, im
   superResolution?: ReaderSuperResolutionConfigDto
   onSubtitleConfigChange?: (patch: Partial<ReaderSubtitleConfigDto>) => Promise<void>
   onVideoListEnded: () => void
+  onCommittedPage?: (page: ReaderPageDto) => void
 }) {
   return page.mediaKind === "video" ? (
     <PageVideo page={page} rotation={rotation} scale={scale} fallbackSize={fallbackSize} controller={videoController} sessionId={sessionId} client={client} media={media} imageTrim={imageTrim} presentationCropInsets={presentationCropInsets} onSubtitleConfigChange={onSubtitleConfigChange} onListEnded={onVideoListEnded} />
   ) : (
-    <PageImage page={page} rotation={rotation} scale={scale} colorFilter={colorFilter} imageTrim={imageTrim} imageTrimDetectionActive={imageTrimDetectionActive} presentationCropInsets={presentationCropInsets} sessionId={sessionId} client={client} superResolution={superResolution} />
+    <PageImage page={page} rotation={rotation} scale={scale} colorFilter={colorFilter} imageTrim={imageTrim} imageTrimDetectionActive={imageTrimDetectionActive} presentationCropInsets={presentationCropInsets} sessionId={sessionId} client={client} superResolution={superResolution} onCommittedPage={onCommittedPage} />
   )
 }

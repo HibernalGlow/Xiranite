@@ -120,7 +120,7 @@ export default defineConfig({
   },
   server: {
     watch: {
-      ignored: ["**/.cache/**", "**/build/**", "**/artifacts/**"],
+      ignored: ["**/.cache/**", "**/build/**", "**/artifacts/**", "**/native/target/**"],
     },
     hmr: process.env.VITE_XIRANITE_FRONTEND_DEV_URL
       ? {
