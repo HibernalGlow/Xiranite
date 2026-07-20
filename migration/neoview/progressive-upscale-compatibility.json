@@ -74,13 +74,16 @@
       "title": "Completed, queued and total progress",
       "sourceEvidence": [
         "src/lib/cards/upscale/ProgressiveUpscaleCard.svelte",
-        "src/lib/stackview/stores/upscaleStore.svelte.ts"
+        "src/lib/stackview/stores/upscaleStore.svelte.ts",
+        "src/lib/stackview/layers/ProgressBarLayer.svelte"
       ],
       "acceptanceItems": [
         "Upscaled-page count and total",
         "Pending plus processing task count",
         "Pending row hidden at zero",
         "Completed percentage progress bar",
+        "Viewport-bottom reading progress and upscale progress tracks",
+        "Pre-upscale extent, active glow, RTL origin and visibility controls",
         "Bounded task outcomes for settled, skipped, failed and cancelled pages"
       ],
       "mappedChecklistIds": [
@@ -148,8 +151,8 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "pending",
-        "gui": "pending",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "pending",
         "tui": "pending",
         "evidence": "partial"
@@ -158,13 +161,14 @@
         "neoview.super-resolution.preferences-config",
         "neoview.super-resolution.legacy-preferences",
         "neoview.super-resolution.legacy-settings-import",
-        "neoview.super-resolution.progressive-settings-http"
+        "neoview.super-resolution.progressive-settings-http",
+        "neoview.progressive-upscale.settings",
+        "neoview.upscale-control.settings"
       ],
       "plannedTestIds": [
-        "neoview.super-resolution.progressive-settings-gui",
         "neoview.super-resolution.progressive-settings-tui"
       ],
-      "notes": "Core parsing and legacy import exist; shared mutation transport and presentation controls remain."
+      "notes": "The React Card persists the source switches and bounded option values through the canonical config mutation transport; CLI/TUI presentation remains deferred."
     },
     {
       "id": "progressive-upscale.nearby-plan",
@@ -182,19 +186,21 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "pending",
-        "gui": "pending",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "pending",
         "tui": "pending",
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.super-resolution.preload-plan"
+        "neoview.super-resolution.preload-plan",
+        "neoview.super-resolution.gui-auto-preload",
+        "neoview.super-resolution.gui-runtime"
       ],
       "plannedTestIds": [
         "neoview.super-resolution.preload-session-integration"
       ],
-      "notes": "Application service is complete; artifact destination and Reader session transport remain."
+      "notes": "ReaderFrame starts the authenticated nearby preload endpoint for the current ReaderPreloadPlan before the target page is displayed and restarts after plan-generation changes."
     },
     {
       "id": "progressive-upscale.dwell",
@@ -211,20 +217,23 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "pending",
-        "gui": "pending",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "pending",
         "tui": "pending",
         "evidence": "partial"
       },
       "testIds": [
         "neoview.super-resolution.progressive",
-        "neoview.super-resolution.preload-generation"
+        "neoview.super-resolution.preload-generation",
+        "neoview.super-resolution.progressive-countdown-generation",
+        "neoview.super-resolution.gui-auto-preload",
+        "neoview.super-resolution.gui-runtime"
       ],
       "plannedTestIds": [
         "neoview.super-resolution.progressive-navigation-cancel"
       ],
-      "notes": "Uses node:timers/promises with AbortSignal; countdown presentation remains."
+      "notes": "The backend owns the abortable dwell and the React Card projects its real countdown/running/completed snapshot without a second execution timer."
     },
     {
       "id": "progressive-upscale.forward-bound",
@@ -241,14 +250,15 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "pending",
-        "gui": "pending",
+        "transport": "partial",
+        "gui": "complete",
         "cli": "pending",
         "tui": "pending",
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.super-resolution.progressive"
+        "neoview.super-resolution.progressive",
+        "neoview.super-resolution.gui-runtime"
       ],
       "plannedTestIds": [
         "neoview.super-resolution.progressive-end-of-book"
@@ -270,14 +280,18 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "pending",
-        "gui": "pending",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "pending",
         "tui": "pending",
         "evidence": "partial"
       },
       "testIds": [
-        "neoview.super-resolution.preload-generation"
+        "neoview.super-resolution.preload-generation",
+        "neoview.super-resolution.progressive-generation",
+        "neoview.super-resolution.progressive-countdown-generation",
+        "neoview.super-resolution.gui-auto-preload",
+        "neoview.super-resolution.gui-runtime"
       ],
       "plannedTestIds": [
         "neoview.super-resolution.preload-same-generation"
@@ -300,8 +314,8 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "pending",
-        "gui": "pending",
+        "transport": "partial",
+        "gui": "partial",
         "cli": "pending",
         "tui": "pending",
         "evidence": "partial"
@@ -333,7 +347,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "pending",
+        "gui": "partial",
         "cli": "partial",
         "tui": "pending",
         "evidence": "partial"
@@ -347,12 +361,14 @@
         "neoview.super-resolution.preload-retry",
         "neoview.super-resolution.preload-progress-http",
         "neoview.progressive-upscale.cli-connect",
-        "neoview.progressive-upscale.cli-mode"
+        "neoview.progressive-upscale.cli-mode",
+        "neoview.reader.progress-layer",
+        "neoview.super-resolution.gui-runtime"
       ],
       "plannedTestIds": [
         "neoview.super-resolution.preload-progress-gui"
       ],
-      "notes": "The service retains at most 128 session/mode records in lru-cache and exposes queued/countdown/running/completed/paused/cancelled/failed snapshots plus pause/retry over authenticated HTTP. Package remote headless and --connect CLI expose status/start/pause/retry with strict wire validation; local headless composition, TUI and GUI rendering remain pending."
+      "notes": "The service retains at most 128 session/mode records and the GUI publishes one session-scoped polling source to the Card and fixed viewport-bottom progress layer. CLI remains partial and TUI presentation remains deferred."
     },
     {
       "id": "progressive-upscale.data-contract",
@@ -371,7 +387,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "pending",
+        "gui": "partial",
         "cli": "partial",
         "tui": "pending",
         "evidence": "complete"
@@ -447,7 +463,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "pending",
         "tui": "pending",
         "evidence": "complete"
@@ -458,10 +474,13 @@
         "neoview.super-resolution.artifact-demand-cancel",
         "neoview.super-resolution.preload-http-session",
         "neoview.super-resolution.http-composition-lazy",
-        "neoview.super-resolution.provider-dispose"
+        "neoview.super-resolution.provider-dispose",
+        "neoview.super-resolution.progressive-generation",
+        "neoview.super-resolution.gui-auto-preload",
+        "neoview.super-resolution.gui-runtime"
       ],
       "plannedTestIds": [],
-      "notes": "Reader session release aborts active artifact generation and invalidates its opaque URLs; controller disposal closes the lazy capability and owned store, while an unused composition creates no directory, runtime, CLI probe or process."
+      "notes": "Reader session release and generation changes abort stale artifact/preload work; ReaderFrame reschedules the new generation and leaves background ownership in the backend."
     },
     {
       "id": "progressive-upscale.ui-parity",
@@ -477,17 +496,21 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.progressive-upscale.resident",
+        "neoview.progressive-upscale.settings",
+        "neoview.reader.progress-layer",
+        "neoview.super-resolution.gui-runtime"
+      ],
       "plannedTestIds": [
-        "neoview.progressive-upscale.gui",
         "neoview.progressive-upscale.geometry"
       ],
-      "notes": "No React Card has been implemented."
+      "notes": "The React Card preserves source controls and now renders backend countdown/outcome state; the fixed Reader layer restores reading, pre-upscale and upscale tracks with RTL and toggle semantics."
     },
     {
       "id": "progressive-upscale.accessibility",
@@ -503,16 +526,20 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
-      "testIds": [],
+      "testIds": [
+        "neoview.progressive-upscale.settings",
+        "neoview.reader.progress-layer-controls",
+        "neoview.super-resolution.gui-runtime"
+      ],
       "plannedTestIds": [
         "neoview.progressive-upscale.accessibility"
       ],
-      "notes": "Keyboard equivalence is required even though the old Card has no dedicated shortcut."
+      "notes": "Native labelled switches/selects and named progressbar roles are covered; the shared viewer actions control visibility and glow without adding a new conflicting shortcut."
     },
     {
       "id": "progressive-upscale.deviations",
@@ -530,8 +557,8 @@
       ],
       "capabilityStatus": {
         "core": "complete",
-        "transport": "pending",
-        "gui": "pending",
+        "transport": "complete",
+        "gui": "partial",
         "cli": "pending",
         "tui": "pending",
         "evidence": "complete"
@@ -544,7 +571,7 @@
         "neoview.super-resolution.artifact-streaming-rss"
       ],
       "plannedTestIds": [],
-      "notes": "The backend scheduler and cache replacements are complete and covered by repeatable tests; transport and user-visible parity remain separate pending surfaces."
+      "notes": "The backend scheduler/cache replacements and authenticated GUI start/status path are complete; CLI/TUI presentation remains separately deferred."
     }
   ]
 }

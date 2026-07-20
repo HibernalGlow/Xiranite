@@ -106,7 +106,7 @@
         "src/lib/cards/properties/EmmTagsCard.svelte",
         "src/lib/stores/infoPanel.svelte.ts"
       ],
-      "targetContract": "The canonical Reader metadata application service reads the active book's legacy emm_json and xr_ override record once, validates a bounded array of namespace/tag pairs and returns it through the authenticated session metadata transport without exposing raw SQLite rows or filesystem configuration.",
+      "targetContract": "The canonical Reader metadata application service reads the active book from the read-only external EMM database and the existing thumbnails/xr override stores, validates a bounded array of namespace/tag pairs and returns it through the authenticated session metadata transport without exposing raw SQLite rows or filesystem configuration.",
       "surfaces": ["GUI"],
       "capabilityStatus": {
         "core": "complete",
@@ -120,10 +120,14 @@
         "neoview.emm-tags.codec",
         "neoview.emm-tags.metadata",
         "neoview.emm-tags.http",
-        "neoview.emm-tags.client"
+        "neoview.emm-tags.client",
+        "neoview.emm.external-locator",
+        "neoview.emm.external-readonly",
+        "neoview.emm.external-merge",
+        "neoview.emm.external-composition"
       ],
       "plannedTestIds": [],
-      "notes": "The existing thumbnails.db remains the only NeoView business database; no Reader table or second EMM database is introduced."
+      "notes": "thumbnails.db remains the only NeoView-owned business database. The legacy EMM database.sqlite is a read-only foreign source discovered under APPDATA or supplied explicitly; XR never mutates it or creates a second NeoView main database."
     },
     {
       "id": "emm-tags.projection",

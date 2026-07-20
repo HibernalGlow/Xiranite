@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/system-monitor-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/color-filter-compatibility.json`、`migration/neoview/image-trim-compatibility.json`、`migration/neoview/page-transition-compatibility.json`、`migration/neoview/emm-tags-compatibility.json`、`migration/neoview/book-settings-compatibility.json`、`migration/neoview/thumbnail-maintenance-compatibility.json`、`migration/neoview/thumbnail-architecture-metrics-compatibility.json`、`migration/neoview/progressive-upscale-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/input-bindings-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/system-monitor-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/color-filter-compatibility.json`、`migration/neoview/image-trim-compatibility.json`、`migration/neoview/page-transition-compatibility.json`、`migration/neoview/emm-tags-compatibility.json`、`migration/neoview/book-settings-compatibility.json`、`migration/neoview/folder-ratings-compatibility.json`、`migration/neoview/favorite-tags-compatibility.json`、`migration/neoview/emm-sync-compatibility.json`、`migration/neoview/thumbnail-maintenance-compatibility.json`、`migration/neoview/thumbnail-architecture-metrics-compatibility.json`、`migration/neoview/emm-raw-data-compatibility.json`、`migration/neoview/emm-config-compatibility.json`、`migration/neoview/file-list-tag-display-compatibility.json`、`migration/neoview/progressive-upscale-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/input-bindings-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -2502,8 +2502,8 @@
 |---|---|---:|---:|---|---|---|
 | `switchToast` | 切换提示 | integration | partial | `core=C transport=C gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/SwitchToastCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `switch-toast` |
 | `sidebarControl` | 边栏控制 | integration | partial | `core=N/A transport=N/A gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/SidebarControlCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知；XR `sidebar-control` |
-| `colorFilter` | 颜色滤镜 | integration | partial | `core=P transport=P gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `color-filter` |
-| `imageTrim` | 图像裁剪 | integration | partial | `core=P transport=P gui=P cli=P tui=P evidence=P` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
+| `colorFilter` | 颜色滤镜 | integration | partial | `core=N/A transport=C gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `color-filter` |
+| `imageTrim` | 图像裁剪 | integration | partial | `core=N/A transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
 | `pageTransition` | 翻页动画 | deferred | partial | `core=C transport=C gui=C cli=P tui=- evidence=P` | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `page-transition` |
 | `animatedVideoMode` | 动图视频模式 | integration | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/AnimatedVideoModeCard.svelte` | 动图、视频、字幕和播放控制；XR `animated-video-mode` |
 | `ambientBackground` | 动态背景 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AmbientBackgroundCard.svelte` | 主题接管、阅读背景和空页面背景 |
@@ -3964,13 +3964,13 @@
 |---|---|---:|---:|---|---|---|
 | `emmTags` | EMM 标签 | integration | complete | `core=C transport=C gui=C cli=N/A tui=N/A evidence=C` | `src/lib/cards/properties/EmmTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-tags` |
 | `bookSettings` | 本书设置 | core | partial | `core=C transport=C gui=C cli=P tui=P evidence=P` | `src/lib/cards/properties/BookSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `book-settings` |
-| `folderRatings` | 文件夹平均评分 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/FolderRatingsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
-| `favoriteTags` | 收藏标签快选 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/FavoriteTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
-| `emmSync` | EMM 同步 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/EmmSyncCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
+| `folderRatings` | 文件夹平均评分 | integration | partial | `core=- transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/FolderRatingsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `folder-ratings` |
+| `favoriteTags` | 收藏标签快选 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/FavoriteTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `favorite-tags` |
+| `emmSync` | EMM 同步 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/EmmSyncCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-sync` |
 | `thumbnailArchMetrics` | 缩略图架构指标 | integration | complete | `core=C transport=C gui=C cli=N/A tui=N/A evidence=C` | `src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte` | 统一缩略图生成、持久化、数据库维护与迁移；XR `thumbnail-architecture-metrics` |
-| `emmRawData` | EMM 数据库记录 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/EmmRawDataCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
-| `emmConfig` | EMM 配置 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/EmmConfigCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
-| `fileListTagDisplay` | 文件列表标签 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/FileListTagDisplayCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
+| `emmRawData` | EMM 数据库记录 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/EmmRawDataCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-raw-data` |
+| `emmConfig` | EMM 配置 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/EmmConfigCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-config` |
+| `fileListTagDisplay` | 文件列表标签 | integration | partial | `core=N/A transport=C gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/FileListTagDisplayCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 
 #### `emmTags` EMM 标签
 
@@ -4011,11 +4011,11 @@
 
 - [x] `emm-tags.data-contract` 版本化有界 EMM 标签 DTO
   - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
-  - 目标：The canonical Reader metadata application service reads the active book's legacy emm_json and xr_ override record once, validates a bounded array of namespace/tag pairs and returns it through the authenticated session metadata transport without exposing raw SQLite rows or filesystem configuration.
+  - 目标：The canonical Reader metadata application service reads the active book from the read-only external EMM database and the existing thumbnails/xr override stores, validates a bounded array of namespace/tag pairs and returns it through the authenticated session metadata transport without exposing raw SQLite rows or filesystem configuration.
   - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.emm-tags.codec`、`neoview.emm-tags.metadata`、`neoview.emm-tags.http`、`neoview.emm-tags.client`
+  - 测试：`neoview.emm-tags.codec`、`neoview.emm-tags.metadata`、`neoview.emm-tags.http`、`neoview.emm-tags.client`、`neoview.emm.external-locator`、`neoview.emm.external-readonly`、`neoview.emm.external-merge`、`neoview.emm.external-composition`
   - 计划测试：无
-  - 备注：The existing thumbnails.db remains the only NeoView business database; no Reader table or second EMM database is introduced.
+  - 备注：thumbnails.db remains the only NeoView-owned business database. The legacy EMM database.sqlite is a read-only foreign source discovered under APPDATA or supplied explicitly; XR never mutates it or creates a second NeoView main database.
 - [x] `emm-tags.projection` 命名空间标签展平与稳定去重
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Normalize legacy object and array tag shapes into stable namespace/tag entries, preserve first-seen order, trim invalid values, merge manual overrides without duplicating case-insensitive identities and cap the result before it reaches React.
@@ -4302,24 +4302,384 @@
 
 #### `folderRatings` 文件夹平均评分
 
+- 细项清单：`migration/neoview/folder-ratings-compatibility.json`
 - [ ] 统计当前文件夹条目的评分分布与平均值
 - [ ] 区分默认评分和显式评分
 - [ ] 刷新、跳转或筛选相关条目
 - UI 基线：`src/lib/cards/properties/FolderRatingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
+##### 专用逐控件库存（5 组，27 项）
+
+- `folder-ratings-ui.summary` 缓存说明、数量和更新时间
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`、`src/lib/stores/emm/folderRating.ts`
+  - 映射：`folder-ratings.current-directory`、`folder-ratings.global-cache`、`folder-ratings.ui-parity`
+  - [ ] 说明评分来自 EMM 数据库文件夹平均评分缓存
+  - [ ] 显示 Star 图标
+  - [ ] 显示缓存条目数量
+  - [ ] 存在更新时间时显示本地化 lastUpdated
+- `folder-ratings-ui.cache-actions` 重算、导出和清除缓存
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`
+  - 映射：`folder-ratings.global-cache`、`folder-ratings.export-clear`、`folder-ratings.states`、`folder-ratings.accessibility`
+  - [ ] 重算按钮使用 RefreshCcw 图标
+  - [ ] 重算期间显示更新中并禁用
+  - [ ] 重算 tooltip 说明计算全部文件夹
+  - [ ] 导出按钮使用 Download 图标
+  - [ ] 空缓存禁用导出
+  - [ ] 导出格式为带缩进 JSON 且文件名包含时间戳
+  - [ ] 清除按钮使用 Trash2 destructive 语义
+  - [ ] 空缓存禁用清除
+  - [ ] 清除前显示确认对话框
+- `folder-ratings-ui.path-fill` 按路径补充分级评分
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`、`src/lib/stores/emm/folderRating.ts`
+  - 映射：`folder-ratings.path-fill`、`folder-ratings.states`
+  - [ ] 路径文本输入
+  - [ ] 空路径禁用补充按钮
+  - [ ] 更新中禁用补充按钮
+  - [ ] tooltip 说明根据子文件夹评分补充该路径
+- `folder-ratings-ui.current-directory` XR 当前目录有界统计
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`、`src/lib/stores/emm/folderRating.ts`
+  - 映射：`folder-ratings.current-directory`、`folder-ratings.performance`、`folder-ratings.deviations`
+  - [ ] 从当前书籍路径解析所在目录
+  - [ ] 显示当前目录平均评分
+  - [ ] 显示有评分条目数和总条目数
+  - [ ] 每页最多 256 项且总计最多 2048 项
+  - [ ] 达到上限时明确显示截断状态
+- `folder-ratings-ui.states-shell` 加载、错误、刷新和 Card 生命周期
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`
+  - 映射：`folder-ratings.states`、`folder-ratings.lifecycle`、`folder-ratings.accessibility`、`folder-ratings.ui-parity`
+  - [ ] 未打开书籍显示空态
+  - [ ] 读取书籍路径和统计目录时显示独立 loading
+  - [ ] 目录统计失败显示 alert 和重试
+  - [ ] Card 隐藏时零请求
+  - [ ] 卸载和重新激活取消旧请求并关闭私有目录 session
+
+##### 专用源码级验收项
+
+- [ ] `folder-ratings.current-directory` 当前书籍所在目录评分摘要
+  - 六维：`core=N/A transport=P gui=P cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`gui`、`evidence`
+  - 目标：Resolve the active book directory and render a bounded average plus rated/total counts from directory entry rating projections without recursively scanning from React.
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`
+  - 测试：`neoview.folder-ratings.card`、`neoview.emm-auxiliary.e2e`
+  - 计划测试：`neoview.folder-ratings.distribution`、`neoview.folder-ratings.explicit-rating`
+  - 备注：XR currently renders the average and counts, but not the legacy rating distribution or the distinction between inherited/default and explicit ratings.
+- [ ] `folder-ratings.global-cache` 全局与三级父目录评分缓存
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Recalculate the legacy global folder-rating cache, including the source-defined parent-folder aggregation boundary, and expose stable count and last-updated metadata through one canonical application service.
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`、`src/lib/stores/emm/folderRating.ts`
+  - 测试：待补
+  - 计划测试：`neoview.folder-ratings.global-cache`、`neoview.folder-ratings.parent-boundary`
+  - 备注：The private current-directory session is not a replacement for the old global cache or its parent-folder semantics.
+- [ ] `folder-ratings.export-clear` 导出和确认清除评分缓存
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Export the canonical cache as formatted JSON and clear it only after destructive confirmation, with disabled states for an empty cache.
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.folder-ratings.export`、`neoview.folder-ratings.clear-confirm`
+  - 备注：Neither export nor cache mutation is present in the current React Card.
+- [ ] `folder-ratings.path-fill` 按显式路径补充评分
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Accept a validated path and supplement its rating from child-folder values without creating a browser-owned cache or bypassing the application boundary.
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`、`src/lib/stores/emm/folderRating.ts`
+  - 测试：待补
+  - 计划测试：`neoview.folder-ratings.path-fill`
+  - 备注：The controlled path input and supplement command remain absent.
+- [ ] `folder-ratings.states` 加载、空值、截断、错误与重试
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Keep metadata loading, directory loading, no-rated-entry, bounded truncation, recoverable failure and retry states distinct while preserving the last same-directory snapshot where safe.
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`
+  - 测试：`neoview.folder-ratings.card`、`neoview.emm-cards.lifecycle`
+  - 计划测试：`neoview.folder-ratings.retry`、`neoview.folder-ratings.truncated`
+  - 备注：Current tests cover the successful current-directory flow and hidden zero work; error, retry and truncation evidence remain.
+- [ ] `folder-ratings.lifecycle` 私有目录 session 的取消与释放
+  - 六维：`core=N/A transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`evidence`
+  - 目标：Hidden Cards perform zero work; activation opens one private directory session, cancellation ignores stale results, and every success, failure or unmount path closes the session.
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`
+  - 测试：`neoview.emm-cards.lifecycle`、`neoview.folder-ratings.card`
+  - 计划测试：`neoview.folder-ratings.abort-close`
+  - 备注：The focused test proves success cleanup; an explicit abort/failure cleanup test is still required for complete evidence.
+- [ ] `folder-ratings.performance` 有界分页与零隐藏工作
+  - 六维：`core=N/A transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`evidence`
+  - 目标：Request only rating fields in 256-entry pages, stop at 2048 entries, avoid recursive UI work and perform no request while inactive.
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`
+  - 测试：`neoview.emm-cards.lifecycle`、`neoview.folder-ratings.card`
+  - 计划测试：`neoview.folder-ratings.page-bound`
+  - 备注：Implementation bounds are present; a multi-page boundary test remains.
+- [ ] `folder-ratings.accessibility` 命名状态与键盘命令
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Expose loading and result summaries through stable semantic roles and give refresh, export, clear and path-fill commands unique accessible names, keyboard operation and coherent disabled states.
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`
+  - 测试：`neoview.folder-ratings.card`
+  - 计划测试：`neoview.folder-ratings.accessibility`
+  - 备注：Refresh and status text use native controls, but the missing legacy commands and state announcements prevent completion.
+- [ ] `folder-ratings.ui-parity` 旧缓存控制密度与受限几何
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Preserve the source description/count/actions/path-input hierarchy and compact icon-button density while fitting desktop and constrained Cards without overflow.
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`
+  - 测试：`neoview.emm-auxiliary.e2e`
+  - 计划测试：`neoview.folder-ratings.legacy-characterization`、`neoview.folder-ratings.geometry`
+  - 备注：Target screenshots prove the current summary does not overflow, but the legacy action and path rows are absent and no legacy screenshot exists.
+- [ ] `folder-ratings.deviations` 记录当前目录统计替代范围
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Document that the first XR slice provides an ephemeral current-directory projection, not the legacy persistent global and parent-folder rating cache, and keep the missing commands visible as pending work.
+  - 源码：`src/lib/cards/properties/FolderRatingsCard.svelte`、`src/lib/stores/emm/folderRating.ts`
+  - 测试：`neoview.folder-ratings.card`
+  - 计划测试：`neoview.folder-ratings.legacy-characterization`、`neoview.folder-ratings.geometry`
+  - 备注：This compatibility file records the gap; it does not accept removal of the legacy cache operations.
+
 #### `favoriteTags` 收藏标签快选
 
+- 细项清单：`migration/neoview/favorite-tags-compatibility.json`
 - [ ] 显示收藏标签快捷项与计数
 - [ ] 搜索、选择和批量应用/移除标签
 - [ ] 管理收藏标签顺序和可见性
 - UI 基线：`src/lib/cards/properties/FavoriteTagsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
+##### 专用逐控件库存（6 组，34 项）
+
+- `favorite-tags-ui.manual` 手动标签区域
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`、`src/lib/stores/emm/manualTagStore.svelte.ts`
+  - 映射：`favorite-tags.manual`、`favorite-tags.interaction`、`favorite-tags.ui-parity`
+  - [ ] Tag 图标和手动标签标题按钮
+  - [ ] 点击标题刷新手动标签
+  - [ ] 显示唯一手动标签种类数
+  - [ ] 空态说明通过文件右键编辑标签
+  - [ ] 按 namespace 显示翻译和颜色
+  - [ ] 虚线边框区分手动标签
+  - [ ] 显示每个标签匹配文件数
+- `favorite-tags-ui.controls` 混合性别与刷新控制
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`、`src/lib/stores/emm/favoriteTagStore.svelte.ts`
+  - 映射：`favorite-tags.mixed-gender`、`favorite-tags.refresh`、`favorite-tags.states`
+  - [ ] 混合性别搜索 checkbox
+  - [ ] checkbox 反映 mixedGenderStore.enabled
+  - [ ] 刷新按钮使用 RefreshCcw 图标
+  - [ ] 刷新期间按钮禁用并显示旋转状态
+- `favorite-tags-ui.groups` 收藏标签分组与样式
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`、`src/lib/stores/emm/favoriteTagStore.svelte.ts`
+  - 映射：`favorite-tags.suggestions`、`favorite-tags.mixed-gender`、`favorite-tags.ui-parity`
+  - [ ] 按 category 分组并稳定排序
+  - [ ] 分组标题使用 category color
+  - [ ] 显示每组标签数
+  - [ ] 标签显示翻译后的短标签文本
+  - [ ] 圆点使用标签颜色
+  - [ ] mixed variant 使用虚线和低透明度
+  - [ ] 列表最大高度 300px 并纵向滚动
+- `favorite-tags-ui.interaction` 标签加入与排除交互
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`
+  - 映射：`favorite-tags.interaction`、`favorite-tags.accessibility`
+  - [ ] interactive=false 时标签不触发搜索修改
+  - [ ] 左键以空 modifier 加入标签
+  - [ ] 右键以减号 modifier 排除标签
+  - [ ] 手动标签生成规范 namespace 查询值
+  - [ ] tooltip 说明原查询值和左右键语义
+- `favorite-tags-ui.states` 空、加载、错误与刷新状态
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`
+  - 映射：`favorite-tags.states`、`favorite-tags.lifecycle`
+  - [ ] 无手动标签空态
+  - [ ] 无收藏标签空态
+  - [ ] 加载状态不伪装为空
+  - [ ] 失败状态显示 alert 和重试
+  - [ ] 隐藏或卸载取消请求
+- `favorite-tags-ui.footer-shell` 入口说明和 Card shell
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`、`src/lib/cards/registry.ts`
+  - 映射：`favorite-tags.management`、`favorite-tags.lifecycle`、`favorite-tags.ui-parity`
+  - [ ] 底部说明在文件夹面板使用收藏标签入口
+  - [ ] Card 默认位于 properties Panel
+  - [ ] 允许隐藏、折叠、移动、调整高度和独立窗口
+  - [ ] 内容作为独立 lazy Card 加载
+  - [ ] 窄 Card 标签换行且无横向溢出
+  - [ ] 收藏标签顺序和可见性通过唯一配置持久化
+
+##### 专用源码级验收项
+
+- [ ] `favorite-tags.suggestions` 有界收藏和常用标签建议
+  - 六维：`core=P transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`core`、`transport`、`evidence`
+  - 目标：Load at most 32 canonical tag suggestions, preserve namespace/tag identity, expose optional translations and favorite markers and render a bounded wrapping list.
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`、`src/lib/stores/emm/favoriteTagStore.svelte.ts`
+  - 测试：`neoview.favorite-tags.card`、`neoview.emm-auxiliary.e2e`
+  - 计划测试：`neoview.favorite-tags.boundary`
+  - 备注：The current slice is a read-only suggestion projection and does not imply the remaining legacy management or interaction controls.
+- [ ] `favorite-tags.manual` 全局唯一手动标签区域
+  - 六维：`core=P transport=P gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：List unique manual tags with namespace, translation, color and matching-file counts, refresh them explicitly and keep their dashed visual identity distinct from EMM favorites.
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`、`src/lib/stores/emm/manualTagStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.favorite-tags.manual`
+  - 备注：Manual tags exist in the shared EMM domain, but this Card does not request or render the legacy manual-tag section.
+- [ ] `favorite-tags.mixed-gender` 性别命名空间混合变体
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Persist the mixed-gender toggle and generate deduplicated female, male and mixed namespace variants with stable query identities and distinct visual treatment.
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`、`src/lib/stores/emm/favoriteTagStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.favorite-tags.mixed-gender`
+  - 备注：The current Card has no mixed-gender control or variant generation.
+- [ ] `favorite-tags.interaction` 加入和排除标签搜索
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：When hosted in an interactive search surface, left click includes and context-menu/right click excludes the selected canonical tag; read-only property hosting must not mutate a query.
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.favorite-tags.interaction`、`neoview.favorite-tags.context-exclude`
+  - 备注：Current list items are non-interactive and do not apply or remove filters.
+- [ ] `favorite-tags.management` 收藏标签顺序和可见性管理
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Search, select, batch apply/remove, reorder and toggle visibility through one canonical persisted favorite-tag configuration without browser-only state.
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`、`src/lib/stores/emm/favoriteTagStore.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.favorite-tags.management`
+  - 备注：The current suggestion endpoint and Card expose no mutation contract.
+- [ ] `favorite-tags.refresh` 从当前 EMM 源重新读取
+  - 六维：`core=N/A transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`evidence`
+  - 目标：Refresh the bounded suggestion projection, disable duplicate refresh work and retain explicit recoverable failure feedback.
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`
+  - 测试：`neoview.favorite-tags.card`
+  - 计划测试：`neoview.favorite-tags.retry`
+  - 备注：Success is covered; duplicate-click disabled state and failed retry still need focused evidence.
+- [ ] `favorite-tags.states` 加载、空、错误和重试
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Keep initial loading, empty suggestions, stale-safe refresh, recoverable error and retry states distinct without leaking a previous source snapshot.
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`
+  - 测试：`neoview.favorite-tags.card`、`neoview.emm-cards.lifecycle`
+  - 计划测试：`neoview.favorite-tags.states`
+  - 备注：Implementation has loading, empty and retry states; focused state-transition coverage remains.
+- [ ] `favorite-tags.lifecycle` 隐藏零请求和取消
+  - 六维：`core=N/A transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`evidence`
+  - 目标：Do no work while inactive, issue one bounded request on activation and abort or ignore stale completion on refresh, deactivation or unmount.
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`
+  - 测试：`neoview.emm-cards.lifecycle`、`neoview.favorite-tags.card`
+  - 计划测试：`neoview.favorite-tags.abort`
+  - 备注：Hidden zero work is covered; explicit late-completion cancellation remains planned.
+- [ ] `favorite-tags.accessibility` 标签列表与交互命令语义
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Expose named manual and favorite tag groups, preserve original namespace/tag identity for translated labels and provide keyboard equivalents for include, exclude and refresh actions.
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`
+  - 测试：`neoview.favorite-tags.card`
+  - 计划测试：`neoview.favorite-tags.accessibility`
+  - 备注：The current list has a programmatic label and native refresh button; include/exclude keyboard semantics and grouped labels remain absent.
+- [ ] `favorite-tags.ui-parity` 分组、颜色、密度和受限几何
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Preserve the manual/favorite section hierarchy, category headers, colored dots and borders, compact counts, 300px scroll bound and interactive affordances while wrapping without overflow.
+  - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`
+  - 测试：`neoview.emm-auxiliary.e2e`
+  - 计划测试：`neoview.favorite-tags.legacy-characterization`、`neoview.favorite-tags.geometry`
+  - 备注：Desktop and 420px target geometry exist, but the current flat list omits most source hierarchy and no legacy screenshot exists.
+
 #### `emmSync` EMM 同步
 
+- 细项清单：`migration/neoview/emm-sync-compatibility.json`
 - [ ] 配置并执行当前书籍/目录 EMM 同步
 - [ ] 显示扫描、匹配、写入、跳过和错误进度
 - [ ] 支持取消、重试和冲突策略
 - UI 基线：`src/lib/cards/properties/EmmSyncCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（5 组，27 项）
+
+- `emm-sync-ui.wrapper` 旧 Card 委托边界
+  - 源码：`src/lib/cards/properties/EmmSyncCard.svelte`
+  - 映射：`emm-sync.inventory`、`emm-sync.ui-parity`
+  - [ ] 属性 Card 只委托给 EmmSync 子组件
+  - [ ] 子组件 DOM、控件和状态必须另行冻结
+  - [ ] Card 保持 properties Panel shell 行为
+- `emm-sync-ui.source` 外部 EMM 数据源状态
+  - 源码：`src/lib/components/panels/emm/EmmSyncCard.svelte`、`src/lib/services/emmSyncService.ts`
+  - 映射：`emm-sync.direct-source`、`emm-sync.states`、`emm-sync.deviations`
+  - [ ] 自动发现默认 EMM database.sqlite
+  - [ ] 支持显式数据库路径
+  - [ ] 显示外部源可用或当前书籍未匹配
+  - [ ] 数据库失败不伪装为无记录
+  - [ ] 外部数据库保持只读
+- `emm-sync-ui.progress` 旧扫描和写入进度
+  - 源码：`src/lib/components/panels/emm/EmmSyncCard.svelte`、`src/lib/services/emmSyncService.ts`
+  - 映射：`emm-sync.legacy-operation`、`emm-sync.states`
+  - [ ] 选择当前书籍或目录同步范围
+  - [ ] 显示扫描数量
+  - [ ] 显示匹配数量
+  - [ ] 显示写入数量
+  - [ ] 显示跳过数量
+  - [ ] 显示错误数量和详细错误
+  - [ ] 显示运行中和完成状态
+- `emm-sync-ui.commands` 执行、取消、重试和冲突策略
+  - 源码：`src/lib/components/panels/emm/EmmSyncCard.svelte`、`src/lib/services/emmSyncService.ts`
+  - 映射：`emm-sync.refresh`、`emm-sync.legacy-operation`、`emm-sync.conflicts`
+  - [ ] 开始同步命令
+  - [ ] 运行中禁用重复开始
+  - [ ] 取消进行中的同步
+  - [ ] 失败后重试
+  - [ ] 选择或显示冲突策略
+  - [ ] 重新读取当前实时外部投影
+- `emm-sync-ui.lifecycle-shell` 加载、错误、隐藏和 Card shell
+  - 源码：`src/lib/cards/properties/EmmSyncCard.svelte`、`src/lib/cards/registry.ts`
+  - 映射：`emm-sync.states`、`emm-sync.lifecycle`、`emm-sync.ui-parity`、`emm-sync.deviations`
+  - [ ] 未打开书籍显示独立空态
+  - [ ] 检查数据源时显示 loading
+  - [ ] 失败显示 alert 和重试
+  - [ ] 隐藏或卸载取消请求
+  - [ ] 独立 lazy Card 在窄宽度无溢出
+  - [ ] 实时读取说明不暗示已写入 thumbnails.db
+
+##### 专用源码级验收项
+
+- [ ] `emm-sync.inventory` 冻结委托子组件的完整逐控件清单
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Extend the reproducible AST review beyond the one-line wrapper so every delegated sync control, conditional block, event and unsupported node is frozen before full migration claims.
+  - 源码：`src/lib/cards/properties/EmmSyncCard.svelte`、`src/lib/components/panels/emm/EmmSyncCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.emm-sync.ast-inventory`
+  - 备注：The current generated prototype records only the wrapper import and is insufficient evidence for the delegated legacy UI.
+- [ ] `emm-sync.direct-source` 实时外部 EMM 只读数据源
+  - 六维：`core=P transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`core`、`transport`、`evidence`
+  - 目标：Discover or explicitly configure the existing EMM database.sqlite, read Mangas rows by normalized source path in read-only mode and merge missing values behind the canonical Reader metadata service without copying them into thumbnails.db.
+  - 源码：`src/lib/services/emmSyncService.ts`、`src/lib/stores/emmMetadata.svelte.ts`
+  - 测试：`neoview.emm-sync.direct-source`
+  - 计划测试：`neoview.emm.external-locator`、`neoview.emm.external-readonly`、`neoview.emm.external-merge`、`neoview.emm.external-composition`、`neoview.emm-sync.default-appdata-e2e`
+  - 备注：The external EMM database is a foreign read-only source. thumbnails.db remains the NeoView compatibility store, xr overrides keep precedence, and xiranite.db receives no Reader business tables.
+- [ ] `emm-sync.refresh` 重新读取当前书籍投影
+  - 六维：`core=N/A transport=P gui=P cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`gui`、`evidence`
+  - 目标：Explicitly invalidate the current static metadata request and re-read the external projection with loading, error and duplicate-action protection.
+  - 源码：`src/lib/cards/properties/EmmSyncCard.svelte`
+  - 测试：`neoview.emm-sync.direct-source`
+  - 计划测试：`neoview.emm-sync.refresh`、`neoview.emm-sync.refresh-error`
+  - 备注：A reread button exists, but focused duplicate-click and failed refresh coverage is missing.
+- [ ] `emm-sync.legacy-operation` 扫描、匹配、写入、跳过和进度
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：If retained, execute current-book or directory synchronization through a bounded canonical service and expose scan, match, write, skip, error and completion progress without browser-owned database access.
+  - 源码：`src/lib/components/panels/emm/EmmSyncCard.svelte`、`src/lib/services/emmSyncService.ts`
+  - 测试：待补
+  - 计划测试：`neoview.emm-sync.operation`、`neoview.emm-sync.progress`
+  - 备注：The current Card does not perform a legacy synchronization job. This item may be removed only by an explicitly accepted replacement decision.
+- [ ] `emm-sync.conflicts` 取消、重试和冲突策略
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：A retained write operation must support cancellation, recoverable retry and a documented conflict policy while leaving the external EMM database and old NeoView tables unmodified.
+  - 源码：`src/lib/components/panels/emm/EmmSyncCard.svelte`、`src/lib/services/emmSyncService.ts`
+  - 测试：待补
+  - 计划测试：`neoview.emm-sync.cancel`、`neoview.emm-sync.conflict`
+  - 备注：No sync job currently exists, so job cancellation and conflicts remain unresolved rather than silently not-applicable.
+- [ ] `emm-sync.states` 未打开、检查中、未匹配、已连接和错误
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Distinguish no active book, source check, matched record, unmatched record, source unavailable and recoverable transport failure without presenting an empty projection as successful synchronization.
+  - 源码：`src/lib/cards/properties/EmmSyncCard.svelte`
+  - 测试：`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
+  - 计划测试：`neoview.emm-sync.states`
+  - 备注：Matched and common error/loading states exist; source-unavailable versus unmatched diagnostics are not yet independently represented.
+- [ ] `emm-sync.lifecycle` 静态元数据共享与隐藏取消
+  - 六维：`core=N/A transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`evidence`
+  - 目标：Share one static metadata request with sibling consumers, perform zero work while inactive and cancel or ignore stale completion on deactivation, session replacement and unmount.
+  - 源码：`src/lib/cards/properties/EmmSyncCard.svelte`
+  - 测试：`neoview.emm-cards.lifecycle`、`neoview.emm-sync.direct-source`
+  - 计划测试：`neoview.emm-sync.session-replace`
+  - 备注：The current test proves hidden zero work and request sharing with Raw Data; explicit session replacement remains.
+- [ ] `emm-sync.ui-parity` 旧同步层级与响应式几何
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Preserve the source sync hierarchy, status language, progress and command density at desktop and constrained widths, or document the accepted status-only replacement against a legacy screenshot.
+  - 源码：`src/lib/cards/properties/EmmSyncCard.svelte`、`src/lib/components/panels/emm/EmmSyncCard.svelte`
+  - 测试：`neoview.emm-auxiliary.e2e`
+  - 计划测试：`neoview.emm-sync.legacy-characterization`、`neoview.emm-sync.geometry`
+  - 备注：Target desktop and 420px geometry exists, but the old delegated component is not characterized and its progress UI is absent.
+- [ ] `emm-sync.deviations` 记录实时读取替代预同步缓存
+  - 六维：`core=P transport=P gui=P cli=N/A tui=N/A evidence=P`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Document that XR resolves current EMM fields directly from the external read-only database and therefore does not require a preliminary copy into thumbnails.db, while separately deciding the fate of legacy explicit batch-sync commands.
+  - 源码：`src/lib/cards/properties/EmmSyncCard.svelte`、`src/lib/services/emmSyncService.ts`
+  - 测试：`neoview.emm-sync.direct-source`
+  - 计划测试：`neoview.emm.external-composition`、`neoview.emm-sync.replacement-acceptance`
+  - 备注：Realtime read is implemented and non-destructive. Removal of legacy job controls is recorded but not yet treated as an accepted complete migration.
 
 #### `thumbnailArchMetrics` 缩略图架构指标
 
@@ -4448,24 +4808,274 @@
 
 #### `emmRawData` EMM 数据库记录
 
+- 细项清单：`migration/neoview/emm-raw-data-compatibility.json`
 - [ ] 查看当前条目的原始 EMM 数据库字段和 JSON
 - [ ] 切换格式化/原始视图并复制数据
 - [ ] 刷新并清楚区分只读字段和可编辑入口
 - UI 基线：`src/lib/cards/properties/EmmRawDataCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
+##### 专用逐控件库存（5 组，35 项）
+
+- `emm-raw-data-ui.fields` 原始字段库存和标签
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 映射：`emm-raw-data.raw-record`、`emm-raw-data.projection`、`emm-raw-data.formatting`
+  - [ ] 读取 emmMetadata.raw 的非空字段
+  - [ ] 字段按 key 稳定排序
+  - [ ] bundleSize/category/coverHash/coverPath 字段元数据
+  - [ ] createdAt/updatedAt/mtime 日期字段元数据
+  - [ ] exist/filecount/filepath/filesize/hash 字段元数据
+  - [ ] hiddenBook/id/mark/pageCount/posted/readCount 字段元数据
+  - [ ] title/title_jpn/type/url/rating/status/date 字段元数据
+  - [ ] 未知字段回退原 key 和 string 类型
+- `emm-raw-data-ui.filter-sort` 过滤、排序和计数
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 映射：`emm-raw-data.filter`、`emm-raw-data.sort`、`emm-raw-data.ui-parity`
+  - [ ] 字段和值共用大小写不敏感过滤
+  - [ ] 过滤输入保持紧凑高度
+  - [ ] 显示原始记录总条数
+  - [ ] 字段和值表头可排序
+  - [ ] 过滤和排序不改变原始 DTO
+- `emm-raw-data-ui.formatting` 按字段类型格式化
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 映射：`emm-raw-data.formatting`、`emm-raw-data.accessibility`
+  - [ ] 文件大小按 B/KB/MB/GB 格式化
+  - [ ] rating 保留一位小数
+  - [ ] datetime 使用本地时间
+  - [ ] timestamp 按秒转换本地时间
+  - [ ] boolean 显示是或否
+  - [ ] 无效值保留原始文本
+  - [ ] tooltip 保留完整 key 和 value
+- `emm-raw-data-ui.actions` 路径、URL、复制和视图动作
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 映射：`emm-raw-data.actions`、`emm-raw-data.view-copy`、`emm-raw-data.accessibility`
+  - [ ] path 字段使用可操作按钮在文件管理器定位
+  - [ ] url 字段使用可操作按钮打开外部链接
+  - [ ] 切换格式化和原始 JSON 视图
+  - [ ] 复制单个字段值
+  - [ ] 复制完整原始记录
+  - [ ] 显式刷新当前记录
+  - [ ] 只读字段与可编辑入口清晰区分
+- `emm-raw-data-ui.states-shell` 空、加载、错误、生命周期和几何
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`、`src/lib/cards/registry.ts`
+  - 映射：`emm-raw-data.states`、`emm-raw-data.lifecycle`、`emm-raw-data.ui-parity`、`emm-raw-data.accessibility`
+  - [ ] 当前条目无 EMM 记录显示独立空态
+  - [ ] 加载状态不伪装为无记录
+  - [ ] 失败显示 alert 和显式重试
+  - [ ] 隐藏或卸载取消请求
+  - [ ] 表格最大高度 192px 并滚动
+  - [ ] 字段列和值列保持紧凑密度
+  - [ ] 长值截断且完整值可访问
+  - [ ] 窄 Card 无横向溢出
+
+##### 专用源码级验收项
+
+- [ ] `emm-raw-data.raw-record` 有界原始 EMM 记录 DTO
+  - 六维：`core=P transport=P gui=P cli=N/A tui=N/A evidence=P`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Expose a bounded, versioned and read-only projection of the matched external Mangas row with explicit field types, omission rules and source identity through the authenticated Reader metadata boundary.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 测试：`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
+  - 计划测试：`neoview.emm.external-readonly`、`neoview.emm-raw-data.dto`、`neoview.emm-raw-data.boundary`
+  - 备注：The current Card receives only filepath, translatedTitle, pageCount, tagCount and flattened tags. It does not expose the original SQLite row and must not be labelled complete raw-data parity.
+- [ ] `emm-raw-data.projection` Reader 已验证字段投影
+  - 六维：`core=N/A transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`evidence`
+  - 目标：Render only validated current-book fields and bounded tag rows, omit undefined values and keep filtering pure without parsing arbitrary database JSON in React.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 测试：`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
+  - 计划测试：`neoview.emm-raw-data.projection-bound`
+  - 备注：This is a deliberate safe first slice, separate from the pending raw-record contract.
+- [ ] `emm-raw-data.filter` 字段和值过滤
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 目标：Filter the visible bounded rows by case-insensitive key or value text without mutating source order or issuing a new backend request.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 测试：`neoview.emm-sync.direct-source`
+  - 计划测试：`neoview.emm-raw-data.filter-empty`
+  - 备注：The focused test proves a matching filter removes unrelated rows.
+- [ ] `emm-raw-data.sort` 字段和值排序
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Provide stable keyboard-operable sorting for key and value columns while retaining canonical source identity.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.emm-raw-data.sort`
+  - 备注：The current plain table has no sortable headers.
+- [ ] `emm-raw-data.formatting` 字段标签和类型格式化
+  - 六维：`core=N/A transport=P gui=- cli=N/A tui=N/A evidence=-`；阻塞：`transport`、`gui`、`evidence`
+  - 目标：Apply the source field-label map and deterministic path, URL, datetime, timestamp, byte-size, number and boolean formatting while preserving raw values in accessible descriptions.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.emm-raw-data.formatting`
+  - 备注：Current values are plain strings and the source field metadata map has not been restored.
+- [ ] `emm-raw-data.view-copy` 格式化/原始视图与复制
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Switch between the formatted table and bounded raw JSON, copy a field or the complete record and report clipboard failures without exposing unbounded database content.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.emm-raw-data.raw-view`、`neoview.emm-raw-data.copy`
+  - 备注：These checklist requirements are not present in the current React Card.
+- [ ] `emm-raw-data.actions` 路径、URL 与显式刷新动作
+  - 六维：`core=P transport=P gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Use authenticated host capabilities for path reveal, safe external URL opening and explicit metadata refresh with capability-aware disabled and error states.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.emm-raw-data.path-action`、`neoview.emm-raw-data.url-action`、`neoview.emm-raw-data.refresh`
+  - 备注：The source direct FileSystemAPI/window calls are not copied into React; equivalent host commands remain to be wired.
+- [ ] `emm-raw-data.states` 加载、无记录、错误与重试
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Distinguish no active book, loading, no matched record, empty raw row, recoverable failure, retry and filtered-empty states without leaking stale data across sessions.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 测试：`neoview.emm-cards.lifecycle`、`neoview.emm-sync.direct-source`
+  - 计划测试：`neoview.emm-raw-data.states`、`neoview.emm-raw-data.retry`
+  - 备注：Loading, missing record and alert exist; the current error has no retry command and filtered-empty is not separately described.
+- [ ] `emm-raw-data.lifecycle` 共享静态元数据与隐藏取消
+  - 六维：`core=N/A transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`evidence`
+  - 目标：Share one static metadata request with sibling Cards, perform zero hidden work and cancel or ignore stale results on deactivation, session replacement or unmount.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 测试：`neoview.emm-cards.lifecycle`、`neoview.emm-sync.direct-source`
+  - 计划测试：`neoview.emm-raw-data.session-replace`
+  - 备注：Hidden zero work and request sharing are covered; explicit session replacement remains planned.
+- [ ] `emm-raw-data.accessibility` 表格、过滤和字段动作语义
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Expose a named filter, semantic table headers, full key/value text for truncated cells and keyboard-operable sorting, copy, path, URL, refresh and retry commands.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 测试：`neoview.emm-sync.direct-source`
+  - 计划测试：`neoview.emm-raw-data.accessibility`
+  - 备注：The current filter and table are named, but sorting and field commands do not exist and full values rely only on title attributes.
+- [ ] `emm-raw-data.ui-parity` 紧凑表格和受限 Card 几何
+  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 目标：Preserve the compact filter/count/table hierarchy, sticky header, bounded scrolling, typed cell affordances and full-value tooltips without horizontal overflow at desktop and constrained widths.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
+  - 测试：`neoview.emm-auxiliary.e2e`
+  - 计划测试：`neoview.emm-raw-data.legacy-characterization`、`neoview.emm-raw-data.geometry`
+  - 备注：Target screenshots prove no overflow, but source typed cells and a legacy baseline are missing.
+- [ ] `emm-raw-data.deviations` 记录安全投影不是原始 SQLite 行
+  - 六维：`core=P transport=P gui=P cli=N/A tui=N/A evidence=P`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Keep the current verified Reader projection explicitly labelled as a bounded first slice; do not expose arbitrary SQLite rows to the browser or claim raw-record parity until a reviewed DTO exists.
+  - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 测试：`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
+  - 计划测试：`neoview.emm-raw-data.replacement-acceptance`
+  - 备注：The deviation is documented, but it is not accepted as removal of the legacy complete raw-field view.
+
 #### `emmConfig` EMM 配置
 
+- 细项清单：`migration/neoview/emm-config-compatibility.json`
 - [ ] 配置 EMM 数据库/setting 路径和启用状态
 - [ ] 配置评分、收藏与标签解析规则
 - [ ] 测试连接、显示兼容性并保存/重置
 - UI 基线：`src/lib/cards/properties/EmmConfigCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
+##### 专用逐控件库存（3 组，11 项）
+
+- `emm-config-ui.source` EMM 数据源路径
+  - 源码：`src/lib/cards/properties/EmmConfigCard.svelte`、`src/lib/components/panels/emm/EmmConfigCard.svelte`
+  - 映射：`emm-config.persistence`
+  - [ ] 启用或禁用外部 EMM 数据源
+  - [ ] 配置一个或多个 database.sqlite 路径
+  - [ ] 配置 setting.json 与标签翻译字典路径
+  - [ ] 恢复 APPDATA 自动发现
+- `emm-config-ui.states` 加载、保存、失败与重启状态
+  - 源码：`src/lib/components/panels/emm/EmmConfigCard.svelte`
+  - 映射：`emm-config.states`、`emm-config.lifecycle`
+  - [ ] 加载时显示占位状态
+  - [ ] 保存中禁用重复操作
+  - [ ] 失败使用可访问 alert
+  - [ ] 路径变更明确提示后端重启边界
+- `emm-config-ui.connection` 连接与兼容性验证
+  - 源码：`src/lib/components/panels/emm/EmmConfigCard.svelte`
+  - 映射：`emm-config.live-reconfigure`
+  - [ ] 测试数据库存在与 Mangas schema 兼容性
+  - [ ] 显示实际命中来源和只读状态
+  - [ ] 路径切换后重新组合当前 Reader EMM store
+
+##### 专用源码级验收项
+
+- [ ] `emm-config.persistence` 规范化 EMM 路径配置与 TOML 持久化
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 目标：Persist enabled, bounded database paths, optional setting path and optional translation path in [nodes.neoview.emm], retaining APPDATA auto-discovery when paths are empty and never writing Reader business tables to xiranite.db.
+  - 源码：`src/lib/cards/properties/EmmConfigCard.svelte`、`src/lib/components/panels/emm/EmmConfigCard.svelte`
+  - 测试：`neoview.emm-config.runtime`、`neoview.emm-config.card`、`neoview.emm.config-composition`
+  - 计划测试：`neoview.emm-config.toml-roundtrip`
+  - 备注：The external database remains a read-only foreign source; empty database_paths means automatic discovery under APPDATA.
+- [ ] `emm-config.states` 加载、保存、恢复默认和失败反馈
+  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 目标：Load once when active, disable duplicate writes, keep the draft after failure, expose alert/status feedback and restore the canonical automatic-discovery defaults.
+  - 源码：`src/lib/components/panels/emm/EmmConfigCard.svelte`
+  - 测试：`neoview.emm-config.card`
+  - 计划测试：`neoview.emm-config.failure`
+  - 备注：Successful path changes are honest about requiring Reader backend restart until live store replacement is implemented.
+- [ ] `emm-config.live-reconfigure` 连接测试与运行时数据源切换
+  - 六维：`core=- transport=- gui=P cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Validate file existence and Mangas compatibility through a bounded backend probe, then atomically replace the current read-only EMM composition without exposing SQLite to React or leaking old handles.
+  - 源码：`src/lib/components/panels/emm/EmmConfigCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.emm-config.connection`、`neoview.emm-config.live-reconfigure`
+  - 备注：The current Card persists valid configuration and documents restart semantics; it does not claim live connection testing.
+- [ ] `emm-config.lifecycle` 隐藏零请求与取消迟到配置加载
+  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 目标：Perform no request while hidden, abort config loading on deactivation or unmount and keep persistence writes serialized by the shared config endpoint.
+  - 源码：`src/lib/cards/properties/EmmConfigCard.svelte`
+  - 测试：`neoview.emm-config.lifecycle`、`neoview.emm-config.card`
+  - 计划测试：`neoview.emm-config.abort`
+  - 备注：No polling, filesystem access or SQLite work is added to the browser.
+
 #### `fileListTagDisplay` 文件列表标签
 
+- 细项清单：`migration/neoview/file-list-tag-display-compatibility.json`
 - [ ] 选择文件浏览各视图显示的 EMM/manual/AI 标签
 - [ ] 配置数量、命名空间、截断和 tooltip
 - [ ] 实时预览并持久化显示规则
 - UI 基线：`src/lib/cards/properties/FileListTagDisplayCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（3 组，10 项）
+
+- `file-list-tag-display-ui.location` File Card 更多菜单替代入口
+  - 源码：`src/lib/cards/properties/FileListTagDisplayCard.svelte`、`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
+  - 映射：`file-list-tag-display.replacement`
+  - [ ] 不注册独立 FileListTagDisplay Card
+  - [ ] 在 File Card 更多菜单提供文件信息显示子菜单
+  - [ ] 设置作用于所有文件列表与网格视图
+- `file-list-tag-display-ui.controls` 评分、收藏数、标签、数量和 tooltip
+  - 源码：`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
+  - 映射：`file-list-tag-display.settings`、`file-list-tag-display.rendering`
+  - [ ] 独立显示或隐藏评分
+  - [ ] 独立显示或隐藏收藏标签数
+  - [ ] 显示或隐藏 EMM/manual/AI 标签
+  - [ ] 限制标签数量并选择是否显示完整值 tooltip
+- `file-list-tag-display-ui.sources` 标签来源与命名空间
+  - 源码：`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
+  - 映射：`file-list-tag-display.sources`
+  - [ ] 按 EMM/manual/AI 来源筛选
+  - [ ] 按命名空间筛选
+  - [ ] 缺失来源身份时不伪造分类
+
+##### 专用源码级验收项
+
+- [ ] `file-list-tag-display.replacement` 以 File Card 更多菜单替代独立 Card
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 目标：Do not register another properties Card; place the display policy under File Card > More and consume it through the existing shared entry renderer.
+  - 源码：`src/lib/cards/properties/FileListTagDisplayCard.svelte`、`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
+  - 测试：`neoview.folder.tag-display-menu`
+  - 计划测试：`neoview.folder.tag-display-e2e`
+  - 备注：This replacement is explicitly requested and avoids a remote settings Card disconnected from the affected File Card.
+- [ ] `file-list-tag-display.settings` 单一 folder.tag_display 持久化契约
+  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 目标：Persist showRating, showCollectTagCount, showTags, maxTags and showTooltips under [nodes.neoview.folder.tag_display] with bounded validation and no browser-local duplicate state.
+  - 源码：`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
+  - 测试：`neoview.folder.tag-display-config`、`neoview.folder.tag-display-menu`
+  - 计划测试：无
+  - 备注：The same ReaderRuntimeConfig folderView mutation path used by the File Card owns persistence.
+- [ ] `file-list-tag-display.rendering` 共享条目渲染限制数量和 tooltip
+  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 目标：Apply the policy in the shared FolderEntryMetadata renderer so compact, list, cover, mosaic and grid entries receive the same bounded tag count and tooltip behavior without new per-row subscriptions.
+  - 源码：`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
+  - 测试：`neoview.folder.tag-display-render`
+  - 计划测试：`neoview.folder.tag-display-views`
+  - 备注：One React context value is read by row renderers; no global listener or metadata refetch is introduced.
+- [ ] `file-list-tag-display.sources` EMM/manual/AI 来源与命名空间筛选
+  - 六维：`core=N/A transport=C gui=P cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Filter tags by explicit source and namespace identity only when the canonical directory DTO carries those identities; do not infer source from free-form text.
+  - 源码：`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.folder.tag-display-sources`
+  - 备注：The current DTO exposes a combined tag list, so the replacement deliberately leaves per-source and per-namespace filtering partial.
 
 ### Panel: `upscale`（6）
 
@@ -4476,7 +5086,7 @@
 | `upscaleStatus` | 处理状态 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleStatusCard.svelte` | 超分模型、预览、队列、缓存与保存；XR `upscale-status` |
 | `upscaleCache` | 缓存管理 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleCacheCard.svelte` | 超分模型、预览、队列、缓存与保存；XR `upscale-cache` |
 | `upscaleConditions` | 条件超分 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/upscale/UpscaleConditionsCard.svelte` | 超分模型、预览、队列、缓存与保存；XR `upscale-conditions` |
-| `progressiveUpscale` | 预超分 | deferred | partial | `core=C transport=P gui=- cli=P tui=P evidence=P` | `src/lib/cards/upscale/ProgressiveUpscaleCard.svelte` | 超分模型、预览、队列、缓存与保存；XR `progressive-upscale` |
+| `progressiveUpscale` | 预超分 | deferred | partial | `core=C transport=P gui=P cli=P tui=P evidence=P` | `src/lib/cards/upscale/ProgressiveUpscaleCard.svelte` | 超分模型、预览、队列、缓存与保存；XR `progressive-upscale` |
 
 #### `upscaleControl` 超分控制
 
@@ -4521,7 +5131,7 @@
 - [ ] 服从阅读任务优先级、资源预算和缓存限制
 - UI 基线：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
-##### 专用逐控件库存（6 组，36 项）
+##### 专用逐控件库存（6 组，38 项）
 
 - `progressive-upscale-ui.gates` Automatic and nearby-upscale gates
   - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stores/upscale/upscalePanelStore.svelte.ts`
@@ -4551,12 +5161,14 @@
   - [ ] 999 displayed and interpreted as all remaining pages
   - [ ] Controls hidden unless progressive and automatic upscale are enabled
 - `progressive-upscale-ui.progress` Completed, queued and total progress
-  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stackview/stores/upscaleStore.svelte.ts`
+  - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stackview/stores/upscaleStore.svelte.ts`、`src/lib/stackview/layers/ProgressBarLayer.svelte`
   - 映射：`progressive-upscale.progress`、`progressive-upscale.data-contract`
   - [ ] Upscaled-page count and total
   - [ ] Pending plus processing task count
   - [ ] Pending row hidden at zero
   - [ ] Completed percentage progress bar
+  - [ ] Viewport-bottom reading progress and upscale progress tracks
+  - [ ] Pre-upscale extent, active glow, RTL origin and visibility controls
   - [ ] Bounded task outcomes for settled, skipped, failed and cancelled pages
 - `progressive-upscale-ui.states` Progressive timer and execution states
   - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
@@ -4581,56 +5193,56 @@
 ##### 专用源码级验收项
 
 - [ ] `progressive-upscale.settings` Versioned settings, defaults and legacy import
-  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=P gui=C cli=- tui=- evidence=P`；阻塞：`transport`、`cli`、`tui`、`evidence`
   - 目标：All six switches/numeric settings use the versioned [nodes.neoview.super_resolution.preferences] contract, preserve legacy defaults and option meanings, and import old upscalePanelSettings/PyO3 values without a second runtime settings store.
   - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stores/upscale/upscalePanelStore.svelte.ts`
-  - 测试：`neoview.super-resolution.preferences-config`、`neoview.super-resolution.legacy-preferences`、`neoview.super-resolution.legacy-settings-import`、`neoview.super-resolution.progressive-settings-http`
-  - 计划测试：`neoview.super-resolution.progressive-settings-gui`、`neoview.super-resolution.progressive-settings-tui`
-  - 备注：Core parsing and legacy import exist; shared mutation transport and presentation controls remain.
+  - 测试：`neoview.super-resolution.preferences-config`、`neoview.super-resolution.legacy-preferences`、`neoview.super-resolution.legacy-settings-import`、`neoview.super-resolution.progressive-settings-http`、`neoview.progressive-upscale.settings`、`neoview.upscale-control.settings`
+  - 计划测试：`neoview.super-resolution.progressive-settings-tui`
+  - 备注：The React Card persists the source switches and bounded option values through the canonical config mutation transport; CLI/TUI presentation remains deferred.
 - [ ] `progressive-upscale.nearby-plan` Nearby pages consume the Reader preload plan
-  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=P gui=C cli=- tui=- evidence=P`；阻塞：`transport`、`cli`、`tui`、`evidence`
   - 目标：Select unique nearby pages in the existing ReaderPreloadPlan order, cap the batch by preloadPages, preserve candidate resource priority and execute through the one SuperResolutionPageService.
   - 源码：`src/lib/core/preloadPipeline.ts`、`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
-  - 测试：`neoview.super-resolution.preload-plan`
+  - 测试：`neoview.super-resolution.preload-plan`、`neoview.super-resolution.gui-auto-preload`、`neoview.super-resolution.gui-runtime`
   - 计划测试：`neoview.super-resolution.preload-session-integration`
-  - 备注：Application service is complete; artifact destination and Reader session transport remain.
+  - 备注：ReaderFrame starts the authenticated nearby preload endpoint for the current ReaderPreloadPlan before the target page is displayed and restarts after plan-generation changes.
 - [ ] `progressive-upscale.dwell` Abortable dwell before progressive execution
-  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Use one abortable dwell per session generation; navigation, disable, close and disposal supersede the old timer without retaining intervals or starting stale GPU work.
   - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
-  - 测试：`neoview.super-resolution.progressive`、`neoview.super-resolution.preload-generation`
+  - 测试：`neoview.super-resolution.progressive`、`neoview.super-resolution.preload-generation`、`neoview.super-resolution.progressive-countdown-generation`、`neoview.super-resolution.gui-auto-preload`、`neoview.super-resolution.gui-runtime`
   - 计划测试：`neoview.super-resolution.progressive-navigation-cancel`
-  - 备注：Uses node:timers/promises with AbortSignal; countdown presentation remains.
+  - 备注：The backend owns the abortable dwell and the React Card projects its real countdown/running/completed snapshot without a second execution timer.
 - [ ] `progressive-upscale.forward-bound` Forward-only progressive page bound
-  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=P gui=C cli=- tui=- evidence=P`；阻塞：`transport`、`cli`、`tui`、`evidence`
   - 目标：After dwell, process pages strictly after the current index in stable book order; honor progressiveMaxPages and preserve legacy 999=all-remaining semantics.
   - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
-  - 测试：`neoview.super-resolution.progressive`
+  - 测试：`neoview.super-resolution.progressive`、`neoview.super-resolution.gui-runtime`
   - 计划测试：`neoview.super-resolution.progressive-end-of-book`
   - 备注：No reverse expansion or wrap-around is introduced.
 - [ ] `progressive-upscale.generation` Session generation supersession
-  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Nearby and progressive work use separate session-scoped generation slots; a newer generation aborts stale work, an older generation is rejected and same-generation callers share the active batch.
   - 源码：`src/lib/core/preloadPipeline.ts`
-  - 测试：`neoview.super-resolution.preload-generation`
+  - 测试：`neoview.super-resolution.preload-generation`、`neoview.super-resolution.progressive-generation`、`neoview.super-resolution.progressive-countdown-generation`、`neoview.super-resolution.gui-auto-preload`、`neoview.super-resolution.gui-runtime`
   - 计划测试：`neoview.super-resolution.preload-same-generation`
   - 备注：The service does not maintain a second page queue; p-map bounds only the current selected batch.
 - [ ] `progressive-upscale.resources` Bounded concurrency and host resource priority
-  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=P gui=P cli=- tui=- evidence=P`；阻塞：`transport`、`gui`、`cli`、`tui`、`evidence`
   - 目标：Use mature p-map for configured 1..32 batch concurrency, then retain the existing SuperResolutionService GPU lease, page materializer I/O lease and Reader candidate priorities; never create another worker pool or process queue.
   - 源码：`src/lib/core/preloadPipeline.ts`、`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
   - 测试：`neoview.super-resolution.preload-plan`、`neoview.super-resolution.gpu-lease`、`neoview.super-resolution.page-archive-materialize`
   - 计划测试：`neoview.super-resolution.preload-gpu-pressure`
   - 备注：backgroundConcurrency is an admission bound; the host scheduler remains the final global resource authority.
 - [ ] `progressive-upscale.progress` Bounded progress and outcome snapshot
-  - 六维：`core=C transport=C gui=- cli=P tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=C gui=P cli=P tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：Expose planned, settled, failed and cancelled counts plus per-page settled/skipped/failed/cancelled outcomes; observer failures are isolated and recent state is bounded by the active Reader generation.
   - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/stackview/stores/upscaleStore.svelte.ts`
-  - 测试：`neoview.super-resolution.preload-observer`、`neoview.super-resolution.preload-plan`、`neoview.super-resolution.preload-progress-snapshot`、`neoview.super-resolution.preload-pause`、`neoview.super-resolution.preload-running-pause`、`neoview.super-resolution.preload-retry`、`neoview.super-resolution.preload-progress-http`、`neoview.progressive-upscale.cli-connect`、`neoview.progressive-upscale.cli-mode`
+  - 测试：`neoview.super-resolution.preload-observer`、`neoview.super-resolution.preload-plan`、`neoview.super-resolution.preload-progress-snapshot`、`neoview.super-resolution.preload-pause`、`neoview.super-resolution.preload-running-pause`、`neoview.super-resolution.preload-retry`、`neoview.super-resolution.preload-progress-http`、`neoview.progressive-upscale.cli-connect`、`neoview.progressive-upscale.cli-mode`、`neoview.reader.progress-layer`、`neoview.super-resolution.gui-runtime`
   - 计划测试：`neoview.super-resolution.preload-progress-gui`
-  - 备注：The service retains at most 128 session/mode records in lru-cache and exposes queued/countdown/running/completed/paused/cancelled/failed snapshots plus pause/retry over authenticated HTTP. Package remote headless and --connect CLI expose status/start/pause/retry with strict wire validation; local headless composition, TUI and GUI rendering remain pending.
+  - 备注：The service retains at most 128 session/mode records and the GUI publishes one session-scoped polling source to the Card and fixed viewport-bottom progress layer. CLI remains partial and TUI presentation remains deferred.
 - [ ] `progressive-upscale.data-contract` Shared destination and page-result contract
-  - 六维：`core=C transport=C gui=- cli=P tui=- evidence=C`；阻塞：`gui`、`cli`、`tui`
+  - 六维：`core=C transport=C gui=P cli=P tui=- evidence=C`；阻塞：`gui`、`cli`、`tui`
   - 目标：Platform code supplies an artifact destination without creating it; the application service passes book/page metadata, generation, priority, materialization budget and AbortSignal to the canonical page workflow and returns typed outcomes.
   - 源码：`src/lib/core/preloadPipeline.ts`、`src/lib/stackview/stores/upscaleStore.svelte.ts`
   - 测试：`neoview.super-resolution.preload-plan`、`neoview.super-resolution.preload-artifact`、`neoview.super-resolution.artifact-page-hit`、`neoview.super-resolution.artifact-page-shared`、`neoview.super-resolution.preload-http`、`neoview.progressive-upscale.cli-connect`、`neoview.progressive-upscale.wire-schema`
@@ -4644,33 +5256,33 @@
   - 计划测试：`neoview.super-resolution.cache-controls-gui`
   - 备注：A dedicated cacache streaming store provides byte/age/book/all maintenance, integrity validation, atomic publication, demand-counted singleflight and opaque read leases. The authenticated session route exposes strict stats and confirmed age/current-book/all maintenance; current-book is resolved to the opaque book ID only inside the backend. Remote Headless validates the complete wire DTO with Zod, while --connect CLI and OpenTUI reuse the running store and refuse local/offline cache ownership. OpenTUI marks every mutation destructive, forwards cancellation and closes each temporary remote session exactly once. GUI controls remain pending.
 - [ ] `progressive-upscale.lifecycle` Open, navigation, release and dispose lifecycle
-  - 六维：`core=C transport=C gui=- cli=- tui=- evidence=C`；阻塞：`gui`、`cli`、`tui`
+  - 六维：`core=C transport=C gui=C cli=- tui=- evidence=C`；阻塞：`cli`、`tui`
   - 目标：Start only after an enabled plan/dwell, cancel on navigation or session release, await active work during dispose, release archive inputs and provider processes, and leave zero timers/tasks after the Reader closes.
   - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`、`src/lib/core/preloadPipeline.ts`
-  - 测试：`neoview.super-resolution.preload-generation`、`neoview.super-resolution.page-release`、`neoview.super-resolution.artifact-demand-cancel`、`neoview.super-resolution.preload-http-session`、`neoview.super-resolution.http-composition-lazy`、`neoview.super-resolution.provider-dispose`
+  - 测试：`neoview.super-resolution.preload-generation`、`neoview.super-resolution.page-release`、`neoview.super-resolution.artifact-demand-cancel`、`neoview.super-resolution.preload-http-session`、`neoview.super-resolution.http-composition-lazy`、`neoview.super-resolution.provider-dispose`、`neoview.super-resolution.progressive-generation`、`neoview.super-resolution.gui-auto-preload`、`neoview.super-resolution.gui-runtime`
   - 计划测试：无
-  - 备注：Reader session release aborts active artifact generation and invalidates its opaque URLs; controller disposal closes the lazy capability and owned store, while an unused composition creates no directory, runtime, CLI probe or process.
+  - 备注：Reader session release and generation changes abort stale artifact/preload work; ReaderFrame reschedules the new generation and leaves background ownership in the backend.
 - [ ] `progressive-upscale.ui-parity` Card hierarchy, density and state parity
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Preserve the source hierarchy, compact selects, warning, dividers, counts, progress bar, colored status indicators and conditional visibility in docked, settings-window and card-window layouts using XR tokens.
   - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.progressive-upscale.gui`、`neoview.progressive-upscale.geometry`
-  - 备注：No React Card has been implemented.
+  - 测试：`neoview.progressive-upscale.resident`、`neoview.progressive-upscale.settings`、`neoview.reader.progress-layer`、`neoview.super-resolution.gui-runtime`
+  - 计划测试：`neoview.progressive-upscale.geometry`
+  - 备注：The React Card preserves source controls and now renders backend countdown/outcome state; the fixed Reader layer restores reading, pre-upscale and upscale tracks with RTL and toggle semantics.
 - [ ] `progressive-upscale.accessibility` Keyboard and assistive semantics
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：All switches and selects have programmatic labels, predictable focus order and keyboard operation; status changes are announced without duplicating timers. The source Card defines no dedicated shortcut, so XR must not invent a conflicting global binding.
   - 源码：`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
-  - 测试：待补
+  - 测试：`neoview.progressive-upscale.settings`、`neoview.reader.progress-layer-controls`、`neoview.super-resolution.gui-runtime`
   - 计划测试：`neoview.progressive-upscale.accessibility`
-  - 备注：Keyboard equivalence is required even though the old Card has no dedicated shortcut.
+  - 备注：Native labelled switches/selects and named progressbar roles are covered; the shared viewer actions control visibility and glow without adding a new conflicting shortcut.
 - [ ] `progressive-upscale.deviations` Documented scheduler and cache replacements
-  - 六维：`core=C transport=- gui=- cli=- tui=- evidence=C`；阻塞：`transport`、`gui`、`cli`、`tui`
+  - 六维：`core=C transport=C gui=P cli=- tui=- evidence=C`；阻塞：`gui`、`cli`、`tui`
   - 目标：Record that XR replaces the source hand-written task queue, interval countdown ownership and unbounded Blob Map with ReaderPreloadPlan, p-map, abortable timers, host resource leases and a streaming artifact store while preserving user-visible options and states.
   - 源码：`src/lib/core/preloadPipeline.ts`、`src/lib/cards/upscale/ProgressiveUpscaleCard.svelte`
   - 测试：`neoview.super-resolution.preload-plan`、`neoview.super-resolution.preload-generation`、`neoview.super-resolution.preload-artifact`、`neoview.super-resolution.artifact-demand-cancel`、`neoview.super-resolution.artifact-streaming-rss`
   - 计划测试：无
-  - 备注：The backend scheduler and cache replacements are complete and covered by repeatable tests; transport and user-visible parity remain separate pending surfaces.
+  - 备注：The backend scheduler/cache replacements and authenticated GUI start/status path are complete; CLI/TUI presentation remains separately deferred.
 
 ### Panel: `history`（1）
 
