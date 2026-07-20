@@ -344,13 +344,18 @@ export async function createReaderAssetRoute(
 ): Promise<ReaderAssetRoute> {
   const { ReaderAssetRoute } = await import("./platform/asset-route/ReaderAssetRoute.js")
   const { WeightedLruPresentationCache } = await import("./platform/cache/WeightedLruPresentationCache.js")
+  const { isNeoViewSharpEnabled } = await import("./platform/images/SharpRuntimePolicy.js")
+  const sharpEnabled = isNeoViewSharpEnabled()
   return new ReaderAssetRoute(readerService, options, {
     presentationCache: new WeightedLruPresentationCache(),
     resourceScheduler: options.resourceScheduler,
-    loadImageTransformer: async () => {
-      const { SharpImageTransformer } = await import("./platform/images/sharp/SharpImageTransformer.js")
-      return new SharpImageTransformer(options.resourceScheduler)
-    },
+    bypassImageTransforms: !sharpEnabled,
+    loadImageTransformer: sharpEnabled
+      ? async () => {
+          const { SharpImageTransformer } = await import("./platform/images/sharp/SharpImageTransformer.js")
+          return new SharpImageTransformer(options.resourceScheduler)
+        }
+      : undefined,
   })
 }
 

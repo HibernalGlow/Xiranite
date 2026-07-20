@@ -77,7 +77,6 @@ import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryE
 import type { ReaderPreloadContext, ReaderPreloadCoordinatorOptions, ReaderPreloadPlan } from "../../application/preloading/PreloadCoordinator.js"
 import type { ReaderPreloadOutcome, ReaderPreloadPerformanceMetrics } from "../../application/preloading/PreloadTelemetry.js"
 import { deriveReaderPreloadResourceContext } from "../../application/preloading/PreloadResourceContext.js"
-import type { ImageTransformRequest } from "../../domain/image/image-transform.js"
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 import type { ReaderPageMediaMetadataProviderLoader } from "../../ports/ReaderPageMediaMetadataProvider.js"
@@ -96,7 +95,7 @@ import { defaultImageTransformScheduler, type PriorityResourceSchedulerSnapshot 
 import { ReaderAssetRoute, type ReaderAssetRouteOptions } from "./ReaderAssetRoute.js"
 import { SuperResolutionArtifactRoute } from "./SuperResolutionArtifactRoute.js"
 import { LibraryThumbnailRoute } from "./LibraryThumbnailRoute.js"
-import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeline.js"
+import { PlatformThumbnailPipeline, ThumbnailUnavailableError } from "../thumbnails/PlatformThumbnailPipeline.js"
 import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
 import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
 import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
@@ -117,7 +116,9 @@ import { ReaderLibraryCleanupService } from "../../application/library/ReaderLib
 import { PlatformReaderPathStatusProvider } from "../filesystem/PlatformReaderPathStatusProvider.js"
 import { PlatformReaderPageMaterializer } from "../content/PlatformReaderPageMaterializer.js"
 import { PlatformEmmTranslationSource } from "../emm/PlatformEmmTranslationSource.js"
+import { PlatformEmmCollectTagSource } from "../emm/PlatformEmmCollectTagSource.js"
 import { WINDOWS_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
+import { isNeoViewSharpEnabled } from "../images/SharpRuntimePolicy.js"
 import { ReaderMemoryPressureMonitor } from "../memory/ReaderMemoryPressureMonitor.js"
 import { ReaderSystemMonitorService } from "../diagnostics/ReaderSystemMonitorService.js"
 import {
@@ -144,7 +145,9 @@ import {
   parseNeoviewSwitchToastPatch,
   parseNeoviewInfoOverlayPatch,
   parseNeoviewSystemMonitorPatch,
+  parseNeoviewEmmPatch,
   parseNeoviewAiTranslationPatch,
+  DEFAULT_NEOVIEW_EMM_CONFIG,
   DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG,
   parseNeoviewImageTrimPatch,
   parseNeoviewSuperResolutionPreferencesPatch,
@@ -162,6 +165,8 @@ import {
   type NeoviewSwitchToastPatch,
   type NeoviewInfoOverlayPatch,
   type NeoviewSystemMonitorConfig,
+  type NeoviewEmmConfig,
+  type NeoviewEmmPatch,
   type NeoviewAiTranslationConfig,
   type NeoviewAiTranslationPatch,
   type NeoviewSystemMonitorPatch,
@@ -225,9 +230,7 @@ const SESSION_CLIPBOARD_MATERIALIZATION_PATH = /^\/reader\/s\/([^/]+)\/clipboard
 const PRESENTATION_CACHE_PATH = "/reader/cache/presentation"
 const PRESENTATION_CACHE_CLEANUP_PATH = "/reader/cache/presentation/cleanup"
 const MAX_CONTROL_BODY_BYTES = 64 * 1024
-const PRELOAD_CONTEXT_FIELDS = new Set(["mode", "velocityPagesPerSecond", "stableForMs", "focused", "presentationWidth", "presentationHeight", "presentationDpr"])
-const PRESENTATION_TRANSFORM_FORMAT = "webp"
-const PRESENTATION_TRANSFORM_QUALITY = 85
+const PRELOAD_CONTEXT_FIELDS = new Set(["mode", "velocityPagesPerSecond", "stableForMs", "focused"])
 
 export interface ReaderPageDto {
   id: string
@@ -255,12 +258,6 @@ export interface ReaderSessionDto {
   preload?: ReaderPreloadPlan
 }
 
-interface ReaderPresentationTransformContext {
-  width: number
-  height: number
-  dpr: number
-}
-
 export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions & {
   memoryPressureMonitor?: ReaderMemoryPressureMonitor
   sessionOptions?: Partial<ReaderSessionOptions>
@@ -278,6 +275,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   directorySortPreferenceStore?: ReaderDirectorySortPreferenceStore
   directoryEmmRecordStore?: ReaderDirectoryEmmRecordStore
   emmOverrideStore?: ReaderEmmOverrideStore
+  emmCollectTagSource?: PlatformEmmCollectTagSource
+  emmTranslationSource?: PlatformEmmTranslationSource
   searchHistoryStore?: ReaderSearchHistoryStore
   fileUndoJournalStore?: ReaderFileUndoJournalStore
   disposeLibraryService?: boolean
@@ -317,6 +316,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateInfoOverlay?: (patch: NeoviewInfoOverlayPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInfoOverlaySettings>
   systemMonitor?: NeoviewSystemMonitorConfig
   updateSystemMonitor?: (patch: NeoviewSystemMonitorPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSystemMonitorConfig>
+  emm?: NeoviewEmmConfig
+  updateEmm?: (patch: NeoviewEmmPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewEmmConfig>
   systemMonitorService?: Pick<ReaderSystemMonitorService, "sample">
   aiTranslation?: NeoviewAiTranslationConfig
   updateAiTranslation?: (patch: NeoviewAiTranslationPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewAiTranslationConfig>
@@ -381,7 +382,6 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
   readonly #archivePreloadDemand = new ReaderArchivePreloadDemandBridge()
-  readonly #presentationTransforms = new Map<ReaderSessionId, ReaderPresentationTransformContext>()
   readonly #disposeThumbnailStore?: () => void | Promise<void>
   readonly #disposeSuperResolutionArtifacts?: () => void | Promise<void>
   #shellOptions: NeoviewShellConfig
@@ -399,6 +399,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #switchToast: ReaderSwitchToastSettings
   #infoOverlay: ReaderInfoOverlaySettings
   #systemMonitor: NeoviewSystemMonitorConfig
+  #emm: NeoviewEmmConfig
   #aiTranslation: NeoviewAiTranslationConfig
   readonly #ai: ReaderAiHttpController
   #imageTrim: ReaderImageTrimSettings
@@ -420,6 +421,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateSwitchToast?: ReaderHttpControllerOptions["updateSwitchToast"]
   readonly #updateInfoOverlay?: ReaderHttpControllerOptions["updateInfoOverlay"]
   readonly #updateSystemMonitor?: ReaderHttpControllerOptions["updateSystemMonitor"]
+  readonly #updateEmm?: ReaderHttpControllerOptions["updateEmm"]
   readonly #updateAiTranslation?: ReaderHttpControllerOptions["updateAiTranslation"]
   readonly #updateImageTrim?: ReaderHttpControllerOptions["updateImageTrim"]
   readonly #updateSuperResolution?: ReaderHttpControllerOptions["updateSuperResolution"]
@@ -438,6 +440,7 @@ export class ReaderHttpController implements AsyncDisposable {
       throw new TypeError("superResolutionArtifactPages and superResolutionArtifactStore must be provided together")
     }
     const resourceScheduler = options.resourceScheduler ?? defaultImageTransformScheduler
+    const sharpEnabled = isNeoViewSharpEnabled()
     const initialMedia = options.media ?? DEFAULT_NEOVIEW_MEDIA_CONFIG
     this.#mediaFormats = new ReaderMediaFormatRegistryRef(initialMedia)
     this.#ownsSolidArchiveCache = !options.solidArchiveCache
@@ -452,13 +455,29 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#videoProcessSnapshot = videoProcessSnapshot(this.#videoProcessScheduler)
     const bookLoader = createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache, mediaFormats: this.#mediaFormats })
     const imageMetadataProbe = new StreamingImageMetadataProbe()
-    const loadImageTransformer = async () => {
-      const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
-      const sharp = new SharpImageTransformer(resourceScheduler)
-      if (process.platform !== "win32") return sharp
-      const { WindowsWicImageTransformer } = await import("../images/WindowsWicImageTransformer.js")
-      return new WindowsWicImageTransformer(sharp, { resourceScheduler: resourceScheduler })
-    }
+    const loadSharpImageTransformer = sharpEnabled
+      ? async () => {
+          const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
+          return new SharpImageTransformer(resourceScheduler)
+        }
+      : undefined
+    const loadImageTransformer = process.platform === "win32"
+      ? async () => {
+          const fallback = loadSharpImageTransformer
+            ? await loadSharpImageTransformer()
+            : {
+                async transform(input: ReadableStream<Uint8Array>) {
+                  await input.cancel("Sharp image transforms are disabled")
+                  throw new ThumbnailUnavailableError()
+                },
+              }
+          const { WindowsWicImageTransformer } = await import("../images/WindowsWicImageTransformer.js")
+          return new WindowsWicImageTransformer(fallback, {
+            resourceScheduler,
+            preferFallbackForLossless: sharpEnabled,
+          })
+        }
+      : loadSharpImageTransformer
     const loadVideoThumbnailProvider = options.loadVideoThumbnailProvider ?? (async () => {
       const { FfmpegVideoThumbnailProvider } = await import("../video/FfmpegVideoThumbnailProvider.js")
       return new FfmpegVideoThumbnailProvider({
@@ -466,10 +485,12 @@ export class ReaderHttpController implements AsyncDisposable {
         processScheduler: this.#videoProcessScheduler,
       })
     })
-    const loadMosaicImageComposer = async () => {
-      const { SharpMosaicImageComposer } = await import("../images/sharp/SharpMosaicImageComposer.js")
-      return new SharpMosaicImageComposer(resourceScheduler)
-    }
+    const loadMosaicImageComposer = sharpEnabled
+      ? async () => {
+          const { SharpMosaicImageComposer } = await import("../images/sharp/SharpMosaicImageComposer.js")
+          return new SharpMosaicImageComposer(resourceScheduler)
+        }
+      : undefined
     const loadSystemThumbnailProvider = options.loadSystemThumbnailProvider ?? (process.platform === "win32"
       ? async () => {
           const { WindowsSystemThumbnailProvider } = await import("../windows/WindowsSystemThumbnailProvider.js")
@@ -499,7 +520,7 @@ export class ReaderHttpController implements AsyncDisposable {
     )
     this.#bookSettings = options.bookSettingsStore ? new ReaderBookSettingsService(options.bookSettingsStore) : undefined
     this.#emmMetadata = options.emmOverrideStore ? new ReaderEmmMetadataService(options.emmOverrideStore) : undefined
-    const emmTranslations = new PlatformEmmTranslationSource()
+    const emmTranslations = options.emmTranslationSource ?? new PlatformEmmTranslationSource()
     const directoryMetadata = new PlatformDirectoryMetadataProvider(
       options.directoryEmmRecordStore,
       undefined,
@@ -552,6 +573,7 @@ export class ReaderHttpController implements AsyncDisposable {
       presentationDiskCache: options.presentationDiskCache,
       presentationProducerVersion: process.platform === "win32" ? WINDOWS_PRESENTATION_PRODUCER_VERSION : undefined,
       loadImageTransformer,
+      bypassImageTransforms: !sharpEnabled,
       thumbnailPipeline: this.#thumbnailPipeline,
       resourceScheduler: resourceScheduler,
       seekableMediaCache: this.#seekableMedia,
@@ -586,7 +608,7 @@ export class ReaderHttpController implements AsyncDisposable {
       undefined,
       this.#mediaFormats,
       options.emmOverrideStore,
-      undefined,
+      options.emmCollectTagSource,
       emmTranslations,
     )
     this.#fileOperations = new ReaderFileOperationHttpController(async () => {
@@ -660,6 +682,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#switchToast = options.switchToast ?? DEFAULT_READER_SWITCH_TOAST
     this.#infoOverlay = options.infoOverlay ?? DEFAULT_READER_INFO_OVERLAY
     this.#systemMonitor = options.systemMonitor ?? DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG
+    this.#emm = options.emm ?? DEFAULT_NEOVIEW_EMM_CONFIG
     this.#aiTranslation = options.aiTranslation ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG
     this.#ai = new ReaderAiHttpController({
       config: this.#aiTranslation,
@@ -685,6 +708,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateSwitchToast = options.updateSwitchToast
     this.#updateInfoOverlay = options.updateInfoOverlay
     this.#updateSystemMonitor = options.updateSystemMonitor
+    this.#updateEmm = options.updateEmm
     this.#updateAiTranslation = options.updateAiTranslation
     this.#updateImageTrim = options.updateImageTrim
     this.#updateSuperResolution = options.updateSuperResolution
@@ -1192,6 +1216,25 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
+    if (Object.hasOwn(body, "emm")) {
+      if (!this.#updateEmm) return jsonResponse({ error: "Reader EMM config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewEmmPatch>
+      try {
+        parsed = parseNeoviewEmmPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      const operation = this.#configUpdateQueue.then(async () => {
+        this.#emm = await this.#updateEmm!(parsed.patch, parsed.tomlPatch)
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "aiTranslation")) {
       if (!this.#updateAiTranslation) return jsonResponse({ error: "Reader AI translation config is read-only" }, 405)
       let parsed: ReturnType<typeof parseNeoviewAiTranslationPatch>
@@ -1472,6 +1515,7 @@ export class ReaderHttpController implements AsyncDisposable {
       switchToast: this.#switchToast,
       infoOverlay: this.#infoOverlay,
       systemMonitor: this.#systemMonitor,
+      emm: this.#emm,
       aiTranslation: this.#aiTranslation,
       imageTrim: this.#imageTrim,
       superResolution: {
@@ -1685,8 +1729,6 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     const context = parsePreloadViewportContext(body)
     if (context === "invalid") return jsonResponse({ error: "Invalid preload viewport context" }, 400)
-    const presentationTransform = parsePresentationTransformContext(body)
-    if (presentationTransform === "invalid") return jsonResponse({ error: "Invalid preload presentation context" }, 400)
     try {
       const previousPreloadGeneration = session.preloadPlan()?.generation
       const resources = deriveReaderPreloadResourceContext({
@@ -1694,7 +1736,6 @@ export class ReaderHttpController implements AsyncDisposable {
         sharedScheduler: this.#sharedSchedulerSnapshot?.(),
         memoryPressure: this.#assets.snapshot().memoryPressure,
       })
-      if (presentationTransform) this.#presentationTransforms.set(session.id, presentationTransform)
       const preload = session.updatePreloadContext({ ...context, ...resources })
       await this.#releaseStaleSuperResolutionPreload(session.id, previousPreloadGeneration, preload.generation)
       this.#retainSessionFrame(session, session.snapshot(), preload)
@@ -1945,7 +1986,6 @@ export class ReaderHttpController implements AsyncDisposable {
   async #releaseSession(session: ReaderSession): Promise<void> {
     const errors: unknown[] = []
     const superResolutionRelease = this.#superResolutionArtifacts?.releaseSession(session.id) ?? Promise.resolve()
-    this.#presentationTransforms.delete(session.id)
     try {
       await this.#archivePreloadDemand.release(session.id)
     } catch (error) {
@@ -2236,24 +2276,8 @@ export class ReaderHttpController implements AsyncDisposable {
       byteLength: page.byteLength,
       dimensions: page.dimensions,
       contentVersion: page.contentVersion,
-      assetUrl: this.#assets.pageUrl(session.id, page.id, this.#presentationTransformForPage(session.id, page)),
+      assetUrl: this.#assets.pageUrl(session.id, page.id),
       thumbnailUrl: this.#assets.thumbnailUrl(session.id, page.id),
-    }
-  }
-
-  #presentationTransformForPage(sessionId: ReaderSessionId, page: ReaderPage): ImageTransformRequest | undefined {
-    const context = this.#presentationTransforms.get(sessionId)
-    if (!context || page.mediaKind !== "image" || !page.dimensions) return undefined
-    const targetWidth = Math.round(context.width * context.dpr)
-    const targetHeight = Math.round(context.height * context.dpr)
-    if (page.dimensions.width <= targetWidth && page.dimensions.height <= targetHeight) return undefined
-    return {
-      width: context.width,
-      height: context.height,
-      dpr: context.dpr,
-      fit: "inside",
-      format: PRESENTATION_TRANSFORM_FORMAT,
-      quality: PRESENTATION_TRANSFORM_QUALITY,
     }
   }
 
@@ -2462,22 +2486,6 @@ function parsePreloadViewportContext(body: Record<string, unknown>): ReaderPrelo
     velocityPagesPerSecond: body.velocityPagesPerSecond as number | undefined,
     stableForMs: body.stableForMs as number | undefined,
     focused: body.focused as boolean | undefined,
-  }
-}
-
-function parsePresentationTransformContext(body: Record<string, unknown>): ReaderPresentationTransformContext | undefined | "invalid" {
-  const width = body.presentationWidth
-  const height = body.presentationHeight
-  const dpr = body.presentationDpr
-  if (width === undefined && height === undefined && dpr === undefined) return undefined
-  if (!Number.isSafeInteger(width) || (width as number) < 1 || (width as number) > 16_384) return "invalid"
-  if (!Number.isSafeInteger(height) || (height as number) < 1 || (height as number) > 16_384) return "invalid"
-  if (typeof dpr !== "number" || !Number.isFinite(dpr) || dpr < 0.25 || dpr > 4) return "invalid"
-  if (Math.round((width as number) * dpr) > 16_384 || Math.round((height as number) * dpr) > 16_384) return "invalid"
-  return {
-    width: width as number,
-    height: height as number,
-    dpr,
   }
 }
 

@@ -44,6 +44,7 @@ export interface ReaderAssetRouteOptions {
 
 export interface ReaderAssetRouteDependencies {
   loadImageTransformer?: ImageTransformerLoader
+  bypassImageTransforms?: boolean
   presentationCache?: ReaderPresentationCache
   presentationDiskCache?: ReaderPresentationDiskCache
   presentationProducerVersion?: string
@@ -60,6 +61,7 @@ export class ReaderAssetRoute {
   readonly #baseUrl: string
   readonly #token: string
   readonly #loadImageTransformer?: ImageTransformerLoader
+  readonly #bypassImageTransforms: boolean
   readonly #presentationCache?: ReaderPresentationCache
   readonly #presentationDiskCache?: ReaderPresentationDiskCache
   readonly #presentationProducerVersion: string
@@ -86,6 +88,7 @@ export class ReaderAssetRoute {
     this.#baseUrl = options.baseUrl.replace(/\/$/, "")
     this.#token = options.token
     this.#loadImageTransformer = dependencies.loadImageTransformer
+    this.#bypassImageTransforms = dependencies.bypassImageTransforms === true
     this.#presentationCache = dependencies.presentationCache
     this.#presentationDiskCache = dependencies.presentationDiskCache
     this.#presentationProducerVersion = dependencies.presentationProducerVersion ?? SHARP_PRESENTATION_PRODUCER_VERSION
@@ -128,8 +131,8 @@ export class ReaderAssetRoute {
     const url = new URL(path, this.#baseUrl)
     url.searchParams.set("version", page.contentVersion)
     url.searchParams.set("token", this.#token)
-    if (transform) appendImageTransform(url.searchParams, transform)
-    if (transform) url.searchParams.set("producer", this.#presentationProducerVersion)
+    if (transform && this.#canTransform(page)) appendImageTransform(url.searchParams, transform)
+    if (transform && this.#canTransform(page)) url.searchParams.set("producer", this.#presentationProducerVersion)
     return url.href
   }
 
@@ -228,6 +231,9 @@ export class ReaderAssetRoute {
     } catch (error) {
       return textResponse(error instanceof Error ? error.message : String(error), 400)
     }
+    // Retained URLs may still carry transform parameters while Sharp is off.
+    // Replay the original source instead of returning 501 or transcoding it.
+    if (this.#bypassImageTransforms && !isJxlPage(page)) transform = undefined
     if (transform && page.mediaKind !== "image" && page.mediaKind !== "animated-image") {
       return textResponse("Reader asset does not support image transforms", 415)
     }
@@ -531,6 +537,10 @@ export class ReaderAssetRoute {
     return this.#imageTransformer
   }
 
+  #canTransform(page: ReaderPage): boolean {
+    return !this.#bypassImageTransforms || isJxlPage(page)
+  }
+
   #relieveMemoryPressure(): void {
     const pressure = this.#memoryPressure.sample()
     if (!pressure.relieve || pressure.level === "normal") return
@@ -817,6 +827,10 @@ function safeDecode(value: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+function isJxlPage(page: ReaderPage): boolean {
+  return page.mimeType?.toLowerCase() === "image/jxl" || page.name.toLowerCase().endsWith(".jxl")
 }
 
 function abortError(message: string): DOMException {

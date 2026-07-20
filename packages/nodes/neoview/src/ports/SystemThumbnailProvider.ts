@@ -3,6 +3,7 @@ import type { ResourcePriority, ResourceScheduler } from "./ResourceScheduler.js
 export interface SystemThumbnailRequest {
   sourcePath: string
   maxEdge: number
+  lossless?: boolean
   quality: number
   priority: ResourcePriority
   ownerId?: string

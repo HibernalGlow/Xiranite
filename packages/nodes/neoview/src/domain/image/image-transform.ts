@@ -7,10 +7,11 @@ export interface ImageTransformRequest {
   dpr: number
   fit: ImageTransformFit
   format: ImageTransformFormat
+  lossless?: boolean
   quality: number
 }
 
-const TRANSFORM_KEYS = ["width", "height", "dpr", "fit", "format", "quality"] as const
+const TRANSFORM_KEYS = ["width", "height", "dpr", "fit", "format", "lossless", "quality"] as const
 const FITS = new Set<ImageTransformFit>(["contain", "cover", "fill", "inside", "outside"])
 const FORMATS = new Set<ImageTransformFormat>(["avif", "jpeg", "png", "webp"])
 const MAX_OUTPUT_DIMENSION = 16_384
@@ -27,6 +28,7 @@ export function parseImageTransform(searchParams: URLSearchParams): ImageTransfo
   const dpr = optionalNumber(searchParams.get("dpr"), "dpr", 0.25, 4) ?? 1
   const fit = optionalEnum(searchParams.get("fit"), "fit", FITS) ?? "inside"
   const format = optionalEnum(searchParams.get("format"), "format", FORMATS) ?? "webp"
+  const lossless = optionalBoolean(searchParams.get("lossless"), "lossless")
   const quality = optionalInteger(searchParams.get("quality"), "quality", 1, 100) ?? 82
 
   if (!hasResize && (searchParams.has("dpr") || searchParams.has("fit"))) {
@@ -40,7 +42,15 @@ export function parseImageTransform(searchParams: URLSearchParams): ImageTransfo
     throw new RangeError(`Scaled image dimensions must not exceed ${MAX_OUTPUT_DIMENSION}`)
   }
 
-  return { width, height, dpr, fit, format, quality }
+  return {
+    width,
+    height,
+    dpr,
+    fit,
+    format,
+    ...(lossless === undefined ? {} : { lossless }),
+    quality,
+  }
 }
 
 export function imageTransformCacheKey(request: ImageTransformRequest): string {
@@ -50,6 +60,7 @@ export function imageTransformCacheKey(request: ImageTransformRequest): string {
     request.dpr,
     request.fit,
     request.format,
+    ...(request.lossless === true ? ["lossless"] : []),
     request.quality,
   ].join(":")
 }
@@ -61,9 +72,12 @@ export function imageTransformContentType(format: ImageTransformFormat): string 
 export function appendImageTransform(searchParams: URLSearchParams, request: ImageTransformRequest): void {
   if (request.width !== undefined) searchParams.set("width", String(request.width))
   if (request.height !== undefined) searchParams.set("height", String(request.height))
-  searchParams.set("dpr", String(request.dpr))
-  searchParams.set("fit", request.fit)
+  if (request.width !== undefined || request.height !== undefined) {
+    searchParams.set("dpr", String(request.dpr))
+    searchParams.set("fit", request.fit)
+  }
   searchParams.set("format", request.format)
+  if (request.lossless !== undefined) searchParams.set("lossless", String(request.lossless))
   searchParams.set("quality", String(request.quality))
 }
 
@@ -83,6 +97,13 @@ function optionalNumber(value: string | null, name: string, minimum: number, max
     throw new RangeError(`${name} must be a number from ${minimum} to ${maximum}`)
   }
   return parsed
+}
+
+function optionalBoolean(value: string | null, name: string): boolean | undefined {
+  if (value === null) return undefined
+  if (value === "true" || value === "1") return true
+  if (value === "false" || value === "0") return false
+  throw new RangeError(`${name} must be true or false`)
 }
 
 function optionalEnum<T extends string>(

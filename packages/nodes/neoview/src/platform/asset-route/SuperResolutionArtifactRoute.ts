@@ -290,7 +290,10 @@ export class SuperResolutionArtifactRoute {
         : await this.preload.startProgressive({
             contextId,
             generation: plan?.generation ?? Number(session.generation),
-            currentPageIndex: session.snapshot().anchorPageIndex,
+            currentPageIndex: Math.max(
+              session.snapshot().anchorPageIndex,
+              ...(plan?.currentPageIndexes ?? []),
+            ),
             pages: session.book.pages,
             bookPath: session.book.source.path,
             artifactFor,

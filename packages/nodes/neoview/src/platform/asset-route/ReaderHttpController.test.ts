@@ -1402,7 +1402,7 @@ describe("ReaderHttpController", () => {
     }
   })
 
-  it("[neoview.image.transform-http] streams a native transform through the controller response", async () => {
+  it("[neoview.image.transform-http] ignores retained transform parameters while Sharp is disabled", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-transform-"))
     cleanupDirectories.push(directory)
     await Promise.all([1, 2, 3].map((index) => writeFile(join(directory, `page-${index}.png`), ONE_PIXEL_PNG)))
@@ -1416,21 +1416,20 @@ describe("ReaderHttpController", () => {
       const response = (await controller.handle(new Request(url)))!
       const bytes = Buffer.from(await response.arrayBuffer())
       expect(response.status).toBe(200)
-      expect(response.headers.get("content-type")).toBe("image/webp")
-      expect(bytes.subarray(0, 4).toString("ascii")).toBe("RIFF")
-      expect(bytes.subarray(8, 12).toString("ascii")).toBe("WEBP")
+      expect(response.headers.get("content-type")).toBe("image/png")
+      expect(bytes).toEqual(ONE_PIXEL_PNG)
       const cached = (await controller.handle(new Request(url)))!
       expect(Buffer.from(await cached.arrayBuffer())).toEqual(bytes)
       expect(cached.headers.get("content-length")).toBe(String(bytes.byteLength))
       await expect((await controller.handle(authorizedRequest("/reader/diagnostics")))!.json()).resolves.toMatchObject({
         assets: {
-          presentation: { pinnedEntries: 1, activeLeases: 1 },
-          presentationRetention: { sessions: 1, desiredPages: 2, retainedPresentations: 1 },
+          presentation: { pinnedEntries: 0, activeLeases: 0 },
+          presentationRetention: { sessions: 1, desiredPages: 2, retainedPresentations: 0 },
         },
         cache: {
-          memory: { presentationBytes: bytes.byteLength, totalBytes: bytes.byteLength },
+          memory: { presentationBytes: 0, totalBytes: 0 },
           disk: { totalBytes: 0 },
-          leases: { presentationMemory: 1, presentationDisk: 0, solidArchive: 0, thumbnailDemands: 0, total: 1 },
+          leases: { presentationMemory: 0, presentationDisk: 0, solidArchive: 0, thumbnailDemands: 0, total: 0 },
         },
       })
       expect((await controller.handle(jsonRequest(`/reader/s/${session.sessionId}/navigate`, { action: "next" })))?.status).toBe(200)
@@ -1439,7 +1438,7 @@ describe("ReaderHttpController", () => {
           presentation: { pinnedEntries: 0, activeLeases: 0 },
           presentationRetention: { sessions: 1, retainedPresentations: 0 },
         },
-        cache: { memory: { presentationBytes: bytes.byteLength }, leases: { total: 0 } },
+        cache: { memory: { presentationBytes: 0 }, leases: { total: 0 } },
       })
       expect((await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
       await expect((await controller.handle(authorizedRequest("/reader/diagnostics")))!.json()).resolves.toMatchObject({
@@ -1454,10 +1453,10 @@ describe("ReaderHttpController", () => {
     }
   })
 
-  it("[neoview.image.presentation-context-url] applies viewport presentation transforms to later visible image URLs", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-presentation-context-"))
+  it("[neoview.image.presentation-direct-url] keeps original image URLs after preload context updates", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-presentation-direct-"))
     cleanupDirectories.push(directory)
-    await Promise.all([1, 2].map((index) => writeFile(join(directory, `page-${index}.jpg`), jpegHeaderWithDimensions(4000, 6000))))
+    await Promise.all([1, 2].map((index) => writeFile(join(directory, `page-${index}.jpg`), Uint8Array.of(index))))
     const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
     try {
       const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
@@ -1466,7 +1465,7 @@ describe("ReaderHttpController", () => {
 
       const context = await controller.handle(jsonRequest(
         `/reader/s/${session.sessionId}/preload-context`,
-        { mode: "paged", focused: true, presentationWidth: 800, presentationHeight: 1000, presentationDpr: 2 },
+        { mode: "paged", focused: true },
         true,
         "PATCH",
       ))
@@ -1475,12 +1474,10 @@ describe("ReaderHttpController", () => {
       const navigated = (await controller.handle(jsonRequest(`/reader/s/${session.sessionId}/navigate`, { action: "next" })))!
       const page = (await navigated.json() as { visiblePages: Array<{ assetUrl: string }> }).visiblePages[0]!
       const url = new URL(page.assetUrl)
-      expect(url.searchParams.get("width")).toBe("800")
-      expect(url.searchParams.get("height")).toBe("1000")
-      expect(url.searchParams.get("dpr")).toBe("2")
-      expect(url.searchParams.get("fit")).toBe("inside")
-      expect(url.searchParams.get("format")).toBe("webp")
-      expect(url.searchParams.get("quality")).toBe("85")
+      expect(url.searchParams.has("width")).toBe(false)
+      expect(url.searchParams.has("height")).toBe(false)
+      expect(url.searchParams.has("format")).toBe(false)
+      expect(url.pathname).toContain("/page/")
     } finally {
       await controller[Symbol.asyncDispose]()
     }
@@ -1496,18 +1493,6 @@ async function createBookDirectory(): Promise<string> {
     writeFile(join(directory, "3.jpg"), Uint8Array.of(3)),
   ])
   return directory
-}
-
-function jpegHeaderWithDimensions(width: number, height: number): Buffer {
-  return Buffer.from([
-    0xff, 0xd8,
-    0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x48, 0x00, 0x48, 0x00, 0x00,
-    0xff, 0xc0, 0x00, 0x11, 0x08,
-    (height >> 8) & 0xff, height & 0xff,
-    (width >> 8) & 0xff, width & 0xff,
-    0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01,
-    0xff, 0xd9,
-  ])
 }
 
 function jsonRequest(path: string, body: unknown, authorized = true, method = "POST"): Request {

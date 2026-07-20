@@ -33,7 +33,7 @@ describe("SuperResolutionPreloadService", () => {
       expect(run.mock.calls.map(([input]) => [input.page.index, input.priority, input.trigger])).toEqual([
         [1, "ahead", "preload"],
         [2, "ahead", "preload"],
-        [3, "background", "preload"],
+        [3, "ahead", "preload"],
       ])
       expect(peak).toBe(2)
     } finally {
@@ -96,7 +96,7 @@ describe("SuperResolutionPreloadService", () => {
         contextId: "reader-progressive-generation",
         generation: 1,
         currentPageIndex: 0,
-        pages: pages(5),
+        pages: pages(8),
         bookPath: "D:/book.cbz",
         destinationFor: (page) => `D:/cache/${page.index}.png`,
       })
@@ -107,14 +107,15 @@ describe("SuperResolutionPreloadService", () => {
         contextId: "reader-progressive-generation",
         generation: 2,
         currentPageIndex: 1,
-        pages: pages(5),
+        pages: pages(8),
         bookPath: "D:/book.cbz",
         destinationFor: (page) => `D:/cache/${page.index}.png`,
       })
       expect(run).toHaveBeenCalledOnce()
       runGate.resolve()
       await expect(first).resolves.toMatchObject({ generation: 1, settled: 2 })
-      await expect(second).resolves.toMatchObject({ generation: 1, settled: 2 })
+      await expect(second).resolves.toMatchObject({ generation: 2, settled: 3 })
+      expect(run.mock.calls.map(([input]) => input.page.index)).toEqual([4, 5, 6])
     } finally {
       await service.dispose()
     }
@@ -156,15 +157,55 @@ describe("SuperResolutionPreloadService", () => {
         contextId: "reader-1",
         generation: 3,
         currentPageIndex: 1,
-        pages: pages(6),
+        pages: pages(8),
         bookPath: "D:/book.cbz",
         destinationFor: (page) => `D:/cache/${page.index}.png`,
       })
       expect(result).toMatchObject({ mode: "progressive", generation: 3, planned: 2, settled: 2 })
       expect(run.mock.calls.map(([input]) => [input.page.index, input.priority])).toEqual([
-        [2, "background"],
-        [3, "background"],
+        [5, "background"],
+        [6, "background"],
       ])
+    } finally {
+      await service.dispose()
+    }
+  })
+
+  it("[neoview.super-resolution.rolling-frontier] keeps nearby and progressive ranges contiguous without overlap", async () => {
+    const run = vi.fn(async (input) => ({ decision: { kind: "skip" as const, reason: input.page.id } }))
+    const service = new SuperResolutionPreloadService({ run }, preferences({
+      preloadPages: 3,
+      progressiveEnabled: true,
+      progressiveDwellTimeMs: 0,
+      progressiveMaxPages: 20,
+    }))
+    try {
+      const nearby = service.schedulePlan({
+        contextId: "reader-rolling-frontier",
+        plan: plan(1, [[3, 4, 5]], [2]),
+        pages: pages(30),
+        bookPath: "D:/book.cbz",
+        destinationFor: (page) => `D:/cache/${page.index}.png`,
+      })
+      const progressive = service.scheduleProgressive({
+        contextId: "reader-rolling-frontier",
+        generation: 1,
+        currentPageIndex: 2,
+        pages: pages(30),
+        bookPath: "D:/book.cbz",
+        destinationFor: (page) => `D:/cache/${page.index}.png`,
+      })
+
+      await expect(nearby).resolves.toMatchObject({ planned: 3, settled: 3 })
+      await expect(progressive).resolves.toMatchObject({ planned: 20, settled: 20 })
+      const nearbyIndexes = run.mock.calls
+        .filter(([input]) => input.priority === "ahead")
+        .map(([input]) => input.page.index)
+      const progressiveIndexes = run.mock.calls
+        .filter(([input]) => input.priority === "background")
+        .map(([input]) => input.page.index)
+      expect(nearbyIndexes).toEqual([3, 4, 5])
+      expect(progressiveIndexes).toEqual(Array.from({ length: 20 }, (_, index) => index + 6))
     } finally {
       await service.dispose()
     }
@@ -309,7 +350,7 @@ describe("SuperResolutionPreloadService", () => {
         state: "paused",
         cancelled: 1,
         pending: 0,
-        progress: 1,
+        progress: 0,
       })
     } finally {
       await service.dispose()
@@ -368,7 +409,7 @@ function pages(count: number): ReaderPage[] {
   }))
 }
 
-function plan(generation: number, groups: readonly (readonly number[])[]): ReaderPreloadPlan {
+function plan(generation: number, groups: readonly (readonly number[])[], currentPageIndexes: readonly number[] = [0]): ReaderPreloadPlan {
   return {
     generation,
     frameGeneration: generation,
@@ -381,7 +422,7 @@ function plan(generation: number, groups: readonly (readonly number[])[]): Reade
     focused: true,
     queueWaitMs: 0,
     memoryPressure: "normal",
-    currentPageIndexes: [0],
+    currentPageIndexes,
     candidates: groups.map((pageIndexes, index) => ({
       tier: index === 0 ? "ahead" as const : "background" as const,
       priority: index === 0 ? "ahead" as const : "background" as const,
