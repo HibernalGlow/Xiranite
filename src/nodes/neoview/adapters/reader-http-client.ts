@@ -1346,6 +1346,7 @@ export interface ReaderFolderViewConfig {
   /** Preferred directory listing type filter; applied when a browser session opens. */
   typeFilter?: ReaderDirectoryFilterDto
   showHiddenFolders?: boolean
+  confirmDelete?: boolean
   tagDisplay: ReaderFolderTagDisplayConfig
   penetration: ReaderFolderPenetrationConfig
   emptyArea: ReaderFolderEmptyAreaConfig
@@ -1376,6 +1377,7 @@ export interface ReaderFolderViewPatch {
     hoverPreviewDelayMs?: 200 | 500 | 800 | 1200
     typeFilter?: ReaderDirectoryFilterDto
     showHiddenFolders?: boolean
+    confirmDelete?: boolean
     tagDisplay?: Partial<ReaderFolderTagDisplayConfig>
     penetration?: Partial<ReaderFolderPenetrationConfig>
     emptyArea?: Partial<ReaderFolderEmptyAreaConfig>
