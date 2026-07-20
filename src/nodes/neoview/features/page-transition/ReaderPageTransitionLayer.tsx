@@ -9,12 +9,13 @@ import { projectReaderPageTransitionCss } from "@xiranite/node-neoview/page-tran
 
 import type { ReaderPageTransitionPort } from "./ReaderPageTransitionStore"
 
-export function ReaderPageTransitionLayer({ children, pageIndex, store, slideshowFade = false, slideshowTarget }: {
+export function ReaderPageTransitionLayer({ children, pageIndex, store, slideshowFade = false, slideshowTarget, fill = false }: {
   children: ReactNode
   pageIndex?: number
   store?: ReaderPageTransitionPort
   slideshowFade?: boolean
   slideshowTarget?: string
+  fill?: boolean
 }) {
   const elementRef = useRef<HTMLDivElement>(null)
   const lastPageIndexRef = useRef<number>()
@@ -78,7 +79,7 @@ export function ReaderPageTransitionLayer({ children, pageIndex, store, slidesho
   }, [])
 
   return (
-    <div ref={elementRef} className="shrink-0" data-reader-page-transition-layer="true">
+    <div ref={elementRef} className={fill ? "h-full min-h-0 w-full shrink-0" : "shrink-0"} data-reader-page-transition-layer="true">
       {children}
     </div>
   )

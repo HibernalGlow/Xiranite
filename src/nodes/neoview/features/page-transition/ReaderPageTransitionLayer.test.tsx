@@ -65,6 +65,14 @@ describe("ReaderPageTransitionLayer", () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it("fills the reader viewport when it owns a full-surface renderer", () => {
+    const view = render(<ReaderPageTransitionLayer pageIndex={0} fill><span /></ReaderPageTransitionLayer>)
+    const layer = view.container.querySelector<HTMLElement>("[data-reader-page-transition-layer]")!
+    expect(layer.className).toContain("h-full")
+    expect(layer.className).toContain("min-h-0")
+    expect(layer.className).toContain("w-full")
+  })
+
   it("[neoview.slideshow.fade-transition] applies a compositor-only slideshow fade without requiring the general transition setting", () => {
     vi.useFakeTimers()
     const view = render(<ReaderPageTransitionLayer pageIndex={1} slideshowFade><img src="/page-1.jpg" /></ReaderPageTransitionLayer>)
