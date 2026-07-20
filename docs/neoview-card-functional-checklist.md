@@ -2127,43 +2127,43 @@
 
 ##### 专用源码级验收项
 
-- [ ] `time.fields` 显示当前页创建与修改时间
-  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
+- [x] `time.fields` 显示当前页创建与修改时间
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：TimeInformation Card renders created and modified rows from the current page metadata without substituting unrelated values.
   - 源码：`src/lib/cards/info/TimeCard.svelte`
   - 测试：`neoview.book.directory`、`neoview.book.archive`、`neoview.metadata.http`、`neoview.metadata.cards`、`neoview.headless.navigation`、`neoview.time-information.projection`、`neoview.time-information.cli-projection`、`neoview.tui.reader`、`neoview.time-information.e2e`
   - 计划测试：无
   - 备注：Filesystem and archive page timestamps are captured during book load, copied into bounded headless page snapshots and projected consistently by React, CLI and TUI without additional stat work.
-- [ ] `time.access-source` 访问时间与时间来源语义
-  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
+- [x] `time.access-source` 访问时间与时间来源语义
+  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：The shared DTO distinguishes filesystem, archive-entry and book-source timestamps; unavailable fields stay unknown.
   - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/types/metadata.ts`
   - 测试：`neoview.time-information.archive-source`、`neoview.time-information.archive-invalid`、`neoview.time-information.book-source-fallback`、`neoview.headless.navigation`、`neoview.time-information.projection`、`neoview.time-information.cli-projection`、`neoview.tui.reader`、`neoview.time-information.e2e`
   - 计划测试：无
   - 备注：The shared projection preserves filesystem, archive-entry, book-source and unknown labels in both Chinese and English. An entirely empty page projection may use book-source timestamps; a page with an explicit source remains authoritative even when individual fields are unavailable.
-- [ ] `time.format` 本地时区与未知值格式
-  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
+- [x] `time.format` 本地时区与未知值格式
+  - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：Finite timestamps use zh-CN local time; missing or invalid values render an em dash.
   - 源码：`src/lib/cards/info/TimeCard.svelte`
   - 测试：`neoview.time-information.format`、`neoview.time-information.projection`、`neoview.time-information.projection-invalid`、`neoview.time-information.cli-projection`、`neoview.tui.reader`
   - 计划测试：无
   - 备注：One browser-safe formatter uses local zh-CN/en-US time and rejects missing, non-finite or invalid values as an em dash across React, CLI and TUI without exposing Invalid Date.
-- [ ] `time.states` 加载、空、错误与重试
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `time.states` 加载、空、错误与重试
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The Card has stable loading, empty, error and retry states and never shows stale data as current.
   - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`、`src/lib/services/metadataService.ts`
   - 测试：`neoview.time-information.states`、`neoview.time-information.retry`、`neoview.metadata.cancel`
   - 计划测试：无
   - 备注：Loading/error/retry are XR accessibility improvements over the legacy silent failure.
-- [ ] `time.shell` 共享 Card 外壳行为
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `time.shell` 共享 Card 外壳行为
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The Time Card remains independently lazy, dockable, hideable, collapsible, movable, resizable and window-capable through the shared shell.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`、`src/lib/components/cardwindow/CardWindowContent.svelte`
-  - 测试：`neoview.card.collapse`、`neoview.card.resize-bounds`、`neoview.settings.card-docking`
-  - 计划测试：`neoview.time-information.lazy-chunk`
+  - 测试：`neoview.card.collapse`、`neoview.card.resize-bounds`、`neoview.settings.card-docking`、`neoview.time-information.lazy-chunk`
+  - 计划测试：无
   - 备注：Shared shell tests apply and the Time-specific production chunk is independently gated.
-- [ ] `time.data-contract` 共享可取消时间 DTO
-  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=P`；阻塞：`evidence`
+- [x] `time.data-contract` 共享可取消时间 DTO
+  - 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：GUI, CLI and TUI receive the same bounded session metadata DTO with generation, cancellation and source semantics.
   - 源码：`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/book/core.svelte.ts`、`src/lib/services/metadataService.ts`
   - 测试：`neoview.book.directory`、`neoview.book.archive`、`neoview.metadata.http`、`neoview.metadata.client`、`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.headless.navigation`、`neoview.time-information.projection`、`neoview.time-information.cli-projection`、`neoview.tui.reader`
@@ -2173,7 +2173,7 @@
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Hidden/unmounted Cards do no work; the final subscriber aborts; generation changes cannot publish old metadata.
   - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/cards/CardRenderer.svelte`、`src/lib/stores/infoPanel.svelte.ts`、`src/lib/stores/book/core.svelte.ts`
-  - 测试：`neoview.metadata.cancel`、`neoview.card.zero-mount`、`neoview.time-information.generation-stale`
+  - 测试：`neoview.metadata.cancel`、`neoview.card.zero-mount`、`neoview.time-information.generation-stale`、`neoview.time-information.strictmode-request`
   - 计划测试：无
   - 备注：Final-subscriber cancellation and generation replacement are both covered.
 - [ ] `time.persistence` 仅持久化共享 Card 布局
@@ -2183,8 +2183,8 @@
   - 测试：`neoview.settings.card-layout`、`neoview.card.persist-react`
   - 计划测试：无
   - 备注：No time data is written to xiranite.db or a second NeoView database.
-- [ ] `time.accessibility` 语义字段与键盘等价操作
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `time.accessibility` 语义字段与键盘等价操作
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The Card uses a semantic description list; shell and retry controls have keyboard operation and accessible names.
   - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/components/cards/CollapsibleCard.svelte`
   - 测试：`neoview.time-information.states`、`neoview.time-information.retry`、`neoview.card.collapse`
@@ -2201,9 +2201,9 @@
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：O(1) DOM, one metadata request per session generation, zero work while hidden and a deferred Time Card chunk under 8 KiB.
   - 源码：`src/lib/cards/info/TimeCard.svelte`、`src/lib/cards/CardRenderer.svelte`、`src/lib/services/metadataService.ts`
-  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.time-information.e2e`
-  - 计划测试：`neoview.time-information.lazy-chunk`
-  - 备注：The production Time Card chunk is 1816 bytes; its shared projection remains in the deferred 10602-byte ui-core host chunk, and browser evidence confirms one request per generation.
+  - 测试：`neoview.metadata.cards`、`neoview.metadata.cancel`、`neoview.time-information.e2e`、`neoview.time-information.strictmode-request`、`neoview.time-information.lazy-chunk`
+  - 计划测试：无
+  - 备注：The production Time Card and projection share one deferred 2632-byte chunk, stay outside Reader entry/sidebar chunks, and browser evidence confirms one request per generation under StrictMode.
 - [ ] `time.deviations` 记录访问时间、来源与错误状态扩展
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Document that accessedAt, timeSource, loading/error/retry are intentional additions; archive outer-file times are never misrepresented as entry times.

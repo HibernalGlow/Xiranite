@@ -176,7 +176,7 @@ if (bookSettingsChunk.bytes > 8 * 1024) {
 }
 const timeInformationChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]TimeInformationCard\.tsx$/i.test(module)))
 // [neoview.time-information.projection-chunk]
-const timeInformationProjectionChunk = chunks.find((chunk) => chunk.modules.some((module) => /[/\\]domain[/\\]page[/\\]TimeInformationProjection\.ts$/i.test(module)))
+const timeInformationProjectionChunk = chunks.find((chunk) => chunk.modules.some((module) => /[/\\](?:src|dist)[/\\]domain[/\\]page[/\\]TimeInformationProjection\.(?:ts|js)$/i.test(module)))
 if (!timeInformationChunk || timeInformationChunk === readerSidebarChunk) {
   throw new Error("NeoView TimeInformationCard did not produce an independent deferred production chunk.")
 }

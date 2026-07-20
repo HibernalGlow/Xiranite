@@ -66,9 +66,12 @@ function acquire(store: Map<string, MetadataEntry>, entry: MetadataEntry, client
   return () => {
     entry.references -= 1
     if (entry.references > 0) return
-    entry.controller?.abort()
-    entry.listeners.clear()
-    store.delete(entry.key)
+    queueMicrotask(() => {
+      if (entry.references > 0 || store.get(entry.key) !== entry) return
+      entry.controller?.abort()
+      entry.listeners.clear()
+      store.delete(entry.key)
+    })
   }
 }
 

@@ -63,6 +63,7 @@
     "audit:neoview-build": "bun scripts/audit-neoview-build-chunk.ts",
     "audit:neoview-page-transition-chunk": "bun scripts/audit-neoview-page-transition-chunk.ts",
     "audit:neoview-switch-toast-chunk": "bun scripts/audit-neoview-switch-toast-chunk.ts",
+    "audit:neoview-time-information-chunk": "bun scripts/audit-neoview-time-information-chunk.ts",
     "audit:neoview-image-trim-chunk": "bun scripts/audit-neoview-image-trim-chunk.ts",
     "audit:neoview-config": "bun scripts/audit-neoview-config-format.ts",
     "generate:neoview-frontend-inventory": "bun run migrate:svelte -- generate ../ImageAll/NeeWaifu/neoview/neoview-tauri --out migration/neoview/frontend --config migration/neoview/frontend-migration.json --feature-matrix migration/neoview/feature-compatibility.json --force",

@@ -92,14 +92,6 @@ export type {
   ReaderPageTimeSource,
 } from "./domain/page/page.js"
 export {
-  formatReaderTimestamp,
-  projectReaderTimeInformation,
-  resolveReaderTimeInformation,
-  type ReaderTimeInformationLanguage,
-  type ReaderTimeInformationInput,
-  type ReaderTimeInformationProjection,
-} from "./domain/page/TimeInformationProjection.js"
-export {
   ReaderSlideshow,
   type ReaderSlideshowConfig,
   type ReaderSlideshowOptions,
