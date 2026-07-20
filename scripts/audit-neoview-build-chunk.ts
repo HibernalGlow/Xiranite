@@ -245,6 +245,17 @@ if (thumbnailMaintenanceChunk === neoViewChunk || thumbnailMaintenanceChunk === 
 if (thumbnailMaintenanceChunk.bytes > 16 * 1024) {
   throw new Error(`NeoView ThumbnailMaintenanceCard chunk ${thumbnailMaintenanceChunk.fileName} is ${thumbnailMaintenanceChunk.bytes} bytes, above 16 KiB.`)
 }
+// [neoview.thumbnail-architecture-metrics.chunk]
+const thumbnailArchitectureMetricsChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]ThumbnailArchitectureMetricsCard\.tsx$/i.test(module)))
+if (!thumbnailArchitectureMetricsChunk) {
+  throw new Error("NeoView ThumbnailArchitectureMetricsCard did not produce an independent deferred production chunk.")
+}
+if (thumbnailArchitectureMetricsChunk === neoViewChunk || thumbnailArchitectureMetricsChunk === initialChunk || thumbnailArchitectureMetricsChunk === readerSidebarChunk) {
+  throw new Error("NeoView ThumbnailArchitectureMetricsCard leaked into an eager Reader, initial or ReaderSidebar chunk.")
+}
+if (thumbnailArchitectureMetricsChunk.bytes > 16 * 1024) {
+  throw new Error(`NeoView ThumbnailArchitectureMetricsCard chunk ${thumbnailArchitectureMetricsChunk.fileName} is ${thumbnailArchitectureMetricsChunk.bytes} bytes, above 16 KiB.`)
+}
 const sidebarControlCardChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]SidebarControlCard\.tsx$/i.test(module)))
 const sidebarFloatingControllerChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]shell[/\\]SidebarFloatingController\.tsx$/i.test(module)))
 if (!sidebarControlCardChunk || sidebarControlCardChunk === neoViewChunk || sidebarControlCardChunk === readerSidebarChunk) {

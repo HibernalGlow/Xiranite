@@ -131,16 +131,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.thumbnail-architecture-metrics.card",
         "neoview.thumbnail-architecture-metrics.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "The mapping preserves the legacy store semantics using the canonical coordinator snapshot rather than a second browser store."
     },
     {
@@ -155,18 +155,22 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
+        "neoview.thumbnail.coordinator.telemetry",
+        "neoview.diagnostics.snapshot",
+        "neoview.diagnostics.http",
+        "neoview.thumbnail-architecture-metrics.client",
         "neoview.thumbnail-architecture-metrics.card",
-        "neoview.thumbnail-architecture-metrics.client"
+        "neoview.thumbnail-architecture-metrics.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "The backend coordinator already records these bounded counters on its existing telemetry path."
     },
     {
@@ -181,18 +185,20 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
+        "neoview.thumbnail.coordinator.telemetry",
+        "neoview.thumbnail-architecture-metrics.client",
         "neoview.thumbnail-architecture-metrics.lanes",
         "neoview.thumbnail-architecture-metrics.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Lane keys are bounded enums. The Card must not parse file extensions, dimensions or cache keys during polling."
     },
     {
@@ -209,16 +215,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.thumbnail-architecture-metrics.reset",
-        "neoview.thumbnail-architecture-metrics.performance"
+        "neoview.thumbnail-architecture-metrics.performance",
+        "neoview.thumbnail-architecture-metrics.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Local reset avoids surprising other diagnostics consumers and requires no mutation endpoint."
     },
     {
@@ -235,16 +242,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.thumbnail-architecture-metrics.card",
-        "neoview.thumbnail-architecture-metrics.lifecycle"
+        "neoview.thumbnail-architecture-metrics.lifecycle",
+        "neoview.thumbnail-architecture-metrics.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "An empty measured coordinator is valid data and displays zero; only absence of the thumbnails snapshot is unavailable."
     },
     {
@@ -259,18 +267,21 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
+        "neoview.diagnostics.snapshot",
+        "neoview.diagnostics.wire-schema",
+        "neoview.diagnostics.http",
         "neoview.thumbnail-architecture-metrics.client",
         "neoview.thumbnail-architecture-metrics.card"
       ],
+      "plannedTestIds": [],
       "notes": "The endpoint and backend wire schema already exist; this slice closes the previously underspecified browser DTO."
     },
     {
@@ -287,16 +298,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.thumbnail-architecture-metrics.lifecycle",
+        "neoview.thumbnail-architecture-metrics.e2e",
         "neoview.thumbnail-architecture-metrics.image-stability"
       ],
+      "plannedTestIds": [],
       "notes": "Polling is owned by the Card and never added to ReaderApp, the coordinator or a process-global timer."
     },
     {
@@ -313,18 +325,19 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.thumbnail-architecture-metrics.lifecycle",
+        "neoview.thumbnail-architecture-metrics.performance",
         "neoview.thumbnail-architecture-metrics.chunk",
         "neoview.thumbnail-architecture-metrics.e2e",
         "neoview.thumbnail-architecture-metrics.image-stability"
       ],
+      "plannedTestIds": [],
       "notes": "No detailed classifier, cache-key parsing, backend reset or high-cardinality aggregation is added to the thumbnail acquire hot path."
     },
     {
@@ -341,16 +354,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.thumbnail-architecture-metrics.accessibility",
         "neoview.thumbnail-architecture-metrics.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "No source shortcut exists; native button keyboard activation is the equivalent contract."
     },
     {
@@ -368,16 +381,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.thumbnail-architecture-metrics.card",
         "neoview.thumbnail-architecture-metrics.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "XR adds expanded metrics below the legacy summary but does not change the first-view control hierarchy."
     },
     {
@@ -394,17 +407,19 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
+        "neoview.thumbnail.coordinator.telemetry",
         "neoview.thumbnail-architecture-metrics.lanes",
         "neoview.thumbnail-architecture-metrics.performance"
       ],
+      "plannedTestIds": [],
       "notes": "This is an explicit performance-driven replacement contract, not fabricated zero-valued telemetry."
     }
-  ]
+  ],
+  "visualTarget": "artifacts/playwright/**/neoview-thumbnail-architecture-metrics-{chromium-desktop,chromium-card}.png"
 }

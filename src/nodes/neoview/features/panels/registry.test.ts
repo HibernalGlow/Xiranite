@@ -88,8 +88,20 @@ describe("NeoView panel and card registries", () => {
   it("[neoview.card.parallel-core] exposes preload and current-book settings without eager loading", () => {
     expect(cardsForPanel("info").map((card) => card.id)).toContain("preload-status")
     expect(CARD_DEFINITIONS.find((card) => card.id === "preload-status")?.icon).toBeTruthy()
-    expect(cardsForPanel("properties").map((card) => card.id)).toEqual(["book-settings"])
-    expect(cardsForPanel("properties", undefined, false).map((card) => card.id)).toEqual(["book-settings"])
+    expect(cardsForPanel("properties").map((card) => card.id)).toEqual(["book-settings", "thumbnail-architecture-metrics"])
+    expect(cardsForPanel("properties", undefined, false).map((card) => card.id)).toEqual(["book-settings", "thumbnail-architecture-metrics"])
+  })
+
+  it("[neoview.thumbnail-architecture-metrics.registry] exposes the legacy properties Card without requiring a session", () => {
+    const definition = CARD_DEFINITIONS.find((card) => card.id === "thumbnail-architecture-metrics")
+    expect(definition).toMatchObject({
+      defaultPanel: "properties",
+      defaultSidebarVisible: true,
+      requiresSession: false,
+      canHide: true,
+    })
+    expect(definition?.icon).toBeTruthy()
+    expect(definition?.load).toBeTypeOf("function")
   })
 
   it("[neoview.thumbnail-maintenance.registry] keeps maintenance session-independent and undocked by default", () => {

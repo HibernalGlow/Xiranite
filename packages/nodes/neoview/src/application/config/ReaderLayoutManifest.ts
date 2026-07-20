@@ -81,6 +81,7 @@ export const READER_CARD_MANIFEST = [
   card("upscale-conditions", "条件超分", "upscale", true, true, 4, true, false),
   card("info-overlay", "信息悬浮窗", "info", true, true, 5, true, false),
   card("book-settings", "本书设置", "properties", true, true, 0, true, true),
+  card("thumbnail-architecture-metrics", "缩略图架构指标", "properties", true, true, 1, true, false),
   card("switch-toast", "切换提示", "control", true, true, 0, true, false),
   card("sidebar-control", "侧栏控制", "control", true, true, 1, true, false),
   card("color-filter", "颜色滤镜", "control", true, true, 2, true, false),
