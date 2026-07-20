@@ -1063,6 +1063,7 @@ describe("FolderMainCard", () => {
     const view = render(renderCard(layout()))
     const ui = within(view.container)
     await ui.findByTitle("C:/books/book.cbz")
+    expect(view.container.querySelector('[data-folder-toolbar-layout="wrapping"]')).toBeTruthy()
     expect(view.container.querySelector('[data-folder-tab-bar="true"]')).toBeNull()
     expect(view.container.querySelector('[data-folder-tab-count="1"]')).toBeTruthy()
 
