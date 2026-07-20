@@ -45,6 +45,21 @@ describe("ReaderThumbnailMaintenanceService", () => {
     expect(await service.clearFailures({ reason: "decode-error", limit: 50 })).toEqual({ enabled: true, deleted: 4 })
   })
 
+  it("clears representative manifests for one normalized path prefix", async () => {
+    const clearFolderRepresentativeManifests = vi.fn(async () => 7)
+    const service = new ReaderThumbnailMaintenanceService({ clearFolderRepresentativeManifests })
+
+    await expect(service.clearFolderRepresentativeManifests({ prefix: " D:/library ", limit: 100 })).resolves.toEqual({
+      enabled: true,
+      prefix: "D:/library",
+      deleted: 7,
+    })
+    expect(clearFolderRepresentativeManifests).toHaveBeenCalledWith(
+      { prefix: "D:/library", limit: 100 },
+      undefined,
+    )
+  })
+
   it("returns disabled capabilities without touching the database port", async () => {
     const service = new ReaderThumbnailMaintenanceService({})
     expect(await service.status()).toEqual({ enabled: false })
@@ -53,6 +68,7 @@ describe("ReaderThumbnailMaintenanceService", () => {
     expect(await service.cleanup({ kind: "invalid", scanLimit: 1, deleteLimit: 1 })).toEqual({ enabled: false })
     expect(await service.cleanup({ kind: "path-prefix", prefix: "D:/library", limit: 1 })).toEqual({ enabled: false })
     expect(await service.clearFailures({ limit: 1 })).toEqual({ enabled: false })
+    expect(await service.clearFolderRepresentativeManifests({ prefix: "D:/library", limit: 1 })).toEqual({ enabled: false })
   })
 
   it("rejects unsafe batch sizes before invoking the store", async () => {

@@ -93,5 +93,9 @@ export interface ReaderThumbnailStore {
   maintenanceSnapshot?(signal?: AbortSignal): Promise<ReaderThumbnailMaintenanceSnapshot>
   clearFailures?(options: { reason?: string; limit: number }, signal?: AbortSignal): Promise<number>
   cleanup?(request: ReaderThumbnailCleanupRequest, signal?: AbortSignal): Promise<number>
+  clearFolderRepresentativeManifests?(
+    options: { prefix: string; limit: number },
+    signal?: AbortSignal,
+  ): Promise<number>
   cleanupInvalid?(options: { scanLimit: number; deleteLimit: number }, signal?: AbortSignal): Promise<ReaderThumbnailInvalidCleanupResult>
 }

@@ -71,6 +71,52 @@ describe("ThumbnailMaintenanceCard", () => {
     }, expect.any(AbortSignal)))
   })
 
+  it("[neoview.thumbnail-maintenance.current-directory] exposes prewarm, rebuild and scoped cache cleanup", async () => {
+    const thumbnailMaintenance = vi.fn(async () => SNAPSHOT)
+    const entries = [
+      { name: "series", path: "D:/library/series", kind: "directory" as const, readerSupported: true },
+      { name: "book.cbz", path: "D:/library/book.cbz", kind: "file" as const, readerSupported: true },
+    ]
+    const openDirectoryBrowser = vi.fn(async () => ({ sessionId: "maintenance-browser", total: entries.length }))
+    const listDirectoryBrowser = vi.fn(async () => ({ entries, total: entries.length }))
+    const prewarmLibraryThumbnails = vi.fn(async (items: readonly unknown[]) => ({ total: items.length, completed: items.length, failed: 0 }))
+    const closeDirectoryBrowser = vi.fn(async () => undefined)
+    const clearThumbnailFolderManifests = vi.fn(async () => 3)
+    const cleanupThumbnails = vi.fn(async () => ({ kind: "path-prefix" as const, prefix: "D:/library", deleted: 4 }))
+    const client = {
+      thumbnailMaintenance,
+      openDirectoryBrowser,
+      listDirectoryBrowser,
+      prewarmLibraryThumbnails,
+      closeDirectoryBrowser,
+      clearThumbnailFolderManifests,
+      cleanupThumbnails,
+    } as unknown as ReaderHttpClient
+    render(<ThumbnailMaintenanceCard
+      client={client}
+      disabled={false}
+      panelActive
+      sourcePath="D:/library/book.cbz"
+      browserOriginPath="D:/library"
+      onGoTo={() => {}}
+    />)
+    await screen.findByText("1,250")
+
+    fireEvent.click(screen.getByRole("button", { name: "预热当前目录" }))
+    expect(await screen.findByText("已预热 2/2 项")).toBeTruthy()
+    expect(openDirectoryBrowser).toHaveBeenLastCalledWith("D:/library", expect.any(AbortSignal), "thumbnail-maintenance", false)
+    expect(prewarmLibraryThumbnails).toHaveBeenLastCalledWith(expect.any(Array), { mode: "ensure", concurrency: 2 }, expect.any(AbortSignal))
+    expect(closeDirectoryBrowser).toHaveBeenCalledWith("maintenance-browser", false)
+
+    fireEvent.click(screen.getByRole("button", { name: "重建当前目录清单" }))
+    expect(await screen.findByText("已清除 3 条代表图清单；已预热 2/2 项")).toBeTruthy()
+    expect(clearThumbnailFolderManifests).toHaveBeenLastCalledWith("D:/library", 500, expect.any(AbortSignal))
+
+    fireEvent.click(screen.getByRole("button", { name: "清理当前目录缓存" }))
+    expect(await screen.findByText("已删除 4 条当前目录缩略图和 3 条代表图清单（单次上限 500）")).toBeTruthy()
+    expect(cleanupThumbnails).toHaveBeenLastCalledWith({ kind: "path-prefix", prefix: "D:/library", limit: 500 }, expect.any(AbortSignal))
+  })
+
   it("[neoview.thumbnail-maintenance.card-actions] preserves a committed cleanup result when statistics refresh fails", async () => {
     const thumbnailMaintenance = vi.fn()
       .mockResolvedValueOnce(SNAPSHOT)

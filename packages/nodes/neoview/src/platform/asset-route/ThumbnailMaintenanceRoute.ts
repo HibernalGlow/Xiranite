@@ -4,6 +4,7 @@ import { ReaderThumbnailMaintenanceService } from "../../application/thumbnails/
 const MAINTENANCE_PATH = "/reader/thumbnails/maintenance"
 const CLEANUP_PATH = "/reader/thumbnails/maintenance/cleanup"
 const CLEAR_FAILURES_PATH = "/reader/thumbnails/maintenance/failures/clear"
+const CLEAR_FOLDER_MANIFESTS_PATH = "/reader/thumbnails/maintenance/folder-manifests/clear"
 const MAX_BODY_BYTES = 32 * 1024
 
 export interface ThumbnailMaintenanceRouteOptions {
@@ -25,7 +26,7 @@ export class ThumbnailMaintenanceRoute {
 
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
-    if (url.pathname !== MAINTENANCE_PATH && url.pathname !== CLEANUP_PATH && url.pathname !== CLEAR_FAILURES_PATH) return undefined
+    if (url.pathname !== MAINTENANCE_PATH && url.pathname !== CLEANUP_PATH && url.pathname !== CLEAR_FAILURES_PATH && url.pathname !== CLEAR_FOLDER_MANIFESTS_PATH) return undefined
     if (!this.#isAuthorized(request, url)) return jsonResponse({ error: "Unauthorized" }, 401)
     if (url.pathname === MAINTENANCE_PATH && request.method === "GET") return this.#stats(request.signal)
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: { allow: url.pathname === MAINTENANCE_PATH ? "GET" : "POST" } })
@@ -34,6 +35,7 @@ export class ThumbnailMaintenanceRoute {
     }
     if (url.pathname === CLEANUP_PATH) return this.#cleanup(request)
     if (url.pathname === CLEAR_FAILURES_PATH) return this.#clearFailures(request)
+    if (url.pathname === CLEAR_FOLDER_MANIFESTS_PATH) return this.#clearFolderManifests(request)
     return undefined
   }
 
@@ -115,6 +117,24 @@ export class ThumbnailMaintenanceRoute {
     } catch {
       request.signal.throwIfAborted()
       return jsonResponse({ error: "Thumbnail failures could not be cleared" }, 503)
+    }
+  }
+
+  async #clearFolderManifests(request: Request): Promise<Response> {
+    const body = await readBody(request)
+    const prefix = boundedPathPrefix(body?.prefix)
+    const limit = maintenanceLimit(body?.limit)
+    if (!body || !prefix || !limit) {
+      return jsonResponse({ error: "prefix must be a non-empty path and limit must be 1..1000" }, 400)
+    }
+    try {
+      const result = await this.#service.clearFolderRepresentativeManifests({ prefix, limit }, request.signal)
+      return result.enabled
+        ? jsonResponse({ deleted: result.deleted, prefix: result.prefix })
+        : jsonResponse({ error: "Folder representative manifest maintenance is unavailable" }, 501)
+    } catch {
+      request.signal.throwIfAborted()
+      return jsonResponse({ error: "Folder representative manifests could not be cleared" }, 503)
     }
   }
 

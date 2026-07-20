@@ -7,7 +7,7 @@
  * @unsupported-source-nodes path-prefix deletion, VACUUM, and key normalization remain offline-only by contract
  * @migration-status adapted
  */
-import { Clock, Database, FolderX, Loader2, RefreshCcw, ShieldX, Trash2, X } from "lucide-react"
+import { Clock, Database, DatabaseZap, FolderSync, FolderX, Loader2, RefreshCcw, ShieldX, Trash2, X } from "lucide-react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -24,16 +24,18 @@ import type { ReaderPanelContext } from "../registry"
 const DEFAULT_LIMIT = 500
 const DEFAULT_SCAN_LIMIT = 500
 
-type Operation = "refresh" | "invalid" | "empty" | "expired" | "failures"
+type Operation = "refresh" | "invalid" | "empty" | "expired" | "failures" | "prewarm" | "rebuild" | "current-cache"
 type Feedback = { tone: "success" | "warning" | "error"; text: string }
 
-export default function ThumbnailMaintenanceCard({ client, panelActive = true, disabled }: ReaderPanelContext) {
+export default function ThumbnailMaintenanceCard({ client, panelActive = true, disabled, sourcePath, browserOriginPath, session, folderView }: ReaderPanelContext) {
   const [snapshot, setSnapshot] = useState<ReaderThumbnailMaintenanceSnapshotDto>()
   const [operation, setOperation] = useState<Operation>()
   const [expireDays, setExpireDays] = useState(30)
   const [feedback, setFeedback] = useState<Feedback>()
   const controllerRef = useRef<AbortController>()
   const generationRef = useRef(0)
+  const currentDirectory = resolveCurrentDirectory(browserOriginPath, sourcePath, session?.book.sourceKind)
+  const currentPreviewCount = folderView?.previewGridEnabled ? folderView.previewCount : 1
 
   useEffect(() => {
     if (!panelActive || disabled) return
@@ -97,6 +99,50 @@ export default function ThumbnailMaintenanceCard({ client, panelActive = true, d
   async function clearFailures() {
     if (!client.clearThumbnailFailures) return setFeedback(unavailableFeedback())
     await run("failures", (signal) => client.clearThumbnailFailures!(DEFAULT_LIMIT, signal), (deleted) => `已清除 ${deleted} 条失败记录`)
+  }
+
+  async function prewarmCurrentDirectory(rebuild: boolean) {
+    if (!currentDirectory) return setFeedback({ tone: "error", text: "当前没有可维护的目录" })
+    if (!client.openDirectoryBrowser || !client.closeDirectoryBrowser || !client.listDirectoryBrowser || !client.prewarmLibraryThumbnails) {
+      return setFeedback(unavailableFeedback())
+    }
+    if (rebuild && !client.clearThumbnailFolderManifests) return setFeedback(unavailableFeedback())
+    await run(rebuild ? "rebuild" : "prewarm", async (signal) => {
+      const clearedManifests = rebuild
+        ? await client.clearThumbnailFolderManifests!(currentDirectory, DEFAULT_LIMIT, signal)
+        : 0
+      const page = await client.openDirectoryBrowser!(currentDirectory, signal, "thumbnail-maintenance", false)
+      try {
+        const { compileFolderThumbnails } = await import("./folder/compileFolderThumbnails")
+        const progress = await compileFolderThumbnails(
+          client,
+          page.sessionId,
+          page.total,
+          { previewCount: currentPreviewCount },
+          signal,
+        )
+        return { ...progress, clearedManifests }
+      } finally {
+        await client.closeDirectoryBrowser!(page.sessionId, false).catch(() => undefined)
+      }
+    }, (result) => {
+      const prefix = rebuild ? `已清除 ${result.clearedManifests} 条代表图清单；` : ""
+      return `${prefix}已预热 ${result.completed}/${result.processed} 项${result.failed ? `，失败 ${result.failed} 项` : ""}`
+    })
+  }
+
+  async function clearCurrentDirectoryCache() {
+    if (!currentDirectory) return setFeedback({ tone: "error", text: "当前没有可维护的目录" })
+    if (!client.cleanupThumbnails || !client.clearThumbnailFolderManifests) return setFeedback(unavailableFeedback())
+    await run("current-cache", async (signal) => {
+      const thumbnails = await client.cleanupThumbnails!({
+        kind: "path-prefix",
+        prefix: currentDirectory,
+        limit: DEFAULT_LIMIT,
+      }, signal)
+      const manifests = await client.clearThumbnailFolderManifests!(currentDirectory, DEFAULT_LIMIT, signal)
+      return { thumbnails: thumbnails.deleted, manifests }
+    }, ({ thumbnails, manifests }) => `已删除 ${thumbnails} 条当前目录缩略图和 ${manifests} 条代表图清单（单次上限 ${DEFAULT_LIMIT}）`)
   }
 
   async function run<T>(kind: Operation, request: (signal: AbortSignal) => Promise<T>, message: (value: T) => string) {
@@ -187,6 +233,21 @@ export default function ThumbnailMaintenanceCard({ client, panelActive = true, d
           {feedback.text}
         </div>
       ) : null}
+
+      <section className="space-y-2 border-t pt-3" aria-labelledby="thumbnail-current-directory-heading">
+        <h3 id="thumbnail-current-directory-heading" className="font-medium">当前目录</h3>
+        <p className="truncate rounded bg-muted/40 px-2 py-1.5 font-mono text-[10px] text-muted-foreground" title={currentDirectory || "当前没有可维护的目录"}>
+          {currentDirectory || "当前没有可维护的目录"}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <ActionButton icon={FolderSync} disabled={busy || !currentDirectory} onClick={() => void prewarmCurrentDirectory(false)}>预热当前目录</ActionButton>
+          <ActionButton icon={RefreshCcw} disabled={busy || !currentDirectory} onClick={() => void prewarmCurrentDirectory(true)}>重建当前目录清单</ActionButton>
+        </div>
+        <ActionButton icon={DatabaseZap} disabled={busy || !currentDirectory} destructive onClick={() => void clearCurrentDirectoryCache()}>
+          清理当前目录缓存
+        </ActionButton>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">预热按 256 项分批、后台并发 2；离开卡片或点击 Cancel 会取消。</p>
+      </section>
 
       <section className="space-y-2" aria-labelledby="thumbnail-invalid-heading">
         <h3 id="thumbnail-invalid-heading" className="font-medium">清理无效记录</h3>
@@ -291,7 +352,25 @@ function cleanupMessage(value: ReaderThumbnailCleanupResultDto): string {
     return `已扫描 ${value.scanned} 条，删除 ${value.deleted} 条，保留不可用卷 ${value.unavailableVolumeRowsPreserved} 条${wrapped}`
   }
   if (value.kind === "expired") return `已删除 ${value.deleted} 条过期记录（截止 ${value.cutoff}）`
+  if (value.kind === "path-prefix") return `已删除 ${value.deleted} 条 ${value.prefix} 下的缩略图`
   return `已删除 ${value.deleted} 条空 Blob 记录`
+}
+
+function resolveCurrentDirectory(
+  browserOriginPath: string | undefined,
+  sourcePath: string | undefined,
+  sourceKind: string | undefined,
+): string {
+  const browserPath = browserOriginPath?.trim()
+  if (browserPath) return browserPath
+  const source = sourcePath?.trim()
+  if (!source) return ""
+  if (!sourceKind || sourceKind === "directory") return source
+  const normalized = source.replace(/[\\/]+$/u, "")
+  const separator = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"))
+  if (separator < 0) return ""
+  if (separator === 2 && /^[A-Za-z]:/u.test(normalized)) return `${normalized.slice(0, 2)}\\`
+  return normalized.slice(0, separator)
 }
 
 function maintenanceError(error: unknown): string {
