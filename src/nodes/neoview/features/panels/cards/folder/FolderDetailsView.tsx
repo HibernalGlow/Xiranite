@@ -19,6 +19,7 @@ import type { DirectoryCatalog } from "./DirectoryCatalog"
 import { directoryEntryAt, formatFolderRating } from "./DirectoryCatalog"
 import { FolderDetailsReturnFooter, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 import { FolderEntryIcon, formatFolderTagSummary } from "./FolderEntryPresentation"
+import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 
 interface DirectoryDetailsRow {
   index: number
@@ -32,6 +33,9 @@ interface FolderDetailsViewProps {
   initialIndex?: number
   initialScrollTop?: number
   layout: ReaderFolderDetailsConfig
+  deleteMode?: boolean
+  deleteStrategy?: FolderDeleteStrategy
+  confirmDelete?: boolean
   onRangeChange(range: { startIndex: number; endIndex: number }): void
   onScrollTopChange?(scrollTop: number): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
@@ -77,6 +81,9 @@ export default function FolderDetailsView({
   initialIndex,
   initialScrollTop,
   layout,
+  deleteMode = false,
+  deleteStrategy = "trash",
+  confirmDelete = true,
   onRangeChange,
   onScrollTopChange,
   onSelect,
@@ -85,6 +92,23 @@ export default function FolderDetailsView({
   returnFooterContext,
 }: FolderDetailsViewProps) {
   const rows = useMemo(() => loadedRows(catalog), [catalog.pages])
+  const columns = useMemo<DataTableColumnDef<DirectoryDetailsRow>[]>(() => DETAILS_COLUMNS.map((column) => (
+    column.id === "name" && deleteMode
+      ? {
+          ...column,
+          cell: ({ row }) => {
+            const { entry, index } = row.original
+            return (
+              <div className="flex min-w-0 items-center gap-2" title={entry.path}>
+                <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} confirm={confirmDelete} />
+                <FolderEntryIcon entry={entry} />
+                <span className="truncate text-xs font-medium">{entry.name}</span>
+              </div>
+            )
+          },
+        }
+      : column
+  )), [confirmDelete, deleteMode, deleteStrategy, disabled])
   const rowSelection = useMemo(() => folderDetailsRowSelection(rows, selectedPaths), [rows, selectedPaths])
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(layout.columnOrder)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => visibilityFromLayout(layout))
@@ -136,7 +160,7 @@ export default function FolderDetailsView({
       data-total-rows={catalog.total}
     >
       <DataTableRoot<DirectoryDetailsRow, unknown>
-        columns={DETAILS_COLUMNS}
+        columns={columns}
         data={rows}
         className="h-full space-y-0"
         getRowId={(row) => row.entry.path}

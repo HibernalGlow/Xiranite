@@ -11,6 +11,7 @@ import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurfa
 import { directoryEntryAt, viewUsesBanner, type DirectoryCatalog } from "./DirectoryCatalog"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
 import { FolderHoverPreview } from "./FolderHoverPreview"
+import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_GRID_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 
 export default function FolderGridWorkspace({
@@ -26,6 +27,9 @@ export default function FolderGridWorkspace({
   thumbnailUrlSets = EMPTY_THUMBNAIL_URL_SETS,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  deleteMode,
+  deleteStrategy,
+  confirmDelete = true,
   showReturnFooter,
   returnFooterContext,
   restoreSnapshot,
@@ -48,6 +52,9 @@ export default function FolderGridWorkspace({
   thumbnailUrlSets?: ReadonlyMap<string, readonly string[]>
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  deleteMode?: boolean
+  deleteStrategy?: FolderDeleteStrategy
+  confirmDelete?: boolean
   showReturnFooter: boolean
   returnFooterContext: FolderReturnFooterContext
   restoreSnapshot?: GridStateSnapshot
@@ -144,6 +151,9 @@ export default function FolderGridWorkspace({
             thumbnailUrls={entry ? thumbnailUrlSets.get(entry.path) : undefined}
             hoverPreviewEnabled={hoverPreviewEnabled}
             hoverPreviewDelayMs={hoverPreviewDelayMs}
+            deleteMode={Boolean(deleteMode)}
+            deleteStrategy={deleteStrategy ?? "trash"}
+            confirmDelete={confirmDelete}
             onSelect={onSelect}
           />
         )
@@ -166,13 +176,18 @@ interface DirectoryGridItemProps {
   thumbnailUrls?: readonly string[]
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  deleteMode?: boolean
+  deleteStrategy?: FolderDeleteStrategy
+  confirmDelete?: boolean
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }
 
-export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
+export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
   if (!entry) return <div className="h-24 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   return (
     <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
+    <div className="relative">
+    {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} overlay confirm={confirmDelete} /> : null}
     <button
       id={itemId}
       type="button"
@@ -205,13 +220,14 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
         </span>
       </span>
     </button>
+    </div>
     </FolderHoverPreview>
   )
 }
 
 const EMPTY_THUMBNAIL_URL_SETS: ReadonlyMap<string, readonly string[]> = new Map()
 
-export function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
+export function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
   if (!entry) return (
     <div className="grid w-full grid-rows-[auto_1.75rem] overflow-hidden rounded border bg-background" aria-hidden="true">
       <span className="aspect-[2/3] w-full animate-pulse bg-muted/30" />
@@ -221,6 +237,8 @@ export function DirectoryGridItem({ itemId, entry, index, disabled, selected, fo
   const showMetadata = showRating || showCollectTagCount || Boolean(entry.tags?.length)
   return (
     <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
+    <div className="relative">
+    {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} overlay confirm={confirmDelete} /> : null}
     <button
       id={itemId}
       type="button"
@@ -251,6 +269,7 @@ export function DirectoryGridItem({ itemId, entry, index, disabled, selected, fo
       </span>
       {showMetadata ? <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} className="h-5 border-t px-1.5" /> : null}
     </button>
+    </div>
     </FolderHoverPreview>
   )
 }

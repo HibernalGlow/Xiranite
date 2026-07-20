@@ -75,6 +75,7 @@ import {
 } from "./folder/DirectorySelection"
 import { DEFAULT_FOLDER_TAG_DISPLAY, FolderEntryDisplayProvider, FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./folder/FolderEntryPresentation"
 import { FolderHoverPreview } from "./folder/FolderHoverPreview"
+import FolderDeleteButton, { type FolderDeleteStrategy } from "./folder/FolderDeleteButton"
 import { FolderClipboardProvider, useFolderClipboard } from "./folder/FolderClipboard"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 import {
@@ -128,6 +129,7 @@ type FolderNavigationOptions = {
   focusPath?: string
   selectFocus?: boolean
   clearSelection?: boolean
+  preserveThumbnailCache?: boolean
 }
 type FolderRetryOperation =
   | { kind: "open"; path: string }
@@ -283,6 +285,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const [hoverPreviewDelayMs, setHoverPreviewDelayMs] = useState(folderView.hoverPreviewDelayMs ?? 500)
   const [penetration, setPenetration] = useState<ReaderFolderPenetrationConfig>(folderView.penetration)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
+  const [deleteMode, setDeleteMode] = useState(false)
+  const [deleteStrategy, setDeleteStrategy] = useState<FolderDeleteStrategy>("trash")
+  const [confirmDelete, setConfirmDelete] = useState(true)
   const [chainSelectMode, setChainSelectMode] = useState(false)
   const [checkModeClickBehavior, setCheckModeClickBehavior] = useState<"open" | "select">("open")
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
@@ -607,7 +612,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             detailsScrollTop: undefined,
           }
         }
-        applyPage(result, preferredState, false, { preserveThumbnailCache: navigation.action !== "refresh" })
+        applyPage(result, preferredState, false, {
+          preserveThumbnailCache: options.preserveThumbnailCache ?? navigation.action !== "refresh",
+        })
         retryOperationRef.current = undefined
       }
     } catch (cause) {
@@ -935,7 +942,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const preferredState = await captureRefreshState()
     const latest = catalogRef.current
     if (!latest || latest.sessionId !== page.sessionId || latest.generation >= page.generation) return
-    applyPage(page, preferredState ? { ...preferredState, thumbnailUrls: undefined, thumbnailUrlSets: undefined, thumbnailProfiles: undefined } : undefined, false, { preserveThumbnailCache: false })
+    applyPage(page, preferredState, false, { preserveThumbnailCache: true })
   }
 
   function switchView(next: FolderViewMode) {
@@ -1494,6 +1501,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       data-thumbnail-cache-size={thumbnailUrls.size}
       data-restored-thumbnail-cache-size={restoreState?.thumbnailUrls?.size ?? 0}
       data-selection-all={selection.allSelected || null}
+      data-folder-delete-mode={deleteMode || null}
+      data-folder-delete-strategy={deleteStrategy}
+      data-folder-delete-confirm={confirmDelete}
       onContextMenuCapture={(event) => {
         const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-context-menu="neoview-folder-entry"]') : null
         const index = Number(target?.dataset.folderIndex)
@@ -1547,8 +1557,13 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             )}
             onTrashed={(entry) => navigate(
               { action: "refresh" },
-              { keepTree: true, focusPath: entry.path },
+              { keepTree: true, focusPath: entry.path, preserveThumbnailCache: true },
             )}
+            onUndoDelete={() => navigate(
+              { action: "refresh" },
+              { keepTree: true, focusPath: focusedPath, preserveThumbnailCache: true },
+            )}
+            confirmDelete={confirmDelete}
             onCatalogUpdate={(update) => commitCatalog(update(catalog!))}
             onRefreshEmm={() => updateSort(catalog!.sort)}
             renameRequest={renameRequest}
@@ -1596,6 +1611,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             canTree={Boolean(client.treeDirectoryBrowser)}
             inlineTreeOpen={inlineTreeOpen}
             multiSelectMode={multiSelectMode}
+            deleteMode={deleteMode}
+            deleteStrategy={deleteStrategy}
+            confirmDelete={confirmDelete}
             sort={catalog?.sort}
             sortFields={catalog?.sortFields}
             sortSource={catalog?.sortSource}
@@ -1638,6 +1656,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             onToggleTree={toggleTree}
             onToggleInlineTree={toggleInlineTree}
             onToggleMultiSelect={toggleMultiSelectMode}
+            onToggleDeleteMode={() => setDeleteMode((current) => !current)}
+            onToggleDeleteStrategy={() => setDeleteStrategy((current) => current === "trash" ? "permanent" : "trash")}
+            onConfirmDeleteChange={setConfirmDelete}
             onUpdateSort={(sort) => { void updateSort(sort) }}
             onUpdateSortPreference={(command) => { void updateSortPreference(command) }}
             onEmptyAreaChange={(emptyArea) => { void onFolderView?.({ emptyArea }) }}
@@ -1678,11 +1699,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             }}
             onTrashCompleted={() => navigate(
               { action: "refresh" },
-              { keepTree: true, clearSelection: true },
+              { keepTree: true, clearSelection: true, preserveThumbnailCache: true },
             )}
             onDeleteCompleted={() => navigate(
               { action: "refresh" },
-              { keepTree: true, clearSelection: true },
+              { keepTree: true, clearSelection: true, preserveThumbnailCache: true },
             )}
           />
         </Suspense>
@@ -1804,6 +1825,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
                   contentWidthPercent={contentWidthPercent}
                   hoverPreviewEnabled={active && hoverPreviewEnabled}
                   hoverPreviewDelayMs={hoverPreviewDelayMs}
+                  deleteMode={deleteMode}
+                  deleteStrategy={deleteStrategy}
+                  confirmDelete={confirmDelete}
                   onSelect={selectEntry}
                 />
               )
@@ -1820,6 +1844,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               initialIndex={focusedIndex ?? (restoreState?.viewMode === "details" ? restoreState.focusedIndex ?? restoreState.anchorIndex : undefined)}
               initialScrollTop={restoreState?.viewMode === "details" ? restoreState.detailsScrollTop : undefined}
               layout={folderView.details}
+              deleteMode={deleteMode}
+              deleteStrategy={deleteStrategy}
+              confirmDelete={confirmDelete}
               onRangeChange={requestRange}
               onScrollTopChange={(scrollTop) => { detailsScrollTopRef.current = scrollTop }}
               onSelect={selectEntry}
@@ -1844,6 +1871,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               thumbnailUrlSets={thumbnailUrlSets}
               hoverPreviewEnabled={active && hoverPreviewEnabled}
               hoverPreviewDelayMs={hoverPreviewDelayMs}
+              deleteMode={deleteMode}
+              deleteStrategy={deleteStrategy}
+              confirmDelete={confirmDelete}
               showReturnFooter={showReturnFooter}
               returnFooterContext={returnFooterContext}
               restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.gridSnapshot : undefined}
@@ -1872,6 +1902,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               tileSize={thumbnailPixelSize(thumbnailWidthPercent)}
               hoverPreviewEnabled={active && hoverPreviewEnabled}
               hoverPreviewDelayMs={hoverPreviewDelayMs}
+              deleteMode={deleteMode}
+              deleteStrategy={deleteStrategy}
+              confirmDelete={confirmDelete}
               showReturnFooter={showReturnFooter}
               returnFooterContext={returnFooterContext}
               restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.mosaicSnapshot : undefined}
@@ -1903,15 +1936,17 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   )
 }
 
-function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, contentWidthPercent, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string; thumbnailUrls?: readonly string[]; contentWidthPercent: number; hoverPreviewEnabled: boolean; hoverPreviewDelayMs: number }) {
+function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, contentWidthPercent, hoverPreviewEnabled, hoverPreviewDelayMs, deleteMode, deleteStrategy, confirmDelete, onSelect }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string; thumbnailUrls?: readonly string[]; contentWidthPercent: number; hoverPreviewEnabled: boolean; hoverPreviewDelayMs: number; deleteMode: boolean; deleteStrategy: FolderDeleteStrategy; confirmDelete: boolean }) {
   const rich = visualMode !== "compact"
   if (!entry) return <div className={`${rich ? "h-[76px]" : "h-[34px]"} animate-pulse border-b bg-muted/30`} aria-hidden="true" />
   return (
     <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled && rich} delayMs={hoverPreviewDelayMs} label={entry.name}>
+      <div className="relative">
+      {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} placement="leading" confirm={confirmDelete} /> : null}
       <button
         id={itemId}
         type="button"
-        className={`flex w-full items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${rich ? "h-[76px]" : "h-[34px]"}`}
+        className={`flex w-full items-center gap-2 border-b pr-2 text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${deleteMode ? "pl-9" : "pl-2"} ${rich ? "h-[76px]" : "h-[34px]"}`}
         aria-selected={selected}
         data-focused={focused || undefined}
         disabled={disabled}
@@ -1944,6 +1979,7 @@ function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, 
         </span>
         <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
       </button>
+      </div>
     </FolderHoverPreview>
   )
 }

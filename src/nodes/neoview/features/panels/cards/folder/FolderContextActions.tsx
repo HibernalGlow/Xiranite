@@ -1,4 +1,4 @@
-import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil, Scissors, Tags, Trash2 } from "lucide-react"
+import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil, Scissors, Tags, Trash2, Undo2 } from "lucide-react"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 
 import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
@@ -36,6 +36,8 @@ export default function FolderContextActions({
   switchToast,
   onRenamed,
   onTrashed,
+  onUndoDelete,
+  confirmDelete = true,
   onCatalogUpdate = () => undefined,
   onRefreshEmm = () => undefined,
   renameRequest,
@@ -56,6 +58,8 @@ export default function FolderContextActions({
   switchToast?: ReaderSwitchToastPort
   onRenamed?(destinationPath: string): void | Promise<void>
   onTrashed?(entry: FolderContextEntry): void | Promise<void>
+  onUndoDelete?(): void | Promise<void>
+  confirmDelete?: boolean
   onCatalogUpdate?(update: FolderCatalogUpdater): void
   onRefreshEmm?(focusPath: string): Promise<void> | void
   renameRequest?: FolderContextEntry
@@ -83,6 +87,25 @@ export default function FolderContextActions({
     }
     if (action === "enter-raw") {
       await onEnterRawDirectory?.(entry)
+      return
+    }
+    if (action === "undo-delete") {
+      if (!client.undoLatestFileOperations) return
+      const operation = new AbortController()
+      operationRef.current?.abort()
+      operationRef.current = operation
+      setPending(true)
+      try {
+        const result = await client.undoLatestFileOperations(true, operation.signal)
+        if (result.failed > 0) throw new Error(`撤销完成 ${result.succeeded} 项，${result.failed} 项失败`)
+        await onUndoDelete?.()
+        switchToast?.show({ title: `已撤销 ${result.succeeded} 项回收站操作` })
+      } catch (error) {
+        setFeedback({ kind: "alert", text: errorMessage(error) })
+      } finally {
+        if (operationRef.current === operation) operationRef.current = undefined
+        setPending(false)
+      }
       return
     }
     if (action === "trash" || action === "delete") {
@@ -217,14 +240,23 @@ export default function FolderContextActions({
       const entry = folderTrashCommandEntry(event.detail)
       if (!entry) return
       const returnFocus = event.target instanceof HTMLElement ? event.target : undefined
-      contextMenu.confirm(buildTrashContextMenuItem(entry, {
-        disabled: disabled || pending || !client.executeFileOperations,
-        onTrash: () => run("trash", entry),
-      }), returnFocus)
+      const strategy = folderDeleteStrategy(event.detail)
+      const shouldConfirm = folderDeleteConfirmation(event.detail, confirmDelete)
+      const unavailable = disabled || pending || !client.executeFileOperations
+      if (unavailable) return
+      const item = strategy === "permanent"
+        ? buildDeleteContextMenuItem(entry, { disabled: unavailable, confirm: shouldConfirm, onDelete: () => run("delete", entry) })
+        : buildTrashContextMenuItem(entry, { disabled: unavailable, confirm: shouldConfirm, onTrash: () => run("trash", entry) })
+      if (shouldConfirm) contextMenu.confirm(item, returnFocus)
+      else void item.onSelect?.()
     }
     window.addEventListener("neoview-folder-trash-request", requestTrash)
-    return () => window.removeEventListener("neoview-folder-trash-request", requestTrash)
-  }, [client.executeFileOperations, contextMenu, disabled, pending])
+    window.addEventListener("neoview-folder-delete-request", requestTrash)
+    return () => {
+      window.removeEventListener("neoview-folder-trash-request", requestTrash)
+      window.removeEventListener("neoview-folder-delete-request", requestTrash)
+    }
+  }, [client.executeFileOperations, confirmDelete, contextMenu, disabled, pending])
 
   useEffect(() => {
     if (!renameRequest || disabled || pending || !client.executeFileOperations) return
@@ -248,8 +280,11 @@ export default function FolderContextActions({
       canRename: Boolean(client.executeFileOperations),
       canTrash: Boolean(client.executeFileOperations),
       canDelete: Boolean(client.executeFileOperations),
+      canUndoDelete: Boolean(client.undoLatestFileOperations),
+      confirmDelete,
       canEditMetadata: Boolean(sessionId && generation !== undefined && selection && client.resolveDirectorySelection && client.readDirectoryEmm && client.editDirectoryEmm),
       onAction: run,
+      onUndoDelete: () => run("undo-delete", entry),
     }) : null
   })
 
@@ -290,7 +325,7 @@ export default function FolderContextActions({
   )
 }
 
-type FolderContextAction = "activate" | "enter-raw" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy" | "cut" | "paste" | "copy-path" | "copy-name" | "toggle-bookmark" | "edit-metadata" | "rename" | "trash" | "delete"
+type FolderContextAction = "activate" | "enter-raw" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy" | "cut" | "paste" | "copy-path" | "copy-name" | "toggle-bookmark" | "edit-metadata" | "rename" | "trash" | "delete" | "undo-delete"
 
 export function buildFolderContextMenuItems(
   entry: FolderContextEntry,
@@ -308,8 +343,11 @@ export function buildFolderContextMenuItems(
     canRename: boolean
     canTrash: boolean
     canDelete?: boolean
+    canUndoDelete?: boolean
+    confirmDelete?: boolean
     canEditMetadata?: boolean
     onAction(action: FolderContextAction, entry: FolderContextEntry): void | Promise<void>
+    onUndoDelete?(): void | Promise<void>
   },
 ): ContextMenuItemDef[] {
   const unavailable = options.disabled || options.pending
@@ -323,6 +361,15 @@ export function buildFolderContextMenuItems(
       onSelect: () => options.onAction(primaryAction, entry),
     },
   ]
+  if (options.canUndoDelete) {
+    items.push({
+      id: "neoview-folder-undo-delete",
+      label: "撤销上次删除",
+      icon: <Undo2 />,
+      disabled: unavailable,
+      onSelect: options.onUndoDelete,
+    })
+  }
   if (entry.kind === "directory") {
     items.push(
       { id: "neoview-folder-enter-raw", label: "进入文件夹", icon: <FolderOpen />, disabled: unavailable || !options.canEnterRawDirectory, onSelect: () => options.onAction("enter-raw", entry) },
@@ -346,10 +393,12 @@ export function buildFolderContextMenuItems(
     { id: "neoview-folder-rename", label: "重命名", icon: <Pencil />, disabled: unavailable || !options.canRename, onSelect: () => options.onAction("rename", entry) },
     buildTrashContextMenuItem(entry, {
       disabled: unavailable || !options.canTrash,
+      confirm: options.confirmDelete !== false,
       onTrash: () => options.onAction("trash", entry),
     }),
     buildDeleteContextMenuItem(entry, {
       disabled: unavailable || !options.canDelete,
+      confirm: options.confirmDelete !== false,
       onDelete: () => options.onAction("delete", entry),
     }),
     { type: "separator" },
@@ -360,7 +409,7 @@ export function buildFolderContextMenuItems(
 
 export function buildTrashContextMenuItem(
   entry: FolderContextEntry,
-  options: { disabled: boolean; onTrash(): void | Promise<void> },
+  options: { disabled: boolean; confirm?: boolean; onTrash(): void | Promise<void> },
 ): ContextMenuItemDef {
   return {
     id: "neoview-folder-trash",
@@ -368,19 +417,19 @@ export function buildTrashContextMenuItem(
     icon: <Trash2 />,
     destructive: true,
     disabled: options.disabled,
-    confirm: {
+    ...(options.confirm === false ? {} : { confirm: {
       title: "移到回收站？",
       description: `“${entry.name}”将移到系统回收站。NeoView 无法直接撤销此操作。`,
       confirmLabel: "移到回收站",
       cancelLabel: "取消",
-    },
+    } }),
     onSelect: options.onTrash,
   }
 }
 
 export function buildDeleteContextMenuItem(
   entry: FolderContextEntry,
-  options: { disabled: boolean; onDelete(): void | Promise<void> },
+  options: { disabled: boolean; confirm?: boolean; onDelete(): void | Promise<void> },
 ): ContextMenuItemDef {
   return {
     id: "neoview-folder-delete",
@@ -388,12 +437,12 @@ export function buildDeleteContextMenuItem(
     icon: <Trash2 />,
     destructive: true,
     disabled: options.disabled,
-    confirm: {
+    ...(options.confirm === false ? {} : { confirm: {
       title: "永久删除？",
       description: `“${entry.name}”将被永久删除，无法从回收站恢复。`,
       confirmLabel: "永久删除",
       cancelLabel: "取消",
-    },
+    } }),
     onSelect: options.onDelete,
   }
 }
@@ -405,6 +454,16 @@ function folderTrashCommandEntry(value: unknown): FolderContextEntry | undefined
     || typeof data.name !== "string" || !data.name || (data.kind !== "file" && data.kind !== "directory")
     || typeof data.readerSupported !== "boolean") return undefined
   return data as FolderContextEntry
+}
+
+function folderDeleteStrategy(value: unknown): "trash" | "permanent" {
+  if (!value || typeof value !== "object") return "trash"
+  return (value as { strategy?: unknown }).strategy === "permanent" ? "permanent" : "trash"
+}
+
+function folderDeleteConfirmation(value: unknown, fallback: boolean): boolean {
+  if (!value || typeof value !== "object") return fallback
+  return (value as { confirm?: unknown }).confirm !== false
 }
 
 export function folderContextEntry(data: Record<string, string>): FolderContextEntry | undefined {

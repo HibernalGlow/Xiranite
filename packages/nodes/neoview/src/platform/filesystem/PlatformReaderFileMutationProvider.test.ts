@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { PlatformReaderFileMutationProvider } from "./PlatformReaderFileMutationProvider.js"
+import { PlatformReaderFileMutationProvider, WINDOWS_FIND_TRASH_ITEM_SCRIPT } from "./PlatformReaderFileMutationProvider.js"
 
 const roots: string[] = []
 
@@ -12,6 +12,16 @@ afterEach(async () => {
 })
 
 describe("PlatformReaderFileMutationProvider", () => {
+  it("[neoview.file-operations.windows-trash-match] matches a recycle item by original parent and display name", () => {
+    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("GetDirectoryName($target)")
+    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("System.Recycle.DeletedFrom")
+    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("System.ItemNameDisplay")
+    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("OrdinalIgnoreCase.Equals([string]$displayName, $name)")
+    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("$attempt -lt 20")
+    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("Start-Sleep -Milliseconds 50")
+    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).not.toContain("GetFullPath([string]$from), $target")
+  })
+
   it("[neoview.file-operations.platform] uses Node primitives and move-file without overwriting by default", async () => {
     const root = await temporaryRoot()
     const source = join(root, "source.txt")
@@ -63,6 +73,22 @@ describe("PlatformReaderFileMutationProvider", () => {
     await provider.undo(receipt!)
     expect(identifyTrash).toHaveBeenCalledWith(source)
     expect(restoreTrash).toHaveBeenCalledWith(source, "C:\\$Recycle.Bin\\test\\$R-source.txt", undefined)
+    expect(await readFile(source, "utf8")).toBe("reader")
+  })
+
+  it.runIf(process.platform === "win32")("[neoview.file-operations.windows-trash-roundtrip] identifies and restores a real recycle-bin item", async () => {
+    const root = await temporaryRoot()
+    const source = join(root, `reader-trash-${Date.now()}.txt`)
+    await writeFile(source, "reader")
+    const provider = new PlatformReaderFileMutationProvider()
+
+    const receipt = await provider.execute({ kind: "trash", sourcePath: source })
+
+    expect(receipt).toMatchObject({
+      original: { kind: "trash", sourcePath: source },
+      providerData: { kind: "windows-recycle-bin", itemPath: expect.any(String) },
+    })
+    await provider.undo(receipt!)
     expect(await readFile(source, "utf8")).toBe("reader")
   })
 
