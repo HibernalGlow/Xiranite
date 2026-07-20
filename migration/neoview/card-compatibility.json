@@ -528,7 +528,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "complete",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "partial",
         "tui": "pending",
         "evidence": "partial"

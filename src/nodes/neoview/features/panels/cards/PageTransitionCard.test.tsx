@@ -55,6 +55,24 @@ describe("PageTransitionCard", () => {
     expect(screen.getByLabelText("动画类型").hasAttribute("disabled")).toBe(false)
   })
 
+  it("[neoview.page-transition.retry] rolls back a failed save and retries the same command explicitly", async () => {
+    const persist = vi.fn()
+      .mockRejectedValueOnce(new Error("config disk unavailable"))
+      .mockImplementation(async (settings) => settings)
+    const store = createReaderPageTransitionStore({ persist })
+    const view = render(<PageTransitionCard store={store} />)
+
+    fireEvent.click(view.container.querySelector('[role="switch"]')!)
+
+    const alert = await screen.findByRole("alert")
+    expect(store.getSnapshot().enabled).toBe(false)
+    fireEvent.click(alert.querySelector("button")!)
+
+    await waitFor(() => expect(persist).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull())
+    expect(store.getSnapshot().enabled).toBe(true)
+  })
+
   it("keeps the resident Card mounted while its panel is inactive", () => {
     const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
     render(<DockedPageTransitionCard pageTransition={store} panelActive={false} disabled client={{} as never} onGoTo={() => undefined} />)

@@ -8,13 +8,7 @@ import { createReaderPageTransitionStore } from "../../../src/nodes/neoview/feat
 import { PageTransitionCard } from "../../../src/nodes/neoview/features/panels/cards/PageTransitionCard"
 import { ReaderFrame } from "../../../src/nodes/neoview/features/reader/ReaderFrame"
 
-const sources = ["#c7353c", "#326a55"].map((color, index) => `data:image/svg+xml,${encodeURIComponent(`
-  <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
-    <rect width="1200" height="800" fill="#111318"/>
-    <rect x="80" y="70" width="1040" height="660" rx="8" fill="${color}" stroke="#f1eee8" stroke-width="10"/>
-    <text x="600" y="410" text-anchor="middle" font-family="sans-serif" font-size="72" fill="#fff">Page ${index + 1}</text>
-  </svg>
-`)}`)
+const sources = [0, 1].map((index) => `/__neoview-page-transition/page-${index}.svg`)
 
 const writes: unknown[] = []
 const store = createReaderPageTransitionStore({

@@ -2504,7 +2504,7 @@
 | `sidebarControl` | 边栏控制 | integration | partial | `core=N/A transport=N/A gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/SidebarControlCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知；XR `sidebar-control` |
 | `colorFilter` | 颜色滤镜 | integration | partial | `core=P transport=P gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `color-filter` |
 | `imageTrim` | 图像裁剪 | integration | partial | `core=P transport=P gui=P cli=P tui=P evidence=P` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
-| `pageTransition` | 翻页动画 | deferred | partial | `core=C transport=C gui=P cli=P tui=- evidence=P` | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `page-transition` |
+| `pageTransition` | 翻页动画 | deferred | partial | `core=C transport=C gui=C cli=P tui=- evidence=P` | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `page-transition` |
 | `animatedVideoMode` | 动图视频模式 | integration | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/AnimatedVideoModeCard.svelte` | 动图、视频、字幕和播放控制；XR `animated-video-mode` |
 | `ambientBackground` | 动态背景 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AmbientBackgroundCard.svelte` | 主题接管、阅读背景和空页面背景 |
 | `sidebarHeight` | 侧边栏高度 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/SidebarHeightCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知；XR `sidebar-height` |
@@ -3739,13 +3739,13 @@
   - 测试：`neoview.page-transition.config`、`neoview.page-transition.http`、`neoview.page-transition.client`、`neoview.page-transition.hydration-race`、`neoview.page-transition.surfaces`
   - 计划测试：`neoview.page-transition.tui-surface`
   - 备注：Domain, HTTP, GUI and CLI share one strict DTO; TUI exposure remains pending.
-- [ ] `page-transition.states` 加载、条件、提交、错误与回滚状态
-  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+- [x] `page-transition.states` 加载、条件、提交、错误与回滚状态
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The Card covers lazy loading, disabled conditional content, preview, pending write, rollback, reset and disposal without stale state.
   - 源码：`src/lib/cards/info/PageTransitionCard.svelte`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.page-transition.hydration-race`、`neoview.page-transition.persistence`、`neoview.page-transition.ui`
-  - 计划测试：`neoview.page-transition.retry`
-  - 备注：Conditional, stale hydration and rollback behavior are covered; explicit retry UI remains pending.
+  - 测试：`neoview.page-transition.hydration-race`、`neoview.page-transition.persistence`、`neoview.page-transition.ui`、`neoview.page-transition.retry`
+  - 计划测试：无
+  - 备注：Conditional, stale hydration, rollback and explicit same-command retry behavior are covered.
 - [x] `page-transition.shell` 共享 Card 外壳与延迟加载
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：pageTransition retains its title, control Panel default, hideability and independent deferred Card chunk.
@@ -3774,20 +3774,20 @@
   - 测试：`neoview.page-transition.lifecycle`、`neoview.page-transition.runtime`
   - 计划测试：无
   - 备注：Unmount and rapid navigation clear the single owned timer and transient styles.
-- [ ] `page-transition.image-stability` 动画保持活动图片与资源身份
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `page-transition.image-stability` 动画保持活动图片与资源身份
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Configuration and runtime transitions never remount the active img, change its asset URL or create another decode path.
   - 源码：`src/lib/stackview/layers/CurrentFrameLayer.svelte`
-  - 测试：`neoview.page-transition.image-identity`、`neoview.page-transition.runtime`
-  - 计划测试：`neoview.page-transition.zero-duplicate-request`
-  - 备注：Exact img identity and URL are covered during configuration; a real asset-route request counter remains pending.
+  - 测试：`neoview.page-transition.image-identity`、`neoview.page-transition.runtime`、`neoview.page-transition.zero-duplicate-request`
+  - 计划测试：无
+  - 备注：Desktop and constrained Chromium preserve exact img identity and URL during configuration, then prove one request per navigated asset.
 - [ ] `page-transition.performance` 合成动画、O(1) 状态与 chunk 预算
-  - 六维：`core=C transport=N/A gui=P cli=- tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=C transport=N/A gui=C cli=- tui=- evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Animations use compositor-friendly transform/opacity, bounded O(1) state and one timer; Card/domain remain deferred and navigation stays within existing gates.
   - 源码：`src/lib/stackview/layers/CurrentFrameLayer.svelte`、`src/lib/cards/CardRenderer.svelte`
-  - 测试：`neoview.page-transition.css`、`neoview.page-transition.chunk`、`neoview.page-transition.runtime`、`neoview.page-transition.lifecycle`
-  - 计划测试：`neoview.page-transition.navigation-performance`、`neoview.page-transition.surface-performance`
-  - 备注：O(1) runtime and 3.7/2.0/5.7 KiB deferred chunks are proven; unified navigation and CLI/TUI timings remain pending.
+  - 测试：`neoview.page-transition.css`、`neoview.page-transition.chunk`、`neoview.page-transition.runtime`、`neoview.page-transition.lifecycle`、`neoview.page-transition.navigation-performance`
+  - 计划测试：`neoview.page-transition.surface-performance`
+  - 备注：O(1) runtime, deferred chunks and browser navigation activation are proven; CLI/TUI surface timings are deferred by user decision.
 - [ ] `page-transition.deviations` 记录存储、提交和减少动态效果改进
   - 六维：`core=C transport=C gui=C cli=C tui=- evidence=P`；阻塞：`tui`、`evidence`
   - 目标：Document localStorage-to-TOML migration, slider end-only persistence, failure rollback and reduced-motion suppression while preserving legacy type/easing math and control hierarchy.
