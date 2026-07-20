@@ -488,8 +488,8 @@
       "featureId": "image-effects-transitions",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "partial",
-        "transport": "partial",
+        "core": "not-applicable",
+        "transport": "complete",
         "gui": "partial",
         "cli": "pending",
         "tui": "pending",
@@ -507,8 +507,8 @@
       "featureId": "image-effects-transitions",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "partial",
-        "transport": "partial",
+        "core": "not-applicable",
+        "transport": "complete",
         "gui": "partial",
         "cli": "partial",
         "tui": "partial",
@@ -639,13 +639,14 @@
       "featureId": "emm-ratings-tags-translation",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "pending",
+        "transport": "partial",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
+      "currentCardId": "folder-ratings",
       "sourceComponent": "src/lib/cards/properties/FolderRatingsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -657,13 +658,14 @@
       "featureId": "emm-ratings-tags-translation",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
+      "currentCardId": "favorite-tags",
       "sourceComponent": "src/lib/cards/properties/FavoriteTagsCard.svelte",
       "sourceDisposition": "component"
     },
@@ -675,13 +677,15 @@
       "featureId": "emm-ratings-tags-translation",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
+      "currentCardId": "emm-sync",
+      "replacement": "XR resolves the legacy EMM database as a read-only foreign source and re-reads the current path on demand; it does not require copying ratings or tags into thumbnails.db before Reader use.",
       "sourceComponent": "src/lib/cards/properties/EmmSyncCard.svelte",
       "sourceDisposition": "component"
     },
@@ -731,13 +735,14 @@
       "featureId": "emm-ratings-tags-translation",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
+      "currentCardId": "emm-raw-data",
       "sourceComponent": "src/lib/cards/properties/EmmRawDataCard.svelte",
       "sourceDisposition": "component"
     },
@@ -749,13 +754,14 @@
       "featureId": "emm-ratings-tags-translation",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "partial",
+        "transport": "partial",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
+      "currentCardId": "emm-config",
       "sourceComponent": "src/lib/cards/properties/EmmConfigCard.svelte",
       "sourceDisposition": "component"
     },
@@ -765,15 +771,16 @@
       "panelId": "properties",
       "priority": "integration",
       "featureId": "emm-ratings-tags-translation",
-      "disposition": "migrate",
+      "disposition": "replace",
       "capabilityStatus": {
         "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "transport": "complete",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
+      "replacement": "The standalone Card is replaced by File Card > More > File information display, persisted in [nodes.neoview.folder.tag_display] and consumed by the shared entry renderer.",
       "sourceComponent": "src/lib/cards/properties/FileListTagDisplayCard.svelte",
       "sourceDisposition": "component"
     },
@@ -883,7 +890,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "partial",
-        "gui": "pending",
+        "gui": "partial",
         "cli": "partial",
         "tui": "partial",
         "evidence": "partial"
