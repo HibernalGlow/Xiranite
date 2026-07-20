@@ -43,7 +43,7 @@
     { "legacyId": "favoriteTags", "capabilities": ["显示收藏标签快捷项与计数", "搜索、选择和批量应用/移除标签", "管理收藏标签顺序和可见性"] },
     { "legacyId": "emmSync", "capabilities": ["配置并执行当前书籍/目录 EMM 同步", "显示扫描、匹配、写入、跳过和错误进度", "支持取消、重试和冲突策略"] },
     { "legacyId": "thumbnailMaintenance", "checklistRef": "migration/neoview/thumbnail-maintenance-compatibility.json", "capabilities": ["查看缩略图数据库与 writer 聚合状态", "在线有界清理空 Blob、过期、失效路径和失败记录", "备份、恢复、压缩、规范化与迁移保留在确认式离线 CLI，并显示结果与错误"] },
-    { "legacyId": "thumbnailArchMetrics", "capabilities": ["展示缩略图请求、命中、生成、队列和缓存指标", "区分格式/来源/尺寸与冷热路径", "重置采样并保持监控有界"] },
+    { "legacyId": "thumbnailArchMetrics", "checklistRef": "migration/neoview/thumbnail-architecture-metrics-compatibility.json", "capabilities": ["展示缩略图请求、命中、生成、队列和缓存指标", "区分格式/来源/尺寸与冷热路径", "重置采样并保持监控有界"] },
     { "legacyId": "emmRawData", "capabilities": ["查看当前条目的原始 EMM 数据库字段和 JSON", "切换格式化/原始视图并复制数据", "刷新并清楚区分只读字段和可编辑入口"] },
     { "legacyId": "emmConfig", "capabilities": ["配置 EMM 数据库/setting 路径和启用状态", "配置评分、收藏与标签解析规则", "测试连接、显示兼容性并保存/重置"] },
     { "legacyId": "fileListTagDisplay", "capabilities": ["选择文件浏览各视图显示的 EMM/manual/AI 标签", "配置数量、命名空间、截断和 tooltip", "实时预览并持久化显示规则"] },

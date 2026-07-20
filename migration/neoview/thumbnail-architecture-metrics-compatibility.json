@@ -1,0 +1,410 @@
+{
+  "schemaVersion": 2,
+  "featureId": "thumbnail-system",
+  "legacyCardId": "thumbnailArchMetrics",
+  "title": "缩略图架构指标",
+  "panelId": "properties",
+  "priority": "integration",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+  "sourceHash": "sha256:7280c437093b9bf7b439da387b29b6107513735470ce96b0d93f2a1760890d07",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/ThumbnailArchitectureMetricsCard.tsx",
+  "visualBaseline": "artifacts/legacy-source/neoview-thumbnail-architecture-metrics-1920x1080.png",
+  "inventorySummary": {
+    "sourceUiGroups": 4,
+    "controlsAndStates": 17,
+    "acceptanceItems": 11,
+    "sourceFiles": 2
+  },
+  "completionRule": "Complete only when the reviewed AST prototype and scripted 1920x1080 legacy characterization are preserved; the legacy update text, refresh control, cached/loading/total values and empty state are implemented; authenticated diagnostics expose real request, hit, generation, queue, cache and bounded lane metrics; reset uses a local baseline without mutating shared backend telemetry; polling is active-only, singleflight, abortable and bounded; unavailable format/size dimensions are labelled instead of inferred on the Reader hot path; and desktop plus constrained-card evidence passes.",
+  "unsupportedNodes": [
+    {
+      "node": "$state",
+      "source": "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte",
+      "replacement": "React state and refs keep the current snapshot, bounded baseline/history and transient request lifecycle."
+    },
+    {
+      "node": "onMount",
+      "source": "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte",
+      "replacement": "An active-only React effect uses recursive setTimeout after settlement and aborts on collapse or unmount."
+    },
+    {
+      "node": "unifiedThumbnailStore",
+      "source": "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte",
+      "replacement": "The browser consumes the existing authenticated Reader diagnostics DTO and never imports a backend store or opens NeoView SQLite."
+    }
+  ],
+  "sourceUiInventory": [
+    {
+      "id": "thumbnail-architecture-metrics-ui.header",
+      "title": "更新时间与刷新控制",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte",
+        "src/lib/cards/registry.ts"
+      ],
+      "acceptanceItems": [
+        "左侧显示更新时间或暂无数据",
+        "右侧 outline 小型刷新按钮",
+        "RefreshCw 图标保持刷新语义",
+        "请求期间图标旋转且按钮禁用",
+        "按钮支持键盘触发并具有可访问名称"
+      ],
+      "mappedChecklistIds": [
+        "thumbnail-architecture-metrics.summary",
+        "thumbnail-architecture-metrics.states",
+        "thumbnail-architecture-metrics.accessibility"
+      ]
+    },
+    {
+      "id": "thumbnail-architecture-metrics-ui.summary-grid",
+      "title": "缓存、加载和总条目指标网格",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "acceptanceItems": [
+        "紧凑双列网格",
+        "已缓存数值卡",
+        "加载中数值卡",
+        "总条目数值卡",
+        "等宽数字与边框层级",
+        "第三项保持左列占位几何"
+      ],
+      "mappedChecklistIds": [
+        "thumbnail-architecture-metrics.summary",
+        "thumbnail-architecture-metrics.ui-parity"
+      ]
+    },
+    {
+      "id": "thumbnail-architecture-metrics-ui.extended-metrics",
+      "title": "请求结果、队列、缓存与路径分组",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "acceptanceItems": [
+        "显示累计请求、命中、未命中、完成、失败、取消和淘汰",
+        "显示活动、排队和运行中的 flight",
+        "显示缓存条目与缓存字节",
+        "按固定 lane 显示需求和冷热命中",
+        "格式与尺寸未由后端采集时显示明确不可用状态"
+      ],
+      "mappedChecklistIds": [
+        "thumbnail-architecture-metrics.telemetry",
+        "thumbnail-architecture-metrics.dimensions",
+        "thumbnail-architecture-metrics.data-contract",
+        "thumbnail-architecture-metrics.deviations"
+      ]
+    },
+    {
+      "id": "thumbnail-architecture-metrics-ui.lifecycle-states",
+      "title": "自动刷新、空态、错误、重试与重置",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "acceptanceItems": [
+        "首次激活立即采样",
+        "每次请求结束后延迟 2 秒再采样",
+        "无快照时显示未获取到指标",
+        "失败保留最后成功快照并提供重试",
+        "重置只更新本地基线和有界样本",
+        "Card 不活动、卸载或禁用时停止后台请求"
+      ],
+      "mappedChecklistIds": [
+        "thumbnail-architecture-metrics.reset",
+        "thumbnail-architecture-metrics.states",
+        "thumbnail-architecture-metrics.lifecycle",
+        "thumbnail-architecture-metrics.performance"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "thumbnail-architecture-metrics.summary",
+      "category": "capabilities",
+      "title": "保留旧版缓存、加载、总条目与刷新摘要",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "targetContract": "The active Card immediately reads one authenticated diagnostics snapshot, maps cachedEntries to 已缓存, activeFlights to 加载中 and cachedEntries plus activeFlights to 总条目, shows the backend sampled time and supports one explicit refresh without overlapping the current request.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.thumbnail-architecture-metrics.card",
+        "neoview.thumbnail-architecture-metrics.e2e"
+      ],
+      "notes": "The mapping preserves the legacy store semantics using the canonical coordinator snapshot rather than a second browser store."
+    },
+    {
+      "id": "thumbnail-architecture-metrics.telemetry",
+      "category": "capabilities",
+      "title": "显示真实请求、命中、生成、队列和缓存指标",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "targetContract": "The Card renders cumulative demand, memory-hit, miss, completed generation, failure, cancellation and eviction counters together with active/queued/running flights, cached entries and bytes from the same versioned diagnostics snapshot; missing optional telemetry is labelled unavailable and never represented as zero.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.thumbnail-architecture-metrics.card",
+        "neoview.thumbnail-architecture-metrics.client"
+      ],
+      "notes": "The backend coordinator already records these bounded counters on its existing telemetry path."
+    },
+    {
+      "id": "thumbnail-architecture-metrics.dimensions",
+      "category": "capabilities",
+      "title": "区分固定来源 lane 与冷热路径",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "targetContract": "Render the coordinator's fixed reader-visible, library-visible, prefetch, folder-preview and background lanes with demand, hit, miss and generation outcome counts; derive hot/cold only as hit versus miss ratios. Format and size remain explicitly unavailable until canonical bounded dimensions exist.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.thumbnail-architecture-metrics.lanes",
+        "neoview.thumbnail-architecture-metrics.e2e"
+      ],
+      "notes": "Lane keys are bounded enums. The Card must not parse file extensions, dimensions or cache keys during polling."
+    },
+    {
+      "id": "thumbnail-architecture-metrics.reset",
+      "category": "states",
+      "title": "重置本地采样基线并保持历史有界",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "targetContract": "Reset records the latest cumulative snapshot as a local baseline and clears no shared backend telemetry, cache or Reader history. The Card retains at most 60 lightweight samples and computes session deltas without sorting or cloning backend payloads into unbounded state.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.thumbnail-architecture-metrics.reset",
+        "neoview.thumbnail-architecture-metrics.performance"
+      ],
+      "notes": "Local reset avoids surprising other diagnostics consumers and requires no mutation endpoint."
+    },
+    {
+      "id": "thumbnail-architecture-metrics.states",
+      "category": "states",
+      "title": "加载、空、错误、重试、禁用与过期结果",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "targetContract": "Distinguish initial loading, measured empty, unavailable API, recoverable failure and successful refresh. Preserve the last good snapshot on transient failure, expose an alert and retry control, disable duplicate refreshes, abort when disabled and ignore stale completions after deactivation.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.thumbnail-architecture-metrics.card",
+        "neoview.thumbnail-architecture-metrics.lifecycle"
+      ],
+      "notes": "An empty measured coordinator is valid data and displays zero; only absence of the thumbnails snapshot is unavailable."
+    },
+    {
+      "id": "thumbnail-architecture-metrics.data-contract",
+      "category": "data-contract",
+      "title": "复用版本化鉴权 diagnostics DTO",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "targetContract": "Extend the browser TypeScript DTO to match the already versioned and Zod-validated Reader diagnostics thumbnail snapshot. The Card calls only ReaderHttpClient.diagnostics with AbortSignal; it receives aggregate counters and never imports Node modules, cache keys, database rows or filesystem paths.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.thumbnail-architecture-metrics.client",
+        "neoview.thumbnail-architecture-metrics.card"
+      ],
+      "notes": "The endpoint and backend wire schema already exist; this slice closes the previously underspecified browser DTO."
+    },
+    {
+      "id": "thumbnail-architecture-metrics.lifecycle",
+      "category": "lifecycle",
+      "title": "只在 Card 展开且活动时采样",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "targetContract": "The deferred Card starts one immediate request only when panelActive is true, schedules the next request with recursive setTimeout 2000 ms after settlement, shares explicit refresh with the in-flight promise, aborts and clears the timer on collapse, disable or unmount, and performs no work while hidden.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.thumbnail-architecture-metrics.lifecycle",
+        "neoview.thumbnail-architecture-metrics.image-stability"
+      ],
+      "notes": "Polling is owned by the Card and never added to ReaderApp, the coordinator or a process-global timer."
+    },
+    {
+      "id": "thumbnail-architecture-metrics.performance",
+      "category": "performance",
+      "title": "零隐藏工作、单飞请求与独立延迟 chunk",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "targetContract": "The default-visible Card remains deferred behind the panel registry, adds no work to navigation or page presentation, performs one small aggregate request at a time only while active, retains at most 60 compact samples, and ships in an independent chunk under 16 KiB outside entry, ReaderSidebar and ReaderFrame chunks.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.thumbnail-architecture-metrics.lifecycle",
+        "neoview.thumbnail-architecture-metrics.chunk",
+        "neoview.thumbnail-architecture-metrics.e2e",
+        "neoview.thumbnail-architecture-metrics.image-stability"
+      ],
+      "notes": "No detailed classifier, cache-key parsing, backend reset or high-cardinality aggregation is added to the thumbnail acquire hot path."
+    },
+    {
+      "id": "thumbnail-architecture-metrics.accessibility",
+      "category": "accessibility",
+      "title": "刷新与重置具有键盘和读屏反馈",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "targetContract": "Refresh and reset are semantic buttons with visible labels and Lucide icons hidden from assistive technology; loading exposes aria-busy, errors use role=alert, the update line uses role=status without noisy repeated announcements, and metric labels remain associated through semantic description lists.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.thumbnail-architecture-metrics.accessibility",
+        "neoview.thumbnail-architecture-metrics.e2e"
+      ],
+      "notes": "No source shortcut exists; native button keyboard activation is the equivalent contract."
+    },
+    {
+      "id": "thumbnail-architecture-metrics.ui-parity",
+      "category": "ui-compatibility",
+      "title": "保持旧版紧凑层级并适配受限 Card",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte",
+        "src/lib/cards/registry.ts"
+      ],
+      "targetContract": "Preserve the top update/refresh row, compact two-column bordered summary, monospaced values, RefreshCw meaning, labels and density shown by the 1920x1080 characterization. Extended sections follow below without nested cards and wrap without clipping at the 420x360 Card viewport.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.thumbnail-architecture-metrics.card",
+        "neoview.thumbnail-architecture-metrics.e2e"
+      ],
+      "notes": "XR adds expanded metrics below the legacy summary but does not change the first-view control hierarchy."
+    },
+    {
+      "id": "thumbnail-architecture-metrics.deviations",
+      "category": "deviations",
+      "title": "格式和尺寸分组使用明确不可用替代契约",
+      "sourceEvidence": [
+        "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte"
+      ],
+      "targetContract": "Do not infer format, source path or dimensions from cache keys and do not add high-cardinality counters to ThumbnailCoordinator.acquire. Show bounded lane/source data and hit/miss hot-cold data from existing telemetry, then label format and size as not collected to protect page-turn latency and memory.",
+      "surfaces": [
+        "GUI"
+      ],
+      "capabilityStatus": {
+        "core": "not-applicable",
+        "transport": "not-applicable",
+        "gui": "pending",
+        "cli": "not-applicable",
+        "tui": "not-applicable",
+        "evidence": "pending"
+      },
+      "testIds": [],
+      "plannedTestIds": [
+        "neoview.thumbnail-architecture-metrics.lanes",
+        "neoview.thumbnail-architecture-metrics.performance"
+      ],
+      "notes": "This is an explicit performance-driven replacement contract, not fabricated zero-valued telemetry."
+    }
+  ]
+}

@@ -140,7 +140,7 @@ async function mountLegacyToolbar(page: import("playwright").Page, panel: string
   await page.evaluate(async (panel) => {
     const load = (path: string): Promise<any> => import(/* @vite-ignore */ path)
     const [{ mount }, { default: TopToolbar }, { bookStore }, stores] = await Promise.all([
-      load("/node_modules/.vite/deps/svelte.js"),
+      load("/@id/svelte"),
       load("/src/lib/components/layout/TopToolbar/TopToolbar.svelte"),
       load("/src/lib/stores/book.svelte.ts"),
       load("/src/lib/stores/index.ts"),
@@ -219,7 +219,7 @@ async function mountLegacyCard(
       store!.conditionsList.value = getDefaultConditionPresets()
     }
     const [{ mount }, { default: CardRenderer }, { cardRegistry }] = await Promise.all([
-      load("/node_modules/.vite/deps/svelte.js"),
+      load("/@id/svelte"),
       load("/src/lib/cards/CardRenderer.svelte"),
       load("/src/lib/cards/registry.ts"),
     ])
