@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest"
 import { openReadonlyLegacyEmmRecordStore } from "./ReadonlyLegacyEmmRecordStore.js"
 
 describe("ReadonlyLegacyEmmRecordStore", () => {
-  it("projects legacy Mangas ratings and object tags by normalized filepath", async () => {
+  it("[neoview.emm.external-readonly] projects legacy Mangas ratings and object tags by normalized filepath", async () => {
     const root = join(tmpdir(), `xiranite-emm-${randomUUID()}`)
     await mkdir(root, { recursive: true })
     const path = join(root, "database.sqlite")
