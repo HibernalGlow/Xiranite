@@ -93,7 +93,7 @@
     "test:neoview-compatibility": "bun test scripts/lib/neoview-capability-status.test.ts",
     "test:neoview-config": "bun test scripts/lib/neoview-config-format.test.ts && bun run --cwd packages/config build && bunx vitest --root packages/nodes/neoview run src/platform/config/NeoviewConfigStore.test.ts --maxWorkers=1",
     "test:unit": "vitest run --dir . --exclude \"**/dist/**\" --exclude \"**/artifacts/**\" --exclude \"**/build/**\" --exclude \"**/vendor/**\" --exclude \"**/ref/**\" --exclude \"**/tests/e2e/**\"",
-    "test:e2e": "playwright test --pass-with-no-tests",
+    "test:e2e": "bun ./node_modules/@playwright/test/cli.js test --pass-with-no-tests",
     "test:packages": "bun run generate:node-registries && bun scripts/run-turbo.ts build --filter=\"./packages/*\" --filter=\"./packages/nodes/*\" && bun run audit:node-architecture && bun scripts/run-turbo.ts test --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",
     "typecheck": "bun run generate:node-registries && tsc --noEmit",
     "typecheck:app": "tsgo --noEmit",
