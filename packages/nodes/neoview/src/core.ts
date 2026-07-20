@@ -314,6 +314,10 @@ export {
   type SavePathBookmarkInput,
 } from "./application/headless/ReaderLibraryHeadlessController.js"
 export {
+  ReaderOpdsHeadlessController,
+  type ReaderOpdsCatalogReader,
+} from "./application/headless/ReaderOpdsHeadlessController.js"
+export {
   ReaderLibraryCleanupService,
   type ReaderLibraryCleanupKind,
   type ReaderLibraryCleanupRequest,
@@ -367,6 +371,20 @@ export {
 } from "./application/reader/contracts.js"
 export type { ReaderBook, ViewSource } from "./domain/book/book.js"
 export { normalizeArchivePath } from "./domain/archive/archive-path.js"
+export {
+  ReaderOpdsClient,
+  ReaderOpdsHttpError,
+  ReaderOpdsParseError,
+  parseReaderOpdsCatalog,
+  type ReaderOpdsCatalog,
+  type ReaderOpdsCredentialProvider,
+  type ReaderOpdsCredentialRequest,
+  type ReaderOpdsCredentials,
+  type ReaderOpdsFetchOptions,
+  type ReaderOpdsLink,
+  type ReaderOpdsNavigationEntry,
+  type ReaderOpdsPublication,
+} from "./platform/opds/ReaderOpdsClient.js"
 export { normalizeArchiveRange } from "./domain/archive/archive-range.js"
 export { buildFrameSnapshot, type BuildFrameInput } from "./domain/frame/frame-builder.js"
 export {

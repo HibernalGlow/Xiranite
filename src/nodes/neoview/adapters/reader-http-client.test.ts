@@ -534,6 +534,18 @@ describe("reader-http-client", () => {
     }
   })
 
+  it("[neoview.opds.client] encodes a remote catalog URL through the authenticated reader route", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ url: "https://catalog.example/feed", navigation: [], publications: [], links: [] }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.readOpdsCatalog!("https://catalog.example/feed?query=one two")).resolves.toMatchObject({
+      url: "https://catalog.example/feed",
+    })
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/reader/opds/catalog?url=https%3A%2F%2Fcatalog.example%2Ffeed%3Fquery%3Done%20two")
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
   it("[neoview.file-browser.thumbnails] registers only opaque library thumbnail contexts and releases them", async () => {
     const fetchMock = vi.fn(async (request: RequestInfo | URL) => String(request).endsWith("/reader/library/thumbnails")
       ? Response.json({ contextId: "folder:browser-1", generation: 3, items: [] })

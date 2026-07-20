@@ -95,6 +95,7 @@ import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeli
 import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
 import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
 import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
+import { ReaderOpdsHttpController, type ReaderOpdsCatalogReader } from "./ReaderOpdsHttpController.js"
 import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpController.js"
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
@@ -314,6 +315,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   loadBookSettingsMigrationService?: () => Promise<ReaderBookSettingsMigrationService>
   sourceWatcher?: ReaderSourceWatcher
   explorerContextMenu?: ReaderExplorerContextMenuProvider
+  opdsClient?: ReaderOpdsCatalogReader
 }
 
 export class ReaderHttpController implements AsyncDisposable {
@@ -329,6 +331,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #settingsMigration?: ReaderSettingsMigrationHttpController
   readonly #bookSettingsMigration?: ReaderBookSettingsMigrationHttpController
   readonly #library?: ReaderLibraryHttpController
+  readonly #opds: ReaderOpdsHttpController
   readonly #libraryService?: ReaderLibraryService
   readonly #disposeLibraryService: boolean
   readonly #cacheService: ReaderCacheService
@@ -589,6 +592,7 @@ export class ReaderHttpController implements AsyncDisposable {
       options.libraryService,
       new ReaderLibraryCleanupService(options.libraryService, new PlatformReaderPathStatusProvider(resourceScheduler)),
     ) : undefined
+    this.#opds = new ReaderOpdsHttpController(options.opdsClient)
     this.#disposeLibraryService = options.disposeLibraryService ?? false
     this.#cacheService = new ReaderCacheService(options.presentationDiskCache, {
       ownsPresentationCache: options.disposePresentationDiskCache,
@@ -679,6 +683,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (bookSettingsMigrationResponse) return bookSettingsMigrationResponse
     const libraryResponse = await this.#library?.handle(request)
     if (libraryResponse) return libraryResponse
+    const opdsResponse = await this.#opds.handle(request)
+    if (opdsResponse) return opdsResponse
 
     if (url.pathname === PRESENTATION_CACHE_PATH && request.method === "GET") {
       return jsonResponse(await this.#cacheService.status())
