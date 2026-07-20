@@ -29,6 +29,7 @@ import type {
 import { FolderRepresentativeIndex } from "./FolderRepresentativeIndex.js"
 import { transformPageSource } from "../images/transform-page-source.js"
 import { readThumbnailStoreBatch } from "./ThumbnailStoreBatchReader.js"
+import type { NeoViewImageProcessingRuntimePolicy } from "../images/SharpRuntimePolicy.js"
 
 export interface PlatformThumbnailPipelineOptions {
   loadImageTransformer?: ImageTransformerLoader
@@ -43,6 +44,7 @@ export interface PlatformThumbnailPipelineOptions {
   loadMosaicImageComposer?: MosaicImageComposerLoader
   resourceScheduler?: ResourceScheduler
   mediaFormats?: ReaderMediaTypeResolver
+  imageProcessingPolicy?: NeoViewImageProcessingRuntimePolicy
 }
 
 interface PageThumbnailDemandSource {
@@ -101,6 +103,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   readonly #ownsFolderRepresentativeIndex: boolean
   readonly #loadMosaicImageComposer?: MosaicImageComposerLoader
   readonly #resourceScheduler?: ResourceScheduler
+  readonly #imageProcessingPolicy?: NeoViewImageProcessingRuntimePolicy
   #imageTransformer?: Promise<ImageTransformer>
   #systemThumbnailProvider?: Promise<SystemThumbnailProvider>
   #videoThumbnailProvider?: Promise<VideoThumbnailProvider>
@@ -117,6 +120,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     this.#loadVideoThumbnailProvider = options.loadVideoThumbnailProvider
     this.#resourceScheduler = options.resourceScheduler
     this.#loadMosaicImageComposer = options.loadMosaicImageComposer
+    this.#imageProcessingPolicy = options.imageProcessingPolicy
     this.#ownsFolderRepresentativeIndex = !options.folderRepresentativeIndex
     this.#folderRepresentativeIndex = options.folderRepresentativeIndex ?? new FolderRepresentativeIndex({
       mediaFormats: options.mediaFormats,
@@ -426,8 +430,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       const cached = await this.#trySystemThumbnail({
         sourcePath: page.sourcePath,
         maxEdge: 320,
-        lossless: false,
-        quality: 78,
+        lossless: this.#thumbnailLossless(),
+        quality: this.#thumbnailQuality(78),
         priority: thumbnailLanePriority(demand.lane),
         ownerId: demand.contextId,
       }, signal)
@@ -464,7 +468,9 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         throw error
       }
     }
-    if (!this.#loadImageTransformer) throw new ThumbnailUnavailableError()
+    if (!this.#loadImageTransformer || this.#imageProcessingPolicy?.thumbnailTransformEnabled === false) {
+      throw new ThumbnailUnavailableError()
+    }
 
     let source: PageSource | undefined
     try {
@@ -476,8 +482,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         dpr: 1,
         fit: "inside",
         format: "webp",
-        lossless: false,
-        quality: 78,
+        lossless: this.#thumbnailLossless(),
+        quality: this.#thumbnailQuality(78),
       }, signal, {
         priority: thumbnailLanePriority(demand.lane),
         kind: "neoview.thumbnail.generate",
@@ -534,8 +540,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     const cached = !demandSource.refresh && descriptor.kind === "file" ? await this.#trySystemThumbnail({
       sourcePath: descriptor.path,
       maxEdge: 416,
-      lossless: false,
-      quality: 82,
+      lossless: this.#thumbnailLossless(),
+      quality: this.#thumbnailQuality(),
       priority: thumbnailLanePriority(demand.lane),
       ownerId: demand.contextId,
     }, signal) : undefined
@@ -584,6 +590,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       } else if (page.mediaKind === "video") {
         bytes = (await this.#generateVideoThumbnail(page, 416, 82, demand, signal)).bytes
       } else {
+        if (this.#imageProcessingPolicy?.thumbnailTransformEnabled === false) throw new ThumbnailUnavailableError()
         source = await page.content.load(signal)
         const transformer = await this.#getImageTransformer()
         const result = await transformPageSource(source, transformer, {
@@ -592,8 +599,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
           dpr: 1,
           fit: "inside",
           format: "webp",
-          lossless: false,
-          quality: 82,
+          lossless: this.#thumbnailLossless(),
+          quality: this.#thumbnailQuality(),
         }, signal, {
           priority: thumbnailLanePriority(demand.lane),
           kind: "neoview.thumbnail.generate",
@@ -697,7 +704,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       return (await this.#generateVideoThumbnail(page, 416, 82, demand, signal)).bytes
     }
     if (page.byteLength !== undefined && page.byteLength > MAX_FOLDER_TILE_SOURCE_BYTES) return undefined
-    if (!this.#loadImageTransformer) return undefined
+    if (!this.#loadImageTransformer || this.#imageProcessingPolicy?.thumbnailTransformEnabled === false) return undefined
     let source: PageSource | undefined
     try {
       source = await page.content.load(signal)
@@ -707,8 +714,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         dpr: 1,
         fit: "inside",
         format: "webp",
-        lossless: false,
-        quality: 82,
+        lossless: this.#thumbnailLossless(),
+        quality: this.#thumbnailQuality(),
       }, signal, {
         priority: thumbnailLanePriority(demand.lane),
         kind: "neoview.thumbnail.folder-tile",
@@ -758,7 +765,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
   ): Promise<ThumbnailAsset> {
     const descriptor = demandSource.source
     if (descriptor.kind !== "folder" || descriptor.previewCount === 1
-      || !this.#bookLoader || !this.#loadMosaicImageComposer) {
+      || !this.#bookLoader || !this.#loadMosaicImageComposer
+      || this.#imageProcessingPolicy?.folderMosaicEnabled === false) {
       throw new ThumbnailUnavailableError()
     }
     const tiles: Uint8Array[] = []
@@ -782,8 +790,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     const result = await (await this.#getMosaicImageComposer()).compose(tiles.map(byteStream), {
       count: descriptor.previewCount,
       size: 416,
-      lossless: false,
-      quality: 82,
+      lossless: this.#imageProcessingPolicy?.mosaicLossless ?? false,
+      quality: this.#imageProcessingPolicy?.mosaicQuality ?? 82,
     }, signal, {
       priority: thumbnailLanePriority(demand.lane),
       kind: "neoview.thumbnail.folder-mosaic",
@@ -803,6 +811,14 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       this.#imageTransformer = guarded
     }
     return this.#imageTransformer
+  }
+
+  #thumbnailLossless(): boolean {
+    return this.#imageProcessingPolicy?.thumbnailLossless ?? false
+  }
+
+  #thumbnailQuality(fallback = 82): number {
+    return this.#imageProcessingPolicy?.thumbnailQuality ?? fallback
   }
 
   #getVideoThumbnailProvider(): Promise<VideoThumbnailProvider> {

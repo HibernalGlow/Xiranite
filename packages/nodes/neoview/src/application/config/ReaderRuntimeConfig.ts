@@ -14,6 +14,11 @@ import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBi
 import { parseReaderRadialMenuConfig, type ReaderRadialMenuConfig } from "./ReaderRadialMenuConfig.js"
 import type { SuperResolutionCustomModelManifest } from "../../ports/SuperResolutionProvider.js"
 import {
+  DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG,
+  parseNeoviewImageProcessingConfig,
+  type NeoviewImageProcessingConfig,
+} from "./ReaderImageProcessingConfig.js"
+import {
   parseSuperResolutionPreferences,
   type SuperResolutionPreferences,
 } from "../../domain/super-resolution/super-resolution-preferences.js"
@@ -79,6 +84,7 @@ export interface NeoviewRuntimeConfig {
   fileTree: NeoviewFileTreeConfig
   slideshow: NeoviewSlideshowConfig
   media: NeoviewMediaConfig
+  imageProcessing: NeoviewImageProcessingConfig
   colorFilter: ReaderColorFilterSettings
   pageTransition: ReaderPageTransitionSettings
   switchToast: ReaderSwitchToastSettings
@@ -755,6 +761,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     fileTree: DEFAULT_NEOVIEW_FILE_TREE_CONFIG,
     slideshow: DEFAULT_NEOVIEW_SLIDESHOW_CONFIG,
     media: DEFAULT_NEOVIEW_MEDIA_CONFIG,
+    imageProcessing: DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG,
     colorFilter: DEFAULT_READER_COLOR_FILTER,
     pageTransition: DEFAULT_READER_PAGE_TRANSITION,
     switchToast: DEFAULT_READER_SWITCH_TOAST,
@@ -781,6 +788,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const historyList = optionalRecord(config.history_list, "[nodes.neoview.history_list]")
   const folder = optionalRecord(config.folder, "[nodes.neoview.folder]")
   const image = optionalRecord(config.image, "[nodes.neoview.image]")
+  const imageProcessing = optionalRecord(image?.processing, "[nodes.neoview.image.processing]")
   const view = optionalRecord(config.view, "[nodes.neoview.view]")
   const colorFilter = optionalRecord(image?.color_filter, "[nodes.neoview.image.color_filter]")
   const pageTransition = optionalRecord(image?.page_transition, "[nodes.neoview.image.page_transition]")
@@ -923,6 +931,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     fileTree: parseFileTreeConfig(optionalRecord(folder?.tree, "[nodes.neoview.folder.tree]")),
     slideshow: parseSlideshowConfig(slideshow, legacySlideshow, legacyBook),
     media: parseMediaConfig(image, subtitle),
+    imageProcessing: parseNeoviewImageProcessingConfig(imageProcessing),
     colorFilter: parseColorFilterConfig(colorFilter),
     pageTransition: parsePageTransitionConfig(pageTransition),
     switchToast: parseSwitchToastConfig(switchToast, {

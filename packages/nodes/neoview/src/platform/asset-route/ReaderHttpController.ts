@@ -80,6 +80,7 @@ import { deriveReaderPreloadResourceContext } from "../../application/preloading
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 import type { ReaderPageMediaMetadataProviderLoader } from "../../ports/ReaderPageMediaMetadataProvider.js"
+import type { ImageTransformExecution, ImageTransformer } from "../../ports/ImageTransformer.js"
 import { createPlatformReaderBookLoader } from "../books/PlatformReaderBookLoader.js"
 import type { PlatformReaderBookLoaderOptions } from "../books/PlatformReaderBookLoader.js"
 import { StreamingImageMetadataProbe } from "../images/StreamingImageMetadataProbe.js"
@@ -118,7 +119,15 @@ import { PlatformReaderPageMaterializer } from "../content/PlatformReaderPageMat
 import { PlatformEmmTranslationSource } from "../emm/PlatformEmmTranslationSource.js"
 import { PlatformEmmCollectTagSource } from "../emm/PlatformEmmCollectTagSource.js"
 import { WINDOWS_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
-import { isNeoViewSharpEnabled } from "../images/SharpRuntimePolicy.js"
+import {
+  NeoViewImageProcessingRuntimePolicy,
+} from "../images/SharpRuntimePolicy.js"
+import {
+  DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG,
+  parseNeoviewImageProcessingPatch,
+  type NeoviewImageProcessingConfig,
+  type NeoviewImageProcessingPatch,
+} from "../../application/config/ReaderImageProcessingConfig.js"
 import { ReaderMemoryPressureMonitor } from "../memory/ReaderMemoryPressureMonitor.js"
 import { ReaderSystemMonitorService } from "../diagnostics/ReaderSystemMonitorService.js"
 import {
@@ -306,6 +315,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateSlideshow?: (patch: NeoviewSlideshowPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSlideshowConfig>
   media?: NeoviewMediaConfig
   updateMedia?: (patch: NeoviewMediaPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewMediaConfig>
+  imageProcessing?: NeoviewImageProcessingConfig
+  updateImageProcessing?: (patch: NeoviewImageProcessingPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewImageProcessingConfig>
   colorFilter?: ReaderColorFilterSettings
   updateColorFilter?: (patch: NeoviewColorFilterPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderColorFilterSettings>
   pageTransition?: ReaderPageTransitionSettings
@@ -394,6 +405,8 @@ export class ReaderHttpController implements AsyncDisposable {
   #folderView: NeoviewFolderViewConfig
   #slideshow: NeoviewSlideshowConfig
   #media: NeoviewMediaConfig
+  #imageProcessing: NeoviewImageProcessingConfig
+  readonly #imageProcessingPolicy: NeoViewImageProcessingRuntimePolicy
   #colorFilter: ReaderColorFilterSettings
   #pageTransition: ReaderPageTransitionSettings
   #switchToast: ReaderSwitchToastSettings
@@ -416,6 +429,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateFolderView?: ReaderHttpControllerOptions["updateFolderView"]
   readonly #updateSlideshow?: ReaderHttpControllerOptions["updateSlideshow"]
   readonly #updateMedia?: ReaderHttpControllerOptions["updateMedia"]
+  readonly #updateImageProcessing?: ReaderHttpControllerOptions["updateImageProcessing"]
   readonly #updateColorFilter?: ReaderHttpControllerOptions["updateColorFilter"]
   readonly #updatePageTransition?: ReaderHttpControllerOptions["updatePageTransition"]
   readonly #updateSwitchToast?: ReaderHttpControllerOptions["updateSwitchToast"]
@@ -440,7 +454,8 @@ export class ReaderHttpController implements AsyncDisposable {
       throw new TypeError("superResolutionArtifactPages and superResolutionArtifactStore must be provided together")
     }
     const resourceScheduler = options.resourceScheduler ?? defaultImageTransformScheduler
-    const sharpEnabled = isNeoViewSharpEnabled()
+    this.#imageProcessing = options.imageProcessing ?? { ...DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG }
+    this.#imageProcessingPolicy = new NeoViewImageProcessingRuntimePolicy(this.#imageProcessing)
     const initialMedia = options.media ?? DEFAULT_NEOVIEW_MEDIA_CONFIG
     this.#mediaFormats = new ReaderMediaFormatRegistryRef(initialMedia)
     this.#ownsSolidArchiveCache = !options.solidArchiveCache
@@ -455,26 +470,29 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#videoProcessSnapshot = videoProcessSnapshot(this.#videoProcessScheduler)
     const bookLoader = createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache, mediaFormats: this.#mediaFormats })
     const imageMetadataProbe = new StreamingImageMetadataProbe()
-    const loadSharpImageTransformer = sharpEnabled
-      ? async () => {
-          const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
-          return new SharpImageTransformer(resourceScheduler)
-        }
-      : undefined
+    const loadSharpImageTransformer = async () => {
+      if (!this.#imageProcessingPolicy.sharpFallbackEnabled) {
+        throw new ThumbnailUnavailableError()
+      }
+      const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
+      return new SharpImageTransformer(resourceScheduler)
+    }
     const loadImageTransformer = process.platform === "win32"
       ? async () => {
-          const fallback = loadSharpImageTransformer
-            ? await loadSharpImageTransformer()
-            : {
-                async transform(input: ReadableStream<Uint8Array>) {
-                  await input.cancel("Sharp image transforms are disabled")
-                  throw new ThumbnailUnavailableError()
-                },
+          const fallback = {
+            transform: async (input: ReadableStream<Uint8Array>, request: Parameters<ImageTransformer["transform"]>[1], signal?: AbortSignal, execution?: ImageTransformExecution) => {
+              if (!this.#imageProcessingPolicy.sharpFallbackEnabled) {
+                await input.cancel("Sharp image transforms are disabled")
+                throw new ThumbnailUnavailableError()
               }
+              return (await loadSharpImageTransformer()).transform(input, request, signal, execution)
+            },
+          }
           const { WindowsWicImageTransformer } = await import("../images/WindowsWicImageTransformer.js")
           return new WindowsWicImageTransformer(fallback, {
             resourceScheduler,
-            preferFallbackForLossless: sharpEnabled,
+            enabled: () => this.#imageProcessingPolicy.wicNativeEnabled,
+            preferFallbackForLosslessNow: () => this.#imageProcessingPolicy.sharpFallbackEnabled,
           })
         }
       : loadSharpImageTransformer
@@ -485,16 +503,20 @@ export class ReaderHttpController implements AsyncDisposable {
         processScheduler: this.#videoProcessScheduler,
       })
     })
-    const loadMosaicImageComposer = sharpEnabled
-      ? async () => {
-          const { SharpMosaicImageComposer } = await import("../images/sharp/SharpMosaicImageComposer.js")
-          return new SharpMosaicImageComposer(resourceScheduler)
-        }
-      : undefined
+    const loadMosaicImageComposer = async () => {
+      if (!this.#imageProcessingPolicy.folderMosaicEnabled) {
+        throw new ThumbnailUnavailableError()
+      }
+      const { SharpMosaicImageComposer } = await import("../images/sharp/SharpMosaicImageComposer.js")
+      return new SharpMosaicImageComposer(resourceScheduler)
+    }
     const loadSystemThumbnailProvider = options.loadSystemThumbnailProvider ?? (process.platform === "win32"
       ? async () => {
           const { WindowsSystemThumbnailProvider } = await import("../windows/WindowsSystemThumbnailProvider.js")
-          return new WindowsSystemThumbnailProvider({ resourceScheduler: resourceScheduler })
+          return new WindowsSystemThumbnailProvider({
+            resourceScheduler: resourceScheduler,
+            enabled: () => this.#imageProcessingPolicy.windowsShellNativeEnabled,
+          })
         }
       : undefined)
     this.#thumbnailPipeline = new PlatformThumbnailPipeline({
@@ -508,6 +530,7 @@ export class ReaderHttpController implements AsyncDisposable {
       maxEntryBytes: 512 * 1024,
       resourceScheduler: resourceScheduler,
       mediaFormats: this.#mediaFormats,
+      imageProcessingPolicy: this.#imageProcessingPolicy,
     })
     this.#service = new CoreReaderService(
       bookLoader,
@@ -573,7 +596,7 @@ export class ReaderHttpController implements AsyncDisposable {
       presentationDiskCache: options.presentationDiskCache,
       presentationProducerVersion: process.platform === "win32" ? WINDOWS_PRESENTATION_PRODUCER_VERSION : undefined,
       loadImageTransformer,
-      bypassImageTransforms: !sharpEnabled,
+      imageProcessingPolicy: this.#imageProcessingPolicy,
       thumbnailPipeline: this.#thumbnailPipeline,
       resourceScheduler: resourceScheduler,
       seekableMediaCache: this.#seekableMedia,
@@ -703,6 +726,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateFolderView = options.updateFolderView
     this.#updateSlideshow = options.updateSlideshow
     this.#updateMedia = options.updateMedia
+    this.#updateImageProcessing = options.updateImageProcessing
     this.#updateColorFilter = options.updateColorFilter
     this.#updatePageTransition = options.updatePageTransition
     this.#updateSwitchToast = options.updateSwitchToast
@@ -1050,6 +1074,27 @@ export class ReaderHttpController implements AsyncDisposable {
   async #patchShellConfig(request: Request): Promise<Response> {
     const body = await readControlJson(request)
     if (!body) return jsonResponse({ error: "Reader config patch must be a JSON object" }, 400)
+    if (Object.hasOwn(body, "imageProcessing")) {
+      if (!this.#updateImageProcessing) return jsonResponse({ error: "Reader image processing config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewImageProcessingPatch>
+      try {
+        parsed = parseNeoviewImageProcessingPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      const operation = this.#configUpdateQueue.then(async () => {
+        const updated = await this.#updateImageProcessing!(parsed.patch, parsed.tomlPatch)
+        this.#imageProcessing = updated
+        this.#imageProcessingPolicy.update(updated)
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "superResolution")) {
       if (!this.#updateSuperResolution) return jsonResponse({ error: "Reader super-resolution preferences are read-only" }, 405)
       let parsed: ReturnType<typeof parseNeoviewSuperResolutionPreferencesPatch>
@@ -1510,6 +1555,7 @@ export class ReaderHttpController implements AsyncDisposable {
       folderView: this.#folderView,
       slideshow: this.#slideshow,
       media: this.#media,
+      imageProcessing: this.#imageProcessing,
       colorFilter: this.#colorFilter,
       pageTransition: this.#pageTransition,
       switchToast: this.#switchToast,
