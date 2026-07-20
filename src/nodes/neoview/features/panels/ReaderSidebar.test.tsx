@@ -40,6 +40,29 @@ describe("ReaderSidebar layout gestures", () => {
     expect(commit).toHaveBeenCalledWith({ side: "left", width: 420 })
   })
 
+  it("[neoview.shell.portrait-width] keeps rendered and dragged sidebars within half the viewport", () => {
+    const originalInnerWidth = window.innerWidth
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 600 })
+    try {
+      const commit = vi.fn()
+      const config = shell()
+      config.sidebars.left.width = 600
+      render(<ReaderSidebar side="left" context={context()} shell={config} onLayoutCommit={commit} />)
+
+      const sidebar = document.querySelector<HTMLElement>('[data-reader-sidebar="left"]')!
+      const separator = sidebar.querySelector<HTMLElement>('[role="separator"]')!
+      expect(sidebar.style.maxWidth).toBe("50vw")
+
+      fireEvent.pointerDown(separator, { pointerId: 17, clientX: 600, clientY: 10 })
+      fireEvent.pointerMove(separator, { pointerId: 17, clientX: 900, clientY: 10 })
+      fireEvent.pointerUp(separator, { pointerId: 17, clientX: 900, clientY: 10 })
+      expect(sidebar.style.width).toBe("300px")
+      expect(commit).toHaveBeenCalledWith({ side: "left", width: 300 })
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth })
+    }
+  })
+
   it("[neoview.shell.drag] bounds position and corner size before one persistence commit", () => {
     const commit = vi.fn()
     const config = shell("half")
