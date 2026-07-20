@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 2,
+  "featureId": "emm-ratings-tags-translation",
+  "legacyCardId": "favoriteTags",
+  "title": "收藏标签快选",
+  "panelId": "properties",
+  "priority": "integration",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+  "sourceHash": "sha256:7608952c390a24e9383b6cf608afd7b2d9ff1183e6e2617ffe86998b5be6bf65",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/FavoriteTagsCard.tsx",
+  "visualBaseline": "pending: legacy 1920x1080 characterization has not been generated",
+  "visualTarget": "output/playwright/neoview-emm-cards-{desktop,420}.png",
+  "inventorySummary": {
+    "sourceUiGroups": 6,
+    "controlsAndStates": 34,
+    "acceptanceItems": 10,
+    "sourceFiles": 4
+  },
+  "completionRule": "Complete only when the reviewed AST prototype and scripted legacy characterization are preserved; manual and favorite tag groups, translations, colors, counts, mixed-gender variants, interactive include/exclude gestures, refresh, ordering/visibility management, lifecycle and responsive evidence all use the canonical bounded EMM contracts. A read-only suggestion list remains partial.",
+  "unsupportedNodes": [
+    {
+      "node": "ConstTag",
+      "source": "src/lib/cards/properties/FavoriteTagsCard.svelte",
+      "replacement": "Production React must compute translated labels, colors and mixed-variant metadata before returning each semantic tag control."
+    },
+    {
+      "node": "$state/$derived/favoriteTagStore",
+      "source": "src/lib/cards/properties/FavoriteTagsCard.svelte",
+      "replacement": "XR reads bounded suggestions through the Reader client; mutable ordering, visibility and mixed-gender preferences still require canonical configuration and mutation contracts."
+    }
+  ],
+  "sourceUiInventory": [
+    {
+      "id": "favorite-tags-ui.manual",
+      "title": "手动标签区域",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte", "src/lib/stores/emm/manualTagStore.svelte.ts"],
+      "acceptanceItems": [
+        "Tag 图标和手动标签标题按钮",
+        "点击标题刷新手动标签",
+        "显示唯一手动标签种类数",
+        "空态说明通过文件右键编辑标签",
+        "按 namespace 显示翻译和颜色",
+        "虚线边框区分手动标签",
+        "显示每个标签匹配文件数"
+      ],
+      "mappedChecklistIds": ["favorite-tags.manual", "favorite-tags.interaction", "favorite-tags.ui-parity"]
+    },
+    {
+      "id": "favorite-tags-ui.controls",
+      "title": "混合性别与刷新控制",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte", "src/lib/stores/emm/favoriteTagStore.svelte.ts"],
+      "acceptanceItems": [
+        "混合性别搜索 checkbox",
+        "checkbox 反映 mixedGenderStore.enabled",
+        "刷新按钮使用 RefreshCcw 图标",
+        "刷新期间按钮禁用并显示旋转状态"
+      ],
+      "mappedChecklistIds": ["favorite-tags.mixed-gender", "favorite-tags.refresh", "favorite-tags.states"]
+    },
+    {
+      "id": "favorite-tags-ui.groups",
+      "title": "收藏标签分组与样式",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte", "src/lib/stores/emm/favoriteTagStore.svelte.ts"],
+      "acceptanceItems": [
+        "按 category 分组并稳定排序",
+        "分组标题使用 category color",
+        "显示每组标签数",
+        "标签显示翻译后的短标签文本",
+        "圆点使用标签颜色",
+        "mixed variant 使用虚线和低透明度",
+        "列表最大高度 300px 并纵向滚动"
+      ],
+      "mappedChecklistIds": ["favorite-tags.suggestions", "favorite-tags.mixed-gender", "favorite-tags.ui-parity"]
+    },
+    {
+      "id": "favorite-tags-ui.interaction",
+      "title": "标签加入与排除交互",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte"],
+      "acceptanceItems": [
+        "interactive=false 时标签不触发搜索修改",
+        "左键以空 modifier 加入标签",
+        "右键以减号 modifier 排除标签",
+        "手动标签生成规范 namespace 查询值",
+        "tooltip 说明原查询值和左右键语义"
+      ],
+      "mappedChecklistIds": ["favorite-tags.interaction", "favorite-tags.accessibility"]
+    },
+    {
+      "id": "favorite-tags-ui.states",
+      "title": "空、加载、错误与刷新状态",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte"],
+      "acceptanceItems": [
+        "无手动标签空态",
+        "无收藏标签空态",
+        "加载状态不伪装为空",
+        "失败状态显示 alert 和重试",
+        "隐藏或卸载取消请求"
+      ],
+      "mappedChecklistIds": ["favorite-tags.states", "favorite-tags.lifecycle"]
+    },
+    {
+      "id": "favorite-tags-ui.footer-shell",
+      "title": "入口说明和 Card shell",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte", "src/lib/cards/registry.ts"],
+      "acceptanceItems": [
+        "底部说明在文件夹面板使用收藏标签入口",
+        "Card 默认位于 properties Panel",
+        "允许隐藏、折叠、移动、调整高度和独立窗口",
+        "内容作为独立 lazy Card 加载",
+        "窄 Card 标签换行且无横向溢出",
+        "收藏标签顺序和可见性通过唯一配置持久化"
+      ],
+      "mappedChecklistIds": ["favorite-tags.management", "favorite-tags.lifecycle", "favorite-tags.ui-parity"]
+    }
+  ],
+  "items": [
+    {
+      "id": "favorite-tags.suggestions",
+      "category": "capabilities",
+      "title": "有界收藏和常用标签建议",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte", "src/lib/stores/emm/favoriteTagStore.svelte.ts"],
+      "targetContract": "Load at most 32 canonical tag suggestions, preserve namespace/tag identity, expose optional translations and favorite markers and render a bounded wrapping list.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.favorite-tags.card", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": ["neoview.favorite-tags.boundary"],
+      "notes": "The current slice is a read-only suggestion projection and does not imply the remaining legacy management or interaction controls."
+    },
+    {
+      "id": "favorite-tags.manual",
+      "category": "capabilities",
+      "title": "全局唯一手动标签区域",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte", "src/lib/stores/emm/manualTagStore.svelte.ts"],
+      "targetContract": "List unique manual tags with namespace, translation, color and matching-file counts, refresh them explicitly and keep their dashed visual identity distinct from EMM favorites.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.favorite-tags.manual"],
+      "notes": "Manual tags exist in the shared EMM domain, but this Card does not request or render the legacy manual-tag section."
+    },
+    {
+      "id": "favorite-tags.mixed-gender",
+      "category": "capabilities",
+      "title": "性别命名空间混合变体",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte", "src/lib/stores/emm/favoriteTagStore.svelte.ts"],
+      "targetContract": "Persist the mixed-gender toggle and generate deduplicated female, male and mixed namespace variants with stable query identities and distinct visual treatment.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.favorite-tags.mixed-gender"],
+      "notes": "The current Card has no mixed-gender control or variant generation."
+    },
+    {
+      "id": "favorite-tags.interaction",
+      "category": "commands",
+      "title": "加入和排除标签搜索",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte"],
+      "targetContract": "When hosted in an interactive search surface, left click includes and context-menu/right click excludes the selected canonical tag; read-only property hosting must not mutate a query.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.favorite-tags.interaction", "neoview.favorite-tags.context-exclude"],
+      "notes": "Current list items are non-interactive and do not apply or remove filters."
+    },
+    {
+      "id": "favorite-tags.management",
+      "category": "settings",
+      "title": "收藏标签顺序和可见性管理",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte", "src/lib/stores/emm/favoriteTagStore.svelte.ts"],
+      "targetContract": "Search, select, batch apply/remove, reorder and toggle visibility through one canonical persisted favorite-tag configuration without browser-only state.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.favorite-tags.management"],
+      "notes": "The current suggestion endpoint and Card expose no mutation contract."
+    },
+    {
+      "id": "favorite-tags.refresh",
+      "category": "commands",
+      "title": "从当前 EMM 源重新读取",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte"],
+      "targetContract": "Refresh the bounded suggestion projection, disable duplicate refresh work and retain explicit recoverable failure feedback.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.favorite-tags.card"],
+      "plannedTestIds": ["neoview.favorite-tags.retry"],
+      "notes": "Success is covered; duplicate-click disabled state and failed retry still need focused evidence."
+    },
+    {
+      "id": "favorite-tags.states",
+      "category": "interaction-states",
+      "title": "加载、空、错误和重试",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte"],
+      "targetContract": "Keep initial loading, empty suggestions, stale-safe refresh, recoverable error and retry states distinct without leaking a previous source snapshot.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.favorite-tags.card", "neoview.emm-cards.lifecycle"],
+      "plannedTestIds": ["neoview.favorite-tags.states"],
+      "notes": "Implementation has loading, empty and retry states; focused state-transition coverage remains."
+    },
+    {
+      "id": "favorite-tags.lifecycle",
+      "category": "lifecycle",
+      "title": "隐藏零请求和取消",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte"],
+      "targetContract": "Do no work while inactive, issue one bounded request on activation and abort or ignore stale completion on refresh, deactivation or unmount.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-cards.lifecycle", "neoview.favorite-tags.card"],
+      "plannedTestIds": ["neoview.favorite-tags.abort"],
+      "notes": "Hidden zero work is covered; explicit late-completion cancellation remains planned."
+    },
+    {
+      "id": "favorite-tags.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "标签列表与交互命令语义",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte"],
+      "targetContract": "Expose named manual and favorite tag groups, preserve original namespace/tag identity for translated labels and provide keyboard equivalents for include, exclude and refresh actions.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.favorite-tags.card"],
+      "plannedTestIds": ["neoview.favorite-tags.accessibility"],
+      "notes": "The current list has a programmatic label and native refresh button; include/exclude keyboard semantics and grouped labels remain absent."
+    },
+    {
+      "id": "favorite-tags.ui-parity",
+      "category": "ui-parity",
+      "title": "分组、颜色、密度和受限几何",
+      "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte"],
+      "targetContract": "Preserve the manual/favorite section hierarchy, category headers, colored dots and borders, compact counts, 300px scroll bound and interactive affordances while wrapping without overflow.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": ["neoview.favorite-tags.legacy-characterization", "neoview.favorite-tags.geometry"],
+      "notes": "Desktop and 420px target geometry exist, but the current flat list omits most source hierarchy and no legacy screenshot exists."
+    }
+  ]
+}

@@ -581,6 +581,17 @@ export interface ReaderAiTranslationConfigDto {
 export interface ReaderAiTranslationConfigPatch {
   aiTranslation: Partial<ReaderAiTranslationConfigDto>
 }
+export interface ReaderEmmConfigDto {
+  enabled: boolean
+  databasePaths: readonly string[]
+  settingPath?: string
+  translationDatabasePath?: string
+  translationPath?: string
+  defaultRating: number
+}
+export interface ReaderEmmConfigPatch {
+  emm: Partial<ReaderEmmConfigDto>
+}
 export interface ReaderOllamaModelDto {
   name: string
   digest?: string
@@ -647,6 +658,8 @@ export interface ReaderDirectoryEntryDto {
   height?: number
   pageCount?: number
   tags?: readonly string[]
+  collectTags?: readonly string[]
+  manualTags?: readonly string[]
 }
 
 export type ReaderDirectorySizeBatchItemDto =
@@ -945,6 +958,7 @@ export interface ReaderRuntimeConfigDto {
   switchToast?: ReaderSwitchToastSettings
   infoOverlay?: ReaderInfoOverlaySettings
   systemMonitor: ReaderSystemMonitorConfigDto
+  emm?: ReaderEmmConfigDto
   aiTranslation?: ReaderAiTranslationConfigDto
   imageTrim?: ReaderImageTrimSettings
   superResolution?: ReaderSuperResolutionConfigDto
@@ -1288,6 +1302,15 @@ export interface ReaderFolderPenetrationConfig {
   terminalTargets: ReaderFolderPenetrationTerminalKindDto[]
 }
 
+export interface ReaderFolderTagDisplayConfig {
+  tagMode: "all" | "collect" | "none"
+  showRating: boolean
+  showCollectTagCount: boolean
+  showTags: boolean
+  maxTags: number
+  showTooltips: boolean
+}
+
 export interface ReaderFolderViewConfig {
   homePath: string
   viewMode: ReaderFolderViewMode
@@ -1301,6 +1324,7 @@ export interface ReaderFolderViewConfig {
   /** Preferred directory listing type filter; applied when a browser session opens. */
   typeFilter?: ReaderDirectoryFilterDto
   showHiddenFolders?: boolean
+  tagDisplay: ReaderFolderTagDisplayConfig
   penetration: ReaderFolderPenetrationConfig
   emptyArea: ReaderFolderEmptyAreaConfig
   details: ReaderFolderDetailsConfig
@@ -1330,6 +1354,7 @@ export interface ReaderFolderViewPatch {
     hoverPreviewDelayMs?: 200 | 500 | 800 | 1200
     typeFilter?: ReaderDirectoryFilterDto
     showHiddenFolders?: boolean
+    tagDisplay?: Partial<ReaderFolderTagDisplayConfig>
     penetration?: Partial<ReaderFolderPenetrationConfig>
     emptyArea?: Partial<ReaderFolderEmptyAreaConfig>
     details?: ReaderFolderDetailsPatch
@@ -1421,6 +1446,7 @@ export interface ReaderHttpClient {
   updateSwitchToast?(patch: ReaderSwitchToastConfigPatch, signal?: AbortSignal): Promise<ReaderSwitchToastSettings>
   updateInfoOverlay?(patch: ReaderInfoOverlayConfigPatch, signal?: AbortSignal): Promise<ReaderInfoOverlaySettings>
   updateSystemMonitor?(patch: ReaderSystemMonitorConfigPatch, signal?: AbortSignal): Promise<ReaderSystemMonitorConfigDto>
+  updateEmm?(patch: ReaderEmmConfigPatch, signal?: AbortSignal): Promise<ReaderEmmConfigDto>
   updateAiTranslation?(patch: ReaderAiTranslationConfigPatch, signal?: AbortSignal): Promise<ReaderAiTranslationConfigDto>
   aiCheck?(signal?: AbortSignal): Promise<ReaderAiCheckDto>
   aiModels?(signal?: AbortSignal): Promise<readonly ReaderOllamaModelDto[]>
@@ -2281,6 +2307,12 @@ export function createReaderHttpClient(
       promptTemplate: "",
       memoryCacheEntries: 1000,
     }),
+    updateEmm: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((config) => config.emm ?? { enabled: true, databasePaths: [], defaultRating: 4.2 }),
     aiCheck: (signal) => request<ReaderAiCheckDto>("/reader/ai/check", { signal }),
     aiModels: (signal) => request<{ items: ReaderOllamaModelDto[] }>("/reader/ai/models", { signal }).then((value) => value.items),
     aiTranslate: (body, signal) => request<ReaderAiTranslationResultDto>("/reader/ai/translate", {

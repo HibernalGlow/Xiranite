@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewBoardLayoutPatch, parseNeoviewBookPatch, parseNeoviewBookmarkListPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewHistoryListPatch, parseNeoviewPageListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewSystemMonitorPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewBoardLayoutPatch, parseNeoviewBookPatch, parseNeoviewBookmarkListPatch, parseNeoviewCardLayoutPatch, parseNeoviewEmmPatch, parseNeoviewFolderViewPatch, parseNeoviewHistoryListPatch, parseNeoviewPageListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewSystemMonitorPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -292,6 +292,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       hoverPreviewDelayMs: 500,
       typeFilter: "library",
       showHiddenFolders: false,
+      tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
       penetration: { enabled: true, maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
       emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
       details: {
@@ -818,12 +819,50 @@ describe("parseNeoviewRuntimeConfig", () => {
 
   it("[neoview.emm-auxiliary.registry] restores the missing legacy properties cards", () => {
     const cards = parseNeoviewRuntimeConfig({}).shellOptions.cardLayout
-    expect(["folder-ratings", "favorite-tags", "emm-sync", "emm-raw-data"].map((id) => cards[id])).toEqual([
+    expect(["folder-ratings", "favorite-tags", "emm-sync", "emm-config", "emm-raw-data"].map((id) => cards[id])).toEqual([
       { panelId: "properties", visible: true, expanded: true, order: 2 },
       { panelId: "properties", visible: true, expanded: true, order: 3 },
       { panelId: "properties", visible: true, expanded: true, order: 4 },
+      { panelId: "properties", visible: true, expanded: true, order: 5 },
       { panelId: "properties", visible: true, expanded: true, order: 6 },
     ])
+  })
+
+  it("[neoview.emm-config.runtime] parses and writes the canonical EMM source section", () => {
+    expect(parseNeoviewRuntimeConfig({ emm: {
+      enabled: true,
+      database_paths: ["D:/EMM/database.sqlite", "d:\\emm\\database.sqlite", "E:/Alt/database.sqlite"],
+      setting_path: "D:/EMM/setting.json",
+      translation_database_path: "D:/EMM/translations.db",
+      translation_path: "D:/EMM/db.text.json",
+      default_rating: 4.2,
+    } }).emm).toEqual({
+      enabled: true,
+      databasePaths: ["D:/EMM/database.sqlite", "E:/Alt/database.sqlite"],
+      settingPath: "D:/EMM/setting.json",
+      translationDatabasePath: "D:/EMM/translations.db",
+      translationPath: "D:/EMM/db.text.json",
+      defaultRating: 4.2,
+    })
+    expect(parseNeoviewEmmPatch({ emm: { enabled: false, databasePaths: [], settingPath: "", translationDatabasePath: "", translationPath: "", defaultRating: 4.5 } })).toEqual({
+      patch: { emm: { enabled: false, databasePaths: [], settingPath: undefined, translationDatabasePath: undefined, translationPath: undefined, defaultRating: 4.5 } },
+      tomlPatch: { emm: { enabled: false, database_paths: [], setting_path: "", translation_database_path: "", translation_path: "", default_rating: 4.5 } },
+    })
+  })
+
+  it("[neoview.folder.tag-display-config] persists the File Card More-menu display policy", () => {
+    expect(parseNeoviewRuntimeConfig({ folder: { tag_display: { show_rating: false, show_collect_tag_count: true, show_tags: true, max_tags: 5, show_tooltips: false } } }).folderView.tagDisplay).toEqual({
+      tagMode: "collect",
+      showRating: false,
+      showCollectTagCount: true,
+      showTags: true,
+      maxTags: 5,
+      showTooltips: false,
+    })
+    expect(parseNeoviewFolderViewPatch({ folderView: { tagDisplay: { showTags: false, maxTags: 8 } } })).toEqual({
+      patch: { folderView: { tagDisplay: { showTags: false, maxTags: 8 } } },
+      tomlPatch: { folder: { tag_display: { show_tags: false, max_tags: 8 } } },
+    })
   })
 
   it("[neoview.color-filter.layout] keeps the legacy filter visible in the control panel without a session", () => {

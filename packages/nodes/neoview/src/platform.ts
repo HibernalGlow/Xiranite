@@ -249,17 +249,26 @@ export async function createReaderFileTreeController(
   const loadSharedStore = externalSharedStore
     ? async () => externalSharedStore
     : ownedDataStore ? () => ownedDataStore.get() : undefined
-  const externalEmmStore = options.legacyThumbnailDatabasePath === false || options.legacyEmmDatabasePaths === false
+  const configuredEmmPaths = options.legacyEmmDatabasePaths === undefined
+    ? runtimeConfig.emm.databasePaths.length ? runtimeConfig.emm.databasePaths : undefined
+    : options.legacyEmmDatabasePaths
+  const emmLocation = new LegacyEmmDataLocator().locate({
+    databasePaths: configuredEmmPaths === false ? undefined : configuredEmmPaths,
+  })
+  const externalEmmStore = options.legacyEmmDatabasePaths === false
+    || (options.legacyEmmDatabasePaths === undefined && !runtimeConfig.emm.enabled)
     ? undefined
-    : await openReadonlyLegacyEmmRecordStore(new LegacyEmmDataLocator().locate({
-        databasePaths: options.legacyEmmDatabasePaths,
-      }).databasePaths)
+    : await openReadonlyLegacyEmmRecordStore(emmLocation.databasePaths)
   const sharedStore = loadSharedStore ? await loadSharedStore() : undefined
   const directoryEmmStore = sharedStore
     ? composeReaderEmmStores(sharedStore, externalEmmStore)
     : externalEmmStore
-  const collectTagSource = new PlatformEmmCollectTagSource()
-  const emmTranslations = new PlatformEmmTranslationSource()
+  const collectTagSource = new PlatformEmmCollectTagSource({
+    settingPath: runtimeConfig.emm.settingPath ?? emmLocation.settingPath,
+  })
+  const emmTranslations = new PlatformEmmTranslationSource({
+    path: runtimeConfig.emm.translationPath ?? emmLocation.translationDictionaryPath,
+  })
   const metadataProvider = directoryEmmStore
     ? new LazyReaderDirectoryMetadataProvider(
         HEADLESS_DIRECTORY_METADATA_FIELDS,
@@ -384,11 +393,18 @@ export async function createReaderHttpController(
   const { LegacyEmmDataLocator } = await import("./application/data/LegacyEmmDataLocator.js")
   const { openReadonlyLegacyEmmRecordStore } = await import("./platform/emm/ReadonlyLegacyEmmRecordStore.js")
   const { composeReaderEmmStores } = await import("./platform/emm/CompositeReaderEmmStore.js")
-  const externalEmmStore = options.legacyThumbnailDatabasePath === false || options.legacyEmmDatabasePaths === false
+  const { PlatformEmmCollectTagSource } = await import("./platform/emm/PlatformEmmCollectTagSource.js")
+  const { PlatformEmmTranslationSource } = await import("./platform/emm/PlatformEmmTranslationSource.js")
+  const configuredEmmPaths = options.legacyEmmDatabasePaths === undefined
+    ? runtimeConfig.emm.databasePaths.length ? runtimeConfig.emm.databasePaths : undefined
+    : options.legacyEmmDatabasePaths
+  const emmLocation = new LegacyEmmDataLocator().locate({
+    databasePaths: configuredEmmPaths === false ? undefined : configuredEmmPaths,
+  })
+  const externalEmmStore = options.legacyEmmDatabasePaths === false
+    || (options.legacyEmmDatabasePaths === undefined && !runtimeConfig.emm.enabled)
     ? undefined
-    : await openReadonlyLegacyEmmRecordStore(new LegacyEmmDataLocator().locate({
-        databasePaths: options.legacyEmmDatabasePaths,
-      }).databasePaths)
+    : await openReadonlyLegacyEmmRecordStore(emmLocation.databasePaths)
   const directoryEmmStore = dataStore
     ? composeReaderEmmStores(dataStore, externalEmmStore)
     : externalEmmStore
@@ -485,6 +501,13 @@ export async function createReaderHttpController(
     bookmarkList: runtimeConfig.bookmarkList,
     historyList: runtimeConfig.historyList,
     folderView: runtimeConfig.folderView,
+    emm: runtimeConfig.emm,
+    emmCollectTagSource: new PlatformEmmCollectTagSource({
+      settingPath: runtimeConfig.emm.settingPath ?? emmLocation.settingPath,
+    }),
+    emmTranslationSource: new PlatformEmmTranslationSource({
+      path: runtimeConfig.emm.translationPath ?? emmLocation.translationDictionaryPath,
+    }),
     fileTree: runtimeConfig.fileTree,
     slideshow: runtimeConfig.slideshow,
     media: runtimeConfig.media,
@@ -585,6 +608,12 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).systemMonitor
+    },
+    updateEmm: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).emm
     },
     updateAiTranslation: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")

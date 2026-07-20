@@ -81,7 +81,7 @@ const BROWSER_PENETRATION_RESOLVE_PATH = /^\/reader\/browser\/s\/([^/]+)\/penetr
 const BROWSER_CLONE_PATH = /^\/reader\/browser\/s\/([^/]+)\/clone$/
 const BROWSER_REOPEN_PATH = /^\/reader\/browser\/s\/([^/]+)\/reopen$/
 const BROWSER_SESSION_PATH = /^\/reader\/browser\/s\/([^/]+)$/
-const DISPLAY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>(["rating", "collectTagCount"])
+const DISPLAY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>(["rating", "collectTagCount", "tags"])
 const READER_DIRECTORY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>([
   "date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "tags",
 ])

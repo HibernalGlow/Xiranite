@@ -83,4 +83,26 @@ describe("PlatformDirectoryMetadataProvider", () => {
     })
     expect(mediaHydrate).toHaveBeenCalledTimes(1)
   })
+
+  it("[neoview.folder.emm-tag-sources] preserves collected and manual tag identity for File Card display modes", async () => {
+    const provider = new PlatformDirectoryMetadataProvider(
+      {
+        directoryEmmAvailable: true,
+        readDirectoryEmmRecords: async () => new Map([["D:/book.cbz", {
+          emmJson: JSON.stringify({ tags: [{ namespace: "artist", tag: "alice" }, { namespace: "female", tag: "glasses" }] }),
+          manualTags: JSON.stringify([{ namespace: "manual", tag: "favorite" }]),
+        }]]),
+      },
+      { load: async () => ({ tags: [{ category: "male", tag: "glasses" }], mixedGender: true }) } as never,
+    )
+    const [entry] = await provider.hydrate([
+      { name: "book.cbz", path: "D:/book.cbz", kind: "file", readerSupported: true },
+    ], new Set(["tags", "collectTagCount"]))
+    expect(entry).toMatchObject({
+      tags: ["artist:alice", "female:glasses", "manual:favorite"],
+      collectTags: ["female:glasses"],
+      manualTags: ["manual:favorite"],
+      collectTagCount: 1,
+    })
+  })
 })

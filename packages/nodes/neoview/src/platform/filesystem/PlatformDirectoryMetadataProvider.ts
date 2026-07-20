@@ -48,7 +48,7 @@ export class PlatformDirectoryMetadataProvider implements ReaderDirectoryMetadat
       wantsEmm && this.emmStore
         ? this.emmStore.readDirectoryEmmRecords(entries.map((entry) => entry.path), signal)
         : Promise.resolve(new Map<string, ReaderDirectoryEmmRecord>()),
-      fields.has("collectTagCount")
+      fields.has("collectTagCount") || fields.has("tags")
         ? this.collectTagSource.load(signal).catch(() => ({ tags: [], mixedGender: false }))
         : Promise.resolve({ tags: [], mixedGender: false } satisfies ReaderEmmCollectTagSnapshot),
     ])
@@ -58,12 +58,15 @@ export class PlatformDirectoryMetadataProvider implements ReaderDirectoryMetadat
     const merged = statEntries.map((entry) => {
       const record = records.get(normalizePath(entry.path))
       const emm = parseJsonRecord(record?.emmJson)
+      const tagSets = directoryTagSets(emm, record?.manualTags, collectTags)
       return {
         ...entry,
         rating: fields.has("rating") ? effectiveRating(record, this.defaultRating) : entry.rating,
-        collectTagCount: fields.has("collectTagCount") ? countCollectTags(record?.emmJson, collectTags) : entry.collectTagCount,
+        collectTagCount: fields.has("collectTagCount") ? tagSets.collect.length : entry.collectTagCount,
         pageCount: fields.has("pageCount") ? jsonPositiveInteger(emm, "page_count", "pageCount") ?? entry.pageCount : entry.pageCount,
-        tags: fields.has("tags") ? directoryTags(emm, record?.manualTags) : entry.tags,
+        tags: fields.has("tags") ? tagSets.all : entry.tags,
+        collectTags: fields.has("tags") ? tagSets.collect : entry.collectTags,
+        manualTags: fields.has("tags") ? tagSets.manual : entry.manualTags,
       }
     })
     if (!this.mediaMetadataProvider || !wantsMedia(fields)) return merged
@@ -97,29 +100,6 @@ function effectiveRating(record: ReaderDirectoryEmmRecord | undefined, fallback:
   return jsonNumber(record?.ratingData, "value") ?? jsonNumber(record?.emmJson, "rating") ?? fallback
 }
 
-function countCollectTags(emmJson: string | undefined, snapshot: ReaderEmmCollectTagSnapshot): number {
-  if (!emmJson || !snapshot.tags.length) return 0
-  const value = parseJsonRecord(emmJson)
-  if (!value || !Array.isArray(value.tags)) return 0
-  const bookTags = new Set<string>()
-  for (const item of value.tags) {
-    if (!isRecord(item) || typeof item.namespace !== "string" || typeof item.tag !== "string") continue
-    bookTags.add(tagKey(item.namespace, item.tag))
-  }
-  const genderCategories = ["female", "male", "mixed"]
-  let count = 0
-  for (const favorite of snapshot.tags) {
-    if (bookTags.has(tagKey(favorite.category, favorite.tag))) {
-      count += 1
-      continue
-    }
-    if (snapshot.mixedGender && genderCategories.includes(favorite.category.toLocaleLowerCase())) {
-      if (genderCategories.some((category) => bookTags.has(tagKey(category, favorite.tag)))) count += 1
-    }
-  }
-  return count
-}
-
 function jsonNumber(json: string | undefined, field: string): number | undefined {
   const value = parseJsonRecord(json)?.[field]
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined
@@ -133,11 +113,37 @@ function jsonPositiveInteger(value: Record<string, unknown> | undefined, ...fiel
   return undefined
 }
 
-function directoryTags(emm: Record<string, unknown> | undefined, manualTagsJson: string | undefined): string[] {
+function directoryTagSets(
+  emm: Record<string, unknown> | undefined,
+  manualTagsJson: string | undefined,
+  snapshot: ReaderEmmCollectTagSnapshot,
+): { all: string[]; collect: string[]; manual: string[] } {
+  const emmTags = tagsFromArray(emm?.tags)
+  const manual = tagsFromArray(parseJsonArray(manualTagsJson))
+  const collect = emmTags.filter((value) => isCollectedTag(value, snapshot))
+  return {
+    all: [...new Set([...emmTags, ...manual])].slice(0, 256),
+    collect: [...new Set(collect)].slice(0, 256),
+    manual: [...new Set(manual)].slice(0, 256),
+  }
+}
+
+function tagsFromArray(value: unknown): string[] {
   const output = new Set<string>()
-  appendTagArray(output, emm?.tags)
-  appendTagArray(output, parseJsonArray(manualTagsJson))
-  return [...output].slice(0, 256)
+  appendTagArray(output, value)
+  return [...output]
+}
+
+function isCollectedTag(value: string, snapshot: ReaderEmmCollectTagSnapshot): boolean {
+  const separator = value.indexOf(":")
+  if (separator <= 0) return false
+  const category = value.slice(0, separator)
+  const tag = value.slice(separator + 1)
+  const exact = snapshot.tags.some((favorite) => tagKey(favorite.category, favorite.tag) === tagKey(category, tag))
+  if (exact) return true
+  if (!snapshot.mixedGender || !["female", "male", "mixed"].includes(category.toLocaleLowerCase())) return false
+  return snapshot.tags.some((favorite) => ["female", "male", "mixed"].includes(favorite.category.toLocaleLowerCase())
+    && favorite.tag.toLocaleLowerCase() === tag.toLocaleLowerCase())
 }
 
 function appendTagArray(output: Set<string>, value: unknown): void {

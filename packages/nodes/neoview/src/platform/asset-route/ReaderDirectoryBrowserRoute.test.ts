@@ -718,7 +718,7 @@ describe("ReaderDirectoryBrowserRoute", () => {
       const body = await opened.json() as { sessionId: string; sortFields: string[]; metadataFields: string[]; entries: Array<{ name: string; rating: number }> }
       expect(body.sortFields).toContain("rating")
       expect(body.sortFields).toContain("collectTagCount")
-      expect(body.metadataFields).toEqual(["rating", "collectTagCount"])
+      expect(body.metadataFields).toEqual(["rating", "collectTagCount", "tags"])
       expect(body.entries).toEqual([
         expect.objectContaining({ name: "first.cbz", rating: 2, collectTagCount: 0 }),
         expect.objectContaining({ name: "second.cbz", rating: 5, collectTagCount: 0 }),

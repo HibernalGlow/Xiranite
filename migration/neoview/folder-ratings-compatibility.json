@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 2,
+  "featureId": "emm-ratings-tags-translation",
+  "legacyCardId": "folderRatings",
+  "title": "文件夹平均评分",
+  "panelId": "properties",
+  "priority": "integration",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+  "sourceHash": "sha256:893aa24600f971645f64515ed78acc74a5b6b582edaa0bebbd066ac55adb2017",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/FolderRatingsCard.tsx",
+  "visualBaseline": "pending: legacy 1920x1080 characterization has not been generated",
+  "visualTarget": "output/playwright/neoview-emm-cards-{desktop,420}.png",
+  "inventorySummary": {
+    "sourceUiGroups": 5,
+    "controlsAndStates": 27,
+    "acceptanceItems": 10,
+    "sourceFiles": 3
+  },
+  "completionRule": "Complete only when the reviewed AST prototype and a scripted 1920x1080 legacy characterization are preserved; global and explicit-path folder-rating cache operations, count and last-updated state, recalculate/export/confirmed-clear controls, bounded current-directory statistics, failure and cancellation states, shared persistence and responsive evidence are all covered. The current-directory projection alone remains partial.",
+  "unsupportedNodes": [
+    {
+      "node": "BindDirective",
+      "source": "src/lib/cards/properties/FolderRatingsCard.svelte",
+      "replacement": "The path input must be a controlled React field before the legacy calculate-for-path action can be restored."
+    },
+    {
+      "node": "folderRatingStore/emmMetadataStore",
+      "source": "src/lib/cards/properties/FolderRatingsCard.svelte",
+      "replacement": "XR currently opens a private bounded Reader directory session and requests only the rating projection; a canonical global cache application contract is still missing."
+    }
+  ],
+  "sourceUiInventory": [
+    {
+      "id": "folder-ratings-ui.summary",
+      "title": "缓存说明、数量和更新时间",
+      "sourceEvidence": [
+        "src/lib/cards/properties/FolderRatingsCard.svelte",
+        "src/lib/stores/emm/folderRating.ts"
+      ],
+      "acceptanceItems": [
+        "说明评分来自 EMM 数据库文件夹平均评分缓存",
+        "显示 Star 图标",
+        "显示缓存条目数量",
+        "存在更新时间时显示本地化 lastUpdated"
+      ],
+      "mappedChecklistIds": [
+        "folder-ratings.current-directory",
+        "folder-ratings.global-cache",
+        "folder-ratings.ui-parity"
+      ]
+    },
+    {
+      "id": "folder-ratings-ui.cache-actions",
+      "title": "重算、导出和清除缓存",
+      "sourceEvidence": [
+        "src/lib/cards/properties/FolderRatingsCard.svelte"
+      ],
+      "acceptanceItems": [
+        "重算按钮使用 RefreshCcw 图标",
+        "重算期间显示更新中并禁用",
+        "重算 tooltip 说明计算全部文件夹",
+        "导出按钮使用 Download 图标",
+        "空缓存禁用导出",
+        "导出格式为带缩进 JSON 且文件名包含时间戳",
+        "清除按钮使用 Trash2 destructive 语义",
+        "空缓存禁用清除",
+        "清除前显示确认对话框"
+      ],
+      "mappedChecklistIds": [
+        "folder-ratings.global-cache",
+        "folder-ratings.export-clear",
+        "folder-ratings.states",
+        "folder-ratings.accessibility"
+      ]
+    },
+    {
+      "id": "folder-ratings-ui.path-fill",
+      "title": "按路径补充分级评分",
+      "sourceEvidence": [
+        "src/lib/cards/properties/FolderRatingsCard.svelte",
+        "src/lib/stores/emm/folderRating.ts"
+      ],
+      "acceptanceItems": [
+        "路径文本输入",
+        "空路径禁用补充按钮",
+        "更新中禁用补充按钮",
+        "tooltip 说明根据子文件夹评分补充该路径"
+      ],
+      "mappedChecklistIds": [
+        "folder-ratings.path-fill",
+        "folder-ratings.states"
+      ]
+    },
+    {
+      "id": "folder-ratings-ui.current-directory",
+      "title": "XR 当前目录有界统计",
+      "sourceEvidence": [
+        "src/lib/cards/properties/FolderRatingsCard.svelte",
+        "src/lib/stores/emm/folderRating.ts"
+      ],
+      "acceptanceItems": [
+        "从当前书籍路径解析所在目录",
+        "显示当前目录平均评分",
+        "显示有评分条目数和总条目数",
+        "每页最多 256 项且总计最多 2048 项",
+        "达到上限时明确显示截断状态"
+      ],
+      "mappedChecklistIds": [
+        "folder-ratings.current-directory",
+        "folder-ratings.performance",
+        "folder-ratings.deviations"
+      ]
+    },
+    {
+      "id": "folder-ratings-ui.states-shell",
+      "title": "加载、错误、刷新和 Card 生命周期",
+      "sourceEvidence": [
+        "src/lib/cards/properties/FolderRatingsCard.svelte"
+      ],
+      "acceptanceItems": [
+        "未打开书籍显示空态",
+        "读取书籍路径和统计目录时显示独立 loading",
+        "目录统计失败显示 alert 和重试",
+        "Card 隐藏时零请求",
+        "卸载和重新激活取消旧请求并关闭私有目录 session"
+      ],
+      "mappedChecklistIds": [
+        "folder-ratings.states",
+        "folder-ratings.lifecycle",
+        "folder-ratings.accessibility",
+        "folder-ratings.ui-parity"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "folder-ratings.current-directory",
+      "category": "capabilities",
+      "title": "当前书籍所在目录评分摘要",
+      "sourceEvidence": ["src/lib/cards/properties/FolderRatingsCard.svelte"],
+      "targetContract": "Resolve the active book directory and render a bounded average plus rated/total counts from directory entry rating projections without recursively scanning from React.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.folder-ratings.card", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": ["neoview.folder-ratings.distribution", "neoview.folder-ratings.explicit-rating"],
+      "notes": "XR currently renders the average and counts, but not the legacy rating distribution or the distinction between inherited/default and explicit ratings."
+    },
+    {
+      "id": "folder-ratings.global-cache",
+      "category": "capabilities",
+      "title": "全局与三级父目录评分缓存",
+      "sourceEvidence": ["src/lib/cards/properties/FolderRatingsCard.svelte", "src/lib/stores/emm/folderRating.ts"],
+      "targetContract": "Recalculate the legacy global folder-rating cache, including the source-defined parent-folder aggregation boundary, and expose stable count and last-updated metadata through one canonical application service.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.folder-ratings.global-cache", "neoview.folder-ratings.parent-boundary"],
+      "notes": "The private current-directory session is not a replacement for the old global cache or its parent-folder semantics."
+    },
+    {
+      "id": "folder-ratings.export-clear",
+      "category": "commands",
+      "title": "导出和确认清除评分缓存",
+      "sourceEvidence": ["src/lib/cards/properties/FolderRatingsCard.svelte"],
+      "targetContract": "Export the canonical cache as formatted JSON and clear it only after destructive confirmation, with disabled states for an empty cache.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.folder-ratings.export", "neoview.folder-ratings.clear-confirm"],
+      "notes": "Neither export nor cache mutation is present in the current React Card."
+    },
+    {
+      "id": "folder-ratings.path-fill",
+      "category": "commands",
+      "title": "按显式路径补充评分",
+      "sourceEvidence": ["src/lib/cards/properties/FolderRatingsCard.svelte", "src/lib/stores/emm/folderRating.ts"],
+      "targetContract": "Accept a validated path and supplement its rating from child-folder values without creating a browser-owned cache or bypassing the application boundary.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.folder-ratings.path-fill"],
+      "notes": "The controlled path input and supplement command remain absent."
+    },
+    {
+      "id": "folder-ratings.states",
+      "category": "interaction-states",
+      "title": "加载、空值、截断、错误与重试",
+      "sourceEvidence": ["src/lib/cards/properties/FolderRatingsCard.svelte"],
+      "targetContract": "Keep metadata loading, directory loading, no-rated-entry, bounded truncation, recoverable failure and retry states distinct while preserving the last same-directory snapshot where safe.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.folder-ratings.card", "neoview.emm-cards.lifecycle"],
+      "plannedTestIds": ["neoview.folder-ratings.retry", "neoview.folder-ratings.truncated"],
+      "notes": "Current tests cover the successful current-directory flow and hidden zero work; error, retry and truncation evidence remain."
+    },
+    {
+      "id": "folder-ratings.lifecycle",
+      "category": "lifecycle",
+      "title": "私有目录 session 的取消与释放",
+      "sourceEvidence": ["src/lib/cards/properties/FolderRatingsCard.svelte"],
+      "targetContract": "Hidden Cards perform zero work; activation opens one private directory session, cancellation ignores stale results, and every success, failure or unmount path closes the session.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-cards.lifecycle", "neoview.folder-ratings.card"],
+      "plannedTestIds": ["neoview.folder-ratings.abort-close"],
+      "notes": "The focused test proves success cleanup; an explicit abort/failure cleanup test is still required for complete evidence."
+    },
+    {
+      "id": "folder-ratings.performance",
+      "category": "performance",
+      "title": "有界分页与零隐藏工作",
+      "sourceEvidence": ["src/lib/cards/properties/FolderRatingsCard.svelte"],
+      "targetContract": "Request only rating fields in 256-entry pages, stop at 2048 entries, avoid recursive UI work and perform no request while inactive.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-cards.lifecycle", "neoview.folder-ratings.card"],
+      "plannedTestIds": ["neoview.folder-ratings.page-bound"],
+      "notes": "Implementation bounds are present; a multi-page boundary test remains."
+    },
+    {
+      "id": "folder-ratings.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "命名状态与键盘命令",
+      "sourceEvidence": ["src/lib/cards/properties/FolderRatingsCard.svelte"],
+      "targetContract": "Expose loading and result summaries through stable semantic roles and give refresh, export, clear and path-fill commands unique accessible names, keyboard operation and coherent disabled states.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.folder-ratings.card"],
+      "plannedTestIds": ["neoview.folder-ratings.accessibility"],
+      "notes": "Refresh and status text use native controls, but the missing legacy commands and state announcements prevent completion."
+    },
+    {
+      "id": "folder-ratings.ui-parity",
+      "category": "ui-parity",
+      "title": "旧缓存控制密度与受限几何",
+      "sourceEvidence": ["src/lib/cards/properties/FolderRatingsCard.svelte"],
+      "targetContract": "Preserve the source description/count/actions/path-input hierarchy and compact icon-button density while fitting desktop and constrained Cards without overflow.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": ["neoview.folder-ratings.legacy-characterization", "neoview.folder-ratings.geometry"],
+      "notes": "Target screenshots prove the current summary does not overflow, but the legacy action and path rows are absent and no legacy screenshot exists."
+    },
+    {
+      "id": "folder-ratings.deviations",
+      "category": "deviations",
+      "title": "记录当前目录统计替代范围",
+      "sourceEvidence": ["src/lib/cards/properties/FolderRatingsCard.svelte", "src/lib/stores/emm/folderRating.ts"],
+      "targetContract": "Document that the first XR slice provides an ephemeral current-directory projection, not the legacy persistent global and parent-folder rating cache, and keep the missing commands visible as pending work.",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.folder-ratings.card"],
+      "plannedTestIds": ["neoview.folder-ratings.legacy-characterization", "neoview.folder-ratings.geometry"],
+      "notes": "This compatibility file records the gap; it does not accept removal of the legacy cache operations."
+    }
+  ]
+}

@@ -13,6 +13,8 @@ export interface ReaderDirectoryEntry {
   height?: number
   pageCount?: number
   tags?: readonly string[]
+  collectTags?: readonly string[]
+  manualTags?: readonly string[]
 }
 
 export interface ReaderDirectoryListing {
