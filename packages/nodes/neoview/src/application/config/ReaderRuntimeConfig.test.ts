@@ -280,6 +280,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       viewMode: "details",
       previewGridEnabled: false,
       previewCount: 9,
+      contentWidthPercent: 35,
       thumbnailWidthPercent: 34,
       bannerWidthPercent: 70,
       hoverPreviewEnabled: true,
@@ -381,6 +382,7 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewFolderViewPatch({ folderView: { homePath: "x".repeat(4097) } })).toThrow("at most 4096")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { homePath: 1 } })).toThrow("must be a string")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { previewCount: 8 } })).toThrow("4, 9 or 16")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { contentWidthPercent: 19 } })).toThrow("between 20 and 70")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { thumbnailWidthPercent: 9 } })).toThrow("between 10 and 90")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { bannerWidthPercent: 101 } })).toThrow("between 20 and 100")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { hoverPreviewDelayMs: 300 } })).toThrow("one of: 200, 500, 800, 1200")

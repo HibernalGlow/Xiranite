@@ -73,9 +73,7 @@ export class LibraryThumbnailRoute {
     this.#closed = true
     for (const warmup of this.#warmups) warmup.abort(new DOMException("Thumbnail route closed", "AbortError"))
     this.#warmups.clear()
-    for (const contextId of this.#contexts.keys()) this.#pipeline.releaseContext(pipelineContextId(contextId))
-    this.#assets.clear()
-    this.#contexts.clear()
+    for (const contextId of [...this.#contexts.keys()]) this.#dropContext(contextId)
   }
 
   async #register(request: Request): Promise<Response> {
@@ -88,18 +86,27 @@ export class LibraryThumbnailRoute {
 
     const described = (await pMap(parsed.items, async (item) => {
       try {
-        return {
-          item,
-          source: await this.#pipeline.describeLibrarySource(item.path, item.kind, request.signal, item.previewCount, "view"),
-        }
+        const source = await this.#pipeline.describeLibrarySource(item.path, item.kind, request.signal, item.previewCount, "view")
+        const sources = item.kind === "folder" && item.previewCount > 1
+          ? (await pMap(source.representativePaths ?? [], async (path) => {
+              try {
+                return await this.#pipeline.describeLibrarySource(path, "file", request.signal, 1, "view")
+              } catch (error) {
+                if (request.signal.aborted || isAbortError(error)) throw error
+                return undefined
+              }
+            }, { concurrency: 4, stopOnError: true })).filter((value): value is LibraryThumbnailSource => value !== undefined)
+          : [source]
+        if (!sources.length) return undefined
+        return { item, sources }
       } catch (error) {
         if (request.signal.aborted || isAbortError(error)) throw error
         return undefined
       }
-    }, { concurrency: 16, stopOnError: true })).filter((value): value is { item: RegistrationItem; source: LibraryThumbnailSource } => value !== undefined)
+    }, { concurrency: 16, stopOnError: true })).filter((value): value is { item: RegistrationItem; sources: LibraryThumbnailSource[] } => value !== undefined)
     const refreshContextId = `${pipelineContextId(parsed.contextId)}:refresh`
     try {
-      await pMap(described.filter(({ item }) => item.refresh), ({ source }) => this.#pipeline.refreshLibrary(source, {
+      await pMap(described.filter(({ item }) => item.refresh).flatMap(({ sources }) => sources), (source) => this.#pipeline.refreshLibrary(source, {
         contextId: refreshContextId,
         generation: parsed.generation,
         lane: "reader-visible",
@@ -112,23 +119,31 @@ export class LibraryThumbnailRoute {
       this.#pipeline.releaseContext(refreshContextId)
     }
     try {
-      await this.#pipeline.prewarmLibrary(described.filter(({ item }) => !item.refresh).map(({ source }) => source), { signal: request.signal })
+      await this.#pipeline.prewarmLibrary(described.filter(({ item }) => !item.refresh).flatMap(({ sources }) => sources), { signal: request.signal })
     } catch (error) {
       if (request.signal.aborted || isAbortError(error)) throw error
     }
     const latest = this.#contexts.get(parsed.contextId)
     if (latest && parsed.generation < latest.generation) return jsonResponse({ error: "Thumbnail generation is stale" }, 409)
-    this.#pipeline.advanceContext(pipelineContextId(parsed.contextId), parsed.generation)
     const context: ContextRecord = latest ?? { generation: parsed.generation, assetIds: new Set() }
     context.generation = parsed.generation
     this.#contexts.set(parsed.contextId, context)
-    const items = described.map(({ item, source }) => {
-      const assetId = randomBytes(18).toString("base64url")
-      const record: LibraryAssetRecord = { assetId, contextId: parsed.contextId, source }
-      this.#assets.set(assetId, record)
-      context.assetIds.add(assetId)
-      this.#trimAssets()
-      return { id: item.id, thumbnailUrl: this.#assetUrl(record), contentVersion: source.contentVersion }
+    const items = described.map(({ item, sources }) => {
+      const records = sources.map((source) => {
+        const assetId = randomBytes(18).toString("base64url")
+        const record: LibraryAssetRecord = { assetId, contextId: parsed.contextId, source }
+        this.#assets.set(assetId, record)
+        context.assetIds.add(assetId)
+        this.#trimAssets()
+        return record
+      })
+      const thumbnailUrls = records.map((record) => this.#assetUrl(record))
+      return {
+        id: item.id,
+        thumbnailUrl: thumbnailUrls[0]!,
+        ...(thumbnailUrls.length > 1 ? { thumbnailUrls } : {}),
+        contentVersion: sources.map((source) => source.contentVersion).join("|"),
+      }
     })
     return jsonResponse({ contextId: parsed.contextId, generation: parsed.generation, items }, 201)
   }
@@ -222,8 +237,8 @@ export class LibraryThumbnailRoute {
       const context = this.#contexts.get(record.contextId)
       if (!context) return textResponse("Library thumbnail context was released", 404)
       lease = this.#pipeline.acquireLibrary(record.source, {
-        contextId: pipelineContextId(record.contextId),
-        generation: context.generation,
+        contextId: pipelineAssetContextId(record),
+        generation: 0,
         signal: request.signal,
       })
       thumbnail = await lease.ready
@@ -271,7 +286,6 @@ export class LibraryThumbnailRoute {
     if (!contextId) return jsonResponse({ error: "Invalid thumbnail context" }, 400)
     const context = this.#contexts.get(contextId)
     if (!context) return new Response(null, { status: 204 })
-    this.#pipeline.releaseContext(pipelineContextId(contextId))
     this.#dropContext(contextId)
     return new Response(null, { status: 204 })
   }
@@ -279,7 +293,11 @@ export class LibraryThumbnailRoute {
   #dropContext(contextId: string): void {
     const context = this.#contexts.get(contextId)
     if (!context) return
-    for (const assetId of context.assetIds) this.#assets.delete(assetId)
+    for (const assetId of context.assetIds) {
+      const record = this.#assets.get(assetId)
+      if (record) this.#pipeline.releaseContext(pipelineAssetContextId(record))
+      this.#assets.delete(assetId)
+    }
     this.#contexts.delete(contextId)
   }
 
@@ -290,6 +308,7 @@ export class LibraryThumbnailRoute {
       const record = this.#assets.get(oldestId)
       this.#assets.delete(oldestId)
       if (record) {
+        this.#pipeline.releaseContext(pipelineAssetContextId(record))
         const context = this.#contexts.get(record.contextId)
         context?.assetIds.delete(oldestId)
         if (context && !context.assetIds.size) this.#contexts.delete(record.contextId)
@@ -376,6 +395,10 @@ function isAbortError(error: unknown): boolean {
 
 function pipelineContextId(contextId: string): string {
   return `library:${contextId}`
+}
+
+function pipelineAssetContextId(record: LibraryAssetRecord): string {
+  return `${pipelineContextId(record.contextId)}:asset:${record.assetId}`
 }
 
 function textResponse(body: string, status: number): Response {

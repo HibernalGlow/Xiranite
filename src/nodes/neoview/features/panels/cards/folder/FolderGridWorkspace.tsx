@@ -4,9 +4,10 @@ import {
   type ListRange,
   type VirtuosoGridHandle,
 } from "react-virtuoso"
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject, type SyntheticEvent } from "react"
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react"
 
 import type { ReaderDirectoryEntryDto, ReaderFolderViewMode } from "../../../../adapters/reader-http-client"
+import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
 import { directoryEntryAt, viewUsesBanner, type DirectoryCatalog } from "./DirectoryCatalog"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
 import { FolderHoverPreview } from "./FolderHoverPreview"
@@ -22,6 +23,7 @@ export default function FolderGridWorkspace({
   focusedIndex,
   itemIdPrefix,
   thumbnailUrls,
+  thumbnailUrlSets = EMPTY_THUMBNAIL_URL_SETS,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
   showReturnFooter,
@@ -43,6 +45,7 @@ export default function FolderGridWorkspace({
   focusedIndex?: number
   itemIdPrefix?: string
   thumbnailUrls: ReadonlyMap<string, string>
+  thumbnailUrlSets?: ReadonlyMap<string, readonly string[]>
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
   showReturnFooter: boolean
@@ -138,6 +141,7 @@ export default function FolderGridWorkspace({
             showCollectTagCount={showCollectTagCount}
             visualMode={viewMode}
             thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
+            thumbnailUrls={entry ? thumbnailUrlSets.get(entry.path) : undefined}
             hoverPreviewEnabled={hoverPreviewEnabled}
             hoverPreviewDelayMs={hoverPreviewDelayMs}
             onSelect={onSelect}
@@ -159,12 +163,13 @@ interface DirectoryGridItemProps {
   showCollectTagCount: boolean
   visualMode: ReaderFolderViewMode
   thumbnailUrl?: string
+  thumbnailUrls?: readonly string[]
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }
 
-export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
+export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
   if (!entry) return <div className="h-24 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   return (
     <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
@@ -189,7 +194,7 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
     >
       <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
         {thumbnailUrl
-          ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-contain" onLoad={showThumbnailImage} onError={hideThumbnailImage} />
+          ? <ReaderThumbnailSurface url={thumbnailUrl} urls={thumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" className="size-full rounded-none bg-transparent" />
           : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
       <span className="grid min-w-0 content-center gap-0.5 px-2 py-1.5" data-folder-entry-info="two-line">
@@ -204,7 +209,9 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
   )
 }
 
-function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
+const EMPTY_THUMBNAIL_URL_SETS: ReadonlyMap<string, readonly string[]> = new Map()
+
+function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
   if (!entry) return <div className="h-36 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   const showMetadata = showRating || showCollectTagCount || Boolean(entry.tags?.length)
   return (
@@ -230,7 +237,7 @@ function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, 
     >
       <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
         {thumbnailUrl
-          ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-contain" onLoad={showThumbnailImage} onError={hideThumbnailImage} />
+          ? <ReaderThumbnailSurface url={thumbnailUrl} urls={thumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" className="size-full rounded-none bg-transparent" />
           : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
       <span className="flex min-w-0 items-center gap-1 border-t px-1.5 py-1.5">
@@ -241,12 +248,4 @@ function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, 
     </button>
     </FolderHoverPreview>
   )
-}
-
-function hideThumbnailImage(event: SyntheticEvent<HTMLImageElement>): void {
-  event.currentTarget.hidden = true
-}
-
-function showThumbnailImage(event: SyntheticEvent<HTMLImageElement>): void {
-  event.currentTarget.hidden = false
 }
