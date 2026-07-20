@@ -5,6 +5,9 @@
   "title": "存储信息",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "a4c4e07401e0e0c3e4d77edba096f6fd5b3e0c45",
+  "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/StorageCard.tsx",
+  "visualBaseline": "output/playwright/legacy-neoview-storage-information-1920x1080.png",
+  "visualTarget": "output/playwright/neoview-storage-information-1920x1080.png",
   "completionRule": "Complete only when every legacy path/size field and empty state, the frozen book/page/resource-storage scope, shared GUI/CLI/TUI DTO, lazy lifecycle, responsive geometry and bounded diagnostics behavior have automated evidence.",
   "sourceUiInventory": [
     {
