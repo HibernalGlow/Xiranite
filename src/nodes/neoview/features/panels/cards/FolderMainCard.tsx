@@ -251,6 +251,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const thumbnailContextRef = useRef<string | undefined>(undefined)
   const thumbnailSignatureRef = useRef("")
   const thumbnailRefreshSequenceRef = useRef(0)
+  const thumbnailCompileKeysRef = useRef(new Set<string>())
   const clipboardCompletionRef = useRef<string>()
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
   const listRef = useRef<VirtuosoHandle>(null)
@@ -360,6 +361,36 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     if (!active || !catalog || !viewUsesThumbnails(viewMode)) return
     registerVisibleThumbnails()
   }, [active, catalog?.sessionId, catalog?.generation, viewMode, previewGridEnabled, previewCount])
+
+  useEffect(() => {
+    if (!active || !catalog || !viewUsesThumbnails(viewMode)
+      || !client.listDirectoryBrowser || !client.prewarmLibraryThumbnails) return
+    const compilePreviewCount = previewGridEnabled ? previewCount : 1
+    const compileKey = `${catalog.sessionId}:${catalog.generation}:${compilePreviewCount}`
+    if (thumbnailCompileKeysRef.current.has(compileKey)) return
+    const controller = new AbortController()
+    let completed = false
+    const timer = setTimeout(() => {
+      thumbnailCompileKeysRef.current.add(compileKey)
+      while (thumbnailCompileKeysRef.current.size > 50) {
+        thumbnailCompileKeysRef.current.delete(thumbnailCompileKeysRef.current.keys().next().value as string)
+      }
+      void import("./folder/compileFolderThumbnails").then(({ compileFolderThumbnails }) => (
+        compileFolderThumbnails(
+          client,
+          catalog.sessionId,
+          catalog.total,
+          { previewCount: compilePreviewCount },
+          controller.signal,
+        )
+      )).then(() => { completed = true }).catch(() => { thumbnailCompileKeysRef.current.delete(compileKey) })
+    }, 1_000)
+    return () => {
+      clearTimeout(timer)
+      controller.abort(new DOMException("Folder thumbnail compilation superseded.", "AbortError"))
+      if (!completed) thumbnailCompileKeysRef.current.delete(compileKey)
+    }
+  }, [active, catalog?.sessionId, catalog?.generation, catalog?.total, viewMode, previewGridEnabled, previewCount])
 
   useEffect(() => {
     if (!catalog || viewMode !== "details") return
