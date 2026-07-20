@@ -25,12 +25,55 @@ export interface ReaderSessionDto {
   frame: FrameSnapshot
   visiblePages: ReaderPageDto[]
   pageOrder?: ReaderPageOrderDto
+  preload?: ReaderPreloadPlanDto
 }
 
 export interface ReaderNavigationDto {
   frame: FrameSnapshot
   visiblePages: ReaderPageDto[]
   pageOrder?: ReaderPageOrderDto
+  preload?: ReaderPreloadPlanDto
+}
+
+export type ReaderPreloadOutcomeDto = "started" | "ready" | "failed" | "cancelled" | "evicted"
+export interface ReaderPreloadCandidateDto {
+  tier: "near" | "ahead" | "background"
+  priority: "interactive" | "view" | "ahead" | "background"
+  anchorPageIndex: number
+  pageIndexes: number[]
+  pageIds: string[]
+}
+export interface ReaderPreloadPlanDto {
+  generation: number
+  frameGeneration: number
+  direction: "forward" | "backward"
+  directionConfidence: number
+  mode: "paged" | "continuous" | "scrub"
+  admission: "normal" | "reduced" | "paused"
+  velocityPagesPerSecond: number
+  stableForMs: number
+  focused: boolean
+  queueWaitMs: number
+  memoryPressure: "normal" | "elevated" | "critical"
+  currentPageIndexes: number[]
+  candidates: ReaderPreloadCandidateDto[]
+}
+export interface ReaderPreloadEventDto {
+  pageId: string
+  outcome: ReaderPreloadOutcomeDto
+  metrics?: { ttfbMs?: number; decodeMs?: number; retainedBytes?: number; activeLeases?: number }
+}
+export interface ReaderPreloadReportResultDto {
+  generation: number
+  accepted: number
+  rejected: number
+  stale: number
+}
+export interface ReaderPreloadContextDto {
+  mode?: "paged" | "continuous" | "scrub"
+  velocityPagesPerSecond?: number
+  stableForMs?: number
+  focused?: boolean
 }
 
 export interface ReaderSourceChangeDto {
@@ -1227,6 +1270,8 @@ export interface ReaderHttpClient {
   diagnostics?(signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   preloadDiagnostics?(sessionId: string, signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   runPreloadAction?(sessionId: string, action: ReaderPreloadActionDto, signal?: AbortSignal): Promise<ReaderPreloadActionResultDto>
+  updatePreloadContext?(sessionId: string, context: ReaderPreloadContextDto, signal?: AbortSignal): Promise<ReaderPreloadPlanDto>
+  reportPreloadEvents?(sessionId: string, generation: number, events: readonly ReaderPreloadEventDto[], signal?: AbortSignal): Promise<ReaderPreloadReportResultDto>
   thumbnailMaintenance?(signal?: AbortSignal): Promise<ReaderThumbnailMaintenanceSnapshotDto>
   cleanupThumbnails?(command: ReaderThumbnailCleanupCommandDto, signal?: AbortSignal): Promise<ReaderThumbnailCleanupResultDto>
   clearThumbnailFailures?(limit?: number, signal?: AbortSignal): Promise<number>
@@ -1729,6 +1774,24 @@ export function createReaderHttpClient(
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action, confirmed: true }),
+        signal,
+      },
+    ),
+    updatePreloadContext: (sessionId, context, signal) => request<{ preload: ReaderPreloadPlanDto }>(
+      `/reader/s/${encodeURIComponent(sessionId)}/preload-context`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(context),
+        signal,
+      },
+    ).then((value) => value.preload),
+    reportPreloadEvents: (sessionId, generation, events, signal) => request<ReaderPreloadReportResultDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/preload-events`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ generation, events }),
         signal,
       },
     ),

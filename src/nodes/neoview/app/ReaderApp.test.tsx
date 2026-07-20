@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("media-chrome/react", () => import("@/test/media-chrome-react-stub"))
 
-import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
+import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderPreloadPlanDto, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
 afterEach(cleanup)
@@ -655,6 +655,53 @@ describe("ReaderApp", () => {
     expect(client.reload).toHaveBeenCalledWith("reader-1", expect.any(AbortSignal))
     view.unmount()
   })
+
+  it("[neoview.preload.plan-gui] consumes the backend plan and updates focus context off the navigation path", async () => {
+    const plan = preloadPlan(5, 1)
+    const opened = { ...session("page-1", "http://127.0.0.1:41000/reader/page-1", 0), preload: plan }
+    const plannedPage = {
+      ...opened.visiblePages[0]!,
+      id: "page-2",
+      index: 1,
+      name: "002.jpg",
+      assetUrl: "http://127.0.0.1:41000/reader/page-2",
+    }
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => runtimeConfig()),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      updatePreloadContext: vi.fn(async () => plan),
+      reportPreloadEvents: vi.fn(async (sessionId, generation, events) => ({ generation, accepted: events.length, rejected: 0, stale: 0 })),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: [plannedPage], total: 2 })),
+      navigate: vi.fn(async () => ({
+        frame: { ...opened.frame, generation: 1, anchorPageIndex: 1, pages: [{ pageId: "page-2", pageIndex: 1, side: "single" as const }], atStart: false, atEnd: true },
+        visiblePages: [plannedPage],
+        preload: preloadPlan(6, 0),
+      })),
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("img", { name: "001.jpg" })
+
+    await waitFor(() => expect(client.updatePreloadContext).toHaveBeenCalledWith(
+      "reader-1",
+      expect.objectContaining({ mode: "paged", focused: expect.any(Boolean) }),
+      expect.any(AbortSignal),
+    ))
+    await waitFor(() => expect(client.listPages).toHaveBeenCalledWith("reader-1", 1, 1, expect.any(AbortSignal)))
+    const reader = document.querySelector("[data-reader-app]")!
+    fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
+    await waitFor(() => expect(client.navigate).toHaveBeenCalledOnce())
+    await screen.findByRole("img", { name: "002.jpg" })
+    expect(client.updatePreloadContext).toHaveBeenCalledTimes(1)
+  })
 })
 
 function session(pageId: string, assetUrl: string, index: number): ReaderSessionDto {
@@ -680,6 +727,30 @@ function session(pageId: string, assetUrl: string, index: number): ReaderSession
       byteLength: 10,
       contentVersion: "v1",
       assetUrl,
+    }],
+  }
+}
+
+function preloadPlan(generation: number, pageIndex: number): ReaderPreloadPlanDto {
+  return {
+    generation,
+    frameGeneration: 0,
+    direction: "forward",
+    directionConfidence: 1,
+    mode: "paged",
+    admission: "normal",
+    velocityPagesPerSecond: 0,
+    stableForMs: 150,
+    focused: true,
+    queueWaitMs: 0,
+    memoryPressure: "normal",
+    currentPageIndexes: [0],
+    candidates: [{
+      tier: "near",
+      priority: "view",
+      anchorPageIndex: pageIndex,
+      pageIndexes: [pageIndex],
+      pageIds: [`page-${pageIndex + 1}`],
     }],
   }
 }

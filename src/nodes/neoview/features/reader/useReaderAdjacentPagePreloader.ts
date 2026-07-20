@@ -1,32 +1,48 @@
 import { useEffect } from "react"
 
-import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderPageDto, ReaderPreloadPlanDto } from "../../adapters/reader-http-client"
 
 export function useReaderAdjacentPagePreloader({
   client,
   sessionId,
   activePageIndex,
   totalPages,
+  plan,
   enabled = true,
   preload,
+  cancel,
 }: {
   client: ReaderHttpClient
   sessionId?: string
   activePageIndex?: number
   totalPages?: number
+  plan?: ReaderPreloadPlanDto
   enabled?: boolean
-  preload(pages: readonly ReaderPageDto[]): void
+  preload(pages: readonly ReaderPageDto[], generation?: number): void
+  cancel?(): void
 }): void {
   useEffect(() => {
     if (!enabled || !sessionId || activePageIndex === undefined || !totalPages || totalPages < 2) return
+    if (plan?.admission === "paused") {
+      cancel?.()
+      return
+    }
     const controller = new AbortController()
-    const cursor = Math.max(0, activePageIndex - 1)
-    const limit = Math.min(3, totalPages - cursor)
+    const plannedIndexes = plan
+      ? [...new Set(plan.candidates.flatMap((candidate) => candidate.pageIndexes))].slice(0, 4)
+      : [activePageIndex - 1, activePageIndex + 1].filter((index) => index >= 0 && index < totalPages)
+    if (!plannedIndexes.length) return
+    const desired = new Set(plannedIndexes)
+    const cursor = Math.min(...plannedIndexes)
+    const limit = Math.max(...plannedIndexes) - cursor + 1
     void client.listPages(sessionId, cursor, limit, controller.signal).then((result) => {
       if (controller.signal.aborted) return
-      const adjacent = result.pages.filter((page) => Math.abs(page.index - activePageIndex) === 1)
-      if (adjacent.length) preload(adjacent)
+      const candidates = result.pages.filter((page) => desired.has(page.index))
+      if (candidates.length) {
+        if (plan) preload(candidates, plan.generation)
+        else preload(candidates)
+      }
     }).catch(() => undefined)
     return () => controller.abort()
-  }, [activePageIndex, client, enabled, preload, sessionId, totalPages])
+  }, [activePageIndex, cancel, client, enabled, plan, preload, sessionId, totalPages])
 }
