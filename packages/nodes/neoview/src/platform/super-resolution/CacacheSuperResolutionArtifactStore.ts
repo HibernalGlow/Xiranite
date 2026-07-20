@@ -213,6 +213,11 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     return this.#snapshot(await this.#entries())
   }
 
+  async countBook(bookKey: string): Promise<number> {
+    if (!bookKey || bookKey.length > 2_048) throw new TypeError("bookKey must contain 1..2048 characters")
+    return (await this.#entries()).filter((entry) => entry.metadata.bookKey === bookKey).length
+  }
+
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true

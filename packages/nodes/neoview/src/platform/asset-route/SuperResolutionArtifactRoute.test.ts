@@ -9,6 +9,7 @@ import type { SuperResolutionArtifactPagePort } from "../../ports/SuperResolutio
 import type { SuperResolutionPreloadControlPort } from "../../ports/SuperResolutionPreloadControlPort.js"
 import { createReaderHttpController } from "../../platform.js"
 import { CacacheSuperResolutionArtifactStore } from "../super-resolution/CacacheSuperResolutionArtifactStore.js"
+import { buildSuperResolutionArtifactKey } from "../super-resolution/SuperResolutionArtifactKey.js"
 import { SuperResolutionArtifactRoute } from "./SuperResolutionArtifactRoute.js"
 import { ReaderHttpController } from "./ReaderHttpController.js"
 
@@ -154,6 +155,7 @@ describe("SuperResolutionArtifactRoute", () => {
 
   it("[neoview.super-resolution.preload-progress-http] starts, observes, pauses and retries the session plan", async () => {
     const store = createStore()
+    await store.publish(buildSuperResolutionArtifactKey({ sourceIdentity: "book", sourceRevision: "v1", pageIdentity: "page-1", modelId: "model", scale: 2, producerVersion: "test" }), { bookKey: "opaque-book", contentType: "image/png", extension: "png" }, (path) => writeFile(path, PNG))
     const page = readerPage()
     const service = readerService(page)
     const snapshot = liveSnapshot()
@@ -189,7 +191,7 @@ describe("SuperResolutionArtifactRoute", () => {
     }, preload)
 
     const current = (await route.handle(authorized("/reader/s/session-1/upscale-preload")))!
-    expect(await current.json()).toEqual({ snapshots: [snapshot] })
+    expect(await current.json()).toEqual({ snapshots: [{ ...snapshot, upscaledPages: 1 }] })
     expect(snapshots).toHaveBeenCalledWith("reader:session-1:super-resolution", expect.any(AbortSignal))
 
     const started = (await route.handle(authorized("/reader/s/session-1/upscale-preload/start?mode=nearby", { method: "POST" })))!

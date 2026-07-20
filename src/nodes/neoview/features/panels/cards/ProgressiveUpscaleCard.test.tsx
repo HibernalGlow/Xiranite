@@ -2,9 +2,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderRuntimeConfigDto, ReaderSuperResolutionConfigDto } from "../../../adapters/reader-http-client"
+import { clearReaderUpscalePreload, setReaderUpscalePreload } from "../../reader/ReaderUpscalePreloadStore"
 import ProgressiveUpscaleCard from "./ProgressiveUpscaleCard"
 
-afterEach(cleanup)
+afterEach(() => {
+  clearReaderUpscalePreload("session-1")
+  cleanup()
+})
 
 describe("ProgressiveUpscaleCard", () => {
   it("[neoview.progressive-upscale.resident] renders settings without a Reader session", async () => {
@@ -51,6 +55,32 @@ describe("ProgressiveUpscaleCard", () => {
     await waitFor(() => expect(onSuperResolutionChange).toHaveBeenCalledWith({ autoUpscaleEnabled: true }))
     expect(screen.getByText("切换图片时自动执行超分（全局主开关）")).toBeTruthy()
   })
+
+  it("[neoview.progressive-upscale.coverage] keeps cumulative coverage when a new rolling batch starts", async () => {
+    const client = clientFixture(true, true)
+    setReaderUpscalePreload("session-1", [{
+      contextId: "reader:session-1",
+      generation: 3,
+      mode: "progressive",
+      state: "running",
+      planned: 1,
+      settled: 1,
+      failed: 0,
+      cancelled: 0,
+      pending: 0,
+      progress: 1,
+      totalPages: 81,
+      scheduledPages: 12,
+      upscaledPages: 8,
+      startedAt: 1,
+      updatedAt: 2,
+    }])
+    render(<ProgressiveUpscaleCard client={client} disabled={false} session={{ sessionId: "session-1", book: { id: "book-1", displayName: "Book", pageCount: 81 } } as never} />)
+
+    await waitFor(() => expect(screen.getByText("8 / 81")).toBeTruthy())
+    expect(Number(screen.getByRole("progressbar").getAttribute("aria-valuenow"))).toBeCloseTo((8 / 81) * 100)
+    expect(screen.getByText("扩展中")).toBeTruthy()
+  })
 })
 
 const DEFAULT_TEST_PREFERENCES = {
@@ -63,12 +93,13 @@ const DEFAULT_TEST_PREFERENCES = {
   progressiveMaxPages: 20,
 }
 
-function clientFixture(autoUpscaleEnabled = false): ReaderHttpClient {
+function clientFixture(autoUpscaleEnabled = false, progressiveEnabled = false): ReaderHttpClient {
   const superResolution: ReaderSuperResolutionConfigDto = {
     provider: "opencomic-system",
     preferences: {
       ...DEFAULT_TEST_PREFERENCES,
       autoUpscaleEnabled,
+      progressiveEnabled,
     },
   }
   const config = {

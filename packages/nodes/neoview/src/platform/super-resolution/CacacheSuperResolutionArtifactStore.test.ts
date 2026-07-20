@@ -98,6 +98,8 @@ describe("CacacheSuperResolutionArtifactStore", () => {
     const store = createStore({ maxBytes: 48, maxEntryBytes: 24, maxAgeMs: 10, minimumRetentionMs: 0, now: () => now })
     await store.publish(key("book-one"), metadata, output(20, 1))
     await store.publish(key("book-two"), { ...metadata, bookKey: "book:two" }, output(20, 2))
+    expect(await store.countBook("book:one")).toBe(1)
+    expect(await store.countBook("book:two")).toBe(1)
     expect(await store.clearBook("book:one")).toMatchObject({ reason: "book", removedEntries: 1, entries: 1 })
     now = 100
     expect(await store.cleanup("age")).toMatchObject({ reason: "age", removedEntries: 1, entries: 0 })

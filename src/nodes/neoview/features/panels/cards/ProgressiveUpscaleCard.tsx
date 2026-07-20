@@ -87,10 +87,12 @@ export default function ProgressiveUpscaleCard({ client, session, disabled, pane
 
   const totalPages = session?.book.pageCount ?? 0
   const pendingCount = preloads.reduce((total, snapshot) => total + snapshot.pending, 0)
-  const settledCount = preloads.reduce((total, snapshot) => total + snapshot.settled, 0)
-  const plannedCount = preloads.reduce((total, snapshot) => total + snapshot.planned, 0)
+  const coverageTotal = preloads.reduce((maximum, snapshot) => Math.max(maximum, snapshot.totalPages ?? 0), totalPages)
+  const upscaledCount = preloads.reduce((maximum, snapshot) => Math.max(maximum, snapshot.upscaledPages ?? 0), 0)
   const isAutoEnabled = preferences.autoUpscaleEnabled
-  const progressLabel = totalPages > 0 ? `${Math.min(settledCount, totalPages)} / ${totalPages}` : "0 / 0"
+  const progressLabel = coverageTotal > 0
+    ? `${Math.min(upscaledCount, coverageTotal)} / ${coverageTotal}`
+    : "0 / 0"
   const status = useMemo(() => {
     if (!preferences.progressiveEnabled || !isAutoEnabled) return undefined
     if (!progressive) return { tone: "muted" as const, label: "等待调度" }
@@ -98,7 +100,7 @@ export default function ProgressiveUpscaleCard({ client, session, disabled, pane
       const remaining = Math.max(0, Math.ceil((progressive.startedAt + preferences.progressiveDwellTimeMs - clock) / 1_000))
       return remaining > 0 ? { tone: "amber" as const, label: `${remaining}秒后触发` } : { tone: "green" as const, label: "即将触发" }
     }
-    if (progressive.state === "queued" || progressive.state === "running") return { tone: "cyan" as const, label: "触发中" }
+    if (progressive.state === "queued" || progressive.state === "running") return { tone: "cyan" as const, label: "扩展中" }
     if (progressive.state === "completed") return { tone: "green" as const, label: "已完成" }
     if (progressive.state === "failed") return { tone: "red" as const, label: "失败" }
     if (progressive.state === "cancelled") return { tone: "amber" as const, label: "已取消" }
@@ -198,7 +200,7 @@ export default function ProgressiveUpscaleCard({ client, session, disabled, pane
           <span className="font-mono text-xs text-emerald-600">{progressLabel}</span>
         </div>
         {pendingCount > 0 ? <div className="flex items-center justify-between"><span className="text-muted-foreground">队列中</span><span className="font-mono text-xs text-cyan-600">{pendingCount}</span></div> : null}
-        {totalPages > 0 ? <Progress value={plannedCount > 0 ? (settledCount / plannedCount) * 100 : 0} className="h-1.5" aria-label="超分完成进度" /> : null}
+        {coverageTotal > 0 ? <Progress value={(upscaledCount / coverageTotal) * 100} className="h-1.5" aria-label="超分完成进度" /> : null}
         {status ? <div className="flex items-center justify-between"><span className="text-muted-foreground">递进状态</span><span className={`font-mono text-xs ${statusToneClass(status.tone)}`} data-upscale-progressive-status={status.tone}>{status.label}</span></div> : null}
       </div>
 
