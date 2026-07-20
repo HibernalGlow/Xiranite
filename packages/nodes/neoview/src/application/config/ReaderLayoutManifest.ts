@@ -92,6 +92,8 @@ export const READER_CARD_MANIFEST = [
   card("image-trim", "图像裁剪", "control", true, true, 5, true, false),
   card("animated-video-mode", "动图视频模式", "control", true, true, 6, true, false),
   card("system-monitor", "系统资源监控", "insights", true, true, 0, true, false),
+  card("daily-trend", "最近 7 日阅读趋势", "insights", true, true, 1, true, false),
+  card("reading-streak", "连续阅读", "insights", true, true, 2, true, false),
 ] as const satisfies readonly ReaderCardManifestEntry[]
 
 export type ReaderPanelId = typeof READER_PANEL_MANIFEST[number]["id"]

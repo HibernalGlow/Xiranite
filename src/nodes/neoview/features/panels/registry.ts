@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Activity, Bell, BookMarked, BookOpen, BookOpenCheck, Clock3, Cpu, Crop, DatabaseBackup, Eye, Film, FolderOpen, Gauge, HardDrive, Image, Info, Keyboard, LayoutDashboard, ListFilter, ListTree, Loader, Monitor, Palette, PanelLeft, Play, Sparkles, SlidersHorizontal, Tags, Trash2, Video, type LucideIcon } from "lucide-react"
+import { Activity, Bell, BookMarked, BookOpen, BookOpenCheck, CalendarRange, Clock3, Cpu, Crop, DatabaseBackup, Eye, Film, FolderOpen, Gauge, HardDrive, Image, Info, Keyboard, LayoutDashboard, ListFilter, ListTree, Loader, Monitor, Palette, PanelLeft, Play, Sparkles, SlidersHorizontal, Tags, Trash2, TrendingUp, Video, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -217,6 +217,8 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "animated-video-mode": () => import("./cards/AnimatedVideoModeCard"),
   "thumbnail-maintenance": () => import("./cards/ThumbnailMaintenanceCard"),
   "system-monitor": () => import("./cards/SystemMonitorCard"),
+  "daily-trend": () => import("./cards/DailyTrendCard"),
+  "reading-streak": () => import("./cards/ReadingStreakCard"),
   "slideshow-settings": () => import("../settings/cards/SlideshowSettingsCard"),
   "media-settings": () => import("../settings/cards/MediaSettingsCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
@@ -263,6 +265,8 @@ const CARD_ICONS = {
   "image-trim": Crop,
   "animated-video-mode": Video,
   "system-monitor": Monitor,
+  "daily-trend": TrendingUp,
+  "reading-streak": CalendarRange,
 } satisfies Record<ReaderCardId, LucideIcon>
 
 const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {

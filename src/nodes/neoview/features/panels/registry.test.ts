@@ -92,6 +92,24 @@ describe("NeoView panel and card registries", () => {
     expect(cardsForPanel("properties", undefined, false).map((card) => card.id)).toEqual(["emm-tags", "book-settings", "thumbnail-architecture-metrics"])
   })
 
+  it("[neoview.insights.registry] exposes daily trend and reading streak cards without requiring a session", () => {
+    expect(cardsForPanel("insights").map((card) => card.id)).toEqual([
+      "system-monitor",
+      "daily-trend",
+      "reading-streak",
+    ])
+    for (const id of ["daily-trend", "reading-streak"] as const) {
+      const definition = CARD_DEFINITIONS.find((card) => card.id === id)
+      expect(definition).toMatchObject({
+        defaultPanel: "insights",
+        requiresSession: false,
+        canHide: true,
+      })
+      expect(definition?.icon).toBeTruthy()
+      expect(definition?.load).toBeTypeOf("function")
+    }
+  })
+
   it("[neoview.emm-tags.registry] exposes the first legacy properties Card as resident and lazy", () => {
     const definition = CARD_DEFINITIONS.find((card) => card.id === "emm-tags")
     expect(definition).toMatchObject({
