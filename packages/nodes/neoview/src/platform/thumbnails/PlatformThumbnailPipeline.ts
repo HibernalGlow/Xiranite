@@ -524,7 +524,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       const retryAfterMs = failure ? thumbnailRetryAfterMs(failure) : 0
       if (retryAfterMs > 0) throw new ThumbnailRetryDeferredError(retryAfterMs)
     }
-    const cached = !demandSource.refresh ? await this.#trySystemThumbnail({
+    const cached = !demandSource.refresh && descriptor.kind === "file" ? await this.#trySystemThumbnail({
       sourcePath: descriptor.path,
       maxEdge: 416,
       quality: 82,
@@ -655,7 +655,10 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     signal: AbortSignal,
   ): Promise<ThumbnailAsset> {
     const descriptor = demandSource.source
-    if (descriptor.kind !== "folder" || descriptor.previewCount === 1 || !this.#bookLoader || !this.#loadMosaicImageComposer) {
+    if (descriptor.kind !== "folder" || descriptor.previewCount === 1) throw new ThumbnailUnavailableError()
+    if (!this.#bookLoader || !this.#loadMosaicImageComposer) {
+      const fallback = await this.#resolveLegacyFolderCover(demandSource)
+      if (fallback) return fallback
       throw new ThumbnailUnavailableError()
     }
     let book: Awaited<ReturnType<ReaderBookLoader>> | undefined
@@ -683,9 +686,27 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         ownerId: demand.contextId,
       })
       return { bytes: result.bytes, contentType: result.contentType, version: demandSource.profile, cacheable: true }
+    } catch (error) {
+      signal.throwIfAborted()
+      const fallback = await this.#resolveLegacyFolderCover(demandSource)
+      if (fallback) return fallback
+      throw error
     } finally {
       await Promise.all(sources.map((source) => source.close().catch(() => undefined)))
       await book?.close().catch(() => undefined)
+    }
+  }
+
+  async #resolveLegacyFolderCover(demandSource: LibraryThumbnailDemandSource): Promise<ThumbnailAsset | undefined> {
+    if (demandSource.refresh) return undefined
+    const descriptor = demandSource.source
+    const stored = await this.#thumbnailStore?.get(descriptor.path, "folder")
+    if (!isValidLibraryThumbnail(stored, descriptor)) return undefined
+    return {
+      bytes: stored.bytes,
+      contentType: stored.contentType,
+      version: `${stored.date ?? ""}:${stored.generationHash ?? ""}`,
+      cacheable: false,
     }
   }
 

@@ -341,6 +341,35 @@ describe("PlatformThumbnailPipeline", () => {
     expect(closeBook).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.thumbnail.folder-mosaic-fallback] reuses a legacy folder cover when no direct images can form a mosaic", async () => {
+    const legacyCover = fixtureWebp(8)
+    const closeBook = vi.fn(async () => undefined)
+    const compose = vi.fn()
+    const get = vi.fn(async () => ({
+      bytes: legacyCover,
+      contentType: "image/webp" as const,
+      date: "2099-01-01 00:00:00",
+    }))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => ({ ...fixtureBook(fixturePage("D:/unused.png"), closeBook), pages: [] }),
+      thumbnailStore: { get },
+      loadMosaicImageComposer: async () => ({ compose }),
+    })
+    const descriptor = {
+      ...librarySource("folder", "D:/library/archive-folder"),
+      previewCount: 4 as const,
+      contentVersion: "folder:directory:1700000000000:empty:library-mosaic-4-v1",
+    }
+    const lease = pipeline.acquireLibrary(descriptor, { contextId: "folder:mosaic-fallback" })
+
+    await expect(lease.ready).resolves.toMatchObject({ bytes: legacyCover, contentType: "image/webp" })
+    expect(get).toHaveBeenCalledWith(descriptor.path, "folder")
+    expect(compose).not.toHaveBeenCalled()
+    lease.release()
+    await pipeline.dispose()
+    expect(closeBook).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.thumbnail.windows.page] prefers a cached system thumbnail before image decoding", async () => {
     const page = fixturePage("D:/library/page.png")
     page.sourcePath = "D:/library/page.png"
@@ -367,24 +396,23 @@ describe("PlatformThumbnailPipeline", () => {
     await pipeline.dispose()
   })
 
-  it("[neoview.thumbnail.windows.folder] uses a cached Explorer folder cover before opening the directory", async () => {
-    const cached = fixtureWebp(2)
-    const getCached = vi.fn(async () => ({ bytes: cached, contentType: "image/webp" as const }))
-    const bookLoader = vi.fn()
+  it("[neoview.thumbnail.windows.folder-bypass] generates folder covers without querying Explorer", async () => {
+    const page = fixturePage("D:/library/folder/cover.png")
+    const generated = fixtureWebp(6)
+    const getCached = vi.fn(async () => ({ bytes: fixtureWebp(2), contentType: "image/webp" as const }))
+    const bookLoader = vi.fn(async () => fixtureBook(page))
+    const transform = vi.fn(async () => ({ contentType: "image/webp" as const, stream: byteStream(generated) }))
     const pipeline = new PlatformThumbnailPipeline({
       bookLoader,
       loadSystemThumbnailProvider: async () => ({ getCached }),
+      loadImageTransformer: async () => ({ transform }),
     })
     const descriptor = librarySource("folder", "D:/library/folder")
     const lease = pipeline.acquireLibrary(descriptor, { contextId: "library:folder" })
-    await expect(lease.ready).resolves.toMatchObject({ bytes: cached, contentType: "image/webp" })
-    expect(getCached).toHaveBeenCalledWith(expect.objectContaining({
-      sourcePath: "D:/library/folder",
-      maxEdge: 416,
-      quality: 82,
-      priority: "background",
-    }), expect.any(AbortSignal))
-    expect(bookLoader).not.toHaveBeenCalled()
+    await expect(lease.ready).resolves.toMatchObject({ bytes: generated, contentType: "image/webp" })
+    expect(getCached).not.toHaveBeenCalled()
+    expect(bookLoader).toHaveBeenCalledOnce()
+    expect(transform).toHaveBeenCalledOnce()
     lease.release()
     await pipeline.dispose()
   })
