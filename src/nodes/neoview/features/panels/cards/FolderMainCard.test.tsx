@@ -2554,7 +2554,7 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "back" }, expect.any(AbortSignal), undefined))
   })
 
-  it("[neoview.folder.penetration-toolbar] exposes a top-level toggle and keeps its settings under More", async () => {
+  it("[neoview.folder.penetration-toolbar] exposes a top-level toggle and opens complete settings directly from More", async () => {
     const onFolderView = vi.fn(async () => undefined)
     const client = {
       openDirectoryBrowser: vi.fn(async () => page({
@@ -2572,16 +2572,20 @@ describe("FolderMainCard", () => {
 
     await ui.findByTitle("C:/books/series")
     expect(ui.queryByRole("button", { name: "粘贴到当前目录" })).toBeNull()
-    fireEvent.click(ui.getByRole("button", { name: "开启穿透模式" }))
+    fireEvent.click(await ui.findByRole("button", { name: "开启穿透模式" }))
     await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ penetration: { enabled: true } }))
 
     openFolderMoreMenu(ui)
-    const trigger = await screen.findByText("穿透模式")
-    fireEvent.pointerMove(trigger, { pointerType: "mouse" })
-    fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" })
-    fireEvent.click(trigger)
-    expect(await screen.findByText("最大深度")).toBeTruthy()
-    expect(document.querySelector('[data-folder-toolbar-menu="penetration"]')).toBeTruthy()
+    fireEvent.click(await screen.findByRole("menuitem", { name: /穿透设置/ }))
+    expect(await screen.findByRole("dialog", { name: "穿透设置" })).toBeTruthy()
+    const depth = screen.getByRole("combobox", { name: "最大穿透层数" })
+    fireEvent.pointerDown(depth, { button: 0, pointerType: "mouse" })
+    fireEvent.click(await screen.findByRole("option", { name: "5 层" }))
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ penetration: { maxDepth: 5 } }))
+    fireEvent.click(screen.getByRole("switch", { name: "文档" }))
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({
+      penetration: { terminalTargets: ["archive", "media-directory", "file"] },
+    }))
   })
 
   it("[neoview.folder.view-mosaic-grid] renders the adaptive thumbnail mode through the shared browser catalog", async () => {

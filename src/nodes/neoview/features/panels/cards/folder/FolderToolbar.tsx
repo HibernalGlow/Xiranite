@@ -29,9 +29,11 @@ import {
   Unlock,
   type LucideIcon,
 } from "lucide-react"
-import { type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
+import { useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -47,6 +49,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Slider } from "@/components/ui/slider"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import type {
   ReaderDirectoryFilterDto,
   ReaderDirectorySortDto,
@@ -163,6 +167,7 @@ export type FolderToolbarProps = {
  * Type filtering is a structured panel under 更多 — not the old chip strip.
  */
 export default function FolderToolbar(props: FolderToolbarProps) {
+  const [penetrationSettingsOpen, setPenetrationSettingsOpen] = useState(false)
   const {
     disabled,
     loading,
@@ -482,52 +487,15 @@ export default function FolderToolbar(props: FolderToolbarProps) {
               显示隐藏文件夹
             </DropdownMenuCheckboxItem>
 
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Layers3 className="size-4" />
-                <span className="flex min-w-0 flex-1 flex-col text-left">
-                  <span>穿透模式</span>
-                  <span className="truncate text-[10px] font-normal text-muted-foreground">
-                    {penetration.enabled ? `${penetration.maxDepth} 层` : "已关闭"}
-                  </span>
+            <DropdownMenuItem onSelect={() => setPenetrationSettingsOpen(true)}>
+              <Layers3 className="size-4" />
+              <span className="flex min-w-0 flex-1 flex-col text-left">
+                <span>穿透设置...</span>
+                <span className="truncate text-[10px] font-normal text-muted-foreground">
+                  {penetration.enabled ? `${penetration.maxDepth} 层` : "已关闭"}
                 </span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-56" data-folder-toolbar-menu="penetration">
-                <DropdownMenuCheckboxItem
-                  checked={penetration.enabled}
-                  onCheckedChange={(checked) => onTogglePenetration(checked === true)}
-                >
-                  <Layers3 className="size-4" />
-                  启用穿透模式
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>最大深度</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={String(penetration.maxDepth)}
-                  onValueChange={(value) => onUpdatePenetration({ maxDepth: Number(value) })}
-                >
-                  {[1, 2, 3, 5, 10, 32].map((depth) => (
-                    <DropdownMenuRadioItem key={depth} value={String(depth)}>{depth === 32 ? "最多 32 层" : `${depth} 层`}</DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>可直接打开</DropdownMenuLabel>
-                {PENETRATION_TARGET_OPTIONS.map(({ value, label }) => (
-                  <DropdownMenuCheckboxItem
-                    key={value}
-                    checked={penetration.terminalTargets.includes(value)}
-                    onCheckedChange={(checked) => {
-                      const next = checked === true
-                        ? [...penetration.terminalTargets, value]
-                        : penetration.terminalTargets.filter((target) => target !== value)
-                      if (next.length) onUpdatePenetration({ terminalTargets: next })
-                    }}
-                  >
-                    {label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+              </span>
+            </DropdownMenuItem>
 
             <DropdownMenuCheckboxItem
               checked={inlineTreeOpen}
@@ -729,14 +697,77 @@ export default function FolderToolbar(props: FolderToolbarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <Dialog open={penetrationSettingsOpen} onOpenChange={setPenetrationSettingsOpen}>
+        <DialogContent className="max-w-sm" data-folder-penetration-settings="true">
+          <DialogHeader>
+            <DialogTitle>穿透设置</DialogTitle>
+          </DialogHeader>
+          <FieldGroup className="gap-5">
+            <Field orientation="horizontal">
+              <FieldLabel htmlFor="folder-penetration-enabled">启用穿透模式</FieldLabel>
+              <Switch
+                id="folder-penetration-enabled"
+                aria-label="启用穿透模式"
+                checked={penetration.enabled}
+                disabled={busy}
+                onCheckedChange={onTogglePenetration}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="folder-penetration-depth">最大穿透层数</FieldLabel>
+              <Select
+                value={String(penetration.maxDepth)}
+                disabled={busy}
+                onValueChange={(value) => onUpdatePenetration({ maxDepth: Number(value) })}
+              >
+                <SelectTrigger id="folder-penetration-depth" className="w-full" aria-label="最大穿透层数">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {PENETRATION_DEPTH_OPTIONS.map((depth) => (
+                      <SelectItem key={depth} value={String(depth)}>{depth === 32 ? "32 层（安全上限）" : `${depth} 层`}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <FieldSet className="gap-2">
+              <FieldLegend variant="label">可直接作为书籍打开</FieldLegend>
+              {PENETRATION_TARGET_OPTIONS.map(({ value, label }) => {
+                const checked = penetration.terminalTargets.includes(value)
+                return (
+                  <Field key={value} orientation="horizontal" className="h-9 rounded-md border px-3">
+                    <FieldLabel htmlFor={`folder-penetration-target-${value}`}>{label}</FieldLabel>
+                    <Switch
+                      id={`folder-penetration-target-${value}`}
+                      aria-label={label}
+                      checked={checked}
+                      disabled={busy || (checked && penetration.terminalTargets.length === 1)}
+                      onCheckedChange={(nextChecked) => {
+                        const next = nextChecked
+                          ? [...penetration.terminalTargets, value]
+                          : penetration.terminalTargets.filter((target) => target !== value)
+                        if (next.length) onUpdatePenetration({ terminalTargets: next })
+                      }}
+                    />
+                  </Field>
+                )
+              })}
+            </FieldSet>
+          </FieldGroup>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
+const PENETRATION_DEPTH_OPTIONS = [1, 2, 3, 5, 10, 32] as const
+
 const PENETRATION_TARGET_OPTIONS: readonly { value: ReaderFolderPenetrationConfig["terminalTargets"][number]; label: string }[] = [
   { value: "archive", label: "压缩包" },
   { value: "document", label: "文档" },
-  { value: "media-directory", label: "纯媒体文件夹" },
+  { value: "media-directory", label: "图片与媒体目录" },
   { value: "file", label: "其他可读文件" },
 ]
 
