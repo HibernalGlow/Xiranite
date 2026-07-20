@@ -777,8 +777,8 @@
         "core": "partial",
         "transport": "complete",
         "gui": "complete",
-        "cli": "pending",
-        "tui": "pending",
+        "cli": "complete",
+        "tui": "complete",
         "evidence": "partial"
       },
       "behaviorCases": [
@@ -825,6 +825,8 @@
         "neoview.preload.plan-react",
         "neoview.preload.telemetry-react",
         "neoview.preload.plan-gui",
+        "neoview.preload.plan-cli",
+        "neoview.preload.plan-tui",
         "neoview.react.predecode",
         "neoview.thumbnail.react-list",
         "neoview.thumbnail.scheduler-priority",
@@ -844,7 +846,7 @@
         "reader-loopback-pipeline"
       ],
       "knownDifferences": [
-        "GUI 已直接消费后端 direction/tier/admission preload plan，每代按后端顺序最多保留 4 个预解码图片，旧后端无 plan 时才回退相邻页；Image load/decode 生命周期按 session+generation 以 50ms、最多 64 条批量上报 TTFB/decode/retained bytes/active leases，不写 React state；viewport context 仅在会话建立或窗口 focus/visibility 变化时更新，普通翻页不新增 context PATCH；CLI/TUI 的普通 Reader plan 消费与可观察 surface 仍待完成"
+        "GUI 已直接消费后端 direction/tier/admission preload plan，每代按后端顺序最多保留 4 个预解码图片，旧后端无 plan 时才回退相邻页；Image load/decode 生命周期按 session+generation 以 50ms、最多 64 条批量上报 TTFB/decode/retained bytes/active leases，不写 React state；viewport context 仅在会话建立或窗口 focus/visibility 变化时更新，普通翻页不新增 context PATCH；CLI 直接投影同一 Headless plan，OpenTUI 标记 Near/Ahead/Background 候选和 generation/admission，不另开页面流或复制 scheduler；core 与端到端 evidence 仍待按全部旧行为清单收口"
       ]
     },
     {

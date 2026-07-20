@@ -27,6 +27,7 @@ import type {
   HeadlessReaderPageSnapshot,
   HeadlessReaderSnapshot,
   OpenHeadlessReaderInput,
+  ReaderPreloadPlan,
   ReaderDirectorySortRule,
 } from "./core.js"
 import {
@@ -358,6 +359,7 @@ function ReaderWorkbench({
   })
 
   const activePages = new Set(snapshot?.frame.pages.map((page) => page.pageIndex) ?? [])
+  const preloadTiers = readerPreloadTierByPage(snapshot?.preload)
   const currentPage = snapshot?.visiblePages[0]
   const bookInformation = snapshot ? projectReaderBookInformation({
     ...snapshot.book,
@@ -420,14 +422,14 @@ function ReaderWorkbench({
             {pages.map((page) => (
               <box key={page.id} flexDirection="row">
                 <text fg={activePages.has(page.index) ? theme.colors.primary : theme.colors.mutedForeground}>
-                  {`${activePages.has(page.index) ? ">" : " "} ${String(page.index + 1).padStart(5)}  ${page.name}`}
+                  {`${activePages.has(page.index) ? ">" : preloadTierMarker(preloadTiers.get(page.index))} ${String(page.index + 1).padStart(5)}  ${page.name}`}
                 </text>
               </box>
             ))}
           </scrollbox>
         </WorkbenchPanel>
 
-        <WorkbenchPanel title={language === "zh" ? "当前画面" : "Current frame"} description={snapshot ? `${snapshot.frame.direction} · ${snapshot.frame.layout.pageMode} · ${snapshot.pageOrder.sortMode} · ${snapshot.pageOrder.mediaPriority} · SL:${slideshowSnapshot.state}` : undefined} flexGrow={1}>
+        <WorkbenchPanel title={language === "zh" ? "当前画面" : "Current frame"} description={snapshot ? `${snapshot.frame.direction} · ${snapshot.frame.layout.pageMode} · ${snapshot.pageOrder.sortMode} · ${snapshot.pageOrder.mediaPriority} · ${preloadPlanLabel(snapshot.preload)} · SL:${slideshowSnapshot.state}` : undefined} flexGrow={1}>
           {snapshot ? (
             <box flexGrow={1} flexDirection="column">
               <box height={previewHeight} flexShrink={0} flexDirection="row" gap={1} justifyContent="center" overflow="hidden">
@@ -472,6 +474,25 @@ function shortSortLabel(mode: ReaderPageSortMode | undefined): string {
 function shortMediaLabel(mode: ReaderMediaPriorityMode | undefined): string {
   if (!mode) return "media"
   return mode.replace("videoFirst", "video first").replace("imageFirst", "image first")
+}
+
+function readerPreloadTierByPage(plan: ReaderPreloadPlan | undefined): ReadonlyMap<number, ReaderPreloadPlan["candidates"][number]["tier"]> {
+  const tiers = new Map<number, ReaderPreloadPlan["candidates"][number]["tier"]>()
+  for (const candidate of plan?.candidates ?? []) {
+    for (const pageIndex of candidate.pageIndexes) tiers.set(pageIndex, candidate.tier)
+  }
+  return tiers
+}
+
+function preloadTierMarker(tier: ReaderPreloadPlan["candidates"][number]["tier"] | undefined): string {
+  return tier === "near" ? "N" : tier === "ahead" ? "A" : tier === "background" ? "B" : " "
+}
+
+function preloadPlanLabel(plan: ReaderPreloadPlan | undefined): string {
+  if (!plan) return "PL:unavailable"
+  const counts = { near: 0, ahead: 0, background: 0 }
+  for (const candidate of plan.candidates) counts[candidate.tier] += candidate.pageIndexes.length
+  return `PL:${plan.admission} g${plan.generation} ${counts.near}/${counts.ahead}/${counts.background}`
 }
 
 function ReaderPagePreview({

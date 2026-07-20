@@ -477,6 +477,24 @@ describe("NeoView CLI", () => {
     expect(JSON.parse(output.join(""))).toMatchObject({ frame: { anchorPageIndex: 2 }, visiblePages: [{ index: 2 }] })
   })
 
+  it("[neoview.preload.plan-cli] exposes the ordinary Reader plan without starting a second scheduler", async () => {
+    const output: unknown[] = []
+    const opened = { ...snapshot(0), preload: preloadPlan(4, 1) }
+    const reader = fakeReader({ open: async () => opened })
+
+    await runProgram(["preload-plan", "book.cbz", "--json"], host(output), { createController: async () => reader })
+
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      preload: {
+        generation: 4,
+        admission: "normal",
+        candidates: [{ tier: "near", pageIndexes: [1], pageIds: ["p1"] }],
+      },
+    })
+    expect(reader.listPages).not.toHaveBeenCalled()
+    expect(reader.openPageStream).not.toHaveBeenCalled()
+  })
+
   it("[neoview.page-order.cli] applies validated session ordering without rebuilding the Reader", async () => {
     const output: unknown[] = []
     const reader = fakeReader()
@@ -1877,6 +1895,30 @@ function snapshot(
     },
     visiblePages: [pages[index]!],
     pageOrder,
+  }
+}
+
+function preloadPlan(generation: number, pageIndex: number): NonNullable<HeadlessReaderSnapshot["preload"]> {
+  return {
+    generation,
+    frameGeneration: generation,
+    direction: "forward",
+    directionConfidence: 1,
+    mode: "paged",
+    admission: "normal",
+    velocityPagesPerSecond: 0,
+    stableForMs: 150,
+    focused: true,
+    queueWaitMs: 0,
+    memoryPressure: "normal",
+    currentPageIndexes: [Math.max(0, pageIndex - 1)],
+    candidates: [{
+      tier: "near",
+      priority: "view",
+      anchorPageIndex: pageIndex,
+      pageIndexes: [pageIndex],
+      pageIds: [`p${pageIndex}`],
+    }],
   }
 }
 
