@@ -66,6 +66,9 @@ function productionChunkReportPlugin() {
 // https://vite.dev/config/
 export default defineConfig({
   cacheDir: process.env.XIRANITE_VITE_CACHE_DIR,
+  esbuild: {
+    jsx: "automatic",
+  },
   define: {
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
   },

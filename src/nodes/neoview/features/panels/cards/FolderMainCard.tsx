@@ -1171,6 +1171,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         canGoBack={catalog?.canGoBack}
         canGoForward={catalog?.canGoForward}
         canGoUp={Boolean(catalog?.parentPath)}
+        client={client}
+        sessionId={catalog?.sessionId}
         onNavigate={(path) => { void navigate({ action: "path", path }) }}
         onNavigateAction={(action) => { void navigate({ action }) }}
         onCopyPath={systemActions?.copyText}

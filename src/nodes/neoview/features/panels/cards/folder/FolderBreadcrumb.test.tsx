@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import {
   FolderBreadcrumb,
   normalizeEditableFolderPath,
@@ -76,5 +77,32 @@ describe("FolderBreadcrumb", () => {
     fireEvent.click(screen.getByRole("button", { name: "复制当前路径" }))
     await waitFor(() => expect(onCopyPath).toHaveBeenCalledWith("C:\\books"))
     expect(screen.getByRole("status").textContent).toBe("已复制当前路径")
+  })
+
+  it("[neoview.folder.breadcrumb-columns-modes] switches the same directory-column view between inline and floating hosts", async () => {
+    const treeDirectoryBrowser = vi.fn(async (_sessionId: string, path?: string) => ({
+      sessionId: "browser-1",
+      path: path ?? "C:\\",
+      entries: [{ name: "manga", path: "C:\\manga", kind: "directory" as const, readerSupported: false }],
+      generation: 1,
+      cacheHit: false,
+      excludedPaths: [],
+    }))
+
+    render(<FolderBreadcrumb
+      path={"C:\\manga"}
+      client={{ treeDirectoryBrowser } as unknown as ReaderHttpClient}
+      sessionId="browser-1"
+      onNavigate={vi.fn()}
+    />)
+
+    fireEvent.click(screen.getByRole("button", { name: "展开目录列" }))
+    await waitFor(() => expect(document.querySelector("[data-breadcrumb-columns-inline='true']")).toBeTruthy())
+    expect(await screen.findByRole("tree", { name: "目录列导航" })).toBeTruthy()
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "目录列显示方式" }), { button: 0, pointerType: "mouse" })
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "浮动窗口" }))
+    await waitFor(() => expect(document.querySelector("[data-breadcrumb-columns-inline='true']")).toBeNull())
+    expect(await screen.findByRole("tree", { name: "目录列导航" })).toBeTruthy()
   })
 })
