@@ -1,0 +1,8 @@
+{
+  "sourceRoot": "src",
+  "scaffoldPatterns": [
+    "src/lib/components/panels/folderPanel/components/FolderListItem\\.svelte$",
+    "src/lib/components/panels/folderPanel/components/FolderContextMenu\\.svelte$",
+    "src/lib/components/panels/folderPanel/components/FolderToolbar/ActionButtons\\.svelte$"
+  ]
+}

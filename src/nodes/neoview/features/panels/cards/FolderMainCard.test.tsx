@@ -748,21 +748,30 @@ describe("FolderMainCard", () => {
       succeeded: 1, failed: 0, cancelled: 0, undoable: 0,
     }))
     const navigateDirectoryBrowser = vi.fn(async () => refreshed)
+    const registerLibraryThumbnails = vi.fn(async (_contextId: string, generation: number, items: readonly { id: string; path: string }[]) => ({
+      contextId: "folder:browser-1:1",
+      generation,
+      items: items.map((item) => ({ id: item.id, thumbnailUrl: `http://127.0.0.1/${item.id}.webp`, contentVersion: item.path })),
+    }))
     const client = {
       openDirectoryBrowser: vi.fn(async () => opened),
       navigateDirectoryBrowser,
       executeFileOperations,
+      registerLibraryThumbnails,
       closeDirectoryBrowser: vi.fn(async () => undefined),
     } as unknown as ReaderHttpClient
     const user = userEvent.setup()
     const view = render(
       <ContextMenuProvider>
         <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
-          <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+          <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} folderView={folderViewConfig({ viewMode: "cover-list" })} />
         </VirtuosoMockContext.Provider>
       </ContextMenuProvider>,
     )
     const ui = within(view.container)
+    const nextThumbnail = (await ui.findByTitle("C:/books/next.cbz")).querySelector("img")!
+    const nextThumbnailUrl = nextThumbnail.getAttribute("src")
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledTimes(1))
     fireEvent.contextMenu(await ui.findByTitle("C:/books/old.cbz"), { clientX: 20, clientY: 30 })
     await user.click(await screen.findByRole("menuitem", { name: "移到回收站" }))
     await user.click(screen.getByRole("button", { name: "移到回收站" }))
@@ -780,6 +789,39 @@ describe("FolderMainCard", () => {
     ))
     expect(ui.queryByTitle("C:/books/old.cbz")).toBeNull()
     expect(await ui.findByTitle("C:/books/next.cbz")).toBeTruthy()
+    expect((await ui.findByTitle("C:/books/next.cbz")).querySelector("img")?.getAttribute("src")).toBe(nextThumbnailUrl)
+    expect(registerLibraryThumbnails).toHaveBeenCalledTimes(1)
+  })
+
+  it("[neoview.folder.delete-mode-ui] toggles per-tab delete controls and switches strategy on right click", async () => {
+    const opened = page({
+      entries: [{ name: "old.cbz", path: "C:/books/old.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard
+          client={{ openDirectoryBrowser: vi.fn(async () => opened), closeDirectoryBrowser: vi.fn(async () => undefined) } as unknown as ReaderHttpClient}
+          disabled={false}
+          sourcePath="C:/books"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    const toggle = await ui.findByRole("button", { name: /删除模式（回收站/ })
+    expect(ui.queryByRole("button", { name: "移到回收站：old.cbz" })).toBeNull()
+
+    fireEvent.click(toggle)
+    expect(await ui.findByRole("button", { name: "移到回收站：old.cbz" })).toBeTruthy()
+    fireEvent.contextMenu(toggle)
+
+    expect(view.container.querySelector('[data-folder-delete-strategy="permanent"]')).toBeTruthy()
+    expect(await ui.findByRole("button", { name: "永久删除：old.cbz" })).toBeTruthy()
+    openFolderMoreMenu(ui)
+    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "删除前确认" }))
+    expect(view.container.querySelector('[data-folder-delete-confirm="false"]')).toBeTruthy()
   })
 
   it("[neoview.folder.tabs-lifecycle] [neoview.folder.tabs-navigation-history] creates, switches and closes isolated Explorer-style folder tabs", async () => {

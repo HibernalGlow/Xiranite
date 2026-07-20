@@ -14,7 +14,25 @@ import type {
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 
 const execFileAsync = promisify(execFile)
-const WINDOWS_FIND_TRASH_ITEM_SCRIPT = "$target = [IO.Path]::GetFullPath($env:XIRANITE_TRASH_SOURCE); $bin = (New-Object -ComObject Shell.Application).Namespace(10); if ($null -eq $bin) { exit 2 }; $item = $bin.Items() | Where-Object { $from = $_.ExtendedProperty('System.Recycle.DeletedFrom'); $from -and [StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath([string]$from), $target) } | Sort-Object -Property @{ Expression = { $_.ExtendedProperty('System.Recycle.DateDeleted') }; Descending = $true } | Select-Object -First 1; if ($null -eq $item) { exit 3 }; Write-Output $item.Path"
+export const WINDOWS_FIND_TRASH_ITEM_SCRIPT = [
+  "$target = [IO.Path]::GetFullPath($env:XIRANITE_TRASH_SOURCE)",
+  "$parent = [IO.Path]::GetDirectoryName($target)",
+  "$name = [IO.Path]::GetFileName($target)",
+  "$bin = (New-Object -ComObject Shell.Application).Namespace(10)",
+  "if ($null -eq $bin) { exit 2 }",
+  "$item = $null",
+  "for ($attempt = 0; $attempt -lt 20 -and $null -eq $item; $attempt += 1) {",
+  "  $item = $bin.Items() | Where-Object {",
+  "    $from = $_.ExtendedProperty('System.Recycle.DeletedFrom')",
+  "    $displayName = $_.ExtendedProperty('System.ItemNameDisplay')",
+  "    if (-not $displayName) { $displayName = $_.Name }",
+  "    $from -and [StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath([string]$from), [IO.Path]::GetFullPath($parent)) -and [StringComparer]::OrdinalIgnoreCase.Equals([string]$displayName, $name)",
+  "  } | Sort-Object -Property @{ Expression = { $_.ExtendedProperty('System.Recycle.DateDeleted') }; Descending = $true } | Select-Object -First 1",
+  "  if ($null -eq $item) { Start-Sleep -Milliseconds 50 }",
+  "}",
+  "if ($null -eq $item) { exit 3 }",
+  "Write-Output $item.Path",
+].join("\n")
 const WINDOWS_RESTORE_SCRIPT = "$bin = (New-Object -ComObject Shell.Application).Namespace(10); if ($null -eq $bin) { exit 2 }; $item = $bin.Items() | Where-Object { [StringComparer]::OrdinalIgnoreCase.Equals([string]$_.Path, $env:XIRANITE_TRASH_ITEM) } | Select-Object -First 1; if ($null -eq $item) { exit 3 }; $item.InvokeVerb('undelete')"
 
 export interface PlatformReaderFileMutationProviderOptions {

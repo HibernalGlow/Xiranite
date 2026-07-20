@@ -26,6 +26,7 @@ import {
   Settings2,
   Shuffle,
   Star,
+  Trash2,
   Unlock,
   type LucideIcon,
 } from "lucide-react"
@@ -71,6 +72,7 @@ import {
 } from "./DirectoryCatalog"
 import FolderTypeFilterPanel, { folderTypeFilterMeta } from "./FolderTypeFilterBar"
 import FolderTagDisplayMenu from "./FolderTagDisplayMenu"
+import type { FolderDeleteStrategy } from "./FolderDeleteButton"
 
 export type FolderToolbarViewModeOption = {
   value: ReaderFolderViewMode
@@ -119,6 +121,9 @@ export type FolderToolbarProps = {
   canTree: boolean
   inlineTreeOpen: boolean
   multiSelectMode: boolean
+  deleteMode?: boolean
+  deleteStrategy?: FolderDeleteStrategy
+  confirmDelete?: boolean
   sort?: ReaderDirectorySortDto
   sortFields?: readonly ReaderDirectorySortFieldDto[]
   sortSource?: ReaderDirectorySortSourceDto
@@ -157,6 +162,9 @@ export type FolderToolbarProps = {
   onToggleTree(): void
   onToggleInlineTree(): void
   onToggleMultiSelect(): void
+  onToggleDeleteMode?(): void
+  onToggleDeleteStrategy?(): void
+  onConfirmDeleteChange?(confirm: boolean): void
   onUpdateSort(sort: ReaderDirectorySortDto): void
   onUpdateSortPreference(command: ReaderDirectorySortPreferenceCommandDto): void
   onEmptyAreaChange(patch: Partial<ReaderFolderEmptyAreaConfig>): void
@@ -200,6 +208,9 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     canTree,
     inlineTreeOpen,
     multiSelectMode,
+    deleteMode = false,
+    deleteStrategy = "trash",
+    confirmDelete = true,
     sort,
     sortFields,
     sortSource,
@@ -238,6 +249,9 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     onToggleTree,
     onToggleInlineTree,
     onToggleMultiSelect,
+    onToggleDeleteMode = () => undefined,
+    onToggleDeleteStrategy = () => undefined,
+    onConfirmDeleteChange = () => undefined,
     onUpdateSort,
     onUpdateSortPreference,
     onEmptyAreaChange,
@@ -432,6 +446,18 @@ export default function FolderToolbar(props: FolderToolbarProps) {
           >
             <CheckSquare />
           </ToolbarIconButton>
+          <ToolbarIconButton
+            label={`删除模式（${deleteStrategy === "trash" ? "回收站" : "永久删除"}，右键切换策略）`}
+            disabled={!currentPath || busy}
+            active={deleteMode}
+            onClick={onToggleDeleteMode}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              if (!busy) onToggleDeleteStrategy()
+            }}
+          >
+            <Trash2 />
+          </ToolbarIconButton>
           {thumbnailRefreshPending ? (
             <ToolbarIconButton
               label="取消缩略图重载"
@@ -494,6 +520,14 @@ export default function FolderToolbar(props: FolderToolbarProps) {
             </DropdownMenuCheckboxItem>
 
             <FolderTagDisplayMenu value={tagDisplay} onChange={onTagDisplayChange} />
+
+            <DropdownMenuCheckboxItem
+              checked={confirmDelete}
+              onCheckedChange={(checked) => onConfirmDeleteChange(checked === true)}
+            >
+              <Trash2 className="size-4" />
+              删除前确认
+            </DropdownMenuCheckboxItem>
 
             <DropdownMenuItem onSelect={() => setPenetrationSettingsOpen(true)}>
               <Layers3 className="size-4" />

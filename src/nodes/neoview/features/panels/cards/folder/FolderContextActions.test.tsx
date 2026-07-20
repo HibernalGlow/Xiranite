@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -6,11 +6,73 @@ import { ContextMenuProvider } from "@/components/context-menu"
 import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
 import FolderContextActions, { buildFolderContextMenuItems, folderContextEntry } from "./FolderContextActions"
+import FolderDeleteButton from "./FolderDeleteButton"
 import { FolderClipboardProvider } from "./FolderClipboard"
 
 afterEach(cleanup)
 
 describe("FolderContextActions", () => {
+  it("[neoview.folder.delete-mode-event] confirms a delete-mode button request and executes it", async () => {
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/library/old.cbz" }, status: "succeeded" as const }],
+      succeeded: 1, failed: 0, cancelled: 0, undoable: 1,
+    }))
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <FolderContextActions
+          client={clientWith({ executeFileOperations })}
+          disabled={false}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+        />
+        <FolderDeleteButton
+          entry={{ index: 0, path: "D:/library/old.cbz", name: "old.cbz", kind: "file", readerSupported: true }}
+          strategy="trash"
+        />
+      </ContextMenuProvider>,
+    )
+
+    await user.click(screen.getByRole("button", { name: "移到回收站：old.cbz" }))
+    const dialog = await screen.findByRole("alertdialog")
+    await user.click(within(dialog).getByRole("button", { name: "移到回收站" }))
+
+    await waitFor(() => expect(executeFileOperations).toHaveBeenCalledWith(
+      [{ kind: "trash", sourcePath: "D:/library/old.cbz" }],
+      true,
+      expect.any(AbortSignal),
+    ))
+  })
+
+  it("[neoview.folder.delete-confirmation-off] executes a delete-mode request without opening a dialog", async () => {
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/library/old.cbz" }, status: "succeeded" as const }],
+      succeeded: 1, failed: 0, cancelled: 0, undoable: 1,
+    }))
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <FolderContextActions
+          client={clientWith({ executeFileOperations })}
+          disabled={false}
+          confirmDelete={false}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+        />
+        <FolderDeleteButton
+          entry={{ index: 0, path: "D:/library/old.cbz", name: "old.cbz", kind: "file", readerSupported: true }}
+          strategy="trash"
+          confirm={false}
+        />
+      </ContextMenuProvider>,
+    )
+
+    await user.click(screen.getByRole("button", { name: "移到回收站：old.cbz" }))
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+    await waitFor(() => expect(executeFileOperations).toHaveBeenCalledOnce())
+  })
+
+
   it("[neoview.folder.context-actions] exposes Explorer-style directory actions through one builder", async () => {
     const copyText = vi.fn(async () => undefined)
     const openSystemPath = vi.fn(async () => undefined)
@@ -255,7 +317,7 @@ describe("FolderContextActions", () => {
     render(
       <ContextMenuProvider>
         <FolderContextActions
-          client={clientWith({ executeFileOperations })}
+          client={clientWith({ executeFileOperations, undoLatestFileOperations: vi.fn() })}
           disabled={false}
           onActivate={vi.fn()}
           onOpenInNewTab={vi.fn()}
@@ -285,6 +347,8 @@ describe("FolderContextActions", () => {
       expect.any(AbortSignal),
     ))
     expect(onTrashed).toHaveBeenCalledWith(expect.objectContaining({ path: "D:/library/old.cbz" }))
+    fireEvent.contextMenu(screen.getByRole("button", { name: "old.cbz" }), { clientX: 20, clientY: 30 })
+    expect((await screen.findByRole("menuitem", { name: "撤销上次删除" })).hasAttribute("data-disabled")).toBe(false)
     expect((await screen.findByRole("status")).textContent).toContain("已将 old.cbz 移到回收站")
   })
 
@@ -482,6 +546,45 @@ describe("FolderContextActions", () => {
       ["D:/library/book.cbz"],
       expect.any(AbortSignal),
     ))
+  })
+
+  it("[neoview.folder.undo-delete-context] restores the latest trash journal from the entry menu", async () => {
+    const undoLatestFileOperations = vi.fn(async () => ({
+      undoId: "undo-1", results: [], succeeded: 1, failed: 0, remaining: 0,
+    }))
+    const onUndoDelete = vi.fn(async () => undefined)
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <FolderContextActions
+          client={clientWith({
+            fileUndoState: vi.fn(async () => ({
+              available: true, count: 1, latestId: "undo-1", supportedKinds: ["trash"], trashRestore: true, persistent: true,
+            })),
+            undoLatestFileOperations,
+          })}
+          disabled={false}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+          onUndoDelete={onUndoDelete}
+        />
+        <button
+          data-context-menu="neoview-folder-entry"
+          data-folder-index="0"
+          data-folder-path="D:/library/current.cbz"
+          data-folder-name="current.cbz"
+          data-folder-kind="file"
+          data-folder-reader-supported="true"
+        >current.cbz</button>
+      </ContextMenuProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "current.cbz" })).toBeTruthy())
+    fireEvent.contextMenu(screen.getByRole("button", { name: "current.cbz" }), { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByRole("menuitem", { name: "撤销上次删除" }))
+
+    await waitFor(() => expect(undoLatestFileOperations).toHaveBeenCalledWith(true, expect.any(AbortSignal)))
+    expect(onUndoDelete).toHaveBeenCalledOnce()
   })
 })
 

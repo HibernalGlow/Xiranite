@@ -19,6 +19,7 @@ import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurfa
 import { directoryEntryAt, FOLDER_MOSAIC_GROUP_SIZE, type DirectoryCatalog } from "./DirectoryCatalog"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
 import { FolderHoverPreview } from "./FolderHoverPreview"
+import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_LIST_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 
 export type FolderMosaicSpan = "square" | "wide" | "tall"
@@ -44,6 +45,9 @@ export default function FolderMosaicWorkspace({
   tileSize,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  deleteMode = false,
+  deleteStrategy = "trash",
+  confirmDelete = true,
   showReturnFooter,
   returnFooterContext,
   restoreSnapshot,
@@ -65,6 +69,9 @@ export default function FolderMosaicWorkspace({
   tileSize: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  deleteMode?: boolean
+  deleteStrategy?: FolderDeleteStrategy
+  confirmDelete?: boolean
   showReturnFooter: boolean
   returnFooterContext: FolderReturnFooterContext
   restoreSnapshot?: StateSnapshot
@@ -179,6 +186,9 @@ export default function FolderMosaicWorkspace({
           columnCount={columnCount}
           hoverPreviewEnabled={hoverPreviewEnabled}
           hoverPreviewDelayMs={hoverPreviewDelayMs}
+          deleteMode={deleteMode}
+          deleteStrategy={deleteStrategy}
+          confirmDelete={confirmDelete}
           onDimensions={reportDimensions}
           onSelect={onSelect}
         />
@@ -201,6 +211,9 @@ function DirectoryMosaicGroup({
   columnCount,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  deleteMode,
+  deleteStrategy,
+  confirmDelete,
   onDimensions,
   onSelect,
 }: {
@@ -217,6 +230,9 @@ function DirectoryMosaicGroup({
   columnCount: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  deleteMode: boolean
+  deleteStrategy: FolderDeleteStrategy
+  confirmDelete: boolean
   onDimensions(path: string, width: number, height: number): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }) {
@@ -252,6 +268,9 @@ function DirectoryMosaicGroup({
             thumbnailUrls={thumbnailUrlSets.get(entry.path)}
             hoverPreviewEnabled={hoverPreviewEnabled}
             hoverPreviewDelayMs={hoverPreviewDelayMs}
+            deleteMode={deleteMode}
+            deleteStrategy={deleteStrategy}
+            confirmDelete={confirmDelete}
             onDimensions={onDimensions}
             onSelect={onSelect}
           />
@@ -277,6 +296,9 @@ function DirectoryMosaicItem({
   thumbnailUrls,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  deleteMode,
+  deleteStrategy,
+  confirmDelete,
   onDimensions,
   onSelect,
 }: {
@@ -295,20 +317,25 @@ function DirectoryMosaicItem({
   thumbnailUrls?: readonly string[]
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  deleteMode: boolean
+  deleteStrategy: FolderDeleteStrategy
+  confirmDelete: boolean
   onDimensions(path: string, width: number, height: number): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }) {
   const geometry = folderMosaicGeometry(span, previewReady, columnCount)
   return (
     <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
+      <div
+        className="relative size-full min-h-0 min-w-0"
+        style={{ gridColumn: `span ${geometry.columns}`, gridRow: `span ${geometry.rows}` }}
+      >
+      {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} overlay confirm={confirmDelete} /> : null}
       <button
         id={itemId}
         type="button"
         className="grid size-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary"
-        style={{
-          gridColumn: `span ${geometry.columns}`,
-          gridRow: `span ${geometry.rows}`,
-        }}
+        style={{ gridColumn: `span ${geometry.columns}`, gridRow: `span ${geometry.rows}` }}
         aria-selected={selected}
         data-focused={focused || undefined}
         disabled={disabled}
@@ -352,6 +379,7 @@ function DirectoryMosaicItem({
           ) : null}
         </span>
       </button>
+      </div>
     </FolderHoverPreview>
   )
 }
