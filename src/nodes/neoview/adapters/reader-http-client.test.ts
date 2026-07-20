@@ -475,10 +475,15 @@ describe("reader-http-client", () => {
       totalRows: 10, fileRows: 7, folderRows: 3, blobBytes: 100, emptyBlobs: 1, failedRows: 2,
       failuresByReason: { decode: 2 }, writer: { pendingWrites: 0, flushing: false, committedBatches: 1, committedWrites: 2, busyRetries: 0, failedBatches: 0 },
     }
-    const fetchMock = vi.fn(async (request: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
       const url = String(request)
       if (url.endsWith("/reader/thumbnails/maintenance")) return Response.json({ snapshot })
-      if (url.endsWith("/cleanup")) return Response.json({ result: { scanned: 20, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false } })
+      if (url.endsWith("/cleanup")) {
+        const body = JSON.parse(String(init?.body)) as { kind: string }
+        return body.kind === "path-prefix"
+          ? Response.json({ deleted: 3, prefix: "D:/library" })
+          : Response.json({ result: { scanned: 20, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false } })
+      }
       return Response.json({ deleted: 2 })
     })
     vi.stubGlobal("fetch", fetchMock)
@@ -488,15 +493,21 @@ describe("reader-http-client", () => {
     await expect(client.cleanupThumbnails!({ kind: "invalid", scanLimit: 50, limit: 10 })).resolves.toEqual({
       kind: "invalid", scanned: 20, deleted: 2, unavailableVolumeRowsPreserved: 1, wrapped: false,
     })
+    await expect(client.cleanupThumbnails!({ kind: "path-prefix", prefix: " D:/library ", limit: 100 })).resolves.toEqual({
+      kind: "path-prefix", prefix: "D:/library", deleted: 3,
+    })
+    await expect(client.clearThumbnailFolderManifests!("D:/library", 100)).resolves.toBe(2)
     await expect(client.clearThumbnailFailures!(10)).resolves.toBe(2)
 
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(5)
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ kind: "invalid", scanLimit: 50, limit: 10 })
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "POST" })
     expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
-    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ limit: 10 })
-    expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ kind: "path-prefix", prefix: " D:/library ", limit: 100 })
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ prefix: "D:/library", limit: 100 })
+    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ limit: 10 })
+    expect(new Headers(fetchMock.mock.calls[4]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
   it("[neoview.library.client] keeps history and bookmark bytes on authenticated library routes", async () => {

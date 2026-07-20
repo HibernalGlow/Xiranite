@@ -341,6 +341,26 @@ describe("WritableLegacyThumbnailStore", () => {
     await store.close()
   })
 
+  it("[neoview.thumbnail.folder-manifest-maintenance] clears only manifests under the selected path", async () => {
+    const path = await createFixture(roots)
+    const store = await WritableLegacyThumbnailStore.open(path, { flushIntervalMs: 0 })
+    const manifest = {
+      directoryModifiedAtMs: 123,
+      sources: [{ name: "cover.jpg", size: 10, modifiedAtMs: 120 }],
+    }
+    await Promise.all([
+      store.putFolderRepresentativeManifest("D:\\Library", 4, 1, manifest),
+      store.putFolderRepresentativeManifest("D:\\Library\\nested", 4, 1, manifest),
+      store.putFolderRepresentativeManifest("D:\\Library2", 4, 1, manifest),
+    ])
+
+    expect(await store.clearFolderRepresentativeManifests({ prefix: " d:/library/ ", limit: 10 })).toBe(2)
+    expect(await store.getFolderRepresentativeManifest("D:\\Library", 4, 1)).toBeUndefined()
+    expect(await store.getFolderRepresentativeManifest("D:\\Library\\nested", 4, 1)).toBeUndefined()
+    expect(await store.getFolderRepresentativeManifest("D:\\Library2", 4, 1)).toEqual(manifest)
+    await store.close()
+  })
+
   it("[neoview.thumbnail.maintenance-cooperative-stats] scans exact Blob totals in bounded host I/O chunks", async () => {
     const path = await createFixture(roots)
     const requests: ResourceTaskRequest[] = []

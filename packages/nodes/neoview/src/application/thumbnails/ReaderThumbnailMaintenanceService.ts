@@ -6,7 +6,7 @@ import type {
 
 export type ReaderThumbnailMaintenancePort = Pick<
   ReaderThumbnailStore,
-  "maintenanceSnapshot" | "cleanup" | "cleanupInvalid" | "clearFailures"
+  "maintenanceSnapshot" | "cleanup" | "cleanupInvalid" | "clearFailures" | "clearFolderRepresentativeManifests"
 >
 
 export type ReaderThumbnailMaintenanceStatus =
@@ -29,6 +29,10 @@ export type ReaderThumbnailCleanupResult =
 export type ReaderThumbnailFailureCleanupResult =
   | { enabled: false }
   | { enabled: true; deleted: number }
+
+export type ReaderFolderManifestCleanupResult =
+  | { enabled: false }
+  | { enabled: true; prefix: string; deleted: number }
 
 export class ReaderThumbnailMaintenanceService {
   readonly #store?: ReaderThumbnailMaintenancePort
@@ -127,6 +131,20 @@ export class ReaderThumbnailMaintenanceService {
       enabled: true,
       deleted,
     }
+  }
+
+  async clearFolderRepresentativeManifests(
+    options: { prefix: string; limit: number },
+    signal?: AbortSignal,
+  ): Promise<ReaderFolderManifestCleanupResult> {
+    signal?.throwIfAborted()
+    const prefix = validatePathPrefix(options.prefix)
+    assertInteger(options.limit, "limit", 1, 1_000)
+    const operation = this.#store?.clearFolderRepresentativeManifests
+    if (!operation) return { enabled: false }
+    const deleted = await operation.call(this.#store, { prefix, limit: options.limit }, signal)
+    signal?.throwIfAborted()
+    return { enabled: true, prefix, deleted }
   }
 }
 

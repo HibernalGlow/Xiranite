@@ -442,11 +442,13 @@ export type ReaderThumbnailCleanupCommandDto =
   | { kind: "empty"; limit?: number }
   | { kind: "expired"; days: number; limit?: number; preserveFolders: true }
   | { kind: "invalid"; scanLimit?: number; limit?: number }
+  | { kind: "path-prefix"; prefix: string; limit?: number }
 
 export type ReaderThumbnailCleanupResultDto =
   | { kind: "empty"; deleted: number }
   | { kind: "expired"; deleted: number; cutoff: string }
   | { kind: "invalid"; scanned: number; deleted: number; unavailableVolumeRowsPreserved: number; wrapped: boolean }
+  | { kind: "path-prefix"; prefix: string; deleted: number }
 
 export interface ReaderRecentDto {
   bookId: string
@@ -1509,6 +1511,7 @@ export interface ReaderHttpClient {
   reportPreloadEvents?(sessionId: string, generation: number, events: readonly ReaderPreloadEventDto[], signal?: AbortSignal): Promise<ReaderPreloadReportResultDto>
   thumbnailMaintenance?(signal?: AbortSignal): Promise<ReaderThumbnailMaintenanceSnapshotDto>
   cleanupThumbnails?(command: ReaderThumbnailCleanupCommandDto, signal?: AbortSignal): Promise<ReaderThumbnailCleanupResultDto>
+  clearThumbnailFolderManifests?(prefix: string, limit?: number, signal?: AbortSignal): Promise<number>
   clearThumbnailFailures?(limit?: number, signal?: AbortSignal): Promise<number>
   openSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
@@ -2077,8 +2080,18 @@ export function createReaderHttpClient(
       })
       if (command.kind === "invalid") return { kind: command.kind, ...response.result! }
       if (command.kind === "expired") return { kind: command.kind, deleted: response.deleted!, cutoff: response.cutoff! }
+      if (command.kind === "path-prefix") return { kind: command.kind, prefix: command.prefix.trim(), deleted: response.deleted! }
       return { kind: command.kind, deleted: response.deleted! }
     },
+    clearThumbnailFolderManifests: (prefix, limit = 500, signal) => request<{ deleted: number }>(
+      "/reader/thumbnails/maintenance/folder-manifests/clear",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ prefix, limit }),
+        signal,
+      },
+    ).then((value) => value.deleted),
     clearThumbnailFailures: (limit = 500, signal) => request<{ deleted: number }>(
       "/reader/thumbnails/maintenance/failures/clear",
       {

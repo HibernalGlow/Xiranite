@@ -376,6 +376,35 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
         ).changes, "neoview.thumbnail.database-maintenance-write", signal)
   }
 
+  async clearFolderRepresentativeManifests(
+    options: { prefix: string; limit: number },
+    signal?: AbortSignal,
+  ): Promise<number> {
+    this.#assertOpen()
+    signal?.throwIfAborted()
+    validateMaintenanceLimit(options.limit)
+    const prefix = normalizePathPrefix(options.prefix)
+    const windowsPrefix = isWindowsPathPrefix(prefix)
+    const pathExpression = windowsPrefix ? "lower(replace(path_key, '\\', '/'))" : "path_key"
+    await this.#ensureFolderManifestSchema()
+    this.#assertOpen()
+    signal?.throwIfAborted()
+    return this.#runTransaction(() => {
+      const rootPrefix = prefix === "/" || prefix === "\\"
+      const where = rootPrefix
+        ? `substr(${pathExpression}, 1, length(?1)) = ?1`
+        : `${pathExpression} = ?1 OR (substr(${pathExpression}, 1, length(?1)) = ?1 AND substr(${pathExpression}, length(?1) + 1, 1) IN ('/', '\\'))`
+      return this.#database.run(
+        `DELETE FROM xr_thumbnail_folder_manifests
+         WHERE rowid IN (
+           SELECT rowid FROM xr_thumbnail_folder_manifests WHERE ${where} ORDER BY path_key LIMIT ?2
+         )`,
+        prefix,
+        options.limit,
+      ).changes
+    }, "neoview.thumbnail.folder-manifest-maintenance-write", signal)
+  }
+
   async cleanupInvalid(options: { scanLimit: number; deleteLimit: number }, signal?: AbortSignal): Promise<ReaderThumbnailInvalidCleanupResult> {
     this.#assertOpen()
     signal?.throwIfAborted()

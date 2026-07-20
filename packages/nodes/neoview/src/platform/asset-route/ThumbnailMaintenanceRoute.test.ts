@@ -74,6 +74,26 @@ describe("ThumbnailMaintenanceRoute", () => {
     expect(clearFailures).toHaveBeenCalledWith({ reason: "decode-error", limit: 100 }, expect.any(AbortSignal))
   })
 
+  it("[neoview.thumbnail.folder-manifest-maintenance-http] clears a bounded current-directory manifest prefix", async () => {
+    const clearFolderRepresentativeManifests = vi.fn(async () => 9)
+    const route = new ThumbnailMaintenanceRoute({
+      token: "secret",
+      thumbnailStore: store({ clearFolderRepresentativeManifests }),
+    })
+    const response = (await route.handle(jsonRequest(
+      "/reader/thumbnails/maintenance/folder-manifests/clear",
+      { prefix: " D:/library ", limit: 100 },
+      true,
+    )))!
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ deleted: 9, prefix: "D:/library" })
+    expect(clearFolderRepresentativeManifests).toHaveBeenCalledWith(
+      { prefix: "D:/library", limit: 100 },
+      expect.any(AbortSignal),
+    )
+  })
+
   it("[neoview.thumbnail.maintenance-cancel-http] propagates request cancellation instead of converting it to a database error", async () => {
     const started = Promise.withResolvers<AbortSignal>()
     const cleanupInvalid = vi.fn(async (_options: unknown, signal?: AbortSignal) => {
