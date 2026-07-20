@@ -569,7 +569,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     if (!client.navigateDirectoryBrowser) return
     setSearchOpen(false)
     if (!options.keepTree) setTreeOpen(false)
-    const capturedState = await captureRefreshState()
+    // Only refresh needs an exact snapshot before applying the replacement generation.
+    // Path/back/forward/up navigation can persist the lightweight state synchronously and
+    // let Virtuoso append its snapshot to the visit cache without delaying the request.
+    const capturedState = normalizedNavigation.action === "refresh"
+      ? await captureRefreshState()
+      : captureCurrentState()
     const generation = beginNavigation()
     setLoading(true)
     setError(undefined)
@@ -620,7 +625,14 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     catalogRequestRef.current?.abort()
     catalogRequestRef.current = new AbortController()
     pendingCursorsRef.current.clear()
-    resetThumbnailRegistration()
+    if (options.preserveThumbnailCache) {
+      // Keep the outgoing visible batch alive while the next directory is resolving.
+      // Its ref-backed URLs remain useful for back/forward; the first new visible batch
+      // will replace it through registerVisibleThumbnails' normal abort path.
+      thumbnailSignatureRef.current = ""
+    } else {
+      resetThumbnailRegistration()
+    }
     const next = createDirectoryCatalog(page)
     chainAnchorIndexRef.current = undefined
     commitCatalog(next)
@@ -1372,7 +1384,6 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     cancelPenetrationActivation()
     navigationRequestRef.current?.abort()
     catalogRequestRef.current?.abort()
-    thumbnailRequestRef.current?.abort()
     navigationRequestRef.current = new AbortController()
     pendingCursorsRef.current.clear()
     pendingKeyboardCommandRef.current = undefined
@@ -1917,7 +1928,7 @@ function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, 
             style={{ width: `${contentWidthPercent}%`, maxWidth: "70%" }}
           >
             {thumbnailUrl
-              ? <ReaderThumbnailSurface url={thumbnailUrl} urls={thumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" className="size-full rounded-none bg-transparent" />
+              ? <ReaderThumbnailSurface url={thumbnailUrl} urls={thumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" imageLoading="eager" className="size-full rounded-none bg-transparent" />
               : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-7" />}
           </span>
         ) : <FolderEntryIcon entry={entry} />}
