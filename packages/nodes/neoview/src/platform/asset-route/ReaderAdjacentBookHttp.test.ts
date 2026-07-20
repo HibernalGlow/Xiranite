@@ -14,6 +14,48 @@ afterEach(async () => {
 })
 
 describe("Reader adjacent-book HTTP", () => {
+  it("[neoview.control.hierarchical-book] preserves non-penetrable branches and opens the previous book at its last page", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-hierarchical-http-"))
+    roots.push(root)
+    const a = join(root, "A")
+    const b1 = join(root, "B", "Book 1")
+    const b2 = join(root, "B", "Book 2")
+    const c = join(root, "C", "nested")
+    await Promise.all([mkdir(a, { recursive: true }), mkdir(b1, { recursive: true }), mkdir(b2, { recursive: true }), mkdir(c, { recursive: true })])
+    await Promise.all([
+      writeFile(join(a, "1.jpg"), Uint8Array.of(1)),
+      writeFile(join(b1, "1.jpg"), Uint8Array.of(2)),
+      writeFile(join(b2, "1.jpg"), Uint8Array.of(3)),
+      writeFile(join(b2, "2.jpg"), Uint8Array.of(4)),
+      writeFile(join(c, "1.jpg"), Uint8Array.of(5)),
+    ])
+    const controller = createController()
+    try {
+      const opened = await request(controller, "/reader/sessions", "POST", {
+        path: a,
+        provenance: { browserOriginPath: root, browserOriginEntryPath: a },
+      })
+      expect(opened.status).toBe(201)
+      let current = await opened.json() as { sessionId: string; book: { displayName: string }; frame: { anchorPageIndex: number } }
+      const names: string[] = []
+      for (let index = 0; index < 3; index += 1) {
+        const switched = await request(controller, `/reader/s/${current.sessionId}/adjacent-book`, "POST", { direction: "next" })
+        expect(switched.status).toBe(201)
+        current = await switched.json() as typeof current
+        names.push(current.book.displayName)
+      }
+      expect(names).toEqual(["Book 1", "Book 2", "nested"])
+
+      const previous = await request(controller, `/reader/s/${current.sessionId}/adjacent-book`, "POST", { direction: "previous" })
+      expect(previous.status).toBe(201)
+      const previousBook = await previous.json() as typeof current
+      expect(previousBook.book.displayName).toBe("Book 2")
+      expect(previousBook.frame.anchorPageIndex).toBe(1)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.control.adjacent-book] atomically switches naturally ordered sibling books and reports boundaries", async () => {
     const { first } = await fixture()
     const controller = createController()

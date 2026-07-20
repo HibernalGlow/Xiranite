@@ -16,7 +16,7 @@ describe("Reader directory filter HTTP", () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-folder-filter-"))
     cleanup.push(root)
     const nested = join(root, "Nested")
-    await mkdir(nested)
+    await Promise.all([mkdir(nested), mkdir(join(root, ".claude")), mkdir(join(root, ".git"))])
     await Promise.all([
       writeFile(join(root, "A.cbz"), Uint8Array.of()),
       writeFile(join(root, "B.zip"), Uint8Array.of()),
@@ -41,9 +41,13 @@ describe("Reader directory filter HTTP", () => {
       expect(opened).toMatchObject({ filter: "all", filterOptions: ["all", "library", "archive", "directory", "video", "image", "other"], total: 6 })
       const endpoint = `/reader/browser/s/${encodeURIComponent(opened.sessionId)}/filter`
 
+      const visible = await json(controller, endpoint, "PATCH", { filter: "all", showHiddenFolders: true }) as BrowserPage
+      expect(visible).toMatchObject({ showHiddenFolders: true, total: 8 })
+      expect(visible.entries.map((entry) => entry.name)).toEqual(expect.arrayContaining([".claude", ".git"]))
+
       const archives = await json(controller, endpoint, "PATCH", { filter: "archive", focusPath: join(root, "B.zip") }) as BrowserPage
       expect(archives).toMatchObject({
-        generation: opened.generation + 1,
+        generation: visible.generation + 1,
         filter: "archive",
         total: 2,
         suggestedSelection: { path: join(root, "B.zip"), index: 1 },
@@ -114,6 +118,7 @@ interface BrowserPage {
   generation: number
   filter: string
   filterOptions: string[]
+  showHiddenFolders?: boolean
   total: number
   entries: Array<{ name: string; path: string }>
 }

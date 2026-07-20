@@ -1,5 +1,5 @@
 import { FileIcon, ImageIcon, LoaderCircle } from "lucide-react"
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode, type SyntheticEvent } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -12,6 +12,7 @@ export interface ReaderThumbnailSurfaceProps {
   className?: string
   imageClassName?: string
   fallback?: ReactNode
+  onDimensions?(width: number, height: number): void
 }
 
 export function ReaderThumbnailSurface({
@@ -23,6 +24,7 @@ export function ReaderThumbnailSurface({
   className,
   imageClassName,
   fallback,
+  onDimensions,
 }: ReaderThumbnailSurfaceProps) {
   const [failedUrls, setFailedUrls] = useState<ReadonlySet<string>>(() => new Set())
   const candidates = [...new Set(urls?.length ? urls : url ? [url] : [])]
@@ -34,6 +36,11 @@ export function ReaderThumbnailSurface({
   const rows = Math.max(1, Math.ceil(visibleUrls.length / columns))
 
   useEffect(() => setFailedUrls(new Set()), [candidateKey])
+
+  function reportDimensions(event: SyntheticEvent<HTMLImageElement>) {
+    const image = event.currentTarget
+    if (image.naturalWidth > 0 && image.naturalHeight > 0) onDimensions?.(image.naturalWidth, image.naturalHeight)
+  }
 
   return (
     <span
@@ -62,6 +69,7 @@ export function ReaderThumbnailSurface({
                 decoding="async"
                 draggable={false}
                 className={cn("size-full select-none object-contain", imageClassName)}
+                onLoad={visibleUrls.length === 1 ? reportDimensions : undefined}
                 onError={() => setFailedUrls((current) => new Set(current).add(candidate))}
               />
             </span>
@@ -75,6 +83,7 @@ export function ReaderThumbnailSurface({
           decoding="async"
           draggable={false}
           className={cn("size-full select-none", fit === "contain" ? "object-contain" : "object-cover", imageClassName)}
+          onLoad={reportDimensions}
           onError={() => setFailedUrls((current) => new Set(current).add(visibleUrls[0]!))}
         />
       ) : loading ? (

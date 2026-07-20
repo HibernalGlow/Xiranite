@@ -935,7 +935,7 @@ describe("ReaderFileTreeService", () => {
           : entry.name.endsWith(".mp4") ? "video" : "other",
     })
     const opened = await browser.open("/library")
-    expect(opened).toMatchObject({ filter: "all", filterOptions: ["all", "archive", "directory", "video"], total: 5 })
+    expect(opened).toMatchObject({ filter: "all", filterOptions: ["all", "library", "archive", "directory", "video", "image", "other"], total: 5 })
 
     const archives = await browser.setFilter(opened.sessionId, "archive", "/library/B.zip")
     expect(archives).toMatchObject({
@@ -955,6 +955,31 @@ describe("ReaderFileTreeService", () => {
     await expect(browser.setFilter(opened.sessionId, "directory")).resolves.toMatchObject({ total: 1, entries: [{ name: "Folder" }] })
     await expect(browser.setFilter(opened.sessionId, "video")).resolves.toMatchObject({ total: 1, entries: [{ name: "Clip.mp4" }] })
     await expect(browser.setFilter(opened.sessionId, "invalid" as never)).rejects.toThrow("filter is invalid")
+    expect(read).toHaveBeenCalledOnce()
+    await browser[Symbol.asyncDispose]()
+  })
+
+  it("[neoview.folder.hidden-directories] removes dot directories before pagination and restores them only when requested", async () => {
+    const read = vi.fn(async (path: string) => ({
+      path,
+      entries: [
+        { name: ".claude", path: `${path}/.claude`, kind: "directory" as const, readerSupported: true },
+        { name: ".git", path: `${path}/.git`, kind: "directory" as const, readerSupported: true },
+        { name: "Images", path: `${path}/Images`, kind: "directory" as const, readerSupported: true },
+        { name: "cover.jpg", path: `${path}/cover.jpg`, kind: "file" as const, readerSupported: true },
+      ],
+    }))
+    const browser = new ReaderFileTreeService({ read }, undefined, undefined, {
+      classifyEntry: (entry) => entry.kind === "directory" ? "directory" : "image",
+    })
+
+    const opened = await browser.open("/library")
+    expect(opened).toMatchObject({ total: 2, showHiddenFolders: false })
+    expect(opened.entries.map((entry) => entry.name)).toEqual(["Images", "cover.jpg"])
+
+    const visible = await browser.setFilter(opened.sessionId, "all", undefined, undefined, undefined, true)
+    expect(visible).toMatchObject({ total: 4, showHiddenFolders: true, generation: opened.generation + 1 })
+    expect(visible?.entries.map((entry) => entry.name)).toEqual([".claude", ".git", "Images", "cover.jpg"])
     expect(read).toHaveBeenCalledOnce()
     await browser[Symbol.asyncDispose]()
   })

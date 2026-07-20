@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ReaderThumbnailSurface } from "./ReaderThumbnailSurface"
 
@@ -43,5 +43,17 @@ describe("ReaderThumbnailSurface", () => {
     const view = render(<ReaderThumbnailSurface kind="folder" loading className="size-16" />)
     expect(screen.getByLabelText("正在加载缩略图")).toBeTruthy()
     expect(view.container.querySelector("img")).toBeNull()
+  })
+
+  it("reports natural dimensions for adaptive thumbnail layouts", () => {
+    const onDimensions = vi.fn()
+    const view = render(<ReaderThumbnailSurface url="/adaptive.webp" onDimensions={onDimensions} />)
+    const image = view.container.querySelector("img")!
+    Object.defineProperties(image, {
+      naturalWidth: { configurable: true, value: 1440 },
+      naturalHeight: { configurable: true, value: 900 },
+    })
+    fireEvent.load(image)
+    expect(onDimensions).toHaveBeenCalledWith(1440, 900)
   })
 })

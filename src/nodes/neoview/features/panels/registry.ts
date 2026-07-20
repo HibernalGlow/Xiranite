@@ -70,7 +70,7 @@ export interface ReaderPanelContext {
   onReadingDirectionChange?(direction: FrameSnapshot["direction"]): void | Promise<void>
   onPreloadAction?(action: "cancel-speculative" | "release-retained", signal?: AbortSignal): Promise<ReaderPreloadActionResultDto>
   sourcePath?: string
-  onOpen?(path: string): void | Promise<void>
+  onOpen?(path: string, provenance?: import("../../adapters/reader-http-client").ReaderActivationProvenanceDto): void | Promise<void>
   pickDirectory?: () => Promise<string | undefined>
   systemActions?: {
     copyText?(text: string): Promise<void>

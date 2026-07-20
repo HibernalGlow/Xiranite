@@ -896,6 +896,8 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
       homePath: "",
       viewMode: "compact",
       previewCount: 4,
+      showHiddenFolders: false,
+      penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
       details: {
         columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
         hiddenColumns: [],

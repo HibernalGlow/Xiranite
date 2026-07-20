@@ -1,15 +1,21 @@
 import {
+  ALargeSmall,
   ArrowDown,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
   Bookmark,
   CheckSquare,
-  ClipboardPaste,
+  Calendar,
   Eye,
+  FileType,
+  FolderTree,
   GalleryHorizontalEnd,
   Grid2X2,
+  HardDrive,
+  Heart,
   Home,
+  Layers3,
   ListTree,
   Lock,
   MoreHorizontal,
@@ -18,6 +24,8 @@ import {
   Rows3,
   Search,
   Settings2,
+  Shuffle,
+  Star,
   Unlock,
   type LucideIcon,
 } from "lucide-react"
@@ -46,11 +54,13 @@ import type {
   ReaderDirectorySortPreferenceCommandDto,
   ReaderDirectorySortSourceDto,
   ReaderFolderEmptyAreaConfig,
+  ReaderFolderPenetrationConfig,
   ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
 import {
   thumbnailPixelSize,
   viewUsesBanner,
+  viewUsesMosaicGrid,
   viewUsesThumbnailGrid,
   viewUsesThumbnails,
 } from "./DirectoryCatalog"
@@ -63,6 +73,17 @@ export type FolderToolbarViewModeOption = {
 }
 
 export type FolderToolbarPreviewCount = 4 | 9 | 16
+
+const SORT_FIELD_ICONS: Readonly<Record<ReaderDirectorySortFieldDto, LucideIcon>> = {
+  name: ALargeSmall,
+  date: Calendar,
+  size: HardDrive,
+  type: FileType,
+  random: Shuffle,
+  rating: Star,
+  path: FolderTree,
+  collectTagCount: Heart,
+}
 
 export type FolderToolbarProps = {
   disabled: boolean
@@ -85,6 +106,8 @@ export type FolderToolbarProps = {
   canFilter: boolean
   typeFilter?: ReaderDirectoryFilterDto
   filterOptions?: readonly ReaderDirectoryFilterDto[]
+  showHiddenFolders: boolean
+  penetration: ReaderFolderPenetrationConfig
   treeOpen: boolean
   canTree: boolean
   inlineTreeOpen: boolean
@@ -96,9 +119,6 @@ export type FolderToolbarProps = {
   canSort: boolean
   canSortPreference: boolean
   emptyArea: ReaderFolderEmptyAreaConfig
-  pasteAvailable: boolean
-  pasteRunning: boolean
-  pasteProgress?: { processed: number; total: number }
   thumbnailRefreshPending: boolean
   canRefreshThumbnails: boolean
   canRefreshSelectedThumbnails: boolean
@@ -123,13 +143,15 @@ export type FolderToolbarProps = {
   onCommitBannerWidth(value: number): void
   onToggleSearch(): void
   onChangeTypeFilter?(filter: ReaderDirectoryFilterDto): void
+  onChangeShowHiddenFolders?(showHiddenFolders: boolean): void
+  onTogglePenetration(enabled: boolean): void
+  onUpdatePenetration(patch: Partial<ReaderFolderPenetrationConfig>): void
   onToggleTree(): void
   onToggleInlineTree(): void
   onToggleMultiSelect(): void
   onUpdateSort(sort: ReaderDirectorySortDto): void
   onUpdateSortPreference(command: ReaderDirectorySortPreferenceCommandDto): void
   onEmptyAreaChange(patch: Partial<ReaderFolderEmptyAreaConfig>): void
-  onPaste(): void
   onRefreshVisibleThumbnails(): void
   onRefreshSelectedThumbnails(): void
   onCancelThumbnailRefresh(): void
@@ -162,6 +184,8 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     canFilter,
     typeFilter = "library",
     filterOptions,
+    showHiddenFolders,
+    penetration,
     treeOpen,
     canTree,
     inlineTreeOpen,
@@ -173,9 +197,6 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     canSort,
     canSortPreference,
     emptyArea,
-    pasteAvailable,
-    pasteRunning,
-    pasteProgress,
     thumbnailRefreshPending,
     canRefreshThumbnails,
     canRefreshSelectedThumbnails,
@@ -200,13 +221,15 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     onCommitBannerWidth,
     onToggleSearch,
     onChangeTypeFilter,
+    onChangeShowHiddenFolders,
+    onTogglePenetration,
+    onUpdatePenetration,
     onToggleTree,
     onToggleInlineTree,
     onToggleMultiSelect,
     onUpdateSort,
     onUpdateSortPreference,
     onEmptyAreaChange,
-    onPaste,
     onRefreshVisibleThumbnails,
     onRefreshSelectedThumbnails,
     onCancelThumbnailRefresh,
@@ -215,13 +238,11 @@ export default function FolderToolbar(props: FolderToolbarProps) {
   const busy = disabled || loading
   const currentView = viewModeOptions.find((option) => option.value === viewMode) ?? viewModeOptions[0]!
   const CurrentViewIcon = currentView.icon
-  const sizeEnabled = viewMode === "cover-list" || viewUsesThumbnailGrid(viewMode) || viewUsesBanner(viewMode)
+  const sizeEnabled = viewMode === "cover-list" || viewUsesThumbnailGrid(viewMode) || viewUsesMosaicGrid(viewMode) || viewUsesBanner(viewMode)
   const thumbsEnabled = viewUsesThumbnails(viewMode)
-  const pasteLabel = pasteRunning && pasteProgress
-    ? `正在粘贴 ${pasteProgress.processed} / ${pasteProgress.total}`
-    : "粘贴到当前目录"
   const sortFieldLabel = sort ? sortLabels[sort.field] : "排序"
   const sortOrderLabel = sort?.order === "asc" ? "升序" : "降序"
+  const SortFieldIcon = sort ? SORT_FIELD_ICONS[sort.field] : ALargeSmall
   const activeTypeFilter = folderTypeFilterMeta(typeFilter)
   const TypeFilterIcon = activeTypeFilter.icon
   const typeFilterActive = typeFilter !== "library" && typeFilter !== "all"
@@ -331,7 +352,12 @@ export default function FolderToolbar(props: FolderToolbarProps) {
                   data-folder-toolbar-control="sort"
                   aria-pressed={sortTemporary || undefined}
                 >
-                  {sort.order === "asc" ? <ArrowUp /> : <ArrowDown />}
+                  <span className="relative grid size-4 place-items-center" aria-hidden="true">
+                    <SortFieldIcon className="size-4" data-folder-sort-field-icon={sort.field} />
+                    {sort.order === "asc"
+                      ? <ArrowUp className="absolute -bottom-1 -right-1 size-2.5 rounded-full bg-background p-px" data-folder-sort-order-icon="asc" />
+                      : <ArrowDown className="absolute -bottom-1 -right-1 size-2.5 rounded-full bg-background p-px" data-folder-sort-order-icon="desc" />}
+                  </span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-52" data-folder-toolbar-menu="sort">
@@ -380,19 +406,20 @@ export default function FolderToolbar(props: FolderToolbarProps) {
             <ListTree />
           </ToolbarIconButton>
           <ToolbarIconButton
+            label={penetration.enabled ? "关闭穿透模式" : "开启穿透模式"}
+            disabled={!currentPath || busy}
+            active={penetration.enabled}
+            onClick={() => onTogglePenetration(!penetration.enabled)}
+          >
+            <Layers3 />
+          </ToolbarIconButton>
+          <ToolbarIconButton
             label={multiSelectMode ? "退出多选" : "多选模式"}
             disabled={!currentPath || busy}
             active={multiSelectMode}
             onClick={onToggleMultiSelect}
           >
             <CheckSquare />
-          </ToolbarIconButton>
-          <ToolbarIconButton
-            label={pasteLabel}
-            disabled={!currentPath || busy || !pasteAvailable || pasteRunning}
-            onClick={onPaste}
-          >
-            <ClipboardPaste />
           </ToolbarIconButton>
           {thumbnailRefreshPending ? (
             <ToolbarIconButton
@@ -413,7 +440,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
             <Button
               type="button"
               size="icon-sm"
-              variant={typeFilterActive || hoverPreviewEnabled === false ? "secondary" : "ghost"}
+              variant={typeFilterActive || hoverPreviewEnabled === false || penetration.enabled ? "secondary" : "ghost"}
               aria-label="更多"
               title="更多设置"
               disabled={!currentPath || busy}
@@ -443,6 +470,62 @@ export default function FolderToolbar(props: FolderToolbarProps) {
                   disabled={!canFilter}
                   onChange={(next) => onChangeTypeFilter?.(next)}
                 />
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            <DropdownMenuCheckboxItem
+              checked={showHiddenFolders}
+              disabled={!canFilter}
+              onCheckedChange={(checked) => onChangeShowHiddenFolders?.(checked === true)}
+            >
+              <Eye className="size-4" />
+              显示隐藏文件夹
+            </DropdownMenuCheckboxItem>
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Layers3 className="size-4" />
+                <span className="flex min-w-0 flex-1 flex-col text-left">
+                  <span>穿透模式</span>
+                  <span className="truncate text-[10px] font-normal text-muted-foreground">
+                    {penetration.enabled ? `${penetration.maxDepth} 层` : "已关闭"}
+                  </span>
+                </span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-56" data-folder-toolbar-menu="penetration">
+                <DropdownMenuCheckboxItem
+                  checked={penetration.enabled}
+                  onCheckedChange={(checked) => onTogglePenetration(checked === true)}
+                >
+                  <Layers3 className="size-4" />
+                  启用穿透模式
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>最大深度</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={String(penetration.maxDepth)}
+                  onValueChange={(value) => onUpdatePenetration({ maxDepth: Number(value) })}
+                >
+                  {[1, 2, 3, 5, 10, 32].map((depth) => (
+                    <DropdownMenuRadioItem key={depth} value={String(depth)}>{depth === 32 ? "最多 32 层" : `${depth} 层`}</DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>可直接打开</DropdownMenuLabel>
+                {PENETRATION_TARGET_OPTIONS.map(({ value, label }) => (
+                  <DropdownMenuCheckboxItem
+                    key={value}
+                    checked={penetration.terminalTargets.includes(value)}
+                    onCheckedChange={(checked) => {
+                      const next = checked === true
+                        ? [...penetration.terminalTargets, value]
+                        : penetration.terminalTargets.filter((target) => target !== value)
+                      if (next.length) onUpdatePenetration({ terminalTargets: next })
+                    }}
+                  >
+                    {label}
+                  </DropdownMenuCheckboxItem>
+                ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 
@@ -512,7 +595,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
                       </span>
                     </div>
                   ) : null}
-                  {viewUsesThumbnailGrid(viewMode) ? (
+                  {viewUsesThumbnailGrid(viewMode) || viewUsesMosaicGrid(viewMode) ? (
                     <div className="grid grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2" data-folder-size-control="thumbnail">
                       <Grid2X2 className="size-3.5 text-muted-foreground" aria-hidden="true" />
                       <Slider
@@ -649,6 +732,13 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     </div>
   )
 }
+
+const PENETRATION_TARGET_OPTIONS: readonly { value: ReaderFolderPenetrationConfig["terminalTargets"][number]; label: string }[] = [
+  { value: "archive", label: "压缩包" },
+  { value: "document", label: "文档" },
+  { value: "media-directory", label: "纯媒体文件夹" },
+  { value: "file", label: "其他可读文件" },
+]
 
 function ToolbarDivider() {
   return <div className="mx-0.5 h-4 w-px shrink-0 bg-border/70" aria-hidden="true" />

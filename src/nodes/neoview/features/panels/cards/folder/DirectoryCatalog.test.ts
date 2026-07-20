@@ -55,6 +55,7 @@ describe("DirectoryCatalog", () => {
     expect(folderMetadataFieldsForView("cover-list", capabilities)).toEqual(["rating", "collectTagCount", "tags"])
     expect(folderMetadataFieldsForView("mosaic-list", capabilities)).toEqual(["rating", "collectTagCount", "tags"])
     expect(folderMetadataFieldsForView("cover-grid", ["rating", "tags"])).toEqual(["rating", "tags"])
+    expect(folderMetadataFieldsForView("mosaic-grid", capabilities)).toEqual(["dimensions", "rating", "collectTagCount", "tags"])
     expect(folderMetadataFieldsForView("details", capabilities)).toEqual([])
   })
 

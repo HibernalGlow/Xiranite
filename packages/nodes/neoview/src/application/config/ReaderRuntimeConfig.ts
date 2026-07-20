@@ -113,7 +113,7 @@ export interface NeoviewFileTreeConfig {
   excludedPaths: string[]
 }
 
-export const NEOVIEW_FOLDER_VIEW_MODES = ["compact", "cover-list", "mosaic-list", "details", "cover-grid"] as const
+export const NEOVIEW_FOLDER_VIEW_MODES = ["compact", "cover-list", "mosaic-list", "details", "cover-grid", "mosaic-grid"] as const
 export const NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS = ["none", "goUp", "goBack"] as const
 export const NEOVIEW_FOLDER_TREE_LAYOUTS = ["left", "right", "top", "bottom"] as const
 export const NEOVIEW_FOLDER_REGION_POSITIONS = ["none", "top", "bottom", "left", "right"] as const
@@ -168,6 +168,14 @@ export interface NeoviewFolderTabsConfig {
 
 export const NEOVIEW_FOLDER_TYPE_FILTERS = ["all", "library", "archive", "directory", "video", "image", "other"] as const
 export type NeoviewFolderTypeFilter = typeof NEOVIEW_FOLDER_TYPE_FILTERS[number]
+export const NEOVIEW_FOLDER_PENETRATION_TARGETS = ["archive", "document", "media-directory", "file"] as const
+export type NeoviewFolderPenetrationTarget = typeof NEOVIEW_FOLDER_PENETRATION_TARGETS[number]
+
+export interface NeoviewFolderPenetrationConfig {
+  enabled: boolean
+  maxDepth: number
+  terminalTargets: NeoviewFolderPenetrationTarget[]
+}
 
 export interface NeoviewFolderViewConfig {
   homePath: string
@@ -181,6 +189,9 @@ export interface NeoviewFolderViewConfig {
   hoverPreviewDelayMs: NeoviewFolderHoverPreviewDelay
   /** Preferred directory listing type filter; applied when a browser session opens. */
   typeFilter: NeoviewFolderTypeFilter
+  /** Keep development/configuration directories out of normal media browsing. */
+  showHiddenFolders: boolean
+  penetration: NeoviewFolderPenetrationConfig
   emptyArea: NeoviewFolderEmptyAreaConfig
   details: NeoviewFolderDetailsConfig
   search: NeoviewFolderSearchConfig
@@ -208,6 +219,8 @@ export interface NeoviewFolderViewPatch {
     hoverPreviewEnabled?: boolean
     hoverPreviewDelayMs?: NeoviewFolderHoverPreviewDelay
     typeFilter?: NeoviewFolderTypeFilter
+    showHiddenFolders?: boolean
+    penetration?: Partial<NeoviewFolderPenetrationConfig>
     emptyArea?: Partial<NeoviewFolderEmptyAreaConfig>
     details?: NeoviewFolderDetailsPatch
     search?: Partial<NeoviewFolderSearchConfig>
@@ -245,6 +258,7 @@ export interface NeoviewSuperResolutionConfig {
 export interface NeoviewBookConfig {
   lockedSortMode: ReaderPageSortMode | null
   lockedMediaPriority: Exclude<ReaderMediaPriorityMode, "none"> | null
+  lockedReadingDirection: "left-to-right" | "right-to-left" | null
 }
 
 export interface NeoviewBookPatch {
@@ -495,6 +509,7 @@ export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
 export const DEFAULT_NEOVIEW_BOOK_CONFIG: NeoviewBookConfig = {
   lockedSortMode: null,
   lockedMediaPriority: null,
+  lockedReadingDirection: null,
 }
 
 export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
@@ -508,6 +523,12 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   hoverPreviewEnabled: true,
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
+  showHiddenFolders: false,
+  penetration: {
+    enabled: false,
+    maxDepth: 3,
+    terminalTargets: [...NEOVIEW_FOLDER_PENETRATION_TARGETS],
+  },
   emptyArea: {
     singleClickAction: "none",
     doubleClickAction: "goUp",
@@ -678,7 +699,7 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
 export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig {
   if (value === undefined) return {
     schemaVersion: 1,
-    sessionOptions: {},
+    sessionOptions: { direction: "left-to-right" },
     shellOptions: DEFAULT_NEOVIEW_SHELL_CONFIG,
     viewDefaults: DEFAULT_NEOVIEW_VIEW_DEFAULTS,
     book: DEFAULT_NEOVIEW_BOOK_CONFIG,
@@ -753,11 +774,13 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     "[nodes.neoview.performance.presentation_disk_cache]",
   )
 
-  const direction = optionalEnum(
+  const bookConfig = parseBookConfig(book, legacyBook)
+  const configuredDirection = optionalEnum(
     reader?.reading_direction ?? nestedValue(reader, "book", "reading_direction"),
     "[nodes.neoview.reader].reading_direction",
     ["left-to-right", "right-to-left"] as const,
   )
+  const direction = bookConfig.lockedReadingDirection ?? configuredDirection ?? "left-to-right"
   const doublePage = optionalBoolean(
     reader?.double_page_view ?? nestedValue(reader, "book", "double_page_view"),
     "[nodes.neoview.reader].double_page_view",
@@ -831,7 +854,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     },
     shellOptions: parseShellOptions(panels, reader),
     viewDefaults: { fitMode, pageMode, splitWidePages: splitWidePages ?? false, hoverScrollEnabled, hoverScrollSpeed, magnifierZoom, magnifierSize, orientation, autoRotation, widePageStretch },
-    book: parseBookConfig(book, legacyBook),
+    book: bookConfig,
     pageList: {
       viewMode: optionalEnum(pageList?.view_mode, "[nodes.neoview.page_list].view_mode", ["list", "details", "thumbnails"] as const)
         ?? DEFAULT_NEOVIEW_PAGE_LIST_CONFIG.viewMode,
@@ -1714,7 +1737,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["homePath", "viewMode", "previewGridEnabled", "previewCount", "contentWidthPercent", "thumbnailWidthPercent", "bannerWidthPercent", "hoverPreviewEnabled", "hoverPreviewDelayMs", "typeFilter", "emptyArea", "details", "search", "tree", "tabs"])
+  const allowed = new Set(["homePath", "viewMode", "previewGridEnabled", "previewCount", "contentWidthPercent", "thumbnailWidthPercent", "bannerWidthPercent", "hoverPreviewEnabled", "hoverPreviewDelayMs", "typeFilter", "showHiddenFolders", "penetration", "emptyArea", "details", "search", "tree", "tabs"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
@@ -1762,6 +1785,36 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   if (folder.typeFilter !== undefined) {
     patch.folderView.typeFilter = optionalEnum(folder.typeFilter, "reader folder view patch.typeFilter", NEOVIEW_FOLDER_TYPE_FILTERS)
     toml.type_filter = patch.folderView.typeFilter
+  }
+  if (folder.showHiddenFolders !== undefined) {
+    patch.folderView.showHiddenFolders = optionalBoolean(folder.showHiddenFolders, "reader folder view patch.showHiddenFolders")
+    toml.show_hidden_folders = patch.folderView.showHiddenFolders
+  }
+  if (folder.penetration !== undefined) {
+    const penetration = requireRecord(folder.penetration, "reader folder view patch.penetration")
+    const allowedPenetration = new Set(["enabled", "maxDepth", "terminalTargets"])
+    const unknownPenetration = Object.keys(penetration).filter((key) => !allowedPenetration.has(key))
+    if (unknownPenetration.length) throw new Error(`reader folder view patch.penetration contains unsupported fields: ${unknownPenetration.join(", ")}.`)
+    const penetrationPatch: Partial<NeoviewFolderPenetrationConfig> = {}
+    const penetrationToml: Record<string, unknown> = {}
+    if (penetration.enabled !== undefined) {
+      penetrationPatch.enabled = optionalBoolean(penetration.enabled, "reader folder view patch.penetration.enabled")
+      penetrationToml.enabled = penetrationPatch.enabled
+    }
+    if (penetration.maxDepth !== undefined) {
+      penetrationPatch.maxDepth = boundedInteger(penetration.maxDepth, 1, 32, "reader folder view patch.penetration.maxDepth")
+      penetrationToml.max_depth = penetrationPatch.maxDepth
+    }
+    if (penetration.terminalTargets !== undefined) {
+      penetrationPatch.terminalTargets = normalizedFolderPenetrationTargets(
+        penetration.terminalTargets,
+        "reader folder view patch.penetration.terminalTargets",
+      )
+      penetrationToml.terminal_targets = penetrationPatch.terminalTargets
+    }
+    if (!Object.keys(penetrationPatch).length) throw new Error("reader folder view patch.penetration must change at least one field.")
+    patch.folderView.penetration = penetrationPatch
+    toml.penetration = penetrationToml
   }
   if (folder.emptyArea !== undefined) {
     const emptyArea = requireRecord(folder.emptyArea, "reader folder view patch.emptyArea")
@@ -1913,6 +1966,7 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
   const emptyArea = optionalRecord(value.empty_area, "[nodes.neoview.folder.empty_area]")
   const tree = optionalRecord(value.tree_view, "[nodes.neoview.folder.tree_view]")
   const tabs = optionalRecord(value.tabs, "[nodes.neoview.folder.tabs]")
+  const penetration = optionalRecord(value.penetration, "[nodes.neoview.folder.penetration]")
   const hiddenColumns = normalizedDetailColumns(details?.hidden_columns ?? [], "[nodes.neoview.folder.details].hidden_columns", false, false)
     .filter((id) => id !== "name")
   const pinnedLeft = normalizedDetailColumns(details?.pinned_left ?? ["name"], "[nodes.neoview.folder.details].pinned_left", false, false)
@@ -1948,6 +2002,21 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
       : parseFolderHoverPreviewDelay(value.hover_preview_delay_ms, "[nodes.neoview.folder].hover_preview_delay_ms"),
     typeFilter: optionalEnum(value.type_filter, "[nodes.neoview.folder].type_filter", NEOVIEW_FOLDER_TYPE_FILTERS)
       ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.typeFilter,
+    showHiddenFolders: optionalBoolean(value.show_hidden_folders, "[nodes.neoview.folder].show_hidden_folders")
+      ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.showHiddenFolders,
+    penetration: {
+      enabled: optionalBoolean(penetration?.enabled, "[nodes.neoview.folder.penetration].enabled")
+        ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.enabled,
+      maxDepth: penetration?.max_depth === undefined
+        ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.maxDepth
+        : boundedInteger(penetration.max_depth, 1, 32, "[nodes.neoview.folder.penetration].max_depth"),
+      terminalTargets: penetration?.terminal_targets === undefined
+        ? [...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.terminalTargets]
+        : normalizedFolderPenetrationTargets(
+            penetration.terminal_targets,
+            "[nodes.neoview.folder.penetration].terminal_targets",
+          ),
+    },
     emptyArea: {
       singleClickAction: optionalEnum(emptyArea?.single_click_action, "[nodes.neoview.folder.empty_area].single_click_action", NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS)
         ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.emptyArea.singleClickAction,
@@ -2027,6 +2096,21 @@ function normalizedFolderHomePath(value: unknown, path: string): string {
   const normalized = value.trim()
   if (normalized.length > 4096 || normalized.includes("\0")) throw new Error(`${path} must be at most 4096 characters without NUL.`)
   return normalized
+}
+
+function normalizedFolderPenetrationTargets(value: unknown, path: string): NeoviewFolderPenetrationTarget[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > NEOVIEW_FOLDER_PENETRATION_TARGETS.length) {
+    throw new Error(`${path} must contain 1-${NEOVIEW_FOLDER_PENETRATION_TARGETS.length} targets.`)
+  }
+  const targets: NeoviewFolderPenetrationTarget[] = []
+  for (const target of value) {
+    if (typeof target !== "string" || !NEOVIEW_FOLDER_PENETRATION_TARGETS.includes(target as NeoviewFolderPenetrationTarget)) {
+      throw new Error(`${path} contains an unsupported target.`)
+    }
+    if (targets.includes(target as NeoviewFolderPenetrationTarget)) throw new Error(`${path} cannot contain duplicate targets.`)
+    targets.push(target as NeoviewFolderPenetrationTarget)
+  }
+  return targets
 }
 
 function normalizedSubtitleColor(value: unknown, path: string, fallback?: string): string {
@@ -2232,7 +2316,7 @@ export function parseNeoviewBookPatch(value: unknown): {
   const record = requireRecord(value, "reader book patch")
   if (Object.keys(record).some((key) => key !== "book")) throw new Error("reader book patch contains unsupported fields.")
   const source = requireRecord(record.book, "reader book patch.book")
-  const allowed = new Set(["lockedSortMode", "lockedMediaPriority"])
+  const allowed = new Set(["lockedSortMode", "lockedMediaPriority", "lockedReadingDirection"])
   const unknown = Object.keys(source).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader book patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewBookPatch = { book: {} }
@@ -2249,8 +2333,22 @@ export function parseNeoviewBookPatch(value: unknown): {
       : optionalEnum(source.lockedMediaPriority, "reader book patch.lockedMediaPriority", ["videoFirst", "imageFirst"] as const)!
     toml.locked_media_priority = patch.book.lockedMediaPriority ?? "none"
   }
+  if (source.lockedReadingDirection !== undefined) {
+    patch.book.lockedReadingDirection = source.lockedReadingDirection === null
+      ? null
+      : optionalEnum(source.lockedReadingDirection, "reader book patch.lockedReadingDirection", ["left-to-right", "right-to-left"] as const)!
+    toml.locked_reading_direction = patch.book.lockedReadingDirection ?? "none"
+  }
   if (!Object.keys(patch.book).length) throw new Error("reader book patch must change at least one field.")
-  return { patch, tomlPatch: { book: toml } }
+  return {
+    patch,
+    tomlPatch: {
+      book: toml,
+      ...(patch.book.lockedReadingDirection === undefined || patch.book.lockedReadingDirection === null ? {} : {
+        reader: { reading_direction: patch.book.lockedReadingDirection ?? undefined },
+      }),
+    },
+  }
 }
 
 function parseBookConfig(
@@ -2259,15 +2357,20 @@ function parseBookConfig(
 ): NeoviewBookConfig {
   const sort = canonical?.locked_sort_mode ?? canonical?.lockedSortMode ?? legacy?.locked_sort_mode ?? legacy?.lockedSortMode
   const media = canonical?.locked_media_priority ?? canonical?.lockedMediaPriority ?? legacy?.locked_media_priority ?? legacy?.lockedMediaPriority
+  const direction = canonical?.locked_reading_direction ?? canonical?.lockedReadingDirection ?? legacy?.locked_reading_direction ?? legacy?.lockedReadingDirection
   const lockedSortMode = sort === undefined || sort === null || sort === "none"
     ? null
     : optionalEnum(sort, "[nodes.neoview.book].locked_sort_mode", READER_PAGE_SORT_MODES)!
   const parsedMedia = media === undefined || media === null
     ? "none"
     : optionalEnum(media, "[nodes.neoview.book].locked_media_priority", READER_MEDIA_PRIORITY_MODES)!
+  const lockedReadingDirection = direction === undefined || direction === null || direction === "none"
+    ? null
+    : optionalEnum(direction, "[nodes.neoview.book].locked_reading_direction", ["left-to-right", "right-to-left"] as const)!
   return {
     lockedSortMode,
     lockedMediaPriority: parsedMedia === "none" ? null : parsedMedia,
+    lockedReadingDirection,
   }
 }
 

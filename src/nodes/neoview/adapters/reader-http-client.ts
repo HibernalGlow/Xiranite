@@ -216,6 +216,23 @@ export interface ReaderDirectorySelectionDescriptorDto {
   explicit: readonly { path: string; index?: number }[]
 }
 
+export type ReaderFolderPenetrationTerminalKindDto = "archive" | "document" | "media-directory" | "file"
+export interface ReaderFolderPenetrationPolicyDto {
+  maxDepth?: number
+  terminalTargets?: readonly ReaderFolderPenetrationTerminalKindDto[]
+}
+export interface ReaderFolderPenetrationResolutionDto {
+  status: "resolved" | "branch" | "empty" | "blocked"
+  originPath: string
+  terminal?: { kind: ReaderFolderPenetrationTerminalKindDto; path: string }
+  chain: readonly { path: string; canonicalPath: string; ignoredSidecars: number }[]
+  reason: "archive" | "document" | "media-directory" | "file" | "multiple-primary-items" | "empty" | "depth-limit" | "cycle" | "permission" | "unsupported-content"
+}
+export interface ReaderActivationProvenanceDto {
+  browserOriginPath: string
+  browserOriginEntryPath: string
+}
+
 export interface ReaderDirectorySelectionOperationSnapshotDto {
   id: string
   kind: "copy" | "move" | "delete" | "trash"
@@ -1200,6 +1217,12 @@ export interface ReaderFolderEmptyAreaConfig {
   showBackButton: boolean
 }
 
+export interface ReaderFolderPenetrationConfig {
+  enabled: boolean
+  maxDepth: number
+  terminalTargets: ReaderFolderPenetrationTerminalKindDto[]
+}
+
 export interface ReaderFolderViewConfig {
   homePath: string
   viewMode: ReaderFolderViewMode
@@ -1212,6 +1235,8 @@ export interface ReaderFolderViewConfig {
   hoverPreviewDelayMs: 200 | 500 | 800 | 1200
   /** Preferred directory listing type filter; applied when a browser session opens. */
   typeFilter?: ReaderDirectoryFilterDto
+  showHiddenFolders?: boolean
+  penetration: ReaderFolderPenetrationConfig
   emptyArea: ReaderFolderEmptyAreaConfig
   details: ReaderFolderDetailsConfig
   search: ReaderFolderSearchConfig
@@ -1239,6 +1264,8 @@ export interface ReaderFolderViewPatch {
     hoverPreviewEnabled?: boolean
     hoverPreviewDelayMs?: 200 | 500 | 800 | 1200
     typeFilter?: ReaderDirectoryFilterDto
+    showHiddenFolders?: boolean
+    penetration?: Partial<ReaderFolderPenetrationConfig>
     emptyArea?: Partial<ReaderFolderEmptyAreaConfig>
     details?: ReaderFolderDetailsPatch
     search?: Partial<ReaderFolderSearchConfig>
@@ -1336,7 +1363,7 @@ export interface ReaderHttpClient {
   upscalePreloadSnapshots?(sessionId: string, signal?: AbortSignal): Promise<readonly ReaderUpscalePreloadSnapshotDto[]>
   upscaleCache?(sessionId: string, signal?: AbortSignal): Promise<ReaderUpscaleCacheSnapshotDto>
   cleanupUpscaleCache?(sessionId: string, kind: "age" | "book" | "all", signal?: AbortSignal): Promise<ReaderUpscaleCacheCleanupDto>
-  open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
+  open(path: string, signal?: AbortSignal, provenance?: ReaderActivationProvenanceDto): Promise<ReaderSessionDto>
   reload?(sessionId: string, signal?: AbortSignal): Promise<ReaderSessionDto>
   waitForSourceChanges?(sessionId: string, afterRevision: number, signal?: AbortSignal): Promise<ReaderSourceChangeDto | undefined>
   openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal): Promise<ReaderSessionDto | undefined>
@@ -1363,6 +1390,7 @@ export interface ReaderHttpClient {
   watchDirectoryTreeBrowser?(sessionId: string, afterRevision: number, signal?: AbortSignal): Promise<ReaderDirectoryTreeChangesDto | undefined>
   directorySizes?(sessionId: string, generation: number, paths: readonly string[], signal?: AbortSignal): Promise<ReaderDirectorySizeBatchDto>
   resolveDirectorySelection?(sessionId: string, selection: ReaderDirectorySelectionDescriptorDto, previewLimit?: number, signal?: AbortSignal): Promise<ReaderDirectorySelectionResolutionDto>
+  resolveFolderPenetration?(sessionId: string, path: string, policy?: ReaderFolderPenetrationPolicyDto, signal?: AbortSignal): Promise<ReaderFolderPenetrationResolutionDto>
   readDirectoryEmm?(sessionId: string, generation: number, paths: readonly string[], signal?: AbortSignal): Promise<ReaderDirectoryEmmReadResultDto>
   editDirectoryEmm?(sessionId: string, command: ReaderDirectoryEmmEditCommandDto, signal?: AbortSignal): Promise<ReaderDirectoryEmmEditResultDto>
   suggestDirectoryEmmTags?(count?: number, signal?: AbortSignal): Promise<readonly ReaderEmmTagSuggestionDto[]>
@@ -1642,10 +1670,10 @@ export function createReaderHttpClient(
       `/reader/s/${encodeURIComponent(sessionId)}/upscale-artifact-cache?${new URLSearchParams({ kind, confirmed: "true" })}`,
       { method: "POST", signal },
     ),
-    open: (path, signal) => request<ReaderSessionDto>("/reader/sessions", {
+    open: (path, signal, provenance) => request<ReaderSessionDto>("/reader/sessions", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ path, ...(provenance ? { provenance } : {}) }),
       signal,
     }),
     reload: (sessionId, signal) => request<ReaderSessionDto>(
@@ -1676,6 +1704,15 @@ export function createReaderHttpClient(
       body: JSON.stringify({ path, scopeId, ...(watch ? { watch: true } : {}) }),
       signal,
     }),
+    resolveFolderPenetration: (sessionId, path, policy, signal) => request<ReaderFolderPenetrationResolutionDto>(
+      `/reader/browser/s/${encodeURIComponent(sessionId)}/penetration/resolve`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path, ...(policy ? { policy } : {}) }),
+        signal,
+      },
+    ),
     cloneDirectoryBrowser: (sessionId, signal) => request<ReaderDirectoryPageDto>(
       `/reader/browser/s/${encodeURIComponent(sessionId)}/clone`,
       { method: "POST", signal },

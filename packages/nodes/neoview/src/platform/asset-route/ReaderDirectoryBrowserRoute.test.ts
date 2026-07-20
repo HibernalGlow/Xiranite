@@ -14,6 +14,52 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.penetration-http] resolves one nested folder chain through the active browser session", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-penetration-"))
+    directories.push(directory)
+    const outer = join(directory, "outer")
+    const inner = join(outer, "inner")
+    await mkdir(inner, { recursive: true })
+    await writeFile(join(inner, "book.cbz"), "book")
+    const route = new ReaderDirectoryBrowserRoute()
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const page = await opened.json() as { sessionId: string }
+      const response = (await route.handle(new Request(
+        `http://localhost/reader/browser/s/${page.sessionId}/penetration/resolve`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path: outer, policy: { maxDepth: 3 } }),
+        },
+      )))!
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        status: "resolved",
+        originPath: outer,
+        terminal: { kind: "archive", path: join(inner, "book.cbz") },
+        chain: [{ path: outer }, { path: inner }],
+        reason: "archive",
+      })
+
+      const missing = (await route.handle(new Request(
+        "http://localhost/reader/browser/s/missing/penetration/resolve",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path: outer }),
+        },
+      )))!
+      expect(missing.status).toBe(404)
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.selection-http] previews a bounded current-generation selection", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-selection-"))
     directories.push(directory)

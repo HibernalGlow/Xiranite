@@ -1,5 +1,5 @@
 import { readdir, stat } from "node:fs/promises"
-import { join } from "node:path"
+import { basename, join } from "node:path"
 
 import { pageMediaType, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
@@ -47,6 +47,7 @@ const MAX_ENTRIES_PER_DIRECTORY = 768
 const MAX_SCAN_DEPTH = 8
 const SCAN_BUDGET_MS = 120
 const READER_CONTAINER_EXTENSIONS = new Set(["zip", "cbz", "rar", "cbr", "7z", "cb7", "pdf"])
+const POSTER_STEMS = new Set(["cover", "default", "folder", "front", "poster", "series", "thumb", "thumbnail"])
 
 export interface FolderRepresentativeSelection {
   version?: string
@@ -228,8 +229,9 @@ export class FolderRepresentativeIndex {
         signal.throwIfAborted()
         continue
       }
-      const ranked = [...entries].sort((left, right) => representativeRank(left, this.#mediaFormats)
-        - representativeRank(right, this.#mediaFormats) || compareNaturalPath(left.name, right.name))
+      const directoryStem = basename(directoryPath).replace(/\.[^.]+$/u, "")
+      const ranked = [...entries].sort((left, right) => representativeRank(left, this.#mediaFormats, directoryStem)
+        - representativeRank(right, this.#mediaFormats, directoryStem) || compareNaturalPath(left.name, right.name))
       const media = ranked.filter((entry) => entry.isFile() && isRepresentativeFile(entry.name, this.#mediaFormats))
       const directories = ranked.filter((entry) => entry.isDirectory())
       for (const entry of media) {
@@ -287,17 +289,26 @@ function isRepresentativeFile(name: string, mediaFormats?: ReaderMediaTypeResolv
   return dot >= 0 && READER_CONTAINER_EXTENSIONS.has(name.slice(dot + 1).toLocaleLowerCase("en-US"))
 }
 
-function representativeRank(entry: DirectoryEntryLike, mediaFormats?: ReaderMediaTypeResolver): number {
+function representativeRank(entry: DirectoryEntryLike, mediaFormats?: ReaderMediaTypeResolver, directoryStem?: string): number {
   if (entry.isFile()) {
     const dot = entry.name.lastIndexOf(".")
     const stem = (dot > 0 ? entry.name.slice(0, dot) : entry.name).toLocaleLowerCase("en-US")
-    if (stem === "cover" || stem === "folder" || stem === "thumb" || stem === "thumbnail" || stem === "front") return 0
+    if (POSTER_STEMS.has(stem) || isDirectoryNamedPoster(stem, directoryStem)) return 0
     const media = pageMediaType(entry.name, mediaFormats)
     if (media?.kind === "image" || media?.kind === "animated-image") return 1
     if (dot >= 0 && READER_CONTAINER_EXTENSIONS.has(entry.name.slice(dot + 1).toLocaleLowerCase("en-US"))) return 2
     if (media?.kind === "video") return 3
   }
   return entry.isDirectory() ? 4 : 5
+}
+
+function isDirectoryNamedPoster(stem: string, directoryStem?: string): boolean {
+  if (!directoryStem) return false
+  const normalizedDirectory = directoryStem.toLocaleLowerCase("en-US")
+  if (!normalizedDirectory) return false
+  const suffix = "(?:cover|default|folder|series|poster|thumbnail)"
+  const escapedDirectory = normalizedDirectory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return new RegExp(`^[-\\s0-9+]*${escapedDirectory}(?:[_-]?${suffix})?[-\\s0-9+]*$`, "u").test(stem)
 }
 
 function waitForFlight<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {

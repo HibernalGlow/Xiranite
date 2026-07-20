@@ -1,9 +1,13 @@
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { resolveManagedFrontendUrl } from "./dev-frontend-url"
+import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
 
 const devSessionStartedAt = Date.now()
 const args = process.argv.slice(2)
+const leanIndex = args.indexOf("--lean-vite")
+const viteMode: ViteDevelopmentMode = leanIndex === -1 ? "default" : "lean"
+if (leanIndex !== -1) args.splice(leanIndex, 1)
 process.env.XIRANITE_LAZY_NODE_BUILD = "1"
 process.env.XIRANITE_NODE_SOURCE = "1"
 // Opt-in behaviour at the runtime level; enabled by default for desktop dev
@@ -61,7 +65,7 @@ const vite = Bun.spawn([
   stdout: "inherit",
   stderr: "inherit",
   env: {
-    ...Bun.env,
+    ...viteDevelopmentEnvironment(viteMode),
     VITE_XIRANITE_BACKEND_URL: backend.url,
     VITE_XIRANITE_BACKEND_TOKEN: backend.token,
     VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,

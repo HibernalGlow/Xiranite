@@ -54,6 +54,10 @@ import {
   ReaderDirectorySelectionStaleError,
   type ReaderDirectorySelectionDescriptor,
 } from "../../application/browser/ReaderDirectorySelection.js"
+import {
+  ReaderFolderPenetrationResolver,
+  type ReaderFolderPenetrationPolicy,
+} from "../../application/browser/ReaderFolderPenetrationResolver.js"
 
 const BROWSER_SEARCH_HISTORY_PATH = "/reader/browser/search-history"
 const BROWSER_EMM_TAG_SUGGESTIONS_PATH = "/reader/browser/emm-tags/suggestions"
@@ -73,6 +77,7 @@ const BROWSER_SORT_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort$/
 const BROWSER_SORT_PREFERENCES_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort\/preferences$/
 const BROWSER_FILTER_PATH = /^\/reader\/browser\/s\/([^/]+)\/filter$/
 const BROWSER_SELECTION_PATH = /^\/reader\/browser\/s\/([^/]+)\/selection$/
+const BROWSER_PENETRATION_RESOLVE_PATH = /^\/reader\/browser\/s\/([^/]+)\/penetration\/resolve$/
 const BROWSER_CLONE_PATH = /^\/reader\/browser\/s\/([^/]+)\/clone$/
 const BROWSER_REOPEN_PATH = /^\/reader\/browser\/s\/([^/]+)\/reopen$/
 const BROWSER_SESSION_PATH = /^\/reader\/browser\/s\/([^/]+)$/
@@ -83,10 +88,19 @@ const READER_DIRECTORY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>([
 const DirectoryFilterCommandSchema = z.object({
   filter: z.enum(READER_DIRECTORY_FILTERS),
   focusPath: z.string().trim().min(1).max(32_768).optional(),
+  showHiddenFolders: z.boolean().optional(),
+}).strict()
+const FolderPenetrationCommandSchema = z.object({
+  path: z.string().trim().min(1).max(32_768),
+  policy: z.object({
+    maxDepth: z.number().int().min(0).max(32).optional(),
+    terminalTargets: z.array(z.enum(["archive", "document", "media-directory", "file"])).max(4).optional(),
+  }).strict().optional(),
 }).strict()
 
 export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   readonly #browser: ReaderFileTreeService
+  readonly #penetration: ReaderFolderPenetrationResolver
   readonly #searchHistory?: ReaderSearchHistoryService
   readonly #emmEditor?: ReaderDirectoryEmmEditService
   readonly #emmTagSuggestions?: ReaderEmmTagSuggestionService
@@ -107,8 +121,9 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   ) {
     this.#emmTranslations = emmTranslations
     this.#searchHistory = searchHistory
+    const listingProvider = new PlatformDirectoryListingProvider(mediaFormats)
     this.#browser = new ReaderFileTreeService(
-      new PlatformDirectoryListingProvider(mediaFormats),
+      listingProvider,
       new PlatformDirectoryMetadataProvider(emmRecordStore, collectTagSource, undefined, mediaMetadataProvider),
       new CoreReaderDirectorySortPreferences(sortPreferenceStore),
       {
@@ -119,6 +134,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
         classifyEntry: fileTreeOptions.classifyEntry ?? ((entry) => platformReaderDirectoryEntryType(entry, mediaFormats)),
       },
     )
+    this.#penetration = new ReaderFolderPenetrationResolver(listingProvider, { mediaFormats })
     this.#emmEditor = emmOverrideStore
       ? new ReaderDirectoryEmmEditService(new ReaderEmmMetadataService(emmOverrideStore), this.#browser)
       : undefined
@@ -167,6 +183,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (filterMatch && request.method === "PATCH") return this.#filter(filterMatch[1]!, request)
     const selectionMatch = BROWSER_SELECTION_PATH.exec(url.pathname)
     if (selectionMatch && request.method === "POST") return this.#selection(selectionMatch[1]!, request)
+    const penetrationMatch = BROWSER_PENETRATION_RESOLVE_PATH.exec(url.pathname)
+    if (penetrationMatch && request.method === "POST") return this.#resolvePenetration(penetrationMatch[1]!, request)
     const cloneMatch = BROWSER_CLONE_PATH.exec(url.pathname)
     if (cloneMatch && request.method === "POST") return this.#clone(cloneMatch[1]!, request)
     const reopenMatch = BROWSER_REOPEN_PATH.exec(url.pathname)
@@ -512,6 +530,22 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     }
   }
 
+  async #resolvePenetration(encodedSessionId: string, request: Request): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    const parsed = FolderPenetrationCommandSchema.safeParse(await request.json().catch(() => undefined))
+    if (!parsed.success) return errorResponse("Invalid folder penetration request", 400)
+    try {
+      const session = await this.#browser.list(sessionId, 0, 1, new Set(), request.signal)
+      if (!session) return errorResponse("Browser session not found", 404)
+      const policy: ReaderFolderPenetrationPolicy = parsed.data.policy ?? {}
+      return Response.json(await this.#penetration.resolve(parsed.data.path, policy, request.signal), responseInit())
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
+
   async #sort(encodedSessionId: string, request: Request): Promise<Response> {
     const sessionId = safeDecode(encodedSessionId)
     if (!sessionId) return errorResponse("Browser session not found", 404)
@@ -539,6 +573,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
         parsed.data.focusPath,
         request.signal,
         DISPLAY_METADATA_FIELDS,
+        parsed.data.showHiddenFolders,
       )
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
