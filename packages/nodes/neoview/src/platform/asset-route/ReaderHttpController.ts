@@ -1002,6 +1002,7 @@ export class ReaderHttpController implements AsyncDisposable {
         frames: [{
           directoryPath: provenance.browserOriginPath,
           currentEntryPath: provenance.browserOriginEntryPath,
+          selfTerminal: provenance.browserOriginSelfTerminal,
         }],
       })
       this.#retainSessionFrame(session, session.snapshot())
@@ -2190,7 +2191,7 @@ export class ReaderHttpController implements AsyncDisposable {
     nextGeneration: number | undefined,
   ): Promise<void> {
     if (previousGeneration === undefined || nextGeneration === undefined || previousGeneration === nextGeneration) return
-    await this.#superResolutionArtifacts?.releaseSession(sessionId)
+    await this.#superResolutionArtifacts?.advanceGeneration(sessionId, nextGeneration)
   }
 
   #retainSessionFrame(session: ReaderSession, frame: FrameSnapshot, preload = session.preloadPlan()): void {
@@ -2364,15 +2365,18 @@ function parseAdjacentBookRequest(body: Record<string, unknown> | undefined): {
 function parseReaderActivationProvenance(value: unknown): {
   browserOriginPath: string
   browserOriginEntryPath: string
+  browserOriginSelfTerminal?: boolean
 } | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
   const record = value as Record<string, unknown>
-  if (Object.keys(record).some((key) => key !== "browserOriginPath" && key !== "browserOriginEntryPath")) return undefined
+  if (Object.keys(record).some((key) => key !== "browserOriginPath" && key !== "browserOriginEntryPath" && key !== "browserOriginSelfTerminal")) return undefined
   if (typeof record.browserOriginPath !== "string" || !record.browserOriginPath.trim()) return undefined
   if (typeof record.browserOriginEntryPath !== "string" || !record.browserOriginEntryPath.trim()) return undefined
+  if (record.browserOriginSelfTerminal !== undefined && typeof record.browserOriginSelfTerminal !== "boolean") return undefined
   return {
     browserOriginPath: record.browserOriginPath,
     browserOriginEntryPath: record.browserOriginEntryPath,
+    ...(record.browserOriginSelfTerminal === true ? { browserOriginSelfTerminal: true } : {}),
   }
 }
 

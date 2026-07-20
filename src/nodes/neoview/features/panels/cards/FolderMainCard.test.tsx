@@ -306,12 +306,15 @@ describe("FolderMainCard", () => {
     const resolveFolderPenetration = vi.fn(async () => ({
       status: "resolved" as const,
       originPath: "C:/books/series",
-      terminal: { kind: "archive" as const, path: "C:/books/series/book.cbz" },
+      terminal: { kind: "media-directory" as const, path: "C:/books/series" },
       chain: [],
-      reason: "archive" as const,
+      reason: "mixed-media-directory" as const,
+      directMediaCount: 63,
+      deferredDirectoryCount: 1,
     }))
     const navigateDirectoryBrowser = vi.fn(async () => rawDirectory)
     const onOpen = vi.fn()
+    const showToast = vi.fn()
     const client = {
       openDirectoryBrowser: vi.fn(async () => opened),
       navigateDirectoryBrowser,
@@ -326,6 +329,7 @@ describe("FolderMainCard", () => {
           sourcePath="C:/books"
           onOpen={onOpen}
           onGoTo={vi.fn()}
+          switchToast={{ show: showToast } as never}
           folderView={folderViewConfig({ penetration: { enabled: true, maxDepth: 3, terminalTargets: ["archive", "media-directory"] } })}
         />
       </VirtuosoMockContext.Provider>,
@@ -336,9 +340,14 @@ describe("FolderMainCard", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(179) })
     expect(onOpen).not.toHaveBeenCalled()
     await act(async () => { await vi.advanceTimersByTimeAsync(1) })
-    expect(onOpen).toHaveBeenCalledWith("C:/books/series/book.cbz", {
+    expect(onOpen).toHaveBeenCalledWith("C:/books/series", {
       browserOriginPath: "C:/books",
       browserOriginEntryPath: "C:/books/series",
+      browserOriginSelfTerminal: true,
+    })
+    expect(showToast).toHaveBeenCalledWith({
+      title: "先阅读当前文件夹图片",
+      description: "当前层 63 张图片；1 个子文件夹将在“下一本”中继续。",
     })
     expect(resolveFolderPenetration).toHaveBeenCalledWith(
       "browser-1",
