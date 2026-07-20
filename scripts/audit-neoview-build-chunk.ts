@@ -256,6 +256,17 @@ if (thumbnailArchitectureMetricsChunk === neoViewChunk || thumbnailArchitectureM
 if (thumbnailArchitectureMetricsChunk.bytes > 16 * 1024) {
   throw new Error(`NeoView ThumbnailArchitectureMetricsCard chunk ${thumbnailArchitectureMetricsChunk.fileName} is ${thumbnailArchitectureMetricsChunk.bytes} bytes, above 16 KiB.`)
 }
+// [neoview.emm-tags.chunk]
+const emmTagsChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]EmmTagsCard\.tsx$/i.test(module)))
+if (!emmTagsChunk) {
+  throw new Error("NeoView EmmTagsCard did not produce an independent deferred production chunk.")
+}
+if (emmTagsChunk === neoViewChunk || emmTagsChunk === initialChunk || emmTagsChunk === readerSidebarChunk || emmTagsChunk === readerFrameChunk) {
+  throw new Error("NeoView EmmTagsCard leaked into an eager Reader, initial, ReaderSidebar or ReaderFrame chunk.")
+}
+if (emmTagsChunk.bytes > 8 * 1024) {
+  throw new Error(`NeoView EmmTagsCard chunk ${emmTagsChunk.fileName} is ${emmTagsChunk.bytes} bytes, above 8 KiB.`)
+}
 const sidebarControlCardChunk = deferredPanelChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]panels[/\\]cards[/\\]SidebarControlCard\.tsx$/i.test(module)))
 const sidebarFloatingControllerChunk = neoViewChunks.find((chunk) => chunk.modules.some((module) => /[/\\]features[/\\]shell[/\\]SidebarFloatingController\.tsx$/i.test(module)))
 if (!sidebarControlCardChunk || sidebarControlCardChunk === neoViewChunk || sidebarControlCardChunk === readerSidebarChunk) {

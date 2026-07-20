@@ -1036,10 +1036,10 @@ describe("ReaderHttpController", () => {
     }
   })
 
-  it("[neoview.control.session] [neoview.page-list.catalog] [neoview.metadata.http] opens, filters pages, navigates and closes without exposing local paths", async () => {
+  it("[neoview.control.session] [neoview.page-list.catalog] [neoview.metadata.http] [neoview.emm-tags.http] opens, filters pages, navigates and closes without exposing local paths", async () => {
     const directory = await createBookDirectory()
     const readDirectoryEmmRecords = vi.fn(async (paths: readonly string[]) => new Map([
-      [paths[0]!, { emmJson: JSON.stringify({ translated_title: "译名" }) }],
+      [paths[0]!, { emmJson: JSON.stringify({ translated_title: "译名", tags: [{ namespace: "artist", tag: "Alice" }] }) }],
     ]))
     const controller = new ReaderHttpController({
       baseUrl: "http://127.0.0.1:41000",
@@ -1075,7 +1075,7 @@ describe("ReaderHttpController", () => {
           sourcePath: directory,
           pageCount: 3,
           currentPage: 2,
-          emm: { translatedTitle: "译名" },
+          emm: { translatedTitle: "译名", tags: [{ namespace: "artist", tag: "Alice" }] },
           createdAtMs: expect.any(Number),
           modifiedAtMs: expect.any(Number),
           accessedAtMs: expect.any(Number),

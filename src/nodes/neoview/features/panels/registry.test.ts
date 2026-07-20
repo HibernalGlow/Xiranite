@@ -88,8 +88,20 @@ describe("NeoView panel and card registries", () => {
   it("[neoview.card.parallel-core] exposes preload and current-book settings without eager loading", () => {
     expect(cardsForPanel("info").map((card) => card.id)).toContain("preload-status")
     expect(CARD_DEFINITIONS.find((card) => card.id === "preload-status")?.icon).toBeTruthy()
-    expect(cardsForPanel("properties").map((card) => card.id)).toEqual(["book-settings", "thumbnail-architecture-metrics"])
-    expect(cardsForPanel("properties", undefined, false).map((card) => card.id)).toEqual(["book-settings", "thumbnail-architecture-metrics"])
+    expect(cardsForPanel("properties").map((card) => card.id)).toEqual(["emm-tags", "book-settings", "thumbnail-architecture-metrics"])
+    expect(cardsForPanel("properties", undefined, false).map((card) => card.id)).toEqual(["emm-tags", "book-settings", "thumbnail-architecture-metrics"])
+  })
+
+  it("[neoview.emm-tags.registry] exposes the first legacy properties Card as resident and lazy", () => {
+    const definition = CARD_DEFINITIONS.find((card) => card.id === "emm-tags")
+    expect(definition).toMatchObject({
+      defaultPanel: "properties",
+      defaultSidebarVisible: true,
+      requiresSession: false,
+      canHide: false,
+    })
+    expect(definition?.icon).toBeTruthy()
+    expect(definition?.load).toBeTypeOf("function")
   })
 
   it("[neoview.thumbnail-architecture-metrics.registry] exposes the legacy properties Card without requiring a session", () => {

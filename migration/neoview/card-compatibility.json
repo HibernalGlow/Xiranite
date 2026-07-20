@@ -601,13 +601,14 @@
       "featureId": "emm-ratings-tags-translation",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
+      "currentCardId": "emm-tags",
       "sourceComponent": "src/lib/cards/properties/EmmTagsCard.svelte",
       "sourceDisposition": "component"
     },
