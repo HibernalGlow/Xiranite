@@ -111,6 +111,7 @@ import { PlatformReaderPathStatusProvider } from "../filesystem/PlatformReaderPa
 import { PlatformReaderPageMaterializer } from "../content/PlatformReaderPageMaterializer.js"
 import { WINDOWS_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
 import { ReaderMemoryPressureMonitor } from "../memory/ReaderMemoryPressureMonitor.js"
+import { ReaderSystemMonitorService } from "../diagnostics/ReaderSystemMonitorService.js"
 import {
   parseNeoviewFolderViewPatch,
   DEFAULT_NEOVIEW_BOOKMARK_LIST_CONFIG,
@@ -123,6 +124,7 @@ import {
   DEFAULT_NEOVIEW_BOOK_CONFIG,
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
   DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
+  DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
   parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
   parseNeoviewShellControlPatch,
@@ -133,6 +135,7 @@ import {
   parseNeoviewPageTransitionPatch,
   parseNeoviewSwitchToastPatch,
   parseNeoviewInfoOverlayPatch,
+  parseNeoviewSystemMonitorPatch,
   parseNeoviewImageTrimPatch,
   parseNeoviewSuperResolutionPreferencesPatch,
   parseNeoviewBookmarkListPatch,
@@ -148,6 +151,8 @@ import {
   type NeoviewPageTransitionPatch,
   type NeoviewSwitchToastPatch,
   type NeoviewInfoOverlayPatch,
+  type NeoviewSystemMonitorConfig,
+  type NeoviewSystemMonitorPatch,
   type NeoviewImageTrimPatch,
   type NeoviewSuperResolutionConfig,
   type NeoviewSuperResolutionPatch,
@@ -290,6 +295,9 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateSwitchToast?: (patch: NeoviewSwitchToastPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderSwitchToastSettings>
   infoOverlay?: ReaderInfoOverlaySettings
   updateInfoOverlay?: (patch: NeoviewInfoOverlayPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInfoOverlaySettings>
+  systemMonitor?: NeoviewSystemMonitorConfig
+  updateSystemMonitor?: (patch: NeoviewSystemMonitorPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSystemMonitorConfig>
+  systemMonitorService?: Pick<ReaderSystemMonitorService, "sample">
   imageTrim?: ReaderImageTrimSettings
   updateImageTrim?: (patch: NeoviewImageTrimPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderImageTrimSettings>
   superResolution?: NeoviewSuperResolutionConfig
@@ -332,6 +340,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #seekableMedia: ReaderSeekableMediaCache
   readonly #subtitles: ReaderSubtitleService
   readonly #diagnostics: ReaderDiagnosticsService
+  readonly #systemMonitorService: Pick<ReaderSystemMonitorService, "sample">
   readonly #schedulerSnapshot?: () => Readonly<Record<"cpu" | "io" | "gpu", ReaderSchedulerPoolDiagnostics>> | undefined
   readonly #sharedSchedulerSnapshot?: () => ReaderSharedSchedulerDiagnostics | undefined
   readonly #videoProcessScheduler: ResourceScheduler
@@ -362,6 +371,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #pageTransition: ReaderPageTransitionSettings
   #switchToast: ReaderSwitchToastSettings
   #infoOverlay: ReaderInfoOverlaySettings
+  #systemMonitor: NeoviewSystemMonitorConfig
   #imageTrim: ReaderImageTrimSettings
   #superResolution: NeoviewSuperResolutionConfig
   #inputBindings: ReaderInputBindingsConfig
@@ -380,6 +390,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updatePageTransition?: ReaderHttpControllerOptions["updatePageTransition"]
   readonly #updateSwitchToast?: ReaderHttpControllerOptions["updateSwitchToast"]
   readonly #updateInfoOverlay?: ReaderHttpControllerOptions["updateInfoOverlay"]
+  readonly #updateSystemMonitor?: ReaderHttpControllerOptions["updateSystemMonitor"]
   readonly #updateImageTrim?: ReaderHttpControllerOptions["updateImageTrim"]
   readonly #updateSuperResolution?: ReaderHttpControllerOptions["updateSuperResolution"]
   readonly #updateInputBindings?: ReaderHttpControllerOptions["updateInputBindings"]
@@ -612,6 +623,8 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#pageTransition = options.pageTransition ?? DEFAULT_READER_PAGE_TRANSITION
     this.#switchToast = options.switchToast ?? DEFAULT_READER_SWITCH_TOAST
     this.#infoOverlay = options.infoOverlay ?? DEFAULT_READER_INFO_OVERLAY
+    this.#systemMonitor = options.systemMonitor ?? DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG
+    this.#systemMonitorService = options.systemMonitorService ?? new ReaderSystemMonitorService()
     this.#imageTrim = options.imageTrim ?? DEFAULT_READER_IMAGE_TRIM
     this.#superResolution = options.superResolution ?? DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG
     this.#inputBindings = options.inputBindings ?? cloneReaderInputBindings(DEFAULT_READER_INPUT_BINDINGS)
@@ -630,6 +643,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updatePageTransition = options.updatePageTransition
     this.#updateSwitchToast = options.updateSwitchToast
     this.#updateInfoOverlay = options.updateInfoOverlay
+    this.#updateSystemMonitor = options.updateSystemMonitor
     this.#updateImageTrim = options.updateImageTrim
     this.#updateSuperResolution = options.updateSuperResolution
     this.#updateInputBindings = options.updateInputBindings
@@ -714,6 +728,9 @@ export class ReaderHttpController implements AsyncDisposable {
         ...diagnostics,
         reader: { ...diagnostics.reader, sessionPreload: { generation: telemetry.generation, pages } },
       })
+    }
+    if (url.pathname === "/reader/diagnostics/system" && request.method === "GET") {
+      return jsonResponse(await this.#systemMonitorService.sample())
     }
     if (url.pathname === PRESENTATION_CACHE_PATH && request.method === "DELETE") {
       return jsonResponse(await this.#cacheService.clear())
@@ -1098,6 +1115,25 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
+    if (Object.hasOwn(body, "systemMonitor")) {
+      if (!this.#updateSystemMonitor) return jsonResponse({ error: "Reader system monitor config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewSystemMonitorPatch>
+      try {
+        parsed = parseNeoviewSystemMonitorPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      const operation = this.#configUpdateQueue.then(async () => {
+        this.#systemMonitor = await this.#updateSystemMonitor!(parsed.patch, parsed.tomlPatch)
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "imageTrim")) {
       if (!this.#updateImageTrim) return jsonResponse({ error: "Reader image trim config is read-only" }, 405)
       try {
@@ -1350,6 +1386,7 @@ export class ReaderHttpController implements AsyncDisposable {
       pageTransition: this.#pageTransition,
       switchToast: this.#switchToast,
       infoOverlay: this.#infoOverlay,
+      systemMonitor: this.#systemMonitor,
       imageTrim: this.#imageTrim,
       superResolution: {
         provider: this.#superResolution.provider,

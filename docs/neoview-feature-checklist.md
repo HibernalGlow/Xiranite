@@ -427,10 +427,10 @@
 - 设置：`performance`
 - 数据：benchmark reports、pipeline latency
 - 行为：冷/热基准；算法对照；系统 CPU/RSS/GPU 观测；任务队列状态；报告导出；基准不污染用户缓存
-- 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.wire-schema`、`neoview.diagnostics.http`、`neoview.diagnostics.history-export-http`、`neoview.diagnostics.history-cli-connect`、`neoview.diagnostics.runtime-http`、`neoview.diagnostics.backend`、`neoview.diagnostics.cli`、`neoview.diagnostics.cli-connect`、`neoview.video-process.scheduler`、`neoview.video-process.composition`、`neoview.diagnostics.scheduler-telemetry-cli`、`xiranite.scheduler.telemetry`、`neoview.memory-pressure.route`、`neoview.memory-pressure.solid-http`、`neoview.preload.telemetry-http`、`neoview.preload.performance-telemetry`、`neoview.react.predecode`、`neoview.react.cbz-e2e`、`neoview.thumbnail.react-e2e`
+- 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.wire-schema`、`neoview.diagnostics.http`、`neoview.diagnostics.history-export-http`、`neoview.diagnostics.history-cli-connect`、`neoview.diagnostics.runtime-http`、`neoview.diagnostics.backend`、`neoview.diagnostics.cli`、`neoview.diagnostics.cli-connect`、`neoview.video-process.scheduler`、`neoview.video-process.composition`、`neoview.diagnostics.scheduler-telemetry-cli`、`xiranite.scheduler.telemetry`、`neoview.memory-pressure.route`、`neoview.memory-pressure.solid-http`、`neoview.preload.telemetry-http`、`neoview.preload.performance-telemetry`、`neoview.react.predecode`、`neoview.react.cbz-e2e`、`neoview.thumbnail.react-e2e`、`neoview.system-monitor.transport`、`neoview.system-monitor.singleflight`、`neoview.system-monitor.transport-http`、`neoview.system-monitor.persistence-http`、`neoview.system-monitor.client`、`neoview.system-monitor.legacy-preferences`、`neoview.system-monitor.lifecycle`、`neoview.system-monitor.states`、`neoview.system-monitor.e2e`
 - 计划测试：无
 - 性能基准：`neoview-full-suite`、`reader-loopback-pipeline`、`presentation-retention-real-image`、`reader-hot-page-turn`、`build-chunk`
-- 已知差异：当前提供无副作用瞬时快照、宿主资源池 lease/queue wait、archive/browser owner payload、统一 cache lease 及预读性能累计指标；HTTP JSON/CSV history export 与远程有界 history adapter 已完成，CLI/TUI history 命令入口和 React 窄 diagnostics DTO 尚待切换；GPU 利用率、自动时间序列采样和算法对照仍待迁移
+- 已知差异：当前提供无副作用瞬时快照、宿主资源池 lease/queue wait、archive/browser owner payload、统一 cache lease 及预读性能累计指标；System Monitor 已完成按需单飞宿主采样、独立鉴权端点、规范配置、active-only React 轮询和有界内存趋势，网络吞吐率与 GPU 在没有专用宿主采样器时明确不可用；通用 CLI/TUI history 命令入口、GPU 利用率和算法对照仍待迁移
 
 ### 图片裁边、颜色滤镜、页面过渡和悬停滚动（`image-effects-transitions`）
 

@@ -329,21 +329,22 @@
       "sourceDisposition": "component"
     },
     {
-      "legacyId": "systemMonitor",
+    "legacyId": "systemMonitor",
       "title": "系统资源监控",
       "panelId": "insights",
       "priority": "integration",
       "featureId": "performance-benchmark-diagnostics",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+      "core": "complete",
+      "transport": "complete",
+      "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
-      },
-      "sourceComponent": "src/lib/cards/monitor/SystemMonitorCard.svelte",
+      "evidence": "complete"
+    },
+    "currentCardId": "system-monitor",
+    "sourceComponent": "src/lib/cards/monitor/SystemMonitorCard.svelte",
       "sourceDisposition": "component"
     },
     {

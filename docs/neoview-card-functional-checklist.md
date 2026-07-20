@@ -2216,7 +2216,7 @@
 
 | Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|---|
-| `systemMonitor` | 系统资源监控 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/monitor/SystemMonitorCard.svelte` | 性能设置、基准、系统监控和诊断 |
+| `systemMonitor` | 系统资源监控 | integration | complete | `core=C transport=C gui=C cli=N/A tui=N/A evidence=C` | `src/lib/cards/monitor/SystemMonitorCard.svelte` | 性能设置、基准、系统监控和诊断；XR `system-monitor` |
 | `dailyTrend` | 最近 7 日阅读趋势 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/DailyTrendCard.svelte` | 历史、书签、阅读进度和数据洞察 |
 | `readingStreak` | 连续阅读 Streak | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/ReadingStreakCard.svelte` | 历史、书签、阅读进度和数据洞察 |
 | `readingHeatmap` | 阅读时段热力图 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/ReadingHeatmapCard.svelte` | 历史、书签、阅读进度和数据洞察 |
@@ -2227,9 +2227,9 @@
 #### `systemMonitor` 系统资源监控
 
 - 细项清单：`migration/neoview/system-monitor-compatibility.json`
-- [ ] 显示 CPU、内存、GPU 与进程资源
-- [ ] 提供实时采样、趋势和峰值
-- [ ] 暂停、重置并限制历史样本
+- [x] 显示 CPU、内存、GPU 与进程资源
+- [x] 提供实时采样、趋势和峰值
+- [x] 暂停、重置并限制历史样本
 - UI 基线：`src/lib/cards/monitor/SystemMonitorCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ##### 专用逐控件库存（9 组，42 项）
@@ -2306,153 +2306,153 @@
 
 ##### 专用源码级验收项
 
-- [ ] `system-monitor.shell` 复刻共享 Card 外壳和注册语义
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `system-monitor.shell` 复刻共享 Card 外壳和注册语义
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Keep the systemMonitor identity, title, icon, insights placement and shared Card chrome without importing the scaffold at runtime.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.shell`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.toggle` 开始和停止监控
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.shell.registry-lazy`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.toggle` 开始和停止监控
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：A single control starts one immediate sample and one timer, then stops and cancels both without losing the last sample.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.toggle`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.refresh` 手动刷新
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.toggle`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.refresh` 手动刷新
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Manual refresh requests one sample without creating a second timer or overlapping an in-flight request.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.refresh`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.interval` 刷新间隔选择
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.toggle`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.interval` 刷新间隔选择
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The controlled 500/1000/2000/5000 ms selector replaces the active timer atomically and persists through canonical settings.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.interval`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.states` 加载、停止和错误状态
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.persistence-patch`、`neoview.system-monitor.persistence-http`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.states` 加载、停止和错误状态
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Loading, stopped-without-data, stale-data and recoverable error states remain distinct and never unmount the Card shell.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.states`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.overview` 系统运行时间、负载和核心总览
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.states`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.overview` 系统运行时间、负载和核心总览
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Render bounded uptime, 1/5/15 minute load averages and CPU core count with stable formatting.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.overview`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.cpu` 逐核心 CPU 与平均值
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.transport`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.cpu` 逐核心 CPU 与平均值
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Render a bounded per-core CPU list, average and threshold styling from sanitized percentages.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.cpu`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.memory` 内存占用
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.transport`、`neoview.system-monitor.states`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.memory` 内存占用
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Render total, used, free and cached bytes plus a clamped percentage without division-by-zero artifacts.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.memory`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.network` 网络接收与发送速率
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.transport`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.network` 网络接收与发送速率
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Render receive and transmit rates with honest unavailable states when the platform sampler cannot supply them.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.network`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.disk` 磁盘容量
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.transport`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.disk` 磁盘容量
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Render aggregate total, used and free space with a clamped percentage and no filesystem work in the browser.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.disk`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.gpu` GPU 能力状态
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.transport`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.gpu` GPU 能力状态
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Preserve the explicit unsupported state until a canonical host GPU sampler exists; do not fabricate utilization.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.gpu`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.format` 百分比、时间和字节格式
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.transport`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.format` 百分比、时间和字节格式
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Preserve source-evidenced rounding and 1024-based units while sanitizing NaN, infinity and negative values.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.format`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.persistence` 监控偏好规范持久化
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.format`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.persistence` 监控偏好规范持久化
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Write only the canonical NeoView TOML namespace and import the two legacy localStorage keys at most once.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.persistence`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.transport` 鉴权诊断 DTO
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.persistence`、`neoview.system-monitor.persistence-patch`、`neoview.system-monitor.persistence-http`、`neoview.system-monitor.legacy-preferences`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.transport` 鉴权诊断 DTO
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Use a versioned authenticated bounded diagnostics contract shared with CLI diagnostics instead of Tauri IPC or browser platform calls.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.transport`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.lifecycle` active-only 单请求轮询
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.transport`、`neoview.system-monitor.singleflight`、`neoview.system-monitor.transport-http`、`neoview.system-monitor.client`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.lifecycle` active-only 单请求轮询
+  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Poll only while the Card is visible, expanded and enabled; cancellation and singleflight prevent late or overlapping samples.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.lifecycle`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.accessibility` 可访问状态
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.lifecycle`、`neoview.system-monitor.transport-http`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.accessibility` 可访问状态
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Expose named controls, alert/status semantics and finite progress values without color-only meaning.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.accessibility`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.responsive` 桌面和受限 Card 几何
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.states`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.responsive` 桌面和受限 Card 几何
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Preserve information density at desktop width and reflow safely in the 420x360 Card viewport.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.responsive`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.visual-evidence` 旧版与 XR 视觉证据
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.visual-evidence` 旧版与 XR 视觉证据
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Compare the scripted fixed-sample legacy Card and XR Card at 1920x1080 plus the constrained XR viewport.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.visual-evidence`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.performance` 零翻页热路径开销
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.performance` 零翻页热路径开销
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Inactive Card work is exactly zero, samples never overlap, history is bounded and no Reader navigation state is written.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.performance`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
-- [ ] `system-monitor.history` 有界趋势、峰值、暂停和重置
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.singleflight`、`neoview.system-monitor.performance`、`neoview.system-monitor.lifecycle`、`neoview.system-monitor.transport-http`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.history` 有界趋势、峰值、暂停和重置
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Maintain a fixed-size in-memory sample window for CPU and memory trends and peaks, preserve it while paused, clear it explicitly and perform no sampling while inactive.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.history`
-  - 备注：Explicit XR functional-scope completion: the legacy Card only rendered the latest sample; this bounded history must not be misreported as source UI parity.
-- [ ] `system-monitor.deviations` 有意修复和差异记录
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.system-monitor.states`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence.
+- [x] `system-monitor.deviations` 有意修复和差异记录
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Document the legacy default-on early-return bug, total-network-versus-rate mismatch, unavailable GPU data and any platform metric gaps.
   - 源码：`src/lib/cards/monitor/SystemMonitorCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.system-monitor.deviations`
-  - 备注：Frozen before production React implementation; promote only with dimension-specific tracked evidence.
+  - 测试：`neoview.system-monitor.transport`、`neoview.system-monitor.e2e`
+  - 计划测试：无
+  - 备注：Verified intentional fixes: active preference is separate from request ownership; network totals are not mislabeled as rates; GPU stays explicitly unavailable.
 
 #### `dailyTrend` 最近 7 日阅读趋势
 
