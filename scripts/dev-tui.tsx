@@ -21,12 +21,10 @@ await controller.detectExistingSession()
 
 const renderer = await createCliRenderer({
   exitOnCtrlC: false,
-  clearOnShutdown: false,
+  clearOnShutdown: true,
   useMouse: true,
   enableMouseMovement: true,
-  screenMode: "split-footer",
-  footerHeight: 10,
-  externalOutputMode: "passthrough",
+  screenMode: "alternate-screen",
 })
 const root = createRoot(renderer)
 let exiting = false

@@ -20,6 +20,9 @@ test("renders and routes development lifecycle actions", async () => {
     start: async () => { actions.push("start"); update({ phase: "running", pid: 42, startedAt: Date.now(), message: "running" }) },
     stop: async () => { actions.push("stop"); update({ phase: "stopped", pid: undefined, message: "stopped" }) },
     restart: async () => { actions.push("restart") },
+    clearOutput: () => { actions.push("clear") },
+    resize: () => undefined,
+    scroll: () => undefined,
   }
   let exited = 0
   const setup = await testRender(<DevTui controller={controller} onExit={() => { exited += 1 }} />, { width: 80, height: 24, useMouse: true })
@@ -30,15 +33,16 @@ test("renders and routes development lifecycle actions", async () => {
   }
   try {
     await act(async () => setup.renderOnce())
-    expect(setup.captureCharFrame()).toContain("XIRANITE DEV CONTROL")
-    expect(setup.captureCharFrame()).toContain("native ANSI")
+    expect(setup.captureCharFrame()).toContain("XIRANITE // DEV CONTROL")
+    expect(setup.captureCharFrame()).toContain("PTY OUTPUT")
     await click("dev-start")
     await click("dev-restart")
+    await click("dev-clear")
     await click("dev-stop")
     await click("dev-exit")
     expect(setup.captureCharFrame()).toContain("Exit stops the managed session")
     await click("dev-exit-confirm")
-    expect(actions).toEqual(["start", "restart", "stop"])
+    expect(actions).toEqual(["start", "restart", "clear", "stop"])
     expect(exited).toBe(1)
   } finally {
     await act(async () => setup.renderer.destroy())
