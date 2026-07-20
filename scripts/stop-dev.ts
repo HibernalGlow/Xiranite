@@ -30,7 +30,7 @@ console.warn("[xiranite-dev] safe shutdown timed out; terminated the recorded Xi
 async function isRecordedDevProcess(pid: number, startedAt: number): Promise<boolean> {
   if (process.platform !== "win32") {
     const command = (await run(["ps", "-p", String(pid), "-o", "command="])).toLowerCase()
-    return command.includes("dev-with-backend") || command.includes("dev-desktop") || command.includes("vite")
+    return isDevCommand(command)
   }
 
   const script = `$p = Get-CimInstance Win32_Process -Filter \"ProcessId=${pid}\"; if ($p) { [pscustomobject]@{ command = $p.CommandLine; startedAt = [Management.ManagementDateTimeConverter]::ToDateTime($p.CreationDate).ToUniversalTime().ToString('o') } | ConvertTo-Json -Compress }`
@@ -38,12 +38,19 @@ async function isRecordedDevProcess(pid: number, startedAt: number): Promise<boo
     const process = JSON.parse(await run(["powershell", "-NoProfile", "-Command", script])) as { command?: unknown, startedAt?: unknown }
     const command = typeof process.command === "string" ? process.command.toLowerCase() : ""
     const actualStartedAt = typeof process.startedAt === "string" ? Date.parse(process.startedAt) : Number.NaN
-    return (command.includes("dev-with-backend") || command.includes("dev-desktop") || command.includes("vite"))
+    return isDevCommand(command)
       && Number.isFinite(actualStartedAt)
       && Math.abs(actualStartedAt - startedAt) < 30_000
   } catch {
     return false
   }
+}
+
+function isDevCommand(command: string): boolean {
+  return command.includes("dev-with-backend")
+    || command.includes("dev-desktop")
+    || command.includes("vite")
+    || command.includes("run dev")
 }
 
 async function terminateProcessTree(pid: number): Promise<void> {
