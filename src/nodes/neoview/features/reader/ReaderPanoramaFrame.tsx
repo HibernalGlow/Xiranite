@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useRef, useState } from "react"
+import { startTransition, useCallback, useEffect, useRef, useState } from "react"
 import { Virtuoso, type ListRange, type VirtuosoHandle } from "react-virtuoso"
 import {
   calculateReaderFrameSize,
@@ -15,6 +15,7 @@ import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterSto
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { PageMedia } from "./PageMedia"
+import { useReaderHoverScroll } from "./useReaderHoverScroll"
 
 const PAGE_LIST_BATCH_SIZE = 32
 const FRAME_WINDOW_BATCH_SIZE = 16
@@ -27,6 +28,8 @@ export function ReaderPanoramaFrame({
   pageMode,
   currentPages,
   presentation,
+  hoverScrollEnabled = false,
+  hoverScrollSpeed = 2,
   colorFilter,
   imageTrim,
   videoController,
@@ -44,6 +47,8 @@ export function ReaderPanoramaFrame({
   pageMode: "single" | "double"
   currentPages: readonly ReaderPageDto[]
   presentation: ReaderPresentation
+  hoverScrollEnabled?: boolean
+  hoverScrollSpeed?: number
   colorFilter?: ReaderColorFilterPort
   imageTrim?: ReaderImageTrimPort
   videoController: ReaderVideoController
@@ -55,6 +60,7 @@ export function ReaderPanoramaFrame({
   onVisiblePageChange?(pageIndex: number): void
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const scrollerRef = useRef<HTMLElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const requestsRef = useRef(new Map<number, AbortController>())
   const pagesRef = useRef(new Map(currentPages.map((page) => [page.index, page])))
@@ -66,6 +72,14 @@ export function ReaderPanoramaFrame({
   const syncTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const pagesPerUnit = pageMode === "double" ? 2 : 1
   const unitCount = Math.ceil(totalPages / pagesPerUnit)
+  const setScrollerRef = useCallback((element: HTMLElement | Window | null) => {
+    scrollerRef.current = element instanceof HTMLElement ? element : null
+  }, [])
+  useReaderHoverScroll(scrollerRef, {
+    enabled: hoverScrollEnabled,
+    speed: hoverScrollSpeed,
+    pageKey: `${sessionId}:${anchorPageIndex}:${presentation.orientation}:${pageMode}:${direction}`,
+  })
 
   useEffect(() => () => abortRequests(requestsRef.current), [])
 
@@ -147,9 +161,10 @@ export function ReaderPanoramaFrame({
   }
 
   return (
-    <div ref={hostRef} dir={direction === "right-to-left" ? "rtl" : "ltr"} className="h-full min-h-0 w-full" data-reader-panorama="true" data-reader-orientation={presentation.orientation} data-reader-page-mode={pageMode}>
+    <div ref={hostRef} dir={direction === "right-to-left" ? "rtl" : "ltr"} className="h-full min-h-0 w-full" data-reader-panorama="true" data-reader-orientation={presentation.orientation} data-reader-page-mode={pageMode} data-reader-hover-scroll={hoverScrollEnabled ? "enabled" : "disabled"} data-reader-hover-scroll-speed={hoverScrollSpeed}>
       <Virtuoso
         ref={virtuosoRef}
+        scrollerRef={setScrollerRef}
         key={`${sessionId}:${presentation.orientation}:${pageMode}:${direction}`}
         style={{ height: "100%", width: "100%" }}
         totalCount={unitCount}
