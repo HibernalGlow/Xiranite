@@ -54,6 +54,7 @@ export interface SuperResolutionArtifactStore {
   cleanup(reason?: "age" | "budget" | "explicit" | "low-disk"): Promise<SuperResolutionArtifactCleanupResult>
   clear(): Promise<SuperResolutionArtifactCleanupResult>
   snapshot(): Promise<SuperResolutionArtifactStoreSnapshot>
+  countBook?(bookKey: string): Promise<number>
   close(): Promise<void>
   [Symbol.asyncDispose](): Promise<void>
 }

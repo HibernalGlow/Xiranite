@@ -200,9 +200,11 @@ export class SuperResolutionArtifactRoute {
     if (!this.#isAuthorized(request, url)) return jsonResponse({ error: "Unauthorized" }, 401)
     if (request.method !== "GET") return methodNotAllowed("GET")
     const sessionId = safeDecode(encodedSessionId)
-    if (!sessionId || !this.reader.getSession(sessionId)) return jsonResponse({ error: "Reader session not found" }, 404)
+    const session = sessionId ? this.reader.getSession(sessionId) : undefined
+    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
     if (!this.preload) return jsonResponse({ error: "Reader super-resolution preload is unavailable" }, 503)
-    return jsonResponse({ snapshots: await this.preload.snapshots(preloadContextId(sessionId), request.signal) })
+    const snapshots = await this.preload.snapshots(preloadContextId(session.id), request.signal)
+    return jsonResponse({ snapshots: await this.#withCachedBookCoverage(session.book.id, session.book.pages.length, snapshots) })
   }
 
   async #artifactCache(request: Request, url: URL, encodedSessionId: string): Promise<Response> {
@@ -264,10 +266,12 @@ export class SuperResolutionArtifactRoute {
     this.#preloadSessions.add(session.id)
     try {
       if (action === "pause") {
-        return jsonResponse({ snapshots: await this.preload.pause(contextId, request.signal) })
+        const snapshots = await this.preload.pause(contextId, request.signal)
+        return jsonResponse({ snapshots: await this.#withCachedBookCoverage(session.book.id, session.book.pages.length, snapshots) })
       }
       if (action === "retry") {
-        return jsonResponse({ snapshots: await this.preload.retry(contextId, mode, request.signal) }, 202)
+        const snapshots = await this.preload.retry(contextId, mode, request.signal)
+        return jsonResponse({ snapshots: await this.#withCachedBookCoverage(session.book.id, session.book.pages.length, snapshots) }, 202)
       }
       const artifactFor = (
         page: typeof session.book.pages[number],
@@ -299,7 +303,7 @@ export class SuperResolutionArtifactRoute {
             artifactFor,
           }, request.signal)
       if (!snapshots) return jsonResponse({ error: "Reader preload plan is unavailable" }, 409)
-      return jsonResponse({ snapshots }, 202)
+      return jsonResponse({ snapshots: await this.#withCachedBookCoverage(session.book.id, session.book.pages.length, snapshots) }, 202)
     } catch (error) {
       if (request.signal.aborted) throw error
       const message = error instanceof Error ? error.message : String(error)
@@ -319,6 +323,19 @@ export class SuperResolutionArtifactRoute {
     url.searchParams.set("version", integrity)
     url.searchParams.set("token", this.#token)
     return url.href
+  }
+
+  async #withCachedBookCoverage<T extends { upscaledPages?: number }>(
+    bookKey: string,
+    totalPages: number,
+    snapshots: readonly T[],
+  ): Promise<readonly T[]> {
+    const cached = await this.artifacts.countBook?.(bookKey)
+    if (cached === undefined) return snapshots
+    const actual = Math.min(totalPages, cached)
+    return snapshots.map((snapshot) => actual > (snapshot.upscaledPages ?? 0)
+      ? { ...snapshot, upscaledPages: actual }
+      : snapshot)
   }
 
   #begin(sessionId: ReaderSessionId, callerSignal: AbortSignal): {
