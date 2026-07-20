@@ -1268,11 +1268,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     pending.controller.abort()
   }
 
-  function openReaderEntry(entry: Pick<ReaderDirectoryEntryDto, "path">, browserOriginEntryPath = entry.path): void {
+  function openReaderEntry(entry: Pick<ReaderDirectoryEntryDto, "path">, browserOriginEntryPath = entry.path, browserOriginSelfTerminal = false): void {
     const current = catalogRef.current
     void onOpen?.(entry.path, current ? {
       browserOriginPath: current.path,
       browserOriginEntryPath,
+      ...(browserOriginSelfTerminal ? { browserOriginSelfTerminal: true } : {}),
     } : undefined)
   }
 
@@ -1281,7 +1282,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     void navigate({ action: "path", path: entry.path }, { focusPath: entry.path })
   }
 
-  function activate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "path" | "readerSupported">, rawDirectory = false) {
+  function activate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported">, rawDirectory = false) {
     if (entry.kind === "directory") {
       if (rawDirectory || !penetration.enabled || !client.resolveFolderPenetration) {
         enterRawDirectory(entry)
@@ -1314,7 +1315,14 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         penetrationActivationRef.current = undefined
         if (catalogRef.current?.sessionId !== pending.sessionId || catalogRef.current?.generation !== pending.generation) return
         if (resolution.status === "resolved" && resolution.terminal) {
-          openReaderEntry({ path: resolution.terminal.path }, entry.path)
+          const mixedMedia = resolution.reason === "mixed-media-directory"
+          if (mixedMedia) {
+            switchToast?.show({
+              title: `先阅读“${entry.name}”的当前层图片`,
+              description: `当前层 ${resolution.directMediaCount ?? 0} 张图片；发现 ${resolution.deferredDirectoryCount ?? 0} 个子文件夹，可继续作为“下一本”。`,
+            })
+          }
+          openReaderEntry({ path: resolution.terminal.path }, entry.path, mixedMedia)
           return
         }
         if (resolution.status === "blocked" && (resolution.reason === "permission" || resolution.reason === "cycle")) {
