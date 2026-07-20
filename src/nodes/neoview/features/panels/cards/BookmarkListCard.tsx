@@ -1,5 +1,5 @@
 import { BookmarkPlus, FolderOpen, ListPlus, Pencil, Star, Trash2, X } from "lucide-react"
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react"
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -13,11 +13,11 @@ import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
-import { readerLibraryListLayout, readerLibraryMediaClassName } from "./shared/readerLibraryEntryLayout"
-import { ReaderLibraryViewToolbar } from "./shared/ReaderLibraryViewToolbar"
+import { readerLibraryListLayout, readerLibraryMediaClassName, readerLibrarySurfaceVariant, type ReaderLibraryViewMode } from "./shared/readerLibraryEntryLayout"
+import { ReaderLibraryViewToolbar, type ReaderLibrarySort } from "./shared/ReaderLibraryViewToolbar"
 
 type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmarkListDto }
-type BookmarkViewMode = "compact" | "content" | "banner" | "thumbnail"
+type BookmarkViewMode = ReaderLibraryViewMode
 type VisibleBookmarks = { listId: string; items: readonly ReaderBookmarkDto[] }
 
 const LazyBookmarkContextActions = lazy(() => import("./bookmark/BookmarkContextActions"))
@@ -44,6 +44,9 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
   const [batchListIds, setBatchListIds] = useState<ReadonlySet<string>>(() => new Set(["default"]))
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
   const [viewMode, setViewMode] = useState<BookmarkViewMode>("compact")
+  const [search, setSearch] = useState("")
+  const deferredSearch = useDeferredValue(search)
+  const [sort, setSort] = useState<ReaderLibrarySort>({ field: "date", order: "desc" })
   const [viewportWidth, setViewportWidth] = useState(320)
   const anchorIndexRef = useRef<number>()
   const listTabRefs = useRef(new Map<string, HTMLButtonElement>())
@@ -68,8 +71,8 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
   const loadPage = useCallback((offset: number, limit: number, signal: AbortSignal) => {
     if (!panelActive) return Promise.resolve<readonly ReaderBookmarkDto[]>([])
     if (!client.listBookmarks) return Promise.reject(new Error("当前后端不支持书签"))
-    return client.listBookmarks(offset, limit, activeListId, signal)
-  }, [activeListId, client, panelActive])
+    return client.listBookmarks(offset, limit, activeListId, signal, { search: deferredSearch, sort })
+  }, [activeListId, client, deferredSearch, panelActive, sort])
 
   useEffect(() => {
     if (!panelActive) return
@@ -348,13 +351,24 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
 
       {actionError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{actionError}</div> : null}
       {listsReady ? <ReaderLibraryList
-        queryKey={`bookmarks:${activeListId}`}
+        queryKey={`bookmarks:${activeListId}:${deferredSearch}:${sort.field}:${sort.order}`}
         revision={revision}
         loadPage={loadPage}
         emptyLabel="当前列表没有书签"
         refreshLabel="刷新书签"
         {...listLayout}
-        toolbar={<ReaderLibraryViewToolbar label="书签视图" value={viewMode} disabled={disabled} onValueChange={setViewMode} />}
+        toolbar={(
+          <ReaderLibraryViewToolbar
+            label="书签视图"
+            value={viewMode}
+            disabled={disabled}
+            onValueChange={setViewMode}
+            search={search}
+            onSearchChange={setSearch}
+            sort={sort}
+            onSortChange={setSort}
+          />
+        )}
         onViewportWidthChange={handleViewportWidthChange}
         getItemKey={(item) => item.id}
         onVisibleItemsChange={handleVisibleItems}
@@ -485,12 +499,12 @@ function BookmarkRow({
 
   return (
     <ReaderEntrySurface
-      variant={viewMode}
+      variant={readerLibrarySurfaceVariant(viewMode)}
       selected={selected}
       data-context-menu="neoview-bookmark-entry"
       data-bookmark-context-id={item.id}
       data-bookmark-id={item.id}
-      leading={viewMode === "compact" || viewMode === "content" ? <Checkbox checked={selected} aria-label={`选择书签：${item.name}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} /> : undefined}
+      leading={viewMode === "compact" || viewMode === "cover-list" ? <Checkbox checked={selected} aria-label={`选择书签：${item.name}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} /> : undefined}
       media={(
         <ReaderThumbnailSurface
           url={thumbnailUrl}
@@ -507,8 +521,8 @@ function BookmarkRow({
           {item.starred ? <Star className="size-3 shrink-0 fill-current text-amber-500" aria-label="已收藏" /> : null}
         </span>
       )}
-      secondary={viewMode === "thumbnail" ? undefined : <span title={item.source.path}>{item.source.path}</span>}
-      tertiary={viewMode === "content" || viewMode === "banner" ? `${item.kind === "folder" ? "文件夹" : "文件"} · ${formatLibraryTime(item.createdAt)}` : undefined}
+      secondary={viewMode === "cover-grid" ? undefined : <span title={item.source.path}>{item.source.path}</span>}
+      tertiary={viewMode === "cover-list" || viewMode === "mosaic-list" ? `${item.kind === "folder" ? "文件夹" : "文件"} · ${formatLibraryTime(item.createdAt)}` : undefined}
       buttonProps={{
         title: item.source.path,
         "aria-pressed": selected,
@@ -520,7 +534,7 @@ function BookmarkRow({
         },
         onKeyDown: handleKeyDown,
       }}
-      trailing={viewMode === "compact" || viewMode === "content" ? (
+      trailing={viewMode === "compact" || viewMode === "cover-list" ? (
         <span className="flex shrink-0 items-center">
           <Button type="button" size="icon-sm" variant="ghost" aria-label={`打开书签：${item.name}`} title="打开" disabled={disabled || !canOpen} onClick={onOpen}><FolderOpen /></Button>
           <Button type="button" size="icon-sm" variant="ghost" aria-label={`${item.starred ? "取消收藏" : "收藏"}：${item.name}`} title={item.starred ? "取消收藏" : "收藏"} disabled={disabled} onClick={onToggleStar}>

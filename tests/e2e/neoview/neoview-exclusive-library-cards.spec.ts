@@ -5,8 +5,10 @@ test.use({ viewport: { width: 550, height: 740 } })
 test("[neoview.card.exclusive-height] fills history and bookmark panels in every view", async ({ page }, testInfo) => {
   const consoleErrors: string[] = []
   page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text())
+    // The static harness does not serve a favicon; retain application console failures.
+    if (message.type() === "error" && !message.text().includes("favicon.ico")) consoleErrors.push(message.text())
   })
+  await page.route("**/favicon.ico", (route) => route.fulfill({ status: 204, body: "" }))
   await page.goto("/tests/e2e/neoview/neoview-exclusive-library-cards-harness.html", { waitUntil: "domcontentloaded" })
   await expect(page).toHaveTitle("NeoView Exclusive Library Cards Harness")
 
@@ -17,8 +19,9 @@ test("[neoview.card.exclusive-height] fills history and bookmark panels in every
   await expectExclusiveCardToFillPanel(historyPanel, historyCard)
   await historyCard.screenshot({ path: testInfo.outputPath("history-list-full-height.png") })
 
-  await historyCard.getByRole("button", { name: "缩略图" }).click()
-  await expect(historyCard.locator('[data-neoview-history-card="true"]')).toHaveAttribute("data-history-view-mode", "thumbnail")
+  await historyCard.getByRole("button", { name: "视图：紧凑列表" }).click()
+  await page.getByRole("menuitemradio", { name: "封面网格" }).click()
+  await expect(historyCard.locator('[data-neoview-history-card="true"]')).toHaveAttribute("data-history-view-mode", "cover-grid")
   await expectExclusiveCardToFillPanel(historyPanel, historyCard)
   await historyCard.screenshot({ path: testInfo.outputPath("history-thumbnail-full-height.png") })
 

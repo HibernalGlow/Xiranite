@@ -1,8 +1,7 @@
 import { expect, test } from "@playwright/test"
 
-test.use({ viewport: { width: 1920, height: 1080 } })
-
-test("[neoview.history.ui-1920x1080] preserves the resident history toolbar and compact virtual list hierarchy", async ({ page }, testInfo) => {
+test("[neoview.history.ui-1920x1080] [neoview.history.search-sort-e2e] preserves the shared file view controls and server query boundary", async ({ page }, testInfo) => {
+  await page.setViewportSize(testInfo.project.name === "chromium-card" ? { width: 420, height: 360 } : { width: 1920, height: 1080 })
   await page.route(/^https:\/\/fonts\.(?:googleapis|gstatic)\.com\//, (route) => route.abort())
   await page.goto("/tests/e2e/neoview/neoview-history-list-harness.html", { waitUntil: "domcontentloaded" })
   await expect(page).toHaveTitle("NeoView History List Harness")
@@ -10,6 +9,15 @@ test("[neoview.history.ui-1920x1080] preserves the resident history toolbar and 
   await expect(card).toHaveAttribute("data-history-state", "ready")
   await expect(card.getByRole("listbox", { name: "阅读历史" })).toBeVisible()
   await expect(card.locator('[data-history-id]')).toHaveCount(3)
-  await expect(card.getByRole("button", { name: "列表" })).toHaveAttribute("aria-pressed", "true")
+  await expect(card.getByRole("button", { name: "视图：紧凑列表" })).toBeVisible()
+  await card.getByRole("textbox", { name: "搜索历史记录视图" }).fill("beta")
+  await expect(card.locator('[data-history-id]')).toHaveCount(1)
+  await expect(card.locator('[data-history-id="history-2"]')).toBeVisible()
+  await card.getByRole("button", { name: "排序：时间 · 降序" }).click()
+  await page.getByRole("menuitemradio", { name: "名称" }).click()
+  await expect(card.getByRole("button", { name: "排序：名称 · 降序" })).toBeVisible()
+  await card.getByRole("button", { name: "视图：紧凑列表" }).click()
+  await page.getByRole("menuitemradio", { name: "封面网格" }).click()
+  await expect(card).toHaveAttribute("data-history-view-mode", "cover-grid")
   await page.screenshot({ path: testInfo.outputPath("neoview-history-list-1920x1080.png"), fullPage: false })
 })

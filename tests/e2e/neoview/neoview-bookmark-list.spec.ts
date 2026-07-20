@@ -1,16 +1,21 @@
 import { expect, test } from "@playwright/test"
 
-test.use({ viewport: { width: 1920, height: 1080 } })
-
-test("[neoview.bookmark.ui-1920x1080] preserves the resident bookmark lists, view controls and compact entries", async ({ page }, testInfo) => {
+test("[neoview.bookmark.ui-1920x1080] [neoview.bookmark.search-sort-e2e] preserves shared file views and searches before paging", async ({ page }, testInfo) => {
+  await page.setViewportSize(testInfo.project.name === "chromium-card" ? { width: 420, height: 360 } : { width: 1920, height: 1080 })
   await page.route(/^https:\/\/fonts\.(?:googleapis|gstatic)\.com\//, (route) => route.abort())
   await page.goto("/tests/e2e/neoview/neoview-bookmark-list-harness.html", { waitUntil: "domcontentloaded" })
   await expect(page).toHaveTitle("NeoView Bookmark List Harness")
   const card = page.getByTestId("bookmark-card")
   await expect(card).toHaveAttribute("data-bookmark-state", "ready")
   await expect(card.locator('[aria-label="书签列表"]')).toBeVisible()
-  await expect(card.locator('[data-neoview-library-list="bookmarks:all"]')).toBeVisible()
+  await expect(card.locator('[data-neoview-library-list^="bookmarks:all:"]')).toBeVisible()
   await expect(card.locator('[data-bookmark-id]')).toHaveCount(3)
-  await expect(card.getByRole("button", { name: "列表", exact: true })).toHaveAttribute("aria-pressed", "true")
+  await expect(card.getByRole("button", { name: "视图：紧凑列表" })).toBeVisible()
+  await card.getByRole("textbox", { name: "搜索书签视图" }).fill("series")
+  await expect(card.locator('[data-bookmark-id]')).toHaveCount(1)
+  await expect(card.locator('[data-bookmark-id="bookmark-3"]')).toBeVisible()
+  await card.getByRole("button", { name: "排序：时间 · 降序" }).click()
+  await page.getByRole("menuitemradio", { name: "路径" }).click()
+  await expect(card.getByRole("button", { name: "排序：路径 · 降序" })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath("neoview-bookmark-list-1920x1080.png"), fullPage: false })
 })

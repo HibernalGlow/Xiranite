@@ -1,5 +1,5 @@
 import { BookOpen, CheckSquare, SlidersHorizontal, Square, SquareX, Trash2, X } from "lucide-react"
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react"
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -11,15 +11,15 @@ import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
-import { readerLibraryListLayout, readerLibraryMediaClassName } from "./shared/readerLibraryEntryLayout"
-import { ReaderLibraryViewToolbar } from "./shared/ReaderLibraryViewToolbar"
+import { readerLibraryListLayout, readerLibraryMediaClassName, readerLibrarySurfaceVariant, type ReaderLibraryViewMode } from "./shared/readerLibraryEntryLayout"
+import { ReaderLibraryViewToolbar, type ReaderLibrarySort } from "./shared/ReaderLibraryViewToolbar"
 
 interface PendingDelete {
   ids: readonly string[]
   batch: boolean
 }
 
-type HistoryViewMode = "compact" | "content" | "banner" | "thumbnail"
+type HistoryViewMode = ReaderLibraryViewMode
 const LazyHistoryCleanupDialog = lazy(() => import("./history/HistoryCleanupDialog"))
 const LazyHistoryContextActions = lazy(() => import("./history/HistoryContextActions"))
 
@@ -36,8 +36,11 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>()
   const [cleanupOpen, setCleanupOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<HistoryViewMode>(() => historyListPreferences?.viewMode ?? "compact")
-  const [confirmedViewMode, setConfirmedViewMode] = useState<HistoryViewMode>(() => historyListPreferences?.viewMode ?? "compact")
+  const [viewMode, setViewMode] = useState<HistoryViewMode>(() => libraryViewFromPreference(historyListPreferences?.viewMode))
+  const [confirmedViewMode, setConfirmedViewMode] = useState<HistoryViewMode>(() => libraryViewFromPreference(historyListPreferences?.viewMode))
+  const [search, setSearch] = useState("")
+  const deferredSearch = useDeferredValue(search)
+  const [sort, setSort] = useState<ReaderLibrarySort>({ field: "date", order: "desc" })
   const [viewportWidth, setViewportWidth] = useState(320)
   const [focusedIndex, setFocusedIndex] = useState<number>()
   const focusedIdRef = useRef<string>()
@@ -56,8 +59,9 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
 
   useEffect(() => {
     if (switchingView || !historyListPreferences) return
-    setViewMode(historyListPreferences.viewMode)
-    setConfirmedViewMode(historyListPreferences.viewMode)
+    const next = libraryViewFromPreference(historyListPreferences.viewMode)
+    setViewMode(next)
+    setConfirmedViewMode(next)
   }, [historyListPreferences, switchingView])
 
   async function changeViewMode(next: HistoryViewMode) {
@@ -71,9 +75,10 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
     setSwitchingView(true)
     setActionError(undefined)
     try {
-      const updated = await onHistoryListPreferences({ viewMode: next })
-      setViewMode(updated.viewMode)
-      setConfirmedViewMode(updated.viewMode)
+      const updated = await onHistoryListPreferences({ viewMode: libraryViewPreference(next) })
+      const confirmed = libraryViewFromPreference(updated.viewMode)
+      setViewMode(confirmed)
+      setConfirmedViewMode(confirmed)
     } catch (error) {
       setViewMode(previous)
       setActionError(error instanceof Error ? error.message : String(error))
@@ -85,8 +90,8 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   const loadPage = useCallback((offset: number, limit: number, signal: AbortSignal) => {
     if (!panelActive) return Promise.resolve<readonly ReaderRecentDto[]>([])
     if (!client.listRecent) return Promise.reject(new Error("当前后端不支持历史记录"))
-    return client.listRecent(offset, limit, signal)
-  }, [client, panelActive])
+    return client.listRecent(offset, limit, signal, { search: deferredSearch, sort })
+  }, [client, deferredSearch, panelActive, sort])
 
   const handleLoadedItems = useCallback((items: readonly ReaderRecentDto[]) => {
     setLoadedRecents(items)
@@ -272,7 +277,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
       {actionError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{actionError}</div> : null}
       {cleanupMessage ? <div role="status" className="rounded bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700">{cleanupMessage}</div> : null}
       <ReaderLibraryList
-        queryKey="history"
+        queryKey={`history:${deferredSearch}:${sort.field}:${sort.order}`}
         revision={revision}
         loadPage={loadPage}
         emptyLabel="暂无阅读历史"
@@ -284,6 +289,10 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
             value={viewMode}
             disabled={disabled || switchingView}
             onValueChange={(mode) => void changeViewMode(mode)}
+            search={search}
+            onSearchChange={setSearch}
+            sort={sort}
+            onSortChange={setSort}
             trailing={(
               <Button
                 type="button"
@@ -405,12 +414,12 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
   const kind = item.source.kind === "directory" ? "folder" : "file"
   return (
     <ReaderEntrySurface
-      variant={viewMode}
+      variant={readerLibrarySurfaceVariant(viewMode)}
       selected={selected}
       data-context-menu="neoview-history-entry"
       data-history-context-id={item.bookId}
       data-history-id={item.bookId}
-      leading={viewMode === "compact" || viewMode === "content" ? <Checkbox checked={selected} aria-label={`选择历史记录：${item.displayName}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} /> : undefined}
+      leading={viewMode === "compact" || viewMode === "cover-list" ? <Checkbox checked={selected} aria-label={`选择历史记录：${item.displayName}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} /> : undefined}
       media={(
         <ReaderThumbnailSurface
           url={thumbnailUrl}
@@ -422,8 +431,8 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
         />
       )}
       primary={item.displayName}
-      secondary={viewMode === "thumbnail" ? undefined : <span title={item.source.path}>{item.source.path}</span>}
-      tertiary={viewMode === "content" || viewMode === "banner" ? `第 ${progressPage} / ${item.pageCount} 页 · ${formatLibraryTime(item.updatedAt)}` : undefined}
+      secondary={viewMode === "cover-grid" ? undefined : <span title={item.source.path}>{item.source.path}</span>}
+      tertiary={viewMode === "cover-list" || viewMode === "mosaic-list" ? `第 ${progressPage} / ${item.pageCount} 页 · ${formatLibraryTime(item.updatedAt)}` : undefined}
       buttonProps={{
         title: item.source.path,
         "aria-pressed": selected,
@@ -441,7 +450,7 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
         },
         onKeyDown: handleKeyDown,
       }}
-      trailing={viewMode === "compact" || viewMode === "content" ? (
+      trailing={viewMode === "compact" || viewMode === "cover-list" ? (
         <span className="flex shrink-0 items-center">
           <Button type="button" size="icon-sm" variant="ghost" aria-label={`继续阅读：${item.displayName}`} title="继续阅读" disabled={disabled || !canOpen} onClick={onOpen}><BookOpen /></Button>
           <Button type="button" size="icon-sm" variant="ghost" aria-label={`删除历史：${item.displayName}`} title="删除历史" disabled={disabled} onClick={onRemove}><Trash2 /></Button>
@@ -453,4 +462,18 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
 
 function sameSet(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
   return left.size === right.size && [...left].every((value) => right.has(value))
+}
+
+function libraryViewFromPreference(value: "compact" | "content" | "banner" | "thumbnail" | undefined): HistoryViewMode {
+  if (value === "content") return "cover-list"
+  if (value === "banner") return "mosaic-list"
+  if (value === "thumbnail") return "cover-grid"
+  return "compact"
+}
+
+function libraryViewPreference(value: HistoryViewMode): "compact" | "content" | "banner" | "thumbnail" {
+  if (value === "cover-list") return "content"
+  if (value === "mosaic-list") return "banner"
+  if (value === "cover-grid") return "thumbnail"
+  return "compact"
 }

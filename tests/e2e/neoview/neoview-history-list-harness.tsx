@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client"
 
 import "../../../src/styles/tailwind.css"
 import "../../../src/styles/themes/index.css"
-import type { ReaderHttpClient, ReaderRecentDto } from "../../../src/nodes/neoview/adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderLibraryQueryDto, ReaderRecentDto } from "../../../src/nodes/neoview/adapters/reader-http-client"
 import HistoryListCard from "../../../src/nodes/neoview/features/panels/cards/HistoryListCard"
 
 const records: readonly ReaderRecentDto[] = [
@@ -12,7 +12,7 @@ const records: readonly ReaderRecentDto[] = [
 ]
 
 const client = {
-  listRecent: async (offset: number, limit: number) => records.slice(offset, offset + limit),
+  listRecent: async (offset: number, limit: number, _signal?: AbortSignal, query?: ReaderLibraryQueryDto) => libraryRecords(records, offset, limit, query),
 } as ReaderHttpClient
 
 createRoot(document.getElementById("root")!).render(
@@ -35,3 +35,18 @@ createRoot(document.getElementById("root")!).render(
     </aside>
   </main>,
 )
+
+function libraryRecords(items: readonly ReaderRecentDto[], offset: number, limit: number, query?: ReaderLibraryQueryDto): readonly ReaderRecentDto[] {
+  const needle = query?.search?.toLocaleLowerCase()
+  const filtered = needle ? items.filter((item) => `${item.displayName}\n${item.source.path}`.toLocaleLowerCase().includes(needle)) : items
+  const ordered = [...filtered].sort((left, right) => libraryCompare(left.displayName, left.source.path, left.updatedAt, left.source.kind, right.displayName, right.source.path, right.updatedAt, right.source.kind, query))
+  return ordered.slice(offset, offset + limit)
+}
+
+function libraryCompare(leftName: string, leftPath: string, leftDate: number, leftType: string, rightName: string, rightPath: string, rightDate: number, rightType: string, query?: ReaderLibraryQueryDto): number {
+  const field = query?.sort?.field ?? "date"
+  const order = query?.sort?.order === "asc" ? 1 : -1
+  const left = field === "name" ? leftName : field === "path" ? leftPath : field === "type" ? leftType : leftDate
+  const right = field === "name" ? rightName : field === "path" ? rightPath : field === "type" ? rightType : rightDate
+  return (typeof left === "number" && typeof right === "number" ? left - right : String(left).localeCompare(String(right))) * order
+}

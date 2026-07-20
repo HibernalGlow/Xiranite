@@ -17,6 +17,10 @@ describe("ReaderLibraryService", () => {
     expect(store.listRecent).toHaveBeenLastCalledWith({ limit: 20, offset: 5, filter: "video" })
     await service.listBookmarks({ listId: " reading ", limit: 20, offset: 5, filter: "archive" })
     expect(store.listBookmarks).toHaveBeenLastCalledWith({ limit: 20, offset: 5, filter: "archive", listId: "reading" })
+    await service.listRecent({ limit: 20, offset: 5, search: " cover ", sort: { field: "name", order: "asc" } })
+    expect(store.listRecent).toHaveBeenLastCalledWith({ limit: 20, offset: 5, search: "cover", sort: { field: "name", order: "asc" } })
+    expect(() => service.listRecent({ search: "x".repeat(257) })).toThrow("search is too long")
+    expect(() => service.listBookmarks({ sort: { field: "size" as never, order: "asc" } })).toThrow("sort is invalid")
     expect(() => service.listRecent({ filter: "invalid" as never })).toThrow("filter is invalid")
     expect(() => service.listBookmarks({ filter: "invalid" as never })).toThrow("filter is invalid")
     await expect(service.listBookmarkLists()).resolves.toEqual([

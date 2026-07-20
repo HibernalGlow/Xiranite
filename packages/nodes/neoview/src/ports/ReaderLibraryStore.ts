@@ -2,10 +2,21 @@ import type { ViewSource } from "../domain/book/book.js"
 import type { ReaderProgressRecord } from "./ReaderProgressStore.js"
 import type { ReaderDirectoryFilter } from "../domain/browser/ReaderDirectoryFilter.js"
 
+/** Fields shared by the virtual History and Bookmark file-list renderers. */
+export type ReaderLibrarySortField = "name" | "path" | "date" | "type"
+export type ReaderLibrarySortOrder = "asc" | "desc"
+
+export interface ReaderLibrarySort {
+  field: ReaderLibrarySortField
+  order: ReaderLibrarySortOrder
+}
+
 export interface ReaderRecentQuery {
   limit: number
   offset: number
   filter?: ReaderDirectoryFilter
+  search?: string
+  sort?: ReaderLibrarySort
 }
 
 export interface ReaderBookmarkQuery extends ReaderRecentQuery {

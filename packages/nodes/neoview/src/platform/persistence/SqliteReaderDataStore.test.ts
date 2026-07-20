@@ -140,6 +140,10 @@ describe("SqliteReaderDataStore", () => {
     await expect(store.listRecent({ filter: "directory", limit: 10, offset: 0 })).resolves.toEqual([
       expect.objectContaining({ bookId: "directory" }),
     ])
+    await expect(store.listRecent({ search: "book", sort: { field: "name", order: "asc" }, limit: 2, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ bookId: "archive" }),
+      expect.objectContaining({ bookId: "directory" }),
+    ])
 
     await store.upsertBookmarkList({ id: "reading", name: "Reading", isFavorite: false, createdAt: 1, updatedAt: 1 })
     for (const [id, source, updatedAt] of [
@@ -168,6 +172,9 @@ describe("SqliteReaderDataStore", () => {
     ])
     await expect(store.listBookmarks({ listId: "reading", filter: "video", limit: 10, offset: 0 })).resolves.toEqual([
       expect.objectContaining({ id: "bookmark-video" }),
+    ])
+    await expect(store.listBookmarks({ listId: "reading", search: "BOOKMARK.CBZ", sort: { field: "path", order: "asc" }, limit: 10, offset: 0 })).resolves.toEqual([
+      expect.objectContaining({ id: "bookmark-archive" }),
     ])
     await store.close()
   })

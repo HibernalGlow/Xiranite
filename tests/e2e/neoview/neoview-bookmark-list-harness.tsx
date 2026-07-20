@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client"
 
 import "../../../src/styles/tailwind.css"
 import "../../../src/styles/themes/index.css"
-import type { ReaderBookmarkDto, ReaderBookmarkListDto, ReaderHttpClient } from "../../../src/nodes/neoview/adapters/reader-http-client"
+import type { ReaderBookmarkDto, ReaderBookmarkListDto, ReaderHttpClient, ReaderLibraryQueryDto } from "../../../src/nodes/neoview/adapters/reader-http-client"
 import BookmarkListCard from "../../../src/nodes/neoview/features/panels/cards/BookmarkListCard"
 
 const lists: readonly ReaderBookmarkListDto[] = [
@@ -17,7 +17,7 @@ const bookmarks: readonly ReaderBookmarkDto[] = [
 
 const client = {
   listBookmarkLists: async () => lists,
-  listBookmarks: async (offset: number, limit: number) => bookmarks.slice(offset, offset + limit),
+  listBookmarks: async (offset: number, limit: number, _listId?: string, _signal?: AbortSignal, query?: ReaderLibraryQueryDto) => libraryBookmarks(offset, limit, query),
 } as ReaderHttpClient
 
 createRoot(document.getElementById("root")!).render(
@@ -40,3 +40,17 @@ createRoot(document.getElementById("root")!).render(
     </aside>
   </main>,
 )
+
+function libraryBookmarks(offset: number, limit: number, query?: ReaderLibraryQueryDto): readonly ReaderBookmarkDto[] {
+  const needle = query?.search?.toLocaleLowerCase()
+  const filtered = needle ? bookmarks.filter((item) => `${item.name}\n${item.source.path}`.toLocaleLowerCase().includes(needle)) : bookmarks
+  const field = query?.sort?.field ?? "date"
+  const direction = query?.sort?.order === "asc" ? 1 : -1
+  return [...filtered]
+    .sort((left, right) => {
+      const a = field === "name" ? left.name : field === "path" ? left.source.path : field === "type" ? left.kind : left.updatedAt
+      const b = field === "name" ? right.name : field === "path" ? right.source.path : field === "type" ? right.kind : right.updatedAt
+      return (typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b))) * direction
+    })
+    .slice(offset, offset + limit)
+}
