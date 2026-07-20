@@ -773,7 +773,13 @@ describe("parseNeoviewRuntimeConfig", () => {
 
   it("[neoview.thumbnail-architecture-metrics.registry] preserves the legacy properties placement without requiring a book", () => {
     expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["thumbnail-architecture-metrics"]).toEqual({
-      panelId: "properties", visible: true, expanded: true, order: 1,
+      panelId: "properties", visible: true, expanded: true, order: 2,
+    })
+  })
+
+  it("[neoview.emm-tags.registry] preserves the non-hideable first properties Card without requiring a book", () => {
+    expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["emm-tags"]).toEqual({
+      panelId: "properties", visible: true, expanded: true, order: 0,
     })
   })
 

@@ -109,6 +109,7 @@ import type { ReaderBookSettingsMigrationService } from "../../application/migra
 import { ReaderLibraryCleanupService } from "../../application/library/ReaderLibraryCleanupService.js"
 import { PlatformReaderPathStatusProvider } from "../filesystem/PlatformReaderPathStatusProvider.js"
 import { PlatformReaderPageMaterializer } from "../content/PlatformReaderPageMaterializer.js"
+import { PlatformEmmTranslationSource } from "../emm/PlatformEmmTranslationSource.js"
 import { WINDOWS_PRESENTATION_PRODUCER_VERSION } from "../cache/PresentationCacheKey.js"
 import { ReaderMemoryPressureMonitor } from "../memory/ReaderMemoryPressureMonitor.js"
 import { ReaderSystemMonitorService } from "../diagnostics/ReaderSystemMonitorService.js"
@@ -469,6 +470,7 @@ export class ReaderHttpController implements AsyncDisposable {
     )
     this.#bookSettings = options.bookSettingsStore ? new ReaderBookSettingsService(options.bookSettingsStore) : undefined
     this.#emmMetadata = options.emmOverrideStore ? new ReaderEmmMetadataService(options.emmOverrideStore) : undefined
+    const emmTranslations = new PlatformEmmTranslationSource()
     const directoryMetadata = new PlatformDirectoryMetadataProvider(
       options.directoryEmmRecordStore,
       undefined,
@@ -481,7 +483,7 @@ export class ReaderHttpController implements AsyncDisposable {
       (entry) => platformReaderBookCandidate(entry, this.#mediaFormats),
     )
     this.#sourceChanges = new ReaderSourceWatchService(options.sourceWatcher ?? new PlatformReaderSourceWatcher())
-    this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore)
+    this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore, emmTranslations)
     this.#pageMediaInformation = new ReaderPageMediaInformationService(
       options.loadPageMediaMetadataProvider ?? (async () => {
         const { FfprobePageMediaMetadataProvider } = await import("../video/FfprobePageMediaMetadataProvider.js")
@@ -553,6 +555,8 @@ export class ReaderHttpController implements AsyncDisposable {
       undefined,
       this.#mediaFormats,
       options.emmOverrideStore,
+      undefined,
+      emmTranslations,
     )
     this.#fileOperations = new ReaderFileOperationHttpController(async () => {
       const { ReaderFileOperationService } = await import("../../application/files/ReaderFileOperationService.js")

@@ -248,7 +248,10 @@ export interface ReaderMetadataDto {
     pageCount: number
     currentPage: number
     progressPercent?: number
-    emm?: { translatedTitle?: string }
+    emm?: {
+      translatedTitle?: string
+      tags?: readonly { namespace: string; tag: string; translatedLabel?: string }[]
+    }
     byteLength?: number
     createdAtMs?: number
     modifiedAtMs?: number

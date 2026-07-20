@@ -5,11 +5,15 @@ import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryE
 import { ReaderBookMetadataService } from "./ReaderBookMetadataService.js"
 
 describe("ReaderBookMetadataService", () => {
-  it("[neoview.book-information.shared-contract] returns bounded source identity and exact EMM title", async () => {
+  it("[neoview.book-information.shared-contract] [neoview.emm-tags.metadata] [neoview.emm-tags.translation] returns bounded source identity and translated EMM tags", async () => {
     const readDirectoryEmmRecords = vi.fn(async (paths: readonly string[]) => new Map([
-      [paths[0]!, { emmJson: JSON.stringify({ translated_title: "译名", tags: [{ tag: "private" }] }) }],
+      [paths[0]!, {
+        emmJson: JSON.stringify({ translated_title: "译名", tags: [{ namespace: "artist", tag: "Alice" }] }),
+        manualTags: JSON.stringify([{ namespace: "manual", tag: "favorite" }]),
+      }],
     ]))
-    const service = new ReaderBookMetadataService(store(readDirectoryEmmRecords))
+    const translate = vi.fn(async () => new Map([["artist\0alice", "爱丽丝"]]))
+    const service = new ReaderBookMetadataService(store(readDirectoryEmmRecords), { translate })
 
     await expect(service.load(book({ kind: "document", path: "D:/books/demo.pdf", format: "pdf" }))).resolves.toEqual({
       bookId: "book-1",
@@ -18,9 +22,19 @@ describe("ReaderBookMetadataService", () => {
       sourceKind: "document",
       sourceFormat: "pdf",
       pageCount: 2,
-      emm: { translatedTitle: "译名" },
+      emm: {
+        translatedTitle: "译名",
+        tags: [
+          { namespace: "artist", tag: "Alice", translatedLabel: "爱丽丝" },
+          { namespace: "manual", tag: "favorite" },
+        ],
+      },
     })
     expect(readDirectoryEmmRecords).toHaveBeenCalledWith(["D:\\books\\demo.pdf"], undefined)
+    expect(translate).toHaveBeenCalledWith([
+      { category: "artist", tag: "Alice" },
+      { category: "manual", tag: "favorite" },
+    ], undefined)
   })
 
   it("[neoview.book-information.emm-degrade] keeps book metadata available without a valid EMM record", async () => {
@@ -43,6 +57,15 @@ describe("ReaderBookMetadataService", () => {
       return new Map()
     }))
     await expect(service.load(book({ kind: "archive", path: "D:/books/demo.cbz" }), controller.signal)).rejects.toMatchObject({ name: "AbortError" })
+  })
+
+  it("[neoview.emm-tags.metadata] keeps validated tags when the optional translation source fails", async () => {
+    const service = new ReaderBookMetadataService(store(async (paths) => new Map([
+      [paths[0]!, { emmJson: JSON.stringify({ tags: [{ namespace: "artist", tag: "Alice" }] }) }],
+    ])), { translate: vi.fn(async () => { throw new Error("translation unavailable") }) })
+    await expect(service.load(book({ kind: "archive", path: "D:/books/demo.cbz" }))).resolves.toMatchObject({
+      emm: { tags: [{ namespace: "artist", tag: "Alice" }] },
+    })
   })
 })
 

@@ -231,11 +231,18 @@ describe("reader-http-client", () => {
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "POST" })
   })
 
-  it("[neoview.metadata.client] loads metadata only through the authenticated session route", async () => {
-    const fetchMock = vi.fn(async () => Response.json({ book: { displayName: "demo.cbz" } }))
+  it("[neoview.metadata.client] [neoview.emm-tags.client] loads metadata only through the authenticated session route", async () => {
+    const fetchMock = vi.fn(async () => Response.json({
+      book: {
+        displayName: "demo.cbz",
+        emm: { tags: [{ namespace: "artist", tag: "Alice", translatedLabel: "爱丽丝" }] },
+      },
+    }))
     vi.stubGlobal("fetch", fetchMock)
     const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
-    await client.metadata!("reader-1")
+    await expect(client.metadata!("reader-1")).resolves.toMatchObject({
+      book: { emm: { tags: [{ namespace: "artist", tag: "Alice", translatedLabel: "爱丽丝" }] } },
+    })
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader-1/metadata")
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
   })

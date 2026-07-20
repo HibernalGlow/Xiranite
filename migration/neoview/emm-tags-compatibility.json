@@ -10,13 +10,14 @@
   "sourceHash": "sha256:12dc7b10bcbdac94c659d88b8573bf35bbe85b26409dd90dda3e347c703307d3",
   "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/EmmTagsCard.tsx",
   "visualBaseline": "artifacts/legacy-source/neoview-emm-tags-1920x1080.png",
+  "visualTarget": "artifacts/playwright-emm-tags-{desktop,card}/**/neoview-emm-tags-chromium-{desktop,card}.png",
   "inventorySummary": {
     "sourceUiGroups": 3,
     "controlsAndStates": 15,
     "acceptanceItems": 8,
     "sourceFiles": 3
   },
-  "completionRule": "Complete only when the reviewed AST prototype and scripted 1920x1080 legacy characterization are preserved; the active book's bounded legacy and manual EMM tags are loaded once through the canonical Reader metadata service; namespaces and translations retain stable identity; missing book, missing EMM, empty, loading and failure states remain distinct; refresh is explicit and abortable; the Card is independently deferred; and desktop plus constrained-card evidence proves stable Reader image identity and responsive wrapping.",
+  "completionRule": "Complete only when the reviewed AST prototype and scripted 1920x1080 legacy characterization are preserved; the active book's bounded legacy and manual EMM tags are loaded once through the canonical Reader metadata service; namespaces and translations retain stable identity; missing book, missing EMM, empty, loading and failure states remain distinct; failure retry is explicit and abortable; the Card is independently deferred; and desktop plus constrained-card evidence proves stable Reader image identity and responsive wrapping.",
   "unsupportedNodes": [
     {
       "node": "$state/$effect/$derived",
@@ -108,20 +109,20 @@
       "targetContract": "The canonical Reader metadata application service reads the active book's legacy emm_json and xr_ override record once, validates a bounded array of namespace/tag pairs and returns it through the authenticated session metadata transport without exposing raw SQLite rows or filesystem configuration.",
       "surfaces": ["GUI"],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.emm-tags.codec",
         "neoview.emm-tags.metadata",
         "neoview.emm-tags.http",
         "neoview.emm-tags.client"
       ],
+      "plannedTestIds": [],
       "notes": "The existing thumbnails.db remains the only NeoView business database; no Reader table or second EMM database is introduced."
     },
     {
@@ -134,18 +135,18 @@
       "targetContract": "Normalize legacy object and array tag shapes into stable namespace/tag entries, preserve first-seen order, trim invalid values, merge manual overrides without duplicating case-insensitive identities and cap the result before it reaches React.",
       "surfaces": ["GUI"],
       "capabilityStatus": {
-        "core": "pending",
+        "core": "complete",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.emm-tags.codec",
         "neoview.emm-tags.card"
       ],
+      "plannedTestIds": [],
       "notes": "The projection is a pure shared domain function; the Card must not parse arbitrary emm_json."
     },
     {
@@ -159,18 +160,19 @@
       "targetContract": "Use the existing bounded platform EMM translation source to attach an optional translated label by canonical namespace/tag identity; render the translation while preserving the original tag as a tooltip, and fall back to the original tag without a redundant tooltip.",
       "surfaces": ["GUI"],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.emm-tags.translation",
+        "neoview.emm-tags.http",
         "neoview.emm-tags.card"
       ],
+      "plannedTestIds": [],
       "notes": "Translation loading stays process-side and cached; the browser never downloads the full translation dictionary."
     },
     {
@@ -185,42 +187,43 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.emm-tags.card",
         "neoview.emm-tags.lifecycle"
       ],
+      "plannedTestIds": [],
       "notes": "A valid EMM record with zero tags is not the same state as a missing record."
     },
     {
       "id": "emm-tags.lifecycle",
       "category": "lifecycle",
-      "title": "活动会话单次加载、刷新与取消",
+      "title": "活动会话单次加载、错误重试与取消",
       "sourceEvidence": [
         "src/lib/cards/properties/EmmTagsCard.svelte",
         "src/lib/stores/infoPanel.svelte.ts"
       ],
-      "targetContract": "Load once when the deferred Card becomes active for a session, share any in-flight request with explicit refresh, abort on deactivation, session replacement or unmount, ignore stale completions and perform no polling or page-index subscription.",
+      "targetContract": "Load once when the deferred Card becomes active for a session, expose explicit retry only after failure, abort on deactivation, session replacement or unmount, ignore stale completions and perform no polling or page-index subscription.",
       "surfaces": ["GUI"],
       "capabilityStatus": {
         "core": "not-applicable",
-        "transport": "pending",
-        "gui": "pending",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.emm-tags.lifecycle",
+        "neoview.emm-tags.lifecycle.client",
         "neoview.emm-tags.e2e",
         "neoview.emm-tags.image-stability"
       ],
+      "plannedTestIds": [],
       "notes": "Session static metadata caching may satisfy repeated consumers without adding a second database read."
     },
     {
@@ -233,19 +236,23 @@
       "targetContract": "Ship the Card as an independent deferred chunk under 8 KiB, keep the payload and DOM bounded, do not subscribe to page changes, do not poll, and add no parsing, SQLite work or translation lookup to page presentation or thumbnail acquisition.",
       "surfaces": ["GUI"],
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "pending",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
+        "neoview.emm-tags.codec",
+        "neoview.emm-tags.metadata",
+        "neoview.emm-tags.http",
+        "neoview.emm-tags.client",
         "neoview.emm-tags.performance",
         "neoview.emm-tags.chunk",
         "neoview.emm-tags.image-stability"
       ],
+      "plannedTestIds": [],
       "notes": "The active book static metadata path is the only permitted database boundary for this Card."
     },
     {
@@ -260,16 +267,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.emm-tags.card",
         "neoview.emm-tags.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "Long labels may wrap within a chip but may not resize the Card viewport."
     },
     {
@@ -284,16 +291,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.emm-tags.accessibility",
         "neoview.emm-tags.e2e"
       ],
+      "plannedTestIds": [],
       "notes": "The source has no shortcut or click command; no new tag action is invented in this migration slice."
     }
   ]
