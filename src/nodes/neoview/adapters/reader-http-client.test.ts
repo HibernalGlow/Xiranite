@@ -349,8 +349,23 @@ describe("reader-http-client", () => {
     expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
-  it("[neoview.storage-information.diagnostics-client] reads the authenticated shared diagnostics snapshot", async () => {
-    const snapshot = { schemaVersion: 1, assets: { presentation: null, thumbnails: null }, presentationDiskCache: { enabled: false }, solidArchiveCache: { retainedBytes: 0 } }
+  it("[neoview.storage-information.diagnostics-client] [neoview.thumbnail-architecture-metrics.client] reads the authenticated shared diagnostics snapshot", async () => {
+    const snapshot = {
+      schemaVersion: 1,
+      sampledAtMs: 123,
+      assets: {
+        presentation: null,
+        thumbnails: {
+          demands: 2, activeFlights: 1, queuedFlights: 0, runningFlights: 1, cachedEntries: 4, cachedBytes: 40,
+          telemetry: {
+            cacheHits: 3, cacheMisses: 2, completed: 1, failed: 0, cancelled: 0, evictions: 0,
+            byLane: { "reader-visible": { demands: 5, cacheHits: 3, cacheMisses: 2, completed: 1, failed: 0, cancelled: 0 } },
+          },
+        },
+      },
+      presentationDiskCache: { enabled: false },
+      solidArchiveCache: { retainedBytes: 0 },
+    }
     const fetchMock = vi.fn(async () => Response.json(snapshot))
     vi.stubGlobal("fetch", fetchMock)
     const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))

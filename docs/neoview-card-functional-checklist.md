@@ -3967,7 +3967,7 @@
 | `folderRatings` | 文件夹平均评分 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/FolderRatingsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 | `favoriteTags` | 收藏标签快选 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/FavoriteTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 | `emmSync` | EMM 同步 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/EmmSyncCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
-| `thumbnailArchMetrics` | 缩略图架构指标 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte` | 统一缩略图生成、持久化、数据库维护与迁移 |
+| `thumbnailArchMetrics` | 缩略图架构指标 | integration | complete | `core=C transport=C gui=C cli=N/A tui=N/A evidence=C` | `src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte` | 统一缩略图生成、持久化、数据库维护与迁移；XR `thumbnail-architecture-metrics` |
 | `emmRawData` | EMM 数据库记录 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/EmmRawDataCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 | `emmConfig` | EMM 配置 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/EmmConfigCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 | `fileListTagDisplay` | 文件列表标签 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/FileListTagDisplayCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
@@ -4237,9 +4237,9 @@
 #### `thumbnailArchMetrics` 缩略图架构指标
 
 - 细项清单：`migration/neoview/thumbnail-architecture-metrics-compatibility.json`
-- [ ] 展示缩略图请求、命中、生成、队列和缓存指标
-- [ ] 区分格式/来源/尺寸与冷热路径
-- [ ] 重置采样并保持监控有界
+- [x] 展示缩略图请求、命中、生成、队列和缓存指标
+- [x] 区分格式/来源/尺寸与冷热路径
+- [x] 重置采样并保持监控有界
 - UI 基线：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ##### 专用逐控件库存（4 组，22 项）
@@ -4281,82 +4281,82 @@
 
 ##### 专用源码级验收项
 
-- [ ] `thumbnail-architecture-metrics.summary` 保留旧版缓存、加载、总条目与刷新摘要
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `thumbnail-architecture-metrics.summary` 保留旧版缓存、加载、总条目与刷新摘要
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The active Card immediately reads one authenticated diagnostics snapshot, maps cachedEntries to 已缓存, activeFlights to 加载中 and cachedEntries plus activeFlights to 总条目, shows the backend sampled time and supports one explicit refresh without overlapping the current request.
   - 源码：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.thumbnail-architecture-metrics.card`、`neoview.thumbnail-architecture-metrics.e2e`
+  - 测试：`neoview.thumbnail-architecture-metrics.card`、`neoview.thumbnail-architecture-metrics.e2e`
+  - 计划测试：无
   - 备注：The mapping preserves the legacy store semantics using the canonical coordinator snapshot rather than a second browser store.
-- [ ] `thumbnail-architecture-metrics.telemetry` 显示真实请求、命中、生成、队列和缓存指标
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `thumbnail-architecture-metrics.telemetry` 显示真实请求、命中、生成、队列和缓存指标
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The Card renders cumulative demand, memory-hit, miss, completed generation, failure, cancellation and eviction counters together with active/queued/running flights, cached entries and bytes from the same versioned diagnostics snapshot; missing optional telemetry is labelled unavailable and never represented as zero.
   - 源码：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.thumbnail-architecture-metrics.card`、`neoview.thumbnail-architecture-metrics.client`
+  - 测试：`neoview.thumbnail.coordinator.telemetry`、`neoview.diagnostics.snapshot`、`neoview.diagnostics.http`、`neoview.thumbnail-architecture-metrics.client`、`neoview.thumbnail-architecture-metrics.card`、`neoview.thumbnail-architecture-metrics.e2e`
+  - 计划测试：无
   - 备注：The backend coordinator already records these bounded counters on its existing telemetry path.
-- [ ] `thumbnail-architecture-metrics.dimensions` 区分固定来源 lane 与冷热路径
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `thumbnail-architecture-metrics.dimensions` 区分固定来源 lane 与冷热路径
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Render the coordinator's fixed reader-visible, library-visible, prefetch, folder-preview and background lanes with demand, hit, miss and generation outcome counts; derive hot/cold only as hit versus miss ratios. Format and size remain explicitly unavailable until canonical bounded dimensions exist.
   - 源码：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.thumbnail-architecture-metrics.lanes`、`neoview.thumbnail-architecture-metrics.e2e`
+  - 测试：`neoview.thumbnail.coordinator.telemetry`、`neoview.thumbnail-architecture-metrics.client`、`neoview.thumbnail-architecture-metrics.lanes`、`neoview.thumbnail-architecture-metrics.e2e`
+  - 计划测试：无
   - 备注：Lane keys are bounded enums. The Card must not parse file extensions, dimensions or cache keys during polling.
-- [ ] `thumbnail-architecture-metrics.reset` 重置本地采样基线并保持历史有界
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `thumbnail-architecture-metrics.reset` 重置本地采样基线并保持历史有界
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Reset records the latest cumulative snapshot as a local baseline and clears no shared backend telemetry, cache or Reader history. The Card retains at most 60 lightweight samples and computes session deltas without sorting or cloning backend payloads into unbounded state.
   - 源码：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.thumbnail-architecture-metrics.reset`、`neoview.thumbnail-architecture-metrics.performance`
+  - 测试：`neoview.thumbnail-architecture-metrics.reset`、`neoview.thumbnail-architecture-metrics.performance`、`neoview.thumbnail-architecture-metrics.e2e`
+  - 计划测试：无
   - 备注：Local reset avoids surprising other diagnostics consumers and requires no mutation endpoint.
-- [ ] `thumbnail-architecture-metrics.states` 加载、空、错误、重试、禁用与过期结果
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `thumbnail-architecture-metrics.states` 加载、空、错误、重试、禁用与过期结果
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Distinguish initial loading, measured empty, unavailable API, recoverable failure and successful refresh. Preserve the last good snapshot on transient failure, expose an alert and retry control, disable duplicate refreshes, abort when disabled and ignore stale completions after deactivation.
   - 源码：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.thumbnail-architecture-metrics.card`、`neoview.thumbnail-architecture-metrics.lifecycle`
+  - 测试：`neoview.thumbnail-architecture-metrics.card`、`neoview.thumbnail-architecture-metrics.lifecycle`、`neoview.thumbnail-architecture-metrics.e2e`
+  - 计划测试：无
   - 备注：An empty measured coordinator is valid data and displays zero; only absence of the thumbnails snapshot is unavailable.
-- [ ] `thumbnail-architecture-metrics.data-contract` 复用版本化鉴权 diagnostics DTO
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `thumbnail-architecture-metrics.data-contract` 复用版本化鉴权 diagnostics DTO
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Extend the browser TypeScript DTO to match the already versioned and Zod-validated Reader diagnostics thumbnail snapshot. The Card calls only ReaderHttpClient.diagnostics with AbortSignal; it receives aggregate counters and never imports Node modules, cache keys, database rows or filesystem paths.
   - 源码：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.thumbnail-architecture-metrics.client`、`neoview.thumbnail-architecture-metrics.card`
+  - 测试：`neoview.diagnostics.snapshot`、`neoview.diagnostics.wire-schema`、`neoview.diagnostics.http`、`neoview.thumbnail-architecture-metrics.client`、`neoview.thumbnail-architecture-metrics.card`
+  - 计划测试：无
   - 备注：The endpoint and backend wire schema already exist; this slice closes the previously underspecified browser DTO.
-- [ ] `thumbnail-architecture-metrics.lifecycle` 只在 Card 展开且活动时采样
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `thumbnail-architecture-metrics.lifecycle` 只在 Card 展开且活动时采样
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The deferred Card starts one immediate request only when panelActive is true, schedules the next request with recursive setTimeout 2000 ms after settlement, shares explicit refresh with the in-flight promise, aborts and clears the timer on collapse, disable or unmount, and performs no work while hidden.
   - 源码：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.thumbnail-architecture-metrics.lifecycle`、`neoview.thumbnail-architecture-metrics.image-stability`
+  - 测试：`neoview.thumbnail-architecture-metrics.lifecycle`、`neoview.thumbnail-architecture-metrics.e2e`、`neoview.thumbnail-architecture-metrics.image-stability`
+  - 计划测试：无
   - 备注：Polling is owned by the Card and never added to ReaderApp, the coordinator or a process-global timer.
-- [ ] `thumbnail-architecture-metrics.performance` 零隐藏工作、单飞请求与独立延迟 chunk
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `thumbnail-architecture-metrics.performance` 零隐藏工作、单飞请求与独立延迟 chunk
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The default-visible Card remains deferred behind the panel registry, adds no work to navigation or page presentation, performs one small aggregate request at a time only while active, retains at most 60 compact samples, and ships in an independent chunk under 16 KiB outside entry, ReaderSidebar and ReaderFrame chunks.
   - 源码：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.thumbnail-architecture-metrics.lifecycle`、`neoview.thumbnail-architecture-metrics.chunk`、`neoview.thumbnail-architecture-metrics.e2e`、`neoview.thumbnail-architecture-metrics.image-stability`
+  - 测试：`neoview.thumbnail-architecture-metrics.lifecycle`、`neoview.thumbnail-architecture-metrics.performance`、`neoview.thumbnail-architecture-metrics.chunk`、`neoview.thumbnail-architecture-metrics.e2e`、`neoview.thumbnail-architecture-metrics.image-stability`
+  - 计划测试：无
   - 备注：No detailed classifier, cache-key parsing, backend reset or high-cardinality aggregation is added to the thumbnail acquire hot path.
-- [ ] `thumbnail-architecture-metrics.accessibility` 刷新与重置具有键盘和读屏反馈
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `thumbnail-architecture-metrics.accessibility` 刷新与重置具有键盘和读屏反馈
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Refresh and reset are semantic buttons with visible labels and Lucide icons hidden from assistive technology; loading exposes aria-busy, errors use role=alert, the update line uses role=status without noisy repeated announcements, and metric labels remain associated through semantic description lists.
   - 源码：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.thumbnail-architecture-metrics.accessibility`、`neoview.thumbnail-architecture-metrics.e2e`
+  - 测试：`neoview.thumbnail-architecture-metrics.accessibility`、`neoview.thumbnail-architecture-metrics.e2e`
+  - 计划测试：无
   - 备注：No source shortcut exists; native button keyboard activation is the equivalent contract.
-- [ ] `thumbnail-architecture-metrics.ui-parity` 保持旧版紧凑层级并适配受限 Card
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `thumbnail-architecture-metrics.ui-parity` 保持旧版紧凑层级并适配受限 Card
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Preserve the top update/refresh row, compact two-column bordered summary, monospaced values, RefreshCw meaning, labels and density shown by the 1920x1080 characterization. Extended sections follow below without nested cards and wrap without clipping at the 420x360 Card viewport.
   - 源码：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`、`src/lib/cards/registry.ts`
-  - 测试：待补
-  - 计划测试：`neoview.thumbnail-architecture-metrics.card`、`neoview.thumbnail-architecture-metrics.e2e`
+  - 测试：`neoview.thumbnail-architecture-metrics.card`、`neoview.thumbnail-architecture-metrics.e2e`
+  - 计划测试：无
   - 备注：XR adds expanded metrics below the legacy summary but does not change the first-view control hierarchy.
-- [ ] `thumbnail-architecture-metrics.deviations` 格式和尺寸分组使用明确不可用替代契约
-  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+- [x] `thumbnail-architecture-metrics.deviations` 格式和尺寸分组使用明确不可用替代契约
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Do not infer format, source path or dimensions from cache keys and do not add high-cardinality counters to ThumbnailCoordinator.acquire. Show bounded lane/source data and hit/miss hot-cold data from existing telemetry, then label format and size as not collected to protect page-turn latency and memory.
   - 源码：`src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.thumbnail-architecture-metrics.lanes`、`neoview.thumbnail-architecture-metrics.performance`
+  - 测试：`neoview.thumbnail.coordinator.telemetry`、`neoview.thumbnail-architecture-metrics.lanes`、`neoview.thumbnail-architecture-metrics.performance`
+  - 计划测试：无
   - 备注：This is an explicit performance-driven replacement contract, not fabricated zero-valued telemetry.
 
 #### `emmRawData` EMM 数据库记录

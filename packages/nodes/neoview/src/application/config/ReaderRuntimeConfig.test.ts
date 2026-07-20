@@ -771,6 +771,12 @@ describe("parseNeoviewRuntimeConfig", () => {
     })
   })
 
+  it("[neoview.thumbnail-architecture-metrics.registry] preserves the legacy properties placement without requiring a book", () => {
+    expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["thumbnail-architecture-metrics"]).toEqual({
+      panelId: "properties", visible: true, expanded: true, order: 1,
+    })
+  })
+
   it("[neoview.color-filter.layout] keeps the legacy filter visible in the control panel without a session", () => {
     expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["color-filter"]).toEqual({
       panelId: "control", visible: true, expanded: true, order: 2,

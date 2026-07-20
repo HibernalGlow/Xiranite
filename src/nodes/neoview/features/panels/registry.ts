@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Activity, Bell, BookMarked, BookOpen, BookOpenCheck, Clock3, Cpu, Crop, DatabaseBackup, Eye, Film, FolderOpen, HardDrive, Image, Info, Keyboard, LayoutDashboard, ListFilter, ListTree, Loader, Monitor, Palette, PanelLeft, Play, Sparkles, SlidersHorizontal, Trash2, Video, type LucideIcon } from "lucide-react"
+import { Activity, Bell, BookMarked, BookOpen, BookOpenCheck, Clock3, Cpu, Crop, DatabaseBackup, Eye, Film, FolderOpen, Gauge, HardDrive, Image, Info, Keyboard, LayoutDashboard, ListFilter, ListTree, Loader, Monitor, Palette, PanelLeft, Play, Sparkles, SlidersHorizontal, Trash2, Video, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -205,6 +205,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "upscale-cache": () => import("./cards/UpscaleCacheCard"),
   "upscale-conditions": () => import("./cards/UpscaleConditionsCard"),
   "book-settings": () => import("./cards/BookSettingsCard"),
+  "thumbnail-architecture-metrics": () => import("./cards/ThumbnailArchitectureMetricsCard"),
   "sidebar-control": () => import("./cards/SidebarControlCard"),
   "sidebar-height": () => import("./cards/SidebarHeightCard"),
   "color-filter": () => import("./cards/ColorFilterCard"),
@@ -250,6 +251,7 @@ const CARD_ICONS = {
   "upscale-conditions": ListFilter,
   "info-overlay": Info,
   "book-settings": BookOpenCheck,
+  "thumbnail-architecture-metrics": Gauge,
   "switch-toast": Bell,
   "sidebar-control": PanelLeft,
   "color-filter": Palette,

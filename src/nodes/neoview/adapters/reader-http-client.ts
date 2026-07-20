@@ -282,6 +282,7 @@ export interface ReaderPageMediaInformationDto {
 
 export interface ReaderStorageDiagnosticsDto {
   schemaVersion: 1
+  sampledAtMs?: number
   reader?: {
     activeSessions: number
     preload?: {
@@ -310,7 +311,30 @@ export interface ReaderStorageDiagnosticsDto {
       maxBytes?: number
       activeLeases?: number
     } | null
-    thumbnails: { cachedBytes: number } | null
+    thumbnails: {
+      demands?: number
+      activeFlights?: number
+      queuedFlights?: number
+      runningFlights?: number
+      cachedEntries?: number
+      cachedBytes: number
+      telemetry?: {
+        cacheHits: number
+        cacheMisses: number
+        completed: number
+        failed: number
+        cancelled: number
+        evictions: number
+        byLane: Readonly<Record<string, {
+          demands: number
+          cacheHits: number
+          cacheMisses: number
+          completed: number
+          failed: number
+          cancelled: number
+        }>>
+      }
+    } | null
   }
   presentationDiskCache: { enabled: boolean; bytes?: number }
   solidArchiveCache: { retainedBytes: number }

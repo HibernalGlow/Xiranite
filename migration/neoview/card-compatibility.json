@@ -711,13 +711,14 @@
       "featureId": "thumbnail-system",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
+      "currentCardId": "thumbnail-architecture-metrics",
       "sourceComponent": "src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte",
       "sourceDisposition": "component"
     },
