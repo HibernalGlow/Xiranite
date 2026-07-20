@@ -226,9 +226,10 @@ export default function FolderMainCard(context: ReaderPanelContext) {
   )
 }
 
-function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, switchToast, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, tabBar, folderTabCount, maxFolderTabs, onCreateTab, onCurrentPathChange, onOpenInNewTab, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; tabBar?: ReactNode; folderTabCount: number; maxFolderTabs: number; onCreateTab(): void; currentFolderTabPinned: boolean; canReopenFolderTab: boolean; onDuplicateCurrentTab(): void; onToggleCurrentTabPinned(): void; onReopenFolderTab(): void; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
+function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, switchToast, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, browserPath, tabBar, folderTabCount, maxFolderTabs, onCreateTab, onCurrentPathChange, onOpenInNewTab, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; browserPath: string; tabBar?: ReactNode; folderTabCount: number; maxFolderTabs: number; onCreateTab(): void; currentFolderTabPinned: boolean; canReopenFolderTab: boolean; onDuplicateCurrentTab(): void; onToggleCurrentTabPinned(): void; onReopenFolderTab(): void; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
   const clipboard = useFolderClipboard()
   const pendingInitialCloneRef = useRef(initialClone)
+  const startupBrowserPathRef = useRef(resolveFolderStartupPath(browserPath, folderView.homePath))
   const sessionIdRef = useRef<string | undefined>(undefined)
   const catalogRef = useRef<DirectoryCatalog | undefined>(undefined)
   const navigationRequestRef = useRef<AbortController | undefined>(undefined)
@@ -308,8 +309,6 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   })
 
   useEffect(() => {
-    const targetPath = resolveFolderStartupPath(sourcePath, folderView.homePath)
-    if (!targetPath) return
     const snapshot = pendingInitialCloneRef.current
     pendingInitialCloneRef.current = undefined
     if (snapshot?.clonedPage) {
@@ -317,18 +316,15 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       return
     }
     if (catalogRef.current) {
-      // Prefer focusing a file inside the current folder; otherwise reopen when the active book
-      // (or home fallback) points at a different directory tree.
+      // Reader source identity may point through several nested directories. It can focus a
+      // direct entry, but only the explicit browser path is allowed to navigate this Card.
       if (sourcePath && sameFolderOrChild(catalogRef.current.path, sourcePath)) {
         focusSourceEntry(sourcePath)
-        return
-      }
-      if (sameFolderPath(catalogRef.current.path, targetPath) || sameFolderOrChild(targetPath, catalogRef.current.path)) {
-        return
       }
     }
-    void openBrowser(targetPath)
-  }, [sourcePath, folderView.homePath])
+      return
+    if (startupBrowserPathRef.current) void openBrowser(startupBrowserPathRef.current)
+  }, [sourcePath])
 
   useEffect(() => disposeBrowser, [])
 

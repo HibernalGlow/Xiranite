@@ -37,6 +37,7 @@ interface RecentlyClosedFolderTab {
 
 export type FolderBrowserPaneProps = ReaderPanelContext & {
   active: boolean
+  browserPath: string
   tabBar?: ReactNode
   folderTabCount: number
   maxFolderTabs: number
@@ -58,7 +59,11 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
   BrowserPane: ComponentType<FolderBrowserPaneProps>
 }) {
   const initialRef = useRef<ReturnType<typeof initialFolderTabs> | null>(null)
-  initialRef.current ??= initialFolderTabs(resolveFolderStartupPath(context.sourcePath, folderView.homePath), folderView)
+  initialRef.current ??= initialFolderTabs(
+    resolveFolderStartupPath(context.browserOriginPath ?? context.sourcePath, folderView.homePath),
+    folderView,
+    context.sourcePath,
+  )
   const tabSequenceRef = useRef(initialRef.current.sequence)
   const tabAccessHistoryRef = useRef<readonly string[]>([initialRef.current.activeTabId])
   const cloneProvidersRef = useRef(new Map<string, FolderBrowserCloneProvider>())
@@ -99,8 +104,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     if (!context.sourcePath) return
     setTabs((current) => current.map((tab) => {
       if (tab.id !== activeTabId || tab.pinned || tab.sourcePath === context.sourcePath) return tab
-      if (sameFolderOrChild(tab.currentPath, context.sourcePath)) return { ...tab, sourcePath: context.sourcePath! }
-      return { ...tab, sourcePath: context.sourcePath!, currentPath: context.sourcePath!, title: folderTabTitle(context.sourcePath!) }
+      return { ...tab, sourcePath: context.sourcePath! }
     }))
   }, [context.sourcePath])
 
@@ -363,6 +367,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
             <BrowserPane
               {...context}
               sourcePath={tab.sourcePath}
+              browserPath={tab.currentPath}
               folderView={{ ...folderView, viewMode: tab.viewMode, previewCount: tab.previewCount }}
               onFolderView={(patch) => updateTabFolderView(tab.id, patch)}
               active={browserActive}
@@ -393,7 +398,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
   )
 }
 
-function initialFolderTabs(path: string, folderView: ReaderFolderViewConfig) {
+function initialFolderTabs(path: string, folderView: ReaderFolderViewConfig, sourcePath = path) {
   const pinned = (folderView.tabs?.pinned ?? []).slice(0, MAX_PINNED_FOLDER_TABS)
   const tabs = pinned.map((tab, index) => ({
     ...createFolderTab(`folder-tab-${index + 1}`, tab.path, folderView),
@@ -401,7 +406,7 @@ function initialFolderTabs(path: string, folderView: ReaderFolderViewConfig) {
     pinned: true,
   }))
   const activeTabId = `folder-tab-${tabs.length + 1}`
-  tabs.push(createFolderTab(activeTabId, path, folderView))
+  tabs.push({ ...createFolderTab(activeTabId, path, folderView), sourcePath })
   return { tabs, activeTabId, sequence: tabs.length }
 }
 
@@ -458,15 +463,6 @@ function findMostRecentTab(history: readonly string[], availableIds: ReadonlySet
     if (availableIds.has(id)) return id
   }
   return undefined
-}
-
-function sameFolderOrChild(folderPath: string, sourcePath: string): boolean {
-  const folder = folderPath.replaceAll("\\", "/").replace(/\/+$/u, "").toLocaleLowerCase()
-  const source = sourcePath.trim().replaceAll("\\", "/").replace(/\/+$/u, "").toLocaleLowerCase()
-  if (!folder || !source || folder === source) return folder === source
-  const separator = source.lastIndexOf("/")
-  const parent = separator < 0 ? source : source.slice(0, separator).replace(/\/+$/u, "")
-  return parent === folder || parent === `${folder}:`
 }
 
 function resolveFolderStartupPath(sourcePath: string | undefined, homePath: string | undefined): string {

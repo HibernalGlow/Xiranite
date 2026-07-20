@@ -128,6 +128,48 @@ function selectFolderToolbarAction(scope: ReturnType<typeof within> | typeof scr
 afterEach(cleanup)
 
 describe("FolderMainCard", () => {
+  it("[neoview.folder.penetration-browser-origin] reloads the explicit browser directory without entering the penetrated Reader source", async () => {
+    const opened = page({
+      path: "C:/books",
+      entries: [{ name: "series", path: "C:/books/series", kind: "directory", readerSupported: true }],
+      total: 1,
+    })
+    const openDirectoryBrowser = vi.fn(async () => opened)
+    const client = {
+      openDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books/series/volume"
+          browserOriginPath="C:/books"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+
+    await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/books", expect.any(AbortSignal), undefined, true))
+    view.rerender(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books/series/volume/child"
+          browserOriginPath="C:/books"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+    await act(async () => { await Promise.resolve() })
+
+    expect(openDirectoryBrowser).toHaveBeenCalledTimes(1)
+  })
+
   it("[neoview.folder.windows-root-open] normalizes a bare drive before opening the directory session", async () => {
     const opened = page({ path: "E:\\", entries: [], total: 0 })
     const openDirectoryBrowser = vi.fn(async () => opened)
@@ -554,20 +596,14 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
-  it("[neoview.folder.cross-directory-open] reopens the browser session when the active book moves to another directory", async () => {
+  it("[neoview.folder.source-change-keeps-browser] keeps the explicit browser session when the active Reader book moves elsewhere", async () => {
     const opened = page({
       sessionId: "browser-1",
       path: "C:/books",
       entries: [{ name: "one.cbz", path: "C:/books/one.cbz", kind: "file", readerSupported: true }],
       total: 1,
     })
-    const moved = page({
-      sessionId: "browser-2",
-      path: "D:/archive",
-      entries: [{ name: "two.cbz", path: "D:/archive/two.cbz", kind: "file", readerSupported: true }],
-      total: 1,
-    })
-    const openDirectoryBrowser = vi.fn(async (path: string) => path.toLocaleLowerCase().startsWith("d:/") ? moved : opened)
+    const openDirectoryBrowser = vi.fn(async () => opened)
     const closeDirectoryBrowser = vi.fn(async () => undefined)
     const client = { openDirectoryBrowser, closeDirectoryBrowser } as unknown as ReaderHttpClient
     const renderCard = (sourcePath: string) => (
@@ -579,12 +615,11 @@ describe("FolderMainCard", () => {
     await within(view.container).findByTitle("C:/books/one.cbz")
 
     view.rerender(renderCard("D:/archive/two.cbz"))
-    await within(view.container).findByTitle("D:/archive/two.cbz")
-    await waitFor(() => expect(openDirectoryBrowser).toHaveBeenCalledTimes(2))
+    await act(async () => { await Promise.resolve() })
+    expect(within(view.container).getByTitle("C:/books/one.cbz")).toBeTruthy()
+    expect(openDirectoryBrowser).toHaveBeenCalledTimes(1)
     expect(openDirectoryBrowser).toHaveBeenNthCalledWith(1, "C:/books/one.cbz", expect.any(AbortSignal), undefined, true)
-    expect(openDirectoryBrowser).toHaveBeenNthCalledWith(2, "D:/archive/two.cbz", expect.any(AbortSignal), undefined, true)
-    await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-1"))
-    expect(view.container.querySelector('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')?.getAttribute("title")).toBe("D:\\archive")
+    expect(closeDirectoryBrowser).not.toHaveBeenCalled()
     view.unmount()
   })
 

@@ -185,16 +185,18 @@ function loadReaderPresentation(): Promise<unknown> {
 
 export interface ReaderAppProps {
   initialPath?: string
+  initialBrowserOriginPath?: string
   client?: ReaderHttpClient
   pickFile?: () => Promise<string | undefined>
   pickDirectory?: () => Promise<string | undefined>
   copyText?: (text: string) => Promise<void>
   copyFiles?: (paths: string[]) => Promise<void>
-  onPathCommitted?: (path: string) => void
+  onPathCommitted?: (path: string, browserOriginPath?: string) => void
 }
 
 export function ReaderApp({
   initialPath = "",
+  initialBrowserOriginPath,
   client: injectedClient,
   pickFile,
   pickDirectory,
@@ -250,6 +252,7 @@ export function ReaderApp({
   const shellControlGenerationRef = useRef(0)
   const presentationTouchedRef = useRef(false)
   const [path, setPath] = useState(initialPath)
+  const [browserOriginPath, setBrowserOriginPath] = useState(initialBrowserOriginPath)
   const [session, setSession] = useState<ReaderSessionDto | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
@@ -533,7 +536,9 @@ export function ReaderApp({
       setPresentation({ ...DEFAULT_READER_PRESENTATION, ...viewDefaultsRef.current })
       presentationTouchedRef.current = false
       setPath(normalizedPath)
-      onPathCommitted?.(normalizedPath)
+      const nextBrowserOriginPath = provenance?.browserOriginPath ?? browserOriginPath
+      setBrowserOriginPath(nextBrowserOriginPath)
+      onPathCommitted?.(normalizedPath, nextBrowserOriginPath)
       if (previousSession && previousSession !== opened.sessionId) {
         void clientRef.current.close(previousSession).catch(() => undefined)
       }
@@ -957,7 +962,7 @@ export function ReaderApp({
       void clientRef.current.metadata?.(replacement.sessionId, controller.signal).then((metadata) => {
         if (sessionRef.current !== replacement.sessionId) return
         setPath(metadata.book.sourcePath)
-        onPathCommitted?.(metadata.book.sourcePath)
+        onPathCommitted?.(metadata.book.sourcePath, browserOriginPath)
       }).catch(() => undefined)
       // Book-switch toast is owned by ReaderSwitchToastRuntime via book.id change.
       return true
@@ -1466,6 +1471,7 @@ export function ReaderApp({
     onReadingDirectionChange: updateCurrentBookReadingDirection,
     onPreloadAction: runPreloadAction,
     sourcePath: path,
+    browserOriginPath,
     pickDirectory,
     systemActions: {
       copyText,
