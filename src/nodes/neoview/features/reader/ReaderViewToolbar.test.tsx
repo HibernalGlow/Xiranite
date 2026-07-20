@@ -20,6 +20,9 @@ describe("ReaderViewToolbar", () => {
     expectIcon("单页模式", "lucide-rectangle-vertical")
     expectIcon("切换阅读方向", "lucide-arrow-right")
     expectIcon("展开旋转设置", "lucide-rotate-cw")
+    // Adjacent-book controls stay disabled until the host wires openAdjacentBook.
+    expect(screen.getByRole("button", { name: "上一个书籍" }).hasAttribute("disabled")).toBe(true)
+    expect(screen.getByRole("button", { name: "下一个书籍" }).hasAttribute("disabled")).toBe(true)
     fireEvent.click(screen.getByRole("button", { name: "全景模式" }))
     expect(layoutChanged).toHaveBeenLastCalledWith({ panorama: true })
     fireEvent.click(screen.getByRole("button", { name: "切换横向或纵向布局" }))
@@ -42,6 +45,63 @@ describe("ReaderViewToolbar", () => {
     expectIcon("双页宽度统一", "lucide-align-horizontal-space-around")
     fireEvent.click(screen.getByRole("button", { name: "双页高度统一" }))
     expect(changed).toHaveBeenLastCalledWith({ ...DEFAULT_READER_PRESENTATION, widePageStretch: "uniform-height" })
+    slideshow.dispose()
+  })
+
+  it("[neoview.toolbar.adjacent-book] routes previous/next book actions without touching layout patches", () => {
+    const previousBook = vi.fn()
+    const nextBook = vi.fn()
+    const layoutChanged = vi.fn()
+    const slideshow = createSlideshow()
+    render(
+      <ReaderViewToolbar
+        layout={DEFAULT_READER_LAYOUT}
+        direction="left-to-right"
+        presentation={DEFAULT_READER_PRESENTATION}
+        onChange={vi.fn()}
+        onLayoutChange={layoutChanged}
+        onDirectionChange={vi.fn()}
+        slideshow={slideshow}
+        onSlideshowChange={vi.fn()}
+        onPreviousBook={previousBook}
+        onNextBook={nextBook}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "上一个书籍" }))
+    fireEvent.click(screen.getByRole("button", { name: "下一个书籍" }))
+    expect(previousBook).toHaveBeenCalledOnce()
+    expect(nextBook).toHaveBeenCalledOnce()
+    expect(layoutChanged).not.toHaveBeenCalled()
+    slideshow.dispose()
+  })
+
+  it("[neoview.toolbar.reading-direction-lock] preserves the legacy right-click lock and temporary direction switch", () => {
+    const directionChanged = vi.fn()
+    const lockChanged = vi.fn()
+    const slideshow = createSlideshow()
+    const props = {
+      layout: DEFAULT_READER_LAYOUT,
+      direction: "left-to-right" as const,
+      presentation: DEFAULT_READER_PRESENTATION,
+      onChange: vi.fn(),
+      onLayoutChange: vi.fn(),
+      onDirectionChange: directionChanged,
+      onDirectionLockChange: lockChanged,
+      slideshow,
+      onSlideshowChange: vi.fn(),
+    }
+    const view = render(<ReaderViewToolbar {...props} lockedReadingDirection={null} />)
+    const direction = view.getByRole("button", { name: "切换阅读方向" })
+
+    fireEvent.contextMenu(direction)
+    expect(lockChanged).toHaveBeenLastCalledWith("left-to-right")
+    view.rerender(<ReaderViewToolbar {...props} lockedReadingDirection="left-to-right" />)
+    expect(direction.querySelector("svg.lucide-lock")).not.toBeNull()
+    fireEvent.click(direction)
+    expect(directionChanged).toHaveBeenLastCalledWith("right-to-left")
+    fireEvent.contextMenu(direction)
+    expect(lockChanged).toHaveBeenLastCalledWith(null)
     slideshow.dispose()
   })
 

@@ -18,10 +18,13 @@ import {
   ArrowLeftRight,
   ArrowRight,
   Ban,
+  BookMarked,
   Columns2,
   Equal,
   Expand,
   Frame,
+  Library,
+  Lock,
   Maximize,
   MousePointer2,
   PanelsTopLeft,
@@ -96,6 +99,8 @@ export function ReaderViewToolbar({
   onChange,
   onLayoutChange,
   onDirectionChange,
+  lockedReadingDirection,
+  onDirectionLockChange,
   pageOrder = { sortMode: "fileName", mediaPriority: "none" },
   lockedSortMode,
   lockedMediaPriority,
@@ -111,6 +116,8 @@ export function ReaderViewToolbar({
   onMagnifierConfigChange,
   slideshow,
   onSlideshowChange,
+  onPreviousBook,
+  onNextBook,
 }: {
   disabled?: boolean
   layout: ReaderLayout
@@ -119,6 +126,8 @@ export function ReaderViewToolbar({
   onChange(presentation: ReaderPresentation): void
   onLayoutChange(patch: Partial<ReaderLayout>): void
   onDirectionChange(direction: ReadingDirection): void
+  lockedReadingDirection?: ReadingDirection | null
+  onDirectionLockChange?(direction: ReadingDirection | null): void | Promise<void>
   pageOrder?: ReaderPageOrderDto
   lockedSortMode?: ReaderPageSortModeDto | null
   lockedMediaPriority?: Exclude<ReaderMediaPriorityModeDto, "none"> | null
@@ -134,6 +143,8 @@ export function ReaderViewToolbar({
   onMagnifierConfigChange?(patch: { zoom?: number; size?: number }): void | Promise<void>
   slideshow: ReaderSlideshow
   onSlideshowChange(patch: ReaderSlideshowPatch["slideshow"]): void | Promise<void>
+  onPreviousBook?(): void | Promise<void>
+  onNextBook?(): void | Promise<void>
 }) {
   const [expanded, setExpanded] = useState<ExpandedPanel | null>(null)
   const [zoomInput, setZoomInput] = useState<string>()
@@ -170,6 +181,9 @@ export function ReaderViewToolbar({
       <div className="flex min-h-12 min-w-0 flex-wrap items-center justify-start gap-1 px-3 py-1.5 lg:justify-center" data-reader-toolbar-row="primary">
         <Button title="页面排序" aria-label="页面排序" aria-expanded={expanded === "sort"} type="button" size="icon-sm" variant={expanded === "sort" ? "default" : "ghost"} disabled={disabled || !onPageOrderChange} onClick={() => toggle("sort")}><ArrowDownUp /></Button>
         <Separator />
+        <Button title="上一个书籍" aria-label="上一个书籍" type="button" size="icon-sm" variant="ghost" disabled={disabled || !onPreviousBook} onClick={() => void onPreviousBook?.()}><BookMarked /></Button>
+        <Button title="下一个书籍" aria-label="下一个书籍" type="button" size="icon-sm" variant="ghost" disabled={disabled || !onNextBook} onClick={() => void onNextBook?.()}><Library /></Button>
+        <Separator />
         <Button title="缩小" aria-label="缩小" type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={() => onChange({ ...presentation, manualScale: stepReaderManualScale(presentation.manualScale, -1) })}><ZoomOut /></Button>
         {zoomInput === undefined ? (
           <Button title="单击重置 100%，长按输入数值" aria-label="缩放百分比" type="button" size="sm" variant="ghost" disabled={disabled} onPointerDown={beginZoomInput} onPointerUp={finishZoomInput} onPointerLeave={finishZoomInput}><span className="w-10 text-[11px] tabular-nums">{Math.round(presentation.manualScale * 100)}%</span></Button>
@@ -184,7 +198,30 @@ export function ReaderViewToolbar({
           <Button title={presentation.orientation === "horizontal" ? "横向布局" : "纵向布局"} aria-label="切换横向或纵向布局" aria-pressed={presentation.orientation === "vertical"} type="button" size="icon-sm" className="rounded-full" variant={presentation.orientation === "vertical" ? "default" : "ghost"} disabled={disabled} onClick={() => onChange({ ...presentation, orientation: presentation.orientation === "horizontal" ? "vertical" : "horizontal" })}>{presentation.orientation === "horizontal" ? <ArrowLeftRight /> : <ArrowDownUp />}</Button>
           <Button title={layout.pageMode === "double" ? "双页模式（点击切换为单页）" : "单页模式（点击切换为双页）"} aria-label={layout.pageMode === "double" ? "双页模式" : "单页模式"} aria-pressed={layout.pageMode === "double"} type="button" size="icon-sm" className="rounded-full" variant={layout.pageMode === "double" ? "default" : "ghost"} disabled={disabled} onClick={() => onLayoutChange({ pageMode: layout.pageMode === "double" ? "single" : "double" })}>{layout.pageMode === "double" ? <Columns2 /> : <RectangleVertical />}</Button>
         </div>
-        <Button title={direction === "left-to-right" ? "从左到右" : "从右到左"} aria-label="切换阅读方向" aria-pressed={direction === "right-to-left"} type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={() => onDirectionChange(direction === "left-to-right" ? "right-to-left" : "left-to-right")}>{direction === "left-to-right" ? <ArrowRight /> : <ArrowLeft />}</Button>
+        <Button
+          title={`${direction === "left-to-right" ? "从左到右" : "从右到左"}（点击切换，右键${lockedReadingDirection === direction ? "解锁" : "锁定"}）`}
+          aria-label="切换阅读方向"
+          aria-pressed={direction === "right-to-left"}
+          type="button"
+          size="icon-sm"
+          className={lockedReadingDirection === direction ? "relative rounded-full ring-2 ring-primary ring-offset-1" : undefined}
+          variant="ghost"
+          disabled={disabled}
+          onClick={() => onDirectionChange(
+            lockedReadingDirection
+              ? direction === lockedReadingDirection
+                ? (direction === "left-to-right" ? "right-to-left" : "left-to-right")
+                : lockedReadingDirection
+              : (direction === "left-to-right" ? "right-to-left" : "left-to-right"),
+          )}
+          onContextMenu={(event) => {
+            event.preventDefault()
+            void onDirectionLockChange?.(lockedReadingDirection === direction ? null : direction)
+          }}
+        >
+          {direction === "left-to-right" ? <ArrowRight /> : <ArrowLeft />}
+          {lockedReadingDirection === direction ? <Lock className="absolute -right-0.5 -bottom-0.5 size-2" /> : null}
+        </Button>
         <Button title="旋转设置" aria-label="展开旋转设置" aria-expanded={expanded === "rotate"} type="button" size="icon-sm" variant={expanded === "rotate" ? "default" : "ghost"} disabled={disabled} onClick={() => toggle("rotate")}><RotateCw /></Button>
         <Button
           title={`悬停滚动：${hoverScrollEnabled ? "开" : "关"}（右键设置）`}
