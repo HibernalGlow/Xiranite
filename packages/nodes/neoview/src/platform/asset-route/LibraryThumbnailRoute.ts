@@ -22,6 +22,7 @@ const REGISTER_PATH = "/reader/library/thumbnails"
 const PREWARM_PATH = "/reader/library/thumbnails/prewarm"
 const MAX_BATCH_ITEMS = 64
 const MAX_ASSETS = 4096
+const VISIBLE_ASSET_TIMEOUT_MS = 20_000
 
 export interface LibraryThumbnailRouteOptions {
   baseUrl: string
@@ -248,6 +249,7 @@ export class LibraryThumbnailRoute {
     if (!record) return textResponse("Library thumbnail not found", 404)
     if (url.searchParams.get("version") !== record.source.contentVersion) return textResponse("Library thumbnail version is stale", 410)
 
+    const timeout = thumbnailAssetTimeout(request.signal, VISIBLE_ASSET_TIMEOUT_MS)
     let lease: ThumbnailLease | undefined
     let thumbnail: ThumbnailAsset
     try {
@@ -257,11 +259,13 @@ export class LibraryThumbnailRoute {
       lease = this.#pipeline.acquireLibrary(record.source, {
         contextId: pipelineAssetContextId(record),
         generation: 0,
-        signal: request.signal,
+        lane: "reader-visible",
+        signal: timeout.signal,
       })
       thumbnail = await lease.ready
     } catch (error) {
       lease?.release()
+      if (timeout.timedOut) return textResponse("Library thumbnail generation timed out", 504)
       if (isAbortError(error)) return textResponse("Library thumbnail demand was superseded", 410)
       if (error instanceof ThumbnailUnavailableError) return textResponse("Library thumbnail is unavailable", 404)
       if (error instanceof ThumbnailRetryDeferredError) {
@@ -275,6 +279,8 @@ export class LibraryThumbnailRoute {
         })
       }
       throw error
+    } finally {
+      timeout.dispose()
     }
 
     const etag = thumbnailEtag(record, thumbnail)
@@ -415,6 +421,26 @@ function safeDecode(value: string): string | undefined {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError"
+}
+
+function thumbnailAssetTimeout(parent: AbortSignal, timeoutMs: number): { signal: AbortSignal; timedOut: boolean; dispose(): void } {
+  const controller = new AbortController()
+  let timedOut = false
+  const timeout = setTimeout(() => {
+    timedOut = true
+    controller.abort(new DOMException("Library thumbnail generation timed out.", "AbortError"))
+  }, timeoutMs)
+  const abort = () => controller.abort(parent.reason ?? new DOMException("Library thumbnail request was aborted.", "AbortError"))
+  if (parent.aborted) abort()
+  else parent.addEventListener("abort", abort, { once: true })
+  return {
+    signal: controller.signal,
+    get timedOut() { return timedOut },
+    dispose() {
+      clearTimeout(timeout)
+      parent.removeEventListener("abort", abort)
+    },
+  }
 }
 
 function pipelineContextId(contextId: string): string {
