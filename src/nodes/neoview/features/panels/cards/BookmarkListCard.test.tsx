@@ -113,6 +113,33 @@ describe("BookmarkListCard", () => {
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "路径" }))
     await waitFor(() => expect(listBookmarks.mock.calls.some((call) => call[4]?.sort?.field === "path")).toBe(true))
   })
+
+  it("syncs ordinary open to the containing Folder path", async () => {
+    const item = {
+      id: "bookmark-one",
+      name: "one.cbz",
+      kind: "file" as const,
+      source: { kind: "archive" as const, path: "D:/books/one.cbz" },
+      createdAt: 1,
+      updatedAt: 1,
+      starred: false,
+      listIds: ["all"],
+    }
+    const onOpen = vi.fn()
+    const onBrowsePath = vi.fn()
+    render(<BookmarkListCard
+      {...context(
+        vi.fn(async () => [{ id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true }]),
+        vi.fn(async () => [item]),
+      )}
+      onOpen={onOpen}
+      onBrowsePath={onBrowsePath}
+    />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "打开书签：one.cbz" }))
+    expect(onBrowsePath).toHaveBeenCalledWith("D:/books")
+    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz", { browserOriginPath: "D:/books" })
+  })
 })
 
 function context(

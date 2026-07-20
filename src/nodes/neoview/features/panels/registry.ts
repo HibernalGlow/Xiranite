@@ -72,6 +72,9 @@ export interface ReaderPanelContext {
   sourcePath?: string
   browserOriginPath?: string
   onOpen?(path: string, provenance?: import("../../adapters/reader-http-client").ReaderActivationProvenanceDto): void | Promise<void>
+  onBrowsePath?(path: string): void
+  onOpenInNewTab?(path: string): void
+  folderNavigationEvents?: EventTarget
   pickDirectory?: () => Promise<string | undefined>
   systemActions?: {
     copyText?(text: string): Promise<void>

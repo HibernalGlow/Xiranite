@@ -550,6 +550,16 @@ export function ReaderApp({
     }
   }
 
+  const folderNavigationEvents = useMemo(() => new EventTarget(), [])
+
+  function browsePath(nextPath: string) {
+    folderNavigationEvents.dispatchEvent(new CustomEvent("browse", { detail: { path: nextPath, newTab: false } }))
+  }
+
+  function openFolderPathInNewTab(nextPath: string) {
+    folderNavigationEvents.dispatchEvent(new CustomEvent("browse", { detail: { path: nextPath, newTab: true } }))
+  }
+
   async function navigate(action: "next" | "previous", slideshowAction = false): Promise<boolean> {
     const current = slideshowSessionRef.current
     const atBoundary = action === "next" ? current?.frame.atEnd : current?.frame.atStart
@@ -1479,6 +1489,9 @@ export function ReaderApp({
       revealPath: client.revealSystemPath,
     },
     onOpen: openPath,
+    onBrowsePath: browsePath,
+    onOpenInNewTab: openFolderPathInNewTab,
+    folderNavigationEvents,
     shell,
     shellControl,
     colorFilter,

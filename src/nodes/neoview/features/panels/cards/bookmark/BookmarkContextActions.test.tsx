@@ -21,6 +21,8 @@ describe("BookmarkContextActions", () => {
       disabled: false,
       pending: false,
       canOpen: true,
+      canBrowseFolder: true,
+      canOpenInNewTab: true,
       canCopyText: true,
       canOpenSystem: true,
       canReveal: true,
@@ -28,6 +30,8 @@ describe("BookmarkContextActions", () => {
     })
 
     expect(actions.map((action) => action.label).filter(Boolean)).toEqual([
+      "打开对应文件夹",
+      "在新标签页打开",
       "打开",
       "用默认软件打开",
       "在资源管理器中显示",
@@ -50,6 +54,8 @@ describe("BookmarkContextActions", () => {
       disabled: false,
       pending: false,
       canOpen: true,
+      canBrowseFolder: false,
+      canOpenInNewTab: false,
       canCopyText: false,
       canOpenSystem: false,
       canReveal: false,
@@ -57,6 +63,8 @@ describe("BookmarkContextActions", () => {
     })
 
     expect(actions.find((action) => action.id === "neoview-bookmark-system-open")?.disabled).toBe(true)
+    expect(actions.find((action) => action.id === "neoview-bookmark-browse-folder")?.disabled).toBe(true)
+    expect(actions.find((action) => action.id === "neoview-bookmark-open-new-tab")?.disabled).toBe(true)
     expect(actions.find((action) => action.id === "neoview-bookmark-reveal")?.disabled).toBe(true)
     expect(actions.find((action) => action.id === "neoview-bookmark-copy-name")?.disabled).toBe(true)
     expect(actions.find((action) => action.id === "neoview-bookmark-toggle-star")?.label).toBe("取消收藏")

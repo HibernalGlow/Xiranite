@@ -230,7 +230,7 @@ export default function FolderMainCard(context: ReaderPanelContext) {
   )
 }
 
-function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, switchToast, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, browserPath, tabBar, folderTabCount, maxFolderTabs, onCreateTab, onCurrentPathChange, onOpenInNewTab, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; browserPath: string; tabBar?: ReactNode; folderTabCount: number; maxFolderTabs: number; onCreateTab(): void; currentFolderTabPinned: boolean; canReopenFolderTab: boolean; onDuplicateCurrentTab(): void; onToggleCurrentTabPinned(): void; onReopenFolderTab(): void; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
+function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, switchToast, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, browserPath, tabBar, folderTabCount, maxFolderTabs, onCreateTab, onCurrentPathChange, onOpenInNewTab, folderNavigationEvents, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; browserPath: string; tabBar?: ReactNode; folderTabCount: number; maxFolderTabs: number; onCreateTab(): void; currentFolderTabPinned: boolean; canReopenFolderTab: boolean; onDuplicateCurrentTab(): void; onToggleCurrentTabPinned(): void; onReopenFolderTab(): void; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
   const clipboard = useFolderClipboard()
   const pendingInitialCloneRef = useRef(initialClone)
   const startupBrowserPathRef = useRef(resolveFolderStartupPath(browserPath, folderView.homePath))
@@ -333,6 +333,19 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     }
     if (startupBrowserPathRef.current) void openBrowser(startupBrowserPathRef.current)
   }, [sourcePath])
+
+  useEffect(() => {
+    if (!folderNavigationEvents || !active) return
+    const browse = (event: Event) => {
+      if (!(event instanceof CustomEvent)) return
+      const detail = event.detail as { path?: unknown; newTab?: unknown } | undefined
+      if (typeof detail?.path !== "string" || !detail.path.trim()) return
+      if (detail.newTab === true) onOpenInNewTab(detail.path)
+      else void openBrowser(detail.path)
+    }
+    folderNavigationEvents.addEventListener("browse", browse)
+    return () => folderNavigationEvents.removeEventListener("browse", browse)
+  }, [active, folderNavigationEvents, onOpenInNewTab])
 
   useEffect(() => disposeBrowser, [])
 

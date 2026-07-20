@@ -12,6 +12,7 @@ import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 import { readerLibraryListLayout, readerLibraryMediaClassName, readerLibrarySurfaceVariant, type ReaderLibraryViewMode } from "./shared/readerLibraryEntryLayout"
+import { libraryItemFolderPath } from "./shared/libraryItemFolderPath"
 import { ReaderLibraryViewToolbar, type ReaderLibrarySort } from "./shared/ReaderLibraryViewToolbar"
 
 interface PendingDelete {
@@ -26,7 +27,7 @@ const LazyHistoryContextActions = lazy(() => import("./history/HistoryContextAct
 /**
  * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/history/HistoryListCard.tsx
  */
-export default function HistoryListCard({ client, disabled, panelActive = true, onOpen, pickDirectory, systemActions, historyListPreferences, onHistoryListPreferences }: ReaderPanelContext) {
+export default function HistoryListCard({ client, disabled, panelActive = true, onOpen, onBrowsePath, onOpenInNewTab, pickDirectory, systemActions, historyListPreferences, onHistoryListPreferences }: ReaderPanelContext) {
   const [revision, setRevision] = useState(0)
   const [actionError, setActionError] = useState<string>()
   const [cleanupMessage, setCleanupMessage] = useState<string>()
@@ -56,6 +57,12 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   const handleViewportWidthChange = useCallback((width: number) => {
     setViewportWidth((current) => current === width ? current : width)
   }, [])
+
+  function openRecent(item: ReaderRecentDto) {
+    const folderPath = libraryItemFolderPath(item.source.path, item.source.kind === "directory")
+    onBrowsePath?.(folderPath)
+    return onOpen?.(item.source.path, { browserOriginPath: folderPath })
+  }
 
   useEffect(() => {
     if (switchingView || !historyListPreferences) return
@@ -235,7 +242,9 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
           disabled={disabled}
           items={loadedRecents}
           copyText={systemActions?.copyText}
-          onOpen={onOpen ? (item) => onOpen(item.source.path) : undefined}
+          onOpen={onOpen ? openRecent : undefined}
+          onBrowseFolder={onBrowsePath ? (item) => onBrowsePath(libraryItemFolderPath(item.source.path, item.source.kind === "directory")) : undefined}
+          onOpenInNewTab={onOpenInNewTab ? (item) => onOpenInNewTab(libraryItemFolderPath(item.source.path, item.source.kind === "directory")) : undefined}
           onReloadThumbnail={(item) => thumbnails.refresh(item.bookId)}
           onRemove={async (item) => {
             if (!client.removeRecent) throw new Error("当前后端不支持删除历史记录")
@@ -330,7 +339,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
             onSelect={selectRecent}
             onFocus={focusRecent}
             onMoveFocus={moveFocus}
-            onOpen={() => void onOpen?.(item.source.path)}
+            onOpen={() => void openRecent(item)}
             onRemove={() => setPendingDelete({ ids: [item.bookId], batch: false })}
           />
         )}

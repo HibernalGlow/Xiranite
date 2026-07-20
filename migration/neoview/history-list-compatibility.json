@@ -849,7 +849,7 @@
         "neoview.history.thumbnail-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Single/double-click and explicit resume plus confirmed single/batch history removal exist. A second-level lazy context menu now reuses authenticated host actions for system-open, reveal, copy path/name, add-bookmark and isolated thumbnail reload while preserving the shared Folder-style entry and thumbnail surfaces. Browse/new-tab, tree pin and tag editing remain pending."
+      "notes": "Single/double-click and explicit resume plus confirmed single/batch history removal exist. A second-level lazy context menu now reuses authenticated host actions for browse/new-tab, system-open, reveal, copy path/name, add-bookmark and isolated thumbnail reload while preserving the shared Folder-style entry and thumbnail surfaces. Browse/new-tab commands use a Reader-instance-scoped Folder channel and preserve filesystem roots; browser end-to-end evidence, tree pin and tag editing remain pending."
     },
     {
       "id": "history.cleanup",
