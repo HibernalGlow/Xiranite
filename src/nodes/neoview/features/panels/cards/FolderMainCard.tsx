@@ -88,7 +88,9 @@ const PAGE_SIZE = 128
 const MAX_CACHED_PAGES = 12
 const MAX_THUMBNAILS = 24
 const MAX_CACHED_THUMBNAIL_URLS = 256
-const PENETRATION_CLICK_DELAY_MS = 450
+// A short confirmation window preserves double-click raw-folder entry without
+// making a resolved folder feel like a half-second blocking operation.
+const PENETRATION_CLICK_DELAY_MS = 180
 const EMPTY_SELECTED_PATHS: ReadonlySet<string> = new Set()
 const DETAILS_METADATA_FIELDS: readonly ReaderDirectoryMetadataFieldDto[] = [
   "date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "tags",
@@ -1266,11 +1268,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     pending.controller.abort()
   }
 
-  function openReaderEntry(entry: Pick<ReaderDirectoryEntryDto, "path">): void {
+  function openReaderEntry(entry: Pick<ReaderDirectoryEntryDto, "path">, browserOriginEntryPath = entry.path): void {
     const current = catalogRef.current
     void onOpen?.(entry.path, current ? {
       browserOriginPath: current.path,
-      browserOriginEntryPath: entry.path,
+      browserOriginEntryPath,
     } : undefined)
   }
 
@@ -1312,7 +1314,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         penetrationActivationRef.current = undefined
         if (catalogRef.current?.sessionId !== pending.sessionId || catalogRef.current?.generation !== pending.generation) return
         if (resolution.status === "resolved" && resolution.terminal) {
-          openReaderEntry({ path: resolution.terminal.path })
+          openReaderEntry({ path: resolution.terminal.path }, entry.path)
           return
         }
         if (resolution.status === "blocked" && (resolution.reason === "permission" || resolution.reason === "cycle")) {
@@ -1487,6 +1489,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             selection={directorySelectionDescriptor(selection)}
             selectedCount={selectedCount}
             onActivate={activate}
+            onEnterRawDirectory={enterRawDirectory}
             onOpenInNewTab={onOpenInNewTab}
             onOpenAsBook={onOpen}
             switchToast={switchToast}

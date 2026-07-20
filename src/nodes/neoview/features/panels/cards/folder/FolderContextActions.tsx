@@ -30,6 +30,7 @@ export default function FolderContextActions({
   selection,
   selectedCount = 0,
   onActivate,
+  onEnterRawDirectory,
   onOpenInNewTab,
   onOpenAsBook,
   switchToast,
@@ -49,6 +50,7 @@ export default function FolderContextActions({
   selection?: ReaderDirectorySelectionDescriptorDto
   selectedCount?: number
   onActivate(entry: FolderContextEntry): void | Promise<void>
+  onEnterRawDirectory?(entry: FolderContextEntry): void | Promise<void>
   onOpenInNewTab(path: string): void
   onOpenAsBook?: (path: string) => void | Promise<void>
   switchToast?: ReaderSwitchToastPort
@@ -77,6 +79,10 @@ export default function FolderContextActions({
     }
     if (action === "edit-metadata") {
       setEmmEntry(entry)
+      return
+    }
+    if (action === "enter-raw") {
+      await onEnterRawDirectory?.(entry)
       return
     }
     if (action === "trash" || action === "delete") {
@@ -237,6 +243,7 @@ export default function FolderContextActions({
       canOpenSystem: Boolean(client.openSystemPath),
       canReveal: Boolean(client.revealSystemPath),
       canOpenAsBook: Boolean(onOpenAsBook),
+      canEnterRawDirectory: Boolean(onEnterRawDirectory),
       canBookmark: Boolean(client.findBookmarkByPath && client.saveBookmark && client.removeBookmark),
       canRename: Boolean(client.executeFileOperations),
       canTrash: Boolean(client.executeFileOperations),
@@ -283,7 +290,7 @@ export default function FolderContextActions({
   )
 }
 
-type FolderContextAction = "activate" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy" | "cut" | "paste" | "copy-path" | "copy-name" | "toggle-bookmark" | "edit-metadata" | "rename" | "trash" | "delete"
+type FolderContextAction = "activate" | "enter-raw" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy" | "cut" | "paste" | "copy-path" | "copy-name" | "toggle-bookmark" | "edit-metadata" | "rename" | "trash" | "delete"
 
 export function buildFolderContextMenuItems(
   entry: FolderContextEntry,
@@ -296,6 +303,7 @@ export function buildFolderContextMenuItems(
     canOpenSystem: boolean
     canReveal: boolean
     canOpenAsBook: boolean
+    canEnterRawDirectory?: boolean
     canBookmark: boolean
     canRename: boolean
     canTrash: boolean
@@ -317,6 +325,7 @@ export function buildFolderContextMenuItems(
   ]
   if (entry.kind === "directory") {
     items.push(
+      { id: "neoview-folder-enter-raw", label: "进入文件夹", icon: <FolderOpen />, disabled: unavailable || !options.canEnterRawDirectory, onSelect: () => options.onAction("enter-raw", entry) },
       { id: "neoview-folder-open-new-tab", label: "在新标签页中打开", icon: <PanelsTopLeft />, disabled: unavailable, onSelect: () => options.onAction("new-tab", entry) },
       { id: "neoview-folder-open-as-book", label: "作为书籍打开", icon: <BookOpen />, disabled: unavailable || !options.canOpenAsBook, onSelect: () => options.onAction("open-as-book", entry) },
     )

@@ -16,6 +16,7 @@ describe("FolderContextActions", () => {
     const openSystemPath = vi.fn(async () => undefined)
     const revealSystemPath = vi.fn(async () => undefined)
     const onActivate = vi.fn()
+    const onEnterRawDirectory = vi.fn()
     const onOpenInNewTab = vi.fn()
     const onOpenAsBook = vi.fn()
     const user = userEvent.setup()
@@ -26,6 +27,7 @@ describe("FolderContextActions", () => {
           disabled={false}
           copyText={copyText}
           onActivate={onActivate}
+          onEnterRawDirectory={onEnterRawDirectory}
           onOpenInNewTab={onOpenInNewTab}
           onOpenAsBook={onOpenAsBook}
         />
@@ -46,6 +48,10 @@ describe("FolderContextActions", () => {
     expect(screen.getByText("作为书籍打开")).toBeTruthy()
     await user.click(screen.getByText("在新标签页中打开"))
     expect(onOpenInNewTab).toHaveBeenCalledWith("D:/library/series")
+
+    fireEvent.contextMenu(target, { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByText("进入文件夹"))
+    expect(onEnterRawDirectory).toHaveBeenCalledWith(expect.objectContaining({ path: "D:/library/series" }))
 
     fireEvent.contextMenu(target, { clientX: 20, clientY: 30 })
     await user.click(await screen.findByText("复制路径"))

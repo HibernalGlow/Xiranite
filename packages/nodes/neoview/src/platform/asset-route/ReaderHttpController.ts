@@ -1865,6 +1865,10 @@ export class ReaderHttpController implements AsyncDisposable {
         direction: parsed.direction,
         cursor: this.#bookTraversalCursors.get(current.id),
         sort: parsed.sort,
+        penetration: {
+          maxDepth: this.#folderView.penetration.maxDepth,
+          terminalTargets: this.#folderView.penetration.terminalTargets,
+        },
         randomSeed: current.id,
       }, request.signal)
       if (!candidate) return new Response(null, { status: 204 })

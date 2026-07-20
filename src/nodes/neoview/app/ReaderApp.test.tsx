@@ -227,6 +227,58 @@ describe("ReaderApp", () => {
     ).toBeTruthy())
   })
 
+  it("[neoview.reader.next-book-tail] switches to the previous book from the first page", async () => {
+    const opened = {
+      ...session("page-1", "http://127.0.0.1:41000/reader/page-1", 0),
+      frame: {
+        ...session("page-1", "http://127.0.0.1:41000/reader/page-1", 0).frame,
+        atStart: true,
+        atEnd: false,
+      },
+    }
+    const replacement = {
+      ...session("page-0", "http://127.0.0.1:41000/reader/page-0", 1),
+      sessionId: "reader-0",
+      book: { id: "book-0", displayName: "Book 0", pageCount: 2 },
+      frame: {
+        ...session("page-0", "http://127.0.0.1:41000/reader/page-0", 1).frame,
+        pageCount: 2,
+        atStart: false,
+        atEnd: true,
+      },
+    }
+    const navigate = vi.fn(async () => {
+      throw new Error("navigate must not run when previous-book overflow succeeds")
+    })
+    const openAdjacentBook = vi.fn(async () => replacement)
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), sessionOptions: { tailOverflow: "next-book" } })),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      openAdjacentBook,
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
+      navigate,
+      goTo: vi.fn(),
+      metadata: vi.fn(async () => ({ book: { sourcePath: "D:/books/Book 0.cbz" } })) as ReaderHttpClient["metadata"],
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("img", { name: "001.jpg" })
+    await waitFor(() => expect(client.config).toHaveBeenCalled())
+    await act(async () => { await Promise.resolve() })
+
+    fireEvent.keyDown(document.querySelector("[data-reader-app]")!, { key: "ArrowLeft", code: "ArrowLeft" })
+    await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "previous", expect.any(AbortSignal)))
+    expect(navigate).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByText("2 / 2")).toBeTruthy())
+  })
+
   it("[neoview.reader.next-book-tail] keeps the normal page-turn path when not at the last page", async () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const openAdjacentBook = vi.fn(async () => undefined)
