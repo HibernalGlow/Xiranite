@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { ReaderOpdsClient, ReaderOpdsHttpError, parseReaderOpdsCatalog } from "./ReaderOpdsClient.js"
+import { buildReaderOpdsSearchUrl, ReaderOpdsClient, ReaderOpdsHttpError, parseReaderOpdsCatalog } from "./ReaderOpdsClient.js"
 
 describe("ReaderOpdsClient", () => {
   it("[neoview.opds.v2] normalizes navigation, publications, acquisition and pagination", () => {
@@ -148,5 +148,16 @@ describe("ReaderOpdsClient", () => {
     await expect(client.read("https://catalog.example/private/feed")).rejects.toMatchObject({ status: 401 })
     expect(provider.getCredentials).toHaveBeenCalledOnce()
     expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.opds.search-template] expands OPDS and OpenSearch query variables without leaving raw placeholders", () => {
+    expect(buildReaderOpdsSearchUrl("https://catalog.example/search{?query,count,startPage,language}", {
+      query: "space opera", count: 20, startPage: 2, language: "zh-Hans",
+    })).toBe("https://catalog.example/search?query=space%20opera&count=20&startPage=2&language=zh-Hans")
+    expect(buildReaderOpdsSearchUrl("https://catalog.example/search?q={searchTerms}&start={startIndex}", {
+      query: "manga", startIndex: 0,
+    })).toBe("https://catalog.example/search?q=manga&start=0")
+    expect(() => buildReaderOpdsSearchUrl("https://catalog.example/search{?count}", { query: "missing" })).toThrow("search terms")
+    expect(() => buildReaderOpdsSearchUrl("https://catalog.example/search{?query*}", { query: "bad" })).toThrow("unsupported")
   })
 })

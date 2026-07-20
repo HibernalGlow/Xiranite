@@ -66,6 +66,14 @@ export interface ReaderOpdsCredentialProvider {
   getCredentials(request: ReaderOpdsCredentialRequest): Promise<ReaderOpdsCredentials | undefined>
 }
 
+export interface ReaderOpdsSearchParameters {
+  query: string
+  count?: number
+  startPage?: number
+  startIndex?: number
+  language?: string
+}
+
 const DEFAULT_MAX_BYTES = 4 * 1024 * 1024
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -133,6 +141,37 @@ export function parseReaderOpdsCatalog(body: string, url: string): ReaderOpdsCat
     if (error instanceof ReaderOpdsParseError) throw error
     throw new ReaderOpdsParseError(error instanceof Error ? error.message : String(error))
   }
+}
+
+export function buildReaderOpdsSearchUrl(template: string, parameters: ReaderOpdsSearchParameters): string {
+  const query = parameters.query.trim()
+  if (!query || query.length > 2_048) throw new ReaderOpdsParseError("search query must contain 1 to 2048 characters")
+  const values: Record<string, string | undefined> = {
+    query,
+    searchTerms: query,
+    q: query,
+    count: optionalSearchInteger(parameters.count, "count", 1),
+    startPage: optionalSearchInteger(parameters.startPage, "startPage", 1),
+    startIndex: optionalSearchInteger(parameters.startIndex, "startIndex", 0),
+    language: optionalSearchLanguage(parameters.language),
+    inputEncoding: "UTF-8",
+    outputEncoding: "UTF-8",
+  }
+  let usedSearchTerm = false
+  const expanded = template.replace(/\{([?&]?)([^{}]+)\}/g, (_expression, operator: string, variableList: string) => {
+    const names = variableList.split(",").map((name) => name.trim())
+    if (names.some((name) => !/^[A-Za-z][A-Za-z0-9]*$/.test(name))) throw new ReaderOpdsParseError("search template contains an unsupported variable")
+    if (names.some((name) => name === "query" || name === "searchTerms" || name === "q")) usedSearchTerm = true
+    if (!operator) {
+      if (names.length !== 1) throw new ReaderOpdsParseError("search template expression is invalid")
+      return encodeURIComponent(values[names[0]!] ?? "")
+    }
+    const pairs = names.flatMap((name) => values[name] === undefined ? [] : [`${encodeURIComponent(name)}=${encodeURIComponent(values[name]!)}`])
+    return pairs.length ? `${operator}${pairs.join("&")}` : ""
+  })
+  if (!usedSearchTerm) throw new ReaderOpdsParseError("search template does not accept search terms")
+  if (/[{}]/.test(expanded)) throw new ReaderOpdsParseError("search template contains an invalid expression")
+  return normalizeUrl(expanded)
 }
 
 export class ReaderOpdsHttpError extends Error {
@@ -360,6 +399,21 @@ function field(record: Record<string, any>, name: string): unknown {
 function boundedMaxBytes(value: number): number {
   if (!Number.isSafeInteger(value) || value < 1_024 || value > 64 * 1024 * 1024) throw new RangeError("OPDS maxBytes must be an integer from 1024 to 67108864")
   return value
+}
+
+function optionalSearchInteger(value: number | undefined, name: string, minimum: number): string | undefined {
+  if (value === undefined) return undefined
+  if (!Number.isSafeInteger(value) || value < minimum || value > 1_000_000) {
+    throw new ReaderOpdsParseError(`${name} must be an integer from ${minimum} to 1000000`)
+  }
+  return String(value)
+}
+
+function optionalSearchLanguage(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  const language = value.trim()
+  if (!/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/.test(language)) throw new ReaderOpdsParseError("search language is invalid")
+  return language
 }
 
 function buildAuthorization(challenge: string, url: string, credentials: ReaderOpdsCredentials): string | undefined {

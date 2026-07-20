@@ -544,6 +544,9 @@ describe("reader-http-client", () => {
     })
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/reader/opds/catalog?url=https%3A%2F%2Fcatalog.example%2Ffeed%3Fquery%3Done%20two")
     expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+
+    await client.searchOpdsCatalog!("https://catalog.example/search{?query}", "space opera")
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/reader/opds/search?template=https%3A%2F%2Fcatalog.example%2Fsearch%7B%3Fquery%7D&query=space%20opera")
   })
 
   it("[neoview.file-browser.thumbnails] registers only opaque library thumbnail contexts and releases them", async () => {

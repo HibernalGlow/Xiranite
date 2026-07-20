@@ -1423,6 +1423,7 @@ export interface ReaderHttpClient {
   listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
   summarizeFolderProgress?(path: string, signal?: AbortSignal): Promise<ReaderFolderProgressSummaryDto>
   readOpdsCatalog?(url: string, signal?: AbortSignal): Promise<ReaderOpdsCatalogDto>
+  searchOpdsCatalog?(template: string, query: string, signal?: AbortSignal): Promise<ReaderOpdsCatalogDto>
   removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
   removeRecents?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResultDto>
   cleanupRecents?(request: ReaderRecentCleanupRequestDto, signal?: AbortSignal): Promise<ReaderRecentCleanupResultDto>
@@ -2040,6 +2041,10 @@ export function createReaderHttpClient(
     ),
     readOpdsCatalog: (url, signal) => request<ReaderOpdsCatalogDto>(
       `/reader/opds/catalog?url=${encodeURIComponent(url)}`,
+      { signal },
+    ),
+    searchOpdsCatalog: (template, query, signal) => request<ReaderOpdsCatalogDto>(
+      `/reader/opds/search?template=${encodeURIComponent(template)}&query=${encodeURIComponent(query)}`,
       { signal },
     ),
     removeRecent: (bookId, signal) => request<void>(`/reader/library/recents/${encodeURIComponent(bookId)}`, {
