@@ -6,6 +6,11 @@ import { publishReaderLibraryMutation } from "../../library/reader-library-mutat
 import BookmarkListCard from "./BookmarkListCard"
 import HistoryListCard from "./HistoryListCard"
 
+function selectLibraryView(label: "紧凑列表" | "封面列表" | "横幅" | "封面网格") {
+  fireEvent.pointerDown(screen.getByRole("button", { name: /^视图：/ }), { button: 0, pointerType: "mouse" })
+  fireEvent.click(screen.getByRole("menuitemradio", { name: label }))
+}
+
 vi.mock("@tanstack/react-virtual", () => ({
   useVirtualizer: ({ count, estimateSize }: { count: number; estimateSize(): number }) => ({
     getTotalSize: () => count * estimateSize(),
@@ -38,7 +43,7 @@ describe("Reader library cards", () => {
     render(<HistoryListCard client={{ listRecent, removeRecent } as ReaderHttpClient} disabled={false} onOpen={onOpen} onGoTo={vi.fn()} />)
     await screen.findByText("demo.cbz")
     fireEvent.click(screen.getByRole("button", { name: "继续阅读：demo.cbz" }))
-    expect(onOpen).toHaveBeenCalledWith("D:/books/demo.cbz")
+    expect(onOpen).toHaveBeenCalledWith("D:/books/demo.cbz", { browserOriginPath: "D:/books" })
     fireEvent.click(screen.getByRole("button", { name: "删除历史：demo.cbz" }))
     fireEvent.click(screen.getByRole("button", { name: "删除历史", exact: true }))
     await waitFor(() => expect(removeRecent).toHaveBeenCalledWith("book-1"))
@@ -58,11 +63,11 @@ describe("Reader library cards", () => {
     )
 
     await screen.findByText("one.cbz")
-    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-history-view-mode")).toBe("banner")
-    expect(screen.getByRole("button", { name: "横幅" }).getAttribute("aria-pressed")).toBe("true")
-    fireEvent.click(screen.getByRole("button", { name: "缩略图" }))
+    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-history-view-mode")).toBe("mosaic-list")
+    expect(screen.getByRole("button", { name: "视图：横幅" })).toBeTruthy()
+    selectLibraryView("封面网格")
     await waitFor(() => expect(onHistoryListPreferences).toHaveBeenCalledWith({ viewMode: "thumbnail" }))
-    await waitFor(() => expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-history-view-mode")).toBe("thumbnail"))
+    await waitFor(() => expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-history-view-mode")).toBe("cover-grid"))
   })
 
   it("[neoview.history.view-settings-rollback] restores the confirmed view after persistence fails", async () => {
@@ -79,10 +84,10 @@ describe("Reader library cards", () => {
     )
 
     await screen.findByText("one.cbz")
-    fireEvent.click(screen.getByRole("button", { name: "缩略图" }))
+    selectLibraryView("封面网格")
     expect((await screen.findByRole("alert")).textContent).toContain("保存历史视图失败")
-    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-history-view-mode")).toBe("content")
-    expect(screen.getByRole("button", { name: "内容" }).getAttribute("aria-pressed")).toBe("true")
+    expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-history-view-mode")).toBe("cover-list")
+    expect(screen.getByRole("button", { name: "视图：封面列表" })).toBeTruthy()
   })
 
   it("[neoview.history.thumbnail-visible] [neoview.history.views] [neoview.history.selection] [neoview.history.selection-keyboard] reuses four entry surfaces and sends one batch removal", async () => {
@@ -111,9 +116,14 @@ describe("Reader library cards", () => {
 
     await screen.findByText("one.cbz")
     expect(screen.getByRole("listbox", { name: "阅读历史" }).getAttribute("aria-multiselectable")).toBe("true")
-    expect(registerLibraryThumbnails).not.toHaveBeenCalled()
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledWith(
+      expect.stringMatching(/^history:/),
+      1,
+      recents.map((item) => ({ id: item.bookId, path: item.source.path, kind: "file", previewCount: 1 })),
+      expect.any(AbortSignal),
+    ))
     expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("compact")
-    fireEvent.click(screen.getByRole("button", { name: "内容" }))
+    selectLibraryView("封面列表")
     await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledWith(
       expect.stringMatching(/^history:/),
       1,
@@ -122,21 +132,21 @@ describe("Reader library cards", () => {
     ))
     await waitFor(() => expect(view.container.querySelectorAll("img")).toHaveLength(3))
     expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("content")
-    fireEvent.click(screen.getByRole("button", { name: "横幅" }))
+    selectLibraryView("横幅")
     await waitFor(() => expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("banner"))
     // Column count tracks panel width (narrow sidebars stay 1-up so covers can grow).
     expect(Number(view.container.querySelector("[data-library-grid-columns]")?.getAttribute("data-library-grid-columns"))).toBeGreaterThanOrEqual(1)
-    fireEvent.click(screen.getByRole("button", { name: "缩略图" }))
+    selectLibraryView("封面网格")
     await waitFor(() => expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("thumbnail"))
     expect(Number(view.container.querySelector("[data-library-grid-columns]")?.getAttribute("data-library-grid-columns"))).toBeGreaterThanOrEqual(1)
-    fireEvent.click(screen.getByRole("button", { name: "内容" }))
+    selectLibraryView("封面列表")
     await waitFor(() => expect(view.container.querySelector('[data-history-id="one"]')?.getAttribute("data-entry-variant")).toBe("content"))
     const firstHistoryRow = view.container.querySelector<HTMLButtonElement>('[data-history-row-button="0"]')!
     const secondHistoryRow = view.container.querySelector<HTMLButtonElement>('[data-history-row-button="1"]')!
     firstHistoryRow.focus()
     fireEvent.keyDown(firstHistoryRow, { key: "ArrowDown" })
     await waitFor(() => expect(document.activeElement).toBe(secondHistoryRow))
-    fireEvent.click(screen.getByRole("button", { name: "缩略图" }))
+    selectLibraryView("封面网格")
     const focusedThumbnailRow = view.container.querySelector<HTMLButtonElement>('[data-history-row-button="1"]')!
     await waitFor(() => expect(document.activeElement).toBe(focusedThumbnailRow))
     fireEvent.keyDown(focusedThumbnailRow, { key: "a", ctrlKey: true })
@@ -144,7 +154,7 @@ describe("Reader library cards", () => {
     fireEvent.click(screen.getByRole("button", { name: "反选已加载历史记录" }))
     expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
     fireEvent.click(view.container.querySelector('[data-history-row-button="0"]')!)
-    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz")
+    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz", { browserOriginPath: "D:/books" })
     expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
     fireEvent.click(view.container.querySelector('[data-history-row-button="0"]')!, { ctrlKey: true })
     fireEvent.click(screen.getByRole("button", { name: "选择全部已加载历史记录" }))
@@ -216,11 +226,17 @@ describe("Reader library cards", () => {
       />,
     )
 
-    await waitFor(() => expect(listBookmarks).toHaveBeenCalledWith(0, 100, "reading", expect.any(AbortSignal)))
+    await waitFor(() => expect(listBookmarks).toHaveBeenCalledWith(0, 100, "reading", expect.any(AbortSignal), {
+      search: "",
+      sort: { field: "date", order: "desc" },
+    }))
     expect(screen.getByRole("button", { name: "待读" }).getAttribute("aria-pressed")).toBe("true")
     fireEvent.click(screen.getByRole("button", { name: "稍后" }))
     await waitFor(() => expect(onBookmarkListPreferences).toHaveBeenCalledWith({ activeListId: "later" }))
-    await waitFor(() => expect(listBookmarks).toHaveBeenCalledWith(0, 100, "later", expect.any(AbortSignal)))
+    await waitFor(() => expect(listBookmarks).toHaveBeenCalledWith(0, 100, "later", expect.any(AbortSignal), {
+      search: "",
+      sort: { field: "date", order: "desc" },
+    }))
     expect(screen.getByRole("button", { name: "稍后" }).getAttribute("aria-pressed")).toBe("true")
   })
 
@@ -242,8 +258,11 @@ describe("Reader library cards", () => {
     )
 
     await waitFor(() => expect(onBookmarkListPreferences).toHaveBeenCalledWith({ activeListId: "all" }))
-    await waitFor(() => expect(listBookmarks).toHaveBeenCalledWith(0, 100, "all", expect.any(AbortSignal)))
-    expect(listBookmarks).not.toHaveBeenCalledWith(0, 100, "deleted", expect.anything())
+    await waitFor(() => expect(listBookmarks).toHaveBeenCalledWith(0, 100, "all", expect.any(AbortSignal), {
+      search: "",
+      sort: { field: "date", order: "desc" },
+    }))
+    expect(listBookmarks.mock.calls.some((call) => call[2] === "deleted")).toBe(false)
   })
 
   it("[neoview.bookmark.active-list-rollback] restores the confirmed list after persistence fails", async () => {
@@ -306,9 +325,14 @@ describe("Reader library cards", () => {
     )
 
     await screen.findByText("demo.cbz")
-    expect(registerLibraryThumbnails).not.toHaveBeenCalled()
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledWith(
+      expect.stringMatching(/^bookmark:/),
+      1,
+      [{ id: "bookmark-1", path: "D:/books/demo.cbz", kind: "file", previewCount: 1 }],
+      expect.any(AbortSignal),
+    ))
     expect(view.container.querySelector('[data-bookmark-id="bookmark-1"]')?.getAttribute("data-entry-variant")).toBe("compact")
-    fireEvent.click(screen.getByRole("button", { name: "内容" }))
+    selectLibraryView("封面列表")
     await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledWith(
       expect.stringMatching(/^bookmark:/),
       1,
@@ -321,15 +345,15 @@ describe("Reader library cards", () => {
     fireEvent.click(screen.getByRole("button", { name: "收藏：demo.cbz" }))
     await waitFor(() => expect(updateBookmark).toHaveBeenCalledWith("bookmark-1", { starred: true }))
 
-    fireEvent.click(screen.getByRole("button", { name: "横幅" }))
+    selectLibraryView("横幅")
     await waitFor(() => expect(view.container.querySelector('[data-bookmark-id="bookmark-1"]')?.getAttribute("data-entry-variant")).toBe("banner"))
     expect(Number(view.container.querySelector("[data-library-grid-columns]")?.getAttribute("data-library-grid-columns"))).toBeGreaterThanOrEqual(1)
-    fireEvent.click(screen.getByRole("button", { name: "缩略图" }))
+    selectLibraryView("封面网格")
     await waitFor(() => expect(view.container.querySelector('[data-bookmark-id="bookmark-1"]')?.getAttribute("data-entry-variant")).toBe("thumbnail"))
     expect(Number(view.container.querySelector("[data-library-grid-columns]")?.getAttribute("data-library-grid-columns"))).toBeGreaterThanOrEqual(1)
-    fireEvent.click(screen.getByRole("button", { name: "列表" }))
+    selectLibraryView("紧凑列表")
     await waitFor(() => expect(view.container.querySelector('[data-bookmark-id="bookmark-1"]')?.getAttribute("data-entry-variant")).toBe("compact"))
-    expect(view.container.querySelector('[data-bookmark-id="bookmark-1"] img')).toBeNull()
+    expect(view.container.querySelector('[data-bookmark-id="bookmark-1"] img')).toBeTruthy()
 
     view.unmount()
     await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledWith(expect.stringMatching(/^bookmark:/)))
@@ -371,7 +395,7 @@ describe("Reader library cards", () => {
     )
 
     await screen.findByText("late-list.cbz")
-    fireEvent.click(screen.getByRole("button", { name: "内容" }))
+    selectLibraryView("封面列表")
     await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledTimes(1))
     publishReaderLibraryMutation()
     await waitFor(() => expect(listBookmarkLists).toHaveBeenCalledTimes(2))
@@ -453,7 +477,7 @@ describe("Reader library cards", () => {
 
     await screen.findByText("one")
     fireEvent.click(view.container.querySelector('[data-bookmark-row-button="0"]')!)
-    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz")
+    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz", { browserOriginPath: "D:/books" })
     expect(view.container.querySelector('[data-neoview-bookmark-card="true"]')?.getAttribute("data-selection-count")).toBe("0")
     fireEvent.click(view.container.querySelector('[data-bookmark-row-button="0"]')!, { ctrlKey: true })
     fireEvent.click(view.container.querySelector('[data-bookmark-row-button="2"]')!, { shiftKey: true })
@@ -464,7 +488,7 @@ describe("Reader library cards", () => {
     fireEvent.keyDown(firstRow, { key: "ArrowDown" })
     expect(document.activeElement).toBe(secondRow)
     fireEvent.keyDown(secondRow, { key: "Enter" })
-    expect(onOpen).toHaveBeenCalledWith("D:/books/two.cbz")
+    expect(onOpen).toHaveBeenCalledWith("D:/books/two.cbz", { browserOriginPath: "D:/books" })
     fireEvent.click(screen.getByRole("button", { name: "添加所选书签到列表" }))
     fireEvent.click(screen.getByRole("checkbox", { name: "待读" }))
     fireEvent.click(screen.getByRole("button", { name: "添加" }))

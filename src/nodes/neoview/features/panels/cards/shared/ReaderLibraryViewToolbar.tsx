@@ -71,7 +71,12 @@ export function ReaderLibraryViewToolbar({ label, value, disabled = false, onVal
             <CurrentViewIcon />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-44" data-reader-library-menu="view">
+        <DropdownMenuContent
+          align="start"
+          className="w-44"
+          data-reader-library-menu="view"
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
           <DropdownMenuRadioGroup value={value} onValueChange={(next) => onValueChange(next as ReaderLibraryViewMode)}>
             {VIEW_OPTIONS.map(({ mode, label: optionLabel, icon: Icon }) => (
               <DropdownMenuRadioItem key={mode} value={mode}>
