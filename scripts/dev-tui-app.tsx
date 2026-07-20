@@ -34,70 +34,59 @@ export function DevTui({ controller, onExit }: { controller: DevTuiController; o
     if (key.name === "s") void controller.start()
     if (key.name === "x") void controller.stop()
     if (key.name === "r") void controller.restart()
-    if (key.name === "c") controller.clearLogs()
     if (key.name === "q" || key.name === "escape") setExitConfirm(true)
   })
 
-  const uptime = snapshot.startedAt && snapshot.phase === "running" ? formatDuration(now - snapshot.startedAt) : "-"
-  const recentLogs = snapshot.lines.slice(-32).join("\n") || "No output yet. Press S to start."
+  const uptime = snapshot.startedAt && (snapshot.phase === "running" || snapshot.phase === "starting")
+    ? formatDuration(now - snapshot.startedAt)
+    : "-"
 
   return (
-    <box width="100%" height="100%" flexDirection="column" paddingLeft={1} paddingRight={1}>
-      <box height={4} flexShrink={0} borderStyle="single" borderColor={colors.border} paddingLeft={1} paddingRight={1} flexDirection="row" justifyContent="space-between">
-        <box flexDirection="column">
-          <text fg={colors.primary}><b>XIRANITE // DEV CONTROL</b></text>
-          <text fg={colors.muted}>{`${snapshot.label} | bun run ${snapshot.target}`}</text>
-        </box>
-        <box flexDirection="column" alignItems="flex-end">
-          <text fg={phaseColor(snapshot.phase)}><b>{snapshot.phase.toUpperCase()}</b></text>
-          <text fg={colors.muted}>{snapshot.message}</text>
-        </box>
+    <box width="100%" height="100%" flexDirection="column">
+      <box height={3} flexShrink={0} borderStyle="single" borderColor={colors.border} paddingLeft={1} paddingRight={1} flexDirection="row" justifyContent="space-between" alignItems="center">
+        <text fg={colors.primary}><b>{`XIRANITE DEV CONTROL | ${snapshot.label}`}</b></text>
+        <text fg={phaseColor(snapshot.phase)}><b>{snapshot.phase.toUpperCase()}</b></text>
       </box>
 
-      <box height={5} flexShrink={0} marginTop={1} flexDirection="row" gap={1}>
+      <box height={3} flexShrink={0} flexDirection="row" gap={1}>
         <Metric label="PID" value={snapshot.pid ? String(snapshot.pid) : "-"} />
-        <Metric label="UPTIME" value={uptime} />
-        <Metric label="LOG BUFFER" value={`${snapshot.lines.length}/600`} />
-        <Metric label="DROPPED" value={String(snapshot.droppedLines)} />
+        <Metric label="UP" value={uptime} />
+        <Metric label="TARGET" value={snapshot.target} />
+        <Metric label="OUTPUT" value="native ANSI" />
       </box>
 
       {exitConfirm ? (
-        <box height={4} flexShrink={0} borderStyle="rounded" borderColor={colors.warning} paddingLeft={1} paddingRight={1} flexDirection="row" justifyContent="space-between" alignItems="center">
-          <text fg={colors.warning}><b>Exit will safely stop the managed XR/XRD session.</b></text>
-          <box flexDirection="row" gap={1}><Action id="dev-exit-confirm" label="Stop + exit" keyLabel="Q" onAction={onExit} /><Action id="dev-exit-cancel" label="Cancel" keyLabel="Esc" onAction={() => setExitConfirm(false)} /></box>
+        <box height={3} flexShrink={0} borderStyle="rounded" borderColor={colors.warning} paddingLeft={1} paddingRight={1} flexDirection="row" justifyContent="space-between" alignItems="center">
+          <text fg={colors.warning}><b>Exit stops the managed session.</b></text>
+          <box flexDirection="row" gap={1}><InlineAction id="dev-exit-confirm" label="[Q] Confirm" onAction={onExit} /><InlineAction id="dev-exit-cancel" label="[Esc] Back" onAction={() => setExitConfirm(false)} /></box>
         </box>
       ) : (
-        <box height={4} flexShrink={0} flexDirection="row" gap={1}>
+        <box height={3} flexShrink={0} flexDirection="row" gap={1}>
           <Action id="dev-start" label="Start" keyLabel="S" disabled={snapshot.phase === "running" || snapshot.phase === "starting"} onAction={() => void controller.start()} />
           <Action id="dev-stop" label="Stop" keyLabel="X" disabled={snapshot.phase === "stopped" || snapshot.phase === "stopping"} onAction={() => void controller.stop()} />
           <Action id="dev-restart" label="Restart" keyLabel="R" disabled={snapshot.phase === "starting" || snapshot.phase === "stopping"} onAction={() => void controller.restart()} />
-          <Action id="dev-clear" label="Clear" keyLabel="C" onAction={() => controller.clearLogs()} />
           <Action id="dev-exit" label="Exit" keyLabel="Q" onAction={() => setExitConfirm(true)} />
         </box>
       )}
 
-      <box flexGrow={1} minHeight={0} borderStyle="rounded" borderColor={colors.border} paddingLeft={1} paddingRight={1} flexDirection="column">
-        <box height={2} flexShrink={0} flexDirection="row" justifyContent="space-between">
-          <text fg={colors.primary}><b>LIVE OUTPUT</b></text>
-          <text fg={colors.muted}>batched 100ms | latest 32 lines</text>
-        </box>
-        <text fg={colors.foreground}>{recentLogs}</text>
-      </box>
-
-      <box height={2} flexShrink={0} justifyContent="space-between" flexDirection="row">
-        <text fg={colors.muted}>S start | X stop | R restart | C clear</text>
-        <text fg={colors.muted}>Q / Esc safely stop and exit</text>
+      <box height={1} flexShrink={0} flexDirection="row" justifyContent="space-between">
+        <text fg={colors.muted}>{snapshot.message}</text>
+        <text fg={colors.muted}>Native output above | S start | X stop | R restart | Q exit</text>
       </box>
     </box>
   )
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <box flexGrow={1} borderStyle="rounded" borderColor={colors.border} paddingLeft={1} paddingRight={1} flexDirection="column"><text fg={colors.muted}>{label}</text><text fg={colors.foreground}><b>{value}</b></text></box>
+  return <box flexGrow={1} borderStyle="rounded" borderColor={colors.border} paddingLeft={1} paddingRight={1} flexDirection="row" justifyContent="space-between" alignItems="center"><text fg={colors.muted}>{label}</text><text fg={colors.foreground}><b>{value}</b></text></box>
 }
 
 function Action({ id, label, keyLabel, disabled = false, onAction }: { id: string; label: string; keyLabel: string; disabled?: boolean; onAction: () => void }) {
-  return <box id={id} width={14} height={3} borderStyle="rounded" borderColor={disabled ? colors.border : colors.primary} paddingLeft={1} paddingRight={1} justifyContent="center" onMouseDown={() => { if (!disabled) onAction() }}><text fg={disabled ? colors.muted : colors.foreground}>{`[${keyLabel}] ${label}`}</text></box>
+  return <box id={id} width={15} height={3} borderStyle="rounded" borderColor={disabled ? colors.border : colors.primary} paddingLeft={1} paddingRight={1} justifyContent="center" onMouseDown={() => { if (!disabled) onAction() }}><text fg={disabled ? colors.muted : colors.foreground}>{`[${keyLabel}] ${label}`}</text></box>
+}
+
+function InlineAction({ id, label, onAction }: { id: string; label: string; onAction: () => void }) {
+  return <box id={id} width={13} justifyContent="center" onMouseDown={onAction}><text fg={colors.foreground}><b>{label}</b></text></box>
 }
 
 function phaseColor(phase: DevPhase): string {
@@ -115,5 +104,5 @@ function formatDuration(milliseconds: number): string {
 }
 
 export function createStaticDevSnapshot(overrides: Partial<DevTuiSnapshot> = {}): DevTuiSnapshot {
-  return { target: "dev", label: "XR Browser", phase: "stopped", lines: [], droppedLines: 0, message: "Ready", ...overrides }
+  return { target: "dev", label: "XR Browser", phase: "stopped", message: "Ready", ...overrides }
 }
