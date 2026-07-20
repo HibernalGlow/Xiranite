@@ -798,6 +798,7 @@ describe("FolderMainCard", () => {
       entries: [{ name: "old.cbz", path: "C:/books/old.cbz", kind: "file", readerSupported: true }],
       total: 1,
     })
+    const onFolderView = vi.fn(async () => undefined)
     const view = render(
       <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
         <FolderMainCard
@@ -806,6 +807,8 @@ describe("FolderMainCard", () => {
           sourcePath="C:/books"
           onOpen={vi.fn()}
           onGoTo={vi.fn()}
+          folderView={folderViewConfig()}
+          onFolderView={onFolderView}
         />
       </VirtuosoMockContext.Provider>,
     )
@@ -822,6 +825,7 @@ describe("FolderMainCard", () => {
     openFolderMoreMenu(ui)
     fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "删除前确认" }))
     expect(view.container.querySelector('[data-folder-delete-confirm="false"]')).toBeTruthy()
+    expect(onFolderView).toHaveBeenCalledWith({ confirmDelete: false })
   })
 
   it("[neoview.folder.tabs-lifecycle] [neoview.folder.tabs-navigation-history] creates, switches and closes isolated Explorer-style folder tabs", async () => {
@@ -2698,6 +2702,7 @@ function folderViewConfig(overrides: Partial<ReaderFolderViewConfig> = {}): Read
     previewCount: 4,
     thumbnailWidthPercent: 20,
     bannerWidthPercent: 50,
+    confirmDelete: true,
     tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
     penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
     emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },

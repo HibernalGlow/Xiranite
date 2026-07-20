@@ -265,6 +265,7 @@ describe("ReaderHttpController", () => {
     const updateFolderView = vi.fn(async (patch) => ({
       viewMode: patch.folderView.viewMode ?? "compact" as const,
       previewCount: patch.folderView.previewCount ?? 4 as const,
+      confirmDelete: patch.folderView.confirmDelete ?? true,
       details: {
         columnOrder: patch.folderView.details?.columnOrder ?? ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
         hiddenColumns: patch.folderView.details?.hiddenColumns ?? [],
@@ -467,6 +468,7 @@ describe("ReaderHttpController", () => {
         folderView: {
           viewMode: "details",
           previewCount: 9,
+          confirmDelete: false,
           details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
           emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
@@ -475,6 +477,7 @@ describe("ReaderHttpController", () => {
       expect(await folderPatched.json()).toMatchObject({ folderView: {
         viewMode: "details",
         previewCount: 9,
+        confirmDelete: false,
         details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
         search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
         emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
@@ -483,6 +486,7 @@ describe("ReaderHttpController", () => {
         { folderView: {
           viewMode: "details",
           previewCount: 9,
+          confirmDelete: false,
           details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
           emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
@@ -490,6 +494,7 @@ describe("ReaderHttpController", () => {
         { folder: {
           view_mode: "details",
           preview_count: 9,
+          confirm_delete: false,
           details: { hidden_columns: ["tags"], column_widths: { name: 310 } },
           search: { include_subfolders: false, show_history_on_focus: false, search_in_path: true },
           empty_area: { single_click_action: "goBack", double_click_action: "none", show_back_button: true },

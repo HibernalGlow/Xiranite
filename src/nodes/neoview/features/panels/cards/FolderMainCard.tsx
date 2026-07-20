@@ -147,6 +147,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
+  confirmDelete: true,
   tagDisplay: DEFAULT_FOLDER_TAG_DISPLAY,
   penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
@@ -287,7 +288,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [deleteMode, setDeleteMode] = useState(false)
   const [deleteStrategy, setDeleteStrategy] = useState<FolderDeleteStrategy>("trash")
-  const [confirmDelete, setConfirmDelete] = useState(true)
+  const [confirmDelete, setConfirmDelete] = useState(folderView.confirmDelete ?? true)
   const [chainSelectMode, setChainSelectMode] = useState(false)
   const [checkModeClickBehavior, setCheckModeClickBehavior] = useState<"open" | "select">("open")
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
@@ -348,6 +349,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   useEffect(() => setBannerWidthPercent(folderView.bannerWidthPercent), [folderView.bannerWidthPercent])
   useEffect(() => setHoverPreviewEnabled(folderView.hoverPreviewEnabled ?? true), [folderView.hoverPreviewEnabled])
   useEffect(() => setHoverPreviewDelayMs(folderView.hoverPreviewDelayMs ?? 500), [folderView.hoverPreviewDelayMs])
+  useEffect(() => setConfirmDelete(folderView.confirmDelete ?? true), [folderView.confirmDelete])
   useEffect(() => setPenetration(folderView.penetration), [folderView.penetration])
   useEffect(() => setTreeOpen(folderView.tree.visible), [folderView.tree.visible])
   useEffect(() => setTreeLayout(folderView.tree.layout), [folderView.tree.layout])
@@ -1658,7 +1660,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             onToggleMultiSelect={toggleMultiSelectMode}
             onToggleDeleteMode={() => setDeleteMode((current) => !current)}
             onToggleDeleteStrategy={() => setDeleteStrategy((current) => current === "trash" ? "permanent" : "trash")}
-            onConfirmDeleteChange={setConfirmDelete}
+            onConfirmDeleteChange={(value) => {
+              setConfirmDelete(value)
+              void onFolderView?.({ confirmDelete: value })
+            }}
             onUpdateSort={(sort) => { void updateSort(sort) }}
             onUpdateSortPreference={(command) => { void updateSortPreference(command) }}
             onEmptyAreaChange={(emptyArea) => { void onFolderView?.({ emptyArea }) }}

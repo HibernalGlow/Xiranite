@@ -282,6 +282,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       },
     } }).folderView).toEqual({
       homePath: "D:/Books",
+      confirmDelete: true,
       viewMode: "details",
       previewGridEnabled: false,
       previewCount: 9,
@@ -325,6 +326,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       hoverPreviewEnabled: false,
       hoverPreviewDelayMs: 1200,
       showHiddenFolders: true,
+      confirmDelete: false,
       penetration: { enabled: true, maxDepth: 10, terminalTargets: ["archive", "document"] },
       tree: { visible: true, layout: "bottom", size: 320, pinnedPaths: ["E:/Books"] },
       tabs: { pinned: [{ path: "E:/Library", title: "Library" }] },
@@ -341,6 +343,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         hoverPreviewEnabled: false,
         hoverPreviewDelayMs: 1200,
         showHiddenFolders: true,
+        confirmDelete: false,
         penetration: { enabled: true, maxDepth: 10, terminalTargets: ["archive", "document"] },
         details: {
           columnOrder: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
@@ -363,6 +366,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         hover_preview_enabled: false,
         hover_preview_delay_ms: 1200,
         show_hidden_folders: true,
+        confirm_delete: false,
         penetration: { enabled: true, max_depth: 10, terminal_targets: ["archive", "document"] },
         details: {
           column_order: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
@@ -382,6 +386,8 @@ describe("parseNeoviewRuntimeConfig", () => {
       search_in_path: true,
     } } }).folderView.search).toEqual({ includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true })
     expect(parseNeoviewRuntimeConfig(undefined).folderView.homePath).toBe("")
+    expect(parseNeoviewRuntimeConfig(undefined).folderView.confirmDelete).toBe(true)
+    expect(parseNeoviewRuntimeConfig({ folder: { confirm_delete: false } }).folderView.confirmDelete).toBe(false)
     expect(parseNeoviewFolderViewPatch({ folderView: { tabs: {
       layout: "left", width: 220, breadcrumbPosition: "bottom", toolbarPosition: "right",
     } } })).toEqual({

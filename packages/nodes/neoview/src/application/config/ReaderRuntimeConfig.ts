@@ -113,6 +113,25 @@ export interface NeoviewEmmPatch {
   emm: Partial<NeoviewEmmConfig>
 }
 
+export const NEOVIEW_AI_TRANSLATION_SERVICES = ["disabled", "ollama"] as const
+export type NeoviewAiTranslationService = typeof NEOVIEW_AI_TRANSLATION_SERVICES[number]
+
+export interface NeoviewAiTranslationConfig {
+  enabled: boolean
+  autoTranslate: boolean
+  service: NeoviewAiTranslationService
+  ollamaUrl: string
+  ollamaModel: string
+  sourceLanguage: string
+  targetLanguage: string
+  promptTemplate: string
+  memoryCacheEntries: number
+}
+
+export interface NeoviewAiTranslationPatch {
+  aiTranslation: Partial<NeoviewAiTranslationConfig>
+}
+
 export interface NeoviewPreloadConfig {
   maxCandidatePages: number
 }
@@ -221,6 +240,8 @@ export interface NeoviewFolderViewConfig {
   typeFilter: NeoviewFolderTypeFilter
   /** Keep development/configuration directories out of normal media browsing. */
   showHiddenFolders: boolean
+  /** Require an explicit confirmation before trash or permanent-delete operations. */
+  confirmDelete: boolean
   tagDisplay: NeoviewFolderTagDisplayConfig
   penetration: NeoviewFolderPenetrationConfig
   emptyArea: NeoviewFolderEmptyAreaConfig
@@ -251,6 +272,7 @@ export interface NeoviewFolderViewPatch {
     hoverPreviewDelayMs?: NeoviewFolderHoverPreviewDelay
     typeFilter?: NeoviewFolderTypeFilter
     showHiddenFolders?: boolean
+    confirmDelete?: boolean
     tagDisplay?: Partial<NeoviewFolderTagDisplayConfig>
     penetration?: Partial<NeoviewFolderPenetrationConfig>
     emptyArea?: Partial<NeoviewFolderEmptyAreaConfig>
@@ -556,6 +578,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
+  confirmDelete: true,
   tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
   penetration: {
     enabled: false,
@@ -1966,7 +1989,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["homePath", "viewMode", "previewGridEnabled", "previewCount", "contentWidthPercent", "thumbnailWidthPercent", "bannerWidthPercent", "hoverPreviewEnabled", "hoverPreviewDelayMs", "typeFilter", "showHiddenFolders", "tagDisplay", "penetration", "emptyArea", "details", "search", "tree", "tabs"])
+  const allowed = new Set(["homePath", "viewMode", "previewGridEnabled", "previewCount", "contentWidthPercent", "thumbnailWidthPercent", "bannerWidthPercent", "hoverPreviewEnabled", "hoverPreviewDelayMs", "typeFilter", "showHiddenFolders", "confirmDelete", "tagDisplay", "penetration", "emptyArea", "details", "search", "tree", "tabs"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
@@ -2018,6 +2041,10 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   if (folder.showHiddenFolders !== undefined) {
     patch.folderView.showHiddenFolders = optionalBoolean(folder.showHiddenFolders, "reader folder view patch.showHiddenFolders")
     toml.show_hidden_folders = patch.folderView.showHiddenFolders
+  }
+  if (folder.confirmDelete !== undefined) {
+    patch.folderView.confirmDelete = optionalBoolean(folder.confirmDelete, "reader folder view patch.confirmDelete")
+    toml.confirm_delete = patch.folderView.confirmDelete
   }
   if (folder.tagDisplay !== undefined) {
     const display = requireRecord(folder.tagDisplay, "reader folder view patch.tagDisplay")
@@ -2258,6 +2285,8 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
       ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.typeFilter,
     showHiddenFolders: optionalBoolean(value.show_hidden_folders, "[nodes.neoview.folder].show_hidden_folders")
       ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.showHiddenFolders,
+    confirmDelete: optionalBoolean(value.confirm_delete, "[nodes.neoview.folder].confirm_delete")
+      ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.confirmDelete,
     tagDisplay: {
       tagMode: optionalEnum(tagDisplay?.tag_mode ?? tagDisplay?.tagMode, "[nodes.neoview.folder.tag_display].tag_mode", ["all", "collect", "none"]) ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tagDisplay.tagMode,
       showRating: optionalBoolean(tagDisplay?.show_rating, "[nodes.neoview.folder.tag_display].show_rating") ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tagDisplay.showRating,
