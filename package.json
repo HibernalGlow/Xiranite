@@ -15,8 +15,10 @@
   "scripts": {
     "dev": "bun run generate:node-registries && bun run build:desktop:packages && bun scripts/dev-with-backend.ts",
     "dev:stop": "bun scripts/stop-dev.ts",
+    "dev:reboot": "bun scripts/reboot-dev.ts dev",
     "dev:clean": "bun scripts/reset-vite-dev.ts && bun run dev -- --force",
     "dev:desktop": "bun run generate:node-registries && bun run build:desktop:packages && bun scripts/dev-desktop.ts",
+    "dev:desktop:reboot": "bun scripts/reboot-dev.ts dev:desktop",
     "dev:desktop:clean": "bun scripts/reset-vite-dev.ts && bun run dev:desktop -- --force",
     "dev:desktop:attach": "bun run generate:node-registries && bun run build:desktop:packages && bun scripts/dev-desktop-attach.ts",
     "dev:desktop:deno": "bun scripts/reset-vite-dev.ts && bun run generate:node-registries && bun run build:packages:turbo && bun scripts/dev-desktop-deno.ts --force",
