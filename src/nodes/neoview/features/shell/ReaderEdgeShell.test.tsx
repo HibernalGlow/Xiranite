@@ -26,17 +26,19 @@ describe("ReaderEdgeShell", () => {
     expect(document.querySelectorAll("[data-reader-edge-trigger]")).toHaveLength(4)
   })
 
-  it("[neoview.shell.constrained-layering] keeps full-height sidebars operable above horizontal bars", () => {
+  it("[neoview.shell.constrained-layering] keeps horizontal bars above sidebars at shared corners", () => {
     render(<ReaderEdgeShell edges={{
       top: { ...slot("top", <button>top action</button>), open: true },
       right: { ...slot("right", <button>side action</button>), open: true },
       bottom: { ...slot("bottom", <button>bottom action</button>), open: true },
+      left: { ...slot("left", <button>left action</button>), open: true },
     }}><div>viewport</div></ReaderEdgeShell>)
 
     expect(document.querySelector('[data-reader-edge="top"]')?.className).toContain("z-[80]")
     expect(document.querySelector('[data-reader-edge="top"]')?.getAttribute("data-input-context")).toBe("shell")
-    expect(document.querySelector('[data-reader-edge="right"]')?.className).toContain("z-[85]")
-    expect(document.querySelector('[data-reader-edge="bottom"]')?.className).toContain("z-[60]")
+    expect(document.querySelector('[data-reader-edge="right"]')?.className).toContain("z-[60]")
+    expect(document.querySelector('[data-reader-edge="bottom"]')?.className).toContain("z-[80]")
+    expect(document.querySelector('[data-reader-edge="left"]')?.className).toContain("z-[60]")
   })
 
   it("[neoview.shell.pointer-isolation] keeps edge controls out of reader gesture bindings", () => {

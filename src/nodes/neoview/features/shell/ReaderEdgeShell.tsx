@@ -229,11 +229,7 @@ function ReaderEdgeSurface({
           data-reader-edge-interaction={slot.interaction}
           className={cn(
             "absolute min-h-0 min-w-0 motion-reduce:transition-none",
-            edge === "top"
-              ? "z-[80]"
-              : edge === "left" || edge === "right"
-                ? "z-[85]"
-                : "z-[60]",
+            edge === "top" || edge === "bottom" ? "z-[80]" : "z-[60]",
             surfaceClass(edge),
             slot.className,
           )}
