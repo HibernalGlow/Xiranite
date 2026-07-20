@@ -5,6 +5,8 @@
   "title": "翻页动画",
   "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
   "sourceRevision": "15f3501470781184d6eace6c8d488ba6b953df6a",
+  "visualBaseline": "output/playwright/legacy-neoview-page-transition-expanded-1920x1080.png",
+  "visualTarget": "artifacts/playwright-page-transition-{desktop,card}/**/neoview-page-transition-chromium-{desktop,card}.png",
   "completionRule": "Complete only when every legacy control, option, default, persistence rule, directional animation, Card-shell behavior, reduced-motion contract, stable image identity, scripted 1920x1080 visual evidence, lifecycle cleanup and performance budget has automated evidence.",
   "sourceUiInventory": [
     {
@@ -547,20 +549,19 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.page-transition.hydration-race",
         "neoview.page-transition.persistence",
-        "neoview.page-transition.ui"
-      ],
-      "plannedTestIds": [
+        "neoview.page-transition.ui",
         "neoview.page-transition.retry"
       ],
-      "notes": "Conditional, stale hydration and rollback behavior are covered; explicit retry UI remains pending."
+      "plannedTestIds": [],
+      "notes": "Conditional, stale hydration, rollback and explicit same-command retry behavior are covered."
     },
     {
       "id": "page-transition.shell",
@@ -688,16 +689,15 @@
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.page-transition.image-identity",
-        "neoview.page-transition.runtime"
-      ],
-      "plannedTestIds": [
+        "neoview.page-transition.runtime",
         "neoview.page-transition.zero-duplicate-request"
       ],
-      "notes": "Exact img identity and URL are covered during configuration; a real asset-route request counter remains pending."
+      "plannedTestIds": [],
+      "notes": "Desktop and constrained Chromium preserve exact img identity and URL during configuration, then prove one request per navigated asset."
     },
     {
       "id": "page-transition.performance",
@@ -716,7 +716,7 @@
       "capabilityStatus": {
         "core": "complete",
         "transport": "not-applicable",
-        "gui": "partial",
+        "gui": "complete",
         "cli": "pending",
         "tui": "pending",
         "evidence": "partial"
@@ -725,13 +725,13 @@
         "neoview.page-transition.css",
         "neoview.page-transition.chunk",
         "neoview.page-transition.runtime",
-        "neoview.page-transition.lifecycle"
+        "neoview.page-transition.lifecycle",
+        "neoview.page-transition.navigation-performance"
       ],
       "plannedTestIds": [
-        "neoview.page-transition.navigation-performance",
         "neoview.page-transition.surface-performance"
       ],
-      "notes": "O(1) runtime and 3.7/2.0/5.7 KiB deferred chunks are proven; unified navigation and CLI/TUI timings remain pending."
+      "notes": "O(1) runtime, deferred chunks and browser navigation activation are proven; CLI/TUI surface timings are deferred by user decision."
     },
     {
       "id": "page-transition.deviations",
