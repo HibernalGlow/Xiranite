@@ -41,6 +41,30 @@ afterEach(async () => {
 })
 
 describe("ReaderHttpController", () => {
+  it("[neoview.opds.root-auth] protects and wires the OPDS catalog through the root controller", async () => {
+    const read = vi.fn(async () => ({
+      url: "https://catalog.example/feed",
+      title: "Catalog",
+      navigation: [], publications: [], links: [],
+    }))
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      opdsClient: { read },
+    })
+    try {
+      const path = "/reader/opds/catalog?url=https%3A%2F%2Fcatalog.example%2Ffeed"
+      expect((await controller.handle(new Request(`http://127.0.0.1:41000${path}`)))?.status).toBe(401)
+      expect(read).not.toHaveBeenCalled()
+      const response = (await controller.handle(authorizedRequest(path)))!
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({ title: "Catalog" })
+      expect(read).toHaveBeenCalledWith("https://catalog.example/feed", expect.any(AbortSignal))
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.library.bookmark-update-auth] protects and wires bookmark PATCH through the root controller", async () => {
     const updateBookmark = vi.fn(async () => ({
       id: "bookmark-1",

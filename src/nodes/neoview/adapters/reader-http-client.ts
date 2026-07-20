@@ -446,6 +446,37 @@ export interface ReaderFolderProgressSummaryDto {
   truncated: boolean
 }
 
+export interface ReaderOpdsLinkDto {
+  href: string
+  rel?: string
+  type?: string
+  title?: string
+  price?: { value: number; currency?: string }
+}
+
+export interface ReaderOpdsCatalogDto {
+  url: string
+  title?: string
+  subtitle?: string
+  id?: string
+  navigation: readonly { title: string; href: string; type?: string; rel?: string }[]
+  publications: readonly {
+    id?: string
+    title: string
+    summary?: string
+    language?: string
+    images: readonly string[]
+    acquisition: readonly ReaderOpdsLinkDto[]
+    links: readonly ReaderOpdsLinkDto[]
+  }[]
+  links: readonly ReaderOpdsLinkDto[]
+  next?: string
+  previous?: string
+  first?: string
+  last?: string
+  search?: string
+}
+
 export interface ReaderRecentBatchRemoveResultDto {
   deleted: number
   missingIds: readonly string[]
@@ -1391,6 +1422,7 @@ export interface ReaderHttpClient {
   clearDirectoryClipboard?(signal?: AbortSignal): Promise<ReaderDirectoryClipboardSnapshotDto>
   listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
   summarizeFolderProgress?(path: string, signal?: AbortSignal): Promise<ReaderFolderProgressSummaryDto>
+  readOpdsCatalog?(url: string, signal?: AbortSignal): Promise<ReaderOpdsCatalogDto>
   removeRecent?(bookId: string, signal?: AbortSignal): Promise<void>
   removeRecents?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResultDto>
   cleanupRecents?(request: ReaderRecentCleanupRequestDto, signal?: AbortSignal): Promise<ReaderRecentCleanupResultDto>
@@ -2004,6 +2036,10 @@ export function createReaderHttpClient(
     ).then((value) => value.items),
     summarizeFolderProgress: (path, signal) => request<ReaderFolderProgressSummaryDto>(
       `/reader/library/progress/folder?path=${encodeURIComponent(path)}`,
+      { signal },
+    ),
+    readOpdsCatalog: (url, signal) => request<ReaderOpdsCatalogDto>(
+      `/reader/opds/catalog?url=${encodeURIComponent(url)}`,
       { signal },
     ),
     removeRecent: (bookId, signal) => request<void>(`/reader/library/recents/${encodeURIComponent(bookId)}`, {
