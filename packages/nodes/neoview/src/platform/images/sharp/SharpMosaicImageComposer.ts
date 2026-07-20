@@ -32,25 +32,28 @@ export class SharpMosaicImageComposer implements MosaicImageComposer {
     }, signal)
     try {
       const sharp = await loadSharp()
-      const columns = Math.sqrt(request.count)
-      const tileSize = Math.floor(request.size / columns)
+      const tileCount = Math.min(inputs.length, request.count)
+      const columns = tileCount < request.count ? Math.max(1, tileCount) : Math.sqrt(request.count)
+      const rows = Math.ceil(tileCount / columns)
+      const cellWidth = Math.floor(request.size / columns)
+      const cellHeight = Math.floor(request.size / rows)
       const tiles: Buffer[] = []
-      for (const input of inputs.slice(0, request.count)) {
+      for (const input of inputs.slice(0, tileCount)) {
         signal?.throwIfAborted()
-        tiles.push(await renderTile(sharp, input, tileSize, request.quality, signal))
+        tiles.push(await renderTile(sharp, input, cellWidth, cellHeight, request.quality, signal))
       }
       signal?.throwIfAborted()
       const composites = tiles.map((input, index) => ({
         input,
-        left: (index % columns) * tileSize,
-        top: Math.floor(index / columns) * tileSize,
+        left: (index % columns) * cellWidth,
+        top: Math.floor(index / columns) * cellHeight,
       }))
       const bytes = await sharp({
         create: {
-          width: request.size,
-          height: request.size,
+          width: cellWidth * columns,
+          height: cellHeight * rows,
           channels: 4,
-          background: { r: 24, g: 24, b: 27, alpha: 1 },
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
         },
       }).composite(composites).webp({ quality: request.quality, smartSubsample: true }).toBuffer()
       signal?.throwIfAborted()
@@ -64,14 +67,15 @@ export class SharpMosaicImageComposer implements MosaicImageComposer {
 async function renderTile(
   sharp: SharpFactory,
   input: ReadableStream<Uint8Array>,
-  size: number,
+  width: number,
+  height: number,
   quality: number,
   signal?: AbortSignal,
 ): Promise<Buffer> {
   const source = Readable.fromWeb(input as never)
   const pipeline = sharp({ animated: false, failOn: "warning", limitInputPixels: 100_000_000, sequentialRead: true })
     .rotate()
-    .resize(size, size, { fit: "cover", position: "centre" })
+    .resize(width, height, { fit: "contain", position: "centre", background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .webp({ quality, smartSubsample: true })
   const abort = () => {
     source.destroy(signal?.reason instanceof Error ? signal.reason : new DOMException("Aborted", "AbortError"))

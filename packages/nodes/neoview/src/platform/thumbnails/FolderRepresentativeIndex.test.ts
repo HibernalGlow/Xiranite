@@ -99,18 +99,52 @@ describe("FolderRepresentativeIndex", () => {
     expect(statPath).toHaveBeenCalledTimes(8)
     index.clear()
   })
+
+  it("[neoview.thumbnail.folder-index-recursive] finds bounded nested image and archive representatives", async () => {
+    const readDirectory = vi.fn(async (path: string) => path.endsWith("nested")
+      ? [file("2.cbz"), file("1.jpg")]
+      : [directory("nested")])
+    const index = new FolderRepresentativeIndex({
+      readDirectory,
+      statPath: async (path) => stats(path.endsWith("1.jpg") ? 10 : 20, 100),
+    })
+
+    await expect(index.resolve("D:/library", 50, undefined, 2)).resolves.toEqual({
+      version: expect.stringContaining("nested"),
+      paths: [expect.stringContaining("1.jpg"), expect.stringContaining("2.cbz")],
+    })
+    index.clear()
+  })
+
+  it("[neoview.thumbnail.folder-index-directory-covers] descends through sibling folders until it finds media", async () => {
+    const index = new FolderRepresentativeIndex({
+      readDirectory: async (path) => path.endsWith("artist-a")
+        ? [file("a.jpg")]
+        : path.endsWith("artist-b") ? [file("b.jpg")] : [directory("artist-b"), directory("artist-a")],
+      statPath: async (path) => path.endsWith(".jpg") ? stats(10, 100) : directoryStats(0, 100),
+    })
+
+    await expect(index.resolve("D:/library", 50, undefined, 2)).resolves.toMatchObject({
+      paths: [expect.stringContaining("artist-a"), expect.stringContaining("artist-b")],
+    })
+    index.clear()
+  })
 })
 
 function file(name: string) {
-  return { name, isFile: () => true }
+  return { name, isFile: () => true, isDirectory: () => false }
 }
 
 function directory(name: string) {
-  return { name, isFile: () => false }
+  return { name, isFile: () => false, isDirectory: () => true }
 }
 
 function stats(size: number, mtimeMs: number) {
-  return { size, mtimeMs, isFile: () => true }
+  return { size, mtimeMs, isFile: () => true, isDirectory: () => false }
+}
+
+function directoryStats(size: number, mtimeMs: number) {
+  return { size, mtimeMs, isFile: () => false, isDirectory: () => true }
 }
 
 function missing(path: string): Error & { code: string } {

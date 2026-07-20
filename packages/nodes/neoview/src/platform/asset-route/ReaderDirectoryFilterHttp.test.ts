@@ -38,7 +38,7 @@ describe("Reader directory filter HTTP", () => {
     })
     try {
       const opened = await json(controller, "/reader/browser/sessions", "POST", { path: root }, 201) as BrowserPage
-      expect(opened).toMatchObject({ filter: "all", filterOptions: ["all", "archive", "directory", "video"], total: 6 })
+      expect(opened).toMatchObject({ filter: "all", filterOptions: ["all", "library", "archive", "directory", "video", "image", "other"], total: 6 })
       const endpoint = `/reader/browser/s/${encodeURIComponent(opened.sessionId)}/filter`
 
       const archives = await json(controller, endpoint, "PATCH", { filter: "archive", focusPath: join(root, "B.zip") }) as BrowserPage

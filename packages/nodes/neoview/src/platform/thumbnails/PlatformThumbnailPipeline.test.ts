@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process"
+import { createHash } from "node:crypto"
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -242,6 +243,7 @@ describe("PlatformThumbnailPipeline", () => {
       contentType: "image/webp",
       sourceSize: category === "file" ? 100 : undefined,
       date: "2024-01-01 00:00:00",
+      generationHash: category === "folder" ? thumbnailGenerationHash(folder.contentVersion) : undefined,
     }])))
     const pipeline = new PlatformThumbnailPipeline({ thumbnailStore: { get, getMany } })
 
@@ -312,7 +314,7 @@ describe("PlatformThumbnailPipeline", () => {
       thumbnailStore: { get, put },
       loadImageTransformer: async () => ({ transform }),
     })
-    const descriptor = librarySource("folder", "D:/library/folder")
+    const descriptor = { ...librarySource("folder", "D:/library/folder"), representativePaths: [page.sourcePath] }
     const lease = pipeline.acquireLibrary(descriptor, { contextId: "folder:one" })
     await expect(lease.ready).resolves.toMatchObject({ bytes: representative, contentType: "image/webp" })
     expect(transform).not.toHaveBeenCalled()
@@ -325,13 +327,20 @@ describe("PlatformThumbnailPipeline", () => {
     const page = fixturePage("D:/library/folder/001.png")
     const closeBook = vi.fn(async () => undefined)
     const compose = vi.fn(async () => ({ bytes: fixtureWebp(12), contentType: "image/webp" as const }))
+    const transform = vi.fn(async () => ({ contentType: "image/webp" as const, stream: byteStream(fixtureWebp(7)) }))
     const put = vi.fn(async () => undefined)
     const pipeline = new PlatformThumbnailPipeline({
       bookLoader: async () => fixtureBook(page, closeBook),
       thumbnailStore: { get: async () => undefined, put },
+      loadImageTransformer: async () => ({ transform }),
       loadMosaicImageComposer: async () => ({ compose }),
     })
-    const descriptor = { ...librarySource("folder", "D:/library/folder"), previewCount: 4 as const, contentVersion: "folder:mosaic:library-mosaic-4-v1" }
+    const descriptor = {
+      ...librarySource("folder", "D:/library/folder"),
+      representativePaths: [page.sourcePath],
+      previewCount: 4 as const,
+      contentVersion: "folder:mosaic:library-mosaic-4-v1",
+    }
     const lease = pipeline.acquireLibrary(descriptor, { contextId: "folder:mosaic" })
     await expect(lease.ready).resolves.toMatchObject({ bytes: fixtureWebp(12), contentType: "image/webp" })
     expect(compose).toHaveBeenCalledWith(expect.any(Array), { count: 4, size: 416, quality: 82 }, expect.any(AbortSignal), expect.objectContaining({ kind: "neoview.thumbnail.folder-mosaic" }))
@@ -341,33 +350,94 @@ describe("PlatformThumbnailPipeline", () => {
     expect(closeBook).toHaveBeenCalledOnce()
   })
 
-  it("[neoview.thumbnail.folder-mosaic-fallback] reuses a legacy folder cover when no direct images can form a mosaic", async () => {
-    const legacyCover = fixtureWebp(8)
-    const closeBook = vi.fn(async () => undefined)
-    const compose = vi.fn()
-    const get = vi.fn(async () => ({
-      bytes: legacyCover,
-      contentType: "image/webp" as const,
-      date: "2099-01-01 00:00:00",
-    }))
+  it("[neoview.thumbnail.folder-mosaic-partial] skips an undecodable representative and composes the remaining tiles", async () => {
+    const badPath = "D:/library/folder/bad.heic"
+    const goodPath = "D:/library/folder/good.png"
+    const closeBad = vi.fn(async () => undefined)
+    const closeGood = vi.fn(async () => undefined)
+    const compose = vi.fn(async () => ({ bytes: fixtureWebp(12), contentType: "image/webp" as const }))
+    const transform = vi.fn()
+      .mockRejectedValueOnce(new Error("unsupported HEIF extent"))
+      .mockResolvedValueOnce({ contentType: "image/webp" as const, stream: byteStream(fixtureWebp(7)) })
     const pipeline = new PlatformThumbnailPipeline({
-      bookLoader: async () => ({ ...fixtureBook(fixturePage("D:/unused.png"), closeBook), pages: [] }),
+      bookLoader: async ({ path }) => fixtureBook(fixturePage(path), path === badPath ? closeBad : closeGood),
+      loadImageTransformer: async () => ({ transform }),
+      loadMosaicImageComposer: async () => ({ compose }),
+    })
+    const descriptor = {
+      ...librarySource("folder", "D:/library/folder"),
+      representativePaths: [badPath, goodPath],
+      previewCount: 4 as const,
+      contentVersion: "folder:mosaic-partial:library-mosaic-4-v1",
+    }
+
+    const lease = pipeline.acquireLibrary(descriptor, { contextId: "folder:mosaic-partial" })
+    await expect(lease.ready).resolves.toMatchObject({ bytes: fixtureWebp(12), contentType: "image/webp" })
+    expect(transform).toHaveBeenCalledTimes(2)
+    expect(compose).toHaveBeenCalledWith(expect.any(Array), { count: 4, size: 416, quality: 82 }, expect.any(AbortSignal), expect.any(Object))
+    expect(closeBad).toHaveBeenCalledOnce()
+    expect(closeGood).toHaveBeenCalledOnce()
+    lease.release()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.folder-mosaic-budget] skips oversized representative pages before loading their bytes", async () => {
+    const oversized = fixturePage("D:/library/folder/oversized.avif")
+    oversized.byteLength = 33 * 1024 * 1024
+    const fallback = fixturePage("D:/library/folder/fallback.png")
+    const loadOversized = vi.spyOn(oversized.content, "load")
+    const compose = vi.fn(async () => ({ bytes: fixtureWebp(12), contentType: "image/webp" as const }))
+    const transform = vi.fn(async () => ({ contentType: "image/webp" as const, stream: byteStream(fixtureWebp(7)) }))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async ({ path }) => fixtureBook(path.endsWith("oversized.avif") ? oversized : fallback),
+      loadImageTransformer: async () => ({ transform }),
+      loadMosaicImageComposer: async () => ({ compose }),
+    })
+    const descriptor = {
+      ...librarySource("folder", "D:/library/folder"),
+      representativePaths: ["D:/library/folder/oversized.avif", "D:/library/folder/fallback.png"],
+      previewCount: 4 as const,
+      contentVersion: "folder:mosaic-budget:library-mosaic-4-v1",
+    }
+
+    const lease = pipeline.acquireLibrary(descriptor, { contextId: "folder:mosaic-budget" })
+    await expect(lease.ready).resolves.toMatchObject({ bytes: fixtureWebp(12), contentType: "image/webp" })
+    expect(loadOversized).not.toHaveBeenCalled()
+    expect(transform).toHaveBeenCalledOnce()
+    lease.release()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.folder-mosaic-own-source] ignores legacy Windows folder blobs and generates from one archive", async () => {
+    const page = fixturePage("D:/library/archive-folder/book.cbz::cover.png#0")
+    const ownCover = fixtureWebp(11)
+    const ownMosaic = fixtureWebp(12)
+    const compose = vi.fn(async () => ({ bytes: ownMosaic, contentType: "image/webp" as const }))
+    const transform = vi.fn(async () => ({ contentType: "image/webp" as const, stream: byteStream(ownCover) }))
+    const get = vi.fn(async (_key: string, category: "file" | "folder") => category === "folder"
+      ? { bytes: fixtureWebp(8), contentType: "image/webp" as const, date: "2099-01-01 00:00:00" }
+      : undefined)
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(page),
       thumbnailStore: { get },
+      loadImageTransformer: async () => ({ transform }),
       loadMosaicImageComposer: async () => ({ compose }),
     })
     const descriptor = {
       ...librarySource("folder", "D:/library/archive-folder"),
+      representativePaths: ["D:/library/archive-folder/book.cbz"],
       previewCount: 4 as const,
       contentVersion: "folder:directory:1700000000000:empty:library-mosaic-4-v1",
     }
-    const lease = pipeline.acquireLibrary(descriptor, { contextId: "folder:mosaic-fallback" })
+    const lease = pipeline.acquireLibrary(descriptor, { contextId: "folder:mosaic-own-source" })
 
-    await expect(lease.ready).resolves.toMatchObject({ bytes: legacyCover, contentType: "image/webp" })
-    expect(get).toHaveBeenCalledWith(descriptor.path, "folder")
-    expect(compose).not.toHaveBeenCalled()
+    await expect(lease.ready).resolves.toMatchObject({ bytes: ownMosaic, contentType: "image/webp" })
+    expect(get).not.toHaveBeenCalledWith(descriptor.path, "folder")
+    expect(get).toHaveBeenCalledWith(page.thumbnailSource?.key, "file")
+    expect(transform).toHaveBeenCalledOnce()
+    expect(compose).toHaveBeenCalledOnce()
     lease.release()
     await pipeline.dispose()
-    expect(closeBook).toHaveBeenCalledOnce()
   })
 
   it("[neoview.thumbnail.windows.page] prefers a cached system thumbnail before image decoding", async () => {
@@ -407,12 +477,38 @@ describe("PlatformThumbnailPipeline", () => {
       loadSystemThumbnailProvider: async () => ({ getCached }),
       loadImageTransformer: async () => ({ transform }),
     })
-    const descriptor = librarySource("folder", "D:/library/folder")
+    const descriptor = { ...librarySource("folder", "D:/library/folder"), representativePaths: [page.sourcePath] }
     const lease = pipeline.acquireLibrary(descriptor, { contextId: "library:folder" })
     await expect(lease.ready).resolves.toMatchObject({ bytes: generated, contentType: "image/webp" })
     expect(getCached).not.toHaveBeenCalled()
     expect(bookLoader).toHaveBeenCalledOnce()
     expect(transform).toHaveBeenCalledOnce()
+    lease.release()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.folder-empty] ignores legacy folder blobs and returns no asset without representative content", async () => {
+    const get = vi.fn(async () => ({
+      bytes: fixtureWebp(2),
+      contentType: "image/webp" as const,
+      date: "2099-01-01 00:00:00",
+      generationHash: 123,
+    }))
+    const getCached = vi.fn()
+    const bookLoader = vi.fn()
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader,
+      thumbnailStore: { get },
+      loadSystemThumbnailProvider: async () => ({ getCached }),
+      loadImageTransformer: async () => ({ transform: vi.fn() }),
+    })
+    const descriptor = librarySource("folder", "D:/library/empty-folder")
+    const lease = pipeline.acquireLibrary(descriptor, { contextId: "library:empty-folder" })
+
+    await expect(lease.ready).rejects.toBeInstanceOf(Error)
+    expect(get).toHaveBeenCalledWith(descriptor.path, "folder")
+    expect(getCached).not.toHaveBeenCalled()
+    expect(bookLoader).not.toHaveBeenCalled()
     lease.release()
     await pipeline.dispose()
   })
@@ -561,6 +657,10 @@ describe("PlatformThumbnailPipeline", () => {
 
 function librarySource(kind: "file" | "folder", path: string, sourceSize?: number): LibraryThumbnailSource {
   return { kind, path, sourceSize, modifiedAtMs: 1_700_000_000_000, previewCount: 1, contentVersion: `${kind}:${sourceSize ?? "directory"}:1700000000000:library-cover-v1` }
+}
+
+function thumbnailGenerationHash(contentVersion: string): number {
+  return createHash("sha256").update(contentVersion).digest().readUInt32LE(0)
 }
 
 function fixtureBook(page: ReaderPage, close = vi.fn(async () => undefined)): ReaderBook {

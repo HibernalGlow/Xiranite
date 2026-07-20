@@ -20,6 +20,17 @@ describe("SharpMosaicImageComposer", () => {
     expect(Buffer.from(result.bytes.subarray(0, 4)).toString("ascii")).toBe("RIFF")
     await expect(sharp(result.bytes).metadata()).resolves.toMatchObject({ width: 64, height: 64, format: "webp" })
   })
+
+  it("[neoview.thumbnail.mosaic-sharp-partial] fits two successful tiles into a 2x1 canvas", async () => {
+    const composer = new SharpMosaicImageComposer()
+    const result = await composer.compose(Array.from({ length: 2 }, () => byteStream(PNG)), {
+      count: 4,
+      size: 64,
+      quality: 75,
+    })
+
+    await expect(sharp(result.bytes).metadata()).resolves.toMatchObject({ width: 64, height: 64, format: "webp", hasAlpha: true })
+  })
 })
 
 function byteStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
