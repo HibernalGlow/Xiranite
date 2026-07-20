@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Activity, Bell, BookMarked, BookOpen, BookOpenCheck, CalendarRange, Clock3, Cpu, Crop, DatabaseBackup, Eye, Film, FolderOpen, Gauge, HardDrive, Image, Info, Keyboard, LayoutDashboard, LayoutGrid, ListFilter, ListTree, Loader, Monitor, Palette, PanelLeft, PieChart, Play, Sparkles, SlidersHorizontal, Tags, Trash2, TrendingUp, Video, type LucideIcon } from "lucide-react"
+import { Activity, Bell, BookMarked, BookOpen, BookOpenCheck, Bot, CalendarRange, Clock3, Cpu, Crop, DatabaseBackup, Eye, EyeOff, Film, FolderOpen, Gauge, HardDrive, Image, Info, Keyboard, Languages, LayoutDashboard, LayoutGrid, ListFilter, ListTree, Loader, Mic, Monitor, Palette, PanelLeft, PieChart, Play, Server, Sparkles, SlidersHorizontal, Tags, Trash2, TrendingUp, Video, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -222,6 +222,14 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "reading-heatmap": () => import("./cards/ReadingHeatmapCard"),
   "source-breakdown": () => import("./cards/SourceBreakdownCard"),
   "bookmark-overview": () => import("./cards/BookmarkOverviewCard"),
+  "ai-service-config": () => import("./cards/AiServiceConfigCard"),
+  "ai-api-config": () => import("./cards/AiApiConfigCard"),
+  "ai-title-translation": () => import("./cards/AiTitleTranslationCard"),
+  "ai-translation-test": () => import("./cards/AiTranslationTestCard"),
+  "ai-translation-cache": () => import("./cards/AiTranslationCacheCard"),
+  "translation-overlay": () => import("./cards/TranslationOverlayCard"),
+  "voice-control": () => import("./cards/VoiceControlCard"),
+  "ai-tags": () => import("./cards/AiTagsCard"),
   "slideshow-settings": () => import("../settings/cards/SlideshowSettingsCard"),
   "media-settings": () => import("../settings/cards/MediaSettingsCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
@@ -273,6 +281,14 @@ const CARD_ICONS = {
   "reading-heatmap": LayoutGrid,
   "source-breakdown": PieChart,
   "bookmark-overview": BookMarked,
+  "ai-service-config": Server,
+  "ai-api-config": Bot,
+  "ai-title-translation": Languages,
+  "ai-translation-test": Languages,
+  "ai-translation-cache": DatabaseBackup,
+  "translation-overlay": EyeOff,
+  "voice-control": Mic,
+  "ai-tags": Tags,
 } satisfies Record<ReaderCardId, LucideIcon>
 
 const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {

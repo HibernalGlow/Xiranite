@@ -99,6 +99,7 @@ import { PlatformThumbnailPipeline } from "../thumbnails/PlatformThumbnailPipeli
 import { ThumbnailMaintenanceRoute } from "./ThumbnailMaintenanceRoute.js"
 import { ReaderDirectoryBrowserRoute } from "./ReaderDirectoryBrowserRoute.js"
 import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
+import { ReaderAiHttpController } from "./ReaderAiHttpController.js"
 import { ReaderOpdsHttpController, type ReaderOpdsCatalogReader } from "./ReaderOpdsHttpController.js"
 import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpController.js"
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
@@ -142,6 +143,8 @@ import {
   parseNeoviewSwitchToastPatch,
   parseNeoviewInfoOverlayPatch,
   parseNeoviewSystemMonitorPatch,
+  parseNeoviewAiTranslationPatch,
+  DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG,
   parseNeoviewImageTrimPatch,
   parseNeoviewSuperResolutionPreferencesPatch,
   parseNeoviewBookmarkListPatch,
@@ -158,6 +161,8 @@ import {
   type NeoviewSwitchToastPatch,
   type NeoviewInfoOverlayPatch,
   type NeoviewSystemMonitorConfig,
+  type NeoviewAiTranslationConfig,
+  type NeoviewAiTranslationPatch,
   type NeoviewSystemMonitorPatch,
   type NeoviewImageTrimPatch,
   type NeoviewSuperResolutionConfig,
@@ -304,6 +309,9 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   systemMonitor?: NeoviewSystemMonitorConfig
   updateSystemMonitor?: (patch: NeoviewSystemMonitorPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSystemMonitorConfig>
   systemMonitorService?: Pick<ReaderSystemMonitorService, "sample">
+  aiTranslation?: NeoviewAiTranslationConfig
+  updateAiTranslation?: (patch: NeoviewAiTranslationPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewAiTranslationConfig>
+  aiTranslationCache?: import("../../ports/ReaderAiTranslation.js").ReaderAiTranslationPersistentCache
   imageTrim?: ReaderImageTrimSettings
   updateImageTrim?: (patch: NeoviewImageTrimPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderImageTrimSettings>
   superResolution?: NeoviewSuperResolutionConfig
@@ -381,6 +389,8 @@ export class ReaderHttpController implements AsyncDisposable {
   #switchToast: ReaderSwitchToastSettings
   #infoOverlay: ReaderInfoOverlaySettings
   #systemMonitor: NeoviewSystemMonitorConfig
+  #aiTranslation: NeoviewAiTranslationConfig
+  readonly #ai: ReaderAiHttpController
   #imageTrim: ReaderImageTrimSettings
   #superResolution: NeoviewSuperResolutionConfig
   #inputBindings: ReaderInputBindingsConfig
@@ -400,6 +410,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateSwitchToast?: ReaderHttpControllerOptions["updateSwitchToast"]
   readonly #updateInfoOverlay?: ReaderHttpControllerOptions["updateInfoOverlay"]
   readonly #updateSystemMonitor?: ReaderHttpControllerOptions["updateSystemMonitor"]
+  readonly #updateAiTranslation?: ReaderHttpControllerOptions["updateAiTranslation"]
   readonly #updateImageTrim?: ReaderHttpControllerOptions["updateImageTrim"]
   readonly #updateSuperResolution?: ReaderHttpControllerOptions["updateSuperResolution"]
   readonly #updateInputBindings?: ReaderHttpControllerOptions["updateInputBindings"]
@@ -639,6 +650,11 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#switchToast = options.switchToast ?? DEFAULT_READER_SWITCH_TOAST
     this.#infoOverlay = options.infoOverlay ?? DEFAULT_READER_INFO_OVERLAY
     this.#systemMonitor = options.systemMonitor ?? DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG
+    this.#aiTranslation = options.aiTranslation ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG
+    this.#ai = new ReaderAiHttpController({
+      config: this.#aiTranslation,
+      persistentCache: options.aiTranslationCache,
+    })
     this.#systemMonitorService = options.systemMonitorService ?? new ReaderSystemMonitorService()
     this.#imageTrim = options.imageTrim ?? DEFAULT_READER_IMAGE_TRIM
     this.#superResolution = options.superResolution ?? DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG
@@ -659,6 +675,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateSwitchToast = options.updateSwitchToast
     this.#updateInfoOverlay = options.updateInfoOverlay
     this.#updateSystemMonitor = options.updateSystemMonitor
+    this.#updateAiTranslation = options.updateAiTranslation
     this.#updateImageTrim = options.updateImageTrim
     this.#updateSuperResolution = options.updateSuperResolution
     this.#updateInputBindings = options.updateInputBindings
@@ -690,6 +707,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (bookSettingsMigrationResponse) return bookSettingsMigrationResponse
     const libraryResponse = await this.#library?.handle(request)
     if (libraryResponse) return libraryResponse
+    const aiResponse = await this.#ai.handle(request)
+    if (aiResponse) return aiResponse
     const opdsResponse = await this.#opds.handle(request)
     if (opdsResponse) return opdsResponse
 
@@ -1162,6 +1181,26 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
+    if (Object.hasOwn(body, "aiTranslation")) {
+      if (!this.#updateAiTranslation) return jsonResponse({ error: "Reader AI translation config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewAiTranslationPatch>
+      try {
+        parsed = parseNeoviewAiTranslationPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      const operation = this.#configUpdateQueue.then(async () => {
+        this.#aiTranslation = await this.#updateAiTranslation!(parsed.patch, parsed.tomlPatch)
+        this.#ai.setConfig(this.#aiTranslation)
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "imageTrim")) {
       if (!this.#updateImageTrim) return jsonResponse({ error: "Reader image trim config is read-only" }, 405)
       try {
@@ -1422,6 +1461,7 @@ export class ReaderHttpController implements AsyncDisposable {
       switchToast: this.#switchToast,
       infoOverlay: this.#infoOverlay,
       systemMonitor: this.#systemMonitor,
+      aiTranslation: this.#aiTranslation,
       imageTrim: this.#imageTrim,
       superResolution: {
         provider: this.#superResolution.provider,
