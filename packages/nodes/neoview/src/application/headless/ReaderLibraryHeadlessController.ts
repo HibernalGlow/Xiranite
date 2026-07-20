@@ -41,6 +41,11 @@ export class ReaderLibraryHeadlessController implements AsyncDisposable {
     return this.library.clearRecentBefore(before, limit)
   }
 
+  summarizeFolderProgress(path: string, signal?: AbortSignal) {
+    this.#assertOpen()
+    return this.library.summarizeFolderProgress(path, signal)
+  }
+
   removeOldestRecents(limit: number, signal?: AbortSignal) {
     this.#assertOpen()
     return this.library.removeOldestRecents(limit, signal)
