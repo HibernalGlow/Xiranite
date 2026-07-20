@@ -1,5 +1,5 @@
-import { BookmarkPlus, FolderOpen, GalleryHorizontalEnd, Grid2X2, List, ListPlus, Pencil, Rows3, Star, Trash2, X } from "lucide-react"
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
+import { BookmarkPlus, FolderOpen, ListPlus, Pencil, Star, Trash2, X } from "lucide-react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -14,6 +14,7 @@ import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 import { readerLibraryListLayout, readerLibraryMediaClassName } from "./shared/readerLibraryEntryLayout"
+import { ReaderLibraryViewToolbar } from "./shared/ReaderLibraryViewToolbar"
 
 type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmarkListDto }
 type BookmarkViewMode = "compact" | "content" | "banner" | "thumbnail"
@@ -57,12 +58,12 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
   )
   const activeList = lists.find((list) => list.id === activeListId)
   const editableLists = lists.filter((list) => list.id !== "all" && list.id !== "favorites")
-  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => viewMode === "compact" || !panelActive || visibleBookmarks.listId !== activeListId ? [] : visibleBookmarks.items.map((item) => ({
+  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => !panelActive || visibleBookmarks.listId !== activeListId ? [] : visibleBookmarks.items.map((item) => ({
     id: item.id,
     path: item.source.path,
     kind: item.kind,
     previewCount: item.kind === "folder" ? 4 : 1,
-  })), [activeListId, panelActive, viewMode, visibleBookmarks])
+  })), [activeListId, panelActive, visibleBookmarks])
   const thumbnails = useReaderLibraryThumbnails(client, `bookmark:${activeListId}`, thumbnailItems)
   const loadPage = useCallback((offset: number, limit: number, signal: AbortSignal) => {
     if (!panelActive) return Promise.resolve<readonly ReaderBookmarkDto[]>([])
@@ -336,13 +337,6 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
         <Button type="button" size="icon-sm" variant="ghost" aria-label="收藏当前书籍" title="收藏当前书籍" disabled={disabled || !sourcePath} onClick={() => void addCurrent()}><BookmarkPlus /></Button>
       </div>
 
-      <div className="flex items-center gap-1" role="group" aria-label="书签视图">
-        <BookmarkViewButton label="列表" mode="compact" current={viewMode} onChange={setViewMode}><List /></BookmarkViewButton>
-        <BookmarkViewButton label="内容" mode="content" current={viewMode} onChange={setViewMode}><Rows3 /></BookmarkViewButton>
-        <BookmarkViewButton label="横幅" mode="banner" current={viewMode} onChange={setViewMode}><GalleryHorizontalEnd /></BookmarkViewButton>
-        <BookmarkViewButton label="缩略图" mode="thumbnail" current={viewMode} onChange={setViewMode}><Grid2X2 /></BookmarkViewButton>
-      </div>
-
       {selectedIds.size ? (
         <div className="flex min-w-0 items-center gap-1 rounded border bg-muted/30 px-2 py-1" aria-label="书签选择操作">
           <span className="mr-auto text-xs tabular-nums">已选 {selectedIds.size} 项</span>
@@ -360,6 +354,7 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
         emptyLabel="当前列表没有书签"
         refreshLabel="刷新书签"
         {...listLayout}
+        toolbar={<ReaderLibraryViewToolbar label="书签视图" value={viewMode} disabled={disabled} onValueChange={setViewMode} />}
         onViewportWidthChange={handleViewportWidthChange}
         getItemKey={(item) => item.id}
         onVisibleItemsChange={handleVisibleItems}
@@ -493,7 +488,7 @@ function BookmarkRow({
       data-bookmark-context-id={item.id}
       data-bookmark-id={item.id}
       leading={viewMode === "compact" || viewMode === "content" ? <Checkbox checked={selected} aria-label={`选择书签：${item.name}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} /> : undefined}
-      media={viewMode === "compact" ? undefined : (
+      media={(
         <ReaderThumbnailSurface
           url={thumbnailUrl}
           kind={item.kind}
@@ -531,20 +526,6 @@ function BookmarkRow({
         </span>
       ) : undefined}
     />
-  )
-}
-
-function BookmarkViewButton({ label, mode, current, onChange, children }: {
-  label: string
-  mode: BookmarkViewMode
-  current: BookmarkViewMode
-  onChange(mode: BookmarkViewMode): void
-  children: ReactNode
-}) {
-  return (
-    <Button type="button" size="icon-sm" variant={mode === current ? "default" : "ghost"} aria-label={label} title={label} aria-pressed={mode === current} onClick={() => onChange(mode)}>
-      {children}
-    </Button>
   )
 }
 

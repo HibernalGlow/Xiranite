@@ -68,6 +68,6 @@ describe("readerLibraryEntryLayout", () => {
 
     expect(readerLibraryMediaClassName("content")).toBe("size-16")
     expect(readerLibraryMediaClassName("banner")).toContain("size-full")
-    expect(readerLibraryMediaClassName("compact")).toBeUndefined()
+    expect(readerLibraryMediaClassName("compact")).toContain("size-7")
   })
 })

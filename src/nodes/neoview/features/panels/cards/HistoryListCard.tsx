@@ -1,5 +1,5 @@
-import { BookOpen, CheckSquare, GalleryHorizontalEnd, Grid2X2, List, Rows3, SlidersHorizontal, Square, SquareX, Trash2, X } from "lucide-react"
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
+import { BookOpen, CheckSquare, SlidersHorizontal, Square, SquareX, Trash2, X } from "lucide-react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -12,6 +12,7 @@ import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 import { readerLibraryListLayout, readerLibraryMediaClassName } from "./shared/readerLibraryEntryLayout"
+import { ReaderLibraryViewToolbar } from "./shared/ReaderLibraryViewToolbar"
 
 interface PendingDelete {
   ids: readonly string[]
@@ -41,12 +42,12 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   const [focusedIndex, setFocusedIndex] = useState<number>()
   const focusedIdRef = useRef<string>()
   const anchorIndexRef = useRef<number>()
-  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => viewMode === "compact" || !panelActive ? [] : visibleRecents.map((item) => ({
+  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => !panelActive ? [] : visibleRecents.map((item) => ({
     id: item.bookId,
     path: item.source.path,
     kind: item.source.kind === "directory" ? "folder" : "file",
     previewCount: item.source.kind === "directory" ? 4 : 1,
-  })), [viewMode, visibleRecents])
+  })), [panelActive, visibleRecents])
   const thumbnails = useReaderLibraryThumbnails(client, "history", thumbnailItems)
   const listLayout = useMemo(() => readerLibraryListLayout(viewMode, viewportWidth), [viewMode, viewportWidth])
   const handleViewportWidthChange = useCallback((width: number) => {
@@ -238,24 +239,6 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
           onChanged={() => setRevision((value) => value + 1)}
         />
       </Suspense>
-      <div className="flex items-center gap-1" role="group" aria-label="历史记录视图">
-        <HistoryViewButton label="列表" mode="compact" current={viewMode} disabled={disabled || switchingView} onChange={(mode) => void changeViewMode(mode)}><List /></HistoryViewButton>
-        <HistoryViewButton label="内容" mode="content" current={viewMode} disabled={disabled || switchingView} onChange={(mode) => void changeViewMode(mode)}><Rows3 /></HistoryViewButton>
-        <HistoryViewButton label="横幅" mode="banner" current={viewMode} disabled={disabled || switchingView} onChange={(mode) => void changeViewMode(mode)}><GalleryHorizontalEnd /></HistoryViewButton>
-        <HistoryViewButton label="缩略图" mode="thumbnail" current={viewMode} disabled={disabled || switchingView} onChange={(mode) => void changeViewMode(mode)}><Grid2X2 /></HistoryViewButton>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          className="ml-auto"
-          aria-label="高级清理历史记录"
-          title="高级清理"
-          disabled={disabled || !client.cleanupRecents}
-          onClick={() => { setCleanupMessage(undefined); setCleanupOpen(true) }}
-        >
-          <SlidersHorizontal />
-        </Button>
-      </div>
       {selectedIds.size ? (
         <div className="flex min-w-0 items-center gap-1 rounded border bg-muted/30 px-2 py-1" aria-label="历史记录选择操作">
           <span className="mr-auto text-xs tabular-nums" aria-live="polite">{selectedIds.size} / {loadedRecents.length}</span>
@@ -295,6 +278,27 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
         emptyLabel="暂无阅读历史"
         refreshLabel="刷新历史记录"
         {...listLayout}
+        toolbar={(
+          <ReaderLibraryViewToolbar
+            label="历史记录视图"
+            value={viewMode}
+            disabled={disabled || switchingView}
+            onValueChange={(mode) => void changeViewMode(mode)}
+            trailing={(
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label="高级清理历史记录"
+                title="高级清理"
+                disabled={disabled || !client.cleanupRecents}
+                onClick={() => { setCleanupMessage(undefined); setCleanupOpen(true) }}
+              >
+                <SlidersHorizontal />
+              </Button>
+            )}
+          />
+        )}
         onViewportWidthChange={handleViewportWidthChange}
         getItemKey={(item) => item.bookId}
         onVisibleItemsChange={setVisibleRecents}
@@ -405,7 +409,7 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
       data-history-context-id={item.bookId}
       data-history-id={item.bookId}
       leading={viewMode === "compact" || viewMode === "content" ? <Checkbox checked={selected} aria-label={`选择历史记录：${item.displayName}`} onCheckedChange={() => onSelect(item, index, { ctrlKey: true, metaKey: false, shiftKey: false })} /> : undefined}
-      media={viewMode === "compact" ? undefined : (
+      media={(
         <ReaderThumbnailSurface
           url={thumbnailUrl}
           kind={kind}
@@ -441,21 +445,6 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
         </span>
       ) : undefined}
     />
-  )
-}
-
-function HistoryViewButton({ label, mode, current, disabled, onChange, children }: {
-  label: string
-  mode: HistoryViewMode
-  current: HistoryViewMode
-  disabled: boolean
-  onChange(mode: HistoryViewMode): void
-  children: ReactNode
-}) {
-  return (
-    <Button type="button" size="icon-sm" variant={mode === current ? "default" : "ghost"} aria-label={label} title={label} aria-pressed={mode === current} disabled={disabled} onClick={() => onChange(mode)}>
-      {children}
-    </Button>
   )
 }
 

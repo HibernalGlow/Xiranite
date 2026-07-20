@@ -21,6 +21,7 @@ export function ReaderLibraryList<T>({
   listLabel,
   columns = 1,
   gap = 0,
+  toolbar,
   onViewportWidthChange,
 }: {
   queryKey: string
@@ -37,6 +38,7 @@ export function ReaderLibraryList<T>({
   listLabel?: string
   columns?: number
   gap?: number
+  toolbar?: ReactNode
   /** Fired when the scroll viewport width changes so parents can recompute adaptive columns/heights. */
   onViewportWidthChange?(width: number): void
 }) {
@@ -156,8 +158,9 @@ export function ReaderLibraryList<T>({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2" data-neoview-library-list={queryKey}>
-      <div className="flex items-center justify-end gap-2">
-        <span className="mr-auto text-[10px] tabular-nums text-muted-foreground">{items.length} 项</span>
+      <div className="flex min-h-7 items-center gap-2">
+        {toolbar}
+        <span className="ml-auto shrink-0 text-[10px] tabular-nums text-muted-foreground">{items.length} 项</span>
         <Button
           type="button"
           size="icon-sm"
