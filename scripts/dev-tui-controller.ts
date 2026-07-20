@@ -44,7 +44,7 @@ export class ManagedDevTuiController implements DevTuiController {
     this.#target = target
     this.#label = label
     this.#args = args
-    this.#snapshot = { target, label, phase: "stopped", output: new StyledText([{ __isChunk: true, text: "No output yet. Press S to start." }]), message: "Ready" }
+    this.#snapshot = { target, label, phase: "stopped", output: new StyledText([{ __isChunk: true, text: "暂无输出，请按 S 启动。" }]), message: "就绪" }
     this.#terminal.onWriteParsed(() => this.#scheduleOutputPublish())
   }
 
@@ -58,8 +58,8 @@ export class ManagedDevTuiController implements DevTuiController {
   async detectExistingSession(): Promise<void> {
     const session = await readDevSession()
     if (!session) return
-    this.#writeControl(`\u001b[33m[dev-ui] Existing ${session.script} session detected. Live output is available after restart from this UI.\u001b[0m\r\n`)
-    this.#patch({ phase: "running", pid: session.supervisorPid, startedAt: session.startedAt, message: `Attached to ${session.script}` })
+    this.#writeControl(`\u001b[33m[开发控制台] 已发现${sessionLabel(session.script)}；从本控制台重启后可接收实时输出。\u001b[0m\r\n`)
+    this.#patch({ phase: "running", pid: session.supervisorPid, startedAt: session.startedAt, message: `已连接${sessionLabel(session.script)}` })
   }
 
   start(): Promise<void> { return this.#enqueue(() => this.#start()) }
@@ -94,8 +94,8 @@ export class ManagedDevTuiController implements DevTuiController {
   async #start(): Promise<void> {
     if (this.#snapshot.phase === "running" || this.#snapshot.phase === "starting") return
     const startedAt = Date.now()
-    this.#patch({ phase: "starting", startedAt, pid: undefined, message: `Starting ${this.#label}` })
-    this.#writeControl(`\r\n\u001b[36m[dev-ui]\u001b[0m starting bun run ${this.#target}\r\n`)
+    this.#patch({ phase: "starting", startedAt, pid: undefined, message: `正在启动${this.#label}` })
+    this.#writeControl(`\r\n\u001b[36m[开发控制台]\u001b[0m 正在启动${this.#label}\r\n`)
 
     const env: Record<string, string | undefined> = { ...Bun.env, FORCE_COLOR: "3", TERM: "xterm-256color" }
     delete env.NO_COLOR
@@ -113,7 +113,7 @@ export class ManagedDevTuiController implements DevTuiController {
     void child.exited.then((exitCode) => this.#handleProcessExit(child, exitCode))
 
     await writeDevSession({ supervisorPid: child.pid, childPids: [], script: `dev-ui:${this.#target}`, startedAt })
-    this.#patch({ pid: child.pid, message: `Building and starting ${this.#label}` })
+    this.#patch({ pid: child.pid, message: `正在构建并启动${this.#label}` })
     void this.#awaitSupervisor(child, startedAt)
   }
 
@@ -124,8 +124,8 @@ export class ManagedDevTuiController implements DevTuiController {
     const session = await readDevSession()
     if (session?.supervisorPid === child.pid) await removeDevSession()
     if (this.#snapshot.phase !== "stopping") {
-      this.#writeControl(`\r\n\u001b[36m[dev-ui]\u001b[0m process exited with code ${exitCode}\r\n`)
-      this.#patch({ phase: exitCode === 0 ? "stopped" : "error", pid: undefined, message: `Exited with code ${exitCode}` })
+      this.#writeControl(`\r\n\u001b[36m[开发控制台]\u001b[0m 进程已退出，退出码 ${exitCode}\r\n`)
+      this.#patch({ phase: exitCode === 0 ? "stopped" : "error", pid: undefined, message: `进程已退出，退出码 ${exitCode}` })
     }
   }
 
@@ -134,7 +134,7 @@ export class ManagedDevTuiController implements DevTuiController {
       await Bun.sleep(250)
       const session = await readDevSession()
       if (session && session.startedAt >= startedAt && !session.script.startsWith("dev-ui:")) {
-        this.#patch({ phase: "running", pid: session.supervisorPid, startedAt: session.startedAt, message: `${this.#label} running` })
+        this.#patch({ phase: "running", pid: session.supervisorPid, startedAt: session.startedAt, message: `${this.#label}运行中` })
         return
       }
     }
@@ -143,12 +143,12 @@ export class ManagedDevTuiController implements DevTuiController {
   async #stop(): Promise<void> {
     const session = await readDevSession()
     if (!session && !this.#process) {
-      this.#patch({ phase: "stopped", pid: undefined, message: "Already stopped" })
+      this.#patch({ phase: "stopped", pid: undefined, message: "已经停止" })
       return
     }
 
-    this.#patch({ phase: "stopping", message: `Stopping ${this.#label}` })
-    this.#writeControl("\r\n\u001b[36m[dev-ui]\u001b[0m requesting safe shutdown\r\n")
+    this.#patch({ phase: "stopping", message: `正在停止${this.#label}` })
+    this.#writeControl("\r\n\u001b[36m[开发控制台]\u001b[0m 正在请求安全退出\r\n")
     const stop = Bun.spawn([process.execPath, "scripts/stop-dev.ts"], { stdout: "pipe", stderr: "pipe" })
     const [stdout, stderr] = await Promise.all([
       new Response(stop.stdout).text(),
@@ -165,7 +165,7 @@ export class ManagedDevTuiController implements DevTuiController {
       child.terminal?.close()
     }
     this.#process = null
-    this.#patch({ phase: "stopped", pid: undefined, startedAt: undefined, message: `${this.#label} stopped` })
+    this.#patch({ phase: "stopped", pid: undefined, startedAt: undefined, message: `${this.#label}已停止` })
   }
 
   #writeControl(text: string): void { this.#terminal.write(text) }
@@ -247,3 +247,8 @@ function trimTrailingSpaces(chunks: TextChunk[]): void {
 }
 
 function textChunk(text: string): TextChunk { return { __isChunk: true, text } }
+
+function sessionLabel(script: string): string {
+  if (script.includes("desktop")) return "桌面开发宿主"
+  return "浏览器开发宿主"
+}

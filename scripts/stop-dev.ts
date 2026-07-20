@@ -4,19 +4,19 @@ import { DEV_SESSION_PATH, readDevSession, removeDevSession, requestDevSessionSt
 const session = await readDevSession()
 
 if (!session) {
-  console.log("[xiranite-dev] no managed development session is recorded.")
+  console.log("[Xiranite 开发] 当前没有受管开发会话。")
   process.exit(0)
 }
 
 await requestDevSessionStop()
-console.log(`[xiranite-dev] requested a safe shutdown for ${session.script} (pid ${session.supervisorPid}).`)
+console.log(`[Xiranite 开发] 已请求安全停止${session.script.includes("desktop") ? "桌面" : "浏览器"}开发宿主（进程号 ${session.supervisorPid}）。`)
 
 for (let attempt = 0; attempt < 30; attempt += 1) {
   await Bun.sleep(100)
   try {
     await access(DEV_SESSION_PATH)
   } catch {
-    console.log("[xiranite-dev] managed development session stopped.")
+    console.log("[Xiranite 开发] 受管开发会话已停止。")
     process.exit(0)
   }
 }
@@ -25,7 +25,7 @@ for (const pid of [...new Set([session.supervisorPid, ...session.childPids])]) {
   if (await isRecordedDevProcess(pid, session.startedAt)) await terminateProcessTree(pid)
 }
 await removeDevSession()
-console.warn("[xiranite-dev] safe shutdown timed out; terminated the recorded Xiranite process tree.")
+console.warn("[Xiranite 开发] 安全停止超时，已终止记录的 Xiranite 进程树。")
 
 async function isRecordedDevProcess(pid: number, startedAt: number): Promise<boolean> {
   if (process.platform !== "win32") {
