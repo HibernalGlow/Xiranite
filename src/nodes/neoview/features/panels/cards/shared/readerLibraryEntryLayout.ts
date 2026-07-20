@@ -50,7 +50,7 @@ export function readerLibraryListLayout(
 }
 
 export function readerLibraryMediaClassName(viewMode: ReaderLibraryViewMode): string | undefined {
-  if (viewMode === "compact") return undefined
+  if (viewMode === "compact") return "size-7 rounded-sm"
   if (viewMode === "content") return "size-16"
   // Banner / thumbnail media fills the dedicated media cell; cover crops to the cell.
   return "size-full min-h-0 rounded-none"

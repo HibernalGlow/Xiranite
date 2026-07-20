@@ -99,6 +99,9 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   const historyRow = historyCard.locator("[data-history-id]").filter({ hasText: "fixture.cbz" }).first()
   await expect(historyRow).toBeVisible()
   await expect(historyContent).toHaveAttribute("data-history-view-mode", "compact")
+  const historyCompactThumbnail = historyRow.locator('[data-reader-thumbnail-surface="true"]')
+  await expect(historyCompactThumbnail).toHaveAttribute("data-thumbnail-fit", "cover")
+  await expect(historyCompactThumbnail.locator("img")).toBeVisible({ timeout: 30_000 })
   await activateControl(historyCard.getByRole("button", { name: "内容" }))
   await expect(historyContent).toHaveAttribute("data-history-view-mode", "content")
   await expect(historyRow).toContainText(fixture.path)
@@ -175,14 +178,10 @@ test("[neoview.history.thumbnail-e2e] [neoview.history.image-stability] [neoview
   await expect(bookmarkThumbnail.locator("img")).toBeVisible({ timeout: 30_000 })
   await expect(bookmarkRow).toContainText(fixture.path)
 
-  const compactRelease = page.waitForResponse((response) => (
-    response.request().method() === "DELETE"
-    && /\/reader\/library\/contexts\/bookmark%3Aall%3A\d+$/.test(response.url())
-  ))
   await activateControl(bookmarkCard.getByRole("button", { name: "列表", exact: true }))
-  expect((await compactRelease).status()).toBe(204)
   await expect(bookmarkContent).toHaveAttribute("data-bookmark-view-mode", "compact")
-  await expect(bookmarkRow.locator("img")).toHaveCount(0)
+  await expect(bookmarkThumbnail).toHaveAttribute("data-thumbnail-state", "ready", { timeout: 30_000 })
+  await expect(bookmarkThumbnail.locator("img")).toBeVisible({ timeout: 30_000 })
   await activateControl(bookmarkCard.getByRole("button", { name: "内容" }))
   await expect(bookmarkThumbnail.locator("img")).toBeVisible({ timeout: 30_000 })
 

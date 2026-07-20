@@ -4,6 +4,19 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ReaderHttpClient } from "../../../adapters/reader-http-client"
 import BookmarkListCard from "./BookmarkListCard"
 
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({ count, estimateSize }: { count: number; estimateSize(): number }) => ({
+    getTotalSize: () => count * estimateSize(),
+    scrollToIndex: vi.fn(),
+    getVirtualItems: () => Array.from({ length: count }, (_, index) => ({
+      key: index,
+      index,
+      size: estimateSize(),
+      start: index * estimateSize(),
+    })),
+  }),
+}))
+
 afterEach(cleanup)
 
 describe("BookmarkListCard", () => {
@@ -27,6 +40,38 @@ describe("BookmarkListCard", () => {
     await waitFor(() => expect(listBookmarkLists).toHaveBeenCalledOnce())
     await waitFor(() => expect(listBookmarks).toHaveBeenCalledOnce())
     expect(screen.getByText("当前列表没有书签")).toBeTruthy()
+  })
+
+  it("[neoview.bookmark.compact-thumbnails] registers visible compact rows through the shared thumbnail surface", async () => {
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly { id: string }[]) => ({
+      contextId,
+      generation,
+      items: items.map((item) => ({ id: item.id, thumbnailUrl: `/thumbnail/${item.id}`, contentVersion: "v1" })),
+    }))
+    const listBookmarkLists = vi.fn(async () => [{ id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true }])
+    const listBookmarks = vi.fn(async () => [{
+      id: "bookmark-one",
+      name: "one.cbz",
+      kind: "file" as const,
+      source: { kind: "archive" as const, path: "D:/books/one.cbz" },
+      createdAt: 1,
+      updatedAt: 1,
+      starred: false,
+      listIds: ["all"],
+    }])
+    const base = context(listBookmarkLists, listBookmarks)
+    const view = render(<BookmarkListCard {...base} client={{ ...base.client, registerLibraryThumbnails } as ReaderHttpClient} />)
+
+    await waitFor(() => expect(listBookmarks).toHaveBeenCalledOnce())
+    await waitFor(() => expect(view.container.querySelector('[data-bookmark-id="bookmark-one"]')).toBeTruthy())
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledOnce())
+    expect(registerLibraryThumbnails.mock.calls[0]?.[2]).toEqual([
+      expect.objectContaining({ id: "bookmark-one", path: "D:/books/one.cbz", kind: "file", previewCount: 1 }),
+    ])
+    await waitFor(() => expect(view.container.querySelector('img[src="/thumbnail/bookmark-one"]')).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "内容" }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(registerLibraryThumbnails).toHaveBeenCalledOnce()
   })
 
   it("[neoview.bookmark.focus-restoration] restores focus to the all-list tab after deleting the active custom list", async () => {

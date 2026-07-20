@@ -40,6 +40,25 @@ describe("HistoryListCard", () => {
     expect(screen.getByTestId("history-card").getAttribute("data-history-state")).toBe("ready")
   })
 
+  it("[neoview.history.compact-thumbnails] registers visible compact rows and renders their shared thumbnail surface", async () => {
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly { id: string }[]) => ({
+      contextId,
+      generation,
+      items: items.map((item) => ({ id: item.id, thumbnailUrl: `/thumbnail/${item.id}`, contentVersion: "v1" })),
+    }))
+    const base = context(vi.fn(async () => [recentHistory("one")]))
+    const view = render(<HistoryListCard {...base} client={{ ...base.client, registerLibraryThumbnails } as ReaderHttpClient} />)
+
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledOnce())
+    expect(registerLibraryThumbnails.mock.calls[0]?.[2]).toEqual([
+      expect.objectContaining({ id: "one", path: "D:/books/one.cbz", kind: "file", previewCount: 1 }),
+    ])
+    await waitFor(() => expect(view.container.querySelector('img[src="/thumbnail/one"]')).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", { name: "内容" }))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(registerLibraryThumbnails).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.history.focus-refresh] restores the focused history entry after refresh reorders loaded records", async () => {
     const pages = [
       [recentHistory("one"), recentHistory("two")],
