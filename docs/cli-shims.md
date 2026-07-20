@@ -12,7 +12,9 @@
 
 `xr`/`xrd` 通过 `bun --cwd <repoRoot> run <script>` 启动，因此可从任意目录调用，无需先 `cd` 到仓库。这两个 shim 仅校验仓库根目录存在 `package.json`，不依赖 `dist` 产物；首次运行时 `dev`/`dev:desktop` 脚本内部会自行执行 `generate:node-registries` 与 `build:packages:turbo`。
 
-开发完成后请运行 `xr stop`。它会先请求开发主管进程关闭后端和子进程；若终端已被直接关闭且主管进程未响应，才会核验命令行属于当前 Xiranite 工作区后终止记录的遗留进程树。`xr reboot` 会停止后重新启动浏览器开发宿主，`xrd reboot` 对应重启 Wails 开发宿主；额外参数会传给新的启动命令。也可从仓库根目录运行 `bun run dev:stop`、`bun run dev:reboot` 或 `bun run dev:desktop:reboot`。更新后需重新执行安装命令，才能生成带有这些路由的本地 shim。
+开发完成后请运行 `xr stop`。它会先请求开发主管进程关闭后端和子进程；若终端已被直接关闭且主管进程未响应，才会核验命令行属于当前 Xiranite 工作区后终止记录的遗留进程树。`xr reboot` 会停止后重新启动浏览器开发宿主，`xrd reboot` 对应重启 Wails 开发宿主；额外参数会传给新的启动命令。
+
+`xr ui` 和 `xrd ui` 使用仓库现有的 OpenTUI + React 环境打开开发控制台，分别管理浏览器和 Wails 开发宿主。控制台提供启动、停止、重启、实时日志、PID 和运行时长；退出控制台会安全停止受管进程。日志以 100ms 批次刷新，最多保留 600 行且界面只呈现最新 32 行，不执行周期性的 PowerShell/CIM 资源查询。也可从仓库根目录运行 `bun run dev:ui` 或 `bun run dev:desktop:ui`。更新后需重新执行安装命令，才能生成带有这些路由的本地 shim。
 
 默认目标：
 
