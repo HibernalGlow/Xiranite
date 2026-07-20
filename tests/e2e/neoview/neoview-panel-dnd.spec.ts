@@ -44,6 +44,55 @@ test.afterAll(async () => {
   await fixture?.cleanup()
 })
 
+test("[neoview.sidebar.panel-click-hold] switches on a short click and starts drag only after a hold", async ({ page }) => {
+  const runtimeErrors: string[] = []
+  page.on("pageerror", (error) => runtimeErrors.push(error.stack ?? error.message))
+  page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()) })
+  await openReader(page)
+
+  let boardPatches = 0
+  page.on("request", (request) => {
+    if (request.url() === `${backend.url}/reader/config` && request.method() === "PATCH" && request.postData()?.includes('"board"')) boardPatches += 1
+  })
+
+  const history = page.locator('[data-reader-panel-rail="left"]').getByRole("button", { name: "历史记录", exact: true })
+  await history.click({ delay: 40 })
+  await expect(page.locator('[data-reader-panel="history"]')).toBeVisible()
+  await expect(page.locator('[data-reader-panel-drag-overlay="true"]')).toHaveCount(0)
+  expect(boardPatches).toBe(0)
+
+  const box = await history.boundingBox()
+  if (!box) throw new Error("History panel icon is not rendered.")
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.waitForTimeout(300)
+  await expect(page.locator('[data-reader-panel-drag-overlay="true"]')).toBeVisible()
+  await page.mouse.up()
+
+  await expect(page.locator('[data-reader-panel-drag-overlay="true"]')).toHaveCount(0)
+  await expect(page.locator('[data-reader-panel="history"]')).toBeVisible()
+  expect(boardPatches).toBe(0)
+  expect(runtimeErrors, "NeoView runtime errors during panel click/hold arbitration").toEqual([])
+})
+
+test("[neoview.sidebar.panel-rail-drop] drops a held panel onto either sidebar rail", async ({ page }) => {
+  await openReader(page)
+  const left = page.locator('[data-reader-panel-rail="left"]')
+  const right = page.locator('[data-reader-panel-rail="right"]')
+
+  const moveRight = page.waitForResponse(isBoardResponse)
+  await dragPanelToRail(left.getByRole("button", { name: "历史记录", exact: true }), right)
+  const movedRight = await moveRight
+  expect((await movedRight.json() as { shell: { panelLayout: Record<string, { position: string }> } }).shell.panelLayout.history?.position).toBe("right")
+  await expect(right.getByRole("button", { name: "历史记录", exact: true })).toBeVisible()
+
+  const moveLeft = page.waitForResponse(isBoardResponse)
+  await dragPanelToRail(right.getByRole("button", { name: "历史记录", exact: true }), left)
+  const movedLeft = await moveLeft
+  expect((await movedLeft.json() as { shell: { panelLayout: Record<string, { position: string }> } }).shell.panelLayout.history?.position).toBe("left")
+  await expect(left.getByRole("button", { name: "历史记录", exact: true })).toBeVisible()
+})
+
 test("[neoview.sidebar.panel-dnd-e2e] reorders and moves panel icons through one shared board", async ({ page }, testInfo) => {
   const runtimeErrors: string[] = []
   page.on("pageerror", (error) => runtimeErrors.push(error.stack ?? error.message))
@@ -70,8 +119,8 @@ test("[neoview.sidebar.panel-dnd-e2e] reorders and moves panel icons through one
   await dragPanel(history, bookmark)
   expect((await reorderResponse).status()).toBe(200)
   expect(runtimeErrors, "NeoView runtime errors after a panel reorder").toEqual([])
-  await expect.poll(() => panelButtonNames(left)).toEqual(expect.arrayContaining(["文件夹", "书签", "页面列表", "历史记录"]))
-  await expect.poll(() => panelButtonNames(left)).toHaveLength(4)
+  await expect.poll(() => panelButtonNames(left)).toEqual(expect.arrayContaining(["文件夹", "书签", "页面列表", "历史记录", "设置"]))
+  await expect.poll(() => panelButtonNames(left)).toHaveLength(5)
   expect(await indexOfPanel(left, "历史记录")).toBeGreaterThan(await indexOfPanel(left, "书签"))
   expect(boardPatches).toBe(1)
 
@@ -110,11 +159,6 @@ test("[neoview.sidebar.panel-dnd-e2e] reorders and moves panel icons through one
   const app = page.locator('[data-reader-app="true"]')
   await expect.poll(() => app.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
 
-  function isBoardResponse(response: import("@playwright/test").Response): boolean {
-    return response.url() === `${backend.url}/reader/config`
-      && response.request().method() === "PATCH"
-      && response.request().postData()?.includes('"board"') === true
-  }
 })
 
 async function openReader(page: Page): Promise<void> {
@@ -142,10 +186,30 @@ async function dragPanel(source: Locator, target: Locator): Promise<void> {
   const targetY = targetBox.y + targetBox.height * 0.82
   await page.mouse.move(sourceX, sourceY)
   await page.mouse.down()
+  await page.waitForTimeout(300)
   await page.mouse.move(sourceX, sourceY + 8, { steps: 2 })
   await page.mouse.move(targetX, targetY, { steps: 16 })
   await page.waitForTimeout(120)
   await page.mouse.up()
+}
+
+async function dragPanelToRail(source: Locator, rail: Locator): Promise<void> {
+  const page = source.page()
+  const sourceBox = await source.boundingBox()
+  const railBox = await rail.boundingBox()
+  if (!sourceBox || !railBox) throw new Error("Panel drag source or rail target is not rendered.")
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
+  await page.mouse.down()
+  await page.waitForTimeout(300)
+  await page.mouse.move(railBox.x + railBox.width / 2, railBox.y + railBox.height - 12, { steps: 20 })
+  await page.waitForTimeout(120)
+  await page.mouse.up()
+}
+
+function isBoardResponse(response: import("@playwright/test").Response): boolean {
+  return response.url() === `${backend.url}/reader/config`
+    && response.request().method() === "PATCH"
+    && response.request().postData()?.includes('"board"') === true
 }
 
 async function panelButtonNames(rail: Locator): Promise<string[]> {

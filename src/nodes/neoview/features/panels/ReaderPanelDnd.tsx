@@ -5,6 +5,7 @@ import {
   KeyboardSensor,
   PointerSensor,
   TouchSensor,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -13,7 +14,7 @@ import {
 } from "@dnd-kit/core"
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react"
 
 import type { ReaderBoardLayoutPatch, ReaderShellConfigDto } from "../../adapters/reader-http-client"
 import { availablePanels, PANEL_DEFINITIONS, type ReaderPanelDefinition, type ReaderPanelSide } from "./registry"
@@ -27,8 +28,8 @@ interface PanelDndContextValue {
 const PanelDndContext = createContext<PanelDndContextValue | null>(null)
 const railId = (side: ReaderPanelSide) => `reader-panel-rail:${side}`
 const disableLayoutAnimation = () => false
-// Clicks must not start a drag: require a real move (or a deliberate long-press on touch).
-export const READER_PANEL_POINTER_ACTIVATION = { distance: 14 } as const
+// Keep ordinary clicks available for panel switching; dragging requires a deliberate hold.
+export const READER_PANEL_POINTER_ACTIVATION = { delay: 250, tolerance: 8 } as const
 
 export function ReaderPanelDndProvider({
   shell,
@@ -86,7 +87,11 @@ function ActiveReaderPanelDndProvider({
         {children}
         <DragOverlay dropAnimation={null}>
           {activePanel ? (
-            <div className="grid size-9 place-items-center rounded-md border bg-background text-sm shadow-xl" aria-hidden="true">
+            <div
+              className="grid size-9 place-items-center rounded-md border bg-background text-sm shadow-xl"
+              aria-hidden="true"
+              data-reader-panel-drag-overlay="true"
+            >
               {activePanel.emoji}
             </div>
           ) : null}
@@ -147,8 +152,9 @@ function ActiveReaderPanelDndProvider({
     const panelId = String(event.active.id)
     const side = destinationSide(event.over.id, event.over.data.current?.side)
     if (!side) return
-    const ids = readerPanelIdsForSide(dragShellRef.current, side).filter((id) => id !== panelId)
     const overId = String(event.over.id)
+    if (overId === panelId) return
+    const ids = readerPanelIdsForSide(dragShellRef.current, side).filter((id) => id !== panelId)
     let index = overId === railId(side) ? ids.length : ids.indexOf(overId)
     if (index < 0) index = ids.length
     if (overId !== railId(side) && event.active.rect.current.translated) {
@@ -177,11 +183,12 @@ export function useReaderPanelRail(side: ReaderPanelSide, fallbackPanels: readon
   const context = useContext(PanelDndContext)
   const panels = context?.dragging ? availablePanels(side, context.previewShell) : fallbackPanels
   const items = useMemo(() => panels.map((panel) => panel.id), [panels])
-  const setNodeRef = useCallback(() => undefined, [])
+  const data = useMemo(() => ({ type: "reader-panel-rail", side }), [side])
+  const droppable = useDroppable({ id: railId(side), data })
   return {
     panels,
-    isOver: false,
-    setNodeRef,
+    isOver: droppable.isOver,
+    setNodeRef: droppable.setNodeRef,
     sortable: (children: ReactNode) => (
       <SortableContext items={items} strategy={verticalListSortingStrategy}>
         {children}
