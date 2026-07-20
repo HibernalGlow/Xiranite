@@ -221,6 +221,30 @@ describe("LibraryThumbnailRoute", () => {
     await pipeline.dispose()
   })
 
+  it("[neoview.thumbnail.library-visible-http] serves img requests through the interactive lane", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-library-thumbnail-visible-"))
+    roots.push(root)
+    const sourcePath = join(root, "cover.png")
+    await writeFile(sourcePath, Uint8Array.of(1))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(sourcePath),
+      loadImageTransformer: async () => ({ transform: async () => ({ contentType: "image/webp", stream: byteStream(fixtureWebp(8)) }) }),
+    })
+    const acquireLibrary = vi.spyOn(pipeline, "acquireLibrary")
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+    const registered = (await route.handle(registerRequest(sourcePath, 0, true)))!
+    const body = await registered.json() as { items: Array<{ thumbnailUrl: string }> }
+
+    expect((await route.handle(new Request(body.items[0]!.thumbnailUrl)))?.status).toBe(200)
+    expect(acquireLibrary).toHaveBeenCalledWith(
+      expect.objectContaining({ path: sourcePath, kind: "file" }),
+      expect.objectContaining({ lane: "reader-visible" }),
+    )
+
+    route.close()
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.library-mosaic-http] returns independent opaque asset URLs for folder previews", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-library-mosaic-route-"))
     roots.push(root)
