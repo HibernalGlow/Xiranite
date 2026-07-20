@@ -346,8 +346,8 @@ describe("FolderMainCard", () => {
       browserOriginSelfTerminal: true,
     })
     expect(showToast).toHaveBeenCalledWith({
-      title: "先阅读当前文件夹图片",
-      description: "当前层 63 张图片；1 个子文件夹将在“下一本”中继续。",
+      title: "先阅读“series”的当前层图片",
+      description: "当前层 63 张图片；发现 1 个子文件夹，可继续作为“下一本”。",
     })
     expect(resolveFolderPenetration).toHaveBeenCalledWith(
       "browser-1",
