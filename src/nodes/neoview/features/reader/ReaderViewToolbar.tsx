@@ -24,7 +24,6 @@ import {
   Expand,
   Frame,
   Library,
-  Lock,
   Maximize,
   MousePointer2,
   PanelsTopLeft,
@@ -199,12 +198,18 @@ export function ReaderViewToolbar({
           <Button title={layout.pageMode === "double" ? "双页模式（点击切换为单页）" : "单页模式（点击切换为双页）"} aria-label={layout.pageMode === "double" ? "双页模式" : "单页模式"} aria-pressed={layout.pageMode === "double"} type="button" size="icon-sm" className="rounded-full" variant={layout.pageMode === "double" ? "default" : "ghost"} disabled={disabled} onClick={() => onLayoutChange({ pageMode: layout.pageMode === "double" ? "single" : "double" })}>{layout.pageMode === "double" ? <Columns2 /> : <RectangleVertical />}</Button>
         </div>
         <Button
-          title={`${direction === "left-to-right" ? "从左到右" : "从右到左"}（点击切换，右键${lockedReadingDirection === direction ? "解锁" : "锁定"}）`}
+          title={direction === "left-to-right"
+            ? lockedReadingDirection === "left-to-right"
+              ? "左开模式（已锁定，右键解锁）"
+              : "左开模式（点击切换，右键锁定）"
+            : lockedReadingDirection === "right-to-left"
+              ? "右开模式（已锁定，右键解锁）"
+              : "右开模式（点击切换，右键锁定）"}
           aria-label="切换阅读方向"
           aria-pressed={direction === "right-to-left"}
           type="button"
           size="icon-sm"
-          className={lockedReadingDirection === direction ? "relative rounded-full ring-2 ring-primary ring-offset-1" : undefined}
+          className={lockedReadingDirection ? "rounded-full bg-primary/20 text-primary ring-2 ring-primary" : undefined}
           variant="ghost"
           disabled={disabled}
           onClick={() => onDirectionChange(
@@ -220,7 +225,6 @@ export function ReaderViewToolbar({
           }}
         >
           {direction === "left-to-right" ? <ArrowRight /> : <ArrowLeft />}
-          {lockedReadingDirection === direction ? <Lock className="absolute -right-0.5 -bottom-0.5 size-2" /> : null}
         </Button>
         <Button title="旋转设置" aria-label="展开旋转设置" aria-expanded={expanded === "rotate"} type="button" size="icon-sm" variant={expanded === "rotate" ? "default" : "ghost"} disabled={disabled} onClick={() => toggle("rotate")}><RotateCw /></Button>
         <Button
