@@ -6,6 +6,7 @@ import type { ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStor
 import { LatestRecordWriteCoordinator } from "../persistence/LatestRecordWriteCoordinator.js"
 import { CoreReaderSession } from "./ReaderSession.js"
 import { aggregateReaderPreloadTelemetry, type ReaderPreloadDiagnostics } from "../preloading/PreloadTelemetry.js"
+import type { ReaderPreloadCoordinatorOptions } from "../preloading/PreloadCoordinator.js"
 import { DEFAULT_READER_SESSION_OPTIONS, type OpenViewSourceOptions, type ReaderService, type ReaderSession, type ReaderSessionId, type ReaderSessionOptions } from "./contracts.js"
 import type { ReaderPageOrderPatch } from "./ReaderPageOrder.js"
 
@@ -23,6 +24,7 @@ export class CoreReaderService implements ReaderService {
     progressStore?: ReaderProgressStore,
     private readonly bookSettingsStore?: ReaderBookSettingsStore,
     private pageOrderDefaults?: ReaderPageOrderPatch,
+    private preloadDefaults?: ReaderPreloadCoordinatorOptions,
   ) {
     this.#progress = progressStore ? new ReaderProgressCoordinator(progressStore) : undefined
   }
@@ -117,6 +119,7 @@ export class CoreReaderService implements ReaderService {
         },
         this.metadataProbe,
         this.pageOrderDefaults,
+        this.preloadDefaults,
       )
       bookOwnedByOpening = false
       try {

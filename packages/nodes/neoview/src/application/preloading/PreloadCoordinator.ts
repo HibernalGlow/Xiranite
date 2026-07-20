@@ -28,6 +28,7 @@ export interface ReaderPreloadCoordinatorOptions {
   aheadFrames?: number
   retainReverseFrame?: boolean
   maxSpeculativeQueueWaitMs?: number
+  maxCandidatePages?: number
 }
 
 export class ReaderPreloadCoordinator {
@@ -35,6 +36,7 @@ export class ReaderPreloadCoordinator {
   readonly #aheadFrames: number
   readonly #retainReverseFrame: boolean
   readonly #maxSpeculativeQueueWaitMs: number
+  readonly #maxCandidatePages: number
   #generation = 0
   #lastAnchorPageIndex?: number
   #direction: ReaderPreloadDirection = "forward"
@@ -50,6 +52,7 @@ export class ReaderPreloadCoordinator {
     this.#aheadFrames = bounded(options.aheadFrames ?? 2, "aheadFrames", 0, 8)
     this.#retainReverseFrame = options.retainReverseFrame ?? true
     this.#maxSpeculativeQueueWaitMs = bounded(options.maxSpeculativeQueueWaitMs ?? 100, "maxSpeculativeQueueWaitMs", 0, 60_000)
+    this.#maxCandidatePages = bounded(options.maxCandidatePages ?? 4, "maxCandidatePages", 0, 32)
   }
 
   replacePages(pages: readonly ReaderPage[]): void {
@@ -79,7 +82,10 @@ export class ReaderPreloadCoordinator {
       queueWaitMs: normalized.queueWaitMs,
       memoryPressure: normalized.memoryPressure,
       currentPageIndexes: frame.pages.map((page) => page.pageIndex),
-      candidates: buildCandidates(this.#pages, frame, direction, budget.nearFrames, budget.aheadFrames, budget.retainReverseFrame),
+      candidates: limitCandidatePages(
+        buildCandidates(this.#pages, frame, direction, budget.nearFrames, budget.aheadFrames, budget.retainReverseFrame),
+        this.#maxCandidatePages,
+      ),
     }
     return this.#plan
   }
@@ -93,6 +99,24 @@ export class ReaderPreloadCoordinator {
     this.#plan = { ...this.#plan, frameGeneration: frame.generation }
     return this.#plan
   }
+}
+
+function limitCandidatePages(candidates: readonly ReaderPreloadCandidate[], maximum: number): ReaderPreloadCandidate[] {
+  if (maximum === 0) return []
+  const limited: ReaderPreloadCandidate[] = []
+  let remaining = maximum
+  for (const candidate of candidates) {
+    if (remaining < 1) break
+    const count = Math.min(remaining, candidate.pageIndexes.length, candidate.pageIds.length)
+    if (count < 1) continue
+    limited.push({
+      ...candidate,
+      pageIndexes: candidate.pageIndexes.slice(0, count),
+      pageIds: candidate.pageIds.slice(0, count),
+    })
+    remaining -= count
+  }
+  return limited
 }
 
 function samePageIndexes(left: readonly number[], right: readonly number[]): boolean {

@@ -224,6 +224,13 @@ describe("CoreReaderService", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.preload.config-session] applies the shared candidate budget to every new session", async () => {
+    const service = new CoreReaderService(async () => book(10), undefined, {}, undefined, undefined, undefined, { maxCandidatePages: 2 })
+    const session = await service.openViewSource({ kind: "directory", path: "C:/book" }, { initialPage: 3 })
+    expect(session.preloadPlan()?.candidates.flatMap((candidate) => candidate.pageIndexes)).toHaveLength(2)
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.preload.cancel-speculative] pauses a fresh empty generation, cancels active telemetry and resumes on navigation", async () => {
     const service = new CoreReaderService(async () => book(8))
     const session = await service.openViewSource({ kind: "directory", path: "C:/book" }, { initialPage: 2 })

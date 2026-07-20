@@ -451,6 +451,7 @@ export async function createReaderHttpController(
     fileUndoJournalStore: dataStore,
     disposeLibraryService: true,
     sessionOptions: runtimeConfig.sessionOptions,
+    preloadOptions: runtimeConfig.preload,
     shellOptions: runtimeConfig.shellOptions,
     viewDefaults: runtimeConfig.viewDefaults,
     book: runtimeConfig.book,
@@ -1004,6 +1005,7 @@ export async function createReaderHeadlessController(
             mediaPriority: runtimeConfig.book.lockedMediaPriority ?? "none",
           }
         : undefined,
+      runtimeConfig.preload,
     ),
     disposeDependencies,
     mediaProgress,
