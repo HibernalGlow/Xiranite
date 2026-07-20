@@ -37,6 +37,10 @@
       "types": "./dist/time-information.d.ts",
       "default": "./dist/time-information.js"
     },
+    "./book-information": {
+      "types": "./dist/book-information.d.ts",
+      "default": "./dist/book-information.js"
+    },
     "./info-overlay": {
       "types": "./dist/info-overlay.d.ts",
       "default": "./dist/info-overlay.js"

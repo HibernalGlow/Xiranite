@@ -144,7 +144,7 @@
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.metadata.cards",
@@ -345,7 +345,7 @@
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.image-information.image-fields"
@@ -431,7 +431,7 @@
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.shell.registry-lazy",
@@ -457,7 +457,7 @@
         "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "testIds": [
         "neoview.image-information.image-fields",

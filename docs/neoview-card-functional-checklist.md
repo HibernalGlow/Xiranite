@@ -1764,8 +1764,8 @@
 
 ##### 专用源码级验收项
 
-- [ ] `image-information.states` 空、加载、成功、失败与重试状态
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `image-information.states` 空、加载、成功、失败与重试状态
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：No session is zero DOM; unavailable media is a stable empty state; base metadata and optional probe failures remain independently visible and retryable.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
   - 测试：`neoview.metadata.cards`、`neoview.image-information.resident-empty`、`neoview.image-information.probe-degradation`、`neoview.image-information.metadata-retry`
@@ -1813,8 +1813,8 @@
   - 测试：`neoview.image-information.client`、`neoview.image-information.archive-video-http`
   - 计划测试：无
   - 备注：Base metadata and demand-only media DTOs are path-safe and shared with GUI; CLI/TUI still need explicit projection.
-- [ ] `image-information.presentation` 显示当前呈现的有效尺寸与旋转
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `image-information.presentation` 显示当前呈现的有效尺寸与旋转
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：The Card distinguishes immutable source dimensions from CSS presentation rotation/fit/manual scale without generating a second asset.
   - 源码：`src/lib/stores/infoPanel.svelte.ts`
   - 测试：`neoview.image-information.image-fields`
@@ -1834,15 +1834,15 @@
   - 测试：`neoview.image-information.navigation-cancel`、`neoview.image-information.video-cancel`、`neoview.image-information.session-release`、`neoview.image-information.ffprobe-abort`、`neoview.image-information.card-hide`
   - 计划测试：无
   - 备注：GUI, application, route and process cancellation are covered; CLI/TUI consumers remain pending.
-- [ ] `image-information.shell` 复用通用 Card 外壳
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `image-information.shell` 复用通用 Card 外壳
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Image Information remains independently lazy, hideable, collapsible, movable, resizable and window-capable in the info Panel.
   - 源码：`src/lib/cards/registry.ts`、`src/lib/cards/CardRenderer.svelte`
   - 测试：`neoview.shell.registry-lazy`、`neoview.image-information.chunk`
   - 计划测试：无
   - 备注：The shared shell and independent 8 KiB deferred chunk are both gated.
-- [ ] `image-information.accessibility` 字段、错误与重试具有可访问语义
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `image-information.accessibility` 字段、错误与重试具有可访问语义
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Labels use semantic description lists, truncated values retain titles, and retry is keyboard/touch operable.
   - 源码：`src/lib/cards/info/ImageInfoCard.svelte`
   - 测试：`neoview.image-information.image-fields`、`neoview.image-information.probe-degradation`
