@@ -8,6 +8,7 @@ import type { ResourceTaskRequest } from "../ports/ResourceScheduler.js"
 import { VideoProcessScheduler } from "../platform/video/VideoProcessScheduler.js"
 import { createZipFixture, type ZipFixture } from "../../test/fixture-builders/create-zip-fixture.js"
 import { createReaderAssetRoute, createReaderBookLoader, createReaderHttpController } from "../platform.js"
+import { DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG } from "../application/config/ReaderImageProcessingConfig.js"
 
 const cleanupDirectories: string[] = []
 const cleanupArchives: ZipFixture[] = []
@@ -94,6 +95,10 @@ describe("NeoView platform composition", () => {
       token: "route-token",
       resourceScheduler,
       legacyThumbnailDatabasePath: false,
+      imageProcessing: {
+        ...DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG,
+        readerTransformEnabled: true,
+      },
     })
     try {
       const opened = (await controller.handle(new Request("http://127.0.0.1:41000/reader/sessions", {

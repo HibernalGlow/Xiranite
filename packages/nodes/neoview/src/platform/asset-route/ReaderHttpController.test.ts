@@ -9,6 +9,7 @@ import { ReaderAssetRoute } from "./ReaderAssetRoute.js"
 import { ReaderHttpController, type ReaderSessionDto } from "./ReaderHttpController.js"
 import type { ReaderPresentationDiskCache } from "../../ports/ReaderPresentationDiskCache.js"
 import { DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG } from "../../application/config/ReaderRuntimeConfig.js"
+import { DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG } from "../../application/config/ReaderImageProcessingConfig.js"
 import {
   DEFAULT_READER_COLOR_FILTER,
   normalizeReaderColorFilter,
@@ -304,6 +305,10 @@ describe("ReaderHttpController", () => {
         "page-navigation": { panelId: "pageList", visible: true, expanded: "cardId" in patch ? patch.expanded ?? true : true, order: 0 },
       },
     }))
+    const updateImageProcessing = vi.fn(async (patch) => ({
+      ...DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG,
+      ...patch.imageProcessing,
+    }))
     const controller = new ReaderHttpController({
       baseUrl: "http://127.0.0.1:41000",
       token: "reader-token",
@@ -343,6 +348,7 @@ describe("ReaderHttpController", () => {
       updateFolderView,
       slideshow: { intervalSeconds: 8, loop: false, random: true, fadeTransition: true },
       updateSlideshow,
+      updateImageProcessing,
     })
     try {
       expect((await controller.handle(new Request("http://127.0.0.1:41000/reader/config")))?.status).toBe(401)
@@ -361,6 +367,17 @@ describe("ReaderHttpController", () => {
       })
       expect(body).not.toHaveProperty("token")
       expect(JSON.stringify(body)).not.toMatch(/password|sourcePath/i)
+      const imageProcessingPatched = (await controller.handle(jsonRequest("/reader/config", {
+        imageProcessing: { folderMosaicEnabled: true, thumbnailQuality: 74 },
+      }, true, "PATCH")))!
+      expect(imageProcessingPatched.status).toBe(200)
+      expect(await imageProcessingPatched.json()).toMatchObject({
+        imageProcessing: { folderMosaicEnabled: true, thumbnailQuality: 74 },
+      })
+      expect(updateImageProcessing).toHaveBeenCalledWith(
+        { imageProcessing: { folderMosaicEnabled: true, thumbnailQuality: 74 } },
+        { image: { processing: { folder_mosaic_enabled: true, thumbnail_quality: 74 } } },
+      )
       const patched = (await controller.handle(jsonRequest("/reader/config", { side: "left", width: 401 }, true, "PATCH")))!
       expect(patched.status).toBe(200)
       expect(await patched.json()).toMatchObject({ shell: { sidebars: { left: { width: 401 } } } })

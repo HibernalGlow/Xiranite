@@ -35,6 +35,8 @@ export interface WindowsWicImageTransformerOptions {
   resourceScheduler?: ResourceScheduler
   loadWic?: () => Promise<WicImageApi>
   preferFallbackForLossless?: boolean
+  enabled?: () => boolean
+  preferFallbackForLosslessNow?: () => boolean
 }
 
 export class WindowsWicImageTransformer implements ImageTransformer {
@@ -42,6 +44,8 @@ export class WindowsWicImageTransformer implements ImageTransformer {
   readonly #resourceScheduler: ResourceScheduler
   readonly #loadWic: () => Promise<WicImageApi>
   readonly #preferFallbackForLossless: boolean
+  readonly #enabled: () => boolean
+  readonly #preferFallbackForLosslessNow?: () => boolean
   #wic?: Promise<WicImageApi>
 
   constructor(fallback: ImageTransformer, options: WindowsWicImageTransformerOptions = {}) {
@@ -49,6 +53,8 @@ export class WindowsWicImageTransformer implements ImageTransformer {
     this.#resourceScheduler = options.resourceScheduler ?? defaultImageTransformScheduler
     this.#loadWic = options.loadWic ?? loadWicImageApi
     this.#preferFallbackForLossless = options.preferFallbackForLossless === true
+    this.#enabled = options.enabled ?? (() => true)
+    this.#preferFallbackForLosslessNow = options.preferFallbackForLosslessNow
   }
 
   async transform(
@@ -58,11 +64,12 @@ export class WindowsWicImageTransformer implements ImageTransformer {
     execution: ImageTransformExecution = {},
   ): Promise<ImageTransformResult> {
     signal?.throwIfAborted()
+    if (!this.#enabled()) return this.#fallback.transform(input, request, signal, execution)
     const peeked = await peekInput(input, signal)
     const format = detectWicFormat(peeked.prefix)
     if (!format) return this.#fallback.transform(replayInput(peeked), request, signal, execution)
     if (request.format === "avif") return this.#fallback.transform(replayInput(peeked), request, signal, execution)
-    if (request.lossless === true && this.#preferFallbackForLossless) {
+    if (request.lossless === true && (this.#preferFallbackForLosslessNow?.() ?? this.#preferFallbackForLossless)) {
       return this.#fallback.transform(replayInput(peeked), request, signal, execution)
     }
 

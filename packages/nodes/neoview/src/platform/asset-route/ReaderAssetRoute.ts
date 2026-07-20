@@ -32,6 +32,7 @@ import { buildPresentationCacheKey, SHARP_PRESENTATION_PRODUCER_VERSION } from "
 import { transformPageSource } from "../images/transform-page-source.js"
 import { ReaderMemoryPressureMonitor, type ReaderMemoryPressureLevel } from "../memory/ReaderMemoryPressureMonitor.js"
 import { FilePageContent } from "../content/FilePageContent.js"
+import type { NeoViewImageProcessingRuntimePolicy } from "../images/SharpRuntimePolicy.js"
 
 const PAGE_PATH = /^\/reader\/s\/([^/]+)\/page\/([^/]+)$/
 const THUMBNAIL_PATH = /^\/reader\/s\/([^/]+)\/thumbnail\/([^/]+)$/
@@ -45,6 +46,7 @@ export interface ReaderAssetRouteOptions {
 export interface ReaderAssetRouteDependencies {
   loadImageTransformer?: ImageTransformerLoader
   bypassImageTransforms?: boolean
+  imageProcessingPolicy?: NeoViewImageProcessingRuntimePolicy
   presentationCache?: ReaderPresentationCache
   presentationDiskCache?: ReaderPresentationDiskCache
   presentationProducerVersion?: string
@@ -62,6 +64,7 @@ export class ReaderAssetRoute {
   readonly #token: string
   readonly #loadImageTransformer?: ImageTransformerLoader
   readonly #bypassImageTransforms: boolean
+  readonly #imageProcessingPolicy?: NeoViewImageProcessingRuntimePolicy
   readonly #presentationCache?: ReaderPresentationCache
   readonly #presentationDiskCache?: ReaderPresentationDiskCache
   readonly #presentationProducerVersion: string
@@ -89,6 +92,7 @@ export class ReaderAssetRoute {
     this.#token = options.token
     this.#loadImageTransformer = dependencies.loadImageTransformer
     this.#bypassImageTransforms = dependencies.bypassImageTransforms === true
+    this.#imageProcessingPolicy = dependencies.imageProcessingPolicy
     this.#presentationCache = dependencies.presentationCache
     this.#presentationDiskCache = dependencies.presentationDiskCache
     this.#presentationProducerVersion = dependencies.presentationProducerVersion ?? SHARP_PRESENTATION_PRODUCER_VERSION
@@ -231,9 +235,16 @@ export class ReaderAssetRoute {
     } catch (error) {
       return textResponse(error instanceof Error ? error.message : String(error), 400)
     }
+    if (transform && isJxlPage(page) && this.#imageProcessingPolicy) {
+      transform = {
+        ...transform,
+        ...(!url.searchParams.has("lossless") ? { lossless: this.#imageProcessingPolicy.jxlLossless } : {}),
+        ...(!url.searchParams.has("quality") ? { quality: this.#imageProcessingPolicy.jxlQuality } : {}),
+      }
+    }
     // Retained URLs may still carry transform parameters while Sharp is off.
     // Replay the original source instead of returning 501 or transcoding it.
-    if (this.#bypassImageTransforms && !isJxlPage(page)) transform = undefined
+    if (transform && !this.#canTransform(page)) transform = undefined
     if (transform && page.mediaKind !== "image" && page.mediaKind !== "animated-image") {
       return textResponse("Reader asset does not support image transforms", 415)
     }
@@ -538,6 +549,11 @@ export class ReaderAssetRoute {
   }
 
   #canTransform(page: ReaderPage): boolean {
+    if (this.#imageProcessingPolicy) {
+      return isJxlPage(page)
+        ? this.#imageProcessingPolicy.jxlTransformEnabled
+        : this.#imageProcessingPolicy.readerTransformEnabled
+    }
     return !this.#bypassImageTransforms || isJxlPage(page)
   }
 

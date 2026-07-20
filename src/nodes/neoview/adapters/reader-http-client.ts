@@ -934,6 +934,27 @@ export interface ReaderBookDefaultsPatch {
   book: Partial<ReaderBookDefaultsDto>
 }
 
+export interface ReaderImageProcessingConfigDto {
+  enabled: boolean
+  readerTransformEnabled: boolean
+  jxlTransformEnabled: boolean
+  wicNativeEnabled: boolean
+  windowsShellNativeEnabled: boolean
+  thumbnailTransformEnabled: boolean
+  folderMosaicEnabled: boolean
+  sharpFallbackEnabled: boolean
+  jxlLossless: boolean
+  jxlQuality: number
+  thumbnailLossless: boolean
+  thumbnailQuality: number
+  mosaicLossless: boolean
+  mosaicQuality: number
+}
+
+export interface ReaderImageProcessingPatchDto {
+  imageProcessing: Partial<ReaderImageProcessingConfigDto>
+}
+
 export interface ReaderRuntimeConfigDto {
   shell: ReaderShellConfigDto
   viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode; splitWidePages?: boolean; hoverScrollEnabled?: boolean; hoverScrollSpeed?: number; magnifierZoom?: number; magnifierSize?: number; orientation?: ReaderOrientation; autoRotation?: ReaderAutoRotation; widePageStretch?: ReaderWidePageStretch }
@@ -950,6 +971,7 @@ export interface ReaderRuntimeConfigDto {
   folderView: ReaderFolderViewConfig
   slideshow: ReaderSlideshowConfig
   media: ReaderMediaConfigDto
+  imageProcessing?: ReaderImageProcessingConfigDto
   colorFilter: ReaderColorFilterSettings
   pageTransition: ReaderPageTransitionSettings
   switchToast?: ReaderSwitchToastSettings
@@ -1437,6 +1459,7 @@ export interface ReaderHttpClient {
   updateFolderView?(patch: ReaderFolderViewPatch, signal?: AbortSignal): Promise<ReaderFolderViewConfig>
   updateSlideshow(patch: ReaderSlideshowPatch, signal?: AbortSignal): Promise<ReaderSlideshowConfig>
   updateMedia?(patch: ReaderMediaPatchDto, signal?: AbortSignal): Promise<ReaderMediaConfigDto>
+  updateImageProcessing?(patch: ReaderImageProcessingPatchDto, signal?: AbortSignal): Promise<ReaderImageProcessingConfigDto>
   updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
   updateRadialMenu?(patch: ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRadialMenuConfig>
   inspectLegacySettings?(content: string, modules?: readonly string[], signal?: AbortSignal): Promise<ReaderSettingsMigrationInspection>
@@ -1686,6 +1709,15 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.media),
+    updateImageProcessing: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => {
+      if (!value.imageProcessing) throw new Error("Reader backend omitted image processing config")
+      return value.imageProcessing
+    }),
     updateInputBindings: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
       method: "PATCH",
       body: JSON.stringify(patch),

@@ -29,21 +29,25 @@ export interface NativeSystemThumbnailApi {
 export interface WindowsSystemThumbnailProviderOptions {
   resourceScheduler?: ResourceScheduler
   loadNative?: () => Promise<NativeSystemThumbnailApi>
+  enabled?: () => boolean
 }
 
 export class WindowsSystemThumbnailProvider implements SystemThumbnailProvider {
   readonly #resourceScheduler: ResourceScheduler
   readonly #loadNative: () => Promise<NativeSystemThumbnailApi>
+  readonly #enabled: () => boolean
   #native?: Promise<NativeSystemThumbnailApi>
 
   constructor(options: WindowsSystemThumbnailProviderOptions = {}) {
     this.#resourceScheduler = options.resourceScheduler ?? defaultImageTransformScheduler
     this.#loadNative = options.loadNative ?? loadNativeSystemThumbnailApi
+    this.#enabled = options.enabled ?? (() => true)
   }
 
   async getCached(request: SystemThumbnailRequest, signal?: AbortSignal): Promise<SystemThumbnailResult | undefined> {
     validateRequest(request)
     signal?.throwIfAborted()
+    if (!this.#enabled()) return undefined
     const cpuLease = await this.#resourceScheduler.acquire({
       resource: "cpu",
       kind: "neoview.thumbnail.windows-shell-native-webp",

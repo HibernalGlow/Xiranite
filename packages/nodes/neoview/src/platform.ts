@@ -171,6 +171,7 @@ export type ReaderFileTreeCompositionOptions = NeoviewRuntimeLoadOptions & Pick<
 }
 export type ReaderAssetRouteCompositionOptions = ReaderAssetRouteOptions & {
   resourceScheduler?: ResourceScheduler
+  imageProcessing?: import("./application/config/ReaderImageProcessingConfig.js").NeoviewImageProcessingConfig
 }
 export type ReaderClipboardMaterializationCompositionOptions = ReaderClipboardMaterializationServiceOptions & PlatformReaderPageMaterializerOptions
 export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & NeoviewRuntimeLoadOptions & {
@@ -344,18 +345,23 @@ export async function createReaderAssetRoute(
 ): Promise<ReaderAssetRoute> {
   const { ReaderAssetRoute } = await import("./platform/asset-route/ReaderAssetRoute.js")
   const { WeightedLruPresentationCache } = await import("./platform/cache/WeightedLruPresentationCache.js")
-  const { isNeoViewSharpEnabled } = await import("./platform/images/SharpRuntimePolicy.js")
+  const { NeoViewImageProcessingRuntimePolicy, isNeoViewSharpEnabled } = await import("./platform/images/SharpRuntimePolicy.js")
+  const { DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG } = await import("./application/config/ReaderImageProcessingConfig.js")
   const sharpEnabled = isNeoViewSharpEnabled()
+  const policy = new NeoViewImageProcessingRuntimePolicy(options.imageProcessing ?? {
+    ...DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG,
+    readerTransformEnabled: sharpEnabled,
+    sharpFallbackEnabled: sharpEnabled,
+  })
   return new ReaderAssetRoute(readerService, options, {
     presentationCache: new WeightedLruPresentationCache(),
     resourceScheduler: options.resourceScheduler,
-    bypassImageTransforms: !sharpEnabled,
-    loadImageTransformer: sharpEnabled
-      ? async () => {
-          const { SharpImageTransformer } = await import("./platform/images/sharp/SharpImageTransformer.js")
-          return new SharpImageTransformer(options.resourceScheduler)
-        }
-      : undefined,
+    imageProcessingPolicy: policy,
+    loadImageTransformer: async () => {
+      if (!policy.sharpFallbackEnabled) throw new Error("Image transforms are unavailable")
+      const { SharpImageTransformer } = await import("./platform/images/sharp/SharpImageTransformer.js")
+      return new SharpImageTransformer(options.resourceScheduler)
+    },
   })
 }
 
@@ -516,6 +522,7 @@ export async function createReaderHttpController(
     fileTree: runtimeConfig.fileTree,
     slideshow: runtimeConfig.slideshow,
     media: runtimeConfig.media,
+    imageProcessing: options.imageProcessing ?? runtimeConfig.imageProcessing,
     colorFilter: runtimeConfig.colorFilter,
     pageTransition: runtimeConfig.pageTransition,
     switchToast: runtimeConfig.switchToast,
@@ -583,6 +590,12 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).media
+    },
+    updateImageProcessing: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).imageProcessing
     },
     updateColorFilter: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
