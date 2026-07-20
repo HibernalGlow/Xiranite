@@ -274,11 +274,11 @@ export default function FolderToolbar(props: FolderToolbarProps) {
 
   return (
     <div
-      className="flex min-w-0 items-center gap-0.5"
+      className="flex min-w-0 flex-wrap items-center gap-x-0.5 gap-y-1"
       data-folder-toolbar-row="operations"
-      data-folder-toolbar-layout="single-row"
+      data-folder-toolbar-layout="wrapping"
     >
-      <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
+      <div className="flex shrink-0 items-center gap-0.5" data-folder-toolbar-group="navigation">
         <div className="flex shrink-0 items-center gap-0.5" data-folder-toolbar-group="nav">
           <ToolbarIconButton label="后退" disabled={!canGoBack || busy} onClick={onNavigateBack}><ArrowLeft /></ToolbarIconButton>
           <ToolbarIconButton label="前进" disabled={!canGoForward || busy} onClick={onNavigateForward}><ArrowRight /></ToolbarIconButton>
@@ -308,6 +308,9 @@ export default function FolderToolbar(props: FolderToolbarProps) {
 
         <ToolbarDivider />
 
+      </div>
+
+      <div className="flex min-w-0 flex-[1_1_30rem] flex-wrap items-center justify-end gap-0.5" data-folder-toolbar-group="tools">
         <div className="flex min-w-0 shrink items-center gap-0.5 overflow-hidden" data-folder-toolbar-group="primary">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -469,7 +472,6 @@ export default function FolderToolbar(props: FolderToolbarProps) {
             </ToolbarIconButton>
           ) : null}
         </div>
-      </div>
 
       <div className="flex shrink-0 items-center gap-0.5 pl-0.5" data-folder-toolbar-group="more">
         <DropdownMenu>
@@ -738,6 +740,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
             ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
+      </div>
       </div>
       <Dialog open={penetrationSettingsOpen} onOpenChange={setPenetrationSettingsOpen}>
         <DialogContent className="max-w-sm" data-folder-penetration-settings="true">
