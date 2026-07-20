@@ -232,7 +232,8 @@ export function ReaderSidebar({
     if (!gesture || gesture.pointerId !== event.pointerId || !aside) return
     const widthDelta = (side === "left" ? 1 : -1) * (event.clientX - gesture.startX)
     if (gesture.kind === "width" || gesture.kind === "corner") {
-      gesture.latest.width = clamp(gesture.width + widthDelta, 200, 600)
+      const maxWidth = sidebarMaximumWidth()
+      gesture.latest.width = clamp(gesture.width + widthDelta, Math.min(200, maxWidth), maxWidth)
       aside.style.width = `${gesture.latest.width}px`
     }
     if (gesture.kind === "corner") {
@@ -406,12 +407,16 @@ function sidebarStyle(
   return {
     ...readerShellMaterialStyle(readerShellMaterialDraft(shell), "sidebar"),
     width: layout.width,
-    maxWidth: "calc(100vw - 2rem)",
+    maxWidth: "50vw",
     height,
     top: height === "100%" ? 0 : `${(100 - Number.parseFloat(height)) * (layout.verticalAlign / 100)}%`,
     left: side === "left" && layout.horizontalPosition > 0 ? `${layout.horizontalPosition * 0.5}vw` : undefined,
     right: side === "right" && layout.horizontalPosition > 0 ? `${layout.horizontalPosition * 0.5}vw` : undefined,
   }
+}
+
+function sidebarMaximumWidth(): number {
+  return Math.min(600, Math.max(0, window.innerWidth / 2))
 }
 
 function applySidebarStyle(element: HTMLElement, style: CSSProperties): void {
