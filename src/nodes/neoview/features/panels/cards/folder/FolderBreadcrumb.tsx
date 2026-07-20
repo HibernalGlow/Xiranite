@@ -1,4 +1,4 @@
-import { ChevronRight, Copy, Folder, HardDrive, MoreHorizontal, Pencil } from "lucide-react"
+import { ChevronDown, ChevronRight, Columns3, Copy, Folder, HardDrive, MoreHorizontal, Pencil } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -7,9 +7,14 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import FolderBreadcrumbColumns from "./FolderBreadcrumbColumns"
 
 export interface FolderBreadcrumbItem {
   name: string
@@ -25,18 +30,22 @@ interface FolderBreadcrumbProps {
   canGoBack?: boolean
   canGoForward?: boolean
   canGoUp?: boolean
+  client?: ReaderHttpClient
+  sessionId?: string
   onNavigate(path: string): void
   onNavigateAction?(action: "back" | "forward" | "up" | "refresh"): void
   onCopyPath?: (path: string) => Promise<void> | void
 }
 
-export function FolderBreadcrumb({ path, disabled = false, loading = false, vertical = false, canGoBack, canGoForward, canGoUp, onNavigate, onNavigateAction, onCopyPath }: FolderBreadcrumbProps) {
+export function FolderBreadcrumb({ path, disabled = false, loading = false, vertical = false, canGoBack, canGoForward, canGoUp, client, sessionId, onNavigate, onNavigateAction, onCopyPath }: FolderBreadcrumbProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const blurTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState("")
   const [maxVisibleItems, setMaxVisibleItems] = useState(5)
+  const [columnsOpen, setColumnsOpen] = useState(false)
+  const [columnsMode, setColumnsMode] = useState<"inline" | "floating">("inline")
   const [feedback, setFeedback] = useState<{ kind: "status" | "alert"; text: string }>()
   const items = useMemo(() => parseFolderPath(path), [path])
   const visible = useMemo(() => visibleFolderBreadcrumbItems(items, maxVisibleItems), [items, maxVisibleItems])
@@ -95,7 +104,36 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
     }
   }
 
+  const columnsContent = !vertical && client?.treeDirectoryBrowser && sessionId && items[0] ? (
+    <FolderBreadcrumbColumns
+      client={client}
+      sessionId={sessionId}
+      rootPath={items[0].path}
+      rootName={items[0].name}
+      activePath={items.slice(1).map((item) => item.path)}
+      currentPath={path}
+      disabled={disabled || loading}
+      onNavigate={onNavigate}
+    />
+  ) : null
+
+  const columnsButton = (
+    <Button
+      type="button"
+      size="icon-sm"
+      variant={columnsOpen ? "secondary" : "ghost"}
+      aria-label={columnsOpen ? "收起目录列" : "展开目录列"}
+      title={columnsOpen ? "收起目录列" : "展开目录列"}
+      aria-expanded={columnsOpen}
+      disabled={disabled || loading}
+      onClick={columnsMode === "inline" ? () => setColumnsOpen((current) => !current) : undefined}
+    >
+      <Columns3 />
+    </Button>
+  )
+
   return (
+    <div className={vertical ? "h-full min-h-0" : "grid min-w-0 gap-1"} data-breadcrumb-columns-mode={columnsMode}>
     <div
       ref={containerRef}
       className={vertical
@@ -171,11 +209,42 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
               )
             })}
           </nav>
+          {!vertical && client?.treeDirectoryBrowser && sessionId && items[0] ? (
+            <div className="flex shrink-0 items-center">
+              {columnsMode === "floating" ? (
+                <Popover open={columnsOpen} onOpenChange={setColumnsOpen}>
+                  <PopoverTrigger asChild>{columnsButton}</PopoverTrigger>
+                  <PopoverContent align="end" sideOffset={4} className="w-[min(48rem,calc(100vw-2rem))] overflow-hidden p-0">
+                    {columnsContent}
+                  </PopoverContent>
+                </Popover>
+              ) : columnsButton}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" size="icon-sm" variant="ghost" className="w-5 px-0" aria-label="目录列显示方式" title="目录列显示方式">
+                    <ChevronDown className="size-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-36">
+                  <DropdownMenuRadioGroup value={columnsMode} onValueChange={(value) => setColumnsMode(value as "inline" | "floating")}>
+                    <DropdownMenuRadioItem value="inline">下拉展开</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="floating">浮动窗口</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : null}
           <Button type="button" size="icon-sm" variant="ghost" aria-label="编辑路径" title="编辑路径" disabled={disabled || loading} onClick={startEditing}><Pencil /></Button>
           <Button type="button" size="icon-sm" variant="ghost" aria-label="复制当前路径" title="复制当前路径" disabled={disabled || loading || !path || !onCopyPath} onClick={() => void copyCurrentPath()}><Copy /></Button>
         </>
       )}
       {feedback ? <span className="sr-only" role={feedback.kind}>{feedback.text}</span> : null}
+    </div>
+    {!vertical && columnsMode === "inline" && columnsOpen ? (
+      <div className="min-w-0 overflow-hidden rounded-md border shadow-sm" data-breadcrumb-columns-inline="true">
+        {columnsContent}
+      </div>
+    ) : null}
     </div>
   )
 }
