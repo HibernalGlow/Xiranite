@@ -197,6 +197,25 @@ async function mountLegacyCard(
       localStorage.setItem("neoview-monitor-isMonitoring", "false")
       localStorage.setItem("neoview-monitor-refreshInterval", "1000")
     }
+    if (setup === "emm-tags") {
+      const { infoPanelStore } = await load("/src/lib/stores/infoPanel.svelte.ts")
+      infoPanelStore.setBookInfo({
+        path: "D:/Books/NeoView EMM Tags.cbz",
+        name: "NeoView EMM Tags.cbz",
+        type: "archive",
+        totalPages: 128,
+        currentPage: 23,
+        emmMetadata: {
+          translatedTitle: "NeoView EMM 标签基准",
+          tags: {
+            artist: ["alice"],
+            female: ["glasses", "long_hair"],
+            language: ["chinese"],
+            category: ["manga"],
+          },
+        },
+      })
+    }
     const upscaleSetup = new Set(["model", "status", "cache", "conditions"])
     const store = upscaleSetup.has(setup)
       ? await load("/src/lib/stores/upscale/upscalePanelStore.svelte.ts")
