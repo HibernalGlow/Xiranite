@@ -156,6 +156,7 @@ export type ReaderCompositionOptions = PlatformReaderBookLoaderOptions & Neoview
   mediaProgressStore?: ReaderMediaProgressStore | false
   bookSettingsStore?: ReaderBookSettingsStore | false
   legacyThumbnailDatabasePath?: string | false
+  legacyEmmDatabasePaths?: readonly string[] | false
   superResolution?: ReaderHeadlessSuperResolutionPort | false
   superResolutionArtifactCacheRoot?: string
 }
@@ -166,6 +167,7 @@ export type ReaderFileTreeCompositionOptions = NeoviewRuntimeLoadOptions & Pick<
   resourceScheduler?: ResourceScheduler
   searchHistoryStore?: ReaderSearchHistoryStore | false
   legacyThumbnailDatabasePath?: string | false
+  legacyEmmDatabasePaths?: readonly string[] | false
 }
 export type ReaderAssetRouteCompositionOptions = ReaderAssetRouteOptions & {
   resourceScheduler?: ResourceScheduler
@@ -173,6 +175,7 @@ export type ReaderAssetRouteCompositionOptions = ReaderAssetRouteOptions & {
 export type ReaderClipboardMaterializationCompositionOptions = ReaderClipboardMaterializationServiceOptions & PlatformReaderPageMaterializerOptions
 export type ReaderHttpCompositionOptions = ReaderHttpControllerOptions & NeoviewRuntimeLoadOptions & {
   legacyThumbnailDatabasePath?: string | false
+  legacyEmmDatabasePaths?: readonly string[] | false
   loadLegacyThumbnailStore?: (databasePath?: string) => Promise<ReaderThumbnailStore>
   useDefaultLegacyProgressStore?: boolean
   superResolutionArtifactCacheRoot?: string
@@ -220,6 +223,9 @@ export async function createReaderFileTreeController(
   const { PlatformDirectoryMetadataProvider } = await import("./platform/filesystem/PlatformDirectoryMetadataProvider.js")
   const { PlatformEmmCollectTagSource } = await import("./platform/emm/PlatformEmmCollectTagSource.js")
   const { PlatformEmmTranslationSource } = await import("./platform/emm/PlatformEmmTranslationSource.js")
+  const { LegacyEmmDataLocator } = await import("./application/data/LegacyEmmDataLocator.js")
+  const { openReadonlyLegacyEmmRecordStore } = await import("./platform/emm/ReadonlyLegacyEmmRecordStore.js")
+  const { composeReaderEmmStores } = await import("./platform/emm/CompositeReaderEmmStore.js")
   const { LazyReaderDirectoryMetadataProvider } = await import("./application/browser/LazyReaderDirectoryMetadataProvider.js")
   const { LazyReaderDataStoreResource } = await import("./platform/persistence/LazyReaderDataStoreResource.js")
   const { platformReaderDirectoryEntryType } = await import("./platform/filesystem/PlatformReaderDirectoryEntryClassifier.js")
@@ -243,12 +249,21 @@ export async function createReaderFileTreeController(
   const loadSharedStore = externalSharedStore
     ? async () => externalSharedStore
     : ownedDataStore ? () => ownedDataStore.get() : undefined
+  const externalEmmStore = options.legacyThumbnailDatabasePath === false || options.legacyEmmDatabasePaths === false
+    ? undefined
+    : await openReadonlyLegacyEmmRecordStore(new LegacyEmmDataLocator().locate({
+        databasePaths: options.legacyEmmDatabasePaths,
+      }).databasePaths)
+  const sharedStore = loadSharedStore ? await loadSharedStore() : undefined
+  const directoryEmmStore = sharedStore
+    ? composeReaderEmmStores(sharedStore, externalEmmStore)
+    : externalEmmStore
   const collectTagSource = new PlatformEmmCollectTagSource()
   const emmTranslations = new PlatformEmmTranslationSource()
-  const metadataProvider = loadSharedStore
+  const metadataProvider = directoryEmmStore
     ? new LazyReaderDirectoryMetadataProvider(
         HEADLESS_DIRECTORY_METADATA_FIELDS,
-        async () => new PlatformDirectoryMetadataProvider(await loadSharedStore(), collectTagSource),
+        async () => new PlatformDirectoryMetadataProvider(directoryEmmStore, collectTagSource),
       )
     : new PlatformDirectoryMetadataProvider(undefined, collectTagSource)
   const updateExcludedPaths = async (paths: readonly string[]) => {
@@ -284,11 +299,10 @@ export async function createReaderFileTreeController(
           const { ReaderSearchHistoryService } = await import("./application/browser/ReaderSearchHistoryService.js")
           return { service: new ReaderSearchHistoryService(await loadSharedStore()), close: async () => undefined }
         } : undefined
-  const loadEmmTagSuggestions = loadSharedStore
+  const loadEmmTagSuggestions = directoryEmmStore
     ? async () => {
         const { ReaderEmmTagSuggestionService } = await import("./application/metadata/ReaderEmmTagSuggestionService.js")
-        const store = await loadSharedStore()
-        return new ReaderEmmTagSuggestionService(store, collectTagSource, undefined, {
+        return new ReaderEmmTagSuggestionService(directoryEmmStore, collectTagSource, undefined, {
           translate: (tags, signal) => emmTranslations.translate(tags, signal),
           key: emmTranslationKey,
         })
@@ -309,6 +323,7 @@ export async function createReaderFileTreeController(
     loadEmmEditor,
     closeResources: async () => {
       emmTranslations.clear()
+      externalEmmStore?.close()
       await ownedDataStore?.close()
     },
   })
@@ -366,6 +381,17 @@ export async function createReaderHttpController(
         typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined,
       ))
     : undefined
+  const { LegacyEmmDataLocator } = await import("./application/data/LegacyEmmDataLocator.js")
+  const { openReadonlyLegacyEmmRecordStore } = await import("./platform/emm/ReadonlyLegacyEmmRecordStore.js")
+  const { composeReaderEmmStores } = await import("./platform/emm/CompositeReaderEmmStore.js")
+  const externalEmmStore = options.legacyThumbnailDatabasePath === false || options.legacyEmmDatabasePaths === false
+    ? undefined
+    : await openReadonlyLegacyEmmRecordStore(new LegacyEmmDataLocator().locate({
+        databasePaths: options.legacyEmmDatabasePaths,
+      }).databasePaths)
+  const directoryEmmStore = dataStore
+    ? composeReaderEmmStores(dataStore, externalEmmStore)
+    : externalEmmStore
   const progressStore = options.progressStore === false
     ? undefined
     : options.progressStore ?? dataStore
@@ -445,7 +471,7 @@ export async function createReaderHttpController(
     mediaProgressStore: dataStore,
     libraryService,
     directorySortPreferenceStore: dataStore,
-    directoryEmmRecordStore: dataStore,
+    directoryEmmRecordStore: directoryEmmStore,
     emmOverrideStore: dataStore,
     searchHistoryStore: dataStore,
     fileUndoJournalStore: dataStore,
@@ -608,7 +634,13 @@ export async function createReaderHttpController(
         : typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined,
     }),
     thumbnailStore,
-    disposeThumbnailStore,
+    disposeThumbnailStore: async () => {
+      try {
+        await disposeThumbnailStore?.()
+      } finally {
+        externalEmmStore?.close()
+      }
+    },
     superResolutionArtifactPages,
     superResolutionArtifactStore,
     superResolutionPreload,
