@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("media-chrome/react", () => import("@/test/media-chrome-react-stub"))
 
+import { DEFAULT_READER_INPUT_BINDINGS, DEFAULT_READER_RADIAL_MENU_CONFIG } from "@xiranite/node-neoview/ui-core"
+
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderPreloadPlanDto, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
@@ -38,9 +40,10 @@ describe("ReaderApp", () => {
     expect(document.querySelector("canvas")).toBeNull()
     expect(committed).toHaveBeenCalledWith("D:/books/demo.cbz")
 
-    fireEvent.keyDown(screen.getByRole("textbox", { name: "漫画、图片或目录路径" }), { key: "ArrowRight" })
-    expect(client.navigate).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole("button", { name: "下一页" }))
+    // After open, the path textbox is replaced by the breadcrumb; page turns
+    // are driven by the reader surface keybindings.
+    const reader = document.querySelector("[data-reader-app]")!
+    fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
     const secondImage = await screen.findByRole("img", { name: "002.jpg" })
     expect(secondImage.getAttribute("src")).toContain("page-2")
     expect(screen.getByText("2 / 2")).toBeTruthy()
@@ -161,6 +164,104 @@ describe("ReaderApp", () => {
     await screen.findByRole("img", { name: "001.jpg" })
     await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal)))
     await waitFor(() => expect(committed).toHaveBeenLastCalledWith("D:/books/Book 2.cbz"))
+  })
+
+  it("[neoview.reader.next-book-tail] switches books at the last page when tailOverflow is next-book", async () => {
+    const opened = {
+      ...session("page-1", "http://127.0.0.1:41000/reader/page-1", 1),
+      frame: {
+        ...session("page-1", "http://127.0.0.1:41000/reader/page-1", 1).frame,
+        atStart: false,
+        atEnd: true,
+      },
+    }
+    const replacement = {
+      ...session("page-2", "http://127.0.0.1:41000/reader/page-2", 0),
+      sessionId: "reader-2",
+      book: { id: "book-2", displayName: "Book 2", pageCount: 2 },
+      frame: {
+        ...session("page-2", "http://127.0.0.1:41000/reader/page-2", 0).frame,
+        pageCount: 2,
+        atStart: true,
+        atEnd: false,
+      },
+    }
+    const navigate = vi.fn(async () => {
+      throw new Error("navigate must not run when next-book tail overflow succeeds")
+    })
+    const openAdjacentBook = vi.fn(async () => replacement)
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({
+        ...runtimeConfig(),
+        sessionOptions: { tailOverflow: "next-book" },
+      })),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      openAdjacentBook,
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
+      navigate,
+      goTo: vi.fn(),
+      metadata: vi.fn(async () => ({ book: { sourcePath: "D:/books/Book 2.cbz" } })) as ReaderHttpClient["metadata"],
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("img", { name: "001.jpg" })
+    // Config is loaded on mount and hydrates tailOverflow before page-turn input is meaningful.
+    await waitFor(() => expect(client.config).toHaveBeenCalled())
+    await act(async () => { await Promise.resolve() })
+
+    const reader = document.querySelector("[data-reader-app]")!
+    fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
+    await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal)))
+    expect(navigate).not.toHaveBeenCalled()
+    // Replacement book is not at the end; progress resets to the first page.
+    await waitFor(() => expect(screen.getByText("1 / 2")).toBeTruthy())
+    await waitFor(() => expect(
+      document.querySelector('[data-reader-page-image="page-2"], [data-reader-page-image-pending="page-2"]'),
+    ).toBeTruthy())
+  })
+
+  it("[neoview.reader.next-book-tail] keeps the normal page-turn path when not at the last page", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    const openAdjacentBook = vi.fn(async () => undefined)
+    const navigate = vi.fn(async () => ({
+      frame: { ...opened.frame, anchorPageIndex: 1, pages: [{ pageId: "page-2", pageIndex: 1, side: "single" as const }], atStart: false, atEnd: true },
+      visiblePages: [{ ...opened.visiblePages[0]!, id: "page-2", index: 1, name: "002.jpg", assetUrl: "http://127.0.0.1:41000/reader/page-2" }],
+    }))
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({
+        ...runtimeConfig(),
+        sessionOptions: { tailOverflow: "next-book" },
+      })),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      openAdjacentBook,
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
+      navigate,
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("img", { name: "001.jpg" })
+    await waitFor(() => expect(client.config).toHaveBeenCalled())
+    await act(async () => { await Promise.resolve() })
+    const reader = document.querySelector("[data-reader-app]")!
+    fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
+    await waitFor(() => expect(navigate).toHaveBeenCalledOnce())
+    expect(openAdjacentBook).not.toHaveBeenCalled()
+    await screen.findByRole("img", { name: "002.jpg" })
   })
 
   it("[neoview.bindings.video-actions-react] routes multiple bindings and seek mode through the active native video", async () => {
@@ -786,6 +887,8 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
   return {
     shell: shellConfig(),
     viewDefaults: { fitMode: "fit", pageMode: "single" },
+    book: { lockedSortMode: null, lockedMediaPriority: null, lockedReadingDirection: null },
+    sessionOptions: { tailOverflow: "stay-on-last-page" },
     pageList: { viewMode: "list", followProgress: true },
     bookmarkList: { activeListId: "all" },
     historyList: { viewMode: "compact" },
@@ -818,6 +921,22 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
       negative: false,
     },
     pageTransition: { enabled: false, type: "none", duration: 0, easing: "easeOutQuad" },
-    inputBindings: { bindings: [] },
+    // Keep the production default binding surface so page-turn tests exercise the
+    // real input router instead of an empty override that disables ArrowRight.
+    inputBindings: structuredClone(DEFAULT_READER_INPUT_BINDINGS),
+    radialMenu: structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG),
+    media: {
+      supportedImageFormats: [],
+      videoFormats: [],
+      mediaMimeTypes: {},
+      autoPlayAnimatedImages: true,
+      animatedVideoEnabled: false,
+      animatedVideoKeywords: ["[#dyna]"],
+      videoMinPlaybackRate: 0.25,
+      videoMaxPlaybackRate: 16,
+      videoPlaybackRateStep: 0.25,
+      subtitle: { fontSize: 1, color: "#ffffff", backgroundOpacity: 0.7, bottomPercent: 5 },
+    },
+    systemMonitor: { enabled: false, pollIntervalMs: 1_000, historySeconds: 60 },
   }
 }

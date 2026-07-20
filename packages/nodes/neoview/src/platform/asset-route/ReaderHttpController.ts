@@ -1386,6 +1386,9 @@ export class ReaderHttpController implements AsyncDisposable {
       shell: { ...this.#shellOptions, revision: this.#shellRevision },
       viewDefaults: this.#viewDefaults,
       book: this.#book,
+      // Shared session defaults used by GUI/CLI/TUI. Only the fields that are
+      // currently configured are included so older clients remain compatible.
+      sessionOptions: this.#sessionOptions,
       pageList: this.#pageList,
       bookmarkList: this.#bookmarkList,
       historyList: this.#historyList,

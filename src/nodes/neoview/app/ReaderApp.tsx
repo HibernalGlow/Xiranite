@@ -99,6 +99,7 @@ const INITIAL_PAGE_LIST_PREFERENCES: ReaderPageListPreferencesDto = {
 const INITIAL_BOOK_DEFAULTS: ReaderBookDefaultsDto = {
   lockedSortMode: null,
   lockedMediaPriority: null,
+  lockedReadingDirection: null,
 }
 const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
   intervalSeconds: 5,
@@ -223,6 +224,7 @@ export function ReaderApp({
   }))
   const viewDefaultsRef = useRef<ReaderRuntimeConfigDto["viewDefaults"]>({ ...INITIAL_VIEW_DEFAULTS })
   const confirmedViewDefaultsRef = useRef<ReaderRuntimeConfigDto["viewDefaults"]>({ ...INITIAL_VIEW_DEFAULTS })
+  const tailOverflowRef = useRef<"do-nothing" | "stay-on-last-page" | "next-book" | "loop" | "seamless-loop">("stay-on-last-page")
   const viewDefaultsWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const viewDefaultsGenerationRef = useRef(0)
   const pageListPreferencesRef = useRef<ReaderPageListPreferencesDto>({ ...INITIAL_PAGE_LIST_PREFERENCES })
@@ -347,6 +349,7 @@ export function ReaderApp({
       setBookDefaults(config.book ?? INITIAL_BOOK_DEFAULTS)
       setSuperResolution(config.superResolution)
       videoController.configure(config.media)
+      tailOverflowRef.current = config.sessionOptions?.tailOverflow ?? "stay-on-last-page"
       if (viewDefaultsGenerationRef.current === 0) {
         const normalizedViewDefaults = { ...INITIAL_VIEW_DEFAULTS, ...config.viewDefaults }
         viewDefaultsRef.current = normalizedViewDefaults
@@ -543,6 +546,20 @@ export function ReaderApp({
   async function navigate(action: "next" | "previous", slideshowAction = false): Promise<boolean> {
     const current = slideshowSessionRef.current
     const atBoundary = action === "next" ? current?.frame.atEnd : current?.frame.atStart
+    // Tail overflow next-book is resolved here, not on the hot page-turn path:
+    // only the boundary case pays the adjacent-book cost, and the normal
+    // navigate request remains a single small JSON control call.
+    if (action === "next" && atBoundary && tailOverflowRef.current === "next-book") {
+      // Guard with the same pending ref as updateNavigation so a repeated key
+      // cannot start a second switch while the first is still resolving.
+      if (navigationPendingRef.current || busy) return false
+      const switched = await switchAdjacentBook("next")
+      if (switched) {
+        if (!slideshowAction) slideshow.resetOnUserAction()
+        return true
+      }
+      // Fall through to the boundary toast when no candidate is available.
+    }
     if (atBoundary && !slideshowAction && switchToast.getSnapshot().enableBoundaryToast) {
       switchToast.show({ title: action === "next" ? "已是最后一页" : "已是第一页" })
     }
@@ -679,6 +696,19 @@ export function ReaderApp({
   async function updateReadingDirection(direction: "left-to-right" | "right-to-left") {
     if (direction === session?.frame.direction) return
     await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(sessionId, { direction }, signal))
+  }
+
+  async function updateReadingDirectionLock(direction: "left-to-right" | "right-to-left" | null) {
+    if (!clientRef.current.updateBookDefaults) throw new Error("当前 Reader 不支持阅读方向锁定")
+    setError(undefined)
+    try {
+      const updated = await clientRef.current.updateBookDefaults({
+        book: { ...bookDefaults, lockedReadingDirection: direction },
+      })
+      setBookDefaults(updated)
+    } catch (cause) {
+      setError(errorMessage(cause))
+    }
   }
 
   async function updateCurrentPageOrder(patch: Partial<ReaderPageOrderDto>) {
@@ -903,11 +933,14 @@ export function ReaderApp({
   async function switchAdjacentBook(direction: "next" | "previous"): Promise<boolean> {
     const sessionId = sessionRef.current
     const openAdjacentBook = clientRef.current.openAdjacentBook
-    if (!sessionId || !openAdjacentBook || busy) return false
+    // Prefer refs over React `busy` state so concurrent key handlers from the
+    // same render cannot both enter the adjacent-book path.
+    if (!sessionId || !openAdjacentBook || busy || navigationPendingRef.current) return false
     slideshow.stop()
     operationRef.current?.abort()
     const controller = new AbortController()
     operationRef.current = controller
+    navigationPendingRef.current = true
     setBusy(true)
     setError(undefined)
     try {
@@ -923,12 +956,14 @@ export function ReaderApp({
         setPath(metadata.book.sourcePath)
         onPathCommitted?.(metadata.book.sourcePath)
       }).catch(() => undefined)
+      // Book-switch toast is owned by ReaderSwitchToastRuntime via book.id change.
       return true
     } catch (cause) {
       if (!controller.signal.aborted) setError(errorMessage(cause))
       return false
     } finally {
       if (operationRef.current === controller) operationRef.current = undefined
+      navigationPendingRef.current = false
       if (!controller.signal.aborted) setBusy(false)
     }
   }
@@ -1351,6 +1386,8 @@ export function ReaderApp({
               onChange={updatePresentation}
               onLayoutChange={(layout) => void updateSessionLayout(layout)}
               onDirectionChange={(direction) => void updateReadingDirection(direction)}
+              lockedReadingDirection={bookDefaults.lockedReadingDirection}
+              onDirectionLockChange={(direction) => void updateReadingDirectionLock(direction)}
               pageOrder={session.pageOrder ?? { sortMode: "fileName", mediaPriority: "none" }}
               lockedSortMode={bookDefaults.lockedSortMode}
               lockedMediaPriority={bookDefaults.lockedMediaPriority}

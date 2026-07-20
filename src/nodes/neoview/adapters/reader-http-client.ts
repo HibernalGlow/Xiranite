@@ -1,4 +1,4 @@
-import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderAutoRotation, ReaderFitMode, ReaderLayout, ReaderOrientation, ReaderWidePageStretch, ViewSource } from "@xiranite/node-neoview/ui-core"
+import type { FrameSnapshot, PageDimensions, PageMediaKind, PageMode, ReaderAutoRotation, ReaderFitMode, ReaderLayout, ReaderOrientation, ReaderWidePageStretch, TailOverflowBehavior, ViewSource } from "@xiranite/node-neoview/ui-core"
 import type { ReaderColorFilterPatch, ReaderColorFilterSettings } from "@xiranite/node-neoview/color-filter"
 import type { ReaderPageTransitionPatch, ReaderPageTransitionSettings } from "@xiranite/node-neoview/page-transition"
 import type { ReaderSwitchToastPatch, ReaderSwitchToastSettings } from "@xiranite/node-neoview/switch-toast"
@@ -840,6 +840,12 @@ export interface ReaderRuntimeConfigDto {
   shell: ReaderShellConfigDto
   viewDefaults: { fitMode: ReaderFitMode; pageMode: PageMode; splitWidePages?: boolean; hoverScrollEnabled?: boolean; hoverScrollSpeed?: number; magnifierZoom?: number; magnifierSize?: number; orientation?: ReaderOrientation; autoRotation?: ReaderAutoRotation; widePageStretch?: ReaderWidePageStretch }
   book: ReaderBookDefaultsDto
+  /** Optional because older backends omit it; GUI falls back to stay-on-last-page. */
+  sessionOptions?: {
+    direction?: "left-to-right" | "right-to-left"
+    layout?: Partial<ReaderLayout>
+    tailOverflow?: TailOverflowBehavior
+  }
   pageList: ReaderPageListPreferencesDto
   bookmarkList: ReaderBookmarkListPreferencesDto
   historyList: ReaderHistoryListPreferencesDto
