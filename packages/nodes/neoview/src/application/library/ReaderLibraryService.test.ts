@@ -58,6 +58,51 @@ describe("ReaderLibraryService", () => {
     expect(() => new ReaderLibraryService(createStore()).statistics()).toThrow("unavailable")
   })
 
+  it("[neoview.library.folder-progress] aggregates descendant books without matching sibling prefixes", async () => {
+    const store = createStore()
+    store.listRecent.mockResolvedValue([
+      { bookId: "one", source: { kind: "archive", path: "D:/Books/Series/one.cbz" }, displayName: "one", pageIndex: 4, pageCount: 10, updatedAt: 20 },
+      { bookId: "two", source: { kind: "directory", path: "d:\\books\\series\\two" }, displayName: "two", pageIndex: 2, pageCount: 3, updatedAt: 30 },
+      { bookId: "sibling", source: { kind: "archive", path: "D:/books-old/no.cbz" }, displayName: "no", pageIndex: 7, pageCount: 8, updatedAt: 40 },
+      { bookId: "empty", source: { kind: "directory", path: "D:/books/empty" }, displayName: "empty", pageIndex: 0, pageCount: 0, updatedAt: 10 },
+    ])
+    const service = new ReaderLibraryService(store)
+
+    await expect(service.summarizeFolderProgress(" D:/BOOKS/ ")).resolves.toEqual({
+      path: "D:/BOOKS/",
+      bookCount: 3,
+      completedBooks: 1,
+      readPages: 8,
+      totalPages: 13,
+      progressPercent: 8 / 13 * 100,
+      lastReadAt: 30,
+      scannedRecords: 4,
+      truncated: false,
+    })
+    expect(store.listRecent).toHaveBeenCalledWith({ limit: 500, offset: 0 })
+  })
+
+  it("[neoview.library.folder-progress-cancel] validates paths and preserves cancellation between pages", async () => {
+    const store = createStore()
+    const abort = new AbortController()
+    store.listRecent.mockImplementation(async () => {
+      abort.abort(new DOMException("folder closed", "AbortError"))
+      return Array.from({ length: 500 }, (_, index) => ({
+        bookId: `book-${index}`,
+        source: { kind: "archive" as const, path: `D:/books/${index}.cbz` },
+        displayName: String(index),
+        pageIndex: 0,
+        pageCount: 1,
+        updatedAt: index,
+      }))
+    })
+    const service = new ReaderLibraryService(store)
+
+    await expect(service.summarizeFolderProgress("D:/books", abort.signal)).rejects.toThrow("folder closed")
+    expect(store.listRecent).toHaveBeenCalledOnce()
+    await expect(service.summarizeFolderProgress("   ")).rejects.toThrow("path is invalid")
+  })
+
   it("[neoview.library.playlists] exposes one shared playlist service only when its store supports the port", () => {
     const store = Object.assign(createStore(), playlistStore())
     const library = new ReaderLibraryService(store, () => 20, () => "generated")

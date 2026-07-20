@@ -65,6 +65,21 @@ export interface ReaderOldestBookmarkCleanupResult extends ReaderBookmarkBatchRe
   selectedIds: readonly string[]
 }
 
+export interface ReaderFolderProgressSummary {
+  path: string
+  bookCount: number
+  completedBooks: number
+  readPages: number
+  totalPages: number
+  progressPercent?: number
+  lastReadAt?: number
+  scannedRecords: number
+  truncated: boolean
+}
+
+const FOLDER_PROGRESS_PAGE_SIZE = 500
+const MAX_FOLDER_PROGRESS_RECORDS = 10_000
+
 export class ReaderLibraryService implements AsyncDisposable {
   #closed = false
   #activeOperations = 0
@@ -83,6 +98,54 @@ export class ReaderLibraryService implements AsyncDisposable {
     this.#assertOpen()
     const normalized = normalizeLibraryQuery(query)
     return this.#track(() => this.store.listRecent(normalized))
+  }
+
+  async summarizeFolderProgress(folderPath: string, signal?: AbortSignal): Promise<ReaderFolderProgressSummary> {
+    this.#assertOpen()
+    const path = normalizeProgressFolderPath(folderPath)
+    let offset = 0
+    let scannedRecords = 0
+    let bookCount = 0
+    let completedBooks = 0
+    let readPages = 0
+    let totalPages = 0
+    let lastReadAt: number | undefined
+    let truncated = false
+
+    while (scannedRecords < MAX_FOLDER_PROGRESS_RECORDS) {
+      signal?.throwIfAborted()
+      const records = await this.#track(() => this.store.listRecent({
+        limit: Math.min(FOLDER_PROGRESS_PAGE_SIZE, MAX_FOLDER_PROGRESS_RECORDS - scannedRecords),
+        offset,
+      }))
+      signal?.throwIfAborted()
+      scannedRecords += records.length
+      for (const record of records) {
+        if (!progressPathIsWithin(record.source.path, path)) continue
+        const pages = Math.max(0, record.pageCount)
+        const read = pages > 0 ? Math.min(record.pageIndex + 1, pages) : 0
+        bookCount += 1
+        readPages += read
+        totalPages += pages
+        if (pages > 0 && read >= pages) completedBooks += 1
+        lastReadAt = Math.max(lastReadAt ?? 0, record.updatedAt)
+      }
+      if (records.length < FOLDER_PROGRESS_PAGE_SIZE) break
+      offset += records.length
+      if (scannedRecords >= MAX_FOLDER_PROGRESS_RECORDS) truncated = true
+    }
+
+    return {
+      path: folderPath.trim(),
+      bookCount,
+      completedBooks,
+      readPages,
+      totalPages,
+      ...(totalPages > 0 ? { progressPercent: readPages / totalPages * 100 } : {}),
+      ...(lastReadAt === undefined ? {} : { lastReadAt }),
+      scannedRecords,
+      truncated,
+    }
   }
 
   statistics(): Promise<ReaderLibraryStatistics> {
@@ -488,6 +551,20 @@ function assertId(id: string, name: string): void {
 
 function assertTimestamp(timestamp: number, name: string): void {
   if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new Error(`Reader library ${name} is invalid.`)
+}
+
+function normalizeProgressFolderPath(path: string): string {
+  if (typeof path !== "string") throw new Error("Reader folder progress path is invalid.")
+  const normalized = path.trim().replaceAll("\\", "/").replace(/\/+$/u, "").toLocaleLowerCase("en-US")
+  if (!normalized || normalized.length > 32_768 || normalized.includes("\0")) {
+    throw new Error("Reader folder progress path is invalid.")
+  }
+  return normalized
+}
+
+function progressPathIsWithin(candidate: string, folder: string): boolean {
+  const normalized = candidate.replaceAll("\\", "/").replace(/\/+$/u, "").toLocaleLowerCase("en-US")
+  return normalized === folder || normalized.startsWith(`${folder}/`)
 }
 
 function isStatisticsStore(store: ReaderLibraryStore): store is ReaderLibraryStore & ReaderLibraryStatisticsStore {

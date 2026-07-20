@@ -46,6 +46,12 @@ describe("ReaderLibraryHttpController", () => {
     expect((await controller.handle(request("/reader/library/recents?limit=20&offset=3&filter=video")))?.status).toBe(200)
     expect(store.listRecent).toHaveBeenLastCalledWith({ limit: 20, offset: 3, filter: "video" })
     expect((await controller.handle(request("/reader/library/recents?filter=invalid")))?.status).toBe(400)
+    store.listRecent.mockResolvedValueOnce([
+      { bookId: "progress", source: { kind: "archive", path: "D:/books/progress.cbz" }, displayName: "Progress", pageIndex: 1, pageCount: 4, updatedAt: 12 },
+    ])
+    const folderProgress = (await controller.handle(request("/reader/library/progress/folder?path=D%3A%2Fbooks")))!
+    await expect(folderProgress.json()).resolves.toMatchObject({ bookCount: 1, readPages: 2, totalPages: 4, progressPercent: 50 })
+    expect((await controller.handle(request("/reader/library/progress/folder")))?.status).toBe(400)
     expect((await controller.handle(request("/reader/library/recents/book-1", { method: "DELETE" })))?.status).toBe(204)
     store.deleteRecentBatch.mockResolvedValue({ deleted: 1, missingIds: ["missing"] })
     const recentBatch = (await controller.handle(jsonRequest("/reader/library/recents/batch", { ids: ["one", "missing"] }, "DELETE")))!

@@ -27,6 +27,11 @@ export class ReaderLibraryHttpController {
           items: await this.library.listRecent(libraryQuery(url)),
         })
       }
+      if (url.pathname === "/reader/library/progress/folder" && request.method === "GET") {
+        const path = url.searchParams.get("path")
+        if (!path) return jsonResponse({ error: "path is required" }, 400)
+        return jsonResponse(await this.library.summarizeFolderProgress(path, request.signal))
+      }
       if (url.pathname === "/reader/library/statistics" && request.method === "GET") {
         return jsonResponse(await this.library.statistics())
       }
