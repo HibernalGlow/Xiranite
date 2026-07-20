@@ -1,9 +1,8 @@
 import { useEffect, type RefObject } from "react"
 
-const BASE_VELOCITY_PX_PER_FRAME = 30
-const VELOCITY_SMOOTHING = 0.12
-const VELOCITY_DECAY = 0.85
-const STOP_THRESHOLD = 0.05
+const BASE_SMOOTHING = 0.12
+const STOP_THRESHOLD_PX = 0.5
+const EDGE_SATURATION_RATIO = 0.2
 
 export interface ReaderHoverScrollOptions {
   enabled: boolean
@@ -28,14 +27,10 @@ export function useReaderHoverScroll(
     let hovering = false
     let pointerX = 0
     let pointerY = 0
-    let velocityX = 0
-    let velocityY = 0
     let rect = viewport.getBoundingClientRect()
 
     const stop = () => {
       hovering = false
-      velocityX = 0
-      velocityY = 0
       if (frameId !== undefined) cancelAnimationFrame(frameId)
       frameId = undefined
     }
@@ -50,38 +45,20 @@ export function useReaderHoverScroll(
 
       const maxLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth)
       const maxTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight)
-      if (maxLeft <= 0 && maxTop <= 0) {
-        velocityX = 0
-        velocityY = 0
-        return
-      }
+      if (maxLeft <= 0 && maxTop <= 0) return
 
-      const localX = pointerX - rect.left
-      const localY = pointerY - rect.top
-      const sideMargin = Math.min(50, rect.width * 0.2)
-      if (localX < sideMargin || localX > rect.width - sideMargin) {
-        velocityX *= VELOCITY_DECAY
-        velocityY *= VELOCITY_DECAY
-      } else {
-        const effectiveWidth = Math.max(1, rect.width - sideMargin * 2)
-        const normalizedX = (localX - sideMargin) / effectiveWidth - 0.5
-        const normalizedY = localY / Math.max(1, rect.height) - 0.5
-        const targetX = normalizedX * speed * BASE_VELOCITY_PX_PER_FRAME
-        const targetY = normalizedY * speed * BASE_VELOCITY_PX_PER_FRAME
-        velocityX += (targetX - velocityX) * VELOCITY_SMOOTHING
-        velocityY += (targetY - velocityY) * VELOCITY_SMOOTHING
-      }
+      const ratioX = hoverTargetRatio(pointerX - rect.left, rect.width)
+      const ratioY = hoverTargetRatio(pointerY - rect.top, rect.height)
+      const smoothing = 1 - Math.pow(1 - BASE_SMOOTHING, Math.max(0.25, speed / 2))
+      const currentLeft = logicalScrollLeft(viewport)
+      const targetLeft = maxLeft * (isRtl(viewport) ? 1 - ratioX : ratioX)
+      const targetTop = maxTop * ratioY
+      const deltaX = maxLeft > 0 ? targetLeft - currentLeft : 0
+      const deltaY = maxTop > 0 ? targetTop - viewport.scrollTop : 0
 
-      if (Math.abs(velocityX) < STOP_THRESHOLD) velocityX = 0
-      if (Math.abs(velocityY) < STOP_THRESHOLD) velocityY = 0
-      const canMoveX = maxLeft > 0 && (velocityX < 0 ? viewport.scrollLeft > 0 : velocityX > 0 && viewport.scrollLeft < maxLeft)
-      const canMoveY = maxTop > 0 && (velocityY < 0 ? viewport.scrollTop > 0 : velocityY > 0 && viewport.scrollTop < maxTop)
-      if (canMoveX) viewport.scrollLeft = Math.max(0, Math.min(maxLeft, viewport.scrollLeft + velocityX))
-      else velocityX = 0
-      if (canMoveY) viewport.scrollTop = Math.max(0, Math.min(maxTop, viewport.scrollTop + velocityY))
-      else velocityY = 0
-
-      if (canMoveX || canMoveY) schedule()
+      if (maxLeft > 0) setLogicalScrollLeft(viewport, Math.abs(deltaX) <= STOP_THRESHOLD_PX ? targetLeft : currentLeft + deltaX * smoothing)
+      if (maxTop > 0) viewport.scrollTop = Math.abs(deltaY) <= STOP_THRESHOLD_PX ? targetTop : viewport.scrollTop + deltaY * smoothing
+      if (Math.abs(deltaX) > STOP_THRESHOLD_PX || Math.abs(deltaY) > STOP_THRESHOLD_PX) schedule()
     }
 
     const onPointerMove = (event: PointerEvent) => {
@@ -98,6 +75,7 @@ export function useReaderHoverScroll(
     const onPointerLeave = () => stop()
     const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(() => {
       rect = viewport.getBoundingClientRect()
+      schedule()
     })
 
     viewport.addEventListener("pointermove", onPointerMove, { passive: true })
@@ -110,4 +88,25 @@ export function useReaderHoverScroll(
       stop()
     }
   }, [enabled, pageKey, speed, viewportRef])
+}
+
+function logicalScrollLeft(viewport: HTMLElement): number {
+  return isRtl(viewport) ? -viewport.scrollLeft : viewport.scrollLeft
+}
+
+function setLogicalScrollLeft(viewport: HTMLElement, value: number): void {
+  viewport.scrollLeft = isRtl(viewport) ? -value : value
+}
+
+function isRtl(viewport: HTMLElement): boolean {
+  return getComputedStyle(viewport).direction === "rtl"
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+function hoverTargetRatio(pointer: number, length: number): number {
+  const ratio = pointer / Math.max(1, length)
+  return clamp((ratio - EDGE_SATURATION_RATIO) / (1 - EDGE_SATURATION_RATIO * 2), 0, 1)
 }

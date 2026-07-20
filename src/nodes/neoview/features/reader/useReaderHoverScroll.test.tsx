@@ -39,8 +39,11 @@ describe("useReaderHoverScroll", () => {
     const rendersBeforeAnimation = renders
 
     fireEvent.pointerMove(viewport, { clientX: 200, clientY: 285 })
-    runAnimationFrames(8)
-    expect(viewport.scrollTop).toBeGreaterThan(0)
+    runAnimationFrames(60)
+    expect(viewport.scrollTop).toBeGreaterThan(1_490)
+    fireEvent.pointerMove(viewport, { clientX: 200, clientY: 15 })
+    runAnimationFrames(60)
+    expect(viewport.scrollTop).toBeLessThan(10)
     expect(renders).toBe(rendersBeforeAnimation)
     expect(vi.mocked(requestAnimationFrame).mock.calls.length).toBeGreaterThan(1)
 
@@ -53,6 +56,47 @@ describe("useReaderHoverScroll", () => {
     const view = render(<Harness enabled={false} speed={2} pageKey={0} />)
     fireEvent.pointerMove(view.getByTestId("viewport"), { clientX: 10, clientY: 10 })
     expect(requestAnimationFrame).not.toHaveBeenCalled()
+  })
+
+  it("maps horizontal pointer position across the complete overflow range", () => {
+    const view = render(<Harness enabled speed={2} pageKey={0} />)
+    const viewport = view.getByTestId("viewport")
+    Object.defineProperties(viewport, {
+      clientWidth: { configurable: true, value: 400 },
+      clientHeight: { configurable: true, value: 300 },
+      scrollWidth: { configurable: true, value: 1_200 },
+      scrollHeight: { configurable: true, value: 300 },
+    })
+    viewport.getBoundingClientRect = vi.fn(() => ({ x: 0, y: 0, left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300, toJSON: () => ({}) }))
+    view.rerender(<Harness enabled speed={2} pageKey={1} />)
+
+    fireEvent.pointerMove(viewport, { clientX: 400, clientY: 150 })
+    runAnimationFrames(60)
+    expect(viewport.scrollLeft).toBeGreaterThan(790)
+    fireEvent.pointerMove(viewport, { clientX: 0, clientY: 150 })
+    runAnimationFrames(60)
+    expect(viewport.scrollLeft).toBeLessThan(10)
+  })
+
+  it("keeps physical left and right hover targets correct for Chromium RTL scrolling", () => {
+    const view = render(<Harness enabled speed={2} pageKey={0} />)
+    const viewport = view.getByTestId("viewport")
+    viewport.style.direction = "rtl"
+    Object.defineProperties(viewport, {
+      clientWidth: { configurable: true, value: 400 },
+      clientHeight: { configurable: true, value: 300 },
+      scrollWidth: { configurable: true, value: 1_200 },
+      scrollHeight: { configurable: true, value: 300 },
+    })
+    viewport.getBoundingClientRect = vi.fn(() => ({ x: 0, y: 0, left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300, toJSON: () => ({}) }))
+    view.rerender(<Harness enabled speed={2} pageKey={1} />)
+
+    fireEvent.pointerMove(viewport, { clientX: 0, clientY: 150 })
+    runAnimationFrames(60)
+    expect(viewport.scrollLeft).toBeLessThan(-790)
+    fireEvent.pointerMove(viewport, { clientX: 400, clientY: 150 })
+    runAnimationFrames(60)
+    expect(viewport.scrollLeft).toBeGreaterThan(-10)
   })
 })
 

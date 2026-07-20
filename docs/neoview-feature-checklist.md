@@ -445,7 +445,7 @@
 - 测试：`neoview.color-filter.ui`、`neoview.image-trim.ui`、`neoview.page-transition.runtime`、`neoview.viewer.hover-scroll-runtime`、`neoview.viewer.hover-scroll-toolbar`
 - 计划测试：无
 - 性能基准：`image-effects-frame`
-- 已知差异：悬停滚动复用 Reader 直接 viewport ref 与原生 scroll offset，不再使用全局 mousemove、selector 查询、MutationObserver 或延时初始化；窄视口的左右减速区按 viewport 宽度自适应，上限仍为旧版 50px
+- 已知差异：悬停滚动在普通模式复用 Reader viewport、全景模式复用 Virtuoso scroller 与原生 scroll offset，不再使用全局 mousemove、selector 查询、MutationObserver 或延时初始化；指针位置映射到实际溢出范围，外侧 20% 饱和到上下左右真实边界，并兼容 Chromium RTL 负 scrollLeft
 
 ### 卡片注册、卡片布局、独立窗口和通用标签页（`card-windows-tabs`）
 

@@ -16,7 +16,7 @@ const page: ReaderPageDto = {
   name: "NeoView long page hover scroll fixture",
   mediaKind: "image",
   contentVersion: "v1",
-  assetUrl: "/tests/e2e/neoview/neoview-image-trim-fixture.svg",
+  assetUrl: "/__neoview-hover-scroll/page.svg",
   dimensions: { width: 600, height: 1_800 },
 }
 const slideshow = new ReaderSlideshow({
@@ -30,14 +30,16 @@ function Harness() {
   const renders = useRef(0)
   renders.current += 1
   const [hoverScroll, setHoverScroll] = useState({ enabled: true, speed: 2 })
+  const [panorama, setPanorama] = useState(false)
+  const presentation = { ...DEFAULT_READER_PRESENTATION, fitMode: "original" as const, rotation: 90 as const }
   return <main className="grid h-screen min-h-0 grid-rows-[auto_1fr] overflow-hidden bg-black text-white" data-harness-renders={renders.current}>
     <section className="z-10 border-b border-white/15 bg-zinc-950">
       <ReaderViewToolbar
-        layout={DEFAULT_READER_LAYOUT}
+        layout={{ ...DEFAULT_READER_LAYOUT, panorama }}
         direction="left-to-right"
-        presentation={{ ...DEFAULT_READER_PRESENTATION, fitMode: "original" }}
+        presentation={presentation}
         onChange={() => undefined}
-        onLayoutChange={() => undefined}
+        onLayoutChange={(patch) => { if (patch.panorama !== undefined) setPanorama(patch.panorama) }}
         onDirectionChange={() => undefined}
         hoverScrollEnabled={hoverScroll.enabled}
         hoverScrollSpeed={hoverScroll.speed}
@@ -48,7 +50,8 @@ function Harness() {
     </section>
     <ReaderFrame
       pages={[page]}
-      presentation={{ ...DEFAULT_READER_PRESENTATION, fitMode: "original" }}
+      presentation={presentation}
+      panorama={panorama}
       pageMode="single"
       totalPages={1}
       anchorPageIndex={0}
