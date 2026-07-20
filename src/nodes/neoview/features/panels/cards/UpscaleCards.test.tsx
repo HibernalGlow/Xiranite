@@ -77,6 +77,52 @@ describe("NeoView upscale Cards", () => {
     expect(patch?.preferences?.conditions?.[0]?.match.minWidth).toBe(1280)
   })
 
+  it("[neoview.super-resolution.conditions-card-models] uses concrete model ids and native scales", async () => {
+    const onChange = vi.fn(async () => CONFIG)
+    const models = [
+      { id: "realesrgan-x4plus-anime", displayName: "Real-ESRGAN 4x Anime", engine: "upscayl" as const, scales: [2, 3, 4], installed: true },
+      { id: "realesr-animevideov3", displayName: "RealESR AnimeVideo v3", engine: "upscayl" as const, scales: [2, 4], installed: true },
+      { id: "realsr-df2k-x4", displayName: "RealSR DF2K x4", engine: "upscayl" as const, scales: [4], installed: true },
+    ]
+    const { client, ...props } = context({ upscaleCapabilities: vi.fn(async () => ({ available: true as const, models, engines: [], probedAt: 1 })) })
+    render(<UpscaleConditionsCard {...props} client={client} onSuperResolutionConfigChange={onChange} />)
+    await userEvent.setup().click(screen.getByRole("button", { name: /展开条件编辑器/ }))
+    const modelSelect = screen.getByLabelText("模型") as HTMLSelectElement
+    expect(Array.from(modelSelect.options).map((option) => option.value)).toEqual(expect.arrayContaining(["realesrgan-x4plus-anime", "realesr-animevideov3"]))
+    expect(Array.from(modelSelect.options).map((option) => option.value)).not.toEqual(expect.arrayContaining(["upscayl", "waifu2x", "realcugan"]))
+
+    fireEvent.change(modelSelect, { target: { value: "realsr-df2k-x4" } })
+    const scaleSelect = screen.getByLabelText("输出倍率") as HTMLSelectElement
+    expect(Array.from(scaleSelect.options).map((option) => option.value)).toEqual(["4"])
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ preferences: expect.objectContaining({ conditions: [expect.objectContaining({ action: expect.objectContaining({ modelId: "realsr-df2k-x4", scale: 4 }) })] }) }))
+  })
+
+  it("[neoview.super-resolution.conditions-import] reads and converts a legacy JSON backup file", async () => {
+    const onChange = vi.fn(async () => CONFIG)
+    const user = userEvent.setup()
+    render(<UpscaleConditionsCard {...context()} onSuperResolutionConfigChange={onChange} />)
+    await user.click(screen.getByRole("button", { name: "导入" }))
+    const file = new File([JSON.stringify([{
+      id: "legacy",
+      name: "Legacy",
+      enabled: true,
+      priority: 8,
+      match: { maxPixels: 12.4, dimensionMode: "or" },
+      action: { model: "MODEL_REALESRGAN_ANIMAVIDEOV3_UP2X", scale: 2, tileSize: 0, noiseLevel: -1, gpuId: 0, skip: false },
+    }])], "condition.json", { type: "application/json" })
+    await user.upload(screen.getByLabelText("选择条件 JSON 文件"), file)
+    await waitFor(() => expect((screen.getByLabelText("导入条件 JSON") as HTMLTextAreaElement).value).toContain("maxPixels"))
+    await user.click(screen.getByRole("button", { name: "应用导入" }))
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ preferences: { conditions: [expect.objectContaining({
+      id: "legacy",
+      priority: 0,
+      match: expect.objectContaining({ maxMegapixels: 12.4 }),
+      action: expect.objectContaining({ modelId: "realesr-animevideov3", tileSize: undefined, gpuId: "0" }),
+    })] } }))
+    expect(screen.getByText("已导入 1 条条件。")).toBeTruthy()
+  })
+
   it("[neoview.super-resolution.status-card] renders the artifact state emitted by PageImage without a duplicate upscale request", async () => {
     setReaderUpscaleArtifact("session-1", "page-1", { state: "completed", result: { status: "generated", artifactUrl: "http://reader/upscaled.png", version: "v1" } })
     const client = context().client

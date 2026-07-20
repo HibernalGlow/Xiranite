@@ -1,4 +1,4 @@
-import { cleanup, render } from "@testing-library/react"
+import { cleanup, fireEvent, render } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { DEFAULT_READER_PRESENTATION, type FramePage } from "@xiranite/node-neoview/ui-core"
 
@@ -7,7 +7,7 @@ import type { ReaderVideoController } from "../video/ReaderVideoController"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import { ReaderFrame } from "./ReaderFrame"
 
-vi.mock("./PageMedia", () => ({ PageMedia: ({ page, imageTrim, imageTrimDetectionActive, presentationCropInsets }: { page: ReaderPageDto; imageTrim?: ReaderImageTrimPort; imageTrimDetectionActive?: boolean; presentationCropInsets?: { top: number; right: number; bottom: number; left: number } }) => <img alt={page.name} data-image-trim={imageTrim ? "true" : "false"} data-image-trim-detection-active={imageTrimDetectionActive ? "true" : "false"} data-presentation-crop={presentationCropInsets ? JSON.stringify(presentationCropInsets) : undefined} /> }))
+vi.mock("./PageMedia", () => ({ PageMedia: ({ page, scale, imageTrim, imageTrimDetectionActive, presentationCropInsets, onCommittedPage }: { page: ReaderPageDto; scale?: number; imageTrim?: ReaderImageTrimPort; imageTrimDetectionActive?: boolean; presentationCropInsets?: { top: number; right: number; bottom: number; left: number }; onCommittedPage?: (page: ReaderPageDto) => void }) => <img alt={page.name} data-scale={scale} data-image-trim={imageTrim ? "true" : "false"} data-image-trim-detection-active={imageTrimDetectionActive ? "true" : "false"} data-presentation-crop={presentationCropInsets ? JSON.stringify(presentationCropInsets) : undefined} onClick={() => onCommittedPage?.(page)} /> }))
 vi.mock("../page-transition/ReaderPageTransitionLayer", () => ({ ReaderPageTransitionLayer: ({ children }: { children: React.ReactNode }) => <div data-reader-page-transition-layer="true">{children}</div> }))
 
 afterEach(cleanup)
@@ -45,6 +45,27 @@ describe("ReaderFrame", () => {
     view.rerender(<ReaderFrame {...props} framePages={[right]} />)
     expect(view.container.querySelector("img")).toBe(media)
     expect(media.dataset.presentationCrop).toBe(JSON.stringify(right.cropInsets))
+  })
+
+  it("[neoview.viewer.atomic-layout-commit] keeps the old frame scale until the next high-resolution image commits", () => {
+    const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1000)
+    const height = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(800)
+    try {
+      const source = page(0, { width: 6240, height: 4160 })
+      const target = page(1, { width: 4160, height: 6240 })
+      const props = { presentation: DEFAULT_READER_PRESENTATION, pageMode: "single" as const, totalPages: 2, sessionId: "reader", client: {} as ReaderHttpClient, videoController: {} as ReaderVideoController, onSubtitleConfigChange: vi.fn(), onVideoListEnded: vi.fn() }
+      const view = render(<ReaderFrame {...props} pages={[source]} anchorPageIndex={0} />)
+      const initialScale = document.querySelector('[data-reader-frame-viewport="true"]')?.getAttribute("data-reader-effective-scale")
+
+      view.rerender(<ReaderFrame {...props} pages={[target]} anchorPageIndex={1} />)
+      expect(document.querySelector('[data-reader-frame-viewport="true"]')?.getAttribute("data-reader-effective-scale")).toBe(initialScale)
+
+      fireEvent.click(view.container.querySelector("img")!)
+      expect(document.querySelector('[data-reader-frame-viewport="true"]')?.getAttribute("data-reader-effective-scale")).not.toBe(initialScale)
+    } finally {
+      width.mockRestore()
+      height.mockRestore()
+    }
   })
 })
 

@@ -113,9 +113,10 @@ describe("PageImage", () => {
     const decode = new Promise<void>((resolve) => { finishDecode = resolve })
     const source = page()
     const target = { ...source, id: "page-2", index: 1, contentVersion: "v2", assetUrl: "/reader/page-2" }
-    const view = render(<PageImage page={source} />)
+    const onCommittedPage = vi.fn()
+    const view = render(<PageImage page={source} onCommittedPage={onCommittedPage} />)
 
-    view.rerender(<PageImage page={target} />)
+    view.rerender(<PageImage page={target} onCommittedPage={onCommittedPage} />)
     const committed = view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')!
     const pending = view.container.querySelector<HTMLImageElement>('[data-reader-page-image-pending="page-2"]')!
     pending.decode = vi.fn(() => decode)
@@ -123,9 +124,11 @@ describe("PageImage", () => {
 
     expect(committed.getAttribute("src")).toBe(source.assetUrl)
     expect(view.container.querySelector('[data-reader-page-image="page-2"]')).toBeNull()
+    expect(onCommittedPage).not.toHaveBeenCalled()
 
     finishDecode()
     await waitFor(() => expect(view.container.querySelector('[data-reader-page-image="page-2"]')).toBe(pending))
+    expect(onCommittedPage).toHaveBeenCalledWith(target)
     expect(view.container.querySelector('[data-reader-page-image="page-1"]')).toBeNull()
   })
 

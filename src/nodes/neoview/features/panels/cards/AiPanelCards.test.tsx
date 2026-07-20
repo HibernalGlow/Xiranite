@@ -39,7 +39,7 @@ describe("AI panel cards", () => {
     const api = client()
     render(<AiServiceConfigCard client={api} disabled={false} panelActive />)
     await screen.findByDisplayValue("http://127.0.0.1:11434")
-    fireEvent.click(screen.getByRole("button", { name: /探测并拉取模型/ }))
+    fireEvent.click(screen.getByRole("button", { name: "探测模型" }))
     await waitFor(() => expect(api.aiCheck).toHaveBeenCalled())
     await waitFor(() => expect(api.aiModels).toHaveBeenCalled())
     expect(document.querySelector('[data-neoview-card="ai-service-config"]')).toBeTruthy()
@@ -59,17 +59,17 @@ describe("AI panel cards", () => {
   it("[neoview.ai.translation-test.gui] translates through the shared control plane", async () => {
     const api = client()
     render(<AiTranslationTestCard client={api} disabled={false} panelActive />)
-    fireEvent.click(screen.getByRole("button", { name: "翻译" }))
+    fireEvent.keyDown(screen.getByLabelText("输入文本"), { key: "Enter", ctrlKey: true })
     await waitFor(() => expect(api.aiTranslate).toHaveBeenCalledWith({ text: "こんにちは" }))
     expect(await screen.findByText("你好")).toBeTruthy()
   })
 
-  it("[neoview.ai.translation-cache.gui] shows stats and clears memory cache", async () => {
+  it("[neoview.ai.translation-cache.gui] shows stats and clears all cache layers", async () => {
     const api = client()
     render(<AiTranslationCacheCard client={api} disabled={false} panelActive />)
     await waitFor(() => expect(api.aiCacheStats).toHaveBeenCalled())
-    fireEvent.click(screen.getByRole("button", { name: /清内存/ }))
-    await waitFor(() => expect(api.aiClearCache).toHaveBeenCalledWith("memory"))
+    fireEvent.click(screen.getByRole("button", { name: "清空" }))
+    await waitFor(() => expect(api.aiClearCache).toHaveBeenCalledWith("all"))
   })
 
   it("[neoview.ai.lifecycle] inactive cards do no network work", () => {

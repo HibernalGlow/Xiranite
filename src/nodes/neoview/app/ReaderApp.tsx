@@ -1575,6 +1575,7 @@ export function ReaderApp({
                 direction={session.frame.direction}
                 totalPages={session.book.pageCount}
                 anchorPageIndex={session.frame.anchorPageIndex}
+                preloadGeneration={session.preload?.generation}
                 hoverScrollEnabled={viewDefaults.hoverScrollEnabled ?? true}
                 hoverScrollSpeed={viewDefaults.hoverScrollSpeed ?? 2}
                 magnifierEnabled={magnifierEnabled}
@@ -1588,6 +1589,7 @@ export function ReaderApp({
                 client={client}
                 media={media}
                 superResolution={superResolution}
+                viewerToggles={viewerToggles}
                 onSubtitleConfigChange={persistSubtitleConfig}
                 onVisiblePageChange={syncPanoramaVisiblePage}
                 imageTrim={imageTrim}

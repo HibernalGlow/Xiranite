@@ -34,10 +34,24 @@ export function useReaderAdjacentPagePreloader({
     if (!plannedIndexes.length) return
     const desired = new Set(plannedIndexes)
     const cursor = Math.min(...plannedIndexes)
-    const limit = Math.max(...plannedIndexes) - cursor + 1
-    void client.listPages(sessionId, cursor, limit, controller.signal).then((result) => {
+    const end = Math.max(...plannedIndexes)
+    const limit = end - cursor + 1
+    const center = Math.floor((cursor + end) / 2)
+    const loadPages = client.frameWindow
+      ? client.frameWindow(
+          sessionId,
+          center,
+          Math.max(center - cursor, end - center),
+          controller.signal,
+        ).then((result) => result.visiblePages)
+      : client.listPages(sessionId, cursor, limit, controller.signal).then((result) => result.pages)
+    void loadPages.then((pages) => {
       if (controller.signal.aborted) return
-      const candidates = result.pages.filter((page) => desired.has(page.index))
+      const pagesByIndex = new Map(pages.map((page) => [page.index, page]))
+      const candidates = plannedIndexes.flatMap((index) => {
+        const page = pagesByIndex.get(index)
+        return page && desired.has(page.index) ? [page] : []
+      })
       if (candidates.length) {
         if (plan) preload(candidates, plan.generation)
         else preload(candidates)
