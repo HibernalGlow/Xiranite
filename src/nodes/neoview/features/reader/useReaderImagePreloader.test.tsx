@@ -2,7 +2,7 @@ import { useEffect } from "react"
 import { render, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderPageDto } from "../../adapters/reader-http-client"
+import type { ReaderPageDto, ReaderPreloadEventDto } from "../../adapters/reader-http-client"
 import { READER_PREFETCH_READY_MARK, useReaderImagePreloader } from "./useReaderImagePreloader"
 
 afterEach(() => {
@@ -51,12 +51,36 @@ describe("useReaderImagePreloader", () => {
 
     expect(instances.every((image) => image.src === "")).toBe(true)
   })
+
+  it("[neoview.preload.telemetry-react] reports generation-scoped lifecycle metrics without React state", async () => {
+    vi.stubGlobal("Image", FakeImage)
+    vi.spyOn(performance, "mark").mockImplementation(() => ({}) as PerformanceMark)
+    const report = vi.fn()
+    render(<TelemetryFixture page={page(1)} report={report} />)
+
+    await waitFor(() => expect(report).toHaveBeenCalledOnce())
+    expect(report.mock.calls[0]?.slice(0, 2)).toEqual(["reader-1", 9])
+    expect(report.mock.calls[0]?.[2]).toEqual([
+      expect.objectContaining({ pageId: "page-1", outcome: "started", metrics: { activeLeases: 1 } }),
+      expect.objectContaining({
+        pageId: "page-1",
+        outcome: "ready",
+        metrics: expect.objectContaining({ decodeMs: expect.any(Number), activeLeases: 1 }),
+      }),
+    ])
+  })
 })
 
 function Fixture({ sessionId, pages, onControl }: { sessionId: string; pages: readonly ReaderPageDto[]; onControl?: (control: ReturnType<typeof useReaderImagePreloader>) => void }) {
   const control = useReaderImagePreloader(sessionId)
   useEffect(() => control.preload(pages), [control.preload, pages])
   useEffect(() => onControl?.(control), [control, onControl])
+  return null
+}
+
+function TelemetryFixture({ page, report }: { page: ReaderPageDto; report: (sessionId: string, generation: number, events: readonly ReaderPreloadEventDto[]) => void }) {
+  const control = useReaderImagePreloader("reader-1", report)
+  useEffect(() => control.preload([page], 9), [control.preload, page])
   return null
 }
 

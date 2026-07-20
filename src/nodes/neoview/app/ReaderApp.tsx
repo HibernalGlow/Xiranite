@@ -316,7 +316,9 @@ export function ReaderApp({
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const [magnifierEnabled, setMagnifierEnabled] = useState(false)
-  const prefetchController = useReaderImagePreloader(session?.sessionId)
+  const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
+    ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
+    : undefined)
   const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
   shellRef.current = shell
@@ -465,6 +467,33 @@ export function ReaderApp({
     })
     return () => controller.abort()
   }, [session?.sessionId])
+
+  useEffect(() => {
+    const sessionId = session?.sessionId
+    if (!sessionId || !client.updatePreloadContext || typeof document === "undefined") return
+    let request: AbortController | undefined
+    const update = () => {
+      request?.abort()
+      request = new AbortController()
+      const signal = request.signal
+      const focused = document.visibilityState !== "hidden" && (typeof document.hasFocus !== "function" || document.hasFocus())
+      void client.updatePreloadContext!(sessionId, { mode: "paged", focused }, signal).then((preload) => {
+        if (!signal.aborted && sessionRef.current === sessionId) {
+          setSession((current) => current?.sessionId === sessionId ? { ...current, preload } : current)
+        }
+      }).catch(() => undefined)
+    }
+    update()
+    window.addEventListener("focus", update)
+    window.addEventListener("blur", update)
+    document.addEventListener("visibilitychange", update)
+    return () => {
+      request?.abort()
+      window.removeEventListener("focus", update)
+      window.removeEventListener("blur", update)
+      document.removeEventListener("visibilitychange", update)
+    }
+  }, [client, session?.sessionId])
 
   async function openPath(nextPath = path) {
     const normalizedPath = nextPath.trim()
@@ -1265,8 +1294,10 @@ export function ReaderApp({
     sessionId: session?.sessionId,
     activePageIndex: frame?.anchorPageIndex,
     totalPages: session?.book.pageCount,
+    plan: session?.preload,
     enabled: !session || cancelledPreloadFrame?.sessionId !== session.sessionId || cancelledPreloadFrame.generation !== session.frame.generation,
     preload: prefetchController.preload,
+    cancel: prefetchController.cancel,
   })
 
   const topEdge: ReaderControlledEdgeSlot = {
@@ -1598,6 +1629,7 @@ function applyNavigation(session: ReaderSessionDto, navigation: ReaderNavigation
     frame: navigation.frame,
     visiblePages: navigation.visiblePages,
     pageOrder: navigation.pageOrder ?? session.pageOrder,
+    preload: navigation.preload ?? session.preload,
   }
 }
 

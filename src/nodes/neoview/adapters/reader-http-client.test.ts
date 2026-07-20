@@ -412,6 +412,24 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ action: "cancel-speculative", confirmed: true })
   })
 
+  it("[neoview.preload.react-client] updates viewport context and reports bounded lifecycle events", async () => {
+    const preload = { generation: 8, candidates: [] }
+    const report = { generation: 8, accepted: 1, rejected: 0, stale: 0 }
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => (
+      init?.method === "PATCH" ? Response.json({ preload }) : Response.json(report, { status: 202 })
+    ))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.updatePreloadContext!("reader/one", { mode: "paged", focused: true })).resolves.toEqual(preload)
+    await expect(client.reportPreloadEvents!("reader/one", 8, [{ pageId: "page-2", outcome: "ready", metrics: { decodeMs: 4 } }])).resolves.toEqual(report)
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2Fone/preload-context")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ mode: "paged", focused: true })
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2Fone/preload-events")
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ generation: 8, events: [{ pageId: "page-2", outcome: "ready", metrics: { decodeMs: 4 } }] })
+  })
+
   it("[neoview.thumbnail-maintenance.client] uses authenticated aggregate and bounded mutation routes", async () => {
     const snapshot = {
       totalRows: 10, fileRows: 7, folderRows: 3, blobBytes: 100, emptyBlobs: 1, failedRows: 2,

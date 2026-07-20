@@ -46,6 +46,40 @@ describe("useReaderAdjacentPagePreloader", () => {
     expect(signals[1]?.aborted).toBe(true)
   })
 
+  it("[neoview.preload.plan-react] consumes backend candidate order instead of guessing adjacent pages", async () => {
+    const pages = [page(1), page(2), page(3), page(4), page(5)]
+    const client = clientWith({ listPages: vi.fn(async () => ({ pages, total: 20 })) })
+    const preload = vi.fn()
+    renderHook(() => useReaderAdjacentPagePreloader({
+      client,
+      sessionId: "reader-1",
+      activePageIndex: 3,
+      totalPages: 20,
+      plan: {
+        generation: 7,
+        frameGeneration: 2,
+        direction: "forward",
+        directionConfidence: 1,
+        mode: "paged",
+        admission: "normal",
+        velocityPagesPerSecond: 0,
+        stableForMs: 150,
+        focused: true,
+        queueWaitMs: 0,
+        memoryPressure: "normal",
+        currentPageIndexes: [3],
+        candidates: [
+          { tier: "near", priority: "view", anchorPageIndex: 4, pageIndexes: [4], pageIds: ["page-4"] },
+          { tier: "background", priority: "background", anchorPageIndex: 2, pageIndexes: [2], pageIds: ["page-2"] },
+        ],
+      },
+      preload,
+    }))
+
+    await waitFor(() => expect(client.listPages).toHaveBeenCalledWith("reader-1", 2, 3, expect.any(AbortSignal)))
+    await waitFor(() => expect(preload).toHaveBeenCalledWith([pages[1], pages[3]], 7))
+  })
+
   it("[neoview.preload.cancel-session] aborts discovery and stays idle while speculative work is disabled", () => {
     const signals: AbortSignal[] = []
     const client = clientWith({
