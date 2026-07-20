@@ -1,10 +1,10 @@
-import { BookOpen, Copy, ExternalLink, FileText, FolderOpen, RefreshCw, Star, Trash2 } from "lucide-react"
+import { BookOpen, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, RefreshCw, Star, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
 import type { ReaderBookmarkDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 
-export type BookmarkContextAction = "open" | "system-open" | "reveal" | "copy-path" | "copy-name" | "reload-thumbnail" | "toggle-star" | "remove"
+export type BookmarkContextAction = "open" | "browse-folder" | "open-new-tab" | "system-open" | "reveal" | "copy-path" | "copy-name" | "reload-thumbnail" | "toggle-star" | "remove"
 
 export default function BookmarkContextActions({
   client,
@@ -12,6 +12,8 @@ export default function BookmarkContextActions({
   items,
   copyText,
   onOpen,
+  onBrowseFolder,
+  onOpenInNewTab,
   onToggleStar,
   onReloadThumbnail,
   onRemove,
@@ -21,6 +23,8 @@ export default function BookmarkContextActions({
   items: readonly ReaderBookmarkDto[]
   copyText?: (text: string) => Promise<void>
   onOpen?(item: ReaderBookmarkDto): void | Promise<void>
+  onBrowseFolder?(item: ReaderBookmarkDto): void | Promise<void>
+  onOpenInNewTab?(item: ReaderBookmarkDto): void | Promise<void>
   onToggleStar(item: ReaderBookmarkDto): void | Promise<void>
   onReloadThumbnail(item: ReaderBookmarkDto): void | Promise<void>
   onRemove(item: ReaderBookmarkDto): void | Promise<void>
@@ -42,6 +46,12 @@ export default function BookmarkContextActions({
       if (action === "open") {
         if (!onOpen) throw new Error("当前 Reader 不支持打开此书签。")
         await onOpen(item)
+      } else if (action === "browse-folder") {
+        if (!onBrowseFolder) throw new Error("当前 Reader 不支持浏览此书签所在文件夹。")
+        await onBrowseFolder(item)
+      } else if (action === "open-new-tab") {
+        if (!onOpenInNewTab) throw new Error("当前 Reader 不支持在新标签页中打开文件夹。")
+        await onOpenInNewTab(item)
       }
       else if (action === "system-open") {
         if (!client.openSystemPath) throw new Error("当前后端不支持使用默认软件打开。")
@@ -73,6 +83,8 @@ export default function BookmarkContextActions({
       disabled,
       pending,
       canOpen: Boolean(onOpen),
+      canBrowseFolder: Boolean(onBrowseFolder),
+      canOpenInNewTab: Boolean(onOpenInNewTab),
       canCopyText: Boolean(copyText),
       canOpenSystem: Boolean(client.openSystemPath),
       canReveal: Boolean(client.revealSystemPath),
@@ -93,6 +105,8 @@ export function buildBookmarkContextMenuItems(
     disabled: boolean
     pending: boolean
     canOpen: boolean
+    canBrowseFolder: boolean
+    canOpenInNewTab: boolean
     canCopyText: boolean
     canOpenSystem: boolean
     canReveal: boolean
@@ -100,7 +114,12 @@ export function buildBookmarkContextMenuItems(
   },
 ): ContextMenuItemDef[] {
   const unavailable = options.disabled || options.pending
+  const folderItems: ContextMenuItemDef[] = [
+    { id: "neoview-bookmark-browse-folder", label: "打开对应文件夹", icon: <FolderOpen />, disabled: unavailable || !options.canBrowseFolder, onSelect: () => options.onAction("browse-folder", item) },
+    { id: "neoview-bookmark-open-new-tab", label: "在新标签页打开", icon: <PanelsTopLeft />, disabled: unavailable || !options.canOpenInNewTab, onSelect: () => options.onAction("open-new-tab", item) },
+  ]
   return [
+    ...folderItems,
     { id: "neoview-bookmark-open", label: "打开", icon: <BookOpen />, disabled: unavailable || !options.canOpen, onSelect: () => options.onAction("open", item) },
     { id: "neoview-bookmark-system-open", label: "用默认软件打开", icon: <ExternalLink />, disabled: unavailable || !options.canOpenSystem, onSelect: () => options.onAction("system-open", item) },
     { id: "neoview-bookmark-reveal", label: "在资源管理器中显示", icon: <FolderOpen />, disabled: unavailable || !options.canReveal, onSelect: () => options.onAction("reveal", item) },

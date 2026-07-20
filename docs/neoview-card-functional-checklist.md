@@ -4989,11 +4989,11 @@
 
 - [ ] `emm-config.persistence` 规范化 EMM 路径配置与 TOML 持久化
   - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
-  - 目标：Persist enabled, bounded database paths, optional setting path and optional translation path in [nodes.neoview.emm], retaining APPDATA auto-discovery when paths are empty and never writing Reader business tables to xiranite.db.
+  - 目标：Persist enabled, bounded database paths, optional setting.json, translations.db and db.text.json paths plus default rating in [nodes.neoview.emm], retaining portable/APPDATA/LOCALAPPDATA auto-discovery for both database.sqlite and legacy db.sqlite when paths are empty and never writing Reader business tables to xiranite.db.
   - 源码：`src/lib/cards/properties/EmmConfigCard.svelte`、`src/lib/components/panels/emm/EmmConfigCard.svelte`
   - 测试：`neoview.emm-config.runtime`、`neoview.emm-config.card`、`neoview.emm.config-composition`
   - 计划测试：`neoview.emm-config.toml-roundtrip`
-  - 备注：The external database remains a read-only foreign source; empty database_paths means automatic discovery under APPDATA.
+  - 备注：The external database remains a read-only foreign source; empty database_paths means automatic discovery under portable, APPDATA and LOCALAPPDATA. translations.db is persisted for legacy compatibility but is not yet consumed by the Reader projection.
 - [ ] `emm-config.states` 加载、保存、恢复默认和失败反馈
   - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Load once when active, disable duplicate writes, keep the draft after failure, expose alert/status feedback and restore the canonical automatic-discovery defaults.
@@ -5057,25 +5057,25 @@
   - 备注：This replacement is explicitly requested and avoids a remote settings Card disconnected from the affected File Card.
 - [ ] `file-list-tag-display.settings` 单一 folder.tag_display 持久化契约
   - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
-  - 目标：Persist showRating, showCollectTagCount, showTags, maxTags and showTooltips under [nodes.neoview.folder.tag_display] with bounded validation and no browser-local duplicate state.
+  - 目标：Persist tagMode (all/collect/none, default collect), showRating, showCollectTagCount, showTags, maxTags and showTooltips under [nodes.neoview.folder.tag_display] with bounded validation and no browser-local duplicate state.
   - 源码：`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
-  - 测试：`neoview.folder.tag-display-config`、`neoview.folder.tag-display-menu`
+  - 测试：`neoview.folder.tag-display-config`、`neoview.folder.tag-display-menu`、`neoview.folder.tag-display-mode`
   - 计划测试：无
   - 备注：The same ReaderRuntimeConfig folderView mutation path used by the File Card owns persistence.
 - [ ] `file-list-tag-display.rendering` 共享条目渲染限制数量和 tooltip
   - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Apply the policy in the shared FolderEntryMetadata renderer so compact, list, cover, mosaic and grid entries receive the same bounded tag count and tooltip behavior without new per-row subscriptions.
   - 源码：`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
-  - 测试：`neoview.folder.tag-display-render`
+  - 测试：`neoview.folder.tag-display-render`、`neoview.folder.tag-display-collect`
   - 计划测试：`neoview.folder.tag-display-views`
   - 备注：One React context value is read by row renderers; no global listener or metadata refetch is introduced.
 - [ ] `file-list-tag-display.sources` EMM/manual/AI 来源与命名空间筛选
-  - 六维：`core=N/A transport=C gui=P cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 六维：`core=N/A transport=C gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Filter tags by explicit source and namespace identity only when the canonical directory DTO carries those identities; do not infer source from free-form text.
   - 源码：`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
-  - 测试：待补
+  - 测试：`neoview.folder.emm-tag-sources`、`neoview.folder.tag-display-collect`
   - 计划测试：`neoview.folder.tag-display-sources`
-  - 备注：The current DTO exposes a combined tag list, so the replacement deliberately leaves per-source and per-namespace filtering partial.
+  - 备注：The directory DTO now preserves collected EMM tags and manual tags separately for the legacy collect mode. AI identity and arbitrary per-namespace filtering remain partial.
 
 ### Panel: `upscale`（6）
 
@@ -5678,7 +5678,7 @@
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/shared/useFileActions.ts`、`src/lib/components/panels/folderPanel/components/FolderContextMenu.svelte`
   - 测试：`neoview.history.card`、`neoview.history.batch-remove`、`neoview.history.context-actions`、`neoview.history.context-actions-e2e`、`neoview.history.thumbnail-reload-e2e`、`neoview.library.http`、`neoview.history.thumbnail-e2e`
   - 计划测试：无
-  - 备注：Single/double-click and explicit resume plus confirmed single/batch history removal exist. A second-level lazy context menu now reuses authenticated host actions for system-open, reveal, copy path/name, add-bookmark and isolated thumbnail reload while preserving the shared Folder-style entry and thumbnail surfaces. Browse/new-tab, tree pin and tag editing remain pending.
+  - 备注：Single/double-click and explicit resume plus confirmed single/batch history removal exist. A second-level lazy context menu now reuses authenticated host actions for browse/new-tab, system-open, reveal, copy path/name, add-bookmark and isolated thumbnail reload while preserving the shared Folder-style entry and thumbnail surfaces. Browse/new-tab commands use a Reader-instance-scoped Folder channel and preserve filesystem roots; browser end-to-end evidence, tree pin and tag editing remain pending.
 - [x] `history.cleanup` 清理失效、最旧、过期、目录与全部历史
   - 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：Bounded, cancellable cleanup supports confirmed missing paths, oldest count, timestamp cutoff, folder scope and clear-all without deleting unrelated progress or bookmarks.
@@ -6106,7 +6106,7 @@
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/cards/shared/useFileActions.ts`
   - 测试：`neoview.bookmark.card`、`neoview.library.bookmarks`、`neoview.bookmark.thumbnail-e2e`、`neoview.bookmark.context-actions`、`neoview.bookmark.context-capabilities`、`neoview.bookmark.context-actions-e2e`、`neoview.bookmark.thumbnail-refresh-client`、`neoview.thumbnail.library-register-refresh`、`neoview.bookmark.thumbnail-reload-e2e`
   - 计划测试：无
-  - 备注：Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides copy path/name, system-open, Explorer reveal and bounded single-source thumbnail reload with capability-aware disabled states. Rename, tags and new-tab actions remain pending.
+  - 备注：Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides browse/new-tab, copy path/name, system-open, Explorer reveal and bounded single-source thumbnail reload with capability-aware disabled states. Browse/new-tab commands use a Reader-instance-scoped Folder channel and preserve filesystem roots; browser end-to-end evidence, rename and tags remain pending.
 - [x] `bookmark.batch-edit` 批量编辑书签与列表成员关系
   - 六维：`core=C transport=N/A gui=C cli=C tui=C evidence=C`；阻塞：无
   - 目标：Selected bookmarks can be added to multiple lists or removed through one bounded operation.

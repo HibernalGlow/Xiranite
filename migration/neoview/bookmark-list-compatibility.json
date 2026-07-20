@@ -735,7 +735,7 @@
         "neoview.bookmark.thumbnail-reload-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides copy path/name, system-open, Explorer reveal and bounded single-source thumbnail reload with capability-aware disabled states. Rename, tags and new-tab actions remain pending."
+      "notes": "Single/double-click and explicit open, star, single remove and confirmed batch remove exist; the shared context-menu host now provides browse/new-tab, copy path/name, system-open, Explorer reveal and bounded single-source thumbnail reload with capability-aware disabled states. Browse/new-tab commands use a Reader-instance-scoped Folder channel and preserve filesystem roots; browser end-to-end evidence, rename and tags remain pending."
     },
     {
       "id": "bookmark.batch-edit",

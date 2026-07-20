@@ -100,6 +100,16 @@ describe("HistoryListCard", () => {
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "名称" }))
     await waitFor(() => expect(listRecent.mock.calls.some((call) => call[3]?.sort?.field === "name")).toBe(true))
   })
+
+  it("syncs ordinary resume to the containing Folder path", async () => {
+    const onOpen = vi.fn()
+    const onBrowsePath = vi.fn()
+    render(<HistoryListCard {...context(vi.fn(async () => [recentHistory("one")]))} onOpen={onOpen} onBrowsePath={onBrowsePath} />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "继续阅读：one.cbz" }))
+    expect(onBrowsePath).toHaveBeenCalledWith("D:/books")
+    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz", { browserOriginPath: "D:/books" })
+  })
 })
 
 function context(listRecent: NonNullable<ReaderHttpClient["listRecent"]>) {

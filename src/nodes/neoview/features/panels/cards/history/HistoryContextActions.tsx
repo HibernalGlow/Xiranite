@@ -1,17 +1,19 @@
-import { BookOpen, BookmarkPlus, Copy, ExternalLink, FileText, FolderOpen, RefreshCw, Trash2 } from "lucide-react"
+import { BookOpen, BookmarkPlus, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, RefreshCw, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
 import type { ReaderHttpClient, ReaderRecentDto } from "../../../../adapters/reader-http-client"
 
-export type HistoryContextAction = "open" | "system-open" | "reveal" | "copy-path" | "copy-name" | "reload-thumbnail" | "add-bookmark" | "remove"
+export type HistoryContextAction = "open" | "browse-folder" | "open-new-tab" | "system-open" | "reveal" | "copy-path" | "copy-name" | "reload-thumbnail" | "add-bookmark" | "remove"
 
-export default function HistoryContextActions({ client, disabled, items, copyText, onOpen, onReloadThumbnail, onRemove, onChanged }: {
+export default function HistoryContextActions({ client, disabled, items, copyText, onOpen, onBrowseFolder, onOpenInNewTab, onReloadThumbnail, onRemove, onChanged }: {
   client: ReaderHttpClient
   disabled: boolean
   items: readonly ReaderRecentDto[]
   copyText?: (text: string) => Promise<void>
   onOpen?(item: ReaderRecentDto): void | Promise<void>
+  onBrowseFolder?(item: ReaderRecentDto): void | Promise<void>
+  onOpenInNewTab?(item: ReaderRecentDto): void | Promise<void>
   onReloadThumbnail(item: ReaderRecentDto): void | Promise<void>
   onRemove(item: ReaderRecentDto): void | Promise<void>
   onChanged(): void
@@ -34,6 +36,12 @@ export default function HistoryContextActions({ client, disabled, items, copyTex
       if (action === "open") {
         if (!onOpen) throw new Error("当前 Reader 不支持打开此历史记录。")
         await onOpen(item)
+      } else if (action === "browse-folder") {
+        if (!onBrowseFolder) throw new Error("当前 Reader 不支持浏览此历史记录所在文件夹。")
+        await onBrowseFolder(item)
+      } else if (action === "open-new-tab") {
+        if (!onOpenInNewTab) throw new Error("当前 Reader 不支持在新标签页中打开文件夹。")
+        await onOpenInNewTab(item)
       } else if (action === "system-open") {
         if (!client.openSystemPath) throw new Error("当前后端不支持使用默认软件打开。")
         await client.openSystemPath(item.source.path, operation.signal)
@@ -71,6 +79,8 @@ export default function HistoryContextActions({ client, disabled, items, copyTex
       disabled,
       pending,
       canOpen: Boolean(onOpen),
+      canBrowseFolder: Boolean(onBrowseFolder),
+      canOpenInNewTab: Boolean(onOpenInNewTab),
       canCopyText: Boolean(copyText),
       canOpenSystem: Boolean(client.openSystemPath),
       canReveal: Boolean(client.revealSystemPath),
@@ -93,6 +103,8 @@ export function buildHistoryContextMenuItems(item: ReaderRecentDto, options: {
   disabled: boolean
   pending: boolean
   canOpen: boolean
+  canBrowseFolder: boolean
+  canOpenInNewTab: boolean
   canCopyText: boolean
   canOpenSystem: boolean
   canReveal: boolean
@@ -100,7 +112,12 @@ export function buildHistoryContextMenuItems(item: ReaderRecentDto, options: {
   onAction(action: HistoryContextAction, item: ReaderRecentDto): void | Promise<void>
 }): ContextMenuItemDef[] {
   const unavailable = options.disabled || options.pending
+  const folderItems: ContextMenuItemDef[] = [
+    { id: "neoview-history-browse-folder", label: "打开对应文件夹", icon: <FolderOpen />, disabled: unavailable || !options.canBrowseFolder, onSelect: () => options.onAction("browse-folder", item) },
+    { id: "neoview-history-open-new-tab", label: "在新标签页打开", icon: <PanelsTopLeft />, disabled: unavailable || !options.canOpenInNewTab, onSelect: () => options.onAction("open-new-tab", item) },
+  ]
   return [
+    ...folderItems,
     { id: "neoview-history-open", label: "继续阅读", icon: <BookOpen />, disabled: unavailable || !options.canOpen, onSelect: () => options.onAction("open", item) },
     { id: "neoview-history-system-open", label: "用默认软件打开", icon: <ExternalLink />, disabled: unavailable || !options.canOpenSystem, onSelect: () => options.onAction("system-open", item) },
     { id: "neoview-history-reveal", label: "在资源管理器中显示", icon: <FolderOpen />, disabled: unavailable || !options.canReveal, onSelect: () => options.onAction("reveal", item) },

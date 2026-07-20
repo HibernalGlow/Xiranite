@@ -14,6 +14,7 @@ import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 import { readerLibraryListLayout, readerLibraryMediaClassName, readerLibrarySurfaceVariant, type ReaderLibraryViewMode } from "./shared/readerLibraryEntryLayout"
+import { libraryItemFolderPath } from "./shared/libraryItemFolderPath"
 import { ReaderLibraryViewToolbar, type ReaderLibrarySort } from "./shared/ReaderLibraryViewToolbar"
 
 type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmarkListDto }
@@ -25,7 +26,7 @@ const LazyBookmarkContextActions = lazy(() => import("./bookmark/BookmarkContext
 /**
  * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/bookmark/BookmarkListCard.tsx
  */
-export default function BookmarkListCard({ client, disabled, panelActive = true, onOpen, session, sourcePath, systemActions, bookmarkListPreferences, onBookmarkListPreferences }: ReaderPanelContext) {
+export default function BookmarkListCard({ client, disabled, panelActive = true, onOpen, onBrowsePath, onOpenInNewTab, session, sourcePath, systemActions, bookmarkListPreferences, onBookmarkListPreferences }: ReaderPanelContext) {
   const [lists, setLists] = useState<readonly ReaderBookmarkListDto[]>([])
   const [listsReady, setListsReady] = useState(false)
   const [activeListId, setActiveListId] = useState(() => bookmarkListPreferences?.activeListId ?? "all")
@@ -55,6 +56,11 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
   const handleViewportWidthChange = useCallback((width: number) => {
     setViewportWidth((current) => current === width ? current : width)
   }, [])
+  function openBookmark(item: ReaderBookmarkDto) {
+    const folderPath = libraryItemFolderPath(item.source.path, item.kind === "folder")
+    onBrowsePath?.(folderPath)
+    return onOpen?.(item.source.path, { browserOriginPath: folderPath })
+  }
   const selectedBookmarks = useMemo(
     () => loadedBookmarks.filter((item) => selectedIds.has(item.id)),
     [loadedBookmarks, selectedIds],
@@ -308,7 +314,9 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
           disabled={disabled}
           items={loadedBookmarks}
           copyText={systemActions?.copyText}
-          onOpen={onOpen ? (item) => onOpen(item.source.path) : undefined}
+          onOpen={onOpen ? openBookmark : undefined}
+          onBrowseFolder={onBrowsePath ? (item) => onBrowsePath(libraryItemFolderPath(item.source.path, item.kind === "folder")) : undefined}
+          onOpenInNewTab={onOpenInNewTab ? (item) => onOpenInNewTab(libraryItemFolderPath(item.source.path, item.kind === "folder")) : undefined}
           onToggleStar={toggleStar}
           onReloadThumbnail={(item) => thumbnails.refresh(item.id)}
           onRemove={remove}
@@ -385,7 +393,7 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
             thumbnailUrls={thumbnails.urlSets.get(item.id)}
             thumbnailLoading={thumbnails.loading}
             onSelect={selectBookmark}
-            onOpen={() => void onOpen?.(item.source.path)}
+            onOpen={() => void openBookmark(item)}
             onToggleStar={() => void toggleStar(item)}
             onRemove={() => void remove(item)}
           />
