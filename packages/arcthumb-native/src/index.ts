@@ -37,11 +37,28 @@ export interface WicImageThumbnailOptions {
   maxDimension?: number
 }
 
+export interface EncodedThumbnailOptions {
+  format?: "png" | "jpeg" | "jpg" | "webp"
+  lossless?: boolean
+  quality?: number
+}
+
+export interface EncodedSystemThumbnailOptions extends SystemThumbnailOptions, EncodedThumbnailOptions {}
+
+export interface EncodedWicImageThumbnailOptions extends WicImageThumbnailOptions, EncodedThumbnailOptions {}
+
 export interface SystemThumbnail {
   rgba: Buffer
   width: number
   height: number
   premultiplied: boolean
+}
+
+export interface EncodedSystemThumbnail {
+  data: Buffer
+  width: number
+  height: number
+  mimeType: string
 }
 
 export interface WindowsVolumeRoot {
@@ -56,6 +73,8 @@ export interface ArcThumbBinding {
   createArchiveThumbnail(options: ArchiveThumbnailOptions): Promise<ArchiveThumbnail>
   getCachedSystemThumbnail(options: SystemThumbnailOptions): Promise<SystemThumbnail | undefined>
   createWicImageThumbnail(options: WicImageThumbnailOptions): Promise<SystemThumbnail>
+  getCachedSystemThumbnailEncoded(options: EncodedSystemThumbnailOptions): Promise<EncodedSystemThumbnail | undefined>
+  createWicImageThumbnailEncoded(options: EncodedWicImageThumbnailOptions): Promise<EncodedSystemThumbnail>
   listWindowsVolumeRoots(): Promise<WindowsVolumeRoot[]>
 }
 
@@ -80,4 +99,8 @@ export const getCachedSystemThumbnail = (options: SystemThumbnailOptions): Promi
   loadArcThumbBinding().getCachedSystemThumbnail(options)
 export const createWicImageThumbnail = (options: WicImageThumbnailOptions): Promise<SystemThumbnail> =>
   loadArcThumbBinding().createWicImageThumbnail(options)
+export const getCachedSystemThumbnailEncoded = (options: EncodedSystemThumbnailOptions): Promise<EncodedSystemThumbnail | undefined> =>
+  loadArcThumbBinding().getCachedSystemThumbnailEncoded(options)
+export const createWicImageThumbnailEncoded = (options: EncodedWicImageThumbnailOptions): Promise<EncodedSystemThumbnail> =>
+  loadArcThumbBinding().createWicImageThumbnailEncoded(options)
 export const listWindowsVolumeRoots = (): Promise<WindowsVolumeRoot[]> => loadArcThumbBinding().listWindowsVolumeRoots()

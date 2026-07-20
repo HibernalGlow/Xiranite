@@ -17,7 +17,7 @@ use arcthumb::archive::{ContentKind, read_first_image_with_kind};
 use arcthumb::settings::{CoverMode, Settings, SortOrder};
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
-use image::{DynamicImage, ImageFormat};
+use image::{DynamicImage, ImageFormat, RgbaImage};
 use thiserror::Error;
 
 pub const API_VERSION: u32 = 2;
@@ -86,6 +86,7 @@ pub struct ArchiveThumbnailOptions {
     pub path: PathBuf,
     pub max_dimension: u32,
     pub format: ThumbnailFormat,
+    pub lossless: bool,
     pub quality: u8,
     pub sort_order: ArchiveSortOrder,
     pub cover_mode: ArchiveCoverMode,
@@ -97,6 +98,7 @@ impl ArchiveThumbnailOptions {
             path: path.into(),
             max_dimension: 512,
             format: ThumbnailFormat::Png,
+            lossless: false,
             quality: 85,
             sort_order: ArchiveSortOrder::Natural,
             cover_mode: ArchiveCoverMode::Prefer,
@@ -120,6 +122,14 @@ pub struct SystemThumbnail {
     pub width: u32,
     pub height: u32,
     pub premultiplied: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct EncodedSystemThumbnail {
+    pub data: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+    pub mime_type: &'static str,
 }
 
 #[derive(Debug, Clone)]
@@ -167,6 +177,21 @@ pub fn create_wic_image_thumbnail(
     })
 }
 
+pub fn create_wic_image_thumbnail_encoded(
+    bytes: &[u8],
+    max_dimension: u32,
+    format: ThumbnailFormat,
+    lossless: bool,
+    quality: u8,
+) -> Result<EncodedSystemThumbnail, ArcThumbError> {
+    encode_system_thumbnail(
+        create_wic_image_thumbnail(bytes, max_dimension)?,
+        format,
+        lossless,
+        quality,
+    )
+}
+
 #[cfg(not(all(windows, feature = "wic")))]
 pub fn create_wic_image_thumbnail(
     _bytes: &[u8],
@@ -188,6 +213,18 @@ pub fn get_cached_system_thumbnail(
     max_dimension: u32,
 ) -> Result<Option<SystemThumbnail>, ArcThumbError> {
     windows_shell::get_cached_thumbnail(path, max_dimension)
+}
+
+pub fn get_cached_system_thumbnail_encoded(
+    path: &str,
+    max_dimension: u32,
+    format: ThumbnailFormat,
+    lossless: bool,
+    quality: u8,
+) -> Result<Option<EncodedSystemThumbnail>, ArcThumbError> {
+    get_cached_system_thumbnail(path, max_dimension)?
+        .map(|thumbnail| encode_system_thumbnail(thumbnail, format, lossless, quality))
+        .transpose()
 }
 
 #[cfg(not(all(windows, feature = "windows-shell")))]
@@ -245,7 +282,8 @@ pub fn create_archive_thumbnail(
         options.max_dimension,
         FilterType::Lanczos3,
     );
-    let (data, mime_type) = encode_image(&resized, options.format, options.quality)?;
+    let (data, mime_type) =
+        encode_image(&resized, options.format, options.lossless, options.quality)?;
     Ok(ArchiveThumbnail {
         data,
         width: resized.width(),
@@ -259,6 +297,7 @@ pub fn create_archive_thumbnail(
 fn encode_image(
     image: &DynamicImage,
     format: ThumbnailFormat,
+    lossless: bool,
     quality: u8,
 ) -> Result<(Vec<u8>, &'static str), ArcThumbError> {
     let mut bytes = Vec::new();
@@ -266,9 +305,15 @@ fn encode_image(
         ThumbnailFormat::Png => image
             .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)
             .map_err(|error| ArcThumbError::Encode(error.to_string()))?,
-        ThumbnailFormat::Webp => image
-            .write_to(&mut Cursor::new(&mut bytes), ImageFormat::WebP)
-            .map_err(|error| ArcThumbError::Encode(error.to_string()))?,
+        ThumbnailFormat::Webp => {
+            let rgba = image.to_rgba8();
+            let encoder = webp::Encoder::from_rgba(&rgba, rgba.width(), rgba.height());
+            bytes = if lossless {
+                encoder.encode_lossless().to_vec()
+            } else {
+                encoder.encode(f32::from(quality)).to_vec()
+            };
+        }
         ThumbnailFormat::Jpeg => JpegEncoder::new_with_quality(&mut bytes, quality)
             .encode_image(image)
             .map_err(|error| ArcThumbError::Encode(error.to_string()))?,
@@ -281,6 +326,42 @@ fn encode_image(
             ThumbnailFormat::Webp => "image/webp",
         },
     ))
+}
+
+fn encode_system_thumbnail(
+    mut thumbnail: SystemThumbnail,
+    format: ThumbnailFormat,
+    lossless: bool,
+    quality: u8,
+) -> Result<EncodedSystemThumbnail, ArcThumbError> {
+    if thumbnail.premultiplied {
+        unpremultiply_rgba(&mut thumbnail.rgba);
+    }
+    let image = RgbaImage::from_raw(thumbnail.width, thumbnail.height, thumbnail.rgba)
+        .ok_or_else(|| ArcThumbError::Encode("system thumbnail RGBA length mismatch".into()))?;
+    let (data, mime_type) =
+        encode_image(&DynamicImage::ImageRgba8(image), format, lossless, quality)?;
+    Ok(EncodedSystemThumbnail {
+        data,
+        width: thumbnail.width,
+        height: thumbnail.height,
+        mime_type,
+    })
+}
+
+fn unpremultiply_rgba(pixels: &mut [u8]) {
+    for pixel in pixels.chunks_exact_mut(4) {
+        let alpha = u32::from(pixel[3]);
+        if alpha == 0 {
+            pixel[0] = 0;
+            pixel[1] = 0;
+            pixel[2] = 0;
+        } else if alpha < 255 {
+            for channel in &mut pixel[..3] {
+                *channel = ((u32::from(*channel) * 255 + alpha / 2) / alpha).min(255) as u8;
+            }
+        }
+    }
 }
 
 fn content_kind_name(kind: ContentKind) -> &'static str {

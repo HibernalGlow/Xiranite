@@ -17,6 +17,7 @@ crate-type = ["rlib"]
 [dependencies]
 base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "bmp", "tiff", "ico", "webp"] }
+webp = "0.3.1"
 jpeg-decoder = "0.3"
 mobi = "0.8"
 quick-xml = "0.40"
