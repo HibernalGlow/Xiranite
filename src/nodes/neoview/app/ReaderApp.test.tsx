@@ -610,6 +610,51 @@ describe("ReaderApp", () => {
     expect(screen.getByRole("button", { name: "展开面板布局设置" })).toBeTruthy()
     expect(client.open).not.toHaveBeenCalled()
   })
+
+  it("[neoview.react.source-watch-gui] adopts an automatic reload and reports it without source paths", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    const replacement = {
+      ...session("page-2", "http://127.0.0.1:41000/reader/page-2", 1),
+      sessionId: "reader-2",
+      visiblePages: [{
+        ...session("page-2", "http://127.0.0.1:41000/reader/page-2", 1).visiblePages[0]!,
+        name: "002.jpg",
+      }],
+    }
+    let publishChange!: (change: { revision: number; state: "changed"; kinds: ["update"]; count: number }) => void
+    const waitForSourceChanges = vi.fn((_sessionId: string, _revision: number, signal?: AbortSignal) => new Promise<any>((resolve, reject) => {
+      if (!publishChange) publishChange = resolve
+      signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
+    }))
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => runtimeConfig()),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      reload: vi.fn(async () => replacement),
+      waitForSourceChanges,
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    const view = render(<ReaderApp initialPath="D:/private/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("img", { name: "001.jpg" })
+    await waitFor(() => expect(waitForSourceChanges).toHaveBeenCalledWith("reader-1", 0, expect.any(AbortSignal)))
+
+    await act(async () => publishChange({ revision: 1, state: "changed", kinds: ["update"], count: 1 }))
+
+    expect(await screen.findByRole("img", { name: "002.jpg" })).toBeTruthy()
+    expect(await screen.findByText("源内容已更新")).toBeTruthy()
+    expect(document.body.textContent).not.toContain("D:/private/demo.cbz")
+    expect(client.reload).toHaveBeenCalledWith("reader-1", expect.any(AbortSignal))
+    view.unmount()
+  })
 })
 
 function session(pageId: string, assetUrl: string, index: number): ReaderSessionDto {

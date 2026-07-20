@@ -408,6 +408,17 @@ describe("NeoView CLI", () => {
     expect(reader[Symbol.asyncDispose]).toHaveBeenCalledTimes(1)
   })
 
+  it("[neoview.cli.reload] reopens through the shared controller and prints the recovered frame", async () => {
+    const output: unknown[] = []
+    const reload = vi.fn(async () => snapshot(1))
+    const reader = fakeReader({ reload })
+
+    await runProgram(["reload", "book.cbz", "--json"], host(output), { createController: async () => reader })
+
+    expect(reload).toHaveBeenCalledOnce()
+    expect(JSON.parse(output.join(""))).toMatchObject({ frame: { anchorPageIndex: 1 }, visiblePages: [{ name: "002.png" }] })
+  })
+
   it("[neoview.book-information.cli-projection] prints the shared title, type, page and progress semantics", async () => {
     const output: unknown[] = []
     const reader = fakeReader({ open: async () => ({
@@ -1915,6 +1926,7 @@ function fakePresentationCache() {
 
 function fakeReader(overrides: Partial<{
   open: (input: OpenHeadlessReaderInput) => Promise<HeadlessReaderSnapshot>
+  reload: ReaderHeadlessController["reload"]
   openPageStream: (index: number) => Promise<HeadlessPageStream>
   getBookSettings: ReaderHeadlessController["getBookSettings"]
   updateBookSettings: ReaderHeadlessController["updateBookSettings"]
@@ -1937,6 +1949,7 @@ function fakeReader(overrides: Partial<{
       current = input.initialPage ?? 0
       return snapshot(current, pageOrder)
     })),
+    reload: vi.fn(overrides.reload ?? (async () => snapshot(current, pageOrder))),
     inspect: vi.fn(() => snapshot(current, pageOrder)),
     listPages: vi.fn((cursor = 0, limit = 100) => pages.slice(cursor, cursor + limit)),
     next: vi.fn(async () => snapshot(current = Math.min(2, current + 1), pageOrder)),

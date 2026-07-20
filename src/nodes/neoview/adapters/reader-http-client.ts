@@ -33,6 +33,13 @@ export interface ReaderNavigationDto {
   pageOrder?: ReaderPageOrderDto
 }
 
+export interface ReaderSourceChangeDto {
+  revision: number
+  state: "changed" | "unavailable"
+  kinds: Array<"create" | "update" | "delete">
+  count: number
+}
+
 export type ReaderPageSortModeDto = "fileName" | "fileNameDescending" | "fileSize" | "fileSizeDescending" | "timeStamp" | "timeStampDescending" | "entry" | "entryDescending" | "random"
 export type ReaderMediaPriorityModeDto = "none" | "videoFirst" | "imageFirst"
 export interface ReaderPageOrderDto {
@@ -1156,6 +1163,8 @@ export interface ReaderHttpClient {
   upscaleCache?(sessionId: string, signal?: AbortSignal): Promise<ReaderUpscaleCacheSnapshotDto>
   cleanupUpscaleCache?(sessionId: string, kind: "age" | "book" | "all", signal?: AbortSignal): Promise<ReaderUpscaleCacheCleanupDto>
   open(path: string, signal?: AbortSignal): Promise<ReaderSessionDto>
+  reload?(sessionId: string, signal?: AbortSignal): Promise<ReaderSessionDto>
+  waitForSourceChanges?(sessionId: string, afterRevision: number, signal?: AbortSignal): Promise<ReaderSourceChangeDto | undefined>
   openAdjacentBook?(sessionId: string, direction: "next" | "previous", signal?: AbortSignal): Promise<ReaderSessionDto | undefined>
   openDirectoryBrowser?(path: string, signal?: AbortSignal, scopeId?: string, watch?: boolean): Promise<ReaderDirectoryPageDto>
   cloneDirectoryBrowser?(sessionId: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
@@ -1452,6 +1461,19 @@ export function createReaderHttpClient(
       body: JSON.stringify({ path }),
       signal,
     }),
+    reload: (sessionId, signal) => request<ReaderSessionDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/reload`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+        signal,
+      },
+    ),
+    waitForSourceChanges: (sessionId, afterRevision, signal) => request<ReaderSourceChangeDto | undefined>(
+      `/reader/s/${encodeURIComponent(sessionId)}/source-changes?after=${encodeURIComponent(String(afterRevision))}`,
+      { signal },
+    ),
     openAdjacentBook: (sessionId, direction, signal) => request<ReaderSessionDto | undefined>(
       `/reader/s/${encodeURIComponent(sessionId)}/adjacent-book`,
       {

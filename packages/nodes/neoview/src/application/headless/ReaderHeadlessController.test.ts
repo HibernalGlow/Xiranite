@@ -43,6 +43,32 @@ describe("ReaderHeadlessController", () => {
     expect(closed).toEqual(["D:/private/first.cbz", "D:/private/second.cbz"])
   })
 
+  it("[neoview.headless.reload] preserves the source identity anchor and rolls back failed replacement opens", async () => {
+    const closed: string[] = []
+    let loads = 0
+    const service = new CoreReaderService(async () => {
+      loads += 1
+      if (loads === 3) throw new Error("reload failed")
+      return book("D:/private/book.cbz", closed)
+    })
+    const controller = new ReaderHeadlessController(service)
+    try {
+      await controller.open({ path: "D:/private/book.cbz" })
+      await controller.goTo(1)
+      await expect(controller.reload()).resolves.toMatchObject({
+        frame: { anchorPageIndex: 1 },
+        visiblePages: [{ name: "002.png" }],
+      })
+      expect(closed).toEqual(["D:/private/book.cbz"])
+
+      await expect(controller.reload()).rejects.toThrow("reload failed")
+      expect(controller.inspect()).toMatchObject({ frame: { anchorPageIndex: 1 }, visiblePages: [{ name: "002.png" }] })
+      expect(closed).toEqual(["D:/private/book.cbz"])
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.headless.navigation] shares frame navigation and bounded page listings", async () => {
     const controller = controllerFor("D:/book.cbz")
     try {

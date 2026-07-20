@@ -28,12 +28,12 @@
       ],
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "partial",
-        "transport": "partial",
-        "gui": "partial",
-        "cli": "partial",
-        "tui": "partial",
-        "evidence": "partial"
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
+        "cli": "complete",
+        "tui": "complete",
+        "evidence": "complete"
       },
       "behaviorCases": [
         "目录、图片文件和压缩包自动识别",
@@ -70,20 +70,27 @@
         "neoview.control.source-watch-http",
         "neoview.control.source-watch-validation",
         "neoview.control.source-watch-privacy",
+        "neoview.react.source-watch-client",
+        "neoview.react.source-watch",
+        "neoview.react.source-watch-rollback",
+        "neoview.react.source-watch-unavailable",
+        "neoview.react.source-watch-gui",
         "neoview.http.e2e",
         "neoview.react.control",
         "neoview.react.smoke",
         "neoview.react.lifecycle",
         "neoview.react.cbz-e2e",
         "neoview.headless.session",
+        "neoview.headless.reload",
         "neoview.cli.inspect",
+        "neoview.cli.reload",
         "neoview.cli.reader-e2e",
         "neoview.tui.reader"
       ],
       "plannedTestIds": [],
       "benchmarkIds": [],
       "knownDifferences": [
-        "HTTP reload 已以 replacement session 先开后关，按原 page source identity 恢复锚点且打开失败保留旧 session；会话级 source-changes 使用懒加载 @parcel/watcher、pathless revision long-poll，并在 close/reload 时释放；GUI 订阅、提示和自动重载策略仍待接线"
+        "XR 统一使用 replacement session 先开后关：按 page source identity 恢复锚点，失败保留旧会话；GUI 仅在书籍会话存在时运行独立 pathless revision long-poll，变化后自动 reload 并显示不含路径的通用提示，切会话/关闭/卸载立即 abort；CLI 与 TUI 复用同一原子 reload，TUI 提供 Reload 与 Shift+R；普通翻页、渲染和解码路径不订阅 watcher"
       ]
     },
     {

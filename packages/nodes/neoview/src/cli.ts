@@ -87,7 +87,7 @@ import type {
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
-  "inspect", "pages", "frame", "page-order", "extract-page", "subtitle-list", "subtitle-render", "media-progress-get", "media-progress-set", "emm-get", "emm-set", "upscale-page", "upscale-capabilities",
+  "inspect", "reload", "pages", "frame", "page-order", "extract-page", "subtitle-list", "subtitle-render", "media-progress-get", "media-progress-set", "emm-get", "emm-set", "upscale-page", "upscale-capabilities",
   "upscale-preload-status", "upscale-preload-start", "upscale-preload-pause", "upscale-preload-retry",
   "upscale-cache-stats", "upscale-cache-cleanup",
   "input-action-dispatch", "input-bindings-dispatch", "settings-inspect", "settings-import",
@@ -218,6 +218,7 @@ interface CliThumbnailMaintenanceStore extends ReaderThumbnailMaintenancePort, A
 
 export interface CliReaderController extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
+  reload?(input?: Pick<OpenHeadlessReaderInput, "archivePasswords" | "signal">): Promise<HeadlessReaderSnapshot>
   inspect?(): HeadlessReaderSnapshot
   next?(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   previous?(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
@@ -510,6 +511,11 @@ export async function runProgram(
       archivePasswords: credentials.inputs,
       initialPage: index,
     })
+    if (command === "reload") {
+      if (!controller.reload) throw new Error("Reader reload is unavailable for this transport.")
+      const reloaded = await controller.reload({ archivePasswords: credentials.inputs })
+      return printInspect(reloaded, parsed.booleans.has("--json"), host)
+    }
     if (command === "input-action-dispatch") {
       const action = inputActionOption(parsed)
       const result = controller.inspect
@@ -3471,6 +3477,7 @@ function formatCliHelp(): string {
     "",
     "Commands:",
     "  inspect <path>       Show book and current-frame metadata",
+    "  reload <path>        Reopen the source and preserve the recoverable page",
     "  pages <path>         List a bounded page window",
     "  frame <path>         Show the frame at --index",
     "  extract-page <path>  Stream the original page to --output <path|->",

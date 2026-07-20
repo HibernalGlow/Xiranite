@@ -585,6 +585,32 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     return snapshotOf(next, this.#translatedTitle)
   }
 
+  async reload(input: Pick<OpenHeadlessReaderInput, "archivePasswords" | "signal"> = {}): Promise<HeadlessReaderSnapshot> {
+    const current = this.#requireSession()
+    const body: Record<string, unknown> = {}
+    if (input.archivePasswords?.length) body.archivePasswords = serializeRemoteArchivePasswords(input.archivePasswords)
+    const next = await this.#json<ReaderSessionDto>(
+      `/reader/s/${encodeURIComponent(current.sessionId)}/reload`,
+      { method: "POST", body: JSON.stringify(body), signal: input.signal },
+    )
+    try {
+      assertSessionDto(next)
+      this.#assertAssetUrls(next.visiblePages)
+    } catch (error) {
+      if (next && typeof next.sessionId === "string") await this.#closeRemoteSession(next.sessionId).catch(() => undefined)
+      throw error
+    }
+    if (this.#session !== current) {
+      await this.#closeRemoteSession(next.sessionId).catch(() => undefined)
+      throw new Error("Reader session changed while reloading.")
+    }
+    this.#session = next
+    this.#translatedTitle = undefined
+    this.#pageAssets.clear()
+    this.#replaceVisiblePages(next.visiblePages)
+    return snapshotOf(next, this.#translatedTitle)
+  }
+
   inspect(): HeadlessReaderSnapshot {
     this.#assertOpen()
     return snapshotOf(this.#requireSession(), this.#translatedTitle)

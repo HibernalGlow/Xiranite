@@ -44,6 +44,7 @@ import { projectReaderTimeInformation } from "./domain/page/TimeInformationProje
 
 export interface ReaderTuiPort extends AsyncDisposable {
   open(input: OpenHeadlessReaderInput): Promise<HeadlessReaderSnapshot>
+  reload?(input?: Pick<OpenHeadlessReaderInput, "archivePasswords" | "signal">): Promise<HeadlessReaderSnapshot>
   listPages(cursor?: number, limit?: number): readonly HeadlessReaderPageSnapshot[] | Promise<readonly HeadlessReaderPageSnapshot[]>
   next(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
   previous(signal?: AbortSignal): Promise<HeadlessReaderSnapshot>
@@ -236,6 +237,14 @@ function ReaderWorkbench({
     }, "navigating")
   }, [language, phase, run, snapshot])
 
+  const reloadBook = useCallback(() => {
+    if (!snapshot || phase === "opening" || phase === "navigating") return
+    void run((port, signal) => {
+      if (!port.reload) throw new Error(language === "zh" ? "重新加载不可用" : "Reload is unavailable")
+      return port.reload({ signal, archivePasswords: defaultArchivePasswords })
+    }, "navigating")
+  }, [defaultArchivePasswords, language, phase, run, snapshot])
+
   const cyclePageOrder = useCallback((field: "sortMode" | "mediaPriority") => {
     if (!snapshot || phase === "opening" || phase === "navigating") return
     const values = field === "sortMode" ? READER_PAGE_SORT_MODES : READER_MEDIA_PRIORITY_MODES
@@ -343,7 +352,8 @@ function ReaderWorkbench({
     if (key.name === "space" && snapshot && !busy) slideshow.toggle()
     if (key.name === "i" && snapshot && !busy) cycleSlideshowInterval()
     if (key.name === "l" && snapshot && !busy) persistSlideshow({ loop: !slideshowSnapshot.loop })
-    if (key.name === "r" && snapshot && !busy) persistSlideshow({ random: !slideshowSnapshot.random })
+    if (key.name === "r" && key.shift && snapshot && !busy) reloadBook()
+    else if (key.name === "r" && snapshot && !busy) persistSlideshow({ random: !slideshowSnapshot.random })
     if (key.name === "q") exit()
   })
 
@@ -395,6 +405,7 @@ function ReaderWorkbench({
           <box width={18}><WorkbenchButton id="media-priority" disabled={!snapshot || busy} onClick={() => cyclePageOrder("mediaPriority")}>{`M:${shortMediaLabel(snapshot?.pageOrder.mediaPriority)}`}</WorkbenchButton></box>
         </box>
         <box height={3} flexShrink={0} flexDirection="row" gap={1} alignItems="center">
+          <box width={12}><WorkbenchButton id="reload" disabled={!snapshot || busy} onClick={reloadBook}>Reload</WorkbenchButton></box>
           <box width={18}><WorkbenchButton id="slideshow-toggle" disabled={!snapshot || busy} onClick={() => slideshow.toggle()}>{`SL:${slideshowSnapshot.state === "playing" ? "pause" : "play"}`}</WorkbenchButton></box>
           <box width={14}><WorkbenchButton id="slideshow-interval" disabled={!snapshot || busy} onClick={cycleSlideshowInterval}>{`I:${slideshowSnapshot.intervalSeconds}s`}</WorkbenchButton></box>
           <box width={14}><WorkbenchButton id="slideshow-loop" disabled={!snapshot || busy} onClick={() => persistSlideshow({ loop: !slideshowSnapshot.loop })}>{`L:${slideshowSnapshot.loop ? "on" : "off"}`}</WorkbenchButton></box>
