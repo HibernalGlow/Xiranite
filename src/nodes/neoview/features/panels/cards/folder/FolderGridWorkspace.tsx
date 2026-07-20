@@ -4,7 +4,7 @@ import {
   type ListRange,
   type VirtuosoGridHandle,
 } from "react-virtuoso"
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react"
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject, type SyntheticEvent } from "react"
 
 import type { ReaderDirectoryEntryDto, ReaderFolderViewMode } from "../../../../adapters/reader-http-client"
 import { directoryEntryAt, viewUsesBanner, type DirectoryCatalog } from "./DirectoryCatalog"
@@ -187,10 +187,10 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
       data-folder-kind={entry.kind}
       data-folder-reader-supported={entry.readerSupported}
     >
-      <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30">
+      <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
         {thumbnailUrl
-          ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
-          : <FolderEntryIcon entry={entry} className="size-8" />}
+          ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-contain" onLoad={showThumbnailImage} onError={hideThumbnailImage} />
+          : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
       <span className="grid min-w-0 content-center gap-0.5 px-2 py-1.5" data-folder-entry-info="two-line">
         <span className="truncate font-medium" data-folder-entry-line="name">{entry.name}</span>
@@ -228,10 +228,10 @@ function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, 
       data-folder-kind={entry.kind}
       data-folder-reader-supported={entry.readerSupported}
     >
-      <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30">
+      <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
         {thumbnailUrl
-          ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
-          : <FolderEntryIcon entry={entry} className="size-8" />}
+          ? <img src={thumbnailUrl} alt="" loading="lazy" decoding="async" className="size-full object-contain" onLoad={showThumbnailImage} onError={hideThumbnailImage} />
+          : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
       <span className="flex min-w-0 items-center gap-1 border-t px-1.5 py-1.5">
         <FolderEntryIcon entry={entry} className="size-3.5" />
@@ -241,4 +241,12 @@ function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, 
     </button>
     </FolderHoverPreview>
   )
+}
+
+function hideThumbnailImage(event: SyntheticEvent<HTMLImageElement>): void {
+  event.currentTarget.hidden = true
+}
+
+function showThumbnailImage(event: SyntheticEvent<HTMLImageElement>): void {
+  event.currentTarget.hidden = false
 }

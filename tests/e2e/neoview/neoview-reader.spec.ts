@@ -18,21 +18,62 @@ const HOT_NAVIGATION_BUDGET_MS = 150
 const HOT_PAGE_TURN_BUDGET_MS = 200
 const READER_PREFETCH_READY_MARK = "neoview-reader-prefetch-ready"
 
-async function selectFolderHandleAction(page: Page, folderCard: Locator, action: string): Promise<void> {
-  await folderCard.getByRole("button", { name: "文件操作手柄" }).click()
-  await page.getByRole("menuitem", { name: action, exact: true }).click()
+async function selectFolderToolbarAction(page: Page, folderCard: Locator, action: string): Promise<void> {
+  if (action === "多选模式" || action === "退出多选") {
+    const multi = folderCard.getByRole("button", { name: /多选/ })
+    await multi.click()
+    return
+  }
+  const direct = folderCard.getByRole("button", { name: action, exact: true })
+  if (await direct.count()) {
+    await direct.click()
+    return
+  }
+  const moreLabels = new Set([
+    "内联树",
+    "类型筛选",
+    "项目尺寸",
+    "新建文件夹标签",
+    "重载可见缩略图",
+    "重载选中缩略图",
+    "重载缩略图",
+    "取消缩略图重载",
+  ])
+  if (moreLabels.has(action) || action === "更多操作" || action === "更多") {
+    await folderCard.getByRole("button", { name: "更多", exact: true }).click()
+    if (action === "更多操作" || action === "更多" || action === "项目尺寸") return
+    const mapped = action === "重载缩略图" ? "重载可见缩略图" : action
+    const item = page.getByRole("menuitem", { name: mapped, exact: true })
+    if (await item.count()) await item.click()
+    else await page.getByRole("menuitemcheckbox", { name: mapped, exact: true }).click()
+    return
+  }
+  if (action === "视图") {
+    await folderCard.getByRole("button", { name: "视图", exact: true }).click()
+    return
+  }
+  if (action === "排序") return
+  if (action === "粘贴到当前目录") {
+    await folderCard.getByRole("button", { name: /粘贴/ }).click()
+    return
+  }
+  await folderCard.getByRole("button", { name: action, exact: true }).click()
 }
 
 async function selectFolderViewMode(page: Page, folderCard: Locator, view: string): Promise<void> {
-  if (await folderCard.getByRole("button", { name: view, exact: true }).count() === 0) {
-    await selectFolderHandleAction(page, folderCard, "视图")
+  const direct = folderCard.getByRole("button", { name: view, exact: true })
+  if (await direct.count()) {
+    await direct.click()
+    return
   }
-  await folderCard.getByRole("button", { name: view, exact: true }).click()
+  await folderCard.getByRole("button", { name: "视图", exact: true }).click()
+  await page.getByRole("menuitemradio", { name: view, exact: true }).click()
 }
 
 async function openFolderMoreActions(page: Page, folderCard: Locator): Promise<void> {
+  // Single-tab mode: create-tab sits on the breadcrumb next to path actions.
   if (await folderCard.getByRole("button", { name: "新建文件夹标签" }).count() === 0) {
-    await selectFolderHandleAction(page, folderCard, "更多操作")
+    await folderCard.getByRole("button", { name: "更多", exact: true }).click()
   }
 }
 
@@ -293,7 +334,7 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await expect(folderCard).toHaveAttribute("data-selection-count", "3")
   await folderEntries.nth(1).click({ modifiers: ["Control"] })
   await expect(folderCard).toHaveAttribute("data-selection-count", "2")
-  await selectFolderHandleAction(page, folderCard, "多选模式")
+  await selectFolderToolbarAction(page, folderCard, "多选模式")
   const selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
   await expect(selectionBar).toBeVisible()
   const totalEntries = Number(await folderCard.getAttribute("data-selection-total"))
@@ -357,7 +398,7 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   const platformRootsResponse = page.waitForResponse((response) => (
     response.url() === `${backend.url}/reader/browser/roots` && response.request().method() === "GET"
   ))
-  await selectFolderHandleAction(page, folderCard, "文件树")
+  await selectFolderToolbarAction(page, folderCard, "文件树")
   await expect.poll(() => folderTreeSettingPatches).toEqual([{ visible: true }])
   await folderCard.getByRole("radio", { name: "文件树位于顶部" }).click()
   await expect.poll(() => folderTreeSettingPatches).toEqual([{ visible: true }, { layout: "top" }])
@@ -837,7 +878,7 @@ test("[neoview.folder.delete-batch-e2e] keeps a sparse batch alive while the Fil
     await input.press("Enter")
     await expect(folderCard).toHaveAttribute("data-selection-total", "3")
 
-    await selectFolderHandleAction(page, folderCard, "多选模式")
+    await selectFolderToolbarAction(page, folderCard, "多选模式")
     let selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
     await selectionBar.getByRole("button", { name: "选择全部项目" }).click()
     await expect(folderCard).toHaveAttribute("data-selection-count", "3")
@@ -925,7 +966,7 @@ test("[neoview.folder.clipboard-e2e] copies and moves files across current-direc
 
     await navigatePath(source)
     await expect(folderCard).toHaveAttribute("data-selection-total", "2")
-    await selectFolderHandleAction(page, folderCard, "多选模式")
+    await selectFolderToolbarAction(page, folderCard, "多选模式")
     let selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
     await selectionBar.getByRole("button", { name: "选择全部项目" }).click()
     await selectionBar.getByRole("button", { name: "复制所选项目" }).click()
@@ -939,7 +980,7 @@ test("[neoview.folder.clipboard-e2e] copies and moves files across current-direc
     await expect.poll(() => pathExists(join(copyTarget, "first.cbz"))).toBe(true)
     await expect.poll(() => pathExists(first)).toBe(true)
 
-    await selectFolderHandleAction(page, folderCard, "多选模式")
+    await selectFolderToolbarAction(page, folderCard, "多选模式")
     await folderCard.getByTitle(join(copyTarget, "first.cbz"), { exact: true }).click({ modifiers: ["Control"] })
     selectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
     await expect(folderCard).toHaveAttribute("data-selection-count", "1")
@@ -1002,7 +1043,7 @@ test("[neoview.folder.filter-e2e] filters the current directory without reopenin
     await expect(breadcrumb.locator('[aria-current="page"]')).toHaveAttribute("title", root)
     await expect(folderCard).toHaveAttribute("data-selection-total", "4")
 
-    await selectFolderHandleAction(page, folderCard, "类型筛选")
+    await selectFolderToolbarAction(page, folderCard, "类型筛选")
     const filterBar = folderCard.locator('[data-folder-type-filter-bar="true"]')
     await expect(filterBar).toBeVisible()
     await expect(filterBar).toHaveCSS("overflow", "visible")
@@ -1942,7 +1983,7 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     await navigatePath(firstPath)
     const firstItem = folderCard.getByTitle(join(firstPath, "a.cbz"), { exact: true })
     await firstItem.click()
-    await selectFolderHandleAction(page, folderCard, "多选模式")
+    await selectFolderToolbarAction(page, folderCard, "多选模式")
     const firstSelectionBar = folderCard.locator('[data-neoview-folder-selection-bar="true"]')
     await firstSelectionBar.getByRole("button", { name: "链接选中模式" }).click()
     await folderCard.getByTitle(join(firstPath, "a-1.cbz"), { exact: true }).click()
@@ -1952,8 +1993,13 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     await expect(folderCard).toHaveAttribute("data-folder-view-mode", "details")
 
     await openFolderMoreActions(page, folderCard)
-    await folderCard.getByRole("button", { name: "新建文件夹标签" }).focus()
-    await folderCard.getByRole("button", { name: "新建文件夹标签" }).press("Enter")
+    const createTabButton = folderCard.getByRole("button", { name: "新建文件夹标签" })
+    if (await createTabButton.count()) {
+      await createTabButton.focus()
+      await createTabButton.press("Enter")
+    } else {
+      await page.getByRole("menuitem", { name: "新建文件夹标签", exact: true }).click()
+    }
     await expect(currentBreadcrumb()).toHaveAttribute("title", secondPath)
     await expect(folderCard.locator('[data-neoview-folder-selection-bar="true"]')).toHaveCount(0)
     await expect(folderCard).toHaveAttribute("data-selection-count", "0")
@@ -1966,8 +2012,13 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
     const thirdItem = folderCard.getByTitle(join(thirdPath, "c.cbz"), { exact: true })
     await thirdItem.click()
     await openFolderMoreActions(page, folderCard)
-    await folderCard.getByRole("button", { name: "新建文件夹标签" }).focus()
-    await folderCard.getByRole("button", { name: "新建文件夹标签" }).press("Enter")
+    const createTabButtonAgain = folderCard.getByRole("button", { name: "新建文件夹标签" })
+    if (await createTabButtonAgain.count()) {
+      await createTabButtonAgain.focus()
+      await createTabButtonAgain.press("Enter")
+    } else {
+      await page.getByRole("menuitem", { name: "新建文件夹标签", exact: true }).click()
+    }
     await expect(currentBreadcrumb()).toHaveAttribute("title", secondPath)
     await expect(folderCard.getByRole("tab", { name: "B" })).toHaveAttribute("aria-selected", "true")
     expect(browserOpens).toBe(3)
@@ -2125,8 +2176,8 @@ test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and r
   await expect(folderPanel.getByRole("button", { name: "折叠文件浏览" })).toHaveCount(0)
   await expect(folderPanel.locator('[data-folder-tab-count="1"]')).toBeVisible()
   await expect(folderPanel.locator('[data-folder-tab-bar="true"]')).toHaveCount(0)
-  await expect(folderCard.locator('[data-folder-toolbar-row="operations"]')).toContainText(/\d+ \/ \d+/)
-  await expect(folderCard.getByRole("button", { name: "文件操作手柄" })).toBeVisible()
+  await expect(folderCard.getByRole("button", { name: "视图" })).toBeVisible()
+  await expect(folderCard.getByRole("button", { name: "更多" })).toBeVisible()
 
   const singleOrder = await folderCard.evaluate((element) => {
     const breadcrumb = element.querySelector('[data-folder-layout-region="breadcrumb"]')
@@ -2135,15 +2186,11 @@ test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and r
   })
   expect(singleOrder).toBe(true)
 
-  await folderCard.getByRole("button", { name: "文件操作手柄" }).click()
-  const palette = page.locator('[data-action-palette="true"]')
-  await expect(palette).toBeVisible()
-  await expect(palette).toHaveAttribute("data-action-placement", /top|right|bottom|left/)
-  await palette.getByRole("menuitem", { name: "视图" }).hover()
-  await expect(page.locator('[data-action-preview="true"]')).toContainText("显示六种文件视图切换栏")
+  await folderCard.getByRole("button", { name: "视图" }).click()
+  await expect(page.getByRole("menuitemradio", { name: "紧凑列表" })).toBeVisible()
+  await page.keyboard.press('Escape')
   await page.screenshot({ path: testInfo.outputPath(`neoview-folder-compact-${testInfo.project.name}.png`) })
 
-  await palette.getByRole("menuitem", { name: "更多操作" }).click()
   await folderCard.getByRole("button", { name: "新建文件夹标签" }).click()
   await expect(folderPanel.locator('[data-folder-tab-count="2"]')).toBeVisible()
   await expect(folderPanel.locator('[data-folder-tab-bar="true"]')).toBeVisible()

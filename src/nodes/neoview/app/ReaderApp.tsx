@@ -112,6 +112,9 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   previewCount: 4,
   thumbnailWidthPercent: 20,
   bannerWidthPercent: 50,
+  hoverPreviewEnabled: true,
+  hoverPreviewDelayMs: 500,
+  typeFilter: "library",
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],

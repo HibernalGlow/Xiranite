@@ -4,7 +4,7 @@
  * @migration-status adapted
  */
 import { RefreshCw } from "lucide-react"
-import { projectReaderBookInformation } from "@xiranite/node-neoview/ui-core"
+import { projectReaderBookInformation } from "@xiranite/node-neoview/book-information"
 import type { ReactNode } from "react"
 
 import type { ReaderPanelContext } from "../registry"

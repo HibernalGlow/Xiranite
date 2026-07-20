@@ -289,7 +289,7 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
 
   if (!panelActive) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-2" data-neoview-bookmark-card="true" data-bookmark-state="inactive" data-testid="bookmark-card">
+      <div className="flex h-full min-h-0 w-full flex-1 flex-col gap-2" data-neoview-bookmark-card="true" data-bookmark-state="inactive" data-testid="bookmark-card">
         <div className="grid min-h-24 flex-1 place-items-center rounded border bg-background/60 px-3 py-4 text-center text-xs text-muted-foreground" data-bookmark-empty-shell="true">
           暂无书签
         </div>
@@ -298,7 +298,7 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2" data-neoview-bookmark-card="true" data-testid="bookmark-card" data-bookmark-state="ready" data-selection-count={selectedIds.size} data-bookmark-view-mode={viewMode} data-visible-bookmarks={visibleBookmarks.items.length} data-thumbnail-items={thumbnailItems.length}>
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col gap-2" data-neoview-bookmark-card="true" data-testid="bookmark-card" data-bookmark-state="ready" data-selection-count={selectedIds.size} data-bookmark-view-mode={viewMode} data-visible-bookmarks={visibleBookmarks.items.length} data-thumbnail-items={thumbnailItems.length}>
       <Suspense fallback={null}>
         <LazyBookmarkContextActions
           client={client}
