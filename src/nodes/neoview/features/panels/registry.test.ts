@@ -97,8 +97,11 @@ describe("NeoView panel and card registries", () => {
       "system-monitor",
       "daily-trend",
       "reading-streak",
+      "reading-heatmap",
+      "source-breakdown",
+      "bookmark-overview",
     ])
-    for (const id of ["daily-trend", "reading-streak"] as const) {
+    for (const id of ["daily-trend", "reading-streak", "reading-heatmap", "source-breakdown", "bookmark-overview"] as const) {
       const definition = CARD_DEFINITIONS.find((card) => card.id === id)
       expect(definition).toMatchObject({
         defaultPanel: "insights",
