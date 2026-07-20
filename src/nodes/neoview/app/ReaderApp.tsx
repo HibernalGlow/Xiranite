@@ -1409,6 +1409,9 @@ export function ReaderApp({
               })}
               slideshow={slideshow}
               onSlideshowChange={persistSlideshow}
+            
+              onPreviousBook={() => void switchAdjacentBook("previous")}
+              onNextBook={() => void switchAdjacentBook("next")}
             />
           </Suspense>
         ) : null}
