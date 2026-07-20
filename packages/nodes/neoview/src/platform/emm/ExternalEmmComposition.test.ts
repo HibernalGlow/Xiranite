@@ -1,0 +1,63 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { DatabaseSync } from "node:sqlite"
+import { afterEach, describe, expect, it } from "vitest"
+import { createReaderHttpController } from "../../platform.js"
+
+const roots: string[] = []
+
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
+
+describe("external EMM composition", () => {
+  it("hydrates File Card directory entries from configured Mangas data without a thumbnails cache", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-external-emm-"))
+    roots.push(root)
+    const bookPath = join(root, "Book.cbz")
+    const emmPath = join(root, "database.sqlite")
+    await writeFile(bookPath, new Uint8Array())
+    const database = new DatabaseSync(emmPath)
+    database.exec("CREATE TABLE Mangas (filepath TEXT, rating REAL, tags JSON, pageCount INTEGER)")
+    database.prepare("INSERT INTO Mangas VALUES (?1, ?2, ?3, ?4)").run(bookPath, 4.8, JSON.stringify({ artist: ["Alice"], language: ["chinese"] }), 28)
+    database.close()
+
+    const controller = await createReaderHttpController({
+      baseUrl: "http://127.0.0.1:43127",
+      token: "runtime-token",
+      configPath: join(root, "missing.toml"),
+      legacyThumbnailDatabasePath: join(root, "thumbnails.db"),
+      legacyEmmDatabasePaths: [emmPath],
+    })
+    try {
+      const opened = await json(controller, "/reader/browser/sessions", "POST", { path: root }) as { sessionId: string }
+      const page = await json(controller, `/reader/browser/s/${opened.sessionId}/entries?cursor=0&limit=16&fields=rating,tags,pageCount`) as {
+        entries: { path: string; rating?: number; tags?: string[]; pageCount?: number }[]
+      }
+      expect(page.entries.find((entry) => entry.path === bookPath)).toMatchObject({
+        rating: 4.8,
+        tags: ["artist:Alice", "language:chinese"],
+        pageCount: 28,
+      })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+})
+
+async function json(
+  controller: Awaited<ReturnType<typeof createReaderHttpController>>,
+  path: string,
+  method = "GET",
+  body?: unknown,
+): Promise<unknown> {
+  const init: RequestInit = {
+    method,
+    headers: { "x-xiranite-token": "runtime-token", ...(body === undefined ? {} : { "content-type": "application/json" }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  }
+  const response = await controller.handle(new Request(`http://127.0.0.1:43127${path}`, init))
+  expect(response?.status).toBe(method === "POST" && path.endsWith("/sessions") ? 201 : 200)
+  return response!.json()
+}
