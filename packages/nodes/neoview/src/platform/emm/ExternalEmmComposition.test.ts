@@ -12,7 +12,7 @@ afterEach(async () => {
 })
 
 describe("external EMM composition", () => {
-  it("hydrates File Card directory entries from configured Mangas data without a thumbnails cache", async () => {
+  it("[neoview.emm.external-composition] hydrates File Card directory entries from configured Mangas data without a thumbnails cache", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-external-emm-"))
     roots.push(root)
     const bookPath = join(root, "Book.cbz")
@@ -40,6 +40,36 @@ describe("external EMM composition", () => {
         tags: ["artist:Alice", "language:chinese"],
         pageCount: 28,
       })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.emm.config-composition] loads the configured EMM path from [nodes.neoview.emm]", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-configured-emm-"))
+    roots.push(root)
+    const bookPath = join(root, "Configured.cbz")
+    const emmPath = join(root, "configured.sqlite")
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(bookPath, new Uint8Array())
+    const database = new DatabaseSync(emmPath)
+    database.exec("CREATE TABLE Mangas (filepath TEXT, rating REAL, tags JSON, pageCount INTEGER)")
+    database.prepare("INSERT INTO Mangas VALUES (?1, ?2, ?3, ?4)").run(bookPath, 4.6, JSON.stringify({ artist: ["Configured"] }), 16)
+    database.close()
+    await writeFile(configPath, `[nodes.neoview.emm]\nenabled = true\ndatabase_paths = [${JSON.stringify(emmPath.replaceAll("\\", "/"))}]\n`)
+
+    const controller = await createReaderHttpController({
+      baseUrl: "http://127.0.0.1:43127",
+      token: "runtime-token",
+      configPath,
+      legacyThumbnailDatabasePath: join(root, "thumbnails.db"),
+    })
+    try {
+      const opened = await json(controller, "/reader/browser/sessions", "POST", { path: root }) as { sessionId: string }
+      const page = await json(controller, `/reader/browser/s/${opened.sessionId}/entries?cursor=0&limit=16&fields=rating,tags`) as {
+        entries: { path: string; rating?: number; tags?: string[] }[]
+      }
+      expect(page.entries.find((entry) => entry.path === bookPath)).toMatchObject({ rating: 4.6, tags: ["artist:Configured"] })
     } finally {
       await controller[Symbol.asyncDispose]()
     }

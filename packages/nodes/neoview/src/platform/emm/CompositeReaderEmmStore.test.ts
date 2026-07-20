@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { composeReaderEmmStores } from "./CompositeReaderEmmStore.js"
 
 describe("composeReaderEmmStores", () => {
-  it("keeps thumbnail overrides while filling missing external EMM fields", async () => {
+  it("[neoview.emm.external-merge] keeps thumbnail overrides while filling missing external EMM fields", async () => {
     const primary = {
       directoryEmmAvailable: true,
       readDirectoryEmmRecords: async () => new Map([["D:/Book.cbz", { ratingData: "manual-rating" }]]),
