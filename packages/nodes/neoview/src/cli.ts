@@ -24,6 +24,7 @@ import type {
   ReaderBookSettingsSnapshot,
   ReaderMediaProgressRecord,
   ReaderMediaProgressUpdate,
+  ReaderPreloadPlan,
   ReaderDirectoryFilter,
   ReaderDirectoryEmmEditCommand,
   HeadlessSuperResolutionPageInput,
@@ -87,7 +88,7 @@ import type {
 
 const CLI_NAME = "xneoview"
 const COMMANDS = new Set([
-  "inspect", "reload", "pages", "frame", "page-order", "extract-page", "subtitle-list", "subtitle-render", "media-progress-get", "media-progress-set", "emm-get", "emm-set", "upscale-page", "upscale-capabilities",
+  "inspect", "reload", "pages", "frame", "preload-plan", "page-order", "extract-page", "subtitle-list", "subtitle-render", "media-progress-get", "media-progress-set", "emm-get", "emm-set", "upscale-page", "upscale-capabilities",
   "upscale-preload-status", "upscale-preload-start", "upscale-preload-pause", "upscale-preload-retry",
   "upscale-cache-stats", "upscale-cache-cleanup",
   "input-action-dispatch", "input-bindings-dispatch", "settings-inspect", "settings-import",
@@ -529,6 +530,7 @@ export async function runProgram(
     }
     if (command === "inspect") return printInspect(snapshot, parsed.booleans.has("--json"), host)
     if (command === "frame") return printFrame(snapshot, parsed.booleans.has("--json"), host)
+    if (command === "preload-plan") return printPreloadPlan(snapshot.preload, parsed.booleans.has("--json"), host)
     if (command === "page-order") {
       if (!controller.updatePageOrder) throw new Error("Reader page ordering is unavailable for this transport.")
       const updated = await controller.updatePageOrder(pageOrderPatch(parsed))
@@ -2348,6 +2350,20 @@ function printFrame(snapshot: HeadlessReaderSnapshot, json: boolean, host: CliHo
   }
 }
 
+function printPreloadPlan(plan: ReaderPreloadPlan | undefined, json: boolean, host: CliHost): void {
+  if (json) return writeJson(host, { preload: plan ?? null })
+  if (!plan) {
+    writeLine(host, "Preload plan unavailable.")
+    return
+  }
+  const candidatePages = plan.candidates.reduce((count, candidate) => count + candidate.pageIndexes.length, 0)
+  writeLine(host, `Preload: generation=${plan.generation} frame=${plan.frameGeneration} admission=${plan.admission} direction=${plan.direction} confidence=${plan.directionConfidence.toFixed(2)} mode=${plan.mode} pages=${candidatePages}`)
+  writeLine(host, `Context: focused=${plan.focused} stable=${plan.stableForMs}ms velocity=${plan.velocityPagesPerSecond.toFixed(2)}pps queue=${plan.queueWaitMs}ms memory=${plan.memoryPressure}`)
+  for (const candidate of plan.candidates) {
+    writeLine(host, `${candidate.tier}/${candidate.priority}: anchor=${candidate.anchorPageIndex + 1} pages=${candidate.pageIndexes.map((index) => index + 1).join(",") || "-"}`)
+  }
+}
+
 function printPages(pages: readonly HeadlessReaderPageSnapshot[], cursor: number, total: number, json: boolean, host: CliHost): void {
   if (json) return writeJson(host, { pages, cursor, nextCursor: cursor + pages.length < total ? cursor + pages.length : undefined, total })
   for (const page of pages) writeLine(host, pageLine(page))
@@ -3480,6 +3496,7 @@ function formatCliHelp(): string {
     "  reload <path>        Reopen the source and preserve the recoverable page",
     "  pages <path>         List a bounded page window",
     "  frame <path>         Show the frame at --index",
+    "  preload-plan <path>  Show the ordinary Reader preload plan (--index)",
     "  extract-page <path>  Stream the original page to --output <path|->",
     "  subtitle-list <path> List matching video subtitle tracks (--index)",
     "  subtitle-render <path> Render one subtitle track as WebVTT (--subtitle-id, --output)",

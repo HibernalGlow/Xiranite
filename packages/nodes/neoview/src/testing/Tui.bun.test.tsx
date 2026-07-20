@@ -115,6 +115,8 @@ async function verifyPersistentReaderLifecycle() {
     expect(screen.captureCharFrame()).toContain("当前画面")
     expect(screen.captureCharFrame()).toContain("S:name")
     expect(screen.captureCharFrame()).toContain("M:none")
+    expect(screen.captureCharFrame()).toContain("PL:normal g1 1/0/0")
+    expect(screen.captureCharFrame()).toContain("N     2  002.png")
     for (const id of ["reload", "slideshow-toggle", "slideshow-interval", "slideshow-loop", "slideshow-random"]) {
       expect(screen.renderer.root.findDescendantById(id)).toBeDefined()
     }
@@ -209,7 +211,7 @@ async function verifyPersistentReaderLifecycle() {
 }
 
 test(
-  "[neoview.tui.reader] [neoview.tui.navigation] [neoview.tui.decode-cache] [neoview.tui.connect] [neoview.slideshow.tui-controls] opens a persistent reader through an injected async controller",
+  "[neoview.tui.reader] [neoview.tui.navigation] [neoview.tui.decode-cache] [neoview.tui.connect] [neoview.slideshow.tui-controls] [neoview.preload.plan-tui] opens a persistent reader through an injected async controller",
   verifyPersistentReaderLifecycle,
 )
 
@@ -247,5 +249,26 @@ function snapshot(index: number, pageOrder: HeadlessReaderSnapshot["pageOrder"] 
     },
     visiblePages: [pageList[index]!],
     pageOrder,
+    preload: {
+      generation: index + 1,
+      frameGeneration: index,
+      direction: index === 0 ? "forward" : "backward",
+      directionConfidence: 1,
+      mode: "paged",
+      admission: "normal",
+      velocityPagesPerSecond: 0,
+      stableForMs: 150,
+      focused: true,
+      queueWaitMs: 0,
+      memoryPressure: "normal",
+      currentPageIndexes: [index],
+      candidates: index < 2 ? [{
+        tier: "near",
+        priority: "view",
+        anchorPageIndex: index + 1,
+        pageIndexes: [index + 1],
+        pageIds: [`p${index + 1}`],
+      }] : [],
+    },
   }
 }
