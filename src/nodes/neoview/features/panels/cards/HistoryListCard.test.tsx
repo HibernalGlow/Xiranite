@@ -54,7 +54,8 @@ describe("HistoryListCard", () => {
       expect.objectContaining({ id: "one", path: "D:/books/one.cbz", kind: "file", previewCount: 1 }),
     ])
     await waitFor(() => expect(view.container.querySelector('img[src="/thumbnail/one"]')).toBeTruthy())
-    fireEvent.click(screen.getByRole("button", { name: "内容" }))
+    fireEvent.pointerDown(screen.getByRole("button", { name: "视图：紧凑列表" }), { button: 0, ctrlKey: false, pointerType: "mouse" })
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "封面列表" }))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(registerLibraryThumbnails).toHaveBeenCalledOnce()
   })
@@ -86,6 +87,18 @@ describe("HistoryListCard", () => {
       expect(focused?.getAttribute("data-history-row-button")).toBe("2")
       expect(document.activeElement).toBe(focused)
     })
+  })
+
+  it("[neoview.history.search-sort-query] sends search and sort before virtual paging", async () => {
+    const listRecent = vi.fn(async () => [])
+    render(<HistoryListCard {...context(listRecent)} />)
+
+    await waitFor(() => expect(listRecent).toHaveBeenCalledOnce())
+    fireEvent.change(screen.getByRole("textbox", { name: "搜索历史记录视图" }), { target: { value: "cover" } })
+    await waitFor(() => expect(listRecent.mock.calls.some((call) => call[3]?.search === "cover")).toBe(true))
+    fireEvent.pointerDown(screen.getByRole("button", { name: "排序：时间 · 降序" }), { button: 0, ctrlKey: false, pointerType: "mouse" })
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "名称" }))
+    await waitFor(() => expect(listRecent.mock.calls.some((call) => call[3]?.sort?.field === "name")).toBe(true))
   })
 })
 

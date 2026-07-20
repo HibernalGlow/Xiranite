@@ -3,6 +3,7 @@ import type {
   ReaderBookmarkListRecord,
   ReaderBookmarkQuery,
   ReaderBookmarkRecord,
+  ReaderLibrarySort,
   ReaderLibraryStore,
   ReaderRecentQuery,
 } from "../../ports/ReaderLibraryStore.js"
@@ -508,11 +509,24 @@ function normalizeLibraryQuery(query: Partial<ReaderRecentQuery>): ReaderRecentQ
   const offset = query.offset ?? 0
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("Reader library offset is invalid.")
   if (query.filter !== undefined) assertReaderDirectoryFilter(query.filter)
+  const search = query.search?.trim()
+  if (search !== undefined && search.length > 256) throw new Error("Reader library search is too long.")
+  const sort = query.sort === undefined ? undefined : normalizeLibrarySort(query.sort)
   return {
     limit: normalizeLimit(query.limit ?? 100, 100),
     offset,
     ...(query.filter !== undefined ? { filter: query.filter } : {}),
+    ...(search ? { search } : {}),
+    ...(sort ? { sort } : {}),
   }
+}
+
+function normalizeLibrarySort(sort: ReaderLibrarySort): ReaderLibrarySort {
+  if ((sort.field !== "name" && sort.field !== "path" && sort.field !== "date" && sort.field !== "type")
+    || (sort.order !== "asc" && sort.order !== "desc")) {
+    throw new Error("Reader library sort is invalid.")
+  }
+  return sort
 }
 
 function normalizeCleanupLimit(limit: number): number {

@@ -251,12 +251,32 @@ function paging(url: URL): { limit: number; offset: number } {
   }
 }
 
-function libraryQuery(url: URL): { limit: number; offset: number; filter?: "all" | "archive" | "directory" | "video" } {
+function libraryQuery(url: URL): {
+  limit: number
+  offset: number
+  filter?: "all" | "archive" | "directory" | "video"
+  search?: string
+  sort?: { field: "name" | "path" | "date" | "type"; order: "asc" | "desc" }
+} {
   const filter = url.searchParams.get("filter")
   if (filter !== null && filter !== "all" && filter !== "archive" && filter !== "directory" && filter !== "video") {
     throw new Error("Reader library filter must be all, archive, directory or video.")
   }
-  return { ...paging(url), ...(filter !== null ? { filter } : {}) }
+  const search = url.searchParams.get("search")?.trim()
+  const field = url.searchParams.get("sort")
+  const order = url.searchParams.get("order")
+  if (search !== undefined && search.length > 256) throw new Error("Reader library search must not exceed 256 characters.")
+  if ((field === null) !== (order === null)
+    || (field !== null && field !== "name" && field !== "path" && field !== "date" && field !== "type")
+    || (order !== null && order !== "asc" && order !== "desc")) {
+    throw new Error("Reader library sort must use name, path, date or type with asc or desc.")
+  }
+  return {
+    ...paging(url),
+    ...(filter !== null ? { filter } : {}),
+    ...(search ? { search } : {}),
+    ...(field && order ? { sort: { field, order } } : {}),
+  }
 }
 
 function parseBookmark(body: Record<string, unknown>): SaveReaderBookmarkInput | undefined {

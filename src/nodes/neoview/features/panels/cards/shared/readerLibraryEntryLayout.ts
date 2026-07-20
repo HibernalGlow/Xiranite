@@ -1,4 +1,6 @@
-export type ReaderLibraryViewMode = "compact" | "content" | "banner" | "thumbnail"
+/** Supported subset of the File Card view modes for virtual library sources. */
+export type ReaderLibraryViewMode = "compact" | "cover-list" | "mosaic-list" | "cover-grid"
+export type ReaderLibrarySurfaceVariant = "compact" | "content" | "banner" | "thumbnail"
 
 /** Minimum cell width before another column is added. */
 const BANNER_MIN_CELL = 280
@@ -16,8 +18,8 @@ export interface ReaderLibraryListLayout {
 
 /**
  * Adaptive virtual-list geometry.
- * - compact / content stay fixed single-column row heights
- * - banner / thumbnail columns scale with the panel width
+ * - compact / cover-list stay fixed single-column row heights
+ * - mosaic-list / cover-grid columns scale with the panel width
  * - row pitch grows with cell width so covers fill the panel instead of staying tiny
  */
 export function readerLibraryListLayout(
@@ -28,9 +30,9 @@ export function readerLibraryListLayout(
   switch (viewMode) {
     case "compact":
       return { itemSize: 34, columns: 1, gap: 0 }
-    case "content":
+    case "cover-list":
       return { itemSize: 76, columns: 1, gap: 0 }
-    case "banner": {
+    case "mosaic-list": {
       const gap = 8
       const columns = Math.max(1, Math.floor((width + gap) / (BANNER_MIN_CELL + gap)))
       const cellWidth = columns === 1 ? width : Math.floor((width - gap * (columns - 1)) / columns)
@@ -39,7 +41,7 @@ export function readerLibraryListLayout(
       const surfaceHeight = Math.max(128, Math.round(mediaWidth / BANNER_ASPECT) + BANNER_CAPTION_RESERVE)
       return { itemSize: surfaceHeight + gap, columns, gap }
     }
-    case "thumbnail": {
+    case "cover-grid": {
       const gap = 8
       const columns = Math.max(1, Math.floor((width + gap) / (THUMBNAIL_MIN_CELL + gap)))
       const cellWidth = columns === 1 ? width : Math.floor((width - gap * (columns - 1)) / columns)
@@ -51,7 +53,14 @@ export function readerLibraryListLayout(
 
 export function readerLibraryMediaClassName(viewMode: ReaderLibraryViewMode): string | undefined {
   if (viewMode === "compact") return "size-7 rounded-sm"
-  if (viewMode === "content") return "size-16"
+  if (viewMode === "cover-list") return "size-16"
   // Banner / thumbnail media fills the dedicated media cell; cover crops to the cell.
   return "size-full min-h-0 rounded-none"
+}
+
+export function readerLibrarySurfaceVariant(viewMode: ReaderLibraryViewMode): ReaderLibrarySurfaceVariant {
+  if (viewMode === "compact") return "compact"
+  if (viewMode === "cover-list") return "content"
+  if (viewMode === "mosaic-list") return "banner"
+  return "thumbnail"
 }

@@ -451,6 +451,17 @@ export interface ReaderRecentDto {
   updatedAt: number
 }
 
+export type ReaderLibrarySortFieldDto = "name" | "path" | "date" | "type"
+export type ReaderLibrarySortOrderDto = "asc" | "desc"
+
+export interface ReaderLibraryQueryDto {
+  search?: string
+  sort?: {
+    field: ReaderLibrarySortFieldDto
+    order: ReaderLibrarySortOrderDto
+  }
+}
+
 export interface ReaderFolderProgressSummaryDto {
   path: string
   bookCount: number
@@ -1504,7 +1515,7 @@ export interface ReaderHttpClient {
   directoryClipboard?(signal?: AbortSignal): Promise<ReaderDirectoryClipboardSnapshotDto>
   pasteDirectoryClipboard?(destinationPath: string, signal?: AbortSignal): Promise<ReaderDirectorySelectionOperationSnapshotDto>
   clearDirectoryClipboard?(signal?: AbortSignal): Promise<ReaderDirectoryClipboardSnapshotDto>
-  listRecent?(offset: number, limit: number, signal?: AbortSignal): Promise<readonly ReaderRecentDto[]>
+  listRecent?(offset: number, limit: number, signal?: AbortSignal, query?: ReaderLibraryQueryDto): Promise<readonly ReaderRecentDto[]>
   summarizeFolderProgress?(path: string, signal?: AbortSignal): Promise<ReaderFolderProgressSummaryDto>
   readOpdsCatalog?(url: string, signal?: AbortSignal): Promise<ReaderOpdsCatalogDto>
   searchOpdsCatalog?(template: string, query: string, signal?: AbortSignal): Promise<ReaderOpdsCatalogDto>
@@ -1512,7 +1523,7 @@ export interface ReaderHttpClient {
   removeRecents?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderRecentBatchRemoveResultDto>
   cleanupRecents?(request: ReaderRecentCleanupRequestDto, signal?: AbortSignal): Promise<ReaderRecentCleanupResultDto>
   cleanupInvalidLibrary?(kind: "recents" | "bookmarks" | "both", signal?: AbortSignal): Promise<ReaderInvalidLibraryCleanupResultDto>
-  listBookmarks?(offset: number, limit: number, listId?: string, signal?: AbortSignal): Promise<readonly ReaderBookmarkDto[]>
+  listBookmarks?(offset: number, limit: number, listId?: string, signal?: AbortSignal, query?: ReaderLibraryQueryDto): Promise<readonly ReaderBookmarkDto[]>
   findBookmarkByPath?(path: string, signal?: AbortSignal): Promise<ReaderBookmarkDto | undefined>
   saveBookmark?(bookmark: SaveReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
   updateBookmark?(id: string, patch: UpdateReaderBookmarkDto, signal?: AbortSignal): Promise<ReaderBookmarkDto>
@@ -2125,10 +2136,10 @@ export function createReaderHttpClient(
       "/reader/files/clipboard",
       { method: "DELETE", signal },
     ),
-    listRecent: (offset, limit, signal) => request<{ items: ReaderRecentDto[] }>(
-      `/reader/library/recents?offset=${offset}&limit=${limit}`,
-      { signal },
-    ).then((value) => value.items),
+    listRecent: (offset, limit, signal, query) => {
+      const search = libraryQueryParams(offset, limit, query)
+      return request<{ items: ReaderRecentDto[] }>(`/reader/library/recents?${search}`, { signal }).then((value) => value.items)
+    },
     summarizeFolderProgress: (path, signal) => request<ReaderFolderProgressSummaryDto>(
       `/reader/library/progress/folder?path=${encodeURIComponent(path)}`,
       { signal },
@@ -2165,8 +2176,8 @@ export function createReaderHttpClient(
       body: JSON.stringify({ kind }),
       signal,
     }),
-    listBookmarks: (offset, limit, listId, signal) => {
-      const search = new URLSearchParams({ offset: String(offset), limit: String(limit) })
+    listBookmarks: (offset, limit, listId, signal, query) => {
+      const search = libraryQueryParams(offset, limit, query)
       if (listId) search.set("listId", listId)
       return request<{ items: ReaderBookmarkDto[] }>(`/reader/library/bookmarks?${search}`, { signal }).then((value) => value.items)
     },
@@ -2392,4 +2403,14 @@ async function responseError(response: Response): Promise<string> {
     if (typeof body?.error === "string" && body.error) return body.error
   }
   return await response.text().catch(() => "") || `Reader backend returned ${response.status}.`
+}
+
+function libraryQueryParams(offset: number, limit: number, query?: ReaderLibraryQueryDto): URLSearchParams {
+  const search = new URLSearchParams({ offset: String(offset), limit: String(limit) })
+  if (query?.search) search.set("search", query.search)
+  if (query?.sort) {
+    search.set("sort", query.sort.field)
+    search.set("order", query.sort.order)
+  }
+  return search
 }

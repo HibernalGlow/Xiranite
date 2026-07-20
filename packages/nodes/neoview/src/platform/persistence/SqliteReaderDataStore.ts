@@ -376,10 +376,22 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderPlaylistSto
   async listRecent(query: ReaderRecentQuery): Promise<readonly ReaderProgressRecord[]> {
     this.#assertOpen()
     const filter = librarySourceFilterPredicate(query.filter, "source_json")
-    const where = filter ? `WHERE ${filter}` : ""
+    const search = librarySearchPredicate(query.search, "display_name", "source_json", 0)
+    const predicates = [filter, search.sql].filter(Boolean)
+    const where = predicates.length ? `WHERE ${predicates.join(" AND ")}` : ""
+    const limitParameter = search.bindings.length + 1
     return this.database.all(
       `SELECT book_id, source_json, display_name, page_index, page_count, updated_at
-       FROM xr_reader_progress ${where} ORDER BY updated_at DESC, book_id ASC LIMIT ?1 OFFSET ?2`,
+       FROM xr_reader_progress ${where}
+       ORDER BY ${libraryOrderBy(query.sort, {
+         name: "display_name COLLATE NOCASE",
+         path: "CAST(json_extract(source_json, '$.path') AS TEXT) COLLATE NOCASE",
+         date: "updated_at",
+         type: "CAST(json_extract(source_json, '$.kind') AS TEXT) COLLATE NOCASE",
+         identity: "book_id",
+       })}
+       LIMIT ?${limitParameter} OFFSET ?${limitParameter + 1}`,
+      ...search.bindings,
       query.limit,
       query.offset,
     ).map(parseProgress)
@@ -531,13 +543,23 @@ export class SqliteReaderDataStore implements ReaderDataStore, ReaderPlaylistSto
     this.#assertOpen()
     const condition = bookmarkListCondition(query.listId)
     const filter = librarySourceFilterPredicate(query.filter, "b.source_json")
-    const predicates = [condition.sql, filter].filter(Boolean)
+    const search = librarySearchPredicate(query.search, "b.name", "b.source_json", condition.bindings.length)
+    const predicates = [condition.sql, filter, search.sql].filter(Boolean)
     const where = predicates.length ? `WHERE ${predicates.join(" AND ")}` : ""
+    const limitParameter = condition.bindings.length + search.bindings.length + 1
     const rows = this.database.all(
       `SELECT id, source_json, name, kind, starred, created_at, updated_at
        FROM xr_reader_bookmarks b ${where}
-       ORDER BY updated_at DESC, id ASC LIMIT ?${condition.bindings.length + 1} OFFSET ?${condition.bindings.length + 2}`,
+       ORDER BY ${libraryOrderBy(query.sort, {
+         name: "b.name COLLATE NOCASE",
+         path: "CAST(json_extract(b.source_json, '$.path') AS TEXT) COLLATE NOCASE",
+         date: "b.updated_at",
+         type: "b.kind COLLATE NOCASE",
+         identity: "b.id",
+       })}
+       LIMIT ?${limitParameter} OFFSET ?${limitParameter + 1}`,
       ...condition.bindings,
+      ...search.bindings,
       query.limit,
       query.offset,
     )
@@ -1669,6 +1691,39 @@ function parseBookmarkList(row: Record<string, unknown>): ReaderBookmarkListReco
     createdAt: requireInteger(row.created_at, "bookmark list created time"),
     updatedAt: requireInteger(row.updated_at, "bookmark list updated time"),
   }
+}
+
+function librarySearchPredicate(search: string | undefined, nameColumn: string, sourceColumn: string, bindingOffset: number): {
+  sql: string
+  bindings: readonly string[]
+} {
+  if (!search) return { sql: "", bindings: [] }
+  const pattern = `%${escapeLike(search)}%`
+  const first = bindingOffset + 1
+  const second = bindingOffset + 2
+  return {
+    sql: `(${nameColumn} LIKE ?${first} ESCAPE '\\' COLLATE NOCASE
+      OR CAST(json_extract(${sourceColumn}, '$.path') AS TEXT) LIKE ?${second} ESCAPE '\\' COLLATE NOCASE)`,
+    bindings: [pattern, pattern],
+  }
+}
+
+function escapeLike(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")
+}
+
+function libraryOrderBy(sort: ReaderRecentQuery["sort"], columns: {
+  name: string
+  path: string
+  date: string
+  type: string
+  identity: string
+}): string {
+  const field = sort?.field ?? "date"
+  const direction = sort?.order ?? "desc"
+  const column = columns[field]
+  if (!column || (direction !== "asc" && direction !== "desc")) throw new Error("Reader library sort is invalid.")
+  return `${column} ${direction.toUpperCase()}, ${columns.identity} ASC`
 }
 
 function parsePlaylist(row: Record<string, unknown> | undefined): ReaderPlaylistRecord | undefined {

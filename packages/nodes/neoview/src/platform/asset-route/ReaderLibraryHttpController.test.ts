@@ -45,6 +45,9 @@ describe("ReaderLibraryHttpController", () => {
     expect(store.listRecent).toHaveBeenCalledWith({ limit: 500, offset: 2 })
     expect((await controller.handle(request("/reader/library/recents?limit=20&offset=3&filter=video")))?.status).toBe(200)
     expect(store.listRecent).toHaveBeenLastCalledWith({ limit: 20, offset: 3, filter: "video" })
+    expect((await controller.handle(request("/reader/library/recents?limit=20&offset=3&search=cover&sort=name&order=asc")))?.status).toBe(200)
+    expect(store.listRecent).toHaveBeenLastCalledWith({ limit: 20, offset: 3, search: "cover", sort: { field: "name", order: "asc" } })
+    expect((await controller.handle(request("/reader/library/recents?sort=name")))?.status).toBe(400)
     expect((await controller.handle(request("/reader/library/recents?filter=invalid")))?.status).toBe(400)
     store.listRecent.mockResolvedValueOnce([
       { bookId: "progress", source: { kind: "archive", path: "D:/books/progress.cbz" }, displayName: "Progress", pageIndex: 1, pageCount: 4, updatedAt: 12 },
@@ -142,6 +145,8 @@ describe("ReaderLibraryHttpController", () => {
     }))).rejects.toMatchObject({ name: "AbortError" })
     expect((await controller.handle(request("/reader/library/bookmarks?listId=favorites&filter=archive")))?.status).toBe(200)
     expect(store.listBookmarks).toHaveBeenLastCalledWith({ limit: 100, offset: 0, listId: "favorites", filter: "archive" })
+    expect((await controller.handle(request("/reader/library/bookmarks?listId=favorites&search=cover&sort=path&order=desc")))?.status).toBe(200)
+    expect(store.listBookmarks).toHaveBeenLastCalledWith({ limit: 100, offset: 0, listId: "favorites", search: "cover", sort: { field: "path", order: "desc" } })
     expect((await controller.handle(request("/reader/library/bookmarks?filter=invalid")))?.status).toBe(400)
     expect((await controller.handle(request("/reader/library/bookmark-lists")))?.status).toBe(200)
     store.listRecent.mockResolvedValueOnce([{ bookId: "missing", source: { kind: "archive", path: "D:/missing.cbz" }, displayName: "Missing", pageIndex: 0, pageCount: 1, updatedAt: 1 }])

@@ -69,7 +69,8 @@ describe("BookmarkListCard", () => {
       expect.objectContaining({ id: "bookmark-one", path: "D:/books/one.cbz", kind: "file", previewCount: 1 }),
     ])
     await waitFor(() => expect(view.container.querySelector('img[src="/thumbnail/bookmark-one"]')).toBeTruthy())
-    fireEvent.click(screen.getByRole("button", { name: "内容" }))
+    fireEvent.pointerDown(screen.getByRole("button", { name: "视图：紧凑列表" }), { button: 0, ctrlKey: false, pointerType: "mouse" })
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "封面列表" }))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(registerLibraryThumbnails).toHaveBeenCalledOnce()
   })
@@ -98,6 +99,19 @@ describe("BookmarkListCard", () => {
 
     await waitFor(() => expect(removeBookmarkList).toHaveBeenCalledWith("reading"))
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "全部" })))
+  })
+
+  it("[neoview.bookmark.search-sort-query] scopes search and sort to the active bookmark list before paging", async () => {
+    const listBookmarkLists = vi.fn(async () => [{ id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true }])
+    const listBookmarks = vi.fn(async () => [])
+    render(<BookmarkListCard {...context(listBookmarkLists, listBookmarks)} />)
+
+    await waitFor(() => expect(listBookmarks).toHaveBeenCalledOnce())
+    fireEvent.change(screen.getByRole("textbox", { name: "搜索书签视图" }), { target: { value: "archive" } })
+    await waitFor(() => expect(listBookmarks.mock.calls.some((call) => call[4]?.search === "archive" && call[2] === "all")).toBe(true))
+    fireEvent.pointerDown(screen.getByRole("button", { name: "排序：时间 · 降序" }), { button: 0, ctrlKey: false, pointerType: "mouse" })
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "路径" }))
+    await waitFor(() => expect(listBookmarks.mock.calls.some((call) => call[4]?.sort?.field === "path")).toBe(true))
   })
 })
 
