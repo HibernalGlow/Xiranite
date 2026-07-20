@@ -368,6 +368,7 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
             disabled={disabled}
             canOpen={Boolean(onOpen)}
             thumbnailUrl={thumbnails.urls.get(item.id)}
+            thumbnailUrls={thumbnails.urlSets.get(item.id)}
             thumbnailLoading={thumbnails.loading}
             onSelect={selectBookmark}
             onOpen={() => void onOpen?.(item.source.path)}
@@ -437,6 +438,7 @@ function BookmarkRow({
   disabled,
   canOpen,
   thumbnailUrl,
+  thumbnailUrls,
   thumbnailLoading,
   onSelect,
   onOpen,
@@ -450,6 +452,7 @@ function BookmarkRow({
   disabled: boolean
   canOpen: boolean
   thumbnailUrl?: string
+  thumbnailUrls?: readonly string[]
   thumbnailLoading: boolean
   onSelect(item: ReaderBookmarkDto, index: number, event: Pick<MouseEvent, "ctrlKey" | "metaKey" | "shiftKey">): void
   onOpen(): void
@@ -491,6 +494,7 @@ function BookmarkRow({
       media={(
         <ReaderThumbnailSurface
           url={thumbnailUrl}
+          urls={thumbnailUrls}
           kind={item.kind}
           fit="cover"
           loading={thumbnailLoading}

@@ -25,6 +25,7 @@ import type {
   ReaderFolderTreeLayout,
 } from "../../../adapters/reader-http-client"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../adapters/reader-http-client"
+import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import type { ReaderPanelContext } from "../registry"
 import type { FolderContextEntry } from "./folder/FolderContextActions"
 import {
@@ -80,7 +81,7 @@ import {
 
 const PAGE_SIZE = 128
 const MAX_CACHED_PAGES = 12
-const MAX_THUMBNAILS = 64
+const MAX_THUMBNAILS = 24
 const MAX_CACHED_THUMBNAIL_URLS = 256
 const EMPTY_SELECTED_PATHS: ReadonlySet<string> = new Set()
 const DETAILS_METADATA_FIELDS: readonly ReaderDirectoryMetadataFieldDto[] = [
@@ -128,6 +129,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   viewMode: "compact",
   previewGridEnabled: false,
   previewCount: 4,
+  contentWidthPercent: 35,
   thumbnailWidthPercent: 20,
   bannerWidthPercent: 50,
   hoverPreviewEnabled: true,
@@ -177,6 +179,7 @@ export interface SavedDirectoryState {
   gridScrollTop?: number
   detailsScrollTop?: number
   thumbnailUrls?: ReadonlyMap<string, string>
+  thumbnailUrlSets?: ReadonlyMap<string, readonly string[]>
   thumbnailProfiles?: ReadonlyMap<string, string>
 }
 
@@ -245,6 +248,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const [viewMode, setViewMode] = useState<FolderViewMode>(folderView.viewMode)
   const [previewGridEnabled, setPreviewGridEnabled] = useState(folderView.previewGridEnabled ?? false)
   const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(folderView.previewCount)
+  const [contentWidthPercent, setContentWidthPercent] = useState(folderView.contentWidthPercent ?? 35)
   const [thumbnailWidthPercent, setThumbnailWidthPercent] = useState(folderView.thumbnailWidthPercent)
   const [bannerWidthPercent, setBannerWidthPercent] = useState(folderView.bannerWidthPercent)
   const [hoverPreviewEnabled, setHoverPreviewEnabled] = useState(folderView.hoverPreviewEnabled ?? true)
@@ -258,7 +262,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const [focusedPath, setFocusedPath] = useState<string>()
   const [focusedIndex, setFocusedIndex] = useState<number>()
   const [thumbnailUrls, setThumbnailUrls] = useState<ReadonlyMap<string, string>>(() => new Map())
+  const [thumbnailUrlSets, setThumbnailUrlSets] = useState<ReadonlyMap<string, readonly string[]>>(() => new Map())
   const thumbnailUrlsRef = useRef<ReadonlyMap<string, string>>(thumbnailUrls)
+  const thumbnailUrlSetsRef = useRef<ReadonlyMap<string, readonly string[]>>(thumbnailUrlSets)
   const thumbnailProfilesRef = useRef<ReadonlyMap<string, string>>(new Map())
   const [loading, setLoading] = useState(false)
   const [thumbnailRefreshPending, setThumbnailRefreshPending] = useState(false)
@@ -308,6 +314,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   useEffect(() => setViewMode(folderView.viewMode), [folderView.viewMode])
   useEffect(() => setPreviewGridEnabled(folderView.previewGridEnabled ?? false), [folderView.previewGridEnabled])
   useEffect(() => setPreviewCount(folderView.previewCount), [folderView.previewCount])
+  useEffect(() => setContentWidthPercent(folderView.contentWidthPercent ?? 35), [folderView.contentWidthPercent])
   useEffect(() => setThumbnailWidthPercent(folderView.thumbnailWidthPercent), [folderView.thumbnailWidthPercent])
   useEffect(() => setBannerWidthPercent(folderView.bannerWidthPercent), [folderView.bannerWidthPercent])
   useEffect(() => setHoverPreviewEnabled(folderView.hoverPreviewEnabled ?? true), [folderView.hoverPreviewEnabled])
@@ -353,6 +360,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         thumbnailProfilesRef.current,
         thumbnailUrlsRef.current,
         previewGridEnabled,
+        thumbnailUrlSetsRef.current,
       ))
       .slice(0, MAX_THUMBNAILS)
     if (!visible.length) return
@@ -383,6 +391,17 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       const resolved = batch.items.flatMap((item) => {
         const path = pathById.get(item.id)
         return path ? [[path, item.thumbnailUrl] as const] : []
+      })
+      const resolvedSets = batch.items.flatMap((item) => {
+        const path = pathById.get(item.id)
+        if (!path) return []
+        const urls = item.thumbnailUrls?.length ? item.thumbnailUrls : [item.thumbnailUrl]
+        return [[path, urls] as const]
+      })
+      setThumbnailUrlSets((currentSets) => {
+        const next = mergeThumbnailUrlSets(currentSets, resolvedSets, MAX_CACHED_THUMBNAIL_URLS)
+        thumbnailUrlSetsRef.current = next
+        return next
       })
       setThumbnailUrls((currentUrls) => {
         const next = mergeThumbnailUrls(currentUrls, resolved, MAX_CACHED_THUMBNAIL_URLS)
@@ -507,7 +526,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       )
       if (generation === navigationGenerationRef.current) {
         let preferredState = normalizedNavigation.action === "refresh" ? capturedState : undefined
-        if (preferredState) preferredState = { ...preferredState, thumbnailUrls: undefined, thumbnailProfiles: undefined }
+        if (preferredState) preferredState = { ...preferredState, thumbnailUrls: undefined, thumbnailUrlSets: undefined, thumbnailProfiles: undefined }
         if (preferredState && options.clearSelection) {
           preferredState = { ...preferredState, selection: createDirectorySelection(result.generation) }
         }
@@ -585,6 +604,9 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const restoredThumbnailUrls = options.preserveThumbnailCache
       ? mergeThumbnailUrls(thumbnailUrlsRef.current, restored.thumbnailUrls ? [...restored.thumbnailUrls] : [], MAX_CACHED_THUMBNAIL_URLS)
       : restored.thumbnailUrls ?? new Map()
+    const restoredThumbnailUrlSets = options.preserveThumbnailCache
+      ? mergeThumbnailUrlSets(thumbnailUrlSetsRef.current, restored.thumbnailUrlSets ? [...restored.thumbnailUrlSets] : [], MAX_CACHED_THUMBNAIL_URLS)
+      : restored.thumbnailUrlSets ?? new Map()
     const restoredThumbnailProfiles = options.preserveThumbnailCache
       ? new Map([...restoredThumbnailUrls.keys()]
         .flatMap((path) => {
@@ -593,9 +615,16 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         }))
       : restored.thumbnailProfiles ?? new Map()
     thumbnailUrlsRef.current = restoredThumbnailUrls
+    thumbnailUrlSetsRef.current = restoredThumbnailUrlSets
     thumbnailProfilesRef.current = restoredThumbnailProfiles
-    setRestoreState({ ...restored, thumbnailUrls: restoredThumbnailUrls, thumbnailProfiles: restoredThumbnailProfiles })
+    setRestoreState({
+      ...restored,
+      thumbnailUrls: restoredThumbnailUrls,
+      thumbnailUrlSets: restoredThumbnailUrlSets,
+      thumbnailProfiles: restoredThumbnailProfiles,
+    })
     setThumbnailUrls(restoredThumbnailUrls)
+    setThumbnailUrlSets(restoredThumbnailUrlSets)
     setSelection(restored.selection)
     setFocusedPath(restored.focusedPath)
   }
@@ -625,6 +654,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         focusedIndex: suggested?.index,
         anchorIndex: suggested?.index ?? 0,
         thumbnailUrls,
+        thumbnailUrlSets: thumbnailUrlSetsRef.current,
         thumbnailProfiles: thumbnailProfilesRef.current,
       }, false, { preserveThumbnailCache: true })
       return result
@@ -750,6 +780,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       // tab snapshots must capture that latest cache to avoid a needless
       // re-registration when the user immediately goes back.
       thumbnailUrls: viewUsesThumbnails(viewMode) ? thumbnailUrlsRef.current : undefined,
+      thumbnailUrlSets: viewUsesThumbnails(viewMode) ? thumbnailUrlSetsRef.current : undefined,
       thumbnailProfiles: viewUsesThumbnails(viewMode) ? thumbnailProfilesRef.current : undefined,
     }
     return { current, state }
@@ -804,7 +835,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const preferredState = await captureRefreshState()
     const latest = catalogRef.current
     if (!latest || latest.sessionId !== page.sessionId || latest.generation >= page.generation) return
-    applyPage(page, preferredState ? { ...preferredState, thumbnailUrls: undefined, thumbnailProfiles: undefined } : undefined, false, { preserveThumbnailCache: false })
+    applyPage(page, preferredState ? { ...preferredState, thumbnailUrls: undefined, thumbnailUrlSets: undefined, thumbnailProfiles: undefined } : undefined, false, { preserveThumbnailCache: false })
   }
 
   function switchView(next: FolderViewMode) {
@@ -822,6 +853,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       focusedIndex: focusedIndexRef.current,
       anchorIndex,
       thumbnailUrls: thumbnailUrlsRef.current,
+      thumbnailUrlSets: thumbnailUrlSetsRef.current,
       thumbnailProfiles: thumbnailProfilesRef.current,
     }
     if (current) rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, nextState)
@@ -838,9 +870,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     captureCurrentState()
     resetThumbnailRegistration()
     const emptyThumbnailUrls = new Map<string, string>()
+    const emptyThumbnailUrlSets = new Map<string, readonly string[]>()
     thumbnailUrlsRef.current = emptyThumbnailUrls
+    thumbnailUrlSetsRef.current = emptyThumbnailUrlSets
     thumbnailProfilesRef.current = new Map()
     setThumbnailUrls(emptyThumbnailUrls)
+    setThumbnailUrlSets(emptyThumbnailUrlSets)
     setPreviewCount(next)
     thumbnailSignatureRef.current = ""
     void onFolderView?.({ previewCount: next })
@@ -851,9 +886,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     captureCurrentState()
     resetThumbnailRegistration()
     const emptyThumbnailUrls = new Map<string, string>()
+    const emptyThumbnailUrlSets = new Map<string, readonly string[]>()
     thumbnailUrlsRef.current = emptyThumbnailUrls
+    thumbnailUrlSetsRef.current = emptyThumbnailUrlSets
     thumbnailProfilesRef.current = new Map()
     setThumbnailUrls(emptyThumbnailUrls)
+    setThumbnailUrlSets(emptyThumbnailUrlSets)
     setPreviewGridEnabled(enabled)
     thumbnailSignatureRef.current = ""
     void onFolderView?.({ previewGridEnabled: enabled })
@@ -861,6 +899,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
 
   function commitThumbnailWidth(value: number) {
     if (value !== folderView.thumbnailWidthPercent) void onFolderView?.({ thumbnailWidthPercent: value })
+  }
+
+  function commitContentWidth(value: number) {
+    if (value !== (folderView.contentWidthPercent ?? 35)) void onFolderView?.({ contentWidthPercent: value })
   }
 
   function commitBannerWidth(value: number) {
@@ -1321,6 +1363,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             previewCount={previewCount}
             hoverPreviewEnabled={hoverPreviewEnabled}
             hoverPreviewDelayMs={hoverPreviewDelayMs}
+            contentWidthPercent={contentWidthPercent}
             thumbnailWidthPercent={thumbnailWidthPercent}
             bannerWidthPercent={bannerWidthPercent}
             searchOpen={searchOpen}
@@ -1361,6 +1404,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             onSwitchPreviewCount={switchPreviewCount}
             onCommitHoverPreviewEnabled={commitHoverPreviewEnabled}
             onCommitHoverPreviewDelay={commitHoverPreviewDelay}
+            onContentWidthChange={(value) => setContentWidthPercent(value)}
+            onCommitContentWidth={commitContentWidth}
             onThumbnailWidthChange={(value) => setThumbnailWidthPercent(value)}
             onCommitThumbnailWidth={commitThumbnailWidth}
             onBannerWidthChange={(value) => setBannerWidthPercent(value)}
@@ -1533,6 +1578,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
                   showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
                   visualMode={viewMode}
                   thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
+                  thumbnailUrls={entry ? thumbnailUrlSets.get(entry.path) : undefined}
+                  contentWidthPercent={contentWidthPercent}
                   hoverPreviewEnabled={active && hoverPreviewEnabled}
                   hoverPreviewDelayMs={hoverPreviewDelayMs}
                   onSelect={selectEntry}
@@ -1572,6 +1619,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               focusedIndex={focusedIndex}
               itemIdPrefix={itemIdPrefix}
               thumbnailUrls={thumbnailUrls}
+              thumbnailUrlSets={thumbnailUrlSets}
               hoverPreviewEnabled={active && hoverPreviewEnabled}
               hoverPreviewDelayMs={hoverPreviewDelayMs}
               showReturnFooter={showReturnFooter}
@@ -1605,7 +1653,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   )
 }
 
-function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string; hoverPreviewEnabled: boolean; hoverPreviewDelayMs: number }) {
+function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, contentWidthPercent, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryItemProps & { visualMode: FolderViewMode; thumbnailUrl?: string; thumbnailUrls?: readonly string[]; contentWidthPercent: number; hoverPreviewEnabled: boolean; hoverPreviewDelayMs: number }) {
   const rich = visualMode !== "compact"
   if (!entry) return <div className={`${rich ? "h-[76px]" : "h-[34px]"} animate-pulse border-b bg-muted/30`} aria-hidden="true" />
   return (
@@ -1630,17 +1678,12 @@ function DirectoryListItem({ itemId, entry, index, disabled, selected, focused, 
         data-folder-reader-supported={entry.readerSupported}
       >
         {rich ? (
-          <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded bg-muted/30">
+          <span
+            className="grid h-16 shrink-0 place-items-center overflow-hidden rounded bg-muted/30"
+            style={{ width: `${contentWidthPercent}%`, maxWidth: "70%" }}
+          >
             {thumbnailUrl
-              ? <img
-                  src={thumbnailUrl}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  className="size-full object-contain"
-                  onLoad={(event) => { event.currentTarget.hidden = false }}
-                  onError={(event) => { event.currentTarget.hidden = true }}
-                />
+              ? <ReaderThumbnailSurface url={thumbnailUrl} urls={thumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" className="size-full rounded-none bg-transparent" />
               : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-7" />}
           </span>
         ) : <FolderEntryIcon entry={entry} />}
@@ -1682,6 +1725,21 @@ export function mergeThumbnailUrls(
   return next
 }
 
+export function mergeThumbnailUrlSets(
+  current: ReadonlyMap<string, readonly string[]>,
+  additions: readonly (readonly [string, readonly string[]])[],
+  maximum: number,
+): ReadonlyMap<string, readonly string[]> {
+  if (!additions.length) return current
+  const next = new Map(current)
+  for (const [path, urls] of additions) {
+    next.delete(path)
+    next.set(path, urls)
+  }
+  while (next.size > maximum) next.delete(next.keys().next().value as string)
+  return next
+}
+
 function thumbnailProfile(
   entry: Pick<ReaderDirectoryEntryDto, "kind">,
   _viewMode: FolderViewMode,
@@ -1705,7 +1763,8 @@ function sameFolderPath(left: string, right: string): boolean {
 /**
  * Reuse a restored file thumbnail even when it predates the profile sidecar.
  * Folder mosaic thumbnails remain profile-sensitive because preview count and
- * layout change their asset contents.
+ * layout change their asset contents. Multi-tile profiles also require a urlSet
+ * entry so single-cover visit cache is not mistaken for a finished mosaic.
  */
 export function isThumbnailDemandNeeded(
   entry: Pick<ReaderDirectoryEntryDto, "kind" | "path">,
@@ -1714,10 +1773,16 @@ export function isThumbnailDemandNeeded(
   profiles: ReadonlyMap<string, string>,
   urls: ReadonlyMap<string, string>,
   previewGridEnabled = false,
+  urlSets?: ReadonlyMap<string, readonly string[]>,
 ): boolean {
   const expected = thumbnailProfile(entry, viewMode, previewCount, previewGridEnabled)
   const current = profiles.get(entry.path)
-  if (current === expected) return false
+  if (current === expected) {
+    if (entry.kind === "directory" && previewGridEnabled && previewCount > 1) {
+      return !urlSets?.has(entry.path)
+    }
+    return false
+  }
   return !(entry.kind === "file" && current === undefined && urls.has(entry.path))
 }
 

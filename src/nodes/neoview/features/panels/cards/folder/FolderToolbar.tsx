@@ -15,6 +15,7 @@ import {
   MoreHorizontal,
   MousePointerClick,
   RefreshCw,
+  Rows3,
   Search,
   Settings2,
   Unlock,
@@ -77,6 +78,7 @@ export type FolderToolbarProps = {
   previewCount: FolderToolbarPreviewCount
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  contentWidthPercent: number
   thumbnailWidthPercent: number
   bannerWidthPercent: number
   searchOpen: boolean
@@ -113,6 +115,8 @@ export type FolderToolbarProps = {
   onSwitchPreviewCount(count: FolderToolbarPreviewCount): void
   onCommitHoverPreviewEnabled(enabled: boolean): void
   onCommitHoverPreviewDelay(delayMs: number): void
+  onContentWidthChange(value: number): void
+  onCommitContentWidth(value: number): void
   onThumbnailWidthChange(value: number): void
   onCommitThumbnailWidth(value: number): void
   onBannerWidthChange(value: number): void
@@ -151,6 +155,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     previewCount,
     hoverPreviewEnabled,
     hoverPreviewDelayMs,
+    contentWidthPercent,
     thumbnailWidthPercent,
     bannerWidthPercent,
     searchOpen,
@@ -187,6 +192,8 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     onSwitchPreviewCount,
     onCommitHoverPreviewEnabled,
     onCommitHoverPreviewDelay,
+    onContentWidthChange,
+    onCommitContentWidth,
     onThumbnailWidthChange,
     onCommitThumbnailWidth,
     onBannerWidthChange,
@@ -208,7 +215,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
   const busy = disabled || loading
   const currentView = viewModeOptions.find((option) => option.value === viewMode) ?? viewModeOptions[0]!
   const CurrentViewIcon = currentView.icon
-  const sizeEnabled = viewUsesThumbnailGrid(viewMode) || viewUsesBanner(viewMode)
+  const sizeEnabled = viewMode === "cover-list" || viewUsesThumbnailGrid(viewMode) || viewUsesBanner(viewMode)
   const thumbsEnabled = viewUsesThumbnails(viewMode)
   const pasteLabel = pasteRunning && pasteProgress
     ? `正在粘贴 ${pasteProgress.processed} / ${pasteProgress.total}`
@@ -487,6 +494,24 @@ export default function FolderToolbar(props: FolderToolbarProps) {
                   项目尺寸
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-64 p-3" data-folder-toolbar-menu="size">
+                  {viewMode === "cover-list" ? (
+                    <div className="grid grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2" data-folder-size-control="content">
+                      <Rows3 className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                      <Slider
+                        aria-label="内容预览宽度"
+                        min={20}
+                        max={70}
+                        step={1}
+                        value={[contentWidthPercent]}
+                        disabled={disabled}
+                        onValueChange={(value) => onContentWidthChange(value[0] ?? 35)}
+                        onValueCommit={(value) => onCommitContentWidth(value[0] ?? 35)}
+                      />
+                      <span className="text-right text-[10px] tabular-nums text-muted-foreground">
+                        {contentWidthPercent}%
+                      </span>
+                    </div>
+                  ) : null}
                   {viewUsesThumbnailGrid(viewMode) ? (
                     <div className="grid grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2" data-folder-size-control="thumbnail">
                       <Grid2X2 className="size-3.5 text-muted-foreground" aria-hidden="true" />

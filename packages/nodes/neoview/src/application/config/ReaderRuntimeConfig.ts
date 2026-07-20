@@ -174,6 +174,7 @@ export interface NeoviewFolderViewConfig {
   viewMode: NeoviewFolderViewMode
   previewGridEnabled: boolean
   previewCount: 4 | 9 | 16
+  contentWidthPercent: number
   thumbnailWidthPercent: number
   bannerWidthPercent: number
   hoverPreviewEnabled: boolean
@@ -201,6 +202,7 @@ export interface NeoviewFolderViewPatch {
     viewMode?: NeoviewFolderViewMode
     previewGridEnabled?: boolean
     previewCount?: 4 | 9 | 16
+    contentWidthPercent?: number
     thumbnailWidthPercent?: number
     bannerWidthPercent?: number
     hoverPreviewEnabled?: boolean
@@ -500,6 +502,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   viewMode: "compact",
   previewGridEnabled: false,
   previewCount: 4,
+  contentWidthPercent: 35,
   thumbnailWidthPercent: 20,
   bannerWidthPercent: 50,
   hoverPreviewEnabled: true,
@@ -1711,7 +1714,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["homePath", "viewMode", "previewGridEnabled", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "hoverPreviewEnabled", "hoverPreviewDelayMs", "typeFilter", "emptyArea", "details", "search", "tree", "tabs"])
+  const allowed = new Set(["homePath", "viewMode", "previewGridEnabled", "previewCount", "contentWidthPercent", "thumbnailWidthPercent", "bannerWidthPercent", "hoverPreviewEnabled", "hoverPreviewDelayMs", "typeFilter", "emptyArea", "details", "search", "tree", "tabs"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
@@ -1733,6 +1736,10 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     if (count !== 4 && count !== 9 && count !== 16) throw new Error("reader folder view patch.previewCount must be 4, 9 or 16.")
     patch.folderView.previewCount = count
     toml.preview_count = count
+  }
+  if (folder.contentWidthPercent !== undefined) {
+    patch.folderView.contentWidthPercent = boundedInteger(folder.contentWidthPercent, 20, 70, "reader folder view patch.contentWidthPercent")
+    toml.content_width_percent = patch.folderView.contentWidthPercent
   }
   if (folder.thumbnailWidthPercent !== undefined) {
     const percent = boundedInteger(folder.thumbnailWidthPercent, 10, 90, "reader folder view patch.thumbnailWidthPercent")
@@ -1915,6 +1922,9 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
     ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.previewCount
     : boundedInteger(value.preview_count, 4, 16, "[nodes.neoview.folder].preview_count")
   if (previewCount !== 4 && previewCount !== 9 && previewCount !== 16) throw new Error("[nodes.neoview.folder].preview_count must be 4, 9 or 16.")
+  const contentWidthPercent = value.content_width_percent === undefined
+    ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.contentWidthPercent
+    : boundedInteger(value.content_width_percent, 20, 70, "[nodes.neoview.folder].content_width_percent")
   return {
     homePath: value.home_path === undefined
       ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.homePath
@@ -1924,6 +1934,7 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
     previewGridEnabled: optionalBoolean(value.preview_grid_enabled, "[nodes.neoview.folder].preview_grid_enabled")
       ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.previewGridEnabled,
     previewCount,
+    contentWidthPercent,
     thumbnailWidthPercent: value.thumbnail_width_percent === undefined
       ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.thumbnailWidthPercent
       : boundedInteger(value.thumbnail_width_percent, 10, 90, "[nodes.neoview.folder].thumbnail_width_percent"),

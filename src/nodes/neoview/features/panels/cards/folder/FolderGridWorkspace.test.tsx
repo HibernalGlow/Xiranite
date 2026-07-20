@@ -110,6 +110,6 @@ describe("FolderGridWorkspace banner entries", () => {
 
     const image = screen.getByRole("button").querySelector("img")!
     fireEvent.error(image)
-    expect(image.hidden).toBe(true)
+    expect(screen.getByRole("button").querySelector("img")).toBeNull()
   })
 })

@@ -10,6 +10,7 @@ export interface ReaderLibraryThumbnailItem extends ReaderLibraryThumbnailRegist
 
 export interface ReaderLibraryThumbnailsState {
   urls: ReadonlyMap<string, string>
+  urlSets: ReadonlyMap<string, readonly string[]>
   loading: boolean
   refresh(id: string): Promise<void>
 }
@@ -73,7 +74,11 @@ export function useReaderLibraryThumbnails(
         settleRefreshWaiters(refreshWaitersRef.current, requestedRefreshes, new DOMException("Thumbnail refresh became stale", "AbortError"))
         return
       }
-      setUrlState({ owner, urls: new Map(batch.items.map((item) => [item.id, item.thumbnailUrl])) })
+      setUrlState({
+        owner,
+        urls: new Map(batch.items.map((item) => [item.id, item.thumbnailUrl])),
+        urlSets: new Map(batch.items.map((item) => [item.id, item.thumbnailUrls?.length ? item.thumbnailUrls : [item.thumbnailUrl]])),
+      })
       settleRefreshWaiters(refreshWaitersRef.current, requestedRefreshes)
     }).catch((error) => {
       settleRefreshWaiters(refreshWaitersRef.current, requestedRefreshes, error)
@@ -99,7 +104,12 @@ export function useReaderLibraryThumbnails(
     return promise
   }, [])
 
-  return { urls: urlState.owner === owner ? urlState.urls : EMPTY_URLS, loading, refresh }
+  return {
+    urls: urlState.owner === owner ? urlState.urls : EMPTY_URLS,
+    urlSets: urlState.owner === owner ? urlState.urlSets ?? EMPTY_URL_SETS : EMPTY_URL_SETS,
+    loading,
+    refresh,
+  }
 }
 
 interface ThumbnailLease {
@@ -112,6 +122,7 @@ interface ThumbnailLease {
 interface ThumbnailUrlState {
   owner: string
   urls: ReadonlyMap<string, string>
+  urlSets?: ReadonlyMap<string, readonly string[]>
 }
 
 interface RefreshWaiter {
@@ -121,6 +132,7 @@ interface RefreshWaiter {
 }
 
 const EMPTY_URLS: ReadonlyMap<string, string> = new Map()
+const EMPTY_URL_SETS: ReadonlyMap<string, readonly string[]> = new Map()
 
 function settleRefreshWaiters(
   waitersById: Map<string, RefreshWaiter[]>,

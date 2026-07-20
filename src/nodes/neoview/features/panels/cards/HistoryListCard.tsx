@@ -316,6 +316,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
             disabled={disabled}
             canOpen={Boolean(onOpen)}
             thumbnailUrl={thumbnails.urls.get(item.bookId)}
+            thumbnailUrls={thumbnails.urlSets.get(item.bookId)}
             thumbnailLoading={thumbnails.loading}
             onSelect={selectRecent}
             onFocus={focusRecent}
@@ -359,7 +360,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   )
 }
 
-function HistoryRow({ item, index, viewMode, selected, focused, columnCount, disabled, canOpen, thumbnailUrl, thumbnailLoading, onSelect, onFocus, onMoveFocus, onOpen, onRemove }: {
+function HistoryRow({ item, index, viewMode, selected, focused, columnCount, disabled, canOpen, thumbnailUrl, thumbnailUrls, thumbnailLoading, onSelect, onFocus, onMoveFocus, onOpen, onRemove }: {
   item: ReaderRecentDto
   index: number
   viewMode: HistoryViewMode
@@ -369,6 +370,7 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
   disabled: boolean
   canOpen: boolean
   thumbnailUrl?: string
+  thumbnailUrls?: readonly string[]
   thumbnailLoading: boolean
   onSelect(item: ReaderRecentDto, index: number, event: Pick<MouseEvent, "ctrlKey" | "metaKey" | "shiftKey">): void
   onFocus(index: number): void
@@ -412,6 +414,7 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
       media={(
         <ReaderThumbnailSurface
           url={thumbnailUrl}
+          urls={thumbnailUrls}
           kind={kind}
           fit="cover"
           loading={thumbnailLoading}

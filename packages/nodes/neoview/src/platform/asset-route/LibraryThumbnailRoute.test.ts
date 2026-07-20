@@ -129,7 +129,7 @@ describe("LibraryThumbnailRoute", () => {
     await pipeline.dispose()
   })
 
-  it("[neoview.thumbnail.library.cancellation] cancels active generation when a newer context generation replaces it", async () => {
+  it("[neoview.thumbnail.library.cancellation] preserves active asset demand across visible batches", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-library-thumbnail-cancel-"))
     roots.push(root)
     const sourcePath = join(root, "cover.png")
@@ -156,20 +156,27 @@ describe("LibraryThumbnailRoute", () => {
     const firstBody = await first.json() as { items: Array<{ thumbnailUrl: string }> }
     const pending = route.handle(new Request(firstBody.items[0]!.thumbnailUrl))
     await vi.waitFor(() => expect(transformSignal).toBeInstanceOf(AbortSignal))
-    expect((await route.handle(registerRequest(sourcePath, 2, true)))?.status).toBe(201)
-    expect((await pending)?.status).toBe(410)
-    expect(transformSignal?.aborted).toBe(true)
+    const replacementRegistration = (await route.handle(registerRequest(sourcePath, 2, true)))!
+    expect(replacementRegistration.status).toBe(201)
+    const replacementBody = await replacementRegistration.json() as { items: Array<{ thumbnailUrl: string }> }
+    const replacement = route.handle(new Request(replacementBody.items[0]!.thumbnailUrl))
+    await vi.waitFor(() => expect(transformSignal?.aborted).toBe(false))
+    expect(transformSignal?.aborted).toBe(false)
     route.close()
+    expect((await pending)?.status).toBe(410)
+    expect((await replacement)?.status).toBe(410)
     await pipeline.dispose()
   })
 
-  it("[neoview.thumbnail.library-mosaic-http] keeps a folder mosaic behind one opaque asset URL", async () => {
+  it("[neoview.thumbnail.library-mosaic-http] returns independent opaque asset URLs for folder previews", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-library-mosaic-route-"))
     roots.push(root)
     const folder = join(root, "book")
     const cover = join(folder, "001.png")
+    const cover2 = join(folder, "002.png")
     await mkdir(folder)
     await writeFile(cover, Uint8Array.of(1, 2, 3))
+    await writeFile(cover2, Uint8Array.of(4, 5, 6))
     const compose = vi.fn(async () => ({ bytes: fixtureWebp(9), contentType: "image/webp" as const }))
     const pipeline = new PlatformThumbnailPipeline({
       bookLoader: async () => fixtureBook(cover),
@@ -180,11 +187,13 @@ describe("LibraryThumbnailRoute", () => {
     })
     const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
     const registered = (await route.handle(registerRequest(folder, 1, true, "folder", 4)))!
-    const body = await registered.json() as { items: Array<{ thumbnailUrl: string }> }
+    const body = await registered.json() as { items: Array<{ thumbnailUrl: string; thumbnailUrls?: string[] }> }
     expect(body.items).toHaveLength(1)
-    const response = (await route.handle(new Request(body.items[0]!.thumbnailUrl)))!
-    expect(response.status).toBe(200)
-    expect(compose).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ count: 4 }), expect.any(AbortSignal), expect.any(Object))
+    expect(body.items[0]?.thumbnailUrls).toHaveLength(2)
+    for (const thumbnailUrl of body.items[0]!.thumbnailUrls!) {
+      expect((await route.handle(new Request(thumbnailUrl)))?.status).toBe(200)
+    }
+    expect(compose).not.toHaveBeenCalled()
     route.close()
     await pipeline.dispose()
   })

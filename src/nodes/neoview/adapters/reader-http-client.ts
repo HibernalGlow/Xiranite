@@ -719,6 +719,7 @@ export interface ReaderSearchHistoryDto {
 export interface ReaderLibraryThumbnailDto {
   id: string
   thumbnailUrl: string
+  thumbnailUrls?: readonly string[]
   contentVersion: string
 }
 
@@ -1148,6 +1149,7 @@ export interface ReaderFolderViewConfig {
   viewMode: ReaderFolderViewMode
   previewGridEnabled?: boolean
   previewCount: 4 | 9 | 16
+  contentWidthPercent: number
   thumbnailWidthPercent: number
   bannerWidthPercent: number
   hoverPreviewEnabled: boolean
@@ -1175,6 +1177,7 @@ export interface ReaderFolderViewPatch {
     viewMode?: ReaderFolderViewMode
     previewGridEnabled?: boolean
     previewCount?: 4 | 9 | 16
+    contentWidthPercent?: number
     thumbnailWidthPercent?: number
     bannerWidthPercent?: number
     hoverPreviewEnabled?: boolean
