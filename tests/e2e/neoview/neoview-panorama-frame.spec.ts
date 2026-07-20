@@ -13,7 +13,7 @@ test("[neoview.viewer.panorama-rendered] keeps the panorama frame attached to th
     const index = Number(/page-(\d+)\.svg/.exec(route.request().url())?.[1] ?? 0)
     await route.fulfill({
       contentType: "image/svg+xml",
-      body: `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="#111318"/><rect x="80" y="70" width="1040" height="660" fill="#326a55"/><text x="600" y="420" text-anchor="middle" font-family="sans-serif" font-size="72" fill="white">Page ${index + 1}</text></svg>`,
+      body: `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="#326a55"/><text x="600" y="420" text-anchor="middle" font-family="sans-serif" font-size="72" fill="white">Page ${index + 1}</text></svg>`,
     })
   })
   await page.goto("/tests/e2e/neoview/neoview-panorama-frame-harness.html", { waitUntil: "domcontentloaded" })
@@ -35,6 +35,30 @@ test("[neoview.viewer.panorama-rendered] keeps the panorama frame attached to th
   expect(viewportBox?.height).toBeGreaterThan(0)
   expect(layerBox?.height).toBeCloseTo(viewportBox!.height, 0)
   expect(panoramaBox?.height).toBeCloseTo(viewportBox!.height, 0)
+  await expect(panorama.locator("[data-panorama-placeholder]")).toHaveCount(0)
+  const itemBoxes = await panorama.locator("[data-index]").evaluateAll((items) => items.map((item) => item.getBoundingClientRect().toJSON()))
+  for (let index = 1; index < itemBoxes.length; index += 1) {
+    expect(itemBoxes[index]!.left - itemBoxes[index - 1]!.right).toBeLessThanOrEqual(1)
+  }
+  await page.getByRole("button", { name: "Toggle page mode" }).click()
+  await expect(page.getByRole("button", { name: "Toggle page mode" })).toHaveAttribute("aria-pressed", "true")
+  await expect(panorama).toHaveAttribute("data-reader-page-mode", "double")
+  await expect(panorama.locator('[data-panorama-unit="0"] [data-reader-page-box]')).toHaveCount(2)
+
+  await page.getByRole("button", { name: "Toggle panorama" }).click()
+  await expect(page.getByRole("button", { name: "Toggle panorama" })).toHaveAttribute("aria-pressed", "false")
+  await expect(viewport.locator('[data-reader-frame="true"] [data-reader-page-box]')).toHaveCount(2)
+  await page.getByRole("button", { name: "Toggle page mode" }).click()
+  await expect(viewport.locator('[data-reader-frame="true"] [data-reader-page-box]')).toHaveCount(1)
+  await page.getByRole("button", { name: "Toggle panorama" }).click()
+  await expect(panorama).toHaveAttribute("data-reader-page-mode", "single")
+  await expect(panorama.locator('[data-panorama-unit="0"] [data-reader-page-box]')).toHaveCount(1)
+  await page.getByRole("button", { name: "Toggle panorama" }).click()
+  await page.getByRole("button", { name: "Toggle page mode" }).click()
+  await page.getByRole("button", { name: "Toggle panorama" }).click()
+  await expect(panorama).toHaveAttribute("data-reader-page-mode", "double")
+  await expect(panorama.locator('[data-panorama-unit="0"] [data-reader-page-box]')).toHaveCount(2)
+  await expect(panorama.locator("[data-panorama-placeholder]")).toHaveCount(0)
   expect(runtimeErrors).toEqual([])
   await page.screenshot({ path: testInfo.outputPath(`neoview-panorama-frame-${testInfo.project.name}.png`) })
 })

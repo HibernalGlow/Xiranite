@@ -16,7 +16,8 @@ import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { PageMedia } from "./PageMedia"
 
-const BATCH_SIZE = 32
+const PAGE_LIST_BATCH_SIZE = 32
+const FRAME_WINDOW_BATCH_SIZE = 16
 
 export function ReaderPanoramaFrame({
   sessionId,
@@ -56,7 +57,7 @@ export function ReaderPanoramaFrame({
   const hostRef = useRef<HTMLDivElement>(null)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const requestsRef = useRef(new Map<number, AbortController>())
-  const pagesRef = useRef(new Map<number, ReaderPageDto>())
+  const pagesRef = useRef(new Map(currentPages.map((page) => [page.index, page])))
   const [frames, setFrames] = useState(() => new Map<number, FrameSnapshot>())
   const [pages, setPages] = useState(() => new Map(currentPages.map((page) => [page.index, page])))
   const [viewport, setViewport] = useState({ width: 1, height: 1 })
@@ -66,13 +67,7 @@ export function ReaderPanoramaFrame({
   const pagesPerUnit = pageMode === "double" ? 2 : 1
   const unitCount = Math.ceil(totalPages / pagesPerUnit)
 
-  useEffect(() => {
-    abortRequests(requestsRef.current)
-    pagesRef.current = new Map()
-    setPages(new Map())
-    setFrames(new Map())
-    return () => abortRequests(requestsRef.current)
-  }, [sessionId])
+  useEffect(() => () => abortRequests(requestsRef.current), [])
 
   useEffect(() => {
     if (!currentPages.length) return
@@ -107,17 +102,18 @@ export function ReaderPanoramaFrame({
   }, [])
 
   function loadRange(range: ListRange) {
+    const batchSize = client.frameWindow ? FRAME_WINDOW_BATCH_SIZE : PAGE_LIST_BATCH_SIZE
     const firstPage = range.startIndex * pagesPerUnit
     const lastPage = Math.min(totalPages - 1, (range.endIndex + 1) * pagesPerUnit - 1)
-    const firstBatch = Math.floor(firstPage / BATCH_SIZE) * BATCH_SIZE
-    const lastBatch = Math.floor(lastPage / BATCH_SIZE) * BATCH_SIZE
-    for (let cursor = firstBatch; cursor <= lastBatch; cursor += BATCH_SIZE) {
-      const limit = Math.min(BATCH_SIZE, totalPages - cursor)
+    const firstBatch = Math.floor(firstPage / batchSize) * batchSize
+    const lastBatch = Math.floor(lastPage / batchSize) * batchSize
+    for (let cursor = firstBatch; cursor <= lastBatch; cursor += batchSize) {
+      const limit = Math.min(batchSize, totalPages - cursor)
       if (limit <= 0 || batchLoaded(pagesRef.current, cursor, limit) || requestsRef.current.has(cursor)) continue
       const controller = new AbortController()
       requestsRef.current.set(cursor, controller)
       const load = client.frameWindow
-        ? client.frameWindow(sessionId, Math.min(totalPages - 1, cursor + Math.floor(limit / 2)), 4, controller.signal).then((result) => ({ pages: result.visiblePages, frames: result.frames }))
+        ? client.frameWindow(sessionId, Math.min(totalPages - 1, cursor + Math.floor(limit / 2)), Math.min(8, Math.ceil(limit / 2)), controller.signal).then((result) => ({ pages: result.visiblePages, frames: result.frames }))
         : client.listPages(sessionId, cursor, limit, controller.signal).then((result) => ({ pages: result.pages, frames: [] as FrameSnapshot[] }))
       void load.then((result) => {
         if (controller.signal.aborted) return
@@ -170,7 +166,7 @@ export function ReaderPanoramaFrame({
             ? canonicalFrame.pages.map((framePage) => pages.get(framePage.pageIndex))
             : direction === "right-to-left" ? fallbackPages.toReversed() : fallbackPages)
             .filter((page): page is ReaderPageDto => Boolean(page))
-          if (!unitPages.length) return <div className="grid h-full min-h-48 min-w-48 place-items-center bg-black text-xs text-white/35">{index * pagesPerUnit + 1}</div>
+          if (!unitPages.length) return <div className="grid h-full min-h-48 min-w-48 place-items-center bg-black text-xs text-white/35" data-panorama-placeholder={index}>{index * pagesPerUnit + 1}</div>
           const renderedPages = unitPages
           const dimensions = renderedPages.flatMap((page) => page.dimensions ? [page.dimensions] : [])
           const frameSize = dimensions.length === unitPages.length
