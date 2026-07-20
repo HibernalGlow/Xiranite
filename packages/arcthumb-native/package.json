@@ -16,6 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "build:native": "bun scripts/build-native.ts",
+    "benchmark:system-thumbnail": "bun scripts/benchmark-system-thumbnail.mjs",
     "smoke:native": "bun run build && bun scripts/smoke-native.mjs"
   },
   "devDependencies": {

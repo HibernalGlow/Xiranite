@@ -29,6 +29,7 @@ pub struct ArchiveThumbnailOptions {
     pub path: String,
     pub max_dimension: Option<u32>,
     pub format: Option<String>,
+    pub lossless: Option<bool>,
     pub quality: Option<u32>,
     pub sort_order: Option<String>,
     pub cover_mode: Option<String>,
@@ -58,6 +59,31 @@ pub struct SystemThumbnail {
     pub width: u32,
     pub height: u32,
     pub premultiplied: bool,
+}
+
+#[napi(object)]
+pub struct EncodedSystemThumbnail {
+    pub data: Buffer,
+    pub width: u32,
+    pub height: u32,
+    pub mime_type: String,
+}
+
+#[napi(object)]
+pub struct EncodedSystemThumbnailOptions {
+    pub path: String,
+    pub max_dimension: Option<u32>,
+    pub format: Option<String>,
+    pub lossless: Option<bool>,
+    pub quality: Option<u32>,
+}
+
+pub struct EncodedSystemThumbnailTask {
+    path: String,
+    max_dimension: u32,
+    format: core::ThumbnailFormat,
+    lossless: bool,
+    quality: u8,
 }
 
 pub struct SystemThumbnailTask {
@@ -107,6 +133,23 @@ pub struct WicImageThumbnailOptions {
     pub max_dimension: Option<u32>,
 }
 
+#[napi(object)]
+pub struct EncodedWicImageThumbnailOptions {
+    pub data: Buffer,
+    pub max_dimension: Option<u32>,
+    pub format: Option<String>,
+    pub lossless: Option<bool>,
+    pub quality: Option<u32>,
+}
+
+pub struct EncodedWicImageThumbnailTask {
+    data: Vec<u8>,
+    max_dimension: u32,
+    format: core::ThumbnailFormat,
+    lossless: bool,
+    quality: u8,
+}
+
 pub struct WicImageThumbnailTask {
     data: Vec<u8>,
     max_dimension: u32,
@@ -152,6 +195,49 @@ impl Task for SystemThumbnailTask {
 }
 
 #[napi]
+pub fn get_cached_system_thumbnail_encoded(
+    options: EncodedSystemThumbnailOptions,
+) -> Result<AsyncTask<EncodedSystemThumbnailTask>> {
+    if options.path.is_empty() {
+        return Err(Error::new(Status::InvalidArg, "path cannot be empty"));
+    }
+    let max_dimension = options.max_dimension.unwrap_or(416);
+    if !(16..=2048).contains(&max_dimension) {
+        return Err(Error::new(
+            Status::InvalidArg,
+            "maxDimension must be between 16 and 2048",
+        ));
+    }
+    Ok(AsyncTask::new(EncodedSystemThumbnailTask {
+        path: options.path,
+        max_dimension,
+        format: parse_thumbnail_format(options.format.as_deref().unwrap_or("webp"))?,
+        lossless: options.lossless.unwrap_or(false),
+        quality: parse_quality(options.quality.unwrap_or(82))?,
+    }))
+}
+
+impl Task for EncodedSystemThumbnailTask {
+    type Output = Option<core::EncodedSystemThumbnail>;
+    type JsValue = Option<EncodedSystemThumbnail>;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        core::get_cached_system_thumbnail_encoded(
+            &self.path,
+            self.max_dimension,
+            self.format,
+            self.lossless,
+            self.quality,
+        )
+        .map_err(|error| Error::from_reason(error.to_string()))
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(output.map(encoded_system_thumbnail))
+    }
+}
+
+#[napi]
 pub fn create_wic_image_thumbnail(
     options: WicImageThumbnailOptions,
 ) -> Result<AsyncTask<WicImageThumbnailTask>> {
@@ -191,24 +277,57 @@ impl Task for WicImageThumbnailTask {
 }
 
 #[napi]
+pub fn create_wic_image_thumbnail_encoded(
+    options: EncodedWicImageThumbnailOptions,
+) -> Result<AsyncTask<EncodedWicImageThumbnailTask>> {
+    if options.data.is_empty() {
+        return Err(Error::new(Status::InvalidArg, "data cannot be empty"));
+    }
+    let max_dimension = options.max_dimension.unwrap_or(416);
+    if max_dimension != 0 && !(16..=8192).contains(&max_dimension) {
+        return Err(Error::new(
+            Status::InvalidArg,
+            "maxDimension must be zero or between 16 and 8192",
+        ));
+    }
+    Ok(AsyncTask::new(EncodedWicImageThumbnailTask {
+        data: options.data.to_vec(),
+        max_dimension,
+        format: parse_thumbnail_format(options.format.as_deref().unwrap_or("webp"))?,
+        lossless: options.lossless.unwrap_or(false),
+        quality: parse_quality(options.quality.unwrap_or(82))?,
+    }))
+}
+
+impl Task for EncodedWicImageThumbnailTask {
+    type Output = core::EncodedSystemThumbnail;
+    type JsValue = EncodedSystemThumbnail;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        core::create_wic_image_thumbnail_encoded(
+            &self.data,
+            self.max_dimension,
+            self.format,
+            self.lossless,
+            self.quality,
+        )
+        .map_err(|error| Error::from_reason(error.to_string()))
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(encoded_system_thumbnail(output))
+    }
+}
+
+#[napi]
 pub fn create_archive_thumbnail(
     options: ArchiveThumbnailOptions,
 ) -> Result<AsyncTask<ArchiveThumbnailTask>> {
     let mut core_options = core::ArchiveThumbnailOptions::new(options.path);
     core_options.max_dimension = options.max_dimension.unwrap_or(512);
-    core_options.quality = u8::try_from(options.quality.unwrap_or(85))
-        .map_err(|_| Error::new(Status::InvalidArg, "quality is outside the u8 range"))?;
-    core_options.format = match options.format.as_deref().unwrap_or("png") {
-        "png" => core::ThumbnailFormat::Png,
-        "jpeg" | "jpg" => core::ThumbnailFormat::Jpeg,
-        "webp" => core::ThumbnailFormat::Webp,
-        value => {
-            return Err(Error::new(
-                Status::InvalidArg,
-                format!("unsupported thumbnail format: {value}"),
-            ));
-        }
-    };
+    core_options.quality = parse_quality(options.quality.unwrap_or(85))?;
+    core_options.format = parse_thumbnail_format(options.format.as_deref().unwrap_or("png"))?;
+    core_options.lossless = options.lossless.unwrap_or(false);
     core_options.sort_order = match options.sort_order.as_deref().unwrap_or("natural") {
         "natural" => core::ArchiveSortOrder::Natural,
         "alphabetical" => core::ArchiveSortOrder::Alphabetical,
@@ -231,6 +350,37 @@ pub fn create_archive_thumbnail(
         }
     };
     Ok(AsyncTask::new(ArchiveThumbnailTask(core_options)))
+}
+
+fn parse_quality(value: u32) -> Result<u8> {
+    if !(1..=100).contains(&value) {
+        return Err(Error::new(
+            Status::InvalidArg,
+            "quality must be between 1 and 100",
+        ));
+    }
+    Ok(value as u8)
+}
+
+fn parse_thumbnail_format(value: &str) -> Result<core::ThumbnailFormat> {
+    match value {
+        "png" => Ok(core::ThumbnailFormat::Png),
+        "jpeg" | "jpg" => Ok(core::ThumbnailFormat::Jpeg),
+        "webp" => Ok(core::ThumbnailFormat::Webp),
+        value => Err(Error::new(
+            Status::InvalidArg,
+            format!("unsupported thumbnail format: {value}"),
+        )),
+    }
+}
+
+fn encoded_system_thumbnail(output: core::EncodedSystemThumbnail) -> EncodedSystemThumbnail {
+    EncodedSystemThumbnail {
+        data: output.data.into(),
+        width: output.width,
+        height: output.height,
+        mime_type: output.mime_type.into(),
+    }
 }
 
 impl Task for ArchiveThumbnailTask {
