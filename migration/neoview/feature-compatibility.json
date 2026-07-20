@@ -774,12 +774,12 @@
       ],
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "partial",
+        "core": "complete",
         "transport": "complete",
         "gui": "complete",
         "cli": "complete",
         "tui": "complete",
-        "evidence": "partial"
+        "evidence": "complete"
       },
       "behaviorCases": [
         "View/Ahead/Background 优先级",
@@ -830,6 +830,8 @@
         "neoview.preload.plan-gui",
         "neoview.preload.plan-cli",
         "neoview.preload.plan-tui",
+        "neoview.preload.plan-e2e",
+        "neoview.preload.telemetry-e2e",
         "neoview.react.predecode",
         "neoview.thumbnail.react-list",
         "neoview.thumbnail.scheduler-priority",
@@ -849,7 +851,7 @@
         "reader-loopback-pipeline"
       ],
       "knownDifferences": [
-        "GUI 已直接消费后端 direction/tier/admission preload plan，每代按后端顺序最多保留 4 个预解码图片，旧后端无 plan 时才回退相邻页；Image load/decode 生命周期按 session+generation 以 50ms、最多 64 条批量上报 TTFB/decode/retained bytes/active leases，不写 React state；viewport context 仅在会话建立或窗口 focus/visibility 变化时更新，普通翻页不新增 context PATCH；CLI 直接投影同一 Headless plan，OpenTUI 标记 Near/Ahead/Background 候选和 generation/admission，不另开页面流或复制 scheduler；普通 Reader 候选预算读取 canonical performance.preload_pages 并兼容旧 aliases，执行端硬限制 32 页且只裁剪唯一 coordinator；core 与端到端 evidence 仍待按全部旧行为清单收口"
+        "有意修复旧版重复且部分无消费者的 adaptivePreload、preDecodeCacheSize、progressiveLoad 和 image.preloadCount 状态：XR 统一为 ReaderPreloadCoordinator、宿主 ResourceScheduler、canonical performance.preload_pages 与浏览器有界预解码；旧 aliases 只作为读取兼容，不复活第二套队列或无效开关"
       ]
     },
     {

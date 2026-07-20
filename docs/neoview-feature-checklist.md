@@ -11,13 +11,13 @@
 - 功能：30
 - 最新后端命令：319，全部已映射
 - 最新功能源码：670，全部已映射
-- 派生总体：pending=5，partial=23，complete=2
-- core：complete=2，partial=22，pending=6，not-applicable=0
+- 派生总体：pending=5，partial=22，complete=3
+- core：complete=3，partial=21，pending=6，not-applicable=0
 - transport：complete=3，partial=18，pending=0，not-applicable=9
 - gui：complete=3，partial=8，pending=19，not-applicable=0
 - cli：complete=2，partial=12，pending=7，not-applicable=9
 - tui：complete=3，partial=6，pending=10，not-applicable=11
-- evidence：complete=2，partial=22，pending=6，not-applicable=0
+- evidence：complete=3，partial=21，pending=6，not-applicable=0
 - 完成规则：每个必需维度必须独立完成并具有该维度的 tracked test evidence；单一 core/HTTP/GUI 路径不能提升整个 feature。
 
 ## 推进表
@@ -33,7 +33,7 @@
 | 7 | `zoom-rotate-magnifier` | 缩放、适应窗口、旋转、拖动与放大镜 | partial | migrate | `core=P transport=N/A gui=P cli=N/A tui=N/A evidence=P` | core, gui, evidence | gui | 1 | 17 | fit/fill/宽/高/原始/左右对齐<br>有界缩放<br>拖动与捏合<br>临时 fit<br>顺逆旋转<br>放大镜尺寸与倍率 |
 | 8 | `image-decode-formats` | 图片格式、方向、尺寸与浏览器直出/转换 | partial | migrate | `core=P transport=P gui=P cli=- tui=- evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 21 | 37 | JPEG/PNG/WebP/GIF/APNG/AVIF/JXL/SVG<br>EXIF 方向<br>ICC/透明度<br>坏图<br>超大图<br>浏览器直出和转换 fallback |
 | 9 | `animated-image-video` | 动图、视频、字幕和播放控制 | partial | migrate | `core=P transport=P gui=- cli=N/A tui=N/A evidence=P` | core, transport, gui, evidence | gui | 11 | 21 | 动图自动播放与暂停<br>视频进度/音量/倍速<br>字幕轨道<br>切页停止与恢复<br>FFmpeg 缺失诊断<br>视频缩略图 |
-| 10 | `preload-stream-scheduler` | 预读、渐进加载、流传输和全局调度 | partial | migrate | `core=P transport=C gui=C cli=C tui=C evidence=P` | core, evidence | gui/cli/tui | 26 | 22 | View/Ahead/Background 优先级<br>方向感知预读<br>渐进批次<br>背压<br>快速翻页取消<br>多节点资源配额 |
+| 10 | `preload-stream-scheduler` | 预读、渐进加载、流传输和全局调度 | complete | migrate | `core=C transport=C gui=C cli=C tui=C evidence=C` | 无 | gui/cli/tui | 26 | 22 | View/Ahead/Background 优先级<br>方向感知预读<br>渐进批次<br>背压<br>快速翻页取消<br>多节点资源配额 |
 | 11 | `thumbnail-system` | 统一缩略图生成、持久化、数据库维护与迁移 | partial | migrate | `core=P transport=P gui=P cli=P tui=- evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 49 | 48 | 原数据库位置沿用<br>只读 schema/WAL 探测<br>批量命中与生成<br>失败记录<br>清理/vacuum/统计<br>V1/V3/V4 单表兼容读取<br>视频和归档缩略图 |
 | 12 | `cache-lifecycle` | 内存、磁盘、索引和资源缓存生命周期 | partial | migrate | `core=P transport=P gui=- cli=- tui=P evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 32 | 15 | 真实字节预算<br>pin 和方向淘汰<br>mtime/hash 失效<br>损坏恢复<br>80% hysteresis<br>session close/hibernate 回收 |
 | 13 | `super-resolution` | 超分模型、预览、队列、缓存与保存 | pending | migrate | `core=- transport=N/A gui=- cli=- tui=- evidence=-` | core, gui, cli, tui, evidence | gui/cli/tui | 65 | 50 | OpenComic system CLI 探测<br>Upscayl daemon<br>waifu2x/realcugan<br>IllustrationJaNai/MangaJaNai<br>tile/scale/TTA/GPU<br>AVIF/JXL 无损输入<br>取消和保存 |
@@ -194,18 +194,18 @@
 
 ### 预读、渐进加载、流传输和全局调度（`preload-stream-scheduler`）
 
-- 派生总体：`partial`
+- 派生总体：`complete`
 - 处置：`migrate`
-- 六维：`core=P transport=C gui=C cli=C tui=C evidence=P`
-- 阻塞维度：`core`、`evidence`
+- 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`
+- 阻塞维度：无
 - 端：gui、cli、tui
 - 设置：`performance.preLoadSize`、`performance.adaptivePreload`、`performance.preDecodeCacheSize`、`performance.progressiveLoad`、`image.preloadCount`、`book.preloadPages`
 - 数据：priority queues、request dedup
 - 行为：View/Ahead/Background 优先级；方向感知预读；渐进批次；背压；快速翻页取消；多节点资源配额
-- 测试：`neoview.scheduler.interactive-slot`、`neoview.scheduler.cancellation`、`neoview.scheduler.close`、`neoview.scheduler.host-injection`、`xiranite.scheduler.priority`、`xiranite.scheduler.pools`、`xiranite.scheduler.telemetry`、`xiranite.scheduler.close`、`neoview.image.transform-cancellation`、`neoview.cache.singleflight`、`neoview.cache.waiter-cancellation`、`neoview.memory-pressure.hysteresis`、`neoview.memory-pressure.critical`、`neoview.memory-pressure.route`、`neoview.archive.zip-scheduler`、`neoview.archive.zip-scheduler-host-injection`、`neoview.epub.scheduler-host-injection`、`neoview.sevenzip.scheduler`、`neoview.archive.materialize-lease`、`neoview.archive.materialize-cancellation`、`neoview.preload.telemetry`、`neoview.preload.telemetry-generation`、`neoview.preload.telemetry-http`、`neoview.preload.performance-telemetry`、`neoview.preload.viewport-admission`、`neoview.preload.viewport-validation`、`neoview.preload.viewport-session`、`neoview.preload.resource-admission`、`neoview.preload.resource-context`、`neoview.preload.resource-context-compat`、`neoview.preload.context-http`、`neoview.preload.config-runtime`、`neoview.preload.config-budget`、`neoview.preload.config-session`、`neoview.preload.react-client`、`neoview.preload.plan-react`、`neoview.preload.telemetry-react`、`neoview.preload.plan-gui`、`neoview.preload.plan-cli`、`neoview.preload.plan-tui`、`neoview.react.predecode`、`neoview.thumbnail.react-list`、`neoview.thumbnail.scheduler-priority`、`neoview.thumbnail.library.describe-scheduler`、`neoview.thumbnail.folder-index-scheduler`、`neoview.thumbnail.database-read-cooperative`、`neoview.thumbnail.database-read-cancellation`、`neoview.thumbnail.database-read-pipeline`、`terminal.image.decode.cancellation`、`terminal.image.decode.scheduler`
+- 测试：`neoview.scheduler.interactive-slot`、`neoview.scheduler.cancellation`、`neoview.scheduler.close`、`neoview.scheduler.host-injection`、`xiranite.scheduler.priority`、`xiranite.scheduler.pools`、`xiranite.scheduler.telemetry`、`xiranite.scheduler.close`、`neoview.image.transform-cancellation`、`neoview.cache.singleflight`、`neoview.cache.waiter-cancellation`、`neoview.memory-pressure.hysteresis`、`neoview.memory-pressure.critical`、`neoview.memory-pressure.route`、`neoview.archive.zip-scheduler`、`neoview.archive.zip-scheduler-host-injection`、`neoview.epub.scheduler-host-injection`、`neoview.sevenzip.scheduler`、`neoview.archive.materialize-lease`、`neoview.archive.materialize-cancellation`、`neoview.preload.telemetry`、`neoview.preload.telemetry-generation`、`neoview.preload.telemetry-http`、`neoview.preload.performance-telemetry`、`neoview.preload.viewport-admission`、`neoview.preload.viewport-validation`、`neoview.preload.viewport-session`、`neoview.preload.resource-admission`、`neoview.preload.resource-context`、`neoview.preload.resource-context-compat`、`neoview.preload.context-http`、`neoview.preload.config-runtime`、`neoview.preload.config-budget`、`neoview.preload.config-session`、`neoview.preload.react-client`、`neoview.preload.plan-react`、`neoview.preload.telemetry-react`、`neoview.preload.plan-gui`、`neoview.preload.plan-cli`、`neoview.preload.plan-tui`、`neoview.preload.plan-e2e`、`neoview.preload.telemetry-e2e`、`neoview.react.predecode`、`neoview.thumbnail.react-list`、`neoview.thumbnail.scheduler-priority`、`neoview.thumbnail.library.describe-scheduler`、`neoview.thumbnail.folder-index-scheduler`、`neoview.thumbnail.database-read-cooperative`、`neoview.thumbnail.database-read-cancellation`、`neoview.thumbnail.database-read-pipeline`、`terminal.image.decode.cancellation`、`terminal.image.decode.scheduler`
 - 计划测试：无
 - 性能基准：`scheduler-contention`、`cancel-latency`、`reader-hot-page-turn`、`reader-loopback-pipeline`
-- 已知差异：GUI 已直接消费后端 direction/tier/admission preload plan，每代按后端顺序最多保留 4 个预解码图片，旧后端无 plan 时才回退相邻页；Image load/decode 生命周期按 session+generation 以 50ms、最多 64 条批量上报 TTFB/decode/retained bytes/active leases，不写 React state；viewport context 仅在会话建立或窗口 focus/visibility 变化时更新，普通翻页不新增 context PATCH；CLI 直接投影同一 Headless plan，OpenTUI 标记 Near/Ahead/Background 候选和 generation/admission，不另开页面流或复制 scheduler；普通 Reader 候选预算读取 canonical performance.preload_pages 并兼容旧 aliases，执行端硬限制 32 页且只裁剪唯一 coordinator；core 与端到端 evidence 仍待按全部旧行为清单收口
+- 已知差异：有意修复旧版重复且部分无消费者的 adaptivePreload、preDecodeCacheSize、progressiveLoad 和 image.preloadCount 状态：XR 统一为 ReaderPreloadCoordinator、宿主 ResourceScheduler、canonical performance.preload_pages 与浏览器有界预解码；旧 aliases 只作为读取兼容，不复活第二套队列或无效开关
 
 ### 统一缩略图生成、持久化、数据库维护与迁移（`thumbnail-system`）
 
