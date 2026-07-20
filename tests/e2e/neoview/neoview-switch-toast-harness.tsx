@@ -32,8 +32,13 @@ function Harness() {
   const [opened, setOpened] = useState(false)
   const session = opened ? sessionAt(pageIndex) : undefined
   return (
-    <main className="grid h-screen overflow-hidden bg-neutral-950 text-foreground" style={{ gridTemplateColumns: "minmax(0, 1fr) 520px" }}>
-      <section className="relative grid min-h-0 place-items-center overflow-hidden bg-neutral-950 p-8" aria-label="阅读画面">
+    <main data-switch-toast-layout className="grid h-screen overflow-hidden bg-neutral-950 text-foreground" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(18rem, 32.5rem)" }}>
+      <style>{`@media (max-width: 640px) {
+        [data-switch-toast-layout] { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: 7rem minmax(0, 1fr); }
+        [data-switch-toast-reader] { padding: 0.25rem !important; }
+        [data-switch-toast-reader] nav { bottom: 0.25rem !important; }
+      }`}</style>
+      <section data-switch-toast-reader className="relative grid min-h-0 place-items-center overflow-hidden bg-neutral-950 p-8" aria-label="阅读画面">
         <PageImage
           page={{ id: "switch-toast-page", index: pageIndex, name: `00${pageIndex + 1}.jpg`, mediaKind: "image", contentVersion: "v1", assetUrl: source, dimensions: { width: 1200, height: 800 } }}
           scale={0.72}

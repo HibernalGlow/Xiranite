@@ -2365,7 +2365,7 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
   expect((await filterResponse).status()).toBe(200)
   expect(colorFilterPatches).toBe(1)
   await expect(colorFilterCard.getByText("\u5df2\u4fdd\u5b58", { exact: true })).toBeVisible()
-  expect(await brightness.inputValue()).not.toBe("100")
+  expect(await brightness.getAttribute("aria-valuenow")).not.toBe("100")
   expect(await readFile(join(fixture.directory, "xiranite.config.toml"), "utf8")).toMatch(/\[nodes\.neoview\.image\.color_filter\][\s\S]*brightness = (?!100\b)\d+/)
   expect(await image.getAttribute("data-sidebar-control-image-instance")).toBe("stable")
 

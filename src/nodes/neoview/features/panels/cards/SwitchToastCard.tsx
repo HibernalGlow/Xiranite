@@ -11,21 +11,20 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type KeyboardEvent,
-  type PointerEvent,
   type ReactNode,
 } from "react"
+import { BellRing, BookOpen, FileImage, PanelTop } from "lucide-react"
 import type {
   ReaderSwitchToastPatch,
   ReaderSwitchToastSettings,
 } from "@xiranite/node-neoview/switch-toast"
 
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { ReaderSwitchToastPort } from "../../switch-toast/ReaderSwitchToastStore"
 import type { ReaderPanelContext } from "../registry"
 import { ReaderCardSaveFeedback, useReaderCardMutation } from "./shared/ReaderCardMutation"
+import { ReaderSettingsSection, ReaderSettingsSlider, ReaderSettingsToggle } from "./shared/ReaderSettingsControls"
 
 export type SwitchToastSettings = ReaderSwitchToastSettings
 export type SwitchToastPatch = ReaderSwitchToastPatch
@@ -35,6 +34,7 @@ export interface SwitchToastCardProps {
   port?: SwitchToastPort
   onShowTest?(settings: SwitchToastSettings): void
   dataPanelActive?: boolean
+  disabled?: boolean
 }
 
 const BOOK_VARIABLES = [
@@ -51,11 +51,12 @@ const PAGE_VARIABLES = [
   ["{{page.name}}", "页面文件名"],
 ] as const
 
-export default function DockedSwitchToastCard({ switchToast, panelActive = true }: ReaderPanelContext) {
+export default function DockedSwitchToastCard({ switchToast, panelActive = true, disabled = false }: ReaderPanelContext) {
   return (
     <SwitchToastCard
       port={switchToast}
       dataPanelActive={panelActive}
+      disabled={disabled}
       onShowTest={(settings) => switchToast?.show({
         title: "切换提示测试",
         description: `X ${settings.positionX}px / Y ${settings.positionY}px / 透明度 ${Math.round(settings.opacity * 100)}%`,
@@ -65,7 +66,7 @@ export default function DockedSwitchToastCard({ switchToast, panelActive = true 
   )
 }
 
-export function SwitchToastCard({ port, onShowTest, dataPanelActive = true }: SwitchToastCardProps) {
+export function SwitchToastCard({ port, onShowTest, dataPanelActive = true, disabled = false }: SwitchToastCardProps) {
   const settings = useSyncExternalStore(
     port?.subscribe ?? subscribeNoop,
     port?.getSnapshot ?? getUndefinedSnapshot,
@@ -102,7 +103,7 @@ export function SwitchToastCard({ port, onShowTest, dataPanelActive = true }: Sw
 
   return (
     <section
-      className="space-y-3 text-xs text-muted-foreground"
+      className="@container space-y-3 text-xs text-muted-foreground"
       data-neoview-card="switch-toast"
       data-switch-toast-state="ready"
       data-panel-active={dataPanelActive ? "true" : "false"}
@@ -110,12 +111,14 @@ export function SwitchToastCard({ port, onShowTest, dataPanelActive = true }: Sw
       <CardSection
         title="提示悬浮窗"
         description="位置以窗口左上角为原点。"
+        icon={<PanelTop className="size-3 text-primary" />}
         action={(
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="h-7 px-2 text-[10px]"
+            disabled={disabled}
             onClick={() => onShowTest?.(settings)}
           >
             显示测试提示
@@ -123,64 +126,65 @@ export function SwitchToastCard({ port, onShowTest, dataPanelActive = true }: Sw
         )}
       >
         <div className="grid grid-cols-2 gap-2">
-          <DraftNumberInput label="X 轴" value={settings.positionX} min={0} max={4096} fallback={20} onCommit={(positionX) => update({ positionX })} />
-          <DraftNumberInput label="Y 轴" value={settings.positionY} min={0} max={4096} fallback={20} onCommit={(positionY) => update({ positionY })} />
+          <DraftNumberInput label="X 轴" value={settings.positionX} min={0} max={4096} fallback={20} disabled={disabled} onCommit={(positionX) => update({ positionX })} />
+          <DraftNumberInput label="Y 轴" value={settings.positionY} min={0} max={4096} fallback={20} disabled={disabled} onCommit={(positionY) => update({ positionY })} />
         </div>
 
-        <label className="block space-y-1.5">
-          <span className="flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground">透明度</span>
-            <output className="font-mono text-[10px] text-foreground">{Math.round(settings.opacity * 100)}%</output>
-          </span>
-          <input
-            className="h-5 w-full accent-primary"
-            type="range"
-            min={0.1}
-            max={1}
-            step={0.01}
-            value={settings.opacity}
-            aria-label="透明度"
-            onChange={(event) => previewOpacity(clampNumber(event.currentTarget.valueAsNumber, 0.1, 1, 0.92))}
-            onPointerUp={(event) => finishPointer(event, commit)}
-            onPointerCancel={(event) => finishPointer(event, commit)}
-            onKeyUp={(event) => finishRangeKey(event, commit)}
-          />
-        </label>
+        <ReaderSettingsSlider
+          label="透明度"
+          min={0.1}
+          max={1}
+          step={0.01}
+          value={settings.opacity}
+          suffix="%"
+          disabled={disabled}
+          minLabel="10%"
+          maxLabel="100%"
+          valueFormatter={(opacity) => String(Math.round(opacity * 100))}
+          onPreview={(opacity) => previewOpacity(clampNumber(opacity, 0.1, 1, 0.92))}
+          onCommit={() => commit()}
+        />
 
-        <ToggleRow
+        <ReaderSettingsToggle
           label="液态玻璃效果"
           checked={settings.liquidGlass}
+          disabled={disabled}
           onCheckedChange={(liquidGlass) => update({ liquidGlass })}
         />
       </CardSection>
 
-      <CardSection title="触发条件">
-        <ToggleRow
+      <CardSection title="触发条件" icon={<BellRing className="size-3 text-primary" />}>
+        <ReaderSettingsToggle
           label="切换书籍时显示提示"
           checked={settings.enableBook}
+          disabled={disabled}
           onCheckedChange={(enableBook) => update({ enableBook })}
         />
-        <ToggleRow
+        <ReaderSettingsToggle
           label="切换页面时显示提示"
           checked={settings.enablePage}
+          disabled={disabled}
           onCheckedChange={(enablePage) => update({ enablePage })}
         />
-        <ToggleRow
+        <ReaderSettingsToggle
           label="按键操作时显示提示"
           description="如“键盘: 下一页”、“滚轮: 放大”等。"
           checked={settings.enableAction}
+          disabled={disabled}
           onCheckedChange={(enableAction) => update({ enableAction })}
         />
-        <ToggleRow
+        <ReaderSettingsToggle
           label="边界翻页时显示提示"
           description="在最后一页继续后翻或第一页继续前翻时显示提示。"
           checked={settings.enableBoundaryToast}
+          disabled={disabled}
           onCheckedChange={(enableBoundaryToast) => update({ enableBoundaryToast })}
         />
       </CardSection>
 
       <TemplateSection
         title="书籍提示模板"
+        icon={<BookOpen className="size-3 text-primary" />}
         titleLabel="书籍标题模板"
         titleValue={settings.bookTitleTemplate}
         titlePlaceholder="例如：已切换到 {{book.emmTranslatedTitle}}"
@@ -188,12 +192,14 @@ export function SwitchToastCard({ port, onShowTest, dataPanelActive = true }: Sw
         descriptionValue={settings.bookDescriptionTemplate}
         descriptionPlaceholder="例如：路径：{{book.path}}"
         variables={BOOK_VARIABLES}
+        disabled={disabled}
         onTitleCommit={(bookTitleTemplate) => update({ bookTitleTemplate })}
         onDescriptionCommit={(bookDescriptionTemplate) => update({ bookDescriptionTemplate })}
       />
 
       <TemplateSection
         title="页面提示模板"
+        icon={<FileImage className="size-3 text-primary" />}
         titleLabel="页面标题模板"
         titleValue={settings.pageTitleTemplate}
         titlePlaceholder="例如：第 {{page.indexDisplay}} 页"
@@ -201,12 +207,13 @@ export function SwitchToastCard({ port, onShowTest, dataPanelActive = true }: Sw
         descriptionValue={settings.pageDescriptionTemplate}
         descriptionPlaceholder="例如：{{page.dimensionsFormatted}}"
         variables={PAGE_VARIABLES}
+        disabled={disabled}
         onTitleCommit={(pageTitleTemplate) => update({ pageTitleTemplate })}
         onDescriptionCommit={(pageDescriptionTemplate) => update({ pageDescriptionTemplate })}
         footer={<>页面模板同样可以使用 <span className="font-mono">{"{{book.*}}"}</span> 变量。</>}
       />
 
-      <ReaderCardSaveFeedback state={saveState} onRetry={retry} />
+      <ReaderCardSaveFeedback state={saveState} disabled={disabled} onRetry={retry} />
     </section>
   )
 }
@@ -214,64 +221,32 @@ export function SwitchToastCard({ port, onShowTest, dataPanelActive = true }: Sw
 function CardSection({
   title,
   description,
+  icon,
   action,
   children,
 }: {
   title: string
   description?: string
+  icon?: ReactNode
   action?: ReactNode
   children: ReactNode
 }) {
   return (
-    <div
-      className="space-y-2.5 border-t border-border/70 pt-3 first:border-t-0 first:pt-0"
-      data-reader-card-section={title}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold text-foreground">{title}</div>
-          {description ? <p className="mt-0.5 text-[10px] text-muted-foreground/70">{description}</p> : null}
-        </div>
-        {action}
-      </div>
-      <div className="space-y-2.5">{children}</div>
+    <div data-reader-card-section={title}>
+      <ReaderSettingsSection title={title} description={description} icon={icon} action={action}>
+        {children}
+      </ReaderSettingsSection>
     </div>
   )
 }
 
-function ToggleRow({
-  label,
-  description,
-  checked,
-  onCheckedChange,
-}: {
-  label: string
-  description?: string
-  checked: boolean
-  onCheckedChange(checked: boolean): void
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <div className="text-xs text-foreground">{label}</div>
-        {description ? <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground/70">{description}</p> : null}
-      </div>
-      <Switch
-        size="sm"
-        checked={checked}
-        aria-label={label}
-        onCheckedChange={onCheckedChange}
-      />
-    </div>
-  )
-}
-
-function DraftNumberInput({ label, value, min, max, fallback, onCommit }: {
+function DraftNumberInput({ label, value, min, max, fallback, disabled, onCommit }: {
   label: string
   value: number
   min: number
   max: number
   fallback: number
+  disabled: boolean
   onCommit(value: number): void
 }) {
   const [draft, setDraft] = useState(String(value))
@@ -303,6 +278,7 @@ function DraftNumberInput({ label, value, min, max, fallback, onCommit }: {
         min={min}
         max={max}
         value={draft}
+        disabled={disabled}
         aria-label={label}
         onFocus={() => { editingRef.current = true }}
         onChange={(event) => setDraft(event.currentTarget.value)}
@@ -321,6 +297,7 @@ function DraftNumberInput({ label, value, min, max, fallback, onCommit }: {
 
 function TemplateSection({
   title,
+  icon,
   titleLabel,
   titleValue,
   titlePlaceholder,
@@ -328,11 +305,13 @@ function TemplateSection({
   descriptionValue,
   descriptionPlaceholder,
   variables,
+  disabled,
   onTitleCommit,
   onDescriptionCommit,
   footer,
 }: {
   title: string
+  icon: ReactNode
   titleLabel: string
   titleValue: string
   titlePlaceholder: string
@@ -340,25 +319,27 @@ function TemplateSection({
   descriptionValue: string
   descriptionPlaceholder: string
   variables: readonly (readonly [string, string])[]
+  disabled: boolean
   onTitleCommit(value: string): void
   onDescriptionCommit(value: string): void
   footer?: ReactNode
 }) {
   return (
-    <CardSection title={title}>
-      <DraftTextarea label={titleLabel} value={titleValue} placeholder={titlePlaceholder} className="min-h-10" onCommit={onTitleCommit} />
-      <DraftTextarea label={descriptionLabel} value={descriptionValue} placeholder={descriptionPlaceholder} className="min-h-13" onCommit={onDescriptionCommit} />
+    <CardSection title={title} icon={icon}>
+      <DraftTextarea label={titleLabel} value={titleValue} placeholder={titlePlaceholder} className="min-h-10" disabled={disabled} onCommit={onTitleCommit} />
+      <DraftTextarea label={descriptionLabel} value={descriptionValue} placeholder={descriptionPlaceholder} className="min-h-13" disabled={disabled} onCommit={onDescriptionCommit} />
       <VariableTable values={variables} />
       {footer ? <p className="text-[10px] text-muted-foreground">{footer}</p> : null}
     </CardSection>
   )
 }
 
-function DraftTextarea({ label, value, placeholder, className, onCommit }: {
+function DraftTextarea({ label, value, placeholder, className, disabled, onCommit }: {
   label: string
   value: string
   placeholder: string
   className: string
+  disabled: boolean
   onCommit(value: string): void
 }) {
   const [draft, setDraft] = useState(value)
@@ -387,6 +368,7 @@ function DraftTextarea({ label, value, placeholder, className, onCommit }: {
         value={draft}
         placeholder={placeholder}
         aria-label={label}
+        disabled={disabled}
         onFocus={() => { editingRef.current = true }}
         onChange={(event) => setDraft(event.currentTarget.value)}
         onBlur={finish}
@@ -423,15 +405,6 @@ function VariableTable({ values }: { values: readonly (readonly [string, string]
       </Table>
     </div>
   )
-}
-
-function finishPointer(event: PointerEvent<HTMLInputElement>, commit: () => void): void {
-  if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-  commit()
-}
-
-function finishRangeKey(event: KeyboardEvent<HTMLInputElement>, commit: () => void): void {
-  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(event.key)) commit()
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {

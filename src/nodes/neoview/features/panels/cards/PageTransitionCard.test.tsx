@@ -32,17 +32,16 @@ describe("PageTransitionCard", () => {
     expect(persist).not.toHaveBeenCalled()
   })
 
-  it("previews duration and commits once at interaction end", async () => {
+  it("previews duration and commits once for a keyboard step", async () => {
     const persist = vi.fn(async (settings) => settings)
     const store = createReaderPageTransitionStore({ persist })
     store.preview({ enabled: true })
     render(<PageTransitionCard store={store} />)
     const slider = screen.getByRole("slider", { name: "动画时长" })
-    fireEvent.change(slider, { target: { value: "240" } })
-    expect(persist).not.toHaveBeenCalled()
-    fireEvent.pointerUp(slider, { pointerId: 1 })
+    fireEvent.keyDown(slider, { key: "ArrowRight" })
+    expect(store.getSnapshot().duration).toBe(10)
     await waitFor(() => expect(persist).toHaveBeenCalledOnce())
-    expect(persist.mock.calls[0]?.[0].duration).toBe(240)
+    expect(persist.mock.calls[0]?.[0].duration).toBe(10)
   })
 
   it("[neoview.page-transition.pending-edit] surfaces a pending save without locking the animation controls", () => {
