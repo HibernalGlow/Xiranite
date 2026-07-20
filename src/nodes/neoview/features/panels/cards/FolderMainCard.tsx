@@ -1582,7 +1582,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       <div
         className="contents"
         data-folder-chrome-slot="toolbar"
-        data-folder-toolbar-layout="single-row"
+        data-folder-toolbar-layout="wrapping"
       >
         <Suspense fallback={<div className="h-8" aria-label="正在加载工具栏" />}>
           <FolderToolbarLazy
