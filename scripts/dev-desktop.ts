@@ -1,6 +1,8 @@
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
+import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { resolveManagedFrontendUrl } from "./dev-frontend-url"
 
+const devSessionStartedAt = Date.now()
 const args = process.argv.slice(2)
 process.env.XIRANITE_LAZY_NODE_BUILD = "1"
 process.env.XIRANITE_NODE_SOURCE = "1"
@@ -85,18 +87,23 @@ async function waitForFrontend() {
 let go: ReturnType<typeof Bun.spawn> | null = null
 let stopping = false
 
-function stop() {
+async function stop() {
   if (stopping) return
   stopping = true
   backend?.close()
   vite.kill()
   go?.kill()
-  void removeBackendDevManifest()
+  await Promise.all([removeBackendDevManifest(), removeDevSession()])
 }
 
-process.on("SIGINT", stop)
-process.on("SIGTERM", stop)
-process.on("exit", () => backend?.close())
+await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid], script: "dev-desktop", startedAt: devSessionStartedAt })
+const stopRequestPoll = setInterval(() => {
+  void consumeDevSessionStopRequest().then((requested) => { if (requested) void stop() })
+}, 100)
+stopRequestPoll.unref()
+process.on("SIGINT", () => { void stop() })
+process.on("SIGTERM", () => { void stop() })
+process.on("exit", () => { backend?.close(); void removeDevSession() })
 
 try {
   await waitForFrontend()
@@ -120,12 +127,13 @@ try {
       XIRANITE_BACKEND_TOKEN: backend.token,
     },
   })
+  await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid, go.pid], script: "dev-desktop", startedAt: devSessionStartedAt })
 
   const exitCode = await go.exited
-  stop()
+  await stop()
   process.exit(exitCode ?? 0)
 } catch (error) {
-  stop()
+  await stop()
   console.error(error)
   process.exit(1)
 }

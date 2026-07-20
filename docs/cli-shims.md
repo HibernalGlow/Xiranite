@@ -12,6 +12,8 @@
 
 `xr`/`xrd` 通过 `bun --cwd <repoRoot> run <script>` 启动，因此可从任意目录调用，无需先 `cd` 到仓库。这两个 shim 仅校验仓库根目录存在 `package.json`，不依赖 `dist` 产物；首次运行时 `dev`/`dev:desktop` 脚本内部会自行执行 `generate:node-registries` 与 `build:packages:turbo`。
 
+开发完成后请运行 `xr stop`。它会先请求开发主管进程关闭后端和子进程；若终端已被直接关闭且主管进程未响应，才会核验命令行属于当前 Xiranite 工作区后终止记录的遗留进程树。也可从仓库根目录运行 `bun run dev:stop`。更新后需重新执行安装命令，才能生成带有 `xr stop` 路由的本地 shim。
+
 默认目标：
 
 ```powershell
