@@ -885,13 +885,25 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     if (enabled === previewGridEnabled) return
     captureCurrentState()
     resetThumbnailRegistration()
-    const emptyThumbnailUrls = new Map<string, string>()
-    const emptyThumbnailUrlSets = new Map<string, readonly string[]>()
-    thumbnailUrlsRef.current = emptyThumbnailUrls
-    thumbnailUrlSetsRef.current = emptyThumbnailUrlSets
-    thumbnailProfilesRef.current = new Map()
-    setThumbnailUrls(emptyThumbnailUrls)
-    setThumbnailUrlSets(emptyThumbnailUrlSets)
+    // Multi-preview only changes folder mosaic assets. Keep file single-cover
+    // visit cache so enabling the grid does not thrash the shared thumbnail lane.
+    const nextUrls = new Map<string, string>()
+    const nextUrlSets = new Map<string, readonly string[]>()
+    const nextProfiles = new Map<string, string>()
+    for (const [path, profile] of thumbnailProfilesRef.current) {
+      if (!profile.startsWith("folder:")) {
+        const url = thumbnailUrlsRef.current.get(path)
+        const urls = thumbnailUrlSetsRef.current.get(path)
+        if (url) nextUrls.set(path, url)
+        if (urls) nextUrlSets.set(path, urls)
+        nextProfiles.set(path, profile)
+      }
+    }
+    thumbnailUrlsRef.current = nextUrls
+    thumbnailUrlSetsRef.current = nextUrlSets
+    thumbnailProfilesRef.current = nextProfiles
+    setThumbnailUrls(nextUrls)
+    setThumbnailUrlSets(nextUrlSets)
     setPreviewGridEnabled(enabled)
     thumbnailSignatureRef.current = ""
     void onFolderView?.({ previewGridEnabled: enabled })

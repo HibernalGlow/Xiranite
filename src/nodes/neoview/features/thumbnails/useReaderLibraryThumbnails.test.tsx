@@ -109,4 +109,34 @@ describe("useReaderLibraryThumbnails", () => {
     expect(registerLibraryThumbnails).toHaveBeenCalledTimes(2)
     expect(registerLibraryThumbnails.mock.calls[1]?.[2]).toEqual([{ ...firstItem, refresh: true }])
   })
+
+  it("[neoview.library.thumbnail-url-sets] publishes multi-tile URL sets from registration batches", async () => {
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly ReaderLibraryThumbnailItem[]) => ({
+      contextId,
+      generation,
+      items: items.map((item) => ({
+        id: item.id,
+        thumbnailUrl: `/thumbnail/${item.id}/a`,
+        thumbnailUrls: [`/thumbnail/${item.id}/a`, `/thumbnail/${item.id}/b`],
+        contentVersion: "v1",
+      })),
+    }))
+    const client = {
+      registerLibraryThumbnails,
+      releaseLibraryThumbnailContext: vi.fn(async () => undefined),
+    } as ReaderHttpClient
+    const folderItem: ReaderLibraryThumbnailItem = {
+      id: "folder",
+      path: "D:/books/folder",
+      kind: "folder",
+      previewCount: 4,
+    }
+    const view = renderHook(() => useReaderLibraryThumbnails(client, "history", [folderItem]))
+
+    await waitFor(() => expect(view.result.current.urls.get("folder")).toBe("/thumbnail/folder/a"))
+    expect(view.result.current.urlSets.get("folder")).toEqual([
+      "/thumbnail/folder/a",
+      "/thumbnail/folder/b",
+    ])
+  })
 })
