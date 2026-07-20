@@ -57,6 +57,7 @@ describe("reader-http-client", () => {
     await expect(client.upscaleCapabilities!("reader/1", true)).resolves.toEqual(capability)
     await expect(client.upscaleCapabilities!()).resolves.toEqual(capability)
     await expect(client.upscalePreloadSnapshots!("reader/1")).resolves.toEqual([])
+    await expect(client.startUpscalePreload!("reader/1", "progressive")).resolves.toEqual([])
     await expect(client.upscaleCache!("reader/1")).resolves.toEqual(cache)
     await expect(client.cleanupUpscaleCache!("reader/1", "all")).resolves.toEqual(cleanup)
 
@@ -64,10 +65,12 @@ describe("reader-http-client", () => {
       "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-capabilities?refresh=true",
       "http://127.0.0.1:41000/reader/upscale-capabilities",
       "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-preload",
+      "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-preload/start?mode=progressive",
       "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-artifact-cache",
       "http://127.0.0.1:41000/reader/s/reader%2F1/upscale-artifact-cache?kind=all&confirmed=true",
     ])
-    expect(fetchMock.mock.calls[4]?.[1]).toMatchObject({ method: "POST" })
+    expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({ method: "POST" })
+    expect(fetchMock.mock.calls[5]?.[1]).toMatchObject({ method: "POST" })
     expect(fetchMock.mock.calls.every(([, init]) => new Headers(init?.headers).get("x-xiranite-token") === "reader-token")).toBe(true)
   })
 
@@ -566,6 +569,34 @@ describe("reader-http-client", () => {
     })
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/reader/library/contexts/folder%3Abrowser-1")
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "DELETE", keepalive: true })
+  })
+
+  it("[neoview.file-browser.thumbnail-compile] consumes bounded authenticated warmup streams", async () => {
+    const body = [
+      JSON.stringify({ type: "start", total: 2 }),
+      JSON.stringify({ type: "item", index: 0, id: "one", status: "completed" }),
+      JSON.stringify({ type: "item", index: 1, id: "two", status: "failed", error: "unsupported" }),
+      JSON.stringify({ type: "complete", total: 2, completed: 1, failed: 1 }),
+    ].join("\n") + "\n"
+    const fetchMock = vi.fn(async () => new Response(body, { headers: { "content-type": "application/x-ndjson" } }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.prewarmLibraryThumbnails!([
+      { id: "one", path: "D:/books/one", kind: "folder", previewCount: 4 },
+      { id: "two", path: "D:/books/two.cbz", kind: "file" },
+    ], { concurrency: 2 })).resolves.toEqual({ total: 2, completed: 1, failed: 1 })
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/library/thumbnails/prewarm")
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      items: [
+        { id: "one", path: "D:/books/one", kind: "folder", previewCount: 4 },
+        { id: "two", path: "D:/books/two.cbz", kind: "file" },
+      ],
+      mode: "ensure",
+      concurrency: 2,
+    })
   })
 
   it("[neoview.file-browser.sort-client] sends sort rules and focus identity to the browser session", async () => {

@@ -17,6 +17,17 @@ export interface ReaderThumbnailWrite {
   generationHash?: number
 }
 
+export interface ReaderFolderRepresentativeSource {
+  name: string
+  size: number
+  modifiedAtMs: number
+}
+
+export interface ReaderFolderRepresentativeManifest {
+  directoryModifiedAtMs: number
+  sources: readonly ReaderFolderRepresentativeSource[]
+}
+
 export interface ReaderThumbnailFailure {
   key: string
   reason: string
@@ -66,6 +77,17 @@ export interface ReaderThumbnailStore {
   get(key: string, category: ReaderThumbnailCategory): Promise<ReaderThumbnailAsset | undefined>
   getMany?(keys: readonly string[], category: ReaderThumbnailCategory): Promise<ReadonlyMap<string, ReaderThumbnailAsset>>
   put?(thumbnail: ReaderThumbnailWrite): Promise<void>
+  getFolderRepresentativeManifest?(
+    path: string,
+    previewCount: number,
+    mediaRevision: number,
+  ): Promise<ReaderFolderRepresentativeManifest | undefined>
+  putFolderRepresentativeManifest?(
+    path: string,
+    previewCount: number,
+    mediaRevision: number,
+    manifest: ReaderFolderRepresentativeManifest,
+  ): Promise<void>
   getFailure?(key: string): Promise<ReaderThumbnailFailure | undefined>
   recordFailure?(failure: Omit<ReaderThumbnailFailure, "retryCount">): Promise<void>
   maintenanceSnapshot?(signal?: AbortSignal): Promise<ReaderThumbnailMaintenanceSnapshot>

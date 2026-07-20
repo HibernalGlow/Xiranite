@@ -77,6 +77,73 @@ describe("SuperResolutionPreloadService", () => {
     }
   })
 
+  it("[neoview.super-resolution.progressive-generation] resets countdown but preserves a running batch across page turns", async () => {
+    const runGate = deferred()
+    const run = vi.fn(async (_input, context) => {
+      await Promise.race([runGate.promise, new Promise<void>((_, reject) => {
+        context?.signal?.addEventListener("abort", () => reject(context.signal.reason), { once: true })
+      })])
+      return { decision: { kind: "skip" as const, reason: "test" } }
+    })
+    const service = new SuperResolutionPreloadService({ run }, preferences({
+      progressiveEnabled: true,
+      progressiveDwellTimeMs: 0,
+      progressiveMaxPages: 2,
+      backgroundConcurrency: 1,
+    }))
+    try {
+      const first = service.scheduleProgressive({
+        contextId: "reader-progressive-generation",
+        generation: 1,
+        currentPageIndex: 0,
+        pages: pages(5),
+        bookPath: "D:/book.cbz",
+        destinationFor: (page) => `D:/cache/${page.index}.png`,
+      })
+      await vi.waitFor(() => expect(run).toHaveBeenCalledOnce())
+      await service.advanceGeneration("reader-progressive-generation", 2)
+      expect(service.snapshots("reader-progressive-generation")[0]).toMatchObject({ generation: 1, state: "running" })
+      const second = service.scheduleProgressive({
+        contextId: "reader-progressive-generation",
+        generation: 2,
+        currentPageIndex: 1,
+        pages: pages(5),
+        bookPath: "D:/book.cbz",
+        destinationFor: (page) => `D:/cache/${page.index}.png`,
+      })
+      expect(run).toHaveBeenCalledOnce()
+      runGate.resolve()
+      await expect(first).resolves.toMatchObject({ generation: 1, settled: 2 })
+      await expect(second).resolves.toMatchObject({ generation: 1, settled: 2 })
+    } finally {
+      await service.dispose()
+    }
+  })
+
+  it("[neoview.super-resolution.progressive-countdown-generation] cancels an old dwell and leaves the new generation to start", async () => {
+    const run = vi.fn(async () => ({ decision: { kind: "skip" as const, reason: "test" } }))
+    const service = new SuperResolutionPreloadService({ run }, preferences({
+      progressiveEnabled: true,
+      progressiveDwellTimeMs: 60_000,
+    }))
+    try {
+      const first = service.scheduleProgressive({
+        contextId: "reader-progressive-countdown",
+        generation: 1,
+        currentPageIndex: 0,
+        pages: pages(3),
+        bookPath: "D:/book.cbz",
+        destinationFor: (page) => `D:/cache/${page.index}.png`,
+      })
+      expect(service.snapshots("reader-progressive-countdown")[0]).toMatchObject({ generation: 1, state: "countdown" })
+      await service.advanceGeneration("reader-progressive-countdown", 2)
+      await expect(first).rejects.toMatchObject({ name: "AbortError" })
+      expect(service.snapshots("reader-progressive-countdown")).toEqual([])
+    } finally {
+      await service.dispose()
+    }
+  })
+
   it("[neoview.super-resolution.progressive] waits, then expands forward with the configured bound", async () => {
     const run = vi.fn(async (input) => ({ decision: { kind: "skip" as const, reason: input.page.id } }))
     const service = new SuperResolutionPreloadService({ run }, preferences({

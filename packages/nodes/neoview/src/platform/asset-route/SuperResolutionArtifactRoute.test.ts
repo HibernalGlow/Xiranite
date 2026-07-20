@@ -173,12 +173,14 @@ describe("SuperResolutionArtifactRoute", () => {
     const pause = vi.fn(async () => [{ ...snapshot, state: "paused" as const }])
     const retry = vi.fn(async () => [{ ...snapshot, state: "queued" as const }])
     const releaseContext = vi.fn(async () => undefined)
+    const advanceGeneration = vi.fn(async () => undefined)
     const preload: SuperResolutionPreloadControlPort = {
       startPlan,
       startProgressive,
       snapshots,
       pause,
       retry,
+      advanceGeneration,
       releaseContext,
     }
     const route = new SuperResolutionArtifactRoute(service, port(vi.fn()), store, {

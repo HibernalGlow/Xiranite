@@ -59,6 +59,8 @@ describe("LibraryThumbnailRoute", () => {
 
     const replaced = (await route.handle(registerRequest(sourcePath, 2, true)))!
     expect(replaced.status).toBe(201)
+    const replacedBody = await replaced.json() as { items: Array<{ thumbnailUrl: string }> }
+    expect(replacedBody.items[0]?.thumbnailUrl).toBe(body.items[0]?.thumbnailUrl)
     expect((await route.handle(new Request(body.items[0]!.thumbnailUrl)))?.status).toBe(200)
     expect((await route.handle(registerRequest(sourcePath, 1, true)))?.status).toBe(409)
 
@@ -98,10 +100,15 @@ describe("LibraryThumbnailRoute", () => {
     })
     const prewarmLibrary = vi.spyOn(pipeline, "prewarmLibrary")
     const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+    const initial = (await route.handle(registerRequest(sourcePath, 0, true)))!
+    const initialUrl = ((await initial.json()) as { items: Array<{ thumbnailUrl: string }> }).items[0]!.thumbnailUrl
+    prewarmLibrary.mockClear()
 
     const response = await route.handle(registerRequest(sourcePath, 1, true, "file", 1, true))
+    const refreshUrl = ((await response!.clone().json()) as { items: Array<{ thumbnailUrl: string }> }).items[0]!.thumbnailUrl
 
     expect(response?.status).toBe(201)
+    expect(refreshUrl).not.toBe(initialUrl)
     expect(refreshLibrary).toHaveBeenCalledOnce()
     expect(refreshLibrary.mock.calls[0]?.[0]).toMatchObject({ path: sourcePath, kind: "file" })
     expect(prewarmLibrary).toHaveBeenCalledWith([], { signal: expect.any(AbortSignal) })
@@ -168,6 +175,31 @@ describe("LibraryThumbnailRoute", () => {
     await pipeline.dispose()
   })
 
+  it("[neoview.thumbnail.library-stable-url] keeps a deterministic asset alive while another context retains it", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-library-thumbnail-shared-"))
+    roots.push(root)
+    const sourcePath = join(root, "cover.png")
+    await writeFile(sourcePath, Uint8Array.of(1))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(sourcePath),
+      loadImageTransformer: async () => ({ transform: async () => ({ contentType: "image/webp", stream: byteStream(fixtureWebp(8)) }) }),
+    })
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+    const item = [{ id: "cover", path: sourcePath, kind: "file" as const, previewCount: 1 as const }]
+    const first = (await route.handle(registrationRequest(item, 1, true, "library:first")))!
+    const second = (await route.handle(registrationRequest(item, 1, true, "library:second")))!
+    const firstUrl = ((await first.json()) as { items: Array<{ thumbnailUrl: string }> }).items[0]!.thumbnailUrl
+    const secondUrl = ((await second.json()) as { items: Array<{ thumbnailUrl: string }> }).items[0]!.thumbnailUrl
+    expect(secondUrl).toBe(firstUrl)
+
+    await route.handle(new Request("http://127.0.0.1:41000/reader/library/contexts/library%3Afirst?token=secret", { method: "DELETE" }))
+    expect((await route.handle(new Request(firstUrl)))?.status).toBe(200)
+    await route.handle(new Request("http://127.0.0.1:41000/reader/library/contexts/library%3Asecond?token=secret", { method: "DELETE" }))
+    expect((await route.handle(new Request(firstUrl)))?.status).toBe(404)
+    route.close()
+    await pipeline.dispose()
+  })
+
   it("[neoview.thumbnail.library-mosaic-http] returns independent opaque asset URLs for folder previews", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-library-mosaic-route-"))
     roots.push(root)
@@ -194,6 +226,38 @@ describe("LibraryThumbnailRoute", () => {
       expect((await route.handle(new Request(thumbnailUrl)))?.status).toBe(200)
     }
     expect(compose).not.toHaveBeenCalled()
+    route.close()
+    await pipeline.dispose()
+  })
+
+  it("[neoview.thumbnail.library-warmup-independent] compiles folder mosaics as independent representative assets", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-library-warmup-independent-"))
+    roots.push(root)
+    const folder = join(root, "book")
+    const cover = join(folder, "001.png")
+    const cover2 = join(folder, "002.png")
+    await mkdir(folder)
+    await writeFile(cover, Uint8Array.of(1, 2, 3))
+    await writeFile(cover2, Uint8Array.of(4, 5, 6))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async (source) => fixtureBook(source.path),
+      loadImageTransformer: async () => ({
+        transform: async () => ({ contentType: "image/webp", stream: byteStream(fixtureWebp(7)) }),
+      }),
+    })
+    const acquireLibrary = vi.spyOn(pipeline, "acquireLibrary")
+    const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
+    const response = (await route.handle(warmupRequest([
+      { id: "folder", path: folder, kind: "folder", previewCount: 4 },
+    ], true)))!
+    const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>)
+
+    expect(events.at(-1)).toEqual({ type: "complete", total: 1, completed: 1, failed: 0 })
+    expect(acquireLibrary).toHaveBeenCalledTimes(2)
+    expect(acquireLibrary.mock.calls.map(([source]) => source)).toEqual([
+      expect.objectContaining({ kind: "file", path: cover, previewCount: 1 }),
+      expect.objectContaining({ kind: "file", path: cover2, previewCount: 1 }),
+    ])
     route.close()
     await pipeline.dispose()
   })
@@ -316,6 +380,7 @@ function registrationRequest(
   items: Array<{ id: string; path: string; kind: "file" | "folder"; previewCount: 1 | 4 | 9 | 16; refresh?: boolean }>,
   generation: number,
   authorized: boolean,
+  contextId = "library:test",
 ): Request {
   return new Request("http://127.0.0.1:41000/reader/library/thumbnails", {
     method: "POST",
@@ -324,7 +389,7 @@ function registrationRequest(
       ...(authorized ? { "x-xiranite-token": "secret" } : {}),
     },
     body: JSON.stringify({
-      contextId: "library:test",
+      contextId,
       generation,
       items,
     }),

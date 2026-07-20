@@ -77,6 +77,7 @@ import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryE
 import type { ReaderPreloadContext, ReaderPreloadCoordinatorOptions, ReaderPreloadPlan } from "../../application/preloading/PreloadCoordinator.js"
 import type { ReaderPreloadOutcome, ReaderPreloadPerformanceMetrics } from "../../application/preloading/PreloadTelemetry.js"
 import { deriveReaderPreloadResourceContext } from "../../application/preloading/PreloadResourceContext.js"
+import type { ImageTransformRequest } from "../../domain/image/image-transform.js"
 import type { SystemThumbnailProviderLoader } from "../../ports/SystemThumbnailProvider.js"
 import type { VideoThumbnailProviderLoader } from "../../ports/VideoThumbnailProvider.js"
 import type { ReaderPageMediaMetadataProviderLoader } from "../../ports/ReaderPageMediaMetadataProvider.js"
@@ -224,7 +225,9 @@ const SESSION_CLIPBOARD_MATERIALIZATION_PATH = /^\/reader\/s\/([^/]+)\/clipboard
 const PRESENTATION_CACHE_PATH = "/reader/cache/presentation"
 const PRESENTATION_CACHE_CLEANUP_PATH = "/reader/cache/presentation/cleanup"
 const MAX_CONTROL_BODY_BYTES = 64 * 1024
-const PRELOAD_CONTEXT_FIELDS = new Set(["mode", "velocityPagesPerSecond", "stableForMs", "focused"])
+const PRELOAD_CONTEXT_FIELDS = new Set(["mode", "velocityPagesPerSecond", "stableForMs", "focused", "presentationWidth", "presentationHeight", "presentationDpr"])
+const PRESENTATION_TRANSFORM_FORMAT = "webp"
+const PRESENTATION_TRANSFORM_QUALITY = 85
 
 export interface ReaderPageDto {
   id: string
@@ -250,6 +253,12 @@ export interface ReaderSessionDto {
   visiblePages: ReaderPageDto[]
   pageOrder: ReaderPageOrder
   preload?: ReaderPreloadPlan
+}
+
+interface ReaderPresentationTransformContext {
+  width: number
+  height: number
+  dpr: number
 }
 
 export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions & {
@@ -372,6 +381,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #solidArchiveCache: SolidArchiveCache
   readonly #ownsSolidArchiveCache: boolean
   readonly #archivePreloadDemand = new ReaderArchivePreloadDemandBridge()
+  readonly #presentationTransforms = new Map<ReaderSessionId, ReaderPresentationTransformContext>()
   readonly #disposeThumbnailStore?: () => void | Promise<void>
   readonly #disposeSuperResolutionArtifacts?: () => void | Promise<void>
   #shellOptions: NeoviewShellConfig
@@ -1675,6 +1685,8 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     const context = parsePreloadViewportContext(body)
     if (context === "invalid") return jsonResponse({ error: "Invalid preload viewport context" }, 400)
+    const presentationTransform = parsePresentationTransformContext(body)
+    if (presentationTransform === "invalid") return jsonResponse({ error: "Invalid preload presentation context" }, 400)
     try {
       const previousPreloadGeneration = session.preloadPlan()?.generation
       const resources = deriveReaderPreloadResourceContext({
@@ -1682,6 +1694,7 @@ export class ReaderHttpController implements AsyncDisposable {
         sharedScheduler: this.#sharedSchedulerSnapshot?.(),
         memoryPressure: this.#assets.snapshot().memoryPressure,
       })
+      if (presentationTransform) this.#presentationTransforms.set(session.id, presentationTransform)
       const preload = session.updatePreloadContext({ ...context, ...resources })
       await this.#releaseStaleSuperResolutionPreload(session.id, previousPreloadGeneration, preload.generation)
       this.#retainSessionFrame(session, session.snapshot(), preload)
@@ -1932,6 +1945,7 @@ export class ReaderHttpController implements AsyncDisposable {
   async #releaseSession(session: ReaderSession): Promise<void> {
     const errors: unknown[] = []
     const superResolutionRelease = this.#superResolutionArtifacts?.releaseSession(session.id) ?? Promise.resolve()
+    this.#presentationTransforms.delete(session.id)
     try {
       await this.#archivePreloadDemand.release(session.id)
     } catch (error) {
@@ -2222,8 +2236,24 @@ export class ReaderHttpController implements AsyncDisposable {
       byteLength: page.byteLength,
       dimensions: page.dimensions,
       contentVersion: page.contentVersion,
-      assetUrl: this.#assets.pageUrl(session.id, page.id),
+      assetUrl: this.#assets.pageUrl(session.id, page.id, this.#presentationTransformForPage(session.id, page)),
       thumbnailUrl: this.#assets.thumbnailUrl(session.id, page.id),
+    }
+  }
+
+  #presentationTransformForPage(sessionId: ReaderSessionId, page: ReaderPage): ImageTransformRequest | undefined {
+    const context = this.#presentationTransforms.get(sessionId)
+    if (!context || page.mediaKind !== "image" || !page.dimensions) return undefined
+    const targetWidth = Math.round(context.width * context.dpr)
+    const targetHeight = Math.round(context.height * context.dpr)
+    if (page.dimensions.width <= targetWidth && page.dimensions.height <= targetHeight) return undefined
+    return {
+      width: context.width,
+      height: context.height,
+      dpr: context.dpr,
+      fit: "inside",
+      format: PRESENTATION_TRANSFORM_FORMAT,
+      quality: PRESENTATION_TRANSFORM_QUALITY,
     }
   }
 
@@ -2432,6 +2462,22 @@ function parsePreloadViewportContext(body: Record<string, unknown>): ReaderPrelo
     velocityPagesPerSecond: body.velocityPagesPerSecond as number | undefined,
     stableForMs: body.stableForMs as number | undefined,
     focused: body.focused as boolean | undefined,
+  }
+}
+
+function parsePresentationTransformContext(body: Record<string, unknown>): ReaderPresentationTransformContext | undefined | "invalid" {
+  const width = body.presentationWidth
+  const height = body.presentationHeight
+  const dpr = body.presentationDpr
+  if (width === undefined && height === undefined && dpr === undefined) return undefined
+  if (!Number.isSafeInteger(width) || (width as number) < 1 || (width as number) > 16_384) return "invalid"
+  if (!Number.isSafeInteger(height) || (height as number) < 1 || (height as number) > 16_384) return "invalid"
+  if (typeof dpr !== "number" || !Number.isFinite(dpr) || dpr < 0.25 || dpr > 4) return "invalid"
+  if (Math.round((width as number) * dpr) > 16_384 || Math.round((height as number) * dpr) > 16_384) return "invalid"
+  return {
+    width: width as number,
+    height: height as number,
+    dpr,
   }
 }
 

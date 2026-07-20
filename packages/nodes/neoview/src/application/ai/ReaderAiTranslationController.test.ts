@@ -39,9 +39,23 @@ describe("ReaderAiTranslationController", () => {
     expect(first).toEqual({ text: "你好", cached: false })
     const second = await controller.translate({ text: "こんにちは" })
     expect(second).toEqual({ text: "你好", cached: true })
-    expect(await controller.cacheStats()).toEqual({ memoryEntries: 1, persistentEntries: null })
+    expect(await controller.cacheStats()).toEqual({
+      memoryEntries: 1,
+      persistentEntries: null,
+      totalTranslations: 2,
+      cacheHits: 1,
+      apiCalls: 1,
+      hitRate: 0.5,
+    })
     expect(controller.clearMemoryCache()).toBe(1)
-    expect(await controller.cacheStats()).toEqual({ memoryEntries: 0, persistentEntries: null })
+    expect(await controller.cacheStats()).toEqual({
+      memoryEntries: 0,
+      persistentEntries: null,
+      totalTranslations: 0,
+      cacheHits: 0,
+      apiCalls: 0,
+      hitRate: 0,
+    })
   })
 
   it("[neoview.ai.controller] rejects non-ollama service for model listing", async () => {

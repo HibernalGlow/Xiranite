@@ -119,6 +119,40 @@ describe("WritableLegacyThumbnailStore", () => {
     verified.close()
   })
 
+  it("[neoview.thumbnail.folder-manifest] persists representative lists in an isolated xr_ table", async () => {
+    const path = await createFixture(roots)
+    const before = await openFixtureDatabase(path)
+    expect(before.get("PRAGMA user_version")).toEqual({ user_version: 0 })
+    before.close()
+
+    const store = await WritableLegacyThumbnailStore.open(path, { flushIntervalMs: 0 })
+    await store.putFolderRepresentativeManifest("D:/library", 4, 7, {
+      directoryModifiedAtMs: 500,
+      sources: [
+        { name: "nested/1.webp", size: 10, modifiedAtMs: 100 },
+        { name: "nested/2.webp", size: 20, modifiedAtMs: 200 },
+      ],
+    })
+    await store.close()
+
+    const reopened = await WritableLegacyThumbnailStore.open(path, { flushIntervalMs: 0 })
+    await expect(reopened.getFolderRepresentativeManifest("D:/library", 4, 7)).resolves.toEqual({
+      directoryModifiedAtMs: 500,
+      sources: [
+        { name: "nested/1.webp", size: 10, modifiedAtMs: 100 },
+        { name: "nested/2.webp", size: 20, modifiedAtMs: 200 },
+      ],
+    })
+    await expect(reopened.getFolderRepresentativeManifest("D:/library", 9, 7)).resolves.toBeUndefined()
+    await reopened.close()
+
+    const verified = await openFixtureDatabase(path)
+    expect(verified.get("SELECT value FROM metadata WHERE key = 'version'")).toEqual({ value: "2.4" })
+    expect(verified.get("PRAGMA user_version")).toEqual({ user_version: 0 })
+    expect(verified.get("SELECT COUNT(*) AS count FROM xr_thumbnail_folder_manifests")).toEqual({ count: 1 })
+    verified.close()
+  })
+
   it("[neoview.thumbnail.writer-access-lock] allows only one Xiranite writer and releases the lock on close", async () => {
     const path = await createFixture(roots)
     const first = await WritableLegacyThumbnailStore.open(path)

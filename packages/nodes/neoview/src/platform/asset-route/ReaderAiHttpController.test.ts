@@ -42,7 +42,14 @@ describe("ReaderAiHttpController", () => {
     expect(await translated?.json()).toEqual({ text: "你好", cached: false })
 
     const cache = await controller.handle(new Request("http://127.0.0.1/reader/ai/cache"))
-    expect(await cache?.json()).toEqual({ memoryEntries: 1, persistentEntries: null })
+    expect(await cache?.json()).toEqual({
+      memoryEntries: 1,
+      persistentEntries: null,
+      totalTranslations: 1,
+      cacheHits: 0,
+      apiCalls: 1,
+      hitRate: 0,
+    })
 
     const cleared = await controller.handle(new Request("http://127.0.0.1/reader/ai/cache?scope=memory", { method: "DELETE" }))
     expect(await cleared?.json()).toEqual({ cleared: 1, scope: "memory" })

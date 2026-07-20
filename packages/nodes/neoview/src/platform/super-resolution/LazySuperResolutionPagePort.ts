@@ -44,6 +44,7 @@ export interface SuperResolutionPageCapability {
     snapshots(contextId: string): readonly SuperResolutionPreloadLiveSnapshot[]
     pause(contextId: string): Promise<readonly SuperResolutionPreloadLiveSnapshot[]>
     retry(contextId: string, mode: "nearby" | "progressive"): Promise<SuperResolutionPreloadBatchResult>
+    advanceGeneration(contextId: string, generation: number): Promise<void>
     releaseContext(contextId: string): void
   }
   listModels(): readonly SuperResolutionModelManifest[]
@@ -161,6 +162,17 @@ export class LazySuperResolutionPagePort implements ReaderHeadlessSuperResolutio
     this.#resolvedCapability?.preload?.releaseContext(contextId)
     if (!this.#resolvedCapability && this.#capability) {
       void this.#capability.then((capability) => capability?.preload?.releaseContext(contextId)).catch(() => undefined)
+    }
+  }
+
+  async advanceGeneration(contextId: string, generation: number): Promise<void> {
+    this.#assertActive()
+    if (this.#resolvedCapability?.preload) {
+      await this.#resolvedCapability.preload.advanceGeneration(contextId, generation)
+      return
+    }
+    if (!this.#resolvedCapability && this.#capability) {
+      void this.#capability.then((capability) => capability?.preload?.advanceGeneration(contextId, generation)).catch(() => undefined)
     }
   }
 

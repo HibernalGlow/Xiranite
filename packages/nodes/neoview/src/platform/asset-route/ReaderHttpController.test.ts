@@ -782,6 +782,7 @@ describe("ReaderHttpController", () => {
 
   it("[neoview.super-resolution.preload-generation] releases stale upscale work after navigation", async () => {
     const directory = await createBookDirectory()
+    const advanceGeneration = vi.fn(async () => undefined)
     const releaseContext = vi.fn(async () => undefined)
     const preload = {
       startPlan: vi.fn(),
@@ -789,6 +790,7 @@ describe("ReaderHttpController", () => {
       snapshots: vi.fn(async () => []),
       pause: vi.fn(async () => []),
       retry: vi.fn(async () => []),
+      advanceGeneration,
       releaseContext,
     } as unknown as SuperResolutionPreloadControlPort
     const controller = new ReaderHttpController({
@@ -803,7 +805,8 @@ describe("ReaderHttpController", () => {
       const session = await opened.json() as ReaderSessionDto
       const navigated = await controller.handle(jsonRequest(`/reader/s/${session.sessionId}/navigate`, { action: "next" }))
       expect(navigated?.status).toBe(200)
-      expect(releaseContext).toHaveBeenCalledWith(`reader:${session.sessionId}:super-resolution`)
+      expect(advanceGeneration).toHaveBeenCalledWith(`reader:${session.sessionId}:super-resolution`, expect.any(Number))
+      expect(releaseContext).not.toHaveBeenCalled()
     } finally {
       await controller[Symbol.asyncDispose]()
     }
@@ -1450,6 +1453,38 @@ describe("ReaderHttpController", () => {
       await controller[Symbol.asyncDispose]()
     }
   })
+
+  it("[neoview.image.presentation-context-url] applies viewport presentation transforms to later visible image URLs", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-presentation-context-"))
+    cleanupDirectories.push(directory)
+    await Promise.all([1, 2].map((index) => writeFile(join(directory, `page-${index}.jpg`), jpegHeaderWithDimensions(4000, 6000))))
+    const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" })
+    try {
+      const opened = (await controller.handle(jsonRequest("/reader/sessions", { path: directory })))!
+      const session = await opened.json() as ReaderSessionDto
+      expect(new URL(session.visiblePages[0]!.assetUrl).searchParams.has("format")).toBe(false)
+
+      const context = await controller.handle(jsonRequest(
+        `/reader/s/${session.sessionId}/preload-context`,
+        { mode: "paged", focused: true, presentationWidth: 800, presentationHeight: 1000, presentationDpr: 2 },
+        true,
+        "PATCH",
+      ))
+      expect(context?.status).toBe(200)
+
+      const navigated = (await controller.handle(jsonRequest(`/reader/s/${session.sessionId}/navigate`, { action: "next" })))!
+      const page = (await navigated.json() as { visiblePages: Array<{ assetUrl: string }> }).visiblePages[0]!
+      const url = new URL(page.assetUrl)
+      expect(url.searchParams.get("width")).toBe("800")
+      expect(url.searchParams.get("height")).toBe("1000")
+      expect(url.searchParams.get("dpr")).toBe("2")
+      expect(url.searchParams.get("fit")).toBe("inside")
+      expect(url.searchParams.get("format")).toBe("webp")
+      expect(url.searchParams.get("quality")).toBe("85")
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
 })
 
 async function createBookDirectory(): Promise<string> {
@@ -1461,6 +1496,18 @@ async function createBookDirectory(): Promise<string> {
     writeFile(join(directory, "3.jpg"), Uint8Array.of(3)),
   ])
   return directory
+}
+
+function jpegHeaderWithDimensions(width: number, height: number): Buffer {
+  return Buffer.from([
+    0xff, 0xd8,
+    0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x48, 0x00, 0x48, 0x00, 0x00,
+    0xff, 0xc0, 0x00, 0x11, 0x08,
+    (height >> 8) & 0xff, height & 0xff,
+    (width >> 8) & 0xff, width & 0xff,
+    0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01,
+    0xff, 0xd9,
+  ])
 }
 
 function jsonRequest(path: string, body: unknown, authorized = true, method = "POST"): Request {
