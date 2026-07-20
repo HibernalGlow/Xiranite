@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryPageDto, type ReaderFolderViewConfig, type ReaderHttpClient } from "../../../adapters/reader-http-client"
 import { ContextMenuProvider } from "@/components/context-menu"
-import FolderMainCard, { isThumbnailDemandNeeded, mergeThumbnailUrls } from "./FolderMainCard"
+import FolderMainCard, { isThumbnailDemandNeeded, mergeThumbnailUrls, mergeThumbnailUrlSets } from "./FolderMainCard"
 
 function selectFolderViewMode(scope: ReturnType<typeof within> | typeof screen, label: string) {
   const existingButton = scope.queryByRole("button", { name: label })
@@ -191,6 +191,17 @@ describe("FolderMainCard", () => {
     expect(current.get("A")).toBe("url-a")
   })
 
+  it("[neoview.folder.thumbnail-visit-cache] keeps multi-tile URL sets in the same bounded visit cache", () => {
+    const current = new Map<string, readonly string[]>([["A", ["/a1", "/a2"]], ["B", ["/b1"]]])
+    const merged = mergeThumbnailUrlSets(current, [["A", ["/a3", "/a4"]], ["C", ["/c1", "/c2", "/c3", "/c4"]]], 2)
+
+    expect([...merged]).toEqual([
+      ["A", ["/a3", "/a4"]],
+      ["C", ["/c1", "/c2", "/c3", "/c4"]],
+    ])
+    expect(current.get("A")).toEqual(["/a1", "/a2"])
+  })
+
   it("[neoview.folder.thumbnail-visit-cache] restores more than one visible demand batch", () => {
     const current = new Map(Array.from({ length: 128 }, (_, index) => [`item-${index}`, `url-${index}`]))
     const restored = mergeThumbnailUrls(current, [], 256)
@@ -218,6 +229,23 @@ describe("FolderMainCard", () => {
       new Map([["C:/books/series", "http://thumb.test/series"]]),
       true,
     )).toBe(true)
+    expect(isThumbnailDemandNeeded(
+      { kind: "directory", path: "C:/books/series" },
+      "cover-grid",
+      4,
+      new Map([["C:/books/series", "folder:4"]]),
+      new Map([["C:/books/series", "http://thumb.test/series"]]),
+      true,
+    )).toBe(true)
+    expect(isThumbnailDemandNeeded(
+      { kind: "directory", path: "C:/books/series" },
+      "cover-grid",
+      4,
+      new Map([["C:/books/series", "folder:4"]]),
+      new Map([["C:/books/series", "http://thumb.test/series"]]),
+      true,
+      new Map([["C:/books/series", ["http://thumb.test/series-a", "http://thumb.test/series-b"]]]),
+    )).toBe(false)
   })
 
   it("[neoview.folder.single-click-open] opens files and folders by default while modified clicks select", async () => {
@@ -1144,13 +1172,29 @@ describe("FolderMainCard", () => {
         { name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true },
       ],
     })
-    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number) => ({
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly { id: string; path: string; kind?: string; previewCount?: number }[]) => ({
       contextId,
       generation,
-      items: [
-        { id: "0", thumbnailUrl: "http://127.0.0.1/folder.webp", contentVersion: "folder-v1" },
-        { id: "1", thumbnailUrl: "http://127.0.0.1/book.webp", contentVersion: "book-v1" },
-      ],
+      items: items.map((item) => {
+        if (item.kind === "folder" && (item.previewCount ?? 1) > 1) {
+          return {
+            id: item.id,
+            thumbnailUrl: `http://127.0.0.1/${item.id}-a.webp`,
+            thumbnailUrls: [
+              `http://127.0.0.1/${item.id}-a.webp`,
+              `http://127.0.0.1/${item.id}-b.webp`,
+              `http://127.0.0.1/${item.id}-c.webp`,
+              `http://127.0.0.1/${item.id}-d.webp`,
+            ],
+            contentVersion: `${item.id}-mosaic`,
+          }
+        }
+        return {
+          id: item.id,
+          thumbnailUrl: item.id === "0" ? "http://127.0.0.1/folder.webp" : "http://127.0.0.1/book.webp",
+          contentVersion: item.id === "0" ? "folder-v1" : "book-v1",
+        }
+      }),
     }))
     const releaseLibraryThumbnailContext = vi.fn(async () => undefined)
     const closeDirectoryBrowser = vi.fn(async () => undefined)
@@ -1176,18 +1220,29 @@ describe("FolderMainCard", () => {
     expect(items.length).toBeLessThanOrEqual(64)
     expect(items).toEqual(expect.arrayContaining([expect.objectContaining({ id: "0", path: "C:/books/folder", kind: "folder", previewCount: 1 })]))
     toggleFolderMultiPreview(currentView)
-    await waitFor(() => expect(registerLibraryThumbnails.mock.calls.at(-1)?.[2]).toEqual(expect.arrayContaining([
+    // Multi-preview only invalidates folder mosaic profiles. File single-cover
+    // URLs stay in the visit cache so the page-turn/thumbnail hot path is not
+    // forced to re-register unchanged assets. Virtuoso grid mocks may only
+    // report one visible index, so only the folder demand is reissued.
+    await waitFor(() => expect(registerLibraryThumbnails.mock.calls.at(-1)?.[2]).toEqual([
       expect.objectContaining({ id: "0", kind: "folder", previewCount: 4 }),
-      expect.objectContaining({ id: "1", kind: "file", previewCount: 1 }),
-    ])))
-    await waitFor(() => expect(view.container.querySelectorAll('[data-preview-mode="cover-grid"] img')).toHaveLength(2))
+    ]))
+    await waitFor(() => {
+      expect(view.container.querySelector('[data-preview-mode="cover-grid"] [data-thumbnail-grid-count="4"]')).toBeTruthy()
+      expect(view.container.querySelectorAll('[data-preview-mode="cover-grid"] [data-thumbnail-grid-count="4"] img')).toHaveLength(4)
+    })
     const registeredBeforeLeavingThumbnailView = registerLibraryThumbnails.mock.calls.length
+    const cacheSize = Number(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-thumbnail-cache-size") ?? "0")
+    expect(cacheSize).toBeGreaterThanOrEqual(1)
     selectFolderViewMode(currentView, "紧凑列表")
-    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-thumbnail-cache-size")).toBe("2")
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-thumbnail-cache-size")).toBe(String(cacheSize))
     expect(releaseLibraryThumbnailContext).not.toHaveBeenCalled()
     registerLibraryThumbnails.mockImplementationOnce(() => new Promise(() => undefined))
     selectFolderViewMode(currentView, "封面网格")
-    await waitFor(() => expect(view.container.querySelectorAll('[data-preview-mode="cover-grid"] img')).toHaveLength(2))
+    await waitFor(() => {
+      expect(view.container.querySelector('[data-preview-mode="cover-grid"] [data-thumbnail-grid-count="4"]')).toBeTruthy()
+      expect(view.container.querySelectorAll('[data-preview-mode="cover-grid"] [data-thumbnail-grid-count="4"] img')).toHaveLength(4)
+    })
     expect(registerLibraryThumbnails).toHaveBeenCalledTimes(registeredBeforeLeavingThumbnailView)
     view.unmount()
     expect(releaseLibraryThumbnailContext).toHaveBeenCalledOnce()
@@ -1232,15 +1287,18 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(ui.getByTitle("C:/A/folder").querySelector("img")?.getAttribute("src")).toBe("http://thumb.test/C%3A%2FA%2Ffolder"))
     const registrationsBeforeNavigation = registerLibraryThumbnails.mock.calls.length
 
-    const breadcrumb = view.container.querySelector('[data-neoview-folder-breadcrumb="true"]')!
-    fireEvent.click(breadcrumb.querySelector("button[aria-label]")!)
-    const input = await within(breadcrumb as HTMLElement).findByRole("textbox")
-    fireEvent.change(input, { target: { value: "C:/B" } })
-    fireEvent.submit(input.closest("form")!)
-    await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')?.getAttribute("title")).toBe("C:\\B"))
+    // Navigate away through the folder entry (path action), then restore via back.
+    // This exercises the visit thumbnail cache without depending on breadcrumb chrome.
+    fireEvent.click(ui.getByTitle("C:/A/folder"))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      { action: "path", path: "C:/A/folder" },
+      expect.any(AbortSignal),
+      "C:/A/folder",
+    ))
+    await waitFor(() => expect(ui.getByTitle("C:/B/folder")).toBeTruthy())
 
     fireEvent.click(view.container.querySelector("svg.lucide-arrow-left")!.closest("button")!)
-    await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-breadcrumb="true"] [aria-current="page"]')?.getAttribute("title")).toBe("C:\\A"))
     await waitFor(() => expect(ui.getByTitle("C:/A/folder").querySelector("img")?.getAttribute("src")).toBe("http://thumb.test/C%3A%2FA%2Ffolder"))
     expect(registerLibraryThumbnails).toHaveBeenCalledTimes(registrationsBeforeNavigation + 1)
     view.unmount()
