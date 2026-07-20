@@ -42,6 +42,7 @@ interface FolderBreadcrumbProps {
 
 export function FolderBreadcrumb({ path, disabled = false, loading = false, vertical = false, canGoBack, canGoForward, canGoUp, client, sessionId, canCreateTab = false, onCreateTab, onNavigate, onNavigateAction, onCopyPath }: FolderBreadcrumbProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const breadcrumbNavRef = useRef<HTMLElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const blurTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const [editing, setEditing] = useState(false)
@@ -52,6 +53,13 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
   const [feedback, setFeedback] = useState<{ kind: "status" | "alert"; text: string }>()
   const items = useMemo(() => parseFolderPath(path), [path])
   const visible = useMemo(() => visibleFolderBreadcrumbItems(items, maxVisibleItems), [items, maxVisibleItems])
+
+  useEffect(() => {
+    if (vertical) return
+    const nav = breadcrumbNavRef.current
+    if (!nav) return
+    requestAnimationFrame(() => { nav.scrollLeft = nav.scrollWidth })
+  }, [path, visible.visible.length, vertical])
 
   useEffect(() => {
     const container = containerRef.current
@@ -185,11 +193,11 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
         </form>
       ) : (
         <>
-          <nav aria-label="当前目录" className={vertical ? "flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto" : "flex min-w-0 flex-1 items-center overflow-hidden"}>
+          <nav ref={breadcrumbNavRef} aria-label="当前目录" className={vertical ? "flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto" : "flex min-w-0 flex-1 items-center gap-0 overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}>
             {visible.visible.map((item, index) => {
               const current = item === items.at(-1)
               return (
-                <span key={item.path} className={vertical ? "flex min-w-0 flex-col items-stretch" : "flex min-w-0 items-center"}>
+                <span key={item.path} className={vertical ? "flex min-w-0 flex-col items-stretch" : "flex shrink-0 items-center"}>
                   {index > 0 || visible.collapsed.length > 0 ? <ChevronRight className={`shrink-0 text-muted-foreground ${vertical ? "mx-auto rotate-90" : ""}`} aria-hidden="true" /> : null}
                   {index === 1 && visible.collapsed.length > 0 ? (
                     <CollapsedSegments items={visible.collapsed} disabled={disabled || loading} onNavigate={onNavigate} />
@@ -199,7 +207,7 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
                     type="button"
                     size="sm"
                     variant={current ? "secondary" : "ghost"}
-                    className={`h-6 min-w-0 shrink px-1.5 text-xs ${vertical ? "w-full max-w-none justify-start" : "max-w-32"}`}
+                    className={`h-6 min-w-0 shrink-0 px-1.5 text-xs ${vertical ? "w-full max-w-none justify-start" : "max-w-32"}`}
                     aria-current={current ? "page" : undefined}
                     disabled={disabled || loading}
                     title={item.path}

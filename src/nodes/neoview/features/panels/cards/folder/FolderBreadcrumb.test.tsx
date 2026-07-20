@@ -43,6 +43,7 @@ describe("FolderBreadcrumb", () => {
     })
 
     render(<FolderBreadcrumb path={"C:\\one\\two\\three\\four\\five\\six"} onNavigate={onNavigate} />)
+    expect(screen.getByRole("navigation", { name: "当前目录" }).className).toContain("overflow-x-auto")
     expect(screen.getByRole("button", { name: "six" }).getAttribute("aria-current")).toBe("page")
     fireEvent.pointerDown(screen.getByRole("button", { name: "显示折叠路径" }), { button: 0, ctrlKey: false, pointerType: "mouse" })
     fireEvent.click(await screen.findByRole("menuitem", { name: "one" }))
