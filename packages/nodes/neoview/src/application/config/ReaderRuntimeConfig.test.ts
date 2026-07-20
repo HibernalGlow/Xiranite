@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewBoardLayoutPatch, parseNeoviewBookPatch, parseNeoviewBookmarkListPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewHistoryListPatch, parseNeoviewPageListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewBoardLayoutPatch, parseNeoviewBookPatch, parseNeoviewBookmarkListPatch, parseNeoviewCardLayoutPatch, parseNeoviewFolderViewPatch, parseNeoviewHistoryListPatch, parseNeoviewPageListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewSystemMonitorPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -837,5 +837,30 @@ describe("parseNeoviewRuntimeConfig", () => {
         { cardId: "book-information", panelId: "history", visible: false, order: 1 },
       ],
     } })).toThrow("cannot hide card book-information")
+  })
+})
+
+describe("ReaderRuntimeConfig system monitor", () => {
+  it("[neoview.system-monitor.persistence] parses canonical settings and defaults", () => {
+    expect(parseNeoviewRuntimeConfig(undefined).systemMonitor).toEqual({ enabled: true, refreshIntervalMs: 1_000, maxSamples: 60 })
+    expect(parseNeoviewRuntimeConfig({ performance: { monitor: {
+      enabled: false,
+      refresh_interval_ms: 2_000,
+      max_samples: 120,
+    } } }).systemMonitor).toEqual({ enabled: false, refreshIntervalMs: 2_000, maxSamples: 120 })
+    expect(() => parseNeoviewRuntimeConfig({ performance: { monitor: { refresh_interval_ms: 750 } } })).toThrow("must be one of")
+  })
+
+  it("[neoview.system-monitor.persistence-patch] projects a bounded canonical TOML patch", () => {
+    expect(parseNeoviewSystemMonitorPatch({ systemMonitor: {
+      enabled: false,
+      refreshIntervalMs: 5_000,
+      maxSamples: 30,
+    } })).toEqual({
+      patch: { systemMonitor: { enabled: false, refreshIntervalMs: 5_000, maxSamples: 30 } },
+      tomlPatch: { performance: { monitor: { enabled: false, refresh_interval_ms: 5_000, max_samples: 30 } } },
+    })
+    expect(() => parseNeoviewSystemMonitorPatch({ systemMonitor: { refreshIntervalMs: 750 } })).toThrow("must be one of")
+    expect(() => parseNeoviewSystemMonitorPatch({ systemMonitor: { maxSamples: 1_000 } })).toThrow("between 10 and 600")
   })
 })

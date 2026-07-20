@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Activity, Bell, BookMarked, BookOpen, BookOpenCheck, Clock3, Cpu, Crop, DatabaseBackup, Eye, Film, FolderOpen, HardDrive, Image, Info, Keyboard, LayoutDashboard, ListFilter, ListTree, Loader, Palette, PanelLeft, Play, Sparkles, SlidersHorizontal, Trash2, Video, type LucideIcon } from "lucide-react"
+import { Activity, Bell, BookMarked, BookOpen, BookOpenCheck, Clock3, Cpu, Crop, DatabaseBackup, Eye, Film, FolderOpen, HardDrive, Image, Info, Keyboard, LayoutDashboard, ListFilter, ListTree, Loader, Monitor, Palette, PanelLeft, Play, Sparkles, SlidersHorizontal, Trash2, Video, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -214,6 +214,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "image-trim": () => import("./cards/ImageTrimCard"),
   "animated-video-mode": () => import("./cards/AnimatedVideoModeCard"),
   "thumbnail-maintenance": () => import("./cards/ThumbnailMaintenanceCard"),
+  "system-monitor": () => import("./cards/SystemMonitorCard"),
   "slideshow-settings": () => import("../settings/cards/SlideshowSettingsCard"),
   "media-settings": () => import("../settings/cards/MediaSettingsCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
@@ -257,6 +258,7 @@ const CARD_ICONS = {
   "sidebar-height": SlidersHorizontal,
   "image-trim": Crop,
   "animated-video-mode": Video,
+  "system-monitor": Monitor,
 } satisfies Record<ReaderCardId, LucideIcon>
 
 const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCardDefinition["loadSettings"]>>> = {

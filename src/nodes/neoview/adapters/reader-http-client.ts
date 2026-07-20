@@ -316,6 +316,44 @@ export interface ReaderStorageDiagnosticsDto {
   solidArchiveCache: { retainedBytes: number }
 }
 
+export type ReaderSystemMonitorIntervalDto = 500 | 1_000 | 2_000 | 5_000
+
+export interface ReaderSystemMonitorConfigDto {
+  enabled: boolean
+  refreshIntervalMs: ReaderSystemMonitorIntervalDto
+  maxSamples: number
+}
+
+export interface ReaderSystemMonitorSnapshotDto {
+  schemaVersion: 1
+  sampledAtMs: number
+  uptimeSeconds: number
+  loadAverage: readonly [number, number, number]
+  cpu: {
+    averageUsagePercent: number
+    cores: readonly { index: number; usagePercent: number }[]
+  }
+  memory: { totalBytes: number; usedBytes: number; freeBytes: number; cachedBytes: number | null }
+  network: {
+    available: boolean
+    reason?: string
+    receiveBytesPerSecond: number | null
+    transmitBytesPerSecond: number | null
+  }
+  disk: {
+    available: boolean
+    reason?: string
+    totalBytes: number | null
+    usedBytes: number | null
+    freeBytes: number | null
+  }
+  gpu: { available: boolean; reason?: string }
+}
+
+export interface ReaderSystemMonitorConfigPatch {
+  systemMonitor: Partial<ReaderSystemMonitorConfigDto>
+}
+
 export type ReaderPreloadActionDto = "cancel-speculative" | "release-retained"
 
 export interface ReaderPreloadActionResultDto {
@@ -741,6 +779,7 @@ export interface ReaderRuntimeConfigDto {
   pageTransition: ReaderPageTransitionSettings
   switchToast?: ReaderSwitchToastSettings
   infoOverlay?: ReaderInfoOverlaySettings
+  systemMonitor: ReaderSystemMonitorConfigDto
   imageTrim?: ReaderImageTrimSettings
   superResolution?: ReaderSuperResolutionConfigDto
   inputBindings: ReaderInputBindingsConfig
@@ -1198,6 +1237,7 @@ export interface ReaderHttpClient {
   updatePageTransition?(patch: ReaderPageTransitionConfigPatch, signal?: AbortSignal): Promise<ReaderPageTransitionSettings>
   updateSwitchToast?(patch: ReaderSwitchToastConfigPatch, signal?: AbortSignal): Promise<ReaderSwitchToastSettings>
   updateInfoOverlay?(patch: ReaderInfoOverlayConfigPatch, signal?: AbortSignal): Promise<ReaderInfoOverlaySettings>
+  updateSystemMonitor?(patch: ReaderSystemMonitorConfigPatch, signal?: AbortSignal): Promise<ReaderSystemMonitorConfigDto>
   updateImageTrim?(patch: ReaderImageTrimConfigPatch, signal?: AbortSignal): Promise<ReaderImageTrimSettings>
   updateSuperResolution?(patch: ReaderSuperResolutionPatchDto, signal?: AbortSignal): Promise<ReaderSuperResolutionConfigDto>
   upscalePage?(sessionId: string, pageId: string, trigger?: "manual" | "automatic-current", signal?: AbortSignal): Promise<ReaderUpscaleArtifactResultDto>
@@ -1268,6 +1308,7 @@ export interface ReaderHttpClient {
   metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
   pageMediaInformation?(sessionId: string, signal?: AbortSignal): Promise<ReaderPageMediaInformationDto>
   diagnostics?(signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
+  systemMonitorSnapshot?(signal?: AbortSignal): Promise<ReaderSystemMonitorSnapshotDto>
   preloadDiagnostics?(sessionId: string, signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   runPreloadAction?(sessionId: string, action: ReaderPreloadActionDto, signal?: AbortSignal): Promise<ReaderPreloadActionResultDto>
   updatePreloadContext?(sessionId: string, context: ReaderPreloadContextDto, signal?: AbortSignal): Promise<ReaderPreloadPlanDto>
@@ -1465,6 +1506,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((value) => value.infoOverlay),
+    updateSystemMonitor: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }).then((value) => value.systemMonitor),
     updateImageTrim: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -1767,6 +1814,7 @@ export function createReaderHttpClient(
     metadata: (sessionId, signal) => request<ReaderMetadataDto>(`/reader/s/${encodeURIComponent(sessionId)}/metadata`, { signal }),
     pageMediaInformation: (sessionId, signal) => request<ReaderPageMediaInformationDto>(`/reader/s/${encodeURIComponent(sessionId)}/page-media-information`, { signal }),
     diagnostics: (signal) => request<ReaderStorageDiagnosticsDto>("/reader/diagnostics", { signal }),
+    systemMonitorSnapshot: (signal) => request<ReaderSystemMonitorSnapshotDto>("/reader/diagnostics/system", { signal }),
     preloadDiagnostics: (sessionId, signal) => request<ReaderStorageDiagnosticsDto>(`/reader/diagnostics?sessionId=${encodeURIComponent(sessionId)}`, { signal }),
     runPreloadAction: (sessionId, action, signal) => request<ReaderPreloadActionResultDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/preload-actions`,

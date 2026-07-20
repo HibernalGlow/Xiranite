@@ -370,6 +370,21 @@ describe("reader-http-client", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/diagnostics?sessionId=reader%2Fone")
   })
 
+  it("[neoview.system-monitor.client] samples and updates the dedicated monitor contract", async () => {
+    const snapshot = { schemaVersion: 1, sampledAtMs: 1, uptimeSeconds: 2, loadAverage: [0, 0, 0], cpu: { averageUsagePercent: 0, cores: [] }, memory: { totalBytes: 1, usedBytes: 0, freeBytes: 1, cachedBytes: null }, network: { available: false, receiveBytesPerSecond: null, transmitBytesPerSecond: null }, disk: { available: false, totalBytes: null, usedBytes: null, freeBytes: null }, gpu: { available: false } }
+    const config = { systemMonitor: { enabled: false, refreshIntervalMs: 2_000, maxSamples: 30 } }
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/diagnostics/system")
+      ? Response.json(snapshot)
+      : Response.json(config))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.systemMonitorSnapshot!()).resolves.toEqual(snapshot)
+    await expect(client.updateSystemMonitor!({ systemMonitor: config.systemMonitor })).resolves.toEqual(config.systemMonitor)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/diagnostics/system")
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "PATCH", body: JSON.stringify({ systemMonitor: config.systemMonitor }) })
+  })
+
   it("[neoview.bindings.adjacent-book-client] opens an adjacent book through the encoded atomic endpoint", async () => {
     const replacement = { sessionId: "reader-2", book: { id: "book-2", displayName: "Book 2", pageCount: 1 }, frame: {}, visiblePages: [] }
     const fetchMock = vi.fn(async () => Response.json(replacement, { status: 201 }))

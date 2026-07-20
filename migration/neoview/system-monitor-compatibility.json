@@ -46,65 +46,179 @@
     {
       "id": "system-monitor-ui.shell-controls",
       "title": "Card 外壳、监控开关和刷新",
-      "sourceEvidence": ["src/lib/cards/registry.ts", "src/lib/cards/CardRenderer.svelte", "src/lib/cards/monitor/SystemMonitorCard.svelte"],
-      "acceptanceItems": ["systemMonitor ID、系统资源监控标题、Monitor 图标、insights Panel", "开始/停止监控按钮使用 Activity 图标并切换 default/destructive 语义", "刷新按钮使用 RefreshCw 图标，旧版无 stats 时禁用", "Card 继续使用共享折叠、隐藏、排序、独立窗口与高度行为"],
-      "mappedChecklistIds": ["system-monitor.shell", "system-monitor.toggle", "system-monitor.refresh"]
+      "sourceEvidence": [
+        "src/lib/cards/registry.ts",
+        "src/lib/cards/CardRenderer.svelte",
+        "src/lib/cards/monitor/SystemMonitorCard.svelte"
+      ],
+      "acceptanceItems": [
+        "systemMonitor ID、系统资源监控标题、Monitor 图标、insights Panel",
+        "开始/停止监控按钮使用 Activity 图标并切换 default/destructive 语义",
+        "刷新按钮使用 RefreshCw 图标，旧版无 stats 时禁用",
+        "Card 继续使用共享折叠、隐藏、排序、独立窗口与高度行为"
+      ],
+      "mappedChecklistIds": [
+        "system-monitor.shell",
+        "system-monitor.toggle",
+        "system-monitor.refresh"
+      ]
     },
     {
       "id": "system-monitor-ui.interval-states",
       "title": "刷新间隔与加载错误状态",
-      "sourceEvidence": ["src/lib/cards/monitor/SystemMonitorCard.svelte"],
-      "acceptanceItems": ["刷新间隔标签", "0.5/1/2/5 秒四个选项且默认 1 秒", "运行中改间隔会替换 timer 而非叠加", "错误使用 destructive 提示且后续成功清除", "无样本时区分加载中与已停止提示"],
-      "mappedChecklistIds": ["system-monitor.interval", "system-monitor.states", "system-monitor.lifecycle"]
+      "sourceEvidence": [
+        "src/lib/cards/monitor/SystemMonitorCard.svelte"
+      ],
+      "acceptanceItems": [
+        "刷新间隔标签",
+        "0.5/1/2/5 秒四个选项且默认 1 秒",
+        "运行中改间隔会替换 timer 而非叠加",
+        "错误使用 destructive 提示且后续成功清除",
+        "无样本时区分加载中与已停止提示"
+      ],
+      "mappedChecklistIds": [
+        "system-monitor.interval",
+        "system-monitor.states",
+        "system-monitor.lifecycle"
+      ]
     },
     {
       "id": "system-monitor-ui.overview-cpu",
       "title": "系统总览与 CPU",
-      "sourceEvidence": ["src/lib/cards/monitor/SystemMonitorCard.svelte", "src/lib/cards/monitor/components/CpuMonitor.svelte", "src/lib/cards/monitor/components/ProgressBar.svelte"],
-      "acceptanceItems": ["运行时间按天/小时/分钟降级", "负载平均显示 1/5/15 分钟且保留两位", "CPU 核心数量", "CPU 平均值取全部核心算术平均", "两列 Core 0..N 列表", "进度条 low/medium/high/critical 阈值为 50/75/90 且 critical 使用 destructive"],
-      "mappedChecklistIds": ["system-monitor.overview", "system-monitor.cpu", "system-monitor.format"]
+      "sourceEvidence": [
+        "src/lib/cards/monitor/SystemMonitorCard.svelte",
+        "src/lib/cards/monitor/components/CpuMonitor.svelte",
+        "src/lib/cards/monitor/components/ProgressBar.svelte"
+      ],
+      "acceptanceItems": [
+        "运行时间按天/小时/分钟降级",
+        "负载平均显示 1/5/15 分钟且保留两位",
+        "CPU 核心数量",
+        "CPU 平均值取全部核心算术平均",
+        "两列 Core 0..N 列表",
+        "进度条 low/medium/high/critical 阈值为 50/75/90 且 critical 使用 destructive"
+      ],
+      "mappedChecklistIds": [
+        "system-monitor.overview",
+        "system-monitor.cpu",
+        "system-monitor.format"
+      ]
     },
     {
       "id": "system-monitor-ui.memory-io",
       "title": "内存、网络和磁盘",
-      "sourceEvidence": ["src/lib/cards/monitor/components/MemoryMonitor.svelte", "src/lib/cards/monitor/components/IoMonitor.svelte", "src/lib/cards/monitor/components/ProgressBar.svelte"],
-      "acceptanceItems": ["内存使用百分比及总计/已用/空闲/缓存", "网络下载和上传速率独立显示", "磁盘使用百分比和进度条", "磁盘总计/已用/可用", "字节使用 1024 进制 B/KB/MB/GB/TB，速率使用 B/s..GB/s"],
-      "mappedChecklistIds": ["system-monitor.memory", "system-monitor.network", "system-monitor.disk", "system-monitor.format"]
+      "sourceEvidence": [
+        "src/lib/cards/monitor/components/MemoryMonitor.svelte",
+        "src/lib/cards/monitor/components/IoMonitor.svelte",
+        "src/lib/cards/monitor/components/ProgressBar.svelte"
+      ],
+      "acceptanceItems": [
+        "内存使用百分比及总计/已用/空闲/缓存",
+        "网络下载和上传速率独立显示",
+        "磁盘使用百分比和进度条",
+        "磁盘总计/已用/可用",
+        "字节使用 1024 进制 B/KB/MB/GB/TB，速率使用 B/s..GB/s"
+      ],
+      "mappedChecklistIds": [
+        "system-monitor.memory",
+        "system-monitor.network",
+        "system-monitor.disk",
+        "system-monitor.format"
+      ]
     },
     {
       "id": "system-monitor-ui.gpu",
       "title": "GPU 明确占位",
-      "sourceEvidence": ["src/lib/cards/monitor/components/GpuMonitor.svelte"],
-      "acceptanceItems": ["GPU 标题和 Cpu 图标语义", "明确显示 GPU 监控功能开发中和需要后端支持", "不得把系统/进程 CPU 伪装成 GPU 利用率"],
-      "mappedChecklistIds": ["system-monitor.gpu", "system-monitor.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/monitor/components/GpuMonitor.svelte"
+      ],
+      "acceptanceItems": [
+        "GPU 标题和 Cpu 图标语义",
+        "明确显示 GPU 监控功能开发中和需要后端支持",
+        "不得把系统/进程 CPU 伪装成 GPU 利用率"
+      ],
+      "mappedChecklistIds": [
+        "system-monitor.gpu",
+        "system-monitor.deviations"
+      ]
     },
     {
       "id": "system-monitor.contract",
       "title": "配置、传输和采样生命周期",
-      "sourceEvidence": ["src/lib/cards/monitor/SystemMonitorCard.svelte"],
-      "acceptanceItems": ["监控开关和间隔不再运行期写 localStorage", "后端响应使用版本化 schema 和有限数值", "折叠、隐藏、停用和卸载立即取消请求及 timer", "同一时刻最多一个请求，慢请求不重叠", "停止后仍保留最后样本供手动刷新", "Card 未激活时不采样且不影响 Reader 翻页"],
-      "mappedChecklistIds": ["system-monitor.persistence", "system-monitor.transport", "system-monitor.lifecycle", "system-monitor.performance"]
+      "sourceEvidence": [
+        "src/lib/cards/monitor/SystemMonitorCard.svelte"
+      ],
+      "acceptanceItems": [
+        "监控开关和间隔不再运行期写 localStorage",
+        "后端响应使用版本化 schema 和有限数值",
+        "折叠、隐藏、停用和卸载立即取消请求及 timer",
+        "同一时刻最多一个请求，慢请求不重叠",
+        "停止后仍保留最后样本供手动刷新",
+        "Card 未激活时不采样且不影响 Reader 翻页"
+      ],
+      "mappedChecklistIds": [
+        "system-monitor.persistence",
+        "system-monitor.transport",
+        "system-monitor.lifecycle",
+        "system-monitor.performance"
+      ]
     },
     {
       "id": "system-monitor.xr-history",
       "title": "有界趋势、峰值与重置",
-      "sourceEvidence": ["src/lib/cards/monitor/SystemMonitorCard.svelte"],
-      "acceptanceItems": ["趋势只保留固定上限样本且不落 Reader 业务表", "显示 CPU 与内存窗口峰值而不伪造旧版控件", "暂停保留当前历史，重置显式清空", "Card 停用后不后台追加样本"],
-      "mappedChecklistIds": ["system-monitor.history", "system-monitor.lifecycle", "system-monitor.performance", "system-monitor.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/monitor/SystemMonitorCard.svelte"
+      ],
+      "acceptanceItems": [
+        "趋势只保留固定上限样本且不落 Reader 业务表",
+        "显示 CPU 与内存窗口峰值而不伪造旧版控件",
+        "暂停保留当前历史，重置显式清空",
+        "Card 停用后不后台追加样本"
+      ],
+      "mappedChecklistIds": [
+        "system-monitor.history",
+        "system-monitor.lifecycle",
+        "system-monitor.performance",
+        "system-monitor.deviations"
+      ]
     },
     {
       "id": "system-monitor-ui.accessibility",
       "title": "可访问性与响应式几何",
-      "sourceEvidence": ["src/lib/cards/monitor/SystemMonitorCard.svelte", "src/lib/cards/monitor/components/ProgressBar.svelte"],
-      "acceptanceItems": ["按钮、select 与错误状态具有可访问名称/role", "进度条具备有限 0..100 的数值语义", "桌面保持三列总览、CPU 两列与磁盘三列", "420x360 Card 视口不横向溢出且密度可读", "减少动态效果时禁用进度条 transition"],
-      "mappedChecklistIds": ["system-monitor.accessibility", "system-monitor.responsive", "system-monitor.visual-evidence"]
+      "sourceEvidence": [
+        "src/lib/cards/monitor/SystemMonitorCard.svelte",
+        "src/lib/cards/monitor/components/ProgressBar.svelte"
+      ],
+      "acceptanceItems": [
+        "按钮、select 与错误状态具有可访问名称/role",
+        "进度条具备有限 0..100 的数值语义",
+        "桌面保持三列总览、CPU 两列与磁盘三列",
+        "420x360 Card 视口不横向溢出且密度可读",
+        "减少动态效果时禁用进度条 transition"
+      ],
+      "mappedChecklistIds": [
+        "system-monitor.accessibility",
+        "system-monitor.responsive",
+        "system-monitor.visual-evidence"
+      ]
     },
     {
       "id": "system-monitor.tests",
       "title": "自动化、视觉和性能证据",
-      "sourceEvidence": ["src/lib/cards/monitor/SystemMonitorCard.svelte"],
-      "acceptanceItems": ["旧版固定样本 1920x1080 characterization 可重复", "React 单测覆盖 timer、请求互斥、取消、错误恢复和格式边界", "真实 desktop/420x360 Chromium 覆盖启停、间隔和 active-only 请求", "性能门禁证明隐藏 Card 零轮询且不新增 Reader page-turn 请求"],
-      "mappedChecklistIds": ["system-monitor.visual-evidence", "system-monitor.performance", "system-monitor.deviations"]
+      "sourceEvidence": [
+        "src/lib/cards/monitor/SystemMonitorCard.svelte"
+      ],
+      "acceptanceItems": [
+        "旧版固定样本 1920x1080 characterization 可重复",
+        "React 单测覆盖 timer、请求互斥、取消、错误恢复和格式边界",
+        "真实 desktop/420x360 Chromium 覆盖启停、间隔和 active-only 请求",
+        "性能门禁证明隐藏 Card 零轮询且不新增 Reader page-turn 请求"
+      ],
+      "mappedChecklistIds": [
+        "system-monitor.visual-evidence",
+        "system-monitor.performance",
+        "system-monitor.deviations"
+      ]
     }
   ],
   "items": [
@@ -122,16 +236,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.shell"
+      "testIds": [
+        "neoview.shell.registry-lazy",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.toggle",
@@ -147,16 +262,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.toggle"
+      "testIds": [
+        "neoview.system-monitor.toggle",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.refresh",
@@ -172,16 +288,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.refresh"
+      "testIds": [
+        "neoview.system-monitor.toggle"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.interval",
@@ -197,16 +313,18 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.interval"
+      "testIds": [
+        "neoview.system-monitor.persistence-patch",
+        "neoview.system-monitor.persistence-http",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.states",
@@ -222,16 +340,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.system-monitor.states"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.overview",
@@ -247,16 +365,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.overview"
+      "testIds": [
+        "neoview.system-monitor.transport",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.cpu",
@@ -272,16 +391,18 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.cpu"
+      "testIds": [
+        "neoview.system-monitor.transport",
+        "neoview.system-monitor.states",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.memory",
@@ -297,16 +418,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.memory"
+      "testIds": [
+        "neoview.system-monitor.transport",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.network",
@@ -322,16 +444,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.network"
+      "testIds": [
+        "neoview.system-monitor.transport",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.disk",
@@ -347,16 +470,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.disk"
+      "testIds": [
+        "neoview.system-monitor.transport",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.gpu",
@@ -372,16 +496,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.gpu"
+      "testIds": [
+        "neoview.system-monitor.transport",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.format",
@@ -397,16 +522,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
+      "testIds": [
         "neoview.system-monitor.format"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.persistence",
@@ -420,18 +545,22 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.persistence"
+      "testIds": [
+        "neoview.system-monitor.persistence",
+        "neoview.system-monitor.persistence-patch",
+        "neoview.system-monitor.persistence-http",
+        "neoview.system-monitor.legacy-preferences",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.transport",
@@ -445,18 +574,21 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.transport"
+      "testIds": [
+        "neoview.system-monitor.transport",
+        "neoview.system-monitor.singleflight",
+        "neoview.system-monitor.transport-http",
+        "neoview.system-monitor.client"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.lifecycle",
@@ -471,17 +603,19 @@
       ],
       "capabilityStatus": {
         "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.lifecycle"
+      "testIds": [
+        "neoview.system-monitor.lifecycle",
+        "neoview.system-monitor.transport-http",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.accessibility",
@@ -497,16 +631,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.accessibility"
+      "testIds": [
+        "neoview.system-monitor.states",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.responsive",
@@ -522,16 +657,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.responsive"
+      "testIds": [
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.visual-evidence",
@@ -547,16 +682,16 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.visual-evidence"
+      "testIds": [
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.performance",
@@ -570,18 +705,22 @@
         "GUI"
       ],
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
-        "gui": "pending",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.performance"
+      "testIds": [
+        "neoview.system-monitor.singleflight",
+        "neoview.system-monitor.performance",
+        "neoview.system-monitor.lifecycle",
+        "neoview.system-monitor.transport-http",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.history",
@@ -597,16 +736,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.history"
+      "testIds": [
+        "neoview.system-monitor.states",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Explicit XR functional-scope completion: the legacy Card only rendered the latest sample; this bounded history must not be misreported as source UI parity."
+      "plannedTestIds": [],
+      "notes": "Production implementation verified by focused unit/integration tests and desktop plus 420x360 Chromium evidence."
     },
     {
       "id": "system-monitor.deviations",
@@ -622,16 +762,17 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "complete"
       },
-      "testIds": [],
-      "plannedTestIds": [
-        "neoview.system-monitor.deviations"
+      "testIds": [
+        "neoview.system-monitor.transport",
+        "neoview.system-monitor.e2e"
       ],
-      "notes": "Frozen before production React implementation; promote only with dimension-specific tracked evidence."
+      "plannedTestIds": [],
+      "notes": "Verified intentional fixes: active preference is separate from request ownership; network totals are not mislabeled as rates; GPU stays explicitly unavailable."
     }
   ]
 }

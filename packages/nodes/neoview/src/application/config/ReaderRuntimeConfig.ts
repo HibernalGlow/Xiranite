@@ -89,10 +89,24 @@ export interface NeoviewRuntimeConfig {
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
   preload: NeoviewPreloadConfig
+  systemMonitor: NeoviewSystemMonitorConfig
 }
 
 export interface NeoviewPreloadConfig {
   maxCandidatePages: number
+}
+
+export const NEOVIEW_SYSTEM_MONITOR_INTERVALS = [500, 1_000, 2_000, 5_000] as const
+export type NeoviewSystemMonitorInterval = typeof NEOVIEW_SYSTEM_MONITOR_INTERVALS[number]
+
+export interface NeoviewSystemMonitorConfig {
+  enabled: boolean
+  refreshIntervalMs: NeoviewSystemMonitorInterval
+  maxSamples: number
+}
+
+export interface NeoviewSystemMonitorPatch {
+  systemMonitor: Partial<NeoviewSystemMonitorConfig>
 }
 
 export interface NeoviewFileTreeConfig {
@@ -566,6 +580,12 @@ export const DEFAULT_NEOVIEW_PRELOAD_CONFIG: NeoviewPreloadConfig = {
   maxCandidatePages: 4,
 }
 
+export const DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG: NeoviewSystemMonitorConfig = {
+  enabled: true,
+  refreshIntervalMs: 1_000,
+  maxSamples: 60,
+}
+
 export const DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG: NeoviewSuperResolutionConfig = {
   provider: "opencomic-system",
   maxDaemonsPerGpu: 1,
@@ -666,6 +686,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     inputBindings: parseNeoviewInputBindingsConfig(undefined),
     radialMenu: parseReaderRadialMenuConfig(undefined),
     preload: DEFAULT_NEOVIEW_PRELOAD_CONFIG,
+    systemMonitor: DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
   }
   const config = unwrapNeoviewConfigEnvelope(value)
   const schemaVersion = config.schema_version ?? 1
@@ -711,6 +732,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
   const legacySlideshow = optionalRecord(reader?.slideshow, "[nodes.neoview.reader.slideshow]")
   const legacyBook = optionalRecord(reader?.book, "[nodes.neoview.reader.book]")
   const performance = optionalRecord(config.performance, "[nodes.neoview.performance]")
+  const systemMonitor = optionalRecord(performance?.monitor, "[nodes.neoview.performance.monitor]")
   const superResolution = optionalRecord(config.super_resolution, "[nodes.neoview.super_resolution]")
   const bindings = optionalRecord(config.bindings, "[nodes.neoview.bindings]")
   const presentationDiskCache = optionalRecord(
@@ -847,7 +869,70 @@ export function parseNeoviewRuntimeConfig(value: unknown): NeoviewRuntimeConfig 
     inputBindings: parseNeoviewInputBindingsConfig(bindings),
     radialMenu: parseReaderRadialMenuConfig(bindings?.radial_menus),
     preload: parsePreloadConfig(performance, image, legacyBook),
+    systemMonitor: parseSystemMonitorConfig(systemMonitor),
   }
+}
+
+function parseSystemMonitorConfig(value: Record<string, unknown> | undefined): NeoviewSystemMonitorConfig {
+  if (!value) return DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG
+  return {
+    enabled: optionalBoolean(value.enabled, "[nodes.neoview.performance.monitor].enabled")
+      ?? DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG.enabled,
+    refreshIntervalMs: parseSystemMonitorInterval(
+      value.refresh_interval_ms ?? value.refreshIntervalMs,
+      "[nodes.neoview.performance.monitor].refresh_interval_ms",
+      DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG.refreshIntervalMs,
+    ),
+    maxSamples: boundedIntegerWithFallback(
+      value.max_samples ?? value.maxSamples,
+      10,
+      600,
+      DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG.maxSamples,
+      "[nodes.neoview.performance.monitor].max_samples",
+    ),
+  }
+}
+
+export function parseNeoviewSystemMonitorPatch(value: unknown): {
+  patch: NeoviewSystemMonitorPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader system monitor patch")
+  if (Object.keys(record).some((key) => key !== "systemMonitor")) {
+    throw new Error("reader system monitor patch contains unsupported fields.")
+  }
+  const source = requireRecord(record.systemMonitor, "reader system monitor patch.systemMonitor")
+  const unknown = Object.keys(source).filter((key) => !["enabled", "refreshIntervalMs", "maxSamples"].includes(key))
+  if (unknown.length) throw new Error(`reader system monitor patch contains unsupported fields: ${unknown.join(", ")}.`)
+  if (!Object.keys(source).length) throw new Error("reader system monitor patch must change at least one field.")
+  const patch: Partial<NeoviewSystemMonitorConfig> = {}
+  const toml: Record<string, unknown> = {}
+  if (source.enabled !== undefined) {
+    patch.enabled = requiredBoolean(source.enabled, "reader system monitor patch.enabled")
+    toml.enabled = patch.enabled
+  }
+  if (source.refreshIntervalMs !== undefined) {
+    patch.refreshIntervalMs = parseSystemMonitorInterval(source.refreshIntervalMs, "reader system monitor patch.refreshIntervalMs")
+    toml.refresh_interval_ms = patch.refreshIntervalMs
+  }
+  if (source.maxSamples !== undefined) {
+    patch.maxSamples = boundedInteger(source.maxSamples, 10, 600, "reader system monitor patch.maxSamples")
+    toml.max_samples = patch.maxSamples
+  }
+  return { patch: { systemMonitor: patch }, tomlPatch: { performance: { monitor: toml } } }
+}
+
+function parseSystemMonitorInterval(
+  value: unknown,
+  path: string,
+  fallback?: NeoviewSystemMonitorInterval,
+): NeoviewSystemMonitorInterval {
+  if (value === undefined && fallback !== undefined) return fallback
+  const interval = boundedInteger(value, 500, 5_000, path)
+  if (!NEOVIEW_SYSTEM_MONITOR_INTERVALS.includes(interval as NeoviewSystemMonitorInterval)) {
+    throw new Error(`${path} must be one of: ${NEOVIEW_SYSTEM_MONITOR_INTERVALS.join(", ")}.`)
+  }
+  return interval as NeoviewSystemMonitorInterval
 }
 
 function parsePreloadConfig(
