@@ -128,6 +128,10 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
     validatePageIndex(input.currentPageIndex)
     input.signal?.throwIfAborted()
     const key = `${input.contextId}:progressive`
+    const current = this.#active.get(key)
+    if (current && input.generation > current.generation && this.#tracked.peek(key)?.snapshot.state === "running") {
+      return waitForSharedPromise(current.promise, input.signal)
+    }
     this.#track(key, { mode: "progressive", input: { ...input, signal: undefined } }, "countdown", input.generation)
     return this.#observe(key, this.#schedule(key, input.generation, input.signal, async (signal) => {
       if (!this.#automaticEnabled || !this.#progressiveEnabled) {
@@ -175,6 +179,28 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
     return request.mode === "nearby"
       ? this.schedulePlan(request.input)
       : this.scheduleProgressive(request.input)
+  }
+
+  async advanceGeneration(contextId: string, generation: number): Promise<void> {
+    validateContext(contextId, generation)
+    const pending: Promise<unknown>[] = []
+    for (const mode of ["nearby", "progressive"] as const) {
+      const key = `${contextId}:${mode}`
+      const batch = this.#active.get(key)
+      if (!batch || batch.generation >= generation) continue
+      const state = this.#tracked.peek(key)?.snapshot.state
+      if (mode === "progressive" && state === "running") continue
+      batch.controller.abort(abortError(`Super-resolution ${mode} generation ${batch.generation} was superseded by ${generation}.`))
+      pending.push(batch.promise)
+    }
+    await Promise.allSettled(pending)
+    for (const mode of ["nearby", "progressive"] as const) {
+      const key = `${contextId}:${mode}`
+      const tracked = this.#tracked.peek(key)
+      if (tracked && tracked.snapshot.generation < generation && !(mode === "progressive" && tracked.snapshot.state === "running")) {
+        this.#tracked.delete(key)
+      }
+    }
   }
 
   releaseContext(contextId: string, reason: unknown = abortError(`Super-resolution context released: ${contextId}`)): void {

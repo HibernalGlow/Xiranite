@@ -1,4 +1,6 @@
 import type {
+  ReaderFolderRepresentativeManifest,
+  ReaderFolderRepresentativeSource,
   ReaderThumbnailCleanupRequest,
   ReaderThumbnailFailure,
   ReaderThumbnailInvalidCleanupResult,
@@ -67,6 +69,8 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
   #failedBatches = 0
   #lastError?: string
   #invalidScanCursor = ""
+  #folderManifestSchemaReady = false
+  #folderManifestSchemaFlight?: Promise<void>
 
   private constructor(
     database: WritableSqliteConnection,
@@ -182,6 +186,65 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     this.#assertOpen()
     validateThumbnail(thumbnail, this.#maxThumbnailBytes)
     return this.#enqueue({ kind: "thumbnail", value: { ...thumbnail, bytes: thumbnail.bytes.slice() } })
+  }
+
+  async getFolderRepresentativeManifest(
+    path: string,
+    previewCount: number,
+    mediaRevision: number,
+  ): Promise<ReaderFolderRepresentativeManifest | undefined> {
+    this.#assertOpen()
+    validateFolderManifestIdentity(path, previewCount, mediaRevision)
+    await this.#ensureFolderManifestSchema()
+    this.#assertOpen()
+    const row = this.#database.get(
+      `SELECT directory_modified_at_ms, sources_json
+       FROM xr_thumbnail_folder_manifests
+       WHERE path_key = ?1 AND preview_count = ?2 AND media_revision = ?3
+       LIMIT 1`,
+      path,
+      previewCount,
+      mediaRevision,
+    )
+    if (!row) return undefined
+    return {
+      directoryModifiedAtMs: requireNonNegativeInteger(row.directory_modified_at_ms, "xr_thumbnail_folder_manifests.directory_modified_at_ms"),
+      sources: parseFolderRepresentativeSources(row.sources_json),
+    }
+  }
+
+  async putFolderRepresentativeManifest(
+    path: string,
+    previewCount: number,
+    mediaRevision: number,
+    manifest: ReaderFolderRepresentativeManifest,
+  ): Promise<void> {
+    this.#assertOpen()
+    validateFolderManifestIdentity(path, previewCount, mediaRevision)
+    const directoryModifiedAtMs = requireNonNegativeInteger(
+      manifest.directoryModifiedAtMs,
+      "folder representative directoryModifiedAtMs",
+    )
+    const sources = validateFolderRepresentativeSources(manifest.sources)
+    await this.#ensureFolderManifestSchema()
+    this.#assertOpen()
+    await this.#runTransaction(() => {
+      this.#database.run(
+        `INSERT INTO xr_thumbnail_folder_manifests (
+           path_key, preview_count, media_revision, directory_modified_at_ms, sources_json, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(path_key, preview_count, media_revision) DO UPDATE SET
+           directory_modified_at_ms = excluded.directory_modified_at_ms,
+           sources_json = excluded.sources_json,
+           updated_at = excluded.updated_at`,
+        path,
+        previewCount,
+        mediaRevision,
+        directoryModifiedAtMs,
+        JSON.stringify(sources),
+        sqliteTimestamp(new Date()),
+      )
+    }, "neoview.thumbnail.folder-manifest-write")
   }
 
   async getFailure(key: string): Promise<ReaderThumbnailFailure | undefined> {
@@ -573,6 +636,21 @@ export class WritableLegacyThumbnailStore implements ReaderThumbnailStore, Reade
     return undefined
   }
 
+  async #ensureFolderManifestSchema(): Promise<void> {
+    if (this.#folderManifestSchemaReady) return
+    if (!this.#folderManifestSchemaFlight) {
+      const flight = this.#runTransaction(() => {
+        ensureFolderRepresentativeManifestSchema(this.#database)
+      }, "neoview.thumbnail.folder-manifest-schema")
+        .then(() => { this.#folderManifestSchemaReady = true })
+        .finally(() => {
+          if (this.#folderManifestSchemaFlight === flight) this.#folderManifestSchemaFlight = undefined
+        })
+      this.#folderManifestSchemaFlight = flight
+    }
+    await this.#folderManifestSchemaFlight
+  }
+
   #clearTimer(): void {
     if (this.#flushTimer) clearTimeout(this.#flushTimer)
     this.#flushTimer = undefined
@@ -602,6 +680,64 @@ function validateThumbnail(value: ReaderThumbnailWrite, maxBytes: number): void 
   assertCategory(value.category)
   if (!(value.bytes instanceof Uint8Array) || !value.bytes.byteLength || value.bytes.byteLength > maxBytes) throw new Error(`Thumbnail bytes must be 1..${maxBytes} bytes.`)
   if (detectImageContentType(value.bytes) !== "image/webp") throw new Error("Writable thumbnail blobs must be WebP.")
+}
+
+function ensureFolderRepresentativeManifestSchema(database: WritableSqliteConnection): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS xr_thumbnail_folder_manifests (
+      path_key TEXT NOT NULL,
+      preview_count INTEGER NOT NULL,
+      media_revision INTEGER NOT NULL,
+      directory_modified_at_ms INTEGER NOT NULL,
+      sources_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (path_key, preview_count, media_revision)
+    );
+    CREATE INDEX IF NOT EXISTS xr_thumbnail_folder_manifests_updated_idx
+      ON xr_thumbnail_folder_manifests(updated_at);
+  `)
+}
+
+function validateFolderManifestIdentity(path: string, previewCount: number, mediaRevision: number): void {
+  assertKey(path)
+  if (previewCount !== 1 && previewCount !== 4 && previewCount !== 9 && previewCount !== 16) {
+    throw new RangeError("Folder representative previewCount must be 1, 4, 9 or 16.")
+  }
+  assertInteger(mediaRevision, "folder representative mediaRevision", 0, Number.MAX_SAFE_INTEGER)
+}
+
+function validateFolderRepresentativeSources(
+  value: readonly ReaderFolderRepresentativeSource[],
+): ReaderFolderRepresentativeSource[] {
+  if (!Array.isArray(value) || value.length > 16) throw new RangeError("Folder representative sources cannot exceed 16 entries.")
+  return value.map((source) => {
+    if (!source || typeof source !== "object") throw new TypeError("Folder representative source must be an object.")
+    if (!source.name || source.name.length > 32_768 || source.name.includes("\0")) {
+      throw new RangeError("Folder representative source name must be 1..32768 characters without NUL.")
+    }
+    return {
+      name: source.name,
+      size: requireNonNegativeInteger(source.size, "folder representative source size"),
+      modifiedAtMs: requireNonNegativeInteger(source.modifiedAtMs, "folder representative source modifiedAtMs"),
+    }
+  })
+}
+
+function parseFolderRepresentativeSources(value: unknown): ReaderFolderRepresentativeSource[] {
+  if (typeof value !== "string") throw new Error("xr_thumbnail_folder_manifests.sources_json must be text.")
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw new Error("xr_thumbnail_folder_manifests.sources_json must be valid JSON.")
+  }
+  return validateFolderRepresentativeSources(parsed as readonly ReaderFolderRepresentativeSource[])
+}
+
+function requireNonNegativeInteger(value: unknown, label: string): number {
+  const integer = optionalInteger(value)
+  if (integer === undefined || integer < 0) throw new Error(`${label} must be a non-negative integer.`)
+  return integer
 }
 
 function sqliteTimestamp(value: Date): string {

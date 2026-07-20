@@ -23,6 +23,9 @@ export class ReaderAiTranslationController {
   #service: ReaderAiTranslationService | undefined
   #client: OllamaTranslationClient | undefined
   #serviceKey = ""
+  #totalTranslations = 0
+  #cacheHits = 0
+  #apiCalls = 0
   readonly #persistentCache?: ReaderAiTranslationPersistentCache
   readonly #fetch?: typeof globalThis.fetch
 
@@ -70,18 +73,40 @@ export class ReaderAiTranslationController {
       promptTemplate: input.promptTemplate?.trim() || this.#config.promptTemplate,
     }
     if (!request.model) throw new Error("Ollama model is not configured.")
-    return this.#ensureService().translate(request, signal)
+    const result = await this.#ensureService().translate(request, signal)
+    this.#totalTranslations += 1
+    if (result.cached) this.#cacheHits += 1
+    else this.#apiCalls += 1
+    return result
   }
 
-  async cacheStats(): Promise<{ memoryEntries: number; persistentEntries: number | null }> {
+  async cacheStats(): Promise<{
+    memoryEntries: number
+    persistentEntries: number | null
+    totalTranslations: number
+    cacheHits: number
+    apiCalls: number
+    hitRate: number
+  }> {
     const memoryEntries = this.#service?.cacheSize() ?? 0
-    if (!this.#persistentCache) return { memoryEntries, persistentEntries: null }
-    return { memoryEntries, persistentEntries: await this.#persistentCache.count() }
+    const persistentEntries = this.#persistentCache ? await this.#persistentCache.count() : null
+    const denom = this.#cacheHits + this.#apiCalls
+    return {
+      memoryEntries,
+      persistentEntries,
+      totalTranslations: this.#totalTranslations,
+      cacheHits: this.#cacheHits,
+      apiCalls: this.#apiCalls,
+      hitRate: denom > 0 ? this.#cacheHits / denom : 0,
+    }
   }
 
   clearMemoryCache(): number {
     const size = this.#service?.cacheSize() ?? 0
     this.#service?.clearCache()
+    this.#totalTranslations = 0
+    this.#cacheHits = 0
+    this.#apiCalls = 0
     return size
   }
 

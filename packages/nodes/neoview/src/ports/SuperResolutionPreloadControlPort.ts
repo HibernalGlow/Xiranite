@@ -14,5 +14,6 @@ export interface SuperResolutionPreloadControlPort {
     mode: "nearby" | "progressive",
     signal?: AbortSignal,
   ): Promise<readonly SuperResolutionPreloadLiveSnapshot[]>
+  advanceGeneration(contextId: string, generation: number): Promise<void>
   releaseContext(contextId: string): Promise<void>
 }

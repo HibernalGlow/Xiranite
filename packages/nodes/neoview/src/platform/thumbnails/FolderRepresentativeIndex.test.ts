@@ -100,6 +100,33 @@ describe("FolderRepresentativeIndex", () => {
     index.clear()
   })
 
+  it("[neoview.thumbnail.folder-index-persistent] reuses a validated manifest after a process-local cache reset", async () => {
+    const manifests = new Map<string, { directoryModifiedAtMs: number; sources: readonly { name: string; size: number; modifiedAtMs: number }[] }>()
+    const manifestStore = {
+      getFolderRepresentativeManifest: vi.fn(async (path: string, count: number, revision: number) => manifests.get(`${path}:${count}:${revision}`)),
+      putFolderRepresentativeManifest: vi.fn(async (path: string, count: number, revision: number, manifest: { directoryModifiedAtMs: number; sources: readonly { name: string; size: number; modifiedAtMs: number }[] }) => {
+        manifests.set(`${path}:${count}:${revision}`, manifest)
+      }),
+    }
+    const readDirectory = vi.fn(async () => [file("cover.webp")])
+    const statPath = vi.fn(async () => stats(42, 1_234))
+    const first = new FolderRepresentativeIndex({ readDirectory, statPath, manifestStore })
+
+    await expect(first.describe("D:/compiled", 500)).resolves.toBe("cover.webp:42:1234")
+    await vi.waitFor(() => expect(manifestStore.putFolderRepresentativeManifest).toHaveBeenCalledOnce())
+    first.clear()
+
+    const reopened = new FolderRepresentativeIndex({
+      readDirectory: async () => { throw new Error("persistent manifest should avoid a directory scan") },
+      statPath,
+      manifestStore,
+    })
+    await expect(reopened.describe("D:/compiled", 500)).resolves.toBe("cover.webp:42:1234")
+    expect(readDirectory).toHaveBeenCalledOnce()
+    expect(manifestStore.getFolderRepresentativeManifest).toHaveBeenCalledTimes(2)
+    reopened.clear()
+  })
+
   it("[neoview.thumbnail.folder-index-poster-names] prioritizes a directory-named cover before natural page order", async () => {
     const readDirectory = vi.fn(async () => [file("001.png"), file("01 library-cover 2.jpg"), file("002.png")])
     const index = new FolderRepresentativeIndex({

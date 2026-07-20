@@ -806,7 +806,7 @@ describe("parseNeoviewRuntimeConfig", () => {
 
   it("[neoview.thumbnail-architecture-metrics.registry] preserves the legacy properties placement without requiring a book", () => {
     expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["thumbnail-architecture-metrics"]).toEqual({
-      panelId: "properties", visible: true, expanded: true, order: 2,
+      panelId: "properties", visible: true, expanded: true, order: 7,
     })
   })
 
@@ -814,6 +814,16 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["emm-tags"]).toEqual({
       panelId: "properties", visible: true, expanded: true, order: 0,
     })
+  })
+
+  it("[neoview.emm-auxiliary.registry] restores the missing legacy properties cards", () => {
+    const cards = parseNeoviewRuntimeConfig({}).shellOptions.cardLayout
+    expect(["folder-ratings", "favorite-tags", "emm-sync", "emm-raw-data"].map((id) => cards[id])).toEqual([
+      { panelId: "properties", visible: true, expanded: true, order: 2 },
+      { panelId: "properties", visible: true, expanded: true, order: 3 },
+      { panelId: "properties", visible: true, expanded: true, order: 4 },
+      { panelId: "properties", visible: true, expanded: true, order: 6 },
+    ])
   })
 
   it("[neoview.color-filter.layout] keeps the legacy filter visible in the control panel without a session", () => {

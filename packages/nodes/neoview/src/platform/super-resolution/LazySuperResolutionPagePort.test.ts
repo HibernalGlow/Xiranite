@@ -104,13 +104,15 @@ describe("LazySuperResolutionPagePort", () => {
     const snapshots = vi.fn(() => [snapshot])
     const pause = vi.fn(async () => [{ ...snapshot, state: "paused" as const }])
     const retry = vi.fn(async () => batchResult())
+    const advanceGeneration = vi.fn(async () => undefined)
     const releaseContext = vi.fn()
     const load = vi.fn(async () => ({
       ...capability(vi.fn(), async () => undefined),
-      preload: { schedulePlan, scheduleProgressive, snapshots, pause, retry, releaseContext },
+      preload: { schedulePlan, scheduleProgressive, snapshots, pause, retry, advanceGeneration, releaseContext },
     }))
     const port = new LazySuperResolutionPagePort(load)
     expect(await port.snapshots("reader:one")).toEqual([])
+    await port.advanceGeneration("reader:one", 3)
     await port.releaseContext("reader:one")
     expect(load).not.toHaveBeenCalled()
 
@@ -120,6 +122,8 @@ describe("LazySuperResolutionPagePort", () => {
     expect(load).toHaveBeenCalledOnce()
     await expect(port.pause("reader:one")).resolves.toEqual([expect.objectContaining({ state: "paused" })])
     await expect(port.retry("reader:one", "nearby")).resolves.toEqual([snapshot])
+    await port.advanceGeneration("reader:one", 3)
+    expect(advanceGeneration).toHaveBeenCalledWith("reader:one", 3)
     await port.releaseContext("reader:one")
     expect(releaseContext).toHaveBeenCalledWith("reader:one")
     await port[Symbol.asyncDispose]()

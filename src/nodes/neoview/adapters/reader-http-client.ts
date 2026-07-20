@@ -74,6 +74,9 @@ export interface ReaderPreloadContextDto {
   velocityPagesPerSecond?: number
   stableForMs?: number
   focused?: boolean
+  presentationWidth?: number
+  presentationHeight?: number
+  presentationDpr?: number
 }
 
 export interface ReaderSourceChangeDto {
@@ -225,12 +228,15 @@ export interface ReaderFolderPenetrationResolutionDto {
   status: "resolved" | "branch" | "empty" | "blocked"
   originPath: string
   terminal?: { kind: ReaderFolderPenetrationTerminalKindDto; path: string }
+  directMediaCount?: number
+  deferredDirectoryCount?: number
   chain: readonly { path: string; canonicalPath: string; ignoredSidecars: number }[]
-  reason: "archive" | "document" | "media-directory" | "file" | "multiple-primary-items" | "empty" | "depth-limit" | "cycle" | "permission" | "unsupported-content"
+  reason: "archive" | "document" | "media-directory" | "mixed-media-directory" | "file" | "multiple-primary-items" | "empty" | "depth-limit" | "cycle" | "permission" | "unsupported-content"
 }
 export interface ReaderActivationProvenanceDto {
   browserOriginPath: string
   browserOriginEntryPath: string
+  browserOriginSelfTerminal?: boolean
 }
 
 export interface ReaderDirectorySelectionOperationSnapshotDto {
@@ -551,6 +557,12 @@ export interface ReaderBookmarkListDto {
   system?: boolean
 }
 
+export interface ReaderLibraryStatisticsDto {
+  recentCount: number
+  bookmarkCount: number
+  bookmarkListCount: number
+  mediaProgressCount: number
+}
 
 export type ReaderAiTranslationServiceDto = "disabled" | "ollama"
 export interface ReaderAiTranslationConfigDto {
@@ -581,17 +593,14 @@ export interface ReaderAiTranslationResultDto {
 export interface ReaderAiCacheStatsDto {
   memoryEntries: number
   persistentEntries: number | null
+  totalTranslations?: number
+  cacheHits?: number
+  apiCalls?: number
+  hitRate?: number
 }
 export interface ReaderAiCheckDto {
   online: boolean
   service: ReaderAiTranslationServiceDto
-}
-
-export interface ReaderLibraryStatisticsDto {
-  recentCount: number
-  bookmarkCount: number
-  bookmarkListCount: number
-  mediaProgressCount: number
 }
 
 export interface SaveReaderBookmarkDto {
@@ -849,6 +858,12 @@ export interface ReaderLibraryThumbnailRegistrationDto {
   kind: "file" | "folder"
   previewCount?: 1 | 4 | 9 | 16
   refresh?: boolean
+}
+
+export interface ReaderLibraryThumbnailWarmupSummaryDto {
+  total: number
+  completed: number
+  failed: number
 }
 
 export type ReaderDirectoryNavigationDto =
@@ -1415,6 +1430,7 @@ export interface ReaderHttpClient {
   upscalePage?(sessionId: string, pageId: string, trigger?: "manual" | "automatic-current", signal?: AbortSignal): Promise<ReaderUpscaleArtifactResultDto>
   upscaleCapabilities?(sessionId?: string, refresh?: boolean, signal?: AbortSignal): Promise<ReaderUpscaleCapabilityDto>
   upscalePreloadSnapshots?(sessionId: string, signal?: AbortSignal): Promise<readonly ReaderUpscalePreloadSnapshotDto[]>
+  startUpscalePreload?(sessionId: string, mode: "nearby" | "progressive", signal?: AbortSignal): Promise<readonly ReaderUpscalePreloadSnapshotDto[]>
   upscaleCache?(sessionId: string, signal?: AbortSignal): Promise<ReaderUpscaleCacheSnapshotDto>
   cleanupUpscaleCache?(sessionId: string, kind: "age" | "book" | "all", signal?: AbortSignal): Promise<ReaderUpscaleCacheCleanupDto>
   open(path: string, signal?: AbortSignal, provenance?: ReaderActivationProvenanceDto): Promise<ReaderSessionDto>
@@ -1467,6 +1483,11 @@ export interface ReaderHttpClient {
     items: readonly ReaderLibraryThumbnailRegistrationDto[],
     signal?: AbortSignal,
   ): Promise<ReaderLibraryThumbnailBatchDto>
+  prewarmLibraryThumbnails?(
+    items: readonly ReaderLibraryThumbnailRegistrationDto[],
+    options?: { mode?: "ensure" | "refresh"; concurrency?: number },
+    signal?: AbortSignal,
+  ): Promise<ReaderLibraryThumbnailWarmupSummaryDto>
   releaseLibraryThumbnailContext?(contextId: string): Promise<void>
   listPages(sessionId: string, cursor: number, limit: number, signal?: AbortSignal): Promise<ReaderPageListDto>
   frameWindow?(sessionId: string, centerPageIndex: number, radius: number, signal?: AbortSignal): Promise<ReaderFrameWindowDto>
@@ -1716,6 +1737,10 @@ export function createReaderHttpClient(
       `/reader/s/${encodeURIComponent(sessionId)}/upscale-preload`,
       { signal },
     ).then((value) => value.snapshots),
+    startUpscalePreload: (sessionId, mode, signal) => request<{ snapshots: ReaderUpscalePreloadSnapshotDto[] }>(
+      `/reader/s/${encodeURIComponent(sessionId)}/upscale-preload/start?${new URLSearchParams({ mode })}`,
+      { method: "POST", signal },
+    ).then((value) => value.snapshots),
     upscaleCache: (sessionId, signal) => request<ReaderUpscaleCacheSnapshotDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/upscale-artifact-cache`,
       { signal },
@@ -1935,6 +1960,12 @@ export function createReaderHttpClient(
         body: JSON.stringify({ contextId, generation, items }),
         signal,
       },
+    ),
+    prewarmLibraryThumbnails: (items, options, signal) => requestLibraryThumbnailWarmup(
+      resolveConfig,
+      items,
+      options,
+      signal,
     ),
     releaseLibraryThumbnailContext: (contextId) => request<void>(
       `/reader/library/contexts/${encodeURIComponent(contextId)}`,
@@ -2217,6 +2248,10 @@ export function createReaderHttpClient(
       "/reader/library/bookmark-lists",
       { signal },
     ).then((value) => value.items),
+    libraryStatistics: (signal) => request<ReaderLibraryStatisticsDto>(
+      "/reader/library/statistics",
+      { signal },
+    ),
     updateAiTranslation: (patch, signal) => request<ReaderRuntimeConfigDto>("/reader/config", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -2246,10 +2281,6 @@ export function createReaderHttpClient(
       method: "DELETE",
       signal,
     }),
-    libraryStatistics: (signal) => request<ReaderLibraryStatisticsDto>(
-      "/reader/library/statistics",
-      { signal },
-    ),
     saveBookmarkList: (list, signal) => request<ReaderBookmarkListDto>("/reader/library/bookmark-lists", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -2301,6 +2332,76 @@ export function createReaderHttpClient(
       keepalive: true,
     }),
   }
+}
+
+type ReaderLibraryThumbnailWarmupEvent =
+  | { type: "start"; total: number }
+  | { type: "item"; index: number; id: string; status: "completed" | "failed"; error?: string }
+  | ({ type: "complete" } & ReaderLibraryThumbnailWarmupSummaryDto)
+
+async function requestLibraryThumbnailWarmup(
+  resolveConfig: () => LocalBackendConfig,
+  items: readonly ReaderLibraryThumbnailRegistrationDto[],
+  options: { mode?: "ensure" | "refresh"; concurrency?: number } | undefined,
+  signal?: AbortSignal,
+): Promise<ReaderLibraryThumbnailWarmupSummaryDto> {
+  const config = resolveConfig()
+  const headers = new Headers({ "content-type": "application/json" })
+  if (config.token) headers.set("x-xiranite-token", config.token)
+  const response = await fetch(new URL("/reader/library/thumbnails/prewarm", config.baseUrl), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      items: items.map(({ id, path, kind, previewCount }) => ({ id, path, kind, previewCount })),
+      mode: options?.mode ?? "ensure",
+      concurrency: options?.concurrency ?? 2,
+    }),
+    cache: "no-store",
+    signal,
+  })
+  signal?.throwIfAborted()
+  if (!response.ok) throw new ReaderHttpError(await responseError(response), response.status)
+  if (!response.body) throw new Error("Thumbnail warmup response did not include a body.")
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+  let summary: ReaderLibraryThumbnailWarmupSummaryDto | undefined
+  try {
+    while (true) {
+      const chunk = await reader.read()
+      buffer += decoder.decode(chunk.value, { stream: !chunk.done })
+      let newline = buffer.indexOf("\n")
+      while (newline >= 0) {
+        const line = buffer.slice(0, newline).trim()
+        buffer = buffer.slice(newline + 1)
+        if (line) summary = consumeLibraryThumbnailWarmupEvent(JSON.parse(line) as ReaderLibraryThumbnailWarmupEvent, summary)
+        newline = buffer.indexOf("\n")
+      }
+      if (chunk.done) break
+    }
+    const tail = buffer.trim()
+    if (tail) summary = consumeLibraryThumbnailWarmupEvent(JSON.parse(tail) as ReaderLibraryThumbnailWarmupEvent, summary)
+  } catch (error) {
+    await reader.cancel(error).catch(() => undefined)
+    throw error
+  } finally {
+    reader.releaseLock()
+  }
+  signal?.throwIfAborted()
+  if (!summary) throw new Error("Thumbnail warmup stream ended before completion.")
+  return summary
+}
+
+function consumeLibraryThumbnailWarmupEvent(
+  event: ReaderLibraryThumbnailWarmupEvent,
+  summary: ReaderLibraryThumbnailWarmupSummaryDto | undefined,
+): ReaderLibraryThumbnailWarmupSummaryDto | undefined {
+  if (summary) throw new Error("Thumbnail warmup stream emitted data after completion.")
+  if (event.type !== "complete") return undefined
+  if (![event.total, event.completed, event.failed].every((value) => Number.isSafeInteger(value) && value >= 0)) {
+    throw new Error("Thumbnail warmup stream returned an invalid summary.")
+  }
+  return { total: event.total, completed: event.completed, failed: event.failed }
 }
 
 type ReaderDirectorySearchEvent =

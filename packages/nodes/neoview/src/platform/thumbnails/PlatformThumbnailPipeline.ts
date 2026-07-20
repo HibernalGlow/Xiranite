@@ -121,6 +121,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     this.#folderRepresentativeIndex = options.folderRepresentativeIndex ?? new FolderRepresentativeIndex({
       mediaFormats: options.mediaFormats,
       resourceScheduler: options.resourceScheduler,
+      manifestStore: options.thumbnailStore,
     })
     this.#coordinator = new ThumbnailCoordinatorService<PlatformThumbnailDemandSource>({
       maxMemoryBytes: options.maxMemoryBytes,

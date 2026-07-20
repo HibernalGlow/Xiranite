@@ -69,6 +69,15 @@ export class SuperResolutionArtifactRoute {
     await this.preload?.releaseContext(preloadContextId(sessionId))
   }
 
+  async advanceGeneration(sessionId: ReaderSessionId, generation: number): Promise<void> {
+    const active = this.#active.get(sessionId)
+    this.#active.delete(sessionId)
+    for (const controller of active ?? []) {
+      controller.abort(abortError(`Reader super-resolution page generation advanced: ${sessionId}:${generation}`))
+    }
+    await this.preload?.advanceGeneration(preloadContextId(sessionId), generation)
+  }
+
   close(): void {
     if (this.#closed) return
     this.#closed = true

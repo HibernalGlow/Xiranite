@@ -4,6 +4,10 @@ import { basename, join } from "node:path"
 import { pageMediaType, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import { compareNaturalPath } from "../../domain/sorting/natural-sort.js"
 import type { ResourcePriority, ResourceScheduler } from "../../ports/ResourceScheduler.js"
+import type {
+  ReaderFolderRepresentativeManifest,
+  ReaderThumbnailStore,
+} from "../../ports/ReaderThumbnailStore.js"
 
 interface DirectoryEntryLike {
   name: string
@@ -24,6 +28,7 @@ export interface FolderRepresentativeIndexOptions {
   statPath?: (path: string) => Promise<FileStatsLike>
   mediaFormats?: ReaderMediaTypeResolver
   resourceScheduler?: ResourceScheduler
+  manifestStore?: Pick<ReaderThumbnailStore, "getFolderRepresentativeManifest" | "putFolderRepresentativeManifest">
 }
 
 interface RepresentativeEntry {
@@ -63,6 +68,7 @@ export class FolderRepresentativeIndex {
   readonly #revisions = new Map<string, number>()
   readonly #mediaFormats?: ReaderMediaTypeResolver
   readonly #resourceScheduler?: ResourceScheduler
+  readonly #manifestStore?: FolderRepresentativeIndexOptions["manifestStore"]
 
   constructor(options: FolderRepresentativeIndexOptions = {}) {
     this.#maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES
@@ -73,6 +79,7 @@ export class FolderRepresentativeIndex {
     this.#statPath = options.statPath ?? stat
     this.#mediaFormats = options.mediaFormats
     this.#resourceScheduler = options.resourceScheduler
+    this.#manifestStore = options.manifestStore
   }
 
   describe(
@@ -153,6 +160,7 @@ export class FolderRepresentativeIndex {
     signal: AbortSignal,
   ): Promise<RepresentativeEntry> {
     signal.throwIfAborted()
+    let scanned: RepresentativeEntry | undefined
     const lease = await this.#resourceScheduler?.acquire({
       resource: "io",
       kind: "neoview.thumbnail.folder-representative",
@@ -161,28 +169,80 @@ export class FolderRepresentativeIndex {
     try {
       const cached = this.#cache.get(cacheKey)
       if (cached?.directoryModifiedAtMs === directoryModifiedAtMs) {
-        if (!cached.sources?.length) {
-          this.#touch(cacheKey, cached)
-          return cached
-        }
-        try {
-          const sources = await Promise.all(cached.sources.map(async (source) => {
-            const sourceStats = await this.#statPath(join(path, source.name))
-            return sourceStats.isFile() || sourceStats.isDirectory() ? representativeSource(source.name, sourceStats) : undefined
-          }))
-          signal.throwIfAborted()
-          if (sources.every((source): source is RepresentativeSource => Boolean(source))) {
-            const entry = representativeEntry(directoryModifiedAtMs, sources)
-            this.#touch(cacheKey, entry)
-            return entry
-          }
-        } catch (error) {
-          if (!isMissingFile(error)) throw error
+        const validated = await this.#validateEntry(path, cached, signal)
+        if (validated) {
+          this.#touch(cacheKey, validated)
+          return validated
         }
       }
-      return this.#scan(path, directoryModifiedAtMs, count, signal, true)
+      const persisted = await this.#readManifest(path, directoryModifiedAtMs, count, signal)
+      if (persisted) {
+        this.#touch(cacheKey, persisted)
+        return persisted
+      }
+      scanned = await this.#scan(path, directoryModifiedAtMs, count, signal, true)
     } finally {
       lease?.release()
+    }
+    if (!scanned) return { directoryModifiedAtMs }
+    void this.#writeManifest(path, count, scanned)
+    return scanned
+  }
+
+  async #readManifest(
+    path: string,
+    directoryModifiedAtMs: number,
+    count: number,
+    signal: AbortSignal,
+  ): Promise<RepresentativeEntry | undefined> {
+    const read = this.#manifestStore?.getFolderRepresentativeManifest
+    if (!read) return undefined
+    let manifest: ReaderFolderRepresentativeManifest | undefined
+    try {
+      manifest = await read.call(this.#manifestStore, path, count, this.#mediaFormats?.revision ?? 0)
+    } catch {
+      return undefined
+    }
+    signal.throwIfAborted()
+    if (!manifest || manifest.directoryModifiedAtMs !== directoryModifiedAtMs) return undefined
+    return this.#validateEntry(path, {
+      directoryModifiedAtMs,
+      sources: manifest.sources,
+    }, signal)
+  }
+
+  async #writeManifest(path: string, count: number, entry: RepresentativeEntry): Promise<void> {
+    const write = this.#manifestStore?.putFolderRepresentativeManifest
+    if (!write) return
+    try {
+      await write.call(this.#manifestStore, path, count, this.#mediaFormats?.revision ?? 0, {
+        directoryModifiedAtMs: entry.directoryModifiedAtMs,
+        sources: entry.sources ?? [],
+      })
+    } catch {
+      // Persistent indexing is an optimization; thumbnail generation remains authoritative.
+    }
+  }
+
+  async #validateEntry(
+    path: string,
+    entry: RepresentativeEntry,
+    signal: AbortSignal,
+  ): Promise<RepresentativeEntry | undefined> {
+    if (!entry.sources?.length) return entry
+    try {
+      const sources = await Promise.all(entry.sources.map(async (source) => {
+        const sourceStats = await this.#statPath(join(path, source.name))
+        if (!sourceStats.isFile() && !sourceStats.isDirectory()) return undefined
+        return representativeSource(source.name, sourceStats)
+      }))
+      signal.throwIfAborted()
+      return sources.every((source): source is RepresentativeSource => Boolean(source))
+        ? representativeEntry(entry.directoryModifiedAtMs, sources)
+        : undefined
+    } catch (error) {
+      if (!isMissingFile(error)) throw error
+      return undefined
     }
   }
 

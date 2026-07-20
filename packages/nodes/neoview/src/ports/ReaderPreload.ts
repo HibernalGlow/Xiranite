@@ -12,6 +12,9 @@ export interface ReaderPreloadContext {
   focused?: boolean
   queueWaitMs?: number
   memoryPressure?: "normal" | "elevated" | "critical"
+  presentationWidth?: number
+  presentationHeight?: number
+  presentationDpr?: number
 }
 
 export interface ReaderPreloadCandidate {
