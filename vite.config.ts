@@ -11,8 +11,8 @@ const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
 const reactCompilerMode = process.env.XIRANITE_REACT_COMPILER_MODE ?? "infer"
 
-if (reactCompilerMode !== "annotation" && reactCompilerMode !== "infer") {
-  throw new Error("XIRANITE_REACT_COMPILER_MODE must be either annotation or infer")
+if (reactCompilerMode !== "annotation" && reactCompilerMode !== "infer" && reactCompilerMode !== "off") {
+  throw new Error("XIRANITE_REACT_COMPILER_MODE must be annotation, infer, or off")
 }
 
 /**
@@ -76,11 +76,9 @@ export default defineConfig({
     tailwindCandidateSnapshotPlugin(),
     productionChunkReportPlugin(),
     react({
-      babel: {
-        plugins: [
-          ["babel-plugin-react-compiler", { compilationMode: reactCompilerMode }],
-        ],
-      },
+      babel: reactCompilerMode === "off"
+        ? undefined
+        : { plugins: [["babel-plugin-react-compiler", { compilationMode: reactCompilerMode }]] },
     }),
     tailwindcss(),
   ],

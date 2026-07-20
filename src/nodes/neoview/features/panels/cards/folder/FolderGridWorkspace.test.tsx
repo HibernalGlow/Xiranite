@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-client"
-import { DirectoryBannerItem } from "./FolderGridWorkspace"
+import { DirectoryBannerItem, DirectoryGridItem } from "./FolderGridWorkspace"
 
 afterEach(cleanup)
 
@@ -111,5 +111,41 @@ describe("FolderGridWorkspace banner entries", () => {
     const image = screen.getByRole("button").querySelector("img")!
     fireEvent.error(image)
     expect(screen.getByRole("button").querySelector("img")).toBeNull()
+  })
+})
+
+describe("FolderGridWorkspace cover entries", () => {
+  it("[neoview.folder.cover-grid-portrait] reserves a 2:3 portrait thumbnail region above the label", () => {
+    const entry: ReaderDirectoryEntryDto = {
+      name: "portrait-folder",
+      path: "D:/library/portrait-folder",
+      kind: "directory",
+      readerSupported: true,
+    }
+
+    render(
+      <DirectoryGridItem
+        itemId="folder-item-0"
+        entry={entry}
+        index={0}
+        disabled={false}
+        selected={false}
+        focused={false}
+        showRating={false}
+        showCollectTagCount={false}
+        visualMode="cover-grid"
+        thumbnailUrl="/reader/library/t/portrait"
+        thumbnailUrls={["/reader/library/t/one", "/reader/library/t/two", "/reader/library/t/three", "/reader/library/t/four"]}
+        hoverPreviewEnabled={false}
+        hoverPreviewDelayMs={500}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    const button = screen.getByRole("button")
+    const thumbnail = button.querySelector<HTMLElement>('[data-folder-thumbnail-orientation="portrait"]')
+    expect(thumbnail?.className).toContain("aspect-[2/3]")
+    expect(button.className).not.toContain("h-36")
+    expect(thumbnail?.querySelector('[data-thumbnail-grid-count="4"]')).toBeTruthy()
   })
 })

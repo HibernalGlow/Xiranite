@@ -116,6 +116,8 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   hoverPreviewEnabled: true,
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
+  showHiddenFolders: false,
+  penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
@@ -502,7 +504,7 @@ export function ReaderApp({
     }
   }, [client, session?.sessionId])
 
-  async function openPath(nextPath = path) {
+  async function openPath(nextPath = path, provenance?: import("../adapters/reader-http-client").ReaderActivationProvenanceDto) {
     const normalizedPath = nextPath.trim()
     if (!normalizedPath || busy) return
     slideshow.stop()
@@ -514,7 +516,7 @@ export function ReaderApp({
     try {
       const previousSession = sessionRef.current
       const presentationReady = loadReaderPresentation()
-      const opened = await clientRef.current.open(normalizedPath, controller.signal)
+      const opened = await clientRef.current.open(normalizedPath, controller.signal, provenance)
       try {
         await presentationReady
       } catch (error) {

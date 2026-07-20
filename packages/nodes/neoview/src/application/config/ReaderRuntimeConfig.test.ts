@@ -169,18 +169,22 @@ describe("parseNeoviewRuntimeConfig", () => {
   })
 
   it("[neoview.toolbar.sort-locks] reads legacy locks and writes bounded canonical book defaults", () => {
-    expect(parseNeoviewRuntimeConfig({ book: { locked_sort_mode: "timeStampDescending", locked_media_priority: "videoFirst" } }).book).toEqual({
+    expect(parseNeoviewRuntimeConfig(undefined).sessionOptions.direction).toBe("left-to-right")
+    expect(parseNeoviewRuntimeConfig({ book: { locked_sort_mode: "timeStampDescending", locked_media_priority: "videoFirst", locked_reading_direction: "right-to-left" } }).book).toEqual({
       lockedSortMode: "timeStampDescending",
       lockedMediaPriority: "videoFirst",
+      lockedReadingDirection: "right-to-left",
     })
     expect(parseNeoviewRuntimeConfig({ reader: { book: { lockedSortMode: "entry", lockedMediaPriority: "imageFirst" } } }).book).toEqual({
       lockedSortMode: "entry",
       lockedMediaPriority: "imageFirst",
+      lockedReadingDirection: null,
     })
-    expect(parseNeoviewBookPatch({ book: { lockedSortMode: null, lockedMediaPriority: "imageFirst" } })).toEqual({
-      patch: { book: { lockedSortMode: null, lockedMediaPriority: "imageFirst" } },
-      tomlPatch: { book: { locked_sort_mode: "none", locked_media_priority: "imageFirst" } },
+    expect(parseNeoviewBookPatch({ book: { lockedSortMode: null, lockedMediaPriority: "imageFirst", lockedReadingDirection: "left-to-right" } })).toEqual({
+      patch: { book: { lockedSortMode: null, lockedMediaPriority: "imageFirst", lockedReadingDirection: "left-to-right" } },
+      tomlPatch: { book: { locked_sort_mode: "none", locked_media_priority: "imageFirst", locked_reading_direction: "left-to-right" }, reader: { reading_direction: "left-to-right" } },
     })
+    expect(parseNeoviewRuntimeConfig({ book: { locked_reading_direction: "right-to-left" }, reader: { reading_direction: "left-to-right" } }).sessionOptions.direction).toBe("right-to-left")
     expect(() => parseNeoviewBookPatch({ book: { lockedSortMode: "randomDescending" } })).toThrow("lockedSortMode")
     expect(() => parseNeoviewBookPatch({ book: { lockedMediaPriority: "audioFirst" } })).toThrow("lockedMediaPriority")
   })
@@ -260,6 +264,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       preview_count: 9,
       thumbnail_width_percent: 34,
       banner_width_percent: 70,
+      penetration: { enabled: true, max_depth: 5, terminal_targets: ["archive", "media-directory"] },
       tabs: {
         pinned: [{ path: "D:/Books", title: "Books" }, { path: "D:/Books", title: "Books copy" }],
         layout: "right",
@@ -286,6 +291,8 @@ describe("parseNeoviewRuntimeConfig", () => {
       hoverPreviewEnabled: true,
       hoverPreviewDelayMs: 500,
       typeFilter: "library",
+      showHiddenFolders: false,
+      penetration: { enabled: true, maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
       emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
       details: {
         columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
@@ -316,6 +323,8 @@ describe("parseNeoviewRuntimeConfig", () => {
       bannerWidthPercent: 80,
       hoverPreviewEnabled: false,
       hoverPreviewDelayMs: 1200,
+      showHiddenFolders: true,
+      penetration: { enabled: true, maxDepth: 10, terminalTargets: ["archive", "document"] },
       tree: { visible: true, layout: "bottom", size: 320, pinnedPaths: ["E:/Books"] },
       tabs: { pinned: [{ path: "E:/Library", title: "Library" }] },
       details: { columnOrder: ["rating", "name"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 300, rating: 84 } },
@@ -330,6 +339,8 @@ describe("parseNeoviewRuntimeConfig", () => {
         bannerWidthPercent: 80,
         hoverPreviewEnabled: false,
         hoverPreviewDelayMs: 1200,
+        showHiddenFolders: true,
+        penetration: { enabled: true, maxDepth: 10, terminalTargets: ["archive", "document"] },
         details: {
           columnOrder: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hiddenColumns: ["tags"],
@@ -350,6 +361,8 @@ describe("parseNeoviewRuntimeConfig", () => {
         banner_width_percent: 80,
         hover_preview_enabled: false,
         hover_preview_delay_ms: 1200,
+        show_hidden_folders: true,
+        penetration: { enabled: true, max_depth: 10, terminal_targets: ["archive", "document"] },
         details: {
           column_order: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hidden_columns: ["tags"],
@@ -378,6 +391,10 @@ describe("parseNeoviewRuntimeConfig", () => {
       patch: { folderView: { homePath: "" } },
       tomlPatch: { folder: { home_path: "" } },
     })
+    expect(parseNeoviewFolderViewPatch({ folderView: { viewMode: "mosaic-grid" } })).toEqual({
+      patch: { folderView: { viewMode: "mosaic-grid" } },
+      tomlPatch: { folder: { view_mode: "mosaic-grid" } },
+    })
     expect(() => parseNeoviewFolderViewPatch({ folderView: { homePath: "bad\0path" } })).toThrow("without NUL")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { homePath: "x".repeat(4097) } })).toThrow("at most 4096")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { homePath: 1 } })).toThrow("must be a string")
@@ -386,6 +403,15 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewFolderViewPatch({ folderView: { thumbnailWidthPercent: 9 } })).toThrow("between 10 and 90")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { bannerWidthPercent: 101 } })).toThrow("between 20 and 100")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { hoverPreviewDelayMs: 300 } })).toThrow("one of: 200, 500, 800, 1200")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { showHiddenFolders: "yes" } })).toThrow("showHiddenFolders")
+    expect(parseNeoviewRuntimeConfig(undefined).folderView.penetration).toEqual({
+      enabled: false,
+      maxDepth: 3,
+      terminalTargets: ["archive", "document", "media-directory", "file"],
+    })
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { penetration: { maxDepth: 33 } } })).toThrow("between 1 and 32")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { penetration: { terminalTargets: ["archive", "archive"] } } })).toThrow("duplicate")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { penetration: { terminalTargets: ["folder"] } } })).toThrow("unsupported target")
     expect(() => parseNeoviewRuntimeConfig({ folder: { hover_preview_delay_ms: 800 } })).not.toThrow()
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { hiddenColumns: ["name"] } } })).toThrow("cannot hide name")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { details: { columnOrder: ["unknown"] } } })).toThrow("unknown column")

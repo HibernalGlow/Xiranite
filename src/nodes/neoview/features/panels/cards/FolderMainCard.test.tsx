@@ -1876,6 +1876,27 @@ describe("FolderMainCard", () => {
     expect(handle.getAttribute("aria-valuenow")).toBe("250")
   })
 
+  it("[neoview.folder.sort-indicator-ui] renders the sort category with an order corner badge", async () => {
+    const opened = page({
+      total: 1,
+      entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true }],
+      sort: { field: "size", order: "desc", directoriesFirst: true },
+    })
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const sortButton = await within(view.container).findByRole("button", { name: "排序" })
+
+    expect(sortButton.querySelector('[data-folder-sort-field-icon="size"]')).toBeTruthy()
+    expect(sortButton.querySelector('[data-folder-sort-order-icon="desc"]')).toBeTruthy()
+  })
+
   it("[neoview.folder.sort-ui] reorders the backend snapshot and preserves the focused path", async () => {
     const opened = page({
       total: 1,
@@ -1909,6 +1930,9 @@ describe("FolderMainCard", () => {
     )
     const currentView = within(view.container)
     await currentView.findByRole("button", { name: "视图" })
+    const sortButton = currentView.getByRole("button", { name: "排序" })
+    expect(sortButton.querySelector('[data-folder-sort-field-icon="name"]')).toBeTruthy()
+    expect(sortButton.querySelector('[data-folder-sort-order-icon="asc"]')).toBeTruthy()
     selectFolderToolbarAction(currentView, "排序")
     await waitFor(() => expect(screen.getByRole("menuitem", { name: "切换为降序" })).toBeTruthy())
     fireEvent.click(screen.getByRole("menuitem", { name: "切换为降序" }))
@@ -2249,13 +2273,63 @@ describe("FolderMainCard", () => {
       "archive",
       undefined,
       expect.any(AbortSignal),
+      false,
     ))
+    expect(currentView.getByRole("button", { name: "排序" }).querySelector('[data-folder-sort-order-icon="desc"]')).toBeTruthy()
     await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-total")).toBe("1"))
     expect(onFolderView).toHaveBeenCalledWith({ typeFilter: "archive" })
     expect(screen.getByRole("button", { name: /压缩包/ }).getAttribute("aria-pressed")).toBe("true")
     expect(ui.getByTitle("C:/books/book.cbz")).toBeTruthy()
     expect(ui.queryByTitle("C:/books/clip.mp4")).toBeNull()
     expect(openDirectoryBrowser).toHaveBeenCalledTimes(1)
+  })
+
+  it("[neoview.folder.hidden-directories-ui] toggles dot-directory visibility in the current session and persists the preference", async () => {
+    const opened = page({
+      total: 1,
+      filter: "library",
+      showHiddenFolders: false,
+      filterOptions: ["library", "all", "directory"],
+      entries: [{ name: "Images", path: "C:/books/Images", kind: "directory", readerSupported: true }],
+    })
+    const visible = page({
+      generation: 2,
+      total: 2,
+      filter: "library",
+      showHiddenFolders: true,
+      filterOptions: ["library", "all", "directory"],
+      entries: [
+        { name: ".git", path: "C:/books/.git", kind: "directory", readerSupported: true },
+        { name: "Images", path: "C:/books/Images", kind: "directory", readerSupported: true },
+      ],
+    })
+    const filterDirectoryBrowser = vi.fn(async () => visible)
+    const onFolderView = vi.fn(async () => undefined)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      filterDirectoryBrowser,
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} onFolderView={onFolderView} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+
+    await ui.findByTitle("C:/books/Images")
+    openFolderMoreMenu(ui)
+    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "显示隐藏文件夹" }))
+
+    await waitFor(() => expect(filterDirectoryBrowser).toHaveBeenCalledWith(
+      "browser-1",
+      "library",
+      undefined,
+      expect.any(AbortSignal),
+      true,
+    ))
+    expect(onFolderView).toHaveBeenCalledWith({ showHiddenFolders: true })
+    expect(ui.getByTitle("C:/books/.git")).toBeTruthy()
   })
 
   it("[neoview.folder.empty-state] renders an explicit empty directory state without mounting a zero-item virtual renderer", async () => {
@@ -2365,6 +2439,42 @@ describe("FolderMainCard", () => {
 
     fireEvent.click(ui.getByRole("button", { name: "返回上级目录" }))
     await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "back" }, expect.any(AbortSignal), undefined))
+  })
+
+  it("[neoview.folder.view-mosaic-grid] renders the adaptive thumbnail mode through the shared browser catalog", async () => {
+    const opened = page({
+      total: 3,
+      metadataFields: ["dimensions"],
+      metadataCapabilities: ["dimensions"],
+      entries: [
+        { name: "wide.cbz", path: "C:/books/wide.cbz", kind: "file", readerSupported: true, width: 1600, height: 900 },
+        { name: "tall.cbz", path: "C:/books/tall.cbz", kind: "file", readerSupported: true, width: 900, height: 1600 },
+        { name: "square.cbz", path: "C:/books/square.cbz", kind: "file", readerSupported: true, width: 1000, height: 1000 },
+      ],
+    })
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 720, itemHeight: 400 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+          folderView={folderViewConfig({ viewMode: "mosaic-grid" })}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+
+    await waitFor(() => expect(view.container.querySelector('[data-folder-mosaic-grid="true"]')).toBeTruthy())
+    expect(view.container.querySelector('[data-folder-name="wide.cbz"]')?.getAttribute("data-folder-mosaic-span")).toBe("square")
+    expect(view.container.querySelector('[data-folder-name="tall.cbz"]')?.getAttribute("data-folder-mosaic-span")).toBe("square")
+    expect(view.container.querySelector('[data-folder-name="square.cbz"]')?.getAttribute("data-folder-mosaic-span")).toBe("square")
+    expect(view.container.querySelectorAll('[data-folder-mosaic-ready="true"]')).toHaveLength(0)
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-folder-view-mode")).toBe("mosaic-grid")
   })
 })
 

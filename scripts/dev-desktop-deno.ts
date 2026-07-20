@@ -3,9 +3,13 @@ import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { resolveManagedFrontendUrl } from "./dev-frontend-url"
 import { desktopRuntimePermissionArgs, resolveDenoCommand } from "./deno-desktop-command"
+import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
 
 const devSessionStartedAt = Date.now()
 const args = process.argv.slice(2)
+const leanIndex = args.indexOf("--lean-vite")
+const viteMode: ViteDevelopmentMode = leanIndex === -1 ? "default" : "lean"
+if (leanIndex !== -1) args.splice(leanIndex, 1)
 const frontendUrl = await resolveManagedFrontendUrl()
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
@@ -64,7 +68,7 @@ const vite = Bun.spawn([
   stdout: "inherit",
   stderr: "inherit",
   env: {
-    ...Bun.env,
+    ...viteDevelopmentEnvironment(viteMode),
     VITE_XIRANITE_BACKEND_URL: backend.url,
     VITE_XIRANITE_BACKEND_TOKEN: backend.token,
     VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,

@@ -6,7 +6,7 @@ import {
   type VirtuosoGridHandle,
   type VirtuosoHandle,
 } from "react-virtuoso"
-import { GalleryHorizontalEnd, Grid2X2, List, RefreshCw, Rows3, TableProperties, type LucideIcon } from "lucide-react"
+import { GalleryHorizontalEnd, Grid2X2, LayoutGrid, List, RefreshCw, Rows3, TableProperties, type LucideIcon } from "lucide-react"
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,7 @@ import type {
   ReaderFolderViewMode,
   ReaderFolderViewConfig,
   ReaderFolderTreeLayout,
+  ReaderFolderPenetrationConfig,
 } from "../../../adapters/reader-http-client"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
@@ -36,6 +37,7 @@ import {
   directoryPageCursors,
   folderMetadataFieldsForView,
   folderErrorMessage,
+  FOLDER_MOSAIC_GROUP_SIZE,
   isAbortError,
   isEditableKeyboardEvent,
   isVerticalFolderRegion,
@@ -43,9 +45,12 @@ import {
   normalizeFolderNavigationPath,
   rememberDirectoryVisitState,
   restoreDirectoryVisitState,
+  thumbnailPixelSize,
   trimDirectoryPages,
   viewUsesBanner,
+  viewUsesFixedGrid,
   viewUsesGrid,
+  viewUsesMosaicGrid,
   viewUsesThumbnails,
   viewUsesVirtuosoList,
   visibleGridColumnCount,
@@ -83,6 +88,7 @@ const PAGE_SIZE = 128
 const MAX_CACHED_PAGES = 12
 const MAX_THUMBNAILS = 24
 const MAX_CACHED_THUMBNAIL_URLS = 256
+const PENETRATION_CLICK_DELAY_MS = 450
 const EMPTY_SELECTED_PATHS: ReadonlySet<string> = new Set()
 const DETAILS_METADATA_FIELDS: readonly ReaderDirectoryMetadataFieldDto[] = [
   "date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "tags",
@@ -110,6 +116,7 @@ const VIEW_MODE_OPTIONS: readonly { value: ReaderFolderViewMode; label: string; 
   { value: "mosaic-list", label: "横幅", icon: GalleryHorizontalEnd },
   { value: "details", label: "详细信息", icon: TableProperties },
   { value: "cover-grid", label: "封面网格", icon: Grid2X2 },
+  { value: "mosaic-grid", label: "自由缩略图", icon: LayoutGrid },
 ]
 
 type FolderViewMode = ReaderFolderViewMode
@@ -135,6 +142,8 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   hoverPreviewEnabled: true,
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
+  showHiddenFolders: false,
+  penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
@@ -154,6 +163,7 @@ const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
 
 const FolderDetailsView = lazy(() => import("./folder/FolderDetailsView"))
 const FolderGridWorkspace = lazy(() => import("./folder/FolderGridWorkspace"))
+const FolderMosaicWorkspace = lazy(() => import("./folder/FolderMosaicWorkspace"))
 const FolderBreadcrumb = lazy(() => import("./folder/FolderBreadcrumb"))
 const FolderSearchPanel = lazy(() => import("./folder/FolderSearchPanel"))
 const FolderTreeWorkspace = lazy(() => import("./folder/FolderTreeWorkspace"))
@@ -177,6 +187,8 @@ export interface SavedDirectoryState {
   listSnapshot?: StateSnapshot
   gridSnapshot?: GridStateSnapshot
   gridScrollTop?: number
+  mosaicSnapshot?: StateSnapshot
+  mosaicScrollTop?: number
   detailsScrollTop?: number
   thumbnailUrls?: ReadonlyMap<string, string>
   thumbnailUrlSets?: ReadonlyMap<string, readonly string[]>
@@ -199,6 +211,7 @@ export default function FolderMainCard(context: ReaderPanelContext) {
         emptyArea: { ...DEFAULT_FOLDER_VIEW.emptyArea, ...context.folderView.emptyArea },
         hoverPreviewEnabled: context.folderView.hoverPreviewEnabled ?? DEFAULT_FOLDER_VIEW.hoverPreviewEnabled,
         hoverPreviewDelayMs: context.folderView.hoverPreviewDelayMs ?? DEFAULT_FOLDER_VIEW.hoverPreviewDelayMs,
+        penetration: { ...DEFAULT_FOLDER_VIEW.penetration, ...context.folderView.penetration },
         tabs: context.folderView.tabs ?? DEFAULT_FOLDER_VIEW.tabs,
       }
     : DEFAULT_FOLDER_VIEW
@@ -217,11 +230,18 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const sessionIdRef = useRef<string | undefined>(undefined)
   const catalogRef = useRef<DirectoryCatalog | undefined>(undefined)
   const navigationRequestRef = useRef<AbortController | undefined>(undefined)
+  const penetrationActivationRef = useRef<{
+    path: string
+    sessionId: string
+    generation: number
+    controller: AbortController
+    timer: ReturnType<typeof setTimeout>
+  } | undefined>(undefined)
   const retryOperationRef = useRef<FolderRetryOperation | undefined>(undefined)
   const catalogRequestRef = useRef<AbortController | undefined>(undefined)
   const thumbnailRequestRef = useRef<AbortController | undefined>(undefined)
   const pendingCursorsRef = useRef(new Set<string>())
-  const pendingKeyboardCommandRef = useRef<{ generation: number; index: number; kind: Extract<FolderKeyboardCommand["kind"], "activate" | "trash" | "rename" | "context-menu"> }>()
+  const pendingKeyboardCommandRef = useRef<{ generation: number; index: number; kind: Extract<FolderKeyboardCommand["kind"], "activate" | "enter-raw" | "trash" | "rename" | "context-menu"> }>()
   const navigationGenerationRef = useRef(0)
   const thumbnailGenerationRef = useRef(0)
   const thumbnailContextSequenceRef = useRef(0)
@@ -232,9 +252,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
   const listRef = useRef<VirtuosoHandle>(null)
   const gridRef = useRef<VirtuosoGridHandle>(null)
+  const mosaicRef = useRef<VirtuosoHandle>(null)
   const listHostRef = useRef<HTMLDivElement>(null)
   const gridSnapshotRef = useRef<GridStateSnapshot | undefined>(undefined)
   const gridScrollTopRef = useRef(0)
+  const mosaicSnapshotRef = useRef<StateSnapshot | undefined>(undefined)
+  const mosaicScrollTopRef = useRef(0)
   const detailsScrollTopRef = useRef(0)
   const focusedIndexRef = useRef<number | undefined>(undefined)
   const chainAnchorIndexRef = useRef<number | undefined>(undefined)
@@ -253,6 +276,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   const [bannerWidthPercent, setBannerWidthPercent] = useState(folderView.bannerWidthPercent)
   const [hoverPreviewEnabled, setHoverPreviewEnabled] = useState(folderView.hoverPreviewEnabled ?? true)
   const [hoverPreviewDelayMs, setHoverPreviewDelayMs] = useState(folderView.hoverPreviewDelayMs ?? 500)
+  const [penetration, setPenetration] = useState<ReaderFolderPenetrationConfig>(folderView.penetration)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [chainSelectMode, setChainSelectMode] = useState(false)
   const [checkModeClickBehavior, setCheckModeClickBehavior] = useState<"open" | "select">("open")
@@ -319,6 +343,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   useEffect(() => setBannerWidthPercent(folderView.bannerWidthPercent), [folderView.bannerWidthPercent])
   useEffect(() => setHoverPreviewEnabled(folderView.hoverPreviewEnabled ?? true), [folderView.hoverPreviewEnabled])
   useEffect(() => setHoverPreviewDelayMs(folderView.hoverPreviewDelayMs ?? 500), [folderView.hoverPreviewDelayMs])
+  useEffect(() => setPenetration(folderView.penetration), [folderView.penetration])
   useEffect(() => setTreeOpen(folderView.tree.visible), [folderView.tree.visible])
   useEffect(() => setTreeLayout(folderView.tree.layout), [folderView.tree.layout])
   useEffect(() => setTreeSize(folderView.tree.size), [folderView.tree.size])
@@ -454,8 +479,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     if (restoreState?.viewMode !== viewMode) return
     if (viewUsesVirtuosoList(viewMode) && !restoreState.listSnapshot) {
       listRef.current?.scrollToIndex({ index: restoreIndex, align: "center" })
-    } else if (viewUsesGrid(viewMode) && !restoreState.gridSnapshot) {
+    } else if (viewUsesFixedGrid(viewMode) && !restoreState.gridSnapshot) {
       gridRef.current?.scrollToIndex({ index: restoreIndex, align: "center" })
+    } else if (viewUsesMosaicGrid(viewMode) && !restoreState.mosaicSnapshot) {
+      mosaicRef.current?.scrollToIndex({ index: Math.floor(restoreIndex / FOLDER_MOSAIC_GROUP_SIZE), align: "center" })
     }
   }, [catalog?.sessionId, catalog?.generation, restoreIndex, restoreState, viewMode])
 
@@ -481,9 +508,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       retryOperationRef.current = undefined
       if (previous && previous !== opened.sessionId) void client.closeDirectoryBrowser?.(previous).catch(() => undefined)
       const preferredFilter = folderView.typeFilter ?? "library"
-      if (preferredFilter !== "all" && preferredFilter !== opened.filter && client.filterDirectoryBrowser) {
+      const showHiddenFolders = folderView.showHiddenFolders ?? false
+      if ((preferredFilter !== opened.filter || showHiddenFolders) && client.filterDirectoryBrowser) {
         await updateCatalogProjection(
-          (sessionId, focusPath, signal) => client.filterDirectoryBrowser!(sessionId, preferredFilter, focusPath, signal),
+          (sessionId, focusPath, signal) => client.filterDirectoryBrowser!(sessionId, preferredFilter, focusPath, signal, showHiddenFolders),
           true,
         )
       }
@@ -540,6 +568,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             anchorIndex: suggested.index,
             listSnapshot: undefined,
             gridSnapshot: undefined,
+            mosaicSnapshot: undefined,
             detailsScrollTop: undefined,
           }
         }
@@ -591,10 +620,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       anchorIndex: suggested?.index ?? 0,
     })
     if (restored.total !== undefined && restored.total !== page.total) {
-      restored = { ...restored, total: page.total, listSnapshot: undefined, gridSnapshot: undefined }
+      restored = { ...restored, total: page.total, listSnapshot: undefined, gridSnapshot: undefined, mosaicSnapshot: undefined }
     }
     gridSnapshotRef.current = restored.gridSnapshot
     gridScrollTopRef.current = restored.gridScrollTop ?? 0
+    mosaicSnapshotRef.current = restored.mosaicSnapshot
+    mosaicScrollTopRef.current = restored.mosaicScrollTop ?? 0
     detailsScrollTopRef.current = restored.detailsScrollTop ?? 0
     focusedIndexRef.current = restored.focusedIndex
     setFocusedIndex(restored.focusedIndex)
@@ -696,8 +727,22 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     const applyFilter = client.filterDirectoryBrowser
     const current = catalogRef.current
     if (!applyFilter || !current || filter === current.filter) return
-    await updateCatalogProjection((sessionId, focusPath, signal) => applyFilter(sessionId, filter, focusPath, signal), true)
+    await updateCatalogProjection(
+      (sessionId, focusPath, signal) => applyFilter(sessionId, filter, focusPath, signal, catalogRef.current?.showHiddenFolders ?? folderView.showHiddenFolders ?? false),
+      true,
+    )
     if ((folderView.typeFilter ?? "library") !== filter) void onFolderView?.({ typeFilter: filter })
+  }
+
+  async function updateHiddenFolders(showHiddenFolders: boolean) {
+    const applyFilter = client.filterDirectoryBrowser
+    const current = catalogRef.current
+    if (!applyFilter || !current || showHiddenFolders === current.showHiddenFolders) return
+    await updateCatalogProjection(
+      (sessionId, focusPath, signal) => applyFilter(sessionId, current.filter, focusPath, signal, showHiddenFolders),
+      true,
+    )
+    if (showHiddenFolders !== (folderView.showHiddenFolders ?? false)) void onFolderView?.({ showHiddenFolders })
   }
 
   async function updateSortPreference(command: ReaderDirectorySortPreferenceCommandDto) {
@@ -772,8 +817,10 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       focusedPath,
       focusedIndex: focusedIndexRef.current,
       anchorIndex: range.startIndex,
-      gridSnapshot: viewUsesGrid(viewMode) ? gridSnapshotRef.current : undefined,
-      gridScrollTop: viewUsesGrid(viewMode) ? gridScrollTopRef.current : undefined,
+      gridSnapshot: viewUsesFixedGrid(viewMode) ? gridSnapshotRef.current : undefined,
+      gridScrollTop: viewUsesFixedGrid(viewMode) ? gridScrollTopRef.current : undefined,
+      mosaicSnapshot: viewUsesMosaicGrid(viewMode) ? mosaicSnapshotRef.current : undefined,
+      mosaicScrollTop: viewUsesMosaicGrid(viewMode) ? mosaicScrollTopRef.current : undefined,
       detailsScrollTop: viewMode === "details" ? detailsScrollTopRef.current : undefined,
       // The ref is updated in the thumbnail response handler before React
       // necessarily commits the corresponding state update. Navigation and
@@ -796,6 +843,12 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         const latest = navigationStatesRef.current.get(current.navigationEntryId)
         if (latest) rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, { ...latest, listSnapshot: snapshot })
       })
+    } else if (viewUsesMosaicGrid(viewMode)) {
+      mosaicRef.current?.getState((snapshot) => {
+        mosaicSnapshotRef.current = snapshot
+        const latest = navigationStatesRef.current.get(current.navigationEntryId)
+        if (latest) rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, { ...latest, mosaicSnapshot: snapshot })
+      })
     }
     return state
   }
@@ -805,11 +858,16 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     if (!saved) return undefined
     const { current, state } = saved
     rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, state)
-    const list = viewUsesVirtuosoList(state.viewMode) ? listRef.current : null
+    const list = viewUsesVirtuosoList(state.viewMode)
+      ? listRef.current
+      : viewUsesMosaicGrid(state.viewMode) ? mosaicRef.current : null
     if (!list) return state
     return new Promise((resolve) => {
       list.getState((snapshot) => {
-        const next = { ...state, listSnapshot: snapshot }
+        if (viewUsesMosaicGrid(state.viewMode)) mosaicSnapshotRef.current = snapshot
+        const next = viewUsesMosaicGrid(state.viewMode)
+          ? { ...state, mosaicSnapshot: snapshot }
+          : { ...state, listSnapshot: snapshot }
         rememberDirectoryVisitState(navigationStatesRef.current, current.navigationEntryId, next)
         resolve(next)
       })
@@ -944,6 +1002,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       if (state) {
         if (viewUsesVirtuosoList(viewMode)) {
           listRef.current?.getState((listSnapshot) => setRestoreState({ ...state, listSnapshot }))
+        } else if (viewUsesMosaicGrid(viewMode)) {
+          mosaicRef.current?.getState((mosaicSnapshot) => {
+            mosaicSnapshotRef.current = mosaicSnapshot
+            setRestoreState({ ...state, mosaicSnapshot })
+          })
         } else {
           setRestoreState(state)
         }
@@ -997,8 +1060,33 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       }))
     } else if (readerEntryClickIntent(event, multiSelectMode && checkModeClickBehavior === "select") === "select") {
       setSelection((current) => toggleDirectorySelection(current, generation, entry.path, index))
+    } else if (entry.kind === "directory" && penetration.enabled && event.detail >= 2) {
+      activate(entry, true)
     } else {
       activate(entry)
+    }
+  }
+
+  async function updatePenetration(patch: Partial<ReaderFolderPenetrationConfig>): Promise<void> {
+    const previous = penetration
+    const next = { ...previous, ...patch }
+    if (!next.terminalTargets.length) return
+    setPenetration(next)
+    try {
+      await onFolderView?.({ penetration: patch })
+    } catch (cause) {
+      setPenetration(previous)
+      setError(`保存穿透设置失败：${folderErrorMessage(cause)}`)
+    }
+  }
+
+  function scrollToDirectoryIndex(index: number) {
+    if (viewUsesVirtuosoList(viewMode)) {
+      listRef.current?.scrollToIndex({ index, align: "center" })
+    } else if (viewUsesFixedGrid(viewMode)) {
+      gridRef.current?.scrollToIndex({ index, align: "center" })
+    } else if (viewUsesMosaicGrid(viewMode)) {
+      mosaicRef.current?.scrollToIndex({ index: Math.floor(index / FOLDER_MOSAIC_GROUP_SIZE), align: "center" })
     }
   }
 
@@ -1073,7 +1161,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       void navigate({ action: "up" })
       return
     }
-    if (command.kind === "activate" || command.kind === "trash" || command.kind === "rename" || command.kind === "context-menu") {
+    if (command.kind === "activate" || command.kind === "enter-raw" || command.kind === "trash" || command.kind === "rename" || command.kind === "context-menu") {
       runFocusedKeyboardEntry(command.kind, currentCatalog, currentIndex)
       return
     }
@@ -1100,12 +1188,11 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
         }))
     }
     requestRange({ startIndex: nextIndex, endIndex: nextIndex })
-    if (viewUsesVirtuosoList(viewMode)) listRef.current?.scrollToIndex({ index: nextIndex, align: "center" })
-    else if (viewUsesGrid(viewMode)) gridRef.current?.scrollToIndex({ index: nextIndex, align: "center" })
+    scrollToDirectoryIndex(nextIndex)
   }
 
   function runFocusedKeyboardEntry(
-    kind: Extract<FolderKeyboardCommand["kind"], "activate" | "trash" | "rename" | "context-menu">,
+    kind: Extract<FolderKeyboardCommand["kind"], "activate" | "enter-raw" | "trash" | "rename" | "context-menu">,
     currentCatalog: DirectoryCatalog,
     index: number,
   ) {
@@ -1114,13 +1201,14 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       if (!client.listDirectoryBrowser) return
       pendingKeyboardCommandRef.current = { generation: currentCatalog.generation, index, kind }
       requestRange({ startIndex: index, endIndex: index })
-      if (viewUsesVirtuosoList(viewMode)) listRef.current?.scrollToIndex({ index, align: "center" })
-      else if (viewUsesGrid(viewMode)) gridRef.current?.scrollToIndex({ index, align: "center" })
+      scrollToDirectoryIndex(index)
       return
     }
     pendingKeyboardCommandRef.current = undefined
     if (kind === "activate") {
       activate(entry)
+    } else if (kind === "enter-raw" && entry.kind === "directory") {
+      activate(entry, true)
     } else if (kind === "rename") {
       if (client.executeFileOperations) setRenameRequest({ index, ...entry })
     } else if (kind === "trash") {
@@ -1170,13 +1258,81 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
     proxy.remove()
   }
 
-  function activate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "path" | "readerSupported">) {
-    if (entry.kind === "directory") void navigate({ action: "path", path: entry.path }, { focusPath: entry.path })
-    else if (entry.readerSupported) void onOpen?.(entry.path)
+  function cancelPenetrationActivation(): void {
+    const pending = penetrationActivationRef.current
+    if (!pending) return
+    penetrationActivationRef.current = undefined
+    clearTimeout(pending.timer)
+    pending.controller.abort()
+  }
+
+  function openReaderEntry(entry: Pick<ReaderDirectoryEntryDto, "path">): void {
+    const current = catalogRef.current
+    void onOpen?.(entry.path, current ? {
+      browserOriginPath: current.path,
+      browserOriginEntryPath: entry.path,
+    } : undefined)
+  }
+
+  function enterRawDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void {
+    cancelPenetrationActivation()
+    void navigate({ action: "path", path: entry.path }, { focusPath: entry.path })
+  }
+
+  function activate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "path" | "readerSupported">, rawDirectory = false) {
+    if (entry.kind === "directory") {
+      if (rawDirectory || !penetration.enabled || !client.resolveFolderPenetration) {
+        enterRawDirectory(entry)
+        return
+      }
+      const current = catalogRef.current
+      if (!current) return
+      cancelPenetrationActivation()
+      const controller = new AbortController()
+      const pending = {
+        path: entry.path,
+        sessionId: current.sessionId,
+        generation: current.generation,
+        controller,
+        timer: setTimeout(() => undefined, PENETRATION_CLICK_DELAY_MS),
+      }
+      penetrationActivationRef.current = pending
+      clearTimeout(pending.timer)
+      const delay = new Promise<void>((resolve) => {
+        pending.timer = setTimeout(resolve, PENETRATION_CLICK_DELAY_MS)
+      })
+      void Promise.all([
+        client.resolveFolderPenetration(current.sessionId, entry.path, {
+          maxDepth: penetration.maxDepth,
+          terminalTargets: penetration.terminalTargets,
+        }, controller.signal),
+        delay,
+      ]).then(([resolution]) => {
+        if (penetrationActivationRef.current !== pending) return
+        penetrationActivationRef.current = undefined
+        if (catalogRef.current?.sessionId !== pending.sessionId || catalogRef.current?.generation !== pending.generation) return
+        if (resolution.status === "resolved" && resolution.terminal) {
+          openReaderEntry({ path: resolution.terminal.path })
+          return
+        }
+        if (resolution.status === "blocked" && (resolution.reason === "permission" || resolution.reason === "cycle")) {
+          setError(`无法穿透此文件夹：${resolution.reason === "permission" ? "没有读取权限" : "检测到目录循环"}`)
+          return
+        }
+        enterRawDirectory(entry)
+      }).catch((cause) => {
+        if (controller.signal.aborted || penetrationActivationRef.current !== pending) return
+        penetrationActivationRef.current = undefined
+        setError(`穿透解析失败：${folderErrorMessage(cause)}`)
+      })
+      return
+    }
+    if (entry.readerSupported) openReaderEntry(entry)
     else void client.openSystemPath?.(entry.path)
   }
 
   function beginNavigation(): number {
+    cancelPenetrationActivation()
     navigationRequestRef.current?.abort()
     catalogRequestRef.current?.abort()
     thumbnailRequestRef.current?.abort()
@@ -1209,6 +1365,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
 
   function disposeBrowser() {
     navigationGenerationRef.current += 1
+    cancelPenetrationActivation()
     navigationRequestRef.current?.abort()
     catalogRequestRef.current?.abort()
     releaseThumbnailContext()
@@ -1267,8 +1424,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       setFocusedPath(entries[offset]!.path)
       setSelection(selectDirectorySingle(current.generation, entries[offset]!.path, index))
       requestRange({ startIndex: index, endIndex: index })
-      if (viewUsesVirtuosoList(viewMode)) listRef.current?.scrollToIndex({ index, align: "center" })
-      else if (viewUsesGrid(viewMode)) gridRef.current?.scrollToIndex({ index, align: "center" })
+      scrollToDirectoryIndex(index)
       return
     }
   }
@@ -1382,6 +1538,8 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             canFilter={Boolean(client.filterDirectoryBrowser)}
             typeFilter={catalog?.filter ?? folderView.typeFilter ?? "library"}
             filterOptions={catalog?.filterOptions}
+            showHiddenFolders={catalog?.showHiddenFolders ?? folderView.showHiddenFolders ?? false}
+            penetration={penetration}
             treeOpen={treeOpen}
             canTree={Boolean(client.treeDirectoryBrowser)}
             inlineTreeOpen={inlineTreeOpen}
@@ -1393,9 +1551,6 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             canSort={Boolean(client.sortDirectoryBrowser)}
             canSortPreference={Boolean(client.updateDirectorySortPreference)}
             emptyArea={folderView.emptyArea}
-            pasteAvailable={Boolean(catalog && clipboard.clipboard.available)}
-            pasteRunning={clipboard.operation?.status === "running"}
-            pasteProgress={clipboard.operation ? { processed: clipboard.operation.processed, total: clipboard.operation.total } : undefined}
             thumbnailRefreshPending={thumbnailRefreshPending}
             canRefreshThumbnails={Boolean(client.registerLibraryThumbnails)}
             canRefreshSelectedThumbnails={Boolean(client.registerLibraryThumbnails && selectedPaths.size)}
@@ -1424,13 +1579,15 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             onCommitBannerWidth={commitBannerWidth}
             onToggleSearch={() => setSearchOpen((current) => !current)}
             onChangeTypeFilter={(filter) => { void updateFilter(filter) }}
+            onChangeShowHiddenFolders={(showHiddenFolders) => { void updateHiddenFolders(showHiddenFolders) }}
+            onTogglePenetration={(enabled) => { void updatePenetration({ enabled }) }}
+            onUpdatePenetration={(patch) => { void updatePenetration(patch) }}
             onToggleTree={toggleTree}
             onToggleInlineTree={toggleInlineTree}
             onToggleMultiSelect={toggleMultiSelectMode}
             onUpdateSort={(sort) => { void updateSort(sort) }}
             onUpdateSortPreference={(command) => { void updateSortPreference(command) }}
             onEmptyAreaChange={(emptyArea) => { void onFolderView?.({ emptyArea }) }}
-            onPaste={() => { if (catalog) void clipboard.paste(catalog.path) }}
             onRefreshVisibleThumbnails={() => { void refreshVisibleThumbnails() }}
             onRefreshSelectedThumbnails={() => { void refreshSelectedThumbnails() }}
             onCancelThumbnailRefresh={cancelThumbnailRefresh}
@@ -1619,7 +1776,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
             />
           </Suspense>
         ) : null}
-        {!searchOpen && !inlineTreeOpen && catalog && catalog.total > 0 && viewUsesGrid(viewMode) ? (
+        {!searchOpen && !inlineTreeOpen && catalog && catalog.total > 0 && viewUsesFixedGrid(viewMode) ? (
           <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载网格视图" />}>
             <FolderGridWorkspace
               virtualKey={virtualKey}
@@ -1642,6 +1799,33 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
               onRangeChange={requestRange}
               onStateChange={(snapshot) => { gridSnapshotRef.current = snapshot }}
               onScrollTopChange={(scrollTop) => { gridScrollTopRef.current = scrollTop }}
+              onSelect={selectEntry}
+            />
+          </Suspense>
+        ) : null}
+        {!searchOpen && !inlineTreeOpen && catalog && catalog.total > 0 && viewUsesMosaicGrid(viewMode) ? (
+          <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载自由缩略图视图" />}>
+            <FolderMosaicWorkspace
+              key={virtualKey}
+              virtualKey={virtualKey}
+              mosaicRef={mosaicRef}
+              catalog={catalog}
+              disabled={disabled}
+              selectedPaths={selectedPaths}
+              focusedIndex={focusedIndex}
+              itemIdPrefix={itemIdPrefix}
+              thumbnailUrls={thumbnailUrls}
+              thumbnailUrlSets={thumbnailUrlSets}
+              tileSize={thumbnailPixelSize(thumbnailWidthPercent)}
+              hoverPreviewEnabled={active && hoverPreviewEnabled}
+              hoverPreviewDelayMs={hoverPreviewDelayMs}
+              showReturnFooter={showReturnFooter}
+              returnFooterContext={returnFooterContext}
+              restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.mosaicSnapshot : undefined}
+              initialScrollTop={restoreState?.viewMode === viewMode ? restoreState.mosaicScrollTop : undefined}
+              initialIndex={shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.mosaicSnapshot ? restoreIndex : undefined}
+              onRangeChange={requestRange}
+              onScrollTopChange={(scrollTop) => { mosaicScrollTopRef.current = scrollTop }}
               onSelect={selectEntry}
             />
           </Suspense>

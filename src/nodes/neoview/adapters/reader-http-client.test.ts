@@ -104,7 +104,7 @@ describe("reader-http-client", () => {
 
   it("[neoview.page-order.client] updates session ordering and canonical book locks through authenticated routes", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/reader/config")
-      ? Response.json({ book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: null } })
+      ? Response.json({ book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: null, lockedReadingDirection: "left-to-right" } })
       : Response.json({
           frame: { anchorPageIndex: 1 },
           visiblePages: [{ id: "physical-page", index: 1, name: "2.jpg", mediaKind: "image", contentVersion: "v1" }],
@@ -119,8 +119,8 @@ describe("reader-http-client", () => {
       randomSeed: "stable-seed",
     })).resolves.toMatchObject({ pageOrder: { sortMode: "random", randomSeed: "stable-seed" } })
     await expect(client.updateBookDefaults!({
-      book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: null },
-    })).resolves.toEqual({ lockedSortMode: "fileSizeDescending", lockedMediaPriority: null })
+      book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: null, lockedReadingDirection: "left-to-right" },
+    })).resolves.toEqual({ lockedSortMode: "fileSizeDescending", lockedMediaPriority: null, lockedReadingDirection: "left-to-right" })
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2F1/page-order")
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
@@ -128,7 +128,7 @@ describe("reader-http-client", () => {
     })
     expect(String(fetchMock.mock.calls[1]?.[0])).toBe("http://127.0.0.1:41000/reader/config")
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
-      book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: null },
+      book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: null, lockedReadingDirection: "left-to-right" },
     })
     for (const call of fetchMock.mock.calls) {
       expect(call[1]).toMatchObject({ method: "PATCH" })
@@ -643,13 +643,14 @@ describe("reader-http-client", () => {
     vi.stubGlobal("fetch", fetchMock)
     const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
 
-    await client.filterDirectoryBrowser!("browser/source", "archive", "D:/books/book.cbz")
+    await client.filterDirectoryBrowser!("browser/source", "archive", "D:/books/book.cbz", undefined, true)
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/browser/s/browser%2Fsource/filter")
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "PATCH" })
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
       filter: "archive",
       focusPath: "D:/books/book.cbz",
+      showHiddenFolders: true,
     })
   })
 
@@ -818,6 +819,34 @@ describe("reader-http-client", () => {
     expect(url.pathname).toBe("/reader/browser/s/browser-1/changes")
     expect(url.searchParams.get("after")).toBe("1")
     expect(url.searchParams.get("focus")).toBe("D:/books/a.cbz")
+  })
+
+  it("[neoview.folder.penetration-client] resolves a folder through the encoded browser session", async () => {
+    const resolution = {
+      status: "resolved",
+      originPath: "D:/books/series",
+      terminal: { kind: "archive", path: "D:/books/series/book.cbz" },
+      chain: [],
+      reason: "archive",
+    }
+    const fetchMock = vi.fn(async () => Response.json(resolution))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.resolveFolderPenetration!(
+      "browser/source",
+      "D:/books/series",
+      { maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
+    )).resolves.toEqual(resolution)
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/browser/s/browser%2Fsource/penetration/resolve")
+    const init = fetchMock.mock.calls[0]?.[1]
+    expect(init).toMatchObject({ method: "POST" })
+    expect(JSON.parse(String(init?.body))).toEqual({
+      path: "D:/books/series",
+      policy: { maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
+    })
+    expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
   it("[neoview.folder.search-incremental] publishes bounded entry batches before the stream completes", async () => {

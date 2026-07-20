@@ -12,6 +12,9 @@ import type {
 import { rebaseDirectorySelection, type DirectorySelectionModel } from "./DirectorySelection"
 
 const DIRECTORY_VIEWPORT_HEIGHT = 288
+// A larger virtualized batch lets CSS grid dense packing fill gaps across the
+// visible viewport without turning a large directory into one unbounded grid.
+export const FOLDER_MOSAIC_GROUP_SIZE = 30
 export const FOLDER_EMM_METADATA_FIELDS: readonly ReaderDirectoryMetadataFieldDto[] = [
   "rating", "collectTagCount", "tags",
 ]
@@ -27,6 +30,7 @@ export interface DirectoryCatalog {
   canGoForward: boolean
   filter: ReaderDirectoryFilterDto
   filterOptions: readonly ReaderDirectoryFilterDto[]
+  showHiddenFolders: boolean
   sort: ReaderDirectorySortDto
   sortFields: readonly ReaderDirectorySortFieldDto[]
   metadataFields: readonly ReaderDirectoryMetadataFieldDto[]
@@ -94,6 +98,7 @@ export function createDirectoryCatalog(page: ReaderDirectoryPageDto): DirectoryC
     canGoForward: page.canGoForward,
     filter: page.filter ?? "all",
     filterOptions: page.filterOptions ?? ["all", "archive", "directory", "video"],
+    showHiddenFolders: page.showHiddenFolders ?? false,
     sort: page.sort,
     sortFields: page.sortFields,
     metadataFields: page.metadataFields,
@@ -163,7 +168,10 @@ export function folderMetadataFieldsForView(
   capabilities: readonly ReaderDirectoryMetadataFieldDto[],
 ): readonly ReaderDirectoryMetadataFieldDto[] {
   if (mode === "compact" || mode === "details") return []
-  return FOLDER_EMM_METADATA_FIELDS.filter((field) => capabilities.includes(field))
+  const fields = mode === "mosaic-grid"
+    ? ["dimensions", ...FOLDER_EMM_METADATA_FIELDS] as const
+    : FOLDER_EMM_METADATA_FIELDS
+  return fields.filter((field) => capabilities.includes(field))
 }
 
 export function directoryEntryAt(catalog: DirectoryCatalog, index: number): ReaderDirectoryEntryDto | undefined {
@@ -198,6 +206,10 @@ export function directoryLoadedEntries(
 }
 
 export function viewUsesGrid(mode: ReaderFolderViewMode): boolean {
+  return viewUsesFixedGrid(mode) || viewUsesMosaicGrid(mode)
+}
+
+export function viewUsesFixedGrid(mode: ReaderFolderViewMode): boolean {
   return viewUsesBanner(mode) || viewUsesThumbnailGrid(mode)
 }
 
@@ -209,8 +221,12 @@ export function viewUsesThumbnailGrid(mode: ReaderFolderViewMode): boolean {
   return mode === "cover-grid"
 }
 
+export function viewUsesMosaicGrid(mode: ReaderFolderViewMode): boolean {
+  return mode === "mosaic-grid"
+}
+
 export function viewUsesThumbnails(mode: ReaderFolderViewMode): boolean {
-  return mode === "cover-list" || mode === "mosaic-list" || mode === "cover-grid"
+  return mode === "cover-list" || mode === "mosaic-list" || mode === "cover-grid" || mode === "mosaic-grid"
 }
 
 export function viewUsesVirtuosoList(mode: ReaderFolderViewMode): boolean {
@@ -223,6 +239,7 @@ export function visibleGridColumnCount(host: HTMLElement | null): number {
 }
 
 export function visiblePageStep(mode: ReaderFolderViewMode, gridColumns: number): number {
+  if (viewUsesMosaicGrid(mode)) return gridColumns * 3
   if (viewUsesGrid(mode)) return gridColumns * 2
   if (mode === "compact") return Math.floor(DIRECTORY_VIEWPORT_HEIGHT / 34)
   if (mode === "details") return Math.floor(DIRECTORY_VIEWPORT_HEIGHT / 36)

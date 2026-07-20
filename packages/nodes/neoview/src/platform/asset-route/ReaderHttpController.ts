@@ -45,7 +45,11 @@ import type { ReaderFileUndoJournalStore } from "../../ports/ReaderFileUndoJourn
 import type { ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
 import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
-import { ReaderAdjacentBookService } from "../../application/reader/ReaderAdjacentBookService.js"
+import {
+  ReaderHierarchicalBookTraversal,
+  type ReaderBookTraversalCursor,
+} from "../../application/reader/ReaderHierarchicalBookTraversal.js"
+import { ReaderFolderPenetrationResolver } from "../../application/browser/ReaderFolderPenetrationResolver.js"
 import { ReaderEmmMetadataRevisionConflict, ReaderEmmMetadataService } from "../../application/metadata/ReaderEmmMetadataService.js"
 import { legacyEmmBookPathKey } from "../../application/metadata/LegacyEmmBookMetadataCodec.js"
 import { isReaderDirectorySortField, type ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
@@ -352,7 +356,8 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #videoProcessSnapshot?: () => ReaderVideoProcessDiagnostics
   readonly #bookMetadata: ReaderBookMetadataService
   readonly #pageMediaInformation: ReaderPageMediaInformationService
-  readonly #adjacentBooks: ReaderAdjacentBookService
+  readonly #bookTraversal: ReaderHierarchicalBookTraversal
+  readonly #bookTraversalCursors = new Map<ReaderSessionId, ReaderBookTraversalCursor>()
   readonly #mediaFormats: ReaderMediaFormatRegistryRef
   readonly #token: string
   readonly #baseUrl: string
@@ -480,10 +485,12 @@ export class ReaderHttpController implements AsyncDisposable {
       undefined,
       new PlatformDirectoryMediaMetadataProvider(bookLoader, imageMetadataProbe, this.#mediaFormats),
     )
-    this.#adjacentBooks = new ReaderAdjacentBookService(
-      new PlatformDirectoryListingProvider(this.#mediaFormats),
+    const traversalListingProvider = new PlatformDirectoryListingProvider(this.#mediaFormats)
+    this.#bookTraversal = new ReaderHierarchicalBookTraversal(
+      traversalListingProvider,
       directoryMetadata,
       (entry) => platformReaderBookCandidate(entry, this.#mediaFormats),
+      new ReaderFolderPenetrationResolver(traversalListingProvider, { mediaFormats: this.#mediaFormats }),
     )
     this.#sourceChanges = new ReaderSourceWatchService(options.sourceWatcher ?? new PlatformReaderSourceWatcher())
     this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore, emmTranslations)
@@ -959,6 +966,10 @@ export class ReaderHttpController implements AsyncDisposable {
     if (archivePasswords === "invalid") {
       return jsonResponse({ error: "password/archivePasswords must contain valid, uniquely scoped password entries and cannot be combined" }, 400)
     }
+    const provenance = parseReaderActivationProvenance(body.provenance)
+    if (body.provenance !== undefined && !provenance) {
+      return jsonResponse({ error: "provenance must contain browserOriginPath and browserOriginEntryPath" }, 400)
+    }
     try {
       const source: ViewSource = entryPaths
         ? { kind: "archive", path: body.path, entryPaths }
@@ -967,6 +978,13 @@ export class ReaderHttpController implements AsyncDisposable {
         source,
         { initialPage, signal: request.signal, archivePasswords },
       )
+      if (provenance) this.#bookTraversalCursors.set(session.id, {
+        rootPath: provenance.browserOriginPath,
+        frames: [{
+          directoryPath: provenance.browserOriginPath,
+          currentEntryPath: provenance.browserOriginEntryPath,
+        }],
+      })
       this.#retainSessionFrame(session, session.snapshot())
       return jsonResponse(this.#sessionDto(session), 201)
     } catch (error) {
@@ -1285,6 +1303,10 @@ export class ReaderHttpController implements AsyncDisposable {
         updated = await this.#updateBook!(parsed.patch, parsed.tomlPatch)
         this.#book = updated
         this.#service.updatePageOrderDefaults(lockedPageOrder(updated))
+        if (updated.lockedReadingDirection) {
+          this.#sessionOptions = { ...this.#sessionOptions, direction: updated.lockedReadingDirection }
+          this.#service.updateSessionDefaults(this.#sessionOptions)
+        }
       })
       this.#configUpdateQueue = operation.catch(() => undefined)
       try {
@@ -1818,6 +1840,8 @@ export class ReaderHttpController implements AsyncDisposable {
       if (target !== 0) await replacement.goTo(target, request.signal)
       request.signal.throwIfAborted()
       this.#retainSessionFrame(replacement, replacement.snapshot())
+      const cursor = this.#bookTraversalCursors.get(current.id)
+      if (cursor) this.#bookTraversalCursors.set(replacement.id, cursor)
     } catch (error) {
       await replacement?.close().catch(() => undefined)
       if (request.signal.aborted) throw error
@@ -1836,15 +1860,20 @@ export class ReaderHttpController implements AsyncDisposable {
     if (!parsed) return jsonResponse({ error: "Adjacent-book request must contain a valid direction and optional sort rule" }, 400)
     let replacement: ReaderSession | undefined
     try {
-      const candidate = await this.#adjacentBooks.resolve({
+      const candidate = await this.#bookTraversal.resolve({
         source: current.book.source,
         direction: parsed.direction,
+        cursor: this.#bookTraversalCursors.get(current.id),
         sort: parsed.sort,
         randomSeed: current.id,
       }, request.signal)
       if (!candidate) return new Response(null, { status: 204 })
       replacement = await this.#service.openViewSource({ kind: "path", path: candidate.path }, { signal: request.signal })
+      if (parsed.direction === "previous" && replacement.pages.length > 1) {
+        await replacement.goTo(replacement.pages.length - 1, request.signal)
+      }
       request.signal.throwIfAborted()
+      this.#bookTraversalCursors.set(replacement.id, candidate.cursor)
       this.#retainSessionFrame(replacement, replacement.snapshot())
     } catch (error) {
       await replacement?.close().catch(() => undefined)
@@ -1878,6 +1907,7 @@ export class ReaderHttpController implements AsyncDisposable {
     ])
     for (const result of results) if (result.status === "rejected") errors.push(result.reason)
     this.#openPageMaterializationTokens.delete(session.id)
+    this.#bookTraversalCursors.delete(session.id)
     try {
       this.#releaseBookMetadata(session.id)
     } catch (error) {
@@ -2284,6 +2314,21 @@ function parseAdjacentBookRequest(body: Record<string, unknown> | undefined): {
   return {
     direction: body.direction,
     sort: { field: sort.field, order: sort.order, directoriesFirst: sort.directoriesFirst },
+  }
+}
+
+function parseReaderActivationProvenance(value: unknown): {
+  browserOriginPath: string
+  browserOriginEntryPath: string
+} | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  if (Object.keys(record).some((key) => key !== "browserOriginPath" && key !== "browserOriginEntryPath")) return undefined
+  if (typeof record.browserOriginPath !== "string" || !record.browserOriginPath.trim()) return undefined
+  if (typeof record.browserOriginEntryPath !== "string" || !record.browserOriginEntryPath.trim()) return undefined
+  return {
+    browserOriginPath: record.browserOriginPath,
+    browserOriginEntryPath: record.browserOriginEntryPath,
   }
 }
 

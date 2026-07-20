@@ -211,15 +211,20 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
 
 const EMPTY_THUMBNAIL_URL_SETS: ReadonlyMap<string, readonly string[]> = new Map()
 
-function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
-  if (!entry) return <div className="h-36 animate-pulse rounded bg-muted/30" aria-hidden="true" />
+export function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, onSelect }: DirectoryGridItemProps) {
+  if (!entry) return (
+    <div className="grid w-full grid-rows-[auto_1.75rem] overflow-hidden rounded border bg-background" aria-hidden="true">
+      <span className="aspect-[2/3] w-full animate-pulse bg-muted/30" />
+      <span className="border-t bg-muted/20" />
+    </div>
+  )
   const showMetadata = showRating || showCollectTagCount || Boolean(entry.tags?.length)
   return (
     <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
     <button
       id={itemId}
       type="button"
-      className={`grid h-36 w-full overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-primary ${showMetadata ? "grid-rows-[1fr_auto_auto]" : "grid-rows-[1fr_auto]"}`}
+      className={`grid w-full overflow-hidden rounded border bg-background text-left text-xs hover:bg-muted aria-selected:border-primary aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-primary ${showMetadata ? "grid-rows-[auto_auto_auto]" : "grid-rows-[auto_auto]"}`}
       aria-selected={selected}
       data-focused={focused || undefined}
       disabled={disabled}
@@ -235,7 +240,7 @@ function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, 
       data-folder-kind={entry.kind}
       data-folder-reader-supported={entry.readerSupported}
     >
-      <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
+      <span className="grid aspect-[2/3] w-full min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true" data-folder-thumbnail-orientation="portrait">
         {thumbnailUrl
           ? <ReaderThumbnailSurface url={thumbnailUrl} urls={thumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" className="size-full rounded-none bg-transparent" />
           : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}

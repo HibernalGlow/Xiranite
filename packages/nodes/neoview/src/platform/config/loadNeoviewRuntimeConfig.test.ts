@@ -109,7 +109,7 @@ describe("loadNeoviewSessionOptions", () => {
   it("does not create a config file when the default source is absent", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-runtime-default-"))
     roots.push(root)
-    expect(await loadNeoviewSessionOptions({ configPath: join(root, "missing.toml") })).toEqual({})
+    expect(await loadNeoviewSessionOptions({ configPath: join(root, "missing.toml") })).toEqual({ direction: "left-to-right" })
   })
 
   it("loads shell options from the same TOML snapshot as reader defaults", async () => {
@@ -246,40 +246,52 @@ describe("loadNeoviewSessionOptions", () => {
       const bookPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
-        body: JSON.stringify({ book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: "videoFirst" } }),
+        body: JSON.stringify({ book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: "videoFirst", lockedReadingDirection: "right-to-left" } }),
       }))
-      expect(await bookPatched?.json()).toMatchObject({ book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: "videoFirst" } })
+      expect(await bookPatched?.json()).toMatchObject({ book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: "videoFirst", lockedReadingDirection: "right-to-left" } })
       const bookConfig = await readFile(configPath, "utf8")
       expect(bookConfig).toContain("[nodes.neoview.book]")
       expect(bookConfig).toContain('locked_sort_mode = "fileSizeDescending"')
       expect(bookConfig).toContain('locked_media_priority = "videoFirst"')
+      expect(bookConfig).toContain('locked_reading_direction = "right-to-left"')
+      expect(bookConfig).toContain('[nodes.neoview.reader]')
+      expect(bookConfig).toContain('reading_direction = "right-to-left"')
       expect(bookConfig).toContain('future_book = "keep"')
-      expect((await loadNeoviewRuntimeConfig({ configPath })).book).toEqual({ lockedSortMode: "fileSizeDescending", lockedMediaPriority: "videoFirst" })
+      expect(await loadNeoviewRuntimeConfig({ configPath })).toMatchObject({
+        book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: "videoFirst", lockedReadingDirection: "right-to-left" },
+        sessionOptions: { direction: "right-to-left" },
+      })
       const lockedSession = await controller.handle(new Request("http://127.0.0.1:43125/reader/sessions", {
         method: "POST",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
         body: JSON.stringify({ path: bookPath }),
       }))
       expect(await lockedSession?.json()).toMatchObject({
+        frame: { direction: "right-to-left" },
         pageOrder: { sortMode: "fileSizeDescending", mediaPriority: "videoFirst" },
       })
       const unlocked = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
-        body: JSON.stringify({ book: { lockedSortMode: null, lockedMediaPriority: null } }),
+        body: JSON.stringify({ book: { lockedSortMode: null, lockedMediaPriority: null, lockedReadingDirection: null } }),
       }))
-      expect(await unlocked?.json()).toMatchObject({ book: { lockedSortMode: null, lockedMediaPriority: null } })
+      expect(await unlocked?.json()).toMatchObject({ book: { lockedSortMode: null, lockedMediaPriority: null, lockedReadingDirection: null } })
       const unlockedConfig = await readFile(configPath, "utf8")
       expect(unlockedConfig).toContain('locked_sort_mode = "none"')
       expect(unlockedConfig).toContain('locked_media_priority = "none"')
+      expect(unlockedConfig).toContain('locked_reading_direction = "none"')
       expect(unlockedConfig).toContain('future_book = "keep"')
-      expect((await loadNeoviewRuntimeConfig({ configPath })).book).toEqual({ lockedSortMode: null, lockedMediaPriority: null })
+      expect(await loadNeoviewRuntimeConfig({ configPath })).toMatchObject({
+        book: { lockedSortMode: null, lockedMediaPriority: null, lockedReadingDirection: null },
+        sessionOptions: { direction: "right-to-left" },
+      })
       const defaultSession = await controller.handle(new Request("http://127.0.0.1:43125/reader/sessions", {
         method: "POST",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
         body: JSON.stringify({ path: bookPath }),
       }))
       expect(await defaultSession?.json()).toMatchObject({
+        frame: { direction: "right-to-left" },
         pageOrder: { sortMode: "fileName", mediaPriority: "none" },
       })
       const slideshowPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {

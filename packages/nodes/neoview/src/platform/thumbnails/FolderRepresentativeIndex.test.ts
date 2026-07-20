@@ -100,6 +100,27 @@ describe("FolderRepresentativeIndex", () => {
     index.clear()
   })
 
+  it("[neoview.thumbnail.folder-index-poster-names] prioritizes a directory-named cover before natural page order", async () => {
+    const readDirectory = vi.fn(async () => [file("001.png"), file("01 library-cover 2.jpg"), file("002.png")])
+    const index = new FolderRepresentativeIndex({
+      readDirectory,
+      statPath: async (path) => stats(path.endsWith("01 library-cover 2.jpg") ? 30 : 10, 100),
+    })
+
+    await expect(index.describe("D:/library", 50)).resolves.toBe("01 library-cover 2.jpg:30:100")
+    index.clear()
+  })
+
+  it("[neoview.thumbnail.folder-index-poster-stems] recognizes OpenComic poster aliases", async () => {
+    const index = new FolderRepresentativeIndex({
+      readDirectory: async () => [file("001.png"), file("poster.avif")],
+      statPath: async (path) => stats(path.endsWith("poster.avif") ? 20 : 10, 100),
+    })
+
+    await expect(index.describe("D:/library", 50)).resolves.toBe("poster.avif:20:100")
+    index.clear()
+  })
+
   it("[neoview.thumbnail.folder-index-recursive] finds bounded nested image and archive representatives", async () => {
     const readDirectory = vi.fn(async (path: string) => path.endsWith("nested")
       ? [file("2.cbz"), file("1.jpg")]

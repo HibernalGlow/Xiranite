@@ -89,6 +89,7 @@ export interface ReaderDirectoryPage {
   generation: number
   filter: ReaderDirectoryFilter
   filterOptions: readonly ReaderDirectoryFilter[]
+  showHiddenFolders: boolean
   sort: ReaderDirectorySortRule
   sortFields: readonly ReaderDirectorySortField[]
   metadataFields: readonly ReaderDirectoryMetadataField[]
@@ -152,6 +153,7 @@ interface BrowserSession {
   scopeId: string
   sort: ReaderDirectorySortRule
   filter: ReaderDirectoryFilter
+  showHiddenFolders: boolean
   sortPreference: ReaderDirectorySortPreferenceSnapshot
   temporarySort?: ReaderDirectoryTemporarySortRule
   sortFields: readonly ReaderDirectorySortField[]
@@ -194,6 +196,7 @@ interface ClosedBrowserSession {
   scopeId: string
   sort: ReaderDirectorySortRule
   filter: ReaderDirectoryFilter
+  showHiddenFolders: boolean
   sortPreference: ReaderDirectorySortPreferenceSnapshot
   temporarySort?: ReaderDirectoryTemporarySortRule
   randomSeeds: Map<string, string>
@@ -242,6 +245,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       scopeId,
       sort: sortPreference.sort,
       filter: "all",
+      showHiddenFolders: false,
       sortPreference,
       sortFields: this.#availableSortFields(),
       randomSeeds: new Map(),
@@ -294,6 +298,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     focusPath?: string,
     signal?: AbortSignal,
     displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
+    showHiddenFolders?: boolean,
   ): Promise<ReaderDirectoryPage | undefined> {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
@@ -301,9 +306,10 @@ export class ReaderFileTreeService implements AsyncDisposable {
     await this.#refreshWatchedSession(session, signal)
     await this.#ensureListing(session, signal)
     signal?.throwIfAborted()
-    if (session.filter !== filter) {
+    if (session.filter !== filter || (showHiddenFolders !== undefined && session.showHiddenFolders !== showHiddenFolders)) {
       abortDirectorySizeOperations(session)
       session.filter = filter
+      if (showHiddenFolders !== undefined) session.showHiddenFolders = showHiddenFolders
       session.generation += 1
     }
     const entries = filteredEntries(session, this.options.classifyEntry)
@@ -340,6 +346,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       scopeId: source.scopeId,
       sort: { ...source.sort },
       filter: source.filter,
+      showHiddenFolders: source.showHiddenFolders,
       sortPreference: cloneSortPreference(source.sortPreference),
       temporarySort: source.temporarySort ? cloneTemporarySort(source.temporarySort) : undefined,
       sortFields: [...source.sortFields],
@@ -397,6 +404,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       scopeId: closed.scopeId,
       sort: { ...closed.sort },
       filter: closed.filter,
+      showHiddenFolders: closed.showHiddenFolders,
       sortPreference: cloneSortPreference(closed.sortPreference),
       temporarySort: closed.temporarySort ? cloneTemporarySort(closed.temporarySort) : undefined,
       sortFields: this.#availableSortFields(),
@@ -973,6 +981,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       scopeId: session.scopeId,
       sort: { ...session.sort },
       filter: session.filter,
+      showHiddenFolders: session.showHiddenFolders,
       sortPreference: cloneSortPreference(session.sortPreference),
       temporarySort: session.temporarySort ? cloneTemporarySort(session.temporarySort) : undefined,
       randomSeeds: new Map(session.randomSeeds),
@@ -1365,6 +1374,7 @@ function pageOf(
     generation: session.generation,
     filter: session.filter,
     filterOptions: READER_DIRECTORY_FILTERS,
+    showHiddenFolders: session.showHiddenFolders,
     sort: session.sort,
     sortFields: session.sortFields,
     metadataFields,
@@ -1383,8 +1393,9 @@ function filteredEntries(
   session: BrowserSession,
   classifyEntry: ReaderFileTreeServiceOptions["classifyEntry"],
 ): readonly ReaderDirectoryEntry[] {
-  if (session.filter === "all") return session.listing.entries
   return session.listing.entries.filter((entry) => {
+    if (!session.showHiddenFolders && entry.kind === "directory" && entry.name.startsWith(".")) return false
+    if (session.filter === "all") return true
     const type = entry.kind === "directory" ? "directory" : classifyEntry?.(entry) ?? "other"
     return readerDirectoryEntryMatchesFilter(type, session.filter)
   })

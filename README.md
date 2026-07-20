@@ -37,11 +37,20 @@ bun install
 # 启动 Web 开发服务器（前端 + 本地后端）
 bun run dev
 
+# 完整低内存开发模式
+bun run dev:lean
+
 # 仅启动 Vite 前端（后端独立运行时）
 bun run dev:vite
 
+# 低内存 Vite 开发模式（关闭开发期 React Compiler，默认 1 GiB 堆预算）
+bun run dev:vite:lean
+
 # 启动桌面端开发模式
 bun run dev:desktop
+
+# 低内存桌面开发模式
+bun run dev:desktop:lean
 ```
 
 ### 全局 CLI 快捷命令

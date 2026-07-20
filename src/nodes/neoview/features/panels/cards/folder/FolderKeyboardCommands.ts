@@ -2,6 +2,7 @@ export type FolderKeyboardCommand =
   | { kind: "move"; targetIndex: number }
   | { kind: "refresh" }
   | { kind: "activate" }
+  | { kind: "enter-raw" }
   | { kind: "trash" }
   | { kind: "rename" }
   | { kind: "back" }
@@ -53,7 +54,7 @@ export function resolveFolderKeyboardCommand(
   }
   if (context.total <= 0) return undefined
   if (key === "ContextMenu" || (Boolean(input.shiftKey) && key === "F10")) return { kind: "context-menu" }
-  if (key === "Enter") return { kind: "activate" }
+  if (key === "Enter") return input.altKey ? { kind: "enter-raw" } : { kind: "activate" }
   if (key === "Delete") return { kind: "trash" }
   if (key === "F2") return { kind: "rename" }
 
