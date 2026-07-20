@@ -278,11 +278,13 @@ describe("parseNeoviewRuntimeConfig", () => {
     } }).folderView).toEqual({
       homePath: "D:/Books",
       viewMode: "details",
+      previewGridEnabled: false,
       previewCount: 9,
       thumbnailWidthPercent: 34,
       bannerWidthPercent: 70,
       hoverPreviewEnabled: true,
       hoverPreviewDelayMs: 500,
+      typeFilter: "library",
       emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
       details: {
         columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
@@ -306,7 +308,8 @@ describe("parseNeoviewRuntimeConfig", () => {
     })
     expect(parseNeoviewFolderViewPatch({ folderView: {
       homePath: " E:/Library ",
-      viewMode: "mosaic-grid",
+      viewMode: "cover-grid",
+      previewGridEnabled: true,
       previewCount: 16,
       thumbnailWidthPercent: 42,
       bannerWidthPercent: 80,
@@ -319,7 +322,8 @@ describe("parseNeoviewRuntimeConfig", () => {
     } })).toEqual({
       patch: { folderView: {
         homePath: "E:/Library",
-        viewMode: "mosaic-grid",
+        viewMode: "cover-grid",
+        previewGridEnabled: true,
         previewCount: 16,
         thumbnailWidthPercent: 42,
         bannerWidthPercent: 80,
@@ -338,7 +342,8 @@ describe("parseNeoviewRuntimeConfig", () => {
       } },
       tomlPatch: { folder: {
         home_path: "E:/Library",
-        view_mode: "mosaic-grid",
+        view_mode: "cover-grid",
+        preview_grid_enabled: true,
         preview_count: 16,
         thumbnail_width_percent: 42,
         banner_width_percent: 80,

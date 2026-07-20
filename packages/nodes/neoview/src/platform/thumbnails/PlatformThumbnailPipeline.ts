@@ -60,6 +60,7 @@ export interface LibraryThumbnailSource {
   sourceSize?: number
   modifiedAtMs: number
   representativeVersion?: string
+  representativePaths?: readonly string[]
   previewCount: LibraryThumbnailPreviewCount
   contentVersion: string
 }
@@ -72,6 +73,7 @@ interface LibraryThumbnailDemandSource {
 }
 
 type LibraryThumbnailProfile = "library-cover-v1" | `library-mosaic-${MosaicPreviewCount}-v1`
+const MAX_FOLDER_TILE_SOURCE_BYTES = 32 * 1024 * 1024
 
 type PlatformThumbnailDemandSource = PageThumbnailDemandSource | LibraryThumbnailDemandSource
 
@@ -294,9 +296,10 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     }
     const sourceSize = kind === "file" ? sourceStats.size : undefined
     const modifiedAtMs = Math.trunc(sourceStats.mtimeMs)
-    const representativeVersion = kind === "folder"
-      ? await this.#folderRepresentativeIndex.describe(normalizedPath, modifiedAtMs, signal, previewCount, priority)
+    const representative = kind === "folder"
+      ? await this.#folderRepresentativeIndex.resolve(normalizedPath, modifiedAtMs, signal, previewCount, priority)
       : undefined
+    const representativeVersion = representative?.version
     const profile = libraryThumbnailProfile(previewCount)
     return {
       kind,
@@ -304,6 +307,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       sourceSize,
       modifiedAtMs,
       representativeVersion,
+      representativePaths: representative?.paths,
       previewCount,
       contentVersion: `${kind}:${sourceSize ?? "directory"}:${modifiedAtMs}:${representativeVersion ?? "empty"}:${profile}`,
     }
@@ -549,9 +553,21 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     let book: Awaited<ReturnType<ReaderBookLoader>> | undefined
     let source: PageSource | undefined
     try {
-      book = await this.#bookLoader({ kind: "path", path: descriptor.path }, { signal })
-      const page = book.pages.find((candidate) => candidate.mediaKind === "image" || candidate.mediaKind === "animated-image" || candidate.mediaKind === "video")
-      if (!page) throw new ThumbnailUnavailableError()
+      const readerPath = descriptor.kind === "folder" ? descriptor.representativePaths?.[0] : descriptor.path
+      if (!readerPath) throw new ThumbnailUnavailableError()
+      const loaded = descriptor.kind === "folder"
+        ? await this.#openRepresentativePage(readerPath, signal)
+        : await this.#bookLoader({ kind: "path", path: readerPath }, { signal }).then((loadedBook) => ({
+            book: loadedBook,
+            page: loadedBook.pages.find((candidate) => candidate.mediaKind === "image"
+              || candidate.mediaKind === "animated-image" || candidate.mediaKind === "video"),
+          }))
+      if (!loaded?.page) {
+        await loaded?.book.close().catch(() => undefined)
+        throw new ThumbnailUnavailableError()
+      }
+      book = loaded.book
+      const page = loaded.page
 
       const reusable = !demandSource.refresh && page.thumbnailSource && thumbnailStore
         ? await thumbnailStore.get(page.thumbnailSource.key, page.thumbnailSource.category)
@@ -622,6 +638,86 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     }
   }
 
+  async #openRepresentativePage(
+    path: string,
+    signal: AbortSignal,
+    depth = 0,
+  ): Promise<{ book: Awaited<ReturnType<ReaderBookLoader>>; page: ReaderPage } | undefined> {
+    if (!this.#bookLoader || depth > 8) return undefined
+    signal.throwIfAborted()
+    let book: Awaited<ReturnType<ReaderBookLoader>>
+    try {
+      book = await this.#bookLoader({ kind: "path", path }, { signal })
+    } catch {
+      signal.throwIfAborted()
+      return undefined
+    }
+    const page = book.pages.find((candidate) => candidate.mediaKind === "image"
+      || candidate.mediaKind === "animated-image" || candidate.mediaKind === "video")
+    if (page) return { book, page }
+    await book.close().catch(() => undefined)
+
+    let pathStats: Awaited<ReturnType<typeof stat>>
+    try {
+      pathStats = await stat(path)
+    } catch {
+      signal.throwIfAborted()
+      return undefined
+    }
+    if (!pathStats.isDirectory()) return undefined
+    const selection = await this.#folderRepresentativeIndex.resolve(path, Math.trunc(pathStats.mtimeMs), signal, 1)
+    for (const childPath of selection.paths) {
+      if (childPath === path) continue
+      const loaded = await this.#openRepresentativePage(childPath, signal, depth + 1)
+      if (loaded) return loaded
+    }
+    return undefined
+  }
+
+  async #renderRepresentativePage(
+    page: ReaderPage,
+    demand: Readonly<ThumbnailDemand<PlatformThumbnailDemandSource>>,
+    signal: AbortSignal,
+  ): Promise<Uint8Array | undefined> {
+    const persistence = page.thumbnailSource
+    const reusable = persistence && this.#thumbnailStore
+      ? await this.#thumbnailStore.get(persistence.key, persistence.category)
+      : undefined
+    if (reusable?.contentType === "image/webp"
+      && (reusable.sourceSize === undefined || page.byteLength === undefined || reusable.sourceSize === page.byteLength)) {
+      return reusable.bytes
+    }
+    if (page.mediaKind === "video") {
+      if (!this.#loadVideoThumbnailProvider) return undefined
+      return (await this.#generateVideoThumbnail(page, 416, 82, demand, signal)).bytes
+    }
+    if (page.byteLength !== undefined && page.byteLength > MAX_FOLDER_TILE_SOURCE_BYTES) return undefined
+    if (!this.#loadImageTransformer) return undefined
+    let source: PageSource | undefined
+    try {
+      source = await page.content.load(signal)
+      const result = await transformPageSource(source, await this.#getImageTransformer(), {
+        width: 416,
+        height: 416,
+        dpr: 1,
+        fit: "inside",
+        format: "webp",
+        quality: 82,
+      }, signal, {
+        priority: thumbnailLanePriority(demand.lane),
+        kind: "neoview.thumbnail.folder-tile",
+        ownerId: demand.contextId,
+      }, this.#resourceScheduler)
+      if (result.contentType !== "image/webp") {
+        await result.stream.cancel("unexpected folder tile content type").catch(() => undefined)
+        return undefined
+      }
+      return collectThumbnailBytes(result.stream, 2 * 1024 * 1024, signal)
+    } finally {
+      await source?.close().catch(() => undefined)
+    }
+  }
+
   async #generateVideoThumbnail(
     page: ReaderPage,
     maxEdge: number,
@@ -655,59 +751,38 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     signal: AbortSignal,
   ): Promise<ThumbnailAsset> {
     const descriptor = demandSource.source
-    if (descriptor.kind !== "folder" || descriptor.previewCount === 1) throw new ThumbnailUnavailableError()
-    if (!this.#bookLoader || !this.#loadMosaicImageComposer) {
-      const fallback = await this.#resolveLegacyFolderCover(demandSource)
-      if (fallback) return fallback
+    if (descriptor.kind !== "folder" || descriptor.previewCount === 1
+      || !this.#bookLoader || !this.#loadMosaicImageComposer) {
       throw new ThumbnailUnavailableError()
     }
-    let book: Awaited<ReturnType<ReaderBookLoader>> | undefined
-    const sources: PageSource[] = []
-    try {
-      book = await this.#bookLoader({ kind: "directory", path: descriptor.path }, { signal })
-      const pages = book.pages
-        .filter((page) => page.mediaKind === "image" || page.mediaKind === "animated-image")
-        .slice(0, descriptor.previewCount)
-      if (!pages.length) throw new ThumbnailUnavailableError()
-      const inputs: ReadableStream<Uint8Array>[] = []
-      for (const page of pages) {
-        signal.throwIfAborted()
-        const source = await page.content.load(signal)
-        sources.push(source)
-        inputs.push(await source.open(signal))
-      }
-      const result = await (await this.#getMosaicImageComposer()).compose(inputs, {
-        count: descriptor.previewCount,
-        size: 416,
-        quality: 82,
-      }, signal, {
-        priority: thumbnailLanePriority(demand.lane),
-        kind: "neoview.thumbnail.folder-mosaic",
-        ownerId: demand.contextId,
-      })
-      return { bytes: result.bytes, contentType: result.contentType, version: demandSource.profile, cacheable: true }
-    } catch (error) {
+    const tiles: Uint8Array[] = []
+    for (const path of descriptor.representativePaths ?? []) {
       signal.throwIfAborted()
-      const fallback = await this.#resolveLegacyFolderCover(demandSource)
-      if (fallback) return fallback
-      throw error
-    } finally {
-      await Promise.all(sources.map((source) => source.close().catch(() => undefined)))
-      await book?.close().catch(() => undefined)
+      const loaded = await this.#openRepresentativePage(path, signal)
+      if (!loaded) continue
+      try {
+        try {
+          const bytes = await this.#renderRepresentativePage(loaded.page, demand, signal)
+          if (bytes) tiles.push(bytes)
+        } catch (error) {
+          if (isAbortError(error)) throw error
+        }
+      } finally {
+        await loaded.book.close().catch(() => undefined)
+      }
+      if (tiles.length >= descriptor.previewCount) break
     }
-  }
-
-  async #resolveLegacyFolderCover(demandSource: LibraryThumbnailDemandSource): Promise<ThumbnailAsset | undefined> {
-    if (demandSource.refresh) return undefined
-    const descriptor = demandSource.source
-    const stored = await this.#thumbnailStore?.get(descriptor.path, "folder")
-    if (!isValidLibraryThumbnail(stored, descriptor)) return undefined
-    return {
-      bytes: stored.bytes,
-      contentType: stored.contentType,
-      version: `${stored.date ?? ""}:${stored.generationHash ?? ""}`,
-      cacheable: false,
-    }
+    if (!tiles.length) throw new ThumbnailUnavailableError()
+    const result = await (await this.#getMosaicImageComposer()).compose(tiles.map(byteStream), {
+      count: descriptor.previewCount,
+      size: 416,
+      quality: 82,
+    }, signal, {
+      priority: thumbnailLanePriority(demand.lane),
+      kind: "neoview.thumbnail.folder-mosaic",
+      ownerId: demand.contextId,
+    })
+    return { bytes: result.bytes, contentType: result.contentType, version: demandSource.profile, cacheable: true }
   }
 
   #getImageTransformer(): Promise<ImageTransformer> {
@@ -858,8 +933,8 @@ function isValidLibraryThumbnail(
   source: LibraryThumbnailSource,
 ): record is ReaderThumbnailAsset & { contentType: string } {
   if (!record?.contentType?.startsWith("image/")) return false
-  const versionMatches = record.generationHash === thumbnailGenerationHash(source.contentVersion)
-    || timestampAtOrAfter(record.date, source.modifiedAtMs)
+  const exactVersion = record.generationHash === thumbnailGenerationHash(source.contentVersion)
+  const versionMatches = exactVersion || (source.kind === "file" && timestampAtOrAfter(record.date, source.modifiedAtMs))
   if (!versionMatches) return false
   return source.kind === "folder" || record.sourceSize === undefined || record.sourceSize === source.sourceSize
 }
@@ -911,4 +986,8 @@ async function collectThumbnailBytes(stream: ReadableStream<Uint8Array>, maxByte
   } finally {
     reader.releaseLock()
   }
+}
+
+function byteStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream({ start: (controller) => { controller.enqueue(bytes); controller.close() } })
 }

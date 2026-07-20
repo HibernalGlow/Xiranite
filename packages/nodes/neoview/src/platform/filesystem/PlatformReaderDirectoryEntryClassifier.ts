@@ -9,5 +9,11 @@ export function platformReaderDirectoryEntryType(
 ): ReaderDirectoryEntryType {
   if (entry.kind === "directory") return "directory"
   if (entry.kind !== "file") return "other"
-  return platformReaderBookFileKind(entry.path, mediaFormats) ?? "other"
+  const bookKind = platformReaderBookFileKind(entry.path, mediaFormats)
+  if (bookKind === "archive") return "archive"
+  if (bookKind === "video") return "video"
+  const media = mediaFormats?.resolve(entry.path)
+  if (media?.kind === "image") return "image"
+  if (media?.kind === "video") return "video"
+  return "other"
 }

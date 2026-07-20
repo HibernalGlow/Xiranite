@@ -1,11 +1,5 @@
 export type { ReaderBook, ViewSource } from "./domain/book/book.js"
 export {
-  projectReaderBookInformation,
-  type ReaderBookInformationInput,
-  type ReaderBookInformationLanguage,
-  type ReaderBookInformationProjection,
-} from "./domain/book/BookInformationProjection.js"
-export {
   DEFAULT_READER_LAYOUT,
   type FramePage,
   type FrameCropInsets,

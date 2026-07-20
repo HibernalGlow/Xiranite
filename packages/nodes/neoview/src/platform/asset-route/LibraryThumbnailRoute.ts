@@ -86,16 +86,17 @@ export class LibraryThumbnailRoute {
     const current = this.#contexts.get(parsed.contextId)
     if (current && parsed.generation < current.generation) return jsonResponse({ error: "Thumbnail generation is stale" }, 409)
 
-    let described: Array<{ item: RegistrationItem; source: LibraryThumbnailSource }>
-    try {
-      described = await pMap(parsed.items, async (item) => ({
-        item,
-        source: await this.#pipeline.describeLibrarySource(item.path, item.kind, request.signal, item.previewCount, "view"),
-      }), { concurrency: 16, stopOnError: true })
-    } catch (error) {
-      if (request.signal.aborted) throw error
-      return jsonResponse({ error: "One or more thumbnail sources are unavailable or have the wrong kind" }, 400)
-    }
+    const described = (await pMap(parsed.items, async (item) => {
+      try {
+        return {
+          item,
+          source: await this.#pipeline.describeLibrarySource(item.path, item.kind, request.signal, item.previewCount, "view"),
+        }
+      } catch (error) {
+        if (request.signal.aborted || isAbortError(error)) throw error
+        return undefined
+      }
+    }, { concurrency: 16, stopOnError: true })).filter((value): value is { item: RegistrationItem; source: LibraryThumbnailSource } => value !== undefined)
     const refreshContextId = `${pipelineContextId(parsed.contextId)}:refresh`
     try {
       await pMap(described.filter(({ item }) => item.refresh), ({ source }) => this.#pipeline.refreshLibrary(source, {

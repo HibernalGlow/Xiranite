@@ -113,7 +113,7 @@ export interface NeoviewFileTreeConfig {
   excludedPaths: string[]
 }
 
-export const NEOVIEW_FOLDER_VIEW_MODES = ["compact", "cover-list", "mosaic-list", "details", "cover-grid", "mosaic-grid"] as const
+export const NEOVIEW_FOLDER_VIEW_MODES = ["compact", "cover-list", "mosaic-list", "details", "cover-grid"] as const
 export const NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS = ["none", "goUp", "goBack"] as const
 export const NEOVIEW_FOLDER_TREE_LAYOUTS = ["left", "right", "top", "bottom"] as const
 export const NEOVIEW_FOLDER_REGION_POSITIONS = ["none", "top", "bottom", "left", "right"] as const
@@ -166,14 +166,20 @@ export interface NeoviewFolderTabsConfig {
   toolbarPosition: NeoviewFolderRegionPosition
 }
 
+export const NEOVIEW_FOLDER_TYPE_FILTERS = ["all", "library", "archive", "directory", "video", "image", "other"] as const
+export type NeoviewFolderTypeFilter = typeof NEOVIEW_FOLDER_TYPE_FILTERS[number]
+
 export interface NeoviewFolderViewConfig {
   homePath: string
   viewMode: NeoviewFolderViewMode
+  previewGridEnabled: boolean
   previewCount: 4 | 9 | 16
   thumbnailWidthPercent: number
   bannerWidthPercent: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: NeoviewFolderHoverPreviewDelay
+  /** Preferred directory listing type filter; applied when a browser session opens. */
+  typeFilter: NeoviewFolderTypeFilter
   emptyArea: NeoviewFolderEmptyAreaConfig
   details: NeoviewFolderDetailsConfig
   search: NeoviewFolderSearchConfig
@@ -193,11 +199,13 @@ export interface NeoviewFolderViewPatch {
   folderView: {
     homePath?: string
     viewMode?: NeoviewFolderViewMode
+    previewGridEnabled?: boolean
     previewCount?: 4 | 9 | 16
     thumbnailWidthPercent?: number
     bannerWidthPercent?: number
     hoverPreviewEnabled?: boolean
     hoverPreviewDelayMs?: NeoviewFolderHoverPreviewDelay
+    typeFilter?: NeoviewFolderTypeFilter
     emptyArea?: Partial<NeoviewFolderEmptyAreaConfig>
     details?: NeoviewFolderDetailsPatch
     search?: Partial<NeoviewFolderSearchConfig>
@@ -490,11 +498,13 @@ export const DEFAULT_NEOVIEW_BOOK_CONFIG: NeoviewBookConfig = {
 export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   homePath: "",
   viewMode: "compact",
+  previewGridEnabled: false,
   previewCount: 4,
   thumbnailWidthPercent: 20,
   bannerWidthPercent: 50,
   hoverPreviewEnabled: true,
   hoverPreviewDelayMs: 500,
+  typeFilter: "library",
   emptyArea: {
     singleClickAction: "none",
     doubleClickAction: "goUp",
@@ -1701,7 +1711,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   const record = requireRecord(value, "reader folder view patch")
   if (Object.keys(record).some((key) => key !== "folderView")) throw new Error("reader folder view patch contains unsupported fields.")
   const folder = requireRecord(record.folderView, "reader folder view patch.folderView")
-  const allowed = new Set(["homePath", "viewMode", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "hoverPreviewEnabled", "hoverPreviewDelayMs", "emptyArea", "details", "search", "tree", "tabs"])
+  const allowed = new Set(["homePath", "viewMode", "previewGridEnabled", "previewCount", "thumbnailWidthPercent", "bannerWidthPercent", "hoverPreviewEnabled", "hoverPreviewDelayMs", "typeFilter", "emptyArea", "details", "search", "tree", "tabs"])
   const unknown = Object.keys(folder).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader folder view patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: NeoviewFolderViewPatch = { folderView: {} }
@@ -1713,6 +1723,10 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   if (folder.viewMode !== undefined) {
     patch.folderView.viewMode = optionalEnum(folder.viewMode, "reader folder view patch.viewMode", NEOVIEW_FOLDER_VIEW_MODES)
     toml.view_mode = patch.folderView.viewMode
+  }
+  if (folder.previewGridEnabled !== undefined) {
+    patch.folderView.previewGridEnabled = optionalBoolean(folder.previewGridEnabled, "reader folder view patch.previewGridEnabled")
+    toml.preview_grid_enabled = patch.folderView.previewGridEnabled
   }
   if (folder.previewCount !== undefined) {
     const count = boundedInteger(folder.previewCount, 4, 16, "reader folder view patch.previewCount")
@@ -1737,6 +1751,10 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   if (folder.hoverPreviewDelayMs !== undefined) {
     patch.folderView.hoverPreviewDelayMs = parseFolderHoverPreviewDelay(folder.hoverPreviewDelayMs, "reader folder view patch.hoverPreviewDelayMs")
     toml.hover_preview_delay_ms = patch.folderView.hoverPreviewDelayMs
+  }
+  if (folder.typeFilter !== undefined) {
+    patch.folderView.typeFilter = optionalEnum(folder.typeFilter, "reader folder view patch.typeFilter", NEOVIEW_FOLDER_TYPE_FILTERS)
+    toml.type_filter = patch.folderView.typeFilter
   }
   if (folder.emptyArea !== undefined) {
     const emptyArea = requireRecord(folder.emptyArea, "reader folder view patch.emptyArea")
@@ -1901,7 +1919,10 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
     homePath: value.home_path === undefined
       ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.homePath
       : normalizedFolderHomePath(value.home_path, "[nodes.neoview.folder].home_path"),
-    viewMode: optionalEnum(value.view_mode, "[nodes.neoview.folder].view_mode", NEOVIEW_FOLDER_VIEW_MODES) ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.viewMode,
+    viewMode: optionalEnum(value.view_mode, "[nodes.neoview.folder].view_mode", NEOVIEW_FOLDER_VIEW_MODES)
+      ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.viewMode,
+    previewGridEnabled: optionalBoolean(value.preview_grid_enabled, "[nodes.neoview.folder].preview_grid_enabled")
+      ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.previewGridEnabled,
     previewCount,
     thumbnailWidthPercent: value.thumbnail_width_percent === undefined
       ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.thumbnailWidthPercent
@@ -1914,6 +1935,8 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Neov
     hoverPreviewDelayMs: value.hover_preview_delay_ms === undefined
       ? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.hoverPreviewDelayMs
       : parseFolderHoverPreviewDelay(value.hover_preview_delay_ms, "[nodes.neoview.folder].hover_preview_delay_ms"),
+    typeFilter: optionalEnum(value.type_filter, "[nodes.neoview.folder].type_filter", NEOVIEW_FOLDER_TYPE_FILTERS)
+      ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.typeFilter,
     emptyArea: {
       singleClickAction: optionalEnum(emptyArea?.single_click_action, "[nodes.neoview.folder.empty_area].single_click_action", NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS)
         ?? DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.emptyArea.singleClickAction,

@@ -46,8 +46,15 @@ describe("LibraryThumbnailRoute", () => {
     expect(thumbnail.headers.get("content-type")).toBe("image/webp")
     expect(new Uint8Array(await thumbnail.arrayBuffer())).toEqual(generated)
 
-    const invalid = await route.handle(registerRequest(join(root, "missing.png"), 2, true))
-    expect(invalid?.status).toBe(400)
+    const partiallyValid = await route.handle(registrationRequest([
+      { id: "valid", path: sourcePath, kind: "file", previewCount: 1 },
+      { id: "missing", path: join(root, "missing.png"), kind: "file", previewCount: 1 },
+    ], 2, true))
+    expect(partiallyValid?.status).toBe(201)
+    expect(await partiallyValid?.json()).toEqual(expect.objectContaining({
+      generation: 2,
+      items: [expect.objectContaining({ id: "valid" })],
+    }))
     expect((await route.handle(new Request(body.items[0]!.thumbnailUrl)))?.status).toBe(200)
 
     const replaced = (await route.handle(registerRequest(sourcePath, 2, true)))!
@@ -166,6 +173,9 @@ describe("LibraryThumbnailRoute", () => {
     const compose = vi.fn(async () => ({ bytes: fixtureWebp(9), contentType: "image/webp" as const }))
     const pipeline = new PlatformThumbnailPipeline({
       bookLoader: async () => fixtureBook(cover),
+      loadImageTransformer: async () => ({
+        transform: async () => ({ contentType: "image/webp", stream: byteStream(fixtureWebp(7)) }),
+      }),
       loadMosaicImageComposer: async () => ({ compose }),
     })
     const route = new LibraryThumbnailRoute(pipeline, { baseUrl: "http://127.0.0.1:41000", token: "secret" })
@@ -290,6 +300,14 @@ function registerRequest(
   previewCount: 1 | 4 | 9 | 16 = 1,
   refresh = false,
 ): Request {
+  return registrationRequest([{ id: "cover", path, kind, previewCount, ...(refresh ? { refresh: true } : {}) }], generation, authorized)
+}
+
+function registrationRequest(
+  items: Array<{ id: string; path: string; kind: "file" | "folder"; previewCount: 1 | 4 | 9 | 16; refresh?: boolean }>,
+  generation: number,
+  authorized: boolean,
+): Request {
   return new Request("http://127.0.0.1:41000/reader/library/thumbnails", {
     method: "POST",
     headers: {
@@ -299,7 +317,7 @@ function registerRequest(
     body: JSON.stringify({
       contextId: "library:test",
       generation,
-      items: [{ id: "cover", path, kind, previewCount, ...(refresh ? { refresh: true } : {}) }],
+      items,
     }),
   })
 }

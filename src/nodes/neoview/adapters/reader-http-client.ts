@@ -1032,7 +1032,7 @@ export interface ReaderShellMaterialPatch {
   shadow?: Partial<ReaderShellSurfaceValues>
 }
 
-export type ReaderDirectoryFilterDto = "all" | "archive" | "directory" | "video"
+export type ReaderDirectoryFilterDto = "all" | "library" | "archive" | "directory" | "video" | "image" | "other"
 
 export interface ReaderRadialMenuPatch {
   radialMenu: { config?: ReaderRadialMenuConfig; reset?: "defaults" }
@@ -1083,7 +1083,7 @@ export interface ReaderImageTrimConfigPatch {
   imageTrim: ReaderImageTrimPatch | { reset: "defaults" }
 }
 
-export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid" | "mosaic-grid"
+export type ReaderFolderViewMode = "compact" | "cover-list" | "mosaic-list" | "details" | "cover-grid"
 export type ReaderFolderTreeLayout = "left" | "right" | "top" | "bottom"
 export type ReaderFolderDetailColumn = "name" | "path" | "type" | "extension" | "size" | "modifiedAt" | "dimensions" | "pageCount" | "rating" | "tags"
 
@@ -1146,11 +1146,14 @@ export interface ReaderFolderEmptyAreaConfig {
 export interface ReaderFolderViewConfig {
   homePath: string
   viewMode: ReaderFolderViewMode
+  previewGridEnabled?: boolean
   previewCount: 4 | 9 | 16
   thumbnailWidthPercent: number
   bannerWidthPercent: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: 200 | 500 | 800 | 1200
+  /** Preferred directory listing type filter; applied when a browser session opens. */
+  typeFilter?: ReaderDirectoryFilterDto
   emptyArea: ReaderFolderEmptyAreaConfig
   details: ReaderFolderDetailsConfig
   search: ReaderFolderSearchConfig
@@ -1170,11 +1173,13 @@ export interface ReaderFolderViewPatch {
   folderView: {
     homePath?: string
     viewMode?: ReaderFolderViewMode
+    previewGridEnabled?: boolean
     previewCount?: 4 | 9 | 16
     thumbnailWidthPercent?: number
     bannerWidthPercent?: number
     hoverPreviewEnabled?: boolean
     hoverPreviewDelayMs?: 200 | 500 | 800 | 1200
+    typeFilter?: ReaderDirectoryFilterDto
     emptyArea?: Partial<ReaderFolderEmptyAreaConfig>
     details?: ReaderFolderDetailsPatch
     search?: Partial<ReaderFolderSearchConfig>
