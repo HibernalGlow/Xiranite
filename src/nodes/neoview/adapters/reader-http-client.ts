@@ -523,6 +523,13 @@ export interface ReaderBookmarkListDto {
   system?: boolean
 }
 
+export interface ReaderLibraryStatisticsDto {
+  recentCount: number
+  bookmarkCount: number
+  bookmarkListCount: number
+  mediaProgressCount: number
+}
+
 export interface SaveReaderBookmarkDto {
   id?: string
   source: ViewSource
@@ -1442,6 +1449,7 @@ export interface ReaderHttpClient {
   removeBookmark?(id: string, signal?: AbortSignal): Promise<void>
   removeBookmarks?(ids: readonly string[], signal?: AbortSignal): Promise<ReaderBookmarkBatchRemoveResultDto>
   listBookmarkLists?(signal?: AbortSignal): Promise<readonly ReaderBookmarkListDto[]>
+  libraryStatistics?(signal?: AbortSignal): Promise<ReaderLibraryStatisticsDto>
   saveBookmarkList?(list: { id?: string; name: string; isFavorite?: boolean; createdAt?: number }, signal?: AbortSignal): Promise<ReaderBookmarkListDto>
   removeBookmarkList?(id: string, signal?: AbortSignal): Promise<void>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
@@ -2118,6 +2126,10 @@ export function createReaderHttpClient(
       "/reader/library/bookmark-lists",
       { signal },
     ).then((value) => value.items),
+    libraryStatistics: (signal) => request<ReaderLibraryStatisticsDto>(
+      "/reader/library/statistics",
+      { signal },
+    ),
     saveBookmarkList: (list, signal) => request<ReaderBookmarkListDto>("/reader/library/bookmark-lists", {
       method: "POST",
       headers: { "content-type": "application/json" },
