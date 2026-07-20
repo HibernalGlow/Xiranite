@@ -193,10 +193,17 @@ function renderCmdShim(shim: ShimSpec): string {
   header.push("chcp 65001 >nul")
   if (shim.kind === "script") {
     header.push(`pushd "${shim.cwd ?? repoRoot}" || exit /b 1`)
-    if (shim.name === "xr") {
+    if (shim.name === "xr" || shim.name === "xrd") {
       header.push("if /I \"%~1\"==\"stop\" (")
       header.push("  shift")
       header.push("  bun run dev:stop %*")
+      header.push("  set XIRANITE_EXIT_CODE=%ERRORLEVEL%")
+      header.push("  popd")
+      header.push("  exit /b %XIRANITE_EXIT_CODE%")
+      header.push(")")
+      header.push("if /I \"%~1\"==\"reboot\" (")
+      header.push("  shift")
+      header.push(`  bun run ${shim.name === "xr" ? "dev:reboot" : "dev:desktop:reboot"} %*`)
       header.push("  set XIRANITE_EXIT_CODE=%ERRORLEVEL%")
       header.push("  popd")
       header.push("  exit /b %XIRANITE_EXIT_CODE%")
@@ -229,8 +236,9 @@ function renderPosixShim(shim: ShimSpec): string {
   const invocation = shim.kind === "script"
     ? `exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run ${shim.target}${args ? ` ${args}` : ""} "$@"`
     : `exec bun ${shellQuote(shim.target)}${args ? ` ${args}` : ""} "$@"`
-  if (shim.name === "xr") {
+  if (shim.name === "xr" || shim.name === "xrd") {
     lines.push(`if [ \"$1\" = \"stop\" ]; then shift; exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run dev:stop \"$@\"; fi`)
+    lines.push(`if [ \"$1\" = \"reboot\" ]; then shift; exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run ${shim.name === "xr" ? "dev:reboot" : "dev:desktop:reboot"} \"$@\"; fi`)
   }
   lines.push(invocation)
   return lines.join("\n") + "\n"
