@@ -54,6 +54,7 @@ import {
 } from "../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
+import { watchReaderSourceChanges } from "../features/reader/watchReaderSourceChanges"
 import { ReaderControlledEdgeShell, type ReaderControlledEdgeSlot } from "../features/shell/ReaderControlledEdgeShell"
 import { createReaderShellControlStore, type ReaderShellControlHydration, type ReaderShellControlSnapshot } from "../features/shell/ReaderShellControlStore"
 import type { ReaderShellControlPort } from "../features/shell/ReaderShellControlPort"
@@ -423,6 +424,47 @@ export function ReaderApp({
     }).catch(() => undefined)
     return () => controller.abort()
   }, [])
+
+  useEffect(() => {
+    const sessionId = session?.sessionId
+    const waitForChanges = clientRef.current.waitForSourceChanges
+    const reload = clientRef.current.reload
+    if (!sessionId || !waitForChanges || !reload) return
+    const controller = new AbortController()
+    void watchReaderSourceChanges({
+      sessionId,
+      signal: controller.signal,
+      waitForChanges,
+      reload,
+      async beforeReload(signal) {
+        while (operationRef.current || navigationPendingRef.current) {
+          await waitForReaderOperationIdle(signal)
+        }
+        if (sessionRef.current !== sessionId) {
+          throw signal.reason ?? new DOMException("Reader session changed", "AbortError")
+        }
+      },
+      onReloaded(replacement) {
+        if (sessionRef.current !== sessionId) return
+        slideshow.stop()
+        sessionRef.current = replacement.sessionId
+        setSlideshowFadeFrame(undefined)
+        setSession(replacement)
+        switchToast.show({ title: "源内容已更新", description: "已重新加载并保留阅读位置" })
+      },
+      onReloadFailed() {
+        if (sessionRef.current === sessionId) {
+          switchToast.show({ title: "源内容已变化", description: "重新加载失败，已保留当前阅读会话" })
+        }
+      },
+      onWatchUnavailable() {
+        if (sessionRef.current === sessionId) {
+          switchToast.show({ title: "源内容监听暂不可用", description: "当前阅读会话不受影响" })
+        }
+      },
+    })
+    return () => controller.abort()
+  }, [session?.sessionId])
 
   async function openPath(nextPath = path) {
     const normalizedPath = nextPath.trim()
@@ -1557,6 +1599,23 @@ function applyNavigation(session: ReaderSessionDto, navigation: ReaderNavigation
     visiblePages: navigation.visiblePages,
     pageOrder: navigation.pageOrder ?? session.pageOrder,
   }
+}
+
+function waitForReaderOperationIdle(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const finish = () => {
+      signal.removeEventListener("abort", abort)
+      resolve()
+    }
+    const abort = () => {
+      clearTimeout(timer)
+      signal.removeEventListener("abort", abort)
+      reject(signal.reason ?? new DOMException("The operation was aborted", "AbortError"))
+    }
+    const timer = setTimeout(finish, 25)
+    signal.addEventListener("abort", abort, { once: true })
+    if (signal.aborted) abort()
+  })
 }
 
 function errorMessage(error: unknown): string {

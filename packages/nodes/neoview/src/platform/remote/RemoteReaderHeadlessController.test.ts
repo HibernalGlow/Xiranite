@@ -160,6 +160,13 @@ describe("RemoteReaderHeadlessController", () => {
       await expect(remote.listPages(0, 2)).resolves.toMatchObject([{ index: 0 }, { index: 1 }])
       expect(requests.some((request) => new URL(request.url).searchParams.get("thumbnails") === "0")).toBe(true)
       await expect(remote.next()).resolves.toMatchObject({ frame: { anchorPageIndex: 1 }, visiblePages: [{ index: 1 }] })
+      await writeFile(join(directory, "3.png"), Uint8Array.of(8, 9))
+      await expect(remote.reload()).resolves.toMatchObject({
+        book: { pageCount: 3 },
+        frame: { anchorPageIndex: 1 },
+        visiblePages: [{ name: "2.png" }],
+      })
+      expect(requests.some((request) => request.method === "POST" && request.url.includes("/reload"))).toBe(true)
       const page = await remote.openPageStream(1)
       try {
         expect(page.contentType).toBe("image/png")

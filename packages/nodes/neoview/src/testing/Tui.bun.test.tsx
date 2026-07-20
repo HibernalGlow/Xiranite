@@ -16,6 +16,7 @@ async function verifyPersistentReaderLifecycle() {
   let previousCalls = 0
   let nextBookCalls = 0
   let previousBookCalls = 0
+  let reloadCalls = 0
   let pageOrderUpdates = 0
   let slideshowConfigGets = 0
   let slideshowConfigUpdates = 0
@@ -29,6 +30,7 @@ async function verifyPersistentReaderLifecycle() {
   }).png().toBuffer()
   const port = {
     async open() { opens += 1; return snapshot(current = 0, pageOrder) },
+    async reload() { reloadCalls += 1; return snapshot(current, pageOrder) },
     listPages: async () => pageList,
     async next() { nextCalls += 1; return snapshot(current = Math.min(2, current + 1), pageOrder) },
     async previous() { previousCalls += 1; return snapshot(current = Math.max(0, current - 1), pageOrder) },
@@ -113,9 +115,12 @@ async function verifyPersistentReaderLifecycle() {
     expect(screen.captureCharFrame()).toContain("当前画面")
     expect(screen.captureCharFrame()).toContain("S:name")
     expect(screen.captureCharFrame()).toContain("M:none")
-    for (const id of ["slideshow-toggle", "slideshow-interval", "slideshow-loop", "slideshow-random"]) {
+    for (const id of ["reload", "slideshow-toggle", "slideshow-interval", "slideshow-loop", "slideshow-random"]) {
       expect(screen.renderer.root.findDescendantById(id)).toBeDefined()
     }
+    await click("reload")
+    await screen.waitFor(() => reloadCalls === 1)
+    expect(screen.captureCharFrame()).toContain("1 / 3")
     await click("page-sort")
     await screen.waitFor(() => pageOrderUpdates === 1)
     await screen.waitFor(() => screen.captureCharFrame().includes("name desc"))

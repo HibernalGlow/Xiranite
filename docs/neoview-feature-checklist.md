@@ -11,20 +11,20 @@
 - 功能：30
 - 最新后端命令：319，全部已映射
 - 最新功能源码：670，全部已映射
-- 派生总体：pending=5，partial=24，complete=1
-- core：complete=1，partial=23，pending=6，not-applicable=0
-- transport：complete=1，partial=20，pending=0，not-applicable=9
-- gui：complete=1，partial=10，pending=19，not-applicable=0
-- cli：complete=0，partial=13，pending=8，not-applicable=9
-- tui：complete=1，partial=7，pending=11，not-applicable=11
-- evidence：complete=1，partial=23，pending=6，not-applicable=0
+- 派生总体：pending=5，partial=23，complete=2
+- core：complete=2，partial=22，pending=6，not-applicable=0
+- transport：complete=2，partial=19，pending=0，not-applicable=9
+- gui：complete=2，partial=9，pending=19，not-applicable=0
+- cli：complete=1，partial=12，pending=8，not-applicable=9
+- tui：complete=2，partial=6，pending=11，not-applicable=11
+- evidence：complete=2，partial=22，pending=6，not-applicable=0
 - 完成规则：每个必需维度必须独立完成并具有该维度的 tracked test evidence；单一 core/HTTP/GUI 路径不能提升整个 feature。
 
 ## 推进表
 
 | # | ID | 功能 | 总体 | 处置 | 六维 | 阻塞 | 端 | 命令 | 源文件 | 必须保留的行为 |
 | ---: | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | --- |
-| 1 | `book-open-close-reload` | 打开、关闭与重新加载书籍 | partial | migrate | `core=P transport=P gui=P cli=P tui=P evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 7 | 20 | 目录、图片文件和压缩包自动识别<br>失败不破坏当前会话<br>reload 保留可恢复页<br>源文件变化通知不泄露路径<br>关闭释放书籍与监听资源 |
+| 1 | `book-open-close-reload` | 打开、关闭与重新加载书籍 | complete | migrate | `core=C transport=C gui=C cli=C tui=C evidence=C` | 无 | gui/cli/tui | 7 | 20 | 目录、图片文件和压缩包自动识别<br>失败不破坏当前会话<br>reload 保留可恢复页<br>源文件变化通知不泄露路径<br>关闭释放书籍与监听资源 |
 | 2 | `file-browser-navigation` | 文件与文件夹浏览、标签页和树导航 | partial | migrate | `core=P transport=P gui=- cli=- tui=- evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 31 | 111 | 列表/网格/树视图<br>面包屑前进后退<br>多标签与主页<br>虚拟列表<br>目录流取消<br>文件夹预览和评分 |
 | 3 | `file-operations` | 文件复制、移动、删除、重命名、回收站与撤销 | partial | migrate | `core=P transport=P gui=- cli=P tui=P evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 26 | 44 | 批量与单项操作结果逐项报告<br>冲突和只读失败<br>回收站与永久删除<br>取消和撤销<br>系统资源管理器定位 |
 | 4 | `archive-index-stream-mutate` | 压缩包索引、流式读取、预热、提取与条目删除 | partial | migrate | `core=P transport=P gui=- cli=P tui=P evidence=P` | core, transport, gui, cli, tui, evidence | gui/cli/tui | 27 | 27 | ZIP/ZIP64/CBZ<br>RAR/7z solid 与 non-solid<br>嵌套与加密<br>当前页优先流<br>CRC/损坏包<br>条目删除后索引失效<br>取消无子进程残留 |
@@ -59,18 +59,18 @@
 
 ### 打开、关闭与重新加载书籍（`book-open-close-reload`）
 
-- 派生总体：`partial`
+- 派生总体：`complete`
 - 处置：`migrate`
-- 六维：`core=P transport=P gui=P cli=P tui=P evidence=P`
-- 阻塞维度：`core`、`transport`、`gui`、`cli`、`tui`、`evidence`
+- 六维：`core=C transport=C gui=C cli=C tui=C evidence=C`
+- 阻塞维度：无
 - 端：gui、cli、tui
 - 设置：`startup.openLastFile`、`startup.openLastFolder`
 - 数据：recent books、last file、last folder
 - 行为：目录、图片文件和压缩包自动识别；失败不破坏当前会话；reload 保留可恢复页；源文件变化通知不泄露路径；关闭释放书籍与监听资源
-- 测试：`neoview.session.lifecycle`、`neoview.book.detect`、`neoview.book.directory`、`neoview.directory-book.p-map`、`neoview.book.streaming`、`neoview.book.archive`、`neoview.book.single-image`、`neoview.book.cancellation`、`neoview.epub.manifest`、`neoview.epub.stream`、`neoview.epub.validation`、`neoview.epub.cancellation`、`neoview.epub.reader-e2e`、`neoview.control.session`、`neoview.control.validation`、`neoview.control.nested-archive`、`neoview.control.encrypted-archive`、`neoview.control.reload`、`neoview.control.reload-rollback`、`neoview.control.reload-validation`、`neoview.control.source-watch`、`neoview.control.source-watch-cancel`、`neoview.control.source-watch-error`、`neoview.control.source-watch-filter`、`neoview.control.source-watch-http`、`neoview.control.source-watch-validation`、`neoview.control.source-watch-privacy`、`neoview.http.e2e`、`neoview.react.control`、`neoview.react.smoke`、`neoview.react.lifecycle`、`neoview.react.cbz-e2e`、`neoview.headless.session`、`neoview.cli.inspect`、`neoview.cli.reader-e2e`、`neoview.tui.reader`
+- 测试：`neoview.session.lifecycle`、`neoview.book.detect`、`neoview.book.directory`、`neoview.directory-book.p-map`、`neoview.book.streaming`、`neoview.book.archive`、`neoview.book.single-image`、`neoview.book.cancellation`、`neoview.epub.manifest`、`neoview.epub.stream`、`neoview.epub.validation`、`neoview.epub.cancellation`、`neoview.epub.reader-e2e`、`neoview.control.session`、`neoview.control.validation`、`neoview.control.nested-archive`、`neoview.control.encrypted-archive`、`neoview.control.reload`、`neoview.control.reload-rollback`、`neoview.control.reload-validation`、`neoview.control.source-watch`、`neoview.control.source-watch-cancel`、`neoview.control.source-watch-error`、`neoview.control.source-watch-filter`、`neoview.control.source-watch-http`、`neoview.control.source-watch-validation`、`neoview.control.source-watch-privacy`、`neoview.react.source-watch-client`、`neoview.react.source-watch`、`neoview.react.source-watch-rollback`、`neoview.react.source-watch-unavailable`、`neoview.react.source-watch-gui`、`neoview.http.e2e`、`neoview.react.control`、`neoview.react.smoke`、`neoview.react.lifecycle`、`neoview.react.cbz-e2e`、`neoview.headless.session`、`neoview.headless.reload`、`neoview.cli.inspect`、`neoview.cli.reload`、`neoview.cli.reader-e2e`、`neoview.tui.reader`
 - 计划测试：无
 - 性能基准：无专项
-- 已知差异：HTTP reload 已以 replacement session 先开后关，按原 page source identity 恢复锚点且打开失败保留旧 session；会话级 source-changes 使用懒加载 @parcel/watcher、pathless revision long-poll，并在 close/reload 时释放；GUI 订阅、提示和自动重载策略仍待接线
+- 已知差异：XR 统一使用 replacement session 先开后关：按 page source identity 恢复锚点，失败保留旧会话；GUI 仅在书籍会话存在时运行独立 pathless revision long-poll，变化后自动 reload 并显示不含路径的通用提示，切会话/关闭/卸载立即 abort；CLI 与 TUI 复用同一原子 reload，TUI 提供 Reload 与 Shift+R；普通翻页、渲染和解码路径不订阅 watcher
 
 ### 文件与文件夹浏览、标签页和树导航（`file-browser-navigation`）
 

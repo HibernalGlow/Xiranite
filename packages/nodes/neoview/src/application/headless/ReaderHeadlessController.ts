@@ -276,6 +276,41 @@ export class ReaderHeadlessController implements AsyncDisposable {
     return snapshotOf(session, this.#bookMetadata)
   }
 
+  async reload(input: Pick<OpenHeadlessReaderInput, "archivePasswords" | "signal"> = {}): Promise<HeadlessReaderSnapshot> {
+    this.#assertOpen()
+    const current = this.#requireSession()
+    const frame = current.snapshot()
+    const anchor = current.pages[frame.anchorPageIndex]
+    let next: ReaderSession | undefined
+    let adopted = false
+    try {
+      next = await this.#service.openViewSource(current.book.source, {
+        initialPage: 0,
+        direction: frame.direction,
+        layout: frame.layout,
+        archivePasswords: input.archivePasswords,
+        signal: input.signal,
+      })
+      const target = reloadTargetPage(next.pages, anchor, frame.anchorPageIndex)
+      if (target !== 0) await next.goTo(target, input.signal)
+      input.signal?.throwIfAborted()
+      if (this.#session !== current) throw new Error("Reader session changed while reloading.")
+      const bookMetadata = this.metadata
+        ? await this.metadata.load(next.book, input.signal)
+        : staticMetadataOf(next)
+      this.#session = next
+      this.#bookMetadata = bookMetadata
+      adopted = true
+      await this.#mediaProgress?.flush(current.book.id)
+      await this.superResolution?.releaseContext?.(preloadContextId(current.id))
+      await current.close()
+      return snapshotOf(next, bookMetadata)
+    } catch (error) {
+      if (!adopted) await next?.close().catch(() => undefined)
+      throw error
+    }
+  }
+
   async getSlideshowConfig(): Promise<ReaderSlideshowConfig> {
     this.#assertOpen()
     if (!this.slideshowConfig) throw new Error("Reader slideshow configuration is unavailable.")
@@ -665,6 +700,18 @@ function assertSlice(cursor: number, limit: number, pageCount: number): void {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
     throw new RangeError(`Invalid reader page limit: ${limit}`)
   }
+}
+
+function reloadTargetPage(pages: readonly ReaderPage[], anchor: ReaderPage | undefined, previousIndex: number): number {
+  if (!pages.length) return 0
+  if (anchor) {
+    const matched = pages.find((page) => (
+      (anchor.entryPath !== undefined && page.entryPath === anchor.entryPath)
+      || (anchor.entryPath === undefined && page.sourcePath === anchor.sourcePath)
+    ))
+    if (matched) return matched.index
+  }
+  return Math.min(previousIndex, pages.length - 1)
 }
 
 function preloadContextId(sessionId: string): string {

@@ -7,6 +7,24 @@ afterEach(() => {
 })
 
 describe("reader-http-client", () => {
+  it("[neoview.react.source-watch-client] reloads and long-polls one encoded session without caching", async () => {
+    const reloaded = { sessionId: "reader-2" }
+    const change = { revision: 4, state: "changed", kinds: ["update"], count: 2 }
+    const fetchMock = vi.fn(async (_request: RequestInfo | URL, init?: RequestInit) => (
+      init?.method === "POST" ? Response.json(reloaded, { status: 201 }) : Response.json(change)
+    ))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.waitForSourceChanges!("reader/1", 3)).resolves.toEqual(change)
+    await expect(client.reload!("reader/1")).resolves.toEqual(reloaded)
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2F1/source-changes?after=3")
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ cache: "no-store" })
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2F1/reload")
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "POST", body: "{}" })
+  })
+
   it("[neoview.super-resolution.current-page-client] requests an authenticated automatic artifact URL", async () => {
     const result = { status: "hit", artifactUrl: "http://127.0.0.1:41000/reader/s/reader-1/upscale-artifact/digest", contentType: "image/png", bytes: 42, version: "v2" } as const
     const fetchMock = vi.fn(async () => Response.json(result))
