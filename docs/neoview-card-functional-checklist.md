@@ -1,6 +1,6 @@
 # NeoView Card 完整功能与 UI 验收清单
 
-> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/system-monitor-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/color-filter-compatibility.json`、`migration/neoview/image-trim-compatibility.json`、`migration/neoview/page-transition-compatibility.json`、`migration/neoview/book-settings-compatibility.json`、`migration/neoview/thumbnail-maintenance-compatibility.json`、`migration/neoview/thumbnail-architecture-metrics-compatibility.json`、`migration/neoview/progressive-upscale-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/input-bindings-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
+> 本文件由 `bun run generate:neoview-card-checklist` 生成。机器事实源为 `migration/neoview/preload-status-compatibility.json`、`migration/neoview/system-monitor-compatibility.json`、`migration/neoview/book-information-compatibility.json`、`migration/neoview/image-information-compatibility.json`、`migration/neoview/storage-information-compatibility.json`、`migration/neoview/time-information-compatibility.json`、`migration/neoview/sidebar-control-compatibility.json`、`migration/neoview/color-filter-compatibility.json`、`migration/neoview/image-trim-compatibility.json`、`migration/neoview/page-transition-compatibility.json`、`migration/neoview/emm-tags-compatibility.json`、`migration/neoview/book-settings-compatibility.json`、`migration/neoview/thumbnail-maintenance-compatibility.json`、`migration/neoview/thumbnail-architecture-metrics-compatibility.json`、`migration/neoview/progressive-upscale-compatibility.json`、`migration/neoview/history-list-compatibility.json`、`migration/neoview/bookmark-list-compatibility.json`、`migration/neoview/page-list-compatibility.json`、`migration/neoview/folder-main-compatibility.json`、`migration/neoview/input-bindings-compatibility.json`、`migration/neoview/card-functional-scopes.json`、`migration/neoview/card-compatibility.json`，请勿只改本文件。
 
 ## 完成规则
 
@@ -3962,7 +3962,7 @@
 
 | Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|---|
-| `emmTags` | EMM 标签 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/EmmTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
+| `emmTags` | EMM 标签 | integration | pending | `core=- transport=- gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/EmmTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 | `bookSettings` | 本书设置 | core | partial | `core=C transport=C gui=C cli=P tui=P evidence=P` | `src/lib/cards/properties/BookSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `book-settings` |
 | `folderRatings` | 文件夹平均评分 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/FolderRatingsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 | `favoriteTags` | 收藏标签快选 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/FavoriteTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
@@ -3974,10 +3974,97 @@
 
 #### `emmTags` EMM 标签
 
+- 细项清单：`migration/neoview/emm-tags-compatibility.json`
 - [ ] 显示当前书籍 EMM 命名空间标签
 - [ ] 展开、折叠、复制、筛选或跳转标签
 - [ ] 处理无记录、同步中和数据库错误
 - UI 基线：`src/lib/cards/properties/EmmTagsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
+
+##### 专用逐控件库存（3 组，15 项）
+
+- `emm-tags-ui.states` 书籍、EMM 与标签状态
+  - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 映射：`emm-tags.states`、`emm-tags.lifecycle`
+  - [ ] 未打开书籍显示两行居中提示
+  - [ ] 当前书籍无 EMM 记录显示独立两行提示
+  - [ ] EMM 记录存在但无标签显示暂无标签
+  - [ ] 加载和失败不得伪装成无 EMM 数据
+  - [ ] 切书或关闭会话后不得保留上一书籍标签
+- `emm-tags-ui.tag-list` 翻译标签流
+  - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`、`src/lib/stores/emmMetadata.svelte.ts`
+  - 映射：`emm-tags.data-contract`、`emm-tags.projection`、`emm-tags.translation`、`emm-tags.ui-parity`、`emm-tags.accessibility`
+  - [ ] 对象命名空间中的标签按源顺序展平
+  - [ ] 数组标签继续兼容
+  - [ ] 标签以紧凑可换行 bordered chip 呈现
+  - [ ] 有中文翻译时显示译名并用 title 保留原标签
+  - [ ] 无翻译时显示原标签且不添加冗余 title
+  - [ ] 重复和异常超长标签受后端边界限制
+- `emm-tags-ui.summary` 标签数量与有界生命周期
+  - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`
+  - 映射：`emm-tags.lifecycle`、`emm-tags.performance`、`emm-tags.ui-parity`
+  - [ ] 标签流下方显示准确总数
+  - [ ] 总数使用与旧版一致的次要小字号
+  - [ ] Card 隐藏和卸载取消未完成请求
+  - [ ] 无轮询、无翻页订阅、无浏览器数据库访问
+
+##### 专用源码级验收项
+
+- [ ] `emm-tags.data-contract` 版本化有界 EMM 标签 DTO
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：The canonical Reader metadata application service reads the active book's legacy emm_json and xr_ override record once, validates a bounded array of namespace/tag pairs and returns it through the authenticated session metadata transport without exposing raw SQLite rows or filesystem configuration.
+  - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.emm-tags.codec`、`neoview.emm-tags.metadata`、`neoview.emm-tags.http`、`neoview.emm-tags.client`
+  - 备注：The existing thumbnails.db remains the only NeoView business database; no Reader table or second EMM database is introduced.
+- [ ] `emm-tags.projection` 命名空间标签展平与稳定去重
+  - 六维：`core=- transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`gui`、`evidence`
+  - 目标：Normalize legacy object and array tag shapes into stable namespace/tag entries, preserve first-seen order, trim invalid values, merge manual overrides without duplicating case-insensitive identities and cap the result before it reaches React.
+  - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.emm-tags.codec`、`neoview.emm-tags.card`
+  - 备注：The projection is a pure shared domain function; the Card must not parse arbitrary emm_json.
+- [ ] `emm-tags.translation` 标签翻译与原文提示
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Use the existing bounded platform EMM translation source to attach an optional translated label by canonical namespace/tag identity; render the translation while preserving the original tag as a tooltip, and fall back to the original tag without a redundant tooltip.
+  - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`、`src/lib/stores/emmMetadata.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.emm-tags.translation`、`neoview.emm-tags.card`
+  - 备注：Translation loading stays process-side and cached; the browser never downloads the full translation dictionary.
+- [ ] `emm-tags.states` 未打开、无记录、空、加载和错误状态
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Keep the three legacy empty states distinct and add explicit loading, recoverable error and retry states. A transient failure may retain the last successful snapshot only for the same session and must never leak tags across books.
+  - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.emm-tags.card`、`neoview.emm-tags.lifecycle`
+  - 备注：A valid EMM record with zero tags is not the same state as a missing record.
+- [ ] `emm-tags.lifecycle` 活动会话单次加载、刷新与取消
+  - 六维：`core=N/A transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`transport`、`gui`、`evidence`
+  - 目标：Load once when the deferred Card becomes active for a session, share any in-flight request with explicit refresh, abort on deactivation, session replacement or unmount, ignore stale completions and perform no polling or page-index subscription.
+  - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
+  - 测试：待补
+  - 计划测试：`neoview.emm-tags.lifecycle`、`neoview.emm-tags.e2e`、`neoview.emm-tags.image-stability`
+  - 备注：Session static metadata caching may satisfy repeated consumers without adding a second database read.
+- [ ] `emm-tags.performance` 零翻页热路径工作与独立延迟 chunk
+  - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 目标：Ship the Card as an independent deferred chunk under 8 KiB, keep the payload and DOM bounded, do not subscribe to page changes, do not poll, and add no parsing, SQLite work or translation lookup to page presentation or thumbnail acquisition.
+  - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.emm-tags.performance`、`neoview.emm-tags.chunk`、`neoview.emm-tags.image-stability`
+  - 备注：The active book static metadata path is the only permitted database boundary for this Card.
+- [ ] `emm-tags.ui-parity` 旧版紧凑标签流与受限 Card 几何
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Preserve the legacy compact 11px hierarchy, 10px bordered wrapping tags, hover treatment, centered empty states and trailing count from the 1920x1080 characterization while preventing horizontal overflow at 420x360.
+  - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.emm-tags.card`、`neoview.emm-tags.e2e`
+  - 备注：Long labels may wrap within a chip but may not resize the Card viewport.
+- [ ] `emm-tags.accessibility` 语义标签列表与状态反馈
+  - 六维：`core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-`；阻塞：`gui`、`evidence`
+  - 目标：Expose the tags as a named semantic list, retain original text for translated labels, announce loading and recoverable errors without repeated noise, provide a keyboard-operable retry command and keep the count programmatically associated with the list.
+  - 源码：`src/lib/cards/properties/EmmTagsCard.svelte`
+  - 测试：待补
+  - 计划测试：`neoview.emm-tags.accessibility`、`neoview.emm-tags.e2e`
+  - 备注：The source has no shortcut or click command; no new tag action is invented in this migration slice.
 
 #### `bookSettings` 本书设置
 

@@ -601,8 +601,8 @@
       "featureId": "emm-ratings-tags-translation",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "not-applicable",
+        "core": "pending",
+        "transport": "pending",
         "gui": "pending",
         "cli": "not-applicable",
         "tui": "not-applicable",
