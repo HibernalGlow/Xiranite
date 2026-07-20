@@ -74,6 +74,7 @@ import { readerShellMaterialDraft, readerShellMaterialStyle } from "../features/
 import { createReaderSwitchToastStore } from "../features/switch-toast/ReaderSwitchToastStore"
 import { createReaderInfoOverlayStore } from "../features/info-overlay/ReaderInfoOverlayStore"
 import { createReaderImageTrimStore } from "../features/image-trim/ReaderImageTrimStore"
+import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCleanup"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
@@ -323,7 +324,7 @@ export function ReaderApp({
   slideshowSessionRef.current = session
   shellRef.current = shell
 
-  useEffect(() => () => {
+  useDeferredFinalCleanup(() => {
     operationRef.current?.abort()
     slideshow.dispose()
     colorFilter.dispose()
@@ -334,7 +335,7 @@ export function ReaderApp({
     videoController.dispose()
     const sessionId = sessionRef.current
     if (sessionId) void clientRef.current.close(sessionId).catch(() => undefined)
-  }, [])
+  })
 
   useEffect(() => {
     const controller = new AbortController()

@@ -14,15 +14,16 @@ import {
   type ReaderPageTransitionEasing,
   type ReaderPageTransitionType,
 } from "@xiranite/node-neoview/page-transition"
-import { RotateCcw } from "lucide-react"
-import { useCallback, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react"
+import { Play, RotateCcw, Sparkles, Timer } from "lucide-react"
+import { useCallback, useState, useSyncExternalStore, type CSSProperties } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 
 import type { ReaderPageTransitionPort } from "../../page-transition/ReaderPageTransitionStore"
 import type { ReaderPanelContext } from "../registry"
 import { ReaderCardSaveFeedback, useReaderCardMutation } from "./shared/ReaderCardMutation"
+import { ReaderSettingsSection, ReaderSettingsSlider, ReaderSettingsToggle } from "./shared/ReaderSettingsControls"
 
 export default function DockedPageTransitionCard({ pageTransition, panelActive = true }: ReaderPanelContext) {
   if (!pageTransition) return <p className="text-xs text-muted-foreground">翻页动画尚未就绪。</p>
@@ -54,89 +55,92 @@ export function PageTransitionCard({ store, disabled = false, dataPanelActive = 
 
   return (
     <section
-      className="space-y-3 text-sm"
+      className="@container space-y-3 text-xs text-muted-foreground"
       data-neoview-card="page-transition"
       data-panel-active={dataPanelActive ? "true" : "false"}
     >
-      <div className="flex items-center justify-between gap-2">
-        <ToggleRow
+      <ReaderSettingsSection
+        title="翻页动画"
+        description="设置翻页时的动画类型、速度和缓动方式。"
+        icon={<Sparkles className="size-3 text-primary" />}
+        action={(
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            disabled={disabled}
+            title="重置设置"
+            aria-label="重置设置"
+            onClick={reset}
+          >
+            <RotateCcw className="size-3.5" />
+          </Button>
+        )}
+      >
+        <ReaderSettingsToggle
           label="启用翻页动画"
           checked={settings.enabled}
           disabled={disabled}
           onCheckedChange={(enabled) => update({ enabled })}
         />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7 shrink-0"
-          disabled={disabled}
-          title="重置设置"
-          aria-label="重置设置"
-          onClick={reset}
-        >
-          <RotateCcw className="size-3.5" />
-        </Button>
-      </div>
+      </ReaderSettingsSection>
 
       {settings.enabled ? (
-        <div className="space-y-3" data-reader-card-control-group="transition-settings">
-          <Field label="动画类型">
-            <select
-              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground"
+        <ReaderSettingsSection title="动画参数" icon={<Timer className="size-3 text-primary" />}>
+          <div className="space-y-3" data-reader-card-control-group="transition-settings">
+            <label className="grid gap-1 text-[10px] text-muted-foreground">
+              <span>动画类型</span>
+              <NativeSelect
+              size="sm"
+              className="w-full text-xs"
               aria-label="动画类型"
               value={settings.type}
               disabled={disabled}
               onChange={(event) => update({ type: event.currentTarget.value as ReaderPageTransitionType })}
             >
               {READER_PAGE_TRANSITION_TYPES.map((value) => (
-                <option key={value} value={value}>{READER_PAGE_TRANSITION_TYPE_LABELS[value]}</option>
+                <NativeSelectOption key={value} value={value}>{READER_PAGE_TRANSITION_TYPE_LABELS[value]}</NativeSelectOption>
               ))}
-            </select>
-          </Field>
+              </NativeSelect>
+            </label>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">动画时长</span>
-              <output className="tabular-nums text-foreground">{settings.duration}ms</output>
-            </div>
-            <input
-              type="range"
+            <ReaderSettingsSlider
+              label="动画时长"
+              value={settings.duration}
               min={0}
               max={500}
               step={10}
-              value={settings.duration}
+              suffix="ms"
               disabled={disabled}
-              aria-label="动画时长"
-              className="h-5 w-full accent-primary"
-              onChange={(event) => previewDuration(event.currentTarget.valueAsNumber)}
-              onPointerUp={(event) => finishPointer(event, commitDuration)}
-              onPointerCancel={(event) => finishPointer(event, commitDuration)}
-              onKeyUp={(event) => finishKey(event, commitDuration)}
-              onBlur={commitDuration}
+              minLabel="0ms"
+              maxLabel="500ms"
+              onPreview={previewDuration}
+              onCommit={() => commitDuration()}
             />
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>0ms</span>
-              <span>500ms</span>
-            </div>
-          </div>
 
-          <Field label="缓动函数">
-            <select
-              className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground"
+            <label className="grid gap-1 text-[10px] text-muted-foreground">
+              <span>缓动函数</span>
+              <NativeSelect
+              size="sm"
+              className="w-full text-xs"
               aria-label="缓动函数"
               value={settings.easing}
               disabled={disabled}
               onChange={(event) => update({ easing: event.currentTarget.value as ReaderPageTransitionEasing })}
             >
               {READER_PAGE_TRANSITION_EASINGS.map((value) => (
-                <option key={value} value={value}>{READER_PAGE_TRANSITION_EASING_LABELS[value]}</option>
+                <NativeSelectOption key={value} value={value}>{READER_PAGE_TRANSITION_EASING_LABELS[value]}</NativeSelectOption>
               ))}
-            </select>
-          </Field>
+              </NativeSelect>
+            </label>
+          </div>
+        </ReaderSettingsSection>
+      ) : null}
 
-          <div className="space-y-1.5 border-t border-border pt-2.5" data-reader-card-control-group="transition-preview">
-            <span className="text-xs text-muted-foreground">预览</span>
+      {settings.enabled ? (
+        <ReaderSettingsSection title="即时预览" icon={<Play className="size-3 text-primary" />}>
+          <div data-reader-card-control-group="transition-preview">
             <div className="relative h-16 overflow-hidden rounded-md bg-muted/30">
               <button
                 type="button"
@@ -153,45 +157,11 @@ export function PageTransitionCard({ store, disabled = false, dataPanelActive = 
               </button>
             </div>
           </div>
-        </div>
+        </ReaderSettingsSection>
       ) : null}
 
       <ReaderCardSaveFeedback state={saveState} disabled={disabled} onRetry={retry} />
     </section>
-  )
-}
-
-function ToggleRow({
-  label,
-  checked,
-  disabled,
-  onCheckedChange,
-}: {
-  label: string
-  checked: boolean
-  disabled: boolean
-  onCheckedChange(checked: boolean): void
-}) {
-  return (
-    <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-      <span className="truncate text-xs text-foreground">{label}</span>
-      <Switch
-        size="sm"
-        checked={checked}
-        disabled={disabled}
-        aria-label={label}
-        onCheckedChange={onCheckedChange}
-      />
-    </div>
-  )
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="grid gap-1 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      {children}
-    </label>
   )
 }
 
@@ -201,13 +171,4 @@ function previewStyle(transition: string, active: boolean): CSSProperties {
     transform: active ? "scale(0.95)" : "scale(1)",
     opacity: active ? 0.7 : 1,
   }
-}
-
-function finishPointer(event: PointerEvent<HTMLInputElement>, commit: () => void): void {
-  if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-  commit()
-}
-
-function finishKey(event: KeyboardEvent<HTMLInputElement>, commit: () => void): void {
-  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(event.key)) commit()
 }

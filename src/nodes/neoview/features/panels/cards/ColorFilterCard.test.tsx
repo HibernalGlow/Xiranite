@@ -15,21 +15,19 @@ describe("ColorFilterCard", () => {
       "filters",
       "effects",
     ])
-    fireEvent.click(screen.getByRole("button", { name: "着色" }))
+    fireEvent.click(screen.getByRole("switch", { name: "着色" }))
     expect(await screen.findByLabelText("着色预设")).toBeTruthy()
     expect(screen.getByText("仅黑白图像")).toBeTruthy()
     expect(view.container.querySelector('[data-reader-card-control-group="colorize"]')).toBeTruthy()
   })
 
-  it("previews a slider and commits once at pointer end", async () => {
+  it("previews a slider and commits once for a keyboard step", async () => {
     const persist = vi.fn(async (settings) => settings)
     const store = createReaderColorFilterStore({ persist })
     render(<ColorFilterCard store={store} />)
     const brightness = screen.getByRole("slider", { name: "亮度" })
-    fireEvent.change(brightness, { target: { value: "125" } })
-    expect(store.getSnapshot().brightness).toBe(125)
-    expect(persist).not.toHaveBeenCalled()
-    fireEvent.pointerUp(brightness, { pointerId: 1 })
+    fireEvent.keyDown(brightness, { key: "ArrowRight" })
+    expect(store.getSnapshot().brightness).toBe(101)
     await waitFor(() => expect(persist).toHaveBeenCalledOnce())
   })
 

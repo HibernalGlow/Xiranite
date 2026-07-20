@@ -4,7 +4,10 @@ import {
   type ReaderSwitchToastPatch,
   type ReaderSwitchToastSettings,
 } from "@xiranite/node-neoview/switch-toast"
-import { persistReaderSettingsWithTimeout } from "../reader/reader-settings-save-timeout"
+import {
+  createReaderOptimisticSettingsStore,
+  type ReaderOptimisticSettingsPort,
+} from "../settings/ReaderOptimisticSettingsStore"
 
 export interface ReaderSwitchToastMessage {
   id: number
@@ -13,94 +16,40 @@ export interface ReaderSwitchToastMessage {
   durationMs: number
 }
 
-export interface ReaderSwitchToastPort {
-  subscribe(listener: () => void): () => void
-  getSnapshot(): ReaderSwitchToastSettings
-  hydrate(settings: ReaderSwitchToastSettings): void
-  preview(patch: ReaderSwitchToastPatch): void
-  commit(reset?: boolean): Promise<void>
-  update(patch: ReaderSwitchToastPatch): Promise<void>
-  reset(): Promise<void>
+type ReaderSwitchToastSettingsPort = ReaderOptimisticSettingsPort<ReaderSwitchToastSettings, ReaderSwitchToastPatch>
+
+export interface ReaderSwitchToastPort extends ReaderSwitchToastSettingsPort {
   subscribeMessages(listener: () => void): () => void
   getMessages(): readonly ReaderSwitchToastMessage[]
   show(message: { title: string; description?: string; durationMs?: number }): void
   dismiss(id: number): void
-  dispose(): void
 }
 
 export interface ReaderSwitchToastStoreOptions {
-  persist(
-    settings: ReaderSwitchToastSettings,
-    reset: boolean,
-    signal: AbortSignal,
-  ): Promise<ReaderSwitchToastSettings>
+  persist(settings: ReaderSwitchToastSettings, reset: boolean, signal: AbortSignal): Promise<ReaderSwitchToastSettings>
   onError?(cause: unknown): void
   saveTimeoutMs?: number
 }
 
 export function createReaderSwitchToastStore(options: ReaderSwitchToastStoreOptions): ReaderSwitchToastPort {
-  let snapshot = { ...DEFAULT_READER_SWITCH_TOAST }
-  let confirmed = snapshot
-  let touched = false
+  const settings = createReaderOptimisticSettingsStore({
+    initial: DEFAULT_READER_SWITCH_TOAST,
+    apply: (current, patch) => ({ ...current, ...patch }),
+    normalize: normalizeReaderSwitchToast,
+    equals: sameSettings,
+    ...options,
+  })
   let disposed = false
-  let revision = 0
-  let requestedRevision = 0
-  let resetRequested = false
-  let write: Promise<void> | undefined
   let messages: readonly ReaderSwitchToastMessage[] = []
   let nextMessageId = 1
   let lastMessageKey = ""
   let lastMessageAt = 0
-  const listeners = new Set<() => void>()
   const messageListeners = new Set<() => void>()
   const messageTimers = new Map<number, ReturnType<typeof setTimeout>>()
-  const controller = new AbortController()
 
-  const publish = (next: ReaderSwitchToastSettings) => {
-    snapshot = next
-    for (const listener of listeners) listener()
-  }
   const publishMessages = (next: readonly ReaderSwitchToastMessage[]) => {
     messages = next
     for (const listener of messageListeners) listener()
-  }
-  const preview = (patch: ReaderSwitchToastPatch) => {
-    if (disposed) return
-    touched = true
-    revision += 1
-    publish(normalizeReaderSwitchToast({ ...snapshot, ...patch }))
-  }
-  const commit = (reset = false): Promise<void> => {
-    if (disposed) return Promise.resolve()
-    requestedRevision = revision
-    resetRequested ||= reset
-    write ??= drain().finally(() => { write = undefined })
-    return write
-  }
-
-  async function drain(): Promise<void> {
-    while (!disposed) {
-      const targetRevision = requestedRevision
-      const target = snapshot
-      const reset = resetRequested
-      resetRequested = false
-      if (!reset && sameSettings(target, confirmed)) return
-      try {
-        const updated = normalizeReaderSwitchToast(await persistReaderSettingsWithTimeout({
-          persist: (signal) => options.persist(target, reset, signal),
-          signal: controller.signal,
-          timeoutMs: options.saveTimeoutMs,
-        }))
-        confirmed = updated
-        if (revision === targetRevision) publish(updated)
-      } catch (cause) {
-        if (controller.signal.aborted) return
-        if (revision === targetRevision) publish(confirmed)
-        options.onError?.(cause)
-        throw cause
-      }
-      if (requestedRevision === targetRevision) return
-    }
   }
 
   function dismiss(id: number): void {
@@ -113,29 +62,9 @@ export function createReaderSwitchToastStore(options: ReaderSwitchToastStoreOpti
   }
 
   return {
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    getSnapshot: () => snapshot,
-    hydrate(settings) {
-      if (disposed || touched) return
-      confirmed = normalizeReaderSwitchToast(settings)
-      publish(confirmed)
-    },
-    preview,
-    commit,
-    async update(patch) {
-      preview(patch)
-      await commit()
-    },
-    async reset() {
-      touched = true
-      revision += 1
-      publish({ ...DEFAULT_READER_SWITCH_TOAST })
-      await commit(true)
-    },
+    ...settings,
     subscribeMessages(listener) {
+      if (disposed) return () => undefined
       messageListeners.add(listener)
       return () => messageListeners.delete(listener)
     },
@@ -163,11 +92,11 @@ export function createReaderSwitchToastStore(options: ReaderSwitchToastStoreOpti
     },
     dismiss,
     dispose() {
+      if (disposed) return
       disposed = true
-      controller.abort()
+      settings.dispose()
       for (const timer of messageTimers.values()) clearTimeout(timer)
       messageTimers.clear()
-      listeners.clear()
       messageListeners.clear()
       messages = []
     },

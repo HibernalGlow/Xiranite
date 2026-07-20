@@ -69,15 +69,13 @@ describe("SwitchToastCard", () => {
     expect(port.update).toHaveBeenLastCalledWith({ pageTitleTemplate: "第 {{page.indexDisplay}} 页" })
   })
 
-  it("[neoview.switch-toast.slider-commit] previews opacity repeatedly and commits once at pointer end", () => {
+  it("[neoview.switch-toast.slider-commit] previews opacity and commits once for a keyboard step", () => {
     const port = memoryPort()
     render(<SwitchToastCard port={port} />)
     const opacity = screen.getByRole("slider", { name: "透明度" })
-    fireEvent.change(opacity, { target: { value: "0.75" } })
-    fireEvent.change(opacity, { target: { value: "0.64" } })
+    fireEvent.keyDown(opacity, { key: "ArrowLeft" })
+    expect(port.getSnapshot().opacity).toBe(0.91)
     expect(port.preview).toHaveBeenCalledTimes(2)
-    expect(port.commit).not.toHaveBeenCalled()
-    fireEvent.pointerUp(opacity, { pointerId: 1 })
     expect(port.commit).toHaveBeenCalledOnce()
   })
 
