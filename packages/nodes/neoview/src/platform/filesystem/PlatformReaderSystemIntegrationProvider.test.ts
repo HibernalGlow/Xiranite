@@ -41,4 +41,12 @@ describe("PlatformReaderSystemIntegrationProvider", () => {
     expect(acquire).toHaveBeenCalledWith(expect.objectContaining({ resource: "io", priority: "interactive" }), undefined)
     expect(release).toHaveBeenCalledOnce()
   })
+
+  it("[neoview.emm-raw-data.url-platform] opens a URL through the maintained adapter without filesystem probing", async () => {
+    const openExternalUrl = vi.fn(async () => undefined)
+    const provider = new PlatformReaderSystemIntegrationProvider({ openExternalUrl })
+
+    await provider.openExternalUrl("https://example.com/source")
+    expect(openExternalUrl).toHaveBeenCalledWith("https://example.com/source")
+  })
 })

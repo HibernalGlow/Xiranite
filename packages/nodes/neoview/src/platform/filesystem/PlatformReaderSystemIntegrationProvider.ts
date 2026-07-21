@@ -9,6 +9,7 @@ export interface PlatformReaderSystemIntegrationProviderOptions {
   ownerId?: string
   openPath?: (path: string) => Promise<unknown>
   revealPath?: (path: string) => Promise<unknown>
+  openExternalUrl?: (url: string) => Promise<unknown>
   explorerContextMenu?: ReaderExplorerContextMenuProvider
 }
 
@@ -17,6 +18,7 @@ export class PlatformReaderSystemIntegrationProvider implements ReaderSystemInte
   readonly #ownerId: string
   readonly #openPath: (path: string) => Promise<unknown>
   readonly #revealPath: (path: string) => Promise<unknown>
+  readonly #openExternalUrl: (url: string) => Promise<unknown>
   readonly explorerContextMenu?: ReaderExplorerContextMenuProvider
 
   constructor(options: PlatformReaderSystemIntegrationProviderOptions = {}) {
@@ -24,6 +26,7 @@ export class PlatformReaderSystemIntegrationProvider implements ReaderSystemInte
     this.#ownerId = options.ownerId ?? "neoview:system-integration"
     this.#openPath = options.openPath ?? (async (path) => (await import("open")).default(path, { wait: false }))
     this.#revealPath = options.revealPath ?? (async (path) => (await import("reveal-file")).default(path))
+    this.#openExternalUrl = options.openExternalUrl ?? (async (url) => (await import("open")).default(url, { wait: false }))
     this.explorerContextMenu = options.explorerContextMenu
   }
 
@@ -35,7 +38,19 @@ export class PlatformReaderSystemIntegrationProvider implements ReaderSystemInte
     return this.#run("reveal", path, this.#revealPath, signal)
   }
 
+  openExternalUrl(url: string, signal?: AbortSignal): Promise<void> {
+    return this.#runOperation("open-external-url", () => this.#openExternalUrl(url), signal)
+  }
+
   async #run(kind: "open" | "reveal", path: string, operation: (path: string) => Promise<unknown>, signal?: AbortSignal): Promise<void> {
+    return this.#runOperation(kind, async () => {
+      await stat(path)
+      signal?.throwIfAborted()
+      await operation(path)
+    }, signal)
+  }
+
+  async #runOperation(kind: "open" | "reveal" | "open-external-url", operation: () => Promise<unknown>, signal?: AbortSignal): Promise<void> {
     signal?.throwIfAborted()
     const lease = await this.#scheduler?.acquire({
       resource: "io",
@@ -44,9 +59,7 @@ export class PlatformReaderSystemIntegrationProvider implements ReaderSystemInte
       ownerId: this.#ownerId,
     }, signal)
     try {
-      await stat(path)
-      signal?.throwIfAborted()
-      await operation(path)
+      await operation()
     } finally {
       lease?.release()
     }

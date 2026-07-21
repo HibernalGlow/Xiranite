@@ -4,7 +4,7 @@
  * @migration-status adapted
  */
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type SortingState } from "@tanstack/react-table"
-import { ArrowDown, ArrowUp, ArrowUpDown, Braces, Copy, FolderSearch, RefreshCw, Search, Table2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, Braces, Copy, ExternalLink, FolderSearch, RefreshCw, Search, Table2 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -81,7 +81,7 @@ function EmmRawDataContent({ sessionId, client, disabled, copyText }: {
   const table = useReactTable({ data: rows, columns, state: { sorting }, onSortingChange: setSorting, getCoreRowModel: getCoreRowModel(), getSortedRowModel: getSortedRowModel() })
   const rawJson = useMemo(() => JSON.stringify(Object.fromEntries(source.fields.map((field) => [field.key, field.value])), null, 2), [source.fields])
 
-  async function run(action: "copy-record" | "copy-field" | "reveal", field?: EmmRawField) {
+  async function run(action: "copy-record" | "copy-field" | "reveal" | "open-url", field?: EmmRawField) {
     if (disabled) return
     const controller = new AbortController()
     actionRef.current?.abort()
@@ -91,12 +91,15 @@ function EmmRawDataContent({ sessionId, client, disabled, copyText }: {
       if (action === "reveal") {
         if (!field || field.type !== "path" || !client.revealSystemPath) throw new Error("当前宿主不支持定位此路径。")
         await client.revealSystemPath(rawText(field.value), controller.signal)
+      } else if (action === "open-url") {
+        if (!field || field.type !== "url" || !client.openExternalUrl) throw new Error("当前宿主不支持打开此外部链接。")
+        await client.openExternalUrl(rawText(field.value), controller.signal)
       } else {
         if (!copyText) throw new Error("当前宿主不支持复制文本。")
         await copyText(action === "copy-record" ? rawJson : rawText(field?.value ?? ""))
       }
       controller.signal.throwIfAborted()
-      setFeedback({ text: action === "reveal" ? "已在文件管理器中定位" : "已复制" })
+      setFeedback({ text: action === "reveal" ? "已在文件管理器中定位" : action === "open-url" ? "已交给系统浏览器打开" : "已复制" })
     } catch (error) {
       if (!controller.signal.aborted) setFeedback({ error: true, text: error instanceof Error ? error.message : String(error) })
     } finally {
@@ -146,6 +149,7 @@ function EmmRawDataContent({ sessionId, client, disabled, copyText }: {
                     <div className="flex min-w-0 items-start gap-1">
                       <span className="min-w-0 flex-1 break-all font-mono" title={rawText(field.value)} aria-label={`${FIELD_LABELS[field.key] ?? field.key}：${formatted}`}>{formatted}</span>
                       {field.type === "path" && client.revealSystemPath ? <Button type="button" size="icon-sm" variant="ghost" className="size-5" aria-label={`定位 ${FIELD_LABELS[field.key] ?? field.key}`} title="在文件管理器中定位" disabled={disabled} onClick={() => void run("reveal", field)}><FolderSearch /></Button> : null}
+                      {field.type === "url" && client.openExternalUrl ? <Button type="button" size="icon-sm" variant="ghost" className="size-5" aria-label={`打开 ${FIELD_LABELS[field.key] ?? field.key}`} title="在系统浏览器中打开" disabled={disabled} onClick={() => void run("open-url", field)}><ExternalLink /></Button> : null}
                       {copyText ? <Button type="button" size="icon-sm" variant="ghost" className="size-5" aria-label={`复制 ${FIELD_LABELS[field.key] ?? field.key}`} title="复制字段值" disabled={disabled} onClick={() => void run("copy-field", field)}><Copy /></Button> : null}
                     </div>
                   </td>

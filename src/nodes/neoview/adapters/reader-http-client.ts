@@ -1574,6 +1574,7 @@ export interface ReaderHttpClient {
   clearThumbnailFailures?(limit?: number, signal?: AbortSignal): Promise<number>
   openSystemPath?(path: string, signal?: AbortSignal): Promise<void>
   revealSystemPath?(path: string, signal?: AbortSignal): Promise<void>
+  openExternalUrl?(url: string, signal?: AbortSignal): Promise<void>
   explorerContextMenuPreview?(signal?: AbortSignal): Promise<ReaderExplorerContextMenuPreviewDto>
   explorerContextMenuStatus?(signal?: AbortSignal): Promise<ReaderExplorerContextMenuStatusDto>
   setExplorerContextMenuEnabled?(enabled: boolean, confirmed?: boolean, signal?: AbortSignal): Promise<ReaderExplorerContextMenuStatusDto>
@@ -2179,6 +2180,12 @@ export function createReaderHttpClient(
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ path }),
+      signal,
+    }),
+    openExternalUrl: (url, signal) => request<void>("/reader/system/open-external-url", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url }),
       signal,
     }),
     explorerContextMenuPreview: (signal) => request<ReaderExplorerContextMenuPreviewDto>("/reader/system/explorer-context-menu/preview", { signal }),

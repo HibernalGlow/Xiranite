@@ -8,9 +8,10 @@ import FolderRatingsCard from "../../../src/nodes/neoview/features/panels/cards/
 import "../../../src/styles/tailwind.css"
 import "../../../src/styles/themes/index.css"
 
-const metadata = { book: { bookId: "book-emm", displayName: "demo.cbz", sourceKind: "archive" as const, sourcePath: "D:/books/demo.cbz", pageCount: 12, currentPage: 2, emm: { translatedTitle: "演示书籍", tags: [{ namespace: "artist", tag: "Alice", translatedLabel: "爱丽丝" }, { namespace: "female", tag: "glasses" }] } } }
+const metadata = { book: { bookId: "book-emm", displayName: "demo.cbz", sourceKind: "archive" as const, sourcePath: "D:/books/demo.cbz", pageCount: 12, currentPage: 2, emm: { translatedTitle: "演示书籍", tags: [{ namespace: "artist", tag: "Alice", translatedLabel: "爱丽丝" }, { namespace: "female", tag: "glasses" }] }, emmRaw: { schemaVersion: 1 as const, fields: [{ key: "filepath", type: "path" as const, value: "D:/books/demo.cbz" }, { key: "artist", type: "string" as const, value: "artist:Alice" }, { key: "url", type: "url" as const, value: "https://example.com/source" }] } } }
 const client = {
   metadata: async () => metadata,
+  openExternalUrl: async () => undefined,
   suggestDirectoryEmmTags: async () => [{ category: "artist", tag: "Alice", translatedTag: "爱丽丝", favorite: true }, { category: "female", tag: "glasses", favorite: false }],
   openDirectoryBrowser: async () => ({ sessionId: "ratings", entries: [], cursor: 0, total: 2 }),
   listDirectoryBrowser: async () => ({ sessionId: "ratings", entries: [{ path: "D:/books/a.cbz", name: "a.cbz", kind: "file", readerSupported: true, rating: 4 }, { path: "D:/books/b.cbz", name: "b.cbz", kind: "file", readerSupported: true, rating: 5 }], cursor: 0, total: 2 }),
