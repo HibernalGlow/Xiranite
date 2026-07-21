@@ -11,7 +11,7 @@ export const DENO_DESKTOP_BINDING_NAMES = {
 } as const
 
 export type DesktopHostKind = "deno-desktop"
-export type DesktopMainWindowAction = "minimize" | "maximize" | "restore" | "close"
+export type DesktopMainWindowAction = "minimize" | "maximize" | "toggle-fullscreen" | "restore" | "close"
 
 export interface DesktopBackendConfig {
   baseUrl: string
@@ -37,7 +37,7 @@ export interface DesktopWindowCommandResult {
   supported: boolean
   id?: string
   message: string
-  state?: "normal" | "maximized" | "minimized" | "closed"
+  state?: "normal" | "maximized" | "fullscreen" | "minimized" | "closed"
 }
 
 export interface DesktopWindowFrame {

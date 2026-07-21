@@ -258,6 +258,16 @@ class WailsWindowRuntime implements WindowRuntime {
         state: isMaximised ? "maximized" : "normal",
       }
     }
+    if (action === "toggle-fullscreen") {
+      await runtime.Window.ToggleFullscreen()
+      const isFullscreen = await runtime.Window.IsFullscreen()
+      return {
+        success: true,
+        supported: true,
+        message: isFullscreen ? "Window entered fullscreen." : "Window exited fullscreen.",
+        state: isFullscreen ? "fullscreen" : "normal",
+      }
+    }
     if (action === "restore") {
       await runtime.Window.Restore()
       return { success: true, supported: true, message: "Window restored.", state: "normal" }

@@ -309,6 +309,11 @@ export interface NodeSchemas<
 
 export type NodeIsolationMode = "trusted" | "contained" | "iframe" | "worker"
 
+export interface NodeWindowPreferences {
+  /** Changes the independent window's maximise button without affecting F11. */
+  maximizeBehavior?: "maximize" | "fullscreen"
+}
+
 export interface NodeHostRequirements {
   contractVersion?: string
   capabilities?: readonly NodeCapabilityId[]
@@ -376,6 +381,7 @@ export interface AppNodeEntry<
   Component: NodeComponent<TData, TConfig>
   host?: NodeHostRequirements
   schemas?: NodeSchemas<TData, TConfig>
+  window?: NodeWindowPreferences
 }
 
 export type NodeEntry<TCore extends Record<string, unknown> = Record<string, unknown>> = AppNodeEntry<TCore>
