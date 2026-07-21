@@ -9,4 +9,5 @@ export default {
   core,
   Component,
   host: { contractVersion: "^1.0.0", capabilities: ["state", "localFiles"] },
+  window: { maximizeBehavior: "fullscreen" },
 } satisfies AppNodeEntry<typeof core, NeoViewCardState>

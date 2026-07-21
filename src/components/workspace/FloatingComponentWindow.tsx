@@ -5,6 +5,7 @@ import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { useWorkspaceActions, useWorkspaceComponent, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { FloatingWindowCaptionControls, FloatingWindowFrameProvider } from "./FloatingWindowFrame"
+import { loadNodeMaximizeAction } from "@/components/modules/nodeWindowPreferences"
 import type { MainWindowAction } from "@/backend/runtime/runtime"
 import type { ComponentInstance } from "@/types/workspace"
 
@@ -26,9 +27,28 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
   }))
   const workspaceActions = useWorkspaceActions()
   const [isMaximized, setIsMaximized] = useState(false)
+  const [maximizeAction, setMaximizeAction] = useState<MainWindowAction>("maximize")
   const [integratedTitlebars, setIntegratedTitlebars] = useState(0)
   const { controlMain, controlMainPending, closeComponent } = useWindowControls()
   const moduleId = comp?.moduleId ?? moduleIdFallback ?? ""
+
+  useEffect(() => {
+    let cancelled = false
+    setMaximizeAction("maximize")
+    if (!moduleId) return
+
+    void loadNodeMaximizeAction(moduleId)
+      .then((action) => {
+        if (!cancelled) setMaximizeAction(action)
+      })
+      .catch((error) => {
+        console.error(`[floating-window] failed to load window preferences for ${moduleId}`, error)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [moduleId])
 
   const themeClass = activeCustomThemeName ? "" : theme === "endfield" ? "theme-endfield" : theme === "wuling" ? "theme-wuling" : ""
 
@@ -59,7 +79,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
     try {
       const result = await controlMain(action)
       if (result.success && result.state) {
-        setIsMaximized(result.state === "maximized")
+        setIsMaximized(result.state === "maximized" || result.state === "fullscreen")
       }
       if (result.success) return
 
@@ -79,8 +99,8 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
     if (event.target instanceof Element && event.target.closest(".xiranite-app-region-no-drag")) return
 
     event.preventDefault()
-    void controlWindow("maximize")
-  }, [controlWindow])
+    void controlWindow(maximizeAction)
+  }, [controlWindow, maximizeAction])
 
   const registerIntegratedTitlebar = useCallback(() => {
     setIntegratedTitlebars((count) => count + 1)
@@ -90,10 +110,10 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
   const frame = useMemo(() => ({
     isMaximized,
     pending: controlMainPending,
-    control: (action: MainWindowAction) => void controlWindow(action),
+    control: (action: MainWindowAction) => void controlWindow(action === "maximize" ? maximizeAction : action),
     handleTitlebarDoubleClick: handleTitleBarDoubleClick,
     registerIntegratedTitlebar,
-  }), [controlMainPending, controlWindow, handleTitleBarDoubleClick, isMaximized, registerIntegratedTitlebar])
+  }), [controlMainPending, controlWindow, handleTitleBarDoubleClick, isMaximized, maximizeAction, registerIntegratedTitlebar])
 
   return (
     <FloatingWindowFrameProvider value={frame}>

@@ -81,7 +81,7 @@ export interface NodeRunnerRuntime {
   ) => Promise<NodeRunResult<TData>>
 }
 
-export type MainWindowAction = "minimize" | "maximize" | "restore" | "close"
+export type MainWindowAction = "minimize" | "maximize" | "toggle-fullscreen" | "restore" | "close"
 
 export interface WindowCapabilities {
   supported: boolean
@@ -96,7 +96,7 @@ export interface WindowCommandResult {
   supported: boolean
   id?: string
   message: string
-  state?: "normal" | "maximized" | "minimized" | "closed"
+  state?: "normal" | "maximized" | "fullscreen" | "minimized" | "closed"
 }
 
 export interface WindowFrame {
