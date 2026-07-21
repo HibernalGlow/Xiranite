@@ -4,6 +4,12 @@ import { nodeCliName } from "@xiranite/cli-runtime"
 
 export const GENERATED_NODE_CLI_REGISTRY = [
   {
+    id: "arcthumb",
+    packageName: "@xiranite/node-arcthumb",
+    bin: nodeCliName("arcthumb"),
+    description: "Generate native cover thumbnails from comic archives and ebooks.",
+  },
+  {
     id: "audiov",
     packageName: "@xiranite/node-audiov",
     bin: nodeCliName("audiov"),

@@ -152,6 +152,7 @@
     "@use-gesture/react": "10.3.1",
     "@wailsio/runtime": "latest",
     "@xiranite/api": "workspace:*",
+    "@xiranite/node-arcthumb": "workspace:*",
     "@xiranite/contract": "workspace:*",
     "@xiranite/node-audiov": "workspace:*",
     "@xiranite/node-bandia": "workspace:*",
