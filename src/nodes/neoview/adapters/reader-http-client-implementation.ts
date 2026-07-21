@@ -795,6 +795,21 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         method: "DELETE",
         signal,
       }),
+    listPlaylists: (signal) => request<{ items: Contract.ReaderPlaylistDto[] }>("/reader/library/playlists", { signal }).then((value) => value.items),
+    savePlaylist: (playlist, signal) => request<Contract.ReaderPlaylistDto>("/reader/library/playlists", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(playlist), signal,
+    }),
+    removePlaylist: (id, signal) => request<void>(`/reader/library/playlists/${encodeURIComponent(id)}`, { method: "DELETE", signal }),
+    listPlaylistEntries: (playlistId, signal) => request<{ items: Contract.ReaderPlaylistEntryDto[] }>(`/reader/library/playlists/${encodeURIComponent(playlistId)}/items`, { signal }).then((value) => value.items),
+    appendPlaylistEntries: (playlistId, entries, signal) => request<{ items: Contract.ReaderPlaylistEntryDto[] }>(`/reader/library/playlists/${encodeURIComponent(playlistId)}/items`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ entries }), signal,
+    }).then((value) => value.items),
+    removePlaylistEntries: (playlistId, ids, signal) => request<{ deleted: number }>(`/reader/library/playlists/${encodeURIComponent(playlistId)}/items`, {
+      method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }), signal,
+    }).then((value) => value.deleted),
+    reorderPlaylistEntries: (playlistId, ids, signal) => request<void>(`/reader/library/playlists/${encodeURIComponent(playlistId)}/items/order`, {
+      method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }), signal,
+    }),
     navigate: (sessionId, action, signal) =>
       request<Contract.ReaderNavigationDto>(`/reader/s/${encodeURIComponent(sessionId)}/navigate`, {
         method: "POST",

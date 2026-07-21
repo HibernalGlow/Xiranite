@@ -13,7 +13,7 @@ describe("NeoView panel and card registries", () => {
   it("[neoview.shell.registry-lazy] reads metadata without invoking any card loader", () => {
     const loaders = CARD_DEFINITIONS.map((card) => vi.spyOn(card, "load"))
     expect(availablePanels("left").map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList", "settings"])
-    expect(availablePanels("right").map((panel) => panel.id)).toEqual(["info", "properties", "upscale", "insights", "control"])
+    expect(availablePanels("right").map((panel) => panel.id)).toEqual(["info", "properties", "upscale", "insights", "control", "ai"])
     for (const loader of loaders) expect(loader).not.toHaveBeenCalled()
     for (const loader of loaders) loader.mockRestore()
   })
@@ -28,6 +28,7 @@ describe("NeoView panel and card registries", () => {
       "history-list",
       "bookmark-list",
       "page-navigation",
+      "playlist-main",
     ])
   })
 
@@ -53,7 +54,7 @@ describe("NeoView panel and card registries", () => {
         info: { visible: true, order: 10, position: "right" },
         properties: { visible: true, order: 1, position: "right" },
       },
-    } as never).map((panel) => panel.id)).toEqual(["properties", "upscale", "insights", "control", "info"])
+    } as never).map((panel) => panel.id)).toEqual(["properties", "upscale", "insights", "control", "ai", "info"])
     expect(availablePanels("left", {
       panelLayout: {
         pageList: { visible: false, order: 20, position: "left" },
@@ -287,7 +288,7 @@ describe("NeoView panel and card registries", () => {
 
   it("[neoview.shell.resident-cards] keeps configured panels and session-dependent Card shells resident before opening a book", () => {
     expect(availablePanels("left", undefined, false).map((panel) => panel.id)).toEqual(["folder", "history", "bookmark", "pageList", "settings"])
-    expect(availablePanels("right", undefined, false).map((panel) => panel.id)).toEqual(["info", "properties", "upscale", "insights", "control"])
+    expect(availablePanels("right", undefined, false).map((panel) => panel.id)).toEqual(["info", "properties", "upscale", "insights", "control", "ai"])
     expect(cardsForPanel("info", undefined, false).map((card) => card.id)).toEqual([
       "book-information", "image-information", "storage-information", "time-information", "preload-status", "info-overlay",
     ])

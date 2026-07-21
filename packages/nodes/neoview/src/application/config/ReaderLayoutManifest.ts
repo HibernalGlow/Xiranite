@@ -110,6 +110,7 @@ export const READER_CARD_MANIFEST = [
   card("translation-overlay", "翻译叠加层", "ai", false, true, 5, true, false),
   card("voice-control", "语音控制", "ai", false, true, 6, true, false),
   card("ai-tags", "AI 标签推断", "ai", false, true, 7, true, false),
+  exclusiveCard("playlist-main", "Playlist", "playlist", true, true, 0, false, false),
 ] as const satisfies readonly ReaderCardManifestEntry[]
 
 export type ReaderPanelId = typeof READER_PANEL_MANIFEST[number]["id"]

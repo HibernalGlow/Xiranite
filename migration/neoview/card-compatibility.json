@@ -17,6 +17,11 @@
       "testIds": [
         "neoview.settings.window"
       ]
+    },
+    {
+      "id": "playlist-main",
+      "rationale": "Migrates the legacy PlaylistPanel, which was a sidebar panel rather than an entry in the legacy Card registry. Its reviewed AST prototype and GUI contract live in migration/neoview/playlist-prototype.",
+      "testIds": ["neoview.playlist.gui"]
     }
   ],
   "cards": [
@@ -973,6 +978,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/insights/DailyTrendCard.svelte",
+      "currentCardId": "daily-trend",
       "sourceDisposition": "component"
     },
     {
@@ -991,6 +997,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/insights/ReadingStreakCard.svelte",
+      "currentCardId": "reading-streak",
       "sourceDisposition": "component"
     },
     {
@@ -1009,6 +1016,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/insights/ReadingHeatmapCard.svelte",
+      "currentCardId": "reading-heatmap",
       "sourceDisposition": "component"
     },
     {
@@ -1027,6 +1035,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/insights/BookmarkOverviewCard.svelte",
+      "currentCardId": "bookmark-overview",
       "sourceDisposition": "component"
     },
     {
@@ -1045,6 +1054,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/insights/SourceBreakdownCard.svelte",
+      "currentCardId": "source-breakdown",
       "sourceDisposition": "component"
     },
     {
@@ -1100,6 +1110,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/properties/AiTagsCard.svelte",
+      "currentCardId": "ai-tags",
       "sourceDisposition": "component"
     },
     {
@@ -1118,6 +1129,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/properties/AiApiConfigCard.svelte",
+      "currentCardId": "ai-api-config",
       "sourceDisposition": "component"
     },
     {
@@ -1136,6 +1148,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/ai/AiTitleTranslationCard.svelte",
+      "currentCardId": "ai-title-translation",
       "sourceDisposition": "component"
     },
     {
@@ -1154,6 +1167,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/ai/AiServiceConfigCard.svelte",
+      "currentCardId": "ai-service-config",
       "sourceDisposition": "component"
     },
     {
@@ -1172,6 +1186,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/ai/AiTranslationCacheCard.svelte",
+      "currentCardId": "ai-translation-cache",
       "sourceDisposition": "component"
     },
     {
@@ -1190,6 +1205,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/ai/AiTranslationTestCard.svelte",
+      "currentCardId": "ai-translation-test",
       "sourceDisposition": "component"
     },
     {
@@ -1208,6 +1224,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/ai/TranslationOverlayCard.svelte",
+      "currentCardId": "translation-overlay",
       "sourceDisposition": "component"
     },
     {
@@ -1226,6 +1243,7 @@
         "evidence": "pending"
       },
       "sourceComponent": "src/lib/cards/ai/VoiceControlCard.svelte",
+      "currentCardId": "voice-control",
       "sourceDisposition": "component"
     },
     {
