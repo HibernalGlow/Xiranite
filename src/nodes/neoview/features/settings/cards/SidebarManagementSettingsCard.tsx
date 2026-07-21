@@ -6,7 +6,7 @@
  * @features panels-toolbar-shell,settings-import-export-backup
  * @migration-status adapted
  */
-import { ArrowDown, ArrowUp, PanelLeft, RotateCcw, Save, Search } from "lucide-react"
+import { ArrowDown, ArrowUp, CircleHelp, PanelLeft, RotateCcw, Save, Search, type LucideIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -21,7 +21,7 @@ type PanelDestination = "left" | "right" | "hidden" | "floating"
 interface PanelDraft {
   id: string
   title: string
-  emoji: string
+  icon: LucideIcon
   visible: boolean
   order: number
   position: PanelPosition
@@ -94,13 +94,14 @@ export function SidebarManagementSettingsCard({
           <span>名称</span><span>位置</span><span className="text-right">顺序</span>
         </div>
         {filtered.map((panel) => {
+          const PanelIcon = panel.icon
           const destination = panel.visible ? panel.position : "hidden"
           const siblings = draft.filter((candidate) => panelGroup(candidate) === panelGroup(panel)).toSorted(compareDraftPanels)
           const siblingIndex = siblings.findIndex((candidate) => candidate.id === panel.id)
           return (
             <div key={panel.id} className="grid gap-2 border-b px-3 py-3 last:border-b-0 sm:grid-cols-[minmax(8rem,1fr)_7rem_5.5rem] sm:items-center" data-sidebar-panel-draft={panel.id}>
               <div className="flex min-w-0 items-center gap-2">
-                <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted" aria-hidden="true">{panel.emoji}</span>
+                <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted" aria-hidden="true"><PanelIcon className="size-4" /></span>
                 <div className="min-w-0"><div className="truncate text-sm">{panel.title}</div><div className="truncate text-[10px] uppercase text-muted-foreground">{panel.id}</div></div>
               </div>
               <select
@@ -142,7 +143,7 @@ export function createSidebarPanelDraft(shell: ReaderShellConfigDto): PanelDraft
     return {
       id: panel.id,
       title: panel.title,
-      emoji: panel.emoji,
+      icon: panel.icon,
       visible: current?.visible ?? panel.defaultVisible,
       order: current?.order ?? panel.defaultOrder,
       position: current?.position ?? panel.defaultSide,
@@ -159,7 +160,7 @@ export function createSidebarPanelDraft(shell: ReaderShellConfigDto): PanelDraft
     .map(([id, current]) => ({
       id,
       title: id,
-      emoji: "•",
+      icon: CircleHelp,
       ...current,
       defaultPosition: current.position,
       defaultVisible: current.visible,

@@ -111,6 +111,7 @@ export function ReaderSidebar({
         const panelVisible = edgeActive && panelActive
         const cards = cardsForPanel(panel.id, shell, hasSession)
         const exclusive = cards.length === 1 && cards[0]?.exclusivePanel === true
+        const PanelIcon = panel.icon
         if (!panelActive && !mountedPanels.has(panel.id)) return null
         return (
           <div
@@ -129,7 +130,7 @@ export function ReaderSidebar({
             data-context-menu={panelVisible && panel.id === "info" ? "neoview-info" : undefined}
           >
             {exclusive ? null : <div className="sticky top-0 z-10 flex min-h-11 items-center gap-2 border-b border-border/50 bg-transparent px-3 py-2">
-              <span aria-hidden="true">{panel.emoji}</span>
+              <PanelIcon className="size-4 shrink-0" aria-hidden="true" />
               <h2 className="truncate text-sm font-semibold">{panel.title}</h2>
               {panel.id === "info" ? <InfoPanelActions context={context} /> : null}
               {layout?.height !== "full" && shell?.sidebarInteraction?.showDragHandle ? (
@@ -349,6 +350,7 @@ function ReaderPanelIconButton({
   onActivate(): void
 }) {
   const sortable = useReaderPanelTab(panel, side)
+  const PanelIcon = panel.icon
   return (
     <button
       ref={sortable.setNodeRef}
@@ -375,7 +377,7 @@ function ReaderPanelIconButton({
       {...sortable.attributes}
       {...sortable.listeners}
     >
-      <span aria-hidden="true">{panel.emoji}</span>
+      <PanelIcon className="size-4" aria-hidden="true" />
     </button>
   )
 }
