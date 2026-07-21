@@ -3969,7 +3969,7 @@
 | `emmSync` | EMM 同步 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/EmmSyncCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-sync` |
 | `thumbnailArchMetrics` | 缩略图架构指标 | integration | complete | `core=C transport=C gui=C cli=N/A tui=N/A evidence=C` | `src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte` | 统一缩略图生成、持久化、数据库维护与迁移；XR `thumbnail-architecture-metrics` |
 | `emmRawData` | EMM 数据库记录 | integration | complete | `core=C transport=C gui=C cli=N/A tui=N/A evidence=C` | `src/lib/cards/properties/EmmRawDataCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-raw-data` |
-| `emmConfig` | EMM 配置 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/EmmConfigCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-config` |
+| `emmConfig` | EMM 配置 | integration | partial | `core=C transport=C gui=C cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/EmmConfigCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-config` |
 | `fileListTagDisplay` | 文件列表标签 | integration | partial | `core=N/A transport=C gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/FileListTagDisplayCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 
 #### `emmTags` EMM 标签
@@ -4971,13 +4971,13 @@
   - [ ] 配置一个或多个 database.sqlite 路径
   - [ ] 配置 setting.json 与标签翻译字典路径
   - [ ] 恢复 APPDATA 自动发现
-- `emm-config-ui.states` 加载、保存、失败与重启状态
+- `emm-config-ui.states` 加载、保存、失败与切换状态
   - 源码：`src/lib/components/panels/emm/EmmConfigCard.svelte`
   - 映射：`emm-config.states`、`emm-config.lifecycle`
   - [ ] 加载时显示占位状态
   - [ ] 保存中禁用重复操作
   - [ ] 失败使用可访问 alert
-  - [ ] 路径变更明确提示后端重启边界
+  - [ ] 路径变更明确反馈当前 Reader 即时切换
 - `emm-config-ui.connection` 连接与兼容性验证
   - 源码：`src/lib/components/panels/emm/EmmConfigCard.svelte`
   - 映射：`emm-config.live-reconfigure`
@@ -5000,14 +5000,14 @@
   - 源码：`src/lib/components/panels/emm/EmmConfigCard.svelte`
   - 测试：`neoview.emm-config.card`、`neoview.emm-config.failure`、`neoview.emm-config.http`
   - 计划测试：无
-  - 备注：Successful path changes are honest about requiring Reader backend restart until live store replacement is implemented. Failed HTTP persistence reports an alert while retaining the user's draft; restore-default uses the same serialized endpoint.
+  - 备注：Successful path changes report the live read-only source switch. Failed HTTP persistence or connection validation reports an alert while retaining the user's draft; restore-default uses the same serialized endpoint.
 - [ ] `emm-config.live-reconfigure` 连接测试与运行时数据源切换
-  - 六维：`core=- transport=- gui=P cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Validate file existence and Mangas compatibility through a bounded backend probe, then atomically replace the current read-only EMM composition without exposing SQLite to React or leaking old handles.
   - 源码：`src/lib/components/panels/emm/EmmConfigCard.svelte`
-  - 测试：待补
-  - 计划测试：`neoview.emm-config.connection`、`neoview.emm-config.live-reconfigure`
-  - 备注：The current Card persists valid configuration and documents restart semantics; it does not claim live connection testing.
+  - 测试：`neoview.emm-config.connection`、`neoview.emm-config.connection-client`、`neoview.emm-config.live-reconfigure`
+  - 计划测试：`neoview.emm-config.connection-e2e`
+  - 备注：The authenticated bounded probe reports missing, incompatible and unreadable sources without exposing SQLite to React. A stable reference-counted backend port swaps the current read-only store after durable config commit and closes retired handles only after in-flight reads drain. Backend, client and Card tests pass; desktop and constrained browser evidence remains pending.
 - [x] `emm-config.lifecycle` 隐藏零请求与取消迟到配置加载
   - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Perform no request while hidden, abort config loading on deactivation or unmount and keep persistence writes serialized by the shared config endpoint.

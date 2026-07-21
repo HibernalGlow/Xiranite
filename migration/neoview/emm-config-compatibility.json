@@ -15,7 +15,7 @@
   ],
   "sourceUiInventory": [
     { "id": "emm-config-ui.source", "title": "EMM 数据源路径", "sourceEvidence": ["src/lib/cards/properties/EmmConfigCard.svelte", "src/lib/components/panels/emm/EmmConfigCard.svelte"], "acceptanceItems": ["启用或禁用外部 EMM 数据源", "配置一个或多个 database.sqlite 路径", "配置 setting.json 与标签翻译字典路径", "恢复 APPDATA 自动发现"], "mappedChecklistIds": ["emm-config.persistence"] },
-    { "id": "emm-config-ui.states", "title": "加载、保存、失败与重启状态", "sourceEvidence": ["src/lib/components/panels/emm/EmmConfigCard.svelte"], "acceptanceItems": ["加载时显示占位状态", "保存中禁用重复操作", "失败使用可访问 alert", "路径变更明确提示后端重启边界"], "mappedChecklistIds": ["emm-config.states", "emm-config.lifecycle"] },
+    { "id": "emm-config-ui.states", "title": "加载、保存、失败与切换状态", "sourceEvidence": ["src/lib/components/panels/emm/EmmConfigCard.svelte"], "acceptanceItems": ["加载时显示占位状态", "保存中禁用重复操作", "失败使用可访问 alert", "路径变更明确反馈当前 Reader 即时切换"], "mappedChecklistIds": ["emm-config.states", "emm-config.lifecycle"] },
     { "id": "emm-config-ui.connection", "title": "连接与兼容性验证", "sourceEvidence": ["src/lib/components/panels/emm/EmmConfigCard.svelte"], "acceptanceItems": ["测试数据库存在与 Mangas schema 兼容性", "显示实际命中来源和只读状态", "路径切换后重新组合当前 Reader EMM store"], "mappedChecklistIds": ["emm-config.live-reconfigure"] }
   ],
   "items": [
@@ -36,16 +36,16 @@
       "surfaces": ["GUI"],
       "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete" },
       "testIds": ["neoview.emm-config.card", "neoview.emm-config.failure", "neoview.emm-config.http"], "plannedTestIds": [],
-      "notes": "Successful path changes are honest about requiring Reader backend restart until live store replacement is implemented. Failed HTTP persistence reports an alert while retaining the user's draft; restore-default uses the same serialized endpoint."
+      "notes": "Successful path changes report the live read-only source switch. Failed HTTP persistence or connection validation reports an alert while retaining the user's draft; restore-default uses the same serialized endpoint."
     },
     {
       "id": "emm-config.live-reconfigure", "category": "capabilities", "title": "连接测试与运行时数据源切换",
       "sourceEvidence": ["src/lib/components/panels/emm/EmmConfigCard.svelte"],
       "targetContract": "Validate file existence and Mangas compatibility through a bounded backend probe, then atomically replace the current read-only EMM composition without exposing SQLite to React or leaking old handles.",
       "surfaces": ["GUI"],
-      "capabilityStatus": { "core": "pending", "transport": "pending", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending" },
-      "testIds": [], "plannedTestIds": ["neoview.emm-config.connection", "neoview.emm-config.live-reconfigure"],
-      "notes": "The current Card persists valid configuration and documents restart semantics; it does not claim live connection testing."
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
+      "testIds": ["neoview.emm-config.connection", "neoview.emm-config.connection-client", "neoview.emm-config.live-reconfigure"], "plannedTestIds": ["neoview.emm-config.connection-e2e"],
+      "notes": "The authenticated bounded probe reports missing, incompatible and unreadable sources without exposing SQLite to React. A stable reference-counted backend port swaps the current read-only store after durable config commit and closes retired handles only after in-flight reads drain. Backend, client and Card tests pass; desktop and constrained browser evidence remains pending."
     },
     {
       "id": "emm-config.lifecycle", "category": "lifecycle", "title": "隐藏零请求与取消迟到配置加载",
