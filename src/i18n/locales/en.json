@@ -928,6 +928,8 @@
       "configData": {
         "title": "Data and configuration",
         "description": "Manage NeoView's project TOML configuration and incremental version history.",
+        "loading": "Loading NeoView configuration...",
+        "refresh": "Refresh configuration",
         "project": { "title": "Project configuration", "description": "Read and display [nodes.neoview] while keeping other node sections independent." },
         "history": { "title": "Change history", "description": "Store redacted incremental snapshots with system Git and filter them by NeoView changes." },
         "restore": { "title": "Diff and restore", "description": "Inspect semantic and unified diffs; restoration writes only the NeoView section." },

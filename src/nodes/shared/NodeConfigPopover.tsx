@@ -191,7 +191,7 @@ export function NodeConfigButton(props: NodeConfigButtonProps) {
 }
 
 /** Standalone config-center entry for surfaces such as NeoView settings cards. */
-export function NodeConfigCenterButton({ nodeKey, presentation }: { nodeKey: string; presentation?: NodeConfigPopoverProps["presentation"] }) {
+export function NodeConfigCenterButton({ nodeKey, presentation, onConfigChange }: { nodeKey: string; presentation?: NodeConfigPopoverProps["presentation"]; onConfigChange?: () => Promise<void> | void }) {
   const { t } = useNodeI18n(nodeKey)
   const [config, setConfig] = useState<Record<string, unknown>>()
   const [tomlSource, setTomlSource] = useState<string>()
@@ -207,10 +207,11 @@ export function NodeConfigCenterButton({ nodeKey, presentation }: { nodeKey: str
       setConfig(result.config)
       setPath(result.path)
       setTomlSource(exported.content)
+      await onConfigChange?.()
     } finally {
       setLoading(false)
     }
-  }, [nodeKey])
+  }, [nodeKey, onConfigChange])
   const adapters = useMemo(() => createBackendAdapters(nodeKey, reload), [nodeKey, reload])
 
   return <NodeConfigPopover

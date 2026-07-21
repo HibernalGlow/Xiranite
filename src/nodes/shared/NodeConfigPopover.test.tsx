@@ -74,6 +74,26 @@ describe("NodeConfigPopover configuration center", () => {
     await user.click(screen.getByRole("button", { name: "Configuration center" }))
     expect(await screen.findByText("NeoView configuration summary")).toBeTruthy()
   })
+
+  test("renders canonical TOML with lazily loaded Shiki highlighting", async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<NodeConfigPopover
+      dirty={false}
+      defaults={{ accent: "#22c55e", enabled: true }}
+      tomlSource={'[nodes.demo]\naccent = "#22c55e"\nenabled = true\n'}
+      triggerLabel="Configuration center"
+      t={translate}
+      onReload={vi.fn()}
+      onRestore={vi.fn()}
+      onSave={vi.fn()}
+    />)
+
+    await user.click(screen.getByRole("button", { name: "Configuration center" }))
+    expect(await screen.findByText("TOML source")).toBeTruthy()
+    await waitFor(() => expect(document.querySelector(".node-config-toml .shiki")).toBeTruthy())
+    expect(screen.queryByText('"accent": "#22c55e"')).toBeNull()
+    expect(screen.getAllByText("#22c55e").length).toBeGreaterThan(0)
+  })
 })
 
 const translate = (_key: string, fallback?: string) => fallback ?? _key

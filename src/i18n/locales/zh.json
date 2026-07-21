@@ -928,6 +928,8 @@
       "configData": {
         "title": "数据与配置",
         "description": "集中管理 xiranite.config.toml 中的 NeoView 节点配置与增量版本历史。",
+        "loading": "正在加载 NeoView 配置…",
+        "refresh": "刷新配置",
         "project": { "title": "项目配置", "description": "读取并展示 [nodes.neoview]，其他节点配置保持独立。" },
         "history": { "title": "变更历史", "description": "使用系统 Git 保存脱敏后的增量快照，可按 NeoView 变更筛选和恢复。" },
         "restore": { "title": "差异与恢复", "description": "以语义差异和统一 diff 检查版本；恢复时只写回 NeoView 分区。" },
