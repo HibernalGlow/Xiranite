@@ -156,11 +156,21 @@ function ReaderEdgeSurface({
       protectedInteractionRef.current = false
       if (!(target instanceof Node) || !surfaceRef.current?.contains(target)) scheduleHide()
     }
+    const clearTransientProtection = () => {
+      // Native window minimize/blur can happen before pointerup reaches the
+      // surface. Do not let that abandoned gesture become a permanent pin.
+      protectedInteractionRef.current = false
+      clearTimer(hideTimerRef)
+    }
     window.addEventListener("keydown", handleKeyDown)
     window.addEventListener("pointerdown", handlePointerDown, true)
+    window.addEventListener("blur", clearTransientProtection)
+    document.addEventListener("visibilitychange", clearTransientProtection)
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("pointerdown", handlePointerDown, true)
+      window.removeEventListener("blur", clearTransientProtection)
+      document.removeEventListener("visibilitychange", clearTransientProtection)
     }
   }, [automatic, visible])
 

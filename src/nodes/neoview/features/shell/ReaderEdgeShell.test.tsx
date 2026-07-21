@@ -299,6 +299,26 @@ describe("ReaderEdgeShell", () => {
     expect(requests).toHaveBeenCalledWith("left", false, "leave")
   })
 
+  it("[neoview.shell.window-blur] clears abandoned edge protection after minimize/restore", () => {
+    vi.useFakeTimers()
+    const requests = vi.fn()
+    render(
+      <ReaderEdgeShell
+        edges={{ top: { ...slot("top", <button type="button">minimize</button>), open: true, hideDelayMs: 20 } }}
+        onEdgeOpenRequest={requests}
+      >
+        <div>viewport</div>
+      </ReaderEdgeShell>,
+    )
+    const region = screen.getByRole("region", { name: "top edge" })
+    const minimize = screen.getByRole("button", { name: "minimize" })
+    fireEvent.pointerDown(minimize)
+    fireEvent.blur(window)
+    fireEvent.pointerLeave(region)
+    act(() => vi.advanceTimersByTime(20))
+    expect(requests).toHaveBeenCalledWith("top", false, "leave")
+  })
+
   it("[neoview.shell.pointer-commit] does not render React state on pointer movement", () => {
     const renders = vi.fn()
     render(
