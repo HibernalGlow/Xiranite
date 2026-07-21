@@ -220,6 +220,29 @@ describe("FolderRepresentativeIndex", () => {
     index.clear()
   })
 
+  it("[neoview.thumbnail.folder-index-diverse-nested-folders] samples distinct media folders inside a wrapper branch", async () => {
+    const index = new FolderRepresentativeIndex({
+      readDirectory: async (path) => {
+        const normalized = path.replaceAll("\\", "/")
+        if (normalized.endsWith("/library")) return [directory("wrapper")]
+        if (normalized.endsWith("/wrapper")) {
+          return [directory("artist-a"), directory("artist-b"), directory("artist-c"), directory("artist-d")]
+        }
+        return [file("1.jpg"), file("2.jpg"), file("3.jpg"), file("4.jpg")]
+      },
+      statPath: async () => stats(10, 100),
+    })
+
+    const selection = await index.resolve("D:/library", 50, undefined, 4)
+    expect(selection.paths.map((path) => path.replaceAll("\\", "/"))).toEqual([
+      "D:/library/wrapper/artist-a/1.jpg",
+      "D:/library/wrapper/artist-b/1.jpg",
+      "D:/library/wrapper/artist-c/1.jpg",
+      "D:/library/wrapper/artist-d/1.jpg",
+    ])
+    index.clear()
+  })
+
   it("[neoview.thumbnail.folder-index-bounded-diversity] uses the requested mosaic count to bound sibling sampling", async () => {
     const readDirectory = vi.fn(async (path: string) => path.endsWith("library")
       ? Array.from({ length: 20 }, (_, index) => directory(`artist-${String(index).padStart(2, "0")}`))
