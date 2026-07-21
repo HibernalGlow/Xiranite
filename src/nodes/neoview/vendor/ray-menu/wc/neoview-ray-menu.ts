@@ -611,6 +611,9 @@ export class NeoViewRayMenu extends BaseElement {
 		container.className = 'ray-menu-container';
 		container.setAttribute('data-neoview', 'true');
 		container.setAttribute('role', 'menu');
+		const menuSize = (radius + SVG_PADDING) * 2;
+		container.style.width = `${menuSize}px`;
+		container.style.height = `${menuSize}px`;
 		container.style.left = `${this._position.x}px`;
 		container.style.top = `${this._position.y}px`;
 
@@ -673,8 +676,8 @@ export class NeoViewRayMenu extends BaseElement {
 
 		const label = document.createElement('div');
 		label.className = 'ray-menu-label';
-		label.style.left = `${labelPosition.x}px`;
-		label.style.top = `${labelPosition.y}px`;
+		label.style.left = `calc(50% + ${labelPosition.x}px)`;
+		label.style.top = `calc(50% + ${labelPosition.y}px)`;
 		label.setAttribute('role', 'menuitem');
 		label.setAttribute('data-index', String(slot.index));
 		label.setAttribute('data-level', String(slot.level));

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
-import { BookOpen, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, X } from "lucide-react"
+import { BookOpen, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, Trash2, X } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
   DEFAULT_READER_INPUT_BINDINGS,
@@ -14,6 +14,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useContextMenu } from "@/components/context-menu"
 import { cn } from "@/lib/utils"
 import { FloatingWindowCaptionControls, FloatingWindowTitlebarReservation, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
@@ -207,6 +208,7 @@ export function ReaderApp({
 }: ReaderAppProps) {
   const surface = useNodeSurface()
   const floatingFrame = useFloatingWindowFrame()
+  const contextMenu = useContextMenu()
   const [client] = useState<ReaderHttpClient>(() => injectedClient ?? createReaderHttpClient())
   const clientRef = useRef(client)
   const shellRef = useRef<ReaderShellConfigDto | undefined>(undefined)
@@ -927,6 +929,7 @@ export function ReaderApp({
       toggleSidebarControl,
       openFile: () => choose("file"),
       closeFile: closeSession,
+      deleteCurrentFile: client.executeFileOperations ? requestDeleteCurrentFile : undefined,
       openSettings: () => setSettingsOpen(true),
       openRadialMenu,
       video: videoController,
@@ -1151,6 +1154,79 @@ export function ReaderApp({
     setMagnifierEnabled(false)
     setBusy(false)
     if (sessionId) await clientRef.current.close(sessionId).catch(() => undefined)
+  }
+
+  function requestDeleteCurrentFile() {
+    const sessionId = sessionRef.current
+    const sourcePath = path.trim()
+    if (!sessionId || !sourcePath || operationRef.current || !clientRef.current.executeFileOperations) return
+    const run = () => deleteCurrentFile(sessionId, sourcePath)
+    if (folderViewRef.current.confirmDelete === false) {
+      void run()
+      return
+    }
+    if (!contextMenu) {
+      setError("当前界面无法打开删除确认框，文件未删除。")
+      return
+    }
+    const name = sourcePath.replaceAll("\\", "/").split("/").at(-1) ?? sourcePath
+    contextMenu.confirm({
+      id: "neoview-reader-delete-current-file",
+      label: "删除当前文件",
+      icon: <Trash2 />,
+      destructive: true,
+      confirm: {
+        title: "移到回收站？",
+        description: `“${name}”将移到系统回收站。`,
+        confirmLabel: "移到回收站",
+        cancelLabel: "取消",
+      },
+      onSelect: run,
+    })
+  }
+
+  async function deleteCurrentFile(sessionId: string, sourcePath: string) {
+    const execute = clientRef.current.executeFileOperations
+    if (!execute || sessionRef.current !== sessionId || operationRef.current) return
+    slideshow.stop()
+    const controller = new AbortController()
+    operationRef.current = controller
+    setBusy(true)
+    setError(undefined)
+    let released = false
+    try {
+      await clientRef.current.close(sessionId)
+      released = true
+      controller.signal.throwIfAborted()
+      if (sessionRef.current !== sessionId) return
+      sessionRef.current = undefined
+      setSession(undefined)
+      setSlideshowFadeFrame(undefined)
+      setMagnifierEnabled(false)
+
+      const result = await execute([{ kind: "trash", sourcePath }], true, controller.signal)
+      const failed = result.results.find((item) => item.status !== "succeeded")
+      if (result.succeeded !== 1 || failed) {
+        throw new Error(failed?.error ?? failed?.errorCode ?? "移动到回收站失败")
+      }
+      setPath("")
+      switchToast.show({ title: "已移到回收站", description: sourcePath })
+    } catch (cause) {
+      if (controller.signal.aborted) return
+      if (released && !sessionRef.current) {
+        try {
+          const reopened = await clientRef.current.open(sourcePath, controller.signal)
+          sessionRef.current = reopened.sessionId
+          setSession(reopened)
+        } catch {
+          // Preserve the original operation error; reopening is best-effort recovery.
+        }
+      }
+      setError(errorMessage(cause))
+    } finally {
+      if (operationRef.current === controller) operationRef.current = undefined
+      if (!controller.signal.aborted) setBusy(false)
+    }
   }
 
   function requestShellEdgeOpen(edge: ReaderShellEdge, open: boolean) {

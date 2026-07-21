@@ -34,11 +34,9 @@ import { ReaderRadialMenuOverlay } from "../../input/ReaderRadialMenuOverlay"
 
 const CENTER = 260
 const MIN_SLOT_COUNT = 8
-const BANDS: Record<1 | 2 | 3, { inner: number; outer: number }> = {
-  1: { inner: 34, outer: 100 },
-  2: { inner: 100, outer: 180 },
-  3: { inner: 180, outer: 252 },
-}
+const EDITOR_RADIUS = 252
+const SUBMENU_RADIUS_STEP = 60
+const DEFAULT_NEW_ITEM_ACTION: ReaderInputAction = "reader.next-page"
 
 interface EditorSlot {
   id: string
@@ -74,6 +72,10 @@ export function RadialMenuSettingsEditor({
 
   const activeMenu = draft.menus.find((menu) => menu.id === draft.activeMenuId) ?? draft.menus[0]!
   const layerCount = draft.layerCount
+  const editorBands = useMemo(
+    () => getEditorBands(draft.radius, draft.innerRadius, layerCount),
+    [draft.innerRadius, draft.radius, layerCount],
+  )
 
   const selectedItem = useMemo(() => {
     if (!selected) return undefined
@@ -88,10 +90,10 @@ export function RadialMenuSettingsEditor({
     const slots: EditorSlot[] = []
     for (const level of [1, 2, 3] as const) {
       if (level > layerCount) continue
-      slots.push(...buildSlots(level, activeMenu.layers[level - 1] ?? [], draft.startAngle, draft.sweepAngle))
+      slots.push(...buildSlots(level, activeMenu.layers[level - 1] ?? [], draft.startAngle, draft.sweepAngle, editorBands[level]))
     }
     return slots
-  }, [activeMenu.layers, draft.startAngle, draft.sweepAngle, layerCount])
+  }, [activeMenu.layers, draft.startAngle, draft.sweepAngle, editorBands, layerCount])
 
   const otherMenus = draft.menus.filter((menu) => menu.id !== activeMenu.id)
   const actionGroups = useMemo(() => {
@@ -287,16 +289,18 @@ export function RadialMenuSettingsEditor({
               role="img"
               aria-label="轮盘槽位编辑器"
             >
-              <circle cx={CENTER} cy={CENTER} r="252" className="fill-background stroke-border" />
-              {layerCount >= 3 ? <circle cx={CENTER} cy={CENTER} r="180" className="fill-background stroke-border" /> : null}
-              {layerCount >= 2 ? <circle cx={CENTER} cy={CENTER} r="100" className="fill-background stroke-border" /> : null}
-              <circle cx={CENTER} cy={CENTER} r="34" className="fill-background stroke-border" />
+              <circle cx={CENTER} cy={CENTER} r={EDITOR_RADIUS} className="fill-background stroke-border" />
+              {layerCount >= 3 ? <circle cx={CENTER} cy={CENTER} r={editorBands[3].inner} className="fill-background stroke-border" /> : null}
+              {layerCount >= 2 ? <circle cx={CENTER} cy={CENTER} r={editorBands[2].inner} className="fill-background stroke-border" /> : null}
+              <circle cx={CENTER} cy={CENTER} r={editorBands[1].inner} className="fill-background stroke-border" />
 
               {editorSlots.map((slot) => {
                 const isSelected = Boolean(slot.item && selected?.itemId === slot.item.id)
                 return (
                   <g
                     key={slot.id}
+                    data-radial-editor-level={slot.level}
+                    data-radial-editor-slot={slot.index}
                     className={slot.disabled ? "opacity-35" : "cursor-pointer"}
                     onClick={() => handleSlotClick(slot)}
                     onKeyDown={(event) => {
@@ -458,8 +462,14 @@ export function RadialMenuSettingsEditor({
                     value={selectedItem.action ?? ""}
                     disabled={saving}
                     onChange={(event) => {
-                      const next = event.currentTarget.value
-                      updateSelected({ action: next ? next as ReaderInputAction : null, moveToMenuId: undefined })
+                      const next = event.currentTarget.value ? event.currentTarget.value as ReaderInputAction : null
+                      const previousActionLabel = inputActionLabel(selectedItem.action)
+                      const shouldFollowAction = selectedItem.label === "新操作" || selectedItem.label === previousActionLabel
+                      updateSelected({
+                        action: next,
+                        moveToMenuId: undefined,
+                        ...(shouldFollowAction ? { label: inputActionLabel(next) } : {}),
+                      })
                     }}
                   >
                     <option value="">未绑定</option>
@@ -563,10 +573,10 @@ function buildSlots(
   items: readonly ReaderRadialMenuItem[],
   startAngle: number,
   sweepAngle: number,
+  band: { inner: number; outer: number },
 ): EditorSlot[] {
   const slotCount = getSlotCount(items)
   const sweep = sweepAngle / slotCount
-  const band = BANDS[level]
   const bySlot = new Map<number, ReaderRadialMenuItem>()
   items.forEach((item, index) => {
     const slotIndex = Number.isFinite(item.slotIndex) ? item.slotIndex : index
@@ -595,12 +605,22 @@ function buildSlots(
 
 function getSlotCount(items: readonly ReaderRadialMenuItem[]): number {
   const maxSlot = items.reduce((max, item, index) => Math.max(max, Number.isFinite(item.slotIndex) ? item.slotIndex : index), -1)
-  return Math.max(MIN_SLOT_COUNT, maxSlot + 2, items.length + 1)
+  return Math.max(MIN_SLOT_COUNT, maxSlot + 1)
 }
 
 function polar(radius: number, angleDeg: number): { x: number; y: number } {
-  const radians = ((angleDeg - 90) * Math.PI) / 180
+  const radians = (angleDeg * Math.PI) / 180
   return { x: CENTER + radius * Math.cos(radians), y: CENTER + radius * Math.sin(radians) }
+}
+
+function getEditorBands(radius: number, innerRadius: number, layerCount: 1 | 2 | 3): Record<1 | 2 | 3, { inner: number; outer: number }> {
+  const runtimeOuterRadius = radius + (layerCount - 1) * SUBMENU_RADIUS_STEP
+  const scale = EDITOR_RADIUS / runtimeOuterRadius
+  return {
+    1: { inner: innerRadius * scale, outer: radius * scale },
+    2: { inner: radius * scale, outer: (radius + SUBMENU_RADIUS_STEP) * scale },
+    3: { inner: (radius + SUBMENU_RADIUS_STEP) * scale, outer: (radius + SUBMENU_RADIUS_STEP * 2) * scale },
+  }
 }
 
 function sectorPath(innerRadius: number, outerRadius: number, startAngle: number, endAngle: number): string {
@@ -628,10 +648,14 @@ function newItem(items: readonly ReaderRadialMenuItem[], preferredSlot?: number)
   }
   return {
     id: uniqueId("item", ids),
-    label: "新操作",
-    action: "reader.next-page",
+    label: inputActionLabel(DEFAULT_NEW_ITEM_ACTION),
+    action: DEFAULT_NEW_ITEM_ACTION,
     slotIndex: Math.min(63, slotIndex),
   }
+}
+
+function inputActionLabel(action: ReaderInputAction | null | undefined): string {
+  return action ? READER_INPUT_ACTION_LABELS[action] ?? action : ""
 }
 
 function uniqueId(prefix: string, ids: readonly string[]): string {

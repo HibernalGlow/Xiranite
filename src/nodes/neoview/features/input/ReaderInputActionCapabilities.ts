@@ -38,6 +38,7 @@ export const GUI_READER_INPUT_ACTIONS = [
   "viewer.toggle-hover-scroll",
   "file.open",
   "file.close",
+  "file.delete-current",
   "reader.open-settings",
   "radial.open-default",
   "radial.confirm",

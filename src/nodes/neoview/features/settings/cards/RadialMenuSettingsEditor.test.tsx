@@ -31,8 +31,29 @@ describe("RadialMenuSettingsEditor", () => {
 
   it("[neoview.radial-menu.editor] renders ring preview slots for the active layer count", () => {
     render(<RadialMenuSettingsEditor value={DEFAULT_READER_RADIAL_MENU_CONFIG} onSave={vi.fn() as never} />)
-    expect(screen.getByRole("img", { name: "轮盘槽位编辑器" })).toBeTruthy()
-    // Default layerCount=3 with empty layers still shows at least 8 empty first-layer slots.
-    expect(screen.getAllByRole("button", { name: /添加一级槽位/ }).length).toBeGreaterThanOrEqual(8)
+    const editor = screen.getByRole("img", { name: "轮盘槽位编辑器" })
+    expect(editor).toBeTruthy()
+    expect(editor.querySelectorAll('[data-radial-editor-level="1"]')).toHaveLength(8)
+    const slot = editor.querySelector<SVGGElement>('[data-radial-editor-level="1"][data-radial-editor-slot="1"]')
+    const label = slot?.querySelector<SVGForeignObjectElement>("foreignObject")
+    expect(Number(label?.getAttribute("x")) + 36).toBeGreaterThan(260)
+    expect(Number(label?.getAttribute("y")) + 16).toBeLessThan(260)
+    expect(screen.getAllByRole("button", { name: /添加一级槽位/ }).length).toBeGreaterThan(0)
+  })
+
+  it("[neoview.radial-menu.default-label] follows action names until the label is customized", () => {
+    render(<RadialMenuSettingsEditor value={DEFAULT_READER_RADIAL_MENU_CONFIG} onSave={vi.fn() as never} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "添加一级槽位 0" }))
+    const label = screen.getByRole("textbox", { name: "轮盘项目名称" }) as HTMLInputElement
+    const action = screen.getByRole("combobox", { name: "动作" })
+    expect(label.value).toBe("下一页")
+
+    fireEvent.change(action, { target: { value: "reader.previous-page" } })
+    expect(label.value).toBe("上一页")
+
+    fireEvent.change(label, { target: { value: "自定义名称" } })
+    fireEvent.change(action, { target: { value: "reader.next-page" } })
+    expect(label.value).toBe("自定义名称")
   })
 })

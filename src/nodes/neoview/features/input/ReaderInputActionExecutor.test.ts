@@ -1,4 +1,4 @@
-import { DEFAULT_READER_PRESENTATION, type ReaderInputAction } from "@xiranite/node-neoview/ui-core"
+import { DEFAULT_READER_PRESENTATION } from "@xiranite/node-neoview/ui-core"
 import { describe, expect, it, vi } from "vitest"
 
 import { executeReaderInputAction, type ReaderInputActionControls } from "./ReaderInputActionExecutor"
@@ -53,6 +53,15 @@ describe("ReaderInputActionExecutor", () => {
     controls.video = undefined
     expect(executeReaderInputAction("video.play-pause", controls)).toBe(false)
     expect(executeReaderInputAction("upscale.toggle-auto", controls)).toBe(false)
+  })
+
+  it("[neoview.bindings.file-delete] routes current-file deletion through its destructive action port", () => {
+    const controls = fixture()
+    controls.deleteCurrentFile = vi.fn()
+    expect(executeReaderInputAction("file.delete-current", controls)).toBe(true)
+    expect(controls.deleteCurrentFile).toHaveBeenCalledOnce()
+    controls.session = () => undefined
+    expect(executeReaderInputAction("file.delete-current", controls)).toBe(false)
   })
 
   it("[neoview.bindings.viewer-toggle-provider] routes persistent toast and info overlay toggles", () => {

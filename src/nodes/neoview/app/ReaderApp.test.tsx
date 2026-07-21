@@ -5,6 +5,7 @@ vi.mock("media-chrome/react", () => import("@/test/media-chrome-react-stub"))
 
 import { DEFAULT_READER_INPUT_BINDINGS, DEFAULT_READER_RADIAL_MENU_CONFIG } from "@xiranite/node-neoview/ui-core"
 
+import { ContextMenuProvider } from "@/components/context-menu"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderPreloadPlanDto, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
@@ -164,6 +165,59 @@ describe("ReaderApp", () => {
     await screen.findByRole("img", { name: "001.jpg" })
     await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal)))
     await waitFor(() => expect(committed).toHaveBeenLastCalledWith("D:/books/Book 2.cbz", "D:/books"))
+  })
+
+  it("[neoview.bindings.file-delete-react] releases and trashes the current file through its configured action", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    const close = vi.fn(async () => undefined)
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/books/demo.cbz" }, status: "succeeded" as const }],
+      succeeded: 1,
+      failed: 0,
+      cancelled: 0,
+      undoable: 1,
+      undoId: "undo-delete",
+    }))
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({
+        ...runtimeConfig(),
+        inputBindings: { bindings: [{
+          id: "delete-current-file",
+          action: "file.delete-current",
+          context: "reader",
+          enabled: true,
+          input: { device: "keyboard", code: "Delete" },
+        }] },
+      })),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      executeFileOperations,
+      close,
+    }
+    render(<ContextMenuProvider><ReaderApp initialPath="D:/books/demo.cbz" client={client} /></ContextMenuProvider>)
+
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("img", { name: "001.jpg" })
+    fireEvent.keyDown(document.querySelector("[data-reader-app]")!, { key: "Delete", code: "Delete" })
+    expect(executeFileOperations).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole("button", { name: "移到回收站" }))
+
+    await waitFor(() => expect(executeFileOperations).toHaveBeenCalledWith(
+      [{ kind: "trash", sourcePath: "D:/books/demo.cbz" }],
+      true,
+      expect.any(AbortSignal),
+    ))
+    expect(close).toHaveBeenCalledWith("reader-1")
+    expect(vi.mocked(client.open)).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByRole("img", { name: "001.jpg" })).toBeNull())
   })
 
   it("[neoview.reader.next-book-tail] switches books at the last page when tailOverflow is next-book", async () => {
