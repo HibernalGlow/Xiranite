@@ -29,8 +29,9 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
   const [isMaximized, setIsMaximized] = useState(false)
   const [maximizeAction, setMaximizeAction] = useState<MainWindowAction>("maximize")
   const [integratedTitlebars, setIntegratedTitlebars] = useState(0)
-  const { controlMain, controlMainPending, closeComponent } = useWindowControls()
+  const { capabilities, controlMain, controlMainPending, closeComponent } = useWindowControls()
   const moduleId = comp?.moduleId ?? moduleIdFallback ?? ""
+  const showNativeWindowChrome = capabilities?.nativeWindowControls === true
 
   useEffect(() => {
     let cancelled = false
@@ -115,30 +116,32 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
     registerIntegratedTitlebar,
   }), [controlMainPending, controlWindow, handleTitleBarDoubleClick, isMaximized, maximizeAction, registerIntegratedTitlebar])
 
-  return (
-    <FloatingWindowFrameProvider value={frame}>
-      <div className={cn("xiranite-floating-window relative flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}>
-        <main className="min-h-0 flex-1 overflow-hidden">
-          {moduleId ? (
-            <ModuleRenderer moduleId={moduleId} compId={compId} />
-          ) : (
-            <div className="grid h-full place-items-center font-mono text-xs text-muted-foreground">
-              {t("view:floating.missingTarget")}
-            </div>
-          )}
-        </main>
-        {integratedTitlebars === 0 ? (
-          <>
-            <div
-              aria-hidden="true"
-              data-testid="floating-window-fallback-drag-region"
-              onDoubleClick={handleTitleBarDoubleClick}
-              className="xiranite-app-region-drag absolute inset-x-0 top-0 z-40 h-10 select-none"
-            />
-            <FloatingWindowCaptionControls className="absolute right-0 top-0 z-50 h-10 bg-background/90 backdrop-blur-sm" />
-          </>
-        ) : null}
-      </div>
-    </FloatingWindowFrameProvider>
+  const content = (
+    <div className={cn("xiranite-floating-window relative flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}>
+      <main className="min-h-0 flex-1 overflow-hidden">
+        {moduleId ? (
+          <ModuleRenderer moduleId={moduleId} compId={compId} />
+        ) : (
+          <div className="grid h-full place-items-center font-mono text-xs text-muted-foreground">
+            {t("view:floating.missingTarget")}
+          </div>
+        )}
+      </main>
+      {showNativeWindowChrome && integratedTitlebars === 0 ? (
+        <>
+          <div
+            aria-hidden="true"
+            data-testid="floating-window-fallback-drag-region"
+            onDoubleClick={handleTitleBarDoubleClick}
+            className="xiranite-app-region-drag absolute inset-x-0 top-0 z-40 h-10 select-none"
+          />
+          <FloatingWindowCaptionControls className="absolute right-0 top-0 z-50 h-10 bg-background/90 backdrop-blur-sm" />
+        </>
+      ) : null}
+    </div>
   )
+
+  if (!showNativeWindowChrome) return content
+
+  return <FloatingWindowFrameProvider value={frame}>{content}</FloatingWindowFrameProvider>
 }
