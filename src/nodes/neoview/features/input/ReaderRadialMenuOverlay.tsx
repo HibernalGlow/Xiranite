@@ -27,7 +27,7 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
   useEffect(() => {
     const element = elementRef.current
     if (!element) return
-    const syncMenuSemantics = () => labelMenu(element, configRef.current.radius)
+    const syncMenuSemantics = () => labelMenu(element)
     const menuObserver = element.shadowRoot ? new MutationObserver(syncMenuSemantics) : undefined
     menuObserver?.observe(element.shadowRoot!, { childList: true, subtree: true })
     let moving = false
@@ -63,7 +63,7 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
       activeMenuId = menuId
       if (applyMenu()) requestAnimationFrame(() => {
         element.open(request.x, request.y)
-        labelMenu(element, configRef.current.radius)
+        labelMenu(element)
       })
       queueMicrotask(() => { moving = false })
     }
@@ -75,7 +75,7 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
     element.addEventListener("ray-close", handleClose)
     applyMenu()
     element.open(request.x, request.y)
-    labelMenu(element, configRef.current.radius)
+    labelMenu(element)
     return () => {
       element.removeEventListener("ray-select", handleSelect)
       element.removeEventListener("ray-moveto", handleMoveTo)
@@ -92,13 +92,10 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
   })
 }
 
-function labelMenu(element: NeoViewRayMenu, radius: number): void {
+function labelMenu(element: NeoViewRayMenu): void {
   const menu = element.shadowRoot?.querySelector<HTMLElement>('[role="menu"]')
   if (!menu) return
   menu.setAttribute("aria-label", "Menu")
-  const size = `${(radius + 20) * 2}px`
-  menu.style.width = size
-  menu.style.height = size
 }
 
 function toRayItem(item: ReaderRadialMenuItem): NeoViewRayMenuItem {

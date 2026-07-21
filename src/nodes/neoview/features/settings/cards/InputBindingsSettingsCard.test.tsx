@@ -23,7 +23,7 @@ describe("InputBindingsSettingsCard", () => {
     const catalog = screen.getByRole("listbox", { name: "可选动作" })
     expect(within(catalog).getByRole("option", { name: /下一页/ })).toBeTruthy()
     expect(catalog.querySelector('[data-action="reader.next-page"]')).not.toBeNull()
-    expect(catalog.querySelector('[data-action="file.delete-current"]')).toBeNull()
+    expect(catalog.querySelector('[data-action="file.delete-current"]')).not.toBeNull()
     expect(catalog.querySelector('[data-action="upscale.toggle-auto"]')).toBeNull()
     expect(catalog.querySelector('[data-action="viewer.toggle-dynamic-background"]')).toBeNull()
   })

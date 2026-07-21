@@ -338,6 +338,43 @@ test("[neoview.bindings.gamepad-e2e] routes a connected standard gamepad button 
   await expect(page.locator('img[alt="002.png"]')).toBeVisible()
 })
 
+test("[neoview.bindings.radial-editor-e2e] keeps editor names and slot geometry aligned with runtime", async ({ page }, testInfo) => {
+  await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
+  await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  await page.getByRole("button", { name: "打开 NeoView 设置" }).click()
+  await page.getByRole("button", { name: "操作绑定", exact: true }).click()
+  const card = page.locator('[data-neoview-settings-card="input-bindings"]')
+  await card.getByRole("tab", { name: "轮盘" }).click()
+  const editor = card.locator('[data-neoview-settings-card="radial-menu"]')
+  await expect(editor.getByRole("img", { name: "轮盘槽位编辑器" })).toBeVisible()
+
+  await editor.getByRole("button", { name: "添加一级槽位 0" }).click()
+  const itemName = editor.getByRole("textbox", { name: "轮盘项目名称" })
+  await expect(itemName).toHaveValue("下一页")
+  await editor.getByRole("combobox", { name: "动作" }).selectOption("reader.previous-page")
+  await expect(itemName).toHaveValue("上一页")
+
+  const editorAngle = await editor.locator('[data-radial-editor-level="1"][data-radial-editor-slot="1"]').evaluate((slot) => {
+    const svg = slot.closest("svg")!.getBoundingClientRect()
+    const label = slot.querySelector("foreignObject")!.getBoundingClientRect()
+    return Math.atan2(label.y + label.height / 2 - (svg.y + svg.height / 2), label.x + label.width / 2 - (svg.x + svg.width / 2))
+  })
+  await editor.screenshot({ path: testInfo.outputPath(`neoview-radial-editor-${testInfo.project.name}.png`) })
+
+  await editor.getByTitle("全屏弹出预览").click()
+  const radial = page.locator("neoview-ray-menu")
+  await expect(radial).toBeAttached()
+  const runtimeAngle = await radial.evaluate((element) => {
+    const menu = element.shadowRoot!.querySelector<HTMLElement>('[role="menu"]')!.getBoundingClientRect()
+    const label = element.shadowRoot!.querySelector<HTMLElement>('[role="menuitem"][data-level="1"][data-index="1"]')!.getBoundingClientRect()
+    return Math.atan2(label.y + label.height / 2 - (menu.y + menu.height / 2), label.x + label.width / 2 - (menu.x + menu.width / 2))
+  })
+  expect(Math.abs(editorAngle - runtimeAngle)).toBeLessThan(0.03)
+  await page.screenshot({ path: testInfo.outputPath(`neoview-radial-runtime-${testInfo.project.name}.png`) })
+  await page.keyboard.press("Escape")
+})
+
 test("[neoview.bindings.radial-pointer-e2e] opens the copied ray menu from the configured right-button press", async ({ page }) => {
   await page.addInitScript(({ baseUrl, token }) => { window.__XIRANITE_BACKEND__ = { baseUrl, token } }, { baseUrl: backend.url, token: backend.token })
   await page.goto(`/tests/e2e/neoview/neoview-book-information-harness.html?path=${encodeURIComponent(fixture.path)}`, { waitUntil: "domcontentloaded" })
@@ -356,10 +393,30 @@ test("[neoview.bindings.radial-pointer-e2e] opens the copied ray menu from the c
   const radialGeometry = await radial.evaluate((element) => {
     const menu = element.shadowRoot?.querySelector<HTMLElement>('[aria-label="Menu"]')
     const rect = menu?.getBoundingClientRect()
-    return rect ? { width: rect.width, height: rect.height } : undefined
+    const labels = Array.from(element.shadowRoot?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
+    return rect ? {
+      width: rect.width,
+      height: rect.height,
+      radius: Number(element.getAttribute("radius")),
+      innerRadius: Number(element.getAttribute("inner-radius")),
+      labels: labels.map((label) => {
+        const labelRect = label.getBoundingClientRect()
+        const x = labelRect.x + labelRect.width / 2 - (rect.x + rect.width / 2)
+        const y = labelRect.y + labelRect.height / 2 - (rect.y + rect.height / 2)
+        return { distance: Math.hypot(x, y), level: Number(label.dataset.level) }
+      }),
+    } : undefined
   })
   expect(radialGeometry?.width).toBeGreaterThan(0)
   expect(radialGeometry?.height).toBeGreaterThan(0)
+  expect(radialGeometry?.labels.length).toBeGreaterThan(0)
+  for (const label of radialGeometry?.labels ?? []) {
+    const band = label.level === 1
+      ? { inner: radialGeometry!.innerRadius, outer: radialGeometry!.radius }
+      : { inner: radialGeometry!.radius + (label.level - 2) * 60, outer: radialGeometry!.radius + (label.level - 1) * 60 }
+    expect(label.distance).toBeGreaterThanOrEqual(band.inner)
+    expect(label.distance).toBeLessThanOrEqual(band.outer)
+  }
   await page.keyboard.press("Escape")
   await expect(radial).toHaveCount(0)
 })

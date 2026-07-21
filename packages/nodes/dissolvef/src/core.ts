@@ -252,8 +252,8 @@ export function parseDissolveHistory(content: string | null): DissolveUndoRecord
   if (!content?.trim()) return []
   try {
     const parsed = JSON.parse(content) as unknown
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(isUndoRecord)
+    const records = Array.isArray(parsed) ? parsed : [parsed]
+    return records.map(normalizeUndoRecord).filter((record): record is DissolveUndoRecord => record !== null)
   } catch {
     return []
   }
@@ -571,6 +571,20 @@ async function undo(input: NormalizedDissolvefInput, runtime: DissolvefRuntime, 
       if (operation.type === "delete_dir") {
         await runtime.ensureDir(operation.sourcePath)
       } else if (operation.targetPath) {
+        const [source, target] = await Promise.all([
+          runtime.pathInfo(operation.sourcePath),
+          runtime.pathInfo(operation.targetPath),
+        ])
+        if (source.exists && target.exists) {
+          throw new Error(`Undo conflict: both source and target exist: ${operation.sourcePath}`)
+        }
+        if (source.exists) {
+          successCount += 1
+          continue
+        }
+        if (!target.exists) {
+          throw new Error(`Undo source is missing: ${operation.targetPath}`)
+        }
         await runtime.ensureDir(runtime.dirname(operation.sourcePath))
         await runtime.movePath(operation.targetPath, operation.sourcePath)
       }
@@ -801,10 +815,58 @@ function clampNumber(value: number | undefined, fallback: number, min: number, m
   return Math.min(max, Math.max(min, parsed))
 }
 
-function isUndoRecord(value: unknown): value is DissolveUndoRecord {
-  if (!value || typeof value !== "object") return false
+function normalizeUndoRecord(value: unknown): DissolveUndoRecord | null {
+  if (!value || typeof value !== "object") return null
   const record = value as Partial<DissolveUndoRecord>
-  return typeof record.id === "string" && typeof record.timestamp === "string" && Array.isArray(record.operations)
+  if (typeof record.id !== "string" || typeof record.timestamp !== "string" || !Array.isArray(record.operations)) return null
+
+  const operations = record.operations
+    .map(normalizeUndoOperation)
+    .filter((operation): operation is DissolveUndoOperation => operation !== null)
+  if (operations.length !== record.operations.length) return null
+
+  return {
+    id: record.id,
+    timestamp: record.timestamp,
+    mode: isUndoMode(record.mode) ? record.mode : "mixed",
+    path: typeof record.path === "string" ? record.path : "",
+    count: typeof record.count === "number" ? record.count : operations.length,
+    operations,
+    ...(typeof record.undone === "boolean" ? { undone: record.undone } : {}),
+  }
+}
+
+function normalizeUndoOperation(value: unknown): DissolveUndoOperation | null {
+  if (!value || typeof value !== "object") return null
+  const operation = value as {
+    type?: unknown
+    sourcePath?: unknown
+    targetPath?: unknown
+    src?: unknown
+    dst?: unknown
+  }
+  if (operation.type !== "move" && operation.type !== "delete_dir") return null
+
+  const sourcePath = typeof operation.sourcePath === "string"
+    ? operation.sourcePath
+    : typeof operation.src === "string"
+      ? operation.src
+      : ""
+  if (!sourcePath) return null
+
+  const targetPath = typeof operation.targetPath === "string"
+    ? operation.targetPath
+    : typeof operation.dst === "string"
+      ? operation.dst
+      : undefined
+  if (operation.type === "move" && !targetPath) return null
+  return targetPath
+    ? { type: operation.type, sourcePath, targetPath }
+    : { type: operation.type, sourcePath }
+}
+
+function isUndoMode(value: unknown): value is DissolveUndoRecord["mode"] {
+  return value === "nested" || value === "media" || value === "archive" || value === "direct" || value === "mixed"
 }
 
 function dataFromPlan(plan: DissolvefPlanItem[]): Partial<DissolvefData> {

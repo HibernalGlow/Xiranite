@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { calculateDissolvefSimilarity, runDissolvef } from "./core.js"
+import { calculateDissolvefSimilarity, parseDissolveHistory, runDissolvef } from "./core.js"
 import { createNodeDissolvefRuntime } from "./platform.js"
 
 const tempRoots: string[] = []
@@ -109,6 +109,62 @@ describe("dissolvef core", () => {
     const undo = await runDissolvef({ action: "undo", historyPath }, runtime)
     expect(undo.success).toBe(true)
     expect(existsSync(join(deepest, "test.txt"))).toBe(true)
+  })
+
+  test("reads and undoes a legacy Python single-record journal", async () => {
+    const root = await tempRoot()
+    const sourceDir = join(root, "outer", "inner")
+    const sourcePath = join(sourceDir, "test.txt")
+    const targetPath = join(root, "outer", "test.txt")
+    const historyPath = join(root, "legacy-undo.json")
+    await mkdir(join(root, "outer"), { recursive: true })
+    await writeFile(targetPath, "hello")
+    await writeFile(historyPath, JSON.stringify({
+      id: "dissolve-legacy",
+      timestamp: "2026-07-21T16:04:54.445129",
+      mode: "nested",
+      path: root,
+      count: 2,
+      operations: [
+        { type: "move", src: sourcePath, dst: targetPath, timestamp: "2026-07-21T16:02:57.405605" },
+        { type: "delete_dir", src: sourceDir, dst: null, timestamp: "2026-07-21T16:02:57.408122" },
+      ],
+    }))
+
+    const parsed = parseDissolveHistory(await createNodeDissolvefRuntime().readText(historyPath))
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]?.operations).toEqual([
+      { type: "move", sourcePath, targetPath },
+      { type: "delete_dir", sourcePath: sourceDir },
+    ])
+
+    const undo = await runDissolvef({ action: "undo", historyPath }, createNodeDissolvefRuntime())
+    expect(undo.success).toBe(true)
+    expect(undo.data?.successCount).toBe(2)
+    expect(existsSync(sourcePath)).toBe(true)
+    expect(existsSync(targetPath)).toBe(false)
+  })
+
+  test("resumes a partially applied undo without overwriting restored files", async () => {
+    const root = await tempRoot()
+    const sourcePath = join(root, "inner", "test.txt")
+    const targetPath = join(root, "test.txt")
+    const historyPath = join(root, "legacy-undo.json")
+    await mkdir(join(root, "inner"))
+    await writeFile(sourcePath, "already restored")
+    await writeFile(historyPath, JSON.stringify({
+      id: "dissolve-partial",
+      timestamp: "2026-07-21T16:04:54.445129",
+      mode: "nested",
+      path: root,
+      count: 1,
+      operations: [{ type: "move", src: sourcePath, dst: targetPath }],
+    }))
+
+    const undo = await runDissolvef({ action: "undo", historyPath }, createNodeDissolvefRuntime())
+    expect(undo.success).toBe(true)
+    expect(undo.data?.successCount).toBe(1)
+    expect(existsSync(sourcePath)).toBe(true)
   })
 })
 

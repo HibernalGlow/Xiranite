@@ -47,6 +47,7 @@ export interface ReaderInputActionControls {
   toggleSidebarControl(): void
   openFile(): void | Promise<unknown>
   closeFile(): void | Promise<unknown>
+  deleteCurrentFile?(): void | Promise<unknown>
   openSettings(): void
   openRadialMenu(): void
   video?: ReaderVideoActionPort
@@ -126,6 +127,10 @@ export function executeReaderInputAction(action: ReaderInputAction, controls: Re
     }
     case "file.open": void controls.openFile(); return true
     case "file.close": void controls.closeFile(); return true
+    case "file.delete-current":
+      if (!controls.session() || !controls.deleteCurrentFile) return false
+      void controls.deleteCurrentFile()
+      return true
     case "reader.open-settings": controls.openSettings(); return true
     case "radial.open-default": controls.openRadialMenu(); return true
     case "radial.confirm": return true
