@@ -1,3 +1,21 @@
+/**
+ * 数据表格状态管理 hook（基于 TanStack Table + nuqs）。
+ *
+ * 把表格的分页、排序、列筛选、列可见性、行选择状态与 URL 查询参数双向同步，
+ * 实现可分享的表格链接与浏览器前进/后退支持。所有状态变化都会反映到 URL，
+ * 刷新或分享 URL 时表格能恢复到完全相同的视图。
+ *
+ * 关键设计：
+ * - 分页/排序直接用 useQueryState 同步到 URL；
+ * - 简单列筛选用 useQueryStates + 动态 parser（按列类型选择 string 或 string[]）；
+ * - 高级筛选（enableAdvancedFilter）由调用方自行管理，本 hook 不参与；
+ * - 筛选输入用 useDebouncedCallback 防抖（默认 300ms），避免每次按键都写 URL；
+ * - 行选择/列可见性是临时 UI 状态，不进入 URL；
+ * - manualPagination/Sorting/Filtering 全部为 true —— 真正的过滤/排序/分页由后端完成，
+ *   TanStack Table 只负责状态管理与 UI 通知。
+ *
+ * queryKeys 允许同一页面挂载多个表格时使用不同的 URL 参数命名空间。
+ */
 import {
   type ColumnFiltersState,
   getCoreRowModel,
@@ -31,13 +49,17 @@ import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { getSortingStateParser } from "@/lib/parsers";
 import type { ExtendedColumnSort, QueryKeys } from "@/types/data-table";
 
+/** 默认 URL 参数键名；可通过 queryKeys 覆盖以支持同页多表格。 */
 const PAGE_KEY = "page";
 const PER_PAGE_KEY = "perPage";
 const SORT_KEY = "sort";
 const FILTERS_KEY = "filters";
 const JOIN_OPERATOR_KEY = "joinOperator";
+/** 多值筛选在 URL 中的分隔符（如 select 列的多选）。 */
 const ARRAY_SEPARATOR = ",";
+/** 筛选输入防抖延迟（毫秒）。 */
 const DEBOUNCE_MS = 300;
+/** nuqs URL 更新节流（毫秒）。 */
 const THROTTLE_MS = 50;
 
 interface UseDataTableProps<TData>
@@ -54,17 +76,33 @@ interface UseDataTableProps<TData>
   initialState?: Omit<Partial<TableState>, "sorting"> & {
     sorting?: ExtendedColumnSort<TData>[];
   };
+  /** 自定义 URL 参数键名，用于同页多表格场景。 */
   queryKeys?: Partial<QueryKeys>;
+  /** URL 更新模式：push 进入历史栈 / replace 替换当前项（默认 replace）。 */
   history?: "push" | "replace";
+  /** 筛选防抖延迟（毫秒，默认 300）。 */
   debounceMs?: number;
+  /** URL 更新节流（毫秒，默认 50）。 */
   throttleMs?: number;
+  /** 值为默认时是否从 URL 中清除该参数（保持 URL 简洁）。 */
   clearOnDefault?: boolean;
+  /** 启用高级筛选面板；启用后简单列筛选逻辑被禁用。 */
   enableAdvancedFilter?: boolean;
+  /** URL 更新时是否滚动到顶部。 */
   scroll?: boolean;
+  /** nuqs shallow 模式：不触发 RSC 重新渲染。 */
   shallow?: boolean;
+  /** React 19 transition 启动函数，用于把 URL 更新包装为非阻塞 transition。 */
   startTransition?: React.TransitionStartFunction;
 }
 
+/**
+ * 创建与 URL 双向同步的 TanStack Table 实例。
+ *
+ * 返回 { table, shallow, debounceMs, throttleMs }，调用方基于 table 渲染 UI。
+ * table 实例的 state/onXxxChange 已与 nuqs useQueryState 接通，任何状态变化都会
+ * 通过 nuqs 写入 URL；URL 变化（如浏览器后退）也会反向同步到 table。
+ */
 export function useDataTable<TData>(props: UseDataTableProps<TData>) {
   const {
     columns,
