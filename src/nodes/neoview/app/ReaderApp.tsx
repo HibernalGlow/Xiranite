@@ -31,6 +31,7 @@ import {
   type ReaderRuntimeConfigDto,
   type ReaderMediaConfigDto,
   type ReaderMediaPatchDto,
+  type ReaderImageProcessingConfigDto,
   type ReaderSubtitleConfigDto,
   type ReaderPageListPreferencesDto,
   type ReaderSessionDto,
@@ -320,6 +321,7 @@ export function ReaderApp({
   const [inputBindings, setInputBindings] = useState<ReaderInputBindingsConfig>(() => structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const [radialMenu, setRadialMenu] = useState<ReaderRadialMenuConfig>(() => structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
   const [media, setMedia] = useState<ReaderMediaConfigDto>()
+  const [imageProcessing, setImageProcessing] = useState<ReaderImageProcessingConfigDto>()
   const [slideshowConfig, setSlideshowConfig] = useState<ReaderSlideshowConfig>(() => ({ ...INITIAL_SLIDESHOW_CONFIG }))
   const [slideshowFadeFrame, setSlideshowFadeFrame] = useState<string>()
   const [superResolution, setSuperResolution] = useState<ReaderRuntimeConfigDto["superResolution"]>()
@@ -351,6 +353,7 @@ export function ReaderApp({
     const controller = new AbortController()
     void clientRef.current.config(controller.signal).then((config) => {
       setMedia(config.media)
+      setImageProcessing(config.imageProcessing)
       setBookDefaults(config.book ?? INITIAL_BOOK_DEFAULTS)
       setSuperResolution(config.superResolution)
       videoController.configure(config.media)
@@ -1322,6 +1325,13 @@ export function ReaderApp({
     })
   }
 
+  async function persistImageProcessing(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto> {
+    if (!client.updateImageProcessing) throw new Error("当前 Reader 不支持图像处理配置写入")
+    const updated = await client.updateImageProcessing({ imageProcessing: patch })
+    setImageProcessing(updated)
+    return updated
+  }
+
   function enqueueShellMutation(operation: () => Promise<void>): Promise<void> {
     const queued = shellControlWriteQueueRef.current.then(operation)
     shellControlWriteQueueRef.current = queued.then(() => undefined, () => undefined)
@@ -1535,6 +1545,8 @@ export function ReaderApp({
     imageTrim,
     media,
     onMediaChange: persistAnimatedVideoMode,
+    imageProcessing,
+    onImageProcessingChange: persistImageProcessing,
     slideshow: slideshowConfig,
     onSlideshow: persistSlideshow,
     inputBindings,
@@ -1656,6 +1668,7 @@ export function ReaderApp({
             viewDefaults={viewDefaults}
             slideshow={slideshowConfig}
             media={media}
+            imageProcessing={imageProcessing}
             inputBindings={inputBindings}
             radialMenu={radialMenu}
             onClose={() => setSettingsOpen(false)}
@@ -1663,6 +1676,7 @@ export function ReaderApp({
             onViewDefaults={applyConfiguredViewDefaults}
             onSlideshow={persistSlideshow}
             onMedia={persistAnimatedVideoMode}
+            onImageProcessing={persistImageProcessing}
             onInputBindings={persistInputBindings}
             onRadialMenu={persistRadialMenu}
             onLegacySettingsInspect={inspectLegacySettings}

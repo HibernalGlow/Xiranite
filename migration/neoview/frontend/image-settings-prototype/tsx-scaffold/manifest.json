@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "generator": {
+    "name": "@xiranite/svelte-migrate",
+    "version": "0.1.0"
+  },
+  "sourceRevision": {
+    "vcs": "git",
+    "commit": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+    "dirty": true,
+    "dirtyDiffHash": "sha256:2ddd0edc04e9bc1407e7e7879723020b0cd45804e4483d0122768a1119f26aab"
+  },
+  "sourceRoot": "src",
+  "summary": {
+    "sourceFiles": 998,
+    "components": 551,
+    "modules": 447,
+    "stores": 142,
+    "graphEdges": 771,
+    "unresolvedComponentImports": 0,
+    "tauriFiles": 107,
+    "tauriCalls": 389,
+    "unmappedComponents": 158,
+    "unmappedModules": 356,
+    "dispositions": {
+      "converted": 0,
+      "adapter-needed": 0,
+      "manual": 551,
+      "replaced": 0,
+      "blocked": 0
+    },
+    "moduleDispositions": {
+      "converted": 0,
+      "adapter-needed": 0,
+      "manual": 447,
+      "replaced": 0,
+      "blocked": 0
+    },
+    "reactScaffolds": 2
+  },
+  "scaffolds": [
+    {
+      "sourceFile": "src/lib/cards/settings/ImageSettingsCard.svelte",
+      "outputFile": "src/lib/cards/settings/ImageSettingsCard.tsx",
+      "sourceHash": "sha256:32cf697b364ddd8a953b6e1509005a9e11172e64b78e974dc88e4d7b7d92684d",
+      "featureIds": [
+        "settings-import-export-backup"
+      ],
+      "migrationStatus": "review-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": []
+    },
+    {
+      "sourceFile": "src/lib/components/panels/ImageSettingsPanel.svelte",
+      "outputFile": "src/lib/components/panels/ImageSettingsPanel.tsx",
+      "sourceHash": "sha256:41baf40949e686ede6cb5b2b929f91d753fca2251cce128caea3d60bb4982ff9",
+      "featureIds": [
+        "settings-import-export-backup"
+      ],
+      "migrationStatus": "partial-scaffold",
+      "sourceDisposition": "manual",
+      "unsupported": [
+        "attribute BindDirective"
+      ]
+    }
+  ]
+}

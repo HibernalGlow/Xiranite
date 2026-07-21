@@ -7,6 +7,7 @@ import type {
   ReaderInputBindingsPatch,
   ReaderMediaConfigDto,
   ReaderMediaPatchDto,
+  ReaderImageProcessingConfigDto,
   ReaderRadialMenuPatch,
   ReaderRuntimeConfigDto,
   ReaderSettingsMigrationImportResult,
@@ -25,11 +26,13 @@ export function ReaderSettingsWindow({
   viewDefaults,
   slideshow,
   media,
+  imageProcessing,
   onClose,
   onBoardLayout,
   onViewDefaults,
   onSlideshow,
   onMedia,
+  onImageProcessing,
   inputBindings,
   onInputBindings,
   radialMenu,
@@ -42,11 +45,13 @@ export function ReaderSettingsWindow({
   viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
   slideshow?: ReaderSlideshowConfig
   media?: ReaderMediaConfigDto
+  imageProcessing?: ReaderImageProcessingConfigDto
   onClose(): void
   onBoardLayout(patch: ReaderBoardLayoutPatch): Promise<void>
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
   onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
+  onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
@@ -97,12 +102,14 @@ export function ReaderSettingsWindow({
               viewDefaults={viewDefaults}
               slideshow={slideshow}
               media={media}
+              imageProcessing={imageProcessing}
               inputBindings={inputBindings}
               radialMenu={radialMenu}
               onSave={onBoardLayout}
               onViewDefaults={onViewDefaults}
               onSlideshow={onSlideshow}
               onMedia={onMedia}
+              onImageProcessing={onImageProcessing}
               onInputBindings={onInputBindings}
               onRadialMenu={onRadialMenu}
               onLegacySettingsInspect={onLegacySettingsInspect}
@@ -122,10 +129,12 @@ function SettingsSection({
   viewDefaults,
   slideshow,
   media,
+  imageProcessing,
   onSave,
   onViewDefaults,
   onSlideshow,
   onMedia,
+  onImageProcessing,
   inputBindings,
   onInputBindings,
   radialMenu,
@@ -139,10 +148,12 @@ function SettingsSection({
   viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
   slideshow?: ReaderSlideshowConfig
   media?: ReaderMediaConfigDto
+  imageProcessing?: ReaderImageProcessingConfigDto
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
   onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
+  onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
@@ -179,12 +190,14 @@ function SettingsSection({
           viewDefaults={viewDefaults}
           slideshow={slideshow}
           media={media}
+          imageProcessing={imageProcessing}
           inputBindings={inputBindings}
           radialMenu={radialMenu}
           onSave={onSave}
           onViewDefaults={onViewDefaults}
           onSlideshow={onSlideshow}
           onMedia={onMedia}
+          onImageProcessing={onImageProcessing}
           onInputBindings={onInputBindings}
           onRadialMenu={onRadialMenu}
           onLegacySettingsInspect={onLegacySettingsInspect}
