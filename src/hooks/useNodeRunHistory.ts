@@ -1,3 +1,15 @@
+/**
+ * 节点运行历史（node run history）hooks。
+ *
+ * 包装 TanStack Query，提供节点级"运行历史"的列表/详情查询、删除、批量清理与缓存预热。
+ *
+ * 与 useRuntimeHistory 的区别：
+ * - useNodeRunHistory 是粗粒度的"一次节点运行"记录（一次执行一条）；
+ * - useRuntimeHistory 是细粒度的运行时事件记录（一次节点运行可能产生多条）。
+ *
+ * 缓存策略：列表 staleTime 10s，详情 staleTime 30s；retry: false 由调用方决定重试。
+ * 翻页时使用 keepPreviousData 避免列表闪烁。
+ */
 import {
   useMutation,
   useQuery,
@@ -16,8 +28,15 @@ import {
   listNodeRunHistory,
 } from "@/backend/nodeRunHistoryClient"
 
+/** 全局 query key 前缀，所有 node-run-history 相关查询共享。 */
 const HISTORY_QUERY_KEY = ["node-run-history"] as const
 
+/**
+ * 构造列表查询的 query key。
+ *
+ * 把筛选维度（nodeId/componentId/workspaceId/status/limit/cursor）展开为 key 数组，
+ * 确保任一维度变化触发重新查询，缓存命中精确到具体筛选组合。
+ */
 function listQueryKey(query: NodeRunHistoryQueryDTO): readonly unknown[] {
   return [
     ...HISTORY_QUERY_KEY,
