@@ -36,6 +36,33 @@ describe("EMM auxiliary property cards", () => {
     expect(screen.queryByText("filepath")).toBeNull()
   })
 
+  it("[neoview.emm-raw-data.session-replace] aborts stale metadata and publishes only the replacement session", async () => {
+    const requests = new Map<string, {
+      deferred: ReturnType<typeof Promise.withResolvers<ReaderMetadataDto>>
+      signal?: AbortSignal
+    }>()
+    const metadata = vi.fn((sessionId: string, signal?: AbortSignal) => {
+      const deferred = Promise.withResolvers<ReaderMetadataDto>()
+      requests.set(sessionId, { deferred, signal })
+      return deferred.promise
+    })
+    const client = { metadata } as unknown as ReaderHttpClient
+    const view = render(<EmmRawDataCard {...context(client)} />)
+    await waitFor(() => expect(requests.has("reader-emm-aux")).toBe(true))
+
+    view.rerender(<EmmRawDataCard {...context(client)} session={session("reader-emm-next")} />)
+    await waitFor(() => {
+      expect(requests.has("reader-emm-next")).toBe(true)
+      expect(requests.get("reader-emm-aux")?.signal?.aborted).toBe(true)
+    })
+
+    requests.get("reader-emm-next")!.deferred.resolve(metadataDto("replacement-value"))
+    expect(await screen.findByText("replacement-value")).toBeTruthy()
+    requests.get("reader-emm-aux")!.deferred.resolve(metadataDto("stale-value"))
+    await Promise.resolve()
+    expect(screen.queryByText("stale-value")).toBeNull()
+  })
+
   it("[neoview.emm-raw-data.dto] [neoview.emm-raw-data.sort] [neoview.emm-raw-data.raw-view] [neoview.emm-raw-data.copy] [neoview.emm-raw-data.path-action] [neoview.emm-raw-data.url-action] [neoview.emm-raw-data.filter-empty] formats and operates on the bounded raw record", async () => {
     const copyText = vi.fn(async () => undefined)
     const revealSystemPath = vi.fn(async () => undefined)
@@ -123,15 +150,15 @@ function context(client: ReaderHttpClient, panelActive = true) {
   return { client, session: session(), panelActive, disabled: false, onGoTo: vi.fn() }
 }
 
-function session(): ReaderSessionDto {
+function session(sessionId = "reader-emm-aux"): ReaderSessionDto {
   return {
-    sessionId: "reader-emm-aux",
+    sessionId,
     book: { id: "book-1", displayName: "demo.cbz", pageCount: 10 },
     frame: { generation: 1, anchorPageIndex: 0, direction: "left-to-right", layout: { pageMode: "single", panorama: false, singleFirstPage: true, singleLastPage: true, treatWidePageAsSingle: true }, pages: [], pageCount: 10, atStart: true, atEnd: false },
     visiblePages: [],
   }
 }
 
-function metadataDto(): ReaderMetadataDto {
-  return { book: { bookId: "book-1", displayName: "demo.cbz", sourceKind: "archive", sourcePath: "D:/books/demo.cbz", pageCount: 10, currentPage: 1, emm: { translatedTitle: "Demo", tags: [{ namespace: "artist", tag: "Alice" }] } } }
+function metadataDto(rawValue?: string): ReaderMetadataDto {
+  return { book: { bookId: "book-1", displayName: "demo.cbz", sourceKind: "archive", sourcePath: "D:/books/demo.cbz", pageCount: 10, currentPage: 1, emm: { translatedTitle: "Demo", tags: [{ namespace: "artist", tag: "Alice" }] }, ...(rawValue ? { emmRaw: { schemaVersion: 1, fields: [{ key: "session", type: "string", value: rawValue }] } } : {}) } }
 }
