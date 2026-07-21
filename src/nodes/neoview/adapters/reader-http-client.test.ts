@@ -32,11 +32,14 @@ describe("reader-http-client", () => {
     const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
 
     await expect(client.upscalePage!("reader/1", "page 1")).resolves.toEqual(result)
+    await expect(client.probeUpscalePage!("reader/1", "page 1")).resolves.toEqual(result)
 
     const [url, init] = fetchMock.mock.calls[0]!
     expect(String(url)).toBe("http://127.0.0.1:41000/reader/s/reader%2F1/pages/page%201/upscale-artifact?trigger=automatic-current")
     expect(init).toMatchObject({ method: "POST" })
     expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2F1/pages/page%201/upscale-artifact?trigger=automatic-current&probe=true")
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBeUndefined()
   })
 
   it("[neoview.super-resolution.cards-client] reads capabilities/status/cache and confirms cleanup on the active session", async () => {

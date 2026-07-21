@@ -191,6 +191,30 @@ describe("PageImage", () => {
     await waitFor(() => expect(view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')?.getAttribute("src")).toBe(source.assetUrl))
   })
 
+  it("[neoview.viewer.cached-upscale-first-frame] probes and commits a cached artifact without showing the original", async () => {
+    let resolveProbe!: (result: { status: "hit"; artifactUrl: string; contentType: string; bytes: number; version: string }) => void
+    const probeUpscalePage = vi.fn(() => new Promise<{ status: "hit"; artifactUrl: string; contentType: string; bytes: number; version: string }>((resolve) => { resolveProbe = resolve }))
+    const upscalePage = vi.fn()
+    const source = page()
+    const enabled = { provider: "opencomic-system" as const, preferences: { autoUpscaleEnabled: true } }
+    const view = render(<PageImage page={source} sessionId="reader-probe" client={{ probeUpscalePage, upscalePage } as never} superResolution={enabled} />)
+
+    const original = view.container.querySelector<HTMLImageElement>(`[src="${source.assetUrl}"]`)!
+    expect(original.style.visibility).toBe("hidden")
+    await waitFor(() => expect(probeUpscalePage).toHaveBeenCalledWith("reader-probe", "page-1", expect.any(AbortSignal)))
+    expect(upscalePage).not.toHaveBeenCalled()
+
+    await act(async () => resolveProbe({ status: "hit", artifactUrl: "/reader/page-1-cached-upscale", contentType: "image/png", bytes: 42, version: "cached-v1" }))
+    await waitFor(() => expect(view.container.querySelector('[src="/reader/page-1-cached-upscale"]')).toBeTruthy())
+    const upscaled = view.container.querySelector<HTMLImageElement>('[src="/reader/page-1-cached-upscale"]')!
+    upscaled.decode = vi.fn(async () => undefined)
+    fireEvent.load(upscaled)
+
+    await waitFor(() => expect(view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')).toBe(upscaled))
+    expect(view.container.querySelector(`img[src="${source.assetUrl}"]`)).toBeNull()
+    expect(upscalePage).not.toHaveBeenCalled()
+  })
+
   it("[neoview.image-trim.upscale-generation] transfers detection ownership only after the upscaled image decodes", async () => {
     const unregisterOriginal = vi.fn()
     const unregisterUpscaled = vi.fn()
