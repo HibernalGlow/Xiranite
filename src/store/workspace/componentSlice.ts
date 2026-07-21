@@ -1,3 +1,10 @@
+/**
+ * 组件实例 slice：组件的部署、删除、状态切换、位置/尺寸、数据、可见性、
+ * 聚焦/全屏/置顶/折叠/复制、多选与批量操作。
+ *
+ * 这是最大的 slice，覆盖了工作区中组件的所有交互行为。
+ * 每个 action 都对应一个 reducer 函数（XxxState），保持 action 入口与纯函数分离。
+ */
 import type { ComponentInstance, ComponentState, DeployComponentOptions, Lane, ViewMode } from "@/types/workspace"
 import { COMPONENT_VIEW_MODES, type ComponentViewMode } from "./constants"
 import { nextComponentCounter, nextLaneId } from "./idCounters"
@@ -44,15 +51,26 @@ export function createComponentSlice(update: WorkspaceStoreUpdater): WorkspaceCo
   }
 }
 
+/** 兼容旧签名：传入字符串视为 viewMode，否则视为完整 options。 */
 function normalizeDeployOptions(viewModeOrOptions?: ViewMode | DeployComponentOptions): DeployComponentOptions {
   if (!viewModeOrOptions) return {}
   return typeof viewModeOrOptions === "string" ? { viewMode: viewModeOrOptions } : viewModeOrOptions
 }
 
+/** ViewMode 类型守卫：dashboard 不承载组件。 */
 function isComponentViewMode(viewMode: ViewMode): viewMode is ComponentViewMode {
   return (COMPONENT_VIEW_MODES as readonly ViewMode[]).includes(viewMode)
 }
 
+/**
+ * 部署（添加）组件实例到当前激活工作区。
+ *
+ * 行为：
+ *  1. 若指定 viewMode（非 dashboard），通过 hiddenIn 让组件仅在该视图可见；
+ *  2. 若工作区没有可见泳道，自动创建一个默认泳道并把组件挂上去；
+ *  3. 否则把组件追加到 options.laneId 或第一个可见泳道，并更新该泳道的 cardOrder；
+ *  4. 默认布局：position/flowPosition/bentoLayout 按计数器散开避免完全重叠。
+ */
 function deployComponentState(state: WSState, moduleId: string, options: DeployComponentOptions = {}): WSState {
   const workspace = state.workspaces.find((item) => item.id === state.activeWorkspaceId)
   if (!workspace) return state
@@ -110,6 +128,7 @@ function deployComponentState(state: WSState, moduleId: string, options: DeployC
   return { ...state, components: [...state.components, newComponent], lanes, zCounter }
 }
 
+/** 幂等插入：若已存在同 id 组件则不动；否则追加并同步 zCounter。 */
 function ensureComponentState(state: WSState, component: ComponentInstance): WSState {
   if (state.components.some((item) => item.id === component.id)) return state
   return {
@@ -119,6 +138,7 @@ function ensureComponentState(state: WSState, component: ComponentInstance): WSS
   }
 }
 
+/** 删除单个组件：同时从所属泳道的 cardOrder 中移除，并清空 focused/fullscreen 引用。 */
 function removeComponentState(state: WSState, id: string): WSState {
   const now = Date.now()
   return {
@@ -134,6 +154,7 @@ function removeComponentState(state: WSState, id: string): WSState {
   }
 }
 
+/** 按 moduleId 批量删除：用于"移除某 node 的全部实例"。 */
 function removeComponentsByModuleState(state: WSState, moduleId: string): WSState {
   const now = Date.now()
   const idsToRemove = new Set(
@@ -157,6 +178,12 @@ function removeComponentsByModuleState(state: WSState, moduleId: string): WSStat
   }
 }
 
+/**
+ * 切换组件运行时状态（docked/focused/fullscreen/...）。
+ *
+ * 进入 focused 时同步 focusedComponentId；进入 fullscreen 时同步 fullscreenComponentId；
+ * 退出 fullscreen 时清空对应引用，避免悬空指针。
+ */
 function setComponentRuntimeState(state: WSState, id: string, componentState: ComponentState): WSState {
   const component = state.components.find((item) => item.id === id)
   if (!component) return state
@@ -198,6 +225,7 @@ function setComponentFlowSizeState(state: WSState, id: string, width: number, he
   }
 }
 
+/** 设置 Bento 布局（先 normalize 到合法范围，再比较是否真的变化才更新）。 */
 function setComponentBentoLayoutState(
   state: WSState,
   id: string,
@@ -223,6 +251,7 @@ function setComponentBentoLayoutState(
   return changed ? { ...state, components } : state
 }
 
+/** 设置泳道卡片高度，限制在 [220, 1200] 区间。 */
 function setComponentLaneSizeState(state: WSState, id: string, size: { height: number }): WSState {
   const nextSize = { height: Math.max(220, Math.min(1200, Math.round(size.height))) }
   let changed = false
@@ -244,6 +273,7 @@ function setComponentDataState(state: WSState, id: string, data: Record<string, 
   }
 }
 
+/** 浅合并 patch 到现有 data（不深合并）。 */
 function patchComponentDataState(state: WSState, id: string, patch: Record<string, unknown>): WSState {
   return {
     ...state,
@@ -255,6 +285,12 @@ function patchComponentDataState(state: WSState, id: string, patch: Record<strin
   }
 }
 
+/**
+ * 通用 patch 更新：支持 data/tags/hiddenIn/state 字段。
+ *
+ * state 字段会同步更新 focusedComponentId/fullscreenComponentId，
+ * 与 setComponentRuntimeState 行为一致。
+ */
 function updateComponentState(state: WSState, id: string, patch: ComponentPatch): WSState {
   let focusedComponentId = state.focusedComponentId
   let fullscreenComponentId = state.fullscreenComponentId
@@ -300,6 +336,7 @@ function setComponentDockPanelState(state: WSState, id: string, panelId: string)
   }
 }
 
+/** 设置某视图下组件可见性（dashboard 不支持）。值未变时跳过更新。 */
 function setComponentVisibilityState(state: WSState, id: string, viewMode: ViewMode, visible: boolean): WSState {
   if (!isComponentViewMode(viewMode)) return state
 
@@ -315,6 +352,7 @@ function setComponentVisibilityState(state: WSState, id: string, viewMode: ViewM
   return changed ? { ...state, components } : state
 }
 
+/** 切换某视图下组件可见性（dashboard 不支持）。 */
 function toggleComponentVisibilityState(state: WSState, id: string, viewMode: ViewMode): WSState {
   if (!isComponentViewMode(viewMode)) return state
 
@@ -338,6 +376,12 @@ function setComponentTagsState(state: WSState, id: string, tags: string[]): WSSt
   }
 }
 
+/**
+ * 设置全屏组件。
+ *
+ * id=null 时退出全屏（所有 fullscreen 状态组件回退到 docked）；
+ * id=非空 时该组件进入 fullscreen，其余 fullscreen 组件回退到 docked。
+ */
 function setFullscreenState(state: WSState, id: string | null): WSState {
   return {
     ...state,
@@ -352,6 +396,7 @@ function setFullscreenState(state: WSState, id: string | null): WSState {
   }
 }
 
+/** 置顶组件：zCounter 自增并赋给该组件。 */
 function raiseComponentState(state: WSState, id: string): WSState {
   const zCounter = state.zCounter + 1
   return {
@@ -372,6 +417,7 @@ function toggleCollapseState(state: WSState, id: string): WSState {
   }
 }
 
+/** 默认 Bento 布局：按计数器散开，每 5 个一宽、每 7 个一高，避免完全重叠。 */
 function defaultBentoLayout(instanceCounter: number): { x: number; y: number; w: number; h: number } {
   const index = Math.max(0, instanceCounter - 1)
   const wide = index % 5 === 0
@@ -386,6 +432,7 @@ function defaultBentoLayout(instanceCounter: number): { x: number; y: number; w:
   }
 }
 
+/** 规范化 Bento 布局：w 限制 [2,12]，h 最小 2，x 限制 [0, 12-w]，y 最小 0。 */
 function normalizeBentoLayout(layout: { x: number; y: number; w: number; h: number }) {
   const w = Math.max(2, Math.min(12, Math.round(layout.w)))
   const h = Math.max(2, Math.round(layout.h))
@@ -394,6 +441,15 @@ function normalizeBentoLayout(layout: { x: number; y: number; w: number; h: numb
   return { x, y, w, h }
 }
 
+/**
+ * 复制单个组件实例。
+ *
+ * - 新 id 用计数器+时间戳生成；
+ * - position/flowPosition 偏移 24px 避免完全重叠；
+ * - state 强制为 docked（不复制 fullscreen 状态）；
+ * - data 使用 structuredClone 深拷贝；
+ * - 若源组件在泳道中，克隆插入到同泳道源组件之后。
+ */
 function duplicateComponentState(state: WSState, id: string): WSState {
   const source = state.components.find((component) => component.id === id)
   if (!source) return state
@@ -483,6 +539,7 @@ function addToSelectionState(state: WSState, ids: string[]): Partial<WSStore> {
 
 // ── 批量操作 ──
 
+/** 批量删除：同时清理泳道 cardOrder、focused/fullscreen 引用，并清空选中。 */
 function removeComponentsState(state: WSState, ids: string[]): Partial<WSStore> {
   if (ids.length === 0) return {}
   const now = Date.now()
@@ -542,6 +599,14 @@ function setComponentsVisibilityState(
   return changed ? { components } : {}
 }
 
+/**
+ * 批量复制组件。
+ *
+ * 与 duplicateComponentState 类似，但循环处理多个源组件：
+ *  - 每个克隆插入到源组件同泳道之后；
+ *  - 共享 zCounter 自增；
+ *  - 通过 laneUpdates Map 累积泳道 cardOrder 变更，最后一次性应用。
+ */
 function duplicateComponentsState(state: WSState, ids: string[]): Partial<WSStore> {
   if (ids.length === 0) return {}
   const now = Date.now()

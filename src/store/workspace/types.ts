@@ -1,3 +1,13 @@
+/**
+ * 工作区 Store 的状态、动作与持久化偏好类型定义。
+ *
+ * Store 采用 slice 模式拆分：
+ *  - {@link WSState} —— 状态形状（含 UI 偏好、工作区/泳道/组件实例、运行时状态）；
+ *  - {@link WorkspaceActions} —— 由五个 slice 接口组合而成：
+ *      UI / List（工作区） / Component / Lane / Backend；
+ *  - {@link WorkspaceUiPreferences} —— 仅持久化到 localStorage 的 UI 偏好子集
+ *    （业务数据如 components/lanes 不在此列，由后端 SQLite 持久化）。
+ */
 import type {
   AppTheme,
   AppThemeScheme,
@@ -24,65 +34,123 @@ import type { SwitchDisplayStyle } from "@/components/ui/switch-variants"
 import type { ChoiceControlStyle, FieldTitleStyle } from "@/components/ui/choice-control-variants"
 import type { ModuleCardEffect, ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 
+/** 工作区 Store 完整状态：UI 偏好 + 业务数据 + 运行时标志。 */
 export interface WSState {
+  /** 当前主题预设 key（仅作 fallback，真正选择以 themeSelections 为准）。 */
   theme: AppTheme
+  /** 明暗两套主题选择，分别对应 light/dark。 */
   themeSelections: AppThemeSelections
+  /** 用户导入的自定义主题列表。 */
   customThemes: AppCustomTheme[]
+  /** 当前激活的自定义主题名（null 表示使用预设）。 */
   activeCustomThemeName: string | null
+  /** 字体预设 key。 */
   fontPreset: AppFontPreset
+  /** 当前视图模式。 */
   viewMode: ViewMode
+  /** cards 视图下的卡片布局方式。 */
   cardLayout: CardLayout
+  /** 全部工作区列表。 */
   workspaces: WorkspaceItem[]
+  /** 当前激活的工作区 id。 */
   activeWorkspaceId: string
+  /** 全部组件实例（跨工作区）。 */
   components: ComponentInstance[]
+  /** 全部泳道（跨工作区）。 */
   lanes: Lane[]
+  /** 当前聚焦的组件 id（cards focus 布局用）。 */
   focusedComponentId: string | null
+  /** 当前全屏的组件 id。 */
   fullscreenComponentId: string | null
+  /** 当前多选选中的组件 id 列表。 */
   selectedComponentIds: string[]
+  /** z-index 计数器，每次 raiseComponent 递增。 */
   zCounter: number
+  /** 当前打开的侧栏覆盖层类型。 */
   overlay: OverlayKind
+  /** 侧栏展现模式：docked（推开）/ floating（悬浮）。 */
   overlayMode: OverlayMode
+  /** docked 模式下侧栏宽度（px）。 */
   overlayWidth: number
+  /** floating 模式下侧栏的位置/尺寸比例（相对窗口）。 */
   overlayFloatingMetrics: OverlayFloatingMetrics
+  /** 颗粒滤镜开关。 */
   grainEnabled: boolean
+  /** 暗角深度。 */
   vignetteDepth: number
+  /** 颗粒强度。 */
   grainIntensity: number
+  /** 操作按钮发光效果开关。 */
   actionGlow: boolean
+  /** 卡片 elevation 阴影开关。 */
   cardElevation: boolean
+  /** 后端是否就绪（影响 persist 启用时机）。 */
   backendReady: boolean
+  /** 背景模式：grid / dot-grid / image / none。 */
   bgMode: "grid" | "dot-grid" | "image" | "none"
+  /** 背景图 URL（小 URL/path；base64 数据 URL 存 SQLite kv_store）。 */
   bgImageUrl: string
+  /** 背景图不透明度（0-100）。 */
   bgOpacity: number
+  /** 背景图模糊半径（px）。 */
   bgBlur: number
+  /** 背景图是否覆盖顶栏。 */
   bgCoverTopBar: boolean
+  /** 液态玻璃效果开关。 */
   liquidGlassEnabled: boolean
+  /** 液态玻璃不透明度。 */
   liquidGlassOpacity: number
+  /** 液态玻璃模糊半径。 */
   liquidGlassBlur: number
+  /** 液态玻璃位移强度。 */
   liquidGlassDisplacement: number
+  /** 顶栏窗口控件可见性。 */
   chromeVisible: boolean
+  /** 顶栏位置：left / right / island（浮岛）。 */
   chromePosition: "left" | "right" | "island"
+  /** 顶栏样式：default / traffic-light（macOS 风格）。 */
   chromeStyle: "default" | "traffic-light"
+  /** island 模式下的缩放比例。 */
   chromeIslandScale: number
+  /** island 模式下的运动幅度。 */
   chromeIslandMotion: number
+  /** island 模式下的动画延迟。 */
   chromeIslandDelay: number
+  /** island 模式下空闲状态的偏移量。 */
   chromeIslandIdleOffset: number
+  /** 字母索引可见性。 */
   alphabetIndexVisible: boolean
+  /** 字母索引不透明度。 */
   alphabetIndexOpacity: number
+  /** 字母索引样式：glass / solid / minimal。 */
   alphabetIndexStyle: "glass" | "solid" | "minimal"
+  /** 字母索引波浪强度。 */
   alphabetIndexWaveIntensity: number
+  /** 卡片单击动作。 */
   cardClickAction: CardClickAction
+  /** 卡片双击动作。 */
   cardDoubleClickAction: CardClickAction
+  /** Tabs 显示样式。 */
   tabDisplayStyle: TabDisplayStyle
+  /** Switch 显示样式。 */
   switchDisplayStyle: SwitchDisplayStyle
+  /** Choice 控件样式（segmented/radio 等）。 */
   choiceControlStyle: ChoiceControlStyle
+  /** 字段标题样式。 */
   fieldTitleStyle: FieldTitleStyle
+  /** 模块标题样式。 */
   moduleTitleStyle: ModuleTitleStyle
+  /** 模块面板样式。 */
   modulePanelStyle: ModulePanelStyle
+  /** 模块卡片特效。 */
   moduleCardEffect: ModuleCardEffect
+  /** 可调把手样式。 */
   resizableHandleStyle: ResizableHandleStyle
+  /** 危险模式（高对比警示色）。 */
   hazardMode: boolean
 }
 
+/** 组件 patch 字段，用于 updateComponent 的部分更新。 */
 export type ComponentPatch = {
   data?: Record<string, unknown>
   tags?: string[]
@@ -90,6 +158,7 @@ export type ComponentPatch = {
   hiddenIn?: Partial<Record<ViewMode, boolean>>
 }
 
+/** floating 侧栏的位置/尺寸比例（相对窗口宽高）。 */
 export interface OverlayFloatingMetrics {
   widthRatio: number
   heightRatio: number
@@ -97,6 +166,7 @@ export interface OverlayFloatingMetrics {
   yRatio: number
 }
 
+/** UI 偏好相关动作（slice 1）。 */
 export interface WorkspaceUiActions {
   setTheme(theme: AppTheme): void
   setThemeSelection(scheme: AppThemeScheme, selection: AppThemeSelection): void
@@ -148,6 +218,7 @@ export interface WorkspaceUiActions {
   setHazardMode(enabled: boolean): void
 }
 
+/** 工作区增删改动作（slice 2）。 */
 export interface WorkspaceListActions {
   setActiveWorkspace(id: string): void
   addWorkspace(): void
@@ -158,6 +229,7 @@ export interface WorkspaceListActions {
   setWorkspaceFlowCamera(id: string, flowCamera: FlowCanvasCamera | undefined): void
 }
 
+/** 组件实例增删改 + 多选 + 批量动作（slice 3）。 */
 export interface WorkspaceComponentActions {
   deployComponent(moduleId: string, viewModeOrOptions?: ViewMode | DeployComponentOptions): void
   ensureComponent(component: ComponentInstance): void
@@ -192,6 +264,7 @@ export interface WorkspaceComponentActions {
   setComponentsVisibility(ids: string[], viewMode: ViewMode, visible: boolean): void
 }
 
+/** 泳道增删改 + 跨泳道移动动作（slice 4）。 */
 export interface WorkspaceLaneActions {
   addLane(workspaceId?: string, label?: string): void
   removeLane(id: string): void
@@ -205,11 +278,13 @@ export interface WorkspaceLaneActions {
   moveComponentToLane(componentId: string, toLaneId: string, targetCardId?: string | null, insertAfter?: boolean): void
 }
 
+/** 后端同步动作（slice 5）：标记就绪 + 从 DTO hydrate 整个 Store。 */
 export interface WorkspaceBackendActions {
   setBackendReady(ready: boolean): void
   hydrate(workspaces: WorkspaceDTO[], lanes: LaneDTO[], components: ComponentDTO[]): void
 }
 
+/** 全部动作 = UI + List + Component + Lane + Backend。 */
 export type WorkspaceActions =
   & WorkspaceUiActions
   & WorkspaceListActions
@@ -217,8 +292,15 @@ export type WorkspaceActions =
   & WorkspaceLaneActions
   & WorkspaceBackendActions
 
+/** 完整 Store = 状态 + 全部动作。 */
 export type WSStore = WSState & WorkspaceActions
 
+/**
+ * 持久化到 localStorage 的 UI 偏好子集。
+ *
+ * 注意：业务数据（workspaces/lanes/components）不在此列，由后端 SQLite
+ * 通过 WorkspaceProvider 的 useMutation 持久化，避免本地与远端不一致。
+ */
 export type WorkspaceUiPreferences = Pick<
   WSState,
   | "theme"
@@ -268,10 +350,16 @@ export type WorkspaceUiPreferences = Pick<
   | "hazardMode"
 >
 
+/** Zustand 的 set 函数签名（带 action label 用于 devtools）。 */
 export type SetWorkspaceStore = (
   partial: Partial<WSStore> | ((state: WSStore) => Partial<WSStore>),
   replace?: false,
   action?: string,
 ) => void
 
+/**
+ * Slice 内部使用的更新函数：自动带上 action label。
+ *
+ * 与 SetWorkspaceStore 的区别：强制要求 action 字符串，便于 Redux DevTools 调试。
+ */
 export type WorkspaceStoreUpdater = (action: string, updater: (state: WSStore) => Partial<WSStore>) => void

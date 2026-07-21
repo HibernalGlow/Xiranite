@@ -1,3 +1,9 @@
+/**
+ * 工作区（顶层容器）slice：增删改 + React Flow 画布/相机持久化。
+ *
+ * 工作区是最高层级业务对象，组件实例与泳道都从属于某个工作区。
+ * 删除工作区时会级联清理其下全部组件与泳道；至少保留一个工作区。
+ */
 import type { FlowCanvasCamera, FlowCanvasSnapshot } from "@/types/workspace"
 import type { WorkspaceListActions, WorkspaceStoreUpdater, WSState } from "./types"
 
@@ -15,6 +21,7 @@ export function createWorkspaceSlice(update: WorkspaceStoreUpdater): WorkspaceLi
   }
 }
 
+/** 新增工作区：id 用时间戳，label 用 i18n key（按已有数量编号）。 */
 function addWorkspaceState(state: WSState): WSState {
   const now = Date.now()
   const id = `ws-${now}`
@@ -25,6 +32,13 @@ function addWorkspaceState(state: WSState): WSState {
   }
 }
 
+/**
+ * 删除工作区。
+ *
+ * 至少保留一个工作区：若只剩一个则直接返回原 state。
+ * 级联清理：components / lanes 中匹配 workspaceId 的全部剔除。
+ * 若删除的是当前激活工作区，自动切到剩余的第一个。
+ */
 function removeWorkspaceState(state: WSState, id: string): WSState {
   if (state.workspaces.length <= 1) return state
   const rest = state.workspaces.filter((workspace) => workspace.id !== id)
@@ -55,6 +69,7 @@ function setWorkspaceIconState(state: WSState, id: string, icon: string | undefi
   }
 }
 
+/** 持久化 React Flow 画布快照（引用相等时跳过更新，避免无谓 re-render）。 */
 function setWorkspaceFlowCanvasState(state: WSState, id: string, flowCanvas: FlowCanvasSnapshot | undefined): WSState {
   let changed = false
   const now = Date.now()
@@ -68,6 +83,7 @@ function setWorkspaceFlowCanvasState(state: WSState, id: string, flowCanvas: Flo
   return changed ? { ...state, workspaces } : state
 }
 
+/** 持久化 React Flow 相机（x/y/z 三轴都相等时跳过更新）。 */
 function setWorkspaceFlowCameraState(state: WSState, id: string, flowCamera: FlowCanvasCamera | undefined): WSState {
   let changed = false
   const now = Date.now()

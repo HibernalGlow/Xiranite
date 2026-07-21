@@ -1,11 +1,21 @@
+/**
+ * 工作区 Store 的常量与初始状态。
+ *
+ * - VIEW_MODES / COMPONENT_VIEW_MODES 列出全部视图模式；
+ *   dashboard 不承载组件实例，仅作为概览页，故 ComponentViewMode 排除它。
+ * - INITIAL_STATE 是首次启动（无 localStorage、无后端快照）时的默认值，
+ *   会被 persist 中间件与 hydrate() 覆盖。
+ */
 import type { ViewMode } from "@/types/workspace"
 import type { WSState } from "./types"
 
+/** 组件可参与的视图模式（排除 dashboard，因为 dashboard 不承载组件实例）。 */
 export type ComponentViewMode = Exclude<ViewMode, "dashboard">
 
 export const VIEW_MODES: ViewMode[] = ["dashboard", "cards", "dockview", "flow", "lane", "bento"]
 export const COMPONENT_VIEW_MODES: ComponentViewMode[] = ["cards", "dockview", "flow", "lane", "bento"]
 
+/** Store 首次启动默认状态。 */
 export const INITIAL_STATE: WSState = {
   theme: "spatial",
   themeSelections: {
