@@ -1,4 +1,4 @@
-import type { ReaderImageTrimTarget } from "@xiranite/node-neoview/image-trim"
+import type { ReaderImageTrimTarget } from "@xiranite/node-neoview/ui-core"
 
 export const READER_IMAGE_TRIM_MAX_SAMPLE_EDGE = 512
 export const READER_IMAGE_TRIM_MAX_CROP_RATIO = 0.4

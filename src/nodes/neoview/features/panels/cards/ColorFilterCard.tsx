@@ -5,7 +5,7 @@
  * @source-ui-inventory migration/neoview/card-compatibility.json#color-filter
  * @migration-status adapted
  */
-import { READER_COLOR_FILTER_PRESET_IDS, READER_COLOR_FILTER_PRESET_LABELS, type ReaderColorFilterPatch, type ReaderColorFilterSettings } from "@xiranite/node-neoview/color-filter"
+import { READER_COLOR_FILTER_PRESET_IDS, READER_COLOR_FILTER_PRESET_LABELS, type ReaderColorFilterPatch, type ReaderColorFilterSettings } from "@xiranite/node-neoview/ui-core"
 import { Palette, RotateCcw, SlidersHorizontal, WandSparkles } from "lucide-react"
 import { useCallback, useSyncExternalStore } from "react"
 

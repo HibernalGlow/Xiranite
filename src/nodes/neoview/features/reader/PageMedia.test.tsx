@@ -1,6 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { DEFAULT_READER_IMAGE_TRIM } from "@xiranite/node-neoview/image-trim"
+import { DEFAULT_READER_IMAGE_TRIM } from "@xiranite/node-neoview/ui-core"
 
 vi.mock("media-chrome/react", () => import("@/test/media-chrome-react-stub"))
 

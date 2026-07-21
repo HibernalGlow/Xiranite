@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import type { ReaderInfoOverlaySettings } from "@xiranite/node-neoview/info-overlay"
+import type { ReaderInfoOverlaySettings } from "@xiranite/node-neoview/ui-core"
 
 import { createReaderInfoOverlayStore } from "./ReaderInfoOverlayStore"
 

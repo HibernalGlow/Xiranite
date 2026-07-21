@@ -11,6 +11,7 @@ import type {
   ReaderAiTranslationResult,
   ReaderOllamaModel,
 } from "../../ports/ReaderAiTranslation.js"
+import { OllamaTranslationClient } from "../ai/OllamaTranslationClient.js"
 
 const CHECK_PATH = "/reader/ai/check"
 const MODELS_PATH = "/reader/ai/models"
@@ -32,7 +33,7 @@ export class ReaderAiHttpController {
     this.#controller = new ReaderAiTranslationController({
       config: options.config ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG,
       persistentCache: options.persistentCache,
-      fetch: options.fetch,
+      createClient: (config) => new OllamaTranslationClient({ baseUrl: config.ollamaUrl, fetch: options.fetch }),
     })
     this.#updateConfig = options.updateConfig
   }

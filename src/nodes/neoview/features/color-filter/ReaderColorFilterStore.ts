@@ -8,7 +8,7 @@ import {
   normalizeReaderColorFilter,
   type ReaderColorFilterPatch,
   type ReaderColorFilterSettings,
-} from "@xiranite/node-neoview/color-filter"
+} from "@xiranite/node-neoview/ui-core"
 import {
   createReaderOptimisticSettingsStore,
   type ReaderOptimisticSettingsPort,

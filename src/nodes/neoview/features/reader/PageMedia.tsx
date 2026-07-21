@@ -1,5 +1,5 @@
 import type { ReaderRotation } from "@xiranite/node-neoview/ui-core"
-import type { ReaderImageCropInsets } from "@xiranite/node-neoview/image-trim"
+import type { ReaderImageCropInsets } from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderPageDto, ReaderSubtitleConfigDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"

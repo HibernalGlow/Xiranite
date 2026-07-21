@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
 
-import { DEFAULT_READER_SWITCH_TOAST } from "@xiranite/node-neoview/switch-toast"
+import { DEFAULT_READER_SWITCH_TOAST } from "@xiranite/node-neoview/ui-core"
 import type { ReaderSessionDto } from "../../adapters/reader-http-client"
 import { ReaderSwitchToastRuntime } from "./ReaderSwitchToastRuntime"
 import { createReaderSwitchToastStore } from "./ReaderSwitchToastStore"

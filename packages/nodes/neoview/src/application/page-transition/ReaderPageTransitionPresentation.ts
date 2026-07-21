@@ -1,37 +1,12 @@
-export {
-  DEFAULT_READER_PAGE_TRANSITION,
-  isReaderPageTransitionEasing,
-  isReaderPageTransitionType,
-  normalizeReaderPageTransition,
-  parseReaderPageTransitionPatch,
-  projectReaderPageTransitionCss,
-  READER_PAGE_TRANSITION_EASING_CSS,
-  READER_PAGE_TRANSITION_EASING_LABELS,
-  READER_PAGE_TRANSITION_EASINGS,
-  READER_PAGE_TRANSITION_TYPE_LABELS,
-  READER_PAGE_TRANSITION_TYPES,
-  type ReaderPageTransitionCssProjection,
-  type ReaderPageTransitionCssState,
-  type ReaderPageTransitionDirection,
-  type ReaderPageTransitionEasing,
-  type ReaderPageTransitionPatch,
-  type ReaderPageTransitionSettings,
-  type ReaderPageTransitionType,
-} from "./domain/page-transition/ReaderPageTransition.js"
-
 import {
   READER_PAGE_TRANSITION_EASING_LABELS,
   READER_PAGE_TRANSITION_EASINGS,
   READER_PAGE_TRANSITION_TYPE_LABELS,
   READER_PAGE_TRANSITION_TYPES,
   type ReaderPageTransitionSettings,
-} from "./domain/page-transition/ReaderPageTransition.js"
+} from "../../domain/page-transition/ReaderPageTransition.js"
 
-export const READER_PAGE_TRANSITION_DURATION_RANGE = {
-  min: 0,
-  max: 500,
-  step: 10,
-} as const
+export const READER_PAGE_TRANSITION_DURATION_RANGE = { min: 0, max: 500, step: 10 } as const
 
 export function readerPageTransitionSurfaceOptions(): {
   types: readonly { value: (typeof READER_PAGE_TRANSITION_TYPES)[number]; label: string }[]

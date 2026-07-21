@@ -1,6 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { DEFAULT_READER_IMAGE_TRIM } from "@xiranite/node-neoview/image-trim"
+import { DEFAULT_READER_IMAGE_TRIM } from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
 import { createReaderColorFilterStore } from "../color-filter/ReaderColorFilterStore"

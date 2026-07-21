@@ -1,4 +1,5 @@
 export type { ReaderBook, ViewSource } from "./domain/book/book.js"
+export { def } from "./domain/definition.js"
 export {
   DEFAULT_READER_LAYOUT,
   type FramePage,
@@ -104,3 +105,107 @@ export {
   type ReaderPanelManifestEntry,
   type ReaderPanelPosition,
 } from "./application/config/ReaderLayoutManifest.js"
+export {
+  applyReaderSwitchToastPatch,
+  DEFAULT_READER_SWITCH_TOAST,
+  normalizeReaderSwitchToast,
+  parseReaderSwitchToastPatch,
+  renderReaderSwitchToastTemplate,
+  READER_SWITCH_TOAST_OPACITY_MAX,
+  READER_SWITCH_TOAST_OPACITY_MIN,
+  READER_SWITCH_TOAST_POSITION_MAX,
+  READER_SWITCH_TOAST_POSITION_MIN,
+  type ReaderSwitchToastBookContext,
+  type ReaderSwitchToastContext,
+  type ReaderSwitchToastLegacyAliases,
+  type ReaderSwitchToastPageContext,
+  type ReaderSwitchToastPatch,
+  type ReaderSwitchToastSettings,
+} from "./application/switch-toast/ReaderSwitchToast.js"
+export {
+  formatReaderTimestamp,
+  projectReaderTimeInformation,
+  resolveReaderTimeInformation,
+  type ReaderTimeInformationLanguage,
+  type ReaderTimeInformationInput,
+  type ReaderTimeInformationProjection,
+} from "./domain/page/TimeInformationProjection.js"
+export {
+  projectReaderBookInformation,
+  type ReaderBookInformationInput,
+  type ReaderBookInformationLanguage,
+  type ReaderBookInformationProjection,
+} from "./domain/book/BookInformationProjection.js"
+export {
+  DEFAULT_READER_INFO_OVERLAY,
+  READER_INFO_OVERLAY_HEIGHT_MAX,
+  READER_INFO_OVERLAY_HEIGHT_MIN,
+  READER_INFO_OVERLAY_OPACITY_MAX,
+  READER_INFO_OVERLAY_OPACITY_MIN,
+  READER_INFO_OVERLAY_WIDTH_MAX,
+  READER_INFO_OVERLAY_WIDTH_MIN,
+  applyReaderInfoOverlayPatch,
+  normalizeReaderInfoOverlay,
+  parseReaderInfoOverlayPatch,
+  type ReaderInfoOverlayMutation,
+  type ReaderInfoOverlayPatch,
+  type ReaderInfoOverlaySettings,
+} from "./application/info-overlay/ReaderInfoOverlay.js"
+export {
+  DEFAULT_READER_IMAGE_TRIM,
+  READER_IMAGE_TRIM_MARGIN_MAX,
+  READER_IMAGE_TRIM_MARGIN_MIN,
+  READER_IMAGE_TRIM_MARGIN_STEP,
+  READER_IMAGE_TRIM_TARGETS,
+  READER_IMAGE_TRIM_THRESHOLD_MAX,
+  READER_IMAGE_TRIM_THRESHOLD_MIN,
+  READER_IMAGE_TRIM_THRESHOLD_STEP,
+  applyReaderImageTrimPatch,
+  isReaderImageTrimTarget,
+  mergeReaderImageCropInsets,
+  normalizeReaderImageTrim,
+  parseReaderImageTrimPatch,
+  projectReaderImageTrimPatch,
+  readerImageCropTranslation,
+  readerImageTrimClipPath,
+  readerImageTrimEffectiveDimensions,
+  readerImageTrimInsets,
+  serializeReaderImageTrim,
+  toReaderImageTrimJson,
+  type ReaderImageCropInsets,
+  type ReaderImageTrimDimensions,
+  type ReaderImageTrimJson,
+  type ReaderImageTrimMutation,
+  type ReaderImageTrimPatch,
+  type ReaderImageTrimSettings,
+  type ReaderImageTrimTarget,
+} from "./application/image-trim/ReaderImageTrim.js"
+export {
+  formatReaderPageTransition,
+  readerPageTransitionSurfaceOptions,
+  READER_PAGE_TRANSITION_DURATION_RANGE,
+} from "./application/page-transition/ReaderPageTransitionPresentation.js"
+export {
+  SuperResolutionPreferencesWireSchema,
+  parseSuperResolutionPreferences,
+  type SuperResolutionCondition,
+  type SuperResolutionConditionExpression,
+  type SuperResolutionPreferences,
+  type SuperResolutionPreferencesWire,
+} from "./domain/super-resolution/super-resolution-preferences.js"
+export {
+  LegacySuperResolutionSettingsCodec,
+  type DecodedLegacySuperResolutionSettings,
+  type LegacySuperResolutionDisposition,
+  type LegacySuperResolutionReportEntry,
+} from "./migration/LegacySuperResolutionSettingsCodec.js"
+export {
+  DEFAULT_READER_ANIMATED_VIDEO_KEYWORDS,
+  DEFAULT_READER_ANIMATED_VIDEO_MODE,
+  matchesReaderAnimatedVideoKeyword,
+  normalizeReaderAnimatedVideoKeywords,
+  normalizeReaderAnimatedVideoMode,
+  parseReaderAnimatedVideoModePatch,
+  type ReaderAnimatedVideoModePatch,
+  type ReaderAnimatedVideoModeSettings,
+} from "./application/animated-video/ReaderAnimatedVideoMode.js"

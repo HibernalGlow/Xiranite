@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react"
-import { projectReaderTimeInformation, resolveReaderTimeInformation } from "@xiranite/node-neoview/time-information"
+import { projectReaderTimeInformation, resolveReaderTimeInformation } from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderPanelContext } from "../registry"
 import { ReaderCardEmptyState } from "./ReaderCardEmptyState"

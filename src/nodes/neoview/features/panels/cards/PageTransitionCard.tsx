@@ -13,7 +13,7 @@ import {
   projectReaderPageTransitionCss,
   type ReaderPageTransitionEasing,
   type ReaderPageTransitionType,
-} from "@xiranite/node-neoview/page-transition"
+} from "@xiranite/node-neoview/ui-core"
 import { Play, RotateCcw, Sparkles, Timer } from "lucide-react"
 import { useCallback, useState, useSyncExternalStore, type CSSProperties } from "react"
 

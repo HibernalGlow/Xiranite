@@ -2,7 +2,7 @@ import {
   DEFAULT_READER_PAGE_TRANSITION,
   normalizeReaderPageTransition,
   type ReaderPageTransitionSettings,
-} from "@xiranite/node-neoview/page-transition"
+} from "@xiranite/node-neoview/ui-core"
 
 export const LEGACY_READER_PAGE_TRANSITION_KEY = "neoview-page-transition-settings"
 

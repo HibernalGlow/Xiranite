@@ -17,7 +17,7 @@ import { BellRing, BookOpen, FileImage, PanelTop } from "lucide-react"
 import type {
   ReaderSwitchToastPatch,
   ReaderSwitchToastSettings,
-} from "@xiranite/node-neoview/switch-toast"
+} from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"

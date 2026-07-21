@@ -7,8 +7,8 @@ import {
   projectReaderColorFilterCss,
   projectReaderColorFilterTables,
   type ReaderColorFilterSettings,
-} from "@xiranite/node-neoview/color-filter"
-import { DEFAULT_READER_IMAGE_TRIM, readerImageCropTranslation, readerImageTrimClipPath, readerImageTrimEffectiveDimensions, type ReaderImageCropInsets } from "@xiranite/node-neoview/image-trim"
+} from "@xiranite/node-neoview/ui-core"
+import { DEFAULT_READER_IMAGE_TRIM, readerImageCropTranslation, readerImageTrimClipPath, readerImageTrimEffectiveDimensions, type ReaderImageCropInsets } from "@xiranite/node-neoview/ui-core"
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"

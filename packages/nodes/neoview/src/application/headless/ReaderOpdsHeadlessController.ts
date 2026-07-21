@@ -1,8 +1,6 @@
-import type { ReaderOpdsCatalog } from "../../platform/opds/ReaderOpdsClient.js"
+import type { ReaderOpdsCatalog, ReaderOpdsCatalogReader } from "../../ports/ReaderOpds.js"
 
-export interface ReaderOpdsCatalogReader {
-  read(url: string, signal?: AbortSignal): Promise<ReaderOpdsCatalog>
-}
+export type { ReaderOpdsCatalogReader } from "../../ports/ReaderOpds.js"
 
 /** Presentation-neutral OPDS facade shared by CLI/TUI and HTTP adapters. */
 export class ReaderOpdsHeadlessController implements AsyncDisposable {

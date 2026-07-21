@@ -36,7 +36,7 @@ export interface ReaderOllamaModel {
   quantizationLevel?: string
 }
 
-export interface ReaderOllamaTranslationClient {
+export interface ReaderOllamaTranslationClient extends ReaderAiTranslationProvider {
   check(signal?: AbortSignal): Promise<boolean>
   models(signal?: AbortSignal): Promise<readonly ReaderOllamaModel[]>
 }

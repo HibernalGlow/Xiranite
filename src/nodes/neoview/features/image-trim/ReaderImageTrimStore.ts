@@ -4,7 +4,7 @@ import {
   projectReaderImageTrimPatch,
   type ReaderImageTrimPatch,
   type ReaderImageTrimSettings,
-} from "@xiranite/node-neoview/image-trim"
+} from "@xiranite/node-neoview/ui-core"
 import type {
   ReaderImageTrimDetector,
   ReaderImageTrimMargins,

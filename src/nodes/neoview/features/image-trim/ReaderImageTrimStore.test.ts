@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import type { ReaderImageTrimSettings } from "@xiranite/node-neoview/image-trim"
+import type { ReaderImageTrimSettings } from "@xiranite/node-neoview/ui-core"
 import { createReaderImageTrimStore } from "./ReaderImageTrimStore"
 
 describe("ReaderImageTrimStore", () => {

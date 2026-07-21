@@ -5,7 +5,7 @@
  * @migration-status adapted
  */
 import { useEffect, useRef, useSyncExternalStore, type CSSProperties, type ReactNode } from "react"
-import { projectReaderPageTransitionCss } from "@xiranite/node-neoview/page-transition"
+import { projectReaderPageTransitionCss } from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderPageTransitionPort } from "./ReaderPageTransitionStore"
 
