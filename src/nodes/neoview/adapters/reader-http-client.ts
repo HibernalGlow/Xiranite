@@ -1344,6 +1344,8 @@ export interface ReaderFolderPenetrationConfig {
   terminalTargets: ReaderFolderPenetrationTerminalKindDto[]
 }
 
+export type ReaderUpscaleArtifactProbeResultDto = ReaderUpscaleArtifactResultDto | { status: "miss" }
+
 export interface ReaderFolderTagDisplayConfig {
   tagMode: "all" | "collect" | "none"
   showRating: boolean
@@ -1502,6 +1504,7 @@ export interface ReaderHttpClient {
   updateImageTrim?(patch: ReaderImageTrimConfigPatch, signal?: AbortSignal): Promise<ReaderImageTrimSettings>
   updateSuperResolution?(patch: ReaderSuperResolutionPatchDto, signal?: AbortSignal): Promise<ReaderSuperResolutionConfigDto>
   upscalePage?(sessionId: string, pageId: string, trigger?: "manual" | "automatic-current", signal?: AbortSignal): Promise<ReaderUpscaleArtifactResultDto>
+  probeUpscalePage?(sessionId: string, pageId: string, signal?: AbortSignal): Promise<ReaderUpscaleArtifactProbeResultDto>
   upscaleCapabilities?(sessionId?: string, refresh?: boolean, signal?: AbortSignal): Promise<ReaderUpscaleCapabilityDto>
   upscalePreloadSnapshots?(sessionId: string, signal?: AbortSignal): Promise<readonly ReaderUpscalePreloadSnapshotDto[]>
   startUpscalePreload?(sessionId: string, mode: "nearby" | "progressive", signal?: AbortSignal): Promise<readonly ReaderUpscalePreloadSnapshotDto[]>
@@ -1816,6 +1819,10 @@ export function createReaderHttpClient(
     upscalePage: (sessionId, pageId, trigger = "automatic-current", signal) => request<ReaderUpscaleArtifactResultDto>(
       `/reader/s/${encodeURIComponent(sessionId)}/pages/${encodeURIComponent(pageId)}/upscale-artifact?${new URLSearchParams({ trigger })}`,
       { method: "POST", signal },
+    ),
+    probeUpscalePage: (sessionId, pageId, signal) => request<ReaderUpscaleArtifactProbeResultDto>(
+      `/reader/s/${encodeURIComponent(sessionId)}/pages/${encodeURIComponent(pageId)}/upscale-artifact?${new URLSearchParams({ trigger: "automatic-current", probe: "true" })}`,
+      { signal },
     ),
     upscaleCapabilities: (sessionId, refresh = false, signal) => {
       const search = refresh ? "?refresh=true" : ""

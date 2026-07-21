@@ -14,7 +14,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 import type { ReaderHttpClient, ReaderPageDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
-import { setReaderUpscaleArtifact } from "./ReaderUpscaleArtifactStore"
+import { readerUpscaleArtifactSnapshot, setReaderUpscaleArtifact } from "./ReaderUpscaleArtifactStore"
 
 export interface PageImageProps {
   page: ReaderPageDto
@@ -41,7 +41,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
   sourceIdentityRef.current = sourceIdentity
   const [decodedSourceIdentity, setDecodedSourceIdentity] = useState<string>()
   const [decodedCommittedIdentity, setDecodedCommittedIdentity] = useState<string>()
-  const upscaleTarget = useUpscaleTarget(
+  const { page: upscaleTarget, probing: probingUpscale } = useUpscaleTarget(
     page,
     sessionId,
     client,
@@ -132,6 +132,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
       {[committedPage, ...(pendingPage ? [pendingPage] : [])].map((candidate) => {
         const identity = imageIdentity(candidate)
         const pending = identity !== committedIdentity
+        const concealedForProbe = !pending && probingUpscale && identity === sourceIdentity
         return (
           <img
             key={identity}
@@ -146,7 +147,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
             data-reader-page-image={pending ? undefined : candidate.id}
             data-reader-page-image-pending={pending ? candidate.id : undefined}
             data-reader-page-image-decoded={!pending && decodedCommittedIdentity === identity ? candidate.id : undefined}
-            style={pending ? { ...imageStyle, visibility: "hidden", pointerEvents: "none" } : imageStyle}
+            style={pending || concealedForProbe ? { ...imageStyle, visibility: "hidden", pointerEvents: "none" } : imageStyle}
             onLoad={(event) => {
               if (pending) {
                 void decodeTargetImage(event.currentTarget, identity, targetIdentityRef).then((decoded) => {
@@ -183,16 +184,52 @@ function useUpscaleTarget(
   client: ReaderHttpClient | undefined,
   config: ReaderSuperResolutionConfigDto | undefined,
   sourceReady: boolean,
-): ReaderPageDto {
+): { page: ReaderPageDto; probing: boolean } {
   const enabled = config?.provider !== "disabled" && config?.preferences.autoUpscaleEnabled === true
   const sourceIdentity = imageIdentity(page)
   const pageRef = useRef(page)
   pageRef.current = page
   const [artifact, setArtifact] = useState<{ sourceIdentity: string; page: ReaderPageDto }>()
+  const [probe, setProbe] = useState<{ sourceIdentity: string; state: "pending" | "miss" | "terminal" }>()
   const configRevision = JSON.stringify(config?.preferences ?? {})
+  const probeSupported = Boolean(client?.probeUpscalePage)
+  const storedResult = sessionId ? readerUpscaleArtifactSnapshot(sessionId, page.id).result : undefined
+  const storedArtifact = probeSupported && storedResult?.artifactUrl && storedResult.version
+    ? artifactTarget(page, sourceIdentity, storedResult)
+    : undefined
+  const activeArtifact = artifact?.sourceIdentity === sourceIdentity ? artifact : storedArtifact
+
+  useEffect(() => {
+    if (!enabled || !sessionId || !client?.probeUpscalePage || activeArtifact) return
+    const controller = new AbortController()
+    const sourcePage = pageRef.current
+    setProbe({ sourceIdentity, state: "pending" })
+    void client.probeUpscalePage(sessionId, sourcePage.id, controller.signal).then((result) => {
+      if (controller.signal.aborted) return
+      if (result.status === "miss") {
+        setProbe({ sourceIdentity, state: "miss" })
+        return
+      }
+      const completed = result.status !== "skipped" && result.status !== "bypassed" && result.status !== "rejected"
+      setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: completed ? "completed" : "skipped", result })
+      const target = result.artifactUrl && result.version ? artifactTarget(sourcePage, sourceIdentity, result) : undefined
+      if (target) setArtifact(target)
+      setProbe({ sourceIdentity, state: "terminal" })
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted) return
+      setProbe({ sourceIdentity, state: "miss" })
+      setReaderUpscaleArtifact(sessionId, sourcePage.id, {
+        state: "failed",
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
+    return () => controller.abort()
+  }, [activeArtifact, client, configRevision, enabled, sessionId, sourceIdentity])
 
   useEffect(() => {
     if (!enabled || !sourceReady || !sessionId || !client?.upscalePage) return
+    if (activeArtifact) return
+    if (probeSupported && (probe?.sourceIdentity !== sourceIdentity || probe.state !== "miss")) return
     const controller = new AbortController()
     const sourcePage = pageRef.current
     setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: "processing" })
@@ -200,16 +237,7 @@ function useUpscaleTarget(
       if (controller.signal.aborted) return
       setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: result.status === "skipped" || result.status === "bypassed" || result.status === "rejected" ? "skipped" : "completed", result })
       if (!result.artifactUrl || !result.version) return
-      setArtifact({
-        sourceIdentity,
-        page: {
-          ...sourcePage,
-          assetUrl: result.artifactUrl,
-          contentVersion: `${sourcePage.contentVersion}:upscale:${result.version}`,
-          mimeType: result.contentType ?? sourcePage.mimeType,
-          byteLength: result.bytes ?? sourcePage.byteLength,
-        },
-      })
+      setArtifact(artifactTarget(sourcePage, sourceIdentity, result))
     }).catch((error: unknown) => {
       if (!controller.signal.aborted) setReaderUpscaleArtifact(sessionId, sourcePage.id, {
         state: "failed",
@@ -217,9 +245,28 @@ function useUpscaleTarget(
       })
     })
     return () => controller.abort()
-  }, [client, configRevision, enabled, sessionId, sourceIdentity, sourceReady])
+  }, [activeArtifact, client, configRevision, enabled, probe?.sourceIdentity, probe?.state, probeSupported, sessionId, sourceIdentity, sourceReady])
 
-  return enabled && artifact?.sourceIdentity === sourceIdentity ? artifact.page : page
+  const probing = enabled && probeSupported && !activeArtifact
+    && (probe?.sourceIdentity !== sourceIdentity || probe.state === "pending")
+  return { page: enabled && activeArtifact ? activeArtifact.page : page, probing }
+}
+
+function artifactTarget(
+  sourcePage: ReaderPageDto,
+  sourceIdentity: string,
+  result: { artifactUrl?: string; version?: string; contentType?: string; bytes?: number },
+): { sourceIdentity: string; page: ReaderPageDto } {
+  return {
+    sourceIdentity,
+    page: {
+      ...sourcePage,
+      assetUrl: result.artifactUrl!,
+      contentVersion: `${sourcePage.contentVersion}:upscale:${result.version}`,
+      mimeType: result.contentType ?? sourcePage.mimeType,
+      byteLength: result.bytes ?? sourcePage.byteLength,
+    },
+  }
 }
 
 function imageIdentity(page: ReaderPageDto): string {
