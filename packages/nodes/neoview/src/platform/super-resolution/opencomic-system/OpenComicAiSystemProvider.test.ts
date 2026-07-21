@@ -1,8 +1,12 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 
 import type { SuperResolutionRequest } from "../../../ports/SuperResolutionProvider.js"
 import {
   OpenComicAiSystemProvider,
+  waitForSuperResolutionOutput,
   type OpenComicSystemRuntime,
 } from "./OpenComicAiSystemProvider.js"
 
@@ -91,6 +95,21 @@ describe("OpenComicAiSystemProvider", () => {
     await expect(provider.upscale(request)).rejects.toThrow("do not match expected 960x1276")
   })
 
+  it("[neoview.super-resolution.provider-daemon-output-race] waits for a daemon output that appears after completion", async () => {
+    const root = await mkdtemp(join(tmpdir(), "neoview-daemon-output-"))
+    const outputPath = join(root, "delayed.png")
+    const controller = new AbortController()
+    const delayedWrite = new Promise<void>((resolve, reject) => {
+      setTimeout(() => { void writeFile(outputPath, Buffer.from([1])).then(resolve, reject) }, 25)
+    })
+    try {
+      await expect(waitForSuperResolutionOutput(outputPath, controller.signal, { timeoutMs: 1_000, pollIntervalMs: 5 })).resolves.toBeUndefined()
+      await delayedWrite
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("[neoview.super-resolution.provider-abort] closes owned daemons when a task is cancelled", async () => {
     let finish!: (value: string) => void
     const runtime = fakeRuntime()
@@ -123,6 +142,7 @@ function createProvider(options: {
   inspectImage?: (path: string) => Promise<{ bytes: number; width: number; height: number }>
   daemonSupported?: boolean
   ensureModelsDirectory?: (path: string) => Promise<void>
+  waitForOutput?: (path: string, signal: AbortSignal) => Promise<void>
 }) {
   let now = 100
   return new OpenComicAiSystemProvider({
@@ -146,6 +166,7 @@ function createProvider(options: {
     inspectImage: options.inspectImage ?? (async (path) => path === request.sourcePath
       ? { bytes: 10, width: 480, height: 638 }
       : { bytes: 20, width: 960, height: 1276 }),
+    waitForOutput: options.waitForOutput ?? (async () => undefined),
     now: () => {
       const value = now
       now += 25
