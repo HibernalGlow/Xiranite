@@ -1529,7 +1529,13 @@ export interface ReaderHttpClient {
   recordSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<ReaderSearchHistoryDto>
   removeSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<boolean>
   clearSearchHistory?(scope: ReaderSearchHistoryScopeDto, signal?: AbortSignal): Promise<number>
-  filterDirectoryBrowser?(sessionId: string, filter: ReaderDirectoryFilterDto, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
+  filterDirectoryBrowser?(
+    sessionId: string,
+    filter: ReaderDirectoryFilterDto,
+    focusPath?: string,
+    signal?: AbortSignal,
+    showHiddenFolders?: boolean,
+  ): Promise<ReaderDirectoryPageDto>
   sortDirectoryBrowser?(sessionId: string, sort: ReaderDirectorySortDto, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   updateDirectorySortPreference?(
     sessionId: string,
@@ -1993,12 +1999,12 @@ export function createReaderHttpClient(
       `/reader/browser/search-history?scope=${encodeURIComponent(scope)}`,
       { method: "DELETE", signal },
     ).then((value) => value.cleared),
-    filterDirectoryBrowser: (sessionId, filter, focusPath, signal) => request<ReaderDirectoryPageDto>(
+    filterDirectoryBrowser: (sessionId, filter, focusPath, signal, showHiddenFolders) => request<ReaderDirectoryPageDto>(
       `/reader/browser/s/${encodeURIComponent(sessionId)}/filter`,
       {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ filter, focusPath }),
+        body: JSON.stringify({ filter, focusPath, showHiddenFolders }),
         signal,
       },
     ),
