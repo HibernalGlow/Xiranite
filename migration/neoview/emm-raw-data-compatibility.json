@@ -27,7 +27,7 @@
     {
       "node": "createSvelteTable/infoPanelStore",
       "source": "src/lib/cards/properties/EmmRawDataCard.svelte",
-      "replacement": "XR currently renders a small memoized table from the authenticated Reader metadata DTO; a bounded raw-record DTO is still required for full parity."
+      "replacement": "XR renders the authenticated, versioned and bounded raw-record DTO through TanStack Table while retaining the legacy projection fallback for older backends."
     }
   ],
   "sourceUiInventory": [
@@ -187,10 +187,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Use authenticated host capabilities for path reveal, safe external URL opening and explicit metadata refresh with capability-aware disabled and error states.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-raw-data.path-action", "neoview.emm-raw-data.retry"],
-      "plannedTestIds": ["neoview.emm-raw-data.url-action", "neoview.emm-raw-data.refresh"],
-      "notes": "Path fields use the authenticated revealSystemPath host command and refresh reuses the shared static metadata retry path. A dedicated allowlisted external-URL host command remains pending; unsafe window.open or path-command overloading is deliberately not used."
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-raw-data.path-action", "neoview.emm-raw-data.url-service", "neoview.emm-raw-data.url-platform", "neoview.emm-raw-data.url-http", "neoview.emm-raw-data.url-client", "neoview.emm-raw-data.url-action", "neoview.emm-raw-data.retry", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": [],
+      "notes": "Path fields use the authenticated revealSystemPath command. URL fields use a dedicated authenticated host command backed by the maintained open adapter; the service allowlists bounded credential-free HTTP/HTTPS URLs and rejects unsafe schemes before platform dispatch. Explicit refresh reuses the shared static metadata retry path."
     },
     {
       "id": "emm-raw-data.states",
