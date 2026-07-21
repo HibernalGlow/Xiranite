@@ -754,9 +754,9 @@
       "featureId": "emm-ratings-tags-translation",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "partial",
-        "transport": "partial",
-        "gui": "partial",
+        "core": "complete",
+        "transport": "complete",
+        "gui": "complete",
         "cli": "not-applicable",
         "tui": "not-applicable",
         "evidence": "partial"
