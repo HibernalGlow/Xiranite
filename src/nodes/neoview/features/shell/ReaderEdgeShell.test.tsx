@@ -279,6 +279,26 @@ describe("ReaderEdgeShell", () => {
     expect(requests).toHaveBeenCalledWith("left", false, "leave")
   })
 
+  it("[neoview.shell.edge-click-leave] retracts after a card click when the pointer leaves", () => {
+    vi.useFakeTimers()
+    const requests = vi.fn()
+    render(
+      <ReaderEdgeShell
+        edges={{ left: { ...slot("left", <button type="button">card action</button>), open: true, hideDelayMs: 20 } }}
+        onEdgeOpenRequest={requests}
+      >
+        <div>viewport</div>
+      </ReaderEdgeShell>,
+    )
+    const region = screen.getByRole("region", { name: "left edge" })
+    const action = screen.getByRole("button", { name: "card action" })
+    fireEvent.pointerDown(action, { buttons: 1 })
+    fireEvent.pointerUp(action, { buttons: 0 })
+    fireEvent.pointerLeave(region)
+    act(() => vi.advanceTimersByTime(100))
+    expect(requests).toHaveBeenCalledWith("left", false, "leave")
+  })
+
   it("[neoview.shell.pointer-commit] does not render React state on pointer movement", () => {
     const renders = vi.fn()
     render(
