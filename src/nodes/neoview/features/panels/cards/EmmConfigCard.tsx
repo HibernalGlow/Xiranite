@@ -3,17 +3,23 @@
  * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/EmmConfigCard.tsx
  * @migration-status adapted
  */
-import { Database, RotateCcw, Save } from "lucide-react"
+import { Database, PlugZap, RotateCcw, Save } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import type { ReaderEmmConfigDto } from "../../../adapters/reader-http-client"
+import type { ReaderEmmConfigDto, ReaderEmmConnectionProbeDto } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../registry"
 import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 
 const DEFAULT_EMM_CONFIG: ReaderEmmConfigDto = { enabled: true, databasePaths: [], defaultRating: 4.2 }
+const PROBE_STATUS_LABELS: Record<ReaderEmmConnectionProbeDto["sources"][number]["status"], string> = {
+  compatible: "兼容",
+  missing: "不存在",
+  incompatible: "不兼容",
+  unreadable: "无法读取",
+}
 
 export default function EmmConfigCard(props: ReaderPanelContext) {
   if (!props.panelActive) return <ReaderCardEmptyState />
@@ -28,6 +34,8 @@ function EmmConfigContent({ client, disabled }: ReaderPanelContext) {
   const [translationPath, setTranslationPath] = useState("")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [probing, setProbing] = useState(false)
+  const [probe, setProbe] = useState<ReaderEmmConnectionProbeDto>()
   const [error, setError] = useState<string>()
   const [message, setMessage] = useState<string>()
 
@@ -65,7 +73,8 @@ function EmmConfigContent({ client, disabled }: ReaderPanelContext) {
     try {
       const updated = await client.updateEmm({ emm: next })
       apply(updated)
-      setMessage("已保存；数据库路径将在 Reader 后端重新启动后生效。")
+      setProbe(undefined)
+      setMessage("已保存并立即切换当前 Reader 的只读 EMM 数据源。")
     } catch (cause) {
       setError(errorMessage(cause))
     } finally {
@@ -73,8 +82,37 @@ function EmmConfigContent({ client, disabled }: ReaderPanelContext) {
     }
   }
 
+  function draft(): ReaderEmmConfigDto {
+    return {
+      enabled: value.enabled,
+      databasePaths: uniquePaths(databasePaths),
+      settingPath: settingPath.trim() || undefined,
+      translationDatabasePath: translationDatabasePath.trim() || undefined,
+      translationPath: translationPath.trim() || undefined,
+      defaultRating: value.defaultRating,
+    }
+  }
+
+  async function testConnection() {
+    if (!client.probeEmm) {
+      setError("当前 Reader 后端不支持 EMM 连接测试。")
+      return
+    }
+    setProbing(true)
+    setError(undefined)
+    setMessage(undefined)
+    try {
+      setProbe(await client.probeEmm({ emm: draft() }))
+    } catch (cause) {
+      setProbe(undefined)
+      setError(errorMessage(cause))
+    } finally {
+      setProbing(false)
+    }
+  }
+
   if (loading) return <div className="h-44 animate-pulse rounded bg-muted" aria-label="正在加载 EMM 配置" />
-  const locked = disabled || saving
+  const locked = disabled || saving || probing
   return (
     <div className="grid gap-3 text-[11px]" data-emm-config-card="true" aria-busy={saving}>
       <div className="flex items-start gap-2 rounded border bg-muted/30 p-2.5">
@@ -106,20 +144,27 @@ function EmmConfigContent({ client, disabled }: ReaderPanelContext) {
       </label>
 
       <div className="flex flex-wrap gap-1.5">
-        <Button type="button" size="sm" className="h-7 text-[10px]" disabled={locked} onClick={() => void save({
-          enabled: value.enabled,
-          databasePaths: uniquePaths(databasePaths),
-          settingPath: settingPath.trim() || undefined,
-          translationDatabasePath: translationDatabasePath.trim() || undefined,
-          translationPath: translationPath.trim() || undefined,
-          defaultRating: value.defaultRating,
-        })}><Save data-icon="inline-start" />{saving ? "保存中…" : "保存"}</Button>
+        <Button type="button" size="sm" className="h-7 text-[10px]" disabled={locked} onClick={() => void save(draft())}><Save data-icon="inline-start" />{saving ? "保存中…" : "保存"}</Button>
+        <Button type="button" size="sm" variant="outline" className="h-7 text-[10px]" disabled={locked} onClick={() => void testConnection()}><PlugZap data-icon="inline-start" />{probing ? "测试中…" : "测试连接"}</Button>
         <Button type="button" size="sm" variant="outline" className="h-7 text-[10px]" disabled={locked} onClick={() => void save(DEFAULT_EMM_CONFIG)}><RotateCcw data-icon="inline-start" />恢复自动发现</Button>
       </div>
+      {probe ? <ConnectionProbeResult value={probe} /> : null}
       {message ? <p role="status" className="text-[10px] text-muted-foreground">{message}</p> : null}
       {error ? <p role="alert" className="text-[10px] text-destructive">{error}</p> : null}
     </div>
   )
+}
+
+function ConnectionProbeResult({ value }: { value: ReaderEmmConnectionProbeDto }) {
+  return <div className="grid gap-1 rounded border bg-muted/20 p-2" role="status">
+    <p className="font-medium">{value.connected ? "连接可用，保存后立即切换" : value.enabled ? "未找到可用数据源" : "数据源已禁用"}</p>
+    <p className="text-[10px] text-muted-foreground">{value.automatic ? "自动发现" : "手动路径"} · 只读</p>
+    {value.sources.map((source) => <div key={source.path} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 text-[10px]">
+      <span className="truncate font-mono" title={source.path}>{source.path}</span>
+      <span>{PROBE_STATUS_LABELS[source.status]}</span>
+      {source.error ? <span className="col-span-2 text-destructive">{source.error}</span> : null}
+    </div>)}
+  </div>
 }
 
 function PathInput({ label, value, disabled, onChange }: { label: string; value: string; disabled: boolean; onChange(value: string): void }) {

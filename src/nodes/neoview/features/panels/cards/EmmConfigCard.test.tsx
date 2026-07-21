@@ -51,10 +51,29 @@ describe("EmmConfigCard", () => {
       translationPath: undefined,
       defaultRating: 4.5,
     } }))
-    expect((await screen.findByRole("status")).textContent).toContain("重新启动后生效")
+    expect((await screen.findByRole("status")).textContent).toContain("立即")
 
     fireEvent.click(screen.getByRole("button", { name: "恢复自动发现" }))
     await waitFor(() => expect(updateEmm).toHaveBeenLastCalledWith({ emm: DEFAULT_CONFIG }))
+  })
+
+  it("[neoview.emm-config.connection] tests the draft and identifies the read-only source", async () => {
+    const initial: ReaderEmmConfigDto = { enabled: true, databasePaths: ["D:/EMM/database.sqlite"], defaultRating: 4.2 }
+    const probeEmm = vi.fn(async () => ({
+      enabled: true,
+      automatic: false,
+      connected: true,
+      readOnly: true as const,
+      sources: [{ path: "E:/Next/database.sqlite", status: "compatible" as const, readOnly: true as const }],
+    }))
+    const client = { config: vi.fn(async () => ({ emm: initial })), probeEmm } as unknown as ReaderHttpClient
+    render(<EmmConfigCard {...context(client)} />)
+    fireEvent.change(await screen.findByRole("textbox", { name: "EMM 数据库路径" }), { target: { value: "E:/Next/database.sqlite" } })
+    fireEvent.click(screen.getByRole("button", { name: "测试连接" }))
+
+    await waitFor(() => expect(probeEmm).toHaveBeenCalledWith({ emm: { ...initial, databasePaths: ["E:/Next/database.sqlite"] } }))
+    expect((await screen.findByRole("status")).textContent).toContain("连接可用")
+    expect(screen.getByTitle("E:/Next/database.sqlite")).toBeTruthy()
   })
 
   it("[neoview.emm-config.failure] retains the draft and reports a failed save", async () => {

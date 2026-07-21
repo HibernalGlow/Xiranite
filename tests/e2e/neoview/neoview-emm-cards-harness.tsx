@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client"
 import type { ReactNode } from "react"
 import type { ReaderHttpClient, ReaderSessionDto } from "../../../src/nodes/neoview/adapters/reader-http-client"
 import EmmRawDataCard from "../../../src/nodes/neoview/features/panels/cards/EmmRawDataCard"
+import EmmConfigCard from "../../../src/nodes/neoview/features/panels/cards/EmmConfigCard"
 import EmmSyncCard from "../../../src/nodes/neoview/features/panels/cards/EmmSyncCard"
 import FavoriteTagsCard from "../../../src/nodes/neoview/features/panels/cards/FavoriteTagsCard"
 import FolderRatingsCard from "../../../src/nodes/neoview/features/panels/cards/FolderRatingsCard"
@@ -10,6 +11,9 @@ import "../../../src/styles/themes/index.css"
 
 const metadata = { book: { bookId: "book-emm", displayName: "demo.cbz", sourceKind: "archive" as const, sourcePath: "D:/books/demo.cbz", pageCount: 12, currentPage: 2, emm: { translatedTitle: "演示书籍", tags: [{ namespace: "artist", tag: "Alice", translatedLabel: "爱丽丝" }, { namespace: "female", tag: "glasses" }] }, emmRaw: { schemaVersion: 1 as const, fields: [{ key: "filepath", type: "path" as const, value: "D:/books/demo.cbz" }, { key: "artist", type: "string" as const, value: "artist:Alice" }, { key: "url", type: "url" as const, value: "https://example.com/source" }] } } }
 const client = {
+  config: async () => ({ emm: { enabled: true, databasePaths: ["D:/EMM/database.sqlite"], defaultRating: 4.2 } }),
+  probeEmm: async () => ({ enabled: true, automatic: false, connected: true, readOnly: true as const, sources: [{ path: "D:/EMM/database.sqlite", status: "compatible" as const, readOnly: true as const }] }),
+  updateEmm: async ({ emm }: { emm: Record<string, unknown> }) => ({ enabled: true, databasePaths: [], defaultRating: 4.2, ...emm }),
   metadata: async () => metadata,
   openExternalUrl: async () => undefined,
   suggestDirectoryEmmTags: async () => [{ category: "artist", tag: "Alice", translatedTag: "爱丽丝", favorite: true }, { category: "female", tag: "glasses", favorite: false }],
@@ -22,6 +26,7 @@ const context = { client, session, disabled: false, panelActive: true, onGoTo: (
 
 function Harness() {
   return <main className="min-h-screen bg-background p-3 text-foreground"><div className="mx-auto grid max-w-3xl gap-3 sm:grid-cols-2" data-emm-card-board="true">
+    <Card title="EMM 配置"><EmmConfigCard {...context} /></Card>
     <Card title="EMM 同步"><EmmSyncCard {...context} /></Card>
     <Card title="EMM 数据库记录"><EmmRawDataCard {...context} /></Card>
     <Card title="收藏标签快选"><FavoriteTagsCard {...context} /></Card>

@@ -3,7 +3,7 @@ import type { ArchiveProvider } from "./ports/ArchiveProvider.js"
 import type { ReaderBookLoader } from "./ports/ReaderBookLoader.js"
 import type { ZipArchiveProviderOptions } from "./platform/archives/zip/ZipArchiveProvider.js"
 import type { ReaderAssetRoute, ReaderAssetRouteOptions } from "./platform/asset-route/ReaderAssetRoute.js"
-import type { ReaderHttpController, ReaderHttpControllerOptions } from "./platform/asset-route/ReaderHttpController.js"
+import type { ReaderEmmConnectionProbeResult, ReaderHttpController, ReaderHttpControllerOptions } from "./platform/asset-route/ReaderHttpController.js"
 import type { ReaderService } from "./application/reader/contracts.js"
 import type { ReaderClipboardMaterializationServiceOptions } from "./application/reader/ReaderClipboardMaterializationService.js"
 import type { ImageMetadataProbe } from "./ports/ImageMetadataProbe.js"
@@ -46,7 +46,7 @@ import type { ReaderLibraryHeadlessController } from "./application/headless/Rea
 import type { ReaderFileTreeServiceOptions } from "./application/browser/ReaderFileTreeService.js"
 import type { SolidArchiveCache, SolidArchiveCacheOptions } from "./platform/archives/sevenzip/SolidArchiveCache.js"
 import type { NeoviewRuntimeLoadOptions } from "./platform/config/loadNeoviewRuntimeConfig.js"
-import type { NeoviewPresentationDiskCacheConfig, NeoviewSuperResolutionConfig } from "./application/config/ReaderRuntimeConfig.js"
+import type { NeoviewEmmConfig, NeoviewPresentationDiskCacheConfig, NeoviewSuperResolutionConfig } from "./application/config/ReaderRuntimeConfig.js"
 import { buildSuperResolutionArtifactKey } from "./platform/super-resolution/SuperResolutionArtifactKey.js"
 import { SUPER_RESOLUTION_ARTIFACT_PRODUCER_VERSION } from "./platform/asset-route/SuperResolutionArtifactRoute.js"
 import type {
@@ -402,7 +402,8 @@ export async function createReaderHttpController(
       ))
     : undefined
   const { LegacyEmmDataLocator } = await import("./application/data/LegacyEmmDataLocator.js")
-  const { openReadonlyLegacyEmmRecordStore } = await import("./platform/emm/ReadonlyLegacyEmmRecordStore.js")
+  const { openReadonlyLegacyEmmRecordStore, probeReadonlyLegacyEmmDatabases } = await import("./platform/emm/ReadonlyLegacyEmmRecordStore.js")
+  const { ReloadableReadonlyLegacyEmmStore } = await import("./platform/emm/ReloadableReadonlyLegacyEmmStore.js")
   const { composeReaderEmmStores } = await import("./platform/emm/CompositeReaderEmmStore.js")
   const { PlatformEmmCollectTagSource } = await import("./platform/emm/PlatformEmmCollectTagSource.js")
   const { PlatformEmmTranslationSource } = await import("./platform/emm/PlatformEmmTranslationSource.js")
@@ -416,9 +417,34 @@ export async function createReaderHttpController(
     || (options.legacyEmmDatabasePaths === undefined && !runtimeConfig.emm.enabled)
     ? undefined
     : await openReadonlyLegacyEmmRecordStore(emmLocation.databasePaths)
+  const reloadableExternalEmmStore = new ReloadableReadonlyLegacyEmmStore(externalEmmStore)
   const directoryEmmStore = dataStore
-    ? composeReaderEmmStores(dataStore, externalEmmStore)
-    : externalEmmStore
+    ? composeReaderEmmStores(dataStore, reloadableExternalEmmStore)
+    : reloadableExternalEmmStore
+  let emmRuntimeConfig = runtimeConfig.emm
+  const managedEmmRuntime = options.legacyEmmDatabasePaths === undefined
+  const resolveEmmDatabasePaths = (config: NeoviewEmmConfig) => config.databasePaths.length
+    ? config.databasePaths
+    : new LegacyEmmDataLocator().locate().databasePaths
+  const probeEmm = async (config: NeoviewEmmConfig): Promise<ReaderEmmConnectionProbeResult> => {
+    const sources = await probeReadonlyLegacyEmmDatabases(resolveEmmDatabasePaths(config))
+    return {
+      enabled: config.enabled,
+      automatic: config.databasePaths.length === 0,
+      connected: config.enabled && sources.some((source) => source.status === "compatible"),
+      readOnly: true,
+      sources,
+    }
+  }
+  const prepareEmmStore = async (config: NeoviewEmmConfig) => {
+    if (!config.enabled) return undefined
+    const sources = await probeReadonlyLegacyEmmDatabases(resolveEmmDatabasePaths(config))
+    const invalid = config.databasePaths.length ? sources.filter((source) => source.status !== "compatible") : []
+    if (invalid.length) {
+      throw new Error(`EMM database connection failed: ${invalid.map((source) => `${source.path} (${source.status})`).join(", ")}`)
+    }
+    return openReadonlyLegacyEmmRecordStore(sources.flatMap((source) => source.status === "compatible" ? [source.path] : []))
+  }
   const progressStore = options.progressStore === false
     ? undefined
     : options.progressStore ?? dataStore
@@ -513,6 +539,8 @@ export async function createReaderHttpController(
     historyList: runtimeConfig.historyList,
     folderView: runtimeConfig.folderView,
     emm: runtimeConfig.emm,
+    probeEmm,
+    disposeEmmResources: () => reloadableExternalEmmStore[Symbol.asyncDispose](),
     emmCollectTagSource: new PlatformEmmCollectTagSource({
       settingPath: runtimeConfig.emm.settingPath ?? emmLocation.settingPath,
     }),
@@ -630,8 +658,19 @@ export async function createReaderHttpController(
     updateEmm: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
-      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
-      return parseNeoviewRuntimeConfig(committed.nodeConfig).emm
+      const candidate = { ...emmRuntimeConfig, ..._patch.emm }
+      const prepared = managedEmmRuntime ? await prepareEmmStore(candidate) : undefined
+      let updated: NeoviewEmmConfig
+      try {
+        const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+        updated = parseNeoviewRuntimeConfig(committed.nodeConfig).emm
+      } catch (error) {
+        prepared?.close()
+        throw error
+      }
+      if (managedEmmRuntime) await reloadableExternalEmmStore.replace(prepared)
+      emmRuntimeConfig = updated
+      return updated
     },
     updateAiTranslation: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")

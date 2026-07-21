@@ -267,6 +267,21 @@ export interface ReaderSessionDto {
   preload?: ReaderPreloadPlan
 }
 
+export interface ReaderEmmConnectionProbeSource {
+  path: string
+  status: "compatible" | "missing" | "incompatible" | "unreadable"
+  readOnly: true
+  error?: string
+}
+
+export interface ReaderEmmConnectionProbeResult {
+  enabled: boolean
+  automatic: boolean
+  connected: boolean
+  readOnly: true
+  sources: readonly ReaderEmmConnectionProbeSource[]
+}
+
 export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformReaderBookLoaderOptions & {
   memoryPressureMonitor?: ReaderMemoryPressureMonitor
   sessionOptions?: Partial<ReaderSessionOptions>
@@ -329,6 +344,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions & PlatformRead
   updateSystemMonitor?: (patch: NeoviewSystemMonitorPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSystemMonitorConfig>
   emm?: NeoviewEmmConfig
   updateEmm?: (patch: NeoviewEmmPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewEmmConfig>
+  probeEmm?: (config: NeoviewEmmConfig) => Promise<ReaderEmmConnectionProbeResult>
+  disposeEmmResources?: () => void | Promise<void>
   systemMonitorService?: Pick<ReaderSystemMonitorService, "sample">
   aiTranslation?: NeoviewAiTranslationConfig
   updateAiTranslation?: (patch: NeoviewAiTranslationPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewAiTranslationConfig>
@@ -395,6 +412,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #archivePreloadDemand = new ReaderArchivePreloadDemandBridge()
   readonly #disposeThumbnailStore?: () => void | Promise<void>
   readonly #disposeSuperResolutionArtifacts?: () => void | Promise<void>
+  readonly #disposeEmmResources?: () => void | Promise<void>
   #shellOptions: NeoviewShellConfig
   #shellRevision = 0
   #viewDefaults: NeoviewViewDefaults
@@ -436,6 +454,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateInfoOverlay?: ReaderHttpControllerOptions["updateInfoOverlay"]
   readonly #updateSystemMonitor?: ReaderHttpControllerOptions["updateSystemMonitor"]
   readonly #updateEmm?: ReaderHttpControllerOptions["updateEmm"]
+  readonly #probeEmm?: ReaderHttpControllerOptions["probeEmm"]
   readonly #updateAiTranslation?: ReaderHttpControllerOptions["updateAiTranslation"]
   readonly #updateImageTrim?: ReaderHttpControllerOptions["updateImageTrim"]
   readonly #updateSuperResolution?: ReaderHttpControllerOptions["updateSuperResolution"]
@@ -739,6 +758,8 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateInfoOverlay = options.updateInfoOverlay
     this.#updateSystemMonitor = options.updateSystemMonitor
     this.#updateEmm = options.updateEmm
+    this.#probeEmm = options.probeEmm
+    this.#disposeEmmResources = options.disposeEmmResources
     this.#updateAiTranslation = options.updateAiTranslation
     this.#updateImageTrim = options.updateImageTrim
     this.#updateSuperResolution = options.updateSuperResolution
@@ -849,6 +870,9 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     if (url.pathname === "/reader/config" && request.method === "GET") {
       return jsonResponse(this.#configDto())
+    }
+    if (url.pathname === "/reader/emm/config/probe" && request.method === "POST") {
+      return this.#probeEmmConnection(request)
     }
     if (url.pathname === "/reader/config" && request.method === "PATCH") {
       return this.#patchShellConfig(request)
@@ -1010,6 +1034,13 @@ export class ReaderHttpController implements AsyncDisposable {
     if (this.#disposeSuperResolutionArtifacts) {
       try {
         await this.#disposeSuperResolutionArtifacts()
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (this.#disposeEmmResources) {
+      try {
+        await this.#disposeEmmResources()
       } catch (error) {
         errors.push(error)
       }
@@ -1277,6 +1308,7 @@ export class ReaderHttpController implements AsyncDisposable {
       }
       const operation = this.#configUpdateQueue.then(async () => {
         this.#emm = await this.#updateEmm!(parsed.patch, parsed.tomlPatch)
+        this.#clearBookMetadataLoads()
       })
       this.#configUpdateQueue = operation.catch(() => undefined)
       try {
@@ -2300,6 +2332,23 @@ export class ReaderHttpController implements AsyncDisposable {
     await this.#superResolutionArtifacts?.advanceGeneration(sessionId, nextGeneration)
   }
 
+  async #probeEmmConnection(request: Request): Promise<Response> {
+    if (!this.#probeEmm) return jsonResponse({ error: "Reader EMM connection probe is unavailable" }, 405)
+    const body = await readControlJson(request)
+    let parsed: ReturnType<typeof parseNeoviewEmmPatch>
+    try {
+      parsed = parseNeoviewEmmPatch(body)
+    } catch (error) {
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
+    try {
+      return jsonResponse(await this.#probeEmm({ ...this.#emm, ...parsed.patch.emm }))
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return jsonResponse({ error: errorMessage(error) }, 500)
+    }
+  }
+
   #retainSessionFrame(session: ReaderSession, frame: FrameSnapshot, preload = session.preloadPlan()): void {
     const pageIds = frame.pages.map((page) => page.pageId)
     for (const candidate of preload?.candidates ?? []) {
@@ -2359,6 +2408,11 @@ export class ReaderHttpController implements AsyncDisposable {
     const load = this.#bookMetadataLoads.get(sessionId)
     load?.controller.abort()
     this.#bookMetadataLoads.delete(sessionId)
+  }
+
+  #clearBookMetadataLoads(): void {
+    for (const load of this.#bookMetadataLoads.values()) load.controller.abort()
+    this.#bookMetadataLoads.clear()
   }
 
   #isAuthorized(request: Request, url: URL): boolean {

@@ -83,6 +83,44 @@ describe("Reader EMM config HTTP", () => {
     }
   })
 
+  it("[neoview.emm-config.connection] exposes an authenticated strict connection probe", async () => {
+    const probeEmm = vi.fn(async (config: NeoviewEmmConfig) => ({
+      enabled: config.enabled,
+      automatic: config.databasePaths.length === 0,
+      connected: true,
+      readOnly: true as const,
+      sources: config.databasePaths.map((path) => ({ path, status: "compatible" as const, readOnly: true as const })),
+    }))
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: TOKEN,
+      progressStore: false,
+      emm: INITIAL,
+      probeEmm,
+    })
+    try {
+      const unauthorized = await controller.handle(new Request("http://127.0.0.1:41000/reader/emm/config/probe", { method: "POST" }))
+      expect(unauthorized?.status).toBe(401)
+      const response = await controller.handle(new Request("http://127.0.0.1:41000/reader/emm/config/probe", {
+        method: "POST",
+        headers: { "x-xiranite-token": TOKEN, "content-type": "application/json" },
+        body: JSON.stringify({ emm: { databasePaths: ["E:/Next/database.sqlite"] } }),
+      }))
+      expect(response?.status).toBe(200)
+      await expect(response?.json()).resolves.toMatchObject({ connected: true, readOnly: true })
+      expect(probeEmm).toHaveBeenCalledWith({ ...INITIAL, databasePaths: ["E:/Next/database.sqlite"] })
+
+      const invalid = await controller.handle(new Request("http://127.0.0.1:41000/reader/emm/config/probe", {
+        method: "POST",
+        headers: { "x-xiranite-token": TOKEN, "content-type": "application/json" },
+        body: JSON.stringify({ emm: { databasePaths: Array.from({ length: 9 }, (_, index) => `D:/${index}.sqlite`) } }),
+      }))
+      expect(invalid?.status).toBe(400)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.emm-config.http-serialization] serializes concurrent config writes", async () => {
     const first = Promise.withResolvers<NeoviewEmmConfig>()
     const updateEmm = vi.fn()
