@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("media-chrome/react", () => import("@/test/media-chrome-react-stub"))
 
@@ -9,7 +9,20 @@ import { ContextMenuProvider } from "@/components/context-menu"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderPreloadPlanDto, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
-afterEach(cleanup)
+beforeEach(() => vi.stubGlobal("IntersectionObserver", class {
+  readonly root = null
+  readonly rootMargin = "0px"
+  readonly thresholds = [0.01]
+  constructor(private readonly callback: IntersectionObserverCallback) {}
+  observe(target: Element) { this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this as unknown as IntersectionObserver) }
+  disconnect() {}
+  unobserve() {}
+  takeRecords() { return [] }
+}))
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe("ReaderApp", () => {
   it("[neoview.react.smoke] opens and navigates with DOM img elements over asset URLs", async () => {
@@ -906,8 +919,42 @@ describe("ReaderApp", () => {
     const reader = document.querySelector("[data-reader-app]")!
     fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
     await waitFor(() => expect(client.navigate).toHaveBeenCalledOnce())
+    await waitFor(() => expect(document.querySelector('[data-reader-page-image-pending="page-2"]')).toBeTruthy())
+    const pending = document.querySelector<HTMLImageElement>('[data-reader-page-image-pending="page-2"]')!
+    pending.decode = vi.fn(async () => undefined)
+    fireEvent.load(pending)
     await screen.findByRole("img", { name: "002.jpg" })
     expect(client.updatePreloadContext).toHaveBeenCalledTimes(1)
+  })
+
+  it("[neoview.preload.panorama-context] reports continuous admission while panorama uses the shared image chain", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    opened.frame = { ...opened.frame, layout: { ...opened.frame.layout, panorama: true } }
+    const plan = { ...preloadPlan(5, 1), mode: "continuous" as const }
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => runtimeConfig()),
+      updateSidebarLayout: vi.fn(async () => shellConfig()),
+      updateCardLayout: vi.fn(async () => shellConfig()),
+      updateBoardLayout: vi.fn(async () => shellConfig()),
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      updatePreloadContext: vi.fn(async () => plan),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 2 })),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+
+    await waitFor(() => expect(client.updatePreloadContext).toHaveBeenCalledWith(
+      "reader-1",
+      expect.objectContaining({ mode: "continuous", focused: expect.any(Boolean) }),
+      expect.any(AbortSignal),
+    ))
   })
 })
 

@@ -1,4 +1,4 @@
-import type { ReaderUpscaleArtifactResultDto } from "../../adapters/reader-http-client"
+import type { ReaderPageDto, ReaderUpscaleArtifactResultDto } from "../../adapters/reader-http-client"
 
 export interface ReaderUpscaleArtifactSnapshot {
   state: "idle" | "processing" | "completed" | "skipped" | "failed"
@@ -23,4 +23,15 @@ export function setReaderUpscaleArtifact(sessionId: string, pageId: string, snap
   const key = readerUpscaleArtifactKey(sessionId, pageId)
   values.set(key, snapshot)
   listeners.get(key)?.forEach((listener) => listener())
+}
+
+export function readerUpscaleArtifactPage(page: ReaderPageDto, result: ReaderUpscaleArtifactResultDto): ReaderPageDto | undefined {
+  if (!result.artifactUrl || !result.version) return undefined
+  return {
+    ...page,
+    assetUrl: result.artifactUrl,
+    contentVersion: `${page.contentVersion}:upscale:${result.version}`,
+    mimeType: result.contentType ?? page.mimeType,
+    byteLength: result.bytes ?? page.byteLength,
+  }
 }

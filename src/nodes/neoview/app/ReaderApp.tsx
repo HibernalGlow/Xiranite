@@ -488,13 +488,15 @@ export function ReaderApp({
   useEffect(() => {
     const sessionId = session?.sessionId
     if (!sessionId || !client.updatePreloadContext || typeof document === "undefined") return
+    const panorama = session.frame?.layout?.panorama === true
     let request: AbortController | undefined
     const update = () => {
       request?.abort()
       request = new AbortController()
       const signal = request.signal
       const focused = document.visibilityState !== "hidden" && (typeof document.hasFocus !== "function" || document.hasFocus())
-      void client.updatePreloadContext!(sessionId, { mode: "paged", focused }, signal).then((preload) => {
+      const mode = panorama ? "continuous" : "paged"
+      void client.updatePreloadContext!(sessionId, { mode, focused }, signal).then((preload) => {
         if (!signal.aborted && sessionRef.current === sessionId) {
           setSession((current) => current?.sessionId === sessionId ? { ...current, preload } : current)
         }
@@ -510,7 +512,7 @@ export function ReaderApp({
       window.removeEventListener("blur", update)
       document.removeEventListener("visibilitychange", update)
     }
-  }, [client, session?.sessionId])
+  }, [client, session?.frame?.layout?.panorama, session?.sessionId])
 
   async function openPath(nextPath = path, provenance?: import("../adapters/reader-http-client").ReaderActivationProvenanceDto) {
     const normalizedPath = nextPath.trim()
@@ -1473,6 +1475,7 @@ export function ReaderApp({
     totalPages: session?.book.pageCount,
     plan: session?.preload,
     enabled: !session || cancelledPreloadFrame?.sessionId !== session.sessionId || cancelledPreloadFrame.generation !== session.frame.generation,
+    upscaleEnabled: superResolution?.provider !== "disabled" && superResolution?.preferences.autoUpscaleEnabled === true,
     preload: prefetchController.preload,
     cancel: prefetchController.cancel,
   })
