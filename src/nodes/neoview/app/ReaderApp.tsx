@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
 import { BookOpen, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, X } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,

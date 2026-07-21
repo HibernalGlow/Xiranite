@@ -471,17 +471,14 @@ export class ReaderHttpController implements AsyncDisposable {
     const bookLoader = createPlatformReaderBookLoader({ ...options, solidArchiveCache: this.#solidArchiveCache, mediaFormats: this.#mediaFormats })
     const imageMetadataProbe = new StreamingImageMetadataProbe()
     const loadSharpImageTransformer = async () => {
-      if (!this.#imageProcessingPolicy.sharpFallbackEnabled) {
-        throw new ThumbnailUnavailableError()
-      }
       const { SharpImageTransformer } = await import("../images/sharp/SharpImageTransformer.js")
       return new SharpImageTransformer(resourceScheduler)
     }
-    const loadImageTransformer = process.platform === "win32"
+    const createImageTransformer = (enabled: () => boolean) => process.platform === "win32"
       ? async () => {
           const fallback = {
             transform: async (input: ReadableStream<Uint8Array>, request: Parameters<ImageTransformer["transform"]>[1], signal?: AbortSignal, execution?: ImageTransformExecution) => {
-              if (!this.#imageProcessingPolicy.sharpFallbackEnabled) {
+              if (!enabled()) {
                 await input.cancel("Sharp image transforms are disabled")
                 throw new ThumbnailUnavailableError()
               }
@@ -495,7 +492,16 @@ export class ReaderHttpController implements AsyncDisposable {
             preferFallbackForLosslessNow: () => this.#imageProcessingPolicy.sharpFallbackEnabled,
           })
         }
-      : loadSharpImageTransformer
+      : async () => {
+          if (!enabled()) throw new ThumbnailUnavailableError()
+          return loadSharpImageTransformer()
+        }
+    const loadThumbnailImageTransformer = createImageTransformer(
+      () => this.#imageProcessingPolicy.thumbnailTransformEnabled,
+    )
+    const loadImageTransformer = createImageTransformer(
+      () => this.#imageProcessingPolicy.sharpFallbackEnabled,
+    )
     const loadVideoThumbnailProvider = options.loadVideoThumbnailProvider ?? (async () => {
       const { FfmpegVideoThumbnailProvider } = await import("../video/FfmpegVideoThumbnailProvider.js")
       return new FfmpegVideoThumbnailProvider({
@@ -521,7 +527,7 @@ export class ReaderHttpController implements AsyncDisposable {
       : undefined)
     this.#thumbnailPipeline = new PlatformThumbnailPipeline({
       bookLoader,
-      loadImageTransformer,
+      loadImageTransformer: loadThumbnailImageTransformer,
       loadSystemThumbnailProvider,
       loadVideoThumbnailProvider,
       loadMosaicImageComposer,

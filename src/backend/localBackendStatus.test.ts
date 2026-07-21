@@ -131,7 +131,7 @@ describe("hydrateLocalBackendConfig", () => {
 
     expect(config).toEqual({ baseUrl: "http://127.0.0.1:41000", token: "manifest-token" })
     expect(window.__XIRANITE_BACKEND__).toEqual(config)
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/.well-known/xiranite/backend.json?"), {
+    expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/\.well-known\/xiranite\/backend-\d+\.json\?/), {
       cache: "no-store",
     })
   })

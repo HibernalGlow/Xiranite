@@ -14,11 +14,19 @@ export const BACKEND_DEV_MANIFEST_PATH = join(
   "backend.json",
 )
 
-export async function writeBackendDevManifest(manifest: BackendDevManifest): Promise<void> {
-  await Bun.$`mkdir -p ${dirname(BACKEND_DEV_MANIFEST_PATH)}`.quiet()
-  await Bun.write(BACKEND_DEV_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`)
+export function backendDevManifestPath(frontendUrl?: string): string {
+  if (!frontendUrl) return BACKEND_DEV_MANIFEST_PATH
+  const frontend = new URL(frontendUrl)
+  const port = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
+  return join(dirname(BACKEND_DEV_MANIFEST_PATH), `backend-${port}.json`)
 }
 
-export async function removeBackendDevManifest(): Promise<void> {
-  await Bun.file(BACKEND_DEV_MANIFEST_PATH).delete().catch(() => undefined)
+export async function writeBackendDevManifest(manifest: BackendDevManifest, frontendUrl?: string): Promise<void> {
+  const path = backendDevManifestPath(frontendUrl)
+  await Bun.$`mkdir -p ${dirname(path)}`.quiet()
+  await Bun.write(path, `${JSON.stringify(manifest, null, 2)}\n`)
+}
+
+export async function removeBackendDevManifest(frontendUrl?: string): Promise<void> {
+  await Bun.file(backendDevManifestPath(frontendUrl)).delete().catch(() => undefined)
 }

@@ -100,19 +100,23 @@ export async function hydrateLocalBackendConfigFromWails(): Promise<LocalBackend
 async function loadDevBackendManifest(): Promise<LocalBackendConfig | undefined> {
   if (!import.meta.env.DEV) return undefined
 
-  try {
-    const response = await withTimeout(
-      fetch(`${DEV_BACKEND_MANIFEST_URL}?t=${Date.now()}`, { cache: "no-store" }),
-      CONFIG_HYDRATE_TIMEOUT_MS,
-      `Timed out reading dev backend manifest after ${CONFIG_HYDRATE_TIMEOUT_MS}ms`,
-    )
-    if (!response.ok) return undefined
-    const config = await response.json() as Partial<LocalBackendConfig>
-    return normalizeLocalBackendConfig(config)
-  } catch (error) {
-    warnHydrateFailure(error)
-    return undefined
+  const port = window.location.port || (window.location.protocol === "https:" ? "443" : "80")
+  const urls = [`/.well-known/xiranite/backend-${port}.json`, DEV_BACKEND_MANIFEST_URL]
+  for (const url of urls) {
+    try {
+      const response = await withTimeout(
+        fetch(`${url}?t=${Date.now()}`, { cache: "no-store" }),
+        CONFIG_HYDRATE_TIMEOUT_MS,
+        `Timed out reading dev backend manifest after ${CONFIG_HYDRATE_TIMEOUT_MS}ms`,
+      )
+      if (!response.ok) continue
+      const config = normalizeLocalBackendConfig(await response.json() as Partial<LocalBackendConfig>)
+      if (config) return config
+    } catch (error) {
+      warnHydrateFailure(error)
+    }
   }
+  return undefined
 }
 
 function normalizeLocalBackendConfig(config: Partial<LocalBackendConfig> | null | undefined): LocalBackendConfig | undefined {

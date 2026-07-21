@@ -37,7 +37,7 @@ async function restartBackendFromDevScript() {
   const previous = backend
   const next = await startManagedBackend()
   backend = next
-  await writeBackendDevManifest({ baseUrl: next.url, token: next.token })
+  await writeBackendDevManifest({ baseUrl: next.url, token: next.token }, frontendUrl)
   console.log(`[xiranite-backend:restart] ${next.url}`)
   if (previous) setTimeout(() => previous.close(), 250)
   return {
@@ -49,7 +49,7 @@ async function restartBackendFromDevScript() {
 }
 
 backend = await startManagedBackend()
-await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token })
+await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token }, frontendUrl)
 console.log(`[xiranite-backend] ${backend.url}`)
 console.log(`[xiranite-frontend] ${frontendUrl}`)
 
@@ -106,7 +106,7 @@ async function stop() {
   backend?.close()
   vite.kill()
   desktop?.kill()
-  await Promise.all([removeBackendDevManifest(), removeDevSession()])
+  await Promise.all([removeBackendDevManifest(frontendUrl), removeDevSession()])
 }
 
 await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid], script: "dev-desktop-deno", startedAt: devSessionStartedAt })
