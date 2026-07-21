@@ -143,6 +143,8 @@ describe("FolderTreePanel", () => {
     expect(ui.getByText("USB (E:)").closest("[data-tree-path]")?.textContent).toContain("不可用")
     fireEvent.click(ui.getByTitle("E:\\"))
     expect(onNavigate).not.toHaveBeenCalled()
+    fireEvent.click(ui.getByTitle("Z:\\"))
+    expect(onNavigate).toHaveBeenCalledWith("Z:\\")
     expect(listDirectoryRoots).toHaveBeenCalledOnce()
   })
 

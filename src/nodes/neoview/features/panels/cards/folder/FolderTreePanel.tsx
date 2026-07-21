@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button"
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
 import type { ReaderDirectoryRootDto, ReaderDirectoryTreeChangesDto, ReaderDirectoryTreePageDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import { normalizeFolderNavigationPath } from "./DirectoryCatalog"
+import {
+  folderDirectoryPathKey as sharedDirectoryPathKey,
+  folderDirectoryRoot as sharedDirectoryRoot,
+  folderDirectoryRoots,
+  isFolderDirectoryAncestor,
+  sameFolderDirectoryPath,
+} from "./FolderDirectoryRoots"
 import { createFolderErrorState } from "./FolderErrorState"
 
 const TREE_ROW_HEIGHT = 30
@@ -384,12 +391,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, watchi
 }
 
 export function directoryRoot(path: string): string {
-  const normalized = normalizeFolderNavigationPath(path).replaceAll("\\", "/")
-  const unc = /^(\/\/[^/]+\/[^/]+)(?:\/|$)/u.exec(normalized)
-  if (unc) return `${unc[1]}/`
-  const drive = /^([A-Za-z]:)(?:\/|$)/u.exec(normalized)
-  if (drive) return `${drive[1]}\\`
-  return "/"
+  return sharedDirectoryRoot(path)
 }
 
 export function directoryAncestors(path: string): string[] {
@@ -416,25 +418,7 @@ interface TreeRoot {
 }
 
 function treeRoots(rootPath: string, pinnedPaths: readonly string[], volumeRoots: readonly ReaderDirectoryRootDto[]): TreeRoot[] {
-  const roots: TreeRoot[] = []
-  for (const rawPath of pinnedPaths) {
-    const path = normalizeFolderNavigationPath(rawPath)
-    if (!roots.some((root) => samePath(root.path, path))) roots.push({ path, name: pinnedLabel(path), pinned: true, available: true })
-  }
-  for (const root of volumeRoots) {
-    const path = normalizeFolderNavigationPath(root.path)
-    const existing = roots.find((candidate) => samePath(candidate.path, path))
-    if (existing) {
-      existing.name = root.label
-      existing.available = root.available
-    } else {
-      roots.push({ path, name: root.label, pinned: false, available: root.available })
-    }
-  }
-  const existingRoot = roots.find((root) => samePath(root.path, rootPath))
-  if (existingRoot) existingRoot.available = true
-  else roots.push({ path: rootPath, name: rootLabel(rootPath), pinned: false, available: true })
-  return roots
+  return folderDirectoryRoots(rootPath, pinnedPaths, volumeRoots)
 }
 
 function flattenTree(
@@ -460,29 +444,16 @@ function flattenTree(
   return rows
 }
 
-function rootLabel(root: string): string {
-  return root.replaceAll("\\", "/").replace(/\/$/u, "") || "/"
-}
-
-function pinnedLabel(path: string): string {
-  const normalized = path.replaceAll("\\", "/").replace(/\/+$/u, "")
-  return normalized.split("/").at(-1) || rootLabel(path)
-}
-
 export function directoryPathKey(path: string): string {
-  const normalized = path.replaceAll("\\", "/").replace(/\/+$/u, "")
-  const value = normalized || "/"
-  return /^(?:[A-Za-z]:|\/\/)/u.test(value) ? value.toLowerCase() : value
+  return sharedDirectoryPathKey(path)
 }
 
 function samePath(left: string, right: string): boolean {
-  return directoryPathKey(left) === directoryPathKey(right)
+  return sameFolderDirectoryPath(left, right)
 }
 
 function isPathAncestor(candidate: string, path: string): boolean {
-  const ancestor = directoryPathKey(candidate)
-  const target = directoryPathKey(path)
-  return target !== ancestor && target.startsWith(ancestor === "/" ? "/" : `${ancestor}/`)
+  return isFolderDirectoryAncestor(candidate, path)
 }
 
 function setValue(values: ReadonlySet<string>, value: string, included: boolean, maximum = Number.POSITIVE_INFINITY): ReadonlySet<string> {

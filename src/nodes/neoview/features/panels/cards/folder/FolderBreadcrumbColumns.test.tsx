@@ -44,7 +44,8 @@ describe("FolderBreadcrumbColumns", () => {
     expect(screen.getByRole("tree", { name: "目录列导航" })).toBeTruthy()
     await waitFor(() => expect(treeDirectoryBrowser).toHaveBeenCalledTimes(4))
     expect(document.querySelector("[data-depth='0'][data-breadcrumb-column-collapsed='true']")).toBeTruthy()
-    expect(document.querySelector("[data-depth='1'][data-breadcrumb-column-collapsed='true']")).toBeNull()
+    expect(document.querySelector("[data-depth='1'][data-breadcrumb-column-collapsed='true']")).toBeTruthy()
+    expect(document.querySelector("[data-depth='2'][data-breadcrumb-column-collapsed='true']")).toBeNull()
     expect(screen.getByRole("treeitem", { name: "manga" }).getAttribute("aria-selected")).toBe("true")
     expect(screen.getByRole("treeitem", { name: "260701" }).getAttribute("aria-selected")).toBe("true")
 
@@ -52,7 +53,7 @@ describe("FolderBreadcrumbColumns", () => {
     fireEvent.click(next)
     expect(onNavigate).toHaveBeenCalledWith("C:\\manga\\260701\\other")
     expect(next.getAttribute("role")).toBe("treeitem")
-    expect(next.getAttribute("aria-level")).toBe("3")
+    expect(next.getAttribute("aria-level")).toBe("4")
   })
 
   it("[neoview.folder.breadcrumb-columns] keeps keyboard selection in the open-source roving tree model", async () => {
@@ -86,12 +87,47 @@ describe("FolderBreadcrumbColumns", () => {
 
     const alpha = await screen.findByTitle("C:\\alpha")
     const beta = screen.getByTitle("C:\\beta")
-    await waitFor(() => expect(alpha.getAttribute("tabindex")).toBe("0"))
-    await waitFor(() => expect(beta.getAttribute("tabindex")).toBe("-1"))
+    expect(screen.getAllByTitle("C:\\").find((element) => element.getAttribute("role") === "treeitem")?.getAttribute("tabindex")).toBe("0")
+    expect(alpha.getAttribute("tabindex")).toBe("-1")
+    expect(beta.getAttribute("tabindex")).toBe("-1")
     alpha.focus()
     fireEvent.keyDown(alpha, { key: "ArrowDown" })
     expect(document.activeElement).toBe(beta)
     fireEvent.keyDown(beta, { key: "Enter" })
     expect(onNavigate).toHaveBeenCalledWith("C:\\beta")
+  })
+
+  it("[neoview.folder.tree-cross-volume] navigates from the current E drive to a normalized D drive root", async () => {
+    const onNavigate = vi.fn()
+    const client = {
+      listDirectoryRoots: vi.fn(async () => [
+        { path: "D:", label: "Data (D:)", kind: "fixed" as const, available: true },
+        { path: "E:\\", label: "BOX (E:)", kind: "fixed" as const, available: true },
+      ]),
+      treeDirectoryBrowser: vi.fn(async (_sessionId: string, path?: string) => ({
+        sessionId: "browser-1",
+        path: path ?? "E:\\",
+        entries: [],
+        generation: 1,
+        cacheHit: false,
+        excludedPaths: [],
+      })),
+    } as unknown as ReaderHttpClient
+
+    render(
+      <FolderBreadcrumbColumns
+        client={client}
+        sessionId="browser-1"
+        rootPath="E:\\"
+        rootName="E:"
+        activePath={["E:\\library"]}
+        currentPath="E:\\library"
+        disabled={false}
+        onNavigate={onNavigate}
+      />,
+    )
+
+    fireEvent.click(await screen.findByTitle("D:\\"))
+    expect(onNavigate).toHaveBeenCalledWith("D:\\")
   })
 })

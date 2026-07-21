@@ -1,9 +1,10 @@
 import { MillerColumns } from "@primitiv-ui/react"
 import { ChevronRight, Folder, HardDrive, LoaderCircle, RotateCw } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import type { ReaderDirectoryEntryDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { ReaderDirectoryEntryDto, ReaderDirectoryRootDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import { folderDirectoryRoots, sameFolderDirectoryPath } from "./FolderDirectoryRoots"
 
 const FULL_WIDTH_COLUMN_COUNT = 3
 
@@ -20,14 +21,27 @@ interface FolderBreadcrumbColumnsProps {
 
 export default function FolderBreadcrumbColumns({ client, sessionId, rootPath, rootName, activePath, currentPath, disabled, onNavigate }: FolderBreadcrumbColumnsProps) {
   const loadDirectory = client.treeDirectoryBrowser
+  const [volumeRoots, setVolumeRoots] = useState<readonly ReaderDirectoryRootDto[]>([])
+  const roots = useMemo(() => folderDirectoryRoots(rootPath, [], volumeRoots, rootName), [rootName, rootPath, volumeRoots])
+  const selectedPath = useMemo(() => [rootPath, ...activePath], [activePath, rootPath])
+  const visibleStart = Math.max(0, selectedPath.length + 1 - FULL_WIDTH_COLUMN_COUNT)
+
+  useEffect(() => {
+    if (!client.listDirectoryRoots) return
+    const controller = new AbortController()
+    void client.listDirectoryRoots(controller.signal).then((values) => {
+      if (!controller.signal.aborted) setVolumeRoots(values)
+    }).catch(() => undefined)
+    return () => controller.abort()
+  }, [client.listDirectoryRoots])
+
   if (!loadDirectory) return null
-  const visibleStart = Math.max(0, activePath.length + 1 - FULL_WIDTH_COLUMN_COUNT)
 
   return (
     <MillerColumns.Root
       className="flex h-[min(19rem,55vh)] min-h-40 overflow-x-auto overflow-y-hidden bg-background"
       aria-label="目录列导航"
-      value={[...activePath]}
+      value={selectedPath}
       onValueChange={(path) => {
         const destination = path.at(-1) ?? rootPath
         if (!sameFolderPath(destination, currentPath)) onNavigate(destination)
@@ -36,19 +50,45 @@ export default function FolderBreadcrumbColumns({ client, sessionId, rootPath, r
     >
       <MillerColumns.Column
         className={columnClass(0, visibleStart)}
-        aria-label={rootName}
+        aria-label="驱动器"
         data-breadcrumb-column-collapsed={visibleStart > 0 || undefined}
       >
-        <DirectoryColumnContents
-          loadDirectory={loadDirectory}
-          sessionId={sessionId}
-          path={rootPath}
-          name={rootName}
-          depth={0}
-          visibleStart={visibleStart}
-          disabled={disabled}
-          onNavigate={onNavigate}
-        />
+        <div className={visibleStart > 0 ? "absolute inset-0 opacity-0 pointer-events-none" : undefined}>
+          {roots.map((root) => {
+            const currentRoot = sameFolderDirectoryPath(root.path, rootPath)
+            return (
+              <MillerColumns.Item<HTMLButtonElement> key={`${root.pinned ? "pin" : "root"}:${root.path}`} value={root.path} disabled={disabled || !root.available} asChild>
+                <button
+                  type="button"
+                  className="flex h-8 w-full shrink-0 items-center gap-1.5 border-l-2 border-transparent px-2 text-left text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[state=selected]:border-primary data-[state=selected]:bg-accent"
+                  title={root.path}
+                >
+                  <HardDrive className="size-4 shrink-0 text-primary" />
+                  <span className="min-w-0 flex-1 truncate">{root.name}</span>
+                  {!root.available ? <span className="text-[10px] text-muted-foreground">不可用</span> : <ChevronRight className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                </button>
+                {currentRoot ? (
+                  <MillerColumns.Column
+                    className={columnClass(1, visibleStart)}
+                    aria-label={root.name}
+                    data-breadcrumb-column-collapsed={1 < visibleStart || undefined}
+                  >
+                    <DirectoryColumnContents
+                      loadDirectory={loadDirectory}
+                      sessionId={sessionId}
+                      path={root.path}
+                      name={root.name}
+                      depth={1}
+                      visibleStart={visibleStart}
+                      disabled={disabled}
+                      onNavigate={onNavigate}
+                    />
+                  </MillerColumns.Column>
+                ) : null}
+              </MillerColumns.Item>
+            )
+          })}
+        </div>
       </MillerColumns.Column>
     </MillerColumns.Root>
   )
