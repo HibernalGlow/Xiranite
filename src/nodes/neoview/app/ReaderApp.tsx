@@ -1228,14 +1228,17 @@ export function ReaderApp({
   async function commitSidebarLayout(patch: ReaderSidebarLayoutPatch) {
     const previousControl = shellControlStore.getSnapshot()
     if (patch.pinned !== undefined) shellControlStore.setPinned(patch.side, patch.pinned)
-    try {
-      const updated = await clientRef.current.updateSidebarLayout(patch)
-      setShell(updated)
-    } catch (cause) {
-      if (patch.pinned !== undefined) shellControlStore.replace(previousControl)
-      setShell((current) => current ? { ...current, sidebars: { ...current.sidebars } } : current)
-      setError(errorMessage(cause))
-    }
+    await enqueueShellMutation(async () => {
+      try {
+        const updated = await clientRef.current.updateSidebarLayout(patch)
+        shellRef.current = updated
+        setShell(updated)
+      } catch (cause) {
+        if (patch.pinned !== undefined) shellControlStore.replace(previousControl)
+        setShell((current) => current ? { ...current, sidebars: { ...current.sidebars } } : current)
+        setError(errorMessage(cause))
+      }
+    })
   }
 
   async function commitCardLayout(patch: ReaderCardLayoutPatch) {
@@ -1252,43 +1255,59 @@ export function ReaderApp({
         })
       }
     }
-    try {
-      setShell(await clientRef.current.updateCardLayout(patch))
-    } catch (cause) {
-      setShell(previous)
-      setError(errorMessage(cause))
-    }
+    await enqueueShellMutation(async () => {
+      try {
+        const updated = await clientRef.current.updateCardLayout(patch)
+        shellRef.current = updated
+        setShell(updated)
+      } catch (cause) {
+        setShell(previous)
+        setError(errorMessage(cause))
+      }
+    })
   }
 
   async function commitBoardLayout(patch: ReaderBoardLayoutPatch) {
-    try {
-      const updated = await clientRef.current.updateBoardLayout(patch)
+    await enqueueShellMutation(async () => {
+      const request = { ...patch, expectedRevision: shellRef.current?.revision ?? patch.expectedRevision }
+      try {
+      const updated = await clientRef.current.updateBoardLayout(request)
       shellRef.current = updated
       setShell(updated)
     } catch (cause) {
       if (cause instanceof ReaderHttpError && cause.status === 409) {
-        const latest = await clientRef.current.config().catch(() => undefined)
-        if (latest) setShell(latest.shell)
+        const latest = await refreshLatestShell()
+        if (latest) {
+          const updated = await clientRef.current.updateBoardLayout({ ...patch, expectedRevision: latest.revision ?? request.expectedRevision })
+          shellRef.current = updated
+          setShell(updated)
+          return
+        }
       }
       setError(errorMessage(cause))
       throw cause
-    }
+      }
+    })
   }
 
   async function commitDraggedPanelLayout(nextShell: ReaderShellConfigDto, patch: ReaderBoardLayoutPatch): Promise<void> {
     const previous = shellRef.current
     shellRef.current = nextShell
     setShell(nextShell)
-    try {
-      const updated = await clientRef.current.updateBoardLayout(patch)
+    await enqueueShellMutation(async () => {
+      const request = { ...patch, expectedRevision: shellRef.current?.revision ?? patch.expectedRevision }
+      try {
+      const updated = await clientRef.current.updateBoardLayout(request)
       shellRef.current = updated
       setShell(updated)
     } catch (cause) {
       if (cause instanceof ReaderHttpError && cause.status === 409) {
-        const latest = await clientRef.current.config().catch(() => undefined)
+        const latest = await refreshLatestShell()
         if (latest) {
-          shellRef.current = latest.shell
-          setShell(latest.shell)
+          const updated = await clientRef.current.updateBoardLayout({ ...patch, expectedRevision: latest.revision ?? request.expectedRevision })
+          shellRef.current = updated
+          setShell(updated)
+          return
         } else if (shellRef.current === nextShell) {
           shellRef.current = previous
           setShell(previous)
@@ -1299,7 +1318,22 @@ export function ReaderApp({
       }
       setError(errorMessage(cause))
       throw cause
-    }
+      }
+    })
+  }
+
+  function enqueueShellMutation(operation: () => Promise<void>): Promise<void> {
+    const queued = shellControlWriteQueueRef.current.then(operation)
+    shellControlWriteQueueRef.current = queued.then(() => undefined, () => undefined)
+    return queued
+  }
+
+  async function refreshLatestShell(): Promise<ReaderShellConfigDto | undefined> {
+    const latest = await clientRef.current.config().catch(() => undefined)
+    if (!latest) return undefined
+    shellRef.current = latest.shell
+    setShell(latest.shell)
+    return latest.shell
   }
 
   async function commitShellMaterial(material: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto> {
