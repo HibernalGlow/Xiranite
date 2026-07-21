@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test"
 
-test("[neoview.emm-auxiliary.e2e] [neoview.emm-raw-data.geometry] [neoview.emm-raw-data.accessibility] renders the restored property cards without overflow", async ({ page }, testInfo) => {
+test("[neoview.emm-auxiliary.e2e] [neoview.emm-config.connection-e2e] [neoview.emm-raw-data.geometry] [neoview.emm-raw-data.accessibility] renders the restored property cards without overflow", async ({ page }, testInfo) => {
   await page.goto("/tests/e2e/neoview/neoview-emm-cards-harness.html", { waitUntil: "domcontentloaded" })
   const board = page.locator('[data-emm-card-board="true"]')
   await expect(page.locator('[data-emm-sync-card="true"]')).toContainText("外部 EMM 数据已连接")
+  await page.getByRole("button", { name: "测试连接" }).click()
+  await expect(page.getByRole("status").filter({ hasText: "连接可用" })).toContainText("D:/EMM/database.sqlite")
   await expect(page.locator('[data-emm-raw-data-card="true"]')).toContainText("artist:Alice")
   await page.getByRole("button", { name: "打开 来源链接" }).focus()
   await page.keyboard.press("Enter")

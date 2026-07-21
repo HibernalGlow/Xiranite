@@ -74,7 +74,60 @@ describe("external EMM composition", () => {
       await controller[Symbol.asyncDispose]()
     }
   })
+
+  it("[neoview.emm-config.live-reconfigure] probes and switches the active read-only database without restarting", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-live-emm-"))
+    roots.push(root)
+    const bookPath = join(root, "Live.cbz")
+    const firstPath = join(root, "first.sqlite")
+    const secondPath = join(root, "second.sqlite")
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(bookPath, new Uint8Array())
+    createEmmDatabase(firstPath, bookPath, 2.1, "First")
+    createEmmDatabase(secondPath, bookPath, 4.9, "Second")
+    await writeFile(configPath, `[nodes.neoview.emm]\nenabled = true\ndatabase_paths = [${JSON.stringify(firstPath.replaceAll("\\", "/"))}]\n`)
+
+    const controller = await createReaderHttpController({
+      baseUrl: "http://127.0.0.1:43127",
+      token: "runtime-token",
+      configPath,
+      legacyThumbnailDatabasePath: join(root, "thumbnails.db"),
+    })
+    try {
+      const opened = await json(controller, "/reader/browser/sessions", "POST", { path: root }) as { sessionId: string }
+      const entriesPath = `/reader/browser/s/${opened.sessionId}/entries?cursor=0&limit=16&fields=rating,tags`
+      expect(findEntry(await json(controller, entriesPath), bookPath)).toMatchObject({ rating: 2.1, tags: ["artist:First"] })
+
+      const probe = await json(controller, "/reader/emm/config/probe", "POST", { emm: { databasePaths: [secondPath] } }) as {
+        connected: boolean
+        sources: { path: string; status: string; readOnly: boolean }[]
+      }
+      expect(probe).toEqual({
+        enabled: true,
+        automatic: false,
+        connected: true,
+        readOnly: true,
+        sources: [{ path: secondPath, status: "compatible", readOnly: true }],
+      })
+
+      await json(controller, "/reader/config", "PATCH", { emm: { databasePaths: [secondPath] } })
+      expect(findEntry(await json(controller, entriesPath), bookPath)).toMatchObject({ rating: 4.9, tags: ["artist:Second"] })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
 })
+
+function createEmmDatabase(path: string, bookPath: string, rating: number, artist: string): void {
+  const database = new DatabaseSync(path)
+  database.exec("CREATE TABLE Mangas (filepath TEXT, rating REAL, tags JSON, pageCount INTEGER)")
+  database.prepare("INSERT INTO Mangas VALUES (?1, ?2, ?3, ?4)").run(bookPath, rating, JSON.stringify({ artist: [artist] }), 1)
+  database.close()
+}
+
+function findEntry(value: unknown, path: string): { path: string; rating?: number; tags?: string[] } | undefined {
+  return (value as { entries: { path: string; rating?: number; tags?: string[] }[] }).entries.find((entry) => entry.path === path)
+}
 
 async function json(
   controller: Awaited<ReturnType<typeof createReaderHttpController>>,

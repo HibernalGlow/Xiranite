@@ -1,8 +1,17 @@
+import { stat } from "node:fs/promises"
+
 import type { ReaderDirectoryEmmRecord, ReaderDirectoryEmmRecordStore, ReaderEmmRawField, ReaderEmmRawFieldType } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderEmmCatalogTag, ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
 import { openReadonlySqlite, type ReadonlySqliteConnection } from "../sqlite/openReadonlySqlite.js"
 
-type ExternalEmmStore = ReaderDirectoryEmmRecordStore & ReaderEmmTagCatalogStore & { close(): void }
+export type ExternalEmmStore = ReaderDirectoryEmmRecordStore & ReaderEmmTagCatalogStore & { close(): void }
+
+export interface LegacyEmmDatabaseProbe {
+  path: string
+  status: "compatible" | "missing" | "incompatible" | "unreadable"
+  readOnly: true
+  error?: string
+}
 
 const RAW_FIELD_TYPES = new Map<string, ReaderEmmRawFieldType>([
   ["bundlesize", "bytes"], ["category", "string"], ["coverhash", "string"], ["coverpath", "path"],
@@ -23,7 +32,8 @@ export async function openReadonlyLegacyEmmRecordStore(paths: readonly string[])
     for (const path of paths) {
       const database = await openReadonlySqlite(path)
       const hasMangas = database.get("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'Mangas'")
-      if (hasMangas) databases.push({ connection: database, rawColumns: discoverRawColumns(database) })
+      const rawColumns = hasMangas ? discoverRawColumns(database) : []
+      if (rawColumns.some((column) => column.toLocaleLowerCase() === "filepath")) databases.push({ connection: database, rawColumns })
       else database.close()
     }
   } catch (error) {
@@ -43,13 +53,17 @@ export async function openReadonlyLegacyEmmRecordStore(paths: readonly string[])
         const batch = queryPaths.slice(cursor, cursor + 256)
         const placeholders = batch.map((_, index) => `?${index + 1}`).join(", ")
         for (const { connection, rawColumns } of databases) {
-          const columns = options?.includeRaw ? rawColumns : ["filepath", "rating", "tags", "pageCount"]
+          const available = new Map(rawColumns.map((column) => [column.toLocaleLowerCase(), column]))
+          const columns = options?.includeRaw
+            ? rawColumns
+            : ["filepath", "rating", "tags", "pagecount"].flatMap((column) => available.get(column) ? [available.get(column)!] : [])
           for (const row of connection.all(
             `SELECT ${columns.map(quoteIdentifier).join(", ")} FROM Mangas WHERE filepath COLLATE NOCASE IN (${placeholders})`,
             ...batch,
           )) {
-            if (typeof row.filepath !== "string") continue
-            const normalized = normalizePath(row.filepath)
+            const filepath = rowValue(row, "filepath")
+            if (typeof filepath !== "string") continue
+            const normalized = normalizePath(filepath)
             const original = requested.get(normalized)
             if (original && !output.has(original)) output.set(original, recordFromRow(row, options?.includeRaw ? rawColumns : undefined))
           }
@@ -77,15 +91,49 @@ export async function openReadonlyLegacyEmmRecordStore(paths: readonly string[])
   }
 }
 
+export async function probeReadonlyLegacyEmmDatabases(paths: readonly string[]): Promise<readonly LegacyEmmDatabaseProbe[]> {
+  if (paths.length > 8) throw new TypeError("EMM connection probe accepts at most 8 database paths.")
+  const output: LegacyEmmDatabaseProbe[] = []
+  for (const path of paths) {
+    let connection: ReadonlySqliteConnection | undefined
+    try {
+      const metadata = await stat(path)
+      if (!metadata.isFile()) {
+        output.push({ path, status: "incompatible", readOnly: true, error: "Path is not a file." })
+        continue
+      }
+      connection = await openReadonlySqlite(path)
+      const hasMangas = connection.get("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'Mangas'")
+      const columns = hasMangas ? discoverRawColumns(connection) : []
+      if (!hasMangas || !columns.some((column) => column.toLocaleLowerCase() === "filepath")) {
+        output.push({ path, status: "incompatible", readOnly: true, error: "Mangas.filepath is required." })
+      } else {
+        output.push({ path, status: "compatible", readOnly: true })
+      }
+    } catch (error) {
+      const missing = isMissingFileError(error)
+      output.push({ path, status: missing ? "missing" : "unreadable", readOnly: true, error: errorMessage(error) })
+    } finally {
+      connection?.close()
+    }
+  }
+  return output
+}
+
 function recordFromRow(row: Record<string, unknown>, rawColumns?: readonly string[]): ReaderDirectoryEmmRecord {
-  const tags = parseTags(row.tags)
-  const pageCount = finiteNumber(row.pageCount)
-  const rating = finiteNumber(row.rating)
+  const tags = parseTags(rowValue(row, "tags"))
+  const pageCount = finiteNumber(rowValue(row, "pagecount"))
+  const rating = finiteNumber(rowValue(row, "rating"))
   return {
     emmJson: JSON.stringify({ ...(tags.length ? { tags } : {}), ...(pageCount === undefined ? {} : { page_count: pageCount }) }),
     ...(rating === undefined ? {} : { ratingData: JSON.stringify({ value: rating, source: "legacy-emm" }) }),
     ...(rawColumns ? { rawFields: rawFieldsFromRow(row, rawColumns) } : {}),
   }
+}
+
+function rowValue(row: Record<string, unknown>, name: string): unknown {
+  const key = Object.keys(row).find((candidate) => candidate.toLocaleLowerCase() === name)
+  return key ? row[key] : undefined
 }
 
 function discoverRawColumns(database: ReadonlySqliteConnection): readonly string[] {
@@ -152,4 +200,12 @@ function normalizePath(value: string): string {
 
 function toEmmPath(value: string): string {
   return value.replaceAll("/", "\\")
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "ENOENT"
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

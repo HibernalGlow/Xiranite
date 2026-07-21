@@ -597,6 +597,18 @@ export interface ReaderEmmConfigDto {
 export interface ReaderEmmConfigPatch {
   emm: Partial<ReaderEmmConfigDto>
 }
+export interface ReaderEmmConnectionProbeDto {
+  enabled: boolean
+  automatic: boolean
+  connected: boolean
+  readOnly: true
+  sources: readonly {
+    path: string
+    status: "compatible" | "missing" | "incompatible" | "unreadable"
+    readOnly: true
+    error?: string
+  }[]
+}
 export interface ReaderOllamaModelDto {
   name: string
   digest?: string
@@ -1480,6 +1492,7 @@ export interface ReaderHttpClient {
   updateInfoOverlay?(patch: ReaderInfoOverlayConfigPatch, signal?: AbortSignal): Promise<ReaderInfoOverlaySettings>
   updateSystemMonitor?(patch: ReaderSystemMonitorConfigPatch, signal?: AbortSignal): Promise<ReaderSystemMonitorConfigDto>
   updateEmm?(patch: ReaderEmmConfigPatch, signal?: AbortSignal): Promise<ReaderEmmConfigDto>
+  probeEmm?(patch: ReaderEmmConfigPatch, signal?: AbortSignal): Promise<ReaderEmmConnectionProbeDto>
   updateAiTranslation?(patch: ReaderAiTranslationConfigPatch, signal?: AbortSignal): Promise<ReaderAiTranslationConfigDto>
   aiCheck?(signal?: AbortSignal): Promise<ReaderAiCheckDto>
   aiModels?(signal?: AbortSignal): Promise<readonly ReaderOllamaModelDto[]>
@@ -2368,6 +2381,12 @@ export function createReaderHttpClient(
       body: JSON.stringify(patch),
       signal,
     }).then((config) => config.emm ?? { enabled: true, databasePaths: [], defaultRating: 4.2 }),
+    probeEmm: (patch, signal) => request<ReaderEmmConnectionProbeDto>("/reader/emm/config/probe", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+      signal,
+    }),
     aiCheck: (signal) => request<ReaderAiCheckDto>("/reader/ai/check", { signal }),
     aiModels: (signal) => request<{ items: ReaderOllamaModelDto[] }>("/reader/ai/models", { signal }).then((value) => value.items),
     aiTranslate: (body, signal) => request<ReaderAiTranslationResultDto>("/reader/ai/translate", {

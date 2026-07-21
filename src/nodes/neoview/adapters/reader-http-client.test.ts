@@ -560,6 +560,19 @@ describe("reader-http-client", () => {
     }
   })
 
+  it("[neoview.emm-config.connection-client] probes the draft through the authenticated backend", async () => {
+    const probe = { enabled: true, automatic: false, connected: true, readOnly: true, sources: [{ path: "D:/EMM/database.sqlite", status: "compatible", readOnly: true }] }
+    const fetchMock = vi.fn(async () => Response.json(probe))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    const patch = { emm: { enabled: true, databasePaths: ["D:/EMM/database.sqlite"] } }
+
+    await expect(client.probeEmm!(patch)).resolves.toEqual(probe)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/emm/config/probe")
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "POST", body: JSON.stringify(patch) })
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
   it("[neoview.opds.client] encodes a remote catalog URL through the authenticated reader route", async () => {
     const fetchMock = vi.fn(async () => Response.json({ url: "https://catalog.example/feed", navigation: [], publications: [], links: [] }))
     vi.stubGlobal("fetch", fetchMock)
