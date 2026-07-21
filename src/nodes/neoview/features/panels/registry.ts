@@ -23,6 +23,7 @@ import type {
   ReaderBookSettingsUpdateDto,
   ReaderHistoryListPreferencesDto,
   ReaderRadialMenuPatch,
+  ReaderVoiceControlPatch,
   ReaderHttpClient,
   ReaderPageListPreferencesDto,
   ReaderPreloadActionResultDto,
@@ -111,6 +112,8 @@ export interface ReaderPanelContext {
   onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu?: ReaderRuntimeConfigDto["radialMenu"]
   onRadialMenu?(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  voiceControl?: ReaderRuntimeConfigDto["voiceControl"]
+  onVoiceControl?(patch: ReaderVoiceControlPatch["voiceControl"]): Promise<NonNullable<ReaderRuntimeConfigDto["voiceControl"]>>
   onMaterial?(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>

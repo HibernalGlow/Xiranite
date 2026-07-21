@@ -14,6 +14,7 @@ import { unwrapNeoviewConfigEnvelope } from "./NeoviewConfigEnvelope.js"
 import { parseNeoviewInputBindingsConfig } from "./ReaderInputBindingsConfig.js"
 import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 import { parseReaderRadialMenuConfig, type ReaderRadialMenuConfig } from "./ReaderRadialMenuConfig.js"
+import { DEFAULT_READER_VOICE_CONTROL_CONFIG, type ReaderVoiceControlConfig } from "./ReaderVoiceControlConfig.js"
 import type { SuperResolutionCustomModelManifest } from "../../ports/SuperResolutionProvider.js"
 import { DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG, parseNeoviewImageProcessingConfig, type NeoviewImageProcessingConfig } from "./ReaderImageProcessingConfig.js"
 import { parseSuperResolutionPreferences, type SuperResolutionPreferences } from "../../domain/super-resolution/super-resolution-preferences.js"
@@ -81,6 +82,7 @@ export interface NeoviewRuntimeConfig {
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
+  voiceControl: ReaderVoiceControlConfig
   preload: NeoviewPreloadConfig
   systemMonitor: NeoviewSystemMonitorConfig
   emm: NeoviewEmmConfig

@@ -10,6 +10,7 @@ import {
   type ReaderInputAction,
   type ReaderInputBindingsConfig,
   type ReaderRadialMenuConfig,
+  type ReaderVoiceControlConfig,
 } from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
@@ -51,6 +52,7 @@ import {
   type ReaderShellLockMode,
   type ReaderInputBindingsPatch,
   type ReaderRadialMenuPatch,
+  type ReaderVoiceControlPatch,
   type ReaderSettingsMigrationImportResult,
   type ReaderSettingsMigrationInspection,
 } from "../adapters/reader-http-client"
@@ -327,6 +329,7 @@ export function ReaderApp({
   const [folderView, setFolderView] = useState<ReaderFolderViewConfig>(() => structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
   const [inputBindings, setInputBindings] = useState<ReaderInputBindingsConfig>(() => structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const [radialMenu, setRadialMenu] = useState<ReaderRadialMenuConfig>(() => structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
+  const [voiceControl, setVoiceControl] = useState<ReaderVoiceControlConfig>()
   const [media, setMedia] = useState<ReaderMediaConfigDto>()
   const [imageProcessing, setImageProcessing] = useState<ReaderImageProcessingConfigDto>()
   const [slideshowConfig, setSlideshowConfig] = useState<ReaderSlideshowConfig>(() => ({ ...INITIAL_SLIDESHOW_CONFIG }))
@@ -436,6 +439,7 @@ export function ReaderApp({
       inputBindingsRef.current = config.inputBindings
       setInputBindings(config.inputBindings)
       setRadialMenu(config.radialMenu ?? structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
+      setVoiceControl(config.voiceControl)
       if (!presentationTouchedRef.current) {
         setPresentation((current) => ({
           ...current,
@@ -899,6 +903,13 @@ export function ReaderApp({
     return updated
   }
 
+  async function persistVoiceControl(patch: ReaderVoiceControlPatch["voiceControl"]): Promise<ReaderVoiceControlConfig> {
+    if (!clientRef.current.updateVoiceControl) throw new Error("当前 Reader 后端不支持语音控制设置。")
+    const updated = await clientRef.current.updateVoiceControl({ voiceControl: patch })
+    setVoiceControl(updated)
+    return updated
+  }
+
   async function inspectLegacySettings(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection> {
     if (!clientRef.current.inspectLegacySettings) throw new Error("褰撳墠 Reader 鍚庣涓嶆敮鎸佹棫璁剧疆瀵煎叆銆")
     return clientRef.current.inspectLegacySettings(content, modules)
@@ -911,6 +922,7 @@ export function ReaderApp({
     inputBindingsRef.current = config.inputBindings
     setInputBindings(config.inputBindings)
     setRadialMenu(config.radialMenu ?? structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
+    setVoiceControl(config.voiceControl)
     shellRef.current = config.shell
     setShell(config.shell)
     return result
@@ -1749,6 +1761,8 @@ export function ReaderApp({
     onInputBindings: persistInputBindings,
     radialMenu,
     onRadialMenu: persistRadialMenu,
+    voiceControl,
+    onVoiceControl: persistVoiceControl,
     onMaterial: commitShellMaterial,
     onLegacySettingsInspect: inspectLegacySettings,
     onLegacySettingsImport: importLegacySettings,

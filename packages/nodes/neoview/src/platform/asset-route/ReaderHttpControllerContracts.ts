@@ -186,6 +186,7 @@ import {
   type NeoviewRadialMenuPatch,
   type ReaderRadialMenuConfig,
 } from "../../application/config/ReaderRadialMenuConfig.js"
+import type { NeoviewVoiceControlPatch, ReaderVoiceControlConfig } from "../../application/config/ReaderVoiceControlConfig.js"
 import { DEFAULT_READER_INPUT_BINDINGS, cloneReaderInputBindings, type ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
@@ -307,6 +308,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     updateInputBindings?: (patch: NeoviewInputBindingsPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInputBindingsConfig>
     radialMenu?: ReaderRadialMenuConfig
     updateRadialMenu?: (patch: NeoviewRadialMenuPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderRadialMenuConfig>
+    voiceControl?: ReaderVoiceControlConfig
+    updateVoiceControl?: (patch: NeoviewVoiceControlPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderVoiceControlConfig>
     maxSeekableMediaEntryBytes?: number
     maxSeekableMediaTotalBytes?: number
     loadSettingsMigrationService?: () => Promise<ReaderSettingsMigrationService>

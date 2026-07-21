@@ -131,6 +131,16 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         body: JSON.stringify(patch),
         signal,
       }).then((value) => value.radialMenu),
+    updateVoiceControl: (patch, signal) =>
+      request<Contract.ReaderRuntimeConfigDto>("/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+        signal,
+      }).then((value) => {
+        if (!value.voiceControl) throw new Error("Reader backend omitted voice control config")
+        return value.voiceControl
+      }),
     inspectLegacySettings: (content, modules, signal) =>
       request<Contract.ReaderSettingsMigrationInspection>("/reader/settings/migration/inspect", {
         method: "POST",

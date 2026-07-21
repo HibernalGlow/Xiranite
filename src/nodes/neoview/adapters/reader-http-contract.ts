@@ -1164,6 +1164,7 @@ export interface ReaderRuntimeConfigDto {
   superResolution?: ReaderSuperResolutionConfigDto
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
+  voiceControl?: ReaderVoiceControlConfig
 }
 
 export type {
@@ -1173,7 +1174,7 @@ export type {
   ReaderInputContext,
   ReaderInputDescriptor,
 } from "@xiranite/node-neoview/ui-core"
-import type { ReaderInputBindingsConfig, ReaderRadialMenuConfig } from "@xiranite/node-neoview/ui-core"
+import type { ReaderInputBindingsConfig, ReaderRadialMenuConfig, ReaderVoiceControlConfig } from "@xiranite/node-neoview/ui-core"
 
 export interface ReaderInputBindingsPatch {
   inputBindings: {
@@ -1434,6 +1435,9 @@ export type ReaderDirectoryFilterDto = "all" | "library" | "archive" | "director
 
 export interface ReaderRadialMenuPatch {
   radialMenu: { config?: ReaderRadialMenuConfig; reset?: "defaults" }
+}
+export interface ReaderVoiceControlPatch {
+  voiceControl: Partial<ReaderVoiceControlConfig>
 }
 
 export interface ReaderSettingsMigrationReport {
@@ -1736,6 +1740,7 @@ export interface ReaderHttpClient {
   updateImageProcessing?(patch: ReaderImageProcessingPatchDto, signal?: AbortSignal): Promise<ReaderImageProcessingConfigDto>
   updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
   updateRadialMenu?(patch: ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRadialMenuConfig>
+  updateVoiceControl?(patch: ReaderVoiceControlPatch, signal?: AbortSignal): Promise<ReaderVoiceControlConfig>
   inspectLegacySettings?(content: string, modules?: readonly string[], signal?: AbortSignal): Promise<ReaderSettingsMigrationInspection>
   importLegacySettings?(
     content: string,

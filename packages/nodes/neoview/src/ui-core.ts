@@ -1,6 +1,13 @@
 export type { ReaderBook, ViewSource } from "./domain/book/book.js"
 export { def } from "./domain/definition.js"
 export {
+  DEFAULT_READER_VOICE_CONTROL_CONFIG,
+  parseReaderVoiceControlConfig,
+  parseReaderVoiceControlPatch,
+  type NeoviewVoiceControlPatch,
+  type ReaderVoiceControlConfig,
+} from "./application/config/ReaderVoiceControlConfig.js"
+export {
   DEFAULT_READER_LAYOUT,
   type FramePage,
   type FrameCropInsets,

@@ -14,6 +14,7 @@ import { unwrapNeoviewConfigEnvelope } from "./NeoviewConfigEnvelope.js"
 import { parseNeoviewInputBindingsConfig } from "./ReaderInputBindingsConfig.js"
 import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 import { parseReaderRadialMenuConfig, type ReaderRadialMenuConfig } from "./ReaderRadialMenuConfig.js"
+import { DEFAULT_READER_VOICE_CONTROL_CONFIG, parseReaderVoiceControlConfig } from "./ReaderVoiceControlConfig.js"
 import type { SuperResolutionCustomModelManifest } from "../../ports/SuperResolutionProvider.js"
 import { DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG, parseNeoviewImageProcessingConfig, type NeoviewImageProcessingConfig } from "./ReaderImageProcessingConfig.js"
 import { parseSuperResolutionPreferences, type SuperResolutionPreferences } from "../../domain/super-resolution/super-resolution-preferences.js"
@@ -83,6 +84,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
       presentationDiskCache: Models.DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
       inputBindings: parseNeoviewInputBindingsConfig(undefined),
       radialMenu: parseReaderRadialMenuConfig(undefined),
+      voiceControl: DEFAULT_READER_VOICE_CONTROL_CONFIG,
       preload: Models.DEFAULT_NEOVIEW_PRELOAD_CONFIG,
       systemMonitor: Models.DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
       emm: Models.DEFAULT_NEOVIEW_EMM_CONFIG,
@@ -126,6 +128,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
   const aiTranslation = optionalRecord(config.ai_translation ?? config.aiTranslation, "[nodes.neoview.ai_translation]")
   const superResolution = optionalRecord(config.super_resolution, "[nodes.neoview.super_resolution]")
   const bindings = optionalRecord(config.bindings, "[nodes.neoview.bindings]")
+  const voiceControl = optionalRecord(config.voice_control ?? config.voiceControl, "[nodes.neoview.voice_control]")
   const presentationDiskCache = optionalRecord(performance?.presentation_disk_cache, "[nodes.neoview.performance.presentation_disk_cache]")
 
   const bookConfig = parseBookConfig(book, legacyBook)
@@ -266,6 +269,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
     inputBindings: parseNeoviewInputBindingsConfig(bindings),
     radialMenu: parseReaderRadialMenuConfig(bindings?.radial_menus),
+    voiceControl: parseReaderVoiceControlConfig(voiceControl),
     preload: parsePreloadConfig(performance, image, legacyBook),
     systemMonitor: parseSystemMonitorConfig(systemMonitor),
     emm: parseEmmConfig(emm),

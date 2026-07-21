@@ -186,6 +186,11 @@ import {
   type NeoviewRadialMenuPatch,
   type ReaderRadialMenuConfig,
 } from "../../application/config/ReaderRadialMenuConfig.js"
+import {
+  DEFAULT_READER_VOICE_CONTROL_CONFIG,
+  parseReaderVoiceControlPatch,
+  type ReaderVoiceControlConfig,
+} from "../../application/config/ReaderVoiceControlConfig.js"
 import { DEFAULT_READER_INPUT_BINDINGS, cloneReaderInputBindings, type ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
@@ -326,6 +331,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #superResolution: NeoviewSuperResolutionConfig
   #inputBindings: ReaderInputBindingsConfig
   #radialMenu: ReaderRadialMenuConfig
+  #voiceControl: ReaderVoiceControlConfig
   #sessionOptions: Partial<ReaderSessionOptions>
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
   readonly #updateViewDefaults?: ReaderHttpControllerOptions["updateViewDefaults"]
@@ -349,6 +355,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateSuperResolution?: ReaderHttpControllerOptions["updateSuperResolution"]
   readonly #updateInputBindings?: ReaderHttpControllerOptions["updateInputBindings"]
   readonly #updateRadialMenu?: ReaderHttpControllerOptions["updateRadialMenu"]
+  readonly #updateVoiceControl?: ReaderHttpControllerOptions["updateVoiceControl"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
   #hibernateCheck?: Promise<void>
   readonly #bookMetadataLoads = new Map<
@@ -666,6 +673,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#superResolution = options.superResolution ?? DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG
     this.#inputBindings = options.inputBindings ?? cloneReaderInputBindings(DEFAULT_READER_INPUT_BINDINGS)
     this.#radialMenu = options.radialMenu ?? cloneReaderRadialMenuConfig(DEFAULT_READER_RADIAL_MENU_CONFIG)
+    this.#voiceControl = options.voiceControl ?? DEFAULT_READER_VOICE_CONTROL_CONFIG
     this.#sessionOptions = options.sessionOptions ?? {}
     this.#updateShellOptions = options.updateShellOptions
     this.#updateViewDefaults = options.updateViewDefaults
@@ -690,6 +698,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateSuperResolution = options.updateSuperResolution
     this.#updateInputBindings = options.updateInputBindings
     this.#updateRadialMenu = options.updateRadialMenu
+    this.#updateVoiceControl = options.updateVoiceControl
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -1136,6 +1145,18 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
+    if (Object.hasOwn(body, "voiceControl")) {
+      if (!this.#updateVoiceControl) return jsonResponse({ error: "Reader voice control config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseReaderVoiceControlPatch>
+      try { parsed = parseReaderVoiceControlPatch(body) } catch (error) { return jsonResponse({ error: errorMessage(error) }, 400) }
+      let updated: ReaderVoiceControlConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateVoiceControl!(parsed.patch, parsed.tomlPatch)
+        this.#voiceControl = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try { await operation; return jsonResponse(this.#configDto()) } catch (error) { return jsonResponse({ error: errorMessage(error) }, 500) }
+    }
     if (Object.hasOwn(body, "colorFilter")) {
       if (!this.#updateColorFilter) return jsonResponse({ error: "Reader color filter config is read-only" }, 405)
       let parsed: ReturnType<typeof parseNeoviewColorFilterPatch>
@@ -1559,6 +1580,7 @@ export class ReaderHttpController implements AsyncDisposable {
       },
       inputBindings: this.#inputBindings,
       radialMenu: this.#radialMenu,
+      voiceControl: this.#voiceControl,
     }
   }
 
