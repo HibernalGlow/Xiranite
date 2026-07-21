@@ -476,15 +476,21 @@ export async function createReaderHttpController(
   let superResolutionRuntimeConfig = runtimeConfig.superResolution
   let reconfigureSuperResolution: ((config: NeoviewSuperResolutionConfig) => Promise<void>) | undefined
   if (!superResolutionArtifactPages || !superResolutionArtifactStore) {
-    const { join } = await import("node:path")
+    const { join, resolve } = await import("node:path")
     const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
     const { CacacheSuperResolutionArtifactStore } = await import(
       "./platform/super-resolution/CacacheSuperResolutionArtifactStore.js"
     )
     const { LazySuperResolutionPagePort } = await import("./platform/super-resolution/LazySuperResolutionPagePort.js")
     const root = options.superResolutionArtifactCacheRoot
+      ?? (superResolutionRuntimeConfig.artifactCache.directory
+        ? resolve(options.cwd ?? process.cwd(), superResolutionRuntimeConfig.artifactCache.directory)
+        : undefined)
       ?? join(new LegacyNeoViewDataLocator().locate().appDataDirectory, "upscale-artifacts")
-    const ownedStore = new CacacheSuperResolutionArtifactStore({ root })
+    const ownedStore = new CacacheSuperResolutionArtifactStore({
+      root,
+      ...superResolutionArtifactCleanupPolicy(superResolutionRuntimeConfig),
+    })
     const ownedPages = new LazySuperResolutionPagePort(async () => {
       const { createOpenComicAiSystemCapability } = await import(
         "./platform/super-resolution/opencomic-system/OpenComicAiSystemComposition.js"
@@ -509,6 +515,7 @@ export async function createReaderHttpController(
     superResolutionPreload = ownedPages
     reconfigureSuperResolution = async (config) => {
       superResolutionRuntimeConfig = config
+      ownedStore.configureCleanupPolicy(superResolutionArtifactCleanupPolicy(config))
       await ownedPages.reconfigure()
     }
     disposeSuperResolutionArtifacts = async () => {
@@ -1054,7 +1061,7 @@ export async function createReaderHeadlessController(
     if (options.superResolution) {
       superResolution = options.superResolution
     } else {
-      const { join } = await import("node:path")
+      const { join, resolve } = await import("node:path")
       const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
       const { CacacheSuperResolutionArtifactStore } = await import(
         "./platform/super-resolution/CacacheSuperResolutionArtifactStore.js"
@@ -1062,7 +1069,11 @@ export async function createReaderHeadlessController(
       const { LazySuperResolutionPagePort } = await import("./platform/super-resolution/LazySuperResolutionPagePort.js")
       const artifactStore = new CacacheSuperResolutionArtifactStore({
         root: options.superResolutionArtifactCacheRoot
+          ?? (runtimeConfig.superResolution.artifactCache.directory
+            ? resolve(options.cwd ?? process.cwd(), runtimeConfig.superResolution.artifactCache.directory)
+            : undefined)
           ?? join(new LegacyNeoViewDataLocator().locate().appDataDirectory, "upscale-artifacts"),
+        ...superResolutionArtifactCleanupPolicy(runtimeConfig.superResolution),
       })
       const artifactFor: ReaderHeadlessSuperResolutionArtifactFactory = (bookPath, page, context) => ({
         key: buildSuperResolutionArtifactKey({
@@ -1237,6 +1248,16 @@ async function createDefaultPresentationDiskCache(
     trimRatio: config.trimRatio,
     minFreeBytes: config.minFreeBytes,
   })
+}
+
+function superResolutionArtifactCleanupPolicy(config: NeoviewSuperResolutionConfig): {
+  maxAgeMs: number
+  cleanupIntervalMs: number
+} {
+  return {
+    maxAgeMs: config.artifactCache.retentionDays * 24 * 60 * 60 * 1000,
+    cleanupIntervalMs: config.artifactCache.cleanupIntervalMinutes * 60 * 1000,
+  }
 }
 
 async function legacyNeoViewDatabasePath(explicitPath?: string): Promise<string> {

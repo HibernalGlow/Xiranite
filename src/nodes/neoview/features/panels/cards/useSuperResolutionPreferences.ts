@@ -52,6 +52,7 @@ export function useSuperResolutionPreferences(
       ...previous,
       ...(patch.modelsDirectory === undefined ? {} : { modelsDirectory: patch.modelsDirectory }),
       ...(patch.modelSources === undefined ? {} : { modelSources: patch.modelSources }),
+      ...(patch.artifactCache ? { artifactCache: { ...previous.artifactCache, ...patch.artifactCache } } : {}),
       ...(patch.preferences ? { preferences: { ...previous.preferences, ...patch.preferences } } : {}),
     } : undefined
     setConfig(next)

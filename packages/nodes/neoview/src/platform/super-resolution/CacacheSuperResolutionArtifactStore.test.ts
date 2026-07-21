@@ -135,6 +135,15 @@ describe("CacacheSuperResolutionArtifactStore", () => {
     await store.close()
   })
 
+  it("[neoview.super-resolution.artifact-periodic-cleanup] removes expired artifacts on the configured interval", async () => {
+    let now = 1
+    const store = createStore({ maxAgeMs: 10, cleanupIntervalMs: 20, now: () => now })
+    await store.publish(key("periodic"), metadata, output(20, 1))
+    now = 100
+    await expect.poll(async () => (await store.snapshot()).entries, { timeout: 1_000 }).toBe(0)
+    await store.close()
+  })
+
   it("[neoview.super-resolution.artifact-dedup-accounting] counts shared cacache content once", async () => {
     const store = createStore()
     await store.publish(key("shared-a"), metadata, (path) => writeFile(path, PNG_HEADER))

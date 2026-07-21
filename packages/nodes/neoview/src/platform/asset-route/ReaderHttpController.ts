@@ -1606,6 +1606,7 @@ export class ReaderHttpController implements AsyncDisposable {
         provider: this.#superResolution.provider,
         modelsDirectory: this.#superResolution.modelsDirectory,
         modelSources: this.#superResolution.modelSources,
+        artifactCache: this.#superResolution.artifactCache,
         preferences: this.#superResolution.preferences,
       },
       inputBindings: this.#inputBindings,

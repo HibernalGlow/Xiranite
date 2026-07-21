@@ -41,6 +41,16 @@ test("[neoview.super-resolution.cards-browser] preserves the legacy upscale Card
   await page.screenshot({ path: testInfo.outputPath("neoview-upscale-models-1920x1080.png"), fullPage: false })
 
   await page.locator('[data-harness-card="缓存管理"]').scrollIntoViewIfNeeded()
+  const cacheCard = page.locator('[data-harness-card="缓存管理"]')
+  await expect(cacheCard.getByRole("textbox", { name: "超分缓存目录", exact: true })).toHaveAttribute("placeholder", /upscale-artifacts/)
+  await expect(cacheCard.getByLabel("保留期限")).toHaveValue("30")
+  await expect(cacheCard.getByLabel("自动清理周期")).toHaveValue("1440")
+  await cacheCard.getByRole("button", { name: "选择超分缓存目录" }).click()
+  await expect(cacheCard.getByRole("textbox", { name: "超分缓存目录", exact: true })).toHaveValue("D:/Selected/models")
+  await cacheCard.getByLabel("保留期限").selectOption("14")
+  await cacheCard.getByLabel("自动清理周期").selectOption("720")
+  await expect.poll(() => page.locator("html").getAttribute("data-upscale-writes")).not.toBeNull()
+  await page.screenshot({ path: testInfo.outputPath("neoview-upscale-cache-settings-1920x1080.png"), fullPage: false })
   await page.getByRole("button", { name: "全部" }).click()
   await page.getByRole("button", { name: "清理", exact: true }).click()
   await expect.poll(() => page.locator("html").getAttribute("data-cache-cleanup")).toBe("all")
@@ -61,6 +71,17 @@ test("[neoview.super-resolution.cards-browser] preserves the legacy upscale Card
     expect(box!.x + box!.width).toBeLessThanOrEqual(modelCardBox!.x + modelCardBox!.width + 1)
   }
   await page.screenshot({ path: testInfo.outputPath("neoview-upscale-models-420x360.png"), fullPage: false })
+
+  await cacheCard.scrollIntoViewIfNeeded()
+  await expect(cacheCard).toBeVisible()
+  const cacheCardBox = await cacheCard.boundingBox()
+  expect(cacheCardBox).not.toBeNull()
+  for (const control of await cacheCard.locator("button:visible,input:visible,select:visible").all()) {
+    const box = await control.boundingBox()
+    expect(box, "visible cache control has stable geometry").not.toBeNull()
+    expect(box!.x + box!.width).toBeLessThanOrEqual(cacheCardBox!.x + cacheCardBox!.width + 1)
+  }
+  await page.screenshot({ path: testInfo.outputPath("neoview-upscale-cache-settings-420x360.png"), fullPage: false })
 
   const conditions = page.locator('[data-harness-card="条件超分"]')
   await conditions.scrollIntoViewIfNeeded()
