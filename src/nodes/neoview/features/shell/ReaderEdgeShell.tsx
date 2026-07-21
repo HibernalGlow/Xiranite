@@ -38,6 +38,8 @@ export type ReaderEdgeOpenReason = "trigger" | "leave" | "escape"
 const EDGE_ORDER: readonly ReaderEdge[] = ["top", "right", "bottom", "left"]
 const DEFAULT_TRIGGER_SIZE = 32
 const DEFAULT_HIDE_DELAY = 500
+const EXIT_TRANSITION_MS = 160
+type ReaderEdgePresentation = "visible" | "exiting" | "hidden"
 
 export function ReaderEdgeShell({
   children,
@@ -81,9 +83,11 @@ function ReaderEdgeSurface({
       : slot.open
   const automatic = slot.interaction === "auto"
   const [mounted, setMounted] = useState(visible)
+  const [presentation, setPresentation] = useState<ReaderEdgePresentation>(visible ? "visible" : "hidden")
   const surfaceRef = useRef<HTMLDivElement>(null)
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const lastPointerRef = useRef<{ x: number; y: number } | undefined>(undefined)
   const composingRef = useRef(false)
   const protectedInteractionRef = useRef(false)
@@ -93,8 +97,20 @@ function ReaderEdgeSurface({
   callbackRef.current = onOpenRequest
 
   useEffect(() => {
-    if (visible) setMounted(true)
-  }, [visible])
+    clearTimer(exitTimerRef)
+    if (visible) {
+      setMounted(true)
+      setPresentation("visible")
+      return
+    }
+    if (!mounted) return
+    setPresentation("exiting")
+    exitTimerRef.current = setTimeout(() => {
+      exitTimerRef.current = undefined
+      setPresentation("hidden")
+    }, EXIT_TRANSITION_MS)
+    return () => clearTimer(exitTimerRef)
+  }, [mounted, visible])
 
   useEffect(() => {
     if (visible) clearTimer(showTimerRef)
@@ -108,6 +124,7 @@ function ReaderEdgeSurface({
   useEffect(() => () => {
     clearTimer(showTimerRef)
     clearTimer(hideTimerRef)
+    clearTimer(exitTimerRef)
   }, [])
 
   useEffect(() => {
@@ -156,6 +173,13 @@ function ReaderEdgeSurface({
       protectedInteractionRef.current = false
       if (!(target instanceof Node) || !surfaceRef.current?.contains(target)) scheduleHide()
     }
+    const handlePointerEnd = (event: PointerEvent) => {
+      if (!protectedInteractionRef.current) return
+      protectedInteractionRef.current = false
+      const surface = surfaceRef.current
+      const target = document.elementFromPoint(event.clientX, event.clientY)
+      if (!surface || !target || !surface.contains(target)) scheduleHide()
+    }
     const clearTransientProtection = () => {
       // Native window minimize/blur can happen before pointerup reaches the
       // surface. Do not let that abandoned gesture become a permanent pin.
@@ -164,11 +188,15 @@ function ReaderEdgeSurface({
     }
     window.addEventListener("keydown", handleKeyDown)
     window.addEventListener("pointerdown", handlePointerDown, true)
+    window.addEventListener("pointerup", handlePointerEnd, true)
+    window.addEventListener("pointercancel", handlePointerEnd, true)
     window.addEventListener("blur", clearTransientProtection)
     document.addEventListener("visibilitychange", clearTransientProtection)
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("pointerdown", handlePointerDown, true)
+      window.removeEventListener("pointerup", handlePointerEnd, true)
+      window.removeEventListener("pointercancel", handlePointerEnd, true)
       window.removeEventListener("blur", clearTransientProtection)
       document.removeEventListener("visibilitychange", clearTransientProtection)
     }
@@ -214,6 +242,7 @@ function ReaderEdgeSurface({
   }
 
   const triggerSize = Math.max(1, slot.triggerSize ?? DEFAULT_TRIGGER_SIZE)
+  const presented = presentation !== "hidden"
   return (
     <>
       <div
@@ -231,15 +260,19 @@ function ReaderEdgeSurface({
           ref={surfaceRef}
           role="region"
           aria-label={slot.ariaLabel}
-          hidden={!visible}
           aria-hidden={!visible || undefined}
           data-reader-edge={edge}
+          data-reader-edge-visible={visible ? "true" : "false"}
+          data-reader-edge-presentation={presentation}
           data-input-context="shell"
           data-pinned={slot.pinned ? "true" : "false"}
           data-reader-edge-interaction={slot.interaction}
           className={cn(
-            "absolute min-h-0 min-w-0 motion-reduce:transition-none",
+            "absolute min-h-0 min-w-0 transform-gpu transition-transform duration-150 ease-out will-change-transform motion-reduce:transition-none",
             edge === "top" || edge === "bottom" ? "z-[80]" : "z-[60]",
+            !visible && "pointer-events-none",
+            presentation === "hidden" && "invisible",
+            edgeTransformClass(edge, presentation === "visible"),
             surfaceClass(edge),
             slot.className,
           )}
@@ -273,7 +306,7 @@ function ReaderEdgeSurface({
             clearTimer(hideTimerRef)
           }}
         >
-          {slot.render(visible)}
+          {slot.render(presented)}
         </div>
       ) : null}
     </>
@@ -298,6 +331,14 @@ function surfaceClass(edge: ReaderEdge): string {
   if (edge === "bottom") return "inset-x-0 bottom-0"
   if (edge === "left") return "inset-y-0 left-0"
   return "inset-y-0 right-0"
+}
+
+function edgeTransformClass(edge: ReaderEdge, visible: boolean): string {
+  if (visible) return "translate-x-0 translate-y-0"
+  if (edge === "top") return "-translate-y-full"
+  if (edge === "bottom") return "translate-y-full"
+  if (edge === "left") return "-translate-x-full"
+  return "translate-x-full"
 }
 
 function triggerStyle(edge: ReaderEdge, size: number): React.CSSProperties {
@@ -335,11 +376,14 @@ const FLOATING_SELECTOR = [
 
 function isProtectedFloatingElement(element: Element | null): boolean {
   if (!element) return false
-  if (element.matches(FLOATING_SELECTOR) || element.closest(FLOATING_SELECTOR)) return true
-  const style = window.getComputedStyle(element)
-  return style.position === "fixed" && Number.parseInt(style.zIndex, 10) >= 50
+  return element.matches(FLOATING_SELECTOR) || element.closest(FLOATING_SELECTOR) !== null
 }
 
 function hasProtectedFloatingLayer(): boolean {
-  return document.querySelector(FLOATING_SELECTOR) !== null
+  return [...document.querySelectorAll<HTMLElement>(FLOATING_SELECTOR)].some((element) => {
+    if (element.hidden || element.getAttribute("aria-hidden") === "true" || element.closest('[data-state="closed"]')) return false
+    const style = window.getComputedStyle(element)
+    if (style.display === "none" || style.visibility === "hidden" || style.pointerEvents === "none") return false
+    return element.getClientRects().length > 0 || style.position === "fixed" || style.position === "absolute"
+  })
 }

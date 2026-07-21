@@ -59,6 +59,7 @@ export interface ReaderPanelContext {
   client: ReaderHttpClient
   disabled: boolean
   panelActive?: boolean
+  panelVisible?: boolean
   onGoTo(pageIndex: number): void | Promise<void>
   onBookSettingsUpdated?(sessionId: string, update: ReaderBookSettingsUpdateDto): void
   bookmarkListPreferences?: ReaderBookmarkListPreferencesDto

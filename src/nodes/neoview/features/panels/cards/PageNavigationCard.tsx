@@ -36,7 +36,9 @@ const PageListContextActions = lazy(() => import("./page-list/PageListContextAct
 const catalogBatchModule = import("./page-list/requestPageCatalogBatch")
 
 export default function PageNavigationCard(context: ReaderPanelContext) {
-  if (context.panelActive === false) return <ReaderCardEmptyState />
+  const residentRef = useRef(context.panelActive !== false)
+  if (context.panelActive !== false) residentRef.current = true
+  if (!residentRef.current) return <ReaderCardEmptyState />
   if (!context.session) return <ReaderCardEmptyState>打开书本后显示页面导航</ReaderCardEmptyState>
   const totalPages = normalizePageCount(context.session.book.pageCount)
   const activePageIndex = clampPageIndex(context.session.frame.anchorPageIndex, totalPages)

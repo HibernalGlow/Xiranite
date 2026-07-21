@@ -48,6 +48,7 @@ describe("BookmarkListCard", () => {
       generation,
       items: items.map((item) => ({ id: item.id, thumbnailUrl: `/thumbnail/${item.id}`, contentVersion: "v1" })),
     }))
+    const releaseLibraryThumbnailContext = vi.fn(async () => undefined)
     const listBookmarkLists = vi.fn(async () => [{ id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true }])
     const listBookmarks = vi.fn(async () => [{
       id: "bookmark-one",
@@ -60,7 +61,8 @@ describe("BookmarkListCard", () => {
       listIds: ["all"],
     }])
     const base = context(listBookmarkLists, listBookmarks)
-    const view = render(<BookmarkListCard {...base} client={{ ...base.client, registerLibraryThumbnails } as ReaderHttpClient} />)
+    const client = { ...base.client, registerLibraryThumbnails, releaseLibraryThumbnailContext } as ReaderHttpClient
+    const view = render(<BookmarkListCard {...base} client={client} panelVisible />)
 
     await waitFor(() => expect(listBookmarks).toHaveBeenCalledOnce())
     await waitFor(() => expect(view.container.querySelector('[data-bookmark-id="bookmark-one"]')).toBeTruthy())
@@ -68,11 +70,22 @@ describe("BookmarkListCard", () => {
     expect(registerLibraryThumbnails.mock.calls[0]?.[2]).toEqual([
       expect.objectContaining({ id: "bookmark-one", path: "D:/books/one.cbz", kind: "file", previewCount: 1 }),
     ])
-    await waitFor(() => expect(view.container.querySelector('img[src="/thumbnail/bookmark-one"]')).toBeTruthy())
+    const image = await waitFor(() => {
+      const current = view.container.querySelector('img[src="/thumbnail/bookmark-one"]')
+      expect(current).toBeTruthy()
+      return current
+    })
+    view.rerender(<BookmarkListCard {...base} client={client} panelActive={false} panelVisible={false} />)
+    await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledOnce())
+    expect(screen.getByTestId("bookmark-card").getAttribute("data-bookmark-state")).toBe("ready")
+    expect(view.container.querySelector('img[src="/thumbnail/bookmark-one"]')).toBe(image)
+    view.rerender(<BookmarkListCard {...base} client={client} panelVisible />)
+    expect(view.container.querySelector('img[src="/thumbnail/bookmark-one"]')).toBe(image)
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledTimes(2))
     fireEvent.pointerDown(screen.getByRole("button", { name: "视图：紧凑列表" }), { button: 0, ctrlKey: false, pointerType: "mouse" })
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "封面列表" }))
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(registerLibraryThumbnails).toHaveBeenCalledOnce()
+    expect(registerLibraryThumbnails).toHaveBeenCalledTimes(2)
   })
 
   it("[neoview.bookmark.focus-restoration] restores focus to the all-list tab after deleting the active custom list", async () => {

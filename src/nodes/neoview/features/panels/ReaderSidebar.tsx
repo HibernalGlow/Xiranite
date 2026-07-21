@@ -107,7 +107,8 @@ export function ReaderSidebar({
         }}
       />
       {panels.map((panel) => {
-        const panelActive = edgeActive && panel.id === active?.id
+        const panelActive = panel.id === active?.id
+        const panelVisible = edgeActive && panelActive
         const cards = cardsForPanel(panel.id, shell, hasSession)
         const exclusive = cards.length === 1 && cards[0]?.exclusivePanel === true
         if (!panelActive && !mountedPanels.has(panel.id)) return null
@@ -117,12 +118,15 @@ export function ReaderSidebar({
             className={cn(
               "min-h-0 min-w-0 flex-1 overscroll-contain",
               exclusive ? "relative flex h-full min-h-0 flex-col overflow-hidden" : "overflow-y-auto",
+              !panelActive && "pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden",
             )}
-            hidden={!panelActive}
-            aria-hidden={!panelActive || undefined}
-            data-reader-panel={panelActive ? panel.id : undefined}
+            style={!panelActive ? { contentVisibility: "hidden", containIntrinsicSize: "auto 100%" } : undefined}
+            aria-hidden={!panelVisible || undefined}
+            data-reader-panel={panelVisible ? panel.id : undefined}
             data-reader-panel-cache={panel.id}
-            data-context-menu={panelActive && panel.id === "info" ? "neoview-info" : undefined}
+            data-reader-panel-active={panelActive ? "true" : "false"}
+            data-reader-panel-visible={panelVisible ? "true" : "false"}
+            data-context-menu={panelVisible && panel.id === "info" ? "neoview-info" : undefined}
           >
             {exclusive ? null : <div className="sticky top-0 z-10 flex min-h-11 items-center gap-2 border-b border-border/50 bg-transparent px-3 py-2">
               <span aria-hidden="true">{panel.emoji}</span>
@@ -167,7 +171,7 @@ export function ReaderSidebar({
                     onHeightChange={(height) => onCardLayoutCommit?.({ cardId: card.id, height: height ?? null })}
                   >
                     <Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted/60" aria-label={`正在加载${card.title}`} />}>
-                      <Card {...context} panelActive={panelActive} />
+                      <Card {...context} panelActive={panelActive} panelVisible={panelVisible} />
                     </Suspense>
                   </CollapsibleReaderCard>
                 ) : null

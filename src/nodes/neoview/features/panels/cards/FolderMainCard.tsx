@@ -230,7 +230,8 @@ export default function FolderMainCard(context: ReaderPanelContext) {
   )
 }
 
-function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, switchToast, folderView = DEFAULT_FOLDER_VIEW, onFolderView, active, browserPath, tabBar, folderTabCount, maxFolderTabs, onCreateTab, onCurrentPathChange, onOpenInNewTab, folderNavigationEvents, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; browserPath: string; tabBar?: ReactNode; folderTabCount: number; maxFolderTabs: number; onCreateTab(): void; currentFolderTabPinned: boolean; canReopenFolderTab: boolean; onDuplicateCurrentTab(): void; onToggleCurrentTabPinned(): void; onReopenFolderTab(): void; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
+function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions, switchToast, folderView = DEFAULT_FOLDER_VIEW, onFolderView, panelVisible, active, browserPath, tabBar, folderTabCount, maxFolderTabs, onCreateTab, onCurrentPathChange, onOpenInNewTab, folderNavigationEvents, initialClone, onCloneProvider }: ReaderPanelContext & { active: boolean; browserPath: string; tabBar?: ReactNode; folderTabCount: number; maxFolderTabs: number; onCreateTab(): void; currentFolderTabPinned: boolean; canReopenFolderTab: boolean; onDuplicateCurrentTab(): void; onToggleCurrentTabPinned(): void; onReopenFolderTab(): void; onCurrentPathChange(path: string): void; onOpenInNewTab(path: string): void; initialClone?: FolderBrowserCloneSnapshot; onCloneProvider(provider?: FolderBrowserCloneProvider): void }) {
+  const thumbnailsVisible = active && (panelVisible ?? true)
   const clipboard = useFolderClipboard()
   const pendingInitialCloneRef = useRef(initialClone)
   const startupBrowserPathRef = useRef(resolveFolderStartupPath(browserPath, folderView.homePath))
@@ -379,12 +380,17 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
   }, [clipboard.lastCompleted?.id])
 
   useEffect(() => {
-    if (!active || !catalog || !viewUsesThumbnails(viewMode)) return
+    if (!thumbnailsVisible || !catalog || !viewUsesThumbnails(viewMode)) return
     registerVisibleThumbnails()
-  }, [active, catalog?.sessionId, catalog?.generation, viewMode, previewGridEnabled, previewCount])
+  }, [thumbnailsVisible, catalog?.sessionId, catalog?.generation, viewMode, previewGridEnabled, previewCount])
 
   useEffect(() => {
-    if (!active || !catalog || !viewUsesThumbnails(viewMode)
+    if (thumbnailsVisible) return
+    releaseThumbnailContext()
+  }, [thumbnailsVisible])
+
+  useEffect(() => {
+    if (!thumbnailsVisible || !catalog || !viewUsesThumbnails(viewMode)
       || !client.listDirectoryBrowser || !client.prewarmLibraryThumbnails) return
     const compilePreviewCount = previewGridEnabled ? previewCount : 1
     const compileKey = `${catalog.sessionId}:${catalog.generation}:${compilePreviewCount}`
@@ -411,7 +417,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
       controller.abort(new DOMException("Folder thumbnail compilation superseded.", "AbortError"))
       if (!completed) thumbnailCompileKeysRef.current.delete(compileKey)
     }
-  }, [active, catalog?.sessionId, catalog?.generation, catalog?.total, viewMode, previewGridEnabled, previewCount])
+  }, [thumbnailsVisible, catalog?.sessionId, catalog?.generation, catalog?.total, viewMode, previewGridEnabled, previewCount])
 
   useEffect(() => {
     if (!catalog || viewMode !== "details") return
@@ -420,7 +426,7 @@ function FolderBrowserPane({ client, disabled, sourcePath, onOpen, systemActions
 
   async function registerVisibleThumbnails(refresh = false, targetPaths?: ReadonlySet<string>): Promise<void> {
     const current = catalogRef.current
-    if (!current || !viewUsesThumbnails(viewMode) || !client.registerLibraryThumbnails) return
+    if (!thumbnailsVisible || !current || !viewUsesThumbnails(viewMode) || !client.registerLibraryThumbnails) return
     const range = visibleRangeRef.current
     const candidates = targetPaths
       ? [...current.pages].flatMap(([cursor, entries]) => entries.map((entry, offset) => ({ index: cursor + offset, entry })))

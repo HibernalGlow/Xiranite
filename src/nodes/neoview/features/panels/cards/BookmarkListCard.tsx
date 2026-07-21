@@ -26,7 +26,11 @@ const LazyBookmarkContextActions = lazy(() => import("./bookmark/BookmarkContext
 /**
  * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/bookmark/BookmarkListCard.tsx
  */
-export default function BookmarkListCard({ client, disabled, panelActive = true, onOpen, onBrowsePath, onOpenInNewTab, session, sourcePath, systemActions, bookmarkListPreferences, onBookmarkListPreferences }: ReaderPanelContext) {
+export default function BookmarkListCard({ client, disabled, panelActive = true, panelVisible, onOpen, onBrowsePath, onOpenInNewTab, session, sourcePath, systemActions, bookmarkListPreferences, onBookmarkListPreferences }: ReaderPanelContext) {
+  const residentRef = useRef(panelActive)
+  if (panelActive) residentRef.current = true
+  const resident = residentRef.current
+  const thumbnailsVisible = panelVisible ?? panelActive
   const [lists, setLists] = useState<readonly ReaderBookmarkListDto[]>([])
   const [listsReady, setListsReady] = useState(false)
   const [activeListId, setActiveListId] = useState(() => bookmarkListPreferences?.activeListId ?? "all")
@@ -67,26 +71,26 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
   )
   const activeList = lists.find((list) => list.id === activeListId)
   const editableLists = lists.filter((list) => list.id !== "all" && list.id !== "favorites")
-  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => !panelActive || visibleBookmarks.listId !== activeListId ? [] : visibleBookmarks.items.map((item) => ({
+  const thumbnailItems = useMemo<readonly ReaderLibraryThumbnailItem[]>(() => !thumbnailsVisible || visibleBookmarks.listId !== activeListId ? [] : visibleBookmarks.items.map((item) => ({
     id: item.id,
     path: item.source.path,
     kind: item.kind,
     previewCount: item.kind === "folder" ? 4 : 1,
-  })), [activeListId, panelActive, visibleBookmarks])
+  })), [activeListId, thumbnailsVisible, visibleBookmarks])
   const thumbnails = useReaderLibraryThumbnails(client, `bookmark:${activeListId}`, thumbnailItems)
   const loadPage = useCallback((offset: number, limit: number, signal: AbortSignal) => {
-    if (!panelActive) return Promise.resolve<readonly ReaderBookmarkDto[]>([])
+    if (!resident) return Promise.resolve<readonly ReaderBookmarkDto[]>([])
     if (!client.listBookmarks) return Promise.reject(new Error("当前后端不支持书签"))
     return client.listBookmarks(offset, limit, activeListId, signal, { search: deferredSearch, sort })
-  }, [activeListId, client, deferredSearch, panelActive, sort])
+  }, [activeListId, client, deferredSearch, resident, sort])
 
   useEffect(() => {
-    if (!panelActive) return
+    if (!resident) return
     return subscribeReaderLibraryMutations(() => setRevision((value) => value + 1))
-  }, [panelActive])
+  }, [resident])
 
   useEffect(() => {
-    if (!panelActive) {
+    if (!resident) {
       setLists([])
       setListsReady(false)
       return
@@ -109,10 +113,10 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
       if (!controller.signal.aborted) setActionError(errorMessage(error))
     })
     return () => controller.abort()
-  }, [client, panelActive, revision])
+  }, [client, resident, revision])
 
   useEffect(() => {
-    if (!panelActive || !listsReady || !onBookmarkListPreferences) return
+    if (!resident || !listsReady || !onBookmarkListPreferences) return
     const configured = bookmarkListPreferences?.activeListId ?? "all"
     const next = lists.some((list) => list.id === configured) ? configured : "all"
     setActiveListId(next)
@@ -121,7 +125,7 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
     if (next !== configured) {
       void onBookmarkListPreferences({ activeListId: next }).catch((error) => setActionError(errorMessage(error)))
     }
-  }, [bookmarkListPreferences?.activeListId, lists, listsReady, onBookmarkListPreferences, panelActive])
+  }, [bookmarkListPreferences?.activeListId, lists, listsReady, onBookmarkListPreferences, resident])
 
   const handleLoadedItems = useCallback((items: readonly ReaderBookmarkDto[]) => {
     setLoadedBookmarks(items)
@@ -296,7 +300,7 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
     }
   }
 
-  if (!panelActive) {
+  if (!resident) {
     return (
       <div className="flex h-full min-h-0 w-full flex-1 flex-col gap-2" data-neoview-bookmark-card="true" data-bookmark-state="inactive" data-testid="bookmark-card">
         <div className="grid min-h-24 flex-1 place-items-center rounded border bg-background/60 px-3 py-4 text-center text-xs text-muted-foreground" data-bookmark-empty-shell="true">

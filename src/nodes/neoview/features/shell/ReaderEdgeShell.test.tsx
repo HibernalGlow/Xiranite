@@ -62,6 +62,26 @@ describe("ReaderEdgeShell", () => {
     expect(clicked).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.shell.interaction-release] retracts after a child consumes pointerup", () => {
+    vi.useFakeTimers()
+    const requests = vi.fn()
+    render(
+      <ReaderEdgeShell
+        edges={{ left: { ...slot("left", <button type="button" onPointerUp={(event) => event.stopPropagation()}>card action</button>), open: true, hideDelayMs: 20 } }}
+        onEdgeOpenRequest={requests}
+      >
+        <div>viewport</div>
+      </ReaderEdgeShell>,
+    )
+
+    const action = screen.getByRole("button", { name: "card action" })
+    fireEvent.pointerDown(action, { clientX: 12, clientY: 40 })
+    fireEvent.pointerUp(action, { clientX: 12, clientY: 40 })
+    fireEvent.pointerLeave(screen.getByRole("region", { name: "left edge" }))
+    act(() => vi.advanceTimersByTime(20))
+    expect(requests).toHaveBeenCalledWith("left", false, "leave")
+  })
+
   it("[neoview.shell.controlled] requests visibility without owning a second open state", () => {
     vi.useFakeTimers()
     const requests = vi.fn()
@@ -97,7 +117,15 @@ describe("ReaderEdgeShell", () => {
     expect(screen.getByText("top content")).toBeTruthy()
     act(() => vi.advanceTimersByTime(1))
     expect(screen.getByText("top content")).toBeTruthy()
-    expect(document.querySelector<HTMLElement>('[data-reader-edge="top"]')?.hidden).toBe(true)
+    const exitingEdge = document.querySelector<HTMLElement>('[data-reader-edge="top"]')
+    expect(exitingEdge?.hidden).toBe(false)
+    expect(exitingEdge?.getAttribute("data-reader-edge-visible")).toBe("false")
+    expect(exitingEdge?.getAttribute("data-reader-edge-presentation")).toBe("exiting")
+    expect(exitingEdge?.className).toContain("-translate-y-full")
+    expect(exitingEdge?.className).not.toContain("invisible")
+    act(() => vi.advanceTimersByTime(160))
+    expect(exitingEdge?.getAttribute("data-reader-edge-presentation")).toBe("hidden")
+    expect(exitingEdge?.className).toContain("invisible")
     expect(requests.mock.calls).toEqual([
       ["top", true, "trigger"],
       ["top", false, "leave"],
@@ -246,6 +274,7 @@ describe("ReaderEdgeShell", () => {
     const region = screen.getByRole("region", { name: "left edge" })
     const menu = document.createElement("div")
     menu.setAttribute("role", "menu")
+    menu.style.position = "fixed"
     document.body.appendChild(menu)
     fireEvent.pointerLeave(region)
     act(() => vi.advanceTimersByTime(100))
@@ -255,6 +284,29 @@ describe("ReaderEdgeShell", () => {
     fireEvent.pointerDown(window)
     act(() => vi.advanceTimersByTime(20))
     expect(requests).toHaveBeenCalledWith("left", false, "leave")
+  })
+
+  it("[neoview.shell.floating-menu-protection] ignores closed portal menu nodes", () => {
+    vi.useFakeTimers()
+    const requests = vi.fn()
+    render(
+      <ReaderEdgeShell
+        edges={{ left: { ...slot("left", <div>cards</div>), open: true, hideDelayMs: 20 } }}
+        onEdgeOpenRequest={requests}
+      >
+        <div>viewport</div>
+      </ReaderEdgeShell>,
+    )
+    const menu = document.createElement("div")
+    menu.setAttribute("role", "menu")
+    menu.setAttribute("data-state", "closed")
+    menu.style.position = "fixed"
+    document.body.appendChild(menu)
+
+    fireEvent.pointerLeave(screen.getByRole("region", { name: "left edge" }))
+    act(() => vi.advanceTimersByTime(20))
+    expect(requests).toHaveBeenCalledWith("left", false, "leave")
+    menu.remove()
   })
 
   it("[neoview.shell.edge-interaction-protection] keeps an edge open while a side control is being operated", () => {
