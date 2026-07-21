@@ -115,10 +115,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
       "targetContract": "Expose a bounded, versioned and read-only projection of the matched external Mangas row with explicit field types, omission rules and source identity through the authenticated Reader metadata boundary.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "complete", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm.external-readonly", "neoview.emm-raw-data.dto", "neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
-      "plannedTestIds": ["neoview.emm-raw-data.boundary"],
-      "notes": "ReaderBookMetadataService requests includeRaw only for the once-per-session static metadata load. The readonly external store selects a fixed allowlist, caps fields and scalar lengths, emits emmRaw schemaVersion 1, and leaves directory batch hydration on the existing lightweight projection. The React Card explicitly labels legacy servers as a compatibility projection."
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm.external-readonly", "neoview.emm-raw-data.dto", "neoview.emm-raw-data.http", "neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": [],
+      "notes": "ReaderBookMetadataService requests includeRaw only for the once-per-session static metadata load. The authenticated HTTP contract proves the bounded schemaVersion 1 DTO, omission of unknown source properties and per-session request reuse. The readonly external store selects a fixed allowlist, caps fields and scalar lengths, and leaves directory batch hydration on the existing lightweight projection. The React Card explicitly labels legacy servers as a compatibility projection."
     },
     {
       "id": "emm-raw-data.projection",
@@ -127,10 +127,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Render only validated current-book fields and bounded tag rows, omit undefined values and keep filtering pure without parsing arbitrary database JSON in React.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
-      "plannedTestIds": ["neoview.emm-raw-data.projection-bound"],
-      "notes": "Legacy servers remain supported through the bounded compatibility projection; raw-v1 servers use the separate typed field DTO without parsing database JSON in React."
+      "capabilityStatus": {"core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-raw-data.http", "neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": [],
+      "notes": "The authenticated metadata boundary exposes only the versioned typed field DTO and omits unknown source properties. Legacy servers remain supported through the bounded compatibility projection without parsing database JSON in React."
     },
     {
       "id": "emm-raw-data.filter",
@@ -163,8 +163,8 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Apply the source field-label map and deterministic path, URL, datetime, timestamp, byte-size, number and boolean formatting while preserving raw values in accessible descriptions.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
-      "testIds": ["neoview.emm-raw-data.dto", "neoview.emm-raw-data.formatting"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm-raw-data.dto", "neoview.emm-raw-data.formatting", "neoview.emm-raw-data.http"],
       "plannedTestIds": [],
       "notes": "The versioned DTO carries explicit scalar types. The Card restores field labels and deterministic bytes, rating, boolean, datetime and seconds-timestamp formatting while retaining invalid raw text and full values."
     },
@@ -212,7 +212,7 @@
       "targetContract": "Share one static metadata request with sibling Cards, perform zero hidden work and cancel or ignore stale results on deactivation, session replacement or unmount.",
       "surfaces": ["GUI"],
       "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-cards.lifecycle", "neoview.emm-sync.direct-source"],
+      "testIds": ["neoview.emm-cards.lifecycle", "neoview.emm-raw-data.http", "neoview.emm-sync.direct-source"],
       "plannedTestIds": ["neoview.emm-raw-data.session-replace"],
       "notes": "Hidden zero work and request sharing are covered; explicit session replacement remains planned."
     },

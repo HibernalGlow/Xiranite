@@ -4870,19 +4870,19 @@
 ##### 专用源码级验收项
 
 - [ ] `emm-raw-data.raw-record` 有界原始 EMM 记录 DTO
-  - 六维：`core=C transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Expose a bounded, versioned and read-only projection of the matched external Mangas row with explicit field types, omission rules and source identity through the authenticated Reader metadata boundary.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.emm.external-readonly`、`neoview.emm-raw-data.dto`、`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
-  - 计划测试：`neoview.emm-raw-data.boundary`
-  - 备注：ReaderBookMetadataService requests includeRaw only for the once-per-session static metadata load. The readonly external store selects a fixed allowlist, caps fields and scalar lengths, emits emmRaw schemaVersion 1, and leaves directory batch hydration on the existing lightweight projection. The React Card explicitly labels legacy servers as a compatibility projection.
+  - 测试：`neoview.emm.external-readonly`、`neoview.emm-raw-data.dto`、`neoview.emm-raw-data.http`、`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
+  - 计划测试：无
+  - 备注：ReaderBookMetadataService requests includeRaw only for the once-per-session static metadata load. The authenticated HTTP contract proves the bounded schemaVersion 1 DTO, omission of unknown source properties and per-session request reuse. The readonly external store selects a fixed allowlist, caps fields and scalar lengths, and leaves directory batch hydration on the existing lightweight projection. The React Card explicitly labels legacy servers as a compatibility projection.
 - [ ] `emm-raw-data.projection` Reader 已验证字段投影
-  - 六维：`core=N/A transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`evidence`
+  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Render only validated current-book fields and bounded tag rows, omit undefined values and keep filtering pure without parsing arbitrary database JSON in React.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
-  - 测试：`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
-  - 计划测试：`neoview.emm-raw-data.projection-bound`
-  - 备注：Legacy servers remain supported through the bounded compatibility projection; raw-v1 servers use the separate typed field DTO without parsing database JSON in React.
+  - 测试：`neoview.emm-raw-data.http`、`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
+  - 计划测试：无
+  - 备注：The authenticated metadata boundary exposes only the versioned typed field DTO and omits unknown source properties. Legacy servers remain supported through the bounded compatibility projection without parsing database JSON in React.
 - [x] `emm-raw-data.filter` 字段和值过滤
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Filter the visible bounded rows by case-insensitive key or value text without mutating source order or issuing a new backend request.
@@ -4897,11 +4897,11 @@
   - 测试：`neoview.emm-raw-data.sort`
   - 计划测试：无
   - 备注：TanStack Table owns stable key/value sorting with named keyboard-operable headers; sorting consumes derived rows and never mutates emmRaw.
-- [ ] `emm-raw-data.formatting` 字段标签和类型格式化
-  - 六维：`core=N/A transport=P gui=C cli=N/A tui=N/A evidence=C`；阻塞：`transport`
+- [x] `emm-raw-data.formatting` 字段标签和类型格式化
+  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Apply the source field-label map and deterministic path, URL, datetime, timestamp, byte-size, number and boolean formatting while preserving raw values in accessible descriptions.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
-  - 测试：`neoview.emm-raw-data.dto`、`neoview.emm-raw-data.formatting`
+  - 测试：`neoview.emm-raw-data.dto`、`neoview.emm-raw-data.formatting`、`neoview.emm-raw-data.http`
   - 计划测试：无
   - 备注：The versioned DTO carries explicit scalar types. The Card restores field labels and deterministic bytes, rating, boolean, datetime and seconds-timestamp formatting while retaining invalid raw text and full values.
 - [x] `emm-raw-data.view-copy` 格式化/原始视图与复制
@@ -4929,7 +4929,7 @@
   - 六维：`core=N/A transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`evidence`
   - 目标：Share one static metadata request with sibling Cards, perform zero hidden work and cancel or ignore stale results on deactivation, session replacement or unmount.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
-  - 测试：`neoview.emm-cards.lifecycle`、`neoview.emm-sync.direct-source`
+  - 测试：`neoview.emm-cards.lifecycle`、`neoview.emm-raw-data.http`、`neoview.emm-sync.direct-source`
   - 计划测试：`neoview.emm-raw-data.session-replace`
   - 备注：Hidden zero work and request sharing are covered; explicit session replacement remains planned.
 - [ ] `emm-raw-data.accessibility` 表格、过滤和字段动作语义
