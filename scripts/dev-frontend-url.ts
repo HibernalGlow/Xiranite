@@ -1,7 +1,10 @@
 import { createServer } from "node:net"
+import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 
 const DEFAULT_FRONTEND_PORT = 5173
 const MAX_PORT_ATTEMPTS = 100
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
 export interface DevFrontendEnvironment {
   FRONTEND_DEVSERVER_URL?: string
@@ -22,6 +25,16 @@ export async function resolveManagedFrontendUrl(
   }
 
   throw new Error(`No available frontend port found from ${preferredPort}.`)
+}
+
+/**
+ * Keep each managed dev server out of Vite's shared node_modules cache.
+ * The managed launcher can pick another port when one is already in use.
+ */
+export function managedViteCacheDir(frontendUrl: string): string {
+  const frontend = new URL(frontendUrl)
+  const port = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
+  return resolve(repoRoot, ".cache", "vite", `${frontend.hostname}-${port}`)
 }
 
 function parsePreferredPort(value: string | undefined): number {

@@ -1,7 +1,7 @@
 import { createServer } from "node:net"
 import { afterEach, describe, expect, it } from "bun:test"
 
-import { resolveManagedFrontendUrl } from "./dev-frontend-url"
+import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
 
 const servers: ReturnType<typeof createServer>[] = []
 
@@ -30,6 +30,13 @@ describe("resolveManagedFrontendUrl", () => {
     await expect(resolveManagedFrontendUrl({ XIRANITE_FRONTEND_PORT: "invalid" })).rejects.toThrow(
       "XIRANITE_FRONTEND_PORT",
     )
+  })
+})
+
+describe("managedViteCacheDir", () => {
+  it("isolates managed Vite caches by frontend endpoint", () => {
+    expect(managedViteCacheDir("http://127.0.0.1:5173")).toMatch(/\.cache[\\/]vite[\\/]127\.0\.0\.1-5173$/)
+    expect(managedViteCacheDir("http://127.0.0.1:5174")).toMatch(/\.cache[\\/]vite[\\/]127\.0\.0\.1-5174$/)
   })
 })
 
