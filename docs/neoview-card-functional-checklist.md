@@ -5059,23 +5059,23 @@
   - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Persist tagMode (all/collect/none, default collect), showRating, showCollectTagCount, showTags, maxTags and showTooltips under [nodes.neoview.folder.tag_display] with bounded validation and no browser-local duplicate state.
   - 源码：`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
-  - 测试：`neoview.folder.tag-display-config`、`neoview.folder.tag-display-menu`、`neoview.folder.tag-display-mode`
+  - 测试：`neoview.folder.tag-display-config`、`neoview.folder.tag-display-menu`、`neoview.folder.tag-display-mode`、`neoview.file-list-tag-display.http-config`
   - 计划测试：无
-  - 备注：The same ReaderRuntimeConfig folderView mutation path used by the File Card owns persistence.
+  - 备注：The same ReaderRuntimeConfig folderView mutation path used by the File Card owns persistence. The authenticated config route proves the complete policy is returned and serialized to [nodes.neoview.folder.tag_display].
 - [ ] `file-list-tag-display.rendering` 共享条目渲染限制数量和 tooltip
   - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Apply the policy in the shared FolderEntryMetadata renderer so compact, list, cover, mosaic and grid entries receive the same bounded tag count and tooltip behavior without new per-row subscriptions.
   - 源码：`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
-  - 测试：`neoview.folder.tag-display-render`、`neoview.folder.tag-display-collect`
+  - 测试：`neoview.folder.tag-display-render`、`neoview.folder.tag-display-collect`、`neoview.file-list-tag-display.http-dto`
   - 计划测试：`neoview.folder.tag-display-views`
-  - 备注：One React context value is read by row renderers; no global listener or metadata refetch is introduced.
+  - 备注：The directory HTTP DTO carries the bounded tag arrays and count consumed by one shared React context value; no global listener or metadata refetch is introduced. Multi-view browser geometry remains planned.
 - [ ] `file-list-tag-display.sources` EMM/manual/AI 来源与命名空间筛选
   - 六维：`core=N/A transport=C gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
   - 目标：Filter tags by explicit source and namespace identity only when the canonical directory DTO carries those identities; do not infer source from free-form text.
   - 源码：`src/lib/components/panels/emm/FileListTagDisplayCard.svelte`
-  - 测试：`neoview.folder.emm-tag-sources`、`neoview.folder.tag-display-collect`
+  - 测试：`neoview.folder.emm-tag-sources`、`neoview.folder.tag-display-collect`、`neoview.file-list-tag-display.http-dto`
   - 计划测试：`neoview.folder.tag-display-sources`
-  - 备注：The directory DTO now preserves collected EMM tags and manual tags separately for the legacy collect mode. AI identity and arbitrary per-namespace filtering remain partial.
+  - 备注：The directory DTO and HTTP response preserve collected EMM tags and manual tags separately for the legacy collect mode. AI identity and arbitrary per-namespace filtering remain partial.
 
 ### Panel: `upscale`（6）
 
