@@ -1,3 +1,14 @@
+/**
+ * i18n 初始化与语言切换。
+ *
+ * 基于 i18next + react-i18next，按 namespace（common/topbar/settings/...）
+ * 拆分资源，懒加载对应语言的 locale JSON。
+ *
+ * 资源加载策略：
+ *  - 默认语言资源在 init 阶段同步加载；
+ *  - 非默认语言在 init 完成后异步预加载 en 作为 fallback；
+ *  - `module` namespace 会与 node 包（如 sleept）自带的 locale 资源合并。
+ */
 import i18n, { type ResourceLanguage } from "i18next"
 import { initReactI18next } from "react-i18next"
 import { sleeptLocaleResources } from "@xiranite/node-sleept/i18n"
@@ -10,6 +21,7 @@ export const LANGUAGES: { key: Language; label: string; nativeLabel: string }[] 
 ]
 
 const STORAGE_KEY = "i18n.lang"
+/** 命名空间列表：每个对应 locale JSON 中的一个顶层 key。 */
 const NS_KEYS = ["common", "topbar", "settings", "registry", "overlay", "view", "module"] as const
 
 const localeLoaders: Record<Language, () => Promise<{ default: Record<string, unknown> }>> = {
@@ -17,8 +29,15 @@ const localeLoaders: Record<Language, () => Promise<{ default: Record<string, un
   zh: () => import("./locales/zh.json"),
 }
 
+/** i18n 初始化 Promise（防止重复初始化）。 */
 let initPromise: Promise<typeof i18n> | null = null
 
+/**
+ * 探测初始语言。
+ *
+ * 优先级：localStorage > navigator.language > "en"。
+ * SSR 环境直接返回 "en"。
+ */
 function detectInitialLanguage(): Language {
   if (typeof window === "undefined") return "en"
 
@@ -29,6 +48,12 @@ function detectInitialLanguage(): Language {
   return nav.startsWith("zh") ? "zh" : "en"
 }
 
+/**
+ * 加载指定语言的资源包。
+ *
+ * 已加载则跳过；否则按 NS_KEYS 顺序逐个 addResourceBundle。
+ * `module` namespace 会调用 {@link mergePackageNodeLocales} 合并 node 包自带 locale。
+ */
 async function loadLanguageResource(lang: Language): Promise<void> {
   if (i18n.hasResourceBundle(lang, "common")) return
 
@@ -41,6 +66,13 @@ async function loadLanguageResource(lang: Language): Promise<void> {
   }
 }
 
+/**
+ * 合并 `module` namespace 下的 node locale 资源。
+ *
+ * 当前仅 sleept 节点通过 `@xiranite/node-sleept/i18n` 自带 locale；
+ * 其余 node 的文案继续由前端 `module` namespace 承载。
+ * 合并策略：node 包资源覆盖前端同 key，避免重复维护。
+ */
 function mergePackageNodeLocales(moduleResource: ResourceLanguage, lang: Language): ResourceLanguage {
   const resource = moduleResource as Record<string, unknown>
   const nodes = (resource.nodes ?? {}) as Record<string, unknown>
@@ -56,6 +88,15 @@ function mergePackageNodeLocales(moduleResource: ResourceLanguage, lang: Languag
   }
 }
 
+/**
+ * 初始化 i18n（幂等）。
+ *
+ * - 注册 react-i18next；
+ * - 设置默认语言、fallback、namespace；
+ * - 加载初始语言资源；
+ * - 监听 languageChanged 事件，持久化语言到 localStorage 并同步 <html lang>；
+ * - 非英文初始语言会异步预加载英文资源作为 fallback。
+ */
 export function initI18n(initialLanguage = detectInitialLanguage()): Promise<typeof i18n> {
   if (initPromise) return initPromise
 
@@ -90,12 +131,14 @@ export function initI18n(initialLanguage = detectInitialLanguage()): Promise<typ
   return initPromise
 }
 
+/** 切换语言：确保 i18n 已初始化，加载目标语言资源，再调用 changeLanguage。 */
 export async function changeLanguage(lang: Language) {
   await initI18n()
   await loadLanguageResource(lang)
   return i18n.changeLanguage(lang)
 }
 
+/** 获取当前语言（仅区分 zh 与 en，其他一律视为 en）。 */
 export function getCurrentLanguage(): Language {
   const cur = i18n.language
   return cur?.startsWith("zh") ? "zh" : "en"
