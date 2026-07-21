@@ -62,6 +62,7 @@ export interface ReaderPanelContext {
   panelActive?: boolean
   panelVisible?: boolean
   onGoTo(pageIndex: number): void | Promise<void>
+  onInputAction?(action: import("@xiranite/node-neoview/ui-core").ReaderInputAction): void
   onBookSettingsUpdated?(sessionId: string, update: ReaderBookSettingsUpdateDto): void
   bookmarkListPreferences?: ReaderBookmarkListPreferencesDto
   onBookmarkListPreferences?(patch: Partial<ReaderBookmarkListPreferencesDto>): Promise<ReaderBookmarkListPreferencesDto>

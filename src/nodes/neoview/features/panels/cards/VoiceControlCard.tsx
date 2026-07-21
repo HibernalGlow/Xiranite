@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch"
 
 import type { ReaderPanelContext } from "../registry"
 import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
+import { readerVoiceCommandAction } from "../../input/ReaderVoiceCommands"
 
 type VoiceStatus = "idle" | "listening" | "processing" | "error"
 
@@ -49,7 +50,7 @@ export default function VoiceControlCard(props: ReaderPanelContext) {
   return <VoiceControlContent {...props} />
 }
 
-function VoiceControlContent({ disabled }: ReaderPanelContext) {
+function VoiceControlContent({ disabled, onInputAction }: ReaderPanelContext) {
   const Recognition = useMemo(() => getSpeechRecognitionCtor(), [])
   const supported = Boolean(Recognition)
   const [enabled, setEnabled] = useState(false)
@@ -77,7 +78,10 @@ function VoiceControlContent({ disabled }: ReaderPanelContext) {
         .trim()
       if (!transcript) return
       setLastText(transcript)
-      setHistory((current) => [{ text: transcript, at: Date.now() }, ...current].slice(0, 12))
+      const action = readerVoiceCommandAction(transcript)
+      if (action) onInputAction?.(action)
+      setHistory((current) => [{ text: action ? `${transcript} -> ${action}` : transcript, at: Date.now() }, ...current].slice(0, 12))
+      if (!action) setError("未匹配到 Reader 语音命令")
       setStatus("idle")
     }
     instance.onerror = (event) => {
