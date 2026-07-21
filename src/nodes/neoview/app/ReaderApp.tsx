@@ -77,11 +77,14 @@ import { createReaderSwitchToastStore } from "../features/switch-toast/ReaderSwi
 import { createReaderInfoOverlayStore } from "../features/info-overlay/ReaderInfoOverlayStore"
 import { createReaderImageTrimStore } from "../features/image-trim/ReaderImageTrimStore"
 import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCleanup"
+import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../features/workspace/ReaderSwimlaneWorkspace"
+import { applyReaderWorkspacePatch, readerWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
   fitMode: DEFAULT_READER_PRESENTATION.fitMode,
   pageMode: "single",
+  doublePageGap: 0,
   splitWidePages: false,
   hoverScrollEnabled: true,
   hoverScrollSpeed: 2,
@@ -212,6 +215,7 @@ export function ReaderApp({
   const [client] = useState<ReaderHttpClient>(() => injectedClient ?? createReaderHttpClient())
   const clientRef = useRef(client)
   const shellRef = useRef<ReaderShellConfigDto | undefined>(undefined)
+  const readerInteractionRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
   const navigationPendingRef = useRef(false)
@@ -1287,6 +1291,15 @@ export function ReaderApp({
     enqueueShellControl(patch)
   }
 
+  function commitWorkspace(patch: ReaderWorkspacePatch): void {
+    const current = shellRef.current
+    if (!current) return
+    const optimistic = applyReaderWorkspacePatch(current, patch)
+    shellRef.current = optimistic
+    setShell(optimistic)
+    enqueueShellControl({ workspace: patch })
+  }
+
   function enqueueShellControl(patch: ReaderShellControlPatch["shellControl"], rollback?: ReaderShellControlSnapshot) {
     const generation = ++shellControlGenerationRef.current
     shellControlWriteQueueRef.current = shellControlWriteQueueRef.current.then(async () => {
@@ -1474,6 +1487,34 @@ export function ReaderApp({
   const compact = surface.mode === "collapsed" || surface.mode === "compact" || surface.mode === "portrait"
   const frame = session?.frame
   const pathSegments = readerPathSegments(path)
+  const workspace = shell ? readerWorkspaceConfig(shell) : undefined
+  const workspaceMode = workspace?.mode ?? "edges"
+  const readerSolo = workspace?.swimlane.readerSolo ?? true
+  const readerTopbarLeadingControls = (
+    <ReaderWindowBar
+      control={shellControl}
+      disabled={!shell}
+      mode={workspaceMode}
+      readerSolo={readerSolo}
+      onModeChange={(mode) => commitWorkspace({ mode })}
+      onReaderSoloChange={(enabled) => commitWorkspace({ readerSolo: enabled, ...(enabled ? { activeLane: "reader" } : {}) })}
+      onOpenSettings={() => setSettingsOpen(true)}
+      part="leading"
+    />
+  )
+  const readerTopbarTrailingControls = (
+    <ReaderWindowBar
+      control={shellControl}
+      disabled={!shell}
+      mode={workspaceMode}
+      readerSolo={readerSolo}
+      onModeChange={(mode) => commitWorkspace({ mode })}
+      onReaderSoloChange={(enabled) => commitWorkspace({ readerSolo: enabled, ...(enabled ? { activeLane: "reader" } : {}) })}
+      onOpenSettings={() => setSettingsOpen(true)}
+      windowControls={workspaceMode === "edges" || readerSolo ? <FloatingWindowCaptionControls integrated /> : undefined}
+      part="trailing"
+    />
+  )
   useReaderAdjacentPagePreloader({
     client,
     sessionId: session?.sessionId,
@@ -1497,13 +1538,17 @@ export function ReaderApp({
         data-reader-edge-chrome="top"
         style={edgeSurfaceStyle(shell, "top")}
       >
-        <div className={cn(floatingFrame && "xiranite-app-region-drag")} onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}>
-          <ReaderWindowBar control={shellControl} disabled={!shell} onOpenSettings={() => setSettingsOpen(true)} windowControls={<FloatingWindowCaptionControls integrated />} />
-        </div>
-        <div className={cn("xiranite-app-region-no-drag min-h-11 border-b border-border/45", compact ? "px-2" : "px-3")} data-reader-breadcrumb-bar="true">
+        <div
+          className={cn("xiranite-app-region-drag min-h-11 select-none border-b border-border/45", compact ? "pl-1" : "pl-2")}
+          data-reader-breadcrumb-bar="true"
+          onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}
+        >
           {session ? (
-            <div className="grid min-h-11 grid-cols-[minmax(3.5rem,1fr)_minmax(0,3fr)_minmax(3.5rem,1fr)] items-center gap-1.5">
-              <Button className="justify-self-start" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
+            <div className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)] items-center gap-1.5">
+              <div className="xiranite-app-region-no-drag flex min-w-0 items-stretch justify-self-start">
+                <Button className="justify-self-start" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
+                {readerTopbarLeadingControls}
+              </div>
               <nav className="flex min-w-0 items-center justify-center gap-1 overflow-hidden text-center" aria-label="当前书籍路径" data-reader-breadcrumb-path="true">
                 {pathSegments.map((segment, index) => (
                   <span className="contents" key={`${segment}-${index}`}>
@@ -1512,14 +1557,19 @@ export function ReaderApp({
                   </span>
                 ))}
               </nav>
-              <span className="justify-self-end text-[11px] tabular-nums text-muted-foreground">{(frame?.anchorPageIndex ?? 0) + 1} / {session.book.pageCount}</span>
+              <div className="xiranite-app-region-no-drag flex min-w-0 items-stretch justify-self-end">
+                <span className="hidden shrink-0 items-center px-1.5 text-[11px] tabular-nums text-muted-foreground lg:flex">{(frame?.anchorPageIndex ?? 0) + 1} / {session.book.pageCount}</span>
+                {readerTopbarTrailingControls}
+              </div>
             </div>
           ) : (
-            <div className="flex min-h-11 items-center gap-1.5">
+            <div className="xiranite-app-region-no-drag flex min-h-11 min-w-0 items-center gap-1.5">
+              {readerTopbarLeadingControls}
               <Input aria-label="漫画、图片或目录路径" className="h-8 min-w-0 flex-1" value={path} placeholder="选择 CBZ、ZIP、图片或目录" onChange={(event) => setPath(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.stopPropagation(); void openPath() } }} />
               {pickFile ? <Button aria-label="选择漫画或图片文件" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("file")}><ImageIcon />{compact ? null : "文件"}</Button> : null}
               {pickDirectory ? <Button aria-label="选择图片目录" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("directory")}><FolderOpen />{compact ? null : "目录"}</Button> : null}
               <Button aria-label="打开书籍" type="button" size={compact ? "icon-sm" : "sm"} onClick={() => void openPath()} disabled={!path.trim() || busy}>{busy ? <LoaderCircle className="animate-spin" /> : <BookOpen />}{compact ? null : "打开"}</Button>
+              {readerTopbarTrailingControls}
             </div>
           )}
         </div>
@@ -1557,8 +1607,6 @@ export function ReaderApp({
               slideshow={slideshow}
               onSlideshowChange={persistSlideshow}
             
-              onPreviousBook={() => void switchAdjacentBook("previous")}
-              onNextBook={() => void switchAdjacentBook("next")}
             />
           </Suspense>
         ) : null}
@@ -1678,6 +1726,59 @@ export function ReaderApp({
       </Suspense>
     ),
   } : undefined
+  const readerCanvas = (
+    <div
+      ref={readerInteractionRef}
+      className="relative h-full min-h-0 overflow-hidden bg-black/95"
+      data-reader-interaction-scope="true"
+      data-input-context="reader"
+      onPointerDown={handleInputPointerDown}
+      onPointerUp={inputRouter.onPointerUp}
+      onContextMenu={(event) => { if (radialMenuRequest) event.preventDefault() }}
+    >
+      {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={(action) => executeInputAction(action)} /></Suspense> : null}
+      {!session ? (
+        <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
+          <div><BookOpen className="mx-auto mb-3 size-8 opacity-60" /><p>打开漫画或图片开始阅读</p></div>
+        </div>
+      ) : (
+        <Suspense fallback={null}>
+          <LazyReaderFrame
+            pages={session.visiblePages}
+            framePages={session.frame.pages}
+            presentation={presentation}
+            panorama={session.frame.layout.panorama}
+            pageMode={session.frame.layout.pageMode}
+            doublePageGap={viewDefaults.doublePageGap ?? 0}
+            direction={session.frame.direction}
+            totalPages={session.book.pageCount}
+            anchorPageIndex={session.frame.anchorPageIndex}
+            preloadGeneration={session.preload?.generation}
+            hoverScrollEnabled={viewDefaults.hoverScrollEnabled ?? true}
+            hoverScrollSpeed={viewDefaults.hoverScrollSpeed ?? 2}
+            magnifierEnabled={magnifierEnabled}
+            magnifierZoom={viewDefaults.magnifierZoom ?? 2}
+            magnifierSize={viewDefaults.magnifierSize ?? 200}
+            colorFilter={colorFilter}
+            pageTransition={pageTransition}
+            slideshowFade={slideshowFadeFrame === `${session.sessionId}:${session.frame.generation}`}
+            videoController={videoController}
+            sessionId={session.sessionId}
+            client={client}
+            media={media}
+            superResolution={superResolution}
+            viewerToggles={viewerToggles}
+            onSubtitleConfigChange={persistSubtitleConfig}
+            onVisiblePageChange={syncPanoramaVisiblePage}
+            imageTrim={imageTrim}
+            onVideoListEnded={() => void navigate("next")}
+          />
+        </Suspense>
+      )}
+      {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}
+      {workspaceMode === "edges" && shell ? <DeferredSidebarFloatingController control={shellControl} shell={shell} disabled={busy} /> : null}
+    </div>
+  )
 
   return (
     <div
@@ -1685,14 +1786,11 @@ export function ReaderApp({
       data-reader-app="true"
       data-input-context="reader"
       data-context-menu-stop=""
-      className="h-full min-h-0 w-full touch-none overflow-hidden bg-background text-foreground"
+      className="relative flex h-full min-h-0 w-full touch-none flex-col overflow-hidden bg-background text-foreground"
       tabIndex={0}
-      onPointerDown={handleInputPointerDown}
-      onPointerUp={inputRouter.onPointerUp}
-      onContextMenu={(event) => { if (radialMenuRequest) event.preventDefault() }}
     >
       <Suspense fallback={null}>
-        <LazyReaderGestureInputRuntime config={inputBindings} disabled={busy} target={surface.ref} claimPointer={inputRouter.claimPointer} dispatch={inputRouter.dispatch} />
+        <LazyReaderGestureInputRuntime config={inputBindings} disabled={busy} target={readerInteractionRef} claimPointer={inputRouter.claimPointer} dispatch={inputRouter.dispatch} />
       </Suspense>
       <Suspense fallback={null}>
         <LazyReaderSwitchToastRuntime port={switchToast} session={session} sourcePath={path} />
@@ -1700,53 +1798,64 @@ export function ReaderApp({
       <Suspense fallback={null}>
         <LazyReaderInfoOverlayRuntime port={infoOverlay} session={session} sourcePath={path} />
       </Suspense>
-      {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={(action) => executeInputAction(action)} /></Suspense> : null}
       <FloatingWindowTitlebarReservation />
-      <ReaderPanelDndProvider shell={shell} onMove={commitDraggedPanelLayout}>
-        <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
-          <div className="relative h-full min-h-0 overflow-hidden bg-black/95">
-          {!session ? (
-            <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
-              <div><BookOpen className="mx-auto mb-3 size-8 opacity-60" /><p>打开漫画或图片开始阅读</p></div>
-            </div>
-          ) : (
-            <Suspense fallback={null}>
-              <LazyReaderFrame
-                pages={session.visiblePages}
-                framePages={session.frame.pages}
-                presentation={presentation}
-                panorama={session.frame.layout.panorama}
-                pageMode={session.frame.layout.pageMode}
-                direction={session.frame.direction}
-                totalPages={session.book.pageCount}
-                anchorPageIndex={session.frame.anchorPageIndex}
-                preloadGeneration={session.preload?.generation}
-                hoverScrollEnabled={viewDefaults.hoverScrollEnabled ?? true}
-                hoverScrollSpeed={viewDefaults.hoverScrollSpeed ?? 2}
-                magnifierEnabled={magnifierEnabled}
-                magnifierZoom={viewDefaults.magnifierZoom ?? 2}
-                magnifierSize={viewDefaults.magnifierSize ?? 200}
-                colorFilter={colorFilter}
-                pageTransition={pageTransition}
-                slideshowFade={slideshowFadeFrame === `${session.sessionId}:${session.frame.generation}`}
-                videoController={videoController}
-                sessionId={session.sessionId}
-                client={client}
-                media={media}
-                superResolution={superResolution}
-                viewerToggles={viewerToggles}
-                onSubtitleConfigChange={persistSubtitleConfig}
-                onVisiblePageChange={syncPanoramaVisiblePage}
-                imageTrim={imageTrim}
-                onVideoListEnded={() => void navigate("next")}
+      {floatingFrame && workspaceMode === "swimlane" && !readerSolo ? (
+        <div
+          className="pointer-events-none absolute right-0 top-0 z-[95] flex h-10 items-stretch"
+          data-reader-transparent-windowbar="true"
+        >
+          <FloatingWindowCaptionControls integrated className="pointer-events-auto bg-transparent" />
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <ReaderPanelDndProvider shell={shell} onMove={commitDraggedPanelLayout}>
+          {workspaceMode === "swimlane" && shell && workspace ? (
+            <ReaderSwimlaneErrorBoundary resetKey={`${workspaceMode}:${shell.revision ?? 0}`} onReturnToEdges={() => commitWorkspace({ mode: "edges" })}>
+              <ReaderSwimlaneWorkspace
+                shell={shell}
+                workspace={workspace}
+                disabled={!shell}
+                onWorkspaceChange={commitWorkspace}
+                reader={(
+                  <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, bottom: bottomEdge }}>
+                    {readerCanvas}
+                  </ReaderControlledEdgeShell>
+                )}
+                left={(
+                  <Suspense fallback={<div className="h-full w-full animate-pulse bg-background/85" aria-label="正在加载左侧泳道" />}>
+                    <LazyReaderSidebar
+                      side="left"
+                      presentation="lane"
+                      context={panelContext}
+                      shell={shell}
+                      selectedPanelId={workspace.swimlane.lanes.left.activePanelId}
+                      onSelectedPanelChange={(activePanelId) => commitWorkspace({ lanes: { left: { activePanelId } } })}
+                      onCardLayoutCommit={(patch) => void commitCardLayout(patch)}
+                    />
+                  </Suspense>
+                )}
+                right={(
+                  <Suspense fallback={<div className="h-full w-full animate-pulse bg-background/85" aria-label="正在加载右侧泳道" />}>
+                    <LazyReaderSidebar
+                      side="right"
+                      presentation="lane"
+                      context={panelContext}
+                      shell={shell}
+                      selectedPanelId={workspace.swimlane.lanes.right.activePanelId}
+                      onSelectedPanelChange={(activePanelId) => commitWorkspace({ lanes: { right: { activePanelId } } })}
+                      onCardLayoutCommit={(patch) => void commitCardLayout(patch)}
+                    />
+                  </Suspense>
+                )}
               />
-            </Suspense>
+            </ReaderSwimlaneErrorBoundary>
+          ) : (
+            <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
+              {readerCanvas}
+            </ReaderControlledEdgeShell>
           )}
-          {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}
-          {shell ? <DeferredSidebarFloatingController control={shellControl} shell={shell} disabled={busy} /> : null}
-          </div>
-        </ReaderControlledEdgeShell>
-      </ReaderPanelDndProvider>
+        </ReaderPanelDndProvider>
+      </div>
       {settingsOpen && shell ? (
         <Suspense fallback={null}>
           <LazyReaderSettingsWindow
@@ -1768,6 +1877,7 @@ export function ReaderApp({
             onLegacySettingsInspect={inspectLegacySettings}
             onLegacySettingsImport={importLegacySettings}
             onMaterial={commitShellMaterial}
+            onWorkspace={commitWorkspace}
           />
         </Suspense>
       ) : null}

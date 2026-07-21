@@ -58,12 +58,77 @@ describe("ReaderApp", () => {
     // are driven by the reader surface keybindings.
     const reader = document.querySelector("[data-reader-app]")!
     fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
+    await waitFor(() => expect(client.navigate).toHaveBeenCalledOnce())
     const secondImage = await screen.findByRole("img", { name: "002.jpg" })
     expect(secondImage.getAttribute("src")).toContain("page-2")
     expect(screen.getByText("2 / 2")).toBeTruthy()
 
     view.unmount()
     await waitFor(() => expect(client.close).toHaveBeenCalledWith("reader-1"))
+  })
+
+  it("switches reversibly between edge and swimlane workspaces without reopening the Reader session", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    let persistedShell = shellConfig()
+    const updateShellControl = vi.fn(async (request) => {
+      const workspace = request.shellControl.workspace
+      persistedShell = {
+        ...persistedShell,
+        revision: (persistedShell.revision ?? 0) + 1,
+        workspace: {
+          ...persistedShell.workspace!,
+          mode: workspace?.mode ?? persistedShell.workspace!.mode,
+          swimlane: {
+            ...persistedShell.workspace!.swimlane,
+            activeLane: workspace?.activeLane ?? persistedShell.workspace!.swimlane.activeLane,
+            readerSolo: workspace?.readerSolo ?? persistedShell.workspace!.swimlane.readerSolo,
+          },
+        },
+      }
+      return persistedShell
+    })
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: persistedShell })),
+      updateSidebarLayout: vi.fn(async () => persistedShell),
+      updateCardLayout: vi.fn(async () => persistedShell),
+      updateBoardLayout: vi.fn(async () => persistedShell),
+      updateShellControl,
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 1 })),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    const image = await screen.findByRole("img", { name: "001.jpg" })
+    expect(screen.getByRole("button", { name: "泳道模式" }).closest('[data-reader-breadcrumb-bar="true"]')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "泳道模式" }))
+    await waitFor(() => expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).toBeTruthy())
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
+    expect(screen.getByRole("button", { name: "退出 Reader 独占视口" }).closest('[data-reader-breadcrumb-bar="true"]')).toBeTruthy()
+    expect(image.getAttribute("src")).toContain("page-1")
+    expect(await screen.findByRole("img", { name: "001.jpg" })).toBeTruthy()
+    expect(client.open).toHaveBeenCalledOnce()
+    expect(updateShellControl).toHaveBeenLastCalledWith(expect.objectContaining({
+      shellControl: { workspace: { mode: "swimlane" } },
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "退出 Reader 独占视口" }))
+    await waitFor(() => expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy())
+    expect(screen.getByRole("button", { name: "Reader 独占视口" }).closest('[data-reader-breadcrumb-bar="true"]')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "四边栏模式" }))
+    await waitFor(() => expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).toBeNull())
+    expect(await screen.findByRole("img", { name: "001.jpg" })).toBeTruthy()
+    expect(client.open).toHaveBeenCalledOnce()
+    expect(updateShellControl).toHaveBeenLastCalledWith(expect.objectContaining({
+      shellControl: { workspace: { mode: "edges" } },
+    }))
   })
 
   it("keeps global and sidebar controls out of the busy state while a page turn is pending", async () => {
@@ -1024,6 +1089,23 @@ function shellConfig(): ReaderShellConfigDto {
     sidebars: {
       left: { width: 320, height: "full" as const, customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
       right: { width: 280, height: "full" as const, customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
+    },
+    workspace: {
+      mode: "edges",
+      swimlane: {
+        laneOrder: ["left", "reader", "right"],
+        activeLane: "reader",
+        readerSolo: true,
+        readerWidthRatio: 0.5,
+        edgeRevealDelayMs: 180,
+        readerFocusOnHover: true,
+        readerFocusHoverDelayMs: 650,
+        lanes: {
+          left: { width: 320, collapsed: false, activePanelId: "folder" },
+          reader: { width: 960, collapsed: false },
+          right: { width: 280, collapsed: false, activePanelId: "info" },
+        },
+      },
     },
     panelLayout: {
       pageList: { visible: true, order: 3, position: "left" },

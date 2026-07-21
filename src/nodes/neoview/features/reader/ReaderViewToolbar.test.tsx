@@ -20,9 +20,11 @@ describe("ReaderViewToolbar", () => {
     expectIcon("单页模式", "lucide-rectangle-vertical")
     expectIcon("切换阅读方向", "lucide-arrow-right")
     expectIcon("展开旋转设置", "lucide-rotate-cw")
-    // Adjacent-book controls stay disabled until the host wires openAdjacentBook.
-    expect(screen.getByRole("button", { name: "上一个书籍" }).hasAttribute("disabled")).toBe(true)
-    expect(screen.getByRole("button", { name: "下一个书籍" }).hasAttribute("disabled")).toBe(true)
+    expect(screen.queryByRole("button", { name: "上一个书籍" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "下一个书籍" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "缩小" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "缩放百分比" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "放大" })).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "全景模式" }))
     expect(layoutChanged).toHaveBeenLastCalledWith({ panorama: true })
     fireEvent.click(screen.getByRole("button", { name: "切换横向或纵向布局" }))
@@ -34,6 +36,10 @@ describe("ReaderViewToolbar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "展开缩放设置" }))
     expect(view.container.querySelector('[data-reader-toolbar-panel="zoom"]')).not.toBeNull()
+    const manualScale = screen.getByRole("slider", { name: "手动缩放" })
+    fireEvent.change(manualScale, { target: { value: "130" } })
+    fireEvent.pointerUp(manualScale)
+    expect(changed).toHaveBeenLastCalledWith({ ...DEFAULT_READER_PRESENTATION, manualScale: 1.3 })
     fireEvent.click(screen.getByRole("button", { name: "首页独立显示" }))
     expect(layoutChanged).toHaveBeenLastCalledWith({ singleFirstPage: false })
     fireEvent.click(screen.getByRole("button", { name: "自动分割横向页" }))
@@ -45,34 +51,6 @@ describe("ReaderViewToolbar", () => {
     expectIcon("双页宽度统一", "lucide-align-horizontal-space-around")
     fireEvent.click(screen.getByRole("button", { name: "双页高度统一" }))
     expect(changed).toHaveBeenLastCalledWith({ ...DEFAULT_READER_PRESENTATION, widePageStretch: "uniform-height" })
-    slideshow.dispose()
-  })
-
-  it("[neoview.toolbar.adjacent-book] routes previous/next book actions without touching layout patches", () => {
-    const previousBook = vi.fn()
-    const nextBook = vi.fn()
-    const layoutChanged = vi.fn()
-    const slideshow = createSlideshow()
-    render(
-      <ReaderViewToolbar
-        layout={DEFAULT_READER_LAYOUT}
-        direction="left-to-right"
-        presentation={DEFAULT_READER_PRESENTATION}
-        onChange={vi.fn()}
-        onLayoutChange={layoutChanged}
-        onDirectionChange={vi.fn()}
-        slideshow={slideshow}
-        onSlideshowChange={vi.fn()}
-        onPreviousBook={previousBook}
-        onNextBook={nextBook}
-      />,
-    )
-
-    fireEvent.click(screen.getByRole("button", { name: "上一个书籍" }))
-    fireEvent.click(screen.getByRole("button", { name: "下一个书籍" }))
-    expect(previousBook).toHaveBeenCalledOnce()
-    expect(nextBook).toHaveBeenCalledOnce()
-    expect(layoutChanged).not.toHaveBeenCalled()
     slideshow.dispose()
   })
 
