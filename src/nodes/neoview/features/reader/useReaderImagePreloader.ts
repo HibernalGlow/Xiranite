@@ -46,6 +46,7 @@ export function useReaderImagePreloader(
   reportEvents?: (sessionId: string, generation: number, events: readonly ReaderPreloadEventDto[]) => void,
 ): ReaderImagePreloader {
   const imagesRef = useRef(new Map<string, PreloadedImage>())
+  const batchTailRef = useRef<Promise<void>>(Promise.resolve())
   const pumpTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const reportEventsRef = useRef(reportEvents)
   const pendingReportsRef = useRef(new Map<string, { sessionId: string; generation: number; events: ReaderPreloadEventDto[] }>())
@@ -145,8 +146,7 @@ export function useReaderImagePreloader(
       pumpTimerRef.current = setTimeout(() => {
         pumpTimerRef.current = undefined
         pending.forEach((entry) => { entry.scheduled = true })
-        const activeCompletions = [...images.values()].flatMap((entry) => entry.completion ? [entry.completion] : [])
-        const completion = Promise.allSettled(activeCompletions).then(async () => pMap(pending, async (entry) => {
+        const completion = batchTailRef.current.then(async () => pMap(pending, async (entry) => {
           const { assetUrl } = entry
           if (entry.terminal || images.get(assetUrl) !== entry) return
           const image = entry.image
@@ -170,6 +170,7 @@ export function useReaderImagePreloader(
             report(entry, "failed", preloadMetrics(entry, images.size))
           }
         }, { concurrency: policy.concurrency })).then(() => undefined).catch(() => undefined)
+        batchTailRef.current = completion
         pending.forEach((entry) => { entry.completion = completion })
       }, PREDECODE_START_DELAY_MS)
     }
