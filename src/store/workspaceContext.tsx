@@ -1,3 +1,19 @@
+/**
+ * WorkspaceProvider —— 工作区数据的"查询-持久化"循环控制器。
+ *
+ * 该 Provider 不渲染任何 UI，只负责：
+ * 1. 通过 useQuery 从后端拉取 workspace/lane/component 快照，首次加载时调用
+ *    store.hydrate 灌入 Zustand store
+ * 2. 监听 store 中 workspaces/lanes/components 的变化，500ms 防抖后通过
+ *    useMutation 持久化回后端（避免高频写入）
+ * 3. 维护 backendReady 标志，根据后端状态变化与查询错误实时同步
+ * 4. 在 DEV 模式下挂载 window.xqa QA Controller，供 Playwright/UI 测试驱动
+ *
+ * 关键设计：locallyPersistedSnapshotRef 用于打破"persist onSuccess → setQueryData
+ * → useQuery data 变化 → 再次 hydrate"的循环。本地 persist 成功后回写到
+ * query cache 的快照不能再次触发 hydrate，否则会覆盖持久化请求在途期间
+ * 发生的 node 状态更新。
+ */
 import { useEffect, useMemo, useRef, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useShallow } from "zustand/react/shallow"
@@ -168,6 +184,31 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   return useMemo(() => <>{children}</>, [children])
 }
 
+/**
+ * ============================================================================
+ * QA Controller —— 仅在 DEV 模式挂载的测试驱动工具
+ * ============================================================================
+ *
+ * 通过 window.xqa 暴露一系列便捷方法，让 Playwright/UI 测试能以编程方式
+ * 操控工作区：切换视图、部署/聚焦/全屏组件、调整尺寸、应用预设 surface 等。
+ *
+ * 该控制器不参与生产环境运行，installWorkspaceQaController 在 import.meta.env.DEV
+ * 为 false 时直接返回 undefined，且控制器实例仅在 useEffect 中创建并清理。
+ *
+ * 常用 API：
+ *   - xqa.state() / xqa.components()          获取工作区与组件摘要
+ *   - xqa.find(query)                         按 id/moduleId 模糊查找组件
+ *   - xqa.view(mode)                          切换视图模式
+ *   - xqa.stage(moduleIdOrQuery, options)     部署/复用组件并一键应用配置
+ *   - xqa.resize(query, surfaceOrOptions)     应用 surface 预设或自定义尺寸
+ *   - xqa.deploy(moduleId, mode)              在指定视图部署新组件
+ *   - xqa.fullscreen(query) / xqa.focus(query)  全屏 / 聚焦指定组件
+ *   - xqa.bento(query, layout)                设置 bento 视图的网格位置
+ *   - xqa.flowSize(query, size)               设置 flow 视图的尺寸
+ *   - xqa.show(query, mode) / xqa.hideView(mode, keepIds)  显示/隐藏组件
+ *   - xqa.dock(query?)                        切换到 dockview 并停靠
+ *   - xqa.cardLayout(layout)                  设置 cards 视图的布局
+ */
 interface XiraniteQaController {
   help: () => string[]
   state: () => ReturnType<typeof summarizeWorkspaceState>
@@ -284,6 +325,13 @@ const QA_SURFACE_PRESETS: Record<QaSurfacePreset, {
   },
 }
 
+/**
+ * 在 window 上挂载 QA Controller，返回清理函数。
+ *
+ * 控制器同时挂载到 __xiraniteQA（正式名）与 xqa（简写）两个全局变量，
+ * 便于测试脚本选择更短的写法。控制器的每个方法都返回 summarizeWorkspaceState
+ * 摘要，方便测试断言当前状态。
+ */
 function installWorkspaceQaController(): () => void {
   const controller: XiraniteQaController = {
     help: () => [
@@ -401,6 +449,7 @@ function installWorkspaceQaController(): () => void {
   }
 }
 
+/** 生成工作区状态摘要（视图模式、布局、激活工作区、focus/fullscreen 等）。 */
 function summarizeWorkspaceState(store: WSStore) {
   return {
     viewMode: store.viewMode,
@@ -414,6 +463,7 @@ function summarizeWorkspaceState(store: WSStore) {
   }
 }
 
+/** 生成当前工作区所有组件的摘要（仅包含测试断言关心的字段）。 */
 function summarizeWorkspaceComponents(store: WSStore) {
   return store.components
     .filter((component) => component.workspaceId === store.activeWorkspaceId)
@@ -432,6 +482,16 @@ function summarizeWorkspaceComponents(store: WSStore) {
     }))
 }
 
+/**
+ * QA 核心：根据 moduleId 或查询字符串部署/复用组件并应用 stage 选项。
+ *
+ * 流程：
+ * 1. options.fresh 为 true 时先删除所有匹配的现有组件，再重新部署
+ * 2. 否则尝试 findQaComponent，找不到才 deploy
+ * 3. 调用 applyQaStage 把 view/surface/flow/bento/collapsed/focus/fullscreen
+ *    等选项应用到组件上
+ * 4. 返回带 selected 字段的结果，便于测试断言目标组件的最终状态
+ */
 function stageQaComponent(moduleIdOrQuery: string, options: QaStageOptions = {}): QaCommandResult {
   const targetView = options.view ?? useWorkspaceStore.getState().viewMode
   assertQaViewMode(targetView)
@@ -455,6 +515,7 @@ function stageQaComponent(moduleIdOrQuery: string, options: QaStageOptions = {})
   }
 }
 
+/** fresh 模式：先删除所有匹配的现有组件，再调用 deployQaComponent 重新部署。 */
 function deployFreshQaComponent(moduleId: string, view: ViewMode, options: QaStageOptions): ComponentInstance {
   const normalized = normalizeQaQuery(moduleId)
   const store = useWorkspaceStore.getState()
@@ -472,6 +533,7 @@ function deployFreshQaComponent(moduleId: string, view: ViewMode, options: QaSta
   return deployQaComponent(moduleId, view, options)
 }
 
+/** 调用 store.deployComponent 部署新组件，并从 store 中找出新创建的实例返回。 */
 function deployQaComponent(moduleId: string, view: ViewMode, options: QaStageOptions): ComponentInstance {
   const store = useWorkspaceStore.getState()
   const beforeIds = new Set(store.components.map((component) => component.id))
@@ -508,6 +570,11 @@ function deployQaComponent(moduleId: string, view: ViewMode, options: QaStageOpt
   return created
 }
 
+/**
+ * 把 stage 选项应用到指定组件：切换视图、设置可见性、写入 data、
+ * 根据 view 模式应用 cardLayout/dock/flow/bento 布局，最后处理
+ * collapsed/focus/fullscreen 三个独立开关。
+ */
 function applyQaStage(componentId: string, view: ViewMode, options: QaStageOptions): void {
   const surface = options.surface ? QA_SURFACE_PRESETS[options.surface] : undefined
   const store = useWorkspaceStore.getState()
@@ -571,6 +638,7 @@ function applyQaStage(componentId: string, view: ViewMode, options: QaStageOptio
   }
 }
 
+/** 仅在 collapsed 状态确实需要切换时才调用 toggleCollapse，避免无意义更新。 */
 function setQaComponentCollapsed(componentId: string, collapsed: boolean): void {
   const component = requireQaComponent(componentId)
   if (Boolean(component.collapsed) !== collapsed) {
@@ -578,6 +646,14 @@ function setQaComponentCollapsed(componentId: string, collapsed: boolean): void 
   }
 }
 
+/**
+ * 把 resize 方法的重载参数归一化为 QaResizeOptions。
+ *
+ * resize 支持两种调用形式：
+ *   - resize(query, 'compact', 'flow')           surface 字符串 + 可选 mode
+ *   - resize(query, { surface: 'compact', ... })  options 对象
+ * 该函数负责把前者转换为后者。
+ */
 function normalizeQaResizeOptions(
   surfaceOrOptions?: QaSurfacePreset | QaResizeOptions,
   mode?: ViewMode,
@@ -591,12 +667,17 @@ function normalizeQaResizeOptions(
   return mode ? { ...surfaceOrOptions, view: mode } : surfaceOrOptions
 }
 
+/** 查找组件，找不到抛错（用于必须存在组件的 QA 操作）。 */
 function requireQaComponent(query: string): ComponentInstance {
   const component = findQaComponent(useWorkspaceStore.getState(), query)
   if (!component) throw new Error(`Xiranite QA component not found: ${query}`)
   return component
 }
 
+/**
+ * 在当前工作区按 id/moduleId 查找组件（不区分大小写，支持包含匹配）。
+ * 优先精确匹配，找不到再做包含匹配，便于测试用简写引用组件。
+ */
 function findQaComponent(store: WSStore, query: string): ComponentInstance | undefined {
   const normalized = normalizeQaQuery(query)
   return store.components.find((component) =>

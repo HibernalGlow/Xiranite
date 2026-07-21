@@ -1,10 +1,32 @@
+/**
+ * Node Operations Store —— 跟踪 node 运行操作（CLI 调用、进度事件、结果）。
+ *
+ * 这是独立于 workspace store 的全局 store，专门用于"运行历史 / 终端面板"
+ * 类 UI。当用户点击节点的"执行"按钮时：
+ * 1. 后端创建一条 operation 记录，回传 NodeOperationDTO → upsertOperation
+ * 2. 后端流式推送 NodeRunEventDTO（log/progress/output 等） → appendEvent
+ * 3. 操作结束时回传 NodeRunResultDTO → finishOperation
+ *
+ * 为防止内存膨胀，采用两个上限：
+ * - MAX_TRACKED_OPERATIONS：保留最近 30 次操作
+ * - MAX_EVENTS_PER_OPERATION：每次操作只保留最近 80 条事件
+ *
+ * 失败前置（failBeforeStart）用于后端尚未启动就检测到错误（例如参数校验失败），
+ * 此时直接在前端合成一条 error 操作，避免 UI 卡在"等待中"状态。
+ */
 import { create } from "zustand"
 import { devtools } from "zustand/middleware"
 import type { NodeOperationDTO, NodeOperationPhaseDTO, NodeRunEventDTO, NodeRunResultDTO } from "@xiranite/shared"
 
+/** 最多保留多少条历史操作（FIFO 截断）。 */
 const MAX_TRACKED_OPERATIONS = 30
+/** 单次操作最多保留多少条事件日志（保留尾部，丢弃头部旧事件）。 */
 const MAX_EVENTS_PER_OPERATION = 80
 
+/**
+ * 前端跟踪态：在后端 DTO 基础上补充 events 数组、lastMessage、lastProgress
+ * 等运行时派生字段，方便 UI 直接渲染而无需重新计算。
+ */
 export interface TrackedNodeOperation<TData = unknown> {
   operationId: string
   nodeId: string
@@ -16,8 +38,10 @@ export interface TrackedNodeOperation<TData = unknown> {
   startedAt?: number
   cancelledAt?: number
   finishedAt?: number
+  /** 累计事件总数（即使被截断也保留真实计数，方便 UI 显示"共 N 条"）。 */
   eventCount: number
   result?: NodeRunResultDTO<TData>
+  /** 事件日志缓冲（最多保留 MAX_EVENTS_PER_OPERATION 条）。 */
   events: NodeRunEventDTO[]
   lastMessage?: string
   lastProgress?: number
@@ -64,14 +88,22 @@ export const useNodeOperations = create<NodeOperationsState>()(
   ),
 )
 
+/** 返回非终态（仍在运行）的操作数，用于 UI 角标显示。 */
 export function activeNodeOperationCount(operations: TrackedNodeOperation[]): number {
   return operations.filter((operation) => !isTerminalPhase(operation.phase)).length
 }
 
+/** 判断 phase 是否为终态（completed/error/cancelled 三态之一）。 */
 export function isTerminalPhase(phase: NodeOperationPhaseDTO): boolean {
   return phase === "completed" || phase === "error" || phase === "cancelled"
 }
 
+/**
+ * 插入或更新一条操作记录。
+ *
+ * 已存在的 operationId 会合并字段（保留已有 events 与 lastProgress），
+ * 新增的 operationId 会插入到数组头部（最新的在前），随后执行 FIFO 截断。
+ */
 function upsertTrackedOperation(operations: TrackedNodeOperation[], operation: NodeOperationDTO): TrackedNodeOperation[] {
   const existing = operations.find((item) => item.operationId === operation.operationId)
   const next: TrackedNodeOperation = {
@@ -84,6 +116,14 @@ function upsertTrackedOperation(operations: TrackedNodeOperation[], operation: N
   return trimOperations([next, ...operations.filter((item) => item.operationId !== operation.operationId)])
 }
 
+/**
+ * 向指定 operation 追加一条事件。
+ *
+ * - events 数组超过上限时丢弃头部旧事件
+ * - eventCount 取 max(原值, index+1)：index 来自后端流式事件序号，能更准确
+ *   地反映真实事件总数（即使前端已丢弃部分事件）
+ * - progress 类型事件会刷新 lastProgress；其他类型保留旧值
+ */
 function appendTrackedEvent(
   operations: TrackedNodeOperation[],
   operationId: string,
@@ -104,6 +144,11 @@ function appendTrackedEvent(
   })
 }
 
+/**
+ * 终结一条操作：先 upsert 最新 operation 字段，再附加 result。
+ *
+ * 成功时 lastProgress 强制设为 100，失败时保留原有进度（避免视觉回退）。
+ */
 function finishTrackedOperation(
   operations: TrackedNodeOperation[],
   operation: NodeOperationDTO,
@@ -122,6 +167,13 @@ function finishTrackedOperation(
   })
 }
 
+/**
+ * 合成一条"启动前失败"的操作记录。
+ *
+ * 用于后端尚未真正创建 operation 就在前端检测到错误（例如必填参数缺失、
+ * 工作区无可用 node 等）。operationId 使用时间戳 + 随机串，避免与后端
+ * 真实 id 冲突。
+ */
 function addSyntheticFailure(operations: TrackedNodeOperation[], nodeId: string, message: string): TrackedNodeOperation[] {
   const now = Date.now()
   const operation: TrackedNodeOperation = {
@@ -139,6 +191,7 @@ function addSyntheticFailure(operations: TrackedNodeOperation[], nodeId: string,
   return trimOperations([operation, ...operations])
 }
 
+/** FIFO 截断到 MAX_TRACKED_OPERATIONS 条。 */
 function trimOperations(operations: TrackedNodeOperation[]): TrackedNodeOperation[] {
   return operations.slice(0, MAX_TRACKED_OPERATIONS)
 }

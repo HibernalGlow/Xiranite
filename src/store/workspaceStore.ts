@@ -1,3 +1,25 @@
+/**
+ * 工作区主 Store —— 整个 Xiranite 前端的全局状态中心。
+ *
+ * 该 store 聚合了 UI 偏好、视图模式、工作区结构、组件实例、泳道、覆盖层
+ * 等所有状态，由 5 个 slice（ui/workspace/component/lane/backend）拼装而成。
+ *
+ * 持久化策略：
+ * - 通过 zustand persist 中间件把 UI 偏好写入 localStorage（key:
+ *   xiranite-workspace-ui），刷新页面时恢复
+ * - 业务数据（workspaces/lanes/components）不写入 localStorage，而是由
+ *   WorkspaceProvider 通过 useMutation 同步到后端 SQLite
+ * - partialize 选择器只持久化 UI 偏好字段，业务数据由后端 hydrate
+ *
+ * 版本迁移：version=2 引入了 themeSelections（明暗方案独立选择），migrate
+ * 函数把 v1 的单一 theme/activeCustomThemeName 字段升级为 light/dark 两个
+ * 独立选择，避免老用户升级后主题设置丢失。
+ *
+ * 该文件还导出多个常用 hook（useWorkspaceSelector/useWorkspaceShallowSelector/
+ * useWorkspaceVisibleComponents/useWorkspaceComponent/useWorkspaceComponentData）
+ * 与两个 selector 工厂（selectWorkspaceState/selectWorkspaceActions），用于
+ * 在不暴露完整 store 的情况下订阅子集，减少不必要的重渲染。
+ */
 import { create } from "zustand"
 import { createJSONStorage, devtools, persist } from "zustand/middleware"
 import { useShallow } from "zustand/react/shallow"
@@ -7,8 +29,16 @@ import { createWorkspaceActions } from "@/store/workspace/actions"
 import { INITIAL_STATE } from "@/store/workspace/constants"
 import type { WorkspaceActions, WorkspaceUiPreferences, WSState, WSStore } from "@/store/workspace/types"
 
+/** 组件 data 字段缺失时的回退空对象（共享同一引用，避免每次渲染新建）。 */
 const EMPTY_COMPONENT_DATA = {} as Record<string, unknown>
 
+/**
+ * 从完整 store 中挑选出需要持久化到 localStorage 的 UI 偏好字段。
+ *
+ * 注意 bgImageUrl 会经过 sanitizePersistedBackgroundImageUrl 处理：
+ * base64 data URL 不写入 localStorage（体积过大），只保留 URL/path 字符串。
+ * 完整的 base64 数据由后端 SQLite kv_store 表持久化。
+ */
 function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
   return {
     theme: state.theme,
@@ -59,6 +89,12 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
   }
 }
 
+/**
+ * 工作区主 store 实例。
+ *
+ * 中间件顺序：devtools → persist → store creator。
+ * devtools 包裹在最外层，让 Redux DevTools 能看到 persist 重放的事件。
+ */
 export const useWorkspaceStore = create<WSStore>()(
   devtools(
     persist(
@@ -71,6 +107,7 @@ export const useWorkspaceStore = create<WSStore>()(
         version: 2,
         storage: createJSONStorage(() => localStorage),
         partialize: selectWorkspaceUiPreferences,
+        // v1 → v2 迁移：把单一主题选择升级为 light/dark 双方案
         migrate: (persisted, version) => {
           const state = persisted as Partial<WSStore>
           if (version >= 2 || state.themeSelections) return state
@@ -85,38 +122,49 @@ export const useWorkspaceStore = create<WSStore>()(
   ),
 )
 
+/** 订阅 store 中的单个派生值（无浅比较，适合基础类型）。 */
 export function useWorkspaceSelector<T>(selector: (state: WSState) => T): T {
   return useWorkspaceStore((store) => selector(store))
 }
 
+/** 订阅 store 中的对象/数组派生值（useShallow 浅比较，避免每次 set 都重渲染）。 */
 export function useWorkspaceShallowSelector<T>(selector: (state: WSState) => T): T {
   return useWorkspaceStore(useShallow((store) => selector(store)))
 }
 
+/** 订阅当前激活工作区中的所有组件（已按 workspaceId 过滤）。 */
 export function useWorkspaceVisibleComponents(): ComponentInstance[] {
   return useWorkspaceStore(useShallow((state) =>
     state.components.filter((component) => component.workspaceId === state.activeWorkspaceId),
   ))
 }
 
+/** 按 id 订阅单个组件实例（找不到返回 undefined）。 */
 export function useWorkspaceComponent(compId: string): ComponentInstance | undefined {
   return useWorkspaceStore((state) => state.components.find((component) => component.id === compId))
 }
 
+/** 按 id 订阅单个组件的 data 字段（找不到时返回共享的空对象，避免 undefined）。 */
 export function useWorkspaceComponentData<T extends object>(compId: string): T {
   return useWorkspaceStore((state) =>
     (state.components.find((component) => component.id === compId)?.data ?? EMPTY_COMPONENT_DATA) as T,
   )
 }
 
+/** 非 hook 形式获取当前 store 状态快照（用于事件处理器、定时器等非 React 上下文）。 */
 export function getWorkspaceState(): WSState {
   return selectWorkspaceState(useWorkspaceStore.getState())
 }
 
+/** 订阅全部 actions（useShallow 浅比较，actions 引用稳定，不会触发重渲染）。 */
 export function useWorkspaceActions(): WorkspaceActions {
   return useWorkspaceStore(useShallow(selectWorkspaceActions))
 }
 
+/**
+ * 从完整 store 中挑选出 WSState（状态字段，不含 actions）。
+ * 用于 getWorkspaceState 非 hook 调用与外部模块读取状态。
+ */
 function selectWorkspaceState(store: WSStore): WSState {
   return {
     theme: store.theme,
@@ -174,6 +222,11 @@ function selectWorkspaceState(store: WSStore): WSState {
   }
 }
 
+/**
+ * 从完整 store 中挑选出 WorkspaceActions（所有 action 方法）。
+ * actions 由 createWorkspaceActions 一次性创建，引用稳定，订阅该选择器
+ * 不会因 state 变化而触发重渲染。
+ */
 function selectWorkspaceActions(store: WSStore): WorkspaceActions {
   return {
     setTheme: store.setTheme,

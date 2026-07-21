@@ -1,8 +1,22 @@
+/**
+ * UI 偏好 slice：主题、字体、视图、背景、液态玻璃、顶栏、字母索引、卡片行为等设置。
+ *
+ * 这里只承载"用户偏好"类状态，业务数据（components/lanes）由其他 slice 管理。
+ * setTheme/setCustomThemes 等动作涉及多个字段的级联更新，注释中标明了原因。
+ */
 import { THEME_DESIGN_RECIPES } from "@/lib/appearance"
 import type { SetWorkspaceStore, WorkspaceUiActions, WorkspaceUiPreferences } from "./types"
 
 export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
   return {
+    /**
+     * 切换到内置主题预设。
+     *
+     * 同时更新：
+     *  - themeSelections（明暗都设为该预设）；
+     *  - activeCustomThemeName 清空（预设与自定义互斥）；
+     *  - fontPreset 跟随该主题的 design recipe（保持视觉一致性）。
+     */
     setTheme: (theme) => {
       const recipe = THEME_DESIGN_RECIPES[theme]
       set({
@@ -15,15 +29,23 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
         fontPreset: recipe.fontPreset,
       }, false, "SET_THEME")
     },
+    /** 设置某个方案（light/dark）的主题选择：preset 时清空 custom，custom 时同步 activeCustomThemeName。 */
     setThemeSelection: (scheme, selection) => set((state) => ({
       themeSelections: { ...state.themeSelections, [scheme]: selection },
       ...(selection.kind === "preset" ? { theme: selection.name, activeCustomThemeName: null } : { activeCustomThemeName: selection.name }),
     }), false, "SET_THEME_SELECTION"),
+    /** 从后端/持久化恢复 UI 偏好（仅覆盖传入字段，缺失字段保留默认）。 */
     hydrateUiPreferences: (preferences) => set(
       sanitizeUiPreferences(preferences),
       false,
       "HYDRATE_UI_PREFERENCES",
     ),
+    /**
+     * 替换自定义主题列表。
+     *
+     * 当某个 scheme 的选择指向已不存在的自定义主题时，回退到当前预设；
+     * activeCustomThemeName 仅在仍存在时保留，否则置 null（不主动复活首个导入主题）。
+     */
     setCustomThemes: (customThemes) => set((state) => ({
       customThemes,
       themeSelections: Object.fromEntries(Object.entries(state.themeSelections).map(([scheme, selection]) => [
@@ -38,6 +60,7 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
         ? state.activeCustomThemeName
         : null,
     }), false, "SET_CUSTOM_THEMES"),
+    /** 激活指定自定义主题（明暗都切到它）；传 null 则回退到当前预设。 */
     setActiveCustomThemeName: (activeCustomThemeName) => set((state) => ({
       activeCustomThemeName,
       themeSelections: activeCustomThemeName
@@ -95,6 +118,12 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
   }
 }
 
+/**
+ * 清洗 hydrate 时的 UI 偏好。
+ *
+ * - 过滤 undefined 字段，避免覆盖默认值；
+ * - 若缺 themeSelections（旧版本数据），根据 activeCustomThemeName/theme 推导一份。
+ */
 function sanitizeUiPreferences(preferences: Partial<WorkspaceUiPreferences>): Partial<WorkspaceUiPreferences> {
   const sanitized = Object.fromEntries(
     Object.entries(preferences).filter(([, value]) => value !== undefined),
