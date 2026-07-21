@@ -102,16 +102,18 @@ describe("LazySuperResolutionPagePort", () => {
     const schedulePlan = vi.fn(async () => batchResult())
     const scheduleProgressive = vi.fn(async () => batchResult("progressive"))
     const snapshots = vi.fn(() => [snapshot])
+    const pageState = vi.fn(() => "pending" as const)
     const pause = vi.fn(async () => [{ ...snapshot, state: "paused" as const }])
     const retry = vi.fn(async () => batchResult())
     const advanceGeneration = vi.fn(async () => undefined)
     const releaseContext = vi.fn()
     const load = vi.fn(async () => ({
       ...capability(vi.fn(), async () => undefined),
-      preload: { schedulePlan, scheduleProgressive, snapshots, pause, retry, advanceGeneration, releaseContext },
+      preload: { schedulePlan, scheduleProgressive, snapshots, pageState, pause, retry, advanceGeneration, releaseContext },
     }))
     const port = new LazySuperResolutionPagePort(load)
     expect(await port.snapshots("reader:one")).toEqual([])
+    expect(port.pageState("reader:one", 1)).toBe("none")
     await port.advanceGeneration("reader:one", 3)
     await port.releaseContext("reader:one")
     expect(load).not.toHaveBeenCalled()
@@ -120,6 +122,8 @@ describe("LazySuperResolutionPagePort", () => {
     await expect(port.startPlan(input)).resolves.toEqual([snapshot])
     expect(schedulePlan).toHaveBeenCalledWith(input)
     expect(load).toHaveBeenCalledOnce()
+    expect(port.pageState("reader:one", 1)).toBe("pending")
+    expect(pageState).toHaveBeenCalledWith("reader:one", 1)
     await expect(port.pause("reader:one")).resolves.toEqual([expect.objectContaining({ state: "paused" })])
     await expect(port.retry("reader:one", "nearby")).resolves.toEqual([snapshot])
     await port.advanceGeneration("reader:one", 3)

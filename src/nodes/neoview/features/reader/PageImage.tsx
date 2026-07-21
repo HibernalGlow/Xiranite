@@ -190,7 +190,7 @@ function useUpscaleTarget(
   const pageRef = useRef(page)
   pageRef.current = page
   const [artifact, setArtifact] = useState<{ sourceIdentity: string; page: ReaderPageDto }>()
-  const [probe, setProbe] = useState<{ sourceIdentity: string; state: "pending" | "miss" | "terminal" }>()
+  const [probe, setProbe] = useState<{ sourceIdentity: string; state: "pending" | "scheduled" | "miss" | "terminal" }>()
   const configRevision = JSON.stringify(config?.preferences ?? {})
   const probeSupported = Boolean(client?.probeUpscalePage)
   const storedResult = sessionId ? readerUpscaleArtifactSnapshot(sessionId, page.id).result : undefined
@@ -206,6 +206,10 @@ function useUpscaleTarget(
     setProbe({ sourceIdentity, state: "pending" })
     void client.probeUpscalePage(sessionId, sourcePage.id, controller.signal).then((result) => {
       if (controller.signal.aborted) return
+      if (result.status === "pending") {
+        setProbe({ sourceIdentity, state: "scheduled" })
+        return
+      }
       if (result.status === "miss") {
         setProbe({ sourceIdentity, state: "miss" })
         return
@@ -226,29 +230,37 @@ function useUpscaleTarget(
     return () => controller.abort()
   }, [activeArtifact, client, configRevision, enabled, sessionId, sourceIdentity])
 
+  const scheduled = probeSupported && probe?.sourceIdentity === sourceIdentity && probe.state === "scheduled"
+  const generationReady = scheduled || sourceReady
   useEffect(() => {
-    if (!enabled || !sourceReady || !sessionId || !client?.upscalePage) return
+    if (!enabled || !generationReady || !sessionId || !client?.upscalePage) return
     if (activeArtifact) return
-    if (probeSupported && (probe?.sourceIdentity !== sourceIdentity || probe.state !== "miss")) return
+    if (probeSupported && !scheduled && (probe?.sourceIdentity !== sourceIdentity || probe.state !== "miss")) return
     const controller = new AbortController()
     const sourcePage = pageRef.current
     setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: "processing" })
     void client.upscalePage(sessionId, sourcePage.id, "automatic-current", controller.signal).then((result) => {
       if (controller.signal.aborted) return
       setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: result.status === "skipped" || result.status === "bypassed" || result.status === "rejected" ? "skipped" : "completed", result })
-      if (!result.artifactUrl || !result.version) return
+      if (!result.artifactUrl || !result.version) {
+        setProbe({ sourceIdentity, state: "terminal" })
+        return
+      }
       setArtifact(artifactTarget(sourcePage, sourceIdentity, result))
     }).catch((error: unknown) => {
-      if (!controller.signal.aborted) setReaderUpscaleArtifact(sessionId, sourcePage.id, {
-        state: "failed",
-        error: error instanceof Error ? error.message : String(error),
-      })
+      if (!controller.signal.aborted) {
+        setProbe({ sourceIdentity, state: "terminal" })
+        setReaderUpscaleArtifact(sessionId, sourcePage.id, {
+          state: "failed",
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     })
     return () => controller.abort()
-  }, [activeArtifact, client, configRevision, enabled, probe?.sourceIdentity, probe?.state, probeSupported, sessionId, sourceIdentity, sourceReady])
+  }, [activeArtifact, client, configRevision, enabled, generationReady, probe?.sourceIdentity, probe?.state, probeSupported, scheduled, sessionId, sourceIdentity])
 
   const probing = enabled && probeSupported && !activeArtifact
-    && (probe?.sourceIdentity !== sourceIdentity || probe.state === "pending")
+    && (probe?.sourceIdentity !== sourceIdentity || probe.state === "pending" || probe.state === "scheduled")
   return { page: enabled && activeArtifact ? activeArtifact.page : page, probing }
 }
 

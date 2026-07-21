@@ -215,6 +215,29 @@ describe("PageImage", () => {
     expect(upscalePage).not.toHaveBeenCalled()
   })
 
+  it("[neoview.viewer.scheduled-upscale-first-frame] joins scheduled preload work without revealing the original", async () => {
+    let resolveUpscale!: (result: { status: "shared"; artifactUrl: string; contentType: string; bytes: number; version: string }) => void
+    const probeUpscalePage = vi.fn(async () => ({ status: "pending" as const }))
+    const upscalePage = vi.fn(() => new Promise<{ status: "shared"; artifactUrl: string; contentType: string; bytes: number; version: string }>((resolve) => { resolveUpscale = resolve }))
+    const source = page()
+    const enabled = { provider: "opencomic-system" as const, preferences: { autoUpscaleEnabled: true } }
+    const view = render(<PageImage page={source} sessionId="reader-scheduled" client={{ probeUpscalePage, upscalePage } as never} superResolution={enabled} />)
+
+    const original = view.container.querySelector<HTMLImageElement>(`[src="${source.assetUrl}"]`)!
+    expect(original.style.visibility).toBe("hidden")
+    await waitFor(() => expect(upscalePage).toHaveBeenCalledWith("reader-scheduled", "page-1", "automatic-current", expect.any(AbortSignal)))
+    expect(original.style.visibility).toBe("hidden")
+
+    await act(async () => resolveUpscale({ status: "shared", artifactUrl: "/reader/page-1-scheduled-upscale", contentType: "image/png", bytes: 42, version: "scheduled-v1" }))
+    await waitFor(() => expect(view.container.querySelector('[src="/reader/page-1-scheduled-upscale"]')).toBeTruthy())
+    const upscaled = view.container.querySelector<HTMLImageElement>('[src="/reader/page-1-scheduled-upscale"]')!
+    upscaled.decode = vi.fn(async () => undefined)
+    fireEvent.load(upscaled)
+
+    await waitFor(() => expect(view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')).toBe(upscaled))
+    expect(view.container.querySelector(`img[src="${source.assetUrl}"]`)).toBeNull()
+  })
+
   it("[neoview.image-trim.upscale-generation] transfers detection ownership only after the upscaled image decodes", async () => {
     const unregisterOriginal = vi.fn()
     const unregisterUpscaled = vi.fn()

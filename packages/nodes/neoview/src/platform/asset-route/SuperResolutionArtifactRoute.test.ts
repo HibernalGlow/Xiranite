@@ -139,6 +139,23 @@ describe("SuperResolutionArtifactRoute", () => {
     await store.close()
   })
 
+  it("[neoview.super-resolution.preload-probe-pending] distinguishes scheduled preload work from a cache miss", async () => {
+    const store = createStore()
+    const pageState = vi.fn(() => "pending" as const)
+    const route = new SuperResolutionArtifactRoute(
+      readerService(readerPage()),
+      port(vi.fn(), vi.fn(async () => ({ status: "miss" as const }))),
+      store,
+      { baseUrl: BASE_URL, token: TOKEN },
+      { pageState } as unknown as SuperResolutionPreloadControlPort,
+    )
+
+    const response = await route.handle(authorized("/reader/s/session-1/pages/page-1/upscale-artifact?trigger=automatic-current&probe=true"))
+    await expect(response?.json()).resolves.toEqual({ status: "pending" })
+    expect(pageState).toHaveBeenCalledWith("reader:session-1:super-resolution", 0)
+    await store.close()
+  })
+
   it("[neoview.super-resolution.http-composition-lazy] creates no cache directory or runtime work before first demand", async () => {
     const configPath = join(root, "xiranite.config.toml")
     const cacheRoot = join(root, "artifacts")

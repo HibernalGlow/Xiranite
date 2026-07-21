@@ -1344,7 +1344,7 @@ export interface ReaderFolderPenetrationConfig {
   terminalTargets: ReaderFolderPenetrationTerminalKindDto[]
 }
 
-export type ReaderUpscaleArtifactProbeResultDto = ReaderUpscaleArtifactResultDto | { status: "miss" }
+export type ReaderUpscaleArtifactProbeResultDto = ReaderUpscaleArtifactResultDto | { status: "miss" | "pending" }
 
 export interface ReaderFolderTagDisplayConfig {
   tagMode: "all" | "collect" | "none"
