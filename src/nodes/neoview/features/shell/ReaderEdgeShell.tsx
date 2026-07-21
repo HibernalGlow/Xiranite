@@ -241,7 +241,11 @@ function ReaderEdgeSurface({
             protectedInteractionRef.current = true
             clearTimer(hideTimerRef)
           }}
-          onPointerUp={(event) => event.stopPropagation()}
+          onPointerUp={(event) => {
+            event.stopPropagation()
+            // A completed card click/drag must not keep an auto edge pinned.
+            protectedInteractionRef.current = false
+          }}
           onPointerCancel={(event) => event.stopPropagation()}
           onFocusCapture={() => clearTimer(hideTimerRef)}
           onBlurCapture={(event) => {
