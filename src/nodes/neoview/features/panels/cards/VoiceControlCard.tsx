@@ -11,11 +11,13 @@ import {
   History,
   Mic,
   MicOff,
+  Save,
   Settings2,
 } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
@@ -23,6 +25,7 @@ import { Switch } from "@/components/ui/switch"
 import type { ReaderPanelContext } from "../registry"
 import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 import { readerVoiceCommandAction } from "../../input/ReaderVoiceCommands"
+import { READER_INPUT_ACTION_LABELS, READER_INPUT_ACTIONS, type ReaderInputAction } from "@xiranite/node-neoview/ui-core"
 
 type VoiceStatus = "idle" | "listening" | "processing" | "error"
 
@@ -59,7 +62,15 @@ function VoiceControlContent({ disabled, onInputAction, voiceControl, onVoiceCon
   const [error, setError] = useState<string>()
   const [history, setHistory] = useState<readonly { text: string; at: number }[]>([])
   const [showHistory, setShowHistory] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showCommandEditor, setShowCommandEditor] = useState(false)
+  const [editingAction, setEditingAction] = useState<ReaderInputAction>("reader.next-page")
+  const [editingPhrases, setEditingPhrases] = useState("")
   const [recognition, setRecognition] = useState<SpeechRecognitionLike>()
+
+  useEffect(() => {
+    setEditingPhrases((voiceControl?.commands[editingAction] ?? []).join(", "))
+  }, [editingAction, voiceControl?.commands])
 
   useEffect(() => () => {
     try { recognition?.stop() } catch { /* ignore */ }
@@ -120,6 +131,17 @@ function VoiceControlContent({ disabled, onInputAction, voiceControl, onVoiceCon
     setStatus("idle")
   }
 
+  function persistVoicePatch(patch: NonNullable<ReaderPanelContext["onVoiceControl"]> extends (patch: infer T) => unknown ? T : never): void {
+    if (!onVoiceControl) return
+    void onVoiceControl(patch).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
+  }
+
+  function saveCommandPhrases(): void {
+    const phrases = [...new Set(editingPhrases.split(/[,，\n]/).map((value) => value.trim()).filter(Boolean))]
+    if (!phrases.length) { setError("至少需要一条语音指令"); return }
+    persistVoicePatch({ commands: { ...voiceControl?.commands, [editingAction]: phrases } })
+  }
+
   return (
     <div className="space-y-3 text-xs" data-neoview-card="voice-control">
       <div className="flex items-center justify-between gap-2">
@@ -130,10 +152,9 @@ function VoiceControlContent({ disabled, onInputAction, voiceControl, onVoiceCon
         <Switch
           className="scale-90"
           checked={enabled}
-          disabled={disabled || !supported}
+          disabled={disabled || !supported || !onVoiceControl}
           onCheckedChange={(checked) => {
-            if (!onVoiceControl) return
-            void onVoiceControl({ enabled: checked }).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
+            persistVoicePatch({ enabled: checked })
             if (!checked) stopListening()
           }}
         />
@@ -176,6 +197,13 @@ function VoiceControlContent({ disabled, onInputAction, voiceControl, onVoiceCon
         </Button>
       </div>
 
+      {enabled ? (
+        <div className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-2.5 py-2">
+          <Label className="text-[11px]">持续监听</Label>
+          <Switch className="scale-90" checked={voiceControl?.continuous ?? false} disabled={disabled || !onVoiceControl} onCheckedChange={(continuous) => persistVoicePatch({ continuous })} />
+        </div>
+      ) : null}
+
       <div className="space-y-1 rounded-md border border-border/50 bg-muted/20 p-2.5 text-[11px]">
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">状态</span>
@@ -192,23 +220,48 @@ function VoiceControlContent({ disabled, onInputAction, voiceControl, onVoiceCon
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <Button
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 flex-1 gap-1 text-[10px]"
+          className="h-8 gap-1 text-[10px]"
           disabled={disabled}
           onClick={() => setShowHistory((value) => !value)}
         >
           <History className="size-3" />
           {showHistory ? "隐藏历史" : "识别历史"}
         </Button>
-        <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-[10px]" disabled title="指令字典编辑尚未接入">
+        <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-[10px]" disabled={disabled || !onVoiceControl} onClick={() => setShowCommandEditor((value) => !value)}>
           <Settings2 className="size-3" />
           指令
         </Button>
+        <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-[10px]" disabled={disabled || !onVoiceControl} onClick={() => setShowSettings((value) => !value)}><Settings2 className="size-3" /> 设置</Button>
       </div>
+
+      {showSettings ? (
+        <div className="space-y-2 rounded-md border border-border/50 bg-muted/15 p-2.5">
+          <label className="flex items-center justify-between gap-2 text-[11px]">语言
+            <select aria-label="语音识别语言" className="h-7 max-w-28 rounded border bg-background px-1 text-[11px]" value={voiceControl?.language ?? "zh-CN"} disabled={disabled || !onVoiceControl} onChange={(event) => persistVoicePatch({ language: event.currentTarget.value })}>
+              <option value="zh-CN">中文</option><option value="ja-JP">日本语</option><option value="en-US">English</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-[11px]">最低置信度
+            <Input aria-label="最低识别置信度" className="h-7 flex-1" type="range" min="0" max="1" step="0.1" value={voiceControl?.minConfidence ?? 0.6} disabled={disabled || !onVoiceControl} onChange={(event) => persistVoicePatch({ minConfidence: Number(event.currentTarget.value) })} />
+            <span className="w-8 text-right tabular-nums">{Math.round((voiceControl?.minConfidence ?? 0.6) * 100)}%</span>
+          </label>
+        </div>
+      ) : null}
+
+      {showCommandEditor ? (
+        <div className="space-y-2 rounded-md border border-border/50 bg-muted/15 p-2.5">
+          <select aria-label="语音动作" className="h-7 w-full rounded border bg-background px-1 text-[11px]" value={editingAction} onChange={(event) => setEditingAction(event.currentTarget.value as ReaderInputAction)}>
+            {READER_INPUT_ACTIONS.map((action) => <option key={action} value={action}>{READER_INPUT_ACTION_LABELS[action]}</option>)}
+          </select>
+          <textarea aria-label="语音指令" className="min-h-16 w-full rounded border bg-background p-2 text-[11px]" value={editingPhrases} onChange={(event) => setEditingPhrases(event.currentTarget.value)} placeholder="用逗号分隔语音指令" />
+          <Button type="button" size="sm" className="h-7 w-full gap-1 text-[10px]" disabled={disabled || !onVoiceControl} onClick={saveCommandPhrases}><Save className="size-3" /> 保存指令</Button>
+        </div>
+      ) : null}
 
       {showHistory ? (
         <div className="max-h-28 space-y-1 overflow-auto rounded-md border border-border/50 bg-muted/15 p-2">
