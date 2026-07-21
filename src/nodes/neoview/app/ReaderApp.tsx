@@ -1709,6 +1709,7 @@ export function ReaderApp({
     disabled: busy,
     onGoTo: goTo,
     onBookSettingsUpdated: applyBookSettingsUpdate,
+    onInputAction: executeInputAction,
     bookmarkListPreferences,
     onBookmarkListPreferences: persistBookmarkListPreferences,
     historyListPreferences,
