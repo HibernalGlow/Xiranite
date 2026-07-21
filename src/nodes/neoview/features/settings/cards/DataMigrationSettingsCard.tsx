@@ -1,5 +1,8 @@
-import { Database, FileClock, GitCompareArrows, Import } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { Database, RefreshCw } from "lucide-react"
 
+import { exportNodeConfigFromBackend, getNodeConfigFromBackend } from "@/backend/configRpcClient"
+import { Button } from "@/components/ui/button"
 import { NodeConfigCenterButton } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import type { ReaderPanelContext, ReaderSettingsCardContext } from "../../panels/registry"
@@ -10,43 +13,44 @@ const NEOVIEW_CONFIG_PRESENTATION = { current: NeoViewConfigOverview }
 
 export function DataMigrationSettingsCard() {
   const { t } = useNodeI18n("neoview")
+  const [config, setConfig] = useState<Record<string, unknown>>()
+  const [tomlSource, setTomlSource] = useState<string>()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string>()
+
+  const loadConfig = useCallback(async () => {
+    setLoading(true)
+    setError(undefined)
+    try {
+      const [loaded, exported] = await Promise.all([
+        getNodeConfigFromBackend<Record<string, unknown>>("neoview"),
+        exportNodeConfigFromBackend("neoview", "toml"),
+      ])
+      setConfig(loaded.config)
+      setTomlSource(exported.content)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { void loadConfig() }, [loadConfig])
+
   return (
     <SettingsCardShell
       id="data-migration-settings"
       title={t("configData.title", "Data and configuration")}
       description={t("configData.description", "Manage NeoView's project TOML configuration and incremental version history.")}
       icon={Database}
-      actions={<NodeConfigCenterButton nodeKey="neoview" presentation={NEOVIEW_CONFIG_PRESENTATION} />}
+      className="overflow-hidden"
+      actions={<div className="flex items-center gap-1"><Button aria-label={t("configData.refresh", "Refresh configuration")} disabled={loading} size="icon-sm" variant="ghost" onClick={() => void loadConfig()}><RefreshCw className={loading ? "animate-spin" : undefined} /></Button><NodeConfigCenterButton nodeKey="neoview" presentation={NEOVIEW_CONFIG_PRESENTATION} onConfigChange={loadConfig} /></div>}
     >
-      <ConfigCapabilityRow
-        icon={Database}
-        title={t("configData.project.title", "Project configuration")}
-        description={t("configData.project.description", "Read and display [nodes.neoview] while keeping other node sections independent.")}
-      />
-      <ConfigCapabilityRow
-        icon={FileClock}
-        title={t("configData.history.title", "Change history")}
-        description={t("configData.history.description", "Store redacted incremental snapshots with system Git and filter them by NeoView changes.")}
-      />
-      <ConfigCapabilityRow
-        icon={GitCompareArrows}
-        title={t("configData.restore.title", "Diff and restore")}
-        description={t("configData.restore.description", "Inspect semantic and unified diffs; restoration writes only the NeoView section.")}
-      />
-      <ConfigCapabilityRow
-        icon={Import}
-        title={t("configData.transfer.title", "Transfer and sync")}
-        description={t("configData.transfer.description", "Import or export node-level TOML/JSON, create local backups, and synchronize Git history.")}
-      />
+      {loading && !config ? <div className="grid min-h-56 place-items-center text-sm text-muted-foreground">{t("configData.loading", "Loading NeoView configuration...")}</div> : null}
+      {error ? <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</div> : null}
+      {config ? <div className="-mx-3 -mb-3 border-t"><NeoViewConfigOverview config={config} tomlSource={tomlSource} /></div> : null}
     </SettingsCardShell>
   )
-}
-
-function ConfigCapabilityRow({ icon: Icon, title, description }: { icon: typeof Database; title: string; description: string }) {
-  return <div className="flex items-start gap-3 border-b pb-3 last:border-b-0 last:pb-0">
-    <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-    <div className="min-w-0"><h3 className="text-sm font-medium">{title}</h3><p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{description}</p></div>
-  </div>
 }
 
 export function SettingsDataMigrationCard(_context: ReaderSettingsCardContext) {
