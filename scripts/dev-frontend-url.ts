@@ -3,7 +3,6 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const DEFAULT_FRONTEND_PORT = 5173
-const MAX_PORT_ATTEMPTS = 100
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
 export interface DevFrontendEnvironment {
@@ -18,13 +17,13 @@ export async function resolveManagedFrontendUrl(
   if (configuredUrl) return new URL(configuredUrl).href.replace(/\/$/, "")
 
   const preferredPort = parsePreferredPort(environment.XIRANITE_FRONTEND_PORT)
-  for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset += 1) {
-    const port = preferredPort + offset
-    if (port > 65_535) break
-    if (await canListen("127.0.0.1", port)) return `http://127.0.0.1:${port}`
+  if (await canListen("127.0.0.1", preferredPort)) {
+    return `http://127.0.0.1:${preferredPort}`
   }
 
-  throw new Error(`No available frontend port found from ${preferredPort}.`)
+  throw new Error(
+    `Frontend dev server port ${preferredPort} is already in use. Run \"bun run dev:stop\" or set FRONTEND_DEVSERVER_URL explicitly.`,
+  )
 }
 
 /**
