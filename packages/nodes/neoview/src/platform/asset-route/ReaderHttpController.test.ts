@@ -241,7 +241,7 @@ describe("ReaderHttpController", () => {
     expect(close).toHaveBeenCalledOnce()
   })
 
-  it("[neoview.settings.shell-http] protects and returns only normalized shell settings", async () => {
+  it("[neoview.settings.shell-http] [neoview.file-list-tag-display.http-config] protects and returns only normalized shell settings", async () => {
     const updateViewDefaults = vi.fn(async (patch) => ({
       fitMode: patch.viewDefaults.fitMode ?? "fit-height" as const,
       pageMode: patch.viewDefaults.pageMode ?? "single" as const,
@@ -283,6 +283,10 @@ describe("ReaderHttpController", () => {
       emptyArea: {
         ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.emptyArea,
         ...patch.folderView.emptyArea,
+      },
+      tagDisplay: {
+        ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tagDisplay,
+        ...patch.folderView.tagDisplay,
       },
     }))
     const updateShellOptions = vi.fn(async (patch) => ({
@@ -342,6 +346,7 @@ describe("ReaderHttpController", () => {
       folderView: {
         viewMode: "compact",
         previewCount: 4,
+        tagDisplay: { ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.tagDisplay },
         details: { ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.details },
         search: { ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.search },
         emptyArea: { ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.emptyArea },
@@ -469,6 +474,7 @@ describe("ReaderHttpController", () => {
           viewMode: "details",
           previewCount: 9,
           confirmDelete: false,
+          tagDisplay: { tagMode: "all", showRating: false, showCollectTagCount: true, showTags: true, maxTags: 5, showTooltips: false },
           details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
           emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
@@ -478,6 +484,7 @@ describe("ReaderHttpController", () => {
         viewMode: "details",
         previewCount: 9,
         confirmDelete: false,
+        tagDisplay: { tagMode: "all", showRating: false, showCollectTagCount: true, showTags: true, maxTags: 5, showTooltips: false },
         details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
         search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
         emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
@@ -487,6 +494,7 @@ describe("ReaderHttpController", () => {
           viewMode: "details",
           previewCount: 9,
           confirmDelete: false,
+          tagDisplay: { tagMode: "all", showRating: false, showCollectTagCount: true, showTags: true, maxTags: 5, showTooltips: false },
           details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
           emptyArea: { singleClickAction: "goBack", doubleClickAction: "none", showBackButton: true },
@@ -495,6 +503,7 @@ describe("ReaderHttpController", () => {
           view_mode: "details",
           preview_count: 9,
           confirm_delete: false,
+          tag_display: { tag_mode: "all", show_rating: false, show_collect_tag_count: true, show_tags: true, max_tags: 5, show_tooltips: false },
           details: { hidden_columns: ["tags"], column_widths: { name: 310 } },
           search: { include_subfolders: false, show_history_on_focus: false, search_in_path: true },
           empty_area: { single_click_action: "goBack", double_click_action: "none", show_back_button: true },
