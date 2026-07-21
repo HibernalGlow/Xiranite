@@ -1,3 +1,5 @@
+import { stopProcessTree } from "./managed-process"
+
 const [target, ...args] = process.argv.slice(2)
 
 if (!target || target === "--help" || target === "-h") {
@@ -20,7 +22,7 @@ const start = Bun.spawn([process.execPath, "run", target, ...args], {
 })
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, () => start.kill())
+  process.on(signal, () => { void stopProcessTree(start) })
 }
 
 process.exit(await start.exited ?? 1)

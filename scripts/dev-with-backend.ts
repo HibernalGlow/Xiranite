@@ -1,6 +1,7 @@
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
+import { spawnManagedVite, stopProcessTree } from "./managed-process"
 import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
 
 const devSessionStartedAt = Date.now()
@@ -49,10 +50,7 @@ await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token }, fr
 console.log(`[xiranite-backend] ${backend.url}`)
 console.log(`[xiranite-frontend] ${frontendUrl}`)
 
-const vite = Bun.spawn([
-  process.execPath,
-  "x",
-  "vite",
+const vite = spawnManagedVite([
   "--host",
   frontend.hostname,
   "--port",
@@ -77,7 +75,7 @@ async function stop() {
   if (stopping) return
   stopping = true
   backend?.close()
-  vite.kill()
+  await stopProcessTree(vite)
   await Promise.all([removeBackendDevManifest(frontendUrl), removeDevSession()])
 }
 
