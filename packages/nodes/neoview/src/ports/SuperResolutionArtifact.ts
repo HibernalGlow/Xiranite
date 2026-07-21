@@ -61,4 +61,10 @@ export type SuperResolutionArtifactWarmResult =
   | { status: "skipped"; decision: Exclude<SuperResolutionPolicyDecision, { kind: "run" }> }
   | { status: "bypassed"; decision: SuperResolutionArtifactRunDecision }
 
+export type SuperResolutionArtifactLookupResult =
+  | { status: "hit"; artifact: SuperResolutionArtifactLease }
+  | { status: "miss" }
+  | { status: "skipped"; decision: Exclude<SuperResolutionPolicyDecision, { kind: "run" }> }
+  | { status: "bypassed"; decision: SuperResolutionArtifactRunDecision }
+
 export type { SuperResolutionExecutionContext }

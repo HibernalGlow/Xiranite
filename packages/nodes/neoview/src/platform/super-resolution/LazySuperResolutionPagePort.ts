@@ -14,6 +14,7 @@ import type {
 import type { HeadlessSuperResolutionCapabilitySnapshot } from "../../application/headless/ReaderHeadlessController.js"
 import type {
   SuperResolutionArtifactPageInput,
+  SuperResolutionArtifactLookupResult,
   SuperResolutionArtifactPageResult,
 } from "../../application/super-resolution/SuperResolutionArtifactPageService.js"
 import type { SuperResolutionArtifactPagePort } from "../../ports/SuperResolutionArtifactPagePort.js"
@@ -33,6 +34,10 @@ export interface SuperResolutionPageCapability {
     ): Promise<SuperResolutionPageResult>
   }
   artifactPages?: {
+    acquireExisting?(
+      input: SuperResolutionArtifactPageInput,
+      context?: SuperResolutionExecutionContext,
+    ): Promise<SuperResolutionArtifactLookupResult>
     acquireOrGenerate(
       input: SuperResolutionArtifactPageInput,
       context?: SuperResolutionExecutionContext,
@@ -107,6 +112,19 @@ export class LazySuperResolutionPagePort implements ReaderHeadlessSuperResolutio
     if (!capability) throw new Error("Reader super-resolution runtime is unavailable.")
     if (!capability.artifactPages) throw new Error("Reader super-resolution artifact cache is unavailable.")
     return capability.artifactPages.acquireOrGenerate(input, context)
+  }
+
+  async acquireExisting(
+    input: SuperResolutionArtifactPageInput,
+    context: SuperResolutionExecutionContext = {},
+  ): Promise<SuperResolutionArtifactLookupResult> {
+    this.#assertActive()
+    context.signal?.throwIfAborted()
+    const capability = await waitForSharedPromise(this.#load(), context.signal)
+    context.signal?.throwIfAborted()
+    this.#assertActive()
+    if (!capability?.artifactPages?.acquireExisting) return { status: "miss" }
+    return capability.artifactPages.acquireExisting(input, context)
   }
 
   async startPlan(

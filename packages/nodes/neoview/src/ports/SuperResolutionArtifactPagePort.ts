@@ -1,4 +1,5 @@
 import type {
+  SuperResolutionArtifactLookupResult,
   SuperResolutionArtifactPageInput,
   SuperResolutionArtifactPageResult,
 } from "./SuperResolutionArtifact.js"
@@ -18,6 +19,10 @@ export type SuperResolutionModelCapabilitySnapshot =
     }
 
 export interface SuperResolutionArtifactPagePort extends AsyncDisposable {
+  acquireExisting?(
+    input: SuperResolutionArtifactPageInput,
+    context?: SuperResolutionExecutionContext,
+  ): Promise<SuperResolutionArtifactLookupResult>
   acquireOrGenerate(
     input: SuperResolutionArtifactPageInput,
     context?: SuperResolutionExecutionContext,

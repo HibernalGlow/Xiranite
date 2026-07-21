@@ -36,12 +36,18 @@ describe("SuperResolutionArtifactPageService", () => {
     const service = new SuperResolutionArtifactPageService(new SuperResolutionPageService(runner, policy), store)
     const input = artifactInput("hit")
 
+    await expect(service.acquireExisting(input)).resolves.toEqual({ status: "miss" })
     const generated = await service.acquireOrGenerate(input)
     expect(generated.status).toBe("generated")
     if (generated.status !== "generated") throw new Error("expected generated artifact")
     expect(generated.execution).not.toHaveProperty("sourcePath")
     expect(generated.execution).not.toHaveProperty("destinationPath")
     generated.artifact.release()
+
+    const existing = await service.acquireExisting(input)
+    expect(existing.status).toBe("hit")
+    if (existing.status !== "hit") throw new Error("expected existing artifact")
+    existing.artifact.release()
 
     const hit = await service.acquireOrGenerate(input)
     expect(hit.status).toBe("hit")
@@ -50,7 +56,7 @@ describe("SuperResolutionArtifactPageService", () => {
     for await (const chunk of hit.artifact.openStream()) bytes += Buffer.byteLength(chunk)
     expect(bytes).toBe(PNG.length)
     hit.artifact.release()
-    expect(policy.decide).toHaveBeenCalledTimes(2)
+    expect(policy.decide).toHaveBeenCalledTimes(4)
     expect(runner.run).toHaveBeenCalledOnce()
     await store.close()
   })

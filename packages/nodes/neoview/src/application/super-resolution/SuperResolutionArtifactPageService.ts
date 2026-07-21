@@ -2,6 +2,7 @@ import type { SuperResolutionArtifactStore } from "../../ports/SuperResolutionAr
 import type { SuperResolutionExecutionContext, SuperResolutionResult } from "../../ports/SuperResolutionProvider.js"
 import type {
   SuperResolutionArtifactExecution,
+  SuperResolutionArtifactLookupResult,
   SuperResolutionArtifactPageInput,
   SuperResolutionArtifactPageResult,
   SuperResolutionArtifactWarmResult,
@@ -12,6 +13,7 @@ import { SuperResolutionPageService } from "./SuperResolutionPageService.js"
 export type {
   SuperResolutionArtifactDescriptor,
   SuperResolutionArtifactExecution,
+  SuperResolutionArtifactLookupResult,
   SuperResolutionArtifactPageInput,
   SuperResolutionArtifactPageResult,
   SuperResolutionArtifactResolver,
@@ -24,6 +26,20 @@ export class SuperResolutionArtifactPageService {
     private readonly pages: SuperResolutionPageService,
     private readonly artifacts: SuperResolutionArtifactStore,
   ) {}
+
+  async acquireExisting(
+    input: SuperResolutionArtifactPageInput,
+    context: SuperResolutionExecutionContext = {},
+  ): Promise<SuperResolutionArtifactLookupResult> {
+    context.signal?.throwIfAborted()
+    const plan = this.pages.plan(input)
+    if (plan.decision.kind !== "run") return { status: "skipped", decision: plan.decision }
+    if (!plan.decision.useCache) return { status: "bypassed", decision: plan.decision }
+    const descriptor = await input.artifactFor(plan.decision)
+    context.signal?.throwIfAborted()
+    const artifact = await this.artifacts.acquire(descriptor.key, context.signal)
+    return artifact ? { status: "hit", artifact } : { status: "miss" }
+  }
 
   async acquireOrGenerate(
     input: SuperResolutionArtifactPageInput,

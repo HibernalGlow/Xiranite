@@ -47,7 +47,12 @@ describe("SuperResolutionArtifactRoute", () => {
         execution: { modelId: "model", engine: "upscayl" as const, scale: 2, elapsedMs: 1 },
       }
     })
-    const route = new SuperResolutionArtifactRoute(service, port(acquireOrGenerate), store, {
+    const acquireExisting = vi.fn(async (input, context) => {
+      const descriptor = await input.artifactFor({ kind: "run", reason: "manual", modelId: "model", scale: 2, useCache: true })
+      const artifact = await store.acquire(descriptor.key, context?.signal)
+      return artifact ? { status: "hit" as const, artifact } : { status: "miss" as const }
+    })
+    const route = new SuperResolutionArtifactRoute(service, port(acquireOrGenerate, acquireExisting), store, {
       baseUrl: BASE_URL,
       token: TOKEN,
     })
@@ -64,6 +69,12 @@ describe("SuperResolutionArtifactRoute", () => {
       trigger: "manual",
       priority: "interactive",
     }), { signal: expect.any(AbortSignal) })
+
+    const probe = await route.handle(authorized("/reader/s/session-1/pages/page-1/upscale-artifact?trigger=automatic-current&probe=true"))
+    expect(probe?.status).toBe(200)
+    await expect(probe!.json()).resolves.toMatchObject({ status: "hit", artifactUrl: body.artifactUrl })
+    expect(acquireExisting).toHaveBeenCalledOnce()
+    expect(acquireOrGenerate).toHaveBeenCalledOnce()
 
     const unauthorized = new URL(body.artifactUrl)
     unauthorized.searchParams.delete("token")
@@ -289,8 +300,11 @@ function authorized(path: string, init: RequestInit = {}): Request {
   })
 }
 
-function port(acquireOrGenerate: SuperResolutionArtifactPagePort["acquireOrGenerate"]): SuperResolutionArtifactPagePort {
-  return { acquireOrGenerate, [Symbol.asyncDispose]: async () => undefined }
+function port(
+  acquireOrGenerate: SuperResolutionArtifactPagePort["acquireOrGenerate"],
+  acquireExisting?: SuperResolutionArtifactPagePort["acquireExisting"],
+): SuperResolutionArtifactPagePort {
+  return { acquireOrGenerate, ...(acquireExisting ? { acquireExisting } : {}), [Symbol.asyncDispose]: async () => undefined }
 }
 
 function readerService(page: ReaderPage, active: () => boolean = () => true): ReaderService {
