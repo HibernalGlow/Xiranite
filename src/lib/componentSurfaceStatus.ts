@@ -1,3 +1,18 @@
+/**
+ * 组件表面状态（Surface Status）模块。
+ *
+ * 把节点运行操作（NodeOperation）和组件 data 中的状态字段统一抽象为
+ * ComponentSurfaceStatus，供卡片 chrome 上的进度条 / 状态徽标使用。
+ *
+ * 状态来源优先级：
+ * 1. operation（后端流式推送的运行事件）—— 最权威
+ * 2. component-data（浏览器内组件自管理的 data.phase / data.progress）—— fallback
+ * 3. none —— 无运行状态，显示 idle
+ *
+ * 提供 hook 形式（useComponentSurfaceStatus / useComponentSurfaceStatusMap）
+ * 与纯函数形式（getComponentSurfaceStatus），前者供 React 组件订阅，
+ * 后者供非 React 上下文或批量场景使用。
+ */
 import { useMemo } from "react"
 import { useShallow } from "zustand/react/shallow"
 import type { ComponentInstance } from "@/types/workspace"
@@ -13,20 +28,24 @@ export type ComponentSurfacePhase =
 
 export interface ComponentSurfaceStatus {
   phase: ComponentSurfacePhase
+  /** 0-100 进度值，null 表示无进度信息。 */
   progress: number | null
   label?: string
   message?: string
   updatedAt?: number
   operationId?: string
+  /** 状态来源，用于调试与 UI 区分显示策略。 */
   source: "operation" | "component-data" | "none"
 }
 
+/** 空闲状态的常量引用（避免每次返回新对象触发 rerender）。 */
 const IDLE_STATUS: ComponentSurfaceStatus = {
   phase: "idle",
   progress: null,
   source: "none",
 }
 
+/** 终态保留窗口：completed/error/cancelled 在 60 秒内仍显示状态，之后回退 idle。 */
 const RECENT_TERMINAL_MS = 60_000
 
 /**

@@ -1,6 +1,18 @@
+/**
+ * 标签翻译工具。
+ *
+ * 工作区与泳道的 label 字段可能存储三种形式：
+ * 1. i18n key（如 "common:workspaceN:123"）—— 需要通过 t() 翻译
+ * 2. 默认模板（如 "LANE 1"）—— 需要转换为 i18n key 再翻译
+ * 3. 用户自定义文本 —— 原样返回
+ *
+ * 该模块通过正则匹配区分这三种情况，调用对应的 t() 重载进行翻译。
+ */
 import type { TFunction } from "i18next"
 
+/** 匹配 "LANE N" 格式的默认泳道名。 */
 const LANE_N_RE = /^LANE\s+(\d+)$/
+/** 匹配 "common:workspaceN:123" 格式的工作区 i18n key。 */
 const WORKSPACE_N_RE = /^common:workspaceN:(\d+)$/
 
 /**

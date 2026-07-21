@@ -1,3 +1,12 @@
+/**
+ * 卡片权重评估模块。
+ *
+ * 根据组件的运行状态、聚焦状态、z 值、折叠状态等派生一个权重分数，
+ * 映射到 hero / large / normal / compact 四级权重。用于 grid / stack
+ * 视图模式下的卡片摆放顺序：重要卡片先摆放，获得更优位置。
+ *
+ * 评分规则见 getCardWeight 函数的 JSDoc。
+ */
 import type { ComponentInstance } from "@/types/workspace"
 import type { ComponentSurfaceStatus } from "@/lib/componentSurfaceStatus"
 
@@ -5,10 +14,13 @@ export type CardWeight = "hero" | "large" | "normal" | "compact"
 
 export interface CardWeightMeta {
   weight: CardWeight
+  /** 评分总和，用于调试与同权重内的微调。 */
   score: number
+  /** 评分原因列表，用于 UI 展示与调试。 */
   reasons: string[]
 }
 
+/** "最近完成"窗口：刚完成的卡片在 8 秒内仍保留较高权重。 */
 const RECENT_COMPLETED_MS = 8_000
 
 /**

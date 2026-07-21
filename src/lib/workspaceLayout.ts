@@ -1,12 +1,35 @@
+/**
+ * 工作区卡片布局引擎（纯函数）。
+ *
+ * 根据工作区状态（组件列表、布局类型、聚焦/全屏 id、画布尺寸）计算每个组件的目标几何位置，
+ * 返回 `Record<componentId, ComputedLayout>`。CardView 直接消费该结果应用 transform/尺寸样式，
+ * 因此本模块不含任何副作用与 React 依赖，便于单元测试与 SSR。
+ *
+ * 支持的布局算法：
+ * 1. fullscreen — 单组件全屏，其余隐藏（最高优先级，覆盖其他布局）；
+ * 2. grid — 多列网格，hero 卡片跨 2 列突出显示；
+ * 3. stack — 阶梯式叠放扑克牌；
+ * 4. split — 左右两栏，活跃/大型卡片在左，普通/紧凑在右；
+ * 5. focus — 主面板 + 右侧缩略图带，主面板显示 hero 卡片。
+ *
+ * 当提供 `cardWeights` 时，组件先按权重排序再布局，使运行/报错/聚焦的卡片更靠前/更大。
+ * 注：free 自由布局因无法持久化位置，已删除。
+ */
 import type { ComponentInstance, ComputedLayout, CardLayout } from "@/types/workspace"
 import type { CardWeightMeta } from "@/lib/cardWeight"
 import { sortByWeightDesc } from "@/lib/cardWeight"
 
+/** 卡片之间的间距（px）。 */
 const GAP = 16
+/** 画布内边距（px）。 */
 const PAD = 16
+/** 折叠状态下卡片的标题栏高度（px）。 */
 const HEADER_H = 40
+/** focus 布局右侧缩略图带的宽度（px）。 */
 const STRIP_W = 220
+/** 单个面板最小宽度（px），用于防止画布过小时几何为负。 */
 const MIN_PANEL_W = 320
+/** 单个面板最小高度（px）。 */
 const MIN_PANEL_H = 240
 
 export interface LayoutContext {
