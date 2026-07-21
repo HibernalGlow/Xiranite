@@ -13,6 +13,25 @@ describe("EmmConfigCard", () => {
     expect(client.config).not.toHaveBeenCalled()
   })
 
+  it("[neoview.emm-config.abort] aborts an active config load when hidden", async () => {
+    const deferred = Promise.withResolvers<{ emm: ReaderEmmConfigDto }>()
+    let signal: AbortSignal | undefined
+    const client = {
+      config: vi.fn((requestSignal?: AbortSignal) => {
+        signal = requestSignal
+        return deferred.promise
+      }),
+    } as unknown as ReaderHttpClient
+    const view = render(<EmmConfigCard {...context(client)} />)
+    await waitFor(() => expect(client.config).toHaveBeenCalledOnce())
+
+    view.rerender(<EmmConfigCard {...context(client, false)} />)
+    expect(signal?.aborted).toBe(true)
+    deferred.resolve({ emm: DEFAULT_CONFIG })
+    await Promise.resolve()
+    expect(view.container.querySelector('[data-emm-config-card="true"]')).toBeNull()
+  })
+
   it("[neoview.emm-config.card] persists normalized external paths and supports automatic discovery reset", async () => {
     const initial: ReaderEmmConfigDto = { enabled: true, databasePaths: ["D:/EMM/database.sqlite"], defaultRating: 4.2 }
     const updateEmm = vi.fn(async ({ emm }: { emm: Partial<ReaderEmmConfigDto> }) => ({ ...initial, ...emm }))
@@ -36,6 +55,19 @@ describe("EmmConfigCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "恢复自动发现" }))
     await waitFor(() => expect(updateEmm).toHaveBeenLastCalledWith({ emm: DEFAULT_CONFIG }))
+  })
+
+  it("[neoview.emm-config.failure] retains the draft and reports a failed save", async () => {
+    const initial: ReaderEmmConfigDto = { enabled: true, databasePaths: ["D:/EMM/database.sqlite"], defaultRating: 4.2 }
+    const updateEmm = vi.fn(async () => { throw new Error("config disk unavailable") })
+    const client = { config: vi.fn(async () => ({ emm: initial })), updateEmm } as unknown as ReaderHttpClient
+    render(<EmmConfigCard {...context(client)} />)
+    const paths = await screen.findByRole("textbox", { name: "EMM 数据库路径" })
+    fireEvent.change(paths, { target: { value: "E:/Draft/database.sqlite" } })
+    fireEvent.click(screen.getByRole("button", { name: "保存" }))
+
+    expect((await screen.findByRole("alert")).textContent).toContain("config disk unavailable")
+    expect((screen.getByRole("textbox", { name: "EMM 数据库路径" }) as HTMLTextAreaElement).value).toBe("E:/Draft/database.sqlite")
   })
 })
 
