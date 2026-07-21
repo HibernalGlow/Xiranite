@@ -34,8 +34,8 @@
       "targetContract": "Persist tagMode (all/collect/none, default collect), showRating, showCollectTagCount, showTags, maxTags and showTooltips under [nodes.neoview.folder.tag_display] with bounded validation and no browser-local duplicate state.",
       "surfaces": ["GUI"],
       "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.folder.tag-display-config", "neoview.folder.tag-display-menu", "neoview.folder.tag-display-mode"], "plannedTestIds": [],
-      "notes": "The same ReaderRuntimeConfig folderView mutation path used by the File Card owns persistence."
+      "testIds": ["neoview.folder.tag-display-config", "neoview.folder.tag-display-menu", "neoview.folder.tag-display-mode", "neoview.file-list-tag-display.http-config"], "plannedTestIds": [],
+      "notes": "The same ReaderRuntimeConfig folderView mutation path used by the File Card owns persistence. The authenticated config route proves the complete policy is returned and serialized to [nodes.neoview.folder.tag_display]."
     },
     {
       "id": "file-list-tag-display.rendering", "category": "capabilities", "title": "共享条目渲染限制数量和 tooltip",
@@ -43,8 +43,8 @@
       "targetContract": "Apply the policy in the shared FolderEntryMetadata renderer so compact, list, cover, mosaic and grid entries receive the same bounded tag count and tooltip behavior without new per-row subscriptions.",
       "surfaces": ["GUI"],
       "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.folder.tag-display-render", "neoview.folder.tag-display-collect"], "plannedTestIds": ["neoview.folder.tag-display-views"],
-      "notes": "One React context value is read by row renderers; no global listener or metadata refetch is introduced."
+      "testIds": ["neoview.folder.tag-display-render", "neoview.folder.tag-display-collect", "neoview.file-list-tag-display.http-dto"], "plannedTestIds": ["neoview.folder.tag-display-views"],
+      "notes": "The directory HTTP DTO carries the bounded tag arrays and count consumed by one shared React context value; no global listener or metadata refetch is introduced. Multi-view browser geometry remains planned."
     },
     {
       "id": "file-list-tag-display.sources", "category": "capabilities", "title": "EMM/manual/AI 来源与命名空间筛选",
@@ -52,8 +52,8 @@
       "targetContract": "Filter tags by explicit source and namespace identity only when the canonical directory DTO carries those identities; do not infer source from free-form text.",
       "surfaces": ["GUI"],
       "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.folder.emm-tag-sources", "neoview.folder.tag-display-collect"], "plannedTestIds": ["neoview.folder.tag-display-sources"],
-      "notes": "The directory DTO now preserves collected EMM tags and manual tags separately for the legacy collect mode. AI identity and arbitrary per-namespace filtering remain partial."
+      "testIds": ["neoview.folder.emm-tag-sources", "neoview.folder.tag-display-collect", "neoview.file-list-tag-display.http-dto"], "plannedTestIds": ["neoview.folder.tag-display-sources"],
+      "notes": "The directory DTO and HTTP response preserve collected EMM tags and manual tags separately for the legacy collect mode. AI identity and arbitrary per-namespace filtering remain partial."
     }
   ]
 }
