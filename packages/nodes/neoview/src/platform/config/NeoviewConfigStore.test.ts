@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { parseToml } from "@xiranite/config"
 import { lock } from "proper-lockfile"
 import { commitNeoviewConfig, readNeoviewConfig } from "./NeoviewConfigStore.js"
-import { parseNeoviewEmmPatch, parseNeoviewRuntimeConfig, parseNeoviewSuperResolutionPreferencesPatch, parseNeoviewSwitchToastPatch } from "../../application/config/ReaderRuntimeConfig.js"
+import { parseNeoviewEmmPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSuperResolutionPreferencesPatch, parseNeoviewSwitchToastPatch } from "../../application/config/ReaderRuntimeConfig.js"
 
 describe("commitNeoviewConfig", () => {
   const roots: string[] = []
@@ -91,6 +91,99 @@ describe("commitNeoviewConfig", () => {
     const written = await readFile(configPath, "utf8")
     expect(written).not.toContain("children")
     expect(written).not.toContain("action")
+  })
+
+  it("[neoview.swimlane.toml] writes each lane as one inline object without touching edge settings", async () => {
+    const root = await temporaryRoot(roots)
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, [
+      "[nodes.neoview.panels.edges.left]",
+      "pinned = true",
+      "trigger_size = 11",
+      "",
+    ].join("\n"), "utf8")
+    const { tomlPatch } = parseNeoviewShellControlPatch({
+      expectedRevision: 0,
+      shellControl: {
+        workspace: {
+          mode: "swimlane",
+          laneOrder: ["left", "reader", "research", "right"],
+          activeLane: "reader",
+          readerSolo: true,
+          readerSoloOnFocus: false,
+          soloLaneId: "research",
+          readerWidthRatio: 0.75,
+          edgeRevealDelayMs: 280,
+          edgeRevealZones: {
+            left: { x: 4, y: 16, width: 8, height: 68 },
+            right: { x: 88, y: 16, width: 8, height: 68 },
+            top: { x: 12, y: 3, width: 76, height: 5 },
+            bottom: { x: 12, y: 92, width: 76, height: 5 },
+          },
+          readerFocusOnHover: true,
+          readerFocusHoverDelayMs: 700,
+          showLaneNavigatorInReaderSolo: true,
+          barHandleStyle: "edge",
+          barHandlePosition: "right",
+          laneNavigatorPositionX: 83,
+          laneNavigatorPositionY: 92,
+          lanes: {
+            left: { width: 420, collapsed: false, activePanelId: "folder" },
+            reader: { width: 1440 },
+            research: { width: 460, collapsed: false, title: "资料" },
+            right: { width: 380, collapsed: true, activePanelId: "info" },
+          },
+        },
+      },
+    })
+
+    const committed = await commitNeoviewConfig(tomlPatch, { configPath, strategy: "merge" })
+    const written = await readFile(configPath, "utf8")
+    expect(written).toContain("[nodes.neoview.panels.swimlane]")
+    expect(written).toContain("reader_width_ratio = 0.75")
+    expect(written).toContain("reader_solo_on_focus = false")
+    expect(written).toContain('solo_lane = "research"')
+    expect(written).toContain("edge_reveal_delay_ms = 280")
+    expect(written).toContain("left_reveal_zone = { x = 4, y = 16, width = 8, height = 68 }")
+    expect(written).toContain("right_reveal_zone = { x = 88, y = 16, width = 8, height = 68 }")
+    expect(written).toContain("top_reveal_zone = { x = 12, y = 3, width = 76, height = 5 }")
+    expect(written).toContain("bottom_reveal_zone = { x = 12, y = 92, width = 76, height = 5 }")
+    expect(written).toContain("reader_focus_on_hover = true")
+    expect(written).toContain("reader_focus_hover_delay_ms = 700")
+    expect(written).toContain("show_lane_navigator_in_reader_solo = true")
+    expect(written).toContain('bar_handle_style = "edge"')
+    expect(written).toContain('bar_handle_position = "right"')
+    expect(written).toContain("lane_navigator_position_x = 83")
+    expect(written).toContain("lane_navigator_position_y = 92")
+    expect(written).toContain('left = { width = 420, collapsed = false, active_panel_id = "folder" }')
+    expect(written).toContain("reader = { width = 1440 }")
+    expect(written).toContain('research = { width = 460, collapsed = false, title = "资料" }')
+    expect(written).toContain('right = { width = 380, collapsed = true, active_panel_id = "info" }')
+    expect(written).not.toContain("nodes.neoview.panels.swimlane.left")
+    expect(committed.nodeConfig.panels).toMatchObject({
+      edges: { left: { pinned: true, trigger_size: 11 } },
+      layout_mode: "swimlane",
+    })
+    expect(parseNeoviewRuntimeConfig(committed.nodeConfig).shellOptions.workspace).toMatchObject({
+      mode: "swimlane",
+      swimlane: {
+        laneOrder: ["left", "reader", "research", "right"],
+        readerSoloOnFocus: false,
+        soloLaneId: "research",
+        edgeRevealZones: {
+          left: { x: 4, y: 16, width: 8, height: 68 },
+          right: { x: 88, y: 16, width: 8, height: 68 },
+          top: { x: 12, y: 3, width: 76, height: 5 },
+          bottom: { x: 12, y: 92, width: 76, height: 5 },
+        },
+        showLaneNavigatorInReaderSolo: true,
+        barHandleStyle: "edge",
+        barHandlePosition: "right",
+        laneNavigatorPositionX: 83,
+        laneNavigatorPositionY: 92,
+        lanes: { research: { width: 460, collapsed: false, title: "资料" } },
+      },
+    })
   })
 
   it("overwrite replaces only [nodes.neoview] and is idempotent", async () => {

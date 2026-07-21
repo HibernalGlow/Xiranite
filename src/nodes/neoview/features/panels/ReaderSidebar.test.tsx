@@ -31,6 +31,115 @@ describe("ReaderSidebar layout gestures", () => {
     expect(commit).toHaveBeenLastCalledWith({ side: "left", pinned: true })
   })
 
+  it("uses an overlaid panel bar in a lane without a reserved rail column", () => {
+    const selected = vi.fn()
+    const panelBarChange = vi.fn()
+    render(<ReaderSidebar side="left" presentation="lane" selectedPanelId="pageList" onSelectedPanelChange={selected} onPanelBarChange={panelBarChange} context={context()} shell={shell()} />)
+
+    expect(document.querySelector('[data-reader-sidebar-presentation="lane"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-panel-rail="left"]')).toBeNull()
+    expect(document.querySelector('[data-reader-panel-bar="left"]')?.className).toContain("absolute")
+    expect(screen.queryByRole("button", { name: "取消固定左侧栏" })).toBeNull()
+    expect(screen.queryByRole("separator", { name: "调整左侧栏宽度" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "文件夹" }))
+    expect(selected).toHaveBeenCalledWith("folder")
+    const barHandle = screen.getByRole("button", { name: "拖动或设置面板操作栏" })
+    fireEvent.contextMenu(barHandle)
+    expect(screen.getByRole("menu", { name: "面板操作栏设置" })).toBeTruthy()
+    fireEvent.contextMenu(barHandle)
+    expect(screen.queryByRole("menu", { name: "面板操作栏设置" })).toBeNull()
+    fireEvent.contextMenu(barHandle)
+    fireEvent.click(screen.getByRole("menuitem", { name: "改为悬浮" }))
+    expect(panelBarChange).toHaveBeenCalledWith({ panelBarMode: "floating", panelBarDock: "left" })
+    fireEvent.contextMenu(barHandle)
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "限制在本泳道" }))
+    expect(panelBarChange).toHaveBeenCalledWith({ panelBarConstrained: false })
+  })
+
+  it("combines the panel bar handle style with an independent right-side position", () => {
+    const config = shell()
+    config.workspace = workspace("top")
+    config.workspace.swimlane.barHandleStyle = "groove"
+    config.workspace.swimlane.barHandlePosition = "right"
+    render(<section data-reader-swimlane="left">
+      <header><div data-reader-panel-bar-title-slot="left" /></header>
+      <ReaderSidebar side="left" presentation="lane" context={context()} shell={config} />
+    </section>)
+
+    const bar = document.querySelector<HTMLElement>('[data-reader-panel-bar="left"]')!
+    const handle = screen.getByRole("button", { name: "拖动或设置面板操作栏" })
+    expect(handle.dataset.readerBarHandleStyle).toBe("groove")
+    expect(handle.dataset.readerBarHandlePosition).toBe("right")
+    expect(bar.lastElementChild).toBe(handle)
+  })
+
+  it("shows four dock regions while dragging the lane panel bar and pins on drop", () => {
+    const panelBarChange = vi.fn()
+    render(<ReaderSidebar side="left" presentation="lane" context={context()} shell={shell()} onPanelBarChange={panelBarChange} />)
+    const sidebar = document.querySelector<HTMLElement>('[data-reader-sidebar="left"]')!
+    const bar = document.querySelector<HTMLElement>('[data-reader-panel-bar="left"]')!
+    vi.spyOn(sidebar, "getBoundingClientRect").mockReturnValue(rect(0, 0, 320, 600))
+    vi.spyOn(bar, "getBoundingClientRect").mockReturnValue(rect(4, 200, 44, 220))
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "拖动或设置面板操作栏" }), { pointerId: 21, button: 0, clientX: 20, clientY: 220 })
+    fireEvent.pointerMove(window, { pointerId: 21, clientX: 160, clientY: 596 })
+    expect(document.querySelectorAll("[data-reader-panel-bar-dropzone]")).toHaveLength(4)
+    expect(document.querySelector('[data-reader-panel-bar-dropzone="bottom"]')?.getAttribute("data-active")).toBe("true")
+    fireEvent.pointerUp(window, { pointerId: 21, clientX: 160, clientY: 596 })
+    expect(panelBarChange).toHaveBeenLastCalledWith({ panelBarMode: "pinned", panelBarDock: "bottom" })
+  })
+
+  it("mounts a top-pinned panel bar horizontally in the lane title bar", async () => {
+    const config = shell()
+    config.workspace = workspace("top")
+    render(<section data-reader-swimlane="left">
+      <header data-reader-swimlane-header="left">
+        <span>左侧面板</span>
+        <div data-reader-panel-bar-title-slot="left" />
+      </header>
+      <ReaderSidebar side="left" presentation="lane" context={context()} shell={config} />
+    </section>)
+
+    await waitFor(() => {
+      const slot = document.querySelector('[data-reader-panel-bar-title-slot="left"]')!
+      const bar = slot.querySelector<HTMLElement>('[data-reader-panel-bar="left"]')
+      expect(bar).toBeTruthy()
+      expect(bar?.className).toContain("flex-row")
+      expect(bar?.className).toContain("bg-transparent")
+    })
+  })
+
+  it("keeps an unconstrained floating panel bar draggable after each release", () => {
+    const panelBarChange = vi.fn()
+    const config = shell()
+    config.workspace = workspace("left")
+    Object.assign(config.workspace.swimlane.lanes.left, {
+      panelBarMode: "floating",
+      panelBarConstrained: false,
+      panelBarPositionX: 50,
+      panelBarPositionY: 50,
+    })
+    render(<section data-reader-swimlane="left">
+      <header><div data-reader-panel-bar-title-slot="left" /></header>
+      <ReaderSidebar side="left" presentation="lane" context={context()} shell={config} onPanelBarChange={panelBarChange} />
+    </section>)
+
+    const sidebar = document.querySelector<HTMLElement>('[data-reader-sidebar="left"]')!
+    const bar = document.querySelector<HTMLElement>('[data-reader-panel-bar="left"]')!
+    vi.spyOn(sidebar, "getBoundingClientRect").mockReturnValue(rect(0, 0, 320, 600))
+    vi.spyOn(bar, "getBoundingClientRect").mockReturnValue(rect(400, 200, 444, 320))
+    const handle = screen.getByRole("button", { name: "拖动或设置面板操作栏" })
+
+    for (const pointerId of [31, 32]) {
+      fireEvent.pointerDown(handle, { pointerId, button: 0, clientX: 420, clientY: 220 })
+      fireEvent.pointerMove(window, { pointerId, clientX: 520, clientY: 360 })
+      fireEvent.pointerUp(window, { pointerId, clientX: 520, clientY: 360 })
+    }
+
+    expect(panelBarChange).toHaveBeenCalledTimes(2)
+    expect(panelBarChange).toHaveBeenLastCalledWith(expect.objectContaining({ panelBarMode: "floating" }))
+  })
+
   it("[neoview.shell.resize-performance] mutates width outside React and commits once on pointer up", () => {
     const commit = vi.fn()
     render(<ReaderSidebar side="left" context={context()} shell={shell()} onLayoutCommit={commit} />)
@@ -273,6 +382,26 @@ function shell(height: ReaderShellConfigDto["sidebars"]["left"]["height"] = "ful
   }
 }
 
+function workspace(leftDock: "left" | "right" | "top" | "bottom"): NonNullable<ReaderShellConfigDto["workspace"]> {
+  return {
+    mode: "swimlane",
+    swimlane: {
+      laneOrder: ["left", "reader", "right"],
+      activeLane: "reader",
+      readerSolo: false,
+      readerWidthRatio: 0.72,
+      edgeRevealDelayMs: 220,
+      readerFocusOnHover: false,
+      readerFocusHoverDelayMs: 420,
+      lanes: {
+        left: { width: 320, collapsed: false, panelBarMode: "pinned", panelBarDock: leftDock, panelBarPositionX: 8, panelBarPositionY: 50, panelBarConstrained: true },
+        reader: { width: 960, collapsed: false },
+        right: { width: 280, collapsed: false, panelBarMode: "pinned", panelBarDock: "right", panelBarPositionX: 92, panelBarPositionY: 50, panelBarConstrained: true },
+      },
+    },
+  }
+}
+
 function context(hasSession = true): ReaderPanelContext {
   const session = {
     sessionId: "reader-1",
@@ -328,5 +457,19 @@ function folderPage(): ReaderDirectoryPageDto {
     globalDefaultSort: sort,
     tabDefaultSort: sort,
     watching: true,
+  }
+}
+
+function rect(left: number, top: number, right: number, bottom: number): DOMRect {
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
   }
 }

@@ -78,7 +78,7 @@ import { createReaderInfoOverlayStore } from "../features/info-overlay/ReaderInf
 import { createReaderImageTrimStore } from "../features/image-trim/ReaderImageTrimStore"
 import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCleanup"
 import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../features/workspace/ReaderSwimlaneWorkspace"
-import { applyReaderWorkspacePatch, readerWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
+import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
@@ -257,6 +257,7 @@ export function ReaderApp({
   const temporaryFitPresentationRef = useRef<ReaderPresentation>()
   const shellControlWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const shellControlGenerationRef = useRef(0)
+  const pendingWorkspaceWritesRef = useRef<Array<{ generation: number; patch: ReaderWorkspacePatch; base: ReaderShellConfigDto }>>([])
   const presentationTouchedRef = useRef(false)
   const [path, setPath] = useState(initialPath)
   const [browserOriginPath, setBrowserOriginPath] = useState(initialBrowserOriginPath)
@@ -939,6 +940,13 @@ export function ReaderApp({
       toggleShellEdge,
       toggleShellPin,
       toggleSidebarControl,
+      workspace: {
+        toggleLayoutMode: toggleWorkspaceMode,
+        focusReader: () => commitWorkspace({ mode: "swimlane", activeLane: "reader" }),
+        focusAdjacent: focusAdjacentWorkspaceLane,
+        toggleActiveLaneFullscreen: toggleActiveWorkspaceLaneFullscreen,
+        fitLanes: fitWorkspaceLanes,
+      },
       openFile: () => choose("file"),
       closeFile: closeSession,
       deleteCurrentFile: client.executeFileOperations ? requestDeleteCurrentFile : undefined,
@@ -1291,35 +1299,85 @@ export function ReaderApp({
     enqueueShellControl(patch)
   }
 
+  function toggleWorkspaceMode(): void {
+    const current = shellRef.current
+    if (!current) return
+    const workspace = readerWorkspaceConfig(current)
+    commitWorkspace({ mode: workspace.mode === "swimlane" ? "edges" : "swimlane" })
+  }
+
+  function focusAdjacentWorkspaceLane(direction: "previous" | "next"): void {
+    const current = shellRef.current
+    if (!current) return
+    const workspace = readerWorkspaceConfig(current)
+    const order = workspace.swimlane.laneOrder
+    const index = Math.max(0, order.indexOf(workspace.swimlane.activeLane))
+    const offset = direction === "previous" ? -1 : 1
+    const activeLane = order[(index + offset + order.length) % order.length] ?? "reader"
+    commitWorkspace({ mode: "swimlane", activeLane })
+  }
+
+  function toggleActiveWorkspaceLaneFullscreen(): void {
+    const current = shellRef.current
+    if (!current) return
+    const workspace = readerWorkspaceConfig(current)
+    commitWorkspace({ mode: "swimlane", readerSolo: !workspace.swimlane.readerSolo })
+  }
+
+  function fitWorkspaceLanes(): void {
+    const current = shellRef.current
+    if (!current) return
+    const workspace = readerWorkspaceConfig(current)
+    const viewportWidth = document.querySelector<HTMLElement>('[data-reader-swimlane-viewport="true"]')?.clientWidth ?? window.innerWidth
+    commitWorkspace({ mode: "swimlane", ...fitReaderSwimlanesToViewport(viewportWidth, workspace.swimlane) })
+  }
+
   function commitWorkspace(patch: ReaderWorkspacePatch): void {
     const current = shellRef.current
     if (!current) return
     const optimistic = applyReaderWorkspacePatch(current, patch)
     shellRef.current = optimistic
     setShell(optimistic)
-    enqueueShellControl({ workspace: patch })
+    enqueueShellControl({ workspace: patch }, undefined, current)
   }
 
-  function enqueueShellControl(patch: ReaderShellControlPatch["shellControl"], rollback?: ReaderShellControlSnapshot) {
+  function enqueueShellControl(
+    patch: ReaderShellControlPatch["shellControl"],
+    rollback?: ReaderShellControlSnapshot,
+    workspaceBase?: ReaderShellConfigDto,
+  ) {
     const generation = ++shellControlGenerationRef.current
+    if (patch.workspace && shellRef.current) {
+      pendingWorkspaceWritesRef.current.push({ generation, patch: patch.workspace, base: workspaceBase ?? shellRef.current })
+    }
     shellControlWriteQueueRef.current = shellControlWriteQueueRef.current.then(async () => {
       const update = clientRef.current.updateShellControl
       if (!update) return
+      const reconcile = (confirmed: ReaderShellConfigDto) => {
+        pendingWorkspaceWritesRef.current = pendingWorkspaceWritesRef.current.filter((entry) => entry.generation !== generation)
+        const displayed = pendingWorkspaceWritesRef.current.reduce(
+          (current, entry) => applyReaderWorkspacePatch(current, entry.patch),
+          confirmed,
+        )
+        shellRef.current = displayed
+        setShell(displayed)
+        if (generation === shellControlGenerationRef.current) shellControlStore.replace(shellControlSnapshot(confirmed))
+      }
       try {
-        const updated = await update({ expectedRevision: shellRef.current?.revision ?? 0, shellControl: patch })
-        shellRef.current = updated
-        setShell(updated)
-        if (generation === shellControlGenerationRef.current) shellControlStore.replace(shellControlSnapshot(updated))
+        let updated: ReaderShellConfigDto
+        try {
+          updated = await update({ expectedRevision: shellRef.current?.revision ?? 0, shellControl: patch })
+        } catch (cause) {
+          if (!(cause instanceof ReaderHttpError) || cause.status !== 409) throw cause
+          const latest = await clientRef.current.config()
+          updated = await update({ expectedRevision: latest.shell.revision ?? 0, shellControl: patch })
+        }
+        reconcile(updated)
       } catch (cause) {
         if (generation === shellControlGenerationRef.current && rollback) shellControlStore.replace(rollback)
-        if (cause instanceof ReaderHttpError && cause.status === 409) {
-          const latest = await clientRef.current.config().catch(() => undefined)
-          if (latest) {
-            shellRef.current = latest.shell
-            setShell(latest.shell)
-            if (generation === shellControlGenerationRef.current) shellControlStore.replace(shellControlSnapshot(latest.shell))
-          }
-        }
+        const failed = pendingWorkspaceWritesRef.current.find((entry) => entry.generation === generation)
+        const latest = await clientRef.current.config().catch(() => undefined)
+        if (failed || latest) reconcile(latest?.shell ?? failed!.base)
         setError(errorMessage(cause))
       }
     })
@@ -1490,14 +1548,15 @@ export function ReaderApp({
   const workspace = shell ? readerWorkspaceConfig(shell) : undefined
   const workspaceMode = workspace?.mode ?? "edges"
   const readerSolo = workspace?.swimlane.readerSolo ?? true
+  const readerSoloActive = readerSolo && workspace?.swimlane.activeLane === "reader"
   const readerTopbarLeadingControls = (
     <ReaderWindowBar
       control={shellControl}
       disabled={!shell}
       mode={workspaceMode}
-      readerSolo={readerSolo}
+      readerSolo={readerSoloActive}
       onModeChange={(mode) => commitWorkspace({ mode })}
-      onReaderSoloChange={(enabled) => commitWorkspace({ readerSolo: enabled, ...(enabled ? { activeLane: "reader" } : {}) })}
+      onReaderSoloChange={(enabled) => commitWorkspace(enabled ? { activeLane: "reader", readerSolo: true } : { readerSolo: false })}
       onOpenSettings={() => setSettingsOpen(true)}
       part="leading"
     />
@@ -1507,11 +1566,11 @@ export function ReaderApp({
       control={shellControl}
       disabled={!shell}
       mode={workspaceMode}
-      readerSolo={readerSolo}
+      readerSolo={readerSoloActive}
       onModeChange={(mode) => commitWorkspace({ mode })}
-      onReaderSoloChange={(enabled) => commitWorkspace({ readerSolo: enabled, ...(enabled ? { activeLane: "reader" } : {}) })}
+      onReaderSoloChange={(enabled) => commitWorkspace(enabled ? { activeLane: "reader", readerSolo: true } : { readerSolo: false })}
       onOpenSettings={() => setSettingsOpen(true)}
-      windowControls={workspaceMode === "edges" || readerSolo ? <FloatingWindowCaptionControls integrated /> : undefined}
+      windowControls={workspaceMode === "edges" || readerSoloActive ? <FloatingWindowCaptionControls integrated /> : undefined}
       part="trailing"
     />
   )
@@ -1530,6 +1589,7 @@ export function ReaderApp({
   const topEdge: ReaderControlledEdgeSlot = {
     ariaLabel: "NeoView 顶部工具栏",
     triggerSize: shell?.edges.top.triggerSize,
+    triggerRect: workspace?.swimlane.edgeRevealZones.top,
     showDelayMs: shell?.showDelayMs,
     hideDelayMs: shell?.hideDelayMs,
     render: () => (
@@ -1618,6 +1678,7 @@ export function ReaderApp({
   const bottomEdge: ReaderControlledEdgeSlot | undefined = session && (shell?.edges.bottom.enabled ?? true) ? {
     ariaLabel: "NeoView 底部缩略图与导航栏",
     triggerSize: shell?.edges.bottom.triggerSize,
+    triggerRect: workspace?.swimlane.edgeRevealZones.bottom,
     showDelayMs: shell?.showDelayMs,
     hideDelayMs: shell?.hideDelayMs,
     render: () => (
@@ -1799,7 +1860,7 @@ export function ReaderApp({
         <LazyReaderInfoOverlayRuntime port={infoOverlay} session={session} sourcePath={path} />
       </Suspense>
       <FloatingWindowTitlebarReservation />
-      {floatingFrame && workspaceMode === "swimlane" && !readerSolo ? (
+      {floatingFrame && workspaceMode === "swimlane" && !readerSoloActive ? (
         <div
           className="pointer-events-none absolute right-0 top-0 z-[95] flex h-10 items-stretch"
           data-reader-transparent-windowbar="true"
@@ -1816,6 +1877,7 @@ export function ReaderApp({
                 workspace={workspace}
                 disabled={!shell}
                 onWorkspaceChange={commitWorkspace}
+                onOpenSettings={() => setSettingsOpen(true)}
                 reader={(
                   <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, bottom: bottomEdge }}>
                     {readerCanvas}
@@ -1830,6 +1892,7 @@ export function ReaderApp({
                       shell={shell}
                       selectedPanelId={workspace.swimlane.lanes.left.activePanelId}
                       onSelectedPanelChange={(activePanelId) => commitWorkspace({ lanes: { left: { activePanelId } } })}
+                      onPanelBarChange={(patch) => commitWorkspace({ lanes: { left: patch } })}
                       onCardLayoutCommit={(patch) => void commitCardLayout(patch)}
                     />
                   </Suspense>
@@ -1843,6 +1906,7 @@ export function ReaderApp({
                       shell={shell}
                       selectedPanelId={workspace.swimlane.lanes.right.activePanelId}
                       onSelectedPanelChange={(activePanelId) => commitWorkspace({ lanes: { right: { activePanelId } } })}
+                      onPanelBarChange={(patch) => commitWorkspace({ lanes: { right: patch } })}
                       onCardLayoutCommit={(patch) => void commitCardLayout(patch)}
                     />
                   </Suspense>

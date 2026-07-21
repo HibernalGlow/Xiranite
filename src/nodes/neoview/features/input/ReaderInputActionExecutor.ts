@@ -45,6 +45,13 @@ export interface ReaderInputActionControls {
   toggleShellEdge(edge: "left" | "right"): void
   toggleShellPin(edge: "top" | "bottom"): void
   toggleSidebarControl(): void
+  workspace?: {
+    toggleLayoutMode(): void
+    focusReader(): void
+    focusAdjacent(direction: "previous" | "next"): void
+    toggleActiveLaneFullscreen(): void
+    fitLanes(): void
+  }
   openFile(): void | Promise<unknown>
   closeFile(): void | Promise<unknown>
   deleteCurrentFile?(): void | Promise<unknown>
@@ -87,6 +94,12 @@ export function executeReaderInputAction(action: ReaderInputAction, controls: Re
     case "reader.toggle-reading-direction": if (session) void controls.updateReadingDirection(session.direction === "left-to-right" ? "right-to-left" : "left-to-right"); return Boolean(session)
     case "reader.toggle-single-panorama": controls.toggleSinglePanorama(); return true
     case "reader.fullscreen": void controls.toggleFullscreen(); return true
+    case "workspace.toggle-layout-mode": controls.workspace?.toggleLayoutMode(); return Boolean(controls.workspace)
+    case "workspace.focus-reader": controls.workspace?.focusReader(); return Boolean(controls.workspace)
+    case "workspace.focus-previous-lane": controls.workspace?.focusAdjacent("previous"); return Boolean(controls.workspace)
+    case "workspace.focus-next-lane": controls.workspace?.focusAdjacent("next"); return Boolean(controls.workspace)
+    case "workspace.toggle-active-lane-fullscreen": controls.workspace?.toggleActiveLaneFullscreen(); return Boolean(controls.workspace)
+    case "workspace.fit-lanes": controls.workspace?.fitLanes(); return Boolean(controls.workspace)
     case "shell.toggle-left-sidebar": controls.toggleShellEdge("left"); return true
     case "shell.toggle-right-sidebar": controls.toggleShellEdge("right"); return true
     case "shell.toggle-top-toolbar-pin": controls.toggleShellPin("top"); return true

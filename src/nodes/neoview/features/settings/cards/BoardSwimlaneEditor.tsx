@@ -70,9 +70,11 @@ interface DragState {
 export function BoardSwimlaneEditor({
   shell,
   onSave,
+  embedded = false,
 }: {
   shell: ReaderShellConfigDto
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
+  embedded?: boolean
 }) {
   const [lanes, setLanes] = useState<BoardLanes>(() => createBoardLanes(shell))
   const [saving, setSaving] = useState(false)
@@ -198,19 +200,11 @@ export function BoardSwimlaneEditor({
     setLanes((current) => acceptPanelColumns(current, columns))
   }
 
-  return (
-    <SettingsCardShell
-      id="board-layout"
-      title="布局看板"
-      description="三泳道：左侧栏 / 右侧栏 / 隐藏。拖动面板切换边栏，拖动卡片在面板间分配。"
-      icon={LayoutGrid}
-      actions={
-        <>
-          <Button type="button" size="sm" variant="outline" disabled={saving} onClick={reset}><RotateCcw />重置草稿</Button>
-          <Button type="button" size="sm" disabled={saving} onClick={() => void save()}><Save />保存布局</Button>
-        </>
-      }
-    >
+  const actions = <>
+    <Button type="button" size="sm" variant="outline" disabled={saving} onClick={reset}><RotateCcw />重置草稿</Button>
+    <Button type="button" size="sm" disabled={saving} onClick={() => void save()}><Save />保存布局</Button>
+  </>
+  const content = <>
       <Kanban
         value={panelColumns}
         getItemValue={(panel) => panel.id}
@@ -247,6 +241,17 @@ export function BoardSwimlaneEditor({
       <p className="text-[11px] text-muted-foreground">
         提示：不可隐藏的卡片不会进「隐藏」泳道；独占卡片不能与其他卡片共用可见面板。
       </p>
+  </>
+  if (embedded) return <div className="grid gap-3"><div className="flex flex-wrap justify-end gap-2">{actions}</div>{content}</div>
+  return (
+    <SettingsCardShell
+      id="board-layout"
+      title="布局看板"
+      description="三泳道：左侧栏 / 右侧栏 / 隐藏。拖动面板切换边栏，拖动卡片在面板间分配。"
+      icon={LayoutGrid}
+      actions={actions}
+    >
+      {content}
     </SettingsCardShell>
   )
 }

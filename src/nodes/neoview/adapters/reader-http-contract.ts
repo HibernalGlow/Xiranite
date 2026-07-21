@@ -994,6 +994,28 @@ export interface ReaderShellConfigDto {
     enableBlankAreaCollapse: boolean
     blankAreaCollapseMode: "single" | "double"
   }
+  workspace?: {
+    mode: "edges" | "swimlane"
+    swimlane: {
+      laneOrder: ReaderSwimlaneId[]
+      activeLane: ReaderSwimlaneId
+      readerSolo: boolean
+      readerSoloOnFocus: boolean
+      soloLaneId?: ReaderSwimlaneId
+      readerWidthRatio: number
+      edgeRevealDelayMs: number
+      edgeRevealZones: Record<"left" | "right" | "top" | "bottom", { x: number; y: number; width: number; height: number }>
+      readerFocusOnHover: boolean
+      readerFocusHoverDelayMs: number
+      showLaneNavigatorInReaderSolo: boolean
+      barHandleStyle: "grip" | "groove" | "move" | "grab" | "edge"
+      barHandlePosition: "left" | "right"
+      laneNavigatorPositionX: number
+      laneNavigatorPositionY: number
+      laneNavigatorDock: "floating" | "reader-title"
+      lanes: Record<ReaderSwimlaneId, ReaderSwimlaneLaneDto>
+    }
+  }
   panelLayout: Record<
     string,
     {
@@ -1012,6 +1034,20 @@ export interface ReaderShellConfigDto {
       height?: number
     }
   >
+}
+
+export type ReaderSwimlaneId = string
+
+export interface ReaderSwimlaneLaneDto {
+  width: number
+  collapsed: boolean
+  title?: string
+  activePanelId?: string
+  panelBarMode?: "pinned" | "floating"
+  panelBarDock?: "left" | "right" | "top" | "bottom"
+  panelBarPositionX?: number
+  panelBarPositionY?: number
+  panelBarConstrained?: boolean
 }
 
 export type ReaderShellEdge = "top" | "right" | "bottom" | "left"
@@ -1077,6 +1113,7 @@ export interface ReaderRuntimeConfigDto {
   viewDefaults: {
     fitMode: ReaderFitMode
     pageMode: PageMode
+    doublePageGap?: number
     splitWidePages?: boolean
     hoverScrollEnabled?: boolean
     hoverScrollSpeed?: number
@@ -1564,6 +1601,7 @@ export interface ReaderViewDefaultsPatch {
   viewDefaults: {
     fitMode?: ReaderFitMode
     pageMode?: PageMode
+    doublePageGap?: number
     splitWidePages?: boolean
     hoverScrollEnabled?: boolean
     hoverScrollSpeed?: number
@@ -1640,6 +1678,26 @@ export interface ReaderShellControlPatch {
       >
     >
     sidebarInteraction?: Partial<NonNullable<ReaderShellConfigDto["sidebarInteraction"]>>
+    workspace?: {
+      mode?: NonNullable<ReaderShellConfigDto["workspace"]>["mode"]
+      laneOrder?: ReaderSwimlaneId[]
+      activeLane?: ReaderSwimlaneId
+      readerSolo?: boolean
+      readerSoloOnFocus?: boolean
+      soloLaneId?: ReaderSwimlaneId | null
+      readerWidthRatio?: number
+      edgeRevealDelayMs?: number
+      edgeRevealZones?: Record<"left" | "right" | "top" | "bottom", { x: number; y: number; width: number; height: number }>
+      readerFocusOnHover?: boolean
+      readerFocusHoverDelayMs?: number
+      showLaneNavigatorInReaderSolo?: boolean
+      barHandleStyle?: "grip" | "groove" | "move" | "grab" | "edge"
+      barHandlePosition?: "left" | "right"
+      laneNavigatorPositionX?: number
+      laneNavigatorPositionY?: number
+      laneNavigatorDock?: "floating" | "reader-title"
+      lanes?: Partial<Record<ReaderSwimlaneId, Partial<ReaderSwimlaneLaneDto>>>
+    }
     material?: ReaderShellMaterialPatch
     reset?: "known-defaults"
   }

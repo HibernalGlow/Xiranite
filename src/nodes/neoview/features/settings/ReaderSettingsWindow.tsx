@@ -19,6 +19,7 @@ import type {
   ReaderViewDefaultsPatch,
 } from "../../adapters/reader-http-client"
 import { lazyReaderSettingsCard, settingsCardsForSection } from "../panels/registry"
+import type { ReaderWorkspacePatch } from "../workspace/ReaderWorkspaceLayout"
 import { SettingsUnavailableNote } from "./SettingsCardShell"
 
 export function ReaderSettingsWindow({
@@ -40,6 +41,7 @@ export function ReaderSettingsWindow({
   onLegacySettingsInspect,
   onLegacySettingsImport,
   onMaterial,
+  onWorkspace,
 }: {
   shell: ReaderShellConfigDto
   viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
@@ -59,6 +61,7 @@ export function ReaderSettingsWindow({
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
+  onWorkspace?(patch: ReaderWorkspacePatch): void
 }) {
   const [active, setActive] = useState<SettingsSectionId>("layout")
   return (
@@ -115,6 +118,7 @@ export function ReaderSettingsWindow({
               onLegacySettingsInspect={onLegacySettingsInspect}
               onLegacySettingsImport={onLegacySettingsImport}
               onMaterial={onMaterial}
+              onWorkspace={onWorkspace}
             />
           </div>
         </div>
@@ -142,6 +146,7 @@ function SettingsSection({
   onLegacySettingsInspect,
   onLegacySettingsImport,
   onMaterial,
+  onWorkspace,
 }: {
   sectionId: SettingsSectionId
   shell: ReaderShellConfigDto
@@ -161,6 +166,7 @@ function SettingsSection({
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
+  onWorkspace?(patch: ReaderWorkspacePatch): void
 }) {
   const definitions = settingsCardsForSection(sectionId)
   if (!definitions.length) {
@@ -180,7 +186,6 @@ function SettingsSection({
     if (definition.id === "view-defaults-settings" && (!viewDefaults || !onViewDefaults)) continue
     if (definition.id === "input-bindings-settings" && (!inputBindings || !onInputBindings)) continue
     if (definition.id === "radial-menu-settings" && (!radialMenu || !onRadialMenu)) continue
-    if (definition.id === "data-migration-settings" && (!onLegacySettingsInspect || !onLegacySettingsImport)) continue
     if (definition.id === "reader-material-settings" && !onMaterial) continue
     if (definition.id === "board-layout-settings" && !onSave) continue
     cards.push(
@@ -203,6 +208,7 @@ function SettingsSection({
           onLegacySettingsInspect={onLegacySettingsInspect}
           onLegacySettingsImport={onLegacySettingsImport}
           onMaterial={onMaterial}
+          onWorkspace={onWorkspace}
         />
       </Suspense>,
     )

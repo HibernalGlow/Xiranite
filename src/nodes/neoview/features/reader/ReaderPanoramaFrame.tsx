@@ -26,6 +26,7 @@ export function ReaderPanoramaFrame({
   anchorPageIndex,
   direction,
   pageMode,
+  doublePageGap = 0,
   currentPages,
   presentation,
   hoverScrollEnabled = false,
@@ -45,6 +46,7 @@ export function ReaderPanoramaFrame({
   anchorPageIndex: number
   direction: "left-to-right" | "right-to-left"
   pageMode: "single" | "double"
+  doublePageGap?: number
   currentPages: readonly ReaderPageDto[]
   presentation: ReaderPresentation
   hoverScrollEnabled?: boolean
@@ -187,14 +189,15 @@ export function ReaderPanoramaFrame({
           const frameSize = dimensions.length === unitPages.length
             ? calculateReaderFrameSize(dimensions, presentation.rotation, "horizontal", presentation.autoRotation, presentation.widePageStretch)
             : undefined
-          const available = { width: Math.max(1, viewport.width - 8), height: Math.max(1, viewport.height - 8) }
+          const gap = renderedPages.length > 1 ? doublePageGap * (renderedPages.length - 1) : 0
+          const available = { width: Math.max(1, viewport.width - 8 - gap), height: Math.max(1, viewport.height - 8) }
           const scale = frameSize ? calculateReaderScale(presentation.fitMode, frameSize, available, presentation.manualScale) : undefined
           const rotatedDimensions = dimensions.map((dimension) => rotatePresentationSize(dimension, effectiveReaderRotation(presentation.rotation, presentation.autoRotation, dimension)))
           const stretchScales = calculateReaderPageStretchScales(rotatedDimensions, presentation.widePageStretch)
-          const width = frameSize && scale ? frameSize.width * scale : available.width
+          const width = frameSize && scale ? frameSize.width * scale + gap : available.width
           const height = frameSize && scale ? frameSize.height * scale : available.height
-          const unit = <div className="flex shrink-0 items-center justify-center gap-1 bg-black p-1" style={{ width, height, flexDirection: "row" }} data-panorama-unit={index}>
-            {renderedPages.map((page, slotIndex) => <PageMedia key={page.id} page={page} rotation={page.dimensions ? effectiveReaderRotation(presentation.rotation, presentation.autoRotation, page.dimensions) : presentation.rotation} scale={scale === undefined ? undefined : scale * (stretchScales[slotIndex] ?? 1)} fallbackSize={available} colorFilter={colorFilter} imageTrim={imageTrim} imageTrimDetectionActive={page.index === imageTrimDetectionPageIndex} videoController={videoController} sessionId={sessionId} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVideoListEnded={onVideoListEnded} />)}
+          const unit = <div className="flex shrink-0 items-center justify-center bg-black p-1" style={{ width, height, flexDirection: "row" }} data-panorama-unit={index} data-reader-double-page-gap={renderedPages.length > 1 ? doublePageGap : undefined}>
+            {renderedPages.map((page, slotIndex) => <div key={page.id} className="flex shrink-0" data-reader-page-slot={slotIndex} style={slotIndex > 0 ? { marginInlineStart: doublePageGap } : undefined}><PageMedia page={page} rotation={page.dimensions ? effectiveReaderRotation(presentation.rotation, presentation.autoRotation, page.dimensions) : presentation.rotation} scale={scale === undefined ? undefined : scale * (stretchScales[slotIndex] ?? 1)} fallbackSize={available} colorFilter={colorFilter} imageTrim={imageTrim} imageTrimDetectionActive={page.index === imageTrimDetectionPageIndex} videoController={videoController} sessionId={sessionId} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVideoListEnded={onVideoListEnded} /></div>)}
           </div>
           return presentation.orientation === "vertical"
             ? <div className="flex w-full justify-center" data-panorama-unit-wrapper={index}>{unit}</div>

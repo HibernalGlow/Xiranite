@@ -13,12 +13,13 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Pin, PinOff } from "lucide-react"
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react"
-import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPatch } from "../../adapters/reader-http-client"
+import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPatch, ReaderSwimlaneLaneDto } from "../../adapters/reader-http-client"
 
 import { cn } from "@/lib/utils"
 import { readerShellMaterialDraft, readerShellMaterialStyle } from "../material/ReaderShellMaterial"
 import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
 import { InfoPanelActions } from "./InfoPanelActions"
+import { ReaderPanelBar } from "./ReaderPanelBar"
 import { useReaderPanelDropZone, useReaderPanelRail, useReaderPanelTab } from "./ReaderPanelDnd"
 import {
   availablePanels,
@@ -35,31 +36,46 @@ export function ReaderSidebar({
   context,
   shell,
   active: edgeActive = true,
+  presentation = "edge",
+  selectedPanelId,
+  onSelectedPanelChange,
   onLayoutCommit,
   onCardLayoutCommit,
+  onPanelBarChange,
 }: {
   side: ReaderPanelSide
   context: ReaderPanelContext
   shell?: ReaderShellConfigDto
   active?: boolean
+  presentation?: "edge" | "lane"
+  selectedPanelId?: string
+  onSelectedPanelChange?(panelId: LegacyPanelId): void
   onLayoutCommit?(patch: ReaderSidebarLayoutPatch): void
   onCardLayoutCommit?(patch: ReaderCardLayoutPatch): void
+  onPanelBarChange?(patch: Partial<ReaderSwimlaneLaneDto>): void
 }) {
   const hasSession = Boolean(context.session)
   const panels = useMemo(() => availablePanels(side, shell, hasSession), [hasSession, shell, side])
   const panelIds = useMemo(() => panels.map((panel) => panel.id), [panels])
-  const [activePanel, setActivePanel] = useState<LegacyPanelId>(() => panels[0]?.id ?? (side === "left" ? "pageList" : "info"))
+  const [localActivePanel, setLocalActivePanel] = useState<LegacyPanelId>(() => panels[0]?.id ?? (side === "left" ? "pageList" : "info"))
   const [mountedPanels, setMountedPanels] = useState<ReadonlySet<LegacyPanelId>>(() => new Set(panelIds))
+  const activePanel = selectedPanelId ?? localActivePanel
   const active = panels.find((panel) => panel.id === activePanel) ?? panels[0]
   const layout = shell?.sidebars[side]
   const asideRef = useRef<HTMLElement>(null)
+  const [asideNode, setAsideNode] = useState<HTMLElement | null>(null)
   const sidebarDropZone = useReaderPanelDropZone(side)
   const setAsideRef = useCallback((node: HTMLElement | null) => {
     asideRef.current = node
+    setAsideNode(node)
     sidebarDropZone.setNodeRef(node)
   }, [sidebarDropZone.setNodeRef])
   const gestureRef = useRef<SidebarGesture | undefined>(undefined)
-  const style = layout && shell ? sidebarStyle(layout, shell, side) : undefined
+  const style = layout && shell
+    ? presentation === "lane"
+      ? readerShellMaterialStyle(readerShellMaterialDraft(shell), "sidebar")
+      : sidebarStyle(layout, shell, side)
+    : undefined
 
   useEffect(() => {
     setMountedPanels((current) => {
@@ -73,18 +89,20 @@ export function ReaderSidebar({
     <aside
       ref={setAsideRef}
       className={cn(
-        "relative flex max-h-full overflow-hidden border-border/55 bg-background/94 shadow-[0_0_32px_rgb(0_0_0/0.26)] backdrop-blur-xl",
+        "relative flex max-h-full overflow-hidden border-border/55 bg-background/94 backdrop-blur-xl",
+        presentation === "lane" ? "h-full w-full min-w-0 shadow-none" : "shadow-[0_0_32px_rgb(0_0_0/0.26)]",
         side === "left" ? "border-r" : "flex-row-reverse border-l",
         sidebarDropZone.isOver && "ring-2 ring-inset ring-primary/45",
       )}
       data-reader-sidebar={side}
+      data-reader-sidebar-presentation={presentation}
       data-reader-edge-chrome={side}
       data-reader-panel-drop-active={sidebarDropZone.isOver ? "true" : undefined}
       style={style}
-      onClick={handleBlankClick}
-      onDoubleClick={handleBlankDoubleClick}
+      onClick={presentation === "edge" ? handleBlankClick : undefined}
+      onDoubleClick={presentation === "edge" ? handleBlankDoubleClick : undefined}
     >
-      <div
+      {presentation === "edge" ? <div
         aria-label={`调整${side === "left" ? "左" : "右"}侧栏宽度`}
         role="separator"
         aria-orientation="vertical"
@@ -93,19 +111,31 @@ export function ReaderSidebar({
         onPointerMove={moveGesture}
         onPointerUp={endGesture}
         onPointerCancel={cancelGesture}
-      />
-      <ReaderPanelIconRail
-        side={side}
-        panels={panels}
-        activePanelId={active?.id}
-        pinned={shell?.edges[side].pinned ?? false}
-        pinDisabled={context.disabled || !onLayoutCommit}
-        onPinnedChange={(pinned) => onLayoutCommit?.({ side, pinned })}
-        onActivate={(panelId) => {
-          setMountedPanels((current) => current.has(panelId) ? current : new Set(current).add(panelId))
-          setActivePanel(panelId)
-        }}
-      />
+      /> : null}
+      {presentation === "lane" ? (
+        <ReaderLanePanelBar
+          owner={asideNode}
+          handleStyle={shell?.workspace?.swimlane.barHandleStyle}
+          handlePosition={shell?.workspace?.swimlane.barHandlePosition}
+          side={side}
+          panels={panels}
+          activePanelId={active?.id}
+          lane={shell?.workspace?.swimlane.lanes[side] ?? fallbackPanelBarLane(side)}
+          onChange={(patch) => onPanelBarChange?.(patch)}
+          onActivate={activatePanel}
+        />
+      ) : (
+        <ReaderPanelIconRail
+          side={side}
+          panels={panels}
+          activePanelId={active?.id}
+          showPin
+          pinned={shell?.edges[side].pinned ?? false}
+          pinDisabled={context.disabled || !onLayoutCommit}
+          onPinnedChange={(pinned) => onLayoutCommit?.({ side, pinned })}
+          onActivate={activatePanel}
+        />
+      )}
       {panels.map((panel) => {
         const panelActive = panel.id === active?.id
         const panelVisible = edgeActive && panelActive
@@ -133,7 +163,7 @@ export function ReaderSidebar({
               <PanelIcon className="size-4 shrink-0" aria-hidden="true" />
               <h2 className="truncate text-sm font-semibold">{panel.title}</h2>
               {panel.id === "info" ? <InfoPanelActions context={context} /> : null}
-              {layout?.height !== "full" && shell?.sidebarInteraction?.showDragHandle ? (
+              {presentation === "edge" && layout?.height !== "full" && shell?.sidebarInteraction?.showDragHandle ? (
                 <button
                   type="button"
                   aria-label={`移动${side === "left" ? "左" : "右"}侧栏`}
@@ -145,7 +175,7 @@ export function ReaderSidebar({
                 >↕</button>
               ) : null}
             </div>}
-            {exclusive && layout?.height !== "full" && shell?.sidebarInteraction?.showDragHandle ? (
+            {presentation === "edge" && exclusive && layout?.height !== "full" && shell?.sidebarInteraction?.showDragHandle ? (
               <button
                 type="button"
                 aria-label={`移动${side === "left" ? "左" : "右"}侧栏`}
@@ -181,7 +211,7 @@ export function ReaderSidebar({
           </div>
         )
       })}
-      <button
+      {presentation === "edge" ? <button
         type="button"
         aria-label={`调整${side === "left" ? "左" : "右"}侧栏大小`}
         className={cn("absolute bottom-0 z-30 size-4 cursor-nwse-resize touch-none opacity-0 hover:opacity-100 focus:opacity-100", side === "left" ? "right-0" : "left-0")}
@@ -189,13 +219,19 @@ export function ReaderSidebar({
         onPointerMove={moveGesture}
         onPointerUp={endGesture}
         onPointerCancel={cancelGesture}
-      />
+      /> : null}
     </aside>
   )
 
   function handleBlankClick(event: ReactMouseEvent<HTMLElement>): void {
     if (shell?.sidebarInteraction?.blankAreaCollapseMode !== "single") return
     collapseFromBlankArea(event.target)
+  }
+
+  function activatePanel(panelId: LegacyPanelId): void {
+    setMountedPanels((current) => current.has(panelId) ? current : new Set(current).add(panelId))
+    setLocalActivePanel(panelId)
+    onSelectedPanelChange?.(panelId)
   }
 
   function handleBlankDoubleClick(event: ReactMouseEvent<HTMLElement>): void {
@@ -281,10 +317,44 @@ export function ReaderSidebar({
   }
 }
 
+function ReaderLanePanelBar({ side, panels, activePanelId, lane, owner, handleStyle, handlePosition, onActivate, onChange }: {
+  side: ReaderPanelSide
+  panels: readonly ReaderPanelDefinition[]
+  activePanelId: LegacyPanelId | undefined
+  lane: ReaderSwimlaneLaneDto
+  owner: HTMLElement | null
+  handleStyle?: "grip" | "groove" | "grab" | "move" | "edge"
+  handlePosition?: "left" | "right"
+  onActivate(panelId: LegacyPanelId): void
+  onChange(patch: Partial<ReaderSwimlaneLaneDto>): void
+}) {
+  const rail = useReaderPanelRail(side, panels)
+  return (
+    <ReaderPanelBar side={side} lane={lane} owner={owner} handleStyle={handleStyle} handlePosition={handlePosition} setRailRef={rail.setNodeRef} onChange={onChange}>
+      {rail.sortable(rail.panels.map((panel) => (
+        <ReaderPanelIconButton key={panel.id} panel={panel} side={side} active={panel.id === activePanelId} onActivate={() => onActivate(panel.id)} />
+      )))}
+    </ReaderPanelBar>
+  )
+}
+
+function fallbackPanelBarLane(side: ReaderPanelSide): ReaderSwimlaneLaneDto {
+  return {
+    width: side === "left" ? 320 : 280,
+    collapsed: false,
+    panelBarMode: "pinned",
+    panelBarDock: side,
+    panelBarPositionX: side === "left" ? 8 : 92,
+    panelBarPositionY: 50,
+    panelBarConstrained: true,
+  }
+}
+
 function ReaderPanelIconRail({
   side,
   panels,
   activePanelId,
+  showPin,
   pinned,
   pinDisabled,
   onPinnedChange,
@@ -293,6 +363,7 @@ function ReaderPanelIconRail({
   side: ReaderPanelSide
   panels: readonly ReaderPanelDefinition[]
   activePanelId: LegacyPanelId | undefined
+  showPin: boolean
   pinned: boolean
   pinDisabled: boolean
   onPinnedChange(pinned: boolean): void
@@ -310,7 +381,7 @@ function ReaderPanelIconRail({
       aria-label={`${side === "left" ? "左" : "右"}侧面板`}
       data-reader-panel-rail={side}
     >
-      <button
+      {showPin ? <button
         type="button"
         title={pinned ? `取消固定${side === "left" ? "左" : "右"}侧栏` : `固定${side === "left" ? "左" : "右"}侧栏`}
         aria-label={pinned ? `取消固定${side === "left" ? "左" : "右"}侧栏` : `固定${side === "left" ? "左" : "右"}侧栏`}
@@ -323,8 +394,8 @@ function ReaderPanelIconRail({
         onClick={() => onPinnedChange(!pinned)}
       >
         {pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
-      </button>
-      <span className="my-0.5 h-px w-6 shrink-0 bg-border" aria-hidden="true" />
+      </button> : null}
+      {showPin ? <span className="my-0.5 h-px w-6 shrink-0 bg-border" aria-hidden="true" /> : null}
       {rail.sortable(rail.panels.map((panel) => (
         <ReaderPanelIconButton
           key={panel.id}
@@ -354,6 +425,7 @@ function ReaderPanelIconButton({
   return (
     <button
       ref={sortable.setNodeRef}
+      data-reader-panel-bar-tab={panel.id}
       type="button"
       title={panel.canMove ? `${panel.title}（拖动可调整顺序）` : panel.title}
       aria-label={panel.title}

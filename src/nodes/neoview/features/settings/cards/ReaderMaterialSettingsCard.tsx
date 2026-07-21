@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { ReaderShellConfigDto, ReaderShellMaterialPatch, ReaderShellSurface } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext, ReaderSettingsCardContext } from "../../panels/registry"
+import { ReaderBarHandleGlyph, type ReaderBarHandleStyle } from "../../shell/ReaderBarHandleGlyph"
+import type { ReaderWorkspacePatch } from "../../workspace/ReaderWorkspaceLayout"
 import {
   applyReaderShellMaterialPreview,
   readerShellMaterialDraft,
@@ -17,6 +19,13 @@ import { SettingsCardShell } from "../SettingsCardShell"
 
 const SURFACE_LABELS: Record<ReaderShellSurface, string> = { top: "顶栏", bottom: "底栏", sidebar: "侧栏" }
 const PRESET_LABELS = { solid: "实色", soft: "轻透", frosted: "磨砂" } as const
+const HANDLE_STYLES: readonly { value: ReaderBarHandleStyle; label: string }[] = [
+  { value: "grip", label: "六点" },
+  { value: "groove", label: "三槽" },
+  { value: "move", label: "四向" },
+  { value: "grab", label: "抓手" },
+  { value: "edge", label: "贴边短轨" },
+]
 const CONTROLS = [
   { key: "opacity", label: "不透明度", min: 0, max: 100, unit: "%" },
   { key: "blur", label: "背景模糊", min: 0, max: 20, unit: "px" },
@@ -27,9 +36,10 @@ const CONTROLS = [
 
 type MaterialControl = typeof CONTROLS[number]["key"]
 
-export function ReaderMaterialSettingsCard({ shell, onMaterial }: {
+export function ReaderMaterialSettingsCard({ shell, onMaterial, onWorkspace }: {
   shell: ReaderShellConfigDto
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
+  onWorkspace?(patch: ReaderWorkspacePatch): void
 }) {
   const initial = readerShellMaterialDraft(shell)
   const [draft, setDraft] = useState(initial)
@@ -165,6 +175,18 @@ export function ReaderMaterialSettingsCard({ shell, onMaterial }: {
         })}
       </div>
 
+      {onWorkspace && shell.workspace ? <div className="grid gap-2 border-t pt-3">
+        <span className="text-xs font-medium">操作栏拖拽手柄</span>
+        <div className="flex w-fit flex-wrap items-center rounded-md border bg-muted/15 p-1" aria-label="操作栏拖拽手柄样式">
+          {HANDLE_STYLES.map(({ value, label }) => <Button key={value} type="button" size="sm" variant={shell.workspace.swimlane.barHandleStyle === value ? "secondary" : "ghost"} aria-pressed={shell.workspace.swimlane.barHandleStyle === value} onClick={() => onWorkspace({ barHandleStyle: value })}><ReaderBarHandleGlyph style={value} horizontal />{label}</Button>)}
+        </div>
+        <div className="flex w-fit items-center rounded-md border bg-muted/15 p-1" aria-label="操作栏拖拽手柄位置">
+          <Button type="button" size="sm" variant={shell.workspace.swimlane.barHandlePosition === "left" ? "secondary" : "ghost"} aria-pressed={shell.workspace.swimlane.barHandlePosition === "left"} onClick={() => onWorkspace({ barHandlePosition: "left" })}>左侧</Button>
+          <Button type="button" size="sm" variant={shell.workspace.swimlane.barHandlePosition === "right" ? "secondary" : "ghost"} aria-pressed={shell.workspace.swimlane.barHandlePosition === "right"} onClick={() => onWorkspace({ barHandlePosition: "right" })}>右侧</Button>
+        </div>
+        <span className="text-xs text-muted-foreground">面板操作栏与泳道切换栏共享此样式。</span>
+      </div> : null}
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">{draft.blur[surface] > 0 ? <Droplets className="size-3.5" /> : <Layers3 className="size-3.5" />}{saving ? "正在保存..." : "拖动实时预览，释放后保存"}</div>
         <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => selectPreset("frosted")}><RotateCcw />恢复磨砂默认值</Button>
@@ -174,9 +196,9 @@ export function ReaderMaterialSettingsCard({ shell, onMaterial }: {
   )
 }
 
-export function SettingsReaderMaterialCard({ shell, onMaterial }: ReaderSettingsCardContext) {
+export function SettingsReaderMaterialCard({ shell, onMaterial, onWorkspace }: ReaderSettingsCardContext) {
   if (!onMaterial) return null
-  return <ReaderMaterialSettingsCard shell={shell} onMaterial={onMaterial} />
+  return <ReaderMaterialSettingsCard shell={shell} onMaterial={onMaterial} onWorkspace={onWorkspace} />
 }
 
 function sameMaterial(left: ReaderShellMaterialDraft, right: ReaderShellMaterialDraft): boolean {

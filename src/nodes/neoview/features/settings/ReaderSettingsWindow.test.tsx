@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderShellConfigDto } from "../../adapters/reader-http-client"
@@ -14,6 +14,7 @@ describe("ReaderSettingsWindow", () => {
   it("[neoview.settings.window] follows the standalone categorized settings fixture and defers Kanban", async () => {
     const save = vi.fn(async () => undefined)
     const saveViewDefaults = vi.fn(async () => undefined)
+    const saveWorkspace = vi.fn()
     render(
       <ReaderSettingsWindow
         shell={shell()}
@@ -29,21 +30,60 @@ describe("ReaderSettingsWindow", () => {
         onMedia={vi.fn(async () => media())}
         onInputBindings={vi.fn(async () => ({ bindings: [] }))}
         onRadialMenu={vi.fn(async () => DEFAULT_READER_RADIAL_MENU_CONFIG)}
-        onLegacySettingsInspect={vi.fn(async () => ({ report: { fullyRecognized: true, summary: {}, entries: [] } }))}
-        onLegacySettingsImport={vi.fn(async () => ({ report: { fullyRecognized: true, summary: {}, entries: [] }, strategy: "merge" as const }))}
         onMaterial={vi.fn(async () => shell())}
+        onWorkspace={saveWorkspace}
       />,
     )
     expect(screen.getByRole("dialog")).toBeTruthy()
     expect(screen.getByRole("heading", { name: "设置" })).toBeTruthy()
     expect(screen.getByRole("navigation", { name: "NeoView 设置分类" })).toBeTruthy()
-    expect(await screen.findByRole("heading", { name: "边栏布局" })).toBeTruthy()
+    expect(await screen.findByRole("heading", { name: "泳道与布局" })).toBeTruthy()
+    expect(screen.getByRole("tablist", { name: "泳道与布局分区" })).toBeTruthy()
     expect(screen.queryByTestId("panel-layout-editor")).toBeNull()
-    fireEvent.click(screen.getByRole("button", { name: "保存边栏布局" }))
+    fireEvent.click(within(screen.getByRole("group", { name: "默认启动视图" })).getByRole("button", { name: "泳道" }))
+    expect(saveWorkspace).toHaveBeenCalledWith({ mode: "swimlane" })
+    fireEvent.click(screen.getByRole("checkbox", { name: "Reader 聚焦时自动全屏" }))
+    expect(saveWorkspace).toHaveBeenCalledWith({ readerSoloOnFocus: false })
+    expect(saveWorkspace).not.toHaveBeenCalledWith({ readerSolo: false })
+    selectTab("交互")
+    fireEvent.change(screen.getByRole("spinbutton", { name: "左右泳道展开延迟" }), { target: { value: "400" } })
+    fireEvent.blur(screen.getByRole("spinbutton", { name: "左右泳道展开延迟" }))
+    expect(saveWorkspace).toHaveBeenCalledWith({ edgeRevealDelayMs: 400 })
+    expect(document.querySelectorAll("[data-reader-reveal-zone]")).toHaveLength(4)
+    const revealCanvas = screen.getByLabelText("悬停唤出区画布")
+    const callsBeforeClick = saveWorkspace.mock.calls.length
+    fireEvent.pointerDown(revealCanvas, { pointerId: 7, button: 0, clientX: 40, clientY: 40 })
+    fireEvent.pointerUp(revealCanvas, { pointerId: 7, clientX: 40, clientY: 40 })
+    expect(saveWorkspace).toHaveBeenCalledTimes(callsBeforeClick)
+    fireEvent.change(screen.getByRole("spinbutton", { name: "左侧唤出区x" }), { target: { value: "12" } })
+    fireEvent.blur(screen.getByRole("spinbutton", { name: "左侧唤出区x" }))
+    expect(saveWorkspace).toHaveBeenCalledWith({
+      edgeRevealZones: {
+        left: { x: 12, y: 10, width: 1, height: 80 },
+        right: { x: 87, y: 10, width: 1, height: 80 },
+        top: { x: 10, y: 0, width: 80, height: 1 },
+        bottom: { x: 10, y: 99, width: 80, height: 1 },
+      },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "上栏" }))
+    fireEvent.change(screen.getByRole("spinbutton", { name: "上栏唤出区y" }), { target: { value: "8" } })
+    fireEvent.blur(screen.getByRole("spinbutton", { name: "上栏唤出区y" }))
+    expect(saveWorkspace).toHaveBeenCalledWith({
+      edgeRevealZones: {
+        left: { x: 12, y: 10, width: 1, height: 80 },
+        right: { x: 87, y: 10, width: 1, height: 80 },
+        top: { x: 10, y: 8, width: 80, height: 1 },
+        bottom: { x: 10, y: 91, width: 80, height: 1 },
+      },
+    })
+    fireEvent.click(screen.getByRole("checkbox", { name: "Reader 悬停自动聚焦" }))
+    expect(saveWorkspace).toHaveBeenCalledWith({ readerFocusOnHover: false })
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Reader 重新聚焦延迟" }), { target: { value: "900" } })
+    fireEvent.blur(screen.getByRole("spinbutton", { name: "Reader 重新聚焦延迟" }))
+    expect(saveWorkspace).toHaveBeenCalledWith({ readerFocusHoverDelayMs: 900 })
+    selectTab("布局看板")
+    fireEvent.click(await screen.findByRole("button", { name: "保存布局" }))
     expect(save).toHaveBeenCalledOnce()
-
-    fireEvent.click(screen.getByRole("button", { name: "卡片管理" }))
-    expect(await screen.findByTestId("panel-layout-editor")).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "视图" }))
     expect(await screen.findByRole("heading", { name: "视图默认值" })).toBeTruthy()
@@ -65,7 +105,7 @@ describe("ReaderSettingsWindow", () => {
     expect(screen.getByRole("tab", { name: "轮盘" })).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "数据" }))
-    expect(await screen.findByRole("heading", { name: "数据迁移" })).toBeTruthy()
+    expect(await screen.findByRole("heading", { name: "数据与配置" })).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "关于" }))
     expect(await screen.findByRole("heading", { name: "关于 NeoView" })).toBeTruthy()
@@ -91,6 +131,12 @@ function media() {
   }
 }
 
+function selectTab(name: string) {
+  const tab = screen.getByRole("tab", { name })
+  fireEvent.mouseDown(tab, { button: 0, ctrlKey: false })
+  fireEvent.click(tab)
+}
+
 function shell(): ReaderShellConfigDto {
   return {
     showDelayMs: 0,
@@ -106,6 +152,31 @@ function shell(): ReaderShellConfigDto {
     sidebars: {
       left: { width: 320, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
       right: { width: 280, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
+    },
+    workspace: {
+      mode: "edges",
+      swimlane: {
+        laneOrder: ["left", "reader", "right"],
+        activeLane: "reader",
+        readerSolo: true,
+        readerSoloOnFocus: true,
+        readerWidthRatio: 0.5,
+        edgeRevealDelayMs: 180,
+        edgeRevealZones: {
+          left: { x: 0, y: 10, width: 1, height: 80 },
+          right: { x: 99, y: 10, width: 1, height: 80 },
+          top: { x: 10, y: 0, width: 80, height: 1 },
+          bottom: { x: 10, y: 99, width: 80, height: 1 },
+        },
+        readerFocusOnHover: true,
+        readerFocusHoverDelayMs: 650,
+        showLaneNavigatorInReaderSolo: false,
+        lanes: {
+          left: { width: 320, collapsed: false, activePanelId: "pageList" },
+          reader: { width: 960, collapsed: false },
+          right: { width: 280, collapsed: false, activePanelId: "info" },
+        },
+      },
     },
     panelLayout: {
       pageList: { visible: true, order: 0, position: "left" },
