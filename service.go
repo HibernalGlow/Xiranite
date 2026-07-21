@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"os/exec"
@@ -505,6 +506,12 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 		EnableFileDrop:   true,
 		Frameless:        true,
 	})
+	if err := setWindowTaskbarIdentity(win, id); err != nil {
+		log.Printf("Unable to give component window %q an independent taskbar identity: %v", id, err)
+	}
+	if err := setWindowTaskbarIcon(win, input.ModuleID, title); err != nil {
+		log.Printf("Unable to set component window %q taskbar icon: %v", id, err)
+	}
 	wireFileDrop(win)
 	primeWindowFrame(win)
 
