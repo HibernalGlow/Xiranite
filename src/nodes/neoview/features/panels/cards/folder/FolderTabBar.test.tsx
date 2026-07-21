@@ -1,4 +1,5 @@
-import { cleanup, render } from "@testing-library/react"
+import { cleanup, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import FolderTabBar from "./FolderTabBar"
@@ -27,7 +28,8 @@ describe("FolderTabBar", () => {
     onLayoutChange: vi.fn(),
   }
 
-  it("[neoview.folder.tabs-single-hidden] keeps the default tab bar hidden for one tab", () => {
+  it("[neoview.folder.tabs-single-hidden] keeps the default tab bar hidden while retaining its action menu", async () => {
+    const user = userEvent.setup()
     const view = render(
       <FolderTabBar
         {...callbacks}
@@ -42,6 +44,10 @@ describe("FolderTabBar", () => {
 
     expect(view.container.querySelector('[data-folder-tab-bar="false"]')).toBeTruthy()
     expect(view.container.querySelector('[data-folder-tab-bar="true"]')).toBeNull()
+    await user.click(screen.getByRole("button", { name: "标签操作 books" }))
+    expect(screen.getByRole("menuitem", { name: "固定标签" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "复制标签" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "关闭标签" }).getAttribute("data-disabled")).not.toBeNull()
   })
 
   it("[neoview.folder.tabs-multi-visible] reveals a top tab bar when the second tab appears", () => {
