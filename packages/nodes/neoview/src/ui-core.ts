@@ -29,6 +29,25 @@ export {
   type ReaderPresentation,
   type ReaderRotation,
 } from "./domain/presentation/presentation.js"
+export {
+  activeReaderColorFilterPoints,
+  applyReaderColorFilterPatch,
+  DEFAULT_READER_COLOR_FILTER,
+  isReaderColorFilterPresetId,
+  normalizeReaderColorFilter,
+  parseReaderColorFilterPatch,
+  projectReaderColorFilterCss,
+  projectReaderColorFilterTables,
+  READER_COLOR_FILTER_PRESET_IDS,
+  READER_COLOR_FILTER_PRESET_LABELS,
+  READER_COLOR_FILTER_PRESETS,
+  type ReaderColorFilterCssOptions,
+  type ReaderColorFilterPatch,
+  type ReaderColorFilterPresetId,
+  type ReaderColorFilterSettings,
+  type ReaderColorFilterTables,
+  type ReaderColorPoint,
+} from "./domain/color-filter/ReaderColorFilter.js"
 export type { ReadingDirection, TailOverflowBehavior } from "./domain/navigation/navigation.js"
 export {
   cloneReaderRadialMenuConfig,
@@ -180,6 +199,26 @@ export {
   type ReaderImageTrimSettings,
   type ReaderImageTrimTarget,
 } from "./application/image-trim/ReaderImageTrim.js"
+export {
+  DEFAULT_READER_PAGE_TRANSITION,
+  isReaderPageTransitionEasing,
+  isReaderPageTransitionType,
+  normalizeReaderPageTransition,
+  parseReaderPageTransitionPatch,
+  projectReaderPageTransitionCss,
+  READER_PAGE_TRANSITION_EASING_CSS,
+  READER_PAGE_TRANSITION_EASING_LABELS,
+  READER_PAGE_TRANSITION_EASINGS,
+  READER_PAGE_TRANSITION_TYPE_LABELS,
+  READER_PAGE_TRANSITION_TYPES,
+  type ReaderPageTransitionCssProjection,
+  type ReaderPageTransitionCssState,
+  type ReaderPageTransitionDirection,
+  type ReaderPageTransitionEasing,
+  type ReaderPageTransitionPatch,
+  type ReaderPageTransitionSettings,
+  type ReaderPageTransitionType,
+} from "./domain/page-transition/ReaderPageTransition.js"
 export {
   formatReaderPageTransition,
   readerPageTransitionSurfaceOptions,
