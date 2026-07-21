@@ -3968,7 +3968,7 @@
 | `favoriteTags` | 收藏标签快选 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/FavoriteTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `favorite-tags` |
 | `emmSync` | EMM 同步 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/EmmSyncCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-sync` |
 | `thumbnailArchMetrics` | 缩略图架构指标 | integration | complete | `core=C transport=C gui=C cli=N/A tui=N/A evidence=C` | `src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte` | 统一缩略图生成、持久化、数据库维护与迁移；XR `thumbnail-architecture-metrics` |
-| `emmRawData` | EMM 数据库记录 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/EmmRawDataCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-raw-data` |
+| `emmRawData` | EMM 数据库记录 | integration | complete | `core=C transport=C gui=C cli=N/A tui=N/A evidence=C` | `src/lib/cards/properties/EmmRawDataCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-raw-data` |
 | `emmConfig` | EMM 配置 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/EmmConfigCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-config` |
 | `fileListTagDisplay` | 文件列表标签 | integration | partial | `core=N/A transport=C gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/FileListTagDisplayCard.svelte` | EMM 数据库、评分、标签、收藏和翻译 |
 
@@ -4809,9 +4809,9 @@
 #### `emmRawData` EMM 数据库记录
 
 - 细项清单：`migration/neoview/emm-raw-data-compatibility.json`
-- [ ] 查看当前条目的原始 EMM 数据库字段和 JSON
-- [ ] 切换格式化/原始视图并复制数据
-- [ ] 刷新并清楚区分只读字段和可编辑入口
+- [x] 查看当前条目的原始 EMM 数据库字段和 JSON
+- [x] 切换格式化/原始视图并复制数据
+- [x] 刷新并清楚区分只读字段和可编辑入口
 - UI 基线：`src/lib/cards/properties/EmmRawDataCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
 ##### 专用逐控件库存（5 组，35 项）
@@ -4869,18 +4869,18 @@
 
 ##### 专用源码级验收项
 
-- [ ] `emm-raw-data.raw-record` 有界原始 EMM 记录 DTO
-  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `emm-raw-data.raw-record` 有界原始 EMM 记录 DTO
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Expose a bounded, versioned and read-only projection of the matched external Mangas row with explicit field types, omission rules and source identity through the authenticated Reader metadata boundary.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.emm.external-readonly`、`neoview.emm-raw-data.dto`、`neoview.emm-raw-data.http`、`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
+  - 测试：`neoview.emm.external-readonly`、`neoview.emm-raw-data.dto`、`neoview.emm-raw-data.http`、`neoview.emm-raw-data.legacy-characterization`、`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
   - 计划测试：无
   - 备注：ReaderBookMetadataService requests includeRaw only for the once-per-session static metadata load. The authenticated HTTP contract proves the bounded schemaVersion 1 DTO, omission of unknown source properties and per-session request reuse. The readonly external store selects a fixed allowlist, caps fields and scalar lengths, and leaves directory batch hydration on the existing lightweight projection. The React Card explicitly labels legacy servers as a compatibility projection.
-- [ ] `emm-raw-data.projection` Reader 已验证字段投影
-  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `emm-raw-data.projection` Reader 已验证字段投影
+  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Render only validated current-book fields and bounded tag rows, omit undefined values and keep filtering pure without parsing arbitrary database JSON in React.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
-  - 测试：`neoview.emm-raw-data.http`、`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
+  - 测试：`neoview.emm-raw-data.http`、`neoview.emm-raw-data.legacy-characterization`、`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
   - 计划测试：无
   - 备注：The authenticated metadata boundary exposes only the versioned typed field DTO and omits unknown source properties. Legacy servers remain supported through the bounded compatibility projection without parsing database JSON in React.
 - [x] `emm-raw-data.filter` 字段和值过滤
@@ -4911,11 +4911,11 @@
   - 测试：`neoview.emm-raw-data.raw-view`、`neoview.emm-raw-data.copy`
   - 计划测试：无
   - 备注：A compact segmented control switches the derived table and bounded raw JSON. Field and full-record copy reuse the authenticated host clipboard capability with named controls and feedback.
-- [ ] `emm-raw-data.actions` 路径、URL 与显式刷新动作
-  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `emm-raw-data.actions` 路径、URL 与显式刷新动作
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Use authenticated host capabilities for path reveal, safe external URL opening and explicit metadata refresh with capability-aware disabled and error states.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
-  - 测试：`neoview.emm-raw-data.path-action`、`neoview.emm-raw-data.url-service`、`neoview.emm-raw-data.url-platform`、`neoview.emm-raw-data.url-http`、`neoview.emm-raw-data.url-client`、`neoview.emm-raw-data.url-action`、`neoview.emm-raw-data.retry`、`neoview.emm-auxiliary.e2e`
+  - 测试：`neoview.emm-raw-data.path-action`、`neoview.emm-raw-data.url-service`、`neoview.emm-raw-data.url-platform`、`neoview.emm-raw-data.url-http`、`neoview.emm-raw-data.url-client`、`neoview.emm-raw-data.url-action`、`neoview.emm-raw-data.retry`、`neoview.emm-raw-data.legacy-characterization`、`neoview.emm-auxiliary.e2e`
   - 计划测试：无
   - 备注：Path fields use the authenticated revealSystemPath command. URL fields use a dedicated authenticated host command backed by the maintained open adapter; the service allowlists bounded credential-free HTTP/HTTPS URLs and rejects unsafe schemes before platform dispatch. Explicit refresh reuses the shared static metadata retry path.
 - [x] `emm-raw-data.states` 加载、无记录、错误与重试
@@ -4925,34 +4925,34 @@
   - 测试：`neoview.emm-cards.lifecycle`、`neoview.emm-sync.direct-source`、`neoview.emm-raw-data.filter-empty`、`neoview.emm-raw-data.retry`
   - 计划测试：无
   - 备注：No-book, loading, no-record, recoverable alert/retry and filtered-empty states are distinct; shared metadata retry replaces the failed snapshot without a second Card-specific cache.
-- [ ] `emm-raw-data.lifecycle` 共享静态元数据与隐藏取消
-  - 六维：`core=N/A transport=P gui=C cli=N/A tui=N/A evidence=P`；阻塞：`transport`、`evidence`
+- [x] `emm-raw-data.lifecycle` 共享静态元数据与隐藏取消
+  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Share one static metadata request with sibling Cards, perform zero hidden work and cancel or ignore stale results on deactivation, session replacement or unmount.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
-  - 测试：`neoview.emm-cards.lifecycle`、`neoview.emm-raw-data.http`、`neoview.emm-sync.direct-source`
-  - 计划测试：`neoview.emm-raw-data.session-replace`
-  - 备注：Hidden zero work and request sharing are covered; explicit session replacement remains planned.
-- [ ] `emm-raw-data.accessibility` 表格、过滤和字段动作语义
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 测试：`neoview.emm-cards.lifecycle`、`neoview.emm-raw-data.http`、`neoview.emm-raw-data.session-replace`、`neoview.emm-sync.direct-source`
+  - 计划测试：无
+  - 备注：Hidden Cards perform zero work, sibling Cards share one request, repeated HTTP metadata reads reuse the per-session backend load, and session replacement aborts the stale client request before publishing only the new session result.
+- [x] `emm-raw-data.accessibility` 表格、过滤和字段动作语义
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Expose a named filter, semantic table headers, full key/value text for truncated cells and keyboard-operable sorting, copy, path, URL, refresh and retry commands.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
-  - 测试：`neoview.emm-sync.direct-source`、`neoview.emm-raw-data.sort`、`neoview.emm-raw-data.copy`、`neoview.emm-raw-data.path-action`
-  - 计划测试：`neoview.emm-raw-data.accessibility`
-  - 备注：Filter, view mode, sortable headers and field commands have accessible names; cells expose formatted labels while title and raw JSON retain complete source values. Browser keyboard and geometry evidence remains pending.
-- [ ] `emm-raw-data.ui-parity` 紧凑表格和受限 Card 几何
-  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P`；阻塞：`gui`、`evidence`
+  - 测试：`neoview.emm-sync.direct-source`、`neoview.emm-raw-data.sort`、`neoview.emm-raw-data.copy`、`neoview.emm-raw-data.path-action`、`neoview.emm-raw-data.accessibility`
+  - 计划测试：无
+  - 备注：Filter, view mode, sortable headers and field commands have accessible names; cells expose formatted labels while title and raw JSON retain complete source values. Desktop and constrained Chromium exercise keyboard activation of the URL command.
+- [x] `emm-raw-data.ui-parity` 紧凑表格和受限 Card 几何
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Preserve the compact filter/count/table hierarchy, sticky header, bounded scrolling, typed cell affordances and full-value tooltips without horizontal overflow at desktop and constrained widths.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
-  - 测试：`neoview.emm-auxiliary.e2e`
-  - 计划测试：`neoview.emm-raw-data.legacy-characterization`、`neoview.emm-raw-data.geometry`
-  - 备注：Target screenshots prove no overflow, but source typed cells and a legacy baseline are missing.
-- [ ] `emm-raw-data.deviations` 记录安全投影不是原始 SQLite 行
-  - 六维：`core=P transport=P gui=P cli=N/A tui=N/A evidence=P`；阻塞：`core`、`transport`、`gui`、`evidence`
-  - 目标：Keep the current verified Reader projection explicitly labelled as a bounded first slice; do not expose arbitrary SQLite rows to the browser or claim raw-record parity until a reviewed DTO exists.
+  - 测试：`neoview.emm-raw-data.legacy-characterization`、`neoview.emm-raw-data.geometry`、`neoview.emm-auxiliary.e2e`
+  - 计划测试：无
+  - 备注：The scripted 1920x1080 legacy baseline freezes the 380px filter/count/table hierarchy, typed formatting and 192px scroll bound. Desktop and 420px target screenshots prove the extended controls preserve compact geometry without horizontal overflow.
+- [x] `emm-raw-data.deviations` 记录安全投影不是原始 SQLite 行
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：Expose the reviewed versioned allowlist as a bounded raw-record DTO, label the legacy fallback separately and never expose arbitrary SQLite columns or unbounded values to the browser.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`、`src/lib/stores/infoPanel.svelte.ts`
-  - 测试：`neoview.emm-sync.direct-source`、`neoview.emm-auxiliary.e2e`
-  - 计划测试：`neoview.emm-raw-data.replacement-acceptance`
-  - 备注：The deviation is documented, but it is not accepted as removal of the legacy complete raw-field view.
+  - 测试：`neoview.emm.external-readonly`、`neoview.emm-raw-data.http`、`neoview.emm-raw-data.legacy-characterization`、`neoview.emm-auxiliary.e2e`
+  - 计划测试：无
+  - 备注：The accepted replacement preserves every reviewed legacy field category through a fixed allowlist, explicit scalar types, 64-field and 4096-character bounds, schemaVersion 1 and a clearly labelled compatibility fallback. Unknown source columns never cross the authenticated HTTP boundary.
 
 #### `emmConfig` EMM 配置
 

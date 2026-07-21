@@ -9,7 +9,7 @@
   "sourceRevision": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
   "sourceHash": "sha256:15b65a69f7b7225df35baa20fb3841cb17f32ceb1cce68d9143869dcfbbe03a9",
   "astPrototype": "migration/neoview/frontend/tsx-scaffold/src/lib/cards/properties/EmmRawDataCard.tsx",
-  "visualBaseline": "pending: legacy 1920x1080 characterization has not been generated",
+  "visualBaseline": "artifacts/legacy-source/neoview-emm-raw-data-1920x1080.png",
   "visualTarget": "output/playwright/neoview-emm-cards-{desktop,420}.png",
   "inventorySummary": {
     "sourceUiGroups": 5,
@@ -17,7 +17,7 @@
     "acceptanceItems": 12,
     "sourceFiles": 3
   },
-  "completionRule": "Complete only when the reviewed AST prototype and scripted legacy characterization are preserved; every source raw field, stable sorting/filtering, field labels, typed formatting, path/URL actions, formatted/raw and copy controls, loading/error/refresh lifecycle, accessibility and responsive evidence are covered. The current bounded Reader projection must remain explicitly partial and must not be described as the SQLite raw row.",
+  "completionRule": "Complete only when the reviewed AST prototype and scripted legacy characterization are preserved; every allowlisted source raw field, stable sorting/filtering, field labels, typed formatting, path/URL actions, formatted/raw and copy controls, loading/error/refresh lifecycle, accessibility and responsive evidence are covered. The bounded Reader DTO must remain explicitly versioned and must not be described as an arbitrary SQLite row.",
   "unsupportedNodes": [
     {
       "node": "ConstTag",
@@ -115,8 +115,8 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
       "targetContract": "Expose a bounded, versioned and read-only projection of the matched external Mangas row with explicit field types, omission rules and source identity through the authenticated Reader metadata boundary.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm.external-readonly", "neoview.emm-raw-data.dto", "neoview.emm-raw-data.http", "neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm.external-readonly", "neoview.emm-raw-data.dto", "neoview.emm-raw-data.http", "neoview.emm-raw-data.legacy-characterization", "neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
       "plannedTestIds": [],
       "notes": "ReaderBookMetadataService requests includeRaw only for the once-per-session static metadata load. The authenticated HTTP contract proves the bounded schemaVersion 1 DTO, omission of unknown source properties and per-session request reuse. The readonly external store selects a fixed allowlist, caps fields and scalar lengths, and leaves directory batch hydration on the existing lightweight projection. The React Card explicitly labels legacy servers as a compatibility projection."
     },
@@ -127,8 +127,8 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Render only validated current-book fields and bounded tag rows, omit undefined values and keep filtering pure without parsing arbitrary database JSON in React.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-raw-data.http", "neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm-raw-data.http", "neoview.emm-raw-data.legacy-characterization", "neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
       "plannedTestIds": [],
       "notes": "The authenticated metadata boundary exposes only the versioned typed field DTO and omits unknown source properties. Legacy servers remain supported through the bounded compatibility projection without parsing database JSON in React."
     },
@@ -187,8 +187,8 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Use authenticated host capabilities for path reveal, safe external URL opening and explicit metadata refresh with capability-aware disabled and error states.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-raw-data.path-action", "neoview.emm-raw-data.url-service", "neoview.emm-raw-data.url-platform", "neoview.emm-raw-data.url-http", "neoview.emm-raw-data.url-client", "neoview.emm-raw-data.url-action", "neoview.emm-raw-data.retry", "neoview.emm-auxiliary.e2e"],
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm-raw-data.path-action", "neoview.emm-raw-data.url-service", "neoview.emm-raw-data.url-platform", "neoview.emm-raw-data.url-http", "neoview.emm-raw-data.url-client", "neoview.emm-raw-data.url-action", "neoview.emm-raw-data.retry", "neoview.emm-raw-data.legacy-characterization", "neoview.emm-auxiliary.e2e"],
       "plannedTestIds": [],
       "notes": "Path fields use the authenticated revealSystemPath command. URL fields use a dedicated authenticated host command backed by the maintained open adapter; the service allowlists bounded credential-free HTTP/HTTPS URLs and rejects unsafe schemes before platform dispatch. Explicit refresh reuses the shared static metadata retry path."
     },
@@ -211,10 +211,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Share one static metadata request with sibling Cards, perform zero hidden work and cancel or ignore stale results on deactivation, session replacement or unmount.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-cards.lifecycle", "neoview.emm-raw-data.http", "neoview.emm-sync.direct-source"],
-      "plannedTestIds": ["neoview.emm-raw-data.session-replace"],
-      "notes": "Hidden zero work and request sharing are covered; explicit session replacement remains planned."
+      "capabilityStatus": {"core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm-cards.lifecycle", "neoview.emm-raw-data.http", "neoview.emm-raw-data.session-replace", "neoview.emm-sync.direct-source"],
+      "plannedTestIds": [],
+      "notes": "Hidden Cards perform zero work, sibling Cards share one request, repeated HTTP metadata reads reuse the per-session backend load, and session replacement aborts the stale client request before publishing only the new session result."
     },
     {
       "id": "emm-raw-data.accessibility",
@@ -223,10 +223,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Expose a named filter, semantic table headers, full key/value text for truncated cells and keyboard-operable sorting, copy, path, URL, refresh and retry commands.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-raw-data.sort", "neoview.emm-raw-data.copy", "neoview.emm-raw-data.path-action"],
-      "plannedTestIds": ["neoview.emm-raw-data.accessibility"],
-      "notes": "Filter, view mode, sortable headers and field commands have accessible names; cells expose formatted labels while title and raw JSON retain complete source values. Browser keyboard and geometry evidence remains pending."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-raw-data.sort", "neoview.emm-raw-data.copy", "neoview.emm-raw-data.path-action", "neoview.emm-raw-data.accessibility"],
+      "plannedTestIds": [],
+      "notes": "Filter, view mode, sortable headers and field commands have accessible names; cells expose formatted labels while title and raw JSON retain complete source values. Desktop and constrained Chromium exercise keyboard activation of the URL command."
     },
     {
       "id": "emm-raw-data.ui-parity",
@@ -235,22 +235,22 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Preserve the compact filter/count/table hierarchy, sticky header, bounded scrolling, typed cell affordances and full-value tooltips without horizontal overflow at desktop and constrained widths.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-auxiliary.e2e"],
-      "plannedTestIds": ["neoview.emm-raw-data.legacy-characterization", "neoview.emm-raw-data.geometry"],
-      "notes": "Target screenshots prove no overflow, but source typed cells and a legacy baseline are missing."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm-raw-data.legacy-characterization", "neoview.emm-raw-data.geometry", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": [],
+      "notes": "The scripted 1920x1080 legacy baseline freezes the 380px filter/count/table hierarchy, typed formatting and 192px scroll bound. Desktop and 420px target screenshots prove the extended controls preserve compact geometry without horizontal overflow."
     },
     {
       "id": "emm-raw-data.deviations",
       "category": "deviations",
       "title": "记录安全投影不是原始 SQLite 行",
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
-      "targetContract": "Keep the current verified Reader projection explicitly labelled as a bounded first slice; do not expose arbitrary SQLite rows to the browser or claim raw-record parity until a reviewed DTO exists.",
+      "targetContract": "Expose the reviewed versioned allowlist as a bounded raw-record DTO, label the legacy fallback separately and never expose arbitrary SQLite columns or unbounded values to the browser.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
-      "plannedTestIds": ["neoview.emm-raw-data.replacement-acceptance"],
-      "notes": "The deviation is documented, but it is not accepted as removal of the legacy complete raw-field view."
+      "capabilityStatus": {"core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm.external-readonly", "neoview.emm-raw-data.http", "neoview.emm-raw-data.legacy-characterization", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": [],
+      "notes": "The accepted replacement preserves every reviewed legacy field category through a fixed allowlist, explicit scalar types, 64-field and 4096-character bounds, schemaVersion 1 and a clearly labelled compatibility fallback. Unknown source columns never cross the authenticated HTTP boundary."
     }
   ]
 }
