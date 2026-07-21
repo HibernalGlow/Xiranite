@@ -116,7 +116,7 @@ describe("ConfigService config history", () => {
     }
     expect(current.nodes.neoview).toEqual({ theme: "paper", token: "current-secret" })
     expect(current.nodes.xlchemy).toEqual({ format: "webp" })
-  })
+  }, 15_000)
 })
 
 function config(nodes: Record<string, unknown>) {

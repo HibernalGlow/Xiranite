@@ -49,6 +49,42 @@ export async function deleteNodePresetOnBackend(nodeId: string, presetId: string
   return getConfigClient().deleteNodePreset(nodeId, presetId)
 }
 
+export async function getNodeConfigVersionsFromBackend(nodeId: string, options?: { limit?: number }) {
+  return getConfigClient().getNodeConfigVersions(nodeId, options)
+}
+
+export async function inspectNodeConfigVersionFromBackend(nodeId: string, revision: string) {
+  return getConfigClient().inspectNodeConfigVersion(nodeId, revision)
+}
+
+export async function restoreNodeConfigVersionOnBackend<T = unknown>(nodeId: string, revision: string) {
+  return getConfigClient().restoreNodeConfigVersion<T>(nodeId, revision)
+}
+
+export async function exportNodeConfigFromBackend(nodeId: string, format?: "json" | "toml") {
+  return getConfigClient().exportNodeConfig(nodeId, format)
+}
+
+export async function importNodeConfigOnBackend<T = unknown>(nodeId: string, content: string, format?: "auto" | "json" | "toml") {
+  return getConfigClient().importNodeConfig<T>(nodeId, content, format)
+}
+
+export async function createNodeConfigBackupOnBackend(nodeId: string, label?: string) {
+  return getConfigClient().createNodeConfigBackup(nodeId, label)
+}
+
+export async function getConfigHistoryRepositoryFromBackend() {
+  return getConfigClient().getConfigHistoryRepositoryStatus()
+}
+
+export async function setConfigHistoryRemoteOnBackend(url: string | null) {
+  return getConfigClient().setConfigHistoryRemote(url)
+}
+
+export async function syncConfigHistoryOnBackend(direction: "pull" | "push") {
+  return getConfigClient().syncConfigHistory(direction)
+}
+
 export async function getNodeUiConfigFromBackend<T = unknown>(
   nodeId: string,
 ): Promise<{ config: T | undefined; path: string }> {
