@@ -23,6 +23,8 @@ const ASSERT = process.argv.includes("--assert")
 const PROBE_ONLY = process.argv.includes("--probe-only")
 const RUNS = boundedInteger(Number(argument("--runs") ?? process.env.NEOVIEW_UPSCALE_BENCH_RUNS ?? 2), 1, 10, "runs")
 const UPSCAYL_DAEMONS = boundedInteger(Number(argument("--upscayl-daemons") ?? process.env.NEOVIEW_UPSCALE_DAEMONS ?? 1), 0, 8, "upscayl daemons")
+const INPUT_WIDTH = boundedInteger(Number(argument("--width") ?? process.env.NEOVIEW_UPSCALE_INPUT_WIDTH ?? 256), 64, 4_096, "input width")
+const INPUT_HEIGHT = boundedInteger(Number(argument("--height") ?? process.env.NEOVIEW_UPSCALE_INPUT_HEIGHT ?? 384), 64, 4_096, "input height")
 const RUNTIME_SPECIFIER = argument("--runtime") ?? process.env.NEOVIEW_UPSCALE_RUNTIME ?? "@hibernalglow/opencomic-ai-system"
 const selectedEngines = parseEngines(argument("--engines") ?? process.env.NEOVIEW_UPSCALE_ENGINES ?? "upscayl,waifu2x,realcugan")
 if (ASSERT && RUNS < 2) throw new Error("--assert requires at least two runs per engine for cold/warm evidence.")
@@ -37,7 +39,11 @@ const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-upscale-benchmark-")
 const inputPath = join(root, "input.png")
 const modelRoot = join(root, "models")
 const outputRoot = join(root, "output")
-const resolver = new SystemSuperResolutionCliResolver()
+const resolver = new SystemSuperResolutionCliResolver({
+  explicitPaths: {
+    upscayl: argument("--upscayl-path") ?? process.env.NEOVIEW_UPSCAYL_PATH,
+  },
+})
 const rssBefore = process.memoryUsage().rss
 let peakRss = rssBefore
 let capability: Awaited<ReturnType<typeof createOpenComicAiSystemCapability>>
@@ -54,16 +60,18 @@ try {
     entry.engine,
     await resolveInstalledExecutable(entry.engine, entry.executablePath!),
   ])))
-  const prepared = await prepareSystemModels(modelRoot, installedExecutables)
+  const prepared = await prepareSystemModels(modelRoot, installedExecutables, { width: INPUT_WIDTH, height: INPUT_HEIGHT })
   await mkdir(outputRoot, { recursive: true })
-  await createInput(inputPath)
+  await createInput(inputPath, prepared.input)
 
   if (PROBE_ONLY) {
     process.stdout.write(`${JSON.stringify({
       benchmark: "neoview-super-resolution-system",
       benchmarkIds: ["upscale-cold", "upscale-warm"],
       probeOnly: true,
+      scope: benchmarkScope(),
       runtimeSpecifier: RUNTIME_SPECIFIER,
+      input: prepared.input,
       capabilities: selectedCapabilities,
       models: prepared.models.map(({ engine, modelId, scale }) => ({ engine, modelId, scale })),
     }, null, 2)}\n`)
@@ -76,6 +84,7 @@ try {
       daemonIdleTimeoutMs: 30_000,
       taskTimeoutMs: Math.max(60_000, budgets.coldMs * 2),
       customModels: prepared.customModels,
+      modelSources: [],
       modelsDirectory: modelRoot,
       preferences: { schemaVersion: 1, conditions: [] },
     }
@@ -137,6 +146,7 @@ try {
       benchmark: "neoview-super-resolution-system",
       benchmarkIds: ["upscale-cold", "upscale-warm"],
       runtime: `Bun ${Bun.version}`,
+      scope: benchmarkScope(),
       platform: `${process.platform}-${process.arch}`,
       host: {
         cpu: cpus()[0]?.model,
@@ -200,6 +210,7 @@ interface Measurement {
 async function prepareSystemModels(
   rootPath: string,
   executables: Partial<Record<SuperResolutionEngine, string>>,
+  input: { width: number; height: number },
 ): Promise<{ input: { width: number; height: number }; customModels: SuperResolutionCustomModelManifest[]; models: PreparedModel[] }> {
   await mkdir(rootPath, { recursive: true })
   const models: PreparedModel[] = []
@@ -234,7 +245,7 @@ async function prepareSystemModels(
     })
     models.unshift({ engine: "upscayl", modelId: "system-upscayl-lite-4x", scale: 4, tileSize: 128 })
   }
-  return { input: { width: 256, height: 384 }, customModels, models }
+  return { input, customModels, models }
 }
 
 async function resolveInstalledExecutable(engine: SuperResolutionEngine, reportedPath: string): Promise<string> {
@@ -263,9 +274,7 @@ async function modelDirectoryExists(engine: SuperResolutionEngine, executablePat
   return await fileExists(path)
 }
 
-async function createInput(path: string): Promise<void> {
-  const width = 256
-  const height = 384
+async function createInput(path: string, { width, height }: { width: number; height: number }): Promise<void> {
   const bytes = new Uint8Array(width * height * 3)
   let state = 0x9e3779b9
   for (let index = 0; index < bytes.length; index += 1) {
@@ -273,6 +282,17 @@ async function createInput(path: string): Promise<void> {
     bytes[index] = state >>> 24
   }
   await sharp(bytes, { raw: { width, height, channels: 3 } }).png({ compressionLevel: 3 }).toFile(path)
+}
+
+function benchmarkScope() {
+  return {
+    workload: "isolated-provider" as const,
+    sharedResourceScheduler: false,
+    pageMaterialization: false,
+    artifactCache: false,
+    concurrentPreload: false,
+    browserRendering: false,
+  }
 }
 
 async function linkDirectory(target: string, path: string): Promise<void> {

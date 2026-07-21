@@ -74,6 +74,10 @@ describe("SuperResolutionArtifactRoute", () => {
     expect(probe?.status).toBe(200)
     await expect(probe!.json()).resolves.toMatchObject({ status: "hit", artifactUrl: body.artifactUrl })
     expect(acquireExisting).toHaveBeenCalledOnce()
+    expect(acquireExisting).toHaveBeenCalledWith(expect.objectContaining({
+      trigger: "automatic-current",
+      priority: "interactive",
+    }), { signal: expect.any(AbortSignal) })
     expect(acquireOrGenerate).toHaveBeenCalledOnce()
 
     const unauthorized = new URL(body.artifactUrl)

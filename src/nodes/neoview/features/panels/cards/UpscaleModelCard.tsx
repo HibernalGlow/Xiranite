@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import type { ReaderUpscaleModelDto } from "../../../adapters/reader-http-client"
+import type { ReaderUpscaleEngineCapabilityDto, ReaderUpscaleModelDto } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../registry"
 import { useSuperResolutionPreferences } from "./useSuperResolutionPreferences"
 
@@ -34,6 +34,10 @@ export default function UpscaleModelCard({ client, session, disabled, superResol
   const configuredModel = preferences?.defaultModelId
   const selectedModel = models.some((model) => model.id === configuredModel) ? configuredModel! : models[0]?.id ?? ""
   const selected = models.find((model) => model.id === selectedModel)
+  const selectedEngine = capabilities?.available
+    ? capabilities.engines.find((engine) => engine.engine === selected?.engine)
+    : undefined
+  const selectedEngineWarning = engineWarningText(selectedEngine)
   const selectedScale = preferences?.defaultScale ?? selected?.scales[0] ?? 2
   const scales = selected?.scales.length ? selected.scales : [1, 2, 3, 4]
   const noise = noiseOptions(selected, selectedScale)
@@ -88,6 +92,8 @@ export default function UpscaleModelCard({ client, session, disabled, superResol
           {models.length ? models.map((model) => <option key={model.id} value={model.id}>{model.displayName} · {scaleLabel(model.scales)} · {formatBytes(model.sizeBytes)}</option>) : <option value="">未发现已安装模型</option>}
         </select>
         {capabilities && !capabilities.available ? <p className="text-[10px] text-destructive">模型探测失败：{capabilities.reason}</p> : null}
+        {selectedEngine && !selectedEngine.available ? <p className="text-[10px] text-destructive" role="alert">超分引擎不可用：{selectedEngine.reason ?? "未找到可用的执行程序"}</p> : null}
+        {selectedEngineWarning ? <p className="rounded border border-amber-500/40 bg-amber-500/10 p-2 text-[10px] text-amber-700 dark:text-amber-300" role="alert">性能降级：{selectedEngineWarning}</p> : null}
       </div>
 
       {models.length ? <div className="max-h-44 overflow-y-auto rounded border border-border" aria-label="模型目录">
@@ -125,3 +131,13 @@ function scaleLabel(scales: readonly number[]): string { return scales.map((scal
 function noiseLabel(model: ReaderUpscaleModelDto): string { const levels = model.noise ?? []; return levels.length ? levels.map((value) => value === -1 ? "保守" : value).join("/") : "固定" }
 function formatBytes(bytes?: number): string { if (bytes === undefined) return "未下载"; if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`; return `${(bytes / 1024 / 1024).toFixed(1)} MiB` }
 function categoryLabel(category?: string): string { return ({ anime: "动漫", "anime-pro": "动漫 Pro", photo: "照片", general: "通用", descreen: "去网纹", "artifact-removal": "去伪影" } as Record<string, string>)[category ?? ""] ?? category ?? "未分类" }
+function engineWarningText(capability: ReaderUpscaleEngineCapabilityDto | undefined): string | undefined {
+  if (!capability?.warning) return undefined
+  if (capability.engine === "upscayl" && capability.performanceMode === "process-per-page" && capability.managed === false) {
+    return "未检测到 Xiranite 托管的 Upscayl daemon，当前使用外部兼容模式；每页都会重启进程并重新加载模型，速度会明显变慢。"
+  }
+  if (capability.engine === "upscayl" && capability.daemonSupported && capability.managed === false) {
+    return "未检测到 Xiranite 托管的 Upscayl daemon，当前使用外部 daemon 执行程序。"
+  }
+  return capability.warning
+}

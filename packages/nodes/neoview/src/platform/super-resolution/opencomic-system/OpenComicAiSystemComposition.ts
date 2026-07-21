@@ -14,6 +14,7 @@ import type { SuperResolutionPreferences } from "../../../domain/super-resolutio
 import { LegacyNeoViewDataLocator } from "../../../application/data/LegacyNeoViewDataLocator.js"
 import type { NeoviewRuntimeLoadOptions } from "../../config/loadNeoviewRuntimeConfig.js"
 import { SystemSuperResolutionCliResolver } from "../SystemSuperResolutionCliResolver.js"
+import { resolveManagedUpscaylExecutable } from "../ManagedSuperResolutionCliLocator.js"
 import { aggregateModelSources, enrichModelManifests } from "../ModelSourceAggregator.js"
 import { PlatformReaderPageMaterializer } from "../../content/PlatformReaderPageMaterializer.js"
 import {
@@ -74,7 +75,7 @@ export async function createOpenComicAiSystemCapability(
   const modelsDirectory = options.modelsDirectory
     ?? config.modelsDirectory
     ?? await (options.resolveDefaultModelsDirectory?.() ?? defaultModelsDirectory())
-  const aggregation = await aggregateModelSources(modelsDirectory, config.modelSources)
+  const aggregation = await aggregateModelSources(modelsDirectory, config.modelSources ?? [])
   registerRuntimeCustomModels(runtime, config.customModels)
   const configuredIds = new Set(config.customModels.map((model) => model.id))
   registerRuntimeCustomModels(runtime, aggregation.customModels.filter((model) => !configuredIds.has(model.id)))
@@ -87,6 +88,7 @@ export async function createOpenComicAiSystemCapability(
       waifu2x: config.waifu2xPath,
       realcugan: config.realcuganPath,
     },
+    managedCandidates: { upscayl: [await resolveManagedUpscaylExecutable(options)] },
     trustedCandidates: options.trustedCandidates,
   })
   const provider = new OpenComicAiSystemProvider({
