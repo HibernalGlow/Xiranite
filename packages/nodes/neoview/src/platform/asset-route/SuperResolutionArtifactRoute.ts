@@ -2,7 +2,7 @@ import { createHash } from "node:crypto"
 import { Readable } from "node:stream"
 
 import type { ReaderService, ReaderSessionId } from "../../application/reader/contracts.js"
-import type { SuperResolutionArtifactRunDecision } from "../../application/super-resolution/SuperResolutionArtifactPageService.js"
+import type { SuperResolutionArtifactPageInput, SuperResolutionArtifactRunDecision } from "../../application/super-resolution/SuperResolutionArtifactPageService.js"
 import type { SuperResolutionArtifactPagePort } from "../../ports/SuperResolutionArtifactPagePort.js"
 import type { SuperResolutionArtifactStore } from "../../ports/SuperResolutionArtifactStore.js"
 import type { SuperResolutionPreloadControlPort } from "../../ports/SuperResolutionPreloadControlPort.js"
@@ -94,7 +94,8 @@ export class SuperResolutionArtifactRoute {
   ): Promise<Response> {
     if (this.#closed) return jsonResponse({ error: "Reader super-resolution route is closed" }, 410)
     if (!this.#isAuthorized(request, url)) return jsonResponse({ error: "Unauthorized" }, 401)
-    if (request.method !== "POST") return methodNotAllowed("POST")
+    const probe = url.searchParams.get("probe") === "true"
+    if (request.method !== (probe ? "GET" : "POST")) return methodNotAllowed(probe ? "GET" : "POST")
     const sessionId = safeDecode(encodedSessionId)
     const pageId = safeDecode(encodedPageId)
     const session = sessionId ? this.reader.getSession(sessionId) : undefined
@@ -106,7 +107,7 @@ export class SuperResolutionArtifactRoute {
     }
     const operation = this.#begin(session.id, request.signal)
     try {
-      const result = await this.pages.acquireOrGenerate({
+      const input = {
         page,
         trigger,
         bookPath: session.book.source.path,
@@ -115,7 +116,13 @@ export class SuperResolutionArtifactRoute {
           key: artifactKey(session.book.source.path, page.contentVersion, page.entryPath ?? page.sourcePath, decision),
           metadata: { bookKey: session.book.id, contentType: "image/png", extension: "png" },
         }),
-      }, { signal: operation.signal })
+      } satisfies SuperResolutionArtifactPageInput
+      const result = probe
+        ? this.pages.acquireExisting
+          ? await this.pages.acquireExisting(input, { signal: operation.signal })
+          : { status: "miss" as const }
+        : await this.pages.acquireOrGenerate(input, { signal: operation.signal })
+      if (result.status === "miss") return jsonResponse(result)
       if (!("artifact" in result)) {
         return jsonResponse(result, result.status === "rejected" ? 507 : 200)
       }
