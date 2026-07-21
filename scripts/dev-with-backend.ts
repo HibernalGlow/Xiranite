@@ -66,7 +66,7 @@ const vite = spawnManagedVite([
     VITE_XIRANITE_BACKEND_URL: backend.url,
     VITE_XIRANITE_BACKEND_TOKEN: backend.token,
     VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,
-    XIRANITE_VITE_CACHE_DIR: managedViteCacheDir(frontendUrl),
+    XIRANITE_VITE_CACHE_DIR: managedViteCacheDir(),
   },
 })
 
