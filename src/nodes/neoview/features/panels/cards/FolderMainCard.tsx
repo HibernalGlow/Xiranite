@@ -34,4 +34,4 @@ export default function FolderMainCard(context: ReaderPanelContext) {
 }
 
 export type { FolderBrowserCloneProvider, FolderBrowserCloneSnapshot, SavedDirectoryState } from "./folder/FolderBrowserPane"
-export { isThumbnailDemandNeeded, mergeThumbnailUrls, mergeThumbnailUrlSets } from "./folder/FolderBrowserPane"
+export { isSameFolderNavigationEntry, isThumbnailDemandNeeded, mergeThumbnailUrls, mergeThumbnailUrlSets } from "./folder/FolderBrowserPane"

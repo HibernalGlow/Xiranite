@@ -5,7 +5,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderDirectoryPageDto, type ReaderFolderViewConfig, type ReaderHttpClient } from "../../../adapters/reader-http-client"
 import { ContextMenuProvider } from "@/components/context-menu"
-import FolderMainCard, { isThumbnailDemandNeeded, mergeThumbnailUrls, mergeThumbnailUrlSets } from "./FolderMainCard"
+import FolderMainCard, { isSameFolderNavigationEntry, isThumbnailDemandNeeded, mergeThumbnailUrls, mergeThumbnailUrlSets } from "./FolderMainCard"
 
 beforeAll(async () => {
   await Promise.all([
@@ -352,6 +352,15 @@ describe("FolderMainCard", () => {
       expect.any(AbortSignal),
       "C:/books/series",
     ))
+  })
+
+  it("[neoview.folder.refresh-visible-range] retains the visible range only for the same navigation entry", () => {
+    const current = { sessionId: "browser-1", navigationEntryId: 7 }
+
+    expect(isSameFolderNavigationEntry(current, { sessionId: "browser-1", navigationEntryId: 7 })).toBe(true)
+    expect(isSameFolderNavigationEntry(current, { sessionId: "browser-1", navigationEntryId: 8 })).toBe(false)
+    expect(isSameFolderNavigationEntry(current, { sessionId: "browser-2", navigationEntryId: 7 })).toBe(false)
+    expect(isSameFolderNavigationEntry(undefined, current)).toBe(false)
   })
 
   it("[neoview.folder.penetration-click] opens a resolved terminal on single-click but double-click enters the raw directory", async () => {
