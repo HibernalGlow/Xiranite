@@ -1,0 +1,23 @@
+{
+  "sourceRoot": "src",
+  "scaffoldPatterns": [
+    "^src/lib/cards/settings/ImageSettingsCard\\.svelte$",
+    "^src/lib/components/panels/ImageSettingsPanel\\.svelte$"
+  ],
+  "featureMappings": [
+    {
+      "featureId": "settings-import-export-backup",
+      "sourcePatterns": [
+        "^src/lib/cards/settings/ImageSettingsCard\\.svelte$",
+        "^src/lib/components/panels/ImageSettingsPanel\\.svelte$"
+      ]
+    }
+  ],
+  "classificationOverrides": [
+    {
+      "pattern": "^src/",
+      "disposition": "manual",
+      "reason": "Dedicated Image settings prototype; unrelated legacy sources remain out of scope."
+    }
+  ]
+}

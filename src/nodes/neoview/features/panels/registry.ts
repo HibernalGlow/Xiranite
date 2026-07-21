@@ -32,6 +32,7 @@ import type {
   ReaderSuperResolutionPreferencesDto,
   ReaderMediaConfigDto,
   ReaderMediaPatchDto,
+  ReaderImageProcessingConfigDto,
   ReaderSettingsMigrationImportResult,
   ReaderSettingsMigrationInspection,
   ReaderSessionDto,
@@ -97,6 +98,8 @@ export interface ReaderPanelContext {
   imageTrim?: ReaderImageTrimPort
   media?: ReaderMediaConfigDto
   onMediaChange?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
+  imageProcessing?: ReaderImageProcessingConfigDto
+  onImageProcessingChange?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
   slideshow?: ReaderSlideshowConfig
   onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
   inputBindings?: ReaderRuntimeConfigDto["inputBindings"]
@@ -160,6 +163,8 @@ export interface ReaderSettingsCardContext {
   onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
   media?: ReaderMediaConfigDto
   onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
+  imageProcessing?: ReaderImageProcessingConfigDto
+  onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
   inputBindings?: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu?: ReaderRuntimeConfigDto["radialMenu"]
