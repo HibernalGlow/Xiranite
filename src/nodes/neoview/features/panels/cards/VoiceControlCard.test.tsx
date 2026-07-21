@@ -18,7 +18,7 @@ describe("VoiceControlCard", () => {
     const onInputAction = vi.fn()
     const onVoiceControl = vi.fn(async (patch) => ({ enabled: patch.enabled ?? false, language: "zh-CN", minConfidence: 0.6, continuous: false, commands: {} }))
     render(<VoiceControlCard client={{} as never} disabled={false} panelActive onInputAction={onInputAction} onVoiceControl={onVoiceControl} voiceControl={{ enabled: true, language: "zh-CN", minConfidence: 0.6, continuous: false, commands: {} }} onGoTo={vi.fn()}/>)
-    fireEvent.click(screen.getByRole("switch")); fireEvent.click(screen.getByText("开始监听"))
+    fireEvent.click(screen.getByText("开始监听"))
     Recognition.latest?.onresult?.({ results: [[{ transcript: "下一页" }]] })
     expect(onInputAction).toHaveBeenCalledWith("reader.next-page")
     delete (globalThis as { SpeechRecognition?: unknown }).SpeechRecognition
