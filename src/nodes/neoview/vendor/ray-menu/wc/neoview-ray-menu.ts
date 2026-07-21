@@ -24,6 +24,11 @@ export interface NeoViewRayMenuItem extends MenuItem {
 	children?: NeoViewRayMenuItem[];
 }
 
+export interface NeoViewRayMenuViewport {
+	width: number;
+	height: number;
+}
+
 interface RuntimeSlot {
 	key: string;
 	item: NeoViewRayMenuItem | null;
@@ -119,6 +124,7 @@ export class NeoViewRayMenu extends BaseElement {
 	private _hoveredKey = '';
 	private _renderedSlots: RuntimeSlot[] = [];
 	private _hasRenderedOnce = false;
+	private _viewport?: NeoViewRayMenuViewport;
 	private _handlePointerMove = this._onPointerMove.bind(this);
 	private _handlePointerUp = this._onPointerUp.bind(this);
 	private _handleKeyDown = this._onKeyDown.bind(this);
@@ -160,9 +166,17 @@ export class NeoViewRayMenu extends BaseElement {
 		return this._isOpen;
 	}
 
+	get viewport(): NeoViewRayMenuViewport | undefined {
+		return this._viewport;
+	}
+
+	set viewport(value: NeoViewRayMenuViewport | undefined) {
+		this._viewport = value && value.width > 0 && value.height > 0 ? value : undefined;
+	}
+
 	open(x: number, y: number): void {
 		const outerRadius = this._getOuterRadius();
-		const viewport = { width: window.innerWidth, height: window.innerHeight };
+		const viewport = this._viewport ?? { width: window.innerWidth, height: window.innerHeight };
 		const edgeState = detectEdgeConstraints({ x, y }, outerRadius, viewport);
 		this._position = { x: x + edgeState.offset.x, y: y + edgeState.offset.y };
 		this._isOpen = true;
