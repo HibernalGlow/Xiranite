@@ -122,7 +122,10 @@ export class SuperResolutionArtifactRoute {
           ? await this.pages.acquireExisting(input, { signal: operation.signal })
           : { status: "miss" as const }
         : await this.pages.acquireOrGenerate(input, { signal: operation.signal })
-      if (result.status === "miss") return jsonResponse(result)
+      if (result.status === "miss") {
+        const pageState = this.preload?.pageState?.(preloadContextId(session.id), page.index)
+        return jsonResponse(pageState === "pending" ? { status: "pending" } : result)
+      }
       if (!("artifact" in result)) {
         return jsonResponse(result, result.status === "rejected" ? 507 : 200)
       }

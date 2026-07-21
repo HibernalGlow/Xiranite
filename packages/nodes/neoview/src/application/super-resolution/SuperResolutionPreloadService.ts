@@ -6,6 +6,7 @@ import type { SuperResolutionPreferences } from "../../domain/super-resolution/s
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { ResourcePriority } from "../../ports/ResourceScheduler.js"
 import type { ReaderPreloadPlan } from "../../ports/ReaderPreload.js"
+import type { SuperResolutionPreloadPageState } from "../../ports/SuperResolutionPreloadControlPort.js"
 import type { SuperResolutionPageResult } from "../../ports/SuperResolutionPage.js"
 import type {
   SuperResolutionArtifactWarmResult,
@@ -179,6 +180,14 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
       const snapshot = this.#tracked.get(`${contextId}:${mode}`)?.snapshot
       return snapshot ? [{ ...snapshot }] : []
     })
+  }
+
+  pageState(contextId: string, pageIndex: number): SuperResolutionPreloadPageState {
+    validateContext(contextId, 0)
+    validatePageIndex(pageIndex)
+    const coverage = this.#coverage.get(contextId)
+    if (!coverage?.scheduled.has(pageIndex)) return "none"
+    return coverage.processed.has(pageIndex) ? "settled" : "pending"
   }
 
   async pause(contextId: string): Promise<readonly SuperResolutionPreloadLiveSnapshot[]> {

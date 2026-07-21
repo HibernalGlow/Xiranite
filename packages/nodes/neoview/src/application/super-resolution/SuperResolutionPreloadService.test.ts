@@ -275,6 +275,9 @@ describe("SuperResolutionPreloadService", () => {
     try {
       const first = service.schedulePlan(input)
       await vi.waitFor(() => expect(run).toHaveBeenCalledOnce())
+      expect(service.pageState("reader-live", 0)).toBe("none")
+      expect(service.pageState("reader-live", 1)).toBe("pending")
+      expect(service.pageState("reader-live", 2)).toBe("pending")
       expect(service.snapshots("reader-live")).toEqual([expect.objectContaining({
         generation: 7,
         mode: "nearby",
@@ -290,6 +293,8 @@ describe("SuperResolutionPreloadService", () => {
       await expect(first).resolves.toMatchObject({ settled: 2 })
       await expect(shared).resolves.toMatchObject({ settled: 2 })
       expect(run).toHaveBeenCalledTimes(2)
+      expect(service.pageState("reader-live", 1)).toBe("settled")
+      expect(service.pageState("reader-live", 2)).toBe("settled")
       expect(service.snapshots("reader-live")[0]).toMatchObject({
         state: "completed",
         settled: 2,

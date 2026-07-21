@@ -19,6 +19,7 @@ import type {
 } from "../../application/super-resolution/SuperResolutionArtifactPageService.js"
 import type { SuperResolutionArtifactPagePort } from "../../ports/SuperResolutionArtifactPagePort.js"
 import type { SuperResolutionPreloadControlPort } from "../../ports/SuperResolutionPreloadControlPort.js"
+import type { SuperResolutionPreloadPageState } from "../../ports/SuperResolutionPreloadControlPort.js"
 import type {
   SuperResolutionPreloadBatchResult,
   SuperResolutionPreloadLiveSnapshot,
@@ -47,6 +48,7 @@ export interface SuperResolutionPageCapability {
     schedulePlan(input: SuperResolutionPreloadPlanInput): Promise<SuperResolutionPreloadBatchResult>
     scheduleProgressive(input: SuperResolutionProgressiveInput): Promise<SuperResolutionPreloadBatchResult>
     snapshots(contextId: string): readonly SuperResolutionPreloadLiveSnapshot[]
+    pageState?(contextId: string, pageIndex: number): SuperResolutionPreloadPageState
     pause(contextId: string): Promise<readonly SuperResolutionPreloadLiveSnapshot[]>
     retry(contextId: string, mode: "nearby" | "progressive"): Promise<SuperResolutionPreloadBatchResult>
     advanceGeneration(contextId: string, generation: number): Promise<void>
@@ -151,6 +153,11 @@ export class LazySuperResolutionPagePort implements ReaderHeadlessSuperResolutio
     this.#assertActive()
     signal?.throwIfAborted()
     return this.#resolvedCapability?.preload?.snapshots(contextId) ?? []
+  }
+
+  pageState(contextId: string, pageIndex: number): SuperResolutionPreloadPageState {
+    this.#assertActive()
+    return this.#resolvedCapability?.preload?.pageState?.(contextId, pageIndex) ?? "none"
   }
 
   async pause(contextId: string, signal?: AbortSignal): Promise<readonly SuperResolutionPreloadLiveSnapshot[]> {
