@@ -115,10 +115,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte", "src/lib/stores/infoPanel.svelte.ts"],
       "targetContract": "Expose a bounded, versioned and read-only projection of the matched external Mangas row with explicit field types, omission rules and source identity through the authenticated Reader metadata boundary.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
-      "plannedTestIds": ["neoview.emm.external-readonly", "neoview.emm-raw-data.dto", "neoview.emm-raw-data.boundary"],
-      "notes": "The current Card receives only filepath, translatedTitle, pageCount, tagCount and flattened tags. It does not expose the original SQLite row and must not be labelled complete raw-data parity."
+      "capabilityStatus": {"core": "complete", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm.external-readonly", "neoview.emm-raw-data.dto", "neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
+      "plannedTestIds": ["neoview.emm-raw-data.boundary"],
+      "notes": "ReaderBookMetadataService requests includeRaw only for the once-per-session static metadata load. The readonly external store selects a fixed allowlist, caps fields and scalar lengths, emits emmRaw schemaVersion 1, and leaves directory batch hydration on the existing lightweight projection. The React Card explicitly labels legacy servers as a compatibility projection."
     },
     {
       "id": "emm-raw-data.projection",
@@ -130,7 +130,7 @@
       "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
       "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-auxiliary.e2e"],
       "plannedTestIds": ["neoview.emm-raw-data.projection-bound"],
-      "notes": "This is a deliberate safe first slice, separate from the pending raw-record contract."
+      "notes": "Legacy servers remain supported through the bounded compatibility projection; raw-v1 servers use the separate typed field DTO without parsing database JSON in React."
     },
     {
       "id": "emm-raw-data.filter",
@@ -139,10 +139,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Filter the visible bounded rows by case-insensitive key or value text without mutating source order or issuing a new backend request.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-sync.direct-source"],
-      "plannedTestIds": ["neoview.emm-raw-data.filter-empty"],
-      "notes": "The focused test proves a matching filter removes unrelated rows."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-raw-data.filter-empty"],
+      "plannedTestIds": [],
+      "notes": "Filtering is local, case-insensitive across key, label, raw and formatted value, preserves the source DTO and exposes a distinct filtered-empty state."
     },
     {
       "id": "emm-raw-data.sort",
@@ -151,10 +151,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Provide stable keyboard-operable sorting for key and value columns while retaining canonical source identity.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
-      "testIds": [],
-      "plannedTestIds": ["neoview.emm-raw-data.sort"],
-      "notes": "The current plain table has no sortable headers."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm-raw-data.sort"],
+      "plannedTestIds": [],
+      "notes": "TanStack Table owns stable key/value sorting with named keyboard-operable headers; sorting consumes derived rows and never mutates emmRaw."
     },
     {
       "id": "emm-raw-data.formatting",
@@ -163,10 +163,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Apply the source field-label map and deterministic path, URL, datetime, timestamp, byte-size, number and boolean formatting while preserving raw values in accessible descriptions.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
-      "testIds": [],
-      "plannedTestIds": ["neoview.emm-raw-data.formatting"],
-      "notes": "Current values are plain strings and the source field metadata map has not been restored."
+      "capabilityStatus": {"core": "not-applicable", "transport": "partial", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm-raw-data.dto", "neoview.emm-raw-data.formatting"],
+      "plannedTestIds": [],
+      "notes": "The versioned DTO carries explicit scalar types. The Card restores field labels and deterministic bytes, rating, boolean, datetime and seconds-timestamp formatting while retaining invalid raw text and full values."
     },
     {
       "id": "emm-raw-data.view-copy",
@@ -175,10 +175,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Switch between the formatted table and bounded raw JSON, copy a field or the complete record and report clipboard failures without exposing unbounded database content.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "pending", "transport": "pending", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
-      "testIds": [],
-      "plannedTestIds": ["neoview.emm-raw-data.raw-view", "neoview.emm-raw-data.copy"],
-      "notes": "These checklist requirements are not present in the current React Card."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm-raw-data.raw-view", "neoview.emm-raw-data.copy"],
+      "plannedTestIds": [],
+      "notes": "A compact segmented control switches the derived table and bounded raw JSON. Field and full-record copy reuse the authenticated host clipboard capability with named controls and feedback."
     },
     {
       "id": "emm-raw-data.actions",
@@ -187,10 +187,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Use authenticated host capabilities for path reveal, safe external URL opening and explicit metadata refresh with capability-aware disabled and error states.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
-      "testIds": [],
-      "plannedTestIds": ["neoview.emm-raw-data.path-action", "neoview.emm-raw-data.url-action", "neoview.emm-raw-data.refresh"],
-      "notes": "The source direct FileSystemAPI/window calls are not copied into React; equivalent host commands remain to be wired."
+      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-raw-data.path-action", "neoview.emm-raw-data.retry"],
+      "plannedTestIds": ["neoview.emm-raw-data.url-action", "neoview.emm-raw-data.refresh"],
+      "notes": "Path fields use the authenticated revealSystemPath host command and refresh reuses the shared static metadata retry path. A dedicated allowlisted external-URL host command remains pending; unsafe window.open or path-command overloading is deliberately not used."
     },
     {
       "id": "emm-raw-data.states",
@@ -199,10 +199,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Distinguish no active book, loading, no matched record, empty raw row, recoverable failure, retry and filtered-empty states without leaking stale data across sessions.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-cards.lifecycle", "neoview.emm-sync.direct-source"],
-      "plannedTestIds": ["neoview.emm-raw-data.states", "neoview.emm-raw-data.retry"],
-      "notes": "Loading, missing record and alert exist; the current error has no retry command and filtered-empty is not separately described."
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.emm-cards.lifecycle", "neoview.emm-sync.direct-source", "neoview.emm-raw-data.filter-empty", "neoview.emm-raw-data.retry"],
+      "plannedTestIds": [],
+      "notes": "No-book, loading, no-record, recoverable alert/retry and filtered-empty states are distinct; shared metadata retry replaces the failed snapshot without a second Card-specific cache."
     },
     {
       "id": "emm-raw-data.lifecycle",
@@ -223,10 +223,10 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmRawDataCard.svelte"],
       "targetContract": "Expose a named filter, semantic table headers, full key/value text for truncated cells and keyboard-operable sorting, copy, path, URL, refresh and retry commands.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
-      "testIds": ["neoview.emm-sync.direct-source"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.emm-sync.direct-source", "neoview.emm-raw-data.sort", "neoview.emm-raw-data.copy", "neoview.emm-raw-data.path-action"],
       "plannedTestIds": ["neoview.emm-raw-data.accessibility"],
-      "notes": "The current filter and table are named, but sorting and field commands do not exist and full values rely only on title attributes."
+      "notes": "Filter, view mode, sortable headers and field commands have accessible names; cells expose formatted labels while title and raw JSON retain complete source values. Browser keyboard and geometry evidence remains pending."
     },
     {
       "id": "emm-raw-data.ui-parity",

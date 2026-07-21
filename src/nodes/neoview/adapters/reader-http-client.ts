@@ -272,6 +272,14 @@ export interface ReaderMetadataDto {
       translatedTitle?: string
       tags?: readonly { namespace: string; tag: string; translatedLabel?: string }[]
     }
+    emmRaw?: {
+      schemaVersion: 1
+      fields: readonly {
+        key: string
+        type: "string" | "number" | "boolean" | "bytes" | "datetime" | "timestamp" | "path" | "url"
+        value: string | number | boolean
+      }[]
+    }
     byteLength?: number
     createdAtMs?: number
     modifiedAtMs?: number
