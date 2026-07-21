@@ -695,7 +695,7 @@ describe("ReaderDirectoryBrowserRoute", () => {
     }
   })
 
-  it("[neoview.folder.emm-route] exposes EMM sort capabilities and hydrates the visible batch", async () => {
+  it("[neoview.folder.emm-route] [neoview.file-list-tag-display.http-dto] exposes EMM sort capabilities and hydrates the visible batch", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-emm-"))
     directories.push(directory)
     const first = join(directory, "first.cbz")
@@ -706,22 +706,39 @@ describe("ReaderDirectoryBrowserRoute", () => {
       directoryEmmAvailable: true,
       readDirectoryEmmRecords: async () => new Map([
         [first, { ratingData: JSON.stringify({ value: 2 }) }],
-        [second, { emmJson: JSON.stringify({ rating: 5, tags: [] }) }],
+        [second, {
+          emmJson: JSON.stringify({ rating: 5, tags: [{ namespace: "artist", tag: "alice" }, { namespace: "female", tag: "glasses" }] }),
+          manualTags: JSON.stringify([{ namespace: "manual", tag: "favorite" }]),
+        }],
       ]),
-    })
+    }, undefined, {}, undefined, undefined, undefined, undefined, undefined, {
+      load: async () => ({ tags: [{ category: "female", tag: "glasses" }], mixedGender: false }),
+    } as never)
     try {
       const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ path: directory }),
       })))!
-      const body = await opened.json() as { sessionId: string; sortFields: string[]; metadataFields: string[]; entries: Array<{ name: string; rating: number }> }
+      const body = await opened.json() as {
+        sessionId: string
+        sortFields: string[]
+        metadataFields: string[]
+        entries: Array<{ name: string; rating: number; collectTagCount?: number; tags?: string[]; collectTags?: string[]; manualTags?: string[] }>
+      }
       expect(body.sortFields).toContain("rating")
       expect(body.sortFields).toContain("collectTagCount")
       expect(body.metadataFields).toEqual(["rating", "collectTagCount", "tags"])
       expect(body.entries).toEqual([
         expect.objectContaining({ name: "first.cbz", rating: 2, collectTagCount: 0 }),
-        expect.objectContaining({ name: "second.cbz", rating: 5, collectTagCount: 0 }),
+        expect.objectContaining({
+          name: "second.cbz",
+          rating: 5,
+          collectTagCount: 1,
+          tags: ["artist:alice", "female:glasses", "manual:favorite"],
+          collectTags: ["female:glasses"],
+          manualTags: ["manual:favorite"],
+        }),
       ])
       const sorted = (await route.handle(new Request(`http://localhost/reader/browser/s/${body.sessionId}/sort`, {
         method: "PATCH",
