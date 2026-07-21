@@ -11,11 +11,11 @@ import type {
   TailOverflowBehavior,
   ViewSource,
 } from "@xiranite/node-neoview/ui-core"
-import type { ReaderColorFilterPatch, ReaderColorFilterSettings } from "@xiranite/node-neoview/color-filter"
-import type { ReaderPageTransitionPatch, ReaderPageTransitionSettings } from "@xiranite/node-neoview/page-transition"
-import type { ReaderSwitchToastPatch, ReaderSwitchToastSettings } from "@xiranite/node-neoview/switch-toast"
-import type { ReaderInfoOverlayPatch, ReaderInfoOverlaySettings } from "@xiranite/node-neoview/info-overlay"
-import type { ReaderImageTrimPatch, ReaderImageTrimSettings } from "@xiranite/node-neoview/image-trim"
+import type { ReaderColorFilterPatch, ReaderColorFilterSettings } from "@xiranite/node-neoview/ui-core"
+import type { ReaderPageTransitionPatch, ReaderPageTransitionSettings } from "@xiranite/node-neoview/ui-core"
+import type { ReaderSwitchToastPatch, ReaderSwitchToastSettings } from "@xiranite/node-neoview/ui-core"
+import type { ReaderInfoOverlayPatch, ReaderInfoOverlaySettings } from "@xiranite/node-neoview/ui-core"
+import type { ReaderImageTrimPatch, ReaderImageTrimSettings } from "@xiranite/node-neoview/ui-core"
 
 export interface ReaderPageDto {
   id: string

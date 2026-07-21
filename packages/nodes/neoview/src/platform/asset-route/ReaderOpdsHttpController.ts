@@ -1,8 +1,7 @@
 import { buildReaderOpdsSearchUrl, ReaderOpdsClient, ReaderOpdsHttpError, ReaderOpdsParseError } from "../opds/ReaderOpdsClient.js"
+import type { ReaderOpdsCatalogReader } from "../../ports/ReaderOpds.js"
 
-export interface ReaderOpdsCatalogReader {
-  read(url: string, signal?: AbortSignal): ReturnType<ReaderOpdsClient["read"]>
-}
+export type { ReaderOpdsCatalogReader } from "../../ports/ReaderOpds.js"
 
 export class ReaderOpdsHttpController {
   constructor(private readonly client: ReaderOpdsCatalogReader = new ReaderOpdsClient()) {}

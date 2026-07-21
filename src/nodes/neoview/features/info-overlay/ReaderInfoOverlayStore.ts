@@ -3,7 +3,7 @@ import {
   normalizeReaderInfoOverlay,
   type ReaderInfoOverlayPatch,
   type ReaderInfoOverlaySettings,
-} from "@xiranite/node-neoview/info-overlay"
+} from "@xiranite/node-neoview/ui-core"
 
 export interface ReaderInfoOverlayPort {
   subscribe(listener: () => void): () => void

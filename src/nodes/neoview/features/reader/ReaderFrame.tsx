@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
   type FramePage,
 } from "@xiranite/node-neoview/ui-core"
-import { DEFAULT_READER_IMAGE_TRIM, readerImageTrimEffectiveDimensions } from "@xiranite/node-neoview/image-trim"
+import { DEFAULT_READER_IMAGE_TRIM, readerImageTrimEffectiveDimensions } from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderHttpClient, ReaderMediaConfigDto, ReaderPageDto, ReaderSubtitleConfigDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"

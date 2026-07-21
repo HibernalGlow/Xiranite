@@ -2,7 +2,7 @@ import {
   DEFAULT_READER_COLOR_FILTER,
   normalizeReaderColorFilter,
   type ReaderColorFilterSettings,
-} from "@xiranite/node-neoview/color-filter"
+} from "@xiranite/node-neoview/ui-core"
 
 export const LEGACY_READER_COLOR_FILTER_KEY = "neoview-filter-settings"
 

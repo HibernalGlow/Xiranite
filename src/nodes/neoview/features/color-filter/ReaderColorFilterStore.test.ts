@@ -1,4 +1,4 @@
-import { DEFAULT_READER_COLOR_FILTER } from "@xiranite/node-neoview/color-filter"
+import { DEFAULT_READER_COLOR_FILTER } from "@xiranite/node-neoview/ui-core"
 import { describe, expect, it, vi } from "vitest"
 
 import { createReaderColorFilterStore } from "./ReaderColorFilterStore"

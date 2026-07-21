@@ -1,4 +1,4 @@
-import { DEFAULT_READER_PAGE_TRANSITION } from "@xiranite/node-neoview/page-transition"
+import { DEFAULT_READER_PAGE_TRANSITION } from "@xiranite/node-neoview/ui-core"
 import { describe, expect, it, vi } from "vitest"
 
 import { createReaderPageTransitionStore } from "./ReaderPageTransitionStore"

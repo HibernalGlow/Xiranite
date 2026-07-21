@@ -1,5 +1,5 @@
 import { rotatePresentationSize, type ReaderRotation } from "@xiranite/node-neoview/ui-core"
-import { DEFAULT_READER_IMAGE_TRIM, readerImageCropTranslation, readerImageTrimClipPath, readerImageTrimEffectiveDimensions, type ReaderImageCropInsets } from "@xiranite/node-neoview/image-trim"
+import { DEFAULT_READER_IMAGE_TRIM, readerImageCropTranslation, readerImageTrimClipPath, readerImageTrimEffectiveDimensions, type ReaderImageCropInsets } from "@xiranite/node-neoview/ui-core"
 import { MediaController } from "media-chrome/react"
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react"
 

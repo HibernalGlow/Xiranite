@@ -2,16 +2,16 @@ import type {
   ReaderAiTranslationPersistentCache,
   ReaderAiTranslationRequest,
   ReaderAiTranslationResult,
+  ReaderOllamaTranslationClient,
   ReaderOllamaModel,
 } from "../../ports/ReaderAiTranslation.js"
 import type { NeoviewAiTranslationConfig } from "../config/ReaderRuntimeConfig.js"
 import { ReaderAiTranslationService } from "../metadata/ReaderAiTranslationService.js"
-import { OllamaTranslationClient } from "../../platform/ai/OllamaTranslationClient.js"
 
 export interface ReaderAiTranslationControllerOptions {
   config: NeoviewAiTranslationConfig
   persistentCache?: ReaderAiTranslationPersistentCache
-  fetch?: typeof globalThis.fetch
+  createClient: (config: NeoviewAiTranslationConfig) => ReaderOllamaTranslationClient
 }
 
 /**
@@ -21,18 +21,18 @@ export interface ReaderAiTranslationControllerOptions {
 export class ReaderAiTranslationController {
   #config: NeoviewAiTranslationConfig
   #service: ReaderAiTranslationService | undefined
-  #client: OllamaTranslationClient | undefined
+  #client: ReaderOllamaTranslationClient | undefined
   #serviceKey = ""
   #totalTranslations = 0
   #cacheHits = 0
   #apiCalls = 0
   readonly #persistentCache?: ReaderAiTranslationPersistentCache
-  readonly #fetch?: typeof globalThis.fetch
+  readonly #createClient: ReaderAiTranslationControllerOptions["createClient"]
 
   constructor(options: ReaderAiTranslationControllerOptions) {
     this.#config = options.config
     this.#persistentCache = options.persistentCache
-    this.#fetch = options.fetch
+    this.#createClient = options.createClient
   }
 
   getConfig(): NeoviewAiTranslationConfig {
@@ -124,11 +124,11 @@ export class ReaderAiTranslationController {
     if (!this.#config.ollamaUrl.trim()) throw new Error("Ollama URL is not configured.")
   }
 
-  #ensureClient(): OllamaTranslationClient {
+  #ensureClient(): ReaderOllamaTranslationClient {
     this.#assertOllamaConfigured()
     const key = `${this.#config.ollamaUrl}\0${this.#config.memoryCacheEntries}`
     if (!this.#client || this.#serviceKey !== key) {
-      this.#client = new OllamaTranslationClient({ baseUrl: this.#config.ollamaUrl, fetch: this.#fetch })
+      this.#client = this.#createClient(this.#config)
       this.#service = new ReaderAiTranslationService(this.#client, this.#config.memoryCacheEntries, this.#persistentCache)
       this.#serviceKey = key
     }

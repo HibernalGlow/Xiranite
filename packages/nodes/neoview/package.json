@@ -21,46 +21,6 @@
       "types": "./dist/ui-core.d.ts",
       "default": "./dist/ui-core.js"
     },
-    "./color-filter": {
-      "types": "./dist/color-filter.d.ts",
-      "default": "./dist/color-filter.js"
-    },
-    "./page-transition": {
-      "types": "./dist/page-transition.d.ts",
-      "default": "./dist/page-transition.js"
-    },
-    "./switch-toast": {
-      "types": "./dist/switch-toast.d.ts",
-      "default": "./dist/switch-toast.js"
-    },
-    "./time-information": {
-      "types": "./dist/time-information.d.ts",
-      "default": "./dist/time-information.js"
-    },
-    "./book-information": {
-      "types": "./dist/book-information.d.ts",
-      "default": "./dist/book-information.js"
-    },
-    "./info-overlay": {
-      "types": "./dist/info-overlay.d.ts",
-      "default": "./dist/info-overlay.js"
-    },
-    "./image-trim": {
-      "types": "./dist/image-trim.d.ts",
-      "default": "./dist/image-trim.js"
-    },
-    "./super-resolution": {
-      "types": "./dist/super-resolution.d.ts",
-      "default": "./dist/super-resolution.js"
-    },
-    "./animated-video": {
-      "types": "./dist/animated-video.d.ts",
-      "default": "./dist/animated-video.js"
-    },
-    "./definition": {
-      "types": "./dist/definition.d.ts",
-      "default": "./dist/definition.js"
-    },
     "./platform": {
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"

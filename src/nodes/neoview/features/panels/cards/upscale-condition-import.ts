@@ -1,7 +1,7 @@
 import {
   LegacySuperResolutionSettingsCodec,
   parseSuperResolutionPreferences,
-} from "@xiranite/node-neoview/super-resolution"
+} from "@xiranite/node-neoview/ui-core"
 
 import type { ReaderSuperResolutionConditionDto } from "../../../adapters/reader-http-client"
 

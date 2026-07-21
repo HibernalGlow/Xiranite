@@ -3,7 +3,7 @@ import {
   normalizeReaderSwitchToast,
   type ReaderSwitchToastPatch,
   type ReaderSwitchToastSettings,
-} from "@xiranite/node-neoview/switch-toast"
+} from "@xiranite/node-neoview/ui-core"
 import {
   createReaderOptimisticSettingsStore,
   type ReaderOptimisticSettingsPort,

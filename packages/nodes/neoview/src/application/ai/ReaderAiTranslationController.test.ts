@@ -28,7 +28,26 @@ describe("ReaderAiTranslationController", () => {
         ollamaModel: "qwen2.5:7b",
         memoryCacheEntries: 8,
       },
-      fetch: fetch as typeof globalThis.fetch,
+      createClient: () => ({
+        check: async (signal) => (await fetch("http://127.0.0.1:11434/", { signal })).ok,
+        models: async (signal) => {
+          const response = await fetch("http://127.0.0.1:11434/api/tags", { signal })
+          const body = await response.json() as { models: { name: string; details?: { parameter_size?: string; quantization_level?: string } }[] }
+          return body.models.map((model) => ({
+            name: model.name,
+            parameterSize: model.details?.parameter_size,
+            quantizationLevel: model.details?.quantization_level,
+          }))
+        },
+        translate: async (request, signal) => {
+          const response = await fetch("http://127.0.0.1:11434/api/generate", {
+            method: "POST",
+            body: JSON.stringify(request),
+            signal,
+          })
+          return String((await response.json() as { response: string }).response).trim()
+        },
+      }),
     })
 
     await expect(controller.check()).resolves.toEqual({ online: true, service: "ollama" })
@@ -61,6 +80,7 @@ describe("ReaderAiTranslationController", () => {
   it("[neoview.ai.controller] rejects non-ollama service for model listing", async () => {
     const controller = new ReaderAiTranslationController({
       config: DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG,
+      createClient: () => { throw new Error("client should not be created") },
     })
     await expect(controller.models()).rejects.toThrow("not set to Ollama")
   })

@@ -1,7 +1,7 @@
 import {
   renderReaderSwitchToastTemplate,
   type ReaderSwitchToastContext,
-} from "@xiranite/node-neoview/switch-toast"
+} from "@xiranite/node-neoview/ui-core"
 import { useEffect, useRef } from "react"
 
 import type { ReaderSessionDto } from "../../adapters/reader-http-client"

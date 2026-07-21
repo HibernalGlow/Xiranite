@@ -371,22 +371,17 @@ export {
 } from "./application/reader/contracts.js"
 export type { ReaderBook, ViewSource } from "./domain/book/book.js"
 export { normalizeArchivePath } from "./domain/archive/archive-path.js"
-export {
-  ReaderOpdsClient,
-  ReaderOpdsHttpError,
-  ReaderOpdsParseError,
-  buildReaderOpdsSearchUrl,
-  parseReaderOpdsCatalog,
-  type ReaderOpdsCatalog,
-  type ReaderOpdsCredentialProvider,
-  type ReaderOpdsCredentialRequest,
-  type ReaderOpdsCredentials,
-  type ReaderOpdsFetchOptions,
-  type ReaderOpdsLink,
-  type ReaderOpdsNavigationEntry,
-  type ReaderOpdsPublication,
-  type ReaderOpdsSearchParameters,
-} from "./platform/opds/ReaderOpdsClient.js"
+export type {
+  ReaderOpdsCatalog,
+  ReaderOpdsCredentialProvider,
+  ReaderOpdsCredentialRequest,
+  ReaderOpdsCredentials,
+  ReaderOpdsFetchOptions,
+  ReaderOpdsLink,
+  ReaderOpdsNavigationEntry,
+  ReaderOpdsPublication,
+  ReaderOpdsSearchParameters,
+} from "./ports/ReaderOpds.js"
 export { normalizeArchiveRange } from "./domain/archive/archive-range.js"
 export { buildFrameSnapshot, type BuildFrameInput } from "./domain/frame/frame-builder.js"
 export {

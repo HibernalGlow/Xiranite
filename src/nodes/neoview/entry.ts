@@ -1,5 +1,5 @@
 import type { AppNodeEntry } from "@xiranite/contract"
-import { def } from "@xiranite/node-neoview/definition"
+import { def } from "@xiranite/node-neoview/ui-core"
 import * as core from "@xiranite/node-neoview/ui-core"
 
 import { Component, type NeoViewCardState } from "./Component"

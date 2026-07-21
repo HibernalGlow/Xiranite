@@ -9,7 +9,7 @@ import {
   normalizeReaderPageTransition,
   type ReaderPageTransitionPatch,
   type ReaderPageTransitionSettings,
-} from "@xiranite/node-neoview/page-transition"
+} from "@xiranite/node-neoview/ui-core"
 import {
   createReaderOptimisticSettingsStore,
   type ReaderOptimisticSettingsPort,

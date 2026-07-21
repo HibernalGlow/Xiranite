@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { DEFAULT_READER_SWITCH_TOAST } from "@xiranite/node-neoview/switch-toast"
+import { DEFAULT_READER_SWITCH_TOAST } from "@xiranite/node-neoview/ui-core"
 import { createReaderSwitchToastStore } from "./ReaderSwitchToastStore"
 
 describe("ReaderSwitchToastStore", () => {
