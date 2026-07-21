@@ -4912,12 +4912,12 @@
   - 计划测试：无
   - 备注：A compact segmented control switches the derived table and bounded raw JSON. Field and full-record copy reuse the authenticated host clipboard capability with named controls and feedback.
 - [ ] `emm-raw-data.actions` 路径、URL 与显式刷新动作
-  - 六维：`core=P transport=P gui=P cli=N/A tui=N/A evidence=P`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Use authenticated host capabilities for path reveal, safe external URL opening and explicit metadata refresh with capability-aware disabled and error states.
   - 源码：`src/lib/cards/properties/EmmRawDataCard.svelte`
-  - 测试：`neoview.emm-raw-data.path-action`、`neoview.emm-raw-data.retry`
-  - 计划测试：`neoview.emm-raw-data.url-action`、`neoview.emm-raw-data.refresh`
-  - 备注：Path fields use the authenticated revealSystemPath host command and refresh reuses the shared static metadata retry path. A dedicated allowlisted external-URL host command remains pending; unsafe window.open or path-command overloading is deliberately not used.
+  - 测试：`neoview.emm-raw-data.path-action`、`neoview.emm-raw-data.url-service`、`neoview.emm-raw-data.url-platform`、`neoview.emm-raw-data.url-http`、`neoview.emm-raw-data.url-client`、`neoview.emm-raw-data.url-action`、`neoview.emm-raw-data.retry`、`neoview.emm-auxiliary.e2e`
+  - 计划测试：无
+  - 备注：Path fields use the authenticated revealSystemPath command. URL fields use a dedicated authenticated host command backed by the maintained open adapter; the service allowlists bounded credential-free HTTP/HTTPS URLs and rejects unsafe schemes before platform dispatch. Explicit refresh reuses the shared static metadata retry path.
 - [x] `emm-raw-data.states` 加载、无记录、错误与重试
   - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Distinguish no active book, loading, no matched record, empty raw row, recoverable failure, retry and filtered-empty states without leaking stale data across sessions.
