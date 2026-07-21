@@ -4987,20 +4987,20 @@
 
 ##### 专用源码级验收项
 
-- [ ] `emm-config.persistence` 规范化 EMM 路径配置与 TOML 持久化
-  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `emm-config.persistence` 规范化 EMM 路径配置与 TOML 持久化
+  - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Persist enabled, bounded database paths, optional setting.json, translations.db and db.text.json paths plus default rating in [nodes.neoview.emm], retaining portable/APPDATA/LOCALAPPDATA auto-discovery for both database.sqlite and legacy db.sqlite when paths are empty and never writing Reader business tables to xiranite.db.
   - 源码：`src/lib/cards/properties/EmmConfigCard.svelte`、`src/lib/components/panels/emm/EmmConfigCard.svelte`
-  - 测试：`neoview.emm-config.runtime`、`neoview.emm-config.card`、`neoview.emm.config-composition`
-  - 计划测试：`neoview.emm-config.toml-roundtrip`
-  - 备注：The external database remains a read-only foreign source; empty database_paths means automatic discovery under portable, APPDATA and LOCALAPPDATA. translations.db is persisted for legacy compatibility but is not yet consumed by the Reader projection.
-- [ ] `emm-config.states` 加载、保存、恢复默认和失败反馈
-  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+  - 测试：`neoview.emm-config.runtime`、`neoview.emm-config.card`、`neoview.emm-config.http`、`neoview.emm-config.toml-roundtrip`、`neoview.emm.config-composition`
+  - 计划测试：无
+  - 备注：The authenticated config route validates and serializes the complete EMM DTO to canonical snake_case TOML. The atomic roundtrip preserves future fields under [nodes.neoview.emm]. The external database remains a read-only foreign source; empty database_paths means automatic discovery under portable, APPDATA and LOCALAPPDATA. translations.db is persisted for legacy compatibility but is not yet consumed by the Reader projection.
+- [x] `emm-config.states` 加载、保存、恢复默认和失败反馈
+  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Load once when active, disable duplicate writes, keep the draft after failure, expose alert/status feedback and restore the canonical automatic-discovery defaults.
   - 源码：`src/lib/components/panels/emm/EmmConfigCard.svelte`
-  - 测试：`neoview.emm-config.card`
-  - 计划测试：`neoview.emm-config.failure`
-  - 备注：Successful path changes are honest about requiring Reader backend restart until live store replacement is implemented.
+  - 测试：`neoview.emm-config.card`、`neoview.emm-config.failure`、`neoview.emm-config.http`
+  - 计划测试：无
+  - 备注：Successful path changes are honest about requiring Reader backend restart until live store replacement is implemented. Failed HTTP persistence reports an alert while retaining the user's draft; restore-default uses the same serialized endpoint.
 - [ ] `emm-config.live-reconfigure` 连接测试与运行时数据源切换
   - 六维：`core=- transport=- gui=P cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
   - 目标：Validate file existence and Mangas compatibility through a bounded backend probe, then atomically replace the current read-only EMM composition without exposing SQLite to React or leaking old handles.
@@ -5008,13 +5008,13 @@
   - 测试：待补
   - 计划测试：`neoview.emm-config.connection`、`neoview.emm-config.live-reconfigure`
   - 备注：The current Card persists valid configuration and documents restart semantics; it does not claim live connection testing.
-- [ ] `emm-config.lifecycle` 隐藏零请求与取消迟到配置加载
-  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
+- [x] `emm-config.lifecycle` 隐藏零请求与取消迟到配置加载
+  - 六维：`core=N/A transport=C gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
   - 目标：Perform no request while hidden, abort config loading on deactivation or unmount and keep persistence writes serialized by the shared config endpoint.
   - 源码：`src/lib/cards/properties/EmmConfigCard.svelte`
-  - 测试：`neoview.emm-config.lifecycle`、`neoview.emm-config.card`
-  - 计划测试：`neoview.emm-config.abort`
-  - 备注：No polling, filesystem access or SQLite work is added to the browser.
+  - 测试：`neoview.emm-config.lifecycle`、`neoview.emm-config.abort`、`neoview.emm-config.card`、`neoview.emm-config.http-serialization`
+  - 计划测试：无
+  - 备注：Hidden Cards issue no request, deactivation aborts an active load, and the authenticated backend queue serializes concurrent writes. No polling, filesystem access or SQLite work is added to the browser.
 
 #### `fileListTagDisplay` 文件列表标签
 

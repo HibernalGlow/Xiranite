@@ -24,19 +24,19 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmConfigCard.svelte", "src/lib/components/panels/emm/EmmConfigCard.svelte"],
       "targetContract": "Persist enabled, bounded database paths, optional setting.json, translations.db and db.text.json paths plus default rating in [nodes.neoview.emm], retaining portable/APPDATA/LOCALAPPDATA auto-discovery for both database.sqlite and legacy db.sqlite when paths are empty and never writing Reader business tables to xiranite.db.",
       "surfaces": ["GUI"],
-      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.emm-config.runtime", "neoview.emm-config.card", "neoview.emm.config-composition"],
-      "plannedTestIds": ["neoview.emm-config.toml-roundtrip"],
-      "notes": "The external database remains a read-only foreign source; empty database_paths means automatic discovery under portable, APPDATA and LOCALAPPDATA. translations.db is persisted for legacy compatibility but is not yet consumed by the Reader projection."
+      "capabilityStatus": { "core": "complete", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete" },
+      "testIds": ["neoview.emm-config.runtime", "neoview.emm-config.card", "neoview.emm-config.http", "neoview.emm-config.toml-roundtrip", "neoview.emm.config-composition"],
+      "plannedTestIds": [],
+      "notes": "The authenticated config route validates and serializes the complete EMM DTO to canonical snake_case TOML. The atomic roundtrip preserves future fields under [nodes.neoview.emm]. The external database remains a read-only foreign source; empty database_paths means automatic discovery under portable, APPDATA and LOCALAPPDATA. translations.db is persisted for legacy compatibility but is not yet consumed by the Reader projection."
     },
     {
       "id": "emm-config.states", "category": "states", "title": "加载、保存、恢复默认和失败反馈",
       "sourceEvidence": ["src/lib/components/panels/emm/EmmConfigCard.svelte"],
       "targetContract": "Load once when active, disable duplicate writes, keep the draft after failure, expose alert/status feedback and restore the canonical automatic-discovery defaults.",
       "surfaces": ["GUI"],
-      "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.emm-config.card"], "plannedTestIds": ["neoview.emm-config.failure"],
-      "notes": "Successful path changes are honest about requiring Reader backend restart until live store replacement is implemented."
+      "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete" },
+      "testIds": ["neoview.emm-config.card", "neoview.emm-config.failure", "neoview.emm-config.http"], "plannedTestIds": [],
+      "notes": "Successful path changes are honest about requiring Reader backend restart until live store replacement is implemented. Failed HTTP persistence reports an alert while retaining the user's draft; restore-default uses the same serialized endpoint."
     },
     {
       "id": "emm-config.live-reconfigure", "category": "capabilities", "title": "连接测试与运行时数据源切换",
@@ -52,9 +52,9 @@
       "sourceEvidence": ["src/lib/cards/properties/EmmConfigCard.svelte"],
       "targetContract": "Perform no request while hidden, abort config loading on deactivation or unmount and keep persistence writes serialized by the shared config endpoint.",
       "surfaces": ["GUI"],
-      "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial" },
-      "testIds": ["neoview.emm-config.lifecycle", "neoview.emm-config.card"], "plannedTestIds": ["neoview.emm-config.abort"],
-      "notes": "No polling, filesystem access or SQLite work is added to the browser."
+      "capabilityStatus": { "core": "not-applicable", "transport": "complete", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete" },
+      "testIds": ["neoview.emm-config.lifecycle", "neoview.emm-config.abort", "neoview.emm-config.card", "neoview.emm-config.http-serialization"], "plannedTestIds": [],
+      "notes": "Hidden Cards issue no request, deactivation aborts an active load, and the authenticated backend queue serializes concurrent writes. No polling, filesystem access or SQLite work is added to the browser."
     }
   ]
 }
