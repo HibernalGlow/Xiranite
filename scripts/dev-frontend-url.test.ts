@@ -17,11 +17,13 @@ describe("resolveManagedFrontendUrl", () => {
     })).resolves.toBe("http://localhost:6123")
   })
 
-  it("refuses to create a second managed server when the configured port is occupied", async () => {
-    const occupiedPort = await occupyPort()
-    await expect(resolveManagedFrontendUrl({
+  it("advances past consecutive occupied ports", async () => {
+    const occupiedPort = await occupyConsecutivePorts(2)
+    const resolved = new URL(await resolveManagedFrontendUrl({
       XIRANITE_FRONTEND_PORT: String(occupiedPort),
-    })).rejects.toThrow(`Frontend dev server port ${occupiedPort} is already in use`)
+    }))
+
+    expect(Number(resolved.port)).toBeGreaterThan(occupiedPort + 1)
   })
 
   it("rejects an invalid preferred port", async () => {
@@ -32,24 +34,27 @@ describe("resolveManagedFrontendUrl", () => {
 })
 
 describe("managedViteCacheDir", () => {
-  it("isolates managed Vite caches by frontend endpoint", () => {
-    expect(managedViteCacheDir("http://127.0.0.1:5173")).toMatch(/\.cache[\\/]vite[\\/]127\.0\.0\.1-5173$/)
-    expect(managedViteCacheDir("http://127.0.0.1:5174")).toMatch(/\.cache[\\/]vite[\\/]127\.0\.0\.1-5174$/)
+  it("is stable across managed frontend endpoints", () => {
+    expect(managedViteCacheDir()).toMatch(/\.cache[\\/]vite[\\/]managed$/)
   })
 })
 
-async function occupyPort(): Promise<number> {
-  for (let port = 61_000; port <= 65_535; port += 1) {
-    const server = createServer()
+async function occupyConsecutivePorts(count: number): Promise<number> {
+  for (let basePort = 61_000; basePort <= 65_535 - count; basePort += count) {
+    const attempt: ReturnType<typeof createServer>[] = []
     try {
-      await listen(server, port)
-      servers.push(server)
-      return port
+      for (let offset = 0; offset < count; offset += 1) {
+        const server = createServer()
+        attempt.push(server)
+        await listen(server, basePort + offset)
+      }
+      servers.push(...attempt)
+      return basePort
     } catch {
-      await close(server)
+      await Promise.all(attempt.map(close))
     }
   }
-  throw new Error("Could not reserve a test port.")
+  throw new Error(`Could not reserve ${count} consecutive test ports.`)
 }
 
 function listen(server: ReturnType<typeof createServer>, port: number): Promise<void> {

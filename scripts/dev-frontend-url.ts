@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const DEFAULT_FRONTEND_PORT = 5173
+const MAX_PORT_ATTEMPTS = 100
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
 export interface DevFrontendEnvironment {
@@ -17,23 +18,21 @@ export async function resolveManagedFrontendUrl(
   if (configuredUrl) return new URL(configuredUrl).href.replace(/\/$/, "")
 
   const preferredPort = parsePreferredPort(environment.XIRANITE_FRONTEND_PORT)
-  if (await canListen("127.0.0.1", preferredPort)) {
-    return `http://127.0.0.1:${preferredPort}`
+  for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset += 1) {
+    const port = preferredPort + offset
+    if (port > 65_535) break
+    if (await canListen("127.0.0.1", port)) return `http://127.0.0.1:${port}`
   }
 
-  throw new Error(
-    `Frontend dev server port ${preferredPort} is already in use. Run \"bun run dev:stop\" or set FRONTEND_DEVSERVER_URL explicitly.`,
-  )
+  throw new Error(`No available frontend port found from ${preferredPort}.`)
 }
 
 /**
- * Keep each managed dev server out of Vite's shared node_modules cache.
- * The managed launcher can pick another port when one is already in use.
+ * All managed development sessions share this cache. Vite's metadata already
+ * invalidates it when the lockfile or dependency-optimization config changes.
  */
-export function managedViteCacheDir(frontendUrl: string): string {
-  const frontend = new URL(frontendUrl)
-  const port = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
-  return resolve(repoRoot, ".cache", "vite", `${frontend.hostname}-${port}`)
+export function managedViteCacheDir(): string {
+  return resolve(repoRoot, ".cache", "vite", "managed")
 }
 
 function parsePreferredPort(value: string | undefined): number {
