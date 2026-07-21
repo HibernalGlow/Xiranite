@@ -121,7 +121,49 @@ describe("HistoryListCard", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "继续阅读：one.cbz" }))
     expect(onBrowsePath).toHaveBeenCalledWith("D:/books")
-    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz", { browserOriginPath: "D:/books" })
+    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz", {
+      browserOriginPath: "D:/books",
+      browserOriginEntryPath: "D:/books/one.cbz",
+    })
+  })
+
+  it("activates folder history through the live File Card when penetration is enabled", async () => {
+    const onActivateInFolderCard = vi.fn(() => true)
+    const onOpen = vi.fn()
+    const onBrowsePath = vi.fn()
+    render(
+      <HistoryListCard
+        {...context(vi.fn(async () => [directoryHistory("series")]))}
+        onOpen={onOpen}
+        onBrowsePath={onBrowsePath}
+        onActivateInFolderCard={onActivateInFolderCard}
+        folderView={{ penetration: { enabled: true, maxDepth: 3, terminalTargets: ["archive", "media-directory"] } } as never}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "继续阅读：series" }))
+    expect(onActivateInFolderCard).toHaveBeenCalledWith("D:/books/series")
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it("reopens folder history at the parent origin when penetration is off", async () => {
+    const onOpen = vi.fn()
+    const onBrowsePath = vi.fn()
+    render(
+      <HistoryListCard
+        {...context(vi.fn(async () => [directoryHistory("series")]))}
+        onOpen={onOpen}
+        onBrowsePath={onBrowsePath}
+        folderView={{ penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "media-directory"] } } as never}
+      />,
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "继续阅读：series" }))
+    expect(onBrowsePath).toHaveBeenCalledWith("D:/books")
+    expect(onOpen).toHaveBeenCalledWith("D:/books/series", {
+      browserOriginPath: "D:/books",
+      browserOriginEntryPath: "D:/books/series",
+    })
   })
 })
 
@@ -140,6 +182,17 @@ function recentHistory(bookId: string) {
     bookId,
     source: { kind: "archive" as const, path: `D:/books/${bookId}.cbz` },
     displayName: `${bookId}.cbz`,
+    pageIndex: 0,
+    pageCount: 10,
+    updatedAt: 1_700_000_000_000,
+  }
+}
+
+function directoryHistory(bookId: string) {
+  return {
+    bookId,
+    source: { kind: "directory" as const, path: `D:/books/${bookId}` },
+    displayName: bookId,
     pageIndex: 0,
     pageCount: 10,
     updatedAt: 1_700_000_000_000,

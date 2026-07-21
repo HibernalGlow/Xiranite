@@ -151,7 +151,38 @@ describe("BookmarkListCard", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "打开书签：one.cbz" }))
     expect(onBrowsePath).toHaveBeenCalledWith("D:/books")
-    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz", { browserOriginPath: "D:/books" })
+    expect(onOpen).toHaveBeenCalledWith("D:/books/one.cbz", {
+      browserOriginPath: "D:/books",
+      browserOriginEntryPath: "D:/books/one.cbz",
+    })
+  })
+
+  it("activates folder bookmarks through the live File Card when penetration is enabled", async () => {
+    const item = {
+      id: "bookmark-series",
+      name: "series",
+      kind: "folder" as const,
+      source: { kind: "directory" as const, path: "D:/books/series" },
+      createdAt: 1,
+      updatedAt: 1,
+      starred: false,
+      listIds: ["all"],
+    }
+    const onActivateInFolderCard = vi.fn(() => true)
+    const onOpen = vi.fn()
+    render(<BookmarkListCard
+      {...context(
+        vi.fn(async () => [{ id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true }]),
+        vi.fn(async () => [item]),
+      )}
+      onOpen={onOpen}
+      onActivateInFolderCard={onActivateInFolderCard}
+      folderView={{ penetration: { enabled: true, maxDepth: 3, terminalTargets: ["archive", "media-directory"] } } as never}
+    />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "打开书签：series" }))
+    expect(onActivateInFolderCard).toHaveBeenCalledWith("D:/books/series")
+    expect(onOpen).not.toHaveBeenCalled()
   })
 })
 

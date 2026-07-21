@@ -15,6 +15,7 @@ import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 import { readerLibraryListLayout, readerLibraryMediaClassName, readerLibrarySurfaceVariant, type ReaderLibraryViewMode } from "./shared/readerLibraryEntryLayout"
 import { libraryItemFolderPath } from "./shared/libraryItemFolderPath"
+import { openLibraryEntry } from "./shared/openLibraryEntry"
 import { ReaderLibraryViewToolbar, type ReaderLibrarySort } from "./shared/ReaderLibraryViewToolbar"
 
 type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmarkListDto }
@@ -26,7 +27,7 @@ const LazyBookmarkContextActions = lazy(() => import("./bookmark/BookmarkContext
 /**
  * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/bookmark/BookmarkListCard.tsx
  */
-export default function BookmarkListCard({ client, disabled, panelActive = true, panelVisible, onOpen, onBrowsePath, onOpenInNewTab, session, sourcePath, systemActions, bookmarkListPreferences, onBookmarkListPreferences }: ReaderPanelContext) {
+export default function BookmarkListCard({ client, disabled, panelActive = true, panelVisible, onOpen, onBrowsePath, onActivateInFolderCard, onOpenInNewTab, session, sourcePath, systemActions, bookmarkListPreferences, onBookmarkListPreferences, folderView }: ReaderPanelContext) {
   const residentRef = useRef(panelActive)
   if (panelActive) residentRef.current = true
   const resident = residentRef.current
@@ -61,9 +62,17 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
     setViewportWidth((current) => current === width ? current : width)
   }, [])
   function openBookmark(item: ReaderBookmarkDto) {
-    const folderPath = libraryItemFolderPath(item.source.path, item.kind === "folder")
-    onBrowsePath?.(folderPath)
-    return onOpen?.(item.source.path, { browserOriginPath: folderPath })
+    return openLibraryEntry({
+      client,
+      path: item.source.path,
+      kind: item.kind === "folder" ? "folder" : "file",
+      name: item.name,
+      penetration: folderView?.penetration,
+      onOpen,
+      onBrowsePath,
+      onActivateInFolderCard,
+      onError: (message) => setActionError(`无法穿透此文件夹：${message}`),
+    })
   }
   const selectedBookmarks = useMemo(
     () => loadedBookmarks.filter((item) => selectedIds.has(item.id)),

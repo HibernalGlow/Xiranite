@@ -13,6 +13,7 @@ import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
 import { readerLibraryListLayout, readerLibraryMediaClassName, readerLibrarySurfaceVariant, type ReaderLibraryViewMode } from "./shared/readerLibraryEntryLayout"
 import { libraryItemFolderPath } from "./shared/libraryItemFolderPath"
+import { openLibraryEntry } from "./shared/openLibraryEntry"
 import { ReaderLibraryViewToolbar, type ReaderLibrarySort } from "./shared/ReaderLibraryViewToolbar"
 
 interface PendingDelete {
@@ -27,7 +28,7 @@ const LazyHistoryContextActions = lazy(() => import("./history/HistoryContextAct
 /**
  * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/history/HistoryListCard.tsx
  */
-export default function HistoryListCard({ client, disabled, panelActive = true, panelVisible, onOpen, onBrowsePath, onOpenInNewTab, pickDirectory, systemActions, historyListPreferences, onHistoryListPreferences }: ReaderPanelContext) {
+export default function HistoryListCard({ client, disabled, panelActive = true, panelVisible, onOpen, onBrowsePath, onActivateInFolderCard, onOpenInNewTab, pickDirectory, systemActions, historyListPreferences, onHistoryListPreferences, folderView }: ReaderPanelContext) {
   const residentRef = useRef(panelActive)
   if (panelActive) residentRef.current = true
   const resident = residentRef.current
@@ -63,9 +64,17 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   }, [])
 
   function openRecent(item: ReaderRecentDto) {
-    const folderPath = libraryItemFolderPath(item.source.path, item.source.kind === "directory")
-    onBrowsePath?.(folderPath)
-    return onOpen?.(item.source.path, { browserOriginPath: folderPath })
+    return openLibraryEntry({
+      client,
+      path: item.source.path,
+      kind: item.source.kind === "directory" ? "folder" : "file",
+      name: item.displayName,
+      penetration: folderView?.penetration,
+      onOpen,
+      onBrowsePath,
+      onActivateInFolderCard,
+      onError: (message) => setActionError(`无法穿透此文件夹：${message}`),
+    })
   }
 
   useEffect(() => {

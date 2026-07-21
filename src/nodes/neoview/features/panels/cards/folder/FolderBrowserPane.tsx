@@ -88,6 +88,7 @@ import { FolderHoverPreview } from "./FolderHoverPreview"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { useFolderClipboard } from "./FolderClipboard"
 import { readerEntryClickIntent } from "../shared/ReaderEntryInteraction"
+import { libraryItemFolderPath } from "../shared/libraryItemFolderPath"
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_LIST_COMPONENTS, runFolderNavigation, useFolderEmptyAreaNavigation } from "./FolderEmptyAreaBehavior"
 
 const PAGE_SIZE = 128
@@ -247,6 +248,7 @@ export function FolderBrowserPane({
   onFolderView,
   panelVisible,
   active,
+  navigationActive = active,
   browserPath,
   tabBar,
   folderTabCount,
@@ -259,6 +261,8 @@ export function FolderBrowserPane({
   onCloneProvider,
 }: ReaderPanelContext & {
   active: boolean
+  /** Selected folder tab, even when the File Card panel itself is hidden. */
+  navigationActive?: boolean
   browserPath: string
   tabBar?: ReactNode
   folderTabCount: number
@@ -386,7 +390,9 @@ export function FolderBrowserPane({
   }, [sourcePath])
 
   useEffect(() => {
-    if (!folderNavigationEvents || !active) return
+    // Listen on the selected tab even when the File Card panel is hidden so
+    // History/Bookmark can reuse this browser session for browse + penetration.
+    if (!folderNavigationEvents || !navigationActive) return
     const browse = (event: Event) => {
       if (!(event instanceof CustomEvent)) return
       const detail = event.detail as { path?: unknown; newTab?: unknown } | undefined
@@ -394,9 +400,20 @@ export function FolderBrowserPane({
       if (detail.newTab === true) onOpenInNewTab(detail.path)
       else void openBrowser(detail.path)
     }
+    const activateFromLibrary = (event: Event) => {
+      if (!(event instanceof CustomEvent)) return
+      const detail = event.detail as { path?: unknown; handled?: boolean } | undefined
+      if (typeof detail?.path !== "string" || !detail.path.trim()) return
+      if (detail && typeof detail === "object") detail.handled = true
+      void activateLibraryFolder(detail.path)
+    }
     folderNavigationEvents.addEventListener("browse", browse)
-    return () => folderNavigationEvents.removeEventListener("browse", browse)
-  }, [active, folderNavigationEvents, onOpenInNewTab])
+    folderNavigationEvents.addEventListener("activate", activateFromLibrary)
+    return () => {
+      folderNavigationEvents.removeEventListener("browse", browse)
+      folderNavigationEvents.removeEventListener("activate", activateFromLibrary)
+    }
+  }, [folderNavigationEvents, navigationActive, onOpenInNewTab])
 
   useEffect(() => disposeBrowser, [])
 
@@ -1465,6 +1482,44 @@ export function FolderBrowserPane({
     void navigate({ action: "path", path: entry.path }, { focusPath: entry.path })
   }
 
+  /**
+   * History/Bookmark folder open: ensure parent listing is loaded, then run the same
+   * smart-penetration activation used by File Card clicks. Falls back to entering the
+   * folder when resolve is unavailable or reports branch/empty/blocked.
+   */
+  async function activateLibraryFolder(path: string): Promise<void> {
+    const target = path.trim()
+    if (!target) return
+    const parentPath = libraryItemFolderPath(target, false)
+    if (parentPath && !sameFolderPath(parentPath, target)) {
+      const current = catalogRef.current
+      if (!current || !sameFolderPath(current.path, parentPath)) {
+        await openBrowser(parentPath)
+      }
+    }
+    const current = catalogRef.current
+    if (!current) {
+      // No browser session yet — open the target folder directly.
+      await openBrowser(target)
+      return
+    }
+    // Prefer a loaded entry so name/kind match File Card activation.
+    let entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported"> | undefined
+    for (const [, entries] of current.pages) {
+      const found = entries.find((candidate) => sameFolderPath(candidate.path, target))
+      if (found) {
+        entry = found
+        break
+      }
+    }
+    activate(entry ?? {
+      kind: "directory",
+      name: folderEntryName(target),
+      path: target,
+      readerSupported: true,
+    })
+  }
+
   function activate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported">, rawDirectory = false) {
     if (entry.kind === "directory") {
       if (rawDirectory || !penetration.enabled || !client.resolveFolderPenetration) {
@@ -2343,6 +2398,11 @@ function sameFolderPath(left: string, right: string): boolean {
   return /^[a-z]:/iu.test(normalizedLeft) || /^[a-z]:/iu.test(normalizedRight)
     ? normalizedLeft.toLocaleLowerCase("en-US") === normalizedRight.toLocaleLowerCase("en-US")
     : normalizedLeft === normalizedRight
+}
+
+function folderEntryName(path: string): string {
+  const normalized = path.replace(/[\\/]+$/, "")
+  return normalized.split(/[\\/]/).at(-1) || normalized || path
 }
 
 /**
