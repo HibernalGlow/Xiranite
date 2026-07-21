@@ -90,7 +90,7 @@ function ReturnButton({ disabled, onReturn }: FolderReturnFooterContext) {
   return (
     <Button type="button" variant="outline" className="h-12 w-full border-dashed text-muted-foreground" disabled={disabled} onClick={onReturn}>
       <ChevronUp />
-      返回上级目录
+      点击返回上级目录
     </Button>
   )
 }
