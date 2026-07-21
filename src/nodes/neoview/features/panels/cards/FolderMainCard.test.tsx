@@ -2621,8 +2621,8 @@ describe("FolderMainCard", () => {
       </VirtuosoMockContext.Provider>,
     )
     const ui = within(view.container)
+    await ui.findByRole("button", { name: "点击返回上级目录" })
     const folderCard = view.container.querySelector('[data-neoview-folder-card="true"]')
-    await ui.findByRole("button", { name: "返回上级目录" })
     expect(folderCard?.getAttribute("data-selection-total")).toBe("1")
     expect(ui.getAllByTitle("C:/books/child/book.cbz")).toHaveLength(1)
 
@@ -2630,7 +2630,7 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(view.container.querySelector('[data-neoview-folder-details="true"] [data-folder-return-footer="true"]')).toBeTruthy())
     expect(folderCard?.getAttribute("data-selection-total")).toBe("1")
 
-    fireEvent.click(ui.getByRole("button", { name: "返回上级目录" }))
+    fireEvent.click(ui.getByRole("button", { name: "点击返回上级目录" }))
     await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "back" }, expect.any(AbortSignal), undefined))
   })
 
