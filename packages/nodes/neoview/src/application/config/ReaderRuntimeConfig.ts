@@ -295,6 +295,12 @@ export interface NeoviewPresentationDiskCacheConfig {
 
 export type NeoviewSuperResolutionProvider = "opencomic-system" | "disabled"
 
+export interface NeoviewSuperResolutionArtifactCacheConfig {
+  directory?: string
+  retentionDays: number
+  cleanupIntervalMinutes: number
+}
+
 export interface NeoviewSuperResolutionConfig {
   provider: NeoviewSuperResolutionProvider
   upscaylPath?: string
@@ -305,6 +311,7 @@ export interface NeoviewSuperResolutionConfig {
   maxDaemonsPerGpu: number
   daemonIdleTimeoutMs: number
   taskTimeoutMs: number
+  artifactCache: NeoviewSuperResolutionArtifactCacheConfig
   customModels: readonly SuperResolutionCustomModelManifest[]
   preferences: SuperResolutionPreferences
 }
@@ -323,6 +330,7 @@ export type NeoviewSuperResolutionPreferencesPatch = Partial<Omit<SuperResolutio
 export interface NeoviewSuperResolutionPatch {
   modelsDirectory?: string
   modelSources?: readonly string[]
+  artifactCache?: Partial<NeoviewSuperResolutionArtifactCacheConfig>
   preferences?: NeoviewSuperResolutionPreferencesPatch
 }
 
@@ -699,6 +707,10 @@ export const DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG: NeoviewSuperResolutionConf
   maxDaemonsPerGpu: 1,
   daemonIdleTimeoutMs: 300_000,
   taskTimeoutMs: 10 * 60_000,
+  artifactCache: {
+    retentionDays: 30,
+    cleanupIntervalMinutes: 24 * 60,
+  },
   modelSources: Object.freeze([
     "D:/scoop/persist/python311/Lib/site-packages/sr_vulkan_model_realsr",
     "D:/scoop/persist/python311/Lib/site-packages/sr_vulkan_model_realcugan",
@@ -1247,6 +1259,7 @@ function parsePreloadConfig(
 
 function parseSuperResolutionConfig(value: Record<string, unknown> | undefined): NeoviewSuperResolutionConfig {
   if (!value) return DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG
+  const artifactCache = optionalRecord(value.artifact_cache, "[nodes.neoview.super_resolution.artifact_cache]")
   return {
     provider: optionalEnum(
       value.provider,
@@ -1279,6 +1292,23 @@ function parseSuperResolutionConfig(value: Record<string, unknown> | undefined):
       DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.taskTimeoutMs,
       "[nodes.neoview.super_resolution].task_timeout_ms",
     ),
+    artifactCache: {
+      directory: optionalConfigPath(artifactCache?.directory, "[nodes.neoview.super_resolution.artifact_cache].directory"),
+      retentionDays: boundedIntegerWithFallback(
+        artifactCache?.retention_days,
+        1,
+        3_650,
+        DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.artifactCache.retentionDays,
+        "[nodes.neoview.super_resolution.artifact_cache].retention_days",
+      ),
+      cleanupIntervalMinutes: boundedIntegerWithFallback(
+        artifactCache?.cleanup_interval_minutes,
+        1,
+        10_080,
+        DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG.artifactCache.cleanupIntervalMinutes,
+        "[nodes.neoview.super_resolution.artifact_cache].cleanup_interval_minutes",
+      ),
+    },
     customModels: parseSuperResolutionCustomModels(value.custom_models),
     preferences: parseSuperResolutionPreferences(value.preferences),
   }
@@ -1614,7 +1644,7 @@ export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
     throw new Error("reader super-resolution patch contains unsupported fields.")
   }
   const root = requireRecord(record.superResolution, "reader super-resolution patch.superResolution")
-  if (Object.keys(root).some((key) => key !== "preferences" && key !== "modelsDirectory" && key !== "modelSources")) {
+  if (Object.keys(root).some((key) => key !== "preferences" && key !== "modelsDirectory" && key !== "modelSources" && key !== "artifactCache")) {
     throw new Error("reader super-resolution patch.superResolution contains unsupported fields.")
   }
   const rootPatch: NeoviewSuperResolutionPatch = {}
@@ -1629,6 +1659,29 @@ export function parseNeoviewSuperResolutionPreferencesPatch(value: unknown): {
     const modelSources = parseSuperResolutionModelSources(root.modelSources, "reader super-resolution patch.superResolution.modelSources")
     rootPatch.modelSources = modelSources
     rootToml.model_sources = modelSources
+  }
+  if (root.artifactCache !== undefined) {
+    const cache = requireRecord(root.artifactCache, "reader super-resolution patch.superResolution.artifactCache")
+    const unknown = Object.keys(cache).filter((key) => key !== "directory" && key !== "retentionDays" && key !== "cleanupIntervalMinutes")
+    if (unknown.length) throw new Error(`reader super-resolution artifact cache patch contains unsupported fields: ${unknown.join(", ")}.`)
+    const cachePatch: Partial<NeoviewSuperResolutionArtifactCacheConfig> = {}
+    const cacheToml: Record<string, unknown> = {}
+    if (cache.directory !== undefined) {
+      const directory = optionalConfigPath(cache.directory, "reader super-resolution patch.superResolution.artifactCache.directory")
+      cachePatch.directory = directory
+      cacheToml.directory = directory ?? null
+    }
+    if (cache.retentionDays !== undefined) {
+      cachePatch.retentionDays = boundedInteger(cache.retentionDays, 1, 3_650, "reader super-resolution patch.superResolution.artifactCache.retentionDays")
+      cacheToml.retention_days = cachePatch.retentionDays
+    }
+    if (cache.cleanupIntervalMinutes !== undefined) {
+      cachePatch.cleanupIntervalMinutes = boundedInteger(cache.cleanupIntervalMinutes, 1, 10_080, "reader super-resolution patch.superResolution.artifactCache.cleanupIntervalMinutes")
+      cacheToml.cleanup_interval_minutes = cachePatch.cleanupIntervalMinutes
+    }
+    if (!Object.keys(cacheToml).length) throw new Error("reader super-resolution artifact cache patch must change at least one field.")
+    rootPatch.artifactCache = cachePatch
+    rootToml.artifact_cache = cacheToml
   }
   if (root.preferences === undefined) {
     if (!Object.keys(rootPatch).length) throw new Error("reader super-resolution patch must change at least one field.")

@@ -102,6 +102,17 @@ describe("NeoView upscale Cards", () => {
     await waitFor(() => expect(cleanup).toHaveBeenCalledWith("session-1", "all"))
   })
 
+  it("[neoview.super-resolution.cache-settings] persists a custom artifact directory and cleanup policy", async () => {
+    const onChange = vi.fn(async () => CONFIG)
+    render(<UpscaleCacheCard {...context()} pickDirectory={async () => "E:/NeoView/Upscale"} onSuperResolutionConfigChange={onChange} />)
+    fireEvent.click(screen.getByRole("button", { name: "选择超分缓存目录" }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ artifactCache: { directory: "E:/NeoView/Upscale" } }))
+    fireEvent.change(screen.getByLabelText("保留期限"), { target: { value: "14" } })
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ artifactCache: { retentionDays: 14 } }))
+    fireEvent.change(screen.getByLabelText("自动清理周期"), { target: { value: "720" } })
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ artifactCache: { cleanupIntervalMinutes: 720 } }))
+  })
+
   it("[neoview.super-resolution.conditions-card] edits and persists the complete condition list", async () => {
     const onChange = vi.fn(async () => CONFIG)
     const user = userEvent.setup()

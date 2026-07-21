@@ -26,6 +26,7 @@ describe("NeoView super-resolution runtime config", () => {
         realcugan_path: "D:/Tools/realcugan.exe",
         models_directory: "D:/Models",
         model_sources: ["D:/Python/realesrgan", "D:/Python/realcugan"],
+        artifact_cache: { directory: "E:/NeoView/Upscale", retention_days: 45, cleanup_interval_minutes: 360 },
         max_daemons_per_gpu: 2,
         daemon_idle_timeout_ms: 120_000,
         task_timeout_ms: 900_000,
@@ -37,6 +38,7 @@ describe("NeoView super-resolution runtime config", () => {
       realcuganPath: "D:/Tools/realcugan.exe",
       modelsDirectory: "D:/Models",
       modelSources: ["D:/Python/realesrgan", "D:/Python/realcugan"],
+      artifactCache: { directory: "E:/NeoView/Upscale", retentionDays: 45, cleanupIntervalMinutes: 360 },
       maxDaemonsPerGpu: 2,
       daemonIdleTimeoutMs: 120_000,
       taskTimeoutMs: 900_000,
@@ -108,6 +110,21 @@ describe("NeoView super-resolution runtime config", () => {
       tomlPatch: { super_resolution: { model_sources: ["D:/Python/realesrgan", "D:/Python/realcugan"] } },
     })
     expect(() => parseNeoviewSuperResolutionPreferencesPatch({ superResolution: { modelSources: [""] } })).toThrow("must not be empty")
+  })
+
+  it("[neoview.super-resolution.artifact-cache-http] persists cache location and automatic cleanup policy", () => {
+    expect(parseNeoviewSuperResolutionPreferencesPatch({
+      superResolution: { artifactCache: { directory: "E:/NeoView/Upscale", retentionDays: 14, cleanupIntervalMinutes: 720 } },
+    })).toEqual({
+      patch: { superResolution: { artifactCache: { directory: "E:/NeoView/Upscale", retentionDays: 14, cleanupIntervalMinutes: 720 } } },
+      tomlPatch: { super_resolution: { artifact_cache: { directory: "E:/NeoView/Upscale", retention_days: 14, cleanup_interval_minutes: 720 } } },
+    })
+    expect(parseNeoviewSuperResolutionPreferencesPatch({
+      superResolution: { artifactCache: { directory: "" } },
+    }).tomlPatch).toEqual({ super_resolution: { artifact_cache: { directory: null } } })
+    expect(() => parseNeoviewSuperResolutionPreferencesPatch({
+      superResolution: { artifactCache: { retentionDays: 0 } },
+    })).toThrow("between 1 and 3650")
   })
 
   it("[neoview.super-resolution.card-settings-http] persists model, preview and condition controls through the canonical preference schema", () => {

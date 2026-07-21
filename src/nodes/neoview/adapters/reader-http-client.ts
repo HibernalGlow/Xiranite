@@ -1080,13 +1080,21 @@ export interface ReaderSuperResolutionConfigDto {
   provider: "opencomic-system" | "disabled"
   modelsDirectory?: string
   modelSources?: readonly string[]
+  artifactCache?: ReaderSuperResolutionArtifactCacheDto
   preferences: ReaderSuperResolutionPreferencesDto
+}
+
+export interface ReaderSuperResolutionArtifactCacheDto {
+  directory?: string
+  retentionDays: number
+  cleanupIntervalMinutes: number
 }
 
 export interface ReaderSuperResolutionPatchDto {
   superResolution: {
     modelsDirectory?: string
     modelSources?: readonly string[]
+    artifactCache?: Partial<ReaderSuperResolutionArtifactCacheDto>
     preferences?: ReaderSuperResolutionPreferencesDto
   }
 }

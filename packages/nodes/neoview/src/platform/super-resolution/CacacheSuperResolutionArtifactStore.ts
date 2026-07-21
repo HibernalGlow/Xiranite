@@ -61,6 +61,7 @@ export interface CacacheSuperResolutionArtifactStoreOptions {
   trimRatio?: number
   minFreeBytes?: number
   minimumRetentionMs?: number
+  cleanupIntervalMs?: number
   now?: () => number
   loadCacache?: () => Promise<CacacheApi>
   availableBytes?: (path: string) => Promise<number | undefined>
@@ -72,12 +73,14 @@ const DEFAULT_MAX_ENTRY_BYTES = 512 * 1024 * 1024
 const DEFAULT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 const DEFAULT_MIN_FREE_BYTES = 2 * 1024 * 1024 * 1024
 const DEFAULT_MINIMUM_RETENTION_MS = 60 * 1000
+const DEFAULT_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtifactStore {
   readonly #root: string
   readonly #maxBytes: number
   readonly #maxEntryBytes: number
-  readonly #maxAgeMs: number
+  #maxAgeMs: number
+  #cleanupIntervalMs: number
   readonly #trimTargetBytes: number
   readonly #minFreeBytes: number
   readonly #minimumRetentionMs: number
@@ -95,6 +98,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
   #activeStaging = 0
   #vacuumPending = false
   #closed = false
+  #cleanupTimer?: ReturnType<typeof setInterval>
   #hits = 0
   #misses = 0
   #writes = 0
@@ -110,6 +114,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     this.#maxEntryBytes = positiveInteger(options.maxEntryBytes ?? DEFAULT_MAX_ENTRY_BYTES, "maxEntryBytes")
     if (this.#maxEntryBytes > this.#maxBytes) throw new RangeError("maxEntryBytes must not exceed maxBytes")
     this.#maxAgeMs = positiveInteger(options.maxAgeMs ?? DEFAULT_MAX_AGE_MS, "maxAgeMs")
+    this.#cleanupIntervalMs = positiveInteger(options.cleanupIntervalMs ?? DEFAULT_CLEANUP_INTERVAL_MS, "cleanupIntervalMs")
     this.#minFreeBytes = nonNegativeInteger(options.minFreeBytes ?? DEFAULT_MIN_FREE_BYTES, "minFreeBytes")
     this.#minimumRetentionMs = nonNegativeInteger(options.minimumRetentionMs ?? DEFAULT_MINIMUM_RETENTION_MS, "minimumRetentionMs")
     const trimRatio = options.trimRatio ?? 0.8
@@ -118,6 +123,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     this.#now = options.now ?? Date.now
     this.#loadCacache = options.loadCacache ?? (() => import("cacache"))
     this.#availableBytes = options.availableBytes ?? availableBytes
+    this.#scheduleCleanup()
   }
 
   async acquire(key: string, signal?: AbortSignal): Promise<SuperResolutionArtifactLease | undefined> {
@@ -237,6 +243,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
   async close(): Promise<void> {
     if (this.#closed) return
     this.#closed = true
+    if (this.#cleanupTimer) clearInterval(this.#cleanupTimer)
     await Promise.allSettled([
       ...[...this.#publishFlights.values()].map((flight) => flight.promise),
       ...this.#pendingRemovals,
@@ -247,6 +254,14 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
 
   [Symbol.asyncDispose](): Promise<void> {
     return this.close()
+  }
+
+  configureCleanupPolicy(options: { maxAgeMs: number; cleanupIntervalMs: number }): void {
+    if (this.#closed) return
+    this.#maxAgeMs = positiveInteger(options.maxAgeMs, "maxAgeMs")
+    this.#cleanupIntervalMs = positiveInteger(options.cleanupIntervalMs, "cleanupIntervalMs")
+    if (this.#cleanupTimer) clearInterval(this.#cleanupTimer)
+    this.#scheduleCleanup()
   }
 
   async #publishOne(
@@ -301,6 +316,13 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     this.#stagingReady ??= mkdir(this.#stagingDirectory, { recursive: true }).then(() => undefined)
     await this.#stagingReady
     return join(this.#stagingDirectory, `${key.slice(key.lastIndexOf(":") + 1)}-${randomUUID()}.${extension}`)
+  }
+
+  #scheduleCleanup(): void {
+    this.#cleanupTimer = setInterval(() => {
+      if (!this.#closed) void this.cleanup("age").catch(() => undefined)
+    }, this.#cleanupIntervalMs)
+    this.#cleanupTimer.unref?.()
   }
 
   async #ensureCapacity(incomingBytes: number): Promise<boolean> {
