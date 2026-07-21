@@ -71,7 +71,7 @@ export const READER_CARD_MANIFEST = [
   card("reader-material-settings", "界面材质", "settings", true, true, 3, true, false, "appearance"),
   card("board-layout-settings", "布局看板", "settings", true, true, 4, true, false, "layout"),
   card("input-bindings-settings", "操作绑定", "settings", true, true, 5, true, false, "bindings"),
-  card("data-migration-settings", "数据迁移", "settings", true, true, 6, true, false, "data"),
+  card("data-migration-settings", "数据与配置", "settings", true, true, 6, true, false, "data"),
   card("about-settings", "关于", "settings", true, true, 7, true, false, "about"),
   card("preload-status", "预加载状态", "info", true, true, 4, true, true),
   card("progressive-upscale", "递进超分", "upscale", true, true, 0, true, false),

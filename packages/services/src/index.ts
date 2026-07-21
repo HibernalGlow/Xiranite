@@ -569,7 +569,9 @@ export function createXiraniteServices(repository: WorkspaceRepository, options:
 }
 
 export { ConfigService } from "./configService.js"
-export type { BackgroundImageResult, CustomThemesResult, NodePreset, NodePresetResult, NodePresetsResult, SerializableTheme } from "./configService.js"
+export type { BackgroundImageResult, CustomThemesResult, NodeConfigExportResult, NodeConfigVersionsResult, NodePreset, NodePresetResult, NodePresetsResult, SerializableTheme } from "./configService.js"
+export { GitConfigVersionStore, mergeRedactedValues } from "./configVersionStore.js"
+export type { ConfigHistoryRepositoryStatus, ConfigVersion, ConfigVersionDetail, ConfigVersionRecordInput, ConfigVersionStore } from "./configVersionStore.js"
 export { NodeRunHistoryService, sanitizeInput, summarizeInput } from "./historyService.js"
 export { ResourceSchedulerService } from "./resourceScheduler.js"
 export { ThumbnailCoordinatorService, thumbnailLanePriority, thumbnailQueuePriority } from "./thumbnailCoordinator.js"

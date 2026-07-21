@@ -233,6 +233,19 @@ export function createXiraniteApp(services: XiraniteServices) {
     .post("/config/open", async () => {
       return await services.config.openConfigFile()
     })
+    .get("/config/history-repository", async () => {
+      return await services.config.getConfigHistoryRepositoryStatus()
+    })
+    .put("/config/history-repository/remote", async ({ body }) => {
+      return await services.config.setConfigHistoryRemote(body.url)
+    }, {
+      body: t.Object({ url: t.Union([t.String(), t.Null()]) }),
+    })
+    .post("/config/history-repository/sync", async ({ body }) => {
+      return await services.config.syncConfigHistory(body.direction)
+    }, {
+      body: t.Object({ direction: t.Union([t.Literal("pull"), t.Literal("push")]) }),
+    })
     .get("/config/nodes/:nodeId/presets", async ({ params }) => {
       return await services.config.getNodePresets(params.nodeId)
     })
@@ -254,6 +267,36 @@ export function createXiraniteApp(services: XiraniteServices) {
     })
     .delete("/config/nodes/:nodeId/presets/:presetId", async ({ params }) => {
       return await services.config.deleteNodePreset(params.nodeId, params.presetId)
+    })
+    .get("/config/nodes/:nodeId/versions", async ({ params, query }) => {
+      const limit = query.limit === undefined ? undefined : Number(query.limit)
+      return await services.config.getNodeConfigVersions(params.nodeId, { limit })
+    }, {
+      query: t.Object({ limit: t.Optional(t.String()) }),
+    })
+    .get("/config/nodes/:nodeId/versions/:revision", async ({ params }) => {
+      return await services.config.inspectNodeConfigVersion(params.nodeId, params.revision)
+    })
+    .post("/config/nodes/:nodeId/versions/:revision/restore", async ({ params }) => {
+      return await services.config.restoreNodeConfigVersion(params.nodeId, params.revision)
+    })
+    .get("/config/nodes/:nodeId/export", async ({ params, query }) => {
+      return await services.config.exportNodeConfig(params.nodeId, query.format)
+    }, {
+      query: t.Object({ format: t.Optional(t.Union([t.Literal("json"), t.Literal("toml")])) }),
+    })
+    .post("/config/nodes/:nodeId/import", async ({ body, params }) => {
+      return await services.config.importNodeConfig(params.nodeId, body.content, body.format)
+    }, {
+      body: t.Object({
+        content: t.String(),
+        format: t.Optional(t.Union([t.Literal("auto"), t.Literal("json"), t.Literal("toml")])),
+      }),
+    })
+    .post("/config/nodes/:nodeId/backup", async ({ body, params }) => {
+      return await services.config.createNodeConfigBackup(params.nodeId, body.label)
+    }, {
+      body: t.Object({ label: t.Optional(t.String()) }),
     })
     .get("/config/nodes/:nodeId", async ({ params }) => {
       return await services.config.getNodeConfig(params.nodeId)

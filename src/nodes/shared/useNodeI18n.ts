@@ -30,8 +30,13 @@ export function tNode(nodeId: string, key: string, fallback: string, vars?: Reco
 export function useNodeI18n(nodeId: string) {
   const { t, i18n } = useTranslation("module")
   const prefix = nodeId
-  const translate = (key: string, fallback: string, vars?: Record<string, unknown>) =>
-    t(`${prefix}.${key}`, { defaultValue: fallback, ...(vars ?? {}) })
+  const translate = (key: string, fallback: string, vars?: Record<string, unknown>) => {
+    if (key.includes(":")) return t(key, { defaultValue: fallback, ...(vars ?? {}) })
+    const sharedFallback = key.startsWith("config.")
+      ? t(`configCenter.${key.slice("config.".length)}`, { defaultValue: fallback, ...(vars ?? {}) })
+      : fallback
+    return t(`${prefix}.${key}`, { defaultValue: sharedFallback, ...(vars ?? {}) })
+  }
   return {
     t: translate,
     /** 翻译 common 命名空间下的通用术语，如 tc("common:cancel", "取消") */

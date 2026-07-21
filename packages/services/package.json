@@ -28,7 +28,9 @@
     "@xiranite/contract": "workspace:*",
     "@xiranite/repository": "workspace:*",
     "@xiranite/shared": "workspace:*",
-    "p-queue": "9.3.1"
+    "jsondiffpatch": "^0.7.6",
+    "p-queue": "9.3.1",
+    "simple-git": "^3.36.0"
   },
   "devDependencies": {
     "typescript": "^7.0.2"
