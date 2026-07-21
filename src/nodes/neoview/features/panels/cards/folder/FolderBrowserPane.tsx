@@ -697,13 +697,6 @@ export function FolderBrowserPane({
       )
       if (generation === navigationGenerationRef.current) {
         let preferredState = normalizedNavigation.action === "refresh" ? capturedState : undefined
-        if (preferredState)
-          preferredState = {
-            ...preferredState,
-            thumbnailUrls: undefined,
-            thumbnailUrlSets: undefined,
-            thumbnailProfiles: undefined,
-          }
         if (preferredState && options.clearSelection) {
           preferredState = {
             ...preferredState,
@@ -725,7 +718,7 @@ export function FolderBrowserPane({
           }
         }
         applyPage(result, preferredState, false, {
-          preserveThumbnailCache: options.preserveThumbnailCache ?? navigation.action !== "refresh",
+          preserveThumbnailCache: options.preserveThumbnailCache ?? true,
         })
         retryOperationRef.current = undefined
       }
@@ -742,6 +735,7 @@ export function FolderBrowserPane({
     preserveViewport = false,
     options: { preserveThumbnailCache?: boolean } = {},
   ) {
+    const sameNavigationEntry = isSameFolderNavigationEntry(catalogRef.current, page)
     catalogRequestRef.current?.abort()
     catalogRequestRef.current = new AbortController()
     pendingCursorsRef.current.clear()
@@ -766,7 +760,12 @@ export function FolderBrowserPane({
       queueMicrotask(() => requestRange(visibleRangeRef.current))
       return
     }
-    visibleRangeRef.current = { startIndex: 0, endIndex: 0 }
+    visibleRangeRef.current = sameNavigationEntry
+      ? {
+          startIndex: page.cursor,
+          endIndex: Math.max(page.cursor, Math.min(page.total - 1, page.cursor + page.entries.length - 1)),
+        }
+      : { startIndex: 0, endIndex: 0 }
     const suggested = page.suggestedSelection
     let restored = restoreDirectoryVisitState(page, preferredState, navigationStatesRef.current, {
       total: page.total,
@@ -2398,6 +2397,13 @@ function sameFolderPath(left: string, right: string): boolean {
   return /^[a-z]:/iu.test(normalizedLeft) || /^[a-z]:/iu.test(normalizedRight)
     ? normalizedLeft.toLocaleLowerCase("en-US") === normalizedRight.toLocaleLowerCase("en-US")
     : normalizedLeft === normalizedRight
+}
+
+export function isSameFolderNavigationEntry(
+  previous: Pick<ReaderDirectoryPageDto, "sessionId" | "navigationEntryId"> | undefined,
+  next: Pick<ReaderDirectoryPageDto, "sessionId" | "navigationEntryId">,
+): boolean {
+  return previous?.sessionId === next.sessionId && previous.navigationEntryId === next.navigationEntryId
 }
 
 function folderEntryName(path: string): string {
