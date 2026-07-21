@@ -1,5 +1,5 @@
 import { createWriteStream } from "node:fs"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { once } from "node:events"
@@ -90,6 +90,30 @@ describe("CacacheSuperResolutionArtifactStore", () => {
     const failure = new Error("GPU process exited")
     await expect(store.publish(key("failed"), metadata, async () => { throw failure })).rejects.toBe(failure)
     expect(await store.snapshot()).toMatchObject({ entries: 0, writes: 0, rejectedWrites: 1 })
+    await store.close()
+  })
+
+  it("[neoview.super-resolution.artifact-flat-staging] keeps in-flight output outside cacache tmp during verification", async () => {
+    const store = createStore()
+    const produced = deferred()
+    const release = deferred()
+    let producerPath = ""
+    const publication = store.publish(key("verify-race"), metadata, async (path) => {
+      producerPath = path
+      await writeFile(path, PNG_HEADER)
+      produced.resolve()
+      await release.promise
+    })
+    await produced.promise
+    expect(producerPath).toContain(join(root, "staging-v1"))
+    expect(producerPath).not.toContain(join(root, "tmp"))
+    await (await import("cacache")).verify(root)
+    release.resolve()
+    await expect(publication).resolves.toBe(true)
+    await expect(readdir(join(root, "staging-v1"))).resolves.toEqual([])
+    const lease = await store.acquire(key("verify-race"))
+    expect(lease).toMatchObject({ size: PNG_HEADER.length })
+    lease!.release()
     await store.close()
   })
 
