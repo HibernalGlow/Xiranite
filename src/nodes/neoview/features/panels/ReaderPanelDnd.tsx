@@ -74,6 +74,7 @@ function ActiveReaderPanelDndProvider({
 
   const value = useMemo(() => ({ previewShell, dragging: Boolean(activeId) }), [activeId, previewShell])
   const activePanel = activeId ? PANEL_DEFINITIONS.find((panel) => panel.id === activeId) : undefined
+  const ActivePanelIcon = activePanel?.icon
 
   return (
     <PanelDndContext.Provider value={value}>
@@ -93,7 +94,7 @@ function ActiveReaderPanelDndProvider({
               aria-hidden="true"
               data-reader-panel-drag-overlay="true"
             >
-              {activePanel.emoji}
+              {ActivePanelIcon ? <ActivePanelIcon className="size-4" /> : null}
             </div>
           ) : null}
         </DragOverlay>

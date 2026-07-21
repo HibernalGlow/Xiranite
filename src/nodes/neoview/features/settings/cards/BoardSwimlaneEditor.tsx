@@ -10,7 +10,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
-import { GripVertical, LayoutGrid, RotateCcw, Save } from "lucide-react"
+import { GripVertical, LayoutGrid, PanelLeft, RotateCcw, Save, type LucideIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -34,7 +34,7 @@ interface BoardCard {
 interface BoardPanel {
   id: string
   title: string
-  emoji: string
+  icon: LucideIcon
   canMove: boolean
   canHide: boolean
   acceptsCards: boolean
@@ -55,7 +55,7 @@ interface DragState {
   kind: DragKind
   id: string
   title: string
-  emoji?: string
+  icon?: LucideIcon
   cardCount?: number
   width?: number
   height?: number
@@ -147,7 +147,7 @@ export function BoardSwimlaneEditor({
         kind,
         id: activeId,
         title,
-        emoji: panel?.emoji,
+        icon: panel?.icon,
         cardCount: panel?.cards.length,
         width: event.active.rect.current.initial?.width,
         height: event.active.rect.current.initial?.height,
@@ -337,6 +337,7 @@ function SortablePanel({
 }) {
   const cardIds = panel.cards.map((card) => card.id)
   const exclusive = panel.cards.find((card) => card.exclusivePanel)
+  const PanelIcon = panel.icon
   return (
     <KanbanItem
       value={panel.id}
@@ -353,7 +354,7 @@ function SortablePanel({
         >
           <GripVertical className="size-3.5" />
         </KanbanItemHandle>
-        <span className="grid size-6 place-items-center rounded bg-muted text-xs" aria-hidden="true">{panel.emoji}</span>
+        <span className="grid size-6 place-items-center rounded bg-muted" aria-hidden="true"><PanelIcon className="size-3.5" /></span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-medium">{panel.title}</div>
           <div className="truncate text-[10px] uppercase text-muted-foreground">{panel.id}</div>
@@ -426,7 +427,7 @@ export function createBoardLanes(shell: ReaderShellConfigDto, defaults = false):
       panel: {
         id: definition.id,
         title: definition.title,
-        emoji: definition.emoji,
+        icon: definition.icon,
         canMove: definition.canMove,
         canHide: definition.canHide,
         acceptsCards: definition.acceptsCards && (definition.defaultSide === "left" || definition.defaultSide === "right"),
@@ -628,6 +629,7 @@ function panelDropId(panelId: string): string {
 
 function BoardDragPreview({ drag }: { drag: DragState }) {
   if (drag.kind === "panel") {
+    const PanelIcon = drag.icon ?? PanelLeft
     return (
       <article
         className="w-80 overflow-hidden rounded-md border border-primary/40 bg-card shadow-2xl"
@@ -635,9 +637,7 @@ function BoardDragPreview({ drag }: { drag: DragState }) {
         style={{ width: drag.width, minHeight: drag.height }}
       >
         <header className="flex items-center gap-2 border-b px-3 py-2">
-          <span className="grid size-6 place-items-center rounded bg-muted text-xs" aria-hidden="true">
-            {drag.emoji ?? "#"}
-          </span>
+          <span className="grid size-6 place-items-center rounded bg-muted" aria-hidden="true"><PanelIcon className="size-3.5" /></span>
           <span className="min-w-0 flex-1 truncate text-xs font-medium">{drag.title}</span>
           <span className="text-[10px] tabular-nums text-muted-foreground">{drag.cardCount ?? 0}</span>
         </header>

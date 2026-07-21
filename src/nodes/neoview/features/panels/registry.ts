@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Activity, Bell, BookMarked, BookOpen, BookOpenCheck, Bot, CalendarRange, Clock3, Cpu, Crop, DatabaseBackup, Eye, EyeOff, Film, FolderOpen, Gauge, HardDrive, Image, Info, Keyboard, Languages, LayoutDashboard, LayoutGrid, ListFilter, ListTree, Loader, Mic, Monitor, Palette, PanelLeft, PieChart, Play, Server, Sparkles, SlidersHorizontal, Tags, Trash2, TrendingUp, Video, type LucideIcon } from "lucide-react"
+import { Activity, Bell, Bookmark, BookMarked, BookOpen, BookOpenCheck, Bot, CalendarRange, ChartNoAxesGantt, Clock3, Cpu, Crop, DatabaseBackup, Eye, EyeOff, File, FileText, Film, Folder, FolderOpen, Gauge, HardDrive, History, Image, Info, Keyboard, Languages, LayoutDashboard, LayoutGrid, ListFilter, ListMusic, ListTree, Loader, Mic, Monitor, Palette, PanelLeft, PieChart, Play, Server, Settings, Settings2, Sparkles, SlidersHorizontal, Tag, Tags, Timer, Trash2, TrendingUp, Video, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -120,7 +120,7 @@ export interface ReaderPanelContext {
 export interface ReaderPanelDefinition {
   id: LegacyPanelId
   title: string
-  emoji: string
+  icon: LucideIcon
   defaultSide: ReaderPanelSide | "floating"
   defaultVisible: boolean
   defaultOrder: number
@@ -189,10 +189,27 @@ export interface ResolvedPanelConfig extends LegacyPanelConfig {
   unknown: boolean
 }
 
+const PANEL_ICONS = {
+  folder: Folder,
+  history: History,
+  bookmark: Bookmark,
+  pageList: FileText,
+  playlist: ListMusic,
+  settings: Settings,
+  info: Info,
+  properties: Tag,
+  upscale: Sparkles,
+  insights: ChartNoAxesGantt,
+  control: Settings2,
+  ai: Bot,
+  benchmark: Timer,
+  cardwindow: File,
+} satisfies Record<ReaderPanelId, LucideIcon>
+
 export const PANEL_DEFINITIONS: readonly ReaderPanelDefinition[] = READER_PANEL_MANIFEST.map((definition) => ({
   id: definition.id,
   title: definition.title,
-  emoji: definition.emoji,
+  icon: PANEL_ICONS[definition.id],
   defaultSide: definition.defaultPosition,
   defaultVisible: definition.defaultVisible,
   defaultOrder: definition.defaultOrder,

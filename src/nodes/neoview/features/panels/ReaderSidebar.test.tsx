@@ -8,6 +8,14 @@ import { ReaderSidebar } from "./ReaderSidebar"
 afterEach(cleanup)
 
 describe("ReaderSidebar layout gestures", () => {
+  it("[neoview.sidebar.panel-icons] uses Lucide icons for panel rail actions", () => {
+    render(<ReaderSidebar side="left" context={context()} shell={shell()} />)
+
+    const folder = screen.getByRole("button", { name: "文件夹" })
+    expect(folder.querySelector("svg.lucide-folder")).toBeTruthy()
+    expect(folder.textContent).not.toContain("📁")
+  })
+
   it("[neoview.shell.sidebar-pin] exposes and commits the legacy pin state from the icon rail", () => {
     const commit = vi.fn()
     const view = render(<ReaderSidebar side="left" context={context()} shell={shell()} onLayoutCommit={commit} />)
