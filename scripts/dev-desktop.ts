@@ -1,6 +1,6 @@
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
-import { resolveManagedFrontendUrl } from "./dev-frontend-url"
+import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
 import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
 
 const devSessionStartedAt = Date.now()
@@ -69,6 +69,7 @@ const vite = Bun.spawn([
     VITE_XIRANITE_BACKEND_URL: backend.url,
     VITE_XIRANITE_BACKEND_TOKEN: backend.token,
     VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,
+    XIRANITE_VITE_CACHE_DIR: managedViteCacheDir(frontendUrl),
   },
 })
 

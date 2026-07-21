@@ -6,15 +6,18 @@ const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const frontendUrl = Bun.env.FRONTEND_DEVSERVER_URL ?? `http://127.0.0.1:${Bun.env.XIRANITE_FRONTEND_PORT ?? "5173"}`
 const frontend = new URL(frontendUrl)
 const frontendPort = Number(frontend.port || (frontend.protocol === "https:" ? "443" : "80"))
-const viteCacheDir = resolve(rootDir, "node_modules/.vite")
+const viteCacheDirs = [
+  resolve(rootDir, "node_modules/.vite"),
+  resolve(rootDir, ".cache/vite"),
+]
 
-if (!viteCacheDir.startsWith(rootDir)) {
-  throw new Error(`Refusing to clear unexpected Vite cache path: ${viteCacheDir}`)
+if (viteCacheDirs.some((cacheDir) => !cacheDir.startsWith(rootDir))) {
+  throw new Error("Refusing to clear an unexpected Vite cache path")
 }
 
 await stopExistingVite(frontendPort)
-await rm(viteCacheDir, { force: true, recursive: true })
-console.log(`[xiranite-dev] cleared Vite optimize cache: ${viteCacheDir}`)
+await Promise.all(viteCacheDirs.map((cacheDir) => rm(cacheDir, { force: true, recursive: true })))
+console.log(`[xiranite-dev] cleared Vite optimize caches`)
 
 async function stopExistingVite(port: number) {
   if (!Number.isFinite(port)) return
