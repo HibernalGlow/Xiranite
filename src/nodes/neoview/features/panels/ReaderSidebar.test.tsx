@@ -141,15 +141,23 @@ describe("ReaderSidebar layout gestures", () => {
     await waitFor(() => expect(watchDirectoryBrowser).toHaveBeenCalledOnce())
     const folderPanel = document.querySelector<HTMLElement>('[data-reader-panel-cache="folder"]')!
 
+    view.rerender(<ReaderSidebar side="left" context={value} shell={config} active={false} />)
+    expect(folderPanel.getAttribute("data-reader-panel-active")).toBe("true")
+    expect(folderPanel.getAttribute("data-reader-panel-visible")).toBe("false")
+    expect(watchSignals[0]?.aborted).toBe(false)
+    view.rerender(<ReaderSidebar side="left" context={value} shell={config} />)
+
     fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
-    await waitFor(() => expect(folderPanel.hidden).toBe(true))
+    await waitFor(() => expect(folderPanel.getAttribute("data-reader-panel-active")).toBe("false"))
+    expect(folderPanel.hidden).toBe(false)
+    expect(folderPanel.style.contentVisibility).toBe("hidden")
     await waitFor(() => expect(watchSignals[0]?.aborted).toBe(true))
     expect(folderCard.isConnected).toBe(true)
     expect(openDirectoryBrowser).toHaveBeenCalledOnce()
     expect(closeDirectoryBrowser).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole("button", { name: "文件夹" }))
-    await waitFor(() => expect(folderPanel.hidden).toBe(false))
+    await waitFor(() => expect(folderPanel.getAttribute("data-reader-panel-active")).toBe("true"))
     await waitFor(() => expect(watchDirectoryBrowser).toHaveBeenCalledTimes(2))
     expect(document.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-folder-card-instance")).toBe("stable")
     expect(openDirectoryBrowser).toHaveBeenCalledOnce()

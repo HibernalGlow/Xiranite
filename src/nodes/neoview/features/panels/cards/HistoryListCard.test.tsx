@@ -46,18 +46,31 @@ describe("HistoryListCard", () => {
       generation,
       items: items.map((item) => ({ id: item.id, thumbnailUrl: `/thumbnail/${item.id}`, contentVersion: "v1" })),
     }))
+    const releaseLibraryThumbnailContext = vi.fn(async () => undefined)
     const base = context(vi.fn(async () => [recentHistory("one")]))
-    const view = render(<HistoryListCard {...base} client={{ ...base.client, registerLibraryThumbnails } as ReaderHttpClient} />)
+    const client = { ...base.client, registerLibraryThumbnails, releaseLibraryThumbnailContext } as ReaderHttpClient
+    const view = render(<HistoryListCard {...base} client={client} panelVisible />)
 
     await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledOnce())
     expect(registerLibraryThumbnails.mock.calls[0]?.[2]).toEqual([
       expect.objectContaining({ id: "one", path: "D:/books/one.cbz", kind: "file", previewCount: 1 }),
     ])
-    await waitFor(() => expect(view.container.querySelector('img[src="/thumbnail/one"]')).toBeTruthy())
+    const image = await waitFor(() => {
+      const current = view.container.querySelector('img[src="/thumbnail/one"]')
+      expect(current).toBeTruthy()
+      return current
+    })
+    view.rerender(<HistoryListCard {...base} client={client} panelActive={false} panelVisible={false} />)
+    await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledOnce())
+    expect(screen.getByTestId("history-card").getAttribute("data-history-state")).toBe("ready")
+    expect(view.container.querySelector('img[src="/thumbnail/one"]')).toBe(image)
+    view.rerender(<HistoryListCard {...base} client={client} panelVisible />)
+    expect(view.container.querySelector('img[src="/thumbnail/one"]')).toBe(image)
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledTimes(2))
     fireEvent.pointerDown(screen.getByRole("button", { name: "视图：紧凑列表" }), { button: 0, ctrlKey: false, pointerType: "mouse" })
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "封面列表" }))
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(registerLibraryThumbnails).toHaveBeenCalledOnce()
+    expect(registerLibraryThumbnails).toHaveBeenCalledTimes(2)
   })
 
   it("[neoview.history.focus-refresh] restores the focused history entry after refresh reorders loaded records", async () => {

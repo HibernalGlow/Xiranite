@@ -585,6 +585,50 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
+  it("[neoview.folder.panel-resident] retains rendered thumbnails while releasing hidden panel demand", async () => {
+    const opened = page({ entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true }], total: 1 })
+    const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly { id: string }[]) => ({
+      contextId,
+      generation,
+      items: items.map((item) => ({ id: item.id, thumbnailUrl: "/thumbnail/book.webp", contentVersion: "v1" })),
+    }))
+    const releaseLibraryThumbnailContext = vi.fn(async () => undefined)
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+      registerLibraryThumbnails,
+      releaseLibraryThumbnailContext,
+    } as unknown as ReaderHttpClient
+    const renderCard = (panelVisible: boolean) => (
+      <VirtuosoGridMockContext.Provider value={{ viewportHeight: 288, viewportWidth: 400, itemHeight: 144, itemWidth: 112 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          panelActive
+          panelVisible={panelVisible}
+          sourcePath="C:/books"
+          folderView={folderViewConfig({ viewMode: "cover-grid" })}
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+        />
+      </VirtuosoGridMockContext.Provider>
+    )
+    const view = render(renderCard(true))
+    await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledOnce())
+    const image = await waitFor(() => {
+      const current = view.container.querySelector('img[src="/thumbnail/book.webp"]')
+      expect(current).toBeTruthy()
+      return current
+    })
+
+    view.rerender(renderCard(false))
+    await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledOnce())
+    expect(view.container.querySelector('img[src="/thumbnail/book.webp"]')).toBe(image)
+    view.rerender(renderCard(true))
+    expect(view.container.querySelector('img[src="/thumbnail/book.webp"]')).toBe(image)
+    expect(registerLibraryThumbnails).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.folder.same-directory-open] keeps the directory session when the active book changes in place", async () => {
     const opened = page({
       path: "C:/books",
@@ -784,7 +828,11 @@ describe("FolderMainCard", () => {
       </ContextMenuProvider>,
     )
     const ui = within(view.container)
-    const nextThumbnail = (await ui.findByTitle("C:/books/next.cbz")).querySelector("img")!
+    const nextThumbnail = await waitFor(() => {
+      const image = ui.getByTitle("C:/books/next.cbz").querySelector("img")
+      expect(image).toBeTruthy()
+      return image!
+    })
     const nextThumbnailUrl = nextThumbnail.getAttribute("src")
     await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledTimes(1))
     fireEvent.contextMenu(await ui.findByTitle("C:/books/old.cbz"), { clientX: 20, clientY: 30 })

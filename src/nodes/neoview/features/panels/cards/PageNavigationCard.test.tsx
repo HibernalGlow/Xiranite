@@ -16,6 +16,19 @@ describe("PageNavigationCard", () => {
     expect(listPageCatalog).not.toHaveBeenCalled()
   })
 
+  it("[neoview.page-list.panel-resident] keeps the virtual page surface resident after activation", async () => {
+    const listPageCatalog = vi.fn(async () => ({ pages: [page(0)], total: 1 }))
+    const props = context(clientWith({ listPageCatalog }))
+    const view = render(<PageNavigationCard {...props} panelActive />)
+
+    await waitFor(() => expect(listPageCatalog).toHaveBeenCalledOnce())
+    const surface = view.container.querySelector('[data-neoview-page-list="true"]')
+    expect(surface).toBeTruthy()
+    view.rerender(<PageNavigationCard {...props} panelActive={false} panelVisible={false} />)
+    expect(view.container.querySelector('[data-neoview-page-list="true"]')).toBe(surface)
+    expect(listPageCatalog).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.page-list.settings] restores and persists view/follow preferences without navigating", async () => {
     const listPageCatalog = vi.fn(async () => ({ pages: [page(0)], total: 100 }))
     const onGoTo = vi.fn()
