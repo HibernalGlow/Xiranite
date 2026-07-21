@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { parseToml } from "@xiranite/config"
 import { lock } from "proper-lockfile"
 import { commitNeoviewConfig, readNeoviewConfig } from "./NeoviewConfigStore.js"
-import { parseNeoviewRuntimeConfig, parseNeoviewSuperResolutionPreferencesPatch, parseNeoviewSwitchToastPatch } from "../../application/config/ReaderRuntimeConfig.js"
+import { parseNeoviewEmmPatch, parseNeoviewRuntimeConfig, parseNeoviewSuperResolutionPreferencesPatch, parseNeoviewSwitchToastPatch } from "../../application/config/ReaderRuntimeConfig.js"
 
 describe("commitNeoviewConfig", () => {
   const roots: string[] = []
@@ -140,6 +140,44 @@ describe("commitNeoviewConfig", () => {
     const written = await readFile(configPath, "utf8")
     expect(written).toContain("[nodes.neoview.view.switch_toast]")
     expect((parseToml(written) as Record<string, any>).nodes.neoview.view.switch_toast.future_field).toBe("keep")
+  })
+
+  it("[neoview.emm-config.toml-roundtrip] writes the canonical EMM section and preserves future fields", async () => {
+    const root = await temporaryRoot(roots)
+    const configPath = join(root, "xiranite.config.toml")
+    await writeFile(configPath, [
+      "[nodes.neoview]",
+      "schema_version = 1",
+      "[nodes.neoview.emm]",
+      "enabled = true",
+      "future_field = \"keep\"",
+      "",
+    ].join("\n"), "utf8")
+    const expected = {
+      enabled: false,
+      databasePaths: ["D:/EMM/database.sqlite", "E:/Alt/database.sqlite"],
+      settingPath: "D:/EMM/setting.json",
+      translationDatabasePath: "D:/EMM/translations.db",
+      translationPath: "D:/EMM/db.text.json",
+      defaultRating: 4.6,
+    }
+    const { tomlPatch } = parseNeoviewEmmPatch({ emm: expected })
+
+    const committed = await commitNeoviewConfig(tomlPatch, { configPath, strategy: "merge" })
+    const writtenText = await readFile(configPath, "utf8")
+    const written = parseToml(writtenText) as Record<string, any>
+
+    expect(parseNeoviewRuntimeConfig(committed.nodeConfig).emm).toEqual(expected)
+    expect(written.nodes.neoview.emm).toMatchObject({
+      enabled: false,
+      database_paths: expected.databasePaths,
+      setting_path: expected.settingPath,
+      translation_database_path: expected.translationDatabasePath,
+      translation_path: expected.translationPath,
+      default_rating: expected.defaultRating,
+      future_field: "keep",
+    })
+    expect(writtenText).toContain("[nodes.neoview.emm]")
   })
 
   it("[neoview.settings.format-compat] reads optimized, legacy, and mixed formats with optimized values taking precedence", async () => {
