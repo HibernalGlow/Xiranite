@@ -5,7 +5,11 @@ import { chromium } from "playwright"
 
 const options = parseArgs(process.argv.slice(2))
 console.log(`launching ${options.viewport.width}x${options.viewport.height}`)
-const browser = await chromium.launch({ headless: true, channel: options.channel })
+const browser = await chromium.launch({
+  headless: true,
+  channel: options.channel,
+  executablePath: options.executablePath,
+})
 try {
   const page = await browser.newPage({ viewport: options.viewport, deviceScaleFactor: 1 })
   page.on("pageerror", (error) => console.error(`pageerror: ${error.message}`))
@@ -43,6 +47,7 @@ try {
   if (options.legacyCard) {
     await withTimeout(mountLegacyCard(page, options.legacyCard, options.legacySetup), 30_000, "legacy Card mount")
     console.log(`mounted legacy card ${options.legacyCard} (${options.legacySetup})`)
+    if (options.legacySetup === "emm-raw-data") console.log("[neoview.emm-raw-data.legacy-characterization]")
   }
   if (options.legacyToolbar) {
     await mountLegacyToolbar(page, options.legacyToolbar)
@@ -114,7 +119,7 @@ function parseArgs(args: readonly string[]) {
   }))
   const url = values.get("--url")
   const output = values.get("--output")
-  if (!url || !output) throw new Error("Usage: capture-legacy-neoview-card.ts --url=<url> --output=<png> [--legacy-card=<id> | --legacy-toolbar=main|zoom|rotate] [--viewport=1920x1080]")
+  if (!url || !output) throw new Error("Usage: capture-legacy-neoview-card.ts --url=<url> --output=<png> [--legacy-card=<id> | --legacy-toolbar=main|zoom|rotate] [--viewport=1920x1080] [--executable-path=<browser>]")
   const [width, height] = (values.get("--viewport") ?? "1920x1080").split("x").map(Number)
   if (!Number.isInteger(width) || !Number.isInteger(height) || width! <= 0 || height! <= 0) throw new Error("Invalid viewport")
   return {
@@ -132,6 +137,7 @@ function parseArgs(args: readonly string[]) {
     probeModule: values.get("--probe-module"),
     viewport: { width: width!, height: height! },
     channel: values.get("--channel") as "chrome" | "msedge" | undefined,
+    executablePath: values.get("--executable-path"),
   }
 }
 
@@ -216,6 +222,39 @@ async function mountLegacyCard(
         },
       })
     }
+    if (setup === "emm-raw-data") {
+      const { infoPanelStore } = await load("/src/lib/stores/infoPanel.svelte.ts")
+      infoPanelStore.setBookInfo({
+        path: "D:/Books/NeoView EMM Raw Data.cbz",
+        name: "NeoView EMM Raw Data.cbz",
+        type: "archive",
+        totalPages: 128,
+        currentPage: 23,
+        emmMetadata: {
+          translatedTitle: "NeoView EMM 原始记录基准",
+          raw: {
+            bundleSize: 536_870_912,
+            category: "Manga",
+            coverHash: "9f2c1a7b4d8e6f10",
+            coverPath: "D:/Books/.covers/neoview-emm-raw.webp",
+            createdAt: "2026-07-21T08:30:00.000Z",
+            exist: true,
+            filecount: 128,
+            filepath: "D:/Books/NeoView EMM Raw Data.cbz",
+            filesize: 268_435_456,
+            hiddenBook: false,
+            pageCount: 128,
+            posted: 1_752_998_400,
+            rating: 4.75,
+            readCount: 17,
+            title: "NeoView EMM Raw Data Characterization",
+            title_jpn: "NeoView EMM 原始データ",
+            type: "manga",
+            url: "https://example.com/gallery/neoview-emm-raw",
+          },
+        },
+      })
+    }
     const upscaleSetup = new Set(["model", "status", "cache", "conditions"])
     const store = upscaleSetup.has(setup)
       ? await load("/src/lib/stores/upscale/upscalePanelStore.svelte.ts")
@@ -237,16 +276,31 @@ async function mountLegacyCard(
       store!.conditionalUpscaleEnabled.value = true
       store!.conditionsList.value = getDefaultConditionPresets()
     }
-    const [{ mount }, { default: CardRenderer }, { cardRegistry }] = await Promise.all([
+    const [{ createRawSnippet, getAllContexts, mount, unmount }, { default: CardRenderer }, { cardRegistry }, Tooltip] = await Promise.all([
       load("/@id/svelte"),
       load("/src/lib/cards/CardRenderer.svelte"),
       load("/src/lib/cards/registry.ts"),
+      load("/src/lib/components/ui/tooltip/index.ts"),
     ])
     const width = setup === "conditions" ? 760 : setup === "system-monitor" ? 680 : 380
     document.body.innerHTML = `<main style="width: ${width}px; margin: 48px; color: var(--foreground)"><div id="legacy-card"></div></main>`
-    mount(CardRenderer, {
+    const children = createRawSnippet(() => {
+      const context = getAllContexts()
+      return {
+        render: () => '<div data-legacy-card-content="true"></div>',
+        setup: (element: Element) => {
+          const card = mount(CardRenderer, {
+            target: element,
+            context,
+            props: { cardId, panelId: cardRegistry[cardId]?.defaultPanel ?? "upscale" },
+          })
+          return () => { void unmount(card) }
+        },
+      }
+    })
+    mount(Tooltip.Provider, {
       target: document.getElementById("legacy-card")!,
-      props: { cardId, panelId: cardRegistry[cardId]?.defaultPanel ?? "upscale" },
+      props: { children },
     })
   }, { cardId, setup })
 }
