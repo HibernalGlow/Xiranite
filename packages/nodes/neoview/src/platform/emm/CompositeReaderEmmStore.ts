@@ -6,10 +6,10 @@ export type ReaderEmmRecordCatalogStore = ReaderDirectoryEmmRecordStore & Partia
 export function composeReaderEmmStores(primary: ReaderEmmRecordCatalogStore, fallback?: ReaderEmmRecordCatalogStore): ReaderDirectoryEmmRecordStore & ReaderEmmTagCatalogStore {
   return {
     directoryEmmAvailable: primary.directoryEmmAvailable || Boolean(fallback?.directoryEmmAvailable),
-    async readDirectoryEmmRecords(paths, signal) {
+    async readDirectoryEmmRecords(paths, signal, options) {
       const [primaryRecords, fallbackRecords] = await Promise.all([
-        primary.readDirectoryEmmRecords(paths, signal),
-        fallback?.readDirectoryEmmRecords(paths, signal) ?? Promise.resolve(new Map<string, ReaderDirectoryEmmRecord>()),
+        primary.readDirectoryEmmRecords(paths, signal, options),
+        fallback?.readDirectoryEmmRecords(paths, signal, options) ?? Promise.resolve(new Map<string, ReaderDirectoryEmmRecord>()),
       ])
       const output = new Map<string, ReaderDirectoryEmmRecord>()
       for (const path of paths) {

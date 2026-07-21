@@ -1,5 +1,5 @@
 import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
-import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
+import type { ReaderDirectoryEmmRecordStore, ReaderEmmRawField } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderEmmCatalogTag } from "../../ports/ReaderEmmTagCatalogStore.js"
 import { emmTranslationKey } from "../../ports/ReaderEmmTagTranslation.js"
 import { legacyEmmBookPathKey, parseLegacyEmmBookMetadata, type ReaderBookEmmMetadata } from "./LegacyEmmBookMetadataCodec.js"
@@ -16,6 +16,7 @@ export interface ReaderBookStaticMetadata {
   sourceFormat?: "pdf" | "epub"
   pageCount: number
   emm?: ReaderBookEmmMetadata
+  emmRaw?: { schemaVersion: 1; fields: readonly ReaderEmmRawField[] }
 }
 
 export class ReaderBookMetadataService {
@@ -37,12 +38,13 @@ export class ReaderBookMetadataService {
     }
     if (!this.records?.directoryEmmAvailable) return base
     const key = legacyEmmBookPathKey(book.source.path)
-    const records = await this.records.readDirectoryEmmRecords([key], signal)
+    const records = await this.records.readDirectoryEmmRecords([key], signal, { includeRaw: true })
     signal?.throwIfAborted()
     const record = records.get(key)
     const emm = parseLegacyEmmBookMetadata(record?.emmJson, record?.manualTags)
-    if (!emm) return base
-    if (!emm.tags.length || !this.translations) return { ...base, emm }
+    const emmRaw = record?.rawFields?.length ? { schemaVersion: 1 as const, fields: record.rawFields } : undefined
+    if (!emm) return emmRaw ? { ...base, emmRaw } : base
+    if (!emm.tags.length || !this.translations) return { ...base, emm, ...(emmRaw ? { emmRaw } : {}) }
     const translations = await this.translations.translate(
       emm.tags.map(({ namespace, tag }) => ({ category: namespace, tag })),
       signal,
@@ -50,6 +52,7 @@ export class ReaderBookMetadataService {
     signal?.throwIfAborted()
     return {
       ...base,
+      ...(emmRaw ? { emmRaw } : {}),
       emm: {
         ...emm,
         tags: emm.tags.map((value) => {
