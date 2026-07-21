@@ -51,6 +51,8 @@ const MAX_SCAN_DIRECTORIES = 96
 const MAX_ENTRIES_PER_DIRECTORY = 768
 const MAX_SCAN_DEPTH = 8
 const SCAN_BUDGET_MS = 120
+const REPRESENTATIVE_SELECTION_REVISION_BASE = 9_000_000_000_000_000
+const REPRESENTATIVE_SELECTION_REVISION = 2
 const READER_CONTAINER_EXTENSIONS = new Set(["zip", "cbz", "rar", "cbr", "7z", "cb7", "pdf"])
 const POSTER_STEMS = new Set(["cover", "default", "folder", "front", "poster", "series", "thumb", "thumbnail"])
 
@@ -107,7 +109,8 @@ export class FolderRepresentativeIndex {
       return Promise.reject(new RangeError("Folder representative count must be an integer from 1 to 16."))
     }
     signal?.throwIfAborted()
-    const cacheKey = `${path}\0${count}\0${this.#mediaFormats?.revision ?? 0}`
+    const selectionRevision = representativeSelectionRevision(this.#mediaFormats?.revision)
+    const cacheKey = `${path}\0${count}\0${selectionRevision}`
     const flightKey = `${cacheKey}\0${directoryModifiedAtMs}`
     let flight = this.#flights.get(flightKey)
     if (!flight) {
@@ -199,7 +202,7 @@ export class FolderRepresentativeIndex {
     if (!read) return undefined
     let manifest: ReaderFolderRepresentativeManifest | undefined
     try {
-      manifest = await read.call(this.#manifestStore, path, count, this.#mediaFormats?.revision ?? 0)
+      manifest = await read.call(this.#manifestStore, path, count, representativeSelectionRevision(this.#mediaFormats?.revision))
     } catch {
       return undefined
     }
@@ -215,7 +218,7 @@ export class FolderRepresentativeIndex {
     const write = this.#manifestStore?.putFolderRepresentativeManifest
     if (!write) return
     try {
-      await write.call(this.#manifestStore, path, count, this.#mediaFormats?.revision ?? 0, {
+      await write.call(this.#manifestStore, path, count, representativeSelectionRevision(this.#mediaFormats?.revision), {
         directoryModifiedAtMs: entry.directoryModifiedAtMs,
         sources: entry.sources ?? [],
       })
@@ -272,14 +275,15 @@ export class FolderRepresentativeIndex {
   }
 
   async #scanRepresentativePaths(path: string, count: number, signal: AbortSignal): Promise<string[]> {
-    const queue: Array<{ relativePath: string; depth: number }> = [{ relativePath: "", depth: 0 }]
-    const representatives: string[] = []
+    const queue: Array<{ relativePath: string; depth: number; branch: string }> = [{ relativePath: "", depth: 0, branch: "" }]
+    const mediaByBranch = new Map<string, string[]>()
+    const pendingByBranch = new Map<string, number>()
     let scannedDirectories = 0
     const deadline = performance.now() + SCAN_BUDGET_MS
-    while (queue.length && representatives.length < count && scannedDirectories < MAX_SCAN_DIRECTORIES
-      && performance.now() < deadline) {
+    while (queue.length && scannedDirectories < MAX_SCAN_DIRECTORIES && performance.now() < deadline) {
       signal.throwIfAborted()
       const current = queue.shift()!
+      if (current.branch) pendingByBranch.set(current.branch, Math.max(0, (pendingByBranch.get(current.branch) ?? 1) - 1))
       scannedDirectories += 1
       const directoryPath = current.relativePath ? join(path, current.relativePath) : path
       let entries: readonly DirectoryEntryLike[]
@@ -294,20 +298,28 @@ export class FolderRepresentativeIndex {
         - representativeRank(right, this.#mediaFormats, directoryStem) || compareNaturalPath(left.name, right.name))
       const media = ranked.filter((entry) => entry.isFile() && isRepresentativeFile(entry.name, this.#mediaFormats))
       const directories = ranked.filter((entry) => entry.isDirectory())
-      for (const entry of media) {
-        if (representatives.length >= count || performance.now() >= deadline) break
-        representatives.push(current.relativePath ? join(current.relativePath, entry.name) : entry.name)
+      if (media.length) {
+        const branch = current.branch || "."
+        const candidates = mediaByBranch.get(branch) ?? []
+        candidates.push(...media.slice(0, count - candidates.length).map((entry) => (
+          current.relativePath ? join(current.relativePath, entry.name) : entry.name
+        )))
+        mediaByBranch.set(branch, candidates)
+        if (!current.relativePath && candidates.length >= count) return candidates.slice(0, count)
       }
       if (current.depth < MAX_SCAN_DEPTH) {
         for (const entry of directories) {
           if (scannedDirectories + queue.length >= MAX_SCAN_DIRECTORIES || performance.now() >= deadline) break
           const relativePath = current.relativePath ? join(current.relativePath, entry.name) : entry.name
-          queue.push({ relativePath, depth: current.depth + 1 })
+          const branch = current.branch || entry.name
+          queue.push({ relativePath, depth: current.depth + 1, branch })
+          pendingByBranch.set(branch, (pendingByBranch.get(branch) ?? 0) + 1)
         }
       }
+      if (representativeBranchesReady(mediaByBranch, pendingByBranch, count)) break
     }
     signal.throwIfAborted()
-    return representatives
+    return roundRobinRepresentatives([...mediaByBranch.values()], count)
   }
 
   #setCache(path: string, entry: RepresentativeEntry): void {
@@ -325,6 +337,54 @@ export class FolderRepresentativeIndex {
     this.#cache.delete(path)
     this.#cache.set(path, entry)
   }
+}
+
+function representativeSelectionRevision(mediaRevision = 0): number {
+  const revision = REPRESENTATIVE_SELECTION_REVISION_BASE + mediaRevision * 16 + REPRESENTATIVE_SELECTION_REVISION
+  if (!Number.isSafeInteger(revision)) throw new RangeError("Folder representative media revision exceeds the supported range.")
+  return revision
+}
+
+function roundRobinRepresentatives(groups: readonly (readonly string[])[], count: number): string[] {
+  const representatives: string[] = []
+  for (let offset = 0; representatives.length < count; offset += 1) {
+    let added = false
+    for (const group of groups) {
+      const path = group[offset]
+      if (!path) continue
+      representatives.push(path)
+      added = true
+      if (representatives.length === count) break
+    }
+    if (!added) break
+  }
+  return representatives
+}
+
+function representativeBranchesReady(
+  mediaByBranch: ReadonlyMap<string, readonly string[]>,
+  pendingByBranch: ReadonlyMap<string, number>,
+  count: number,
+): boolean {
+  const branches = new Set([...mediaByBranch.keys(), ...pendingByBranch.keys()])
+  if (!branches.size) return false
+  const targetBranchCount = Math.min(count, branches.size)
+  const populatedBranches = [...branches].filter((branch) => (mediaByBranch.get(branch)?.length ?? 0) > 0)
+  if (populatedBranches.length < targetBranchCount) {
+    const unpopulatedBranchCanStillProduce = [...branches].some((branch) => (
+      !mediaByBranch.has(branch) && (pendingByBranch.get(branch) ?? 0) > 0
+    ))
+    if (unpopulatedBranchCanStillProduce) return false
+  }
+
+  const targetPerBranch = Math.ceil(count / Math.max(1, populatedBranches.length))
+  let total = 0
+  for (const branch of populatedBranches) {
+    const available = mediaByBranch.get(branch)?.length ?? 0
+    total += available
+    if (available < targetPerBranch && (pendingByBranch.get(branch) ?? 0) > 0) return false
+  }
+  return total >= count
 }
 
 function representativeSource(name: string, sourceStats: FileStatsLike): RepresentativeSource {
