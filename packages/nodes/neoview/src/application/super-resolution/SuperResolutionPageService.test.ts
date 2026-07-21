@@ -71,6 +71,28 @@ describe("SuperResolutionPageService", () => {
     expect(release).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.super-resolution.page-unsupported-file-materialize] converts filesystem AVIF before invoking the native runner", async () => {
+    const release = vi.fn(async () => undefined)
+    const materializer = {
+      materialize: vi.fn(async (): Promise<ReaderPageMaterializationLease> => ({
+        path: "D:/temp/xr-native-input.png",
+        byteLength: 100,
+        release,
+        [Symbol.asyncDispose]: release,
+      })),
+    }
+    const runner = fakeRunner()
+    const service = new SuperResolutionPageService(runner, runPolicy(), materializer)
+    await service.run({
+      page: page({ name: "page.avif", sourcePath: "D:/book/page.avif", mimeType: "image/avif" }),
+      destinationPath: "D:/output.png",
+      trigger: "manual",
+    })
+    expect(materializer.materialize).toHaveBeenCalledOnce()
+    expect(runner.run).toHaveBeenCalledWith(expect.objectContaining({ sourcePath: "D:/temp/xr-native-input.png" }), {})
+    expect(release).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.super-resolution.page-release] releases materialized input after provider and cleanup failures", async () => {
     const providerError = new Error("provider failed")
     const release = vi.fn(async () => { throw new Error("cleanup failed") })

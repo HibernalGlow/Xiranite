@@ -2,6 +2,7 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import sharp from "sharp"
 
 import type { ReaderPage } from "../../domain/page/page.js"
 import type { PageSource } from "../../domain/page/page-content.js"
@@ -45,6 +46,22 @@ describe("PlatformReaderPageMaterializer", () => {
     const materializer = new PlatformReaderPageMaterializer({ tempDirectory: directory })
     await expect(materializer.materialize({ ...page("bad.png", Uint8Array.of(1, 2, 3)), byteLength: 2 }))
       .rejects.toThrow("more than its declared")
+    expect(await readdir(directory)).toEqual([])
+  })
+
+  it("[neoview.super-resolution.materialization-avif] transcodes unsupported AVIF input to a native PNG lease", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-upscale-test-"))
+    cleanupDirectories.push(directory)
+    const avif = await sharp({ create: { width: 8, height: 8, channels: 3, background: "#336699" } }).avif().toBuffer()
+    const materializer = new PlatformReaderPageMaterializer({ tempDirectory: directory, purpose: "super-resolution" })
+    const lease = await materializer.materialize({
+      ...page("nested/001.avif", avif),
+      mimeType: "image/avif",
+    })
+    expect(basename(lease.path)).toBe("xr-native-input.png")
+    expect((await readFile(lease.path)).subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    expect(lease.byteLength).toBeGreaterThan(0)
+    await lease.release()
     expect(await readdir(directory)).toEqual([])
   })
 

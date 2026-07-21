@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, open, rm, type FileHandle } from "node:fs/promises"
+import { mkdir, mkdtemp, open, rm, stat, type FileHandle } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
@@ -7,6 +7,7 @@ import { waitWithAbort } from "../../domain/page/wait-with-abort.js"
 import type { ReaderPageMaterializer, ReaderPageMaterializationLease } from "../../ports/ReaderPageMaterializer.js"
 import type { ResourceScheduler } from "../../ports/ResourceScheduler.js"
 import { defaultImageTransformScheduler } from "../scheduler/PriorityResourceScheduler.js"
+import { isNativeSuperResolutionInput } from "../../domain/super-resolution/native-super-resolution-input.js"
 
 export interface PlatformReaderPageMaterializerOptions {
   tempDirectory?: string
@@ -76,6 +77,17 @@ export class PlatformReaderPageMaterializer implements ReaderPageMaterializer {
       handle = undefined
       await source.close()
       source = undefined
+      if (purpose === "super-resolution" && !isNativeSuperResolutionInput(page)) {
+        const nativePath = join(root, "xr-native-input.png")
+        const { default: sharp } = await import("sharp")
+        await sharp(path, { animated: false }).png({ compressionLevel: 1 }).toFile(nativePath)
+        const nativeFile = await stat(nativePath)
+        if (!nativeFile.isFile() || nativeFile.size <= 0 || nativeFile.size > maxBytes) {
+          throw new Error(`Reader page transcoded outside its super-resolution materialization budget: ${page.name}`)
+        }
+        await rm(path, { force: true })
+        return temporaryLease(nativePath, root, nativeFile.size)
+      }
       return temporaryLease(path, root, written)
     } catch (error) {
       await handle?.close().catch(() => undefined)

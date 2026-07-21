@@ -10,6 +10,7 @@ import type {
   SuperResolutionPolicyResolver,
 } from "../../ports/SuperResolutionPage.js"
 import type { RunSuperResolutionInput } from "./SuperResolutionService.js"
+import { isNativeSuperResolutionInput } from "../../domain/super-resolution/native-super-resolution-input.js"
 
 export type {
   SuperResolutionPageInput,
@@ -72,7 +73,7 @@ export class SuperResolutionPageService {
     let operationError: unknown
     let operationFailed = false
     try {
-      const sourcePath = input.page.entryPath
+      const sourcePath = input.page.entryPath || !isNativeSuperResolutionInput(input.page)
         ? (materialization = await this.#materialize(input, context.signal)).path
         : input.page.sourcePath
       result = await this.runner.run({

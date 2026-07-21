@@ -100,6 +100,7 @@ export interface OpenComicAiSystemProviderOptions {
   taskTimeoutMs?: number
   ensureModelsDirectory?: (path: string) => Promise<void>
   inspectImage?: (path: string, signal?: AbortSignal) => Promise<SuperResolutionImageInspection>
+  waitForOutput?: (path: string, signal: AbortSignal) => Promise<void>
   now?: () => number
 }
 
@@ -112,6 +113,7 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
   readonly #taskTimeoutMs: number
   readonly #ensureModelsDirectory: NonNullable<OpenComicAiSystemProviderOptions["ensureModelsDirectory"]>
   readonly #inspectImage: NonNullable<OpenComicAiSystemProviderOptions["inspectImage"]>
+  readonly #waitForOutput: NonNullable<OpenComicAiSystemProviderOptions["waitForOutput"]>
   readonly #now: () => number
   readonly #binaryPaths = new Map<SuperResolutionEngine, string>()
   #runtime?: Promise<OpenComicSystemRuntime>
@@ -128,6 +130,7 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     this.#taskTimeoutMs = boundedInteger(options.taskTimeoutMs ?? 10 * 60_000, "task timeout", 1_000, 24 * 60 * 60_000)
     this.#ensureModelsDirectory = options.ensureModelsDirectory ?? ensureDirectory
     this.#inspectImage = options.inspectImage ?? inspectImageFile
+    this.#waitForOutput = options.waitForOutput ?? waitForSuperResolutionOutput
     this.#now = options.now ?? Date.now
   }
 
@@ -176,6 +179,7 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     if (pathKey(outputPath) !== pathKey(request.destinationPath)) {
       throw new Error(`Super-resolution runtime returned an unexpected output path: ${outputPath}`)
     }
+    await this.#waitForOutput(request.destinationPath, executionSignal)
 
     const [source, output] = await Promise.all([
       this.#inspectImage(request.sourcePath, executionSignal),
@@ -263,6 +267,42 @@ async function inspectImageFile(path: string, signal?: AbortSignal): Promise<Sup
   )
   if (!metadata) throw new Error(`Unable to inspect super-resolution image dimensions: ${path}`)
   return { bytes: file.size, width: metadata.dimensions.width, height: metadata.dimensions.height }
+}
+
+export async function waitForSuperResolutionOutput(
+  path: string,
+  signal: AbortSignal,
+  options: { timeoutMs?: number; pollIntervalMs?: number } = {},
+): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? 5_000
+  const pollIntervalMs = options.pollIntervalMs ?? 20
+  const deadline = Date.now() + timeoutMs
+  let lastError: unknown
+  while (true) {
+    signal.throwIfAborted()
+    try {
+      const output = await stat(path)
+      if (output.isFile() && output.size > 0) return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== "ENOENT" && code !== "EBUSY") throw error
+      lastError = error
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`Super-resolution runtime completed before its output became available: ${path}`, { cause: lastError })
+    }
+    await abortableDelay(pollIntervalMs, signal)
+  }
+}
+
+async function abortableDelay(delayMs: number, signal: AbortSignal): Promise<void> {
+  signal.throwIfAborted()
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => { cleanup(); resolve() }, delayMs)
+    const abort = () => { clearTimeout(timer); cleanup(); reject(signal.reason) }
+    const cleanup = () => signal.removeEventListener("abort", abort)
+    signal.addEventListener("abort", abort, { once: true })
+  })
 }
 
 async function raceWithAbort<T>(work: Promise<T>, signal: AbortSignal, onAbort: () => void): Promise<T> {
