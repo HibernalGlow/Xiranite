@@ -2502,8 +2502,8 @@
 |---|---|---:|---:|---|---|---|
 | `switchToast` | 切换提示 | integration | partial | `core=C transport=C gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/SwitchToastCard.svelte` | 文件信息、图片属性、尺寸扫描和系统元数据；XR `switch-toast` |
 | `sidebarControl` | 边栏控制 | integration | partial | `core=N/A transport=N/A gui=C cli=P tui=P evidence=P` | `src/lib/cards/info/SidebarControlCard.svelte` | 左右边栏、顶部工具栏、底栏、面板和通知；XR `sidebar-control` |
-| `colorFilter` | 颜色滤镜 | integration | partial | `core=N/A transport=C gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `color-filter` |
-| `imageTrim` | 图像裁剪 | integration | partial | `core=N/A transport=C gui=P cli=P tui=P evidence=P` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
+| `colorFilter` | 颜色滤镜 | integration | partial | `core=P transport=P gui=P cli=- tui=- evidence=P` | `src/lib/cards/info/ColorFilterCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `color-filter` |
+| `imageTrim` | 图像裁剪 | integration | partial | `core=P transport=P gui=P cli=P tui=P evidence=P` | `src/lib/cards/info/ImageTrimCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `image-trim` |
 | `pageTransition` | 翻页动画 | deferred | partial | `core=C transport=C gui=C cli=P tui=- evidence=P` | `src/lib/cards/info/PageTransitionCard.svelte` | 图片裁边、颜色滤镜、页面过渡和悬停滚动；XR `page-transition` |
 | `animatedVideoMode` | 动图视频模式 | integration | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/info/AnimatedVideoModeCard.svelte` | 动图、视频、字幕和播放控制；XR `animated-video-mode` |
 | `ambientBackground` | 动态背景 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/info/AmbientBackgroundCard.svelte` | 主题接管、阅读背景和空页面背景 |

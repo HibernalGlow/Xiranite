@@ -488,8 +488,8 @@
       "featureId": "image-effects-transitions",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "complete",
+        "core": "partial",
+        "transport": "partial",
         "gui": "partial",
         "cli": "pending",
         "tui": "pending",
@@ -507,8 +507,8 @@
       "featureId": "image-effects-transitions",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "not-applicable",
-        "transport": "complete",
+        "core": "partial",
+        "transport": "partial",
         "gui": "partial",
         "cli": "partial",
         "tui": "partial",
