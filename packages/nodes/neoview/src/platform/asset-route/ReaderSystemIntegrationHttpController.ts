@@ -4,6 +4,7 @@ const MAX_BODY_BYTES = 64 * 1024
 const EXPLORER_PREVIEW_PATH = "/reader/system/explorer-context-menu/preview"
 const EXPLORER_STATUS_PATH = "/reader/system/explorer-context-menu/status"
 const EXPLORER_SET_ENABLED_PATH = "/reader/system/explorer-context-menu"
+const OPEN_EXTERNAL_URL_PATH = "/reader/system/open-external-url"
 
 export class ReaderSystemIntegrationHttpController {
   #service?: Promise<ReaderSystemIntegrationService>
@@ -19,6 +20,11 @@ export class ReaderSystemIntegrationHttpController {
   async explorerContextMenuPreview(signal?: AbortSignal) {
     const service = await (this.#service ??= this.loadService())
     return service.explorerContextMenuPreview(signal)
+  }
+
+  async openExternalUrl(url: string, signal?: AbortSignal): Promise<void> {
+    const service = await (this.#service ??= this.loadService())
+    await service.openExternalUrl(url, signal)
   }
 
   async explorerContextMenuStatus(signal?: AbortSignal) {
@@ -58,6 +64,18 @@ export class ReaderSystemIntegrationHttpController {
       if (body.confirmed !== true) return jsonResponse({ error: "Explorer context-menu changes require confirmed=true" }, 409)
       try {
         return jsonResponse(await this.setExplorerContextMenuEnabled(body.enabled, request.signal))
+      } catch (error) {
+        if (request.signal.aborted) throw error
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400)
+      }
+    }
+    if (path === OPEN_EXTERNAL_URL_PATH) {
+      if (request.method !== "POST") return methodNotAllowed("POST")
+      const body = await readBody(request)
+      if (!body || typeof body.url !== "string") return jsonResponse({ error: "url must be a string" }, 400)
+      try {
+        await this.openExternalUrl(body.url, request.signal)
+        return new Response(null, { status: 204 })
       } catch (error) {
         if (request.signal.aborted) throw error
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400)

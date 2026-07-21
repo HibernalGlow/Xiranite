@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { ReaderSystemIntegrationService } from "../../application/files/ReaderSystemIntegrationService.js"
+import { ReaderHttpController } from "./ReaderHttpController.js"
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 
 describe("ReaderSystemIntegrationHttpController", () => {
@@ -15,6 +16,41 @@ describe("ReaderSystemIntegrationHttpController", () => {
     expect(load).toHaveBeenCalledOnce()
     expect(provider.open).toHaveBeenCalledWith(path, expect.any(AbortSignal))
     expect(provider.reveal).toHaveBeenCalledWith(path, expect.any(AbortSignal))
+  })
+
+  it("[neoview.emm-raw-data.url-http] exposes a bounded external URL command and rejects unsafe schemes", async () => {
+    const provider = {
+      open: vi.fn(async () => undefined),
+      reveal: vi.fn(async () => undefined),
+      openExternalUrl: vi.fn(async () => undefined),
+    }
+    const controller = new ReaderSystemIntegrationHttpController(async () => new ReaderSystemIntegrationService(provider))
+
+    const opened = await controller.handle(jsonRequest({ url: "https://example.com/source" }, "/reader/system/open-external-url"))
+    expect(opened?.status).toBe(204)
+    expect(provider.openExternalUrl).toHaveBeenCalledWith("https://example.com/source", expect.any(AbortSignal))
+
+    const rejected = await controller.handle(jsonRequest({ url: "javascript:alert(1)" }, "/reader/system/open-external-url"))
+    expect(rejected?.status).toBe(400)
+    await expect(rejected?.json()).resolves.toMatchObject({ error: expect.stringContaining("HTTP or HTTPS") })
+    expect(provider.openExternalUrl).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.emm-raw-data.url-http] remains behind the Reader token boundary", async () => {
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      progressStore: false,
+    })
+    try {
+      const response = await controller.handle(jsonRequest(
+        { url: "https://example.com/source" },
+        "/reader/system/open-external-url",
+      ))
+      expect(response?.status).toBe(401)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
   })
 
   it("[neoview.file.explorer-context-menu-http] exposes preview, status and confirmed enable transport", async () => {
@@ -49,10 +85,13 @@ function request(action: string, path: string): Request {
   return new Request(`http://127.0.0.1/reader/files/${action}`, { method: "POST", body: JSON.stringify({ path }) })
 }
 
-function jsonRequest(body: unknown, path: string): Request {
+function jsonRequest(body: unknown, path: string, token?: string): Request {
   return new Request(`http://127.0.0.1${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...(token ? { "x-xiranite-token": token } : {}),
+    },
     body: JSON.stringify(body),
   })
 }

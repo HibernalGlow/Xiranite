@@ -36,9 +36,10 @@ describe("EMM auxiliary property cards", () => {
     expect(screen.queryByText("filepath")).toBeNull()
   })
 
-  it("[neoview.emm-raw-data.dto] [neoview.emm-raw-data.sort] [neoview.emm-raw-data.raw-view] [neoview.emm-raw-data.copy] [neoview.emm-raw-data.path-action] [neoview.emm-raw-data.filter-empty] formats and operates on the bounded raw record", async () => {
+  it("[neoview.emm-raw-data.dto] [neoview.emm-raw-data.sort] [neoview.emm-raw-data.raw-view] [neoview.emm-raw-data.copy] [neoview.emm-raw-data.path-action] [neoview.emm-raw-data.url-action] [neoview.emm-raw-data.filter-empty] formats and operates on the bounded raw record", async () => {
     const copyText = vi.fn(async () => undefined)
     const revealSystemPath = vi.fn(async () => undefined)
+    const openExternalUrl = vi.fn(async () => undefined)
     const metadata = vi.fn(async () => ({
       ...metadataDto(),
       book: {
@@ -50,23 +51,26 @@ describe("EMM auxiliary property cards", () => {
             { key: "filepath", type: "path" as const, value: "D:/books/demo.cbz" },
             { key: "hiddenBook", type: "boolean" as const, value: true },
             { key: "filesize", type: "bytes" as const, value: 1_048_576 },
+            { key: "url", type: "url" as const, value: "https://example.com/source" },
           ],
         },
       },
     }))
-    const client = { metadata, revealSystemPath } as unknown as ReaderHttpClient
+    const client = { metadata, revealSystemPath, openExternalUrl } as unknown as ReaderHttpClient
     const view = render(<EmmRawDataCard {...context(client)} systemActions={{ copyText }} />)
 
     expect(await screen.findByText("1.00 MB")).toBeTruthy()
     expect(screen.getByText("4.8")).toBeTruthy()
     expect(screen.getByText("是")).toBeTruthy()
     expect(view.container.querySelector('[data-emm-raw-data-card="true"]')?.getAttribute("data-emm-raw-source")).toBe("raw-v1")
-    expect([...view.container.querySelectorAll("[data-emm-raw-field]")].map((row) => row.getAttribute("data-emm-raw-field"))).toEqual(["filepath", "filesize", "hiddenBook", "rating"])
+    expect([...view.container.querySelectorAll("[data-emm-raw-field]")].map((row) => row.getAttribute("data-emm-raw-field"))).toEqual(["filepath", "filesize", "hiddenBook", "rating", "url"])
 
     fireEvent.click(screen.getByRole("button", { name: "字段" }))
-    expect([...view.container.querySelectorAll("[data-emm-raw-field]")].map((row) => row.getAttribute("data-emm-raw-field"))).toEqual(["rating", "hiddenBook", "filesize", "filepath"])
+    expect([...view.container.querySelectorAll("[data-emm-raw-field]")].map((row) => row.getAttribute("data-emm-raw-field"))).toEqual(["url", "rating", "hiddenBook", "filesize", "filepath"])
     fireEvent.click(screen.getByRole("button", { name: "定位 文件路径" }))
     await waitFor(() => expect(revealSystemPath).toHaveBeenCalledWith("D:/books/demo.cbz", expect.any(AbortSignal)))
+    fireEvent.click(screen.getByRole("button", { name: "打开 来源链接" }))
+    await waitFor(() => expect(openExternalUrl).toHaveBeenCalledWith("https://example.com/source", expect.any(AbortSignal)))
     fireEvent.click(screen.getByRole("button", { name: "复制 文件大小" }))
     await waitFor(() => expect(copyText).toHaveBeenCalledWith("1048576"))
     fireEvent.click(screen.getByRole("button", { name: "原始 JSON" }))

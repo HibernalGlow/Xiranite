@@ -17,6 +17,11 @@ export class ReaderSystemIntegrationService {
     await this.provider.reveal(validPath(path), signal)
   }
 
+  async openExternalUrl(value: string, signal?: AbortSignal): Promise<void> {
+    if (!this.provider.openExternalUrl) throw new Error("Reader external URL integration is unavailable.")
+    await this.provider.openExternalUrl(validExternalUrl(value), signal)
+  }
+
   explorerContextMenuPreview(signal?: AbortSignal): Promise<ReaderExplorerContextMenuPreview> {
     return this.provider.explorerContextMenu?.preview(signal)
       ?? Promise.resolve({ available: false, plan: [], registryFile: "", reason: "Explorer context-menu registration is unavailable." })
@@ -38,4 +43,20 @@ function validPath(path: string): string {
     throw new Error("Reader system integration path must be absolute.")
   }
   return path
+}
+
+function validExternalUrl(value: string): string {
+  if (typeof value !== "string" || !value || value.length > 4_096 || value.includes("\0")) {
+    throw new Error("Reader external URL must be a bounded HTTP or HTTPS URL.")
+  }
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw new Error("Reader external URL must be a bounded HTTP or HTTPS URL.")
+  }
+  if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password) {
+    throw new Error("Reader external URL must be a bounded HTTP or HTTPS URL without credentials.")
+  }
+  return url.href
 }

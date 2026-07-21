@@ -277,6 +277,18 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ path: "D:/books/demo.cbz" })
   })
 
+  it("[neoview.emm-raw-data.url-client] posts the URL to the authenticated system integration route", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    await client.openExternalUrl!("https://example.com/source")
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/system/open-external-url")
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "POST" })
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("x-xiranite-token")).toBe("reader-token")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ url: "https://example.com/source" })
+  })
+
   it("[neoview.folder.system-open-client] posts a file or directory path to the authenticated default-open route", async () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
     vi.stubGlobal("fetch", fetchMock)
