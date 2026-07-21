@@ -358,12 +358,21 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
   )
 
   return (
-    <div className="relative flex min-h-0 flex-1" data-folder-tab-count={tabs.length}>
+    <div
+      className="grid min-h-0 min-w-0 w-full flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]"
+      data-folder-tab-count={tabs.length}
+    >
       {tabs.map((tab) => {
         const active = tab.id === activeTabId
         const browserActive = active && context.panelActive !== false
         return (
-          <div key={tab.id} className={active ? "contents" : "pointer-events-none invisible absolute inset-0"} aria-hidden={!active || undefined} data-folder-tab-pane={tab.id}>
+          <div
+            key={tab.id}
+            className={`col-start-1 row-start-1 flex min-h-0 min-w-0 overflow-hidden ${active ? "" : "pointer-events-none invisible"}`}
+            aria-hidden={!active || undefined}
+            data-folder-tab-pane={tab.id}
+            data-folder-tab-pane-active={active || undefined}
+          >
             <BrowserPane
               {...context}
               sourcePath={tab.sourcePath}
@@ -371,7 +380,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
               folderView={{ ...folderView, viewMode: tab.viewMode, previewCount: tab.previewCount }}
               onFolderView={(patch) => updateTabFolderView(tab.id, patch)}
               active={browserActive}
-              tabBar={browserActive ? tabBar : undefined}
+              tabBar={tabBar}
               folderTabCount={tabs.length}
               maxFolderTabs={MAX_FOLDER_TABS}
               onCreateTab={createTab}
