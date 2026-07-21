@@ -53,6 +53,8 @@ bun run dev:desktop
 bun run dev:desktop:lean
 ```
 
+多 Agent 并行开发时的端口、后端 manifest 与共享 Vite 缓存约定见 [开发会话说明](docs/development-sessions.md)。
+
 ### 全局 CLI 快捷命令
 
 安装后可在任意目录使用：
