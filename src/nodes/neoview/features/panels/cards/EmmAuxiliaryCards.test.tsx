@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ReaderHttpClient, ReaderMetadataDto, ReaderSessionDto } from "../../../adapters/reader-http-client"
-import EmmRawDataCard from "./EmmRawDataCard"
+import EmmRawDataCard, { formatEmmRawField } from "./EmmRawDataCard"
 import EmmSyncCard from "./EmmSyncCard"
 import FavoriteTagsCard from "./FavoriteTagsCard"
 import FolderRatingsCard from "./FolderRatingsCard"
@@ -9,6 +9,14 @@ import FolderRatingsCard from "./FolderRatingsCard"
 afterEach(cleanup)
 
 describe("EMM auxiliary property cards", () => {
+  it("[neoview.emm-raw-data.formatting] formats typed values without losing invalid source text", () => {
+    expect(formatEmmRawField({ key: "filesize", type: "bytes", value: 1_048_576 })).toBe("1.00 MB")
+    expect(formatEmmRawField({ key: "rating", type: "number", value: 4.75 })).toBe("4.8")
+    expect(formatEmmRawField({ key: "hiddenBook", type: "boolean", value: false })).toBe("否")
+    expect(formatEmmRawField({ key: "posted", type: "timestamp", value: 1_700_000_000 })).toBe(new Date(1_700_000_000_000).toLocaleString("zh-CN"))
+    expect(formatEmmRawField({ key: "updatedAt", type: "datetime", value: "invalid-date" })).toBe("invalid-date")
+  })
+
   it("[neoview.emm-cards.lifecycle] does no work while all cards are hidden", () => {
     const client = { metadata: vi.fn(), suggestDirectoryEmmTags: vi.fn(), openDirectoryBrowser: vi.fn() } as unknown as ReaderHttpClient
     render(<><EmmSyncCard {...context(client, false)} /><EmmRawDataCard {...context(client, false)} /><FavoriteTagsCard {...context(client, false)} /><FolderRatingsCard {...context(client, false)} /></>)
@@ -26,6 +34,61 @@ describe("EMM auxiliary property cards", () => {
     expect(metadata).toHaveBeenCalledOnce()
     fireEvent.change(screen.getByRole("textbox", { name: "过滤 EMM 字段和值" }), { target: { value: "artist" } })
     expect(screen.queryByText("filepath")).toBeNull()
+  })
+
+  it("[neoview.emm-raw-data.dto] [neoview.emm-raw-data.sort] [neoview.emm-raw-data.raw-view] [neoview.emm-raw-data.copy] [neoview.emm-raw-data.path-action] [neoview.emm-raw-data.filter-empty] formats and operates on the bounded raw record", async () => {
+    const copyText = vi.fn(async () => undefined)
+    const revealSystemPath = vi.fn(async () => undefined)
+    const metadata = vi.fn(async () => ({
+      ...metadataDto(),
+      book: {
+        ...metadataDto().book,
+        emmRaw: {
+          schemaVersion: 1 as const,
+          fields: [
+            { key: "rating", type: "number" as const, value: 4.75 },
+            { key: "filepath", type: "path" as const, value: "D:/books/demo.cbz" },
+            { key: "hiddenBook", type: "boolean" as const, value: true },
+            { key: "filesize", type: "bytes" as const, value: 1_048_576 },
+          ],
+        },
+      },
+    }))
+    const client = { metadata, revealSystemPath } as unknown as ReaderHttpClient
+    const view = render(<EmmRawDataCard {...context(client)} systemActions={{ copyText }} />)
+
+    expect(await screen.findByText("1.00 MB")).toBeTruthy()
+    expect(screen.getByText("4.8")).toBeTruthy()
+    expect(screen.getByText("是")).toBeTruthy()
+    expect(view.container.querySelector('[data-emm-raw-data-card="true"]')?.getAttribute("data-emm-raw-source")).toBe("raw-v1")
+    expect([...view.container.querySelectorAll("[data-emm-raw-field]")].map((row) => row.getAttribute("data-emm-raw-field"))).toEqual(["filepath", "filesize", "hiddenBook", "rating"])
+
+    fireEvent.click(screen.getByRole("button", { name: "字段" }))
+    expect([...view.container.querySelectorAll("[data-emm-raw-field]")].map((row) => row.getAttribute("data-emm-raw-field"))).toEqual(["rating", "hiddenBook", "filesize", "filepath"])
+    fireEvent.click(screen.getByRole("button", { name: "定位 文件路径" }))
+    await waitFor(() => expect(revealSystemPath).toHaveBeenCalledWith("D:/books/demo.cbz", expect.any(AbortSignal)))
+    fireEvent.click(screen.getByRole("button", { name: "复制 文件大小" }))
+    await waitFor(() => expect(copyText).toHaveBeenCalledWith("1048576"))
+    fireEvent.click(screen.getByRole("button", { name: "原始 JSON" }))
+    expect(screen.getByText(/"filesize": 1048576/)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "复制完整 EMM 记录" }))
+    await waitFor(() => expect(copyText.mock.calls.at(-1)?.[0]).toContain('"filepath": "D:/books/demo.cbz"'))
+
+    fireEvent.change(screen.getByRole("textbox", { name: "过滤 EMM 字段和值" }), { target: { value: "missing-field" } })
+    fireEvent.click(screen.getByRole("button", { name: "格式化表格" }))
+    expect(screen.getByText("没有匹配字段")).toBeTruthy()
+  })
+
+  it("[neoview.emm-raw-data.retry] retries the shared static metadata request after an error", async () => {
+    const metadata = vi.fn()
+      .mockRejectedValueOnce(new Error("EMM database unavailable"))
+      .mockResolvedValueOnce(metadataDto())
+    render(<EmmRawDataCard {...context({ metadata } as unknown as ReaderHttpClient)} />)
+
+    expect((await screen.findByRole("alert")).textContent).toContain("EMM database unavailable")
+    fireEvent.click(screen.getByRole("button", { name: "重试" }))
+    expect(await screen.findByText("artist:Alice")).toBeTruthy()
+    expect(metadata).toHaveBeenCalledTimes(2)
   })
 
   it("[neoview.favorite-tags.card] renders bounded translated suggestions", async () => {
