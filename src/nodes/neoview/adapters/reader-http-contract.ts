@@ -631,6 +631,22 @@ export interface ReaderBookmarkListDto {
   system?: boolean
 }
 
+export interface ReaderPlaylistDto {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ReaderPlaylistEntryDto {
+  id: string
+  playlistId: string
+  source: { kind: "path" | "archive" | "directory"; path: string; entryPath?: string; entryPaths?: readonly string[] }
+  name: string
+  position: number
+  createdAt: number
+}
+
 export interface ReaderLibraryStatisticsDto {
   recentCount: number
   bookmarkCount: number
@@ -1932,6 +1948,13 @@ export interface ReaderHttpClient {
     signal?: AbortSignal,
   ): Promise<ReaderBookmarkListDto>
   removeBookmarkList?(id: string, signal?: AbortSignal): Promise<void>
+  listPlaylists?(signal?: AbortSignal): Promise<readonly ReaderPlaylistDto[]>
+  savePlaylist?(playlist: { id?: string; name: string; createdAt?: number }, signal?: AbortSignal): Promise<ReaderPlaylistDto>
+  removePlaylist?(id: string, signal?: AbortSignal): Promise<void>
+  listPlaylistEntries?(playlistId: string, signal?: AbortSignal): Promise<readonly ReaderPlaylistEntryDto[]>
+  appendPlaylistEntries?(playlistId: string, entries: readonly Array<{ id?: string; source: ReaderPlaylistEntryDto["source"]; name: string; createdAt?: number }>, signal?: AbortSignal): Promise<readonly ReaderPlaylistEntryDto[]>
+  removePlaylistEntries?(playlistId: string, ids: readonly string[], signal?: AbortSignal): Promise<number>
+  reorderPlaylistEntries?(playlistId: string, ids: readonly string[], signal?: AbortSignal): Promise<void>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
   goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
   updateSessionOptions(
