@@ -78,6 +78,30 @@ describe("useReaderImagePreloader", () => {
     expect(instances.every((image) => image.src === "")).toBe(true)
   })
 
+  it("[neoview.react.predecode-cross-batch] keeps replacement batches behind an in-flight decode", async () => {
+    const instances: BlockingImage[] = []
+    vi.stubGlobal("Image", class extends BlockingImage {
+      constructor() {
+        super()
+        instances.push(this)
+      }
+    })
+    vi.spyOn(performance, "mark").mockImplementation(() => ({}) as PerformanceMark)
+    const first = page(1)
+    const second = page(2)
+    const view = render(<Fixture sessionId="reader-1" pages={[first]} />)
+
+    await waitFor(() => expect(instances[0]?.decode).toHaveBeenCalledOnce())
+    view.rerender(<Fixture sessionId="reader-1" pages={[second]} />)
+    await waitFor(() => expect(instances).toHaveLength(2))
+    await new Promise((resolve) => setTimeout(resolve, 450))
+    expect(instances[1]!.decode).not.toHaveBeenCalled()
+
+    instances[0]!.finishDecode()
+    await waitFor(() => expect(instances[1]!.decode).toHaveBeenCalledOnce())
+    instances[1]!.finishDecode()
+  })
+
   it("[neoview.preload.telemetry-react] reports generation-scoped lifecycle metrics without React state", async () => {
     vi.stubGlobal("Image", FakeImage)
     vi.spyOn(performance, "mark").mockImplementation(() => ({}) as PerformanceMark)
@@ -117,6 +141,12 @@ class FakeImage {
   fetchPriority: "high" | "low" | "auto" = "auto"
   loading: "eager" | "lazy" = "eager"
   decode = vi.fn(async () => undefined)
+}
+
+class BlockingImage extends FakeImage {
+  private finish!: () => void
+  override decode = vi.fn(() => new Promise<void>((resolve) => { this.finish = resolve }))
+  finishDecode() { this.finish() }
 }
 
 function page(index: number): ReaderPageDto {
