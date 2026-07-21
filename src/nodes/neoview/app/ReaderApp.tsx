@@ -563,6 +563,12 @@ export function ReaderApp({
     folderNavigationEvents.dispatchEvent(new CustomEvent("browse", { detail: { path: nextPath, newTab: false } }))
   }
 
+  function activateInFolderCard(nextPath: string): boolean {
+    const detail = { path: nextPath, handled: false }
+    folderNavigationEvents.dispatchEvent(new CustomEvent("activate", { detail }))
+    return detail.handled === true
+  }
+
   function openFolderPathInNewTab(nextPath: string) {
     folderNavigationEvents.dispatchEvent(new CustomEvent("browse", { detail: { path: nextPath, newTab: true } }))
   }
@@ -1613,6 +1619,7 @@ export function ReaderApp({
     },
     onOpen: openPath,
     onBrowsePath: browsePath,
+    onActivateInFolderCard: activateInFolderCard,
     onOpenInNewTab: openFolderPathInNewTab,
     folderNavigationEvents,
     shell,

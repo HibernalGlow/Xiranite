@@ -37,6 +37,8 @@ interface RecentlyClosedFolderTab {
 
 export type FolderBrowserPaneProps = ReaderPanelContext & {
   active: boolean
+  /** True for the selected tab even when the File Card panel is hidden (History/Bookmark reuse). */
+  navigationActive?: boolean
   browserPath: string
   tabBar?: ReactNode
   folderTabCount: number
@@ -380,6 +382,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
               folderView={{ ...folderView, viewMode: tab.viewMode, previewCount: tab.previewCount }}
               onFolderView={(patch) => updateTabFolderView(tab.id, patch)}
               active={browserActive}
+              navigationActive={active}
               tabBar={tabBar}
               folderTabCount={tabs.length}
               maxFolderTabs={MAX_FOLDER_TABS}

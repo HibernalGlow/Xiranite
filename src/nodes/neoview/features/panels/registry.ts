@@ -75,6 +75,8 @@ export interface ReaderPanelContext {
   browserOriginPath?: string
   onOpen?(path: string, provenance?: import("../../adapters/reader-http-client").ReaderActivationProvenanceDto): void | Promise<void>
   onBrowsePath?(path: string): void
+  /** Activate a folder entry through the live File Card (reuse session + penetration). Returns true if handled. */
+  onActivateInFolderCard?(path: string): boolean | void
   onOpenInNewTab?(path: string): void
   folderNavigationEvents?: EventTarget
   pickDirectory?: () => Promise<string | undefined>
