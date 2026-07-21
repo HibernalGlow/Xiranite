@@ -52,7 +52,7 @@ const MAX_ENTRIES_PER_DIRECTORY = 768
 const MAX_SCAN_DEPTH = 8
 const SCAN_BUDGET_MS = 120
 const REPRESENTATIVE_SELECTION_REVISION_BASE = 9_000_000_000_000_000
-const REPRESENTATIVE_SELECTION_REVISION = 2
+const REPRESENTATIVE_SELECTION_REVISION = 3
 const READER_CONTAINER_EXTENSIONS = new Set(["zip", "cbz", "rar", "cbr", "7z", "cb7", "pdf"])
 const POSTER_STEMS = new Set(["cover", "default", "folder", "front", "poster", "series", "thumb", "thumbnail"])
 
@@ -276,7 +276,7 @@ export class FolderRepresentativeIndex {
 
   async #scanRepresentativePaths(path: string, count: number, signal: AbortSignal): Promise<string[]> {
     const queue: Array<{ relativePath: string; depth: number; branch: string }> = [{ relativePath: "", depth: 0, branch: "" }]
-    const mediaByBranch = new Map<string, string[]>()
+    const mediaByBranch = new Map<string, Map<string, string[]>>()
     const pendingByBranch = new Map<string, number>()
     let scannedDirectories = 0
     const deadline = performance.now() + SCAN_BUDGET_MS
@@ -300,12 +300,15 @@ export class FolderRepresentativeIndex {
       const directories = ranked.filter((entry) => entry.isDirectory())
       if (media.length) {
         const branch = current.branch || "."
-        const candidates = mediaByBranch.get(branch) ?? []
+        const folders = mediaByBranch.get(branch) ?? new Map<string, string[]>()
+        const folder = current.relativePath || "."
+        const candidates = folders.get(folder) ?? []
         candidates.push(...media.slice(0, count - candidates.length).map((entry) => (
           current.relativePath ? join(current.relativePath, entry.name) : entry.name
         )))
-        mediaByBranch.set(branch, candidates)
-        if (!current.relativePath && candidates.length >= count) return candidates.slice(0, count)
+        folders.set(folder, candidates)
+        mediaByBranch.set(branch, folders)
+        if (!current.relativePath && !directories.length && candidates.length >= count) return candidates.slice(0, count)
       }
       if (current.depth < MAX_SCAN_DEPTH) {
         for (const entry of directories) {
@@ -319,7 +322,7 @@ export class FolderRepresentativeIndex {
       if (representativeBranchesReady(mediaByBranch, pendingByBranch, count)) break
     }
     signal.throwIfAborted()
-    return roundRobinRepresentatives([...mediaByBranch.values()], count)
+    return roundRobinRepresentatives([...mediaByBranch.values()].map((folders) => [...folders.values()]), count)
   }
 
   #setCache(path: string, entry: RepresentativeEntry): void {
@@ -345,16 +348,19 @@ function representativeSelectionRevision(mediaRevision = 0): number {
   return revision
 }
 
-function roundRobinRepresentatives(groups: readonly (readonly string[])[], count: number): string[] {
+function roundRobinRepresentatives(branches: readonly (readonly (readonly string[])[])[], count: number): string[] {
   const representatives: string[] = []
-  for (let offset = 0; representatives.length < count; offset += 1) {
+  const maxFolders = Math.max(0, ...branches.map((folders) => folders.length))
+  for (let mediaOffset = 0; representatives.length < count; mediaOffset += 1) {
     let added = false
-    for (const group of groups) {
-      const path = group[offset]
-      if (!path) continue
-      representatives.push(path)
-      added = true
-      if (representatives.length === count) break
+    for (let folderOffset = 0; folderOffset < maxFolders && representatives.length < count; folderOffset += 1) {
+      for (const folders of branches) {
+        const path = folders[folderOffset]?.[mediaOffset]
+        if (!path) continue
+        representatives.push(path)
+        added = true
+        if (representatives.length === count) break
+      }
     }
     if (!added) break
   }
@@ -362,14 +368,14 @@ function roundRobinRepresentatives(groups: readonly (readonly string[])[], count
 }
 
 function representativeBranchesReady(
-  mediaByBranch: ReadonlyMap<string, readonly string[]>,
+  mediaByBranch: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>,
   pendingByBranch: ReadonlyMap<string, number>,
   count: number,
 ): boolean {
   const branches = new Set([...mediaByBranch.keys(), ...pendingByBranch.keys()])
   if (!branches.size) return false
   const targetBranchCount = Math.min(count, branches.size)
-  const populatedBranches = [...branches].filter((branch) => (mediaByBranch.get(branch)?.length ?? 0) > 0)
+  const populatedBranches = [...branches].filter((branch) => (mediaByBranch.get(branch)?.size ?? 0) > 0)
   if (populatedBranches.length < targetBranchCount) {
     const unpopulatedBranchCanStillProduce = [...branches].some((branch) => (
       !mediaByBranch.has(branch) && (pendingByBranch.get(branch) ?? 0) > 0
@@ -380,7 +386,7 @@ function representativeBranchesReady(
   const targetPerBranch = Math.ceil(count / Math.max(1, populatedBranches.length))
   let total = 0
   for (const branch of populatedBranches) {
-    const available = mediaByBranch.get(branch)?.length ?? 0
+    const available = mediaByBranch.get(branch)?.size ?? 0
     total += available
     if (available < targetPerBranch && (pendingByBranch.get(branch) ?? 0) > 0) return false
   }
