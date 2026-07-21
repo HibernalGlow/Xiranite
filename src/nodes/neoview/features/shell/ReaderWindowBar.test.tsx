@@ -24,11 +24,15 @@ function createControl(): ReaderShellControlPort {
 }
 
 describe("ReaderWindowBar", () => {
-  test("places pin and settings before window caption controls on the right", () => {
+  test("keeps shell actions before caption controls when embedded in the Reader topbar", () => {
     const onOpenSettings = vi.fn()
     render(
       <ReaderWindowBar
         control={createControl()}
+        mode="edges"
+        readerSolo
+        onModeChange={vi.fn()}
+        onReaderSoloChange={vi.fn()}
         onOpenSettings={onOpenSettings}
         windowControls={<button type="button" aria-label="关闭窗口">×</button>}
       />,
@@ -36,13 +40,47 @@ describe("ReaderWindowBar", () => {
 
     const bar = document.querySelector('[data-reader-window-bar="true"]')
     expect(bar).toBeTruthy()
-    const rightCluster = bar!.querySelector(".justify-self-end")
-    expect(rightCluster).toBeTruthy()
-    const labels = Array.from(rightCluster!.querySelectorAll("button")).map((button) => button.getAttribute("aria-label"))
-    expect(labels).toEqual(["固定顶栏", "打开 NeoView 设置", "关闭窗口"])
-    expect(bar!.querySelector(".justify-self-center")).toBeNull()
+    expect(bar?.getAttribute("data-reader-topbar-controls")).toBe("all")
+    expect(bar?.querySelector('[data-reader-topbar-cluster="leading"]')?.querySelectorAll("button")).toHaveLength(6)
+    const labels = Array.from(bar!.querySelectorAll("button")).map((button) => button.getAttribute("aria-label"))
+    expect(labels.slice(-3)).toEqual(["固定顶栏", "打开 NeoView 设置", "关闭窗口"])
 
     fireEvent.click(screen.getByLabelText("打开 NeoView 设置"))
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
+  })
+
+  test("keeps the reversible mode switch and mirrors active-lane fullscreen in Reader chrome", () => {
+    const onModeChange = vi.fn()
+    const onReaderSoloChange = vi.fn()
+    const view = render(
+      <ReaderWindowBar
+        control={createControl()}
+        mode="swimlane"
+        readerSolo
+        onModeChange={onModeChange}
+        onReaderSoloChange={onReaderSoloChange}
+        onOpenSettings={vi.fn()}
+        windowControls={null}
+      />,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "四边栏模式" }))
+    expect(onModeChange).toHaveBeenCalledWith("edges")
+    fireEvent.click(screen.getByRole("button", { name: "退出 Reader 全屏" }))
+    expect(onReaderSoloChange).toHaveBeenCalledWith(false)
+    expect(screen.queryByRole("button", { name: "顶部边栏" })).toBeNull()
+
+    view.rerender(
+      <ReaderWindowBar
+        control={createControl()}
+        mode="edges"
+        readerSolo
+        onModeChange={onModeChange}
+        onReaderSoloChange={onReaderSoloChange}
+        onOpenSettings={vi.fn()}
+        windowControls={null}
+      />,
+    )
+    expect(screen.getByRole("button", { name: "顶部边栏" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "退出 Reader 全屏" })).toBeNull()
   })
 })

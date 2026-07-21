@@ -53,7 +53,7 @@ describe("ReaderPanoramaFrame", () => {
     render(
       <VirtuosoMockContext.Provider value={{ viewportHeight: 900, itemHeight: 600 }}>
         <div style={{ height: 900, width: 1600 }}>
-          <ReaderPanoramaFrame sessionId="reader-2" totalPages={8} anchorPageIndex={0} currentPages={[page(1), page(0)]} pageMode="double" direction="right-to-left" presentation={{ ...DEFAULT_READER_PRESENTATION, orientation: "horizontal" }} imageTrim={imageTrim} videoController={{} as ReaderVideoController} client={{ listPages, frameWindow } as ReaderHttpClient} onSubtitleConfigChange={vi.fn()} onVideoListEnded={vi.fn()} onVisiblePageChange={visible} />
+          <ReaderPanoramaFrame sessionId="reader-2" totalPages={8} anchorPageIndex={0} currentPages={[page(1), page(0)]} pageMode="double" doublePageGap={-14} direction="right-to-left" presentation={{ ...DEFAULT_READER_PRESENTATION, orientation: "horizontal" }} imageTrim={imageTrim} videoController={{} as ReaderVideoController} client={{ listPages, frameWindow } as ReaderHttpClient} onSubtitleConfigChange={vi.fn()} onVideoListEnded={vi.fn()} onVisiblePageChange={visible} />
         </div>
       </VirtuosoMockContext.Provider>,
     )
@@ -65,6 +65,8 @@ describe("ReaderPanoramaFrame", () => {
       expect([...unit!.querySelectorAll("img")].map((image) => image.getAttribute("data-image-trim"))).toEqual(["true", "true"])
       expect([...unit!.querySelectorAll("img")].map((image) => image.getAttribute("data-image-trim-detection-active"))).toEqual(["false", "true"])
       expect(unit?.style.flexDirection).toBe("row")
+      expect(unit?.getAttribute("data-reader-double-page-gap")).toBe("-14")
+      expect(unit?.querySelector<HTMLElement>('[data-reader-page-slot="1"]')?.style.marginInlineStart).toBe("-14px")
     })
     expect(frameWindow).toHaveBeenCalled()
     expect(listPages).not.toHaveBeenCalled()

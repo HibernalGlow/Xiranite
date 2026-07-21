@@ -20,6 +20,13 @@ describe("ViewDefaultsSettingsCard", () => {
     await waitFor(() => expect(doublePage.disabled).toBe(false))
     fireEvent.click(doublePage)
     await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({ pageMode: "double" }))
+
+    rerender(<ViewDefaultsSettingsCard viewDefaults={{ fitMode: "fit-height", pageMode: "double", doublePageGap: 0 }} onChange={onChange} />)
+    const gap = screen.getByRole("spinbutton", { name: "双页间距" }) as HTMLInputElement
+    await waitFor(() => expect(gap.disabled).toBe(false))
+    fireEvent.change(gap, { target: { value: "-18" } })
+    fireEvent.blur(gap)
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({ doublePageGap: -18 }))
   })
 
   it("shows persistence failures and allows the next edit to retry", async () => {

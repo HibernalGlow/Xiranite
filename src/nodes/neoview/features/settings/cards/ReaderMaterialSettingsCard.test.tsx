@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderShellConfigDto } from "../../../adapters/reader-http-client"
+import { readerWorkspaceConfig } from "../../workspace/ReaderWorkspaceLayout"
 import { ReaderMaterialSettingsCard } from "./ReaderMaterialSettingsCard"
 
 afterEach(cleanup)
@@ -92,6 +93,19 @@ describe("ReaderMaterialSettingsCard", () => {
     expect(edge.style.backdropFilter).toContain("blur(12px)")
     expect(onMaterial).not.toHaveBeenCalled()
     edge.remove()
+  })
+
+  it("configures handle style and position independently", () => {
+    const shell = createShell()
+    shell.workspace = readerWorkspaceConfig(shell)
+    const onWorkspace = vi.fn()
+    render(<ReaderMaterialSettingsCard shell={shell} onMaterial={vi.fn()} onWorkspace={onWorkspace} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "三槽" }))
+    fireEvent.click(screen.getByRole("button", { name: "右侧" }))
+
+    expect(onWorkspace).toHaveBeenNthCalledWith(1, { barHandleStyle: "groove" })
+    expect(onWorkspace).toHaveBeenNthCalledWith(2, { barHandlePosition: "right" })
   })
 })
 

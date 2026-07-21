@@ -17,7 +17,7 @@ describe("SidebarManagementSettingsCard", () => {
   it("[neoview.settings.sidebar-management-icons] renders the shared Lucide panel icon", () => {
     render(<SidebarManagementSettingsCard shell={shell()} onSave={vi.fn()} />)
 
-    expect(document.querySelector('[data-sidebar-panel-draft="folder"] svg.lucide-folder-open')).toBeTruthy()
+    expect(document.querySelector('[data-sidebar-panel-draft="folder"] svg.lucide-folder')).toBeTruthy()
   })
 
   it("[neoview.settings.sidebar-management] keeps edits local and persists the complete panel draft once", async () => {

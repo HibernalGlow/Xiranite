@@ -50,6 +50,7 @@ import type { ReaderPageTransitionPort } from "../page-transition/ReaderPageTran
 import type { ReaderSwitchToastPort } from "../switch-toast/ReaderSwitchToastStore"
 import type { InfoOverlayPort } from "./cards/InfoOverlayCard"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
+import type { ReaderWorkspacePatch } from "../workspace/ReaderWorkspaceLayout"
 
 export type ReaderPanelSide = "left" | "right"
 export type LegacyPanelId = ReaderPanelId
@@ -160,6 +161,7 @@ export type ReaderCardDefinitionSettingsSectionId =
 export interface ReaderSettingsCardContext {
   shell: ReaderShellConfigDto
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
+  onWorkspace?(patch: ReaderWorkspacePatch): void
   viewDefaults?: ReaderRuntimeConfigDto["viewDefaults"]
   onViewDefaults?(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   slideshow?: ReaderSlideshowConfig

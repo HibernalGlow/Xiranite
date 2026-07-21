@@ -55,6 +55,31 @@ describe("ReaderInputActionExecutor", () => {
     expect(executeReaderInputAction("upscale.toggle-auto", controls)).toBe(false)
   })
 
+  it("routes swimlane workspace actions through the shared binding executor", () => {
+    const controls = fixture()
+    const workspace = {
+      toggleLayoutMode: vi.fn(),
+      focusReader: vi.fn(),
+      focusAdjacent: vi.fn(),
+      toggleActiveLaneFullscreen: vi.fn(),
+      fitLanes: vi.fn(),
+    }
+    controls.workspace = workspace
+
+    expect(executeReaderInputAction("workspace.toggle-layout-mode", controls)).toBe(true)
+    executeReaderInputAction("workspace.focus-reader", controls)
+    executeReaderInputAction("workspace.focus-previous-lane", controls)
+    executeReaderInputAction("workspace.focus-next-lane", controls)
+    executeReaderInputAction("workspace.toggle-active-lane-fullscreen", controls)
+    executeReaderInputAction("workspace.fit-lanes", controls)
+    expect(workspace.toggleLayoutMode).toHaveBeenCalledOnce()
+    expect(workspace.focusReader).toHaveBeenCalledOnce()
+    expect(workspace.focusAdjacent).toHaveBeenNthCalledWith(1, "previous")
+    expect(workspace.focusAdjacent).toHaveBeenNthCalledWith(2, "next")
+    expect(workspace.toggleActiveLaneFullscreen).toHaveBeenCalledOnce()
+    expect(workspace.fitLanes).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.bindings.file-delete] routes current-file deletion through its destructive action port", () => {
     const controls = fixture()
     controls.deleteCurrentFile = vi.fn()

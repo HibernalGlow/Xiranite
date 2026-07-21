@@ -87,6 +87,12 @@ const LEGACY_READER_INPUT_ACTION_DEFINITIONS = [
 const XR_READER_INPUT_ACTION_DEFINITIONS = [
   action("reader.reset-view", undefined, "重置视图", "view"),
   action("reader.open-settings", undefined, "打开设置", "session"),
+  action("workspace.toggle-layout-mode", undefined, "切换四边栏/泳道", "view"),
+  action("workspace.focus-reader", undefined, "聚焦 Reader 泳道", "view"),
+  action("workspace.focus-previous-lane", undefined, "聚焦上一个泳道", "view"),
+  action("workspace.focus-next-lane", undefined, "聚焦下一个泳道", "view"),
+  action("workspace.toggle-active-lane-fullscreen", undefined, "当前泳道全屏切换", "view"),
+  action("workspace.fit-lanes", undefined, "泳道按比例填满视口", "view"),
 ] as const satisfies readonly ReaderInputActionDefinition[]
 
 export const READER_INPUT_ACTION_DEFINITIONS = [

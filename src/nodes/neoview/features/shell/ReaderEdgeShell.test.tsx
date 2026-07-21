@@ -100,6 +100,46 @@ describe("ReaderEdgeShell", () => {
     expect(screen.queryByText("toolbar")).toBeNull()
   })
 
+  it("[neoview.shell.custom-trigger-rect] uses a configured percentage rectangle for a horizontal bar", () => {
+    const requests = vi.fn()
+    render(
+      <ReaderEdgeShell
+        edges={{ top: { ...slot("top", <div>toolbar</div>), triggerRect: { x: 12, y: 8, width: 76, height: 5 } } }}
+        onEdgeOpenRequest={requests}
+      >
+        <div>viewport</div>
+      </ReaderEdgeShell>,
+    )
+
+    const trigger = document.querySelector<HTMLElement>('[data-reader-edge-trigger="top"]')!
+    expect(trigger.style.left).toBe("12%")
+    expect(trigger.style.top).toBe("8%")
+    expect(trigger.style.width).toBe("76%")
+    expect(trigger.style.height).toBe("5%")
+    fireEvent.pointerEnter(trigger)
+    expect(requests).toHaveBeenCalledWith("top", true, "trigger")
+  })
+
+  it("[neoview.shell.reflowed-trigger] opens from pointer movement when layout moves a hidden trigger under the cursor", () => {
+    vi.useFakeTimers()
+    const requests = vi.fn()
+    render(
+      <ReaderEdgeShell
+        edges={{ top: { ...slot("top", <div>toolbar</div>), showDelayMs: 40 } }}
+        onEdgeOpenRequest={requests}
+      >
+        <div>viewport</div>
+      </ReaderEdgeShell>,
+    )
+
+    const trigger = document.querySelector<HTMLElement>('[data-reader-edge-trigger="top"]')!
+    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue(rect(0, 0, 800, 28))
+    fireEvent.pointerMove(window, { clientX: 400, clientY: 12 })
+    act(() => vi.advanceTimersByTime(40))
+
+    expect(requests).toHaveBeenCalledWith("top", true, "trigger")
+  })
+
   it("[neoview.shell.hover-delay] lazily mounts once and keeps hidden edge content alive", () => {
     vi.useFakeTimers()
     const requests = vi.fn()
@@ -386,6 +426,10 @@ describe("ReaderEdgeShell", () => {
 
 function slot(edge: string, content: React.ReactNode): ReaderEdgeSlot {
   return { ariaLabel: `${edge} edge`, open: false, interaction: "auto", render: () => content }
+}
+
+function rect(left: number, top: number, right: number, bottom: number): DOMRect {
+  return { left, top, right, bottom, width: right - left, height: bottom - top, x: left, y: top, toJSON: () => ({}) }
 }
 
 function ControlledShell({

@@ -1,4 +1,4 @@
-import { useRef } from "react"
+import { useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 
@@ -8,17 +8,41 @@ interface Props {
   className?: string
   label?: string
   onReset?: () => void
+  edge?: "start" | "end"
 }
 
-export function LaneResizer({ onResize, onResizeEnd, className, label, onReset }: Props) {
+export function LaneResizer({ onResize, onResizeEnd, className, label, onReset, edge }: Props) {
   const { t } = useTranslation()
   const startXRef = useRef(0)
   const pointerIdRef = useRef<number | null>(null)
   const btnRef = useRef<HTMLButtonElement | null>(null)
+  const onResizeRef = useRef(onResize)
+  const onResizeEndRef = useRef(onResizeEnd)
+  const cleanupSessionRef = useRef<(() => void) | undefined>(undefined)
+  onResizeRef.current = onResize
+  onResizeEndRef.current = onResizeEnd
+
+  function finishResize(commit = true) {
+    const pointerId = pointerIdRef.current
+    if (pointerId === null) return
+    pointerIdRef.current = null
+    cleanupSessionRef.current?.()
+    cleanupSessionRef.current = undefined
+    try {
+      if (btnRef.current?.hasPointerCapture(pointerId)) btnRef.current.releasePointerCapture(pointerId)
+    } catch {
+      // The browser may already have released capture during cancellation.
+    }
+    if (commit) onResizeEndRef.current?.()
+  }
+
+  useEffect(() => () => finishResize(), [])
 
   function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
     event.preventDefault()
     event.stopPropagation()
+
+    finishResize(false)
 
     startXRef.current = event.clientX
     pointerIdRef.current = event.pointerId
@@ -32,26 +56,27 @@ export function LaneResizer({ onResize, onResizeEnd, className, label, onReset }
       if (pointerIdRef.current !== moveEvent.pointerId) return
       const delta = moveEvent.clientX - startXRef.current
       startXRef.current = moveEvent.clientX
-      onResize?.(delta / 320)
+      onResizeRef.current?.(delta / 320)
     }
 
     const handleUp = (upEvent: PointerEvent) => {
       if (pointerIdRef.current !== upEvent.pointerId) return
-      pointerIdRef.current = null
-      try {
-        btnRef.current?.releasePointerCapture(upEvent.pointerId)
-      } catch {
-        // The pointer may already be released by the browser.
-      }
-      window.removeEventListener("pointermove", handleMove)
-      window.removeEventListener("pointerup", handleUp)
-      window.removeEventListener("pointercancel", handleUp)
-      onResizeEnd?.()
+      finishResize()
     }
 
-    window.addEventListener("pointermove", handleMove)
-    window.addEventListener("pointerup", handleUp)
-    window.addEventListener("pointercancel", handleUp)
+    const handleBlur = () => finishResize()
+    const cleanup = () => {
+      window.removeEventListener("pointermove", handleMove, true)
+      window.removeEventListener("pointerup", handleUp, true)
+      window.removeEventListener("pointercancel", handleUp, true)
+      window.removeEventListener("blur", handleBlur)
+    }
+    cleanupSessionRef.current = cleanup
+
+    window.addEventListener("pointermove", handleMove, { capture: true })
+    window.addEventListener("pointerup", handleUp, { capture: true })
+    window.addEventListener("pointercancel", handleUp, { capture: true })
+    window.addEventListener("blur", handleBlur)
   }
 
   return (
@@ -61,7 +86,9 @@ export function LaneResizer({ onResize, onResizeEnd, className, label, onReset }
       role="separator"
       aria-orientation="vertical"
       aria-label={label ?? t("common:resizeLane")}
+      data-lane-resizer-edge={edge}
       onPointerDown={handlePointerDown}
+      onLostPointerCapture={() => finishResize()}
       onDoubleClick={onReset}
       onKeyDown={(event) => {
         const direction = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0
