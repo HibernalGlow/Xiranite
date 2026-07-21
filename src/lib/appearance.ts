@@ -1,3 +1,18 @@
+/**
+ * 主题外观系统 —— 17 个内置主题预设 + 自定义主题的完整定义与应用逻辑。
+ *
+ * 该模块是 Xiranite 视觉系统的核心，包含：
+ * - 主题预设元数据（THEME_PRESET_OPTIONS）：17 个内置主题的色板、来源、标签
+ * - 设计配方（THEME_DESIGN_RECIPES）：每个主题对应的字体、背景模式、颗粒感等可调参数
+ * - 风格画像（THEME_STYLE_PROFILES）：每个主题的密度、圆角、边框、动效等设计轴
+ * - 字体预设（FONT_PRESETS）：14 套字体组合（xiranite/system/industrial/display 等）
+ * - 应用函数（applyFontPreset/applyThemePreset/applyCustomTheme）：把选择写入 DOM
+ * - 自定义主题导入（parseImportedThemeJson）：解析 JSON 并规范化 CSS 变量
+ * - Aestivus 镜像（mirrorAestivusThemeStorage）：同步主题到 Aestivus 兼容 localStorage
+ *
+ * 主题应用链路：用户选择 → store.setTheme → applyThemePreset 写 data 属性 +
+ * applyCustomTheme 写 CSS 变量 → CSS 通过 data 属性与变量切换样式。
+ */
 import type { AppCustomTheme, AppFontPreset, AppTheme } from "@/types/workspace"
 
 export type ThemePresetMode = "light" | "dark"
@@ -62,6 +77,10 @@ export interface ThemeDesignRecipe {
 
 export type ThemeMode = "system" | "light" | "dark"
 
+/**
+ * 根据 ThemeMode（system/light/dark）与系统暗色偏好解析出实际的明暗方案。
+ * system 模式跟随系统，light/dark 强制指定。
+ */
 export function resolveThemeScheme(mode: ThemeMode, systemDark: boolean): ThemePresetMode {
   return mode === "system" ? (systemDark ? "dark" : "light") : mode
 }
@@ -977,10 +996,20 @@ export const FONT_PRESETS: FontPresetOption[] = [
   },
 ]
 
+/** 按 key 查找字体预设，找不到回退到第一个（xiranite 默认）。 */
 export function getFontPresetOption(fontPreset: AppFontPreset): FontPresetOption {
   return FONT_PRESETS.find((preset) => preset.key === fontPreset) ?? FONT_PRESETS[0]
 }
 
+/**
+ * 把字体预设应用到 document root。
+ *
+ * 写入两组 CSS 变量：
+ * - --font-app-sans / --font-app-mono：当前生效的字体栈
+ * - --font-custom-sans / --font-custom-mono：自定义字体覆盖（非 xiranite 预设时启用）
+ *
+ * 同时设置 data-font-preset 与 data-custom-font 属性，供 CSS 选择器区分。
+ */
 export function applyFontPreset(fontPreset: AppFontPreset): void {
   if (typeof document === "undefined") return
 
@@ -1002,6 +1031,13 @@ export function applyFontPreset(fontPreset: AppFontPreset): void {
   root.style.setProperty("--font-custom-mono", preset.mono)
 }
 
+/**
+ * 把主题预设应用到 document root。
+ *
+ * 写入 data-app-theme 与 8 个风格画像 data 属性（family/density/radius/
+ * border/motion/surface/depth/nodeInterior），并切换 THEME_ROOT_CLASSES
+ * 中的根类名。CSS 通过这些 data 属性选择对应的样式集。
+ */
 export function applyThemePreset(theme: AppTheme): void {
   if (typeof document === "undefined") return
 
@@ -1020,6 +1056,18 @@ export function applyThemePreset(theme: AppTheme): void {
   root.classList.add(THEME_ROOT_CLASSES[theme])
 }
 
+/**
+ * 应用自定义主题到 document root。
+ *
+ * 流程：
+ * 1. 清理上一次 applyCustomTheme 写入的所有 CSS 变量（customThemeKeys 追踪）
+ * 2. customTheme 为 null 时恢复内置主题（重新添加 THEME_ROOT_CLASSES）
+ * 3. 否则根据 mode 选择 light/dark CSS 变量集，规范化后写入 root.style
+ * 4. 调用 deriveCustomThemeVars 派生未显式提供的变量（secondary/muted/border 等）
+ *
+ * 自定义主题会覆盖内置主题的 CSS 变量，但 data-app-theme 属性仍保留，
+ * 便于 CSS 中通过 [data-custom-theme="enabled"] 选择器做额外适配。
+ */
 export function applyCustomTheme(customTheme: AppCustomTheme | null, mode: ThemeMode): void {
   if (typeof document === "undefined") return
 
@@ -1069,6 +1117,14 @@ export function applyCustomTheme(customTheme: AppCustomTheme | null, mode: Theme
   }
 }
 
+/**
+ * 从用户提供的少量 CSS 变量派生出完整的变量集。
+ *
+ * 用户通常只提供 background/foreground/primary/card 等核心变量，
+ * secondary/muted/accent/border 等衍生变量通过 color-mix 计算。
+ * 同时派生 node-* 系列变量（node-surface-bg/node-panel-bg 等），
+ * 保证自定义主题下节点卡片也有协调的配色。
+ */
 function deriveCustomThemeVars(cssVars: Record<string, string>): Record<string, string> {
   const background = cssVars.background ?? "var(--background)"
   const foreground = cssVars.foreground ?? "var(--foreground)"
@@ -1136,6 +1192,17 @@ function deriveCustomThemeVars(cssVars: Record<string, string>): Record<string, 
   }
 }
 
+/**
+ * 解析导入的主题 JSON 字符串，返回去重后的 AppCustomTheme 数组。
+ *
+ * 支持多种 JSON 结构：
+ * - 单个主题对象（含 cssVars 或 colors 字段）
+ * - 主题数组
+ * - 包含 items/themes/presets 字段的对象
+ * - 以主题名为 key 的字典
+ *
+ * 至少需要 cssVars.light 或 colors.light，否则抛错。
+ */
 export function parseImportedThemeJson(jsonString: string): AppCustomTheme[] {
   const parsed = JSON.parse(jsonString) as unknown
   const themes = collectThemeRecords(parsed)
@@ -1209,6 +1276,13 @@ function parseThemeRecord(value: unknown, fallbackName?: string): AppCustomTheme
   return null
 }
 
+/**
+ * 把当前主题选择镜像到 Aestivus 兼容的 localStorage 键。
+ *
+ * Aestivus 是 Xiranite 的前身/兼容产品，通过共享 localStorage 键
+ * （theme-name / theme-mode / custom-themes）实现两者主题同步。
+ * 自定义主题会转换为 Aestivus 的 colors 格式（而非 cssVars）。
+ */
 export function mirrorAestivusThemeStorage(theme: AppTheme, mode: ThemeMode, customThemes: AppCustomTheme[] = [], activeTheme?: AppCustomTheme | null): void {
   if (typeof localStorage === "undefined") return
 
@@ -1230,6 +1304,7 @@ export function mirrorAestivusThemeStorage(theme: AppTheme, mode: ThemeMode, cus
   }
 }
 
+/** 按名称查找激活的自定义主题，找不到返回 null。 */
 export function getActiveCustomTheme(customThemes: AppCustomTheme[], activeThemeName: string | null): AppCustomTheme | null {
   if (!activeThemeName) return null
   return customThemes.find((theme) => theme.name === activeThemeName) ?? null

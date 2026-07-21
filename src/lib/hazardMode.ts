@@ -1,5 +1,22 @@
+/**
+ * Hazard Mode（危险模式）—— 全局安全开关。
+ *
+ * Hazard 模式开启后，所有节点的 dry-run / preview 开关会被强制关闭，
+ * 确保节点的"试运行"功能在 Hazard 模式下无法绕过。这主要用于演示、
+ * 生产环境或需要确保节点真正执行的场景。
+ *
+ * 该模块维护两组 node id 集合：
+ * - DRY_RUN_MODULE_IDS：使用 dryRun 字段控制试运行的节点
+ * - PREVIEW_MODULE_IDS：使用 preview 字段控制预览的节点
+ * - cleanf 节点单独处理（使用 previewMode 字段）
+ *
+ * 提供两层防护：
+ * 1. disableAllNodeDryRuns：批量关闭已部署节点的 data 中的 dry-run 标志
+ * 2. applyHazardRunPolicy：在节点真正执行前再次拦截，防止 UI 持有的旧快照绕过
+ */
 import type { ComponentInstance } from "@/types/workspace"
 
+/** 使用 dryRun 字段控制试运行的节点集合。 */
 const DRY_RUN_MODULE_IDS = new Set([
   "audiov", "bandia", "bitv", "classf", "classq", "coveru", "crashu", "gitalso", "enginev",
   "envuconfig", "formatv", "gifu", "jellypot", "kavvka", "marku", "migratef", "movea",
@@ -7,12 +24,19 @@ const DRY_RUN_MODULE_IDS = new Set([
   "snf", "synct", "timeu", "trename",
 ])
 
+/** 使用 preview 字段控制预览的节点集合。 */
 const PREVIEW_MODULE_IDS = new Set(["dissolvef", "transq"])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
+/**
+ * 计算组件需要应用的"关闭试运行"补丁。
+ *
+ * 根据节点类型返回对应的字段补丁（{ dryRun: false } / { preview: false } /
+ * { previewMode: false }）。如果组件已经处于关闭状态，返回 null 表示无需变更。
+ */
 export function getHazardDisablePatch(component: ComponentInstance): Record<string, false> | null {
   if (component.moduleId === "cleanf") {
     return component.data?.previewMode === false ? null : { previewMode: false }
@@ -29,10 +53,17 @@ export function getHazardDisablePatch(component: ComponentInstance): Record<stri
   return null
 }
 
+/** 统计组件列表中受 Hazard 模式影响的节点数（即需要关闭试运行的节点数）。 */
 export function countHazardAffectedNodes(components: ComponentInstance[]): number {
   return components.filter((component) => getHazardDisablePatch(component) !== null).length
 }
 
+/**
+ * 返回 Hazard 模式下组件"应该使用"的 data。
+ *
+ * Hazard 开启时返回应用了禁用补丁的 data，关闭时返回原始 data。
+ * 用于 UI 渲染时显示"将被禁用"的视觉提示，而不实际修改 store。
+ */
 export function resolveHazardComponentData(
   component: ComponentInstance | undefined,
   enabled: boolean,
@@ -42,6 +73,11 @@ export function resolveHazardComponentData(
   return patch ? { ...component.data, ...patch } : component.data
 }
 
+/**
+ * 批量关闭所有组件的 dry-run / preview 开关。
+ *
+ * @returns 实际变更的组件数
+ */
 export function disableAllNodeDryRuns(
   components: ComponentInstance[],
   patchComponentData: (id: string, patch: Record<string, unknown>) => void,
