@@ -7,8 +7,16 @@ const COMMANDS: ReadonlyArray<readonly [string, ReaderInputAction]> = [
   ["全屏", "reader.fullscreen"], ["打开设置", "reader.open-settings"], ["打开文件", "file.open"], ["关闭文件", "file.close"],
 ]
 
-export function readerVoiceCommandAction(transcript: string): ReaderInputAction | undefined {
+export function readerVoiceCommandAction(
+  transcript: string,
+  commands?: Partial<Record<ReaderInputAction, readonly string[]>>,
+): ReaderInputAction | undefined {
   const normalized = transcript.toLowerCase().replace(/[\s,.!?，。！？、]/g, "")
   if (!normalized) return undefined
+  if (commands) {
+    for (const [action, phrases] of Object.entries(commands) as [ReaderInputAction, readonly string[]][]) {
+      if (phrases.some((phrase) => normalized.includes(phrase.toLowerCase().replace(/[\s,.!?，。！？、]/g, "")))) return action
+    }
+  }
   return COMMANDS.find(([phrase]) => normalized.includes(phrase))?.[1]
 }

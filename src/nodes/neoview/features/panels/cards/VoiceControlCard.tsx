@@ -32,7 +32,7 @@ interface SpeechRecognitionLike extends EventTarget {
   lang: string
   start(): void
   stop(): void
-  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string; confidence?: number }>> }) => void) | null
   onerror: ((event: { error?: string }) => void) | null
   onend: (() => void) | null
 }
@@ -50,10 +50,10 @@ export default function VoiceControlCard(props: ReaderPanelContext) {
   return <VoiceControlContent {...props} />
 }
 
-function VoiceControlContent({ disabled, onInputAction }: ReaderPanelContext) {
+function VoiceControlContent({ disabled, onInputAction, voiceControl, onVoiceControl }: ReaderPanelContext) {
   const Recognition = useMemo(() => getSpeechRecognitionCtor(), [])
   const supported = Boolean(Recognition)
-  const [enabled, setEnabled] = useState(false)
+  const enabled = voiceControl?.enabled ?? false
   const [status, setStatus] = useState<VoiceStatus>("idle")
   const [lastText, setLastText] = useState("")
   const [error, setError] = useState<string>()
@@ -65,12 +65,19 @@ function VoiceControlContent({ disabled, onInputAction }: ReaderPanelContext) {
     try { recognition?.stop() } catch { /* ignore */ }
   }, [recognition])
 
+  useEffect(() => {
+    if (!enabled || disabled) {
+      try { recognition?.stop() } catch { /* ignore */ }
+      setStatus("idle")
+    }
+  }, [disabled, enabled, recognition])
+
   function startListening(): void {
     if (!Recognition || !enabled || disabled) return
     const instance = new Recognition()
-    instance.continuous = false
+    instance.continuous = voiceControl?.continuous ?? false
     instance.interimResults = true
-    instance.lang = "zh-CN"
+    instance.lang = voiceControl?.language ?? "zh-CN"
     instance.onresult = (event) => {
       const transcript = Array.from(event.results)
         .map((result) => result[0]?.transcript ?? "")
@@ -78,7 +85,13 @@ function VoiceControlContent({ disabled, onInputAction }: ReaderPanelContext) {
         .trim()
       if (!transcript) return
       setLastText(transcript)
-      const action = readerVoiceCommandAction(transcript)
+      const confidence = event.results[event.results.length - 1]?.[0]?.confidence
+      if (confidence !== undefined && confidence < (voiceControl?.minConfidence ?? 0.6)) {
+        setError("识别置信度不足")
+        setStatus("idle")
+        return
+      }
+      const action = readerVoiceCommandAction(transcript, voiceControl?.commands)
       if (action) onInputAction?.(action)
       setHistory((current) => [{ text: action ? `${transcript} -> ${action}` : transcript, at: Date.now() }, ...current].slice(0, 12))
       if (!action) setError("未匹配到 Reader 语音命令")
@@ -119,7 +132,8 @@ function VoiceControlContent({ disabled, onInputAction }: ReaderPanelContext) {
           checked={enabled}
           disabled={disabled || !supported}
           onCheckedChange={(checked) => {
-            setEnabled(checked)
+            if (!onVoiceControl) return
+            void onVoiceControl({ enabled: checked }).catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
             if (!checked) stopListening()
           }}
         />
@@ -132,7 +146,7 @@ function VoiceControlContent({ disabled, onInputAction }: ReaderPanelContext) {
         </div>
       ) : (
         <p className="text-[10px] leading-relaxed text-muted-foreground">
-          识别结果目前仅记录在本卡片历史中；与 Reader 动作字典的完整绑定仍待统一能力面接入。
+          识别到的指令会按已配置词典派发到 Reader 输入动作；监听只在本卡片激活时运行。
         </p>
       )}
 

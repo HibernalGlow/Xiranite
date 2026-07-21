@@ -569,6 +569,7 @@ export async function createReaderHttpController(
     superResolution: runtimeConfig.superResolution,
     inputBindings: runtimeConfig.inputBindings,
     radialMenu: runtimeConfig.radialMenu,
+    voiceControl: runtimeConfig.voiceControl,
     presentationDiskCache,
     disposePresentationDiskCache: Boolean(presentationDiskCache && !options.presentationDiskCache),
     updateShellOptions: async (_patch, tomlPatch) => {
@@ -710,6 +711,12 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).radialMenu
+    },
+    updateVoiceControl: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).voiceControl
     },
     loadSettingsMigrationService: () => createReaderSettingsMigrationService(options),
     loadBookSettingsMigrationService: options.loadBookSettingsMigrationService ?? (dataStore
