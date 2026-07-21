@@ -1,7 +1,8 @@
 import { createReadStream } from "node:fs"
-import { open, stat, statfs } from "node:fs/promises"
-import { join } from "node:path"
-import { pipeline } from "node:stream/promises"
+import { createHash, randomUUID } from "node:crypto"
+import { createRequire } from "node:module"
+import { mkdir, open, rename, rm, stat, statfs } from "node:fs/promises"
+import { dirname, join } from "node:path"
 import type { Readable } from "node:stream"
 
 import type {
@@ -19,6 +20,18 @@ interface StoredMetadata extends SuperResolutionArtifactMetadata {
   schemaVersion: 1
   createdAt: number
 }
+
+type CacacheContentPath = (root: string, integrity: string) => string
+type CacacheIndexInsert = (
+  root: string,
+  key: string,
+  integrity: string,
+  options: { size: number; metadata: StoredMetadata },
+) => Promise<unknown>
+
+const require = createRequire(import.meta.url)
+const cacacheContentPath = require("cacache/lib/content/path.js") as CacacheContentPath
+const cacacheIndexInsert = require("cacache/lib/entry-index.js").insert as CacacheIndexInsert
 
 interface CacheEntry {
   key: string
@@ -71,10 +84,12 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
   readonly #now: () => number
   readonly #loadCacache: () => Promise<CacacheApi>
   readonly #availableBytes: (path: string) => Promise<number | undefined>
+  readonly #stagingDirectory: string
   readonly #leases = new Map<string, LeaseState>()
   readonly #publishFlights = new Map<string, PublishFlight>()
   readonly #pendingRemovals = new Set<Promise<void>>()
   #apiPromise?: Promise<CacacheApi>
+  #stagingReady?: Promise<void>
   #maintenance?: Promise<SuperResolutionArtifactCleanupResult>
   #vacuum?: Promise<void>
   #activeStaging = 0
@@ -90,6 +105,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
   constructor(options: CacacheSuperResolutionArtifactStoreOptions) {
     if (!options.root) throw new TypeError("root must be a non-empty path")
     this.#root = options.root
+    this.#stagingDirectory = join(options.root, "staging-v1")
     this.#maxBytes = positiveInteger(options.maxBytes ?? DEFAULT_MAX_BYTES, "maxBytes")
     this.#maxEntryBytes = positiveInteger(options.maxEntryBytes ?? DEFAULT_MAX_ENTRY_BYTES, "maxEntryBytes")
     if (this.#maxEntryBytes > this.#maxBytes) throw new RangeError("maxEntryBytes must not exceed maxBytes")
@@ -239,46 +255,52 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     producer: SuperResolutionArtifactProducer,
     signal: AbortSignal,
   ): Promise<boolean> {
-    const api = await this.#api()
+    await this.#api()
     this.#activeStaging += 1
     let producerCompleted = false
+    let stagingPath: string | undefined
     try {
-      return await (api.tmp.withTmp as unknown as (
-        root: string,
-        options: { tmpPrefix: string },
-        callback: (directory: string) => Promise<boolean>,
-      ) => Promise<boolean>)(this.#root, { tmpPrefix: "xr-upscale-" }, async (directory) => {
-        const destinationPath = join(directory, `artifact.${metadata.extension}`)
-        await producer(destinationPath, signal)
-        producerCompleted = true
-        signal.throwIfAborted()
-        const file = await stat(destinationPath)
-        if (!file.isFile() || file.size <= 0 || file.size > this.#maxEntryBytes) {
-          this.#rejectedWrites += 1
-          return false
-        }
-        await validateImage(destinationPath, metadata.contentType)
-        if (!await this.#ensureCapacity(file.size)) {
-          this.#rejectedWrites += 1
-          return false
-        }
-        const storedMetadata: StoredMetadata = { ...metadata, schemaVersion: 1, createdAt: this.#now() }
-        const sink = api.put.stream(this.#root, key, { memoize: false, size: file.size, metadata: storedMetadata })
-        await pipeline(createReadStream(destinationPath), sink as unknown as NodeJS.WritableStream)
-        this.#writes += 1
-        return true
-      })
+      stagingPath = await this.#stagingPath(key, metadata.extension)
+      await producer(stagingPath, signal)
+      producerCompleted = true
+      signal.throwIfAborted()
+      const file = await stat(stagingPath)
+      if (!file.isFile() || file.size <= 0 || file.size > this.#maxEntryBytes) {
+        this.#rejectedWrites += 1
+        return false
+      }
+      await validateImage(stagingPath, metadata.contentType)
+      if (!await this.#ensureCapacity(file.size)) {
+        this.#rejectedWrites += 1
+        return false
+      }
+      const integrity = await hashFile(stagingPath, signal)
+      const contentPath = cacacheContentPath(this.#root, integrity)
+      await mkdir(dirname(contentPath), { recursive: true })
+      await moveIntoCache(stagingPath, contentPath)
+      stagingPath = undefined
+      const storedMetadata: StoredMetadata = { ...metadata, schemaVersion: 1, createdAt: this.#now() }
+      await cacacheIndexInsert(this.#root, key, integrity, { size: file.size, metadata: storedMetadata })
+      this.#writes += 1
+      return true
     } catch (error) {
       this.#rejectedWrites += 1
       if (!producerCompleted) throw error
       return false
     } finally {
+      if (stagingPath) await rm(stagingPath, { force: true }).catch(() => undefined)
       this.#activeStaging = Math.max(0, this.#activeStaging - 1)
       if (this.#activeStaging === 0 && this.#vacuumPending) {
         this.#vacuumPending = false
         await this.#verify()
       }
     }
+  }
+
+  async #stagingPath(key: string, extension: SuperResolutionArtifactMetadata["extension"]): Promise<string> {
+    this.#stagingReady ??= mkdir(this.#stagingDirectory, { recursive: true }).then(() => undefined)
+    await this.#stagingReady
+    return join(this.#stagingDirectory, `${key.slice(key.lastIndexOf(":") + 1)}-${randomUUID()}.${extension}`)
   }
 
   async #ensureCapacity(incomingBytes: number): Promise<boolean> {
@@ -472,6 +494,26 @@ async function validateImage(path: string, contentType: SuperResolutionArtifactM
     if (!valid) throw new Error(`Super-resolution output is not valid ${contentType}.`)
   } finally {
     await handle.close()
+  }
+}
+
+async function hashFile(path: string, signal: AbortSignal): Promise<string> {
+  const hash = createHash("sha512")
+  for await (const chunk of createReadStream(path)) {
+    signal.throwIfAborted()
+    hash.update(chunk)
+  }
+  signal.throwIfAborted()
+  return `sha512-${hash.digest("base64")}`
+}
+
+async function moveIntoCache(sourcePath: string, destinationPath: string): Promise<void> {
+  try {
+    await rename(sourcePath, destinationPath)
+  } catch (error) {
+    const destination = await stat(destinationPath).catch(() => undefined)
+    if (!destination?.isFile()) throw error
+    await rm(sourcePath, { force: true })
   }
 }
 
