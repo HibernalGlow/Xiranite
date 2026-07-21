@@ -3,8 +3,12 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
+import type {
+  ReaderDirectoryEmmRecord,
+  ReaderDirectoryEmmRecordStore,
+} from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderEmmOverrideRecord, ReaderEmmOverrideStore, ReaderEmmOverrides } from "../../ports/ReaderEmmOverrideStore.js"
+import { legacyEmmBookPathKey } from "../../application/metadata/LegacyEmmBookMetadataCodec.js"
 import { ReaderHttpController } from "./ReaderHttpController.js"
 
 const cleanup: string[] = []
@@ -14,6 +18,61 @@ afterEach(async () => {
 })
 
 describe("Reader EMM metadata HTTP", () => {
+  it("[neoview.emm-raw-data.http] exposes only bounded raw fields through authenticated cached metadata", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-emm-raw-http-"))
+    cleanup.push(directory)
+    await writeFile(join(directory, "1.jpg"), Uint8Array.of(1, 2, 3))
+    const expectedLegacyPath = legacyEmmBookPathKey(directory)
+    const record: ReaderDirectoryEmmRecord & { unallowedSentinel: string } = {
+      rawFields: [
+        { key: "filepath", type: "path", value: "D:/bounded/demo.cbz" },
+        { key: "filesize", type: "bytes", value: 1_048_576 },
+      ],
+      unallowedSentinel: "must-not-cross-http-boundary",
+    }
+    const readDirectoryEmmRecords = vi.fn(async (
+      paths: readonly string[],
+      _signal?: AbortSignal,
+      options?: { includeRaw?: boolean },
+    ) => new Map(paths.map((path) => [path, options?.includeRaw ? record : {}])))
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "emm-token",
+      progressStore: false,
+      directoryEmmRecordStore: { directoryEmmAvailable: true, readDirectoryEmmRecords },
+    })
+    try {
+      const opened = await json(controller, "/reader/sessions", "POST", { path: directory }, 201)
+      const sessionId = String((opened as { sessionId: unknown }).sessionId)
+      const endpoint = `/reader/s/${encodeURIComponent(sessionId)}/metadata`
+
+      const unauthorized = await controller.handle(new Request(`http://127.0.0.1:41000${endpoint}`))
+      expect(unauthorized?.status).toBe(401)
+
+      const metadata = await json(controller, endpoint) as {
+        book?: { emmRaw?: { schemaVersion?: number; fields?: unknown[] } }
+      }
+      expect(metadata.book?.emmRaw).toEqual({
+        schemaVersion: 1,
+        fields: [
+          { key: "filepath", type: "path", value: "D:/bounded/demo.cbz" },
+          { key: "filesize", type: "bytes", value: 1_048_576 },
+        ],
+      })
+      expect(JSON.stringify(metadata)).not.toContain("must-not-cross-http-boundary")
+      expect(readDirectoryEmmRecords).toHaveBeenCalledWith(
+        [expectedLegacyPath],
+        expect.any(AbortSignal),
+        { includeRaw: true },
+      )
+
+      await json(controller, endpoint)
+      expect(readDirectoryEmmRecords).toHaveBeenCalledTimes(1)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.emm.gui-contract] updates and resets non-destructive overrides with CAS and metadata refresh", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-emm-http-"))
     cleanup.push(directory)
