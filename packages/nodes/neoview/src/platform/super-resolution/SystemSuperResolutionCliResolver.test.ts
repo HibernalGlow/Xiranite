@@ -34,6 +34,8 @@ describe("SystemSuperResolutionCliResolver", () => {
       version: "2.15.0",
       architecture: process.arch,
       daemonSupported: true,
+      performanceMode: "daemon",
+      managed: false,
     })
   })
 
@@ -43,6 +45,40 @@ describe("SystemSuperResolutionCliResolver", () => {
     expect(detectSuperResolutionDaemonSupport("upscayl", "  -i input\n  -o output")).toBe(false)
     expect(detectSuperResolutionDaemonSupport("upscayl", "daemon mode is unavailable in this build")).toBe(false)
     expect(detectSuperResolutionDaemonSupport("waifu2x", "  -d daemon mode")).toBe(false)
+  })
+
+  it("[neoview.super-resolution.managed-daemon] prefers a managed daemon over a PATH process-per-page executable", async () => {
+    const resolver = new SystemSuperResolutionCliResolver({
+      managedCandidates: { upscayl: ["D:/Xiranite/tools/upscayl-daemon/current/upscayl-bin.exe"] },
+      which: vi.fn(async () => "D:/scoop/apps/Upscayl/current/upscayl-bin.exe"),
+      canonicalize: vi.fn(async (path) => path),
+      probe: vi.fn(async (_engine, path) => ({ daemonSupported: path.includes("Xiranite") })),
+    })
+    await expect(resolver.resolve("upscayl")).resolves.toMatchObject({
+      available: true,
+      executablePath: "D:/Xiranite/tools/upscayl-daemon/current/upscayl-bin.exe",
+      daemonSupported: true,
+      performanceMode: "daemon",
+      managed: true,
+    })
+  })
+
+  it("[neoview.super-resolution.compatibility-warning] exposes a warning when only PATH process-per-page Upscayl is available", async () => {
+    const resolver = new SystemSuperResolutionCliResolver({
+      managedCandidates: { upscayl: ["D:/Xiranite/missing/upscayl-bin.exe"] },
+      which: vi.fn(async () => "D:/scoop/apps/Upscayl/current/upscayl-bin.exe"),
+      canonicalize: vi.fn(async (path) => {
+        if (path.includes("missing")) throw new Error("not found")
+        return path
+      }),
+      probe: vi.fn(async () => ({ daemonSupported: false })),
+    })
+    await expect(resolver.resolve("upscayl")).resolves.toMatchObject({
+      available: true,
+      managed: false,
+      performanceMode: "process-per-page",
+      warning: expect.stringContaining("every page"),
+    })
   })
 
   it("[neoview.super-resolution.trusted-fallback] tries trusted candidates after a broken PATH result", async () => {

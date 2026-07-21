@@ -96,6 +96,7 @@
     "benchmark:neoview-reader": "bun scripts/benchmark-neoview-reader.ts",
     "audit:neoview-performance": "bun scripts/verify-neoview-performance.ts",
     "benchmark:neoview-super-resolution": "bun scripts/benchmark-neoview-super-resolution.ts",
+    "install:neoview-upscayl-daemon": "bun scripts/install-neoview-upscayl-daemon.ts",
     "migrate:neoview-capability-status": "bun scripts/migrate-neoview-capability-status.ts",
     "migrate:neoview-config": "bun scripts/audit-neoview-config-format.ts --write",
     "audit:neoview-capability-status": "bun scripts/migrate-neoview-capability-status.ts --check",

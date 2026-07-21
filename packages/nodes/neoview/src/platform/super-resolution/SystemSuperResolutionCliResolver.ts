@@ -30,6 +30,7 @@ export interface SystemSuperResolutionCliProbeResult {
 
 export interface SystemSuperResolutionCliResolverOptions {
   explicitPaths?: Partial<Record<SuperResolutionEngine, string | undefined>>
+  managedCandidates?: Partial<Record<SuperResolutionEngine, readonly string[]>>
   trustedCandidates?: Partial<Record<SuperResolutionEngine, readonly string[]>>
   which?: (command: string) => string | undefined | Promise<string | undefined>
   canonicalize?: (path: string) => string | Promise<string>
@@ -39,6 +40,7 @@ export interface SystemSuperResolutionCliResolverOptions {
 
 export class SystemSuperResolutionCliResolver {
   readonly #explicitPaths: Partial<Record<SuperResolutionEngine, string | undefined>>
+  readonly #managedCandidates: Partial<Record<SuperResolutionEngine, readonly string[]>>
   readonly #trustedCandidates: Partial<Record<SuperResolutionEngine, readonly string[]>>
   readonly #which: NonNullable<SystemSuperResolutionCliResolverOptions["which"]>
   readonly #canonicalize: NonNullable<SystemSuperResolutionCliResolverOptions["canonicalize"]>
@@ -48,6 +50,7 @@ export class SystemSuperResolutionCliResolver {
 
   constructor(options: SystemSuperResolutionCliResolverOptions = {}) {
     this.#explicitPaths = options.explicitPaths ?? {}
+    this.#managedCandidates = options.managedCandidates ?? {}
     this.#trustedCandidates = options.trustedCandidates ?? {}
     this.#which = options.which ?? defaultWhich
     this.#canonicalize = options.canonicalize ?? realpath
@@ -84,11 +87,41 @@ export class SystemSuperResolutionCliResolver {
   async #resolveUncached(engine: SuperResolutionEngine): Promise<SuperResolutionEngineCapability> {
     const explicitPath = this.#explicitPaths[engine]?.trim()
     if (explicitPath) {
-      const explicit = await this.#inspectCandidate(engine, explicitPath)
+      const explicit = await this.#inspectCandidate(engine, explicitPath, { managed: false, explicit: true })
       return explicit.capability ?? unavailable(engine, `Configured executable is invalid: ${explicit.reason}`)
     }
 
     const failures: string[] = []
+    if (engine === "upscayl") {
+      let fallback: SuperResolutionEngineCapability | undefined
+      for (const candidate of this.#managedCandidates[engine] ?? []) {
+        const located = await this.#inspectCandidate(engine, candidate, { managed: true })
+        if (located.capability?.daemonSupported) return located.capability
+        if (located.capability) fallback ??= located.capability
+        else failures.push(`managed candidate: ${located.reason}`)
+      }
+
+      const managedExpected = (this.#managedCandidates[engine]?.length ?? 0) > 0
+      const pathCandidate = await this.#which(ENGINE_COMMANDS[engine])
+      if (pathCandidate) {
+        const located = await this.#inspectCandidate(engine, pathCandidate, { managed: false, managedExpected })
+        if (located.capability?.daemonSupported) return located.capability
+        if (located.capability) fallback ??= located.capability
+        else failures.push(`PATH candidate: ${located.reason}`)
+      }
+
+      for (const candidate of this.#trustedCandidates[engine] ?? []) {
+        const located = await this.#inspectCandidate(engine, candidate, { managed: false, managedExpected })
+        if (located.capability?.daemonSupported) return located.capability
+        if (located.capability) fallback ??= located.capability
+        else failures.push(`trusted candidate: ${located.reason}`)
+      }
+      if (fallback) return fallback
+      return unavailable(engine, failures.length
+        ? failures.join("; ")
+        : `${ENGINE_COMMANDS[engine]} was not found in the managed tool directory, PATH, or trusted candidates.`)
+    }
+
     const pathCandidate = await this.#which(ENGINE_COMMANDS[engine])
     if (pathCandidate) {
       const located = await this.#inspectCandidate(engine, pathCandidate)
@@ -110,20 +143,33 @@ export class SystemSuperResolutionCliResolver {
   async #inspectCandidate(
     engine: SuperResolutionEngine,
     candidate: string,
+    source: { managed: boolean; explicit?: boolean; managedExpected?: boolean } = { managed: false },
   ): Promise<{ capability?: SuperResolutionEngineCapability; reason?: string }> {
     try {
       const executablePath = await this.#canonicalize(candidate)
       const probe = await this.#probe(engine, executablePath)
-      return {
-        capability: {
+      const capability: SuperResolutionEngineCapability = {
           engine,
           available: true,
           executablePath,
           version: probe.version,
           architecture: process.arch,
           daemonSupported: probe.daemonSupported,
-        },
       }
+      if (engine === "upscayl") {
+        capability.performanceMode = probe.daemonSupported ? "daemon" : "process-per-page"
+        capability.managed = source.managed
+        if (!probe.daemonSupported) {
+          capability.warning = source.explicit
+            ? "The configured Upscayl executable does not support daemon mode; every page starts a new process and reloads the model."
+            : source.managedExpected
+              ? "Xiranite managed Upscayl daemon is unavailable. Compatibility mode is using an external executable that starts a new process and reloads the model for every page."
+              : "This Upscayl executable does not support daemon mode; every page starts a new process and reloads the model."
+        } else if (!source.managed && !source.explicit && source.managedExpected) {
+          capability.warning = "Xiranite managed Upscayl daemon is unavailable; an external daemon-capable executable is being used."
+        }
+      }
+      return { capability }
     } catch (error) {
       return { reason: error instanceof Error ? error.message : String(error) }
     }

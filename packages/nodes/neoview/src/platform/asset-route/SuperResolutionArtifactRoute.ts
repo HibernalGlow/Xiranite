@@ -111,7 +111,7 @@ export class SuperResolutionArtifactRoute {
         page,
         trigger,
         bookPath: session.book.source.path,
-        priority: trigger === "manual" ? "interactive" : "view",
+        priority: "interactive",
         artifactFor: (decision) => ({
           key: artifactKey(session.book.source.path, page.contentVersion, page.entryPath ?? page.sourcePath, decision),
           metadata: { bookKey: session.book.id, contentType: "image/png", extension: "png" },

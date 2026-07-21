@@ -37,6 +37,42 @@ describe("NeoView upscale Cards", () => {
     expect(screen.getByRole("button", { name: "刷新模型" }).hasAttribute("disabled")).toBe(false)
   })
 
+  it("[neoview.super-resolution.managed-daemon-warning] warns when Upscayl falls back to process-per-page mode", async () => {
+    const upscaleCapabilities = vi.fn(async () => ({
+      available: true as const,
+      models: [{ id: "anime", displayName: "Anime", engine: "upscayl" as const, scales: [2], installed: true }],
+      engines: [{
+        engine: "upscayl" as const,
+        available: true,
+        managed: false,
+        daemonSupported: false,
+        performanceMode: "process-per-page" as const,
+        warning: "Xiranite managed Upscayl daemon is unavailable. Compatibility mode reloads the model for every page.",
+      }],
+      probedAt: 1,
+    }))
+    const { client, ...props } = context({ upscaleCapabilities })
+    render(<UpscaleModelCard {...props} client={client} />)
+    const warning = await screen.findByRole("alert")
+    expect(warning.textContent).toContain("性能降级")
+    expect(warning.textContent).toContain("未检测到 Xiranite 托管的 Upscayl daemon")
+    expect(warning.textContent).toContain("每页都会重启进程")
+  })
+
+  it("[neoview.super-resolution.managed-daemon-missing] reports when no Upscayl executable is usable", async () => {
+    const upscaleCapabilities = vi.fn(async () => ({
+      available: true as const,
+      models: [{ id: "anime", displayName: "Anime", engine: "upscayl" as const, scales: [2], installed: true }],
+      engines: [{ engine: "upscayl" as const, available: false, reason: "managed candidate: not found; PATH candidate: invalid" }],
+      probedAt: 1,
+    }))
+    const { client, ...props } = context({ upscaleCapabilities })
+    render(<UpscaleModelCard {...props} client={client} />)
+    const error = await screen.findByRole("alert")
+    expect(error.textContent).toContain("超分引擎不可用")
+    expect(error.textContent).toContain("managed candidate: not found")
+  })
+
   it("[neoview.super-resolution.model-sources-card] adds model source directories", async () => {
     const onChange = vi.fn(async () => CONFIG)
     render(<UpscaleModelCard {...context()} onSuperResolutionConfigChange={onChange} />)

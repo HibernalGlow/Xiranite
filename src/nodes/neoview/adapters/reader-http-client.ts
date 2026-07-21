@@ -1120,9 +1120,22 @@ export interface ReaderUpscaleModelDto {
   noiseByScale?: Readonly<Record<number, readonly number[]>>
 }
 
+export interface ReaderUpscaleEngineCapabilityDto {
+  engine: "upscayl" | "waifu2x" | "realcugan"
+  available: boolean
+  executablePath?: string
+  version?: string
+  architecture?: string
+  daemonSupported?: boolean
+  performanceMode?: "daemon" | "process-per-page"
+  managed?: boolean
+  warning?: string
+  reason?: string
+}
+
 export type ReaderUpscaleCapabilityDto =
   | { available: false; reason: string; models: readonly []; engines: readonly [] }
-  | { available: true; models: readonly ReaderUpscaleModelDto[]; engines: readonly unknown[]; probedAt: number }
+  | { available: true; models: readonly ReaderUpscaleModelDto[]; engines: readonly ReaderUpscaleEngineCapabilityDto[]; probedAt: number }
 
 export interface ReaderUpscalePreloadSnapshotDto {
   contextId: string

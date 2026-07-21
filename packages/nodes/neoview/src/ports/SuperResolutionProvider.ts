@@ -47,6 +47,9 @@ export interface SuperResolutionEngineCapability {
   version?: string
   architecture?: string
   daemonSupported?: boolean
+  performanceMode?: "daemon" | "process-per-page"
+  managed?: boolean
+  warning?: string
   reason?: string
 }
 
