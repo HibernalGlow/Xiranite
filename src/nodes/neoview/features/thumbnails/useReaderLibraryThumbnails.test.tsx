@@ -36,7 +36,7 @@ describe("useReaderLibraryThumbnails", () => {
 
     view.rerender({ owner: "bookmark:all", items: [] })
     await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledWith(firstContext))
-    expect(view.result.current.urls.size).toBe(0)
+    expect(view.result.current.urls.get("one")).toBe("/thumbnail/one")
 
     view.rerender({ owner: "bookmark:reading", items: [firstItem] })
     await waitFor(() => expect(registerLibraryThumbnails).toHaveBeenCalledTimes(2))

@@ -37,11 +37,18 @@ export function useReaderLibraryThumbnails(
 
   useEffect(() => {
     const register = client.registerLibraryThumbnails
-    if (!register || !items.length) {
+    if (!register) {
       releaseLease(leaseRef)
       setUrlState((current) => current.owner === owner && !current.urls.size
         ? current
         : { owner, urls: new Map() })
+      setLoading(false)
+      return
+    }
+    if (!items.length) {
+      // Hidden virtual lists release backend demand but retain the last bounded
+      // visible URL set so reopening does not repaint thumbnails one by one.
+      releaseLease(leaseRef)
       setLoading(false)
       return
     }
