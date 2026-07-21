@@ -90,8 +90,26 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
   }
 
   if (effectiveLayout === "none") {
+    const tab = tabs.find((candidate) => candidate.id === activeTabId) ?? tabs[0]
     return (
-      <div className="flex h-8 items-center" data-folder-tab-bar="false" data-folder-tab-layout="none">
+      <div className="flex h-8 items-center gap-1" data-folder-tab-bar="false" data-folder-tab-layout="none">
+        {tab ? (
+          <FolderTabActionsMenu
+            tab={tab}
+            disabled={disabled}
+            canDuplicate={tabs.length < maxTabs}
+            canClose={false}
+            canCloseOthers={false}
+            canCloseLeft={false}
+            canCloseRight={false}
+            onDuplicate={onDuplicate}
+            onClose={onClose}
+            onTogglePinned={onTogglePinned}
+            onCloseOthers={onCloseOthers}
+            onCloseLeft={onCloseLeft}
+            onCloseRight={onCloseRight}
+          />
+        ) : null}
         <LayoutSettingsButton disabled={disabled} layout={layout} onLayoutChange={onLayoutChange} />
       </div>
     )
@@ -116,24 +134,21 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
           const hasClosableRight = tabs.slice(tabIndex + 1).some((candidate) => !candidate.pinned)
           return (
             <span key={tab.id} className={`group flex h-7 min-w-20 shrink items-center rounded-md border border-transparent bg-background/60 data-[active=true]:border-border data-[active=true]:bg-background ${vertical ? "w-full" : "max-w-44"}`} data-active={active || undefined} data-pinned={tab.pinned || undefined}>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button type="button" className="ml-1 grid size-5 shrink-0 place-items-center rounded hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" aria-label={`标签操作 ${tab.title}`} title="标签操作" disabled={disabled}>
-                    {tab.pinned ? <Pin className="size-3 text-primary" /> : <Folder className="size-3.5 text-amber-500" />}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-44">
-                  <DropdownMenuItem onSelect={() => onTogglePinned(tab.id)}>
-                    {tab.pinned ? <PinOff /> : <Pin />}{tab.pinned ? "取消固定" : "固定标签"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled={tabs.length >= maxTabs} onSelect={() => onDuplicate(tab.id)}><Copy />复制标签</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem disabled={!canClose} onSelect={() => onClose(tab.id)}><X />关闭标签</DropdownMenuItem>
-                  <DropdownMenuItem disabled={!hasClosableOthers} onSelect={() => onCloseOthers(tab.id)}><X />关闭其他标签</DropdownMenuItem>
-                  <DropdownMenuItem disabled={!hasClosableLeft} onSelect={() => onCloseLeft(tab.id)}><ChevronLeft />关闭左侧标签</DropdownMenuItem>
-                  <DropdownMenuItem disabled={!hasClosableRight} onSelect={() => onCloseRight(tab.id)}><ChevronRight />关闭右侧标签</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <FolderTabActionsMenu
+                tab={tab}
+                disabled={disabled}
+                canDuplicate={tabs.length < maxTabs}
+                canClose={canClose}
+                canCloseOthers={hasClosableOthers}
+                canCloseLeft={hasClosableLeft}
+                canCloseRight={hasClosableRight}
+                onDuplicate={onDuplicate}
+                onClose={onClose}
+                onTogglePinned={onTogglePinned}
+                onCloseOthers={onCloseOthers}
+                onCloseLeft={onCloseLeft}
+                onCloseRight={onCloseRight}
+              />
               <button
                 type="button"
                 role="tab"
@@ -202,6 +217,43 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
         />
       ) : null}
     </div>
+  )
+}
+
+function FolderTabActionsMenu({ tab, disabled, canDuplicate, canClose, canCloseOthers, canCloseLeft, canCloseRight, onDuplicate, onClose, onTogglePinned, onCloseOthers, onCloseLeft, onCloseRight }: {
+  tab: FolderTabBarItem
+  disabled: boolean
+  canDuplicate: boolean
+  canClose: boolean
+  canCloseOthers: boolean
+  canCloseLeft: boolean
+  canCloseRight: boolean
+  onDuplicate(id: string): void
+  onClose(id: string): void
+  onTogglePinned(id: string): void
+  onCloseOthers(id: string): void
+  onCloseLeft(id: string): void
+  onCloseRight(id: string): void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className="ml-1 grid size-5 shrink-0 place-items-center rounded hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" aria-label={`标签操作 ${tab.title}`} title="标签操作" disabled={disabled}>
+          {tab.pinned ? <Pin className="size-3 text-primary" /> : <Folder className="size-3.5 text-amber-500" />}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-44">
+        <DropdownMenuItem onSelect={() => onTogglePinned(tab.id)}>
+          {tab.pinned ? <PinOff /> : <Pin />}{tab.pinned ? "取消固定" : "固定标签"}
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!canDuplicate} onSelect={() => onDuplicate(tab.id)}><Copy />复制标签</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!canClose} onSelect={() => onClose(tab.id)}><X />关闭标签</DropdownMenuItem>
+        <DropdownMenuItem disabled={!canCloseOthers} onSelect={() => onCloseOthers(tab.id)}><X />关闭其他标签</DropdownMenuItem>
+        <DropdownMenuItem disabled={!canCloseLeft} onSelect={() => onCloseLeft(tab.id)}><ChevronLeft />关闭左侧标签</DropdownMenuItem>
+        <DropdownMenuItem disabled={!canCloseRight} onSelect={() => onCloseRight(tab.id)}><ChevronRight />关闭右侧标签</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
