@@ -14,7 +14,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 import type { ReaderHttpClient, ReaderPageDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
-import { readerUpscaleArtifactSnapshot, setReaderUpscaleArtifact } from "./ReaderUpscaleArtifactStore"
+import { readerUpscaleArtifactPage, readerUpscaleArtifactSnapshot, setReaderUpscaleArtifact } from "./ReaderUpscaleArtifactStore"
 
 export interface PageImageProps {
   page: ReaderPageDto
@@ -36,6 +36,7 @@ const DEFAULT_IMAGE_TRIM_SNAPSHOT = () => undefined
 
 export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, imageTrimDetectionActive = true, presentationCropInsets, sessionId, client, superResolution, onCommittedPage }: PageImageProps) {
   const imageRef = useRef<HTMLImageElement>(null)
+  const visible = useReaderImageVisibility(imageRef)
   const sourceIdentity = imageIdentity(page)
   const sourceIdentityRef = useRef(sourceIdentity)
   sourceIdentityRef.current = sourceIdentity
@@ -47,6 +48,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
     client,
     superResolution,
     decodedSourceIdentity === sourceIdentity,
+    visible,
   )
   const targetIdentity = imageIdentity(upscaleTarget)
   const targetIdentityRef = useRef(targetIdentity)
@@ -142,7 +144,8 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
             alt={candidate.name}
             draggable={false}
             decoding="async"
-            fetchPriority="high"
+            loading={visible ? "eager" : "lazy"}
+            fetchPriority={visible ? "high" : "low"}
             className="max-h-full min-h-0 max-w-full select-none object-contain"
             data-reader-page-image={pending ? undefined : candidate.id}
             data-reader-page-image-pending={pending ? candidate.id : undefined}
@@ -184,6 +187,7 @@ function useUpscaleTarget(
   client: ReaderHttpClient | undefined,
   config: ReaderSuperResolutionConfigDto | undefined,
   sourceReady: boolean,
+  visible: boolean,
 ): { page: ReaderPageDto; probing: boolean } {
   const enabled = config?.provider !== "disabled" && config?.preferences.autoUpscaleEnabled === true
   const sourceIdentity = imageIdentity(page)
@@ -233,7 +237,7 @@ function useUpscaleTarget(
   const scheduled = probeSupported && probe?.sourceIdentity === sourceIdentity && probe.state === "scheduled"
   const generationReady = scheduled || sourceReady
   useEffect(() => {
-    if (!enabled || !generationReady || !sessionId || !client?.upscalePage) return
+    if (!enabled || !visible || !generationReady || !sessionId || !client?.upscalePage) return
     if (activeArtifact) return
     if (probeSupported && !scheduled && (probe?.sourceIdentity !== sourceIdentity || probe.state !== "miss")) return
     const controller = new AbortController()
@@ -257,11 +261,26 @@ function useUpscaleTarget(
       }
     })
     return () => controller.abort()
-  }, [activeArtifact, client, configRevision, enabled, generationReady, probe?.sourceIdentity, probe?.state, probeSupported, scheduled, sessionId, sourceIdentity])
+  }, [activeArtifact, client, configRevision, enabled, generationReady, probe?.sourceIdentity, probe?.state, probeSupported, scheduled, sessionId, sourceIdentity, visible])
 
   const probing = enabled && probeSupported && !activeArtifact
     && (probe?.sourceIdentity !== sourceIdentity || probe.state === "pending" || probe.state === "scheduled")
   return { page: enabled && activeArtifact ? activeArtifact.page : page, probing }
+}
+
+function useReaderImageVisibility(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [visible, setVisible] = useState(() => typeof IntersectionObserver === "undefined")
+  useEffect(() => {
+    const element = ref.current
+    if (!element || typeof IntersectionObserver === "undefined") {
+      setVisible(true)
+      return
+    }
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry?.isIntersecting === true), { threshold: 0.01 })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [ref])
+  return visible
 }
 
 function artifactTarget(
@@ -269,16 +288,7 @@ function artifactTarget(
   sourceIdentity: string,
   result: { artifactUrl?: string; version?: string; contentType?: string; bytes?: number },
 ): { sourceIdentity: string; page: ReaderPageDto } {
-  return {
-    sourceIdentity,
-    page: {
-      ...sourcePage,
-      assetUrl: result.artifactUrl!,
-      contentVersion: `${sourcePage.contentVersion}:upscale:${result.version}`,
-      mimeType: result.contentType ?? sourcePage.mimeType,
-      byteLength: result.bytes ?? sourcePage.byteLength,
-    },
-  }
+  return { sourceIdentity, page: readerUpscaleArtifactPage(sourcePage, result)! }
 }
 
 function imageIdentity(page: ReaderPageDto): string {

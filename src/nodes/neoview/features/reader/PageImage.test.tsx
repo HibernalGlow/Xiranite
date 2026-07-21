@@ -1,11 +1,23 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { DEFAULT_READER_IMAGE_TRIM } from "@xiranite/node-neoview/image-trim"
 
 import type { ReaderPageDto } from "../../adapters/reader-http-client"
 import { createReaderColorFilterStore } from "../color-filter/ReaderColorFilterStore"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import { PageImage } from "./PageImage"
+
+beforeEach(() => vi.stubGlobal("IntersectionObserver", class {
+  readonly root = null
+  readonly rootMargin = "0px"
+  readonly thresholds = [0.01]
+  constructor(private readonly callback: IntersectionObserverCallback) {}
+  observe(target: Element) { this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this as unknown as IntersectionObserver) }
+  disconnect() {}
+  unobserve() {}
+  takeRecords() { return [] }
+}))
+afterEach(() => vi.unstubAllGlobals())
 
 describe("PageImage", () => {
   it("[neoview.react.presentation-img] [neoview.react.presentation-direct] uses the original asset URL on the only DOM img chain", () => {
@@ -296,6 +308,38 @@ describe("PageImage", () => {
 
     await waitFor(() => expect(upscaleSignal?.aborted).toBe(true))
     expect(upscalePage).toHaveBeenCalledTimes(1)
+  })
+
+  it("[neoview.viewer.upscale-visibility] gates automatic generation at the shared image chain for every reader mode", async () => {
+    let intersect!: (visible: boolean) => void
+    vi.stubGlobal("IntersectionObserver", class {
+      constructor(callback: IntersectionObserverCallback) {
+        intersect = (visible) => callback([{ isIntersecting: visible } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+      takeRecords() { return [] }
+      root = null
+      rootMargin = "0px"
+      thresholds = [0.01]
+    })
+    const source = page()
+    const probeUpscalePage = vi.fn(async () => ({ status: "miss" as const }))
+    const upscalePage = vi.fn(async () => ({ status: "skipped" as const }))
+    const enabled = { provider: "opencomic-system" as const, preferences: { autoUpscaleEnabled: true } }
+    const view = render(<PageImage page={source} sessionId="reader-visible" client={{ probeUpscalePage, upscalePage } as never} superResolution={enabled} />)
+
+    const sourceImage = view.container.querySelector<HTMLImageElement>(`[src="${source.assetUrl}"]`)!
+    sourceImage.decode = vi.fn(async () => undefined)
+    fireEvent.load(sourceImage)
+    await waitFor(() => expect(probeUpscalePage).toHaveBeenCalledOnce())
+    expect(sourceImage.loading).toBe("lazy")
+    expect(upscalePage).not.toHaveBeenCalled()
+
+    act(() => intersect(true))
+    await waitFor(() => expect(upscalePage).toHaveBeenCalledOnce())
+    expect(sourceImage.loading).toBe("eager")
   })
 
   it("[neoview.color-filter.image-identity] applies CSS and declarative SVG without replacing the active image", async () => {
