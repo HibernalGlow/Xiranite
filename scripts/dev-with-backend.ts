@@ -12,6 +12,9 @@ process.env.XIRANITE_LAZY_NODE_BUILD = "1"
 process.env.XIRANITE_NODE_SOURCE = "1"
 process.env.XIRANITE_NODE_SOURCE_HMR ??= "1"
 const { startBackend } = await import("../packages/backend/src/index")
+const frontendUrl = await resolveManagedFrontendUrl()
+const frontend = new URL(frontendUrl)
+const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
 
 type DevBackend = Awaited<ReturnType<typeof startBackend>>
 
@@ -29,7 +32,7 @@ async function restartBackendFromDevScript() {
   const previous = backend
   const next = await startManagedBackend()
   backend = next
-  await writeBackendDevManifest({ baseUrl: next.url, token: next.token })
+  await writeBackendDevManifest({ baseUrl: next.url, token: next.token }, frontendUrl)
   console.log(`[xiranite-backend:restart] ${next.url}`)
   if (previous) setTimeout(() => previous.close(), 250)
   return {
@@ -41,10 +44,7 @@ async function restartBackendFromDevScript() {
 }
 
 backend = await startManagedBackend()
-await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token })
-const frontendUrl = await resolveManagedFrontendUrl()
-const frontend = new URL(frontendUrl)
-const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
+await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token }, frontendUrl)
 
 console.log(`[xiranite-backend] ${backend.url}`)
 console.log(`[xiranite-frontend] ${frontendUrl}`)
@@ -77,7 +77,7 @@ async function stop() {
   stopping = true
   backend?.close()
   vite.kill()
-  await Promise.all([removeBackendDevManifest(), removeDevSession()])
+  await Promise.all([removeBackendDevManifest(frontendUrl), removeDevSession()])
 }
 
 await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid], script: "dev-with-backend", startedAt: devSessionStartedAt })

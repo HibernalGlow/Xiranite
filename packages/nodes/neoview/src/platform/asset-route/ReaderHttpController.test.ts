@@ -730,6 +730,39 @@ describe("ReaderHttpController", () => {
     expect(disposeThumbnailStore).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.thumbnail.library-own-transform] generates an archive thumbnail when Sharp presentation fallback is disabled", async () => {
+    const archive = await createZipFixture({
+      name: "thumbnail-own-transform.cbz",
+      entries: [{ path: "cover.png", bytes: ONE_PIXEL_PNG, level: 0 }],
+    })
+    cleanupArchives.push(archive)
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      imageProcessing: {
+        ...DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG,
+        thumbnailTransformEnabled: true,
+        sharpFallbackEnabled: false,
+        windowsShellNativeEnabled: false,
+      },
+    })
+    try {
+      const registered = (await controller.handle(jsonRequest("/reader/library/thumbnails", {
+        contextId: "thumbnail-own-transform",
+        generation: 1,
+        items: [{ id: "cover", path: archive.path, kind: "file", previewCount: 1 }],
+      })))!
+      expect(registered.status).toBe(201)
+      const body = await registered.json() as { items: Array<{ thumbnailUrl: string }> }
+      const thumbnail = (await controller.handle(new Request(body.items[0]!.thumbnailUrl)))!
+      expect(thumbnail.status).toBe(200)
+      expect(thumbnail.headers.get("content-type")).toBe("image/webp")
+      expect((await thumbnail.arrayBuffer()).byteLength).toBeGreaterThan(0)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.session.hibernate] releases reader caches only after the last session closes", async () => {
     const directory = await createBookDirectory()
     const hibernate = vi.spyOn(ReaderAssetRoute.prototype, "hibernate")
