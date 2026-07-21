@@ -10,6 +10,7 @@ describe("ReaderBookMetadataService", () => {
       [paths[0]!, {
         emmJson: JSON.stringify({ translated_title: "译名", tags: [{ namespace: "artist", tag: "Alice" }] }),
         manualTags: JSON.stringify([{ namespace: "manual", tag: "favorite" }]),
+        rawFields: [{ key: "filepath", type: "path" as const, value: "D:\\books\\demo.pdf" }],
       }],
     ]))
     const translate = vi.fn(async () => new Map([["artist\0alice", "爱丽丝"]]))
@@ -22,6 +23,7 @@ describe("ReaderBookMetadataService", () => {
       sourceKind: "document",
       sourceFormat: "pdf",
       pageCount: 2,
+      emmRaw: { schemaVersion: 1, fields: [{ key: "filepath", type: "path", value: "D:\\books\\demo.pdf" }] },
       emm: {
         translatedTitle: "译名",
         tags: [
@@ -30,7 +32,7 @@ describe("ReaderBookMetadataService", () => {
         ],
       },
     })
-    expect(readDirectoryEmmRecords).toHaveBeenCalledWith(["D:\\books\\demo.pdf"], undefined)
+    expect(readDirectoryEmmRecords).toHaveBeenCalledWith(["D:\\books\\demo.pdf"], undefined, { includeRaw: true })
     expect(translate).toHaveBeenCalledWith([
       { category: "artist", tag: "Alice" },
       { category: "manual", tag: "favorite" },
