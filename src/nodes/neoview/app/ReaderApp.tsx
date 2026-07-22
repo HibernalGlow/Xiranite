@@ -81,6 +81,15 @@ import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCl
 import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../features/workspace/ReaderSwimlaneWorkspace"
 import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
 
+function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConfigDto): boolean {
+  // Compare normalized workspace views — shell object identity always changes on patch.
+  try {
+    return JSON.stringify(readerWorkspaceConfig(left)) === JSON.stringify(readerWorkspaceConfig(right))
+  } catch {
+    return false
+  }
+}
+
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
   fitMode: DEFAULT_READER_PRESENTATION.fitMode,
@@ -1371,6 +1380,9 @@ export function ReaderApp({
     const current = shellRef.current
     if (!current) return
     const optimistic = applyReaderWorkspacePatch(current, patch)
+    // Skip pure no-ops (e.g. auto-fit re-emitting the same widths). Otherwise
+    // setShell every cycle thrashs the tree into Maximum update depth exceeded.
+    if (workspaceConfigEqual(current, optimistic)) return
     shellRef.current = optimistic
     setShell(optimistic)
     enqueueShellControl({ workspace: patch }, undefined, current)

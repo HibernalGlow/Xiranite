@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { ReaderShellConfigDto } from "../../adapters/reader-http-client"
-import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, reorderedReaderLanes } from "./ReaderWorkspaceLayout"
+import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, isSwimlaneFitNoOp, readerWorkspaceConfig, reorderedReaderLanes } from "./ReaderWorkspaceLayout"
 
 describe("ReaderWorkspaceLayout", () => {
   it("keeps the legacy edge shell as default and derives only initial lane widths", () => {
@@ -83,7 +83,7 @@ describe("ReaderWorkspaceLayout", () => {
       const laneId = workspace.swimlane.laneOrder[index]
       return laneId === "reader" ? width >= 120 : width >= 240
     })).toBe(true)
-    expect(patch.readerSolo).toBe(false)
+    expect(patch.readerSolo).toBeUndefined()
     expect(patch.readerWidthRatio).toBeCloseTo(0.28)
 
     const portraitPatch = fitReaderSwimlanesToViewport(600, workspace.swimlane)
@@ -92,6 +92,23 @@ describe("ReaderWorkspaceLayout", () => {
     expect(portraitWidths).toEqual([240, 150, 240, 240])
     expect(portraitWidths.reduce((sum, width) => sum + width, 0)).toBe(870)
     expect(portraitPatch.readerWidthRatio).toBe(0.25)
+  })
+
+  it("treats a second fit of the same geometry as a no-op", () => {
+    const shell = applyReaderWorkspacePatch(shellConfig(), {
+      mode: "swimlane",
+      readerSolo: false,
+      autoFitToViewport: true,
+      lanes: {
+        left: { width: 320, collapsed: false },
+        reader: { width: 480, collapsed: false },
+        right: { width: 280, collapsed: false },
+      },
+    })
+    const first = fitReaderSwimlanesToViewport(1_080, readerWorkspaceConfig(shell).swimlane)
+    const fitted = applyReaderWorkspacePatch(shell, first)
+    const second = fitReaderSwimlanesToViewport(1_080, readerWorkspaceConfig(fitted).swimlane)
+    expect(isSwimlaneFitNoOp(readerWorkspaceConfig(fitted).swimlane, second)).toBe(true)
   })
 })
 

@@ -171,6 +171,7 @@ export const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   penetration: {
     enabled: false,
     showInternalFiles: true,
+    internalItemsMode: "single",
     maxDepth: 3,
     terminalTargets: ["archive", "document", "media-directory", "file"],
   },
@@ -453,7 +454,29 @@ export function FolderBrowserPane({
   useEffect(() => setHoverPreviewEnabled(folderView.hoverPreviewEnabled ?? true), [folderView.hoverPreviewEnabled])
   useEffect(() => setHoverPreviewDelayMs(folderView.hoverPreviewDelayMs ?? 500), [folderView.hoverPreviewDelayMs])
   useEffect(() => setConfirmDelete(folderView.confirmDelete ?? true), [folderView.confirmDelete])
-  useEffect(() => setPenetration(folderView.penetration), [folderView.penetration])
+  // Parent cards rebuild `folderView.penetration` every render; only write when values change.
+  const penetrationSyncKey = [
+    folderView.penetration.enabled,
+    folderView.penetration.showInternalFiles,
+    folderView.penetration.internalItemsMode ?? "",
+    folderView.penetration.maxDepth,
+    folderView.penetration.terminalTargets.join(","),
+  ].join(":")
+  useEffect(() => {
+    setPenetration((current) => {
+      const next = folderView.penetration
+      if (
+        current.enabled === next.enabled
+        && current.showInternalFiles === next.showInternalFiles
+        && (current.internalItemsMode ?? "") === (next.internalItemsMode ?? "")
+        && current.maxDepth === next.maxDepth
+        && current.terminalTargets.join(",") === next.terminalTargets.join(",")
+      ) return current
+      return next
+    })
+    // folderView.penetration is intentionally omitted — identity churn; use the value key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [penetrationSyncKey])
   useEffect(() => requestPenetrationDescriptions(visibleRangeRef.current), [penetration.enabled, penetration.showInternalFiles, viewMode, catalog?.sessionId, catalog?.generation])
   useEffect(() => setTreeOpen(folderView.tree.visible), [folderView.tree.visible])
   useEffect(() => setTreeLayout(folderView.tree.layout), [folderView.tree.layout])
