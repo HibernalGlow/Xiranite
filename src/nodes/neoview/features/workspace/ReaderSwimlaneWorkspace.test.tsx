@@ -51,7 +51,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(document.querySelector('[data-reader-swimlane="left"]')?.className).not.toContain("ring-primary/55")
     fireEvent.pointerDown(screen.getByRole("button", { name: "Right action" }), { pointerId: 3, button: 0 })
     expect(readerPointer).not.toHaveBeenCalled()
-    expect(onWorkspaceChange).toHaveBeenCalledWith({ activeLane: "right", readerSolo: false })
+    expect(onWorkspaceChange).toHaveBeenCalledWith({ activeLane: "right" })
     expect(document.querySelector<HTMLElement>('[data-reader-swimlane="reader"]')?.style.width).toBe(`${window.innerWidth}px`)
     expect(document.querySelector<HTMLElement>('[data-reader-swimlane="right"]')?.style.width).toBe("300px")
   })
