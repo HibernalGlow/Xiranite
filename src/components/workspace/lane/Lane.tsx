@@ -20,6 +20,7 @@ import { translateLabel } from "@/lib/i18nLabel"
 import { LaneCard } from "./LaneCard"
 import { LaneResizer } from "./LaneResizer"
 import { LaneCollapseIcon } from "./LaneCollapseIcon"
+import { SwimlaneCollapseDragButton } from "@/components/workspace/swimlane/SwimlaneCollapseDragButton"
 import { KanbanColumn, KanbanColumnHandle } from "@/components/ui/kanban"
 import { cn } from "@/lib/utils"
 
@@ -41,9 +42,12 @@ interface Props {
   onActivate?(): void
   onHoverFocus?(): void
   onHoverFocusCancel?(): void
+  onTitleHostChange?(node: HTMLElement | null): void
+  hideTitleForNavigator?: boolean
+  onWidthRatioChange?(ratio: number): void
 }
 
-export function Lane({ lane, components, active = false, solo = false, soloWidth, onActivate, onHoverFocus, onHoverFocusCancel }: Props) {
+export function Lane({ lane, components, active = false, solo = false, soloWidth, onActivate, onHoverFocus, onHoverFocusCancel, onTitleHostChange, hideTitleForNavigator = false, onWidthRatioChange }: Props) {
   const { t } = useTranslation()
   const workspaceActions = useWorkspaceActions()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -73,7 +77,7 @@ export function Lane({ lane, components, active = false, solo = false, soloWidth
 
   function commitRatioInput() {
     const val = parseFloat(ratioInput)
-    if (!isNaN(val) && val > 0) workspaceActions.setLaneWidthRatio(lane.id, val)
+    if (!isNaN(val) && val > 0) (onWidthRatioChange ?? ((ratio) => workspaceActions.setLaneWidthRatio(lane.id, ratio)))(val)
     setRatioInput(formatRatioInput(lane.widthRatio))
   }
 
@@ -90,21 +94,13 @@ export function Lane({ lane, components, active = false, solo = false, soloWidth
         onPointerLeave={onHoverFocusCancel}
         onPointerDownCapture={() => { if (!active) onActivate?.() }}
       >
-        <button
-          onClick={() => workspaceActions.toggleLaneCollapse(lane.id)}
-          className="text-muted-foreground hover:text-foreground"
-          title={t("common:expand")}
-        >
-          <LaneCollapseIcon collapsed />
-        </button>
         <KanbanColumnHandle
-          disabled={renaming}
+          asChild
           data-lane-drag-handle="true"
-          className="text-[10px] font-mono tracking-widest text-muted-foreground"
-          style={{ writingMode: "vertical-rl" }}
         >
-          {translateLabel(lane.label, t)}
+          <SwimlaneCollapseDragButton collapsed laneLabel={translateLabel(lane.label, t)} onClick={() => workspaceActions.toggleLaneCollapse(lane.id)} />
         </KanbanColumnHandle>
+        <span className="text-[10px] font-mono tracking-widest text-muted-foreground" style={{ writingMode: "vertical-rl" }}>{translateLabel(lane.label, t)}</span>
       </KanbanColumn>
     )
   }
@@ -130,32 +126,29 @@ export function Lane({ lane, components, active = false, solo = false, soloWidth
     >
       {/* 标题栏 */}
       <div className="flex items-center gap-1.5 h-8 px-2 border-b border-border/40 bg-muted/30 flex-shrink-0">
-        <button
-          onClick={() => workspaceActions.toggleLaneCollapse(lane.id)}
-          className="text-muted-foreground hover:text-foreground"
-          title={t("common:collapse")}
-        >
-          <LaneCollapseIcon collapsed={false} />
-        </button>
+        <KanbanColumnHandle asChild disabled={renaming} data-lane-drag-handle="true">
+          <SwimlaneCollapseDragButton collapsed={false} laneLabel={translateLabel(lane.label, t)} onClick={() => workspaceActions.toggleLaneCollapse(lane.id)} />
+        </KanbanColumnHandle>
 
-        {renaming ? (
+        <span ref={onTitleHostChange} className="flex min-w-0 flex-1" data-swimlane-navigator-title-slot={active ? "true" : undefined}>
+        {hideTitleForNavigator ? null : renaming ? (
           <input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={commitRename}
             onKeyDown={(e) => { if (e.key === "Enter") commitRename() }}
-            className="flex-1 bg-background border border-border px-1 py-0 text-[11px] font-mono rounded-sm outline-none focus:border-primary"
+            className="min-w-0 flex-1 bg-background border border-border px-1 py-0 text-[11px] font-mono rounded-sm outline-none focus:border-primary"
           />
         ) : (
-          <KanbanColumnHandle
-            data-lane-drag-handle="true"
-            className="flex-1 truncate text-left text-[11px] font-mono font-semibold uppercase tracking-widest text-muted-foreground"
-            title={t("common:dragReorder")}
+          <span
+            className="min-w-0 flex-1 truncate text-left text-[11px] font-mono font-semibold uppercase tracking-widest text-muted-foreground"
+            title={translateLabel(lane.label, t)}
           >
             {translateLabel(lane.label, t)}
-          </KanbanColumnHandle>
+          </span>
         )}
+        </span>
 
         <button
           onClick={(e) => {
@@ -199,7 +192,7 @@ export function Lane({ lane, components, active = false, solo = false, soloWidth
                 {RATIO_PRESETS.map(preset => (
                   <button
                     key={preset}
-                    onClick={(e) => { e.stopPropagation(); workspaceActions.setLaneWidthRatio(lane.id, preset) }}
+                    onClick={(e) => { e.stopPropagation(); (onWidthRatioChange ?? ((ratio) => workspaceActions.setLaneWidthRatio(lane.id, ratio)))(preset) }}
                     className={cn(
                       "py-1 rounded-sm border text-[10px] font-mono",
                       Math.abs(lane.widthRatio - preset) < 0.01
@@ -268,7 +261,7 @@ export function Lane({ lane, components, active = false, solo = false, soloWidth
         className="absolute inset-y-0 right-0 z-20 w-2 translate-x-1 bg-transparent hover:bg-primary/30"
         onResize={(deltaRatio) => {
           widthRatioRef.current += deltaRatio
-          workspaceActions.setLaneWidthRatio(lane.id, widthRatioRef.current)
+          ;(onWidthRatioChange ?? ((ratio) => workspaceActions.setLaneWidthRatio(lane.id, ratio)))(widthRatioRef.current)
         }}
       />
     </KanbanColumn>

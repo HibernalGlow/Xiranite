@@ -23,14 +23,21 @@ The framework provides controlled primitives. Consumers own persistence and
 pass state changes back through their existing storage boundary.
 
 - `model.ts`: order normalization, reordering, adjacent-lane lookup, focus and
-  solo state, effective width, and preference normalization.
+  solo state, effective width, proportional viewport fitting, and preference
+  normalization.
 - `BarHandleGlyph.tsx`: shared `grip`, `groove`, `move`, `grab`, and `edge`
   handle visuals.
 - `SwimlaneBarContent.tsx`: handle placement plus independently scrollable
   horizontal or vertical actions.
-- `SwimlaneNavigatorBar.tsx`: movable lane or panel switcher with a portaled
-  context menu, repeat-right-click close, pointer-cancel cleanup, and persisted
-  percentage position.
+- `SwimlaneNavigatorBar.tsx`: movable lane or panel switcher with a shadcn
+  context menu, title-bar docking, repeat-right-click close, pointer-cancel
+  cleanup, and persisted percentage position.
+- `SwimlaneBarAppearanceMenu.tsx`: native hover-open context submenu for the
+  independently composable handle glyph and left/right position.
+- `SwimlaneFitMenuItems.tsx`: shared one-shot and persistent proportional-fit
+  menu actions.
+- `SwimlaneCollapseDragButton.tsx`: a lane fold button that becomes the lane
+  reorder grip only while hovered or held.
 - `LaneResizer.tsx`: shared accessible resize session with release, cancel,
   lost-capture, blur, and unmount cleanup.
 
@@ -43,6 +50,17 @@ Edge dwell scrolls the real strip to an adjacent lane without changing focus.
 Click, wheel, focus, or configured hover activation changes the active lane.
 Leaving a transient reveal restores the active solo lane.
 
+The bar handle owns its right-click boundary (`data-context-menu-stop`), so a
+workspace or node ancestor menu cannot flash before the bar menu. Menu
+placement, collision avoidance, hover-open submenus, and keyboard navigation
+are delegated to the installed shadcn/Radix context-menu primitives.
+
+Proportional fitting preserves the current expanded-lane weights, reserves
+collapsed-lane width, and respects each consumer's minimum and maximum widths.
+The one-shot action performs one fit without changing preferences. Persistent
+fit reruns after viewport or collapsed-lane geometry changes and after a lane
+resize commits, using the resized lane as the new weight.
+
 ## Persistence boundaries
 
 The framework does not write storage directly.
@@ -50,9 +68,10 @@ The framework does not write storage directly.
 - Project `LaneView`: lane order, width, collapse, and card ownership remain in
   the workspace backend. Per-workspace active/solo lane, dwell delays, bar
   handle, and bar position use `laneWorkspacePreferences` in the existing UI
-  preference store.
+  preference store, including the persistent proportional-fit switch.
 - NeoView: canonical state remains below `[nodes.neoview]` in
   `xiranite.config.toml`. Reader data remains in the legacy NeoView database.
+  Persistent fit is stored as `auto_fit_to_viewport` under the swimlane table.
 - Czkawka: state remains in the node's existing `workspaceLayout` object.
   Missing fields are normalized from the version 1 defaults.
 

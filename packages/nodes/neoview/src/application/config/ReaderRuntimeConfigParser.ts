@@ -2358,6 +2358,7 @@ export function parseNeoviewShellControlPatch(value: unknown): {
       "readerFocusOnHover",
       "readerFocusHoverDelayMs",
       "showLaneNavigatorInReaderSolo",
+      "autoFitToViewport",
       "barHandleStyle",
       "barHandlePosition",
       "laneNavigatorPositionX",
@@ -2410,6 +2411,9 @@ export function parseNeoviewShellControlPatch(value: unknown): {
     }
     if (workspace.showLaneNavigatorInReaderSolo !== undefined) {
       workspacePatch.showLaneNavigatorInReaderSolo = requiredBoolean(workspace.showLaneNavigatorInReaderSolo, "workspace.showLaneNavigatorInReaderSolo")
+    }
+    if (workspace.autoFitToViewport !== undefined) {
+      workspacePatch.autoFitToViewport = requiredBoolean(workspace.autoFitToViewport, "workspace.autoFitToViewport")
     }
     if (workspace.barHandleStyle !== undefined) {
       workspacePatch.barHandleStyle = optionalEnum(workspace.barHandleStyle, "workspace.barHandleStyle", Models.NEOVIEW_BAR_HANDLE_STYLES)
@@ -2599,6 +2603,7 @@ function shellControlTomlPatch(
     if (workspace.readerFocusOnHover !== undefined) value.reader_focus_on_hover = workspace.readerFocusOnHover
     if (workspace.readerFocusHoverDelayMs !== undefined) value.reader_focus_hover_delay_ms = workspace.readerFocusHoverDelayMs
     if (workspace.showLaneNavigatorInReaderSolo !== undefined) value.show_lane_navigator_in_reader_solo = workspace.showLaneNavigatorInReaderSolo
+    if (workspace.autoFitToViewport !== undefined) value.auto_fit_to_viewport = workspace.autoFitToViewport
     if (workspace.barHandleStyle !== undefined) value.bar_handle_style = workspace.barHandleStyle
     if (workspace.barHandlePosition !== undefined) value.bar_handle_position = workspace.barHandlePosition
     if (workspace.laneNavigatorPositionX !== undefined) value.lane_navigator_position_x = workspace.laneNavigatorPositionX
@@ -2926,6 +2931,7 @@ function parseWorkspaceConfig(
     "top_reveal_zone", "topRevealZone", "bottom_reveal_zone", "bottomRevealZone",
     "reader_focus_on_hover", "readerFocusOnHover", "reader_focus_hover_delay_ms", "readerFocusHoverDelayMs",
     "show_lane_navigator_in_reader_solo", "showLaneNavigatorInReaderSolo",
+    "auto_fit_to_viewport", "autoFitToViewport",
     "bar_handle_style", "barHandleStyle", "bar_handle_position", "barHandlePosition", "lane_navigator_position_x", "laneNavigatorPositionX",
     "lane_navigator_position_y", "laneNavigatorPositionY",
     "lane_navigator_dock", "laneNavigatorDock",
@@ -3014,6 +3020,8 @@ function parseWorkspaceConfig(
           source?.show_lane_navigator_in_reader_solo ?? source?.showLaneNavigatorInReaderSolo,
           "[nodes.neoview.panels.swimlane].show_lane_navigator_in_reader_solo",
         ) ?? defaults.showLaneNavigatorInReaderSolo,
+      autoFitToViewport:
+        optionalBoolean(source?.auto_fit_to_viewport ?? source?.autoFitToViewport, "[nodes.neoview.panels.swimlane].auto_fit_to_viewport") ?? defaults.autoFitToViewport,
       barHandleStyle:
         optionalEnum(source?.bar_handle_style ?? source?.barHandleStyle, "[nodes.neoview.panels.swimlane].bar_handle_style", Models.NEOVIEW_BAR_HANDLE_STYLES) ?? defaults.barHandleStyle,
       barHandlePosition:

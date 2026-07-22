@@ -433,7 +433,7 @@ describe("Czkawka node", () => {
 
     const sourceLane = screen.getByTestId("czkawka-lane-source")
     const analysisLane = screen.getByTestId("czkawka-lane-analysis")
-    fireEvent.dragStart(within(sourceLane).getByRole("button", { name: /拖拽.*LANE/ }))
+    fireEvent.dragStart(within(sourceLane).getByRole("button", { name: "折叠扫描条件" }))
     fireEvent.dragOver(analysisLane)
     fireEvent.drop(analysisLane)
 
@@ -456,8 +456,23 @@ describe("Czkawka node", () => {
     expect(screen.getByTestId("czkawka-lane-analysis").getAttribute("data-swimlane-solo")).toBe("true")
 
     fireEvent.contextMenu(handle)
-    fireEvent.contextMenu(handle)
-    expect(screen.queryByRole("menu", { name: "泳道操作栏设置" })).toBeNull()
+    fireEvent.click(screen.getByRole("menuitem", { name: "固定到当前泳道标题栏" }))
+    expect(host.stateValue.workspaceLayout?.navigatorDock).toBe("title")
+    expect(within(screen.getByTestId("czkawka-lane-analysis")).getByRole("navigation", { name: "泳道快速切换" })).toBeTruthy()
+    expect(within(screen.getByTestId("czkawka-lane-analysis")).queryByText("分析与操作 / LANE")).toBeNull()
+  })
+
+  test("persists proportional viewport fitting from the shared bar", () => {
+    Object.assign(surface, { mode: "workspace", width: 1440, height: 860 })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" })
+    render(<Component compId="czkawka" host={host} />)
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "拖动或设置泳道切换栏" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "按当前比例填满视口" }))
+    expect(host.stateValue.workspaceLayout?.autoFitToViewport).not.toBe(true)
+    fireEvent.contextMenu(screen.getByRole("button", { name: "拖动或设置泳道切换栏" }))
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "常驻按比例适应视口" }))
+    expect(host.stateValue.workspaceLayout?.autoFitToViewport).toBe(true)
   })
 
   test("persists a movable and resizable analysis panel inside the node surface", () => {

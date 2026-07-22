@@ -339,12 +339,11 @@ describe("ReaderSwimlaneWorkspace", () => {
       />,
     )
 
-    const handle = screen.getByRole("button", { name: "拖动或设置泳道切换栏" })
-    fireEvent.contextMenu(handle)
+    fireEvent.contextMenu(screen.getByRole("button", { name: "拖动或设置泳道切换栏" }))
     expect(screen.getByRole("menu", { name: "泳道切换栏设置" })).toBeTruthy()
-    fireEvent.contextMenu(handle)
+    fireEvent.keyDown(document, { key: "Escape" })
     expect(screen.queryByRole("menu", { name: "泳道切换栏设置" })).toBeNull()
-    fireEvent.contextMenu(handle)
+    fireEvent.contextMenu(screen.getByRole("button", { name: "拖动或设置泳道切换栏" }))
     fireEvent.click(screen.getByRole("menuitem", { name: "添加泳道" }))
     fireEvent.change(screen.getByRole("textbox", { name: "泳道名称" }), { target: { value: "资料" } })
     fireEvent.click(screen.getByRole("button", { name: "确认添加泳道" }))
@@ -356,6 +355,20 @@ describe("ReaderSwimlaneWorkspace", () => {
       activeLane: laneId,
       lanes: { [laneId]: { width: 320, collapsed: false, title: "资料" } },
     })
+  })
+
+  it("offers one-shot and persistent proportional viewport fitting", () => {
+    const shell = shellConfig("swimlane", "reader")
+    shell.workspace!.swimlane.readerSolo = false
+    const onWorkspaceChange = vi.fn()
+    render(<ReaderSwimlaneWorkspace shell={shell} workspace={readerWorkspaceConfig(shell)} reader={<div>reader</div>} left={<div>left</div>} right={<div>right</div>} onWorkspaceChange={onWorkspaceChange} />)
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "拖动或设置泳道切换栏" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "按当前比例填满视口" }))
+    expect(onWorkspaceChange.mock.calls.at(-1)?.[0].autoFitToViewport).toBeUndefined()
+    fireEvent.contextMenu(screen.getByRole("button", { name: "拖动或设置泳道切换栏" }))
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "常驻按比例适应视口" }))
+    expect(onWorkspaceChange.mock.calls.at(-1)?.[0].autoFitToViewport).toBe(true)
   })
 
   it("pins the lane navigator into the Reader title bar and exposes settings from Reader more", () => {

@@ -18,7 +18,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Plus, Columns3, Maximize2, Minimize2, MoveRight, Settings2 } from "lucide-react"
+import { Plus, Columns3, Maximize2, Minimize2, Pin, PinOff, Settings2 } from "lucide-react"
 import { MouseSensor, TouchSensor, useSensor, useSensors, type UniqueIdentifier } from "@dnd-kit/core"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceStore"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
@@ -30,7 +30,9 @@ import { Kanban, KanbanBoard, KanbanOverlay } from "@/components/ui/kanban"
 import { Lane } from "./Lane"
 import { cn } from "@/lib/utils"
 import { SwimlaneBarMenuItem, SwimlaneNavigatorBar } from "@/components/workspace/swimlane/SwimlaneNavigatorBar"
-import { adjacentSwimlane, normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
+import { SwimlaneBarAppearanceMenu } from "@/components/workspace/swimlane/SwimlaneBarAppearanceMenu"
+import { SwimlaneFitMenuItems } from "@/components/workspace/swimlane/SwimlaneFitMenuItems"
+import { adjacentSwimlane, fitSwimlaneWidthsToViewport, normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
 
 interface LaneCardItem {
   id: string
@@ -47,11 +49,13 @@ export function LaneView() {
   const visibleComponents = useWorkspaceVisibleComponents()
   const workspaceActions = useWorkspaceActions()
   const laneScrollRef = useRef<HTMLDivElement | null>(null)
+  const workspaceRef = useRef<HTMLDivElement | null>(null)
   const focusTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const revealTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const restoreTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const [viewportWidth, setViewportWidth] = useState(960)
   const [previewLaneId, setPreviewLaneId] = useState<string>()
+  const [activeTitleHost, setActiveTitleHost] = useState<HTMLElement | null>(null)
   const preferences = normalizeSwimlanePreferences(laneWorkspacePreferences[activeWorkspaceId])
   const handleDropModule = useCallback((moduleId: string) => {
     workspaceActions.deployComponent(moduleId, { viewMode: "lane" })
@@ -84,9 +88,32 @@ export function LaneView() {
     () => lanes.filter(l => l.workspaceId === activeWorkspaceId && !l.hidden),
     [lanes, activeWorkspaceId],
   )
+  const wsLanesRef = useRef(wsLanes)
+  wsLanesRef.current = wsLanes
   const laneIds = useMemo(() => wsLanes.map((lane) => lane.id), [wsLanes])
   const activeLaneId = preferences.activeLaneId && laneIds.includes(preferences.activeLaneId) ? preferences.activeLaneId : laneIds[0] ?? null
   const soloLaneId = preferences.soloLaneId && laneIds.includes(preferences.soloLaneId) ? preferences.soloLaneId : null
+  const laneGeometryKey = wsLanes.map((lane) => `${lane.id}:${lane.collapsed}`).join("|")
+
+  const fitWorkspaceLanes = useCallback((overrides: Record<string, number> = {}) => {
+    const currentLanes = wsLanesRef.current
+    const widths = fitSwimlaneWidthsToViewport(viewportWidth, currentLanes.map((lane) => ({
+      id: lane.id,
+      width: (overrides[lane.id] ?? lane.widthRatio) * 320,
+      collapsed: lane.collapsed,
+      collapsedWidth: 48,
+      minimumWidth: 240,
+      maximumWidth: 1_280,
+    })))
+    for (const lane of currentLanes) {
+      const width = widths[lane.id]
+      if (width !== undefined) workspaceActions.setLaneWidthRatio(lane.id, width / 320)
+    }
+  }, [viewportWidth, workspaceActions])
+
+  useEffect(() => {
+    if (preferences.autoFitToViewport) fitWorkspaceLanes()
+  }, [fitWorkspaceLanes, laneGeometryKey, preferences.autoFitToViewport])
 
   // 在 lane 模式下未隐藏的组件
   const laneComponents = useMemo(
@@ -147,6 +174,11 @@ export function LaneView() {
     clearTimeout(revealTimerRef.current)
     clearTimeout(restoreTimerRef.current)
   }, [])
+
+  useEffect(() => {
+    if (laneIds.length === 0 || preferences.activeLaneId && laneIds.includes(preferences.activeLaneId)) return
+    workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { activeLaneId: laneIds[0] })
+  }, [activeWorkspaceId, laneIds, preferences.activeLaneId, workspaceActions])
 
   const scrollToLane = useCallback((laneId: string, activate = true) => {
     const scroller = laneScrollRef.current
@@ -241,7 +273,7 @@ export function LaneView() {
 
   return (
     <Kanban value={kanbanValue} getItemValue={(item) => item.id} onValueChange={handleKanbanChange} sensors={laneSensors}>
-      <div className="relative flex-1 ws-canvas-bg flex min-w-0 overflow-hidden" data-testid="lane-drop-target">
+      <div ref={workspaceRef} className="relative flex-1 ws-canvas-bg flex min-w-0 overflow-hidden" data-testid="lane-drop-target">
         <div
           ref={laneScrollRef}
           className="relative min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
@@ -264,6 +296,9 @@ export function LaneView() {
                 onActivate={() => activateLane(lane.id)}
                 onHoverFocus={() => scheduleFocus(lane.id)}
                 onHoverFocusCancel={cancelFocus}
+                onTitleHostChange={activeLaneId === lane.id ? setActiveTitleHost : undefined}
+                hideTitleForNavigator={activeLaneId === lane.id && preferences.navigatorDock === "title" && activeTitleHost !== null}
+                onWidthRatioChange={(ratio) => preferences.autoFitToViewport ? fitWorkspaceLanes({ [lane.id]: ratio }) : workspaceActions.setLaneWidthRatio(lane.id, ratio)}
               />
             ))}
           </KanbanBoard>
@@ -321,8 +356,12 @@ export function LaneView() {
           handleStyle={preferences.barHandleStyle}
           handlePosition={preferences.barHandlePosition}
           position={{ x: preferences.navigatorPositionX, y: preferences.navigatorPositionY }}
+          dock={preferences.navigatorDock}
+          titleHost={activeTitleHost}
+          boundsHost={workspaceRef.current}
           onSelect={activateLane}
           onPositionChange={({ x, y }) => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { navigatorPositionX: x, navigatorPositionY: y })}
+          onDockChange={(navigatorDock) => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { navigatorDock })}
           menu={<>
             <SwimlaneBarMenuItem onSelect={() => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { soloLaneId: soloLaneId === activeLaneId ? null : activeLaneId })}>
               {soloLaneId === activeLaneId ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
@@ -331,16 +370,24 @@ export function LaneView() {
             <SwimlaneBarMenuItem onSelect={() => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { focusOnHover: !preferences.focusOnHover })}>
               <Settings2 className="size-3.5" />{preferences.focusOnHover ? "关闭悬停聚焦" : "开启悬停聚焦"}
             </SwimlaneBarMenuItem>
-            <SwimlaneBarMenuItem onSelect={() => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { barHandlePosition: preferences.barHandlePosition === "left" ? "right" : "left" })}>
-              <MoveRight className="size-3.5" />手柄移到{preferences.barHandlePosition === "left" ? "右" : "左"}侧
+            <SwimlaneFitMenuItems
+              autoFit={preferences.autoFitToViewport}
+              onFit={() => fitWorkspaceLanes()}
+              onAutoFitChange={(autoFitToViewport) => {
+                workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { autoFitToViewport })
+                if (autoFitToViewport) fitWorkspaceLanes()
+              }}
+            />
+            <SwimlaneBarMenuItem onSelect={() => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { navigatorDock: preferences.navigatorDock === "title" ? "floating" : "title" })}>
+              {preferences.navigatorDock === "title" ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+              {preferences.navigatorDock === "title" ? "改为悬浮" : "固定到当前泳道标题栏"}
             </SwimlaneBarMenuItem>
-            <SwimlaneBarMenuItem onSelect={() => {
-              const styles = ["grip", "groove", "move", "grab", "edge"] as const
-              const next = styles[(styles.indexOf(preferences.barHandleStyle) + 1) % styles.length]
-              workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { barHandleStyle: next })
-            }}>
-              <Columns3 className="size-3.5" />切换拖拽手柄样式
-            </SwimlaneBarMenuItem>
+            <SwimlaneBarAppearanceMenu
+              style={preferences.barHandleStyle}
+              position={preferences.barHandlePosition}
+              onStyleChange={(barHandleStyle) => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { barHandleStyle })}
+              onPositionChange={(barHandlePosition) => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { barHandlePosition })}
+            />
           </>}
         />
       </div>

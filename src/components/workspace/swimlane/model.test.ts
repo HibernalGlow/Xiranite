@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { activateSwimlane, adjacentSwimlane, effectiveSwimlaneWidth, normalizeSwimlaneOrder, normalizeSwimlanePreferences, reorderSwimlanes } from "./model"
+import { activateSwimlane, adjacentSwimlane, effectiveSwimlaneWidth, fitSwimlaneWidthsToViewport, normalizeSwimlaneOrder, normalizeSwimlanePreferences, reorderSwimlanes } from "./model"
 
 describe("swimlane model", () => {
   it("normalizes persisted order without losing known lanes", () => {
@@ -24,12 +24,26 @@ describe("swimlane model", () => {
   })
 
   it("normalizes workspace interaction preferences", () => {
-    expect(normalizeSwimlanePreferences({ focusOnHover: true, focusDelayMs: 10, edgeRevealDelayMs: 9000, barHandleStyle: "groove", barHandlePosition: "right" })).toMatchObject({
+    expect(normalizeSwimlanePreferences({ focusOnHover: true, focusDelayMs: 10, edgeRevealDelayMs: 9000, barHandleStyle: "groove", barHandlePosition: "right", navigatorDock: "title", autoFitToViewport: true })).toMatchObject({
       focusOnHover: true,
       focusDelayMs: 200,
       edgeRevealDelayMs: 5000,
       barHandleStyle: "groove",
       barHandlePosition: "right",
+      navigatorDock: "title",
+      autoFitToViewport: true,
     })
+  })
+
+  it("fits expanded lanes proportionally while reserving collapsed and minimum widths", () => {
+    expect(fitSwimlaneWidthsToViewport(1_000, [
+      { id: "left", width: 300, minimumWidth: 200 },
+      { id: "reader", width: 600, minimumWidth: 300 },
+      { id: "right", width: 300, collapsed: true, collapsedWidth: 44 },
+    ])).toEqual({ left: 319, reader: 637 })
+    expect(fitSwimlaneWidthsToViewport(500, [
+      { id: "left", width: 200, minimumWidth: 240 },
+      { id: "right", width: 800, minimumWidth: 240 },
+    ])).toEqual({ left: 240, right: 260 })
   })
 })

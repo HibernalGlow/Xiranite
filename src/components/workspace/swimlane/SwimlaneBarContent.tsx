@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import type { ReactElement, ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 import { BarHandleGlyph } from "./BarHandleGlyph"
@@ -11,6 +11,7 @@ export function SwimlaneBarContent({
   horizontal,
   menuOpen = false,
   label,
+  renderHandle,
   onHandlePointerDown,
   onHandleContextMenu,
 }: {
@@ -20,16 +21,18 @@ export function SwimlaneBarContent({
   horizontal: boolean
   menuOpen?: boolean
   label: string
+  renderHandle?(handle: ReactElement): ReactNode
   onHandlePointerDown?(event: React.PointerEvent<HTMLButtonElement>): void
   onHandleContextMenu?(event: React.MouseEvent<HTMLButtonElement>): void
 }) {
-  const handle = <button
+  const handleButton = <button
     type="button"
     title={`${label}；右键打开设置`}
     aria-label={label}
     aria-haspopup="menu"
     aria-expanded={menuOpen}
     data-swimlane-bar-handle="true"
+    data-context-menu-stop=""
     data-swimlane-bar-handle-style={handleStyle}
     data-swimlane-bar-handle-position={handlePosition}
     data-reader-bar-handle-style={handleStyle}
@@ -40,6 +43,7 @@ export function SwimlaneBarContent({
   >
     <BarHandleGlyph style={handleStyle} horizontal={horizontal} />
   </button>
+  const handle = renderHandle ? renderHandle(handleButton) : handleButton
 
   return (
     <>

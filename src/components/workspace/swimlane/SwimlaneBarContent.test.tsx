@@ -14,6 +14,7 @@ describe("SwimlaneBarContent", () => {
     const handle = screen.getByRole("button", { name: "拖动操作栏" })
     expect(handle.dataset.swimlaneBarHandleStyle).toBe("groove")
     expect(handle.dataset.swimlaneBarHandlePosition).toBe("right")
+    expect(handle.dataset.contextMenuStop).toBe("")
     expect(handle.parentElement?.lastElementChild).toBe(handle)
     expect(document.querySelector('[data-swimlane-bar-scroll="true"]')).toBeTruthy()
     fireEvent.contextMenu(handle)
