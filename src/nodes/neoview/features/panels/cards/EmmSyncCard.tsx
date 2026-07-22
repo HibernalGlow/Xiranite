@@ -29,7 +29,7 @@ function EmmSyncContent({ sessionId, client }: { sessionId: string; client: Read
           <p className="text-[10px] leading-relaxed text-muted-foreground">当前版本按文件路径实时读取 database.sqlite；无需先把标签和评分同步到 thumbnails.db。</p>
         </div>
       </div>
-      <Button type="button" size="sm" variant="outline" className="h-7 text-[10px]" onClick={state.retry}>
+      <Button type="button" size="sm" variant="outline" className="h-7 text-[10px]" disabled={state.loading} onClick={state.retry}>
         <RefreshCw data-icon="inline-start" />重新读取
       </Button>
     </div>

@@ -37,6 +37,23 @@ describe("EMM auxiliary property cards", () => {
     expect(screen.queryByText("filepath")).toBeNull()
   })
 
+  it("[neoview.emm-sync.refresh] coalesces repeated rereads while the external projection is pending", async () => {
+    const reread = Promise.withResolvers<ReaderMetadataDto>()
+    const metadata = vi.fn()
+      .mockResolvedValueOnce(metadataDto())
+      .mockReturnValueOnce(reread.promise)
+    render(<EmmSyncCard {...context({ metadata } as unknown as ReaderHttpClient)} />)
+
+    expect(await screen.findByText("外部 EMM 数据已连接")).toBeTruthy()
+    const refresh = screen.getByRole("button", { name: "重新读取" })
+    fireEvent.click(refresh)
+    fireEvent.click(refresh)
+    expect(metadata).toHaveBeenCalledTimes(2)
+
+    reread.resolve(metadataDto())
+    expect(await screen.findByText("外部 EMM 数据已连接")).toBeTruthy()
+  })
+
   it("[neoview.emm-raw-data.session-replace] aborts stale metadata and publishes only the replacement session", async () => {
     const requests = new Map<string, {
       deferred: ReturnType<typeof Promise.withResolvers<ReaderMetadataDto>>
