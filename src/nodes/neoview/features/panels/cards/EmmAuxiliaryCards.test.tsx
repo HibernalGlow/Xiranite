@@ -18,10 +18,11 @@ describe("EMM auxiliary property cards", () => {
   })
 
   it("[neoview.emm-cards.lifecycle] does no work while all cards are hidden", () => {
-    const client = { metadata: vi.fn(), suggestDirectoryEmmTags: vi.fn(), openDirectoryBrowser: vi.fn() } as unknown as ReaderHttpClient
+    const client = { metadata: vi.fn(), suggestDirectoryEmmTags: vi.fn(), listManualEmmTags: vi.fn(), openDirectoryBrowser: vi.fn() } as unknown as ReaderHttpClient
     render(<><EmmSyncCard {...context(client, false)} /><EmmRawDataCard {...context(client, false)} /><FavoriteTagsCard {...context(client, false)} /><FolderRatingsCard {...context(client, false)} /></>)
     expect(client.metadata).not.toHaveBeenCalled()
     expect(client.suggestDirectoryEmmTags).not.toHaveBeenCalled()
+    expect(client.listManualEmmTags).not.toHaveBeenCalled()
     expect(client.openDirectoryBrowser).not.toHaveBeenCalled()
   })
 
@@ -124,9 +125,12 @@ describe("EMM auxiliary property cards", () => {
 
   it("[neoview.favorite-tags.card] renders bounded translated suggestions", async () => {
     const suggestDirectoryEmmTags = vi.fn(async () => [{ category: "artist", tag: "Alice", translatedTag: "爱丽丝", favorite: true }])
-    render(<FavoriteTagsCard {...context({ suggestDirectoryEmmTags } as unknown as ReaderHttpClient)} />)
+    const listManualEmmTags = vi.fn(async () => [{ namespace: "manual", tag: "favorite", count: 3 }])
+    render(<FavoriteTagsCard {...context({ suggestDirectoryEmmTags, listManualEmmTags } as unknown as ReaderHttpClient)} />)
     expect(await screen.findByText("爱丽丝")).toBeTruthy()
     expect(suggestDirectoryEmmTags).toHaveBeenCalledWith(32, expect.any(AbortSignal))
+    expect(document.querySelector('[title="manual:favorite (3个文件)"]')).toBeTruthy()
+    expect(listManualEmmTags).toHaveBeenCalledWith(64, expect.any(AbortSignal))
   })
 
   it("[neoview.folder-ratings.card] batches the current directory and closes its private browser session", async () => {

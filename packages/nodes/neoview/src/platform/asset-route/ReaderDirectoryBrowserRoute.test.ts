@@ -139,6 +139,31 @@ describe("ReaderDirectoryBrowserRoute", () => {
     }
   })
 
+  it("[neoview.favorite-tags.manual-http] exposes bounded manual tag summaries without a browser session", async () => {
+    const listManualTagSummaries = vi.fn(async () => [
+      { namespace: "manual", tag: "favorite", count: 3 },
+    ])
+    const route = new ReaderDirectoryBrowserRoute(
+      undefined, undefined, undefined, {}, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { listManualTagSummaries } as never,
+    )
+    try {
+      const response = (await route.handle(new Request("http://localhost/reader/browser/emm-tags/manual?limit=8")))!
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ tags: [{ namespace: "manual", tag: "favorite", count: 3 }] })
+      expect(listManualTagSummaries).toHaveBeenCalledWith(8, expect.any(AbortSignal))
+      expect((await route.handle(new Request("http://localhost/reader/browser/emm-tags/manual?limit=257")))?.status).toBe(400)
+      const unavailable = new ReaderDirectoryBrowserRoute()
+      try {
+        expect((await unavailable.handle(new Request("http://localhost/reader/browser/emm-tags/manual")))?.status).toBe(503)
+      } finally {
+        await unavailable[Symbol.asyncDispose]()
+      }
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.tree-roots-http] exposes platform roots without opening a browser session", async () => {
     const list = vi.fn(async () => [
       { path: "C:\\", label: "System (C:)", kind: "fixed" as const, available: true },
