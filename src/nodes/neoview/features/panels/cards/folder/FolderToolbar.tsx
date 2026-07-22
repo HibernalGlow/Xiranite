@@ -1,8 +1,6 @@
 import {
   ALargeSmall,
   ArrowDown,
-  ArrowLeft,
-  ArrowRight,
   ArrowUp,
   Bookmark,
   CheckSquare,
@@ -14,7 +12,6 @@ import {
   Grid2X2,
   HardDrive,
   Heart,
-  Home,
   Layers3,
   ListTree,
   Lock,
@@ -28,6 +25,9 @@ import {
   Star,
   Trash2,
   Unlock,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
   type LucideIcon,
 } from "lucide-react"
 import { useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react"
@@ -175,7 +175,7 @@ export type FolderToolbarProps = {
 
 /**
  * Compact single-row folder chrome.
- * Primary cluster stays left; overflow menu is hierarchical and icon-led.
+ * Navigation and More remain fixed while the primary tools scroll at narrow widths.
  * Type filtering is a structured panel under 更多 — not the old chip strip.
  */
 export default function FolderToolbar(props: FolderToolbarProps) {
@@ -274,44 +274,33 @@ export default function FolderToolbar(props: FolderToolbarProps) {
 
   return (
     <div
-      className="flex min-w-0 flex-wrap items-center gap-x-0.5 gap-y-1"
+      className="@container/folder-toolbar flex min-w-0 flex-nowrap items-center gap-0.5 overflow-hidden"
       data-folder-toolbar-row="operations"
-      data-folder-toolbar-layout="wrapping"
+      data-folder-toolbar-layout="single-row-scroll"
     >
       <div className="flex shrink-0 items-center gap-0.5" data-folder-toolbar-group="navigation">
-        <div className="flex shrink-0 items-center gap-0.5" data-folder-toolbar-group="nav">
-          <ToolbarIconButton label="后退" disabled={!canGoBack || busy} onClick={onNavigateBack}><ArrowLeft /></ToolbarIconButton>
-          <ToolbarIconButton label="前进" disabled={!canGoForward || busy} onClick={onNavigateForward}><ArrowRight /></ToolbarIconButton>
-          <ToolbarIconButton label="上级" disabled={!canGoUp || busy} onClick={onNavigateUp}><ArrowUp /></ToolbarIconButton>
-        </div>
-
-        <ToolbarDivider />
-
-        <div className="flex shrink-0 items-center gap-0.5" data-folder-toolbar-group="home">
-          <ToolbarIconButton
-            label="主页（单击返回主页，右键设置当前路径为主页）"
-            disabled={!currentPath || busy}
-            clickDisabled={!homePath}
-            active={Boolean(currentPath && homePath && currentPath === homePath)}
-            onClick={onGoHome}
-            onContextMenu={(event) => {
-              event.preventDefault()
-              if (currentPath && !busy && currentPath !== homePath) onSetHome()
-            }}
-          >
-            <Home />
-          </ToolbarIconButton>
-          <ToolbarIconButton label="刷新" disabled={!currentPath || busy} onClick={onRefresh}>
-            <RefreshCw className={loading ? "animate-spin" : undefined} />
-          </ToolbarIconButton>
-        </div>
+        <FolderNavigationPad
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          canGoUp={canGoUp}
+          busy={busy}
+          loading={loading}
+          homePath={homePath}
+          currentPath={currentPath}
+          onNavigateBack={onNavigateBack}
+          onNavigateForward={onNavigateForward}
+          onNavigateUp={onNavigateUp}
+          onGoHome={onGoHome}
+          onSetHome={onSetHome}
+          onRefresh={onRefresh}
+        />
 
         <ToolbarDivider />
 
       </div>
 
-      <div className="flex min-w-0 flex-[1_1_30rem] flex-wrap items-center justify-end gap-0.5" data-folder-toolbar-group="tools">
-        <div className="flex min-w-0 shrink items-center gap-0.5 overflow-hidden" data-folder-toolbar-group="primary">
+      <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden" data-folder-toolbar-group="tools">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-folder-toolbar-group="primary">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -473,7 +462,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
           ) : null}
         </div>
 
-      <div className="flex shrink-0 items-center gap-0.5 pl-0.5" data-folder-toolbar-group="more">
+      <div className="flex shrink-0 items-center gap-0.5 border-l pl-0.5" data-folder-toolbar-group="more">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -759,14 +748,21 @@ export default function FolderToolbar(props: FolderToolbarProps) {
               />
             </Field>
             <Field orientation="horizontal">
-              <FieldLabel htmlFor="folder-penetration-show-internal-files">显示内部文件名</FieldLabel>
+              <FieldLabel htmlFor="folder-penetration-show-internal-files">显示内部条目</FieldLabel>
               <Switch
                 id="folder-penetration-show-internal-files"
-                aria-label="显示内部文件名"
+                aria-label="显示内部条目"
                 checked={penetration.showInternalFiles}
                 disabled={busy}
                 onCheckedChange={(showInternalFiles) => onUpdatePenetration({ showInternalFiles })}
               />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="folder-penetration-internal-items-mode">内部条目显示</FieldLabel>
+              <Select value={penetration.internalItemsMode} disabled={busy} onValueChange={(internalItemsMode: "single" | "all") => onUpdatePenetration({ internalItemsMode })}>
+                <SelectTrigger id="folder-penetration-internal-items-mode" className="w-full" aria-label="内部条目显示"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="single">单个</SelectItem><SelectItem value="all">全部</SelectItem></SelectContent>
+              </Select>
             </Field>
             <Field>
               <FieldLabel htmlFor="folder-penetration-depth">最大穿透层数</FieldLabel>
@@ -825,6 +821,118 @@ const PENETRATION_TARGET_OPTIONS: readonly { value: ReaderFolderPenetrationConfi
   { value: "media-directory", label: "图片与媒体目录" },
   { value: "file", label: "其他可读文件" },
 ]
+
+function FolderNavigationPad({
+  canGoBack,
+  canGoForward,
+  canGoUp,
+  busy,
+  loading,
+  homePath,
+  currentPath,
+  onNavigateBack,
+  onNavigateForward,
+  onNavigateUp,
+  onGoHome,
+  onSetHome,
+  onRefresh,
+}: Pick<FolderToolbarProps,
+  | "canGoBack"
+  | "canGoForward"
+  | "canGoUp"
+  | "loading"
+  | "homePath"
+  | "currentPath"
+  | "onNavigateBack"
+  | "onNavigateForward"
+  | "onNavigateUp"
+  | "onGoHome"
+  | "onSetHome"
+  | "onRefresh"
+> & { busy: boolean }) {
+  return (
+    <div
+      className="relative size-8 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/30 shadow-xs focus-within:ring-2 focus-within:ring-ring/50"
+      role="group"
+      aria-label="文件夹导航"
+      data-folder-navigation-pad="true"
+    >
+      <NavigationPadButton position="left" label="后退" disabled={!canGoBack || busy} onClick={onNavigateBack} />
+      <NavigationPadButton position="right" label="前进" disabled={!canGoForward || busy} onClick={onNavigateForward} />
+      <NavigationPadButton position="up" label="上级" disabled={!canGoUp || busy} onClick={onNavigateUp} />
+      <NavigationPadButton
+        position="down"
+        label="主页（单击返回主页，右键设置当前路径为主页）"
+        disabled={!currentPath || busy}
+        clickDisabled={!homePath}
+        active={Boolean(currentPath && homePath && currentPath === homePath)}
+        onClick={onGoHome}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          if (currentPath && !busy && currentPath !== homePath) onSetHome()
+        }}
+      />
+      <NavigationPadButton position="center" label="刷新" disabled={!currentPath || busy} onClick={onRefresh} />
+      <div className="pointer-events-none absolute inset-0 z-[3] text-foreground" aria-hidden="true">
+        <ChevronLeft className={`absolute left-0.5 top-1/2 size-2 -translate-y-1/2 ${!canGoBack || busy ? "opacity-25" : ""}`} />
+        <ChevronRight className={`absolute right-0.5 top-1/2 size-2 -translate-y-1/2 ${!canGoForward || busy ? "opacity-25" : ""}`} />
+        <ChevronUp className={`absolute left-1/2 top-0.5 size-2 -translate-x-1/2 ${!canGoUp || busy ? "opacity-25" : ""}`} />
+        <span
+          className={`absolute bottom-1 left-1/2 h-0.5 w-2 -translate-x-1/2 rounded-full ${currentPath && homePath && currentPath === homePath ? "bg-primary-foreground" : "bg-current"} ${!currentPath || busy || !homePath ? "opacity-25" : ""}`}
+        />
+        <span
+          className={`absolute left-1/2 top-1/2 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current ${loading ? "animate-pulse" : ""} ${!currentPath || busy ? "opacity-25" : ""}`}
+        />
+      </div>
+    </div>
+  )
+}
+
+const NAVIGATION_PAD_POSITION_CLASSES = {
+  left: "z-[1] [clip-path:polygon(0_0,40%_30%,40%_70%,0_100%)]",
+  right: "z-[1] [clip-path:polygon(100%_0,60%_30%,60%_70%,100%_100%)]",
+  up: "z-[1] [clip-path:polygon(0_0,100%_0,70%_40%,30%_40%)]",
+  down: "z-[1] [clip-path:polygon(30%_60%,70%_60%,100%_100%,0_100%)]",
+  center: "z-[2] m-auto size-3.5 rounded-full border border-border/70 bg-background p-0 shadow-sm hover:bg-accent",
+} as const
+
+function NavigationPadButton({
+  position,
+  label,
+  disabled = false,
+  clickDisabled = false,
+  active = false,
+  onClick,
+  onContextMenu,
+  children,
+}: {
+  position: keyof typeof NAVIGATION_PAD_POSITION_CLASSES
+  label: string
+  disabled?: boolean
+  clickDisabled?: boolean
+  active?: boolean
+  onClick(): void
+  onContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void
+}) {
+  return (
+    <Button
+      type="button"
+      size="icon-sm"
+      variant={active ? "default" : "ghost"}
+      className={`absolute inset-0 size-full min-w-0 rounded-none p-0 [&_svg]:size-2.5 ${NAVIGATION_PAD_POSITION_CLASSES[position]}`}
+      aria-label={label}
+      title={label}
+      aria-disabled={disabled || clickDisabled}
+      aria-pressed={active || undefined}
+      disabled={disabled}
+      data-navigation-pad-position={position}
+      onClick={() => {
+        if (!clickDisabled) onClick()
+      }}
+      onContextMenu={onContextMenu}
+    />
+  )
+}
 
 function ToolbarDivider() {
   return <div className="mx-0.5 h-4 w-px shrink-0 bg-border/70" aria-hidden="true" />

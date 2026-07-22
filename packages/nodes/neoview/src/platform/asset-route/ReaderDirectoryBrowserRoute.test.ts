@@ -41,8 +41,8 @@ describe("ReaderDirectoryBrowserRoute", () => {
 
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toEqual({ entries: [
-        { path: first, internalFiles: [{ name: "Book One", path: join(first, "Book One.cbz") }] },
-        { path: second, internalFiles: [{ name: "Book.Two", path: join(second, "Book.Two.zip") }] },
+        { path: first, internalFiles: [{ name: "Book One", path: join(first, "Book One.cbz"), kind: "file" }] },
+        { path: second, internalFiles: [{ name: "Book.Two", path: join(second, "Book.Two.zip"), kind: "file" }] },
       ] })
     } finally {
       await route[Symbol.asyncDispose]()

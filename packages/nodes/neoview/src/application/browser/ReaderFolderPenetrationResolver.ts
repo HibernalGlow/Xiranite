@@ -56,7 +56,7 @@ export interface ReaderFolderPenetrationResolution {
 
 export interface ReaderFolderPenetrationDescription {
   path: string
-  internalFiles: readonly { name: string; path: string }[]
+  internalFiles: readonly { name: string; path: string; kind: "file" | "directory" }[]
 }
 
 export interface ReaderFolderPenetrationResolverOptions {
@@ -143,10 +143,11 @@ export class ReaderFolderPenetrationResolver {
       signal?.throwIfAborted()
       try {
         const listing = await this.provider.read(requestedPath, signal)
-        const internalFiles = classifyEntries(listing.entries, this.options.mediaFormats).archives.map(({ name, path: entryPath }) => ({
-          name: stripLastExtension(name),
-          path: entryPath,
-        }))
+        const classified = classifyEntries(listing.entries, this.options.mediaFormats)
+        const internalFiles = [
+          ...classified.archives.map(({ name, path: entryPath }) => ({ name: stripLastExtension(name), path: entryPath, kind: "file" as const })),
+          ...classified.directories.map(({ name, path: entryPath }) => ({ name, path: entryPath, kind: "directory" as const })),
+        ]
         return { path: requestedPath, internalFiles }
       } catch (error) {
         signal?.throwIfAborted()

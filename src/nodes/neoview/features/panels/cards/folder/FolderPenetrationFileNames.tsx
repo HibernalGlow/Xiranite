@@ -1,10 +1,11 @@
-import { Package } from "lucide-react"
+import { Folder, Package } from "lucide-react"
 
 import type { ReaderFolderViewMode } from "../../../../adapters/reader-http-client"
 
 export interface FolderPenetrationFileName {
   name: string
   path: string
+  kind: "file" | "directory"
 }
 
 export function folderViewShowsPenetrationFiles(viewMode: ReaderFolderViewMode, enabled: boolean, showInternalFiles: boolean): boolean {
@@ -25,7 +26,7 @@ export function FolderPenetrationFileNames({ files, variant = "list" }: {
     >
       {files.map((file) => (
         <span key={file.path} className="flex min-w-0 items-start gap-1 border-t border-dashed border-current/20 first:border-0" title={file.path}>
-          <Package className="mt-0.5 size-3 shrink-0 opacity-75" />
+          {file.kind === "directory" ? <Folder className="mt-0.5 size-3 shrink-0 text-amber-500" /> : <Package className="mt-0.5 size-3 shrink-0 opacity-75" />}
           <span className="break-all text-[10px] leading-tight">{file.name}</span>
         </span>
       ))}

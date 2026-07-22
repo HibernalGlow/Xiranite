@@ -132,7 +132,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
-  penetration: { enabled: false, showInternalFiles: true, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
+  penetration: { enabled: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],

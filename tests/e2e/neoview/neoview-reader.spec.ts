@@ -2179,6 +2179,9 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
 })
 
 test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and reveals tabs below breadcrumbs", async ({ page }, testInfo) => {
+  await page.setViewportSize(testInfo.project.name === "chromium-card"
+    ? { width: 900, height: 700 }
+    : { width: 1440, height: 900 })
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
   }, { baseUrl: backend.url, token: backend.token })
@@ -2192,6 +2195,9 @@ test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and r
   const residentCard = folderPanel.locator('[data-reader-card="文件浏览"]')
   const folderCard = folderPanel.locator('[data-neoview-folder-card="true"]')
   await expect(folderCard).toBeVisible()
+  await page.locator('[data-reader-edge="top"]').evaluateAll((elements) => {
+    for (const element of elements) (element as HTMLElement).style.display = "none"
+  })
   await residentCard.evaluate((element) => element.setAttribute("data-compact-card-instance", "stable"))
   await expect(residentCard).toHaveAttribute("data-reader-card-chrome", "none")
   await expect(folderPanel.getByRole("heading", { name: "文件夹" })).toHaveCount(0)
@@ -2200,6 +2206,46 @@ test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and r
   await expect(folderPanel.locator('[data-folder-tab-bar="true"]')).toHaveCount(0)
   await expect(folderCard.getByRole("button", { name: "视图" })).toBeVisible()
   await expect(folderCard.getByRole("button", { name: "更多" })).toBeVisible()
+
+  const toolbar = folderCard.locator('[data-folder-toolbar-layout="single-row-scroll"]')
+  const navigation = toolbar.locator('[data-folder-toolbar-group="navigation"]')
+  const navigationPad = navigation.locator('[data-folder-navigation-pad="true"]')
+  const moreTools = toolbar.locator('[data-folder-toolbar-group="more"]')
+  await expect(toolbar).toBeVisible()
+  await expect(navigation).toBeVisible()
+  await expect(navigationPad).toBeVisible()
+  await expect(navigationPad).toHaveCSS("width", "32px")
+  await expect(navigationPad).toHaveCSS("height", "32px")
+  await expect(navigationPad.locator('[data-navigation-pad-position]')).toHaveCount(5)
+  await expect(moreTools).toBeVisible()
+  const toolbarGeometry = await toolbar.evaluate((element) => {
+    const navigation = element.querySelector<HTMLElement>('[data-folder-toolbar-group="navigation"]')
+    const primary = element.querySelector<HTMLElement>('[data-folder-toolbar-group="primary"]')
+    const more = element.querySelector<HTMLElement>('[data-folder-toolbar-group="more"]')
+    if (!navigation || !primary || !more) throw new Error("Folder toolbar groups are incomplete")
+    const toolbarBox = element.getBoundingClientRect()
+    const navigationBox = navigation.getBoundingClientRect()
+    const primaryBox = primary.getBoundingClientRect()
+    const moreBox = more.getBoundingClientRect()
+    return {
+      height: toolbarBox.height,
+      scrollWidth: primary.scrollWidth,
+      clientWidth: primary.clientWidth,
+      groupsInsideRow: [navigationBox, primaryBox, moreBox].every((box) => (
+        box.top >= toolbarBox.top - 1 && box.bottom <= toolbarBox.bottom + 1
+      )),
+      groupsOrdered: navigationBox.right <= primaryBox.left + 1 && primaryBox.right <= moreBox.left + 1,
+    }
+  })
+  expect(toolbarGeometry.height).toBeLessThanOrEqual(40)
+  expect(toolbarGeometry.scrollWidth).toBeGreaterThanOrEqual(toolbarGeometry.clientWidth)
+  expect(toolbarGeometry.groupsInsideRow).toBe(true)
+  expect(toolbarGeometry.groupsOrdered).toBe(true)
+  if (testInfo.project.name === "chromium-card") {
+    expect(toolbarGeometry.scrollWidth).toBeGreaterThan(toolbarGeometry.clientWidth)
+  }
+  await navigationPad.screenshot({ path: testInfo.outputPath(`neoview-folder-navigation-pad-${testInfo.project.name}.png`) })
+  await folderCard.screenshot({ path: testInfo.outputPath(`neoview-folder-compact-${testInfo.project.name}.png`) })
 
   const singleOrder = await folderCard.evaluate((element) => {
     const breadcrumb = element.querySelector('[data-folder-layout-region="breadcrumb"]')
@@ -2211,12 +2257,12 @@ test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and r
   await folderCard.getByRole("button", { name: "视图" }).click()
   await expect(page.getByRole("menuitemradio", { name: "紧凑列表" })).toBeVisible()
   await page.keyboard.press('Escape')
-  await page.screenshot({ path: testInfo.outputPath(`neoview-folder-compact-${testInfo.project.name}.png`) })
 
   await folderCard.getByRole("button", { name: "新建文件夹标签" }).click()
   await expect(folderPanel.locator('[data-folder-tab-count="2"]')).toBeVisible()
-  await expect(folderPanel.locator('[data-folder-tab-bar="true"]')).toBeVisible()
-  const multiOrder = await folderCard.evaluate((element) => {
+  const activeFolderCard = folderPanel.locator('[data-folder-tab-pane-active="true"] [data-neoview-folder-card="true"]')
+  await expect(activeFolderCard.locator('[data-folder-tab-bar="true"]')).toBeVisible()
+  const multiOrder = await activeFolderCard.evaluate((element) => {
     const breadcrumb = element.querySelector('[data-folder-layout-region="breadcrumb"]')
     const tabs = element.querySelector('[data-folder-layout-region="tabs"]')
     const toolbar = element.querySelector('[data-folder-layout-region="toolbar"]')
@@ -2228,7 +2274,7 @@ test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and r
   })
   expect(multiOrder).toBe(true)
   await expect(residentCard).toHaveAttribute("data-compact-card-instance", "stable")
-  await folderCard.screenshot({ path: testInfo.outputPath(`neoview-folder-tabs-${testInfo.project.name}.png`) })
+  await activeFolderCard.screenshot({ path: testInfo.outputPath(`neoview-folder-tabs-${testInfo.project.name}.png`) })
 })
 
 test("[neoview.folder.tabs-layout-e2e] persists nested folder chrome without changing current-directory listing semantics", async ({ page }) => {

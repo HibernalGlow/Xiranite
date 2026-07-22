@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronRight, Columns3, Copy, Folder, HardDrive, MoreHorizontal, Pencil, Plus } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { ChevronRight, Columns3, Copy, Folder, HardDrive, MoreHorizontal, Pencil, Plus } from "lucide-react"
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -128,20 +128,14 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
     />
   ) : null
 
-  const columnsButton = (
-    <Button
-      type="button"
-      size="icon-sm"
-      variant={columnsOpen ? "secondary" : "ghost"}
-      aria-label={columnsOpen ? "收起目录列" : "展开目录列"}
-      title={columnsOpen ? "收起目录列" : "展开目录列"}
-      aria-expanded={columnsOpen}
-      disabled={disabled || loading}
-      onClick={columnsMode === "inline" ? () => setColumnsOpen((current) => !current) : undefined}
-    >
-      <Columns3 />
-    </Button>
-  )
+  const columnsAvailable = Boolean(!vertical && client?.treeDirectoryBrowser && sessionId && items[0])
+
+  function changeColumnsMode(value: string) {
+    const reopen = columnsOpen
+    setColumnsOpen(false)
+    setColumnsMode(value as "inline" | "floating")
+    if (reopen) requestAnimationFrame(() => setColumnsOpen(true))
+  }
 
   return (
     <div className={vertical ? "h-full min-h-0" : "grid min-w-0 gap-1"} data-breadcrumb-columns-mode={columnsMode}>
@@ -220,46 +214,59 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
               )
             })}
           </nav>
-          {!vertical && client?.treeDirectoryBrowser && sessionId && items[0] ? (
-            <div className="flex shrink-0 items-center">
-              {columnsMode === "floating" ? (
+          <div
+            className="relative size-8 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/30 shadow-xs focus-within:ring-2 focus-within:ring-ring/50"
+            role="group"
+            aria-label="面包屑操作"
+            data-breadcrumb-action-pad="true"
+          >
+            {canCreateTab && onCreateTab ? (
+              <BreadcrumbPadButton
+                position="top"
+                aria-label="新建文件夹标签"
+                title="新建文件夹标签"
+                disabled={disabled || loading}
+                onClick={onCreateTab}
+              />
+            ) : null}
+            {columnsAvailable ? (
+              columnsMode === "floating" ? (
                 <Popover open={columnsOpen} onOpenChange={setColumnsOpen}>
-                  <PopoverTrigger asChild>{columnsButton}</PopoverTrigger>
+                  <PopoverTrigger asChild>
+                    <BreadcrumbPadButton position="left" active={columnsOpen} aria-label={columnsOpen ? "收起目录列" : "展开目录列"} title={columnsOpen ? "收起目录列" : "展开目录列"} disabled={disabled || loading} />
+                  </PopoverTrigger>
                   <PopoverContent align="end" sideOffset={4} className="w-[min(48rem,calc(100vw-2rem))] overflow-hidden p-0">
                     {columnsContent}
                   </PopoverContent>
                 </Popover>
-              ) : columnsButton}
+              ) : (
+                <BreadcrumbPadButton position="left" active={columnsOpen} aria-label={columnsOpen ? "收起目录列" : "展开目录列"} title={columnsOpen ? "收起目录列" : "展开目录列"} disabled={disabled || loading} onClick={() => setColumnsOpen((current) => !current)} />
+              )
+            ) : null}
+            <BreadcrumbPadButton position="right" aria-label="编辑路径" title="编辑路径" disabled={disabled || loading} onClick={startEditing} />
+            <BreadcrumbPadButton position="bottom" aria-label="复制当前路径" title="复制当前路径" disabled={disabled || loading || !path || !onCopyPath} onClick={() => void copyCurrentPath()} />
+            {columnsAvailable ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button type="button" size="icon-sm" variant="ghost" className="w-5 px-0" aria-label="目录列显示方式" title="目录列显示方式">
-                    <ChevronDown className="size-3" />
+                  <Button type="button" size="icon-sm" variant="ghost" className="absolute inset-0 z-[2] m-auto size-3.5 rounded-full border border-border/70 bg-background p-0 shadow-sm" aria-label="目录列显示方式" title="目录列显示方式" disabled={disabled || loading}>
+                    <span className="size-1 rounded-full bg-current" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-36">
-                  <DropdownMenuRadioGroup value={columnsMode} onValueChange={(value) => setColumnsMode(value as "inline" | "floating")}>
+                  <DropdownMenuRadioGroup value={columnsMode} onValueChange={changeColumnsMode}>
                     <DropdownMenuRadioItem value="inline">下拉展开</DropdownMenuRadioItem>
                     <DropdownMenuRadioItem value="floating">浮动窗口</DropdownMenuRadioItem>
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
+            ) : null}
+            <div className="pointer-events-none absolute inset-0 z-[3] text-foreground" aria-hidden="true">
+              {canCreateTab && onCreateTab ? <Plus className={`absolute left-1/2 top-0.5 size-2 -translate-x-1/2 ${disabled || loading ? "opacity-25" : ""}`} /> : null}
+              {columnsAvailable ? <Columns3 className={`absolute left-0.5 top-1/2 size-2 -translate-y-1/2 ${disabled || loading ? "opacity-25" : ""}`} /> : null}
+              <Pencil className={`absolute right-0.5 top-1/2 size-2 -translate-y-1/2 ${disabled || loading ? "opacity-25" : ""}`} />
+              <Copy className={`absolute bottom-0.5 left-1/2 size-2 -translate-x-1/2 ${disabled || loading || !path || !onCopyPath ? "opacity-25" : ""}`} />
             </div>
-          ) : null}
-          {canCreateTab && onCreateTab ? (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              aria-label="新建文件夹标签"
-              title="新建文件夹标签"
-              disabled={disabled || loading}
-              onClick={onCreateTab}
-            >
-              <Plus />
-            </Button>
-          ) : null}
-          <Button type="button" size="icon-sm" variant="ghost" aria-label="编辑路径" title="编辑路径" disabled={disabled || loading} onClick={startEditing}><Pencil /></Button>
-          <Button type="button" size="icon-sm" variant="ghost" aria-label="复制当前路径" title="复制当前路径" disabled={disabled || loading || !path || !onCopyPath} onClick={() => void copyCurrentPath()}><Copy /></Button>
+          </div>
         </>
       )}
       {feedback ? <span className="sr-only" role={feedback.kind}>{feedback.text}</span> : null}
@@ -270,6 +277,34 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
       </div>
     ) : null}
     </div>
+  )
+}
+
+const BREADCRUMB_PAD_POSITION_CLASSES = {
+  top: "[clip-path:polygon(0_0,100%_0,70%_40%,30%_40%)]",
+  left: "[clip-path:polygon(0_0,40%_30%,40%_70%,0_100%)]",
+  right: "[clip-path:polygon(100%_0,60%_30%,60%_70%,100%_100%)]",
+  bottom: "[clip-path:polygon(30%_60%,70%_60%,100%_100%,0_100%)]",
+} as const
+
+function BreadcrumbPadButton({
+  position,
+  active = false,
+  className,
+  ...props
+}: ComponentProps<typeof Button> & {
+  position: keyof typeof BREADCRUMB_PAD_POSITION_CLASSES
+  active?: boolean
+}) {
+  return (
+    <Button
+      type="button"
+      size="icon-sm"
+      variant={active ? "secondary" : "ghost"}
+      className={`absolute inset-0 z-[1] size-full min-w-0 rounded-none p-0 ${BREADCRUMB_PAD_POSITION_CLASSES[position]} ${className ?? ""}`}
+      data-breadcrumb-pad-position={position}
+      {...props}
+    />
   )
 }
 
