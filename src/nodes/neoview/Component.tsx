@@ -14,6 +14,8 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
   const initialPath = host.state.getData()?.path
   const initialBrowserOriginPath = host.state.getData()?.browserOriginPath ?? undefined
 
+  // Track true instance lifetime only. Do NOT depend on initialPath: openPath
+  // commits path into host state and would fake unmount/remount mid-read.
   useEffect(() => {
     noteNeoviewMount(compId, { path: initialPath })
     const mountedAt = performance.now()
@@ -28,6 +30,12 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
       cancelAnimationFrame(raf)
       noteNeoviewUnmount(compId)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount lifetime is compId-only
+  }, [compId])
+
+  useEffect(() => {
+    if (!initialPath) return
+    neoviewDebug("component:path-committed", { compId, path: initialPath })
   }, [compId, initialPath])
 
   return (
