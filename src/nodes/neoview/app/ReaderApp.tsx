@@ -1718,7 +1718,6 @@ export function ReaderApp({
     preload: prefetchController.preload,
     cancel: prefetchController.cancel,
   })
-
   const topEdge: ReaderControlledEdgeSlot = {
     ariaLabel: "NeoView 顶部工具栏",
     triggerSize: shell?.edges.top.triggerSize,
