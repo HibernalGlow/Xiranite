@@ -442,9 +442,9 @@ describe("Czkawka node", () => {
     expect([...screen.getByTestId("czkawka-lane-board").children].map((element) => element.getAttribute("data-testid"))).toEqual(["czkawka-lane-results", "czkawka-lane-source", "czkawka-lane-analysis"])
   })
 
-  test("uses the shared movable bar for lane focus and solo state", () => {
+  test("uses the shared movable bar for lane focus, solo, and fixed-host state", async () => {
     Object.assign(surface, { mode: "workspace", width: 1440, height: 860 })
-    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", workspaceLayout: { ...CZKAWKA_WORKSPACE_DEFAULTS, navigatorDock: "top", navigatorLane: "analysis", navigatorFollowsFocus: false } })
     render(<Component compId="czkawka" host={host} />)
 
     fireEvent.click(screen.getByRole("button", { name: /切换到.*分析与操作/ }))
@@ -456,11 +456,48 @@ describe("Czkawka node", () => {
     expect(host.stateValue.workspaceLayout?.soloLane).toBe("analysis")
     expect(screen.getByTestId("czkawka-lane-analysis").getAttribute("data-swimlane-solo")).toBe("true")
 
-    fireEvent.contextMenu(handle)
-    fireEvent.click(screen.getByRole("menuitem", { name: "固定到当前泳道标题栏" }))
-    expect(host.stateValue.workspaceLayout?.navigatorDock).toBe("title")
+    expect(host.stateValue.workspaceLayout).toMatchObject({ navigatorDock: "top", navigatorLane: "analysis", navigatorFollowsFocus: false })
     expect(within(screen.getByTestId("czkawka-lane-analysis")).getByRole("navigation", { name: "泳道快速切换" })).toBeTruthy()
     expect(within(screen.getByTestId("czkawka-lane-analysis")).queryByText("分析与操作 / LANE")).toBeNull()
+    expect(within(screen.getByRole("navigation", { name: "泳道快速切换" })).queryByText(/切换到/)).toBeNull()
+
+    fireEvent.click(within(screen.getByTestId("czkawka-lane-source")).getByRole("button", { name: /扫描条件.*更多设置/ }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "重置操作栏位置" }))
+    expect(host.stateValue.workspaceLayout).toMatchObject({ navigatorDock: "floating", navigatorLane: "source", navigatorPositionX: 96, navigatorPositionY: 94 })
+  })
+
+  test("drags a fixed navigator across Czkawka lanes and back to floating", async () => {
+    Object.assign(surface, { mode: "workspace", width: 1440, height: 860 })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", workspaceLayout: { ...CZKAWKA_WORKSPACE_DEFAULTS, navigatorDock: "top", navigatorLane: "results" } })
+    render(<Component compId="czkawka" host={host} />)
+    const board = screen.getByTestId("czkawka-lane-board")
+    const workspace = board.parentElement as HTMLElement
+    const source = screen.getByTestId("czkawka-lane-source")
+    const results = screen.getByTestId("czkawka-lane-results")
+    const analysis = screen.getByTestId("czkawka-lane-analysis")
+    workspace.getBoundingClientRect = () => testRect(0, 0, 1_320, 700)
+    source.getBoundingClientRect = () => testRect(0, 0, 300, 700)
+    results.getBoundingClientRect = () => testRect(300, 0, 720, 700)
+    analysis.getBoundingClientRect = () => testRect(1_020, 0, 300, 700)
+    const navigator = screen.getByRole("navigation", { name: "泳道快速切换" })
+    navigator.getBoundingClientRect = () => testRect(600, 4, 140, 32)
+
+    let handle = screen.getByRole("button", { name: "拖动或设置泳道切换栏" })
+    fireEvent.pointerDown(handle, { pointerId: 21, button: 0, clientX: 610, clientY: 16 })
+    fireEvent.pointerMove(window, { pointerId: 21, clientX: 292, clientY: 350 })
+    await waitFor(() => expect(document.querySelectorAll("[data-swimlane-navigator-dropzone]")).toHaveLength(12))
+    fireEvent.pointerUp(window, { pointerId: 21, clientX: 292, clientY: 350 })
+    await waitFor(() => expect(host.stateValue.workspaceLayout).toMatchObject({ navigatorDock: "right", navigatorLane: "source" }))
+    await waitFor(() => expect(within(source).getByRole("navigation", { name: "泳道快速切换" }).getAttribute("data-swimlane-navigator-dock")).toBe("right"))
+
+    const movedNavigator = within(source).getByRole("navigation", { name: "泳道快速切换" })
+    movedNavigator.getBoundingClientRect = () => testRect(252, 260, 40, 140)
+    handle = screen.getByRole("button", { name: "拖动或设置泳道切换栏" })
+    fireEvent.pointerDown(handle, { pointerId: 22, button: 0, clientX: 270, clientY: 280 })
+    fireEvent.pointerMove(window, { pointerId: 22, clientX: 150, clientY: 350 })
+    await waitFor(() => expect(source.querySelector('[data-swimlane-navigator-float-zone="true"]')?.getAttribute("data-active")).toBe("true"))
+    fireEvent.pointerUp(window, { pointerId: 22, clientX: 150, clientY: 350 })
+    await waitFor(() => expect(host.stateValue.workspaceLayout?.navigatorDock).toBe("floating"))
   })
 
   test("persists proportional viewport fitting from the shared bar", () => {
@@ -483,15 +520,17 @@ describe("Czkawka node", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /节点设置|Node settings/ }))
     const settings = screen.getByRole("dialog")
-    fireEvent.click(within(settings).getByRole("switch", { name: "泳道聚焦时自动全屏" }))
+    expect(within(settings).getByText("泳道焦点与独占")).toBeTruthy()
+    fireEvent.click(within(settings).getByRole("switch", { name: "主泳道聚焦时自动独占" }))
     fireEvent.click(within(settings).getByRole("switch", { name: "独占时显示泳道切换栏" }))
     const revealDelay = within(settings).getByRole("spinbutton", { name: "左右泳道展开延迟" })
     fireEvent.change(revealDelay, { target: { value: "420" } })
     fireEvent.blur(revealDelay)
-    const focusDelay = within(settings).getByRole("spinbutton", { name: "泳道重新聚焦延迟" })
-    fireEvent.click(within(settings).getByRole("switch", { name: "悬停后重新聚焦泳道" }))
+    const focusDelay = within(settings).getByRole("spinbutton", { name: "主泳道悬停重新聚焦延迟" })
+    fireEvent.click(within(settings).getByRole("switch", { name: "启用主泳道悬停重新聚焦" }))
     fireEvent.change(focusDelay, { target: { value: "780" } })
     fireEvent.blur(focusDelay)
+    fireEvent.click(within(settings).getByRole("switch", { name: "固定栏跟随聚焦泳道" }))
 
     expect(host.stateValue.workspaceLayout).toMatchObject({
       soloOnFocus: true,
@@ -499,6 +538,7 @@ describe("Czkawka node", () => {
       edgeRevealDelayMs: 420,
       focusOnHover: true,
       focusDelayMs: 780,
+      navigatorFollowsFocus: true,
     })
   })
 
@@ -589,6 +629,10 @@ function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInp
 function chooseTool(label: string) {
   fireEvent.pointerDown(screen.getByRole("combobox", { name: /选择扫描工具|Select scanner/ }), { button: 0, ctrlKey: false, pointerType: "mouse" })
   fireEvent.click(screen.getByRole("option", { name: label }))
+}
+
+function testRect(left: number, top: number, width: number, height: number): DOMRect {
+  return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }
 }
 
 const sample: CzkawkaData = { action: "scan", tool: "duplicate-files", groups: [], entries: [], messages: "", stopped: false, groupCount: 0, fileCount: 0, totalBytes: 0, reclaimableBytes: 0, affectedCount: 0, errorCount: 0 }
