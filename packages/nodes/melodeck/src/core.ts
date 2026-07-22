@@ -1,10 +1,11 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import type { MelodeckLyricLine } from "./lyrics.js"
 
 export type MelodeckAction = "status" | "play" | "pause" | "toggle" | "stop" | "next" | "previous" | "add" | "clear" | "seek" | "volume"
 export interface MelodeckInput { action?: MelodeckAction; paths?: string[]; volume?: number; seekSeconds?: number; mpvPath?: string; ipcPath?: string }
 export type MelodeckArtwork = Uint8Array
-export interface MelodeckTrackMetadata { title?: string; artist?: string; album?: string; artwork?: MelodeckArtwork }
-export interface MelodeckStatus { running: boolean; paused: boolean; path: string; title: string; artist: string; album: string; artwork?: MelodeckArtwork; duration: number; position: number; volume: number; playlist: string[] }
+export interface MelodeckTrackMetadata { title?: string; artist?: string; album?: string; artwork?: MelodeckArtwork; lyrics?: MelodeckLyricLine[] }
+export interface MelodeckStatus { running: boolean; paused: boolean; path: string; title: string; artist: string; album: string; artwork?: MelodeckArtwork; lyrics?: MelodeckLyricLine[]; duration: number; position: number; volume: number; playlist: string[] }
 export interface MelodeckData { command: string[]; status: MelodeckStatus; output: string; errors: string[] }
 export interface MelodeckRuntime {
   ipcPath: string
@@ -154,6 +155,7 @@ async function queryStatus(runtime: MelodeckRuntime, ipc: string, fallbackVolume
     artist: metadata.artist ?? "",
     album: metadata.album ?? "",
     artwork: metadata.artwork,
+    lyrics: metadata.lyrics,
     duration: finiteNumber(duration),
     position: finiteNumber(position),
     volume: finiteNumber(volume, fallbackVolume),

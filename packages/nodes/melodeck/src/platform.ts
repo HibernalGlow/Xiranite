@@ -2,11 +2,12 @@ import { createConnection } from "node:net"
 import { spawn } from "node:child_process"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
-import { stat } from "node:fs/promises"
+import { readFile, stat } from "node:fs/promises"
 import { join } from "node:path"
 import { homedir } from "node:os"
 import { parseFile } from "music-metadata"
 import type { MelodeckRuntime, MelodeckStatus, MelodeckTrackMetadata } from "./core.js"
+import { extractEmbeddedLyrics, lyricPathCandidates, parseLrc } from "./lyrics.js"
 
 const exec = promisify(execFile)
 const metadataCache = new Map<string, Promise<MelodeckTrackMetadata>>()
@@ -117,12 +118,26 @@ async function metadata(path: string): Promise<MelodeckTrackMetadata> {
 async function readMetadata(path: string): Promise<MelodeckTrackMetadata> {
   const parsed = await parseFile(path, { skipCovers: false, skipPostHeaders: true })
   const picture = parsed.common.picture?.[0]
+  const embeddedLyrics = extractEmbeddedLyrics(parsed.common.lyrics)
   return {
     title: parsed.common.title,
     artist: parsed.common.artist,
     album: parsed.common.album,
     artwork: picture?.data,
+    lyrics: embeddedLyrics.length ? embeddedLyrics : await readSidecarLyrics(path),
   }
+}
+
+async function readSidecarLyrics(path: string) {
+  for (const candidate of lyricPathCandidates(path)) {
+    try {
+      const lines = parseLrc(await readFile(candidate, "utf8"))
+      if (lines.length) return lines
+    } catch {
+      // Try the next case variant.
+    }
+  }
+  return []
 }
 
 export async function observeMelodeck(
@@ -157,6 +172,7 @@ export async function observeMelodeck(
       artist: trackMetadata.artist ?? "",
       album: trackMetadata.album ?? "",
       artwork: trackMetadata.artwork,
+      lyrics: trackMetadata.lyrics,
       playlist: [...status.playlist],
     })
     const loadTrackMetadata = (trackPath: string) => {

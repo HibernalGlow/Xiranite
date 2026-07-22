@@ -1,6 +1,6 @@
 /* @jsxImportSource @opentui/react */
 import { useKeyboard } from "@opentui/react"
-import { useEffect, useRef, useState } from "react"
+import { memo, useEffect, useRef, useState } from "react"
 import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import {
   ClickTarget,
@@ -14,7 +14,8 @@ import {
   useTerminalTheme,
   useTerminalUiSession,
 } from "@xiranite/cli-runtime/terminal/opentui"
-import type { MelodeckAction, MelodeckInput, MelodeckResult } from "./core.js"
+import type { MelodeckAction, MelodeckInput, MelodeckResult, MelodeckStatus } from "./core.js"
+import { currentLyricIndex, type MelodeckLyricLine } from "./lyrics.js"
 import { DEFAULT_MELODECK_IPC, observeMelodeck } from "./platform.js"
 
 interface MelodeckTuiProps extends TerminalUiScreenProps<MelodeckInput, MelodeckResult> {
@@ -68,6 +69,7 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
       artist: resultStatus.artist || (current?.path === resultStatus.path ? current.artist : ""),
       album: resultStatus.album || (current?.path === resultStatus.path ? current.album : ""),
       artwork: resultStatus.artwork ?? (current?.path === resultStatus.path ? current.artwork : undefined),
+      lyrics: resultStatus.lyrics ?? (current?.path === resultStatus.path ? current.lyrics : undefined),
     }))
   }, [resultStatus])
 
@@ -137,24 +139,15 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
 
         <WorkbenchPanel title="NOW PLAYING" description={status?.paused ? "Paused" : status?.running ? "Local mpv session" : "No active session"} flexGrow={1}>
           <box flexDirection="column">
-            <box height={13} flexShrink={0} flexDirection="row" gap={2}>
-              <TerminalImagePreview
-                source={status?.artwork}
-                width={24}
-                height={12}
-                fit="cover"
-                backend="sixel"
-                alt={status?.album || status?.title || "Album cover"}
-                placeholder="NO COVER"
-              />
-              <box flexGrow={1} minWidth={0} flexDirection="column" justifyContent="center">
-                <text fg={theme.colors.primary}><b>{status?.title || session.resultSummary?.message || "No track selected"}</b></text>
-                <text fg={theme.colors.mutedForeground}>{status?.artist || "Unknown artist"}</text>
-                <text fg={theme.colors.mutedForeground}>{status?.album || "Unknown album"}</text>
-                <text fg={theme.colors.mutedForeground}>{status?.path || "Press Play to start the configured queue."}</text>
-              </box>
-            </box>
-            <box flexGrow={1} />
+            <NowPlayingHeader
+              title={status?.title}
+              artist={status?.artist}
+              album={status?.album}
+              path={status?.path}
+              artwork={status?.artwork}
+              fallbackMessage={session.resultSummary?.message}
+            />
+            <LyricsView lyrics={status?.lyrics} position={status?.position ?? 0} />
             <box flexDirection="column" flexShrink={0}>
               <box flexDirection="row" justifyContent="space-between">
                 <text fg={theme.colors.mutedForeground}>{formatTime(status?.position ?? 0)}</text>
@@ -174,15 +167,15 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
               />
             </box>
             <box height={3} flexShrink={0} flexDirection="row" justifyContent="center" alignItems="center" gap={3}>
-              <IconControl id="melodeck-previous" icon="|<" onClick={() => run("previous")} />
+              <IconControl id="melodeck-previous" icon={PLAYER_GLYPHS.previous} onClick={() => run("previous")} />
               <IconControl
                 id="melodeck-play"
-                icon={status?.running && !status.paused ? "||" : ">"}
+                icon={status?.running && !status.paused ? PLAYER_GLYPHS.pause : PLAYER_GLYPHS.play}
                 primary
                 onClick={() => run(status?.running ? "toggle" : "play")}
               />
-              <IconControl id="melodeck-next" icon=">|" onClick={() => run("next")} />
-              <IconControl id="melodeck-stop" icon="[]" onClick={() => run("stop")} />
+              <IconControl id="melodeck-next" icon={PLAYER_GLYPHS.next} onClick={() => run("next")} />
+              <IconControl id="melodeck-stop" icon={PLAYER_GLYPHS.stop} onClick={() => run("stop")} />
             </box>
             <box height={1} flexShrink={0} flexDirection="row" justifyContent="center" alignItems="center" gap={1}>
               <text fg={theme.colors.mutedForeground}>VOL</text>
@@ -206,6 +199,70 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
     </box>
   )
 }
+
+const PLAYER_GLYPHS = {
+  previous: "\u2502\u25C0\uFE0E",
+  play: "\u25B6\uFE0E",
+  pause: "\u2161",
+  next: "\u25B6\uFE0E\u2502",
+  stop: "\u25A0\uFE0E",
+} as const
+
+const NowPlayingHeader = memo(function NowPlayingHeader({
+  title,
+  artist,
+  album,
+  path,
+  artwork,
+  fallbackMessage,
+}: {
+  title?: string
+  artist?: string
+  album?: string
+  path?: string
+  artwork?: MelodeckStatus["artwork"]
+  fallbackMessage?: string
+}) {
+  const theme = useTerminalTheme()
+  return (
+    <box height={13} flexShrink={0} flexDirection="row" gap={2}>
+      <TerminalImagePreview
+        source={artwork}
+        width={24}
+        height={12}
+        fit="cover"
+        backend="sixel"
+        alt={album || title || "Album cover"}
+        placeholder="NO COVER"
+      />
+      <box flexGrow={1} minWidth={0} flexDirection="column" justifyContent="center">
+        <text fg={theme.colors.primary}><b>{title || fallbackMessage || "No track selected"}</b></text>
+        <text fg={theme.colors.mutedForeground}>{artist || "Unknown artist"}</text>
+        <text fg={theme.colors.mutedForeground}>{album || "Unknown album"}</text>
+        <text fg={theme.colors.mutedForeground}>{path || "Press Play to start the configured queue."}</text>
+      </box>
+    </box>
+  )
+})
+
+const LyricsView = memo(function LyricsView({ lyrics, position }: { lyrics?: MelodeckLyricLine[]; position: number }) {
+  const theme = useTerminalTheme()
+  const lines = lyrics ?? []
+  const active = currentLyricIndex(lines, position)
+  const visibleCount = 5
+  const start = active >= 0
+    ? Math.max(0, Math.min(lines.length - visibleCount, active - Math.floor(visibleCount / 2)))
+    : 0
+  const visible = lines.slice(start, start + visibleCount)
+  return (
+    <box id="melodeck-lyrics" flexGrow={1} minHeight={3} maxHeight={5} flexDirection="column" alignItems="center" justifyContent="center" overflow="hidden">
+      {visible.length ? visible.map((line, index) => {
+        const lineIndex = start + index
+        return <text key={`${line.time ?? "plain"}-${lineIndex}`} content={line.text} fg={lineIndex === active ? theme.colors.primary : theme.colors.mutedForeground} />
+      }) : <text content="No lyrics available" fg={theme.colors.mutedForeground} />}
+    </box>
+  )
+})
 
 function IconControl({ id, icon, primary = false, onClick }: { id: string; icon: string; primary?: boolean; onClick(): void }) {
   const theme = useTerminalTheme()
