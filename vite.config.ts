@@ -150,11 +150,16 @@ export default defineConfig({
     ],
   },
   server: {
+    // Background-transform the first open path after listen. This does not delay
+    // server startup; it reduces first-tab cost once the document is openable.
     warmup: {
       clientFiles: [
+        "./index.html",
         "./src/main.tsx",
         "./src/App.tsx",
         "./src/components/workspace/WorkspaceLayout.tsx",
+        "./src/components/workspace/CardView.tsx",
+        "./src/components/workspace/TopBar.tsx",
       ],
     },
     watch: {
