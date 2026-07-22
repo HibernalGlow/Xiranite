@@ -2,6 +2,7 @@ import { RGBA, StyledText, TextAttributes, type TextChunk } from "@opentui/core"
 import { Terminal, type IBufferCell } from "@xterm/headless"
 
 import { readDevSession, removeDevSession, writeDevSession } from "./dev-session"
+import { waitForFrontendReady } from "./frontend-readiness"
 
 export type DevTarget = "dev" | "dev:desktop"
 export type DevPhase = "stopped" | "starting" | "running" | "stopping" | "error"
@@ -59,7 +60,13 @@ export class ManagedDevTuiController implements DevTuiController {
     const session = await readDevSession()
     if (!session) return
     this.#writeControl(`\u001b[33m[开发控制台] 已发现${sessionLabel(session.script)}；从本控制台重启后可接收实时输出。\u001b[0m\r\n`)
-    this.#patch({ phase: "running", pid: session.supervisorPid, startedAt: session.startedAt, message: `已连接${sessionLabel(session.script)}` })
+    if (session.frontendUrl) this.#writeControl(`\u001b[36m[开发控制台]\u001b[0m 前端地址 ${session.frontendUrl}\r\n`)
+    this.#patch({
+      phase: "running",
+      pid: session.supervisorPid,
+      startedAt: session.startedAt,
+      message: session.frontendUrl ? `已连接${sessionLabel(session.script)} · ${session.frontendUrl}` : `已连接${sessionLabel(session.script)}`,
+    })
   }
 
   start(): Promise<void> { return this.#enqueue(() => this.#start()) }
@@ -76,7 +83,6 @@ export class ManagedDevTuiController implements DevTuiController {
     const nextRows = Math.max(4, Math.floor(rows))
     if (cols === this.#terminal.cols && nextRows === this.#terminal.rows) return
     this.#terminal.resize(cols, nextRows)
-    this.#process?.terminal?.resize(cols, nextRows)
     this.#publishOutput()
   }
 
@@ -97,19 +103,26 @@ export class ManagedDevTuiController implements DevTuiController {
     this.#patch({ phase: "starting", startedAt, pid: undefined, message: `正在启动${this.#label}` })
     this.#writeControl(`\r\n\u001b[36m[开发控制台]\u001b[0m 正在启动${this.#label}\r\n`)
 
-    const env: Record<string, string | undefined> = { ...Bun.env, FORCE_COLOR: "3", TERM: "xterm-256color" }
+    // Spawn without a Bun PTY. On Windows, Vite under PTY hangs during optimize-deps
+    // and never binds the frontend port, so XR UI "run" produces a dead URL while
+    // plain `xr` (stdio inherit) works. Pipe stdout/stderr into xterm instead.
+    const env: Record<string, string | undefined> = {
+      ...Bun.env,
+      FORCE_COLOR: "3",
+      // Keep tooling non-interactive; color still works via FORCE_COLOR.
+      CI: Bun.env.CI ?? "1",
+    }
     delete env.NO_COLOR
     const child = Bun.spawn([process.execPath, "run", this.#target, ...this.#args], {
       cwd: process.cwd(),
       env,
-      terminal: {
-        name: "xterm-256color",
-        cols: this.#terminal.cols,
-        rows: this.#terminal.rows,
-        data: (_terminal, data) => this.#terminal.write(data),
-      },
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
     })
     this.#process = child
+    void pumpStreamToTerminal(child.stdout, (text) => this.#terminal.write(text))
+    void pumpStreamToTerminal(child.stderr, (text) => this.#terminal.write(text))
     void child.exited.then((exitCode) => this.#handleProcessExit(child, exitCode))
 
     // Record the launcher only until the real supervisor overwrites this file.
@@ -123,7 +136,6 @@ export class ManagedDevTuiController implements DevTuiController {
   async #handleProcessExit(child: ReturnType<typeof Bun.spawn>, exitCode: number): Promise<void> {
     if (this.#process !== child) return
     this.#process = null
-    child.terminal?.close()
     const session = await readDevSession()
     if (session?.supervisorPid === child.pid) await removeDevSession()
     if (this.#snapshot.phase !== "stopping") {
@@ -137,9 +149,29 @@ export class ManagedDevTuiController implements DevTuiController {
       await Bun.sleep(250)
       const session = await readDevSession()
       if (session && session.startedAt >= startedAt && !session.script.startsWith("dev-ui:")) {
-        this.#patch({ phase: "running", pid: session.supervisorPid, startedAt: session.startedAt, message: `${this.#label}运行中` })
+        const frontendUrl = session.frontendUrl
+        this.#patch({
+          phase: "running",
+          pid: session.supervisorPid,
+          startedAt: session.startedAt,
+          message: frontendUrl ? `${this.#label}运行中 · ${frontendUrl}` : `${this.#label}运行中`,
+        })
+        if (frontendUrl) {
+          this.#writeControl(`\r\n\u001b[36m[开发控制台]\u001b[0m 前端地址 ${frontendUrl}\r\n`)
+          void waitForFrontendReady(frontendUrl).then(() => {
+            if (this.#process !== child && this.#snapshot.phase !== "running") return
+            this.#writeControl(`\u001b[32m[开发控制台] 前端已就绪\u001b[0m ${frontendUrl}\r\n`)
+            this.#patch({ message: `${this.#label}就绪 · ${frontendUrl}` })
+          }).catch((error: unknown) => {
+            if (this.#process !== child) return
+            this.#writeControl(`\u001b[31m[开发控制台] 前端未就绪\u001b[0m ${error instanceof Error ? error.message : String(error)}\r\n`)
+          })
+        }
         return
       }
+    }
+    if (this.#process === child) {
+      this.#writeControl("\r\n\u001b[33m[开发控制台] 等待开发宿主超时；请查看上方构建输出。\u001b[0m\r\n")
     }
   }
 
@@ -165,7 +197,6 @@ export class ManagedDevTuiController implements DevTuiController {
     if (child) {
       await Bun.sleep(250)
       if (this.#process === child) child.kill()
-      child.terminal?.close()
     }
     this.#process = null
     this.#patch({ phase: "stopped", pid: undefined, startedAt: undefined, message: `${this.#label}已停止` })
@@ -218,6 +249,27 @@ export function terminalViewportToStyledText(terminal: Terminal): StyledText {
     chunks.push(...rowChunks, textChunk(row === terminal.rows - 1 ? "" : "\n"))
   }
   return new StyledText(chunks)
+}
+
+async function pumpStreamToTerminal(
+  stream: ReadableStream<Uint8Array> | number | undefined | null,
+  write: (text: string) => void,
+): Promise<void> {
+  if (!stream || typeof stream === "number") return
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      write(decoder.decode(value, { stream: true }).replace(/\n/g, "\r\n"))
+    }
+    const tail = decoder.decode()
+    if (tail) write(tail.replace(/\n/g, "\r\n"))
+  } catch {
+    // Process exited or stream closed.
+  }
 }
 
 function cellAttributes(cell: IBufferCell): number {
