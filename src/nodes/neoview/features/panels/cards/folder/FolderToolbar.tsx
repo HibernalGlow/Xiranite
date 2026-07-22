@@ -758,6 +758,16 @@ export default function FolderToolbar(props: FolderToolbarProps) {
                 onCheckedChange={onTogglePenetration}
               />
             </Field>
+            <Field orientation="horizontal">
+              <FieldLabel htmlFor="folder-penetration-show-internal-files">显示内部文件名</FieldLabel>
+              <Switch
+                id="folder-penetration-show-internal-files"
+                aria-label="显示内部文件名"
+                checked={penetration.showInternalFiles}
+                disabled={busy}
+                onCheckedChange={(showInternalFiles) => onUpdatePenetration({ showInternalFiles })}
+              />
+            </Field>
             <Field>
               <FieldLabel htmlFor="folder-penetration-depth">最大穿透层数</FieldLabel>
               <Select

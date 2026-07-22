@@ -1199,7 +1199,7 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
       viewMode: "compact",
       previewCount: 4,
       showHiddenFolders: false,
-      penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
+      penetration: { enabled: false, showInternalFiles: true, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
       details: {
         columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
         hiddenColumns: [],

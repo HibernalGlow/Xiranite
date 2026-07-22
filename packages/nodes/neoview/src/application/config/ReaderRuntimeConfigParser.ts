@@ -1489,7 +1489,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   }
   if (folder.penetration !== undefined) {
     const penetration = requireRecord(folder.penetration, "reader folder view patch.penetration")
-    const allowedPenetration = new Set(["enabled", "maxDepth", "terminalTargets"])
+    const allowedPenetration = new Set(["enabled", "showInternalFiles", "maxDepth", "terminalTargets"])
     const unknownPenetration = Object.keys(penetration).filter((key) => !allowedPenetration.has(key))
     if (unknownPenetration.length) throw new Error(`reader folder view patch.penetration contains unsupported fields: ${unknownPenetration.join(", ")}.`)
     const penetrationPatch: Partial<Models.NeoviewFolderPenetrationConfig> = {}
@@ -1497,6 +1497,10 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     if (penetration.enabled !== undefined) {
       penetrationPatch.enabled = optionalBoolean(penetration.enabled, "reader folder view patch.penetration.enabled")
       penetrationToml.enabled = penetrationPatch.enabled
+    }
+    if (penetration.showInternalFiles !== undefined) {
+      penetrationPatch.showInternalFiles = optionalBoolean(penetration.showInternalFiles, "reader folder view patch.penetration.showInternalFiles")
+      penetrationToml.show_internal_files = penetrationPatch.showInternalFiles
     }
     if (penetration.maxDepth !== undefined) {
       penetrationPatch.maxDepth = boundedInteger(penetration.maxDepth, 1, 32, "reader folder view patch.penetration.maxDepth")
@@ -1746,6 +1750,8 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Mode
     penetration: {
       enabled:
         optionalBoolean(penetration?.enabled, "[nodes.neoview.folder.penetration].enabled") ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.enabled,
+      showInternalFiles:
+        optionalBoolean(penetration?.show_internal_files ?? penetration?.showInternalFiles, "[nodes.neoview.folder.penetration].show_internal_files") ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.showInternalFiles,
       maxDepth:
         penetration?.max_depth === undefined
           ? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.maxDepth

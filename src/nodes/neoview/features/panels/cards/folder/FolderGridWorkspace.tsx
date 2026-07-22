@@ -11,6 +11,7 @@ import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurfa
 import { directoryEntryAt, viewUsesBanner, type DirectoryCatalog } from "./DirectoryCatalog"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
 import { FolderHoverPreview } from "./FolderHoverPreview"
+import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_GRID_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 
@@ -27,6 +28,7 @@ export default function FolderGridWorkspace({
   thumbnailUrlSets = EMPTY_THUMBNAIL_URL_SETS,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  penetrationFiles = EMPTY_PENETRATION_FILES,
   deleteMode,
   deleteStrategy,
   confirmDelete = true,
@@ -52,6 +54,7 @@ export default function FolderGridWorkspace({
   thumbnailUrlSets?: ReadonlyMap<string, readonly string[]>
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  penetrationFiles?: ReadonlyMap<string, readonly FolderPenetrationFileName[]>
   deleteMode?: boolean
   deleteStrategy?: FolderDeleteStrategy
   confirmDelete?: boolean
@@ -151,6 +154,7 @@ export default function FolderGridWorkspace({
             thumbnailUrls={entry ? thumbnailUrlSets.get(entry.path) : undefined}
             hoverPreviewEnabled={hoverPreviewEnabled}
             hoverPreviewDelayMs={hoverPreviewDelayMs}
+            penetrationFiles={entry ? penetrationFiles.get(entry.path) : undefined}
             deleteMode={Boolean(deleteMode)}
             deleteStrategy={deleteStrategy ?? "trash"}
             confirmDelete={confirmDelete}
@@ -176,13 +180,14 @@ interface DirectoryGridItemProps {
   thumbnailUrls?: readonly string[]
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  penetrationFiles?: readonly FolderPenetrationFileName[]
   deleteMode?: boolean
   deleteStrategy?: FolderDeleteStrategy
   confirmDelete?: boolean
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }
 
-export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
+export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, penetrationFiles, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
   if (!entry) return <div className="h-24 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   return (
     <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
@@ -214,6 +219,7 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
       </span>
       <span className="grid min-w-0 content-center gap-0.5 px-2 py-1.5" data-folder-entry-info="two-line">
         <span className="truncate font-medium" data-folder-entry-line="name">{entry.name}</span>
+        <FolderPenetrationFileNames files={penetrationFiles} />
         <span className="flex min-w-0 items-center gap-1" data-folder-entry-line="metadata">
           <FolderEntryFileMetadata entry={entry} className="min-w-0" />
           <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} className="min-w-0" />
@@ -226,8 +232,9 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
 }
 
 const EMPTY_THUMBNAIL_URL_SETS: ReadonlyMap<string, readonly string[]> = new Map()
+const EMPTY_PENETRATION_FILES: ReadonlyMap<string, readonly FolderPenetrationFileName[]> = new Map()
 
-export function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
+export function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, penetrationFiles, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
   if (!entry) return (
     <div className="grid w-full grid-rows-[auto_1.75rem] overflow-hidden rounded border bg-background" aria-hidden="true">
       <span className="aspect-[2/3] w-full animate-pulse bg-muted/30" />
@@ -258,10 +265,11 @@ export function DirectoryGridItem({ itemId, entry, index, disabled, selected, fo
       data-folder-kind={entry.kind}
       data-folder-reader-supported={entry.readerSupported}
     >
-      <span className="grid aspect-[2/3] w-full min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true" data-folder-thumbnail-orientation="portrait">
+      <span className="relative grid aspect-[2/3] w-full min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true" data-folder-thumbnail-orientation="portrait">
         {thumbnailUrl
           ? <ReaderThumbnailSurface url={thumbnailUrl} urls={thumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" imageLoading="eager" className="size-full rounded-none bg-transparent" />
           : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
+        {penetrationFiles?.length ? <span className="absolute inset-x-1 bottom-1 max-h-20 overflow-hidden"><FolderPenetrationFileNames files={penetrationFiles} variant="overlay" /></span> : null}
       </span>
       <span className="flex min-w-0 items-center gap-1 border-t px-1.5 py-1.5">
         <FolderEntryIcon entry={entry} className="size-3.5" />
