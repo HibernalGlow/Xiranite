@@ -2,6 +2,7 @@ import { Bell, BookOpen, Database, Gauge, Image, Info, Keyboard, LayoutGrid, Mon
 import { Suspense, useState, type ComponentType, type ReactNode } from "react"
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 import type {
   ReaderBoardLayoutPatch,
   ReaderInputBindingsPatch,
@@ -44,6 +45,7 @@ export function ReaderSettingsWindow({
   onLegacySettingsImport,
   onMaterial,
   onWorkspace,
+  portalContainer,
 }: {
   shell: ReaderShellConfigDto
   viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
@@ -66,15 +68,24 @@ export function ReaderSettingsWindow({
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
   onWorkspace?(patch: ReaderWorkspacePatch): void
+  portalContainer?: HTMLElement | null
 }) {
   const [active, setActive] = useState<SettingsSectionId>("layout")
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent
         bare
+        contained={Boolean(portalContainer)}
+        portalContainer={portalContainer}
         aria-describedby={undefined}
-        className="z-[91] !flex !gap-0 !p-0 h-[min(70rem,calc(100vh-2rem))] max-h-[calc(100vh-2rem)] w-[min(64rem,calc(100vw-2rem))] max-w-none flex-col overflow-hidden"
+        className={cn(
+          "z-[91] !flex !gap-0 !p-0 max-w-none flex-col overflow-hidden",
+          portalContainer
+            ? "h-auto max-h-none w-auto"
+            : "h-[min(70rem,calc(100vh-2rem))] max-h-[calc(100vh-2rem)] w-[min(64rem,calc(100vw-2rem))]",
+        )}
         overlayClassName="z-[90]"
+        data-reader-contained={Boolean(portalContainer)}
         style={{ display: "flex", flexDirection: "column", gap: 0, padding: 0 }}
       >
         <div className="shrink-0 border-b px-4 py-3">

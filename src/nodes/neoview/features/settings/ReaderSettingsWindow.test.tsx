@@ -114,6 +114,38 @@ describe("ReaderSettingsWindow", () => {
     expect(await screen.findByRole("heading", { name: "系统" })).toBeTruthy()
     expect(screen.getByText(/排除路径/)).toBeTruthy()
   })
+
+  it("[neoview.settings.bounds] mounts inside the reader surface with four-sided safe spacing", async () => {
+    const readerSurface = document.createElement("div")
+    readerSurface.dataset.readerApp = "true"
+    document.body.appendChild(readerSurface)
+
+    render(
+      <ReaderSettingsWindow
+        portalContainer={readerSurface}
+        shell={shell()}
+        viewDefaults={{ fitMode: "fit", pageMode: "single" }}
+        inputBindings={{ bindings: [] }}
+        radialMenu={DEFAULT_READER_RADIAL_MENU_CONFIG}
+        onClose={vi.fn()}
+        onBoardLayout={vi.fn(async () => undefined)}
+        onViewDefaults={vi.fn(async () => undefined)}
+        onInputBindings={vi.fn(async () => ({ bindings: [] }))}
+        onRadialMenu={vi.fn(async () => DEFAULT_READER_RADIAL_MENU_CONFIG)}
+        onMaterial={vi.fn(async () => shell())}
+      />,
+    )
+
+    const dialog = within(readerSurface).getByRole("dialog")
+    expect(document.body.contains(dialog)).toBe(true)
+    expect(dialog.className).toContain("absolute")
+    expect(dialog.className).toContain("inset-3")
+    expect(dialog.className).toContain("sm:inset-4")
+    expect(dialog.className).not.toContain("100vh")
+    const overlay = readerSurface.querySelector<HTMLElement>('[data-slot="dialog-overlay"]')
+    expect(overlay?.className).toContain("absolute")
+    readerSurface.remove()
+  })
 })
 
 function media() {
