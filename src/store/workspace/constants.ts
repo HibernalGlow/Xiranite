@@ -7,6 +7,7 @@
  *   会被 persist 中间件与 hydrate() 覆盖。
  */
 import type { ViewMode } from "@/types/workspace"
+import { DEFAULT_MODULE_MAGIC_CARD_APPEARANCE } from "@/components/ui/module-panel-variants"
 import type { WSState } from "./types"
 
 /** 组件可参与的视图模式（排除 dashboard，因为 dashboard 不承载组件实例）。 */
@@ -80,11 +81,13 @@ export const INITIAL_STATE: WSState = {
   cardDoubleClickAction: "focus",
   tabDisplayStyle: "underline",
   switchDisplayStyle: "outlined",
+  scrollbarDisplayStyle: "soft",
   choiceControlStyle: "segmented",
   fieldTitleStyle: "legend",
   moduleTitleStyle: "legend",
   modulePanelStyle: "soft",
   moduleCardEffect: "magic",
+  moduleMagicCard: { ...DEFAULT_MODULE_MAGIC_CARD_APPEARANCE },
   resizableHandleStyle: "grip",
   hazardMode: false,
   laneWorkspacePreferences: {},

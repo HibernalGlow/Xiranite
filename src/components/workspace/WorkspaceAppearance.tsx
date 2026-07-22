@@ -12,6 +12,7 @@ export function WorkspaceAppearance() {
     fontPreset: state.fontPreset,
     tabDisplayStyle: state.tabDisplayStyle,
     switchDisplayStyle: state.switchDisplayStyle,
+    scrollbarDisplayStyle: state.scrollbarDisplayStyle,
     choiceControlStyle: state.choiceControlStyle,
     fieldTitleStyle: state.fieldTitleStyle,
     moduleTitleStyle: state.moduleTitleStyle,
@@ -32,6 +33,10 @@ export function WorkspaceAppearance() {
   useEffect(() => {
     document.documentElement.dataset.switchStyle = appearance.switchDisplayStyle
   }, [appearance.switchDisplayStyle])
+
+  useEffect(() => {
+    document.documentElement.dataset.scrollbarStyle = appearance.scrollbarDisplayStyle
+  }, [appearance.scrollbarDisplayStyle])
 
   useEffect(() => {
     document.documentElement.dataset.choiceControlStyle = appearance.choiceControlStyle

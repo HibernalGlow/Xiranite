@@ -7,6 +7,7 @@ import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageU
 import { useTheme } from "@/components/use-theme"
 import { changeLanguage, getCurrentLanguage, type Language } from "@/i18n"
 import { loadMelodeckConfig } from "@/nodes/melodeck/config"
+import { DEFAULT_MODULE_MAGIC_CARD_APPEARANCE, type ModuleMagicCardAppearance } from "@/components/ui/module-panel-variants"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import type { OverlayFloatingMetrics, WorkspaceUiPreferences } from "@/store/workspace/types"
 import type { AppCustomTheme, AppFontPreset, AppTheme, CardLayout } from "@/types/workspace"
@@ -59,6 +60,7 @@ const FIELD_TITLE_STYLES = new Set<WorkspaceUiPreferences["fieldTitleStyle"]>(["
 const CARD_CLICK_ACTIONS = new Set<WorkspaceUiPreferences["cardClickAction"]>(["none", "focus", "fullscreen"])
 const TAB_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["tabDisplayStyle"]>(["underline", "surface", "pill", "boxed", "quiet"])
 const SWITCH_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["switchDisplayStyle"]>(["outlined", "filled", "minimal"])
+const SCROLLBAR_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["scrollbarDisplayStyle"]>(["thin", "soft", "solid", "rounded", "minimal"])
 const THEME_MODES = new Set<ThemeMode>(["system", "light", "dark"])
 const LANGUAGES = new Set<Language>(["en", "zh"])
 const OVERLAY_MODES = new Set<WorkspaceUiPreferences["overlayMode"]>(["docked", "floating"])
@@ -425,9 +427,11 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     cardDoubleClickAction: state.cardDoubleClickAction,
     tabDisplayStyle: state.tabDisplayStyle,
     switchDisplayStyle: state.switchDisplayStyle,
+    scrollbarDisplayStyle: state.scrollbarDisplayStyle,
     moduleTitleStyle: state.moduleTitleStyle,
     modulePanelStyle: state.modulePanelStyle,
     moduleCardEffect: state.moduleCardEffect,
+    moduleMagicCard: state.moduleMagicCard,
     resizableHandleStyle: state.resizableHandleStyle,
     choiceControlStyle: state.choiceControlStyle,
     fieldTitleStyle: state.fieldTitleStyle,
@@ -529,9 +533,14 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (isOneOf(value.cardDoubleClickAction, CARD_CLICK_ACTIONS)) next.cardDoubleClickAction = value.cardDoubleClickAction
   if (isOneOf(value.tabDisplayStyle, TAB_DISPLAY_STYLES)) next.tabDisplayStyle = value.tabDisplayStyle
   if (isOneOf(value.switchDisplayStyle, SWITCH_DISPLAY_STYLES)) next.switchDisplayStyle = value.switchDisplayStyle
+  if (isOneOf(value.scrollbarDisplayStyle, SCROLLBAR_DISPLAY_STYLES)) next.scrollbarDisplayStyle = value.scrollbarDisplayStyle
   if (isOneOf(value.moduleTitleStyle, MODULE_TITLE_STYLES)) next.moduleTitleStyle = value.moduleTitleStyle
   if (isOneOf(value.modulePanelStyle, MODULE_PANEL_STYLES)) next.modulePanelStyle = value.modulePanelStyle
   if (isOneOf(value.moduleCardEffect, MODULE_CARD_EFFECTS)) next.moduleCardEffect = value.moduleCardEffect
+  {
+    const moduleMagicCard = normalizeModuleMagicCardAppearance(value.moduleMagicCard)
+    if (moduleMagicCard) next.moduleMagicCard = moduleMagicCard
+  }
   if (isOneOf(value.resizableHandleStyle, RESIZABLE_HANDLE_STYLES)) next.resizableHandleStyle = value.resizableHandleStyle
   if (isOneOf(value.choiceControlStyle, CHOICE_CONTROL_STYLES)) next.choiceControlStyle = value.choiceControlStyle
   const fieldTitleStyle = value.fieldTitleStyle ?? value.choiceControlLabelStyle
@@ -731,6 +740,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function finiteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function normalizeModuleMagicCardAppearance(value: unknown): ModuleMagicCardAppearance | undefined {
+  if (!isRecord(value)) return undefined
+  const defaults = DEFAULT_MODULE_MAGIC_CARD_APPEARANCE
+  return {
+    radius: boundedInteger(value.radius, defaults.radius, 48, 320),
+    opacity: boundedInteger(value.opacity, defaults.opacity, 5, 100),
+    colorStrength: boundedInteger(value.colorStrength, defaults.colorStrength, 5, 100),
+    followThemeColor: typeof value.followThemeColor === "boolean" ? value.followThemeColor : defaults.followThemeColor,
+    color: typeof value.color === "string" && /^#[0-9a-f]{6}$/i.test(value.color) ? value.color : defaults.color,
+  }
+}
+
+function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, Math.round(value)))
+    : fallback
 }
 
 function clampRatio(value: number, min = 0): number {
