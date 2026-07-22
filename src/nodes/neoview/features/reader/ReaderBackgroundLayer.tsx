@@ -6,7 +6,11 @@
 import { useEffect, useState, type CSSProperties } from "react"
 
 import type { ReaderBackgroundConfigDto } from "../../adapters/reader-http-client"
-import { computeEdgeMatchPresentation, type EdgeMatchPresentation } from "./edgeMatchBackground"
+import {
+  computeEdgeMatchPresentation,
+  getCachedEdgeMatchPresentation,
+  type EdgeMatchPresentation,
+} from "./edgeMatchBackground"
 import "./ReaderBackgroundLayer.css"
 
 export function ReaderBackgroundLayer({ config, imageSrc }: { config: ReaderBackgroundConfigDto; imageSrc?: string }) {
@@ -43,13 +47,21 @@ export function ReaderBackgroundLayer({ config, imageSrc }: { config: ReaderBack
   </div>
 }
 
-/** Current page only: load → sample edges → CSS. No preload wiring. */
+/** Current page only. Cache hit is sync; otherwise sample once (prefer decoded page image). */
 function useSimpleEdgeMatch(imageSrc: string | undefined): EdgeMatchPresentation | undefined {
-  const [edge, setEdge] = useState<EdgeMatchPresentation | undefined>()
+  const [edge, setEdge] = useState<EdgeMatchPresentation | undefined>(() =>
+    imageSrc ? getCachedEdgeMatchPresentation(imageSrc) : undefined,
+  )
 
   useEffect(() => {
     if (!imageSrc) {
       setEdge(undefined)
+      return
+    }
+
+    const cached = getCachedEdgeMatchPresentation(imageSrc)
+    if (cached) {
+      setEdge(cached)
       return
     }
 
@@ -71,5 +83,9 @@ function useSimpleEdgeMatch(imageSrc: string | undefined): EdgeMatchPresentation
     }
   }, [imageSrc])
 
+  if (imageSrc) {
+    const cached = getCachedEdgeMatchPresentation(imageSrc)
+    if (cached) return cached
+  }
   return edge
 }
