@@ -1,10 +1,21 @@
-import { render } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { File, FileArchive, FileImage, FileText, Film, Folder, Music } from "lucide-react"
 
-import { FolderEntryDisplayProvider, FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata, folderEntryExtension, formatFolderDate, formatFolderSize, formatFolderTagSummary, formatFolderTags, getFolderEntryIcon } from "./FolderEntryPresentation"
+import { FolderEntryDisplayProvider, FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata, FolderEntryPenetrationHint, folderEntryExtension, formatFolderDate, formatFolderSize, formatFolderTagSummary, formatFolderTags, getFolderEntryIcon } from "./FolderEntryPresentation"
 
 describe("FolderEntryPresentation", () => {
+  it("shows the internal-file hint only for folders while penetration is enabled", () => {
+    const { rerender } = render(<FolderEntryPenetrationHint entry={{ kind: "directory" }} enabled />)
+    expect(screen.getByText("显示内部文件").getAttribute("data-folder-penetration-hint")).toBe("true")
+
+    rerender(<FolderEntryPenetrationHint entry={{ kind: "file" }} enabled />)
+    expect(screen.queryByText("显示内部文件")).toBeNull()
+
+    rerender(<FolderEntryPenetrationHint entry={{ kind: "directory" }} enabled={false} />)
+    expect(screen.queryByText("显示内部文件")).toBeNull()
+  })
+
   it("maps legacy file extension groups to semantic icons", () => {
     expect(getFolderEntryIcon({ kind: "directory", name: "photos" })).toBe(Folder)
     expect(getFolderEntryIcon({ kind: "file", name: "cover.PNG" })).toBe(FileImage)

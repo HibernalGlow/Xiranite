@@ -7,6 +7,28 @@ import { DirectoryBannerItem, DirectoryGridItem } from "./FolderGridWorkspace"
 afterEach(cleanup)
 
 describe("FolderGridWorkspace banner entries", () => {
+  it("[neoview.folder.penetration-item-hint] labels folders when penetration is enabled", () => {
+    render(
+      <DirectoryBannerItem
+        itemId="folder-item-0"
+        entry={{ name: "nested", path: "D:/library/nested", kind: "directory", readerSupported: true }}
+        index={0}
+        disabled={false}
+        selected={false}
+        focused={false}
+        showRating={false}
+        showCollectTagCount={false}
+        visualMode="mosaic-list"
+        hoverPreviewEnabled={false}
+        hoverPreviewDelayMs={500}
+        penetrationEnabled
+        onSelect={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByLabelText("穿透模式：显示内部文件").textContent).toBe("显示内部文件")
+  })
+
   it("[neoview.folder.banner-density] keeps the legacy two-line name and date-size layout", () => {
     const entry: ReaderDirectoryEntryDto = {
       name: "cover.cbz",
