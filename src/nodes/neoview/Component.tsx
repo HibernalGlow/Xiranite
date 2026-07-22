@@ -1,6 +1,8 @@
+import { useEffect } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 
 import { ReaderApp } from "./app/ReaderApp"
+import { neoviewDebug, noteNeoviewMount, noteNeoviewUnmount } from "./neoviewDebug"
 
 export interface NeoViewCardState extends Record<string, unknown> {
   path?: string
@@ -11,6 +13,23 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
   "use no memo"
   const initialPath = host.state.getData()?.path
   const initialBrowserOriginPath = host.state.getData()?.browserOriginPath ?? undefined
+
+  useEffect(() => {
+    noteNeoviewMount(compId, { path: initialPath })
+    const mountedAt = performance.now()
+    const raf = requestAnimationFrame(() => {
+      neoviewDebug("component:first-frame", {
+        compId,
+        path: initialPath || undefined,
+        sinceMountMs: Math.round((performance.now() - mountedAt) * 10) / 10,
+      })
+    })
+    return () => {
+      cancelAnimationFrame(raf)
+      noteNeoviewUnmount(compId)
+    }
+  }, [compId, initialPath])
+
   return (
     <ReaderApp
       sessionScopeId={compId}
