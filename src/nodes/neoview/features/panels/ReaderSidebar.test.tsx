@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderDirectoryPageDto, ReaderHttpClient, ReaderShellConfigDto } from "../../adapters/reader-http-client"
@@ -306,6 +306,37 @@ describe("ReaderSidebar layout gestures", () => {
     expect(screen.getByRole("heading", { name: "设置" })).toBeTruthy()
     expect(document.querySelector('[data-reader-panel="settings"]')?.className).not.toContain("h-full")
     expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
+  })
+
+  it("[neoview.sidebar.progressive-cards] reveals one card only when the browser reports enough idle budget", () => {
+    vi.useFakeTimers()
+    const callbacks: IdleRequestCallback[] = []
+    vi.stubGlobal("requestIdleCallback", (callback: IdleRequestCallback) => {
+      callbacks.push(callback)
+      return callbacks.length
+    })
+    vi.stubGlobal("cancelIdleCallback", vi.fn())
+    try {
+      const config = shell()
+      config.panelLayout.settings = { visible: true, order: 99, position: "left" }
+      render(<ReaderSidebar side="left" selectedPanelId="settings" context={context(false)} shell={config} />)
+
+      const panel = document.querySelector<HTMLElement>('[data-reader-panel="settings"]')!
+      expect(panel.dataset.readerVisibleCardCount).toBe("1")
+      expect(callbacks).toHaveLength(1)
+
+      act(() => callbacks[0]!({ didTimeout: false, timeRemaining: () => 0 }))
+      expect(panel.dataset.readerVisibleCardCount).toBe("1")
+      expect(callbacks).toHaveLength(1)
+
+      act(() => vi.advanceTimersByTime(250))
+      expect(callbacks).toHaveLength(2)
+      act(() => callbacks[1]!({ didTimeout: false, timeRemaining: () => 20 }))
+      expect(panel.dataset.readerVisibleCardCount).toBe("2")
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    }
   })
 
   it("[neoview.shell.resident-cards] renders stable sessionless Card shells and empty states", () => {
