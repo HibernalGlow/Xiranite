@@ -185,7 +185,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-marku/platform"), { nodeId: "marku", entry: "platform" }),
     createRuntime: "createNodeMarkuRuntime",
   },
-  migratef: {
   melodeck: {
     packageName: "@xiranite/node-melodeck",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-melodeck/core"), { nodeId: "melodeck", entry: "core" }),
@@ -193,6 +192,7 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-melodeck/platform"), { nodeId: "melodeck", entry: "platform" }),
     createRuntime: "createNodeMelodeckRuntime",
   },
+  migratef: {
     packageName: "@xiranite/node-migratef",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-migratef/core"), { nodeId: "migratef", entry: "core" }),
     run: "runMigratef",
