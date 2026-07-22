@@ -73,8 +73,12 @@ export function neoviewDebug(label: string, detail?: unknown): void {
     ...(detail === undefined ? {} : { detail }),
   })
 
-  // Always persist to the Vite middleware log file so agents can read freezes
-  // without requiring the user to copy DevTools output.
+  // Never network-log hot render paths: openPath triggers dozens of ReaderApp
+  // re-renders, and each POST was enough to freeze the desktop WebView.
+  if (isHotPathLabel(label)) return
+
+  // Always persist lifecycle marks to the Vite middleware log file so freezes
+  // can be inspected without copying DevTools output.
   void fetch("/__xiranite-debug-log", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -89,6 +93,10 @@ export function neoviewDebug(label: string, detail?: unknown): void {
     }),
     keepalive: true,
   }).catch(() => undefined)
+}
+
+function isHotPathLabel(label: string): boolean {
+  return label.includes("render:") || label.includes("progressive-step")
 }
 
 function summarizeDetail(detail: unknown): unknown {
