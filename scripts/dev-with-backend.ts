@@ -1,7 +1,8 @@
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
-import { spawnManagedVite, stopProcessTree } from "./managed-process"
+import { waitForFrontendReady } from "./frontend-readiness"
+import { clearStaleViteOptimizeTemps, spawnManagedVite, stopProcessTree } from "./managed-process"
 import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
 import { watchNeoviewBackendSource, type NeoviewBackendWatcher } from "./neoview-backend-watcher"
 
@@ -53,6 +54,9 @@ neoviewWatcher = watchNeoviewBackendSource(restartBackendFromDevScript)
 console.log(`[xiranite-backend] ${backend.url}`)
 console.log(`[xiranite-frontend] ${frontendUrl}`)
 
+const removedTemps = await clearStaleViteOptimizeTemps()
+if (removedTemps > 0) console.log(`[xiranite-frontend] cleared ${removedTemps} stale Vite optimize temp(s)`)
+
 const vite = spawnManagedVite([
   "--host",
   frontend.hostname,
@@ -83,7 +87,13 @@ async function stop() {
   await Promise.all([removeBackendDevManifest(frontendUrl), removeDevSession()])
 }
 
-await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid], script: "dev-with-backend", startedAt: devSessionStartedAt })
+await writeDevSession({
+  supervisorPid: process.pid,
+  childPids: [vite.pid],
+  script: "dev-with-backend",
+  startedAt: devSessionStartedAt,
+  frontendUrl,
+})
 const stopRequestPoll = setInterval(() => {
   void consumeDevSessionStopRequest().then((requested) => { if (requested) void stop() })
 }, 100)
@@ -91,6 +101,12 @@ stopRequestPoll.unref()
 process.on("SIGINT", () => { void stop() })
 process.on("SIGTERM", () => { void stop() })
 process.on("exit", () => { backend?.close(); void removeDevSession() })
+
+void waitForFrontendReady(frontendUrl).then(() => {
+  console.log(`[xiranite-frontend:ready] ${frontendUrl}`)
+}).catch((error: unknown) => {
+  if (!stopping) console.error(`[xiranite-frontend:not-ready] ${error instanceof Error ? error.message : String(error)}`)
+})
 
 const exitCode = await vite.exited
 await stop()

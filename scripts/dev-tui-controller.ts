@@ -112,6 +112,9 @@ export class ManagedDevTuiController implements DevTuiController {
     this.#process = child
     void child.exited.then((exitCode) => this.#handleProcessExit(child, exitCode))
 
+    // Record the launcher only until the real supervisor overwrites this file.
+    // stop-dev treats `dev-ui:*` as a hard-kill target because launchers do not
+    // poll the soft-stop request during generate/build.
     await writeDevSession({ supervisorPid: child.pid, childPids: [], script: `dev-ui:${this.#target}`, startedAt })
     this.#patch({ pid: child.pid, message: `正在构建并启动${this.#label}` })
     void this.#awaitSupervisor(child, startedAt)
