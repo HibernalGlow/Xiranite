@@ -27,6 +27,7 @@ import type {
 import { isReaderDirectorySortField, type ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecord, ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
+import type { ReaderEmmRatingCatalogRecord, ReaderEmmRatingCatalogStore } from "../../ports/ReaderEmmRatingCatalogStore.js"
 import type { ReaderEmmCatalogTag, ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
 import type { ReaderEmmOverrideRecord, ReaderEmmOverrides, ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { parseReaderEmmOverrides } from "../../application/metadata/ReaderEmmMetadataService.js"
@@ -42,6 +43,7 @@ export class SqliteReaderDataStore
     ReaderLibraryStatisticsStore,
     ReaderDirectorySortPreferenceStore,
     ReaderDirectoryEmmRecordStore,
+    ReaderEmmRatingCatalogStore,
     ReaderEmmTagCatalogStore,
     ReaderEmmOverrideStore
 {
@@ -1269,6 +1271,28 @@ export class SqliteReaderDataStore
     return output
   }
 
+  async listEmmRatingRecords(signal?: AbortSignal): Promise<readonly ReaderEmmRatingCatalogRecord[]> {
+    this.#assertOpen()
+    signal?.throwIfAborted()
+    const output = new Map<string, ReaderEmmRatingCatalogRecord>()
+    if (this.#legacyDirectoryEmmAvailable) {
+      const rows = this.database.all(`SELECT key, ${this.#directoryRatingDataAvailable ? "rating_data" : "NULL AS rating_data"}, emm_json FROM thumbs WHERE emm_json IS NOT NULL OR ${this.#directoryRatingDataAvailable ? "rating_data IS NOT NULL" : "0"}`)
+      for (const row of rows) {
+        signal?.throwIfAborted()
+        const path = optionalText(row.key)
+        const rating = ratingFromRecord({ ratingData: optionalText(row.rating_data), emmJson: optionalText(row.emm_json) })
+        if (path && rating !== undefined) output.set(normalizeEmmPathKey(path), { path, rating })
+      }
+    }
+    for (const row of this.database.all("SELECT display_path, overrides_json FROM xr_reader_emm_overrides")) {
+      signal?.throwIfAborted()
+      const path = optionalText(row.display_path)
+      const rating = ratingFromOverride(optionalText(row.overrides_json))
+      if (path && rating !== undefined) output.set(normalizeEmmPathKey(path), { path, rating })
+    }
+    return [...output.values()]
+  }
+
   async sampleEmmTags(count: number, signal?: AbortSignal): Promise<readonly ReaderEmmCatalogTag[]> {
     this.#assertOpen()
     if (!Number.isSafeInteger(count) || count < 1 || count > 64) throw new RangeError("EMM tag sample count must be from 1 to 64.")
@@ -2035,6 +2059,23 @@ function sameBookSettingsOverrides(left: ReaderBookSettingsOverrides, right: Rea
     left.pageMode === right.pageMode &&
     left.horizontalBook === right.horizontalBook
   )
+}
+
+function ratingFromRecord(record: ReaderDirectoryEmmRecord): number | undefined {
+  return ratingFromJson(record.ratingData, "value") ?? ratingFromJson(record.emmJson, "rating")
+}
+
+function ratingFromOverride(value: string | undefined): number | undefined {
+  return ratingFromJson(value, "rating")
+}
+
+function ratingFromJson(value: string | undefined, key: string): number | undefined {
+  if (!value) return undefined
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    const rating = parsed[key]
+    return typeof rating === "number" && Number.isFinite(rating) && rating > 0 && rating <= 5 ? rating : undefined
+  } catch { return undefined }
 }
 
 function isBusyError(error: unknown): boolean {
