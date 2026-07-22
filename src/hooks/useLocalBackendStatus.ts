@@ -13,13 +13,14 @@
  */
 import { useQuery } from "@tanstack/react-query"
 import { checkLocalBackendStatus } from "@/backend/localBackendStatus"
+import { startupDebugAsync } from "@/lib/startupDebug"
 
 export const LOCAL_BACKEND_STATUS_QUERY_KEY = ["local-backend", "status"] as const
 
 export function useLocalBackendStatus() {
   return useQuery({
     queryKey: LOCAL_BACKEND_STATUS_QUERY_KEY,
-    queryFn: () => checkLocalBackendStatus(),
+    queryFn: () => startupDebugAsync("backend:status-check", checkLocalBackendStatus),
     staleTime: 5_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

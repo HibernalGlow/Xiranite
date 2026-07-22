@@ -3,6 +3,7 @@ import { createWailsRuntime, detectWails } from "./adapters/wails"
 import { createWebRuntime } from "./adapters/web"
 import type { RuntimeAdapterRegistration, RuntimeInterface } from "./runtime/runtime"
 import { createBackend, type Backend } from "./services"
+import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 
 const RUNTIME_FACTORIES: RuntimeAdapterRegistration[] = [
   { kind: "deno-desktop", detect: detectDenoDesktop, factory: createDenoDesktopRuntime },
@@ -19,10 +20,12 @@ function selectRuntime(): Promise<RuntimeInterface> {
   runtimePromise = (async () => {
     for (const registration of RUNTIME_FACTORIES) {
       try {
+        startupDebug(`backend:runtime:${registration.kind}:detect:begin`)
         if (registration.detect()) {
-          const runtime = await registration.factory()
+          startupDebug(`backend:runtime:${registration.kind}:detected`)
+          const runtime = await startupDebugAsync(`backend:runtime:${registration.kind}:factory`, registration.factory)
           if (runtime.kind !== "web") {
-            await runtime.windows.getCapabilities()
+            await startupDebugAsync(`backend:runtime:${registration.kind}:capabilities`, () => runtime.windows.getCapabilities())
           }
           console.info(`[backend] runtime = ${runtime.kind}`)
           return runtime

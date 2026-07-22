@@ -17,6 +17,7 @@ import { initI18n } from "@/i18n"
 import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
 import { hydrateLocalBackendConfig } from "@/backend/localBackendConfig"
+import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 
 /**
  * 全局 React Query 客户端。
@@ -43,12 +44,14 @@ void bootstrap()
  *     StrictMode → QueryClientProvider → NuqsAdapter → ThemeProvider → App。
  */
 async function bootstrap() {
-  await initI18n()
+  startupDebug("bootstrap:begin")
+  await startupDebugAsync("bootstrap:i18n", initI18n)
 
-  void hydrateLocalBackendConfig().catch((error) => {
+  void startupDebugAsync("bootstrap:backend-config", hydrateLocalBackendConfig).catch((error) => {
     console.error("[backend] initial config hydrate failed:", error)
   })
 
+  startupDebug("bootstrap:react-render:begin")
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
@@ -60,4 +63,7 @@ async function bootstrap() {
       </QueryClientProvider>
     </StrictMode>
   )
+  requestAnimationFrame(() => {
+    startupDebug("bootstrap:first-animation-frame")
+  })
 }

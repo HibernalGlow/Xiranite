@@ -7,21 +7,22 @@
  *
  * 顶层 Provider 顺序：WorkspaceProvider → ContextMenuProvider → AppConfigSync/WorkspaceAppearance → 内容。
  */
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useEffect } from "react"
 import { WorkspaceProvider } from "@/store/workspaceContext"
 import { WorkspaceAppearance } from "@/components/workspace/WorkspaceAppearance"
 import { AppConfigSync } from "@/components/workspace/AppConfigSync"
 import { ContextMenuProvider } from "@/components/context-menu"
 import { parseAsString, useQueryStates } from "nuqs"
+import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 
 const WorkspaceLayout = lazy(() =>
-  import("@/components/workspace/WorkspaceLayout").then((module) => ({
+  startupDebugAsync("lazy:workspace-layout", () => import("@/components/workspace/WorkspaceLayout")).then((module) => ({
     default: module.WorkspaceLayout,
   })),
 )
 
 const FloatingComponentWindow = lazy(() =>
-  import("@/components/workspace/FloatingComponentWindow").then((module) => ({
+  startupDebugAsync("lazy:floating-component-window", () => import("@/components/workspace/FloatingComponentWindow")).then((module) => ({
     default: module.FloatingComponentWindow,
   })),
 )
@@ -40,6 +41,10 @@ const floatingWindowParsers = {
 
 export function App() {
   const [params] = useQueryStates(floatingWindowParsers)
+
+  useEffect(() => {
+    startupDebug("react:app-committed", { floatingComponent: params.floatingComponent })
+  }, [params.floatingComponent])
 
   return (
     <WorkspaceProvider>

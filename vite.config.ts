@@ -74,6 +74,32 @@ function developmentCjsShimPlugin() {
   }
 }
 
+function developmentDebugLogPlugin() {
+  return {
+    name: "xiranite:development-debug-log",
+    apply: "serve" as const,
+    configureServer(server: { middlewares: { use: (path: string, handler: (request: NodeJS.ReadableStream, response: { statusCode: number; end: () => void }) => void) => void } }) {
+      server.middlewares.use("/__xiranite-debug-log", (request, response) => {
+        let body = ""
+        request.setEncoding("utf8")
+        request.on("data", (chunk) => {
+          if (body.length < 32_768) body += String(chunk)
+        })
+        request.on("end", () => {
+          try {
+            const event = JSON.parse(body) as { sequence?: unknown; elapsedMs?: unknown; label?: unknown; detail?: unknown }
+            console.log(`[xiranite-debug #${String(event.sequence)} +${String(event.elapsedMs)}ms] ${String(event.label)}`, event.detail ?? "")
+          } catch {
+            console.warn("[xiranite-debug] invalid browser event")
+          }
+          response.statusCode = 204
+          response.end()
+        })
+      })
+    },
+  }
+}
+
 function lucideDeepImportsPlugin() {
   let iconExports: Promise<ReturnType<typeof collectLucideIconExports>> | undefined
   return {
@@ -104,6 +130,7 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [
     developmentCjsShimPlugin(),
+    developmentDebugLogPlugin(),
     lucideDeepImportsPlugin(),
     tailwindCandidateSnapshotPlugin(),
     productionChunkReportPlugin(),
