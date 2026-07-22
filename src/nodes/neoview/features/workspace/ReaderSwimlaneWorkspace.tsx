@@ -30,11 +30,15 @@ import { cn } from "@/lib/utils"
 import type { ReaderShellConfigDto, ReaderSwimlaneId } from "../../adapters/reader-http-client"
 import {
   MAX_READER_WIDTH_RATIO,
+  MAX_SWIMLANE_WIDTH,
+  MIN_PANEL_SWIMLANE_WIDTH,
+  MIN_READER_SWIMLANE_WIDTH,
   MIN_READER_WIDTH_RATIO,
   DEFAULT_LANE_NAVIGATOR_POSITION,
   fitReaderSwimlanesToViewport,
   readerLaneWidth,
   reorderedReaderLanes,
+  sanitizeSwimlaneWidth,
   type ReaderWorkspaceConfig,
   type ReaderWorkspacePatch,
 } from "./ReaderWorkspaceLayout"
@@ -222,15 +226,26 @@ export function ReaderSwimlaneWorkspace({
   }
 
   function laneWidthBounds(laneId: ReaderSwimlaneId): { minimum: number; maximum: number } {
-    return laneId === "reader"
-      ? { minimum: viewportWidth * MIN_READER_WIDTH_RATIO, maximum: viewportWidth * MAX_READER_WIDTH_RATIO }
-      : { minimum: 240, maximum: 8_192 }
+    if (laneId === "reader") {
+      const minimum = Math.max(MIN_READER_SWIMLANE_WIDTH, Math.round(viewportWidth * MIN_READER_WIDTH_RATIO))
+      const maximum = Math.max(minimum, Math.min(MAX_SWIMLANE_WIDTH, Math.round(viewportWidth * MAX_READER_WIDTH_RATIO)))
+      return { minimum, maximum }
+    }
+    return { minimum: MIN_PANEL_SWIMLANE_WIDTH, maximum: MAX_SWIMLANE_WIDTH }
+  }
+
+  function resolvedLiveWidth(laneId: ReaderSwimlaneId): number {
+    const bounds = laneWidthBounds(laneId)
+    const fallback = laneId === "reader"
+      ? readerNormalWidth
+      : swimlane.lanes[laneId]?.width ?? DEFAULT_LANE_WIDTHS[laneId] ?? 320
+    return sanitizeSwimlaneWidth(laneId, liveWidthsRef.current[laneId], bounds.minimum, bounds.maximum, fallback)
   }
 
   function resizeLaneBoundary(leftLaneId: ReaderSwimlaneId, rightLaneId: ReaderSwimlaneId, deltaRatio: number): void {
     if (soloLaneId === leftLaneId || soloLaneId === rightLaneId) return
-    const leftWidth = liveWidthsRef.current[leftLaneId]
-    const rightWidth = liveWidthsRef.current[rightLaneId]
+    const leftWidth = resolvedLiveWidth(leftLaneId)
+    const rightWidth = resolvedLiveWidth(rightLaneId)
     const leftBounds = laneWidthBounds(leftLaneId)
     const rightBounds = laneWidthBounds(rightLaneId)
     const delta = clamp(
@@ -250,7 +265,7 @@ export function ReaderSwimlaneWorkspace({
   }
 
   function commitLaneWidths(laneIds: readonly ReaderSwimlaneId[]): void {
-    const widths = Object.fromEntries(laneIds.map((laneId) => [laneId, Math.round(liveWidthsRef.current[laneId])])) as Record<ReaderSwimlaneId, number>
+    const widths = Object.fromEntries(laneIds.map((laneId) => [laneId, resolvedLiveWidth(laneId)])) as Record<ReaderSwimlaneId, number>
     if (swimlane.autoFitToViewport) {
       onWorkspaceChange(fitReaderSwimlanesToViewport(viewportWidth, {
         ...swimlane,
@@ -305,9 +320,8 @@ export function ReaderSwimlaneWorkspace({
   }
 
   function commitExplicitLaneWidth(laneId: ReaderSwimlaneId, requestedWidth: number): void {
-    const minimum = laneId === "reader" ? viewportWidth * MIN_READER_WIDTH_RATIO : 240
-    const maximum = laneId === "reader" ? viewportWidth * MAX_READER_WIDTH_RATIO : 8_192
-    const next = Math.round(clamp(requestedWidth, minimum, maximum))
+    const bounds = laneWidthBounds(laneId)
+    const next = sanitizeSwimlaneWidth(laneId, requestedWidth, bounds.minimum, bounds.maximum)
     liveWidthsRef.current[laneId] = next
     if (laneId === "reader") {
       onWorkspaceChange({
@@ -391,8 +405,8 @@ export function ReaderSwimlaneWorkspace({
             : { activeLane: laneId, soloLaneId: laneId, lanes: { [laneId]: { collapsed: false } } })}
         onCollapsedChange={(next) => onWorkspaceChange({ lanes: { [laneId]: { collapsed: next } } })}
         configuredWidth={laneId === "reader" ? readerNormalWidth : lane.width}
-        minimumWidth={laneId === "reader" ? Math.round(viewportWidth * MIN_READER_WIDTH_RATIO) : 240}
-        maximumWidth={laneId === "reader" ? Math.round(viewportWidth * MAX_READER_WIDTH_RATIO) : 8_192}
+        minimumWidth={laneWidthBounds(laneId).minimum}
+        maximumWidth={laneWidthBounds(laneId).maximum}
         onWidthCommit={(width) => commitExplicitLaneWidth(laneId, width)}
         onResetWidth={() => commitExplicitLaneWidth(laneId, laneId === "reader" ? viewportWidth * 0.5 : DEFAULT_LANE_WIDTHS[laneId] ?? 320)}
         onResetNavigatorPosition={() => onWorkspaceChange({
