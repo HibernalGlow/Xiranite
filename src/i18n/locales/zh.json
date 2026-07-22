@@ -271,6 +271,19 @@
             "filled": "填充",
             "minimal": "极简"
           }
+        },
+        "scrollbars": {
+          "title": "滚动条",
+          "description": "原生 overflow 与 ScrollArea 共用同一套外观，覆盖各节点面板。",
+          "previewHint": "滚动此预览区可检查当前滚动条样式。",
+          "previewLine": "共享滚动条示例行 {{n}}",
+          "styles": {
+            "thin": "纤细",
+            "soft": "柔和",
+            "solid": "实心",
+            "rounded": "圆润",
+            "minimal": "极简"
+          }
         }
       }
     },

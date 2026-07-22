@@ -275,8 +275,8 @@ samp {
   --dv-activegroup-visiblepanel-tab-active-background-color: var(--primary);
   --dv-separator-border: var(--border);
   --dv-paneview-header-border-color: var(--border);
-  --dv-scrollbar-background-color: var(--muted-foreground);
-  --dv-tabs-container-scrollbar-color: var(--muted-foreground);
+  --dv-scrollbar-background-color: var(--scrollbar-thumb, var(--muted-foreground));
+  --dv-tabs-container-scrollbar-color: var(--scrollbar-thumb, var(--muted-foreground));
 }
 
 /* 在 groupview 上应用磨砂模糊，让半透明背景透出画布纹理。
@@ -605,11 +605,185 @@ samp {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* ── Scrollbar styling ── */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+/* ── Scrollbar styling ──
+   Shared tokens drive both native overflow scrollbars and Radix ScrollArea.
+   Workspace preference sets data-scrollbar-style on <html>; intentional hide
+   helpers (toolbars / swimlanes) always opt out via .hide-scrollbar or
+   data-scrollbar="hidden". */
+:root {
+  --scrollbar-size: 8px;
+  --scrollbar-radius: 999px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: color-mix(in oklch, var(--border) 88%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklch, var(--muted-foreground) 72%, transparent);
+  --scrollbar-thumb-active: color-mix(in oklch, var(--muted-foreground) 88%, transparent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+:root[data-scrollbar-style="thin"] {
+  --scrollbar-size: 4px;
+  --scrollbar-radius: 2px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: color-mix(in oklch, var(--border) 92%, transparent);
+  --scrollbar-thumb-hover: var(--muted-foreground);
+  --scrollbar-thumb-active: var(--muted-foreground);
+  scrollbar-width: thin;
+}
+
+:root[data-scrollbar-style="soft"] {
+  --scrollbar-size: 8px;
+  --scrollbar-radius: 999px;
+  --scrollbar-track: color-mix(in oklch, var(--muted) 35%, transparent);
+  --scrollbar-thumb: color-mix(in oklch, var(--border) 80%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklch, var(--muted-foreground) 68%, transparent);
+  --scrollbar-thumb-active: color-mix(in oklch, var(--muted-foreground) 84%, transparent);
+  scrollbar-width: thin;
+}
+
+:root[data-scrollbar-style="solid"] {
+  --scrollbar-size: 10px;
+  --scrollbar-radius: 6px;
+  --scrollbar-track: color-mix(in oklch, var(--muted) 55%, transparent);
+  --scrollbar-thumb: color-mix(in oklch, var(--muted-foreground) 42%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklch, var(--primary) 55%, var(--muted-foreground));
+  --scrollbar-thumb-active: color-mix(in oklch, var(--primary) 72%, var(--muted-foreground));
+  scrollbar-width: auto;
+}
+
+:root[data-scrollbar-style="rounded"] {
+  --scrollbar-size: 12px;
+  --scrollbar-radius: 999px;
+  --scrollbar-track: color-mix(in oklch, var(--muted) 40%, transparent);
+  --scrollbar-thumb: color-mix(in oklch, var(--border) 70%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
+  --scrollbar-thumb-active: color-mix(in oklch, var(--muted-foreground) 78%, transparent);
+  scrollbar-width: auto;
+}
+
+:root[data-scrollbar-style="minimal"] {
+  --scrollbar-size: 3px;
+  --scrollbar-radius: 999px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: color-mix(in oklch, var(--border) 45%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+  --scrollbar-thumb-active: color-mix(in oklch, var(--muted-foreground) 70%, transparent);
+  scrollbar-width: thin;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+:root[data-scrollbar-style="solid"] *,
+:root[data-scrollbar-style="rounded"] * {
+  scrollbar-width: auto;
+}
+
+::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: var(--scrollbar-radius);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: var(--scrollbar-radius);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+:root[data-scrollbar-style="thin"] ::-webkit-scrollbar-thumb,
+:root[data-scrollbar-style="minimal"] ::-webkit-scrollbar-thumb {
+  border-width: 0;
+  background-clip: border-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+:root[data-scrollbar-style="thin"] ::-webkit-scrollbar-thumb:hover,
+:root[data-scrollbar-style="minimal"] ::-webkit-scrollbar-thumb:hover {
+  background-clip: border-box;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--scrollbar-thumb-active);
+  background-clip: padding-box;
+}
+
+:root[data-scrollbar-style="thin"] ::-webkit-scrollbar-thumb:active,
+:root[data-scrollbar-style="minimal"] ::-webkit-scrollbar-thumb:active {
+  background-clip: border-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Radix ScrollArea uses its own thumb element; map the same tokens so native
+   overflow and ScrollArea never diverge across node surfaces. */
+[data-slot="scroll-area-scrollbar"] {
+  --scroll-area-size: var(--scrollbar-size);
+  border: 0 !important;
+  padding: 0 !important;
+  transition: background-color 160ms ease, opacity 160ms ease;
+}
+
+[data-slot="scroll-area-scrollbar"][data-orientation="vertical"] {
+  width: var(--scroll-area-size) !important;
+}
+
+[data-slot="scroll-area-scrollbar"][data-orientation="horizontal"] {
+  height: var(--scroll-area-size) !important;
+}
+
+[data-slot="scroll-area-thumb"] {
+  background: var(--scrollbar-thumb) !important;
+  border-radius: var(--scrollbar-radius) !important;
+}
+
+[data-slot="scroll-area-scrollbar"]:hover [data-slot="scroll-area-thumb"],
+[data-slot="scroll-area-thumb"]:hover {
+  background: var(--scrollbar-thumb-hover) !important;
+}
+
+[data-slot="scroll-area-thumb"]:active {
+  background: var(--scrollbar-thumb-active) !important;
+}
+
+:root[data-scrollbar-style="soft"] [data-slot="scroll-area-scrollbar"],
+:root[data-scrollbar-style="solid"] [data-slot="scroll-area-scrollbar"],
+:root[data-scrollbar-style="rounded"] [data-slot="scroll-area-scrollbar"] {
+  background: var(--scrollbar-track);
+}
+
+/* Intentional hide — toolbars, swimlanes, and other chrome that must not show bars. */
+.hide-scrollbar,
+[data-scrollbar="hidden"] {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.hide-scrollbar::-webkit-scrollbar,
+[data-scrollbar="hidden"]::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Keep dockview scroll chrome on the same token pipeline. */
+.dv-theme-bridge {
+  --dv-scrollbar-background-color: var(--scrollbar-thumb);
+  --dv-tabs-container-scrollbar-color: var(--scrollbar-thumb);
+}
 
 /* Shared Tabs display preference. The Radix structure stays unchanged; this
    only switches its visual treatment through the workspace appearance setting. */

@@ -44,6 +44,7 @@ describe("workspace UI preference persistence", () => {
     expect(persisted.state?.bgOpacity).toBe(55)
     expect(persisted.state?.tabDisplayStyle).toBe("boxed")
     expect(persisted.state?.switchDisplayStyle).toBe("filled")
+    expect(persisted.state?.scrollbarDisplayStyle).toBe("solid")
     expect(persisted.state?.workspaces).toBeUndefined()
     expect(persisted.state?.components).toBeUndefined()
     expect(localStorage.getItem("xiranite-bg-mode")).toBeNull()
@@ -74,7 +75,7 @@ describe("workspace UI preference persistence", () => {
     await user.click(screen.getByRole("button", { name: "set user overrides then switch preset" }))
 
     await waitFor(() => {
-      expect(screen.getByTestId("prefs").textContent).toBe("endfield/mono/image/55/island/traffic-light/117/underline/outlined")
+      expect(screen.getByTestId("prefs").textContent).toBe("endfield/mono/image/55/island/traffic-light/117/underline/outlined/soft")
     })
   })
 
@@ -140,12 +141,13 @@ function WorkspacePreferenceProbe() {
     chromeIslandScale: state.chromeIslandScale,
     tabDisplayStyle: state.tabDisplayStyle,
     switchDisplayStyle: state.switchDisplayStyle,
+    scrollbarDisplayStyle: state.scrollbarDisplayStyle,
   }))
   const workspaceActions = useWorkspaceActions()
 
   return (
     <div>
-      <output data-testid="prefs">{`${prefs.theme}/${prefs.fontPreset}/${prefs.bgMode}/${prefs.bgOpacity}/${prefs.chromePosition}/${prefs.chromeStyle}/${prefs.chromeIslandScale}/${prefs.tabDisplayStyle}/${prefs.switchDisplayStyle}`}</output>
+      <output data-testid="prefs">{`${prefs.theme}/${prefs.fontPreset}/${prefs.bgMode}/${prefs.bgOpacity}/${prefs.chromePosition}/${prefs.chromeStyle}/${prefs.chromeIslandScale}/${prefs.tabDisplayStyle}/${prefs.switchDisplayStyle}/${prefs.scrollbarDisplayStyle}`}</output>
       <button
         type="button"
         onClick={() => workspaceActions.setThemeSelection("dark", { kind: "preset", name: "endfield" })}
@@ -172,6 +174,7 @@ function WorkspacePreferenceProbe() {
           workspaceActions.setBgOpacity(55)
           workspaceActions.setTabDisplayStyle("boxed")
           workspaceActions.setSwitchDisplayStyle("filled")
+          workspaceActions.setScrollbarDisplayStyle("solid")
         }}
       >
         set persisted prefs
@@ -217,6 +220,7 @@ function WorkspacePreferenceProbe() {
           workspaceActions.setChromeIslandScale(90)
           workspaceActions.setTabDisplayStyle("underline")
           workspaceActions.setSwitchDisplayStyle("outlined")
+          workspaceActions.setScrollbarDisplayStyle("soft")
         }}
       >
         reset persisted prefs

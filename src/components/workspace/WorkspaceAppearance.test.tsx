@@ -17,6 +17,12 @@ afterEach(() => {
 })
 
 describe("workspace appearance mode assignments", () => {
+  test("applies the shared scrollbar display preference on the document root", async () => {
+    useWorkspaceStore.getState().setScrollbarDisplayStyle("rounded")
+    render(<WorkspaceAppearance />)
+    await waitFor(() => expect(document.documentElement.dataset.scrollbarStyle).toBe("rounded"))
+  })
+
   test("switches the existing theme choice between independent light and dark assignments", async () => {
     const actions = useWorkspaceStore.getState()
     actions.setCustomThemes([{

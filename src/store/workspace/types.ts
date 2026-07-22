@@ -31,8 +31,9 @@ import type {
 import type { ComponentDTO, LaneDTO, WorkspaceDTO } from "@xiranite/shared"
 import type { TabDisplayStyle } from "@/components/ui/tabs-variants"
 import type { SwitchDisplayStyle } from "@/components/ui/switch-variants"
+import type { ScrollbarDisplayStyle } from "@/components/ui/scrollbar-variants"
 import type { ChoiceControlStyle, FieldTitleStyle } from "@/components/ui/choice-control-variants"
-import type { ModuleCardEffect, ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@/components/ui/module-panel-variants"
+import type { ModuleCardEffect, ModuleMagicCardAppearance, ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 import type { SwimlaneWorkspacePreferences } from "@/components/workspace/swimlane/model"
 
 /** 工作区 Store 完整状态：UI 偏好 + 业务数据 + 运行时标志。 */
@@ -135,6 +136,8 @@ export interface WSState {
   tabDisplayStyle: TabDisplayStyle
   /** Switch 显示样式。 */
   switchDisplayStyle: SwitchDisplayStyle
+  /** Scrollbar 显示样式（原生 overflow + ScrollArea 共用）。 */
+  scrollbarDisplayStyle: ScrollbarDisplayStyle
   /** Choice 控件样式（segmented/radio 等）。 */
   choiceControlStyle: ChoiceControlStyle
   /** 字段标题样式。 */
@@ -145,6 +148,8 @@ export interface WSState {
   modulePanelStyle: ModulePanelStyle
   /** 模块卡片特效。 */
   moduleCardEffect: ModuleCardEffect
+  /** Magic Card 光晕参数。 */
+  moduleMagicCard: ModuleMagicCardAppearance
   /** 可调把手样式。 */
   resizableHandleStyle: ResizableHandleStyle
   /** 危险模式（高对比警示色）。 */
@@ -212,11 +217,13 @@ export interface WorkspaceUiActions {
   setCardDoubleClickAction(action: CardClickAction): void
   setTabDisplayStyle(style: TabDisplayStyle): void
   setSwitchDisplayStyle(style: SwitchDisplayStyle): void
+  setScrollbarDisplayStyle(style: ScrollbarDisplayStyle): void
   setChoiceControlStyle(style: ChoiceControlStyle): void
   setFieldTitleStyle(style: FieldTitleStyle): void
   setModuleTitleStyle(style: ModuleTitleStyle): void
   setModulePanelStyle(style: ModulePanelStyle): void
   setModuleCardEffect(effect: ModuleCardEffect): void
+  setModuleMagicCardAppearance(patch: Partial<ModuleMagicCardAppearance>): void
   setResizableHandleStyle(style: ResizableHandleStyle): void
   setHazardMode(enabled: boolean): void
   patchLaneWorkspacePreferences(workspaceId: string, patch: Partial<SwimlaneWorkspacePreferences>): void
@@ -345,11 +352,13 @@ export type WorkspaceUiPreferences = Pick<
   | "cardDoubleClickAction"
   | "tabDisplayStyle"
   | "switchDisplayStyle"
+  | "scrollbarDisplayStyle"
   | "choiceControlStyle"
   | "fieldTitleStyle"
   | "moduleTitleStyle"
   | "modulePanelStyle"
   | "moduleCardEffect"
+  | "moduleMagicCard"
   | "resizableHandleStyle"
   | "hazardMode"
   | "laneWorkspacePreferences"

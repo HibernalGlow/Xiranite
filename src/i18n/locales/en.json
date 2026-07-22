@@ -271,6 +271,19 @@
             "filled": "Filled",
             "minimal": "Minimal"
           }
+        },
+        "scrollbars": {
+          "title": "Scrollbars",
+          "description": "One shared treatment for native overflow regions and ScrollArea across every node surface.",
+          "previewHint": "Scroll this preview to inspect the active scrollbar treatment.",
+          "previewLine": "Shared scrollbar line {{n}}",
+          "styles": {
+            "thin": "Thin",
+            "soft": "Soft",
+            "solid": "Solid",
+            "rounded": "Rounded",
+            "minimal": "Minimal"
+          }
         }
       }
     },

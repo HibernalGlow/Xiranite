@@ -24,6 +24,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TAB_DISPLAY_STYLES, type TabDisplayStyle } from "@/components/ui/tabs-variants"
 import { SWITCH_DISPLAY_STYLES, type SwitchDisplayStyle } from "@/components/ui/switch-variants"
+import { SCROLLBAR_DISPLAY_STYLES, type ScrollbarDisplayStyle } from "@/components/ui/scrollbar-variants"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { SwimlaneInteractionSettings } from "@/components/workspace/swimlane/SwimlaneInteractionSettings"
 import { normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
@@ -40,6 +41,7 @@ export function ViewSection() {
     cardDoubleClickAction: workspace.cardDoubleClickAction,
     tabDisplayStyle: workspace.tabDisplayStyle,
     switchDisplayStyle: workspace.switchDisplayStyle,
+    scrollbarDisplayStyle: workspace.scrollbarDisplayStyle,
     choiceControlStyle: workspace.choiceControlStyle,
     fieldTitleStyle: workspace.fieldTitleStyle,
     moduleTitleStyle: workspace.moduleTitleStyle,
@@ -171,6 +173,48 @@ export function ViewSection() {
                   aria-label={t("settings:view.componentDisplay.switches.previewOn", "On")}
                   onCheckedChange={() => undefined}
                 />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-1">
+            <div>
+              <p className="text-xs font-medium">{t("settings:view.componentDisplay.scrollbars.title", "Scrollbars")}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {t(
+                  "settings:view.componentDisplay.scrollbars.description",
+                  "One shared treatment for native overflow regions and ScrollArea across every node surface.",
+                )}
+              </p>
+            </div>
+            <ToggleGroup
+              type="single"
+              value={state.scrollbarDisplayStyle}
+              onValueChange={(value) => value && workspaceActions.setScrollbarDisplayStyle(value as ScrollbarDisplayStyle)}
+              variant="outline"
+              size="sm"
+              className="grid w-full grid-cols-2 gap-1.5 @sm:grid-cols-5"
+              spacing={2}
+            >
+              {SCROLLBAR_DISPLAY_STYLES.map((style) => (
+                <ToggleGroupItem key={style} value={style} className="min-w-0 px-2 text-[11px]">
+                  {t(`settings:view.componentDisplay.scrollbars.styles.${style}`)}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <div
+              className="h-24 overflow-auto rounded-md border bg-muted/15 p-2"
+              data-testid="scrollbar-style-preview"
+            >
+              <div className="space-y-1.5 text-[11px] leading-5 text-muted-foreground">
+                <p>{t("settings:view.componentDisplay.scrollbars.previewHint", "Scroll this preview to inspect the active scrollbar treatment.")}</p>
+                {Array.from({ length: 12 }, (_, index) => (
+                  <p key={index}>
+                    {t("settings:view.componentDisplay.scrollbars.previewLine", "Shared scrollbar line {{n}}", {
+                      n: index + 1,
+                    })}
+                  </p>
+                ))}
               </div>
             </div>
           </div>
