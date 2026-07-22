@@ -1833,8 +1833,11 @@ export function ReaderApp({
 
   // First paint only the swimlane chrome + reader canvas. Mounting both sidebars
   // (and every docked card inside them) on the same frame as setShell freezes the UI.
-  // Do not re-run when `shell` identity/revision churns after openPath — that was
-  // unmounting history/control mid-read and storming ReaderApp renders.
+  //
+  // Deps must stay mode/shell-presence only:
+  // - including shell object re-tore sidebars after openPath
+  // - including swimlaneSidebarsReady re-ran cleanup when left became ready and
+  //   cleared the right-side timeout, so the right rail never mounted
   const shellPresent = Boolean(shell)
   useEffect(() => {
     if (workspaceMode !== "swimlane" || !shellPresent) {
@@ -1842,8 +1845,6 @@ export function ReaderApp({
       setSwimlaneRightSidebarReady(false)
       return
     }
-    // Keep sidebars once revealed; shell patches after open must not tear them down.
-    if (swimlaneSidebarsReady) return
 
     let cancelled = false
     let outerRaf = 0
@@ -1891,7 +1892,7 @@ export function ReaderApp({
       if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle)
       if (rightTimeout !== undefined) window.clearTimeout(rightTimeout)
     }
-  }, [sessionScopeId, shellPresent, swimlaneSidebarsReady, workspaceMode])
+  }, [sessionScopeId, shellPresent, workspaceMode])
   const toggleReaderViewFullscreen = () => {
     const next = !readerViewFullscreen
     setReaderViewFullscreen(next)
