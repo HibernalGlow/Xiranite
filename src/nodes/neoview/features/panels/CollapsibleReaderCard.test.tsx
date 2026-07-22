@@ -6,10 +6,10 @@ import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
 afterEach(cleanup)
 
 describe("CollapsibleReaderCard", () => {
-  it("renders its title slot without a hover-effect wrapper", () => {
+  it("[neoview.card.magic-hover] wraps docked Cards with the shared Magic UI hover surface", () => {
     render(<CollapsibleReaderCard title="共享标题">content</CollapsibleReaderCard>)
 
-    expect(document.querySelector('[data-slot="magic-card"]')).toBeNull()
+    expect(document.querySelector('[data-slot="magic-card"]')).toBeTruthy()
     expect(document.querySelector('[data-slot="reader-card-title"]')).toBeTruthy()
   })
 
