@@ -1977,7 +1977,6 @@ export function ReaderApp({
       || cancelledPreloadFrame?.sessionId !== session.sessionId
       || cancelledPreloadFrame.generation !== session.frame.generation
     ),
-    upscaleEnabled: superResolution?.provider !== "disabled" && superResolution?.preferences.autoUpscaleEnabled === true,
     preload: prefetchController.preload,
     cancel: prefetchController.cancel,
   })

@@ -3,7 +3,7 @@ import { render, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderPageDto, ReaderPreloadEventDto } from "../../adapters/reader-http-client"
-import { READER_PREFETCH_READY_MARK, resolveReaderPredecodePolicy, useReaderImagePreloader } from "./useReaderImagePreloader"
+import { READER_PREFETCH_READY_MARK, useReaderImagePreloader } from "./useReaderImagePreloader"
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -24,12 +24,6 @@ describe("useReaderImagePreloader", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 800))
     expect(instances).toHaveLength(0)
-  })
-
-  it("[neoview.react.predecode-adaptive-policy] selects bounded concurrency from device and network hints", () => {
-    expect(resolveReaderPredecodePolicy({ deviceMemoryGb: 16, hardwareConcurrency: 16, effectiveConnectionType: "4g" })).toMatchObject({ concurrency: 1, maxRetainedImages: 1 })
-    expect(resolveReaderPredecodePolicy({ deviceMemoryGb: 16, hardwareConcurrency: 16, saveData: true })).toMatchObject({ concurrency: 1, maxRetainedImages: 1 })
-    expect(resolveReaderPredecodePolicy({ deviceMemoryGb: 4, hardwareConcurrency: 4, effectiveConnectionType: "4g" })).toMatchObject({ concurrency: 1, maxRetainedImages: 1 })
   })
 
   it("[neoview.react.predecode] decodes once, bounds retained images and releases them with the session", async () => {

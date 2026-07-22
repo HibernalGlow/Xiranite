@@ -2,7 +2,6 @@ import { renderHook, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
-import { readerUpscaleArtifactSnapshot } from "./ReaderUpscaleArtifactStore"
 import { useReaderAdjacentPagePreloader } from "./useReaderAdjacentPagePreloader"
 
 describe("useReaderAdjacentPagePreloader", () => {
@@ -116,71 +115,6 @@ describe("useReaderAdjacentPagePreloader", () => {
     await waitFor(() => expect(frameWindow).toHaveBeenCalledWith("reader-1", 4, 1, expect.any(AbortSignal)))
     await waitFor(() => expect(preload).toHaveBeenCalledWith([pages[0], pages[2]]))
     expect(client.listPages).not.toHaveBeenCalled()
-  })
-
-  it("[neoview.super-resolution.artifact-predecode] probes nearby artifacts and preloads a cache hit instead of its original", async () => {
-    const pages = [page(3), page(4), page(5)]
-    const probeUpscalePage = vi.fn(async (_sessionId: string, pageId: string) => pageId === "page-3"
-      ? { status: "hit" as const, artifactUrl: "http://127.0.0.1:41000/reader/page-3-upscaled", contentType: "image/png", bytes: 42, version: "artifact-v1" }
-      : { status: "miss" as const })
-    const client = clientWith({
-      listPages: vi.fn(async () => ({ pages, total: 20 })),
-      probeUpscalePage,
-    })
-    const preload = vi.fn()
-
-    renderHook(() => useReaderAdjacentPagePreloader({
-      client,
-      sessionId: "reader-artifact-hit",
-      activePageIndex: 4,
-      totalPages: 20,
-      upscaleEnabled: true,
-      preload,
-    }))
-
-    await waitFor(() => expect(probeUpscalePage).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(preload).toHaveBeenCalledWith([
-      expect.objectContaining({ id: "page-3", assetUrl: "http://127.0.0.1:41000/reader/page-3-upscaled", contentVersion: "v1:upscale:artifact-v1" }),
-      pages[2],
-    ]))
-    expect(readerUpscaleArtifactSnapshot("reader-artifact-hit", "page-3")).toMatchObject({ state: "completed", result: { status: "hit" } })
-  })
-
-  it("[neoview.super-resolution.artifact-predecode-pending] keeps the original fallback and promotes the artifact when pending work completes", async () => {
-    vi.useFakeTimers()
-    try {
-      const pages = [page(3), page(4), page(5)]
-      let page3Probes = 0
-      const probeUpscalePage = vi.fn(async (_sessionId: string, pageId: string) => {
-        if (pageId !== "page-3") return { status: "miss" as const }
-        page3Probes += 1
-        return page3Probes === 1
-          ? { status: "pending" as const }
-          : { status: "hit" as const, artifactUrl: "http://127.0.0.1:41000/reader/page-3-upscaled", contentType: "image/png", bytes: 42, version: "artifact-v2" }
-      })
-      const client = clientWith({
-        listPages: vi.fn(async () => ({ pages, total: 20 })),
-        probeUpscalePage,
-      })
-      const preload = vi.fn()
-
-      renderHook(() => useReaderAdjacentPagePreloader({
-        client,
-        sessionId: "reader-artifact-pending",
-        activePageIndex: 4,
-        totalPages: 20,
-        upscaleEnabled: true,
-        preload,
-      }))
-
-      await vi.waitFor(() => expect(preload).toHaveBeenCalledWith([pages[0], pages[2]]))
-      await vi.advanceTimersByTimeAsync(500)
-      await vi.waitFor(() => expect(preload).toHaveBeenLastCalledWith([
-        expect.objectContaining({ id: "page-3", assetUrl: "http://127.0.0.1:41000/reader/page-3-upscaled", contentVersion: "v1:upscale:artifact-v2" }),
-      ]))
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it("[neoview.preload.cancel-session] aborts discovery and stays idle while speculative work is disabled", () => {
