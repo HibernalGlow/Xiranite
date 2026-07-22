@@ -82,6 +82,8 @@ export function BoardSwimlaneEditor({
   const [drag, setDrag] = useState<DragState>()
   const [collapsedLanes, setCollapsedLanes] = useState<Record<LaneId, boolean>>({ left: false, right: false, hidden: false })
   const dragInitialLanesRef = useRef<BoardLanes>()
+  /** Recent board signatures in this drag gesture — blocks A↔B setState thrash. */
+  const dragSignatureHistoryRef = useRef<string[]>([])
   // Only re-sync the draft when the board itself changes. Depending on the whole
   // `shell` object reset the kanban whenever workspace auto-fit / material wrote
   // a new shell identity — wiping in-progress left/right moves and thrashing render.
@@ -158,6 +160,7 @@ export function BoardSwimlaneEditor({
     const title = panel?.title ?? card?.title ?? activeId
     if (kind === "panel" || kind === "card") {
       dragInitialLanesRef.current = cloneLanes(lanes)
+      dragSignatureHistoryRef.current = [boardSignature(lanes)]
       setDrag({
         kind,
         id: activeId,
@@ -173,44 +176,72 @@ export function BoardSwimlaneEditor({
   function onDragOver(event: DragOverEvent) {
     const { active, over } = event
     if (!over) return
-    const activeId = String(active.id)
-    if (!findCardLocation(lanes, activeId)) return
-    const overId = String(over.id)
+    // Always suppress Kanban's built-in live reorder. Its continuous remeasure
+    // + cross-column arrayMove thrash (A→B→A) is what blows Maximum update depth
+    // when dragging panels/cards between left/right board lanes.
     event.activatorEvent.preventDefault()
-    setLanes((current) => moveCardOver(current, activeId, overId))
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    setLanes((current) => {
+      const next = findCardLocation(current, activeId)
+        ? moveCardAcrossContainers(current, activeId, overId)
+        : findPanelLocation(current, activeId)
+          ? movePanelAcrossLanes(current, activeId, overId)
+          : current
+      if (next === current || boardLanesEqual(current, next)) return current
+      const signature = boardSignature(next)
+      const history = dragSignatureHistoryRef.current
+      // Same as last apply, or reverse of the last apply (A↔B oscillation).
+      if (history.at(-1) === signature) return current
+      if (history.length >= 2 && history.at(-2) === signature) return current
+      dragSignatureHistoryRef.current = [...history, signature].slice(-8)
+      return next
+    })
   }
 
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event
-    setDrag(undefined)
     const initialLanes = dragInitialLanesRef.current
     dragInitialLanesRef.current = undefined
+    dragSignatureHistoryRef.current = []
+    setDrag(undefined)
+    // Suppress Kanban end-of-drag reorder too; we own placement.
+    event.activatorEvent.preventDefault()
     if (!over) {
       if (initialLanes) setLanes(initialLanes)
       return
     }
     const activeId = String(active.id)
-    if (findCardLocation(lanes, activeId)) {
-      if (!cardTargetAccepts(lanes, activeId, String(over.id))) {
-        if (initialLanes) setLanes(initialLanes)
-        return
+    const overId = String(over.id)
+    if (findCardLocation(lanes, activeId) || findCardLocation(initialLanes ?? lanes, activeId)) {
+      if (!cardTargetAccepts(lanes, activeId, overId) && initialLanes) {
+        // Allow finalize against current lanes if the card already moved live.
+        if (!findCardLocation(lanes, activeId)) {
+          setLanes(initialLanes)
+          return
+        }
       }
-      // Card ordering is updated during drag-over. Finalizing against a
-      // panel's full-height drop zone would append an untouched card to the
-      // bottom merely because the pointer was released over its own panel.
-      event.activatorEvent.preventDefault()
+      // Finalize card order (including within-panel insert index) once.
+      setLanes((current) => {
+        const next = moveCardToTarget(current, activeId, overId)
+        return boardLanesEqual(current, next) ? current : next
+      })
+      return
+    }
+    if (findPanelLocation(lanes, activeId) || findPanelLocation(initialLanes ?? lanes, activeId)) {
+      setLanes((current) => {
+        const next = movePanelToTarget(current, activeId, overId)
+        return boardLanesEqual(current, next) ? current : next
+      })
     }
   }
 
   function onDragCancel() {
     setDrag(undefined)
+    dragSignatureHistoryRef.current = []
     const initialLanes = dragInitialLanesRef.current
     dragInitialLanesRef.current = undefined
     if (initialLanes) setLanes(initialLanes)
-  }
-
-  function onPanelColumnsChange(columns: Record<UniqueIdentifier, BoardPanel[]>) {
-    setLanes((current) => acceptPanelColumns(current, columns))
   }
 
   const actions = <>
@@ -221,7 +252,8 @@ export function BoardSwimlaneEditor({
       <Kanban
         value={panelColumns}
         getItemValue={(panel) => panel.id}
-        onValueChange={onPanelColumnsChange}
+        // Intentionally omit onValueChange: live column mutations are owned by
+        // onDragOver/onDragEnd above to avoid nested setState thrash.
         collisionDetection={collisionDetection}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
@@ -536,48 +568,50 @@ export function createBoardPatch(shell: ReaderShellConfigDto, lanes: BoardLanes)
   }
 }
 
-function acceptPanelColumns(lanes: BoardLanes, columns: Record<UniqueIdentifier, BoardPanel[]>): BoardLanes {
-  const next: BoardLanes = {
-    left: columns.left ?? [],
-    right: columns.right ?? [],
-    hidden: columns.hidden ?? [],
-  }
-  for (const lane of LANES) {
-    for (const panel of next[lane.id]) {
-      const previous = findPanelLocation(lanes, panel.id)
-      if (lane.id === "hidden" && !panel.canHide && previous?.lane !== "hidden") return lanes
-      if (!panel.canMove && previous?.lane !== lane.id) return lanes
-    }
-  }
-  return boardLanesEqual(lanes, next) ? lanes : next
-}
-
 function boardLanesEqual(left: BoardLanes, right: BoardLanes): boolean {
-  for (const lane of LANES) {
-    const leftPanels = left[lane.id]
-    const rightPanels = right[lane.id]
-    if (leftPanels.length !== rightPanels.length) return false
-    for (let index = 0; index < leftPanels.length; index += 1) {
-      const a = leftPanels[index]!
-      const b = rightPanels[index]!
-      if (a.id !== b.id || a.cards.length !== b.cards.length) return false
-      for (let cardIndex = 0; cardIndex < a.cards.length; cardIndex += 1) {
-        if (a.cards[cardIndex]!.id !== b.cards[cardIndex]!.id) return false
-      }
-    }
-  }
-  return true
+  return boardSignature(left) === boardSignature(right)
 }
 
-function moveCardOver(lanes: BoardLanes, cardId: string, overId: string): BoardLanes {
+function boardSignature(lanes: BoardLanes): string {
+  return LANES.map((lane) => {
+    const panels = lanes[lane.id]
+      .map((panel) => `${panel.id}:[${panel.cards.map((card) => card.id).join(",")}]`)
+      .join("|")
+    return `${lane.id}={${panels}}`
+  }).join(";")
+}
+
+/** Live drag-over: only change card panel membership, never fine-grained index thrash. */
+function moveCardAcrossContainers(lanes: BoardLanes, cardId: string, overId: string): BoardLanes {
+  const from = findCardLocation(lanes, cardId)
+  if (!from) return lanes
+  const target = resolveCardTarget(lanes, overId)
+  if (!target) return lanes
+  // Same panel → leave ordering alone until dragEnd.
+  if (from.panelId === target.panelId) return lanes
+  if (!cardTargetAccepts(lanes, cardId, overId)) return lanes
+  return moveCardToTarget(lanes, cardId, overId)
+}
+
+/** Live drag-over: only change panel lane membership. */
+function movePanelAcrossLanes(lanes: BoardLanes, panelId: string, overId: string): BoardLanes {
+  const from = findPanelLocation(lanes, panelId)
+  if (!from) return lanes
+  const targetLane = resolvePanelLane(lanes, overId)
+  if (!targetLane || targetLane === from.lane) return lanes
+  const panel = lanes[from.lane][from.index]
+  if (!panel) return lanes
+  if (targetLane === "hidden" && !panel.canHide) return lanes
+  if (!panel.canMove) return lanes
+  return movePanelToLane(lanes, panelId, targetLane, lanes[targetLane].length)
+}
+
+function moveCardToTarget(lanes: BoardLanes, cardId: string, overId: string): BoardLanes {
   const from = findCardLocation(lanes, cardId)
   if (!from) return lanes
   const target = resolveCardTarget(lanes, overId)
   if (!target) return lanes
   if (from.panelId === target.panelId && from.index === target.index) return lanes
-  const card = lanes[from.lane][from.panelIndex]?.cards[from.index]
-  if (!card) return lanes
-  if (overId === from.panelId || overId === panelDropId(from.panelId)) return lanes
   if (!cardTargetAccepts(lanes, cardId, overId)) return lanes
 
   const next = cloneLanes(lanes)
@@ -587,8 +621,50 @@ function moveCardOver(lanes: BoardLanes, cardId: string, overId: string): BoardL
   const [moved] = fromPanel.cards.splice(from.index, 1)
   if (!moved) return lanes
   const insertAt = from.panelId === target.panelId && from.index < target.index ? target.index - 1 : target.index
-  toPanel.cards.splice(Math.max(0, insertAt), 0, moved)
+  toPanel.cards.splice(Math.max(0, Math.min(insertAt, toPanel.cards.length)), 0, moved)
   return next
+}
+
+function movePanelToTarget(lanes: BoardLanes, panelId: string, overId: string): BoardLanes {
+  const from = findPanelLocation(lanes, panelId)
+  if (!from) return lanes
+  const targetLane = resolvePanelLane(lanes, overId)
+  if (!targetLane) return lanes
+  const overPanel = findPanelLocation(lanes, overId)
+  const insertAt = overPanel && overPanel.lane === targetLane
+    ? (overPanel.index > from.index && from.lane === targetLane ? overPanel.index : overPanel.index)
+    : lanes[targetLane].length
+  return movePanelToLane(lanes, panelId, targetLane, insertAt)
+}
+
+function movePanelToLane(lanes: BoardLanes, panelId: string, targetLane: LaneId, insertAt: number): BoardLanes {
+  const from = findPanelLocation(lanes, panelId)
+  if (!from) return lanes
+  const panel = lanes[from.lane][from.index]
+  if (!panel) return lanes
+  if (targetLane === "hidden" && !panel.canHide) return lanes
+  if (!panel.canMove && from.lane !== targetLane) return lanes
+  if (from.lane === targetLane) {
+    if (from.index === insertAt || from.index === insertAt - 1) return lanes
+  }
+  const next = cloneLanes(lanes)
+  const [moved] = next[from.lane].splice(from.index, 1)
+  if (!moved) return lanes
+  let index = insertAt
+  if (from.lane === targetLane && from.index < insertAt) index -= 1
+  index = Math.max(0, Math.min(index, next[targetLane].length))
+  next[targetLane].splice(index, 0, moved)
+  return next
+}
+
+function resolvePanelLane(lanes: BoardLanes, overId: string): LaneId | undefined {
+  if (overId === "left" || overId === "right" || overId === "hidden") return overId
+  if (overId.startsWith("lane:")) {
+    const lane = overId.slice(5)
+    if (lane === "left" || lane === "right" || lane === "hidden") return lane
+  }
+  const panel = findPanelLocation(lanes, overId)
+  return panel?.lane
 }
 
 function cardTargetAccepts(lanes: BoardLanes, cardId: string, overId: string): boolean {
