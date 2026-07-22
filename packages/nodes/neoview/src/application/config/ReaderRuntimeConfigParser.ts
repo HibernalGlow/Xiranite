@@ -555,6 +555,26 @@ function parsePreloadConfig(
   return { maxCandidatePages: Math.min(requested, 32) }
 }
 
+export function parseNeoviewPreloadPatch(value: unknown): {
+  patch: Models.NeoviewPreloadPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader preload patch")
+  if (Object.keys(record).some((key) => key !== "preload")) {
+    throw new Error("reader preload patch contains unsupported fields.")
+  }
+  const source = requireRecord(record.preload, "reader preload patch.preload")
+  if (Object.keys(source).some((key) => key !== "maxCandidatePages")) {
+    throw new Error("reader preload patch contains unsupported fields.")
+  }
+  if (source.maxCandidatePages === undefined) throw new Error("reader preload patch must change maxCandidatePages.")
+  const maxCandidatePages = boundedInteger(source.maxCandidatePages, 0, 32, "reader preload patch.maxCandidatePages")
+  return {
+    patch: { preload: { maxCandidatePages } },
+    tomlPatch: { performance: { preload_pages: maxCandidatePages } },
+  }
+}
+
 function parseSuperResolutionConfig(value: Record<string, unknown> | undefined): Models.NeoviewSuperResolutionConfig {
   if (!value) return Models.DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG
   const artifactCache = optionalRecord(value.artifact_cache, "[nodes.neoview.super_resolution.artifact_cache]")
