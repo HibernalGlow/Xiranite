@@ -13,6 +13,8 @@ describe("LaneResizer", () => {
     render(<LaneResizer label="调整泳道宽度" onResize={onResize} onResizeEnd={onResizeEnd} />)
 
     const separator = screen.getByRole("separator", { name: "调整泳道宽度" })
+    expect(separator.tagName).toBe("DIV")
+    expect(separator.className).not.toContain("hover:bg-primary")
     fireEvent.pointerDown(separator, { pointerId: 7, clientX: 100, button: 0 })
     fireEvent.pointerMove(window, { pointerId: 7, clientX: 132 })
     fireEvent.pointerUp(window, { pointerId: 7, clientX: 132 })

@@ -28,7 +28,7 @@ async function bootstrap() {
 function StateOutput() {
   const laneOrder = useWorkspaceStore((state) => state.lanes.filter((lane) => lane.workspaceId === "lane-harness").map((lane) => lane.id).join(","))
   const preferences = useWorkspaceStore((state) => state.laneWorkspacePreferences["lane-harness"])
-  return <output className="sr-only" data-lane-order={laneOrder} data-active-lane={preferences?.activeLaneId} data-solo-lane={preferences?.soloLaneId ?? ""} data-navigator-dock={preferences?.navigatorDock ?? "floating"} />
+  return <output className="sr-only" data-lane-order={laneOrder} data-active-lane={preferences?.activeLaneId} data-solo-lane={preferences?.soloLaneId ?? ""} data-navigator-dock={preferences?.navigatorDock ?? "floating"} data-navigator-lane={preferences?.navigatorLaneId ?? ""} />
 }
 
 void bootstrap()

@@ -15,7 +15,7 @@ export function LaneResizer({ onResize, onResizeEnd, className, label, onReset, 
   const { t } = useTranslation()
   const startXRef = useRef(0)
   const pointerIdRef = useRef<number | null>(null)
-  const btnRef = useRef<HTMLButtonElement | null>(null)
+  const handleRef = useRef<HTMLDivElement | null>(null)
   const onResizeRef = useRef(onResize)
   const onResizeEndRef = useRef(onResizeEnd)
   const cleanupSessionRef = useRef<(() => void) | undefined>(undefined)
@@ -29,7 +29,7 @@ export function LaneResizer({ onResize, onResizeEnd, className, label, onReset, 
     cleanupSessionRef.current?.()
     cleanupSessionRef.current = undefined
     try {
-      if (btnRef.current?.hasPointerCapture(pointerId)) btnRef.current.releasePointerCapture(pointerId)
+      if (handleRef.current?.hasPointerCapture(pointerId)) handleRef.current.releasePointerCapture(pointerId)
     } catch {
       // The browser may already have released capture during cancellation.
     }
@@ -38,7 +38,7 @@ export function LaneResizer({ onResize, onResizeEnd, className, label, onReset, 
 
   useEffect(() => () => finishResize(), [])
 
-  function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     event.preventDefault()
     event.stopPropagation()
 
@@ -47,7 +47,7 @@ export function LaneResizer({ onResize, onResizeEnd, className, label, onReset, 
     startXRef.current = event.clientX
     pointerIdRef.current = event.pointerId
     try {
-      btnRef.current?.setPointerCapture(event.pointerId)
+      handleRef.current?.setPointerCapture(event.pointerId)
     } catch {
       // Pointer capture can fail if the browser has already cancelled the pointer.
     }
@@ -80,9 +80,8 @@ export function LaneResizer({ onResize, onResizeEnd, className, label, onReset, 
   }
 
   return (
-    <button
-      ref={btnRef}
-      type="button"
+    <div
+      ref={handleRef}
       role="separator"
       aria-orientation="vertical"
       aria-label={label ?? t("common:resizeLane")}
@@ -99,7 +98,7 @@ export function LaneResizer({ onResize, onResizeEnd, className, label, onReset, 
       }}
       tabIndex={0}
       className={cn(
-        "lane-resizer w-1 cursor-ew-resize bg-transparent transition-colors hover:bg-primary/40",
+        "lane-resizer w-1 cursor-ew-resize border-0 bg-transparent outline-none shadow-none",
         className,
       )}
     />
