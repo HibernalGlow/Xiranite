@@ -1,5 +1,5 @@
-import { ChevronRight, Folder, HardDrive, MoreHorizontal } from "lucide-react"
-import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react"
+import { ChevronDown, ChevronRight, Columns3, Copy, Folder, HardDrive, MoreHorizontal, Pencil, Plus } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -214,43 +214,61 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
               )
             })}
           </nav>
-          <div
-            className="relative size-8 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/30 shadow-xs focus-within:ring-2 focus-within:ring-ring/50"
-            role="group"
-            aria-label="面包屑操作"
-            data-breadcrumb-action-pad="true"
-            data-breadcrumb-action-pad-style="geometric"
-          >
-            {canCreateTab && onCreateTab ? (
-              <BreadcrumbPadButton
-                position="top"
-                aria-label="新建文件夹标签"
-                title="新建文件夹标签"
-                disabled={disabled || loading}
-                onClick={onCreateTab}
-              />
-            ) : null}
-            {columnsAvailable ? (
-              columnsMode === "floating" ? (
+          {canCreateTab && onCreateTab ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              className="size-7 shrink-0"
+              aria-label="新建文件夹标签"
+              title="新建文件夹标签"
+              disabled={disabled || loading}
+              onClick={onCreateTab}
+            >
+              <Plus />
+            </Button>
+          ) : null}
+          {columnsAvailable ? (
+            <div className="flex shrink-0 items-center">
+              {columnsMode === "floating" ? (
                 <Popover open={columnsOpen} onOpenChange={setColumnsOpen}>
                   <PopoverTrigger asChild>
-                    <BreadcrumbPadButton position="left" active={columnsOpen} aria-label={columnsOpen ? "收起目录列" : "展开目录列"} title={columnsOpen ? "收起目录列" : "展开目录列"} disabled={disabled || loading} />
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant={columnsOpen ? "secondary" : "ghost"}
+                      className="size-7"
+                      aria-label={columnsOpen ? "收起目录列" : "展开目录列"}
+                      title={columnsOpen ? "收起目录列" : "展开目录列"}
+                      aria-expanded={columnsOpen}
+                      disabled={disabled || loading}
+                    >
+                      <Columns3 />
+                    </Button>
                   </PopoverTrigger>
                   <PopoverContent align="end" sideOffset={4} className="w-[min(48rem,calc(100vw-2rem))] overflow-hidden p-0">
                     {columnsContent}
                   </PopoverContent>
                 </Popover>
               ) : (
-                <BreadcrumbPadButton position="left" active={columnsOpen} aria-label={columnsOpen ? "收起目录列" : "展开目录列"} title={columnsOpen ? "收起目录列" : "展开目录列"} disabled={disabled || loading} onClick={() => setColumnsOpen((current) => !current)} />
-              )
-            ) : null}
-            <BreadcrumbPadButton position="right" aria-label="编辑路径" title="编辑路径" disabled={disabled || loading} onClick={startEditing} />
-            <BreadcrumbPadButton position="bottom" aria-label="复制当前路径" title="复制当前路径" disabled={disabled || loading || !path || !onCopyPath} onClick={() => void copyCurrentPath()} />
-            {columnsAvailable ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant={columnsOpen ? "secondary" : "ghost"}
+                  className="size-7"
+                  aria-label={columnsOpen ? "收起目录列" : "展开目录列"}
+                  title={columnsOpen ? "收起目录列" : "展开目录列"}
+                  aria-expanded={columnsOpen}
+                  disabled={disabled || loading}
+                  onClick={() => setColumnsOpen((current) => !current)}
+                >
+                  <Columns3 />
+                </Button>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button type="button" size="icon-sm" variant="ghost" className="absolute inset-0 z-[2] m-auto size-3.5 rounded-full border border-border/70 bg-background p-0 shadow-sm" aria-label="目录列显示方式" title="目录列显示方式" disabled={disabled || loading}>
-                    <span className="size-1 rounded-full bg-current" />
+                  <Button type="button" size="icon-sm" variant="ghost" className="w-5 px-0" aria-label="目录列显示方式" title="目录列显示方式" disabled={disabled || loading}>
+                    <ChevronDown className="size-3" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-36">
@@ -260,32 +278,14 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : null}
-            {/* Geometric marks only — same visual language as the navigation pad (lines/bars, no dense icons). */}
-            <div className="pointer-events-none absolute inset-0 z-[3] text-foreground" aria-hidden="true">
-              {canCreateTab && onCreateTab ? (
-                <span className={`absolute left-1/2 top-1 size-2 -translate-x-1/2 ${disabled || loading ? "opacity-25" : ""}`}>
-                  <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-current" />
-                  <span className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-current" />
-                </span>
-              ) : null}
-              {columnsAvailable ? (
-                <span className={`absolute left-1 top-1/2 flex h-2.5 -translate-y-1/2 gap-0.5 ${disabled || loading ? "opacity-25" : ""}`}>
-                  <span className="w-px bg-current" />
-                  <span className="w-px bg-current" />
-                  <span className="w-px bg-current" />
-                </span>
-              ) : null}
-              <span className={`absolute right-1 top-1/2 size-2 -translate-y-1/2 ${disabled || loading ? "opacity-25" : ""}`}>
-                <span className="absolute bottom-0 left-0 h-px w-1.5 bg-current" />
-                <span className="absolute bottom-0 left-1/2 h-1.5 w-px origin-bottom -translate-x-1/2 -rotate-[28deg] bg-current" />
-              </span>
-              <span className={`absolute bottom-0.5 left-1/2 size-2 -translate-x-1/2 ${disabled || loading || !path || !onCopyPath ? "opacity-25" : ""}`}>
-                <span className="absolute left-0 top-0 size-1.5 rounded-[1px] border border-current" />
-                <span className="absolute bottom-0 right-0 size-1.5 rounded-[1px] border border-current" />
-              </span>
             </div>
-          </div>
+          ) : null}
+          <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="编辑路径" title="编辑路径" disabled={disabled || loading} onClick={startEditing}>
+            <Pencil />
+          </Button>
+          <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="复制当前路径" title="复制当前路径" disabled={disabled || loading || !path || !onCopyPath} onClick={() => void copyCurrentPath()}>
+            <Copy />
+          </Button>
         </>
       )}
       {feedback ? <span className="sr-only" role={feedback.kind}>{feedback.text}</span> : null}
@@ -296,35 +296,6 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
       </div>
     ) : null}
     </div>
-  )
-}
-
-// Full-quadrant slices — same geometry as the folder navigation pad.
-const BREADCRUMB_PAD_POSITION_CLASSES = {
-  top: "z-[1] [clip-path:polygon(0_0,100%_0,50%_50%)]",
-  left: "z-[1] [clip-path:polygon(0_0,50%_50%,0_100%)]",
-  right: "z-[1] [clip-path:polygon(100%_0,100%_100%,50%_50%)]",
-  bottom: "z-[1] [clip-path:polygon(0_100%,50%_50%,100%_100%)]",
-} as const
-
-function BreadcrumbPadButton({
-  position,
-  active = false,
-  className,
-  ...props
-}: ComponentProps<typeof Button> & {
-  position: keyof typeof BREADCRUMB_PAD_POSITION_CLASSES
-  active?: boolean
-}) {
-  return (
-    <Button
-      type="button"
-      size="icon-sm"
-      variant={active ? "secondary" : "ghost"}
-      className={`absolute inset-0 z-[1] size-full min-w-0 rounded-none p-0 ${BREADCRUMB_PAD_POSITION_CLASSES[position]} ${className ?? ""}`}
-      data-breadcrumb-pad-position={position}
-      {...props}
-    />
   )
 }
 

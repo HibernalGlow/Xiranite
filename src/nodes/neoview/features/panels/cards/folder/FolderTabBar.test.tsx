@@ -71,9 +71,9 @@ describe("FolderTabBar", () => {
     expect(view.getAllByRole("tab")).toHaveLength(2)
   })
 
-  it("[neoview.folder.tabs-action-pad] packs create / reopen / layout into one 3-way pad", async () => {
+  it("[neoview.folder.tabs-actions] keeps separate create / reopen / layout icon buttons", async () => {
     const user = userEvent.setup()
-    const view = render(
+    render(
       <FolderTabBar
         {...callbacks}
         tabs={[
@@ -88,13 +88,10 @@ describe("FolderTabBar", () => {
       />,
     )
 
-    const pad = view.container.querySelector('[data-folder-tab-action-pad="true"]')
-    expect(pad).toBeTruthy()
-    expect(pad?.getAttribute("role")).toBe("group")
-    expect(screen.getByRole("group", { name: "标签页操作" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "新建文件夹标签" }).getAttribute("data-folder-tab-pad-position")).toBe("top")
-    expect(screen.getByRole("button", { name: "重新打开关闭的页签" }).getAttribute("data-folder-tab-pad-position")).toBe("left")
-    expect(screen.getByRole("button", { name: "标签栏布局设置" }).getAttribute("data-folder-tab-pad-position")).toBe("right")
+    expect(document.querySelector("[data-folder-tab-action-pad]")).toBeNull()
+    expect(screen.getByRole("button", { name: "新建文件夹标签" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "重新打开关闭的页签" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "标签栏布局设置" })).toBeTruthy()
 
     await user.click(screen.getByRole("button", { name: "新建文件夹标签" }))
     expect(callbacks.onCreate).toHaveBeenCalledOnce()
