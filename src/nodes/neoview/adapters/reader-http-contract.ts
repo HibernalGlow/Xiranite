@@ -1966,7 +1966,7 @@ export interface ReaderHttpClient {
   savePlaylist?(playlist: { id?: string; name: string; createdAt?: number }, signal?: AbortSignal): Promise<ReaderPlaylistDto>
   removePlaylist?(id: string, signal?: AbortSignal): Promise<void>
   listPlaylistEntries?(playlistId: string, signal?: AbortSignal): Promise<readonly ReaderPlaylistEntryDto[]>
-  appendPlaylistEntries?(playlistId: string, entries: readonly Array<{ id?: string; source: ReaderPlaylistEntryDto["source"]; name: string; createdAt?: number }>, signal?: AbortSignal): Promise<readonly ReaderPlaylistEntryDto[]>
+  appendPlaylistEntries?(playlistId: string, entries: ReadonlyArray<{ id?: string; source: ReaderPlaylistEntryDto["source"]; name: string; createdAt?: number }>, signal?: AbortSignal): Promise<readonly ReaderPlaylistEntryDto[]>
   removePlaylistEntries?(playlistId: string, ids: readonly string[], signal?: AbortSignal): Promise<number>
   reorderPlaylistEntries?(playlistId: string, ids: readonly string[], signal?: AbortSignal): Promise<void>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
