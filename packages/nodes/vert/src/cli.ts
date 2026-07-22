@@ -3,7 +3,7 @@ import { defineCommand, nodeCliName, readStdinLines, runGuidedInteraction, runMa
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 import type { VertAction, VertEnginePreference } from "./core.js"
 import { runVert } from "./core.js"
 import { createNodeVertRuntime } from "./platform.js"
@@ -46,7 +46,7 @@ function command(action: VertAction, host: CliHost) {
 
 function preferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
   const options = { env: host.env, cwd: host.cwd }
-  return { nodeId: "vert", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "vert", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<Config>("vert", { ...options, jsonMode: true }); const value = resolveInteractionPreferences(config); return { theme: value.theme, defaultMode: value.mode, language: value.language ?? "zh" } } }
+  return { nodeId: "vert", current, async save(values) { await updateNodeConfigFile("vert", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<Config>("vert", { ...options, jsonMode: true }); const value = resolveInteractionPreferences(config); return { theme: value.theme, defaultMode: value.mode, language: value.language ?? "zh" } } }
 }
 function usage(host: CliHost) { writeLine(host, `${NAME} ui | gd | status | plan <files> --to webp | convert <files> --to webp`) }
 function defaultHost(): CliHost { return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr } }

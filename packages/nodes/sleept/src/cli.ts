@@ -31,7 +31,7 @@ import type {
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi } from "@xiranite/cli-runtime/terminal"
 import type { TerminalPreferenceController, TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 
 import type { NetTriggerMode, PowerMode, SleeptAction, SleeptInput, SleeptResult, SleeptRuntime } from "./core.js"
 import { runSleept } from "./core.js"
@@ -200,10 +200,9 @@ function createPreferenceController(host: CliHost, current: TerminalPreferenceVa
     nodeId: "sleept",
     current,
     async save(values) {
-      const { config, path } = await loadXiraniteConfig(configOptions)
-      await saveXiraniteConfig(updateNodeConfig(config, "sleept", {
+      await updateNodeConfigFile("sleept", {
         cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language },
-      }), { ...configOptions, configPath: path })
+      }, configOptions)
     },
     async restore() {
       const context = await resolveSleeptContext(host, true)

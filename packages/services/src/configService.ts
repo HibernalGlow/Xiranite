@@ -9,10 +9,10 @@ import {
   pathExists,
   resolveLegacyXiraniteDataDirs,
   resolveXiraniteConfigPath,
-  saveXiraniteConfig,
   stringifyXiraniteConfig,
   stripBom,
   updateAppConfig,
+  updateXiraniteConfig,
   updateWebview2Config,
   updateNodeConfig,
   XIRANITE_CONFIG_FILENAME,
@@ -23,6 +23,7 @@ import {
 import type { NodeRunHistoryService } from "./historyService.js"
 import {
   GitConfigVersionStore,
+  mergeConfigHistoryPreservedValues,
   mergeRedactedValues,
   type ConfigHistoryRepositoryStatus,
   type ConfigVersionDetail,
@@ -215,9 +216,10 @@ export class ConfigService {
 
   async updateNodeConfig(nodeId: string, patch: unknown): Promise<UpdateNodeConfigResult> {
     const startedAt = Date.now()
-    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
-    const updated = updateNodeConfig(config, nodeId, patch)
-    await saveXiraniteConfig(updated, this.resolveOptions())
+    const { before: config, config: updated, path } = await updateXiraniteConfig(
+      (current) => updateNodeConfig(current, nodeId, patch),
+      this.resolveOptions(),
+    )
     const nextNodeConfig = getNodeConfig(updated, nodeId)
     await this.configVersions.record({
       nodeId,
@@ -250,18 +252,21 @@ export class ConfigService {
   }
 
   async restoreNodeConfigVersion(nodeId: string, revision: string): Promise<UpdateNodeConfigResult> {
-    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
     const detail = await this.configVersions.inspectNode(nodeId, revision)
-    const currentNodeConfig = getNodeConfig(config, nodeId)
-    const restoredNodeConfig = mergeRedactedValues(detail.after, currentNodeConfig)
-    const updated: XiraniteConfig = {
-      ...config,
-      nodes: {
-        ...config.nodes,
-        [nodeId]: restoredNodeConfig,
-      },
-    }
-    await saveXiraniteConfig(updated, this.resolveOptions())
+    const transaction = await updateXiraniteConfig((current) => {
+      const currentNodeConfig = getNodeConfig(current, nodeId)
+      const restored = mergeRedactedValues(detail.after, currentNodeConfig)
+      const restoredNodeConfig = mergeConfigHistoryPreservedValues(nodeId, restored, currentNodeConfig)
+      return {
+        ...current,
+        nodes: {
+          ...current.nodes,
+          [nodeId]: restoredNodeConfig,
+        },
+      }
+    }, this.resolveOptions())
+    const { before: config, config: updated, path } = transaction
+    const restoredNodeConfig = getNodeConfig(updated, nodeId)
     await this.configVersions.record({
       nodeId,
       source: "config-center-restore",
@@ -394,9 +399,10 @@ export class ConfigService {
 
   async updateAppConfig(section: string, patch: unknown): Promise<UpdateAppConfigResult> {
     const startedAt = Date.now()
-    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
-    const updated = updateAppConfig(config, section, patch)
-    await saveXiraniteConfig(updated, this.resolveOptions())
+    const { config: updated, path } = await updateXiraniteConfig(
+      (current) => updateAppConfig(current, section, patch),
+      this.resolveOptions(),
+    )
     const nextAppConfig = getAppConfig(updated, section)
     void this.history?.record({
       kind: "config",
@@ -420,9 +426,10 @@ export class ConfigService {
 
   async updateWebview2Config(nextConfig: Webview2Config): Promise<Webview2ConfigResult> {
     const startedAt = Date.now()
-    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
-    const updated = updateWebview2Config(config, nextConfig)
-    await saveXiraniteConfig(updated, this.resolveOptions())
+    const { config: updated, path } = await updateXiraniteConfig(
+      (current) => updateWebview2Config(current, nextConfig),
+      this.resolveOptions(),
+    )
     void this.history?.record({
       kind: "config",
       operation: "config.webview2.update",
@@ -450,8 +457,12 @@ export class ConfigService {
       await access(path)
       return { path, created: false }
     } catch {
-      await mkdir(dirname(path), { recursive: true })
-      await writeFile(path, CONFIG_TEMPLATE, "utf8")
+      await updateXiraniteConfig(
+        (current) => Object.keys(current).length > 0
+          ? current
+          : parseToml(CONFIG_TEMPLATE) as XiraniteConfig,
+        this.resolveOptions(),
+      )
       void this.history?.record({
         kind: "config",
         operation: "config.file.create",
@@ -469,8 +480,7 @@ export class ConfigService {
 
   async openConfigFile(): Promise<OpenConfigFileResult> {
     const startedAt = Date.now()
-    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
-    await saveXiraniteConfig(config, this.resolveOptions())
+    const { path } = await updateXiraniteConfig((config) => config, this.resolveOptions())
     await this.openPath(path)
     void this.history?.record({
       kind: "config",
@@ -638,9 +648,10 @@ export class ConfigService {
     const parsed = parseLegacyConfig(content, legacyPath)
     const nodeValue = (parsed.nodes as Record<string, unknown> | undefined)?.[nodeId] ?? parsed[nodeId] ?? parsed
 
-    const { config, path } = await loadXiraniteConfig(this.resolveOptions())
-    const updated = updateNodeConfig(config, nodeId, nodeValue)
-    await saveXiraniteConfig(updated, this.resolveOptions())
+    const { path } = await updateXiraniteConfig(
+      (config) => updateNodeConfig(config, nodeId, nodeValue),
+      this.resolveOptions(),
+    )
 
     void this.history?.record({
       kind: "config",
@@ -757,9 +768,10 @@ async function migrateLegacyConfigFile(legacyConfigPath: string, targetConfigPat
   const backupPath = await uniquePath(join(targetDataDir, "migration-backups", "xiranite.config.legacy.toml"))
   try {
     const legacyConfig = parseToml(stripBom(await readFile(legacyConfigPath, "utf8"))) as XiraniteConfig
-    const { config: currentConfig } = await loadXiraniteConfig({ configPath: targetConfigPath })
-    const merged = mergeConfigRecords(legacyConfig, currentConfig) as XiraniteConfig
-    await saveXiraniteConfig(merged, { configPath: targetConfigPath })
+    await updateXiraniteConfig(
+      (currentConfig) => mergeConfigRecords(legacyConfig, currentConfig) as XiraniteConfig,
+      { configPath: targetConfigPath },
+    )
   } catch {
     // Keep an unmerged copy under the active data dir rather than leaving Roaming as a live source.
   }

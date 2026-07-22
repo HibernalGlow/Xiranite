@@ -1,12 +1,10 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
-import { randomUUID } from "node:crypto"
-import { dirname } from "node:path"
-import { lock } from "proper-lockfile"
+import { readFile } from "node:fs/promises"
 import {
   parseToml,
   resolveXiraniteConfigPath,
-  stringifyXiraniteConfig,
+  saveXiraniteConfigText,
   stripBom,
+  updateXiraniteConfig,
   type ResolveConfigPathOptions,
 } from "@xiranite/config"
 import { unwrapNeoviewConfigEnvelope } from "../../application/config/NeoviewConfigEnvelope.js"
@@ -41,115 +39,37 @@ export async function commitNeoviewConfig(
   options: CommitNeoviewConfigOptions,
 ): Promise<CommitNeoviewConfigResult> {
   const configPath = resolveXiraniteConfigPath(options)
-  await mkdir(dirname(configPath), { recursive: true })
-  const lease = await acquireConfigLock(configPath, options.lockRetries)
-  try {
-    return await commitLocked(configPath, patch, options.strategy, lease.assertHeld)
-  } finally {
-    await lease.release()
-  }
-}
-
-async function commitLocked(
-  configPath: string,
-  patch: Record<string, unknown>,
-  strategy: NeoviewConfigImportStrategy,
-  assertLockHeld: () => void,
-): Promise<CommitNeoviewConfigResult> {
-  const previousText = await readOptional(configPath)
-  assertLockHeld()
-  const root = previousText === undefined
-    ? {}
-    : requireRecord(parseToml(stripBom(previousText)), "Xiranite config root")
-  const nodes = isRecord(root.nodes) ? { ...root.nodes } : {}
-  const rawCurrent = isRecord(nodes.neoview) ? nodes.neoview : {}
-  const current = unwrapNeoviewConfigEnvelope(rawCurrent)
-  const nextNode = canonicalizeTomlRecord(strategy === "overwrite" ? cloneRecord(patch) : deepMerge(current, patch))
-  const nextRoot = { ...root, nodes: { ...nodes, neoview: nextNode } }
-  const nextText = stringifyXiraniteConfig(nextRoot)
-  const changed = !deepEqual(current, nextNode) || previousText !== nextText
-
-  if (!changed) {
-    return { configPath, nodeConfig: nextNode, changed: false }
-  }
-
   let backupPath: string | undefined
-  if (previousText !== undefined) {
-    backupPath = `${configPath}.neoview-import.bak`
-    await atomicReplace(backupPath, previousText)
-  }
-  let verifiedNode: Record<string, unknown>
-  try {
-    assertLockHeld()
-    await atomicReplace(configPath, nextText)
-    const verifiedText = await readFile(configPath, "utf8")
-    assertLockHeld()
-    const verifiedRoot = requireRecord(parseToml(stripBom(verifiedText)), "written Xiranite config root")
-    const verifiedNodes = requireRecord(verifiedRoot.nodes, "written [nodes] section")
-    const verifiedEnvelope = requireRecord(verifiedNodes.neoview, "written [nodes.neoview] section")
-    verifiedNode = unwrapNeoviewConfigEnvelope(verifiedEnvelope)
-    if (!deepEqual(verifiedNode, nextNode)) {
-      throw new Error("NeoView TOML verification failed after atomic write.")
-    }
-  } catch (error) {
-    if (previousText === undefined) await rm(configPath, { force: true }).catch(() => undefined)
-    else await atomicReplace(configPath, previousText)
-    throw error
-  }
-
-  return { configPath, backupPath, nodeConfig: verifiedNode, changed: true }
-}
-
-async function acquireConfigLock(configPath: string, retries = 20): Promise<{
-  assertHeld(): void
-  release(): Promise<void>
-}> {
-  if (!Number.isSafeInteger(retries) || retries < 0 || retries > 100) {
-    throw new RangeError("NeoView config lockRetries must be an integer between 0 and 100.")
-  }
-  let compromised: Error | undefined
-  let release: (() => Promise<void>) | undefined
-  try {
-    release = await lock(configPath, {
-      lockfilePath: `${configPath}.xr-write.lock`,
-      realpath: false,
-      stale: 30_000,
-      update: 10_000,
-      retries: {
-        retries,
-        factor: 1.25,
-        minTimeout: 20,
-        maxTimeout: 100,
-        randomize: true,
-      },
-      onCompromised: (error) => { compromised = error },
-    })
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ELOCKED") {
-      throw new Error(`Timed out waiting for the Xiranite config writer: ${configPath}`, { cause: error })
-    }
-    throw error
-  }
-  if (compromised) {
-    await release().catch(() => undefined)
-    throw new Error(`Xiranite config writer lock was compromised: ${configPath}`, { cause: compromised })
+  let nextNode: Record<string, unknown> = {}
+  const transaction = await updateXiraniteConfig((root) => {
+    const nodes = isRecord(root.nodes) ? { ...root.nodes } : {}
+    const rawCurrent = isRecord(nodes.neoview) ? nodes.neoview : {}
+    const current = unwrapNeoviewConfigEnvelope(rawCurrent)
+    nextNode = canonicalizeTomlRecord(
+      options.strategy === "overwrite" ? cloneRecord(patch) : deepMerge(current, patch),
+    )
+    return { ...root, nodes: { ...nodes, neoview: nextNode } }
+  }, {
+    ...options,
+    configPath,
+    lockRetries: options.lockRetries,
+    beforeWrite: async ({ beforeText }) => {
+      if (beforeText === undefined) return
+      backupPath = `${configPath}.neoview-import.bak`
+      await saveXiraniteConfigText(beforeText, { configPath: backupPath })
+    },
+  })
+  const writtenNodes = requireRecord(transaction.config.nodes, "written [nodes] section")
+  const writtenEnvelope = requireRecord(writtenNodes.neoview, "written [nodes.neoview] section")
+  const verifiedNode = unwrapNeoviewConfigEnvelope(writtenEnvelope)
+  if (!deepEqual(verifiedNode, nextNode)) {
+    throw new Error("NeoView TOML verification failed before atomic write.")
   }
   return {
-    assertHeld() {
-      if (compromised) throw new Error(`Xiranite config writer lock was compromised: ${configPath}`, { cause: compromised })
-    },
-    release,
-  }
-}
-
-async function atomicReplace(path: string, content: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true })
-  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`
-  try {
-    await writeFile(temporaryPath, content, { encoding: "utf8", flag: "wx" })
-    await rename(temporaryPath, path)
-  } finally {
-    await rm(temporaryPath, { force: true }).catch(() => undefined)
+    configPath,
+    backupPath,
+    nodeConfig: verifiedNode,
+    changed: transaction.changed,
   }
 }
 

@@ -3,7 +3,7 @@ import { hasPipedInput, nodeCliName, readStdinLines, runGuidedInteraction, write
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 import { runSamea } from "./core.js"
 import type { SameaAction } from "./core.js"
 import { createNodeSameaRuntime } from "./platform.js"
@@ -43,7 +43,7 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
 
 function preferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
   const options = { env: host.env, cwd: host.cwd }
-  return { nodeId: "samea", current, async save(value) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "samea", { cli: { theme: value.theme, default_mode: value.defaultMode, language: value.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<SameaConfig>("samea", { ...options, jsonMode: true }); const value = resolveInteractionPreferences(config); return { theme: value.theme, defaultMode: value.mode, language: value.language ?? "zh" } } }
+  return { nodeId: "samea", current, async save(value) { await updateNodeConfigFile("samea", { cli: { theme: value.theme, default_mode: value.defaultMode, language: value.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<SameaConfig>("samea", { ...options, jsonMode: true }); const value = resolveInteractionPreferences(config); return { theme: value.theme, defaultMode: value.mode, language: value.language ?? "zh" } } }
 }
 function pathArgs(args: string[]): string[] { const commands = new Set(["plan", "classify", "run"]), valueOptions = new Set(["--min"]); return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? "")) }
 function numberFor(args: string[], flag: string): number | undefined { const index = args.indexOf(flag), value = index >= 0 ? args[index + 1] : undefined; return value === undefined ? undefined : Number(value) }

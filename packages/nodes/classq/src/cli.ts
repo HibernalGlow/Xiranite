@@ -4,7 +4,7 @@ import { hasPipedInput, readStdinLines, writeError, writeJson, writeLine, type C
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 import { runClassq } from "./core.js"
 import type { ClassqAction, ClassqExistingPolicy, ClassqInput, ClassqResult, ClassqTransferMode } from "./core.js"
 import { createClassqInteractionSchema, type ClassqInteractionValues } from "./interaction.js"
@@ -33,7 +33,7 @@ function createDefinition(defaults: ClassqNodeConfig, language: TerminalLanguage
 }
 function createPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
   const options = { env: host.env, cwd: host.cwd }
-  return { nodeId: "classq", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "classq", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<ClassqNodeConfig>("classq", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? "zh" } } }
+  return { nodeId: "classq", current, async save(values) { await updateNodeConfigFile("classq", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<ClassqNodeConfig>("classq", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? "zh" } } }
 }
 async function runPipe(args: string[], host: CliHost): Promise<void> {
   if (!args.length || args.includes("--help") || args.includes("-h") || args[0] === "help") { writeUsage(host); return }

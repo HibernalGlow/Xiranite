@@ -26,7 +26,7 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 import type { RepackuAction, RepackuInput, RepackuOperation, RepackuResult, RepackuRuntime } from "./core.js"
 import { runRepacku } from "./core.js"
 import { createNodeRepackuRuntime, readClipboardText } from "./platform.js"
@@ -173,8 +173,7 @@ function createPreferenceController(host: CliHost, current: TerminalPreferenceVa
     nodeId: "repacku",
     current,
     async save(values) {
-      const { config, path } = await loadXiraniteConfig(configOptions)
-      await saveXiraniteConfig(updateNodeConfig(config, "repacku", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...configOptions, configPath: path })
+      await updateNodeConfigFile("repacku", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, configOptions)
     },
     async restore() {
       const { config } = await loadNodeConfigWithHints<RepackuNodeConfig>("repacku", { ...configOptions, jsonMode: true })
