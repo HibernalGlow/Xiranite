@@ -9,6 +9,7 @@ import type {
 } from "../../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../../registry"
 import type { FolderBrowserCloneProvider, FolderBrowserCloneSnapshot } from "../FolderMainCard"
+import { searchTabTitle, type FolderSearchTabSnapshot } from "./search/folderSearchModel"
 
 const FolderTabBar = lazy(() => import("./FolderTabBar"))
 const MAX_FOLDER_TABS = 8
@@ -16,9 +17,11 @@ const MAX_PINNED_FOLDER_TABS = 7
 const MAX_RECENTLY_CLOSED_TABS = 10
 
 type FolderPreviewCount = 4 | 9 | 16
+type FolderTabKind = "directory" | "search"
 
 interface FolderTabDescriptor {
   id: string
+  kind: FolderTabKind
   sourcePath: string
   currentPath: string
   title: string
@@ -27,6 +30,8 @@ interface FolderTabDescriptor {
   viewDirty: boolean
   pinned: boolean
   initialClone?: FolderBrowserCloneSnapshot
+  /** Session-only search workspace restored when this tab activates. */
+  searchSnapshot?: FolderSearchTabSnapshot
 }
 
 interface RecentlyClosedFolderTab {
@@ -52,6 +57,8 @@ export type FolderBrowserPaneProps = ReaderPanelContext & {
   initialClone?: FolderBrowserCloneSnapshot
   onCurrentPathChange(path: string): void
   onOpenInNewTab(path: string): void
+  onOpenSearchInNewTab?(snapshot: FolderSearchTabSnapshot): void
+  initialSearchSnapshot?: FolderSearchTabSnapshot
   onCloneProvider(provider?: FolderBrowserCloneProvider): void
 }
 
@@ -139,6 +146,21 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     setActiveTabId(id)
   }
 
+  function openSearchInNewTab(snapshot: FolderSearchTabSnapshot) {
+    if (tabsRef.current.length >= MAX_FOLDER_TABS) return
+    const id = `folder-tab-${++tabSequenceRef.current}`
+    const title = uniqueFolderTabTitle(searchTabTitle(snapshot.criteria), tabsRef.current)
+    const next: FolderTabDescriptor = {
+      ...createFolderTab(id, snapshot.rootPath, folderView),
+      kind: "search",
+      title,
+      searchSnapshot: structuredClone(snapshot),
+    }
+    tabAccessHistoryRef.current = recordTabVisit(tabAccessHistoryRef.current, id)
+    setTabs((current) => [...current, next])
+    setActiveTabId(id)
+  }
+
   async function duplicateTab(id: string) {
     if (tabs.length >= MAX_FOLDER_TABS || !context.client.cloneDirectoryBrowser) return
     const source = tabs.find((tab) => tab.id === id)
@@ -195,7 +217,9 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
 
   function togglePinned(id: string) {
     const source = tabs.find((tab) => tab.id === id)
-    if (!source || (!source.pinned && tabs.filter((tab) => tab.pinned).length >= MAX_PINNED_FOLDER_TABS)) return
+    // Search result tabs are session workspaces; pinning only persists path+title.
+    if (!source || source.kind === "search") return
+    if (!source.pinned && tabs.filter((tab) => tab.pinned).length >= MAX_PINNED_FOLDER_TABS) return
     const previous = tabs
     const next = tabs.map((tab) => tab.id === id ? { ...tab, pinned: !tab.pinned } : tab)
     setTabs(next)
@@ -263,12 +287,14 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
       const additions = closed.map(({ tab, snapshot }) => ({
         id: snapshot.sourceSessionId,
         source: {
+          kind: tab.kind,
           sourcePath: tab.currentPath,
           currentPath: tab.currentPath,
           title: tab.title,
           viewMode: tab.viewMode,
           previewCount: tab.previewCount,
           viewDirty: tab.viewDirty,
+          searchSnapshot: tab.searchSnapshot,
         },
         snapshot: structuredClone(snapshot),
       }))
@@ -300,9 +326,11 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     const restoredId = `folder-tab-${++tabSequenceRef.current}`
     const restored: FolderTabDescriptor = {
       ...closed.source,
+      kind: closed.source.kind ?? "directory",
       id: restoredId,
       pinned: false,
       initialClone: structuredClone({ ...closed.snapshot, clonedPage: reopenedPage }),
+      searchSnapshot: closed.source.searchSnapshot,
     }
     recentlyClosedRef.current = recentlyClosedRef.current.filter((item) => item.id !== closed.id)
     setRecentlyClosed(recentlyClosedRef.current)
@@ -312,9 +340,17 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
   }
 
   function updateTabPath(id: string, path: string) {
-    const next = tabs.map((tab) => tab.id === id && tab.currentPath !== path
-      ? { ...tab, currentPath: path, title: folderTabTitle(path) }
-      : tab)
+    const next = tabs.map((tab) => {
+      if (tab.id !== id || tab.currentPath === path) return tab
+      // Navigating away from a search workspace converts it back to a directory tab.
+      return {
+        ...tab,
+        kind: "directory" as const,
+        currentPath: path,
+        title: folderTabTitle(path),
+        searchSnapshot: undefined,
+      }
+    })
     if (next.every((tab, index) => tab === tabs[index])) return
     setTabs(next)
     if (next.some((tab) => tab.id === id && tab.pinned)) void persistPinnedTabs(next)
@@ -339,7 +375,13 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
   const tabBar = tabs.length > 1 ? (
     <Suspense fallback={<div className="h-8 rounded-md border bg-muted/30" aria-hidden="true" />}>
       <FolderTabBar
-        tabs={tabs}
+        tabs={tabs.map((tab) => ({
+          id: tab.id,
+          currentPath: tab.currentPath,
+          title: tab.title,
+          pinned: tab.pinned,
+          kind: tab.kind,
+        }))}
         activeTabId={activeTabId}
         disabled={context.disabled}
         maxTabs={MAX_FOLDER_TABS}
@@ -352,7 +394,12 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
         onCloseOthers={(id) => { void closeTabs(id, "others") }}
         onCloseLeft={(id) => { void closeTabs(id, "left") }}
         onCloseRight={(id) => { void closeTabs(id, "right") }}
-        recentlyClosed={recentlyClosed.map((item) => ({ id: item.id, title: item.source.title, currentPath: item.source.currentPath }))}
+        recentlyClosed={recentlyClosed.map((item) => ({
+          id: item.id,
+          title: item.source.title,
+          currentPath: item.source.currentPath,
+          kind: item.source.kind ?? "directory",
+        }))}
         onReopen={(id) => { void reopenTab(id) }}
         onLayoutChange={(tabs) => { void context.onFolderView?.({ tabs }) }}
       />
@@ -396,8 +443,10 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
                 if (latest) void reopenTab(latest.id)
               }}
               initialClone={tab.initialClone}
+              initialSearchSnapshot={tab.searchSnapshot}
               onCurrentPathChange={(path) => updateTabPath(tab.id, path)}
               onOpenInNewTab={openPathInNewTab}
+              onOpenSearchInNewTab={openSearchInNewTab}
               onCloneProvider={(provider) => {
                 if (provider) cloneProvidersRef.current.set(tab.id, provider)
                 else cloneProvidersRef.current.delete(tab.id)
@@ -426,6 +475,7 @@ function createFolderTab(id: string, path: string, folderView: ReaderFolderViewC
   const startupPath = resolveFolderStartupPath(path, folderView.homePath)
   return {
     id,
+    kind: "directory",
     sourcePath: startupPath,
     currentPath: startupPath,
     title: folderTabTitle(startupPath),

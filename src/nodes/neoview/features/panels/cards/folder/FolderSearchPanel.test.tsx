@@ -198,7 +198,7 @@ describe("FolderSearchPanel", () => {
     await waitFor(() => expect(listSearchHistory).toHaveBeenCalledWith("folder", 20, expect.any(AbortSignal)))
     const historyButton = current.getByRole("button", { name: "搜索历史" })
     if (historyButton.getAttribute("aria-expanded") !== "true") fireEvent.click(historyButton)
-    fireEvent.click(current.getByRole("button", { name: "使用搜索历史：cover" }))
+    fireEvent.click(current.getByLabelText("使用搜索历史：cover"))
     await waitFor(() => expect(searchDirectoryBrowser).toHaveBeenCalledWith(
       "browser-1",
       "cover",
@@ -210,7 +210,7 @@ describe("FolderSearchPanel", () => {
     fireEvent.click(current.getByRole("button", { name: "搜索历史" }))
     fireEvent.click(current.getByRole("button", { name: "删除搜索历史：cover" }))
     await waitFor(() => expect(removeSearchHistory).toHaveBeenCalledWith("folder", "cover", expect.any(AbortSignal)))
-    expect(current.queryByRole("button", { name: "cover" })).toBeNull()
+    expect(current.queryByLabelText("使用搜索历史：cover")).toBeNull()
 
     view.unmount()
     const clearView = renderPanel({ listSearchHistory, clearSearchHistory } as unknown as ReaderHttpClient)
@@ -244,6 +244,152 @@ describe("FolderSearchPanel", () => {
 
     expect(searchSignal?.aborted).toBe(true)
     expect(historySignal?.aborted).toBe(true)
+  })
+
+  it("[neoview.folder.search-escape-close] cancels in-flight search then closes the panel on Escape", async () => {
+    let searchSignal: AbortSignal | undefined
+    const onClose = vi.fn()
+    const finished = deferred<ReaderDirectorySearchResultDto>()
+    const client = {
+      searchDirectoryBrowser: vi.fn((_sessionId, _query, _options, signal) => {
+        searchSignal = signal
+        return finished.promise
+      }),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 240, itemHeight: 48 }}>
+        <FolderSearchPanel
+          client={client}
+          sessionId="browser-1"
+          disabled={false}
+          settings={DEFAULT_SEARCH_SETTINGS}
+          onSettingsChange={vi.fn()}
+          onActivate={vi.fn()}
+          onClose={onClose}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+    const current = within(view.container)
+    const input = current.getByRole("textbox", { name: "搜索文件" })
+    fireEvent.change(input, { target: { value: "pending" } })
+    fireEvent.submit(input.closest("form")!)
+    await waitFor(() => expect(current.getByRole("button", { name: "取消搜索" })).toBeTruthy())
+
+    fireEvent.keyDown(input, { key: "Escape" })
+    expect(searchSignal?.aborted).toBe(true)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(current.getByRole("button", { name: "执行搜索" })).toBeTruthy()
+
+    fireEvent.keyDown(input, { key: "Escape" })
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.folder.search-clear-distinct] clears the query without closing the panel", () => {
+    const onClose = vi.fn()
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 240, itemHeight: 48 }}>
+        <FolderSearchPanel
+          client={{} as ReaderHttpClient}
+          sessionId="browser-1"
+          disabled={false}
+          settings={DEFAULT_SEARCH_SETTINGS}
+          onSettingsChange={vi.fn()}
+          onActivate={vi.fn()}
+          onClose={onClose}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+    const current = within(view.container)
+    const input = current.getByRole("textbox", { name: "搜索文件" }) as HTMLInputElement
+    fireEvent.change(input, { target: { value: "cover" } })
+    fireEvent.click(current.getByRole("button", { name: "清除搜索" }))
+    expect(input.value).toBe("")
+    expect(onClose).not.toHaveBeenCalled()
+    expect(current.getByRole("button", { name: "关闭搜索" })).toBeTruthy()
+  })
+
+  it("[neoview.folder.search-save-tab] exports a tab snapshot from settled results", async () => {
+    const onSaveToTab = vi.fn()
+    const entry = { name: "book.cbz", path: "D:/books/book.cbz", kind: "file" as const, readerSupported: true }
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 240, itemHeight: 48 }}>
+        <FolderSearchPanel
+          client={{
+            searchDirectoryBrowser: vi.fn(async () => result("book", [entry])),
+          } as unknown as ReaderHttpClient}
+          sessionId="browser-1"
+          disabled={false}
+          settings={DEFAULT_SEARCH_SETTINGS}
+          rootPath="D:/books"
+          tabCount={1}
+          maxTabs={8}
+          onSettingsChange={vi.fn()}
+          onActivate={vi.fn()}
+          onClose={vi.fn()}
+          onSaveToTab={onSaveToTab}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+    const current = within(view.container)
+    const input = current.getByRole("textbox", { name: "搜索文件" })
+    fireEvent.change(input, { target: { value: "book" } })
+    fireEvent.submit(input.closest("form")!)
+    await waitFor(() => expect(current.getByText("book.cbz")).toBeTruthy())
+
+    fireEvent.click(current.getByRole("button", { name: "保存搜索到新标签页" }))
+    expect(onSaveToTab).toHaveBeenCalledWith(expect.objectContaining({
+      rootPath: "D:/books",
+      criteria: expect.objectContaining({ query: "book", includeSubfolders: true }),
+      result: expect.objectContaining({ matched: 1, entries: [entry] }),
+    }))
+  })
+
+  it("[neoview.folder.search-restore-tab] hydrates a saved tab snapshot without re-querying", async () => {
+    const searchDirectoryBrowser = vi.fn()
+    const entry = { name: "saved.cbz", path: "D:/saved.cbz", kind: "file" as const, readerSupported: true }
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 240, itemHeight: 48 }}>
+        <FolderSearchPanel
+          client={{ searchDirectoryBrowser } as unknown as ReaderHttpClient}
+          sessionId="browser-9"
+          disabled={false}
+          settings={DEFAULT_SEARCH_SETTINGS}
+          rootPath="D:/books"
+          initialSnapshot={{
+            rootPath: "D:/books",
+            criteria: {
+              query: "saved",
+              mode: "text",
+              kind: "all",
+              caseSensitive: false,
+              includeSubfolders: true,
+              searchInPath: false,
+              includeTags: [],
+              excludeTags: [],
+              tagMode: "all",
+            },
+            result: {
+              entries: [entry],
+              scanned: 4,
+              matched: 1,
+              truncated: false,
+              rootPath: "D:/books",
+              generation: 2,
+              query: "saved",
+              mode: "text",
+            },
+          }}
+          onSettingsChange={vi.fn()}
+          onActivate={vi.fn()}
+          onClose={vi.fn()}
+        />
+      </VirtuosoMockContext.Provider>,
+    )
+    const current = within(view.container)
+    expect(await current.findByText("saved.cbz")).toBeTruthy()
+    expect(current.getByText("1 个结果 / 扫描 4 项")).toBeTruthy()
+    expect(searchDirectoryBrowser).not.toHaveBeenCalled()
+    expect((current.getByRole("textbox", { name: "搜索文件" }) as HTMLInputElement).value).toBe("saved")
   })
 })
 

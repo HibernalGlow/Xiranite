@@ -33,6 +33,7 @@ import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../../adapters/reader
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
 import type { ReaderPanelContext } from "../../registry"
 import type { FolderContextEntry } from "./FolderContextActions"
+import type { FolderSearchTabSnapshot } from "./search/folderSearchModel"
 import {
   createDirectoryCatalog,
   directoryEntryAt,
@@ -260,6 +261,8 @@ export function FolderBrowserPane({
   onOpenInNewTab,
   folderNavigationEvents,
   initialClone,
+  initialSearchSnapshot,
+  onOpenSearchInNewTab,
   onCloneProvider,
 }: ReaderPanelContext & {
   active: boolean
@@ -277,7 +280,9 @@ export function FolderBrowserPane({
   onReopenFolderTab(): void
   onCurrentPathChange(path: string): void
   onOpenInNewTab(path: string): void
+  onOpenSearchInNewTab?(snapshot: FolderSearchTabSnapshot): void
   initialClone?: FolderBrowserCloneSnapshot
+  initialSearchSnapshot?: FolderSearchTabSnapshot
   onCloneProvider(provider?: FolderBrowserCloneProvider): void
 }) {
   const thumbnailsVisible = active && (panelVisible ?? true)
@@ -330,7 +335,8 @@ export function FolderBrowserPane({
   const chainAnchorIndexRef = useRef<number | undefined>(undefined)
   const navigationStatesRef = useRef(new Map<number, SavedDirectoryState>())
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
-  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(Boolean(initialSearchSnapshot))
+  const pendingSearchSnapshotRef = useRef(initialSearchSnapshot)
   const [treeOpen, setTreeOpen] = useState(folderView.tree.visible)
   const [inlineTreeOpen, setInlineTreeOpen] = useState(false)
   const [treeLayout, setTreeLayout] = useState(folderView.tree.layout)
@@ -2083,15 +2089,15 @@ export function FolderBrowserPane({
                 ) : null}
                 <div
                   ref={listHostRef}
-                  className="min-h-0 min-w-0 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   data-neoview-folder-list="true"
                   data-focused-index={focusedIndex}
                   role={searchOpen || inlineTreeOpen ? undefined : "listbox"}
                   aria-label={searchOpen ? undefined : "文件项目"}
                   aria-activedescendant={searchOpen || inlineTreeOpen ? undefined : focusedItemId}
-                  tabIndex={inlineTreeOpen ? -1 : 0}
-                  onKeyDown={inlineTreeOpen ? undefined : handleDirectoryKeyDown}
-                  {...(inlineTreeOpen ? {} : emptyAreaHandlers)}
+                  tabIndex={inlineTreeOpen || searchOpen ? -1 : 0}
+                  onKeyDown={inlineTreeOpen || searchOpen ? undefined : handleDirectoryKeyDown}
+                  {...(inlineTreeOpen || searchOpen ? {} : emptyAreaHandlers)}
                   style={
                     {
                       order: treeOpen && (treeLayout === "right" || treeLayout === "bottom") ? 0 : 1,
@@ -2100,17 +2106,27 @@ export function FolderBrowserPane({
                   }
                 >
                   {searchOpen && sessionIdRef.current ? (
-                    <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载搜索" />}>
-                      <FolderSearchPanel
-                        client={client}
-                        sessionId={sessionIdRef.current}
-                        disabled={disabled}
-                        settings={folderView.search}
-                        onSettingsChange={(search) => void onFolderView?.({ search })}
-                        onActivate={activate}
-                        onClose={() => setSearchOpen(false)}
-                      />
-                    </Suspense>
+                    <div className="min-h-0 flex-1">
+                      <Suspense fallback={<div className="h-full min-h-0 animate-pulse bg-muted/30" aria-label="正在加载搜索" />}>
+                        <FolderSearchPanel
+                          client={client}
+                          sessionId={sessionIdRef.current}
+                          disabled={disabled}
+                          settings={folderView.search}
+                          rootPath={catalog?.path ?? browserPath}
+                          tabCount={folderTabCount}
+                          maxTabs={maxFolderTabs}
+                          initialSnapshot={pendingSearchSnapshotRef.current}
+                          onSettingsChange={(search) => void onFolderView?.({ search })}
+                          onActivate={activate}
+                          onClose={() => {
+                            pendingSearchSnapshotRef.current = undefined
+                            setSearchOpen(false)
+                          }}
+                          onSaveToTab={onOpenSearchInNewTab}
+                        />
+                      </Suspense>
+                    </div>
                   ) : null}
                   {!searchOpen && inlineTreeOpen && sessionIdRef.current && catalog ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载内联文件树" />}>
