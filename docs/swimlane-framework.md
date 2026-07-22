@@ -30,8 +30,12 @@ pass state changes back through their existing storage boundary.
 - `SwimlaneBarContent.tsx`: handle placement plus independently scrollable
   horizontal or vertical actions.
 - `SwimlaneNavigatorBar.tsx`: movable lane or panel switcher with a shadcn
-  context menu, title-bar docking, repeat-right-click close, pointer-cancel
-  cleanup, and persisted percentage position.
+  context menu, four-edge docking, direct drag-out from a pinned edge,
+  four icon-sized edge targets with floating as the remaining release area,
+  repeat-right-click close, pointer-cancel cleanup,
+  and persisted percentage position.
+- `SwimlaneNavigatorDockMenu.tsx`: hover-open dock submenu plus an independent
+  switch controlling whether a pinned bar follows the focused lane.
 - `SwimlaneBarAppearanceMenu.tsx`: native hover-open context submenu for the
   independently composable handle glyph and left/right position.
 - `SwimlaneFitMenuItems.tsx`: shared one-shot and persistent proportional-fit
@@ -58,6 +62,12 @@ workspace or node ancestor menu cannot flash before the bar menu. Menu
 placement, collision avoidance, hover-open submenus, and keyboard navigation
 are delegated to the installed shadcn/Radix context-menu primitives.
 
+Dragging a bar exposes four icon-sized dock targets per visible lane. Their
+visual and pointer hit areas are the same; releasing anywhere else in a lane,
+or outside every lane, keeps the bar floating. The final target is recomputed
+from the `pointerup` coordinates so a stale `pointermove` candidate cannot snap
+the bar back to its previous dock.
+
 Proportional fitting preserves the current expanded-lane weights, reserves
 collapsed-lane width, and respects each consumer's minimum and maximum widths.
 The one-shot action performs one fit without changing preferences. Persistent
@@ -70,13 +80,16 @@ The framework does not write storage directly.
 
 - Project `LaneView`: lane order, width, collapse, and card ownership remain in
   the workspace backend. Per-workspace active/solo lane, dwell delays, bar
-  handle, and bar position use `laneWorkspacePreferences` in the existing UI
-  preference store, including the persistent proportional-fit switch.
+  handle, bar position, dock edge, pinned host lane, and follow-focus switch use
+  `laneWorkspacePreferences` in the existing UI preference store, including
+  the persistent proportional-fit switch.
 - NeoView: canonical state remains below `[nodes.neoview]` in
   `xiranite.config.toml`. Reader data remains in the legacy NeoView database.
   Persistent fit is stored as `auto_fit_to_viewport` under the swimlane table.
-- Czkawka: state remains in the node's existing `workspaceLayout` object.
-  Missing fields are normalized from the version 1 defaults.
+- Czkawka: state remains in the node's existing `workspaceLayout` object. Its
+  navigator stores `navigatorDock`, `navigatorLane`, and
+  `navigatorFollowsFocus`; missing fields are normalized from the version 1
+  defaults and legacy `title` docking is read as `top`.
 
 Switching a consumer to the shared framework must not migrate data into a new
 database or rewrite another presentation's geometry.
