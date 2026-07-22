@@ -214,6 +214,12 @@ function renderCmdShim(shim: ShimSpec): string {
       header.push("  popd")
       header.push("  exit /b %XIRANITE_EXIT_CODE%")
       header.push(")")
+      header.push("if /I \"%~1\"==\"quick\" (")
+      header.push(`  bun run ${shim.name === "xr" ? "dev:quick" : "dev:desktop"} %2 %3 %4 %5 %6 %7 %8 %9`)
+      header.push("  set XIRANITE_EXIT_CODE=%ERRORLEVEL%")
+      header.push("  popd")
+      header.push("  exit /b %XIRANITE_EXIT_CODE%")
+      header.push(")")
     }
     header.push(`bun run ${shim.target}${args ? ` ${args}` : ""} %*`)
     header.push("set XIRANITE_EXIT_CODE=%ERRORLEVEL%")
@@ -246,6 +252,7 @@ function renderPosixShim(shim: ShimSpec): string {
     lines.push(`if [ \"$1\" = \"stop\" ]; then shift; exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run dev:stop \"$@\"; fi`)
     lines.push(`if [ \"$1\" = \"reboot\" ]; then shift; exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run ${shim.name === "xr" ? "dev:reboot" : "dev:desktop:reboot"} \"$@\"; fi`)
     lines.push(`if [ \"$1\" = \"ui\" ]; then shift; exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run ${shim.name === "xr" ? "dev:ui" : "dev:desktop:ui"} \"$@\"; fi`)
+    lines.push(`if [ \"$1\" = \"quick\" ]; then shift; exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run ${shim.name === "xr" ? "dev:quick" : "dev:desktop"} \"$@\"; fi`)
   }
   lines.push(invocation)
   return lines.join("\n") + "\n"

@@ -167,9 +167,14 @@ async function runBuild(pkg: PackageEntry, cwd: string): Promise<number> {
 
 async function buildPackages(packages: PackageEntry[], label: string, force = false, preserveDist = false): Promise<{ ok: boolean; built: number; failed: string[] }> {
   const failed: string[] = []
+  // Parallelize up-to-date checks: sequential recursive mtime walks over ~50
+  // packages dominate warm `bun run dev` before Vite even starts.
+  const checks = await Promise.all(packages.map(async (pkg) => ({
+    pkg,
+    needs: force || await needsBuild(pkg.path),
+  })))
   const toBuild: PackageEntry[] = []
-  for (const pkg of packages) {
-    const needs = force || (await needsBuild(pkg.path))
+  for (const { pkg, needs } of checks) {
     if (needs) {
       toBuild.push(pkg)
     } else {

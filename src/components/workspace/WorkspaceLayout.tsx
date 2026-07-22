@@ -1,22 +1,40 @@
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, type ReactNode } from "react"
 import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { TopBar } from "./TopBar"
-import { CardView } from "./CardView"
-import { OverlayHost } from "./OverlayHost"
-import { SelectionToolbar } from "./SelectionToolbar"
-import { WorkspaceMelodeckPanel, WorkspaceMelodeckProvider } from "./WorkspaceMelodeck"
-import { AlphabetNodeRail } from "./AlphabetNodeRail"
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
-import { DefaultContextMenuItems } from "@/components/context-menu/defaults"
 import { toBackgroundImageCssUrl } from "@/lib/backgroundImage"
 import { cn } from "@/lib/utils"
 
+// Keep default cards view and secondary chrome out of the first WorkspaceLayout
+// transform. View-mode lazy loading already existed for dock/flow/lane/bento;
+// cards/Melodeck/overlays were still eager and dominated first-open cost.
+const CardView = lazy(() => import("./CardView").then((module) => ({ default: module.CardView })))
+const OverlayHost = lazy(() => import("./OverlayHost").then((module) => ({ default: module.OverlayHost })))
+const SelectionToolbar = lazy(() => import("./SelectionToolbar").then((module) => ({ default: module.SelectionToolbar })))
+const AlphabetNodeRail = lazy(() => import("./AlphabetNodeRail").then((module) => ({ default: module.AlphabetNodeRail })))
+const WorkspaceMelodeckProvider = lazy(() =>
+  import("./WorkspaceMelodeck").then((module) => ({ default: module.WorkspaceMelodeckProvider })),
+)
+const WorkspaceMelodeckPanel = lazy(() =>
+  import("./WorkspaceMelodeck").then((module) => ({ default: module.WorkspaceMelodeckPanel })),
+)
+const DefaultContextMenuItems = lazy(() =>
+  import("@/components/context-menu/defaults").then((module) => ({ default: module.DefaultContextMenuItems })),
+)
 const DockviewView = lazy(() => import("./DockviewView").then((module) => ({ default: module.DockviewView })))
 const FlowView = lazy(() => import("./FlowView").then((module) => ({ default: module.FlowView })))
 const LaneView = lazy(() => import("./lane/LaneView").then((module) => ({ default: module.LaneView })))
 const BentoView = lazy(() => import("./BentoView").then((module) => ({ default: module.BentoView })))
 const UsageDashboard = lazy(() => import("@/components/views/UsageDashboard").then((module) => ({ default: module.UsageDashboard })))
+
+function MelodeckShell({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={<>{children}</>}>
+      <WorkspaceMelodeckProvider>{children}</WorkspaceMelodeckProvider>
+    </Suspense>
+  )
+}
 
 export function WorkspaceLayout() {
   const chrome = useWorkspaceShallowSelector((state) => ({
@@ -44,8 +62,10 @@ export function WorkspaceLayout() {
       className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass, bgClass, bgCoverClass)}
       style={bgStyles}
     >
-      <DefaultContextMenuItems />
-      <WorkspaceMelodeckProvider>
+      <Suspense fallback={null}>
+        <DefaultContextMenuItems />
+      </Suspense>
+      <MelodeckShell>
         <WorkspaceUrlState />
         <TopBar />
         <BackendStatusBanner />
@@ -65,12 +85,14 @@ export function WorkspaceLayout() {
               {chrome.viewMode === "bento" && <BentoView />}
             </Suspense>
           </div>
-          <OverlayHost />
-          <SelectionToolbar />
-          <AlphabetNodeRail />
-          <WorkspaceMelodeckPanel />
+          <Suspense fallback={null}>
+            <OverlayHost />
+            <SelectionToolbar />
+            <AlphabetNodeRail />
+            <WorkspaceMelodeckPanel />
+          </Suspense>
         </main>
-      </WorkspaceMelodeckProvider>
+      </MelodeckShell>
     </div>
   )
 }
