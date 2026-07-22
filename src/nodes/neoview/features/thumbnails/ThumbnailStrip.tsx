@@ -16,6 +16,7 @@ export interface ThumbnailStripProps {
   sessionId: string
   totalPages: number
   activePageIndex: number
+  direction?: "left-to-right" | "right-to-left"
   currentPages: readonly ReaderPageDto[]
   client: ReaderHttpClient
   compact: boolean
@@ -35,6 +36,7 @@ export function ThumbnailStrip({
   sessionId,
   totalPages,
   activePageIndex,
+  direction = "left-to-right",
   currentPages,
   client,
   compact,
@@ -58,17 +60,14 @@ export function ThumbnailStrip({
     toggleStore.getSnapshot,
     toggleStore.getSnapshot,
   )
-  const [renderWindow, setRenderWindow] = useState<RenderWindow>(() => ({
-    start: 0,
-    end: Math.min(totalPages, INITIAL_ITEMS),
-  }))
+  const [renderWindow, setRenderWindow] = useState<RenderWindow>(() => initialPageWindow(totalPages, activePageIndex))
 
   useEffect(() => {
     abortRequests(requestsRef.current)
     const initial = new Map<number, ReaderPageDto>()
     pagesRef.current = initial
     setPages(initial)
-    setRenderWindow({ start: 0, end: Math.min(totalPages, INITIAL_ITEMS) })
+    setRenderWindow(initialPageWindow(totalPages, activePageIndex))
     return () => abortRequests(requestsRef.current)
   }, [sessionId, totalPages])
 
@@ -87,7 +86,7 @@ export function ThumbnailStrip({
     if (!viewport) return
     const update = () => {
       frameRef.current = undefined
-      const next = calculateWindow(viewport, totalPages)
+      const next = calculateWindow(viewport, totalPages, direction)
       startTransition(() => setRenderWindow((current) => sameWindow(current, next) ? current : next))
     }
     const schedule = () => {
@@ -103,19 +102,19 @@ export function ThumbnailStrip({
       observer?.disconnect()
       if (frameRef.current !== undefined) cancelAnimationFrame(frameRef.current)
     }
-  }, [totalPages])
+  }, [direction, totalPages])
 
   useEffect(() => {
     const viewport = viewportRef.current
     if (!viewport) return
-    const left = activePageIndex * ITEM_SIZE
+    const left = visualPagePosition(activePageIndex, totalPages, direction) * ITEM_SIZE
     const right = left + ITEM_SIZE
     if (left < viewport.scrollLeft || right > viewport.scrollLeft + viewport.clientWidth) {
       viewport.scrollLeft = Math.max(0, left - Math.max(0, viewport.clientWidth - ITEM_SIZE) / 2)
-      const next = calculateWindow(viewport, totalPages)
+      const next = calculateWindow(viewport, totalPages, direction)
       setRenderWindow((current) => sameWindow(current, next) ? current : next)
     }
-  }, [activePageIndex, totalPages])
+  }, [activePageIndex, direction, totalPages])
 
   useEffect(() => {
     const firstBatch = Math.floor(renderWindow.start / BATCH_SIZE) * BATCH_SIZE
@@ -140,13 +139,15 @@ export function ThumbnailStrip({
   }, [client, renderWindow.end, renderWindow.start, sessionId, totalPages])
 
   const items: React.ReactNode[] = []
-  for (let index = renderWindow.start; index < renderWindow.end; index += 1) {
+  for (let offset = 0; offset < renderWindow.end - renderWindow.start; offset += 1) {
+    const index = direction === "right-to-left" ? renderWindow.end - 1 - offset : renderWindow.start + offset
     items.push(
       <ThumbnailTile
         key={pages.get(index)?.id ?? `placeholder-${index}`}
         index={index}
         page={pages.get(index)}
         active={index === activePageIndex}
+        visualPosition={visualPagePosition(index, totalPages, direction)}
         showPageNumber={pageInfoVisible}
         disabled={disabled}
         onSelect={onSelect}
@@ -155,7 +156,7 @@ export function ThumbnailStrip({
   }
 
   return (
-    <div className="relative" data-reader-bottom-bar="true">
+    <div className="relative min-w-0 max-w-full overflow-x-clip" data-reader-bottom-bar="true">
       <div className="flex min-h-10 items-center justify-center gap-1.5 border-b border-border/45 px-2 py-1" data-reader-bottom-controls="true">
         <Button type="button" size="sm" variant={pinned ? "default" : "ghost"} aria-label={pinned ? "取消钉住底栏" : "钉住底栏"} aria-pressed={pinned} disabled={!onPinnedChange} onClick={() => onPinnedChange?.(!pinned)}>
           {pinned ? <Pin /> : <PinOff />}<span className="text-xs">{pinned ? "已钉住" : "钉住"}</span>
@@ -169,31 +170,36 @@ export function ThumbnailStrip({
         ref={viewportRef}
         aria-label="页面缩略图"
         className={cn(
-          "relative shrink-0 overflow-x-auto overflow-y-hidden bg-muted/15 px-1 py-1.5",
+          "relative max-w-full shrink-0 scale-y-[-1] overflow-x-auto overflow-y-hidden overscroll-x-contain bg-muted/15 px-1 py-1.5",
           compact ? "h-[clamp(84px,24vh,124px)]" : "h-[clamp(104px,25vh,176px)]",
         )}
+        data-reader-native-scrollbar="top"
+        data-reader-direction={direction}
         data-testid="neoview-thumbnail-viewport"
       >
-        <div className="relative h-full" style={{ width: totalPages * ITEM_SIZE }}>
+        <div className="relative h-full scale-y-[-1]" style={{ width: totalPages * ITEM_SIZE }} data-reader-thumbnail-track="true">
           {items}
+          {showAreaGuide ? <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-45" data-reader-area-guide="true">{Array.from({ length: 9 }, (_, index) => <span key={index} className="border border-primary/50" />)}</div> : null}
+          {showEdgeGuide ? <div aria-hidden="true" className="pointer-events-none absolute inset-0 border-4 border-primary/55" data-reader-edge-guide="true" /> : null}
         </div>
-        {showAreaGuide ? <div aria-hidden="true" className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-45" data-reader-area-guide="true">{Array.from({ length: 9 }, (_, index) => <span key={index} className="border border-primary/50" />)}</div> : null}
-        {showEdgeGuide ? <div aria-hidden="true" className="pointer-events-none absolute inset-0 border-4 border-primary/55" data-reader-edge-guide="true" /> : null}
       </div>
       {progressBarVisible ? <>
         <label className="sr-only" htmlFor={`neoview-bottom-progress-${sessionId}`}>阅读进度</label>
-        <input
-          id={`neoview-bottom-progress-${sessionId}`}
-          type="range"
-          aria-label="阅读进度"
-          className={cn("block h-2 w-full cursor-pointer accent-primary", progressBarGlow && "drop-shadow-[0_0_5px_color-mix(in_oklch,var(--primary)_75%,transparent)]")}
-          min={0}
-          max={Math.max(0, totalPages - 1)}
-          step={1}
-          value={Math.min(activePageIndex, Math.max(0, totalPages - 1))}
-          disabled={disabled || totalPages < 2}
-          onChange={(event) => void onSelect(Number(event.currentTarget.value))}
-        />
+        <div className="min-w-0 max-w-full overflow-hidden border-t border-border/35 px-1 py-1" data-reader-bottom-progress="true">
+          <input
+            id={`neoview-bottom-progress-${sessionId}`}
+            type="range"
+            aria-label="阅读进度"
+            className={cn("block h-2 w-full cursor-pointer accent-primary", progressBarGlow && "drop-shadow-[0_0_5px_color-mix(in_oklch,var(--primary)_75%,transparent)]")}
+            min={0}
+            max={Math.max(0, totalPages - 1)}
+            dir={direction === "right-to-left" ? "rtl" : "ltr"}
+            step={1}
+            value={Math.min(activePageIndex, Math.max(0, totalPages - 1))}
+            disabled={disabled || totalPages < 2}
+            onChange={(event) => void onSelect(Number(event.currentTarget.value))}
+          />
+        </div>
       </> : null}
     </div>
   )
@@ -203,6 +209,7 @@ function ThumbnailTile({
   index,
   page,
   active,
+  visualPosition,
   showPageNumber,
   disabled,
   onSelect,
@@ -210,6 +217,7 @@ function ThumbnailTile({
   index: number
   page?: ReaderPageDto
   active: boolean
+  visualPosition: number
   showPageNumber: boolean
   disabled: boolean
   onSelect(pageIndex: number): void | Promise<void>
@@ -226,7 +234,7 @@ function ThumbnailTile({
         "absolute inset-y-1 grid w-[88px] overflow-hidden border bg-black/90 text-white transition-colors disabled:cursor-default",
         active ? "border-primary ring-2 ring-primary/80" : "border-border/60 hover:border-foreground/55",
       )}
-      style={{ transform: `translateX(${index * ITEM_SIZE + 2}px)` }}
+      style={{ transform: `translateX(${visualPosition * ITEM_SIZE + 2}px)` }}
     >
       <ReaderThumbnailSurface url={thumbnailUrl} kind="page" fit="contain" className="size-full rounded-none bg-black/90" />
       {showPageNumber ? <span className="absolute inset-x-0 bottom-0 bg-primary/85 px-1 py-0.5 text-center text-[10px] tabular-nums text-primary-foreground">{index + 1}</span> : null}
@@ -234,13 +242,26 @@ function ThumbnailTile({
   )
 }
 
-function calculateWindow(viewport: HTMLDivElement, totalPages: number): RenderWindow {
+function calculateWindow(viewport: HTMLDivElement, totalPages: number, direction: "left-to-right" | "right-to-left"): RenderWindow {
   const visibleStart = Math.floor(viewport.scrollLeft / ITEM_SIZE)
   const visibleCount = Math.max(INITIAL_ITEMS, Math.ceil(viewport.clientWidth / ITEM_SIZE))
-  return {
+  const visualWindow = {
     start: Math.max(0, visibleStart - OVERSCAN),
     end: Math.min(totalPages, visibleStart + visibleCount + OVERSCAN),
   }
+  return direction === "left-to-right" ? visualWindow : {
+    start: Math.max(0, totalPages - visualWindow.end),
+    end: Math.min(totalPages, totalPages - visualWindow.start),
+  }
+}
+
+function initialPageWindow(totalPages: number, activePageIndex: number): RenderWindow {
+  const start = Math.max(0, Math.min(activePageIndex - OVERSCAN, totalPages - INITIAL_ITEMS))
+  return { start, end: Math.min(totalPages, start + INITIAL_ITEMS) }
+}
+
+function visualPagePosition(index: number, totalPages: number, direction: "left-to-right" | "right-to-left"): number {
+  return direction === "right-to-left" ? totalPages - 1 - index : index
 }
 
 function batchLoaded(pages: ReadonlyMap<number, ReaderPageDto>, cursor: number, limit: number): boolean {

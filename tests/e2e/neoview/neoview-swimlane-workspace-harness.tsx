@@ -1,4 +1,4 @@
-import { StrictMode, useState } from "react"
+import { StrictMode, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 
 import "../../../src/styles/tailwind.css"
@@ -60,6 +60,7 @@ const INITIAL_SHELL: ReaderShellConfigDto = {
 function Harness() {
   const [shell, setShell] = useState(INITIAL_SHELL)
   const [readerActions, setReaderActions] = useState(0)
+  const [readerViewFullscreen, setReaderViewFullscreen] = useState(false)
   const [control] = useState<ReaderShellControlPort>(() => {
     const store = createReaderShellControlStore()
     return {
@@ -82,12 +83,21 @@ function Harness() {
     setShell((current) => applyReaderWorkspacePatch(current, patch))
   }
 
+  function toggleReaderViewFullscreen() {
+    const next = !readerViewFullscreen
+    setReaderViewFullscreen(next)
+    patchWorkspace(next
+      ? { activeLane: "reader", readerSolo: true, soloLaneId: null, lanes: { reader: { collapsed: false } } }
+      : { readerSolo: false, soloLaneId: null })
+  }
+
   const reader = (
     <ReaderSurface
       control={control}
       shell={shell}
       includeWindowControls={workspace.mode === "edges" || readerSoloActive}
-      readerSoloActive={readerSoloActive}
+      readerViewFullscreen={readerViewFullscreen && readerSoloActive}
+      onReaderViewFullscreenChange={toggleReaderViewFullscreen}
       readerActions={readerActions}
       onReaderAction={() => setReaderActions((count) => count + 1)}
       onWorkspaceChange={patchWorkspace}
@@ -103,6 +113,8 @@ function Harness() {
           reader={reader}
           left={<PanelLane side="left" lane={workspace.swimlane.lanes.left} onChange={(patch) => patchWorkspace({ lanes: { left: patch } })} />}
           right={<PanelLane side="right" lane={workspace.swimlane.lanes.right} onChange={(patch) => patchWorkspace({ lanes: { right: patch } })} />}
+          readerViewFullscreen={readerViewFullscreen}
+          onReaderViewFullscreenChange={toggleReaderViewFullscreen}
           windowChrome={!readerSoloActive ? {
             controls: <FloatingWindowCaptionControls integrated density="compact" />,
             onTitlebarDoubleClick: frame.handleTitlebarDoubleClick,
@@ -116,11 +128,12 @@ function Harness() {
   )
 }
 
-function ReaderSurface({ control, shell, includeWindowControls, readerSoloActive, readerActions, onReaderAction, onWorkspaceChange }: {
+function ReaderSurface({ control, shell, includeWindowControls, readerViewFullscreen, onReaderViewFullscreenChange, readerActions, onReaderAction, onWorkspaceChange }: {
   control: ReaderShellControlPort
   shell: ReaderShellConfigDto
   includeWindowControls: boolean
-  readerSoloActive: boolean
+  readerViewFullscreen: boolean
+  onReaderViewFullscreenChange(): void
   readerActions: number
   onReaderAction(): void
   onWorkspaceChange(patch: ReaderWorkspacePatch): void
@@ -149,9 +162,7 @@ function ReaderSurface({ control, shell, includeWindowControls, readerSoloActive
         <ReaderWindowBar
           control={control}
           mode={workspace.mode}
-          readerSolo={readerSoloActive}
           onModeChange={(mode) => onWorkspaceChange({ mode })}
-          onReaderSoloChange={(readerSolo) => onWorkspaceChange(readerSolo ? { activeLane: "reader", readerSolo: true } : { readerSolo: false })}
           onOpenSettings={() => undefined}
           part="leading"
         />
@@ -162,9 +173,9 @@ function ReaderSurface({ control, shell, includeWindowControls, readerSoloActive
         <ReaderWindowBar
           control={control}
           mode={workspace.mode}
-          readerSolo={readerSoloActive}
+          readerViewFullscreen={readerViewFullscreen}
           onModeChange={(mode) => onWorkspaceChange({ mode })}
-          onReaderSoloChange={(readerSolo) => onWorkspaceChange(readerSolo ? { activeLane: "reader", readerSolo: true } : { readerSolo: false })}
+          onReaderViewFullscreenChange={onReaderViewFullscreenChange}
           onOpenSettings={() => undefined}
           windowControls={includeWindowControls ? <FloatingWindowCaptionControls integrated /> : undefined}
           part="trailing"

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
-import { BookOpen, ChevronRight, LoaderCircle, Trash2, X } from "lucide-react"
+import { BookOpen, ChevronRight, LoaderCircle, Pin, PinOff, Trash2, X } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
   DEFAULT_READER_INPUT_BINDINGS,
@@ -411,6 +411,7 @@ export function ReaderApp({
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const [magnifierEnabled, setMagnifierEnabled] = useState(false)
+  const [readerViewFullscreen, setReaderViewFullscreen] = useState(false)
   const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
     : undefined)
@@ -477,10 +478,9 @@ export function ReaderApp({
       if (config.switchToast) switchToast.hydrate(config.switchToast)
       if (config.infoOverlay) infoOverlay.hydrate(config.infoOverlay)
       if (config.imageTrim) imageTrim.hydrate(config.imageTrim)
-      const configuredWorkspace = readerWorkspaceConfig(config.shell)
       ensureSwimlaneSession(swimlaneSessionScopeId, {
-        activeLaneId: configuredWorkspace.swimlane.activeLane,
-        soloLaneId: configuredWorkspace.swimlane.soloLaneId ?? (configuredWorkspace.swimlane.readerSolo ? "reader" : null),
+        activeLaneId: "reader",
+        soloLaneId: "reader",
       })
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
@@ -1674,14 +1674,22 @@ export function ReaderApp({
   const workspaceMode = workspace?.mode ?? "edges"
   const readerSolo = workspace?.swimlane.readerSolo ?? true
   const readerSoloActive = readerSolo && workspace?.swimlane.activeLane === "reader"
+  useEffect(() => {
+    if (!readerSoloActive && readerViewFullscreen) setReaderViewFullscreen(false)
+  }, [readerSoloActive, readerViewFullscreen])
+  const toggleReaderViewFullscreen = () => {
+    const next = !readerViewFullscreen
+    setReaderViewFullscreen(next)
+    commitWorkspace(next
+      ? { activeLane: "reader", readerSolo: true, soloLaneId: null, lanes: { reader: { collapsed: false } } }
+      : { readerSolo: false, soloLaneId: null })
+  }
   const readerTopbarLeadingControls = (
     <ReaderWindowBar
       control={shellControl}
       disabled={!shell}
       mode={workspaceMode}
-      readerSolo={readerSoloActive}
       onModeChange={(mode) => commitWorkspace({ mode })}
-      onReaderSoloChange={(enabled) => commitWorkspace(enabled ? { activeLane: "reader", readerSolo: true } : { readerSolo: false })}
       onOpenSettings={() => setSettingsOpen(true)}
       part="leading"
     />
@@ -1691,9 +1699,9 @@ export function ReaderApp({
       control={shellControl}
       disabled={!shell}
       mode={workspaceMode}
-      readerSolo={readerSoloActive}
+      readerViewFullscreen={readerViewFullscreen && readerSoloActive}
       onModeChange={(mode) => commitWorkspace({ mode })}
-      onReaderSoloChange={(enabled) => commitWorkspace(enabled ? { activeLane: "reader", readerSolo: true } : { readerSolo: false })}
+      onReaderViewFullscreenChange={toggleReaderViewFullscreen}
       onOpenSettings={() => setSettingsOpen(true)}
       windowControls={workspaceMode === "edges" || readerSoloActive ? <FloatingWindowCaptionControls integrated /> : undefined}
       part="trailing"
@@ -1731,12 +1739,12 @@ export function ReaderApp({
           {/* Idle and reading share the same three-column chrome; only the
               session-specific affordances (close/reopen, page index) change. */}
           <div className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)] items-center gap-1.5">
-            <div className="xiranite-app-region-no-drag flex min-w-0 items-stretch justify-self-start">
+            <div className="xiranite-app-region-no-drag flex min-w-0 items-center justify-self-start">
               {session ? (
-                <Button className="justify-self-start" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
+                <Button className="border border-transparent bg-transparent text-foreground/80 shadow-none" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
               ) : path.trim() ? (
                 <Button
-                  className="justify-self-start"
+                  className="border border-transparent bg-transparent text-foreground/80 shadow-none"
                   aria-label="打开书籍"
                   type="button"
                   size="icon-sm"
@@ -1813,7 +1821,7 @@ export function ReaderApp({
     ),
   }
 
-  const bottomEdge: ReaderControlledEdgeSlot | undefined = session && (shell?.edges.bottom.enabled ?? true) ? {
+  const bottomEdge: ReaderControlledEdgeSlot | undefined = shell?.edges.bottom.enabled ? {
     ariaLabel: "NeoView 底部缩略图与导航栏",
     triggerSize: shell?.edges.bottom.triggerSize,
     triggerRect: workspace?.swimlane.edgeRevealZones.bottom,
@@ -1821,23 +1829,33 @@ export function ReaderApp({
     hideDelayMs: shell?.hideDelayMs,
     render: () => (
       <div
-        className="border-t border-border/55 bg-background/94 shadow-[0_-12px_30px_rgb(0_0_0/0.24)] backdrop-blur-xl"
+        className="min-w-0 max-w-full overflow-x-hidden border-t border-border/55 bg-background/94 shadow-[0_-12px_30px_rgb(0_0_0/0.24)] backdrop-blur-xl"
         data-reader-edge-chrome="bottom"
         style={edgeSurfaceStyle(shell, "bottom")}
       >
-        <ThumbnailStrip
-          sessionId={session.sessionId}
-          totalPages={session.book.pageCount}
-          activePageIndex={session.frame.anchorPageIndex}
-          currentPages={session.visiblePages}
-          client={client}
-          compact={compact}
-          disabled={busy}
-          pinned={shell?.edges.bottom.pinned ?? false}
-          onPinnedChange={(pinned) => shellControl.setPinned("bottom", pinned)}
-          viewerToggles={viewerToggles}
-          onSelect={goTo}
-        />
+        {session ? (
+          <ThumbnailStrip
+            sessionId={session.sessionId}
+            totalPages={session.book.pageCount}
+            activePageIndex={session.frame.anchorPageIndex}
+            direction={session.frame.direction}
+            currentPages={session.visiblePages}
+            client={client}
+            compact={compact}
+            disabled={busy}
+            pinned={shell.edges.bottom.pinned}
+            onPinnedChange={(pinned) => shellControl.setPinned("bottom", pinned)}
+            viewerToggles={viewerToggles}
+            onSelect={goTo}
+          />
+        ) : (
+          <div className="flex min-h-10 items-center justify-center gap-2 px-2 py-1" data-reader-bottom-bar="true" data-reader-bottom-empty="true">
+            <Button type="button" size="sm" variant={shell.edges.bottom.pinned ? "default" : "ghost"} aria-label={shell.edges.bottom.pinned ? "取消钉住底栏" : "钉住底栏"} aria-pressed={shell.edges.bottom.pinned} onClick={() => shellControl.setPinned("bottom", !shell.edges.bottom.pinned)}>
+              {shell.edges.bottom.pinned ? <Pin /> : <PinOff />}<span className="text-xs">{shell.edges.bottom.pinned ? "已钉住" : "钉住"}</span>
+            </Button>
+            <span className="text-xs text-muted-foreground">未打开书籍</span>
+          </div>
+        )}
       </div>
     ),
   } : undefined
@@ -1995,7 +2013,7 @@ export function ReaderApp({
       data-reader-app="true"
       data-input-context="reader"
       data-context-menu-stop=""
-      className="relative flex h-full min-h-0 w-full touch-none flex-col overflow-hidden bg-background text-foreground"
+      className="relative flex h-full min-h-0 w-full min-w-0 max-w-full touch-none flex-col overflow-hidden overscroll-none bg-background text-foreground outline-none [contain:layout_paint]"
       tabIndex={0}
     >
       <Suspense fallback={null}>
@@ -2016,6 +2034,8 @@ export function ReaderApp({
                 shell={shell}
                 workspace={workspace}
                 disabled={!shell}
+                readerViewFullscreen={readerViewFullscreen && readerSoloActive}
+                onReaderViewFullscreenChange={toggleReaderViewFullscreen}
                 windowChrome={floatingFrame && !readerSoloActive ? {
                   controls: <FloatingWindowCaptionControls integrated density="compact" />,
                   onTitlebarDoubleClick: floatingFrame.handleTitlebarDoubleClick,

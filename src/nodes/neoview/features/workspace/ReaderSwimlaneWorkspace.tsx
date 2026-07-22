@@ -11,7 +11,7 @@ import {
   type ReactNode,
   type WheelEvent as ReactWheelEvent,
 } from "react"
-import { AlertTriangle, BookOpen, Columns3, Ellipsis, Maximize2, Minimize2, PanelLeft, PanelRight, PanelsTopLeft, PanelTopClose, PanelTopOpen, RotateCcw, Settings2 } from "lucide-react"
+import { AlertTriangle, BookOpen, Columns3, Ellipsis, Maximize2, Minimize2, PanelLeft, PanelRight, PanelsTopLeft, PanelTopClose, PanelTopOpen, RotateCcw, Scan, Settings2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -64,6 +64,8 @@ interface ReaderSwimlaneWorkspaceProps {
   left: ReactNode
   right: ReactNode
   disabled?: boolean
+  readerViewFullscreen?: boolean
+  onReaderViewFullscreenChange?(): void
   windowChrome?: {
     controls: ReactNode
     onTitlebarDoubleClick?: MouseEventHandler<HTMLElement>
@@ -86,6 +88,8 @@ export function ReaderSwimlaneWorkspace({
   left,
   right,
   disabled = false,
+  readerViewFullscreen = false,
+  onReaderViewFullscreenChange,
   windowChrome,
   onWorkspaceChange,
   onOpenSettings,
@@ -362,7 +366,7 @@ export function ReaderSwimlaneWorkspace({
   }
 
   function beginPan(event: ReactPointerEvent<HTMLElement>): void {
-    if (disabled || event.button !== 0 || event.target instanceof Element && event.target.closest("button,[role='separator'],input,textarea,select,a")) return
+    if (!swimlane.manualScrollEnabled || disabled || event.button !== 0 || event.target instanceof Element && event.target.closest("button,[role='separator'],input,textarea,select,a")) return
     const viewport = viewportRef.current
     if (!viewport) return
     cancelReaderFocus()
@@ -418,11 +422,13 @@ export function ReaderSwimlaneWorkspace({
         laneId={laneId}
         label={lane.title ?? DEFAULT_LANE_LABELS[laneId] ?? laneId}
         hideLabel={(laneId !== "reader" && lane.panelBarMode !== "floating" && lane.panelBarDock === "top") || (laneId === "reader" && swimlane.laneNavigatorDock === "reader-title")}
+        hideHeader={laneId === "reader" && readerViewFullscreen}
+        flush={laneId === "reader" && readerViewFullscreen}
         active={active}
         collapsed={collapsed}
         width={effectiveWidth}
         solo={solo}
-        resizeBoundaryWith={nextLaneId && !solo && soloLaneId !== nextLaneId ? nextLaneId : undefined}
+        resizeBoundaryWith={!readerViewFullscreen && nextLaneId && !solo && soloLaneId !== nextLaneId ? nextLaneId : undefined}
         dragged={draggedLane === laneId}
         setRef={(node) => { laneRefs.current[laneId] = node }}
         onActivate={() => activateLane(laneId)}
@@ -443,6 +449,8 @@ export function ReaderSwimlaneWorkspace({
           laneNavigatorPositionY: DEFAULT_LANE_NAVIGATOR_POSITION.y,
         })}
         onOpenSettings={laneId === "reader" ? onOpenSettings : undefined}
+        readerViewFullscreen={laneId === "reader" ? readerViewFullscreen : undefined}
+        onReaderViewFullscreenChange={laneId === "reader" ? onReaderViewFullscreenChange : undefined}
         setNavigatorTitleHost={laneId === "reader" ? setLaneNavigatorTitleHost : undefined}
         windowControlsAvailable={windowChrome !== undefined}
         windowControlsOwner={swimlane.windowControlsPlacement !== "titlebar" && swimlane.windowControlsOwnerLaneId === laneId}
@@ -539,8 +547,13 @@ export function ReaderSwimlaneWorkspace({
       </header> : null}
       <div
         ref={viewportRef}
-        className="min-h-0 w-full flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className={cn(
+          "min-h-0 w-full flex-1 overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          swimlane.manualScrollEnabled ? "overflow-x-auto" : "overflow-x-hidden",
+        )}
         data-reader-swimlane-viewport="true"
+        data-scrollbar="hidden"
+        data-reader-manual-scroll={swimlane.manualScrollEnabled ? "enabled" : "disabled"}
       >
         <div className="flex h-full min-w-max items-stretch" data-reader-swimlane-strip="true">
           {swimlane.laneOrder.map(renderLane)}
@@ -611,6 +624,8 @@ interface ReaderSwimlaneProps {
   laneId: ReaderSwimlaneId
   label: string
   hideLabel: boolean
+  hideHeader?: boolean
+  flush?: boolean
   active: boolean
   collapsed: boolean
   width: number
@@ -629,6 +644,8 @@ interface ReaderSwimlaneProps {
   onResetWidth(): void
   onResetNavigatorPosition(): void
   onOpenSettings?(): void
+  readerViewFullscreen?: boolean
+  onReaderViewFullscreenChange?(): void
   setNavigatorTitleHost?(node: HTMLElement | null): void
   windowControlsAvailable: boolean
   windowControlsOwner: boolean
@@ -664,6 +681,8 @@ function ReaderSwimlane({
   laneId,
   label,
   hideLabel,
+  hideHeader = false,
+  flush = false,
   active,
   collapsed,
   width,
@@ -682,6 +701,8 @@ function ReaderSwimlane({
   onResetWidth,
   onResetNavigatorPosition,
   onOpenSettings,
+  readerViewFullscreen,
+  onReaderViewFullscreenChange,
   setNavigatorTitleHost,
   windowControlsAvailable,
   windowControlsOwner,
@@ -711,7 +732,6 @@ function ReaderSwimlane({
 }: ReaderSwimlaneProps) {
   const Icon = laneId === "left" ? PanelLeft : laneId === "right" ? PanelRight : laneId === "reader" ? BookOpen : Columns3
   const style = { width } satisfies CSSProperties
-  const hideHeader = laneId === "reader" && solo
   if (collapsed) {
     return (
       <section
@@ -743,13 +763,15 @@ function ReaderSwimlane({
   return (
     <section
       ref={setRef}
-      style={style}
       className={cn(
         "relative flex h-full min-h-0 min-w-0 shrink-0 flex-col overflow-hidden bg-card/45 transition-[background-color,box-shadow] duration-150",
-        active && "z-10 bg-card/70 shadow-[inset_0_3px_0_var(--primary),0_8px_24px_rgb(0_0_0/0.14)]",
+        active && !flush && "z-10 bg-card/70 shadow-[inset_0_3px_0_var(--primary),0_8px_24px_rgb(0_0_0/0.14)]",
+        flush && "border-0 bg-background outline-none shadow-none",
         dragged && "opacity-55",
       )}
+      style={flush ? { ...style, border: 0, boxShadow: "none", outline: "none" } : style}
       data-reader-swimlane={laneId}
+      data-reader-view-fullscreen={flush ? "true" : undefined}
       data-reader-swimlane-active={active ? "true" : "false"}
       data-reader-swimlane-solo={solo ? "true" : undefined}
       onDragOver={(event) => event.preventDefault()}
@@ -798,6 +820,22 @@ function ReaderSwimlane({
           ? <div ref={setNavigatorTitleHost} className="min-w-0 flex-1 overflow-visible" data-reader-lane-navigator-title-slot="true" />
           : <div className="min-w-0 flex-1 overflow-visible" data-reader-panel-bar-title-slot={laneId} />}
         <div className="xiranite-app-region-no-drag ml-auto flex shrink-0 items-center gap-0.5" data-reader-swimlane-actions={laneId}>
+          {laneId === "reader" && onReaderViewFullscreenChange ? (
+            <button
+              type="button"
+              className={cn(
+                "relative grid size-6 place-items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                readerViewFullscreen && "text-primary after:absolute after:inset-x-1 after:bottom-0 after:h-px after:bg-primary",
+              )}
+              title={readerViewFullscreen ? "退出 Reader 视图全屏" : "Reader 视图全屏"}
+              aria-label={readerViewFullscreen ? "退出 Reader 视图全屏" : "Reader 视图全屏"}
+              aria-pressed={readerViewFullscreen}
+              data-reader-view-fullscreen-control="true"
+              onClick={onReaderViewFullscreenChange}
+            >
+              <Scan className="size-3.5" />
+            </button>
+          ) : null}
           {solo ? <span className="mr-1 size-1.5 rounded-full bg-primary" title={`${label}全屏已开启`} /> : null}
           <ReaderLaneMoreMenu
             laneId={laneId}
