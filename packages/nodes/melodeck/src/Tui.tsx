@@ -4,10 +4,8 @@ import { useEffect, useState } from "react"
 import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import {
   ClickTarget,
-  ProgressBar,
   TerminalImagePreview,
   TerminalThemeProvider,
-  WorkbenchButton,
   WorkbenchPanel,
   resolveTerminalTheme,
   terminalIcon,
@@ -58,6 +56,7 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
     if (key.name === "right") void session.requestAction("action", "seek", { seekSeconds: 10 })
     if (key.name === "up") void session.requestAction("action", "volume", { volume: Math.min(100, (status?.volume ?? Number(session.values.volume ?? 80)) + 5) })
     if (key.name === "down") void session.requestAction("action", "volume", { volume: Math.max(0, (status?.volume ?? Number(session.values.volume ?? 80)) - 5) })
+    if (key.name === "c") void session.requestAction("action", "clear")
   })
 
   useEffect(() => {
@@ -85,11 +84,11 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
   const playPath = (path: string) => {
     void session.requestAction("action", "play", { paths: path })
   }
-  const seek = (seconds: number) => {
-    void session.requestAction("action", "seek", { seekSeconds: seconds })
+  const seekTo = (position: number) => {
+    const offset = position - (status?.position ?? 0)
+    if (Math.abs(offset) >= 0.1) void session.requestAction("action", "seek", { seekSeconds: offset })
   }
-  const setVolume = (delta: number) => {
-    const volume = Math.max(0, Math.min(100, (status?.volume ?? Number(session.values.volume ?? 80)) + delta))
+  const setVolume = (volume: number) => {
     void session.requestAction("action", "volume", { volume })
   }
 
@@ -101,14 +100,6 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
           <text fg={theme.colors.mutedForeground}>mpv IPC | persistent queue | Space pause/resume | P/N tracks</text>
         </box>
         <text fg={stateColor}>{`${stateLabel} ${[".", "o", "O", "o"][frame % 4]}`}</text>
-      </box>
-
-      <box height={4} flexShrink={0} marginTop={1} flexDirection="row" gap={1}>
-        <WorkbenchButton id="melodeck-previous" onClick={() => run("previous")}>Previous</WorkbenchButton>
-        <WorkbenchButton id="melodeck-play" onClick={() => run("play")}>Play</WorkbenchButton>
-        <WorkbenchButton id="melodeck-pause" onClick={() => run(status?.paused ? "toggle" : "pause")}>{status?.paused ? "Resume" : "Pause"}</WorkbenchButton>
-        <WorkbenchButton id="melodeck-next" onClick={() => run("next")}>Next</WorkbenchButton>
-        <WorkbenchButton id="melodeck-stop" onClick={() => run("stop")}>Stop</WorkbenchButton>
       </box>
 
       <box flexGrow={1} minHeight={0} marginTop={1} flexDirection="row" gap={1}>
@@ -129,13 +120,13 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
 
         <WorkbenchPanel title="NOW PLAYING" description={status?.paused ? "Paused" : status?.running ? "Local mpv session" : "No active session"} flexGrow={1}>
           <box flexDirection="column">
-            <box height={11} flexShrink={0} flexDirection="row" gap={2}>
+            <box height={13} flexShrink={0} flexDirection="row" gap={2}>
               <TerminalImagePreview
                 source={status?.artwork}
-                width={20}
-                height={10}
+                width={24}
+                height={12}
                 fit="cover"
-                backend="auto"
+                backend="sixel"
                 alt={status?.album || status?.title || "Album cover"}
                 placeholder="NO COVER"
               />
@@ -147,22 +138,102 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
               </box>
             </box>
             <box flexGrow={1} />
-            <ProgressBar
+            <SeekBar
               value={progress}
-              label={status?.running
-                ? `${formatTime(status.position)} / ${formatTime(status.duration)} | volume ${Math.round(status.volume)}%`
-                : session.status || "IDLE"}
+              position={status?.position ?? 0}
+              duration={status?.duration ?? 0}
+              onSeek={seekTo}
             />
-            <box flexDirection="row" gap={1} marginTop={1}>
-              <WorkbenchButton id="melodeck-seek-back" onClick={() => seek(-10)}>-10s</WorkbenchButton>
-              <WorkbenchButton id="melodeck-seek-forward" onClick={() => seek(10)}>+10s</WorkbenchButton>
-              <WorkbenchButton id="melodeck-volume-down" onClick={() => setVolume(-5)}>Vol-</WorkbenchButton>
-              <WorkbenchButton id="melodeck-volume-up" onClick={() => setVolume(5)}>Vol+</WorkbenchButton>
-              <WorkbenchButton id="melodeck-clear" onClick={() => run("clear")}>Clear</WorkbenchButton>
+            <box height={3} flexShrink={0} flexDirection="row" justifyContent="center" alignItems="center" gap={3}>
+              <IconControl id="melodeck-previous" icon="⏮" onClick={() => run("previous")} />
+              <IconControl
+                id="melodeck-play"
+                icon={status?.running && !status.paused ? "⏸" : "▶"}
+                primary
+                onClick={() => run(status?.running ? "toggle" : "play")}
+              />
+              <IconControl id="melodeck-next" icon="⏭" onClick={() => run("next")} />
+              <IconControl id="melodeck-stop" icon="■" onClick={() => run("stop")} />
             </box>
+            <box height={2} flexShrink={0} flexDirection="row" justifyContent="center" alignItems="center" gap={1}>
+              <text fg={theme.colors.mutedForeground}>VOL</text>
+              <ValueBar id="melodeck-volume" value={status?.volume ?? Number(session.values.volume ?? 80)} width={18} onChange={setVolume} />
+              <text fg={theme.colors.mutedForeground}>{`${Math.round(status?.volume ?? Number(session.values.volume ?? 80))}%`}</text>
+            </box>
+            <text fg={theme.colors.mutedForeground}>Left/Right seek 10s | Up/Down volume | C clear queue</text>
           </box>
         </WorkbenchPanel>
       </box>
+    </box>
+  )
+}
+
+function IconControl({ id, icon, primary = false, onClick }: { id: string; icon: string; primary?: boolean; onClick(): void }) {
+  const theme = useTerminalTheme()
+  const [hovered, setHovered] = useState(false)
+  return (
+    <box
+      id={id}
+      width={primary ? 7 : 5}
+      height={1}
+      alignItems="center"
+      justifyContent="center"
+      onMouseDown={onClick}
+      onMouseOver={() => setHovered(true)}
+      onMouseOut={() => setHovered(false)}
+    >
+      <text fg={primary || hovered ? theme.colors.primary : theme.colors.mutedForeground}>{hovered ? <b>{icon}</b> : icon}</text>
+      <text>{""}</text>
+    </box>
+  )
+}
+
+function SeekBar({ value, position, duration, onSeek }: { value: number; position: number; duration: number; onSeek(position: number): void }) {
+  const theme = useTerminalTheme()
+  const width = 46
+  const filled = Math.max(0, Math.min(width, Math.round((value / 100) * width)))
+  return (
+    <box flexDirection="column" flexShrink={0}>
+      <box flexDirection="row" justifyContent="space-between">
+        <text fg={theme.colors.mutedForeground}>{formatTime(position)}</text>
+        <text fg={theme.colors.mutedForeground}>{formatTime(duration)}</text>
+      </box>
+      <box
+        id="melodeck-seek"
+        width={width}
+        height={1}
+        onMouseDown={(event) => {
+          const target = event.target
+          if (!target || duration <= 0) return
+          const ratio = Math.max(0, Math.min(1, (event.x - target.x) / Math.max(1, target.width - 1)))
+          onSeek(ratio * duration)
+        }}
+      >
+        <text fg={theme.colors.primary}>{"━".repeat(filled)}</text>
+        <text fg={theme.colors.mutedForeground}>{"─".repeat(width - filled)}</text>
+      </box>
+    </box>
+  )
+}
+
+function ValueBar({ id, value, width, onChange }: { id: string; value: number; width: number; onChange(value: number): void }) {
+  const theme = useTerminalTheme()
+  const normalized = Math.max(0, Math.min(100, value))
+  const filled = Math.max(0, Math.min(width, Math.round((normalized / 100) * width)))
+  return (
+    <box
+      id={id}
+      width={width}
+      height={1}
+      onMouseDown={(event) => {
+        const target = event.target
+        if (!target) return
+        const ratio = Math.max(0, Math.min(1, (event.x - target.x) / Math.max(1, target.width - 1)))
+        onChange(Math.round(ratio * 100))
+      }}
+    >
+      <text fg={theme.colors.primary}>{"━".repeat(filled)}</text>
+      <text fg={theme.colors.mutedForeground}>{"─".repeat(width - filled)}</text>
     </box>
   )
 }

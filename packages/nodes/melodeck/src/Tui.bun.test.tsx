@@ -40,7 +40,7 @@ describe("Melodeck OpenTUI screen", () => {
     try {
       await act(async () => setup.renderOnce())
       const play = setup.renderer.root.findDescendantById("melodeck-play")!
-      await act(async () => setup.mockMouse.click(play.x + 1, play.y + 1))
+      await act(async () => setup.mockMouse.click(play.x + 1, play.y))
       await act(async () => setup.flush())
       expect(inputs).toHaveLength(1)
       expect(inputs[0]).toMatchObject({ action: "play", paths: ["D:/Music/demo.flac"] })
@@ -74,8 +74,47 @@ describe("Melodeck OpenTUI screen", () => {
       await act(async () => setup.flush())
       const frame = setup.captureCharFrame()
       expect(frame).toContain("Live Artist")
-      expect(frame).toContain("0:30 / 2:00 | volume 65%")
+      expect(frame).toContain("0:30")
+      expect(frame).toContain("2:00")
+      expect(frame).toContain("65%")
       expect(inputs).toHaveLength(0)
+    } finally {
+      await act(async () => setup.renderer.destroy())
+    }
+  })
+
+  test("maps timeline and volume rail clicks to seek and volume actions", async () => {
+    const inputs: Array<{ action?: string; seekSeconds?: number; volume?: number }> = []
+    const live = { running: true, paused: false, path: "D:/Music/live.flac", title: "Live Track", artist: "Artist", album: "Album", duration: 120, position: 30, volume: 60, playlist: ["D:/Music/live.flac"] }
+    const setup = await testRender(
+      <MelodeckTui
+        definition={{
+          schema: createMelodeckInteractionSchema({}, "en"),
+          run: async (input) => {
+            inputs.push(input)
+            return { success: true, message: "Updated", data: { command: [], status: live, output: "", errors: [] } }
+          },
+        }}
+        language="en"
+        onExit={() => undefined}
+        observe={async (_ipc, onStatus) => { onStatus(live); return () => undefined }}
+      />,
+      { width: 128, height: 34, useMouse: true },
+    )
+    try {
+      await act(async () => setup.renderOnce())
+      await act(async () => setup.flush())
+      const seek = setup.renderer.root.findDescendantById("melodeck-seek")!
+      await act(async () => setup.mockMouse.click(seek.x + Math.floor(seek.width * 0.75), seek.y))
+      await act(async () => setup.flush())
+      const volume = setup.renderer.root.findDescendantById("melodeck-volume")!
+      await act(async () => setup.mockMouse.click(volume.x + Math.floor(volume.width * 0.25), volume.y))
+      await act(async () => setup.flush())
+      expect(inputs[0]?.action).toBe("seek")
+      expect(inputs[0]?.seekSeconds).toBeGreaterThan(50)
+      expect(inputs[1]).toMatchObject({ action: "volume" })
+      expect(inputs[1]?.volume).toBeGreaterThanOrEqual(20)
+      expect(inputs[1]?.volume).toBeLessThanOrEqual(30)
     } finally {
       await act(async () => setup.renderer.destroy())
     }
