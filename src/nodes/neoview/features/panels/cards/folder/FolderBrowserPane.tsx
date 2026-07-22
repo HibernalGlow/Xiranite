@@ -1980,6 +1980,17 @@ export function FolderBrowserPane({
               confirmDelete={confirmDelete}
               onCatalogUpdate={(update) => commitCatalog(update(catalog!))}
               onRefreshEmm={() => updateSort(catalog!.sort)}
+              onRefreshDirectory={() =>
+                navigate(
+                  { action: "refresh" },
+                  {
+                    keepTree: true,
+                    focusPath: focusedPath,
+                    preserveThumbnailCache: true,
+                  },
+                )
+              }
+              onReloadThumbnail={(entry) => refreshThumbnails(new Set([entry.path]))}
               renameRequest={renameRequest}
               onRenameRequestHandled={() => setRenameRequest(undefined)}
             />

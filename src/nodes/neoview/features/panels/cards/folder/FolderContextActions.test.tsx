@@ -253,8 +253,50 @@ describe("FolderContextActions", () => {
     expect(findFolderContextMenuItem(items, "neoview-folder-copy-path")?.disabled).toBe(true)
     expect(findFolderContextMenuItem(items, "neoview-folder-toggle-bookmark")?.disabled).toBe(true)
     expect(findFolderContextMenuItem(items, "neoview-folder-rename")?.disabled).toBe(true)
+    expect(findFolderContextMenuItem(items, "neoview-folder-refresh")?.disabled).toBe(true)
+    expect(findFolderContextMenuItem(items, "neoview-folder-reload-thumbnail")?.disabled).toBe(true)
     expect(items.some((item) => item.type === "icon-row")).toBe(true)
     expect(items.some((item) => item.type === "submenu" && item.id === "neoview-folder-copy-info")).toBe(true)
+  })
+
+  it("[neoview.folder.refresh-context] refreshes the directory and reloads the entry thumbnail", async () => {
+    const onRefreshDirectory = vi.fn(async () => undefined)
+    const onReloadThumbnail = vi.fn(async () => undefined)
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <FolderContextActions
+          client={clientWith({})}
+          disabled={false}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+          onRefreshDirectory={onRefreshDirectory}
+          onReloadThumbnail={onReloadThumbnail}
+        />
+        <button
+          data-context-menu="neoview-folder-entry"
+          data-folder-index="0"
+          data-folder-path="D:/library/book.cbz"
+          data-folder-name="book.cbz"
+          data-folder-kind="file"
+          data-folder-reader-supported="true"
+        >book.cbz</button>
+      </ContextMenuProvider>,
+    )
+
+    const target = screen.getByRole("button", { name: "book.cbz" })
+    fireEvent.contextMenu(target, { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByRole("menuitem", { name: "刷新当前目录" }))
+    await waitFor(() => expect(onRefreshDirectory).toHaveBeenCalledOnce())
+    expect((await screen.findByRole("status")).textContent).toContain("已刷新当前目录")
+
+    fireEvent.contextMenu(target, { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByRole("menuitem", { name: "重载缩略图" }))
+    await waitFor(() => expect(onReloadThumbnail).toHaveBeenCalledWith(expect.objectContaining({
+      path: "D:/library/book.cbz",
+      name: "book.cbz",
+    })))
+    expect((await screen.findByRole("status")).textContent).toContain("已重载 book.cbz 的缩略图")
   })
 
   it("[neoview.folder.bookmark-context] adds the concrete context target with the correct bookmark kind", async () => {
