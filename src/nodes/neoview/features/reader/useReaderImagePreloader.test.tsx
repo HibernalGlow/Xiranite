@@ -12,7 +12,7 @@ afterEach(() => {
 
 describe("useReaderImagePreloader", () => {
   it("[neoview.react.predecode-adaptive-policy] selects bounded concurrency from device and network hints", () => {
-    expect(resolveReaderPredecodePolicy({ deviceMemoryGb: 16, hardwareConcurrency: 16, effectiveConnectionType: "4g" })).toMatchObject({ concurrency: 2, maxRetainedImages: 2 })
+    expect(resolveReaderPredecodePolicy({ deviceMemoryGb: 16, hardwareConcurrency: 16, effectiveConnectionType: "4g" })).toMatchObject({ concurrency: 1, maxRetainedImages: 1 })
     expect(resolveReaderPredecodePolicy({ deviceMemoryGb: 16, hardwareConcurrency: 16, saveData: true })).toMatchObject({ concurrency: 1, maxRetainedImages: 1 })
     expect(resolveReaderPredecodePolicy({ deviceMemoryGb: 4, hardwareConcurrency: 4, effectiveConnectionType: "4g" })).toMatchObject({ concurrency: 1, maxRetainedImages: 1 })
   })
@@ -78,7 +78,7 @@ describe("useReaderImagePreloader", () => {
     expect(instances.every((image) => image.src === "")).toBe(true)
   })
 
-  it("[neoview.react.predecode-cross-batch] keeps replacement batches behind an in-flight decode", async () => {
+  it("[neoview.react.predecode-cross-batch] discards stale replacement batches behind an in-flight decode", async () => {
     const instances: BlockingImage[] = []
     vi.stubGlobal("Image", class extends BlockingImage {
       constructor() {
@@ -89,17 +89,22 @@ describe("useReaderImagePreloader", () => {
     vi.spyOn(performance, "mark").mockImplementation(() => ({}) as PerformanceMark)
     const first = page(1)
     const second = page(2)
+    const third = page(3)
     const view = render(<Fixture sessionId="reader-1" pages={[first]} />)
 
     await waitFor(() => expect(instances[0]?.decode).toHaveBeenCalledOnce())
     view.rerender(<Fixture sessionId="reader-1" pages={[second]} />)
     await waitFor(() => expect(instances).toHaveLength(2))
+    view.rerender(<Fixture sessionId="reader-1" pages={[third]} />)
+    await waitFor(() => expect(instances).toHaveLength(3))
     await new Promise((resolve) => setTimeout(resolve, 450))
     expect(instances[1]!.decode).not.toHaveBeenCalled()
+    expect(instances[2]!.decode).not.toHaveBeenCalled()
 
     instances[0]!.finishDecode()
-    await waitFor(() => expect(instances[1]!.decode).toHaveBeenCalledOnce())
-    instances[1]!.finishDecode()
+    await waitFor(() => expect(instances[2]!.decode).toHaveBeenCalledOnce())
+    expect(instances[1]!.decode).not.toHaveBeenCalled()
+    instances[2]!.finishDecode()
   })
 
   it("[neoview.preload.telemetry-react] reports generation-scoped lifecycle metrics without React state", async () => {
