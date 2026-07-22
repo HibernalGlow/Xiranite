@@ -18,6 +18,8 @@ import { useContextMenu } from "@/components/context-menu"
 import { cn } from "@/lib/utils"
 import { FloatingWindowCaptionControls, FloatingWindowTitlebarReservation, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { useSwimlaneSessionStore } from "@/store/swimlaneSessionStore"
+import type { SwimlaneWorkspaceSessionState } from "@xiranite/shared/swimlane"
 import {
   createReaderHttpClient,
   READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
@@ -54,6 +56,7 @@ import {
   type ReaderVoiceControlPatch,
   type ReaderSettingsMigrationImportResult,
   type ReaderSettingsMigrationInspection,
+  type ReaderSwimlaneId,
 } from "../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
@@ -79,7 +82,7 @@ import { createReaderInfoOverlayStore } from "../features/info-overlay/ReaderInf
 import { createReaderImageTrimStore } from "../features/image-trim/ReaderImageTrimStore"
 import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCleanup"
 import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../features/workspace/ReaderSwimlaneWorkspace"
-import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
+import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
 
 function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConfigDto): boolean {
   // Compare normalized workspace views — shell object identity always changes on patch.
@@ -87,6 +90,51 @@ function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConf
     return JSON.stringify(readerWorkspaceConfig(left)) === JSON.stringify(readerWorkspaceConfig(right))
   } catch {
     return false
+  }
+}
+
+function readerWorkspaceWithSession(shell: ReaderShellConfigDto, session: SwimlaneWorkspaceSessionState | undefined): ReaderWorkspaceConfig {
+  const workspace = readerWorkspaceConfig(shell)
+  const laneOrder = workspace.swimlane.laneOrder
+  const configuredSoloLaneId = workspace.swimlane.soloLaneId ?? (workspace.swimlane.readerSolo ? "reader" : undefined)
+  const activeLane = session?.activeLaneId && laneOrder.includes(session.activeLaneId)
+    ? session.activeLaneId as ReaderSwimlaneId
+    : workspace.swimlane.activeLane
+  const sessionHasSoloLane = session !== undefined && Object.hasOwn(session, "soloLaneId")
+  const requestedSoloLaneId = sessionHasSoloLane ? session.soloLaneId ?? undefined : configuredSoloLaneId
+  const soloLaneId = requestedSoloLaneId && laneOrder.includes(requestedSoloLaneId)
+    ? requestedSoloLaneId as ReaderSwimlaneId
+    : undefined
+  const { soloLaneId: _configuredSoloLaneId, ...configuredSwimlane } = workspace.swimlane
+  return {
+    ...workspace,
+    swimlane: {
+      ...configuredSwimlane,
+      activeLane,
+      readerSolo: soloLaneId === "reader",
+      ...(soloLaneId ? { soloLaneId } : {}),
+    },
+  }
+}
+
+function splitReaderWorkspacePatch(
+  patch: ReaderWorkspacePatch,
+  current: ReaderWorkspaceConfig,
+): { sessionPatch?: SwimlaneWorkspaceSessionState; persistentPatch?: ReaderWorkspacePatch } {
+  const { activeLane, readerSolo, soloLaneId, ...persistentPatch } = patch
+  let nextSoloLaneId = current.swimlane.soloLaneId ?? (current.swimlane.readerSolo ? "reader" : null)
+  if (soloLaneId !== undefined) nextSoloLaneId = soloLaneId
+  if (readerSolo === true) nextSoloLaneId = "reader"
+  if (readerSolo === false && nextSoloLaneId === "reader") nextSoloLaneId = null
+  const sessionPatch = activeLane !== undefined || readerSolo !== undefined || soloLaneId !== undefined
+    ? {
+        ...(activeLane !== undefined ? { activeLaneId: activeLane } : {}),
+        ...(readerSolo !== undefined || soloLaneId !== undefined ? { soloLaneId: nextSoloLaneId } : {}),
+      }
+    : undefined
+  return {
+    sessionPatch,
+    ...(Object.keys(persistentPatch).length ? { persistentPatch } : {}),
   }
 }
 
@@ -208,6 +256,7 @@ function loadReaderPresentation(): Promise<unknown> {
 }
 
 export interface ReaderAppProps {
+  sessionScopeId?: string
   initialPath?: string
   initialBrowserOriginPath?: string
   client?: ReaderHttpClient
@@ -219,6 +268,7 @@ export interface ReaderAppProps {
 }
 
 export function ReaderApp({
+  sessionScopeId = "standalone",
   initialPath = "",
   initialBrowserOriginPath,
   client: injectedClient,
@@ -231,6 +281,10 @@ export function ReaderApp({
   const surface = useNodeSurface()
   const floatingFrame = useFloatingWindowFrame()
   const contextMenu = useContextMenu()
+  const swimlaneSessionScopeId = `neoview:${sessionScopeId}`
+  const swimlaneSession = useSwimlaneSessionStore((state) => state.sessions[swimlaneSessionScopeId])
+  const ensureSwimlaneSession = useSwimlaneSessionStore((state) => state.ensureSession)
+  const patchSwimlaneSession = useSwimlaneSessionStore((state) => state.patchSession)
   const [client] = useState<ReaderHttpClient>(() => injectedClient ?? createReaderHttpClient())
   const clientRef = useRef(client)
   const shellRef = useRef<ReaderShellConfigDto | undefined>(undefined)
@@ -423,6 +477,11 @@ export function ReaderApp({
       if (config.switchToast) switchToast.hydrate(config.switchToast)
       if (config.infoOverlay) infoOverlay.hydrate(config.infoOverlay)
       if (config.imageTrim) imageTrim.hydrate(config.imageTrim)
+      const configuredWorkspace = readerWorkspaceConfig(config.shell)
+      ensureSwimlaneSession(swimlaneSessionScopeId, {
+        activeLaneId: configuredWorkspace.swimlane.activeLane,
+        soloLaneId: configuredWorkspace.swimlane.soloLaneId ?? (configuredWorkspace.swimlane.readerSolo ? "reader" : null),
+      })
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
       if (typeof localStorage !== "undefined") {
@@ -1336,24 +1395,27 @@ export function ReaderApp({
   function resetShellControl() {
     const previous = shellControlStore.getSnapshot()
     shellControlStore.replace(defaultShellControlSnapshot())
+    patchSwimlaneSession(swimlaneSessionScopeId, { activeLaneId: "reader", soloLaneId: "reader" })
     enqueueShellControl({ reset: "known-defaults" }, previous)
   }
 
   function persistShellControl(patch: ReaderShellControlPatch["shellControl"]) {
-    enqueueShellControl(patch)
+    const { workspace, ...persistent } = patch
+    if (workspace) commitWorkspace(workspace)
+    if (Object.keys(persistent).length > 0) enqueueShellControl(persistent)
   }
 
   function toggleWorkspaceMode(): void {
     const current = shellRef.current
     if (!current) return
-    const workspace = readerWorkspaceConfig(current)
+    const workspace = currentReaderWorkspace(current)
     commitWorkspace({ mode: workspace.mode === "swimlane" ? "edges" : "swimlane" })
   }
 
   function focusAdjacentWorkspaceLane(direction: "previous" | "next"): void {
     const current = shellRef.current
     if (!current) return
-    const workspace = readerWorkspaceConfig(current)
+    const workspace = currentReaderWorkspace(current)
     const order = workspace.swimlane.laneOrder
     const index = Math.max(0, order.indexOf(workspace.swimlane.activeLane))
     const offset = direction === "previous" ? -1 : 1
@@ -1364,14 +1426,16 @@ export function ReaderApp({
   function toggleActiveWorkspaceLaneFullscreen(): void {
     const current = shellRef.current
     if (!current) return
-    const workspace = readerWorkspaceConfig(current)
-    commitWorkspace({ mode: "swimlane", readerSolo: !workspace.swimlane.readerSolo })
+    const workspace = currentReaderWorkspace(current)
+    const activeLane = workspace.swimlane.activeLane
+    const currentSoloLane = workspace.swimlane.soloLaneId ?? (workspace.swimlane.readerSolo ? "reader" : undefined)
+    commitWorkspace({ mode: "swimlane", activeLane, soloLaneId: currentSoloLane === activeLane ? null : activeLane })
   }
 
   function fitWorkspaceLanes(): void {
     const current = shellRef.current
     if (!current) return
-    const workspace = readerWorkspaceConfig(current)
+    const workspace = currentReaderWorkspace(current)
     const viewportWidth = document.querySelector<HTMLElement>('[data-reader-swimlane-viewport="true"]')?.clientWidth ?? window.innerWidth
     commitWorkspace({ mode: "swimlane", ...fitReaderSwimlanesToViewport(viewportWidth, workspace.swimlane) })
   }
@@ -1379,13 +1443,20 @@ export function ReaderApp({
   function commitWorkspace(patch: ReaderWorkspacePatch): void {
     const current = shellRef.current
     if (!current) return
-    const optimistic = applyReaderWorkspacePatch(current, patch)
+    const { sessionPatch, persistentPatch } = splitReaderWorkspacePatch(patch, currentReaderWorkspace(current))
+    if (sessionPatch) patchSwimlaneSession(swimlaneSessionScopeId, sessionPatch)
+    if (!persistentPatch) return
+    const optimistic = applyReaderWorkspacePatch(current, persistentPatch)
     // Skip pure no-ops (e.g. auto-fit re-emitting the same widths). Otherwise
     // setShell every cycle thrashs the tree into Maximum update depth exceeded.
     if (workspaceConfigEqual(current, optimistic)) return
     shellRef.current = optimistic
     setShell(optimistic)
-    enqueueShellControl({ workspace: patch }, undefined, current)
+    enqueueShellControl({ workspace: persistentPatch }, undefined, current)
+  }
+
+  function currentReaderWorkspace(current: ReaderShellConfigDto): ReaderWorkspaceConfig {
+    return readerWorkspaceWithSession(current, useSwimlaneSessionStore.getState().sessions[swimlaneSessionScopeId])
   }
 
   function enqueueShellControl(
@@ -1599,7 +1670,7 @@ export function ReaderApp({
   const compact = surface.mode === "collapsed" || surface.mode === "compact" || surface.mode === "portrait"
   const frame = session?.frame
   const pathSegments = readerPathSegments(path)
-  const workspace = shell ? readerWorkspaceConfig(shell) : undefined
+  const workspace = shell ? readerWorkspaceWithSession(shell, swimlaneSession) : undefined
   const workspaceMode = workspace?.mode ?? "edges"
   const readerSolo = workspace?.swimlane.readerSolo ?? true
   const readerSoloActive = readerSolo && workspace?.swimlane.activeLane === "reader"

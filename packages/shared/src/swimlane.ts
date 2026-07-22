@@ -9,9 +9,12 @@ export interface SwimlaneInteractionState<Id extends string = string> {
   soloLaneId?: Id
 }
 
-export interface SwimlaneWorkspacePreferences {
+export interface SwimlaneWorkspaceSessionState {
   activeLaneId?: string
   soloLaneId?: string | null
+}
+
+export interface SwimlaneWorkspacePreferences {
   focusOnHover: boolean
   soloOnFocus: boolean
   showNavigatorInSolo: boolean
@@ -42,10 +45,8 @@ export const DEFAULT_SWIMLANE_WORKSPACE_PREFERENCES: SwimlaneWorkspacePreference
   autoFitToViewport: false,
 }
 
-export function normalizeSwimlanePreferences(value: Partial<SwimlaneWorkspacePreferences> | undefined): SwimlaneWorkspacePreferences {
+export function normalizeSwimlanePreferences(value: Partial<SwimlaneWorkspacePreferences & SwimlaneWorkspaceSessionState> | undefined): SwimlaneWorkspacePreferences {
   return {
-    activeLaneId: typeof value?.activeLaneId === "string" ? value.activeLaneId : undefined,
-    soloLaneId: typeof value?.soloLaneId === "string" || value?.soloLaneId === null ? value.soloLaneId : undefined,
     focusOnHover: value?.focusOnHover === true,
     soloOnFocus: value?.soloOnFocus === true,
     showNavigatorInSolo: value?.showNavigatorInSolo !== false,
@@ -60,6 +61,16 @@ export function normalizeSwimlanePreferences(value: Partial<SwimlaneWorkspacePre
     navigatorFollowsFocus: value?.navigatorFollowsFocus === true,
     autoFitToViewport: value?.autoFitToViewport === true,
   }
+}
+
+export function legacySwimlaneSessionState(value: Partial<SwimlaneWorkspaceSessionState> | undefined): SwimlaneWorkspaceSessionState | undefined {
+  const activeLaneId = typeof value?.activeLaneId === "string" && value.activeLaneId ? value.activeLaneId : undefined
+  const soloLaneId = typeof value?.soloLaneId === "string" && value.soloLaneId
+    ? value.soloLaneId
+    : value?.soloLaneId === null
+      ? null
+      : undefined
+  return activeLaneId !== undefined || soloLaneId !== undefined ? { activeLaneId, soloLaneId } : undefined
 }
 
 export interface SwimlaneWidthConstraint<Id extends string = string> {

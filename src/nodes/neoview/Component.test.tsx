@@ -16,7 +16,7 @@ it("[neoview.book-information.host-clipboard] passes only the host clipboard wri
     localFiles: {},
   } as unknown as NodeComponentProps<NeoViewCardState>["host"]
   render(<Component compId="neoview-1" host={host} />)
-  expect(readerProps.current).toMatchObject({ initialPath: "D:/book.cbz", copyText: writeText })
+  expect(readerProps.current).toMatchObject({ sessionScopeId: "neoview-1", initialPath: "D:/book.cbz", copyText: writeText })
   expect(readerProps.current).not.toHaveProperty("host")
 })
 

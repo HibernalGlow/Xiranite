@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { activateSwimlane, adjacentSwimlane, effectiveSwimlaneWidth, fitSwimlaneWidthsToViewport, normalizeSwimlaneOrder, normalizeSwimlanePreferences, reorderSwimlanes } from "./model"
+import { activateSwimlane, adjacentSwimlane, effectiveSwimlaneWidth, fitSwimlaneWidthsToViewport, legacySwimlaneSessionState, normalizeSwimlaneOrder, normalizeSwimlanePreferences, reorderSwimlanes } from "./model"
 
 describe("swimlane model", () => {
   it("normalizes persisted order without losing known lanes", () => {
@@ -24,7 +24,8 @@ describe("swimlane model", () => {
   })
 
   it("normalizes workspace interaction preferences", () => {
-    expect(normalizeSwimlanePreferences({ focusOnHover: true, soloOnFocus: true, showNavigatorInSolo: false, focusDelayMs: 10, edgeRevealDelayMs: 9000, barHandleStyle: "groove", barHandlePosition: "right", navigatorDock: "title" as never, navigatorLaneId: "right", navigatorFollowsFocus: true, autoFitToViewport: true })).toMatchObject({
+    const normalized = normalizeSwimlanePreferences({ activeLaneId: "right", soloLaneId: null, focusOnHover: true, soloOnFocus: true, showNavigatorInSolo: false, focusDelayMs: 10, edgeRevealDelayMs: 9000, barHandleStyle: "groove", barHandlePosition: "right", navigatorDock: "title" as never, navigatorLaneId: "right", navigatorFollowsFocus: true, autoFitToViewport: true })
+    expect(normalized).toMatchObject({
       focusOnHover: true,
       soloOnFocus: true,
       showNavigatorInSolo: false,
@@ -37,6 +38,9 @@ describe("swimlane model", () => {
       navigatorFollowsFocus: true,
       autoFitToViewport: true,
     })
+    expect(normalized).not.toHaveProperty("activeLaneId")
+    expect(normalized).not.toHaveProperty("soloLaneId")
+    expect(legacySwimlaneSessionState({ activeLaneId: "right", soloLaneId: null })).toEqual({ activeLaneId: "right", soloLaneId: null })
   })
 
   it("fits expanded lanes proportionally while reserving collapsed and minimum widths", () => {

@@ -33,7 +33,8 @@ import { SwimlaneBarMenuItem, SwimlaneNavigatorBar, type SwimlaneNavigatorDockTa
 import { SwimlaneNavigatorDockMenu } from "@/components/workspace/swimlane/SwimlaneNavigatorDockMenu"
 import { SwimlaneBarAppearanceMenu } from "@/components/workspace/swimlane/SwimlaneBarAppearanceMenu"
 import { SwimlaneFitMenuItems } from "@/components/workspace/swimlane/SwimlaneFitMenuItems"
-import { adjacentSwimlane, DEFAULT_SWIMLANE_WORKSPACE_PREFERENCES, fitSwimlaneWidthsToViewport, normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
+import { adjacentSwimlane, DEFAULT_SWIMLANE_WORKSPACE_PREFERENCES, fitSwimlaneWidthsToViewport, legacySwimlaneSessionState, normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
+import { useSwimlaneSessionStore } from "@/store/swimlaneSessionStore"
 
 interface LaneCardItem {
   id: string
@@ -58,6 +59,10 @@ export function LaneView() {
   const [previewLaneId, setPreviewLaneId] = useState<string>()
   const [navigatorDockTargets, setNavigatorDockTargets] = useState<SwimlaneNavigatorDockTarget[]>([])
   const preferences = normalizeSwimlanePreferences(laneWorkspacePreferences[activeWorkspaceId])
+  const sessionScopeId = `workspace:${activeWorkspaceId}`
+  const swimlaneSession = useSwimlaneSessionStore((state) => state.sessions[sessionScopeId])
+  const ensureSwimlaneSession = useSwimlaneSessionStore((state) => state.ensureSession)
+  const patchSwimlaneSession = useSwimlaneSessionStore((state) => state.patchSession)
   const handleDropModule = useCallback((moduleId: string) => {
     workspaceActions.deployComponent(moduleId, { viewMode: "lane" })
   }, [workspaceActions])
@@ -92,8 +97,18 @@ export function LaneView() {
   const wsLanesRef = useRef(wsLanes)
   wsLanesRef.current = wsLanes
   const laneIds = useMemo(() => wsLanes.map((lane) => lane.id), [wsLanes])
-  const activeLaneId = preferences.activeLaneId && laneIds.includes(preferences.activeLaneId) ? preferences.activeLaneId : laneIds[0] ?? null
-  const soloLaneId = preferences.soloLaneId && laneIds.includes(preferences.soloLaneId) ? preferences.soloLaneId : null
+  const legacySession = legacySwimlaneSessionState(laneWorkspacePreferences[activeWorkspaceId])
+  const activeLaneId = swimlaneSession?.activeLaneId && laneIds.includes(swimlaneSession.activeLaneId)
+    ? swimlaneSession.activeLaneId
+    : legacySession?.activeLaneId && laneIds.includes(legacySession.activeLaneId)
+      ? legacySession.activeLaneId
+      : laneIds[0] ?? null
+  const sessionHasSoloLane = swimlaneSession !== undefined
+    && Object.prototype.hasOwnProperty.call(swimlaneSession, "soloLaneId")
+  const candidateSoloLaneId = sessionHasSoloLane
+    ? swimlaneSession.soloLaneId
+    : legacySession?.soloLaneId
+  const soloLaneId = candidateSoloLaneId && laneIds.includes(candidateSoloLaneId) ? candidateSoloLaneId : null
   const navigatorLaneId = preferences.navigatorFollowsFocus || !preferences.navigatorLaneId || !laneIds.includes(preferences.navigatorLaneId)
     ? activeLaneId
     : preferences.navigatorLaneId
@@ -211,9 +226,19 @@ export function LaneView() {
   }, [laneGeometryKey, wsLanes])
 
   useEffect(() => {
-    if (laneIds.length === 0 || preferences.activeLaneId && laneIds.includes(preferences.activeLaneId)) return
-    workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { activeLaneId: laneIds[0] })
-  }, [activeWorkspaceId, laneIds, preferences.activeLaneId, workspaceActions])
+    if (laneIds.length === 0) return
+    ensureSwimlaneSession(sessionScopeId, {
+      activeLaneId: activeLaneId ?? undefined,
+      soloLaneId,
+    })
+    if (!swimlaneSession?.activeLaneId || !laneIds.includes(swimlaneSession.activeLaneId)) {
+      patchSwimlaneSession(sessionScopeId, { activeLaneId: activeLaneId ?? undefined })
+    }
+    if (swimlaneSession?.soloLaneId && !laneIds.includes(swimlaneSession.soloLaneId)) {
+      patchSwimlaneSession(sessionScopeId, { soloLaneId: null })
+    }
+    if (legacySession) workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, {})
+  }, [activeLaneId, activeWorkspaceId, ensureSwimlaneSession, laneIds, legacySession, patchSwimlaneSession, sessionScopeId, soloLaneId, swimlaneSession?.activeLaneId, swimlaneSession?.soloLaneId, workspaceActions])
 
   const scrollToLane = useCallback((laneId: string, activate = true) => {
     const scroller = laneScrollRef.current
@@ -229,11 +254,11 @@ export function LaneView() {
       left: scroller.scrollLeft + laneRect.left - scrollerRect.left,
       behavior: "smooth",
     })
-    if (activate) workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, {
+    if (activate) patchSwimlaneSession(sessionScopeId, {
       activeLaneId: laneId,
       ...(preferences.soloOnFocus ? { soloLaneId: laneId } : {}),
     })
-  }, [activeWorkspaceId, preferences.soloOnFocus, workspaceActions])
+  }, [patchSwimlaneSession, preferences.soloOnFocus, sessionScopeId])
 
   useEffect(() => {
     if (activeLaneId) scrollToLane(activeLaneId, false)
@@ -391,7 +416,7 @@ export function LaneView() {
           onPositionChange={({ x, y }) => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { navigatorPositionX: x, navigatorPositionY: y })}
           onDockChange={(navigatorDock, targetId) => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { navigatorDock, ...(navigatorDock === "floating" ? {} : { navigatorLaneId: targetId ?? navigatorLaneId }) })}
           menu={<>
-            <SwimlaneBarMenuItem onSelect={() => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { soloLaneId: soloLaneId === activeLaneId ? null : activeLaneId })}>
+            <SwimlaneBarMenuItem onSelect={() => patchSwimlaneSession(sessionScopeId, { soloLaneId: soloLaneId === activeLaneId ? null : activeLaneId })}>
               {soloLaneId === activeLaneId ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
               {soloLaneId === activeLaneId ? "退出当前泳道独占" : "当前泳道独占视口"}
             </SwimlaneBarMenuItem>
