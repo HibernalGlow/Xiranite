@@ -127,13 +127,111 @@
   "settings": {
     "title": "Settings",
     "header": "Settings",
-    "headerSubtitle": "Appearance, runtime, and local data configuration.",
+    "headerSubtitle": "Browse settings along a timeline: Appearance → Workspace → View → Runtime → Data.",
+    "search": {
+      "placeholder": "Search settings (theme, swimlane, WebView2…)",
+      "clear": "Clear search",
+      "results": "Search results",
+      "empty": "No matching settings",
+      "stage": "Stage",
+      "stepInStage": "In “{{stage}}”"
+    },
     "sections": {
       "appearance": "Appearance",
       "background": "Background",
+      "workspace": "Workspace",
       "runtime": "Runtime",
       "data": "Data",
       "view": "View"
+    },
+    "timeline": {
+      "navLabel": "Settings timeline",
+      "railTitle": "Timeline",
+      "stepsLabel": "Sub-section",
+      "advanced": "Advanced",
+      "advShort": "Adv",
+      "stageDesc": {
+        "appearance": "Theme, color mode, typeface, language, and atmosphere.",
+        "workspace": "Canvas background, operation bar, and alphabet index.",
+        "view": "Swimlane interaction, component skins, and card clicks.",
+        "runtime": "Local backend connection, hot reload, and WebView2 flags.",
+        "data": "Workspace persistence and database ownership."
+      },
+      "steps": {
+        "theme": "Theme",
+        "color": "Color mode",
+        "typography": "Font & language",
+        "atmosphere": "Atmosphere",
+        "themeImport": "Import theme JSON",
+        "background": "Background canvas",
+        "chrome": "Operation bar",
+        "alphabet": "Alphabet index",
+        "swimlane": "Swimlane",
+        "components": "Component skins",
+        "cardInteraction": "Card interaction",
+        "connection": "Runtime connection",
+        "webview2": "WebView2",
+        "storage": "Local data"
+      },
+      "stepDesc": {
+        "theme": "Pick a built-in preset and inspect its palette and source.",
+        "typography": "Global UI font and interface language.",
+        "atmosphere": "Vignette, grain, and ambient lighting toggles.",
+        "background": "Grid / dots / image background and texture preview.",
+        "swimlane": "Solo focus, hover re-focus, and navigator behavior."
+      },
+      "fieldsTitle": "Fields & exclusive option groups",
+      "fieldsDesc": "Title styles apply to shared Select, input, and slider fields, plus exclusive groups such as compression mode and output location. Keyboard and form semantics stay unchanged.",
+      "controlStyle": "Control style",
+      "fieldTitleStyle": "Global field title",
+      "choice": {
+        "segmented": "Segmented",
+        "pills": "Pills",
+        "tabs": "Tabs",
+        "tiles": "Tiles"
+      },
+      "fieldTitle": {
+        "stacked": "Stacked",
+        "legend": "Floating legend",
+        "inline": "Inline",
+        "hidden": "Hidden"
+      },
+      "compressionPreview": "Compression mode",
+      "lossless": "Lossless",
+      "lossy": "Lossy",
+      "modulePanelTitle": "Module panels",
+      "modulePanelDesc": "Unify node section titles, panel surfaces, card effects, and resize handles. Nodes on shared components update immediately.",
+      "moduleTitleStyle": "Title style",
+      "modulePanelStyle": "Panel style",
+      "moduleCardEffect": "Card effect",
+      "resizableHandle": "Resize handle",
+      "moduleTitle": {
+        "legend": "Floating badge",
+        "inline": "Inline",
+        "bar": "Top bar",
+        "minimal": "Minimal"
+      },
+      "modulePanel": {
+        "soft": "Soft",
+        "solid": "Solid",
+        "outline": "Outline",
+        "flat": "Flat"
+      },
+      "moduleCard": {
+        "magic": "Magic",
+        "plain": "Static"
+      },
+      "handle": {
+        "grip": "Grip",
+        "dots": "Dots",
+        "line": "Accent line",
+        "minimal": "Minimal"
+      },
+      "previewModule": "Preview module",
+      "previewBadge": "12 items",
+      "previewModuleDesc": "Title and panel use global styles; shared ResizableHandle keeps the divider in sync.",
+      "nodeHotReload": "Node backend source hot reload",
+      "nodeHotReloadDesc": "After saving backend source for a used node, the next run loads the new code without restarting the desktop shell or other nodes."
     },
     "view": {
       "cardInteraction": "Card Interaction",

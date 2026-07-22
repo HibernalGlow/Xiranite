@@ -127,13 +127,111 @@
   "settings": {
     "title": "设置",
     "header": "设置",
-    "headerSubtitle": "统一管理外观、运行时与本地数据配置。",
+    "headerSubtitle": "按时间线阶段浏览设置：外观 → 工作区 → 视图 → 运行时 → 数据。",
+    "search": {
+      "placeholder": "搜索设置（主题、泳道、WebView2…）",
+      "clear": "清除搜索",
+      "results": "搜索结果",
+      "empty": "未找到匹配的设置项",
+      "stage": "阶段",
+      "stepInStage": "位于「{{stage}}」"
+    },
     "sections": {
       "appearance": "外观",
       "background": "背景",
+      "workspace": "工作区",
       "runtime": "运行时",
       "data": "数据",
       "view": "视图"
+    },
+    "timeline": {
+      "navLabel": "设置时间线",
+      "railTitle": "设置时间线",
+      "stepsLabel": "子分类",
+      "advanced": "高级",
+      "advShort": "高级",
+      "stageDesc": {
+        "appearance": "主题、配色、字体语言与氛围效果。",
+        "workspace": "画布背景、操作栏与字母索引。",
+        "view": "泳道交互、组件皮肤与卡片点击行为。",
+        "runtime": "本地后端连接、热刷新与 WebView2 实验项。",
+        "data": "工作区持久化与数据库归属信息。"
+      },
+      "steps": {
+        "theme": "主题",
+        "color": "颜色模式",
+        "typography": "字体与语言",
+        "atmosphere": "氛围效果",
+        "themeImport": "导入主题 JSON",
+        "background": "背景画布",
+        "chrome": "操作栏",
+        "alphabet": "字母索引",
+        "swimlane": "泳道交互",
+        "components": "组件皮肤",
+        "cardInteraction": "卡片交互",
+        "connection": "运行时连接",
+        "webview2": "WebView2",
+        "storage": "本地数据"
+      },
+      "stepDesc": {
+        "theme": "选择内置主题预设，查看调色板与来源。",
+        "typography": "全局 UI 字体与界面语言。",
+        "atmosphere": "晕影、颗粒与环境光开关。",
+        "background": "网格 / 圆点 / 图片背景与纹理预览。",
+        "swimlane": "主泳道独占、悬停聚焦与导航栏行为。"
+      },
+      "fieldsTitle": "字段与互斥选项组",
+      "fieldsDesc": "标题样式同步到节点中的 Select、输入框、滑条等标准字段，以及压缩模式、输出位置等互斥组选项；不改变控件的键盘与表单语义。",
+      "controlStyle": "控件样式",
+      "fieldTitleStyle": "全局字段标题",
+      "choice": {
+        "segmented": "分段",
+        "pills": "胶囊",
+        "tabs": "标签",
+        "tiles": "卡片"
+      },
+      "fieldTitle": {
+        "stacked": "上置",
+        "legend": "悬浮图例",
+        "inline": "左侧",
+        "hidden": "隐藏"
+      },
+      "compressionPreview": "压缩模式",
+      "lossless": "无损",
+      "lossy": "有损",
+      "modulePanelTitle": "模块面板",
+      "modulePanelDesc": "统一节点内分区的标题、面板表面、魔法效果与拖拽手柄；已接入公共组件的节点会立即同步。",
+      "moduleTitleStyle": "标题样式",
+      "modulePanelStyle": "面板样式",
+      "moduleCardEffect": "卡片效果",
+      "resizableHandle": "拖拽手柄",
+      "moduleTitle": {
+        "legend": "悬浮角标",
+        "inline": "内嵌",
+        "bar": "顶部栏",
+        "minimal": "极简"
+      },
+      "modulePanel": {
+        "soft": "柔和",
+        "solid": "实色",
+        "outline": "描边",
+        "flat": "无框"
+      },
+      "moduleCard": {
+        "magic": "魔法",
+        "plain": "静态"
+      },
+      "handle": {
+        "grip": "握把",
+        "dots": "点阵",
+        "line": "强调线",
+        "minimal": "极简"
+      },
+      "previewModule": "预览模块",
+      "previewBadge": "12 项",
+      "previewModuleDesc": "标题和面板会使用全局样式；分隔线由公共 ResizableHandle 同步。",
+      "nodeHotReload": "节点后端源码自动刷新",
+      "nodeHotReloadDesc": "保存已使用节点的后端源码后，下一次运行该节点自动加载新代码；不会重启桌面端或其他节点。"
     },
     "view": {
       "cardInteraction": "卡片交互",
