@@ -1331,11 +1331,12 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
+      "currentCardId": "folder-main",
       "sourceComponent": "src/lib/cards/settings/BookSettingsCard.svelte",
       "sourceDisposition": "component"
     },
