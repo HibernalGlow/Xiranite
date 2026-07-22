@@ -10,7 +10,7 @@
  * @features panels-toolbar-shell,card-windows-tabs
  * @migration-status adapted
  */
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 import { Pin, PinOff } from "lucide-react"
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react"
 import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPatch, ReaderSwimlaneLaneDto } from "../../adapters/reader-http-client"
@@ -57,11 +57,8 @@ export function ReaderSidebar({
 }) {
   const hasSession = Boolean(context.session)
   const panels = useMemo(() => availablePanels(side, shell, hasSession), [hasSession, shell, side])
-  const panelIds = useMemo(() => panels.map((panel) => panel.id), [panels])
   const [localActivePanel, setLocalActivePanel] = useState<LegacyPanelId>(() => panels[0]?.id ?? (side === "left" ? "pageList" : "info"))
-  // Lane presentation used to mount every docked panel on first paint; that is the
-  // main freeze source when both swimlane sidebars appear with shell. Keep only the
-  // active panel mounted until the user visits another tab.
+  // Keep only the active panel mounted until the user visits another tab.
   const [mountedPanels, setMountedPanels] = useState<ReadonlySet<LegacyPanelId>>(() => {
     const initial = selectedPanelId ?? panels[0]?.id ?? (side === "left" ? "pageList" : "info")
     return new Set(initial ? [initial as LegacyPanelId] : [])
@@ -104,13 +101,60 @@ export function ReaderSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presentation, side])
 
+  // Keep only panels the user has visited. Do NOT expand to every panelId —
+  // that re-mounted 5–6 panels × many cards on first paint and froze swimlane.
   useEffect(() => {
-    setMountedPanels((current) => {
-      const missing = panelIds.filter((panelId) => !current.has(panelId))
-      if (!missing.length) return current
-      return new Set([...current, ...missing])
+    if (!activePanel) return
+    setMountedPanels((current) => (current.has(activePanel as LegacyPanelId)
+      ? current
+      : new Set([...current, activePanel as LegacyPanelId])))
+  }, [activePanel])
+
+  // Control panel can ship 8+ expanded cards; mount them progressively so the
+  // first card paints before the rest of the lazy chunk storm.
+  const activeCards = useMemo(
+    () => (active ? cardsForPanel(active.id, shell, hasSession) : []),
+    [active, hasSession, shell],
+  )
+  const [visibleCardCount, setVisibleCardCount] = useState(1)
+  useEffect(() => {
+    setVisibleCardCount(1)
+    if (activeCards.length <= 1) return
+    let cancelled = false
+    let revealed = 1
+    let idleHandle: number | undefined
+    let timeoutHandle: number | undefined
+    neoviewDebug("sidebar:cards:progressive-start", {
+      side,
+      panelId: active?.id,
+      total: activeCards.length,
     })
-  }, [panelIds])
+    const schedule = (fn: () => void) => {
+      if (typeof requestIdleCallback === "function") {
+        idleHandle = requestIdleCallback(fn, { timeout: 200 })
+      } else {
+        timeoutHandle = window.setTimeout(fn, 32)
+      }
+    }
+    const revealMore = () => {
+      if (cancelled) return
+      revealed = Math.min(activeCards.length, revealed + 2)
+      setVisibleCardCount(revealed)
+      neoviewDebug("sidebar:cards:progressive-step", {
+        side,
+        panelId: active?.id,
+        visible: revealed,
+        total: activeCards.length,
+      })
+      if (revealed < activeCards.length) schedule(revealMore)
+    }
+    schedule(revealMore)
+    return () => {
+      cancelled = true
+      if (idleHandle !== undefined && typeof cancelIdleCallback === "function") cancelIdleCallback(idleHandle)
+      if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle)
+    }
+  }, [active?.id, activeCards.length, side])
 
   return (
     <aside
@@ -169,16 +213,16 @@ export function ReaderSidebar({
         const cards = cardsForPanel(panel.id, shell, hasSession)
         const exclusive = cards.length === 1 && cards[0]?.exclusivePanel === true
         const PanelIcon = panel.icon
-        if (!panelActive && !mountedPanels.has(panel.id)) return null
+        // Never keep inactive panels mounted: control/history/etc. each pull many
+        // lazy cards, and caching every visited panel on first paint freezes swimlane.
+        if (!panelActive) return null
         return (
           <div
             key={panel.id}
             className={cn(
               "min-h-0 min-w-0 flex-1 overscroll-contain",
               exclusive ? "relative flex h-full w-full basis-full flex-col self-stretch overflow-hidden" : "overflow-y-auto",
-              !panelActive && "pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden",
             )}
-            style={!panelActive ? { contentVisibility: "hidden", containIntrinsicSize: "auto 100%" } : undefined}
             aria-hidden={!panelVisible || undefined}
             data-reader-panel={panelVisible ? panel.id : undefined}
             data-reader-panel-cache={panel.id}
@@ -216,23 +260,34 @@ export function ReaderSidebar({
             <div className={cn(exclusive
               ? "flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden [&>*]:h-full [&>*]:min-h-0 [&>*]:min-w-0 [&>*]:w-full [&>*]:flex-1"
               : "grid gap-2 px-3 py-3")}>
-              {cards.map((card) => {
+              {cards.slice(0, panelActive ? visibleCardCount : 0).map((card) => {
                 const Card = lazyReaderCard(card.id)
                 const cardLayout = shell?.cardLayout[card.id]
+                const expanded = cardLayout ? cardLayout.expanded : true
                 return Card ? (
                   <CollapsibleReaderCard
                     key={card.id}
                     title={card.title}
                     icon={card.icon ? <card.icon className="size-3.5" /> : undefined}
                     frameless={exclusive}
-                    collapsed={cardLayout ? !cardLayout.expanded : false}
+                    collapsed={!expanded}
                     height={cardLayout?.height}
                     onCollapsedChange={(collapsed) => onCardLayoutCommit?.({ cardId: card.id, expanded: !collapsed })}
                     onHeightChange={(height) => onCardLayoutCommit?.({ cardId: card.id, height: height ?? null })}
                   >
-                    <Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted/60" aria-label={`正在加载${card.title}`} />}>
-                      <Card {...context} panelActive={panelActive} panelVisible={panelVisible} />
-                    </Suspense>
+                    {expanded ? (
+                      <Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted/60" aria-label={`正在加载${card.title}`} data-reader-card-loading={card.id} />}>
+                        <LoggedReaderCard
+                          cardId={card.id}
+                          side={side}
+                          panelId={panel.id}
+                          Card={Card}
+                          context={context}
+                          panelActive={panelActive}
+                          panelVisible={panelVisible}
+                        />
+                      </Suspense>
+                    ) : null}
                   </CollapsibleReaderCard>
                 ) : null
               })}
@@ -344,6 +399,38 @@ export function ReaderSidebar({
     gestureRef.current = undefined
     if (asideRef.current && layout && shell) applySidebarStyle(asideRef.current, sidebarStyle(layout, shell, side))
   }
+}
+
+function LoggedReaderCard({
+  cardId,
+  side,
+  panelId,
+  Card,
+  context,
+  panelActive,
+  panelVisible,
+}: {
+  cardId: string
+  side: ReaderPanelSide
+  panelId: LegacyPanelId
+  Card: ComponentType<ReaderPanelContext & { panelActive?: boolean; panelVisible?: boolean }>
+  context: ReaderPanelContext
+  panelActive: boolean
+  panelVisible: boolean
+}) {
+  useEffect(() => {
+    const mountedAt = performance.now()
+    neoviewDebug("sidebar:card-mount", { side, panelId, cardId })
+    return () => {
+      neoviewDebug("sidebar:card-unmount", {
+        side,
+        panelId,
+        cardId,
+        livedMs: Math.round(performance.now() - mountedAt),
+      })
+    }
+  }, [cardId, panelId, side])
+  return <Card {...context} panelActive={panelActive} panelVisible={panelVisible} />
 }
 
 function ReaderLanePanelBar({ side, panels, activePanelId, lane, owner, handleStyle, handlePosition, onActivate, onChange }: {
