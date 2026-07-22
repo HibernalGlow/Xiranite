@@ -28,6 +28,8 @@ import { isReaderDirectorySortField, type ReaderDirectorySortRule } from "../../
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecord, ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderEmmRatingCatalogRecord, ReaderEmmRatingCatalogStore } from "../../ports/ReaderEmmRatingCatalogStore.js"
+import type { ReaderFolderRatingCacheSnapshot, ReaderFolderRatingCacheStore } from "../../ports/ReaderFolderRatingCacheStore.js"
+import type { ReaderFolderRatingEntry } from "../../application/metadata/ReaderFolderRatingCache.js"
 import type { ReaderEmmCatalogTag, ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
 import type { ReaderEmmOverrideRecord, ReaderEmmOverrides, ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { parseReaderEmmOverrides } from "../../application/metadata/ReaderEmmMetadataService.js"
@@ -44,6 +46,7 @@ export class SqliteReaderDataStore
     ReaderDirectorySortPreferenceStore,
     ReaderDirectoryEmmRecordStore,
     ReaderEmmRatingCatalogStore,
+    ReaderFolderRatingCacheStore,
     ReaderEmmTagCatalogStore,
     ReaderEmmOverrideStore
 {
@@ -190,6 +193,16 @@ export class SqliteReaderDataStore
         );
         CREATE INDEX IF NOT EXISTS xr_reader_emm_overrides_updated_idx
           ON xr_reader_emm_overrides (updated_at DESC, path_key ASC);
+        CREATE TABLE IF NOT EXISTS xr_reader_folder_ratings (
+          path_key TEXT PRIMARY KEY NOT NULL,
+          display_path TEXT NOT NULL,
+          average_rating REAL NOT NULL CHECK (average_rating > 0 AND average_rating <= 5),
+          entry_count INTEGER NOT NULL CHECK (entry_count > 0),
+          direct INTEGER NOT NULL CHECK (direct IN (0, 1)),
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS xr_reader_folder_ratings_updated_idx
+          ON xr_reader_folder_ratings (updated_at DESC, path_key ASC);
         PRAGMA busy_timeout = 50;
       `)
       return new SqliteReaderDataStore(database, options.platform)
@@ -1293,6 +1306,28 @@ export class SqliteReaderDataStore
     return [...output.values()]
   }
 
+  async loadFolderRatingCache(): Promise<ReaderFolderRatingCacheSnapshot> {
+    this.#assertOpen()
+    const rows = this.database.all("SELECT display_path, average_rating, entry_count, direct, updated_at FROM xr_reader_folder_ratings ORDER BY path_key ASC")
+    const entries = rows.map((row) => ({ path: requireString(row.display_path, "folder rating path"), averageRating: requireNumber(row.average_rating, "folder rating average"), count: requireInteger(row.entry_count, "folder rating count"), direct: requireBooleanInteger(row.direct, "folder rating direct") }))
+    const updatedAt = rows.reduce<number | undefined>((latest, row) => Math.max(latest ?? 0, requireInteger(row.updated_at, "folder rating update")), undefined)
+    return { entries, ...(updatedAt ? { updatedAt } : {}) }
+  }
+
+  async replaceFolderRatingCache(entries: readonly ReaderFolderRatingEntry[], updatedAt: number): Promise<void> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("Folder rating update time is invalid.")
+    await this.#write(() => {
+      this.database.exec("DELETE FROM xr_reader_folder_ratings")
+      for (const entry of entries) {
+        if (!entry.path || !Number.isFinite(entry.averageRating) || entry.averageRating <= 0 || entry.averageRating > 5 || !Number.isSafeInteger(entry.count) || entry.count < 1) throw new Error("Folder rating entry is invalid.")
+        this.database.run("INSERT INTO xr_reader_folder_ratings (path_key, display_path, average_rating, entry_count, direct, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", normalizeEmmPathKey(entry.path), entry.path, entry.averageRating, entry.count, entry.direct ? 1 : 0, updatedAt)
+      }
+    })
+  }
+
+  async clearFolderRatingCache(): Promise<void> { this.#assertOpen(); await this.#write(() => this.database.exec("DELETE FROM xr_reader_folder_ratings")) }
+
   async sampleEmmTags(count: number, signal?: AbortSignal): Promise<readonly ReaderEmmCatalogTag[]> {
     this.#assertOpen()
     if (!Number.isSafeInteger(count) || count < 1 || count > 64) throw new RangeError("EMM tag sample count must be from 1 to 64.")
@@ -1983,6 +2018,11 @@ function requireBooleanInteger(value: unknown, name: string): boolean {
   const integer = requireInteger(value, name)
   if (integer !== 0 && integer !== 1) throw new Error(`Stored reader ${name} is invalid.`)
   return integer === 1
+}
+
+function requireNumber(value: unknown, name: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`Stored reader ${name} is invalid.`)
+  return value
 }
 
 const BookSettingsOverridesSchema = z
