@@ -2,6 +2,8 @@ const DEBUG_STORAGE_KEY = "xiranite.startupDebug"
 const MAX_EVENTS = 500
 const MAX_REMOTE_EVENTS = 200
 const MAX_LONG_TASK_EVENTS = 50
+const REMOTE_FLUSH_DELAY_MS = 100
+const REMOTE_BATCH_SIZE = 20
 
 export interface StartupDebugEvent {
   sequence: number
@@ -25,6 +27,8 @@ declare global {
 
 let installed = false
 let sequence = 0
+let remoteFlushTimer: number | undefined
+let pendingRemoteEvents: StartupDebugEvent[] = []
 
 export function isStartupDebugEnabled(): boolean {
   if (!import.meta.env.DEV || typeof window === "undefined") return false
@@ -132,18 +136,30 @@ export function startupDebug(label: string, detail?: unknown): void {
   if (detail === undefined) console.info(prefix)
   else console.info(prefix, detail)
 
-  if (event.sequence <= MAX_REMOTE_EVENTS) {
-    void fetch("/__xiranite-debug-log", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        sequence: event.sequence,
-        elapsedMs: event.elapsedMs,
-        label: event.label,
-        detail: summarizeDetail(detail),
-      }),
-      keepalive: true,
-    }).catch(() => undefined)
+  if (event.sequence <= MAX_REMOTE_EVENTS) enqueueRemoteDebugEvent(event)
+}
+
+function enqueueRemoteDebugEvent(event: StartupDebugEvent): void {
+  pendingRemoteEvents.push({
+    ...event,
+    ...(event.detail === undefined ? {} : { detail: summarizeDetail(event.detail) }),
+  })
+  if (remoteFlushTimer !== undefined) return
+  remoteFlushTimer = window.setTimeout(flushRemoteDebugEvents, REMOTE_FLUSH_DELAY_MS)
+}
+
+function flushRemoteDebugEvents(): void {
+  remoteFlushTimer = undefined
+  const events = pendingRemoteEvents.splice(0, REMOTE_BATCH_SIZE)
+  if (!events.length) return
+  void fetch("/__xiranite-debug-log", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ events }),
+    keepalive: true,
+  }).catch(() => undefined)
+  if (pendingRemoteEvents.length) {
+    remoteFlushTimer = window.setTimeout(flushRemoteDebugEvents, 0)
   }
 }
 
