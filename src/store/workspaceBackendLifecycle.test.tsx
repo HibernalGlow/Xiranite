@@ -7,7 +7,7 @@ import { I18nextProvider, initReactI18next } from "react-i18next"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { createXiraniteSystemClient, createXiraniteWorkspaceClient } from "@xiranite/api/client"
 import { BackendStatusBanner } from "@/components/workspace/BackendStatusBanner"
-import { WorkspaceProvider } from "./workspaceContext"
+import { WorkspaceProvider, workspaceSnapshotHydrationKey } from "./workspaceContext"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "./workspaceStore"
 
 const healthMock = vi.hoisted(() => vi.fn())
@@ -38,6 +38,18 @@ afterEach(() => {
 })
 
 describe("WorkspaceProvider backend lifecycle", () => {
+  test("does not rehydrate for component-only snapshots while component restore is disabled", () => {
+    const base = {
+      workspaces: [{ id: "ws-stable", label: "Stable", createdAt: 1, updatedAt: 1 }],
+      lanes: [],
+    }
+    const first = { ...base, components: [{ id: "component-a", moduleId: "neoview", workspaceId: "ws-stable", createdAt: 1, updatedAt: 1 }] }
+    const second = { ...base, components: [{ id: "component-b", moduleId: "neoview", workspaceId: "ws-stable", createdAt: 2, updatedAt: 2 }] }
+
+    expect(workspaceSnapshotHydrationKey(first, false)).toBe(workspaceSnapshotHydrationKey(second, false))
+    expect(workspaceSnapshotHydrationKey(first, true)).not.toBe(workspaceSnapshotHydrationKey(second, true))
+  })
+
   test("does not load a workspace snapshot when the local backend is not configured", async () => {
     renderWithQuery(
       <WorkspaceProvider>
