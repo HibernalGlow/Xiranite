@@ -1144,6 +1144,7 @@ export interface ReaderRuntimeConfigDto {
     orientation?: ReaderOrientation
     autoRotation?: ReaderAutoRotation
     widePageStretch?: ReaderWidePageStretch
+    background?: ReaderBackgroundConfigDto
   }
   book: ReaderBookDefaultsDto
   /** Optional because older backends omit it; GUI falls back to stay-on-last-page. */
@@ -1172,6 +1173,25 @@ export interface ReaderRuntimeConfigDto {
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
   voiceControl?: ReaderVoiceControlConfig
+}
+
+export type ReaderBackgroundMode = "solid" | "auto" | "ambient" | "aurora" | "spotlight"
+export type ReaderAmbientStyle = "gentle" | "vibrant" | "dynamic"
+
+export interface ReaderBackgroundConfigDto {
+  color: string
+  mode: ReaderBackgroundMode
+  ambient: { style: ReaderAmbientStyle; speed: number; blur: number; opacity: number }
+  aurora: { showRadialGradient: boolean }
+  spotlight: { color: string }
+}
+
+export interface ReaderBackgroundPatchDto {
+  color?: string
+  mode?: ReaderBackgroundMode
+  ambient?: Partial<ReaderBackgroundConfigDto["ambient"]>
+  aurora?: Partial<ReaderBackgroundConfigDto["aurora"]>
+  spotlight?: Partial<ReaderBackgroundConfigDto["spotlight"]>
 }
 
 export type {
@@ -1641,6 +1661,7 @@ export interface ReaderViewDefaultsPatch {
     orientation?: ReaderOrientation
     autoRotation?: ReaderAutoRotation
     widePageStretch?: ReaderWidePageStretch
+    background?: ReaderBackgroundPatchDto
   }
 }
 

@@ -35,6 +35,13 @@ describe("parseNeoviewRuntimeConfig", () => {
       orientation: "horizontal",
       autoRotation: "none",
       widePageStretch: "uniform-height",
+      background: {
+        color: "#000000",
+        mode: "solid",
+        ambient: { style: "vibrant", speed: 8, blur: 80, opacity: 0.8 },
+        aurora: { showRadialGradient: true },
+        spotlight: { color: "white" },
+      },
     })
   })
 
@@ -1114,6 +1121,32 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(parseNeoviewRuntimeConfig({}).shellOptions.cardLayout["color-filter"]).toEqual({
       panelId: "control", visible: true, expanded: true, order: 2,
     })
+  })
+
+  it("[neoview.ambient-background.layout] restores the Control panel for partial persisted Card state", () => {
+    expect(parseNeoviewRuntimeConfig({
+      panels: { card_state: { "ambient-background": { expanded: false } } },
+    }).shellOptions.cardLayout["ambient-background"]).toEqual({
+      panelId: "control", visible: true, expanded: false, order: 7,
+    })
+  })
+
+  it("[neoview.ambient-background.layout-compat] imports the removed Appearance Card id without reviving it", () => {
+    const legacyOnly = parseNeoviewRuntimeConfig({
+      panels: { card_state: { "ambient-background-settings": { expanded: false } } },
+    }).shellOptions.cardLayout
+    expect(legacyOnly["ambient-background"]).toEqual({
+      panelId: "control", visible: true, expanded: false, order: 7,
+    })
+    expect(legacyOnly["ambient-background-settings"]).toBeUndefined()
+
+    const mixed = parseNeoviewRuntimeConfig({
+      panels: { card_state: {
+        "ambient-background-settings": { expanded: false },
+        "ambient-background": { expanded: true },
+      } },
+    }).shellOptions.cardLayout
+    expect(mixed["ambient-background"]?.expanded).toBe(true)
   })
 
   it("[neoview.settings.card-patch] validates card state and writes canonical TOML", () => {

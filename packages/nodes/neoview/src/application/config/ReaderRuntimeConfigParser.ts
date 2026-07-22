@@ -104,6 +104,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
   const image = optionalRecord(config.image, "[nodes.neoview.image]")
   const imageProcessing = optionalRecord(image?.processing, "[nodes.neoview.image.processing]")
   const view = optionalRecord(config.view, "[nodes.neoview.view]")
+  const background = parseNeoviewBackgroundConfig(view)
   const colorFilter = optionalRecord(image?.color_filter, "[nodes.neoview.image.color_filter]")
   const pageTransition = optionalRecord(image?.page_transition, "[nodes.neoview.image.page_transition]")
   const switchToast = optionalRecord(
@@ -213,6 +214,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
       orientation,
       autoRotation,
       widePageStretch,
+      background,
     },
     book: bookConfig,
     pageList: {
@@ -274,6 +276,31 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
     systemMonitor: parseSystemMonitorConfig(systemMonitor),
     emm: parseEmmConfig(emm),
     aiTranslation: parseAiTranslationConfig(aiTranslation),
+  }
+}
+
+function parseNeoviewBackgroundConfig(view: Record<string, unknown> | undefined): Models.NeoviewBackgroundConfig {
+  const defaults = Models.DEFAULT_NEOVIEW_VIEW_DEFAULTS.background
+  const ambient = optionalRecord(view?.ambient, "[nodes.neoview.view.ambient]")
+  const aurora = optionalRecord(view?.aurora, "[nodes.neoview.view.aurora]")
+  const spotlight = optionalRecord(view?.spotlight, "[nodes.neoview.view.spotlight]")
+  const colorValue = view?.background_color ?? view?.backgroundColor
+  const spotlightColor = spotlight?.color
+  return {
+    color: typeof colorValue === "string" && colorValue.trim() ? colorValue.trim() : defaults.color,
+    mode: optionalEnum(view?.background_mode ?? view?.backgroundMode, "[nodes.neoview.view].background_mode", ["solid", "auto", "ambient", "aurora", "spotlight"] as const) ?? defaults.mode,
+    ambient: {
+      style: optionalEnum(ambient?.style, "[nodes.neoview.view.ambient].style", ["gentle", "vibrant", "dynamic"] as const) ?? defaults.ambient.style,
+      speed: boundedNumber(ambient?.speed, 2, 20, defaults.ambient.speed, "[nodes.neoview.view.ambient].speed"),
+      blur: boundedNumber(ambient?.blur, 20, 150, defaults.ambient.blur, "[nodes.neoview.view.ambient].blur"),
+      opacity: boundedNumber(ambient?.opacity, 0.3, 1, defaults.ambient.opacity, "[nodes.neoview.view.ambient].opacity"),
+    },
+    aurora: {
+      showRadialGradient: optionalBoolean(aurora?.show_radial_gradient ?? aurora?.showRadialGradient, "[nodes.neoview.view.aurora].show_radial_gradient") ?? defaults.aurora.showRadialGradient,
+    },
+    spotlight: {
+      color: typeof spotlightColor === "string" && spotlightColor.trim() ? spotlightColor.trim() : defaults.spotlight.color,
+    },
   }
 }
 
@@ -2147,12 +2174,14 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
     "orientation",
     "autoRotation",
     "widePageStretch",
+    "background",
   ])
   const unknown = Object.keys(defaults).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader view defaults patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: Models.NeoviewViewDefaultsPatch = { viewDefaults: {} }
   const readerPatch: Record<string, unknown> = {}
   const magnifierPatch: Record<string, unknown> = {}
+  const backgroundPatch: Record<string, unknown> = {}
   if (defaults.fitMode !== undefined) {
     patch.viewDefaults.fitMode = readerFitMode(defaults.fitMode, "reader view defaults patch.fitMode")
     readerPatch.default_zoom_mode = persistedReaderFitMode(patch.viewDefaults.fitMode)
@@ -2221,12 +2250,57 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
     patch.viewDefaults.widePageStretch = readerWidePageStretch(defaults.widePageStretch)
     readerPatch.wide_page_stretch = persistedReaderWidePageStretch(patch.viewDefaults.widePageStretch)
   }
+  if (defaults.background !== undefined) {
+    const background = requireRecord(defaults.background, "reader view defaults patch.background")
+    const allowedBackground = new Set(["color", "mode", "ambient", "aurora", "spotlight"])
+    const unknownBackground = Object.keys(background).filter((key) => !allowedBackground.has(key))
+    if (unknownBackground.length) throw new Error(`reader view defaults patch.background contains unsupported fields: ${unknownBackground.join(", ")}.`)
+    const backgroundConfig = Models.DEFAULT_NEOVIEW_VIEW_DEFAULTS.background
+    const next: Models.NeoviewBackgroundPatch = {}
+    if (background.color !== undefined) {
+      if (typeof background.color !== "string" || !background.color.trim() || background.color.length > 128) throw new Error("reader view defaults patch.background.color must be a non-empty string.")
+      next.color = background.color.trim()
+      backgroundPatch.background_color = next.color
+    }
+    if (background.mode !== undefined) {
+      next.mode = optionalEnum(background.mode, "reader view defaults patch.background.mode", ["solid", "auto", "ambient", "aurora", "spotlight"] as const)
+      backgroundPatch.background_mode = next.mode
+    }
+    if (background.ambient !== undefined) {
+      const ambient = requireRecord(background.ambient, "reader view defaults patch.background.ambient")
+      const ambientPatch: Partial<Models.NeoviewBackgroundConfig["ambient"]> = {}
+      if (ambient.style !== undefined) ambientPatch.style = optionalEnum(ambient.style, "reader view defaults patch.background.ambient.style", ["gentle", "vibrant", "dynamic"] as const)
+      if (ambient.speed !== undefined) ambientPatch.speed = boundedNumber(ambient.speed, 2, 20, backgroundConfig.ambient.speed, "reader view defaults patch.background.ambient.speed")
+      if (ambient.blur !== undefined) ambientPatch.blur = boundedNumber(ambient.blur, 20, 150, backgroundConfig.ambient.blur, "reader view defaults patch.background.ambient.blur")
+      if (ambient.opacity !== undefined) ambientPatch.opacity = boundedNumber(ambient.opacity, 0.3, 1, backgroundConfig.ambient.opacity, "reader view defaults patch.background.ambient.opacity")
+      next.ambient = ambientPatch
+      backgroundPatch.ambient = ambientPatch
+    }
+    if (background.aurora !== undefined) {
+      const aurora = requireRecord(background.aurora, "reader view defaults patch.background.aurora")
+      const showRadialGradient = requiredBoolean(aurora.showRadialGradient, "reader view defaults patch.background.aurora.showRadialGradient")
+      next.aurora = { showRadialGradient }
+      backgroundPatch.aurora = { show_radial_gradient: showRadialGradient }
+    }
+    if (background.spotlight !== undefined) {
+      const spotlight = requireRecord(background.spotlight, "reader view defaults patch.background.spotlight")
+      if (typeof spotlight.color !== "string" || !spotlight.color.trim() || spotlight.color.length > 128) throw new Error("reader view defaults patch.background.spotlight.color must be a non-empty string.")
+      next.spotlight = { color: spotlight.color.trim() }
+      backgroundPatch.spotlight = next.spotlight
+    }
+    if (!Object.keys(next).length) throw new Error("reader view defaults patch.background must change at least one field.")
+    patch.viewDefaults.background = next
+  }
   if (!Object.keys(patch.viewDefaults).length) throw new Error("reader view defaults patch must change at least one field.")
+  const viewPatch = {
+    ...(Object.keys(magnifierPatch).length ? { magnifier: magnifierPatch } : {}),
+    ...backgroundPatch,
+  }
   return {
     patch,
     tomlPatch: {
       ...(Object.keys(readerPatch).length ? { reader: readerPatch } : {}),
-      ...(Object.keys(magnifierPatch).length ? { view: { magnifier: magnifierPatch } } : {}),
+      ...(Object.keys(viewPatch).length ? { view: viewPatch } : {}),
     },
   }
 }
@@ -3055,7 +3129,18 @@ function parseCardLayout(panels: Record<string, unknown>): Record<string, Models
     }
   }
   const canonical = optionalRecord(panels.card_state, "[nodes.neoview.panels.card_state]")
+  const legacyAmbientBackground = canonical?.["ambient-background-settings"]
+  if (canonical?.["ambient-background"] === undefined && legacyAmbientBackground !== undefined) {
+    if (!isRecord(legacyAmbientBackground)) throw new Error("[nodes.neoview.panels.card_state.ambient-background-settings] must be a table.")
+    result["ambient-background"] = parseCardValue(
+      "ambient-background",
+      undefined,
+      legacyAmbientBackground,
+      result["ambient-background"],
+    )
+  }
   for (const [cardId, value] of Object.entries(canonical ?? {})) {
+    if (cardId === "ambient-background-settings") continue
     if (!isRecord(value)) throw new Error(`[nodes.neoview.panels.card_state.${cardId}] must be a table.`)
     result[cardId] = parseCardValue(cardId, undefined, value, result[cardId])
   }

@@ -1,0 +1,68 @@
+.reader-background-layer {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  contain: strict;
+  background: var(--reader-background-color, #000);
+  transition: background-color 300ms ease;
+}
+
+.reader-background-image {
+  position: absolute;
+  inset: -12%;
+  background-image: var(--reader-background-image);
+  background-position: center;
+  background-size: cover;
+  filter: blur(48px) saturate(1.15) brightness(0.56);
+  opacity: 0.82;
+  transform: scale(1.08);
+}
+
+.reader-background-layer[data-reader-background-mode="ambient"] .reader-background-image {
+  filter: blur(var(--reader-ambient-blur, 80px)) saturate(1.75) brightness(0.48);
+  opacity: var(--reader-ambient-opacity, 0.8);
+}
+
+.reader-background-ambient {
+  position: absolute;
+  inset: -40%;
+  opacity: var(--reader-ambient-opacity, 0.8);
+  filter: blur(var(--reader-ambient-blur, 80px));
+  will-change: transform;
+}
+
+.reader-background-ambient span { position: absolute; border-radius: 9999px; mix-blend-mode: screen; animation: reader-ambient-float var(--reader-ambient-speed, 8s) ease-in-out infinite alternate; }
+.reader-background-ambient span:nth-child(1) { inset: 4% 48% 48% 4%; background: #6366f1; }
+.reader-background-ambient span:nth-child(2) { inset: 20% 5% 38% 52%; background: #ec4899; animation-delay: -2s; }
+.reader-background-ambient span:nth-child(3) { inset: 52% 42% 4% 22%; background: #22c55e; animation-delay: -4s; }
+.reader-background-ambient span:nth-child(4) { inset: 46% 6% 8% 56%; background: #f97316; animation-delay: -6s; }
+.reader-background-ambient span:nth-child(5) { inset: 0 24% 60% 46%; background: #a855f7; animation-delay: -1s; }
+.reader-background-ambient span:nth-child(6) { inset: 56% 68% 0 0; background: #06b6d4; animation-delay: -3s; }
+.reader-background-layer[data-reader-background-style="gentle"] span { animation-duration: calc(var(--reader-ambient-speed, 8s) * 1.8); }
+.reader-background-layer[data-reader-background-style="dynamic"] span { animation-duration: calc(var(--reader-ambient-speed, 8s) * 0.6); }
+
+.reader-background-aurora {
+  position: absolute;
+  inset: -10px;
+  background-image: repeating-linear-gradient(100deg, #000 0 7%, transparent 10% 12%, #000 16%), repeating-linear-gradient(100deg, #3b82f6 10%, #a5b4fc 15%, #93c5fd 20%, #ddd6fe 25%, #60a5fa 30%);
+  background-size: 300% 200%;
+  opacity: 0.5;
+  filter: blur(10px);
+  animation: reader-aurora 60s linear infinite;
+  will-change: background-position;
+}
+
+.reader-background-aurora.is-masked { mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%); }
+.reader-background-spotlight { position: absolute; inset: -65% -15% -15% 12%; transform: rotate(-30deg); background: radial-gradient(ellipse, color-mix(in srgb, var(--reader-spotlight-color) 26%, transparent), transparent 65%); animation: reader-spotlight 2s ease 0.75s both; }
+
+@keyframes reader-ambient-float { to { transform: translate(16%, 12%) scale(1.2) rotate(8deg); } }
+@keyframes reader-aurora { to { background-position: 350% 50%; } }
+@keyframes reader-spotlight { from { opacity: 0; transform: translate(-18%, -15%) rotate(-30deg) scale(0.6); } to { opacity: 1; transform: rotate(-30deg) scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-background-ambient span,
+  .reader-background-aurora,
+  .reader-background-spotlight { animation: none; }
+}
