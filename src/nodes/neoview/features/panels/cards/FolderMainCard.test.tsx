@@ -1162,7 +1162,7 @@ describe("FolderMainCard", () => {
     expect(breadcrumb.compareDocumentPosition(tabRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.pointerDown(ui.getByRole("button", { name: "标签栏布局设置" }), { button: 0, pointerType: "mouse" })
-    fireEvent.click(await screen.findByRole("button", { name: "标签栏位置：左侧" }))
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "标签栏位置：左侧" }))
     await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ tabs: { layout: "left" } }))
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull())
 

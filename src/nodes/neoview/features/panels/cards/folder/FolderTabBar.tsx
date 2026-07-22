@@ -7,6 +7,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -263,30 +265,34 @@ function FolderTabActionsMenu({ tab, disabled, canDuplicate, canClose, canCloseO
 
 const POSITIONS: readonly ReaderFolderRegionPosition[] = ["none", "top", "bottom", "left", "right"]
 const POSITION_LABELS: Record<ReaderFolderRegionPosition, string> = { none: "隐藏", top: "顶部", bottom: "底部", left: "左侧", right: "右侧" }
+const POSITION_ICONS = {
+  none: EyeOff,
+  top: PanelTop,
+  bottom: PanelBottom,
+  left: PanelLeft,
+  right: PanelRight,
+} as const
 
+/** Compact radio list — replaces the old 5-icon horizontal strip that inflated the menu. */
 function PositionChoices({ label, value, onChange }: { label: string; value: ReaderFolderRegionPosition; onChange(value: ReaderFolderRegionPosition): void }) {
   return (
     <>
       <DropdownMenuLabel>{label}</DropdownMenuLabel>
-      <div className="flex justify-center gap-1 px-2 py-1">
+      <DropdownMenuRadioGroup value={value} onValueChange={(next) => onChange(next as ReaderFolderRegionPosition)}>
         {POSITIONS.map((position) => {
-          const Icon = position === "none" ? EyeOff : position === "top" ? PanelTop : position === "bottom" ? PanelBottom : position === "left" ? PanelLeft : PanelRight
+          const Icon = POSITION_ICONS[position]
           return (
-            <Button
+            <DropdownMenuRadioItem
               key={position}
-              type="button"
-              size="icon-sm"
-              variant={value === position ? "default" : "ghost"}
+              value={position}
               aria-label={`${label}：${POSITION_LABELS[position]}`}
-              aria-pressed={value === position}
-              title={POSITION_LABELS[position]}
-              onClick={() => onChange(position)}
             >
-              <Icon />
-            </Button>
+              <Icon className="size-4" />
+              {POSITION_LABELS[position]}
+            </DropdownMenuRadioItem>
           )
         })}
-      </div>
+      </DropdownMenuRadioGroup>
     </>
   )
 }
@@ -427,7 +433,7 @@ function LayoutSettingsButton({
           </Button>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-[calc(100vh-1rem)] w-52 overflow-y-auto">
+      <DropdownMenuContent align="end" className="w-44" data-folder-layout-settings="true">
         <PositionChoices label="标签栏位置" value={layout.layout} onChange={(value) => select({ layout: value })} />
         <DropdownMenuSeparator />
         <PositionChoices label="面包屑位置" value={layout.breadcrumbPosition} onChange={(value) => select({ breadcrumbPosition: value })} />

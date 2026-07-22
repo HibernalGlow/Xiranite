@@ -111,14 +111,14 @@ describe("FolderTreePanel", () => {
     await waitFor(() => expect(ui.getByTitle("D:\\Pinned").parentElement?.dataset.pinnedRoot).toBe("true"))
     expect(ui.getByTitle("C:\\")).toBeTruthy()
     fireEvent.contextMenu(ui.getByTitle("C:\\books").parentElement!)
-    fireEvent.click(await screen.findByRole("menuitem", { name: "固定到文件树" }))
+    fireEvent.click(await screen.findByRole("menuitem", { name: "置顶到文件树" }))
     expect(onPinnedPathsChange).toHaveBeenCalledWith(["D:\\Pinned", "C:\\books"])
 
     view.rerender(treeElement(client, "C:\\books", onNavigate, ["D:\\Pinned", "C:\\books"], onPinnedPathsChange))
     const pinnedBook = [...view.container.querySelectorAll<HTMLElement>('[data-pinned-root="true"]')]
       .find((row) => row.dataset.treePath === "C:\\books")!
     fireEvent.contextMenu(pinnedBook)
-    fireEvent.click(await screen.findByRole("menuitem", { name: "取消固定" }))
+    fireEvent.click(await screen.findByRole("menuitem", { name: "取消置顶" }))
     expect(onPinnedPathsChange).toHaveBeenLastCalledWith(["D:\\Pinned"])
 
     fireEvent.contextMenu(ui.getByTitle("D:\\Pinned").parentElement!)

@@ -1929,6 +1929,19 @@ export function FolderBrowserPane({
               currentPath={catalog?.path}
               selection={directorySelectionDescriptor(selection)}
               selectedCount={selectedCount}
+              treePinnedPaths={folderView.tree.pinnedPaths}
+              onToggleTreePin={(path) => {
+                const current = folderView.tree.pinnedPaths
+                const key = path.replaceAll("\\", "/").replace(/\/+$/u, "").toLowerCase()
+                const pinned = current.some((candidate) => candidate.replaceAll("\\", "/").replace(/\/+$/u, "").toLowerCase() === key)
+                void onFolderView?.({
+                  tree: {
+                    pinnedPaths: pinned
+                      ? current.filter((candidate) => candidate.replaceAll("\\", "/").replace(/\/+$/u, "").toLowerCase() !== key)
+                      : [...current, path],
+                  },
+                })
+              }}
               onActivate={activate}
               onEnterRawDirectory={enterRawDirectory}
               onOpenInNewTab={onOpenInNewTab}
@@ -2275,11 +2288,13 @@ export function FolderBrowserPane({
                         currentPath={isVirtualSearchPath(catalog.path) ? (catalog.parentPath ?? catalog.path) : catalog.path}
                         watching={active && catalog.watching}
                         disabled={disabled || loading}
-                        pinnedPaths={[]}
+                        pinnedPaths={folderView.tree.pinnedPaths}
                         onNavigate={(path) => {
                           void navigate({ action: "path", path }, { keepTree: true })
                         }}
-                        onPinnedPathsChange={() => undefined}
+                        onPinnedPathsChange={(pinnedPaths) => {
+                          void onFolderView?.({ tree: { pinnedPaths } })
+                        }}
                       />
                     </Suspense>
                   ) : null}
