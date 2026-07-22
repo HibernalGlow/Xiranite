@@ -74,21 +74,6 @@ export function FolderEntryFileMetadata({ entry, className = "" }: { entry: Pick
   return <span className={`truncate text-[9px] text-muted-foreground ${className}`} title={[date, size].filter(Boolean).join(" · ")}>{[date, size].filter(Boolean).join(" · ")}</span>
 }
 
-/** Small, non-blocking affordance explaining what a folder click does in penetration mode. */
-export function FolderEntryPenetrationHint({ entry, enabled, className = "" }: { entry: Pick<ReaderDirectoryEntryDto, "kind">; enabled: boolean; className?: string }) {
-  if (!enabled || entry.kind !== "directory") return null
-  return (
-    <span
-      className={`inline-flex min-w-0 items-center rounded bg-amber-500/10 px-1 text-[9px] font-medium leading-4 text-amber-700 dark:text-amber-300 ${className}`}
-      title="开启穿透后，单击将尝试打开内部文件；双击仍可进入文件夹"
-      aria-label="穿透模式：显示内部文件"
-      data-folder-penetration-hint="true"
-    >
-      显示内部文件
-    </span>
-  )
-}
-
 function folderEntryIconClass(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name">): string {
   if (entry.kind === "directory") return "text-amber-500"
   const extension = folderEntryExtension(entry.name)
