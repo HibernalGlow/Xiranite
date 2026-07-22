@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Columns3, Copy, Folder, HardDrive, MoreHorizontal, Pencil, Plus } from "lucide-react"
+import { ChevronRight, Columns3, Copy, Folder, HardDrive, MoreHorizontal, Pencil, Plus } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -7,12 +7,14 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import FolderBreadcrumbColumns from "./FolderBreadcrumbColumns"
 
@@ -137,13 +139,15 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
     if (reopen) requestAnimationFrame(() => setColumnsOpen(true))
   }
 
+  const busy = disabled || loading
+
   return (
     <div className={vertical ? "h-full min-h-0" : "grid min-w-0 gap-1"} data-breadcrumb-columns-mode={columnsMode}>
     <div
       ref={containerRef}
       className={vertical
         ? "flex h-full min-h-32 w-full flex-col items-stretch overflow-y-auto rounded-md border bg-background p-1"
-        : "flex h-8 min-w-0 items-center overflow-hidden rounded-md border bg-background px-1"}
+        : `flex h-8 min-w-0 items-center overflow-hidden rounded-md border bg-background px-1 ${editing || busy ? "" : "cursor-text"}`}
       data-neoview-folder-breadcrumb="true"
       data-orientation={vertical ? "vertical" : "horizontal"}
       onKeyDownCapture={(event) => {
@@ -187,25 +191,54 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
         </form>
       ) : (
         <>
-          <nav ref={breadcrumbNavRef} aria-label="当前目录" className={vertical ? "flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto" : "flex min-w-0 flex-1 items-center gap-0 overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}>
+          <nav
+            ref={breadcrumbNavRef}
+            aria-label="当前目录"
+            title={busy ? path : `${path}\n单击空白处或当前段可编辑路径`}
+            className={vertical
+              ? "flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto"
+              : "flex min-w-0 flex-1 cursor-text items-center gap-0 overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}
+            onClick={(event) => {
+              if (busy) return
+              // Empty padding / chevrons → edit full path (Explorer-style).
+              if (event.target === event.currentTarget || (event.target as HTMLElement).closest("[data-breadcrumb-edit-hit='true']")) {
+                startEditing()
+              }
+            }}
+          >
             {visible.visible.map((item, index) => {
               const current = item === items.at(-1)
               return (
                 <span key={item.path} className={vertical ? "flex min-w-0 flex-col items-stretch" : "flex shrink-0 items-center"}>
-                  {index > 0 || visible.collapsed.length > 0 ? <ChevronRight className={`shrink-0 text-muted-foreground ${vertical ? "mx-auto rotate-90" : ""}`} aria-hidden="true" /> : null}
-                  {index === 1 && visible.collapsed.length > 0 ? (
-                    <CollapsedSegments items={visible.collapsed} disabled={disabled || loading} onNavigate={onNavigate} />
+                  {index > 0 || visible.collapsed.length > 0 ? (
+                    <ChevronRight
+                      data-breadcrumb-edit-hit="true"
+                      className={`shrink-0 text-muted-foreground ${vertical ? "mx-auto rotate-90" : ""}`}
+                      aria-hidden="true"
+                    />
                   ) : null}
-                  {index === 1 && visible.collapsed.length > 0 ? <ChevronRight className={`shrink-0 text-muted-foreground ${vertical ? "mx-auto rotate-90" : ""}`} aria-hidden="true" /> : null}
+                  {index === 1 && visible.collapsed.length > 0 ? (
+                    <CollapsedSegments items={visible.collapsed} disabled={busy} onNavigate={onNavigate} />
+                  ) : null}
+                  {index === 1 && visible.collapsed.length > 0 ? (
+                    <ChevronRight
+                      data-breadcrumb-edit-hit="true"
+                      className={`shrink-0 text-muted-foreground ${vertical ? "mx-auto rotate-90" : ""}`}
+                      aria-hidden="true"
+                    />
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"
                     variant={current ? "secondary" : "ghost"}
-                    className={`h-6 min-w-0 shrink-0 px-1.5 text-xs ${vertical ? "w-full max-w-none justify-start" : "max-w-32"}`}
+                    className={`h-6 min-w-0 shrink-0 px-1.5 text-xs ${current && !vertical ? "cursor-text" : ""} ${vertical ? "w-full max-w-none justify-start" : "max-w-32"}`}
                     aria-current={current ? "page" : undefined}
-                    disabled={disabled || loading}
-                    title={item.path}
-                    onClick={() => { if (!current) onNavigate(item.path) }}
+                    disabled={busy}
+                    title={current ? `${item.path}\n单击编辑完整路径` : item.path}
+                    onClick={() => {
+                      if (current) startEditing()
+                      else onNavigate(item.path)
+                    }}
                   >
                     {item.root ? <HardDrive data-icon="inline-start" /> : index === 0 ? <Folder data-icon="inline-start" /> : null}
                     <span className="truncate">{item.name}</span>
@@ -213,79 +246,87 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
                 </span>
               )
             })}
+            {/* Trailing flex space so empty area after the last segment is clickable. */}
+            {!vertical ? <span data-breadcrumb-edit-hit="true" className="min-h-6 min-w-2 flex-1 self-stretch" aria-hidden="true" /> : null}
           </nav>
-          {canCreateTab && onCreateTab ? (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              className="size-7 shrink-0"
-              aria-label="新建文件夹标签"
-              title="新建文件夹标签"
-              disabled={disabled || loading}
-              onClick={onCreateTab}
-            >
-              <Plus />
-            </Button>
-          ) : null}
-          {columnsAvailable ? (
-            <div className="flex shrink-0 items-center">
-              {columnsMode === "floating" ? (
-                <Popover open={columnsOpen} onOpenChange={setColumnsOpen}>
-                  <PopoverTrigger asChild>
+          <Popover
+            open={columnsAvailable && columnsMode === "floating" ? columnsOpen : false}
+            onOpenChange={(open) => {
+              if (columnsMode === "floating") setColumnsOpen(open)
+            }}
+          >
+            <PopoverAnchor asChild>
+              <span className="inline-flex shrink-0">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button
                       type="button"
                       size="icon-sm"
-                      variant={columnsOpen ? "secondary" : "ghost"}
-                      className="size-7"
-                      aria-label={columnsOpen ? "收起目录列" : "展开目录列"}
-                      title={columnsOpen ? "收起目录列" : "展开目录列"}
-                      aria-expanded={columnsOpen}
-                      disabled={disabled || loading}
+                      variant="ghost"
+                      className="size-7 shrink-0"
+                      aria-label="路径操作"
+                      title="路径操作"
+                      disabled={busy}
+                      data-breadcrumb-actions-trigger="true"
                     >
-                      <Columns3 />
+                      <MoreHorizontal />
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" sideOffset={4} className="w-[min(48rem,calc(100vw-2rem))] overflow-hidden p-0">
-                    {columnsContent}
-                  </PopoverContent>
-                </Popover>
-              ) : (
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant={columnsOpen ? "secondary" : "ghost"}
-                  className="size-7"
-                  aria-label={columnsOpen ? "收起目录列" : "展开目录列"}
-                  title={columnsOpen ? "收起目录列" : "展开目录列"}
-                  aria-expanded={columnsOpen}
-                  disabled={disabled || loading}
-                  onClick={() => setColumnsOpen((current) => !current)}
-                >
-                  <Columns3 />
-                </Button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" size="icon-sm" variant="ghost" className="w-5 px-0" aria-label="目录列显示方式" title="目录列显示方式" disabled={disabled || loading}>
-                    <ChevronDown className="size-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-36">
-                  <DropdownMenuRadioGroup value={columnsMode} onValueChange={changeColumnsMode}>
-                    <DropdownMenuRadioItem value="inline">下拉展开</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="floating">浮动窗口</DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          ) : null}
-          <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="编辑路径" title="编辑路径" disabled={disabled || loading} onClick={startEditing}>
-            <Pencil />
-          </Button>
-          <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="复制当前路径" title="复制当前路径" disabled={disabled || loading || !path || !onCopyPath} onClick={() => void copyCurrentPath()}>
-            <Copy />
-          </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="min-w-44"
+                    data-breadcrumb-actions-menu="true"
+                    onCloseAutoFocus={(event) => {
+                      // Keep focus transfer free for path editing / column toggles.
+                      event.preventDefault()
+                    }}
+                  >
+                    {canCreateTab && onCreateTab ? (
+                      <DropdownMenuItem onSelect={() => onCreateTab()}>
+                        <Plus />新建文件夹标签
+                      </DropdownMenuItem>
+                    ) : null}
+                    {columnsAvailable ? (
+                      <DropdownMenuItem onSelect={() => setColumnsOpen((current) => !current)}>
+                        <Columns3 />{columnsOpen ? "收起目录列" : "展开目录列"}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {columnsAvailable ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>目录列显示方式</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup value={columnsMode} onValueChange={changeColumnsMode}>
+                          <DropdownMenuRadioItem value="inline">下拉展开</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="floating">浮动窗口</DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                        <DropdownMenuSeparator />
+                      </>
+                    ) : null}
+                    <DropdownMenuItem
+                      disabled={busy}
+                      onSelect={() => {
+                        // Defer past menu unmount so the path input keeps focus.
+                        window.setTimeout(() => startEditing(), 0)
+                      }}
+                    >
+                      <Pencil />编辑路径
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={busy || !path || !onCopyPath}
+                      onSelect={() => { void copyCurrentPath() }}
+                    >
+                      <Copy />复制当前路径
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </span>
+            </PopoverAnchor>
+            {columnsAvailable && columnsMode === "floating" ? (
+              <PopoverContent align="end" sideOffset={4} className="w-[min(48rem,calc(100vw-2rem))] overflow-hidden p-0">
+                {columnsContent}
+              </PopoverContent>
+            ) : null}
+          </Popover>
         </>
       )}
       {feedback ? <span className="sr-only" role={feedback.kind}>{feedback.text}</span> : null}
