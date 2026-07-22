@@ -1,16 +1,18 @@
 import type {
   CollisionDetection,
+  DndContextProps,
   DragEndEvent,
+  DragOverEvent,
   DragStartEvent,
   UniqueIdentifier,
 } from "@dnd-kit/core"
-import { closestCenter, pointerWithin, rectIntersection } from "@dnd-kit/core"
+import { closestCenter, MeasuringStrategy, pointerWithin, rectIntersection } from "@dnd-kit/core"
 import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { GripVertical, LayoutGrid, PanelLeft, RotateCcw, Save, type LucideIcon } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -47,6 +49,9 @@ const LANES: Array<{ id: LaneId; title: string; hint: string }> = [
   { id: "right", title: "右侧栏", hint: "停靠在阅读器右侧" },
   { id: "hidden", title: "隐藏", hint: "不显示的面板与卡片" },
 ]
+const BOARD_DND_MEASURING: DndContextProps["measuring"] = {
+  droppable: { strategy: MeasuringStrategy.BeforeDragging },
+}
 
 type DragKind = "panel" | "card"
 
@@ -58,6 +63,15 @@ interface DragState {
   cardCount?: number
   width?: number
   height?: number
+}
+
+interface CardLandingPreview {
+  activeId: string
+  overId: string
+  title: string
+  afterTarget: boolean
+  targetPanelId: string
+  insertAt: number
 }
 
 /**
@@ -79,8 +93,10 @@ export function BoardSwimlaneEditor({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string>()
   const [drag, setDrag] = useState<DragState>()
+  const [landingPreview, setLandingPreview] = useState<CardLandingPreview>()
   const [collapsedLanes, setCollapsedLanes] = useState<Record<LaneId, boolean>>({ left: false, right: false, hidden: false })
   const dragInitialLanesRef = useRef<BoardLanes>()
+  const landingPreviewRef = useRef<CardLandingPreview>()
   // Only re-sync the draft when the board itself changes. Depending on the whole
   // `shell` object reset the kanban whenever workspace auto-fit / material wrote
   // a new shell identity — wiping in-progress left/right moves and thrashing render.
@@ -157,6 +173,7 @@ export function BoardSwimlaneEditor({
     const title = panel?.title ?? card?.title ?? activeId
     if (kind === "panel" || kind === "card") {
       dragInitialLanesRef.current = cloneLanes(lanes)
+      clearLandingPreview()
       setDrag({
         kind,
         id: activeId,
@@ -169,9 +186,54 @@ export function BoardSwimlaneEditor({
     }
   }
 
+  function onDragOver(event: DragOverEvent) {
+    const base = dragInitialLanesRef.current ?? lanes
+    const activeId = String(event.active.id)
+    const overId = event.over ? String(event.over.id) : undefined
+    const source = findCardLocation(base, activeId)
+    if (!source || !event.over || !overId || !cardTargetAccepts(base, activeId, overId)) {
+      clearLandingPreview()
+      return
+    }
+
+    const card = base[source.lane][source.panelIndex]?.cards[source.index]
+    if (!card) {
+      clearLandingPreview()
+      return
+    }
+    const targetCard = findCardLocation(base, overId)
+    const target = resolveCardTarget(base, overId)
+    if (!target) {
+      clearLandingPreview()
+      return
+    }
+    const activeRect = event.active.rect.current.translated
+    const activeCenter = activeRect ? activeRect.top + activeRect.height / 2 : event.over.rect.top
+    const afterTarget = Boolean(targetCard && activeCenter > event.over.rect.top + event.over.rect.height / 2)
+    const targetIndex = target.index + (afterTarget && targetCard ? 1 : 0)
+    const insertAt = source.panelId === target.panelId && source.index < targetIndex ? targetIndex - 1 : targetIndex
+    if (source.panelId === target.panelId && source.index === insertAt) {
+      clearLandingPreview()
+      return
+    }
+    const next: CardLandingPreview = {
+      activeId,
+      overId,
+      title: card.title,
+      afterTarget,
+      targetPanelId: target.panelId,
+      insertAt,
+    }
+    if (landingPreviewsEqual(landingPreviewRef.current, next)) return
+    landingPreviewRef.current = next
+    setLandingPreview(next)
+  }
+
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event
     setDrag(undefined)
+    const preview = landingPreviewRef.current
+    clearLandingPreview()
     const initialLanes = dragInitialLanesRef.current
     dragInitialLanesRef.current = undefined
     if (!over) {
@@ -180,11 +242,16 @@ export function BoardSwimlaneEditor({
     }
     const activeId = String(active.id)
     const base = initialLanes ?? lanes
-    setLanes(applyBoardDrop(base, activeId, String(over.id)))
+    const overId = preview?.activeId === activeId ? preview.overId : String(over.id)
+    const next = applyBoardDrop(base, activeId, overId, preview?.activeId === activeId && preview.afterTarget)
+    const commit = () => setLanes(next)
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(commit)
+    else setTimeout(commit, 0)
   }
 
   function onDragCancel() {
     setDrag(undefined)
+    clearLandingPreview()
     const initialLanes = dragInitialLanesRef.current
     dragInitialLanesRef.current = undefined
     if (initialLanes) setLanes(initialLanes)
@@ -201,7 +268,9 @@ export function BoardSwimlaneEditor({
         // Keep the rendered board stable while dnd-kit measures collision
         // targets. Placement is applied once in onDragEnd.
         collisionDetection={collisionDetection}
+        measuring={BOARD_DND_MEASURING}
         onDragStart={onDragStart}
+        onDragOver={onDragOver}
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
@@ -220,6 +289,7 @@ export function BoardSwimlaneEditor({
               collapsed={collapsedLanes[lane.id]}
               onCollapsedChange={(collapsed) => setCollapsedLanes((current) => ({ ...current, [lane.id]: collapsed }))}
               disabled={saving}
+              landingPreview={landingPreview}
             />
           ))}
         </KanbanBoard>
@@ -244,6 +314,12 @@ export function BoardSwimlaneEditor({
       {content}
     </SettingsCardShell>
   )
+
+  function clearLandingPreview() {
+    if (!landingPreviewRef.current) return
+    landingPreviewRef.current = undefined
+    setLandingPreview(undefined)
+  }
 }
 
 function LaneColumn({
@@ -252,12 +328,14 @@ function LaneColumn({
   collapsed,
   onCollapsedChange,
   disabled,
+  landingPreview,
 }: {
   lane: (typeof LANES)[number]
   panels: BoardPanel[]
   collapsed: boolean
   onCollapsedChange(collapsed: boolean): void
   disabled: boolean
+  landingPreview: CardLandingPreview | undefined
 }) {
   if (collapsed) {
     return (
@@ -311,7 +389,12 @@ function LaneColumn({
       </header>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
         {panels.map((panel) => (
-          <SortablePanel key={panel.id} panel={panel} disabled={disabled || !panel.canMove} />
+          <SortablePanel
+            key={panel.id}
+            panel={panel}
+            disabled={disabled || !panel.canMove}
+            landingPreview={landingPreview?.targetPanelId === panel.id ? landingPreview : undefined}
+          />
         ))}
         {panels.length === 0 ? (
           <div className="grid flex-1 place-items-center rounded-md border border-dashed px-2 py-8 text-center text-[11px] text-muted-foreground">
@@ -326,9 +409,11 @@ function LaneColumn({
 function SortablePanel({
   panel,
   disabled,
+  landingPreview,
 }: {
   panel: BoardPanel
   disabled: boolean
+  landingPreview: CardLandingPreview | undefined
 }) {
   const cardIds = panel.cards.map((card) => card.id)
   const exclusive = panel.cards.find((card) => card.exclusivePanel)
@@ -360,9 +445,15 @@ function SortablePanel({
       <div className="flex h-auto flex-col gap-1 p-1.5" data-panel-drop-zone={panel.id}>
         {panel.acceptsCards ? (
           <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
-            {panel.cards.map((card) => (
-              <SortableCard key={card.id} card={card} panelId={panel.id} disabled={disabled} />
+            {panel.cards.map((card, index) => (
+              <Fragment key={card.id}>
+                {landingPreview?.insertAt === index ? <BoardCardLandingPreview preview={landingPreview} /> : null}
+                <SortableCard card={card} panelId={panel.id} disabled={disabled} />
+              </Fragment>
             ))}
+            {landingPreview && landingPreview.insertAt >= panel.cards.length
+              ? <BoardCardLandingPreview preview={landingPreview} />
+              : null}
             {panel.cards.length === 0 ? (
               <div className="rounded border border-dashed px-2 py-3 text-center text-[10px] text-muted-foreground">
                 拖入卡片
@@ -514,9 +605,9 @@ export function createBoardPatch(shell: ReaderShellConfigDto, lanes: BoardLanes)
   }
 }
 
-export function applyBoardDrop(lanes: BoardLanes, activeId: string, overId: string): BoardLanes {
+export function applyBoardDrop(lanes: BoardLanes, activeId: string, overId: string, afterTarget = false): BoardLanes {
   const next = findCardLocation(lanes, activeId)
-    ? moveCardToTarget(lanes, activeId, overId)
+    ? moveCardToTarget(lanes, activeId, overId, afterTarget)
     : findPanelLocation(lanes, activeId)
       ? movePanelToTarget(lanes, activeId, overId)
       : lanes
@@ -540,13 +631,15 @@ function boardLanesEqual(left: BoardLanes, right: BoardLanes): boolean {
   return true
 }
 
-function moveCardToTarget(lanes: BoardLanes, cardId: string, overId: string): BoardLanes {
+function moveCardToTarget(lanes: BoardLanes, cardId: string, overId: string, afterTarget: boolean): BoardLanes {
   const from = findCardLocation(lanes, cardId)
   if (!from) return lanes
   const target = resolveCardTarget(lanes, overId)
   if (!target) return lanes
-  if (from.panelId === target.panelId && from.index === target.index) return lanes
   if (!cardTargetAccepts(lanes, cardId, overId)) return lanes
+  const targetIndex = target.index + (afterTarget && findCardLocation(lanes, overId) ? 1 : 0)
+  const insertAt = from.panelId === target.panelId && from.index < targetIndex ? targetIndex - 1 : targetIndex
+  if (from.panelId === target.panelId && from.index === insertAt) return lanes
 
   const next = cloneLanes(lanes)
   const fromPanel = next[from.lane][from.panelIndex]
@@ -554,7 +647,6 @@ function moveCardToTarget(lanes: BoardLanes, cardId: string, overId: string): Bo
   if (!fromPanel || !toPanel) return lanes
   const [moved] = fromPanel.cards.splice(from.index, 1)
   if (!moved) return lanes
-  const insertAt = from.panelId === target.panelId && from.index < target.index ? target.index - 1 : target.index
   toPanel.cards.splice(Math.max(0, Math.min(insertAt, toPanel.cards.length)), 0, moved)
   return next
 }
@@ -649,6 +741,29 @@ function cloneLanes(lanes: BoardLanes): BoardLanes {
     right: lanes.right.map((panel) => ({ ...panel, cards: [...panel.cards] })),
     hidden: lanes.hidden.map((panel) => ({ ...panel, cards: [...panel.cards] })),
   }
+}
+
+function landingPreviewsEqual(left: CardLandingPreview | undefined, right: CardLandingPreview): boolean {
+  return Boolean(left
+    && left.activeId === right.activeId
+    && left.overId === right.overId
+    && left.afterTarget === right.afterTarget
+    && left.targetPanelId === right.targetPanelId
+    && left.insertAt === right.insertAt)
+}
+
+function BoardCardLandingPreview({ preview }: { preview: CardLandingPreview }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none relative z-10 flex min-h-8 flex-none items-center gap-1.5 rounded border-2 border-dashed border-primary/60 bg-primary/10 px-2 py-1.5 text-[11px] text-foreground shadow-sm ring-2 ring-primary/10"
+      data-neoview-board-landing-preview="card"
+      data-neoview-board-landing-position={preview.afterTarget ? "after" : "before"}
+    >
+      <GripVertical className="size-3 shrink-0 text-primary" />
+      <span className="min-w-0 flex-1 truncate font-medium">{preview.title}</span>
+    </div>
+  )
 }
 
 function BoardDragPreview({ drag }: { drag: DragState }) {

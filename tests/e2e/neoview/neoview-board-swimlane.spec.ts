@@ -44,7 +44,7 @@ test("[neoview.board-swimlane.panel-dnd] moves panels once at drop", async ({ pa
   await page.screenshot({ path: testInfo.outputPath("neoview-board-swimlane.png"), fullPage: false })
 })
 
-test("[neoview.board-swimlane.card-dnd] moves cards once at drop", async ({ page }) => {
+test("[neoview.board-swimlane.card-dnd] previews and moves cards once at drop", async ({ page }, testInfo) => {
   const runtimeErrors = captureRuntimeErrors(page)
   await page.goto("/tests/e2e/neoview/neoview-board-swimlane-harness.html", { waitUntil: "domcontentloaded" })
   const leftLane = page.locator('[data-neoview-board-lane="left"]')
@@ -65,10 +65,18 @@ test("[neoview.board-swimlane.card-dnd] moves cards once at drop", async ({ page
   await page.mouse.down()
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 18 })
   await expect(page.locator('[data-neoview-drag-preview="card"]')).toBeVisible()
+  const landingPreview = page.locator('[data-neoview-board-landing-preview="card"]')
+  await expect(landingPreview).toBeVisible()
+  await expect(landingPreview).toContainText("书籍信息")
   await expect(sourceCard).toBeVisible()
+  const landingBox = await landingPreview.boundingBox()
+  expect(landingBox?.x).toBeGreaterThanOrEqual(targetBox.x - 1)
+  expect(landingBox?.x).toBeLessThanOrEqual(targetBox.x + 1)
+  await page.screenshot({ path: testInfo.outputPath("neoview-board-card-landing-preview.png"), fullPage: false })
   await page.mouse.up()
   await expect(targetPanel.locator('[data-neoview-board-card="book-information"]')).toBeVisible()
   await expect(page.locator('[data-neoview-drag-preview="card"]')).toHaveCount(0)
+  await expect(landingPreview).toHaveCount(0)
   expect(runtimeErrors).toEqual([])
 })
 

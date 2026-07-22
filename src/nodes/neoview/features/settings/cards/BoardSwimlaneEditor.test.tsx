@@ -57,6 +57,18 @@ describe("BoardSwimlaneEditor layout moves", () => {
     expect(applyBoardDrop(moved, "book-information", "book-information")).toBe(moved)
   })
 
+  it("places a card after the hovered card when the landing preview says after", () => {
+    const lanes = createBoardLanes(shellConfig())
+    const moved = applyBoardDrop(lanes, "book-information", "media-settings", true)
+    const settings = moved.left.find((panel) => panel.id === "settings")
+
+    expect(settings?.cards.slice(0, 3).map((card) => card.id)).toEqual([
+      "slideshow-settings",
+      "media-settings",
+      "book-information",
+    ])
+  })
+
   it("applies a cross-lane panel move exactly once at drop", () => {
     const lanes = createBoardLanes(shellConfig())
     const moved = applyBoardDrop(lanes, "settings", "info")
