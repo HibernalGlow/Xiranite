@@ -7,6 +7,8 @@ export interface DevSession {
   childPids: number[]
   script: string
   startedAt: number
+  /** Authoritative browser URL for this session (includes the real Vite port). */
+  frontendUrl?: string
 }
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -53,4 +55,5 @@ function isDevSession(value: unknown): value is DevSession {
     && session.childPids.every((pid) => Number.isInteger(pid))
     && typeof session.script === "string"
     && Number.isFinite(session.startedAt)
+    && (session.frontendUrl === undefined || typeof session.frontendUrl === "string")
 }

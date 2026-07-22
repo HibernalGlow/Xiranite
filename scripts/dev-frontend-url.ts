@@ -15,7 +15,16 @@ export async function resolveManagedFrontendUrl(
   environment: DevFrontendEnvironment = Bun.env,
 ): Promise<string> {
   const configuredUrl = environment.FRONTEND_DEVSERVER_URL?.trim()
-  if (configuredUrl) return new URL(configuredUrl).href.replace(/\/$/, "")
+  if (configuredUrl) {
+    const url = new URL(configuredUrl)
+    const port = Number(url.port || (url.protocol === "https:" ? "443" : "80"))
+    if (!(await canListen(url.hostname === "localhost" ? "127.0.0.1" : url.hostname, port))) {
+      throw new Error(
+        `FRONTEND_DEVSERVER_URL port ${port} is already in use. Stop the occupying process or unset FRONTEND_DEVSERVER_URL so XR can pick a free port.`,
+      )
+    }
+    return url.href.replace(/\/$/, "")
+  }
 
   const preferredPort = parsePreferredPort(environment.XIRANITE_FRONTEND_PORT)
   for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset += 1) {
@@ -35,16 +44,26 @@ export function managedViteCacheDir(): string {
   return resolve(repoRoot, ".cache", "vite", "managed")
 }
 
-function parsePreferredPort(value: string | undefined): number {
-  if (value === undefined || value.trim() === "") return DEFAULT_FRONTEND_PORT
-  const port = Number(value)
-  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
-    throw new Error("XIRANITE_FRONTEND_PORT must be an integer between 1 and 65535.")
-  }
-  return port
+export function frontendPortFromUrl(frontendUrl: string): number {
+  const frontend = new URL(frontendUrl)
+  return Number(frontend.port || (frontend.protocol === "https:" ? "443" : "80"))
 }
 
-function canListen(host: string, port: number): Promise<boolean> {
+export async function waitForPortFree(
+  host: string,
+  port: number,
+  options: { attempts?: number; delayMs?: number } = {},
+): Promise<boolean> {
+  const attempts = options.attempts ?? 50
+  const delayMs = options.delayMs ?? 100
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (await canListen(host, port)) return true
+    await Bun.sleep(delayMs)
+  }
+  return canListen(host, port)
+}
+
+export async function canListen(host: string, port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = createServer()
     server.unref()
@@ -53,4 +72,13 @@ function canListen(host: string, port: number): Promise<boolean> {
       server.close(() => resolve(true))
     })
   })
+}
+
+function parsePreferredPort(value: string | undefined): number {
+  if (value === undefined || value.trim() === "") return DEFAULT_FRONTEND_PORT
+  const port = Number(value)
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
+    throw new Error("XIRANITE_FRONTEND_PORT must be an integer between 1 and 65535.")
+  }
+  return port
 }

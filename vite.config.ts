@@ -121,10 +121,13 @@ export default defineConfig({
     watch: {
       ignored: ["**/.cache/**", "**/build/**", "**/artifacts/**", "**/native/target/**"],
     },
+    // Keep HMR on the main HTTP server. Setting `hmr.port` to a different value
+    // opens a websocket-only listener that answers document GETs with 426/404 and
+    // steals free ports from the next managed XR session.
     hmr: process.env.VITE_XIRANITE_FRONTEND_DEV_URL
       ? {
           host: new URL(process.env.VITE_XIRANITE_FRONTEND_DEV_URL).hostname,
-          port: Number(new URL(process.env.VITE_XIRANITE_FRONTEND_DEV_URL).port) || 5173,
+          clientPort: Number(new URL(process.env.VITE_XIRANITE_FRONTEND_DEV_URL).port) || 5173,
         }
       : undefined,
   },
