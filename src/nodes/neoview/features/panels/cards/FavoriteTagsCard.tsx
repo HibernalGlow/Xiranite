@@ -2,7 +2,7 @@
 import { RefreshCw, Star, Tags } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
-import type { ReaderEmmTagSuggestionDto } from "../../../adapters/reader-http-client"
+import type { ReaderEmmTagSuggestionDto, ReaderManualTagSummaryDto } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../registry"
 import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 
@@ -14,6 +14,7 @@ export default function FavoriteTagsCard({ client, panelActive = true }: ReaderP
 function FavoriteTagsContent({ client }: { client: ReaderPanelContext["client"] }) {
   const [revision, setRevision] = useState(0)
   const [mixedGender, setMixedGender] = useState(false)
+  const [manualTags, setManualTags] = useState<readonly ReaderManualTagSummaryDto[]>([])
   const [state, setState] = useState<{ loading: boolean; tags: readonly ReaderEmmTagSuggestionDto[]; error?: string }>({ loading: true, tags: [] })
   useEffect(() => {
     const controller = new AbortController()
@@ -21,7 +22,10 @@ function FavoriteTagsContent({ client }: { client: ReaderPanelContext["client"] 
     const request = client.suggestDirectoryEmmTags
       ? client.suggestDirectoryEmmTags(32, controller.signal)
       : Promise.reject(new Error("当前后端不支持 EMM 标签建议。"))
-    void request.then((tags) => { if (!controller.signal.aborted) setState({ loading: false, tags }) }).catch((error) => {
+    void (async () => {
+      const [tags, manual] = await Promise.all([request, client.listManualEmmTags?.(64, controller.signal).catch(() => []) ?? Promise.resolve([])])
+      if (!controller.signal.aborted) { setState({ loading: false, tags }); setManualTags(manual) }
+    })().catch((error) => {
       if (!controller.signal.aborted) setState({ loading: false, tags: [], error: error instanceof Error ? error.message : String(error) })
     })
     return () => controller.abort()
@@ -34,6 +38,7 @@ function FavoriteTagsContent({ client }: { client: ReaderPanelContext["client"] 
     <div className="space-y-2 text-[11px]" data-favorite-tags-card="true">
       <div className="flex items-center justify-between"><span className="inline-flex items-center gap-1 text-muted-foreground"><Tags className="size-3" />{state.tags.length} 个标签</span><Button type="button" size="icon-sm" variant="ghost" aria-label="刷新收藏标签" onClick={() => setRevision((value) => value + 1)}><RefreshCw /></Button></div>
       <label className="flex items-center gap-1.5 text-[10px]"><input type="checkbox" checked={mixedGender} onChange={(event) => setMixedGender(event.currentTarget.checked)} />混合性别搜索</label>
+      <div className="border-b pb-2"><div className="mb-1 flex justify-between text-[10px]"><span>手动标签</span><span>{manualTags.length} 种</span></div>{manualTags.length ? <div className="flex flex-wrap gap-1">{manualTags.map((tag) => <span key={`${tag.namespace}\0${tag.tag}`} className="rounded border border-dashed px-1.5 py-0.5 text-[10px]" title={`${tag.namespace}:${tag.tag} (${tag.count}个文件)`}>{tag.namespace.slice(0, 1)}:{tag.tag} ×{tag.count}</span>)}</div> : <p className="text-[10px] text-muted-foreground">暂无手动标签</p>}</div>
       <div className="max-h-56 space-y-2 overflow-auto" aria-label="收藏标签列表">{groups.map(([category, tags]) => <section key={category}><div className="mb-1 flex justify-between rounded bg-muted/50 px-1.5 py-0.5"><span>{category}</span><span>{tags.length}</span></div><div className="flex flex-wrap gap-1">{tags.map((tag) => <button type="button" key={`${tag.category}\0${tag.tag}`} className="inline-flex items-center gap-1 rounded border px-1.5 py-1 text-[10px]" title={`${tag.category}:${tag.tag}`}>{tag.favorite ? <Star className="size-3 fill-amber-400 text-amber-500" /> : null}{tag.translatedTag ?? tag.tag}</button>)}</div></section>)}</div>
     </div>
   )
