@@ -1285,11 +1285,7 @@ export function ThemeSettings() {
           />
 
           <div className={cn("bg-card border border-border rounded-sm p-4 space-y-4", section !== "view" && "hidden")}>
-            <div className="grid gap-3 border-b border-border/60 pb-4">
-              <div>
-                <h3 className="text-sm font-semibold">泳道交互</h3>
-                <p className="mt-1 text-xs text-muted-foreground">当前工作区的泳道聚焦、独占和边缘调阅。</p>
-              </div>
+            <div className="border-b border-border/60 pb-4">
               <SwimlaneInteractionSettings
                 value={{
                   soloOnFocus: lanePreferences.soloOnFocus,
@@ -1298,9 +1294,13 @@ export function ThemeSettings() {
                   focusOnHover: lanePreferences.focusOnHover,
                   focusDelayMs: lanePreferences.focusDelayMs,
                 }}
-                labels={{ soloOnFocus: "泳道聚焦时自动全屏", showNavigatorInSolo: "独占时显示泳道切换栏", focusOnHover: "悬停后重新聚焦泳道", focusDelay: "泳道重新聚焦延迟" }}
+                labels={{ soloOnFocus: "主泳道聚焦时自动独占", showNavigatorInSolo: "独占时显示泳道切换栏", focusOnHover: "启用主泳道悬停重新聚焦", focusDelay: "主泳道悬停重新聚焦延迟" }}
                 onChange={(patch) => workspaceActions.patchLaneWorkspacePreferences(state.activeWorkspaceId, patch)}
               />
+              <label className="mt-3 flex min-h-11 items-center justify-between gap-4 rounded-md border border-border/70 px-3 py-2 text-sm">
+                <span>固定栏跟随聚焦泳道</span>
+                <Switch checked={lanePreferences.navigatorFollowsFocus} onCheckedChange={(navigatorFollowsFocus) => workspaceActions.patchLaneWorkspacePreferences(state.activeWorkspaceId, { navigatorFollowsFocus, ...(navigatorFollowsFocus ? { navigatorLaneId: lanePreferences.activeLaneId } : {}) })} />
+              </label>
             </div>
             <div className="space-y-3 border-b border-border/60 pb-4">
               <div>

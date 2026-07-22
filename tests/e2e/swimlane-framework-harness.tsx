@@ -17,7 +17,7 @@ function Harness() {
   const [activeLaneId, setActiveLaneId] = useState("lane-0")
   const [soloLaneId, setSoloLaneId] = useState<string | undefined>("lane-0")
   const [position, setPosition] = useState({ x: 94, y: 92 })
-  const [dock, setDock] = useState<"floating" | "title">("floating")
+  const [dock, setDock] = useState<"floating" | "left" | "right" | "top" | "bottom">("floating")
   const [handleStyle, setHandleStyle] = useState<"grip" | "groove" | "move" | "grab" | "edge">("groove")
   const [handlePosition, setHandlePosition] = useState<"left" | "right">("right")
   const [host, setHost] = useState<HTMLElement | null>(null)
@@ -25,7 +25,7 @@ function Harness() {
   const interaction = { laneOrder: ITEMS.map((item) => item.id), activeLaneId, soloLaneId }
   return <main data-context-menu="workspace-canvas" className="grid min-h-screen place-items-center bg-background p-8 text-foreground">
     <section ref={setHost} data-swimlane-harness="true" className="relative overflow-hidden border bg-card" style={{ width: 420, height: 320 }}>
-      <header className="flex h-8 items-center border-b px-2"><span ref={setTitleHost} className="flex min-w-0 flex-1">{dock === "title" ? null : "活动泳道"}</span></header>
+      <header className="flex h-8 items-center border-b px-2"><span ref={setTitleHost} className="flex min-w-0 flex-1">{dock === "top" ? null : "活动泳道"}</span></header>
       <div className="flex overflow-x-auto" style={{ height: 288 }} data-swimlane-strip="true">
         {ITEMS.slice(0, 2).map((item) => <button
           key={item.id}

@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Pencil, Ellipsis, Eraser, EyeOff, Trash2 } from "lucide-react"
+import { Pencil, Ellipsis, Eraser, EyeOff, RotateCcw, Trash2 } from "lucide-react"
 import type { Lane as LaneType } from "@/types/workspace"
 import { useWorkspaceActions } from "@/store/workspaceStore"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
@@ -46,9 +46,10 @@ interface Props {
   hideTitleForNavigator?: boolean
   onWidthRatioChange?(ratio: number): void
   onClear?(): void
+  onResetNavigatorPosition?(): void
 }
 
-export function Lane({ lane, components, active = false, solo = false, soloWidth, onActivate, onHoverFocus, onHoverFocusCancel, onTitleHostChange, hideTitleForNavigator = false, onWidthRatioChange, onClear }: Props) {
+export function Lane({ lane, components, active = false, solo = false, soloWidth, onActivate, onHoverFocus, onHoverFocusCancel, onTitleHostChange, hideTitleForNavigator = false, onWidthRatioChange, onClear, onResetNavigatorPosition }: Props) {
   const { t } = useTranslation()
   const workspaceActions = useWorkspaceActions()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -131,7 +132,7 @@ export function Lane({ lane, components, active = false, solo = false, soloWidth
           <SwimlaneCollapseDragButton collapsed={false} laneLabel={translateLabel(lane.label, t)} onClick={() => workspaceActions.toggleLaneCollapse(lane.id)} />
         </KanbanColumnHandle>
 
-        <span ref={onTitleHostChange} className="flex min-w-0 flex-1" data-swimlane-navigator-title-slot={active ? "true" : undefined}>
+        <span ref={onTitleHostChange} className="flex min-w-0 flex-1" data-swimlane-navigator-title-slot={lane.id}>
         {hideTitleForNavigator ? null : renaming ? (
           <input
             autoFocus
@@ -234,6 +235,14 @@ export function Lane({ lane, components, active = false, solo = false, soloWidth
               className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-45"
             >
               <Eraser className="h-3.5 w-3.5" /> 清空当前泳道
+            </button>
+            <button
+              type="button"
+              disabled={!onResetNavigatorPosition}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onResetNavigatorPosition?.() }}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-muted/60 disabled:pointer-events-none disabled:opacity-45"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> 重置操作栏位置
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); workspaceActions.removeLane(lane.id) }}

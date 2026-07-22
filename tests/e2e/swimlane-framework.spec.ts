@@ -44,8 +44,8 @@ test("shared bar scrolls, toggles its menu, freezes drag, and preserves inactive
   await page.mouse.down()
   await page.mouse.move(titleBox.x + titleBox.width / 2, titleBox.y + titleBox.height / 2, { steps: 8 })
   await page.mouse.up()
-  await expect(page.locator('output[data-navigator-dock="title"]')).toHaveCount(1)
-  await expect(page.locator("header").locator('[data-swimlane-navigator-dock="title"]')).toBeVisible()
+  await expect(page.locator('output[data-navigator-dock="top"]')).toHaveCount(1)
+  await expect(page.locator("header").locator('[data-swimlane-navigator-dock="top"]')).toBeVisible()
 
   await page.locator('[data-harness-lane="lane-1"]').click()
   await expect(page.locator('[data-harness-lane="lane-0"]')).toHaveCSS("width", "420px")
