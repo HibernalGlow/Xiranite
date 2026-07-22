@@ -11,6 +11,7 @@ import { Maximize2, MousePointer2, MoveHorizontal, MoveVertical, PanelLeft, Pane
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
+import { RangeInput } from "@/components/ui/range-input"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 
@@ -270,15 +271,14 @@ function RangeField({ label, icon, value, min, max, disabled, compact = false, o
         <span className="flex items-center gap-1">{icon}{label}</span>
         <output className={cn("font-mono tabular-nums", outputClassName)}>{value}{compact ? "" : "%"}</output>
       </span>
-      <input
-        type="range"
+      <RangeInput
         min={min}
         max={max}
         step={1}
         value={value}
         disabled={disabled}
         aria-label={label}
-        className={cn("w-full cursor-pointer accent-primary", compact ? "h-3" : "h-4")}
+        className={cn("w-full", compact ? "h-3" : "h-4")}
         onChange={(event) => onPreview(event.currentTarget.valueAsNumber)}
         onPointerUp={(event) => finishPointer(event, onCommit)}
         onPointerCancel={(event) => finishPointer(event, onCommit)}

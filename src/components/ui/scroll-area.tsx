@@ -37,11 +37,13 @@ function ScrollBar({
   return (
     <ScrollAreaPrimitive.ScrollAreaScrollbar
       data-slot="scroll-area-scrollbar"
+      data-orientation={orientation}
       orientation={orientation}
       className={cn(
         "flex touch-none transition-colors select-none",
         orientation === "vertical" && "h-full",
-        orientation === "horizontal" && "flex-col",
+        // Horizontal rail is a full-width strip; size comes from --scrollbar-size.
+        orientation === "horizontal" && "w-full flex-col",
         className
       )}
       {...props}

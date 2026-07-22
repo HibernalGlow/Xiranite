@@ -1,7 +1,20 @@
-import { Box, Grid, MousePointerClick } from "lucide-react"
+import {
+  Box,
+  Columns2,
+  FormInput,
+  Grid,
+  LayoutPanelTop,
+  MousePointerClick,
+  PanelTop,
+  ScrollText,
+  SlidersHorizontal,
+  ToggleLeft,
+} from "lucide-react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { ChoiceControlField } from "@/components/ui/choice-control"
+import { Slider } from "@/components/ui/slider"
 import {
   CHOICE_CONTROL_STYLES,
   FIELD_TITLE_STYLES,
@@ -19,21 +32,22 @@ import {
   type ModuleTitleStyle,
   type ResizableHandleStyle,
 } from "@/components/ui/module-panel-variants"
-import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TAB_DISPLAY_STYLES, type TabDisplayStyle } from "@/components/ui/tabs-variants"
 import { SWITCH_DISPLAY_STYLES, type SwitchDisplayStyle } from "@/components/ui/switch-variants"
 import { SCROLLBAR_DISPLAY_STYLES, type ScrollbarDisplayStyle } from "@/components/ui/scrollbar-variants"
+import { SLIDER_DISPLAY_STYLES, type SliderDisplayStyle } from "@/components/ui/slider-variants"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { SwimlaneInteractionSettings } from "@/components/workspace/swimlane/SwimlaneInteractionSettings"
 import { normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
-import { PreferenceToggle, SettingsStepCard } from "./primitives"
+import { ComponentSkinBlock, ComponentSkinPreview, PreferenceToggle, SettingsStepCard } from "./primitives"
 
 export function ViewSection() {
   const { t } = useTranslation()
   const workspaceActions = useWorkspaceActions()
+  const [sliderPreview, setSliderPreview] = useState({ radius: 62, intensity: 78, strength: 54 })
   const state = useWorkspaceShallowSelector((workspace) => ({
     activeWorkspaceId: workspace.activeWorkspaceId,
     laneWorkspacePreferences: workspace.laneWorkspacePreferences,
@@ -42,6 +56,7 @@ export function ViewSection() {
     tabDisplayStyle: workspace.tabDisplayStyle,
     switchDisplayStyle: workspace.switchDisplayStyle,
     scrollbarDisplayStyle: workspace.scrollbarDisplayStyle,
+    sliderDisplayStyle: workspace.sliderDisplayStyle,
     choiceControlStyle: workspace.choiceControlStyle,
     fieldTitleStyle: workspace.fieldTitleStyle,
     moduleTitleStyle: workspace.moduleTitleStyle,
@@ -52,7 +67,7 @@ export function ViewSection() {
   const lanePreferences = normalizeSwimlanePreferences(state.laneWorkspacePreferences[state.activeWorkspaceId])
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <SettingsStepCard
         id="swimlane"
         title={t("settings:timeline.steps.swimlane")}
@@ -94,58 +109,81 @@ export function ViewSection() {
 
       <SettingsStepCard
         id="components"
-        title={t("settings:view.componentDisplay.title", "Component display")}
+        title={t("settings:view.componentDisplay.title", "Component skins")}
         description={t(
           "settings:view.componentDisplay.description",
-          "Choose a shared visual treatment for tab navigation. It changes appearance only; tab semantics and keyboard behavior remain Radix Tabs.",
+          "Each block below skins one shared control family used across nodes. Appearance only — behavior and keyboard semantics stay the same.",
         )}
         icon={Box}
         delay={0.06}
       >
-        <div className="space-y-4">
-          <ToggleGroup
-            type="single"
-            value={state.tabDisplayStyle}
-            onValueChange={(value) => value && workspaceActions.setTabDisplayStyle(value as TabDisplayStyle)}
-            variant="outline"
-            size="sm"
-            className="grid w-full grid-cols-2 gap-1.5 @sm:grid-cols-5"
-            spacing={2}
+        <div className="min-w-0 space-y-3">
+          <p className="rounded-md border border-dashed border-border/70 bg-muted/20 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+            {t(
+              "settings:view.componentDisplay.guide",
+              "Scan by number and component badge. Options sit under each header; live previews use the same primitives as node UIs.",
+            )}
+          </p>
+
+          <ComponentSkinBlock
+            index={1}
+            icon={PanelTop}
+            title={t("settings:view.componentDisplay.tabs.title", "Tabs")}
+            target={t("settings:view.componentDisplay.tabs.target", "Tabs")}
+            description={t(
+              "settings:view.componentDisplay.tabs.description",
+              "Node result rails, settings previews, and any shared Radix Tabs list.",
+            )}
           >
-            {TAB_DISPLAY_STYLES.map((style) => (
-              <ToggleGroupItem key={style} value={style} className="min-w-0 px-2 text-[11px]">
-                {t(`settings:view.componentDisplay.styles.${style}`)}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+            <ToggleGroup
+              type="single"
+              value={state.tabDisplayStyle}
+              onValueChange={(value) => value && workspaceActions.setTabDisplayStyle(value as TabDisplayStyle)}
+              variant="outline"
+              size="sm"
+              className="grid w-full grid-cols-2 gap-1.5 @sm:grid-cols-5"
+              spacing={2}
+            >
+              {TAB_DISPLAY_STYLES.map((style) => (
+                <ToggleGroupItem key={style} value={style} className="min-w-0 px-2 text-[11px]">
+                  {t(`settings:view.componentDisplay.styles.${style}`)}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
 
-          <Tabs defaultValue="preview" className="gap-2 rounded-md border bg-muted/15 p-2">
-            <TabsList className="max-w-full overflow-x-auto">
-              <TabsTrigger value="preview">{t("settings:view.componentDisplay.preview", "Preview")}</TabsTrigger>
-              <TabsTrigger value="history">{t("settings:view.componentDisplay.history", "History")}</TabsTrigger>
-              <TabsTrigger value="details">{t("settings:view.componentDisplay.details", "Details")}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="preview" className="px-1 text-xs text-muted-foreground">
-              {t("settings:view.componentDisplay.previewHint", "This is the same shared component used by node result tabs.")}
-            </TabsContent>
-            <TabsContent value="history" className="px-1 text-xs text-muted-foreground">
-              {t("settings:view.componentDisplay.historyHint", "Changing the display type never changes tab content or actions.")}
-            </TabsContent>
-            <TabsContent value="details" className="px-1 text-xs text-muted-foreground">
-              {t("settings:view.componentDisplay.detailsHint", "Other component preferences can be added here without changing node implementations.")}
-            </TabsContent>
-          </Tabs>
+            <ComponentSkinPreview
+              label={t("settings:view.componentDisplay.livePreview", "Live preview")}
+              caption="Tabs · live"
+            >
+              <Tabs defaultValue="preview" className="gap-2">
+                <TabsList className="max-w-full overflow-x-auto">
+                  <TabsTrigger value="preview">{t("settings:view.componentDisplay.preview", "Preview")}</TabsTrigger>
+                  <TabsTrigger value="history">{t("settings:view.componentDisplay.history", "History")}</TabsTrigger>
+                  <TabsTrigger value="details">{t("settings:view.componentDisplay.details", "Details")}</TabsTrigger>
+                </TabsList>
+                <TabsContent value="preview" className="px-1 text-xs text-muted-foreground">
+                  {t("settings:view.componentDisplay.previewHint", "This is the same shared component used by node result tabs.")}
+                </TabsContent>
+                <TabsContent value="history" className="px-1 text-xs text-muted-foreground">
+                  {t("settings:view.componentDisplay.historyHint", "Changing the display type never changes tab content or actions.")}
+                </TabsContent>
+                <TabsContent value="details" className="px-1 text-xs text-muted-foreground">
+                  {t("settings:view.componentDisplay.detailsHint", "Other component preferences can be added here without changing node implementations.")}
+                </TabsContent>
+              </Tabs>
+            </ComponentSkinPreview>
+          </ComponentSkinBlock>
 
-          <div className="space-y-2 pt-1">
-            <div>
-              <p className="text-xs font-medium">{t("settings:view.componentDisplay.switches.title", "Switches")}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {t(
-                  "settings:view.componentDisplay.switches.description",
-                  "The outlined default keeps an unchecked switch visible on every theme.",
-                )}
-              </p>
-            </div>
+          <ComponentSkinBlock
+            index={2}
+            icon={ToggleLeft}
+            title={t("settings:view.componentDisplay.switches.title", "Switches")}
+            target={t("settings:view.componentDisplay.switches.target", "Switch")}
+            description={t(
+              "settings:view.componentDisplay.switches.description",
+              "Boolean toggles in node cards, settings rows, and configuration panels.",
+            )}
+          >
             <div className="flex flex-wrap items-center gap-2">
               <ToggleGroup
                 type="single"
@@ -161,8 +199,14 @@ export function ViewSection() {
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-              <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span>{t("settings:view.componentDisplay.switches.preview", "Off")}</span>
+              <ComponentSkinPreview
+                compact
+                className="ml-auto"
+                label={t("settings:view.componentDisplay.livePreview", "Live preview")}
+              >
+                <span className="text-[11px] text-muted-foreground">
+                  {t("settings:view.componentDisplay.switches.preview", "Off")}
+                </span>
                 <Switch
                   checked={false}
                   aria-label={t("settings:view.componentDisplay.switches.preview", "Off")}
@@ -173,27 +217,100 @@ export function ViewSection() {
                   aria-label={t("settings:view.componentDisplay.switches.previewOn", "On")}
                   onCheckedChange={() => undefined}
                 />
-              </div>
+              </ComponentSkinPreview>
             </div>
-          </div>
+          </ComponentSkinBlock>
 
-          <div className="space-y-2 pt-1">
-            <div>
-              <p className="text-xs font-medium">{t("settings:view.componentDisplay.scrollbars.title", "Scrollbars")}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <ComponentSkinBlock
+            index={3}
+            icon={SlidersHorizontal}
+            title={t("settings:view.componentDisplay.sliders.title", "Sliders")}
+            target={t("settings:view.componentDisplay.sliders.target", "Slider")}
+            description={t(
+              "settings:view.componentDisplay.sliders.description",
+              "Horizontal parameter rails such as Magic Card glow, density, and every shared Radix Slider.",
+            )}
+          >
+            <ToggleGroup
+              type="single"
+              value={state.sliderDisplayStyle}
+              onValueChange={(value) => value && workspaceActions.setSliderDisplayStyle(value as SliderDisplayStyle)}
+              variant="outline"
+              size="sm"
+              className="grid w-full min-w-0 grid-cols-2 gap-1.5 @sm:grid-cols-5"
+              spacing={2}
+            >
+              {SLIDER_DISPLAY_STYLES.map((style) => (
+                <ToggleGroupItem key={style} value={style} className="min-w-0 px-2 text-[11px]">
+                  {t(`settings:view.componentDisplay.sliders.styles.${style}`)}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+
+            <ComponentSkinPreview
+              label={t("settings:view.componentDisplay.livePreview", "Live preview")}
+              caption="Slider · Magic Card"
+              bodyClassName="space-y-3"
+            >
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
                 {t(
-                  "settings:view.componentDisplay.scrollbars.description",
-                  "One shared treatment for native overflow regions and ScrollArea across every node surface.",
+                  "settings:view.componentDisplay.sliders.previewHint",
+                  "Same control family as Magic Card parameter rails and settings density sliders.",
                 )}
               </p>
-            </div>
+              {(
+                [
+                  {
+                    key: "radius" as const,
+                    label: t("settings:view.componentDisplay.sliders.previewRadius", "Glow radius"),
+                  },
+                  {
+                    key: "intensity" as const,
+                    label: t("settings:view.componentDisplay.sliders.previewIntensity", "Glow intensity"),
+                  },
+                  {
+                    key: "strength" as const,
+                    label: t("settings:view.componentDisplay.sliders.previewStrength", "Primary strength"),
+                  },
+                ] as const
+              ).map((row) => (
+                <div key={row.key} className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                    <span className="text-foreground/90">{row.label}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground">{sliderPreview[row.key]}</span>
+                  </div>
+                  <Slider
+                    value={[sliderPreview[row.key]]}
+                    min={0}
+                    max={100}
+                    step={1}
+                    aria-label={row.label}
+                    onValueChange={([next]) =>
+                      setSliderPreview((current) => ({ ...current, [row.key]: next ?? current[row.key] }))
+                    }
+                  />
+                </div>
+              ))}
+            </ComponentSkinPreview>
+          </ComponentSkinBlock>
+
+          <ComponentSkinBlock
+            index={4}
+            icon={ScrollText}
+            title={t("settings:view.componentDisplay.scrollbars.title", "Scrollbars")}
+            target={t("settings:view.componentDisplay.scrollbars.target", "Scrollbar")}
+            description={t(
+              "settings:view.componentDisplay.scrollbars.description",
+              "Vertical rails and horizontal bottom strips for native overflow and ScrollArea across node panels.",
+            )}
+          >
             <ToggleGroup
               type="single"
               value={state.scrollbarDisplayStyle}
               onValueChange={(value) => value && workspaceActions.setScrollbarDisplayStyle(value as ScrollbarDisplayStyle)}
               variant="outline"
               size="sm"
-              className="grid w-full grid-cols-2 gap-1.5 @sm:grid-cols-5"
+              className="grid w-full min-w-0 grid-cols-2 gap-1.5 @sm:grid-cols-5"
               spacing={2}
             >
               {SCROLLBAR_DISPLAY_STYLES.map((style) => (
@@ -202,30 +319,83 @@ export function ViewSection() {
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-            <div
-              className="h-24 overflow-auto rounded-md border bg-muted/15 p-2"
+
+            {/*
+              Force both rails: the scrollport must be width-constrained (min-w-0 +
+              max-w-full) so wide children create a horizontal strip instead of
+              expanding the settings card.
+            */}
+            <ComponentSkinPreview
+              label={t("settings:view.componentDisplay.livePreview", "Live preview")}
+              caption="Scrollbar · x/y"
               data-testid="scrollbar-style-preview"
+              bodyClassName="space-y-2.5"
             >
-              <div className="space-y-1.5 text-[11px] leading-5 text-muted-foreground">
-                <p>{t("settings:view.componentDisplay.scrollbars.previewHint", "Scroll this preview to inspect the active scrollbar treatment.")}</p>
-                {Array.from({ length: 12 }, (_, index) => (
-                  <p key={index}>
-                    {t("settings:view.componentDisplay.scrollbars.previewLine", "Shared scrollbar line {{n}}", {
-                      n: index + 1,
-                    })}
-                  </p>
-                ))}
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                {t(
+                  "settings:view.componentDisplay.scrollbars.previewHint",
+                  "Top box: vertical + horizontal together. Bottom strip: horizontal rail only.",
+                )}
+              </p>
+
+              <div className="box-border h-32 w-full min-w-0 max-w-full overflow-auto overscroll-contain rounded-sm border border-primary/20 bg-[color-mix(in_oklch,var(--background)_88%,var(--primary))] [overflow-x:scroll] [overflow-y:scroll]">
+                <div className="grid h-52 w-[56rem] max-w-none gap-1.5 p-2 text-[11px] leading-5 text-muted-foreground">
+                  {Array.from({ length: 12 }, (_, index) => (
+                    <div
+                      key={index}
+                      className="flex h-6 w-full min-w-[54rem] items-center gap-2 whitespace-nowrap rounded-sm border border-primary/15 bg-background/75 px-2"
+                    >
+                      <span className="font-mono text-[10px] text-primary/70">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span>
+                        {t(
+                          "settings:view.componentDisplay.scrollbars.previewLine",
+                          "Shared scrollbar line {{n}} — wide row for vertical rail and horizontal strip",
+                          { n: index + 1 },
+                        )}
+                      </span>
+                      <span className="ml-auto font-mono text-[10px] text-primary/55">
+                        col-a · col-b · col-c · col-d · col-e · col-f · col-g · col-h · col-i · col-j
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          </div>
 
-          <Separator />
+              <div className="min-w-0 max-w-full">
+                <p className="mb-1 font-mono text-[10px] tracking-wide text-primary/80">
+                  {t("settings:view.componentDisplay.scrollbars.horizontalOnly", "Horizontal strip")}
+                </p>
+                <div className="box-border h-11 w-full min-w-0 max-w-full overflow-x-scroll overflow-y-hidden overscroll-x-contain rounded-sm border border-primary/20 bg-[color-mix(in_oklch,var(--background)_88%,var(--primary))]">
+                  <div className="flex h-full w-[60rem] max-w-none items-center gap-2 px-2 text-[11px] whitespace-nowrap text-muted-foreground">
+                    {Array.from({ length: 20 }, (_, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex shrink-0 items-center rounded-sm border border-primary/20 bg-background/80 px-2 py-1 font-mono text-[10px] text-foreground/80"
+                      >
+                        cell-{index + 1}
+                      </span>
+                    ))}
+                    <span className="shrink-0 text-primary/80">
+                      {t(
+                        "settings:view.componentDisplay.scrollbars.horizontalHint",
+                        "Drag this bottom rail — same style as wide node tables.",
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </ComponentSkinPreview>
+          </ComponentSkinBlock>
 
-          <div className="flex flex-col gap-3">
-            <div>
-              <p className="text-xs font-medium">{t("settings:timeline.fieldsTitle")}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">{t("settings:timeline.fieldsDesc")}</p>
-            </div>
+          <ComponentSkinBlock
+            index={5}
+            icon={FormInput}
+            title={t("settings:timeline.fieldsTitle")}
+            target={t("settings:view.componentDisplay.fields.target", "Field / Choice")}
+            description={t("settings:timeline.fieldsDesc")}
+          >
             <PreferenceToggle
               label={t("settings:timeline.controlStyle")}
               value={state.choiceControlStyle}
@@ -250,28 +420,33 @@ export function ViewSection() {
               }}
               onChange={(value) => workspaceActions.setFieldTitleStyle(value as FieldTitleStyle)}
             />
-            <ChoiceControlField label={t("settings:timeline.compressionPreview")}>
-              <ToggleGroup
-                aria-label={t("settings:timeline.compressionPreview")}
-                className="grid w-full grid-cols-2"
-                type="single"
-                value="lossless"
-                onValueChange={() => undefined}
-                size="sm"
-              >
-                <ToggleGroupItem value="lossless">{t("settings:timeline.lossless")}</ToggleGroupItem>
-                <ToggleGroupItem value="lossy">{t("settings:timeline.lossy")}</ToggleGroupItem>
-              </ToggleGroup>
-            </ChoiceControlField>
-          </div>
+            <ComponentSkinPreview
+              label={t("settings:view.componentDisplay.livePreview", "Live preview")}
+              caption="Field / Choice · live"
+            >
+              <ChoiceControlField label={t("settings:timeline.compressionPreview")}>
+                <ToggleGroup
+                  aria-label={t("settings:timeline.compressionPreview")}
+                  className="grid w-full grid-cols-2"
+                  type="single"
+                  value="lossless"
+                  onValueChange={() => undefined}
+                  size="sm"
+                >
+                  <ToggleGroupItem value="lossless">{t("settings:timeline.lossless")}</ToggleGroupItem>
+                  <ToggleGroupItem value="lossy">{t("settings:timeline.lossy")}</ToggleGroupItem>
+                </ToggleGroup>
+              </ChoiceControlField>
+            </ComponentSkinPreview>
+          </ComponentSkinBlock>
 
-          <Separator />
-
-          <div className="flex flex-col gap-3">
-            <div>
-              <p className="text-xs font-medium">{t("settings:timeline.modulePanelTitle")}</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">{t("settings:timeline.modulePanelDesc")}</p>
-            </div>
+          <ComponentSkinBlock
+            index={6}
+            icon={LayoutPanelTop}
+            title={t("settings:timeline.modulePanelTitle")}
+            target={t("settings:view.componentDisplay.modulePanel.target", "ModulePanel")}
+            description={t("settings:timeline.modulePanelDesc")}
+          >
             <PreferenceToggle
               label={t("settings:timeline.moduleTitleStyle")}
               value={state.moduleTitleStyle}
@@ -318,10 +493,15 @@ export function ViewSection() {
               }}
               onChange={(value) => workspaceActions.setResizableHandleStyle(value as ResizableHandleStyle)}
             />
-            <ModulePanel title={t("settings:timeline.previewModule")} badge={t("settings:timeline.previewBadge")} icon={Box}>
-              <p className="text-xs text-muted-foreground">{t("settings:timeline.previewModuleDesc")}</p>
-            </ModulePanel>
-          </div>
+            <ComponentSkinPreview
+              label={t("settings:view.componentDisplay.livePreview", "Live preview")}
+              caption="ModulePanel · live"
+            >
+              <ModulePanel title={t("settings:timeline.previewModule")} badge={t("settings:timeline.previewBadge")} icon={Columns2}>
+                <p className="text-xs text-muted-foreground">{t("settings:timeline.previewModuleDesc")}</p>
+              </ModulePanel>
+            </ComponentSkinPreview>
+          </ComponentSkinBlock>
         </div>
       </SettingsStepCard>
 

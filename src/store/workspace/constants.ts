@@ -82,6 +82,7 @@ export const INITIAL_STATE: WSState = {
   tabDisplayStyle: "underline",
   switchDisplayStyle: "outlined",
   scrollbarDisplayStyle: "soft",
+  sliderDisplayStyle: "solid",
   choiceControlStyle: "segmented",
   fieldTitleStyle: "legend",
   moduleTitleStyle: "legend",

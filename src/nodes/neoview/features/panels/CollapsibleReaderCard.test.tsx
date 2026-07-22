@@ -1,15 +1,24 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { DEFAULT_MODULE_MAGIC_CARD_APPEARANCE } from "@/components/ui/module-panel-variants"
+import { useWorkspaceStore } from "@/store/workspaceStore"
 import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  useWorkspaceStore.getState().setModuleMagicCardAppearance(DEFAULT_MODULE_MAGIC_CARD_APPEARANCE)
+})
 
 describe("CollapsibleReaderCard", () => {
   it("[neoview.card.magic-hover] wraps docked Cards with the shared Magic UI hover surface", () => {
     render(<CollapsibleReaderCard title="共享标题">content</CollapsibleReaderCard>)
 
     expect(document.querySelector('[data-slot="magic-card"]')).toBeTruthy()
+    const gradient = document.querySelector<HTMLElement>('[data-slot="magic-card-gradient"]')
+    expect(gradient?.className).toContain("group-hover:opacity-100")
+    expect(gradient?.className).toContain("duration-300")
+    expect(gradient?.style.filter).toBe("opacity(0.5)")
     expect(document.querySelector('[data-slot="reader-card-title"]')).toBeTruthy()
   })
 

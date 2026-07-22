@@ -246,12 +246,14 @@
         "fullscreen": "全屏"
       },
       "componentDisplay": {
-        "title": "组件显示样式",
-        "description": "为 Tab 导航选择全局视觉样式。它只改变外观；Radix Tabs 的语义和键盘操作保持不变。",
+        "title": "组件皮肤",
+        "description": "下方每一块只调整一类共享控件的外观，覆盖各节点；不改变交互语义与键盘行为。",
+        "guide": "按编号与组件徽章快速定位。选项在标题下方，实时预览使用与节点相同的共享组件。",
+        "livePreview": "实时预览",
         "preview": "预览",
         "history": "历史",
         "details": "详情",
-        "previewHint": "这里使用的就是节点结果面板所用的共享组件。",
+        "previewHint": "这里使用的就是节点结果面板所用的共享 Tabs。",
         "historyHint": "切换显示类型不会改变 Tab 内容或操作。",
         "detailsHint": "后续组件偏好可在此扩展，不需要重写节点实现。",
         "styles": {
@@ -261,9 +263,15 @@
           "boxed": "分段",
           "quiet": "极简"
         },
+        "tabs": {
+          "title": "标签页",
+          "target": "Tabs",
+          "description": "节点结果栏、设置预览，以及所有共享的 Radix Tabs。"
+        },
         "switches": {
           "title": "开关",
-          "description": "默认的描边样式确保关闭状态在任意主题中都清晰可见。",
+          "target": "Switch",
+          "description": "节点卡片、设置行与配置面板中的布尔开关。",
           "preview": "关闭",
           "previewOn": "开启",
           "styles": {
@@ -272,11 +280,30 @@
             "minimal": "极简"
           }
         },
+        "sliders": {
+          "title": "滑条",
+          "target": "Slider",
+          "description": "Magic Card 参数轨、设置密度滑条，以及所有共享的 Radix Slider。",
+          "previewHint": "与 Magic Card 光效参数相同的横向滑条控件。",
+          "previewRadius": "光晕半径",
+          "previewIntensity": "光晕强度",
+          "previewStrength": "主色浓度",
+          "styles": {
+            "solid": "实心",
+            "soft": "柔和",
+            "pill": "粗轨",
+            "line": "细线",
+            "minimal": "极简"
+          }
+        },
         "scrollbars": {
           "title": "滚动条",
-          "description": "原生 overflow 与 ScrollArea 共用同一套外观，覆盖各节点面板。",
-          "previewHint": "滚动此预览区可检查当前滚动条样式。",
-          "previewLine": "共享滚动条示例行 {{n}}",
+          "target": "Scrollbar",
+          "description": "纵向滑轨与横向底条；原生 overflow 与 ScrollArea 共用，覆盖各节点面板。",
+          "previewHint": "上方：纵横向同时出现。下方：单独的横向底条，对应宽表滚动。",
+          "previewLine": "共享滚动条示例行 {{n}} — 宽行用于同时预览纵向滑轨与横向底条",
+          "horizontalOnly": "横向底条",
+          "horizontalHint": "拖动这条底轨 — 与节点宽表相同的横向滚动条。",
           "styles": {
             "thin": "纤细",
             "soft": "柔和",
@@ -284,6 +311,12 @@
             "rounded": "圆润",
             "minimal": "极简"
           }
+        },
+        "fields": {
+          "target": "Field / Choice"
+        },
+        "modulePanel": {
+          "target": "ModulePanel"
         }
       }
     },

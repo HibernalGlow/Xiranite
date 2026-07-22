@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, 
 import { Link, Minus, RotateCcw, Square, Unlink, Wand2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { RangeInput } from "@/components/ui/range-input"
 import { Switch } from "@/components/ui/switch"
 import type { ReaderImageTrimDetectionOutcome } from "../../image-trim/ReaderImageTrimStore"
 
@@ -348,14 +349,13 @@ function TrimRange({ label, value, min, max, step, onPreview, onCommit }: {
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(event.key)) finish()
   }
   return (
-    <input
-      type="range"
+    <RangeInput
       min={min}
       max={max}
       step={step}
       value={value}
       aria-label={label}
-      className="h-5 w-full accent-primary"
+      className="h-5 w-full"
       onChange={(event) => {
         dirty.current = true
         onPreview(event.currentTarget.valueAsNumber)

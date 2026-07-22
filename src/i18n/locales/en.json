@@ -246,12 +246,14 @@
         "fullscreen": "Fullscreen"
       },
       "componentDisplay": {
-        "title": "Component display",
-        "description": "Choose a shared visual treatment for tab navigation. It changes appearance only; tab semantics and keyboard behavior remain Radix Tabs.",
+        "title": "Component skins",
+        "description": "Each block below skins one shared control family used across nodes. Appearance only — behavior and keyboard semantics stay the same.",
+        "guide": "Scan by number and component badge. Options sit under each header; live previews use the same primitives as node UIs.",
+        "livePreview": "Live preview",
         "preview": "Preview",
         "history": "History",
         "details": "Details",
-        "previewHint": "This is the same shared component used by node result tabs.",
+        "previewHint": "This is the same shared Tabs component used by node result rails.",
         "historyHint": "Changing the display type never changes tab content or actions.",
         "detailsHint": "Other component preferences can be added here without changing node implementations.",
         "styles": {
@@ -261,9 +263,15 @@
           "boxed": "Boxed",
           "quiet": "Quiet"
         },
+        "tabs": {
+          "title": "Tabs",
+          "target": "Tabs",
+          "description": "Node result rails, settings previews, and any shared Radix Tabs list."
+        },
         "switches": {
           "title": "Switches",
-          "description": "The outlined default keeps an unchecked switch visible on every theme.",
+          "target": "Switch",
+          "description": "Boolean toggles in node cards, settings rows, and configuration panels.",
           "preview": "Off",
           "previewOn": "On",
           "styles": {
@@ -272,11 +280,30 @@
             "minimal": "Minimal"
           }
         },
+        "sliders": {
+          "title": "Sliders",
+          "target": "Slider",
+          "description": "Horizontal parameter rails such as Magic Card glow, density, and every shared Radix Slider.",
+          "previewHint": "Same control family as Magic Card parameter rails and settings density sliders.",
+          "previewRadius": "Glow radius",
+          "previewIntensity": "Glow intensity",
+          "previewStrength": "Primary strength",
+          "styles": {
+            "solid": "Solid",
+            "soft": "Soft",
+            "pill": "Pill",
+            "line": "Line",
+            "minimal": "Minimal"
+          }
+        },
         "scrollbars": {
           "title": "Scrollbars",
-          "description": "One shared treatment for native overflow regions and ScrollArea across every node surface.",
-          "previewHint": "Scroll this preview to inspect the active scrollbar treatment.",
-          "previewLine": "Shared scrollbar line {{n}}",
+          "target": "Scrollbar",
+          "description": "Vertical rails and horizontal bottom strips for native overflow and ScrollArea across node panels.",
+          "previewHint": "Top box: vertical + horizontal together. Bottom strip: horizontal rail only.",
+          "previewLine": "Shared scrollbar line {{n}} — wide row for vertical rail and horizontal strip",
+          "horizontalOnly": "Horizontal strip",
+          "horizontalHint": "Drag this bottom rail — same style as wide node tables.",
           "styles": {
             "thin": "Thin",
             "soft": "Soft",
@@ -284,6 +311,12 @@
             "rounded": "Rounded",
             "minimal": "Minimal"
           }
+        },
+        "fields": {
+          "target": "Field / Choice"
+        },
+        "modulePanel": {
+          "target": "ModulePanel"
         }
       }
     },

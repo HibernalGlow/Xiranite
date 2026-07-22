@@ -110,6 +110,7 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setTabDisplayStyle: (tabDisplayStyle) => set({ tabDisplayStyle }, false, "SET_TAB_DISPLAY_STYLE"),
     setSwitchDisplayStyle: (switchDisplayStyle) => set({ switchDisplayStyle }, false, "SET_SWITCH_DISPLAY_STYLE"),
     setScrollbarDisplayStyle: (scrollbarDisplayStyle) => set({ scrollbarDisplayStyle }, false, "SET_SCROLLBAR_DISPLAY_STYLE"),
+    setSliderDisplayStyle: (sliderDisplayStyle) => set({ sliderDisplayStyle }, false, "SET_SLIDER_DISPLAY_STYLE"),
     setChoiceControlStyle: (choiceControlStyle) => set({ choiceControlStyle }, false, "SET_CHOICE_CONTROL_STYLE"),
     setFieldTitleStyle: (fieldTitleStyle) => set({ fieldTitleStyle }, false, "SET_FIELD_TITLE_STYLE"),
     setModuleTitleStyle: (moduleTitleStyle) => set({ moduleTitleStyle }, false, "SET_MODULE_TITLE_STYLE"),

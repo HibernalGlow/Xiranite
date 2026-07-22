@@ -51,6 +51,7 @@ import {
 } from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
+import { RangeInput } from "@/components/ui/range-input"
 import type { ReaderSlideshowPatch } from "../../adapters/reader-http-client"
 import type { ReaderMediaPriorityModeDto, ReaderPageOrderDto, ReaderPageSortModeDto } from "../../adapters/reader-http-client"
 
@@ -260,7 +261,7 @@ function CommittedRange({ label, valueLabel, value, min, max, step, disabled, ic
     <span className="mr-1 flex items-center gap-1">{icon}{label}</span>
     <span className="inline-flex min-w-37.5 items-center gap-2 rounded-full bg-muted/60 px-3 py-1 shadow-inner">
       <span className="w-10 text-right tabular-nums" aria-hidden="true">{value === draft ? valueLabel : renderedLabel}</span>
-      <input aria-label={label} className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-muted" type="range" min={min} max={max} step={step} value={draft} disabled={disabled} onChange={(event) => setDraft(Number(event.currentTarget.value))} onPointerUp={commit} onKeyUp={commit} onBlur={commit} />
+      <RangeInput aria-label={label} className="h-1 w-24" min={min} max={max} step={step} value={draft} disabled={disabled} onChange={(event) => setDraft(Number(event.currentTarget.value))} onPointerUp={commit} onKeyUp={commit} onBlur={commit} />
     </span>
   </label>
 }
@@ -286,7 +287,7 @@ function HoverScrollPanel({ disabled, enabled, speed, onChange }: { disabled?: b
     <Separator />
     <label className="flex items-center gap-2 text-xs text-muted-foreground">
       <span>倍率</span>
-      <input aria-label="悬停滚动倍率" className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-muted" type="range" min={0.5} max={10} step={0.5} value={draftSpeed} disabled={disabled || !onChange} onChange={(event) => setDraftSpeed(Number(event.currentTarget.value))} onPointerUp={commitSpeed} onKeyUp={commitSpeed} onBlur={commitSpeed} />
+      <RangeInput aria-label="悬停滚动倍率" className="h-1 w-20" min={0.5} max={10} step={0.5} value={draftSpeed} disabled={disabled || !onChange} onChange={(event) => setDraftSpeed(Number(event.currentTarget.value))} onPointerUp={commitSpeed} onKeyUp={commitSpeed} onBlur={commitSpeed} />
       <span className="w-10 text-center tabular-nums">{draftSpeed.toFixed(1)}x</span>
     </label>
   </>

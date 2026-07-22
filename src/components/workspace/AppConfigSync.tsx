@@ -61,6 +61,7 @@ const CARD_CLICK_ACTIONS = new Set<WorkspaceUiPreferences["cardClickAction"]>(["
 const TAB_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["tabDisplayStyle"]>(["underline", "surface", "pill", "boxed", "quiet"])
 const SWITCH_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["switchDisplayStyle"]>(["outlined", "filled", "minimal"])
 const SCROLLBAR_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["scrollbarDisplayStyle"]>(["thin", "soft", "solid", "rounded", "minimal"])
+const SLIDER_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["sliderDisplayStyle"]>(["solid", "soft", "pill", "line", "minimal"])
 const THEME_MODES = new Set<ThemeMode>(["system", "light", "dark"])
 const LANGUAGES = new Set<Language>(["en", "zh"])
 const OVERLAY_MODES = new Set<WorkspaceUiPreferences["overlayMode"]>(["docked", "floating"])
@@ -428,6 +429,7 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     tabDisplayStyle: state.tabDisplayStyle,
     switchDisplayStyle: state.switchDisplayStyle,
     scrollbarDisplayStyle: state.scrollbarDisplayStyle,
+    sliderDisplayStyle: state.sliderDisplayStyle,
     moduleTitleStyle: state.moduleTitleStyle,
     modulePanelStyle: state.modulePanelStyle,
     moduleCardEffect: state.moduleCardEffect,
@@ -534,6 +536,7 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (isOneOf(value.tabDisplayStyle, TAB_DISPLAY_STYLES)) next.tabDisplayStyle = value.tabDisplayStyle
   if (isOneOf(value.switchDisplayStyle, SWITCH_DISPLAY_STYLES)) next.switchDisplayStyle = value.switchDisplayStyle
   if (isOneOf(value.scrollbarDisplayStyle, SCROLLBAR_DISPLAY_STYLES)) next.scrollbarDisplayStyle = value.scrollbarDisplayStyle
+  if (isOneOf(value.sliderDisplayStyle, SLIDER_DISPLAY_STYLES)) next.sliderDisplayStyle = value.sliderDisplayStyle
   if (isOneOf(value.moduleTitleStyle, MODULE_TITLE_STYLES)) next.moduleTitleStyle = value.moduleTitleStyle
   if (isOneOf(value.modulePanelStyle, MODULE_PANEL_STYLES)) next.modulePanelStyle = value.modulePanelStyle
   if (isOneOf(value.moduleCardEffect, MODULE_CARD_EFFECTS)) next.moduleCardEffect = value.moduleCardEffect

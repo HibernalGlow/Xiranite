@@ -32,6 +32,7 @@ import type { ComponentDTO, LaneDTO, WorkspaceDTO } from "@xiranite/shared"
 import type { TabDisplayStyle } from "@/components/ui/tabs-variants"
 import type { SwitchDisplayStyle } from "@/components/ui/switch-variants"
 import type { ScrollbarDisplayStyle } from "@/components/ui/scrollbar-variants"
+import type { SliderDisplayStyle } from "@/components/ui/slider-variants"
 import type { ChoiceControlStyle, FieldTitleStyle } from "@/components/ui/choice-control-variants"
 import type { ModuleCardEffect, ModuleMagicCardAppearance, ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 import type { SwimlaneWorkspacePreferences } from "@/components/workspace/swimlane/model"
@@ -138,6 +139,8 @@ export interface WSState {
   switchDisplayStyle: SwitchDisplayStyle
   /** Scrollbar 显示样式（原生 overflow + ScrollArea 共用）。 */
   scrollbarDisplayStyle: ScrollbarDisplayStyle
+  /** Slider 滑条显示样式（Magic Card 参数轨、设置密度滑条等）。 */
+  sliderDisplayStyle: SliderDisplayStyle
   /** Choice 控件样式（segmented/radio 等）。 */
   choiceControlStyle: ChoiceControlStyle
   /** 字段标题样式。 */
@@ -218,6 +221,7 @@ export interface WorkspaceUiActions {
   setTabDisplayStyle(style: TabDisplayStyle): void
   setSwitchDisplayStyle(style: SwitchDisplayStyle): void
   setScrollbarDisplayStyle(style: ScrollbarDisplayStyle): void
+  setSliderDisplayStyle(style: SliderDisplayStyle): void
   setChoiceControlStyle(style: ChoiceControlStyle): void
   setFieldTitleStyle(style: FieldTitleStyle): void
   setModuleTitleStyle(style: ModuleTitleStyle): void
@@ -353,6 +357,7 @@ export type WorkspaceUiPreferences = Pick<
   | "tabDisplayStyle"
   | "switchDisplayStyle"
   | "scrollbarDisplayStyle"
+  | "sliderDisplayStyle"
   | "choiceControlStyle"
   | "fieldTitleStyle"
   | "moduleTitleStyle"
