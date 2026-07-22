@@ -85,6 +85,10 @@ import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCl
 import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../features/workspace/ReaderSwimlaneWorkspace"
 import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
 
+// Keep the reader's visible image path intact while freeze diagnosis runs. The
+// recent adaptive predecode implementation is excluded from this baseline.
+const BACKGROUND_READER_PREDECODE_ENABLED = false
+
 function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConfigDto): boolean {
   // Compare normalized workspace views — shell object identity always changes on patch.
   try {
@@ -1945,7 +1949,7 @@ export function ReaderApp({
     plan: session?.preload,
     // Wait until the visible frame is allowed to mount — adjacent preload on the
     // same turn as setSession was part of the full-window freeze after open.
-    enabled: readerFrameAllowed && (
+    enabled: BACKGROUND_READER_PREDECODE_ENABLED && readerFrameAllowed && (
       !session
       || cancelledPreloadFrame?.sessionId !== session.sessionId
       || cancelledPreloadFrame.generation !== session.frame.generation
