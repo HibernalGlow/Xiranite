@@ -49,6 +49,7 @@ export function readerWorkspaceConfig(shell: ReaderShellConfigDto): ReaderWorksp
         edgeRevealZones: normalizeRevealZones(workspace.swimlane.edgeRevealZones),
         readerFocusOnHover: workspace.swimlane.readerFocusOnHover ?? true,
         readerFocusHoverDelayMs: normalizeReaderFocusHoverDelay(workspace.swimlane.readerFocusHoverDelayMs),
+        manualScrollEnabled: workspace.swimlane.manualScrollEnabled ?? false,
         showLaneNavigatorInReaderSolo: workspace.swimlane.showLaneNavigatorInReaderSolo ?? DEFAULT_SHOW_LANE_NAVIGATOR_IN_READER_SOLO,
         autoFitToViewport: workspace.swimlane.autoFitToViewport ?? false,
         barHandleStyle: normalizeBarHandleStyle(workspace.swimlane.barHandleStyle),
@@ -83,6 +84,7 @@ export function readerWorkspaceConfig(shell: ReaderShellConfigDto): ReaderWorksp
       edgeRevealZones: normalizeRevealZones(),
       readerFocusOnHover: true,
       readerFocusHoverDelayMs: DEFAULT_READER_FOCUS_HOVER_DELAY_MS,
+      manualScrollEnabled: false,
       showLaneNavigatorInReaderSolo: DEFAULT_SHOW_LANE_NAVIGATOR_IN_READER_SOLO,
       autoFitToViewport: false,
       barHandleStyle: DEFAULT_BAR_HANDLE_STYLE,
@@ -127,6 +129,7 @@ export function applyReaderWorkspacePatch(shell: ReaderShellConfigDto, patch: Re
       readerFocusHoverDelayMs: patch.readerFocusHoverDelayMs === undefined
         ? current.swimlane.readerFocusHoverDelayMs
         : normalizeReaderFocusHoverDelay(patch.readerFocusHoverDelayMs),
+      manualScrollEnabled: patch.manualScrollEnabled ?? current.swimlane.manualScrollEnabled,
       showLaneNavigatorInReaderSolo: patch.showLaneNavigatorInReaderSolo ?? current.swimlane.showLaneNavigatorInReaderSolo,
       autoFitToViewport: patch.autoFitToViewport ?? current.swimlane.autoFitToViewport,
       barHandleStyle: patch.barHandleStyle === undefined ? current.swimlane.barHandleStyle : normalizeBarHandleStyle(patch.barHandleStyle),

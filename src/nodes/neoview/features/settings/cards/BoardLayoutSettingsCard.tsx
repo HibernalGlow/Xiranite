@@ -91,14 +91,15 @@ function SwimlaneInteractionSettings({ shell, onWorkspace }: {
   return (
     <div className="grid gap-3">
       <SharedSwimlaneInteractionSettings
-        value={{ soloOnFocus: swimlane.readerSoloOnFocus, showNavigatorInSolo: swimlane.showLaneNavigatorInReaderSolo, edgeRevealDelayMs: swimlane.edgeRevealDelayMs, focusOnHover: swimlane.readerFocusOnHover, focusDelayMs: swimlane.readerFocusHoverDelayMs }}
-        labels={{ soloOnFocus: "Reader 聚焦时自动独占", showNavigatorInSolo: "Reader 独占时显示泳道切换栏", focusOnHover: "启用 Reader 悬停重新聚焦", focusDelay: "Reader 悬停重新聚焦延迟" }}
+        value={{ soloOnFocus: swimlane.readerSoloOnFocus, showNavigatorInSolo: swimlane.showLaneNavigatorInReaderSolo, edgeRevealDelayMs: swimlane.edgeRevealDelayMs, focusOnHover: swimlane.readerFocusOnHover, focusDelayMs: swimlane.readerFocusHoverDelayMs, manualScrollEnabled: swimlane.manualScrollEnabled }}
+        labels={{ soloOnFocus: "Reader 聚焦时自动独占", showNavigatorInSolo: "Reader 独占时显示泳道切换栏", focusOnHover: "启用 Reader 悬停重新聚焦", focusDelay: "Reader 悬停重新聚焦延迟", manualScrollEnabled: "允许手动横向滚动" }}
         onChange={(patch) => onWorkspace({
           ...(patch.soloOnFocus === undefined ? {} : { readerSoloOnFocus: patch.soloOnFocus }),
           ...(patch.showNavigatorInSolo === undefined ? {} : { showLaneNavigatorInReaderSolo: patch.showNavigatorInSolo }),
           ...(patch.edgeRevealDelayMs === undefined ? {} : { edgeRevealDelayMs: patch.edgeRevealDelayMs }),
           ...(patch.focusOnHover === undefined ? {} : { readerFocusOnHover: patch.focusOnHover }),
           ...(patch.focusDelayMs === undefined ? {} : { readerFocusHoverDelayMs: patch.focusDelayMs }),
+          ...(patch.manualScrollEnabled === undefined ? {} : { manualScrollEnabled: patch.manualScrollEnabled }),
         })}
       />
       <RevealZoneEditor

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { ReaderShellConfigDto } from "../../../adapters/reader-http-client"
-import { applyBoardDrop, createBoardLanes, createBoardPatch } from "./BoardSwimlaneEditor"
+import { applyBoardDrop, applyBoardDropAt, createBoardLanes, createBoardPatch } from "./BoardSwimlaneEditor"
 
 describe("BoardSwimlaneEditor layout moves", () => {
   it("moves a panel from left to right without dropping its cards", () => {
@@ -34,9 +34,7 @@ describe("BoardSwimlaneEditor layout moves", () => {
     const lanes = createBoardLanes(shell)
     // playlist panel is defaultVisible:false → starts in the hidden lane with
     // playlist-main (canHide:false). Saving must not emit visible:false for it.
-    const playlist = lanes.hidden.find((panel) => panel.id === "playlist")
-      ?? lanes.left.find((panel) => panel.id === "playlist")
-      ?? lanes.right.find((panel) => panel.id === "playlist")
+    const playlist = lanes.hidden.find((panel) => panel.id === "playlist") ?? lanes.left.find((panel) => panel.id === "playlist") ?? lanes.right.find((panel) => panel.id === "playlist")
     expect(playlist).toBeTruthy()
     expect(playlist!.cards.some((card) => card.id === "playlist-main" && card.canHide === false)).toBe(true)
 
@@ -62,11 +60,7 @@ describe("BoardSwimlaneEditor layout moves", () => {
     const moved = applyBoardDrop(lanes, "book-information", "media-settings", true)
     const settings = moved.left.find((panel) => panel.id === "settings")
 
-    expect(settings?.cards.slice(0, 3).map((card) => card.id)).toEqual([
-      "slideshow-settings",
-      "media-settings",
-      "book-information",
-    ])
+    expect(settings?.cards.slice(0, 3).map((card) => card.id)).toEqual(["slideshow-settings", "media-settings", "book-information"])
   })
 
   it("applies a cross-lane panel move exactly once at drop", () => {
@@ -76,6 +70,27 @@ describe("BoardSwimlaneEditor layout moves", () => {
     expect(moved.left.some((panel) => panel.id === "settings")).toBe(false)
     expect(moved.right.some((panel) => panel.id === "settings")).toBe(true)
     expect(applyBoardDrop(moved, "settings", "settings")).toBe(moved)
+  })
+
+  it("places a panel after the hovered panel when the landing preview says after", () => {
+    const lanes = createBoardLanes(shellConfig())
+    const moved = applyBoardDrop(lanes, "settings", "info", true)
+
+    expect(moved.right.slice(0, 2).map((panel) => panel.id)).toEqual(["info", "settings"])
+  })
+
+  it("commits the exact final card index frozen by the landing preview", () => {
+    const lanes = createBoardLanes(shellConfig())
+    const moved = applyBoardDropAt(lanes, "emm-tags", { kind: "card", panelId: "properties", index: 2 })
+
+    expect(moved.right.find((panel) => panel.id === "properties")?.cards.slice(0, 3).map((card) => card.id)).toEqual(["book-settings", "folder-ratings", "emm-tags"])
+  })
+
+  it("commits the exact final panel index frozen by the landing preview", () => {
+    const lanes = createBoardLanes(shellConfig())
+    const moved = applyBoardDropAt(lanes, "settings", { kind: "panel", lane: "right", index: 1 })
+
+    expect(moved.right.slice(0, 2).map((panel) => panel.id)).toEqual(["info", "settings"])
   })
 })
 
@@ -87,14 +102,46 @@ function shellConfig(): ReaderShellConfigDto {
     opacity: { top: 85, bottom: 85, sidebar: 85 },
     blur: { top: 12, bottom: 12, sidebar: 12 },
     edges: {
-      top: { enabled: true, initialVisible: true, pinned: false, triggerSize: 32 },
-      right: { enabled: true, initialVisible: false, pinned: false, triggerSize: 32 },
-      bottom: { enabled: true, initialVisible: false, pinned: false, triggerSize: 32 },
-      left: { enabled: true, initialVisible: true, pinned: true, triggerSize: 32 },
+      top: {
+        enabled: true,
+        initialVisible: true,
+        pinned: false,
+        triggerSize: 32,
+      },
+      right: {
+        enabled: true,
+        initialVisible: false,
+        pinned: false,
+        triggerSize: 32,
+      },
+      bottom: {
+        enabled: true,
+        initialVisible: false,
+        pinned: false,
+        triggerSize: 32,
+      },
+      left: {
+        enabled: true,
+        initialVisible: true,
+        pinned: true,
+        triggerSize: 32,
+      },
     },
     sidebars: {
-      left: { width: 320, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
-      right: { width: 280, height: "full", customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
+      left: {
+        width: 320,
+        height: "full",
+        customHeight: 100,
+        verticalAlign: 0,
+        horizontalPosition: 0,
+      },
+      right: {
+        width: 280,
+        height: "full",
+        customHeight: 100,
+        verticalAlign: 0,
+        horizontalPosition: 0,
+      },
     },
     panelLayout: {
       folder: { visible: true, order: 0, position: "left" },
@@ -102,8 +149,18 @@ function shellConfig(): ReaderShellConfigDto {
       settings: { visible: true, order: 1, position: "left" },
     },
     cardLayout: {
-      "folder-main": { panelId: "folder", visible: true, expanded: true, order: 0 },
-      "book-information": { panelId: "info", visible: true, expanded: true, order: 0 },
+      "folder-main": {
+        panelId: "folder",
+        visible: true,
+        expanded: true,
+        order: 0,
+      },
+      "book-information": {
+        panelId: "info",
+        visible: true,
+        expanded: true,
+        order: 0,
+      },
     },
   }
 }

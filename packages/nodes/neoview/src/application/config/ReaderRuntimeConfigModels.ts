@@ -524,6 +524,7 @@ export interface NeoviewSwimlaneConfig {
   edgeRevealZones: Record<NeoviewSwimlaneRevealEdge, NeoviewSwimlaneRevealZone>
   readerFocusOnHover: boolean
   readerFocusHoverDelayMs: number
+  manualScrollEnabled: boolean
   showLaneNavigatorInReaderSolo: boolean
   autoFitToViewport: boolean
   barHandleStyle: NeoviewBarHandleStyle
@@ -649,6 +650,7 @@ export interface NeoviewShellControlPatch {
       edgeRevealZones?: Record<NeoviewSwimlaneRevealEdge, NeoviewSwimlaneRevealZone>
       readerFocusOnHover?: boolean
       readerFocusHoverDelayMs?: number
+      manualScrollEnabled?: boolean
       showLaneNavigatorInReaderSolo?: boolean
       autoFitToViewport?: boolean
       barHandleStyle?: NeoviewBarHandleStyle
@@ -965,6 +967,7 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
       },
       readerFocusOnHover: true,
       readerFocusHoverDelayMs: 650,
+      manualScrollEnabled: false,
       showLaneNavigatorInReaderSolo: false,
       autoFitToViewport: false,
       barHandleStyle: "grip",

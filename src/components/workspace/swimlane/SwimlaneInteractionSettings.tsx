@@ -10,11 +10,12 @@ export interface SwimlaneInteractionSettingsValue {
   edgeRevealDelayMs: number
   focusOnHover: boolean
   focusDelayMs: number
+  manualScrollEnabled?: boolean
 }
 
 export function SwimlaneInteractionSettings({ value, labels, onChange, title = "泳道焦点与独占", description = "控制主泳道独占、切换栏和边缘调阅的响应时机。" }: {
   value: SwimlaneInteractionSettingsValue
-  labels?: Partial<Record<"soloOnFocus" | "showNavigatorInSolo" | "edgeRevealDelay" | "focusOnHover" | "focusDelay", string>>
+  labels?: Partial<Record<"soloOnFocus" | "showNavigatorInSolo" | "edgeRevealDelay" | "focusOnHover" | "focusDelay" | "manualScrollEnabled", string>>
   onChange(patch: Partial<SwimlaneInteractionSettingsValue>): void
   title?: string
   description?: string
@@ -46,6 +47,7 @@ export function SwimlaneInteractionSettings({ value, labels, onChange, title = "
     <FieldGroup className="gap-0 overflow-hidden rounded-md border border-border/70">
       <SettingSwitch label={labels?.soloOnFocus ?? "主泳道聚焦时自动独占"} checked={value.soloOnFocus} onCheckedChange={(soloOnFocus) => onChange({ soloOnFocus })} />
       <SettingSwitch label={labels?.showNavigatorInSolo ?? "独占时显示泳道切换栏"} checked={value.showNavigatorInSolo} onCheckedChange={(showNavigatorInSolo) => onChange({ showNavigatorInSolo })} />
+      {value.manualScrollEnabled === undefined ? null : <SettingSwitch label={labels?.manualScrollEnabled ?? "允许手动横向滚动"} checked={value.manualScrollEnabled} onCheckedChange={(manualScrollEnabled) => onChange({ manualScrollEnabled })} />}
       <DelaySetting label={labels?.edgeRevealDelay ?? "左右泳道展开延迟"} value={edgeDelay} min={100} disabled={false} onChange={setEdgeDelay} onCommit={() => commitDelay("edge")} />
       <Field orientation="horizontal" className="min-h-12 gap-3 border-t border-border/55 px-3 py-2">
         <FieldContent>
