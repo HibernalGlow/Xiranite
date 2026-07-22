@@ -685,7 +685,10 @@ function ReaderSwimlane({
       onPointerUp={laneId === "reader" ? undefined : (event) => event.stopPropagation()}
       onPointerCancel={laneId === "reader" ? undefined : (event) => event.stopPropagation()}
       onWheel={laneId === "reader" ? undefined : stopPanelWheel}
-      onContextMenu={laneId === "reader" ? undefined : (event) => event.stopPropagation()}
+      // Do not stopPropagation on contextmenu: ContextMenuProvider listens on
+      // window, and File Card entry menus (neoview-folder-entry) need the event
+      // to bubble. ReaderApp already has data-context-menu-stop for host isolation.
+      onContextMenu={laneId === "reader" ? undefined : () => { onPanelPointerDown?.() }}
       onFocusCapture={laneId === "reader" ? undefined : onActivate}
       data-input-context={laneId === "reader" ? "reader" : "panel"}
       tabIndex={laneId === "reader" ? undefined : -1}

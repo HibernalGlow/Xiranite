@@ -56,6 +56,34 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(document.querySelector<HTMLElement>('[data-reader-swimlane="right"]')?.style.width).toBe("300px")
   })
 
+  it("lets File Card contextmenu bubble to window while still activating the side lane", () => {
+    const onWorkspaceChange = vi.fn()
+    const windowContextMenu = vi.fn()
+    window.addEventListener("contextmenu", windowContextMenu)
+    try {
+      render(
+        <ReaderSwimlaneWorkspace
+          shell={shellConfig("swimlane")}
+          workspace={readerWorkspaceConfig(shellConfig("swimlane"))}
+          reader={<button type="button">Reader action</button>}
+          left={
+            <button type="button" data-context-menu="neoview-folder-entry" data-folder-path="D:/books/a.cbz">
+              Folder entry
+            </button>
+          }
+          right={<div>right</div>}
+          onWorkspaceChange={onWorkspaceChange}
+        />,
+      )
+
+      fireEvent.contextMenu(screen.getByRole("button", { name: "Folder entry" }))
+      expect(windowContextMenu).toHaveBeenCalledTimes(1)
+      expect(onWorkspaceChange).toHaveBeenCalledWith({ activeLane: "left" })
+    } finally {
+      window.removeEventListener("contextmenu", windowContextMenu)
+    }
+  })
+
   it("keeps Reader fullscreen latent while a side lane is focused and restores Reader through the navigator", () => {
     const shell = shellConfig("swimlane", "right")
     shell.workspace!.swimlane.showLaneNavigatorInReaderSolo = true
