@@ -1,4 +1,4 @@
-import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil, Pin, PinOff, Scissors, Tags, Trash2, Undo2 } from "lucide-react"
+import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil, Pin, PinOff, RefreshCw, Scissors, Tags, Trash2, Undo2 } from "lucide-react"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 
 import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
@@ -40,6 +40,8 @@ export default function FolderContextActions({
   confirmDelete = true,
   onCatalogUpdate = () => undefined,
   onRefreshEmm = () => undefined,
+  onRefreshDirectory,
+  onReloadThumbnail,
   renameRequest,
   onRenameRequestHandled,
   treePinnedPaths = [],
@@ -64,6 +66,10 @@ export default function FolderContextActions({
   confirmDelete?: boolean
   onCatalogUpdate?(update: FolderCatalogUpdater): void
   onRefreshEmm?(focusPath: string): Promise<void> | void
+  /** Refresh the current directory listing (F5 / toolbar 刷新). */
+  onRefreshDirectory?(): void | Promise<void>
+  /** Reload the thumbnail for the concrete context entry (Neo 重载缩略图). */
+  onReloadThumbnail?(entry: FolderContextEntry): void | Promise<void>
   renameRequest?: FolderContextEntry
   onRenameRequestHandled?(): void
   /** Paths pinned to the folder tree root list (shown above volume roots). */
@@ -92,6 +98,42 @@ export default function FolderContextActions({
     }
     if (action === "enter-raw") {
       await onEnterRawDirectory?.(entry)
+      return
+    }
+    if (action === "refresh") {
+      if (!onRefreshDirectory) return
+      setPending(true)
+      setFeedback(undefined)
+      try {
+        await onRefreshDirectory()
+        const message = "已刷新当前目录"
+        setFeedback({ kind: "status", text: message })
+        switchToast?.show({ title: message })
+      } catch (error) {
+        const message = `刷新目录失败：${errorMessage(error)}`
+        setFeedback({ kind: "alert", text: message })
+        switchToast?.show({ title: message })
+      } finally {
+        setPending(false)
+      }
+      return
+    }
+    if (action === "reload-thumbnail") {
+      if (!onReloadThumbnail) return
+      setPending(true)
+      setFeedback(undefined)
+      try {
+        await onReloadThumbnail(entry)
+        const message = `已重载 ${entry.name} 的缩略图`
+        setFeedback({ kind: "status", text: message })
+        switchToast?.show({ title: message })
+      } catch (error) {
+        const message = `重载缩略图失败：${errorMessage(error)}`
+        setFeedback({ kind: "alert", text: message })
+        switchToast?.show({ title: message })
+      } finally {
+        setPending(false)
+      }
       return
     }
     if (action === "undo-delete") {
@@ -288,6 +330,8 @@ export default function FolderContextActions({
       canUndoDelete: Boolean(client.undoLatestFileOperations),
       confirmDelete,
       canEditMetadata: Boolean(sessionId && generation !== undefined && selection && client.resolveDirectorySelection && client.readDirectoryEmm && client.editDirectoryEmm),
+      canRefresh: Boolean(onRefreshDirectory),
+      canReloadThumbnail: Boolean(onReloadThumbnail),
       canPinTree: entry.kind === "directory" && Boolean(onToggleTreePin),
       treePinned: entry.kind === "directory" && treePinnedPaths.some((path) => sameTreePinPath(path, entry.path)),
       onAction: run,
@@ -339,7 +383,26 @@ export default function FolderContextActions({
   )
 }
 
-type FolderContextAction = "activate" | "enter-raw" | "new-tab" | "open-as-book" | "system-open" | "reveal" | "copy" | "cut" | "paste" | "copy-path" | "copy-name" | "toggle-bookmark" | "edit-metadata" | "rename" | "trash" | "delete" | "undo-delete"
+type FolderContextAction =
+  | "activate"
+  | "enter-raw"
+  | "new-tab"
+  | "open-as-book"
+  | "system-open"
+  | "reveal"
+  | "copy"
+  | "cut"
+  | "paste"
+  | "copy-path"
+  | "copy-name"
+  | "toggle-bookmark"
+  | "edit-metadata"
+  | "rename"
+  | "trash"
+  | "delete"
+  | "undo-delete"
+  | "refresh"
+  | "reload-thumbnail"
 
 export function buildFolderContextMenuItems(
   entry: FolderContextEntry,
@@ -360,6 +423,8 @@ export function buildFolderContextMenuItems(
     canUndoDelete?: boolean
     confirmDelete?: boolean
     canEditMetadata?: boolean
+    canRefresh?: boolean
+    canReloadThumbnail?: boolean
     canPinTree?: boolean
     treePinned?: boolean
     onAction(action: FolderContextAction, entry: FolderContextEntry): void | Promise<void>
@@ -531,6 +596,20 @@ export function buildFolderContextMenuItems(
         { id: "neoview-folder-copy-path", label: "复制路径", icon: <Copy />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-path", entry) },
         { id: "neoview-folder-copy-name", label: "复制名称", icon: <FileText />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-name", entry) },
       ],
+    },
+    {
+      id: "neoview-folder-refresh",
+      label: "刷新当前目录",
+      icon: <RefreshCw />,
+      disabled: unavailable || !options.canRefresh,
+      onSelect: () => options.onAction("refresh", entry),
+    },
+    {
+      id: "neoview-folder-reload-thumbnail",
+      label: "重载缩略图",
+      icon: <RefreshCw />,
+      disabled: unavailable || !options.canReloadThumbnail,
+      onSelect: () => options.onAction("reload-thumbnail", entry),
     },
     // Permanent delete stays a full-row destructive action for discoverability;
     // recycle-bin trash lives in the icon toolbar (Neo layout).
