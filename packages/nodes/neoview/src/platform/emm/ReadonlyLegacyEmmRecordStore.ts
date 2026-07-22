@@ -1,10 +1,11 @@
 import { stat } from "node:fs/promises"
 
 import type { ReaderDirectoryEmmRecord, ReaderDirectoryEmmRecordStore, ReaderEmmRawField, ReaderEmmRawFieldType } from "../../ports/ReaderDirectoryEmmRecordStore.js"
+import type { ReaderEmmRatingCatalogRecord, ReaderEmmRatingCatalogStore } from "../../ports/ReaderEmmRatingCatalogStore.js"
 import type { ReaderEmmCatalogTag, ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
 import { openReadonlySqlite, type ReadonlySqliteConnection } from "../sqlite/openReadonlySqlite.js"
 
-export type ExternalEmmStore = ReaderDirectoryEmmRecordStore & ReaderEmmTagCatalogStore & { close(): void }
+export type ExternalEmmStore = ReaderDirectoryEmmRecordStore & ReaderEmmTagCatalogStore & ReaderEmmRatingCatalogStore & { close(): void }
 
 export interface LegacyEmmDatabaseProbe {
   path: string
@@ -83,6 +84,22 @@ export async function openReadonlyLegacyEmmRecordStore(paths: readonly string[])
         }
       }
       return [...catalog.values()]
+    },
+    async listEmmRatingRecords(signal) {
+      const output = new Map<string, ReaderEmmRatingCatalogRecord>()
+      for (const { connection, rawColumns } of databases) {
+        signal?.throwIfAborted()
+        const available = new Map(rawColumns.map((column) => [column.toLocaleLowerCase(), column]))
+        const filepath = available.get("filepath")
+        const rating = available.get("rating")
+        if (!filepath || !rating) continue
+        for (const row of connection.all(`SELECT ${quoteIdentifier(filepath)} AS filepath, ${quoteIdentifier(rating)} AS rating FROM Mangas WHERE ${quoteIdentifier(rating)} > 0`)) {
+          const path = rowValue(row, "filepath")
+          const value = finiteNumber(rowValue(row, "rating"))
+          if (typeof path === "string" && value !== undefined && value > 0 && value <= 5) output.set(normalizePath(path), { path, rating: value })
+        }
+      }
+      return [...output.values()]
     },
     close() {
       for (const { connection } of databases) connection.close()
