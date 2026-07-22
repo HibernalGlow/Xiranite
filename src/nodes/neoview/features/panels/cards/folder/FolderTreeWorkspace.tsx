@@ -1,12 +1,27 @@
-import { PanelBottom, PanelLeft, PanelRight, PanelTop } from "lucide-react"
+import { PanelBottom, PanelLeft, PanelRight, PanelTop, type LucideIcon } from "lucide-react"
 import { useRef, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
 
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import type { ReaderFolderTreeLayout, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import FolderTreePanel from "./FolderTreePanel"
 
 const MIN_TREE_SIZE = 100
 const MAX_TREE_SIZE = 500
+
+const TREE_LAYOUT_OPTIONS: readonly { value: ReaderFolderTreeLayout; label: string; icon: LucideIcon }[] = [
+  { value: "left", label: "左侧", icon: PanelLeft },
+  { value: "right", label: "右侧", icon: PanelRight },
+  { value: "top", label: "顶部", icon: PanelTop },
+  { value: "bottom", label: "底部", icon: PanelBottom },
+]
 
 interface FolderTreeWorkspaceProps {
   client: ReaderHttpClient
@@ -38,27 +53,53 @@ export default function FolderTreeWorkspace({
   onPinnedPathsChange,
 }: FolderTreeWorkspaceProps) {
   const gestureRef = useRef<TreeResizeGesture | undefined>(undefined)
+  const current = TREE_LAYOUT_OPTIONS.find((option) => option.value === layout) ?? TREE_LAYOUT_OPTIONS[0]!
+  const CurrentIcon = current.icon
 
   return (
     <div
-      className="relative grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border bg-background/60"
+      className="relative min-h-0 min-w-0 overflow-hidden rounded border bg-background/60"
       style={{ order: layout === "left" || layout === "top" ? 0 : 1 }}
       data-neoview-folder-tree-pane="true"
     >
-      <ToggleGroup
-        type="single"
-        size="sm"
-        value={layout}
-        className="justify-start border-b px-1 py-0.5"
-        aria-label="文件树位置"
-        onValueChange={(value) => { if (value) onLayoutChange(value as ReaderFolderTreeLayout) }}
-      >
-        <ToggleGroupItem value="left" aria-label="文件树位于左侧" title="左侧"><PanelLeft /></ToggleGroupItem>
-        <ToggleGroupItem value="right" aria-label="文件树位于右侧" title="右侧"><PanelRight /></ToggleGroupItem>
-        <ToggleGroupItem value="top" aria-label="文件树位于顶部" title="顶部"><PanelTop /></ToggleGroupItem>
-        <ToggleGroupItem value="bottom" aria-label="文件树位于底部" title="底部"><PanelBottom /></ToggleGroupItem>
-      </ToggleGroup>
-      <div className="min-h-0">
+      {/* Single compact control instead of a full-width 4-icon position strip. */}
+      <div className="absolute right-1 top-1 z-20">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="secondary"
+              className="size-6 border border-border/70 bg-background/95 shadow-sm"
+              aria-label={`文件树位置：${current.label}`}
+              title={`文件树位置：${current.label}`}
+              disabled={disabled}
+              data-folder-tree-layout-trigger="true"
+            >
+              <CurrentIcon className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-36" data-folder-tree-layout-menu="true">
+            <DropdownMenuLabel>文件树位置</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={layout}
+              onValueChange={(value) => onLayoutChange(value as ReaderFolderTreeLayout)}
+            >
+              {TREE_LAYOUT_OPTIONS.map(({ value, label, icon: Icon }) => (
+                <DropdownMenuRadioItem
+                  key={value}
+                  value={value}
+                  aria-label={`文件树位于${label}`}
+                >
+                  <Icon className="size-4" />
+                  {label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="h-full min-h-0">
         <FolderTreePanel
           client={client}
           sessionId={sessionId}
