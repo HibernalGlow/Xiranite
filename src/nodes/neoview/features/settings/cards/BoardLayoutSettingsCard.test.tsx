@@ -11,12 +11,11 @@ describe("BoardLayoutSettingsCard", () => {
     const onWorkspace = vi.fn()
     render(<BoardLayoutSettingsCard shell={shell()} onSave={vi.fn(async () => undefined)} onWorkspace={onWorkspace} />)
 
-    const interaction = screen.getByRole("tab", { name: "交互" })
-    fireEvent.mouseDown(interaction, { button: 0 })
-    fireEvent.click(interaction)
-    fireEvent.click(screen.getByRole("switch", { name: "Reader 聚焦时自动全屏" }))
+    expect(screen.queryByRole("tab", { name: "交互" })).toBeNull()
+    expect(screen.getByText("泳道焦点与独占")).toBeTruthy()
+    fireEvent.click(screen.getByRole("switch", { name: "Reader 聚焦时自动独占" }))
     expect(onWorkspace).toHaveBeenLastCalledWith({ readerSoloOnFocus: false })
-    fireEvent.click(screen.getByRole("switch", { name: "Reader 独占时显示泳道底栏" }))
+    fireEvent.click(screen.getByRole("switch", { name: "Reader 独占时显示泳道切换栏" }))
     expect(onWorkspace).toHaveBeenLastCalledWith({ showLaneNavigatorInReaderSolo: true })
 
     const revealDelay = screen.getByRole("spinbutton", { name: "左右泳道展开延迟" })
@@ -24,7 +23,7 @@ describe("BoardLayoutSettingsCard", () => {
     fireEvent.blur(revealDelay)
     expect(onWorkspace).toHaveBeenLastCalledWith({ edgeRevealDelayMs: 430 })
 
-    const focusDelay = screen.getByRole("spinbutton", { name: "Reader 重新聚焦延迟" })
+    const focusDelay = screen.getByRole("spinbutton", { name: "Reader 悬停重新聚焦延迟" })
     fireEvent.change(focusDelay, { target: { value: "900" } })
     fireEvent.blur(focusDelay)
     expect(onWorkspace).toHaveBeenLastCalledWith({ readerFocusHoverDelayMs: 900 })
@@ -34,9 +33,6 @@ describe("BoardLayoutSettingsCard", () => {
     const onWorkspace = vi.fn()
     render(<BoardLayoutSettingsCard shell={shell()} onSave={vi.fn(async () => undefined)} onWorkspace={onWorkspace} />)
 
-    const interaction = screen.getByRole("tab", { name: "交互" })
-    fireEvent.mouseDown(interaction, { button: 0 })
-    fireEvent.click(interaction)
     expect(document.querySelectorAll("[data-reader-reveal-zone]")).toHaveLength(4)
 
     fireEvent.click(screen.getByRole("button", { name: "上栏" }))

@@ -2,7 +2,7 @@
  * Unified board layout settings: left / right / hidden swimlanes.
  * Replaces the separate sidebar-management + panel-layout cards.
  */
-import { Columns3, LayoutGrid, MousePointer2, PanelsTopLeft, RotateCcw } from "lucide-react"
+import { Columns3, LayoutGrid, PanelsTopLeft, RotateCcw } from "lucide-react"
 import { lazy, Suspense, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -56,13 +56,14 @@ export function BoardLayoutSettingsCard({
         actions={
           <TabsList variant="default" layout="fit" aria-label="泳道与布局分区" className="h-8">
             <TabsTrigger value="swimlane" className="h-7 gap-1 px-2.5 text-xs"><Columns3 className="size-3.5" />泳道</TabsTrigger>
-            <TabsTrigger value="interaction" className="h-7 gap-1 px-2.5 text-xs"><MousePointer2 className="size-3.5" />交互</TabsTrigger>
             <TabsTrigger value="board" className="h-7 gap-1 px-2.5 text-xs"><LayoutGrid className="size-3.5" />布局看板</TabsTrigger>
           </TabsList>
         }
       >
-        <TabsContent value="swimlane" className="mt-0 outline-none"><SwimlaneWorkspaceSettings shell={shell} onWorkspace={onWorkspace} /></TabsContent>
-        <TabsContent value="interaction" className="mt-0 outline-none"><SwimlaneInteractionSettings shell={shell} onWorkspace={onWorkspace} /></TabsContent>
+        <TabsContent value="swimlane" className="mt-0 grid gap-5 outline-none">
+          <SwimlaneWorkspaceSettings shell={shell} onWorkspace={onWorkspace} />
+          <SwimlaneInteractionSettings shell={shell} onWorkspace={onWorkspace} />
+        </TabsContent>
         <TabsContent value="board" className="mt-0 outline-none">
           <Suspense fallback={null}><BoardSwimlaneEditor key={shell.revision ?? 0} shell={shell} onSave={onSave} embedded /></Suspense>
         </TabsContent>
@@ -91,7 +92,7 @@ function SwimlaneInteractionSettings({ shell, onWorkspace }: {
     <div className="grid gap-3">
       <SharedSwimlaneInteractionSettings
         value={{ soloOnFocus: swimlane.readerSoloOnFocus, showNavigatorInSolo: swimlane.showLaneNavigatorInReaderSolo, edgeRevealDelayMs: swimlane.edgeRevealDelayMs, focusOnHover: swimlane.readerFocusOnHover, focusDelayMs: swimlane.readerFocusHoverDelayMs }}
-        labels={{ soloOnFocus: "Reader 聚焦时自动全屏", showNavigatorInSolo: "Reader 独占时显示泳道底栏", focusOnHover: "Reader 悬停后重新聚焦", focusDelay: "Reader 重新聚焦延迟" }}
+        labels={{ soloOnFocus: "Reader 聚焦时自动独占", showNavigatorInSolo: "Reader 独占时显示泳道切换栏", focusOnHover: "启用 Reader 悬停重新聚焦", focusDelay: "Reader 悬停重新聚焦延迟" }}
         onChange={(patch) => onWorkspace({
           ...(patch.soloOnFocus === undefined ? {} : { readerSoloOnFocus: patch.soloOnFocus }),
           ...(patch.showNavigatorInSolo === undefined ? {} : { showLaneNavigatorInReaderSolo: patch.showNavigatorInSolo }),
