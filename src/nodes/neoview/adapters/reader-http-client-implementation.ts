@@ -199,6 +199,13 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         body: JSON.stringify(patch),
         signal,
       }).then((value) => value.systemMonitor),
+    updatePreload: (patch, signal) =>
+      request<Contract.ReaderRuntimeConfigDto>("/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+        signal,
+      }).then((value) => value.preload),
     updateImageTrim: (patch, signal) =>
       request<Contract.ReaderRuntimeConfigDto>("/reader/config", {
         method: "PATCH",

@@ -114,6 +114,8 @@ export interface ReaderPanelContext {
   onRadialMenu?(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
   voiceControl?: ReaderRuntimeConfigDto["voiceControl"]
   onVoiceControl?(patch: ReaderVoiceControlPatch["voiceControl"]): Promise<NonNullable<ReaderRuntimeConfigDto["voiceControl"]>>
+  preload?: ReaderRuntimeConfigDto["preload"]
+  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
   onMaterial?(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
@@ -174,6 +176,8 @@ export interface ReaderSettingsCardContext {
   onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   imageProcessing?: ReaderImageProcessingConfigDto
   onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
+  preload?: ReaderRuntimeConfigDto["preload"]
+  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
   inputBindings?: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu?: ReaderRuntimeConfigDto["radialMenu"]
@@ -274,6 +278,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "slideshow-settings": () => import("../settings/cards/SlideshowSettingsCard"),
   "media-settings": () => import("../settings/cards/MediaSettingsCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
+  "preload-settings": () => import("../settings/cards/PreloadSettingsCard"),
   "reader-material-settings": () => import("../settings/cards/ReaderMaterialSettingsCard"),
   "board-layout-settings": () => import("../settings/cards/BoardLayoutSettingsCard"),
   "input-bindings-settings": () => import("../settings/cards/InputBindingsSettingsCard"),
@@ -294,6 +299,7 @@ const CARD_ICONS = {
   "slideshow-settings": Play,
   "media-settings": Film,
   "view-defaults-settings": Eye,
+  "preload-settings": Gauge,
   "reader-material-settings": Palette,
   "board-layout-settings": LayoutDashboard,
   "input-bindings-settings": Keyboard,
@@ -342,6 +348,7 @@ const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCard
   "slideshow-settings": async () => ({ default: (await import("../settings/cards/SlideshowSettingsCard")).SettingsSlideshowCard }),
   "media-settings": async () => ({ default: (await import("../settings/cards/MediaSettingsCard")).SettingsMediaCard }),
   "view-defaults-settings": async () => ({ default: (await import("../settings/cards/ViewDefaultsSettingsCard")).SettingsViewDefaultsCard }),
+  "preload-settings": async () => ({ default: (await import("../settings/cards/PreloadSettingsCard")).SettingsPreloadCard }),
   "reader-material-settings": async () => ({ default: (await import("../settings/cards/ReaderMaterialSettingsCard")).SettingsReaderMaterialCard }),
   "board-layout-settings": async () => ({ default: (await import("../settings/cards/BoardLayoutSettingsCard")).SettingsBoardLayoutCard }),
   "input-bindings-settings": async () => ({ default: (await import("../settings/cards/InputBindingsSettingsCard")).InputBindingsSettingsCard }),

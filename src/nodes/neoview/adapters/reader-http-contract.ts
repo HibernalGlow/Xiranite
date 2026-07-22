@@ -1159,6 +1159,7 @@ export interface ReaderRuntimeConfigDto {
   switchToast?: ReaderSwitchToastSettings
   infoOverlay?: ReaderInfoOverlaySettings
   systemMonitor: ReaderSystemMonitorConfigDto
+  preload: { maxCandidatePages: number }
   emm?: ReaderEmmConfigDto
   aiTranslation?: ReaderAiTranslationConfigDto
   imageTrim?: ReaderImageTrimSettings
@@ -1761,6 +1762,7 @@ export interface ReaderHttpClient {
   updateSwitchToast?(patch: ReaderSwitchToastConfigPatch, signal?: AbortSignal): Promise<ReaderSwitchToastSettings>
   updateInfoOverlay?(patch: ReaderInfoOverlayConfigPatch, signal?: AbortSignal): Promise<ReaderInfoOverlaySettings>
   updateSystemMonitor?(patch: ReaderSystemMonitorConfigPatch, signal?: AbortSignal): Promise<ReaderSystemMonitorConfigDto>
+  updatePreload?(patch: { preload: Partial<ReaderRuntimeConfigDto["preload"]> }, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto["preload"]>
   updateEmm?(patch: ReaderEmmConfigPatch, signal?: AbortSignal): Promise<ReaderEmmConfigDto>
   probeEmm?(patch: ReaderEmmConfigPatch, signal?: AbortSignal): Promise<ReaderEmmConnectionProbeDto>
   updateAiTranslation?(patch: ReaderAiTranslationConfigPatch, signal?: AbortSignal): Promise<ReaderAiTranslationConfigDto>

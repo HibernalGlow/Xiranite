@@ -114,6 +114,7 @@ const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
   random: false,
   fadeTransition: true,
 }
+const INITIAL_PRELOAD_CONFIG = { maxCandidatePages: 4 } satisfies ReaderRuntimeConfigDto["preload"]
 const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   homePath: "",
   viewMode: "compact",
@@ -333,6 +334,7 @@ export function ReaderApp({
   const [media, setMedia] = useState<ReaderMediaConfigDto>()
   const [imageProcessing, setImageProcessing] = useState<ReaderImageProcessingConfigDto>()
   const [slideshowConfig, setSlideshowConfig] = useState<ReaderSlideshowConfig>(() => ({ ...INITIAL_SLIDESHOW_CONFIG }))
+  const [preloadConfig, setPreloadConfig] = useState<ReaderRuntimeConfigDto["preload"]>(() => ({ ...INITIAL_PRELOAD_CONFIG }))
   const [slideshowFadeFrame, setSlideshowFadeFrame] = useState<string>()
   const [superResolution, setSuperResolution] = useState<ReaderRuntimeConfigDto["superResolution"]>()
   const [radialMenuRequest, setRadialMenuRequest] = useState<{ id: number; x: number; y: number }>()
@@ -364,6 +366,7 @@ export function ReaderApp({
     void clientRef.current.config(controller.signal).then((config) => {
       setMedia(config.media)
       setImageProcessing(config.imageProcessing)
+      setPreloadConfig(config.preload ?? INITIAL_PRELOAD_CONFIG)
       setBookDefaults(config.book ?? INITIAL_BOOK_DEFAULTS)
       setSuperResolution(config.superResolution)
       videoController.configure(config.media)
@@ -1499,6 +1502,13 @@ export function ReaderApp({
     return updated
   }
 
+  async function persistPreload(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]> {
+    if (!client.updatePreload) throw new Error("当前 Reader 不支持预读预算配置写入")
+    const updated = await client.updatePreload({ preload: patch })
+    setPreloadConfig(updated)
+    return updated
+  }
+
   function enqueueShellMutation(operation: () => Promise<void>): Promise<void> {
     const queued = shellControlWriteQueueRef.current.then(operation)
     shellControlWriteQueueRef.current = queued.then(() => undefined, () => undefined)
@@ -1755,6 +1765,8 @@ export function ReaderApp({
     onMediaChange: persistAnimatedVideoMode,
     imageProcessing,
     onImageProcessingChange: persistImageProcessing,
+    preload: preloadConfig,
+    onPreload: persistPreload,
     slideshow: slideshowConfig,
     onSlideshow: persistSlideshow,
     inputBindings,
@@ -1943,6 +1955,7 @@ export function ReaderApp({
             slideshow={slideshowConfig}
             media={media}
             imageProcessing={imageProcessing}
+            preload={preloadConfig}
             inputBindings={inputBindings}
             radialMenu={radialMenu}
             onClose={() => setSettingsOpen(false)}
@@ -1951,6 +1964,7 @@ export function ReaderApp({
             onSlideshow={persistSlideshow}
             onMedia={persistAnimatedVideoMode}
             onImageProcessing={persistImageProcessing}
+            onPreload={persistPreload}
             onInputBindings={persistInputBindings}
             onRadialMenu={persistRadialMenu}
             onLegacySettingsInspect={inspectLegacySettings}

@@ -124,6 +124,7 @@ import {
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
   DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
   DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
+  DEFAULT_NEOVIEW_PRELOAD_CONFIG,
   parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
   parseNeoviewShellControlPatch,
@@ -135,6 +136,7 @@ import {
   parseNeoviewSwitchToastPatch,
   parseNeoviewInfoOverlayPatch,
   parseNeoviewSystemMonitorPatch,
+  parseNeoviewPreloadPatch,
   parseNeoviewEmmPatch,
   parseNeoviewAiTranslationPatch,
   DEFAULT_NEOVIEW_EMM_CONFIG,
@@ -155,6 +157,8 @@ import {
   type NeoviewSwitchToastPatch,
   type NeoviewInfoOverlayPatch,
   type NeoviewSystemMonitorConfig,
+  type NeoviewPreloadConfig,
+  type NeoviewPreloadPatch,
   type NeoviewEmmConfig,
   type NeoviewEmmPatch,
   type NeoviewAiTranslationConfig,
@@ -326,6 +330,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #switchToast: ReaderSwitchToastSettings
   #infoOverlay: ReaderInfoOverlaySettings
   #systemMonitor: NeoviewSystemMonitorConfig
+  #preload: NeoviewPreloadConfig
   #emm: NeoviewEmmConfig
   #aiTranslation: NeoviewAiTranslationConfig
   readonly #ai: ReaderAiHttpController
@@ -350,6 +355,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateSwitchToast?: ReaderHttpControllerOptions["updateSwitchToast"]
   readonly #updateInfoOverlay?: ReaderHttpControllerOptions["updateInfoOverlay"]
   readonly #updateSystemMonitor?: ReaderHttpControllerOptions["updateSystemMonitor"]
+  readonly #updatePreload?: ReaderHttpControllerOptions["updatePreload"]
   readonly #updateEmm?: ReaderHttpControllerOptions["updateEmm"]
   readonly #probeEmm?: ReaderHttpControllerOptions["probeEmm"]
   readonly #updateAiTranslation?: ReaderHttpControllerOptions["updateAiTranslation"]
@@ -666,6 +672,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#switchToast = options.switchToast ?? DEFAULT_READER_SWITCH_TOAST
     this.#infoOverlay = options.infoOverlay ?? DEFAULT_READER_INFO_OVERLAY
     this.#systemMonitor = options.systemMonitor ?? DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG
+    this.#preload = options.preload ?? DEFAULT_NEOVIEW_PRELOAD_CONFIG
     this.#emm = options.emm ?? DEFAULT_NEOVIEW_EMM_CONFIG
     this.#aiTranslation = options.aiTranslation ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG
     this.#ai = new ReaderAiHttpController({
@@ -694,6 +701,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateSwitchToast = options.updateSwitchToast
     this.#updateInfoOverlay = options.updateInfoOverlay
     this.#updateSystemMonitor = options.updateSystemMonitor
+    this.#updatePreload = options.updatePreload
     this.#updateEmm = options.updateEmm
     this.#probeEmm = options.probeEmm
     this.#disposeEmmResources = options.disposeEmmResources
@@ -1266,6 +1274,25 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
+    if (Object.hasOwn(body, "preload")) {
+      if (!this.#updatePreload) return jsonResponse({ error: "Reader preload config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewPreloadPatch>
+      try {
+        parsed = parseNeoviewPreloadPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      const operation = this.#configUpdateQueue.then(async () => {
+        this.#preload = await this.#updatePreload!(parsed.patch, parsed.tomlPatch)
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
     if (Object.hasOwn(body, "emm")) {
       if (!this.#updateEmm) return jsonResponse({ error: "Reader EMM config is read-only" }, 405)
       let parsed: ReturnType<typeof parseNeoviewEmmPatch>
@@ -1574,6 +1601,7 @@ export class ReaderHttpController implements AsyncDisposable {
       switchToast: this.#switchToast,
       infoOverlay: this.#infoOverlay,
       systemMonitor: this.#systemMonitor,
+      preload: this.#preload,
       emm: this.#emm,
       aiTranslation: this.#aiTranslation,
       imageTrim: this.#imageTrim,
