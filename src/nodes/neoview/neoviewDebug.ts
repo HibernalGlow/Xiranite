@@ -72,6 +72,32 @@ export function neoviewDebug(label: string, detail?: unknown): void {
     live: event.live,
     ...(detail === undefined ? {} : { detail }),
   })
+
+  // Always persist to the Vite middleware log file so agents can read freezes
+  // without requiring the user to copy DevTools output.
+  void fetch("/__xiranite-debug-log", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      sequence: event.sequence,
+      elapsedMs: event.t,
+      label: `neoview:${label}`,
+      detail: {
+        live: event.live,
+        ...(detail === undefined ? {} : { detail: summarizeDetail(detail) }),
+      },
+    }),
+    keepalive: true,
+  }).catch(() => undefined)
+}
+
+function summarizeDetail(detail: unknown): unknown {
+  if (detail instanceof Error) return { name: detail.name, message: detail.message, stack: detail.stack }
+  try {
+    return JSON.parse(JSON.stringify(detail)) as unknown
+  } catch {
+    return String(detail)
+  }
 }
 
 export async function neoviewDebugAsync<T>(label: string, operation: () => T | PromiseLike<T>, detail?: unknown): Promise<T> {

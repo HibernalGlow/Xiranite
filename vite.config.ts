@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
-import path from "path"
+import path, { dirname, resolve } from "path"
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs"
 import { readFile, mkdir, writeFile } from "node:fs/promises"
 import tailwindcss from "@tailwindcss/vite"
 import { Scanner } from "@tailwindcss/oxide"
@@ -78,8 +79,29 @@ function developmentDebugLogPlugin() {
   return {
     name: "xiranite:development-debug-log",
     apply: "serve" as const,
-    configureServer(server: { middlewares: { use: (path: string, handler: (request: NodeJS.ReadableStream, response: { statusCode: number; end: () => void }) => void) => void } }) {
+    configureServer(server: {
+      config: { root: string }
+      middlewares: { use: (path: string, handler: (request: NodeJS.ReadableStream & { method?: string }, response: { statusCode: number; setHeader: (k: string, v: string) => void; end: (body?: string) => void }) => void) => void }
+    }) {
+      const logPath = resolve(server.config.root, ".tmp/neoview-debug.log")
+      mkdirSync(dirname(logPath), { recursive: true })
+      appendFileSync(logPath, `\n---- session ${new Date().toISOString()} ----\n`, "utf8")
+      console.info(`[xiranite-debug] writing browser timeline to ${logPath}`)
+
       server.middlewares.use("/__xiranite-debug-log", (request, response) => {
+        if (request.method === "GET") {
+          try {
+            const body = existsSync(logPath) ? readFileSync(logPath, "utf8") : ""
+            response.statusCode = 200
+            response.setHeader("content-type", "text/plain; charset=utf-8")
+            response.end(body)
+          } catch (error) {
+            response.statusCode = 500
+            response.end(error instanceof Error ? error.message : String(error))
+          }
+          return
+        }
+
         let body = ""
         request.setEncoding("utf8")
         request.on("data", (chunk) => {
@@ -88,7 +110,9 @@ function developmentDebugLogPlugin() {
         request.on("end", () => {
           try {
             const event = JSON.parse(body) as { sequence?: unknown; elapsedMs?: unknown; label?: unknown; detail?: unknown }
-            console.log(`[xiranite-debug #${String(event.sequence)} +${String(event.elapsedMs)}ms] ${String(event.label)}`, event.detail ?? "")
+            const line = `[xiranite-debug #${String(event.sequence)} +${String(event.elapsedMs)}ms] ${String(event.label)}${event.detail === undefined ? "" : ` ${JSON.stringify(event.detail)}`}`
+            console.log(line)
+            appendFileSync(logPath, `${line}\n`, "utf8")
           } catch {
             console.warn("[xiranite-debug] invalid browser event")
           }
