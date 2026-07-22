@@ -7,6 +7,7 @@ import { FloatingWindowCaptionControls, FloatingWindowFrameProvider } from "../.
 import type { ReaderShellConfigDto, ReaderSwimlaneLaneDto } from "../../../src/nodes/neoview/adapters/reader-http-client"
 import { ReaderPanelBar } from "../../../src/nodes/neoview/features/panels/ReaderPanelBar"
 import { ReaderWindowBar } from "../../../src/nodes/neoview/features/shell/ReaderWindowBar"
+import { ReaderEdgeShell } from "../../../src/nodes/neoview/features/shell/ReaderEdgeShell"
 import type { ReaderShellControlPort } from "../../../src/nodes/neoview/features/shell/ReaderShellControlPort"
 import { createReaderShellControlStore } from "../../../src/nodes/neoview/features/shell/ReaderShellControlStore"
 import { ReaderSwimlaneWorkspace } from "../../../src/nodes/neoview/features/workspace/ReaderSwimlaneWorkspace"
@@ -125,8 +126,25 @@ function ReaderSurface({ control, shell, includeWindowControls, readerSoloActive
   onWorkspaceChange(patch: ReaderWorkspacePatch): void
 }) {
   const workspace = readerWorkspaceConfig(shell)
+  const [edgeOpen, setEdgeOpen] = useState({ top: false, bottom: false })
+  const edgeSlot = (edge: "top" | "bottom") => ({
+    ariaLabel: edge === "top" ? "Reader 顶栏" : "Reader 底栏",
+    open: edgeOpen[edge],
+    interaction: "auto" as const,
+    triggerSize: 24,
+    triggerRect: edge === "top"
+      ? { x: 45, y: 5, width: 10, height: 2 }
+      : { x: 2, y: 98, width: 4, height: 2 },
+    className: "pointer-events-none",
+    showDelayMs: 0,
+    hideDelayMs: 240,
+    render: () => <div className="grid h-10 place-items-center border-y border-border/50 bg-background/94 text-xs">{edge === "top" ? "Reader 顶栏" : "Reader 底栏"}</div>,
+  })
   return (
-    <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-neutral-950" data-reader-harness-surface="true">
+    <ReaderEdgeShell edges={{ top: edgeSlot("top"), bottom: edgeSlot("bottom") }} onEdgeOpenRequest={(edge, open) => {
+      if (edge === "top" || edge === "bottom") setEdgeOpen((current) => ({ ...current, [edge]: open }))
+    }}>
+      <section className="relative flex h-full min-h-0 flex-col overflow-hidden bg-neutral-950" data-reader-harness-surface="true">
       <div className="xiranite-app-region-drag flex min-h-11 shrink-0 select-none items-stretch border-b border-white/10 bg-background/94 pl-2 backdrop-blur-xl" data-reader-breadcrumb-bar="true">
         <ReaderWindowBar
           control={control}
@@ -163,7 +181,8 @@ function ReaderSurface({ control, shell, includeWindowControls, readerSoloActive
           Reader 操作 {readerActions}
         </button>
       </div>
-    </section>
+      </section>
+    </ReaderEdgeShell>
   )
 }
 

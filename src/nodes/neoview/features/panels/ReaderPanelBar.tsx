@@ -3,8 +3,9 @@ import { createPortal } from "react-dom"
 import { LockKeyhole, LockKeyholeOpen, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { SwimlaneBarContent } from "@/components/workspace/swimlane/SwimlaneBarContent"
 import type { ReaderSwimlaneLaneDto } from "../../adapters/reader-http-client"
-import { ReaderBarHandleGlyph, type ReaderBarHandlePosition, type ReaderBarHandleStyle } from "../shell/ReaderBarHandleGlyph"
+import type { ReaderBarHandlePosition, ReaderBarHandleStyle } from "../shell/ReaderBarHandleGlyph"
 import type { ReaderPanelSide } from "./registry"
 
 type PanelBarDock = NonNullable<ReaderSwimlaneLaneDto["panelBarDock"]>
@@ -180,21 +181,6 @@ export function ReaderPanelBar({ side, lane, children, owner, handleStyle = "gri
     onChange(patch)
   }
 
-  const handle = <button
-    type="button"
-    title="拖动面板操作栏；右键打开固定与范围设置"
-    aria-label="拖动或设置面板操作栏"
-    aria-haspopup="menu"
-    aria-expanded={menuOpen}
-    data-reader-bar-handle-style={handleStyle}
-    data-reader-bar-handle-position={handlePosition}
-    className={cn("grid size-7 shrink-0 cursor-grab touch-none place-items-center rounded text-muted-foreground hover:bg-muted active:cursor-grabbing", handleStyle === "edge" && "w-3")}
-    onPointerDown={startDrag}
-    onContextMenu={openSettingsMenu}
-  >
-    <ReaderBarHandleGlyph style={handleStyle} horizontal={horizontal} />
-  </button>
-
   const bar = (
     <nav
       ref={setBarRef}
@@ -214,11 +200,17 @@ export function ReaderPanelBar({ side, lane, children, owner, handleStyle = "gri
       style={barStyle({ dock, dragging, lane, livePosition, mode, titleMounted })}
       onPointerDown={titleMounted ? (event) => event.stopPropagation() : undefined}
     >
-      {handlePosition === "left" ? handle : null}
-      <div className={cn("flex min-h-0 min-w-0 flex-1 gap-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", horizontal ? "flex-row overflow-x-auto overflow-y-hidden" : "flex-col overflow-x-hidden overflow-y-auto")}>
+      <SwimlaneBarContent
+        handlePosition={handlePosition}
+        handleStyle={handleStyle}
+        horizontal={horizontal}
+        label="拖动或设置面板操作栏"
+        menuOpen={menuOpen}
+        onHandlePointerDown={startDrag}
+        onHandleContextMenu={openSettingsMenu}
+      >
         {children}
-      </div>
-      {handlePosition === "right" ? handle : null}
+      </SwimlaneBarContent>
     </nav>
   )
 

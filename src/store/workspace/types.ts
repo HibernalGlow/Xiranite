@@ -33,6 +33,7 @@ import type { TabDisplayStyle } from "@/components/ui/tabs-variants"
 import type { SwitchDisplayStyle } from "@/components/ui/switch-variants"
 import type { ChoiceControlStyle, FieldTitleStyle } from "@/components/ui/choice-control-variants"
 import type { ModuleCardEffect, ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@/components/ui/module-panel-variants"
+import type { SwimlaneWorkspacePreferences } from "@/components/workspace/swimlane/model"
 
 /** 工作区 Store 完整状态：UI 偏好 + 业务数据 + 运行时标志。 */
 export interface WSState {
@@ -148,6 +149,8 @@ export interface WSState {
   resizableHandleStyle: ResizableHandleStyle
   /** 危险模式（高对比警示色）。 */
   hazardMode: boolean
+  /** 项目级 lane 视图按 workspace 保存的聚焦、独占与操作栏偏好。 */
+  laneWorkspacePreferences: Record<string, SwimlaneWorkspacePreferences>
 }
 
 /** 组件 patch 字段，用于 updateComponent 的部分更新。 */
@@ -216,6 +219,7 @@ export interface WorkspaceUiActions {
   setModuleCardEffect(effect: ModuleCardEffect): void
   setResizableHandleStyle(style: ResizableHandleStyle): void
   setHazardMode(enabled: boolean): void
+  patchLaneWorkspacePreferences(workspaceId: string, patch: Partial<SwimlaneWorkspacePreferences>): void
 }
 
 /** 工作区增删改动作（slice 2）。 */
@@ -348,6 +352,7 @@ export type WorkspaceUiPreferences = Pick<
   | "moduleCardEffect"
   | "resizableHandleStyle"
   | "hazardMode"
+  | "laneWorkspacePreferences"
 >
 
 /** Zustand 的 set 函数签名（带 action label 用于 devtools）。 */

@@ -18,9 +18,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Plus, Columns3 } from "lucide-react"
+import { Plus, Columns3, Maximize2, Minimize2, MoveRight, Settings2 } from "lucide-react"
 import { MouseSensor, TouchSensor, useSensor, useSensors, type UniqueIdentifier } from "@dnd-kit/core"
-import type { Lane as LaneType } from "@/types/workspace"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceStore"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
 import { translateLabel } from "@/lib/i18nLabel"
@@ -29,8 +28,9 @@ import { useMarqueeSelection } from "@/hooks/useMarqueeSelection"
 import { Button } from "@/components/ui/button"
 import { Kanban, KanbanBoard, KanbanOverlay } from "@/components/ui/kanban"
 import { Lane } from "./Lane"
-import { getModule } from "@/components/modules/registry"
 import { cn } from "@/lib/utils"
+import { SwimlaneBarMenuItem, SwimlaneNavigatorBar } from "@/components/workspace/swimlane/SwimlaneNavigatorBar"
+import { adjacentSwimlane, normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
 
 interface LaneCardItem {
   id: string
@@ -39,14 +39,20 @@ interface LaneCardItem {
 
 export function LaneView() {
   const { t } = useTranslation()
-  const { lanes, activeWorkspaceId } = useWorkspaceShallowSelector((state) => ({
+  const { lanes, activeWorkspaceId, laneWorkspacePreferences } = useWorkspaceShallowSelector((state) => ({
     lanes: state.lanes,
     activeWorkspaceId: state.activeWorkspaceId,
+    laneWorkspacePreferences: state.laneWorkspacePreferences,
   }))
   const visibleComponents = useWorkspaceVisibleComponents()
   const workspaceActions = useWorkspaceActions()
   const laneScrollRef = useRef<HTMLDivElement | null>(null)
-  const [activeLaneId, setActiveLaneId] = useState<string | null>(null)
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const restoreTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const [viewportWidth, setViewportWidth] = useState(960)
+  const [previewLaneId, setPreviewLaneId] = useState<string>()
+  const preferences = normalizeSwimlanePreferences(laneWorkspacePreferences[activeWorkspaceId])
   const handleDropModule = useCallback((moduleId: string) => {
     workspaceActions.deployComponent(moduleId, { viewMode: "lane" })
   }, [workspaceActions])
@@ -78,6 +84,9 @@ export function LaneView() {
     () => lanes.filter(l => l.workspaceId === activeWorkspaceId && !l.hidden),
     [lanes, activeWorkspaceId],
   )
+  const laneIds = useMemo(() => wsLanes.map((lane) => lane.id), [wsLanes])
+  const activeLaneId = preferences.activeLaneId && laneIds.includes(preferences.activeLaneId) ? preferences.activeLaneId : laneIds[0] ?? null
+  const soloLaneId = preferences.soloLaneId && laneIds.includes(preferences.soloLaneId) ? preferences.soloLaneId : null
 
   // 在 lane 模式下未隐藏的组件
   const laneComponents = useMemo(
@@ -121,43 +130,25 @@ export function LaneView() {
     workspaceActions.setLaneBoardLayout(activeWorkspaceId, laneOrder, cardOrderByLane)
   }, [activeWorkspaceId, workspaceActions, wsLanes])
 
-  const updateActiveLane = useCallback(() => {
-    const scroller = laneScrollRef.current
-    if (!scroller) return
-
-    const laneElements = Array.from(scroller.querySelectorAll<HTMLElement>("[data-lane-id]"))
-      .filter((element) => element.closest("[data-lane-board='true']"))
-    if (laneElements.length === 0) {
-      setActiveLaneId(null)
-      return
-    }
-
-    const scrollerRect = scroller.getBoundingClientRect()
-    const viewportCenter = scrollerRect.left + scrollerRect.width / 2
-    const activeElement = laneElements.reduce((best, element) => {
-      const rect = element.getBoundingClientRect()
-      const distance = Math.abs(rect.left + rect.width / 2 - viewportCenter)
-      return distance < best.distance ? { element, distance } : best
-    }, { element: laneElements[0], distance: Number.POSITIVE_INFINITY }).element
-
-    setActiveLaneId(activeElement.dataset.laneId ?? null)
-  }, [])
-
   useEffect(() => {
     const scroller = laneScrollRef.current
     if (!scroller) return
-
-    updateActiveLane()
-    scroller.addEventListener("scroll", updateActiveLane, { passive: true })
-    const observer = new ResizeObserver(updateActiveLane)
+    const update = () => setViewportWidth(Math.max(1, scroller.clientWidth || 960))
+    update()
+    const observer = new ResizeObserver(update)
     observer.observe(scroller)
     return () => {
-      scroller.removeEventListener("scroll", updateActiveLane)
       observer.disconnect()
     }
-  }, [updateActiveLane, wsLanes.length])
+  }, [wsLanes.length])
 
-  const scrollToLane = useCallback((laneId: string) => {
+  useEffect(() => () => {
+    clearTimeout(focusTimerRef.current)
+    clearTimeout(revealTimerRef.current)
+    clearTimeout(restoreTimerRef.current)
+  }, [])
+
+  const scrollToLane = useCallback((laneId: string, activate = true) => {
     const scroller = laneScrollRef.current
     if (!scroller) return
 
@@ -168,12 +159,56 @@ export function LaneView() {
     const scrollerRect = scroller.getBoundingClientRect()
     const laneRect = laneElement.getBoundingClientRect()
     scroller.scrollTo({
-      left: scroller.scrollLeft + laneRect.left - scrollerRect.left - (scroller.clientWidth - laneRect.width) / 2,
+      left: scroller.scrollLeft + laneRect.left - scrollerRect.left,
       behavior: "smooth",
     })
-    setActiveLaneId(laneId)
-    window.setTimeout(() => setActiveLaneId(laneId), 360)
-  }, [])
+    if (activate) workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { activeLaneId: laneId })
+  }, [activeWorkspaceId, workspaceActions])
+
+  useEffect(() => {
+    if (activeLaneId) scrollToLane(activeLaneId, false)
+  }, [activeLaneId, scrollToLane, soloLaneId, viewportWidth])
+
+  function activateLane(laneId: string) {
+    clearTimeout(focusTimerRef.current)
+    setPreviewLaneId(undefined)
+    scrollToLane(laneId)
+  }
+
+  function scheduleFocus(laneId: string) {
+    if (!preferences.focusOnHover || activeLaneId === laneId || focusTimerRef.current) return
+    focusTimerRef.current = setTimeout(() => {
+      focusTimerRef.current = undefined
+      activateLane(laneId)
+    }, preferences.focusDelayMs)
+  }
+
+  function cancelFocus() {
+    clearTimeout(focusTimerRef.current)
+    focusTimerRef.current = undefined
+  }
+
+  function scheduleReveal(edge: "left" | "right") {
+    if (!activeLaneId || soloLaneId !== activeLaneId || revealTimerRef.current) return
+    const target = adjacentSwimlane(laneIds, activeLaneId, edge)
+    if (!target) return
+    clearTimeout(restoreTimerRef.current)
+    revealTimerRef.current = setTimeout(() => {
+      revealTimerRef.current = undefined
+      setPreviewLaneId(target)
+      scrollToLane(target, false)
+    }, preferences.edgeRevealDelayMs)
+  }
+
+  function restoreReveal() {
+    clearTimeout(revealTimerRef.current)
+    revealTimerRef.current = undefined
+    if (!previewLaneId || !activeLaneId) return
+    restoreTimerRef.current = setTimeout(() => {
+      setPreviewLaneId(undefined)
+      scrollToLane(activeLaneId, false)
+    }, 320)
+  }
 
   // 没有任何 lane：显示空态 + 创建默认 lane
   if (wsLanes.length === 0) {
@@ -223,6 +258,12 @@ export function LaneView() {
                 key={lane.id}
                 lane={lane}
                 components={kanbanValue[lane.id] ?? []}
+                active={activeLaneId === lane.id}
+                solo={soloLaneId === lane.id}
+                soloWidth={viewportWidth}
+                onActivate={() => activateLane(lane.id)}
+                onHoverFocus={() => scheduleFocus(lane.id)}
+                onHoverFocusCancel={cancelFocus}
               />
             ))}
           </KanbanBoard>
@@ -270,11 +311,37 @@ export function LaneView() {
             <Plus className="h-4 w-4" />
           </button>
         </div>
-        <LaneDock
-          lanes={wsLanes}
-          activeLaneId={activeLaneId ?? wsLanes[0]?.id ?? null}
-          cardsByLane={kanbanValue}
-          onSelect={scrollToLane}
+        {activeLaneId && soloLaneId === activeLaneId ? <>
+          <div data-swimlane-reveal-trigger="left" className="absolute inset-y-12 left-0 z-30 w-2" onPointerEnter={() => scheduleReveal("left")} onPointerLeave={restoreReveal} />
+          <div data-swimlane-reveal-trigger="right" className="absolute inset-y-12 right-0 z-30 w-2" onPointerEnter={() => scheduleReveal("right")} onPointerLeave={restoreReveal} />
+        </> : null}
+        <SwimlaneNavigatorBar
+          items={wsLanes.map((lane) => ({ id: lane.id, label: `${translateLabel(lane.label, t)} (${kanbanValue[lane.id]?.length ?? 0})` }))}
+          activeId={activeLaneId ?? wsLanes[0]!.id}
+          handleStyle={preferences.barHandleStyle}
+          handlePosition={preferences.barHandlePosition}
+          position={{ x: preferences.navigatorPositionX, y: preferences.navigatorPositionY }}
+          onSelect={activateLane}
+          onPositionChange={({ x, y }) => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { navigatorPositionX: x, navigatorPositionY: y })}
+          menu={<>
+            <SwimlaneBarMenuItem onSelect={() => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { soloLaneId: soloLaneId === activeLaneId ? null : activeLaneId })}>
+              {soloLaneId === activeLaneId ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+              {soloLaneId === activeLaneId ? "退出当前泳道独占" : "当前泳道独占视口"}
+            </SwimlaneBarMenuItem>
+            <SwimlaneBarMenuItem onSelect={() => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { focusOnHover: !preferences.focusOnHover })}>
+              <Settings2 className="size-3.5" />{preferences.focusOnHover ? "关闭悬停聚焦" : "开启悬停聚焦"}
+            </SwimlaneBarMenuItem>
+            <SwimlaneBarMenuItem onSelect={() => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { barHandlePosition: preferences.barHandlePosition === "left" ? "right" : "left" })}>
+              <MoveRight className="size-3.5" />手柄移到{preferences.barHandlePosition === "left" ? "右" : "左"}侧
+            </SwimlaneBarMenuItem>
+            <SwimlaneBarMenuItem onSelect={() => {
+              const styles = ["grip", "groove", "move", "grab", "edge"] as const
+              const next = styles[(styles.indexOf(preferences.barHandleStyle) + 1) % styles.length]
+              workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { barHandleStyle: next })
+            }}>
+              <Columns3 className="size-3.5" />切换拖拽手柄样式
+            </SwimlaneBarMenuItem>
+          </>}
         />
       </div>
       <KanbanOverlay className="z-[1000]">
@@ -296,11 +363,10 @@ export function LaneView() {
 
           const component = laneComponents.find((item) => item.id === value)
           if (!component) return null
-          const mod = getModule(component.moduleId)
           return (
             <div className="xiranite-ui-copy w-80 rounded-md border border-border/50 bg-card/95 p-3 text-card-foreground shadow-2xl">
               <div className="text-[11px] font-mono font-semibold uppercase tracking-widest text-muted-foreground">
-                {mod?.name ?? component.moduleId}
+                {component.moduleId}
               </div>
               <div className="mt-2 h-24 rounded-sm bg-muted/30" />
             </div>
@@ -315,53 +381,6 @@ function ModuleDropHint({ label }: { label: string }) {
   return (
     <div className="xiranite-ui-copy pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-sm border border-primary/40 bg-card/95 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-primary shadow-sm">
       {label}
-    </div>
-  )
-}
-
-function LaneDock({
-  lanes,
-  activeLaneId,
-  cardsByLane,
-  onSelect,
-}: {
-  lanes: LaneType[]
-  activeLaneId: string | null
-  cardsByLane: Record<UniqueIdentifier, LaneCardItem[]>
-  onSelect: (laneId: string) => void
-}) {
-  const { t } = useTranslation()
-  if (lanes.length <= 1) return null
-
-  const activeIndex = Math.max(0, lanes.findIndex((lane) => lane.id === activeLaneId))
-
-  return (
-    <div className="xiranite-ui-copy pointer-events-none absolute bottom-4 right-4 z-40 flex max-w-[min(520px,calc(100%-2rem))] items-center gap-2 rounded-full border border-border/45 bg-card/88 px-2.5 py-2 shadow-[0_16px_48px_-28px_oklch(0_0_0/0.5)] backdrop-blur-md">
-      <span className="pointer-events-none min-w-8 text-center text-[10px] font-mono text-muted-foreground">
-        {activeIndex + 1}/{lanes.length}
-      </span>
-      <div className="pointer-events-auto flex max-w-[min(420px,calc(100vw-8rem))] items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {lanes.map((lane, index) => {
-          const active = lane.id === activeLaneId
-          const label = translateLabel(lane.label, t)
-          const cardCount = cardsByLane[lane.id]?.length ?? 0
-          return (
-            <button
-              key={lane.id}
-              type="button"
-              aria-label={`${label} (${index + 1}/${lanes.length}, ${cardCount})`}
-              title={`${label} - ${cardCount}`}
-              onClick={() => onSelect(lane.id)}
-              className={cn(
-                "h-2.5 flex-shrink-0 rounded-full border transition-[width,background-color,border-color,opacity] hover:opacity-100",
-                active
-                  ? "w-8 border-primary/55 bg-primary"
-                  : "w-2.5 border-border/60 bg-muted-foreground/35 opacity-70 hover:border-primary/45 hover:bg-primary/45",
-              )}
-            />
-          )
-        })}
-      </div>
     </div>
   )
 }

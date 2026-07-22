@@ -87,4 +87,5 @@ export const INITIAL_STATE: WSState = {
   moduleCardEffect: "magic",
   resizableHandleStyle: "grip",
   hazardMode: false,
+  laneWorkspacePreferences: {},
 }

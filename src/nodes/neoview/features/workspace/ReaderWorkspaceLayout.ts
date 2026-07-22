@@ -3,6 +3,7 @@ import type {
   ReaderShellControlPatch,
   ReaderSwimlaneId,
 } from "../../adapters/reader-http-client"
+import { reorderSwimlanes } from "@/components/workspace/swimlane/model"
 
 export type ReaderWorkspaceConfig = NonNullable<ReaderShellConfigDto["workspace"]>
 export type ReaderWorkspacePatch = NonNullable<ReaderShellControlPatch["shellControl"]["workspace"]>
@@ -129,9 +130,7 @@ export function reorderedReaderLanes(
   target: ReaderSwimlaneId,
 ): ReaderSwimlaneId[] {
   if (dragged === target) return normalizeLaneOrder(order)
-  const next = normalizeLaneOrder(order).filter((laneId) => laneId !== dragged)
-  next.splice(next.indexOf(target), 0, dragged)
-  return next
+  return reorderSwimlanes(normalizeLaneOrder(order), dragged, target)
 }
 
 export function readerLaneWidth(viewportWidth: number, ratio: number): number {
@@ -146,25 +145,45 @@ export function fitReaderSwimlanesToViewport(
   const collapsed = swimlane.laneOrder.filter((laneId) => swimlane.lanes[laneId].collapsed)
   const expanded = swimlane.laneOrder.filter((laneId) => !collapsed.includes(laneId))
   const available = Math.max(expanded.length, width - collapsed.length * 44)
-  const weights = expanded.map((laneId) => laneId === "reader"
-    ? readerLaneWidth(width, swimlane.readerWidthRatio)
-    : Math.max(1, swimlane.lanes[laneId].width))
-  const totalWeight = weights.reduce((sum, value) => sum + value, 0)
-  let assigned = 0
   const lanes: NonNullable<ReaderWorkspacePatch["lanes"]> = {}
-  expanded.forEach((laneId, index) => {
-    const laneWidth = index === expanded.length - 1
-      ? available - assigned
-      : Math.max(1, Math.round(available * weights[index]! / totalWeight))
-    assigned += laneWidth
-    lanes[laneId] = { width: laneWidth }
-  })
+  const weightedWidth = (laneId: ReaderSwimlaneId) => laneId === "reader"
+    ? readerLaneWidth(width, swimlane.readerWidthRatio)
+    : Math.max(1, swimlane.lanes[laneId].width)
+  const readerExpanded = expanded.includes("reader")
+  if (readerExpanded) {
+    const totalWeight = expanded.reduce((sum, laneId) => sum + weightedWidth(laneId), 0)
+    const readerMinimum = Math.min(available, Math.round(width * MIN_READER_WIDTH_RATIO))
+    const readerMaximum = Math.min(available, Math.round(width * MAX_READER_WIDTH_RATIO))
+    const readerWidth = clamp(Math.round(available * weightedWidth("reader") / totalWeight), readerMinimum, readerMaximum)
+    lanes.reader = { width: readerWidth }
+    distributeWidths(expanded.filter((laneId) => laneId !== "reader"), available - readerWidth, weightedWidth, lanes)
+  } else {
+    distributeWidths(expanded, available, weightedWidth, lanes)
+  }
   const readerWidth = lanes.reader?.width ?? readerLaneWidth(width, swimlane.readerWidthRatio)
   return {
     readerSolo: false,
     readerWidthRatio: clamp(readerWidth / width, MIN_READER_WIDTH_RATIO, MAX_READER_WIDTH_RATIO),
     lanes,
   }
+}
+
+function distributeWidths(
+  laneIds: readonly ReaderSwimlaneId[],
+  available: number,
+  weight: (laneId: ReaderSwimlaneId) => number,
+  lanes: NonNullable<ReaderWorkspacePatch["lanes"]>,
+): void {
+  if (laneIds.length === 0) return
+  const totalWeight = laneIds.reduce((sum, laneId) => sum + weight(laneId), 0)
+  let assigned = 0
+  laneIds.forEach((laneId, index) => {
+    const laneWidth = index === laneIds.length - 1
+      ? available - assigned
+      : Math.max(1, Math.round(available * weight(laneId) / totalWeight))
+    assigned += laneWidth
+    lanes[laneId] = { width: laneWidth }
+  })
 }
 
 function normalizeLaneOrder(order: readonly ReaderSwimlaneId[]): ReaderSwimlaneId[] {

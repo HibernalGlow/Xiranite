@@ -35,9 +35,15 @@ const formatRatioInput = (ratio: number) => Number(ratio.toFixed(2)).toString()
 interface Props {
   lane: LaneType
   components: { id: string; moduleId: string }[]
+  active?: boolean
+  solo?: boolean
+  soloWidth?: number
+  onActivate?(): void
+  onHoverFocus?(): void
+  onHoverFocusCancel?(): void
 }
 
-export function Lane({ lane, components }: Props) {
+export function Lane({ lane, components, active = false, solo = false, soloWidth, onActivate, onHoverFocus, onHoverFocusCancel }: Props) {
   const { t } = useTranslation()
   const workspaceActions = useWorkspaceActions()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -49,7 +55,7 @@ export function Lane({ lane, components }: Props) {
     workspaceActions.deployComponent(moduleId, { viewMode: "lane", laneId: lane.id })
   }, [lane.id, workspaceActions])
   const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
-  const laneWidth = Math.max(MIN_EXPANDED_LANE_WIDTH, Math.round(lane.widthRatio * LANE_WIDTH_UNIT))
+  const laneWidth = solo ? Math.max(1, soloWidth ?? 960) : Math.max(MIN_EXPANDED_LANE_WIDTH, Math.round(lane.widthRatio * LANE_WIDTH_UNIT))
   const columnStyle = lane.collapsed
     ? { flex: "0 0 3rem" }
     : { flex: `0 0 ${laneWidth}px`, width: laneWidth }
@@ -79,6 +85,10 @@ export function Lane({ lane, components }: Props) {
         data-lane-id={lane.id}
         style={columnStyle}
         className="xiranite-ui-copy h-full w-auto min-w-12 flex-shrink-0 items-center gap-2 rounded-none border-0 border-r border-border/40 bg-muted/20 px-1 py-3 hover:bg-muted/40"
+        data-swimlane-active={active}
+        onPointerEnter={onHoverFocus}
+        onPointerLeave={onHoverFocusCancel}
+        onPointerDownCapture={() => { if (!active) onActivate?.() }}
       >
         <button
           onClick={() => workspaceActions.toggleLaneCollapse(lane.id)}
@@ -107,6 +117,16 @@ export function Lane({ lane, components }: Props) {
       data-lane-id={lane.id}
       style={columnStyle}
       className="xiranite-ui-copy relative h-full w-auto min-w-60 gap-0 rounded-none border-0 border-r border-border/40 bg-card/40 p-0"
+      data-swimlane-active={active}
+      data-swimlane-solo={solo}
+      onPointerEnter={onHoverFocus}
+      onPointerLeave={onHoverFocusCancel}
+      onPointerDownCapture={(event) => {
+        if (active) return
+        event.preventDefault()
+        event.stopPropagation()
+        onActivate?.()
+      }}
     >
       {/* 标题栏 */}
       <div className="flex items-center gap-1.5 h-8 px-2 border-b border-border/40 bg-muted/30 flex-shrink-0">

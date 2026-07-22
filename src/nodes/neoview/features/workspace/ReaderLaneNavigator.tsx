@@ -3,8 +3,9 @@ import { createPortal } from "react-dom"
 import { BookOpen, Columns3, PanelLeft, PanelRight, Pin, PinOff, Plus, Trash2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { SwimlaneBarContent } from "@/components/workspace/swimlane/SwimlaneBarContent"
 import type { ReaderSwimlaneId } from "../../adapters/reader-http-client"
-import { ReaderBarHandleGlyph, type ReaderBarHandlePosition, type ReaderBarHandleStyle } from "../shell/ReaderBarHandleGlyph"
+import type { ReaderBarHandlePosition, ReaderBarHandleStyle } from "../shell/ReaderBarHandleGlyph"
 
 type OpenPanel = "add" | "menu" | undefined
 
@@ -178,21 +179,6 @@ export function ReaderLaneNavigator({
     setOpenPanel("menu")
   }
 
-  const handle = <button
-    type="button"
-    title="拖动泳道切换栏；右键打开操作菜单"
-    aria-label="拖动或设置泳道切换栏"
-    aria-haspopup="menu"
-    aria-expanded={Boolean(openPanel)}
-    data-reader-bar-handle-style={handleStyle}
-    data-reader-bar-handle-position={handlePosition}
-    className={cn("grid size-7 shrink-0 cursor-grab touch-none place-items-center rounded text-muted-foreground hover:bg-muted active:cursor-grabbing", handleStyle === "edge" && "w-3")}
-    onPointerDown={startDrag}
-    onContextMenu={toggleMenu}
-  >
-    <ReaderBarHandleGlyph style={handleStyle} horizontal />
-  </button>
-
   const popover = openPanel && typeof document !== "undefined" ? createPortal(
     openPanel === "add" ? <form
       ref={popoverRef as RefObject<HTMLFormElement>}
@@ -230,14 +216,22 @@ export function ReaderLaneNavigator({
     onWheel={(event) => event.stopPropagation()}
   >
     <nav aria-label="泳道快速切换" className={cn("flex w-fit max-w-[calc(100vw-1.5rem)] items-center gap-1 overflow-hidden", titleMounted ? "h-7 w-full bg-transparent p-0" : "h-9 rounded-md border border-border/75 bg-background/90 p-1 shadow-lg backdrop-blur-xl")}>
-      {handlePosition === "left" ? handle : null}
-      <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-reader-lane-navigator-scroll="true">
-        {lanes.map(({ id, title: laneTitle }) => {
-          const Icon = laneIcon(id)
-          return <button key={id} type="button" title={`定位${laneTitle}泳道`} aria-label={`定位${laneTitle}泳道`} aria-pressed={activeLane === id} className={cn("grid size-7 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground", activeLane === id && "bg-muted text-foreground shadow-[inset_0_0_0_1px_var(--border)]")} onClick={() => onSelect(id)}><Icon className="size-3.5" /></button>
-        })}
-      </div>
-      {handlePosition === "right" ? handle : null}
+      <SwimlaneBarContent
+        handlePosition={handlePosition}
+        handleStyle={handleStyle}
+        horizontal
+        label="拖动或设置泳道切换栏"
+        menuOpen={Boolean(openPanel)}
+        onHandlePointerDown={startDrag}
+        onHandleContextMenu={toggleMenu}
+      >
+        <div className="contents" data-reader-lane-navigator-scroll="true">
+          {lanes.map(({ id, title: laneTitle }) => {
+            const Icon = laneIcon(id)
+            return <button key={id} type="button" title={`定位${laneTitle}泳道`} aria-label={`定位${laneTitle}泳道`} aria-pressed={activeLane === id} className={cn("grid size-7 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground", activeLane === id && "bg-muted text-foreground shadow-[inset_0_0_0_1px_var(--border)]")} onClick={() => onSelect(id)}><Icon className="size-3.5" /></button>
+          })}
+        </div>
+      </SwimlaneBarContent>
     </nav>
     {popover}
   </div>

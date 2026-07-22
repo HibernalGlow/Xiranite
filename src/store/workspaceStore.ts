@@ -86,6 +86,7 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
     moduleCardEffect: state.moduleCardEffect,
     resizableHandleStyle: state.resizableHandleStyle,
     hazardMode: state.hazardMode,
+    laneWorkspacePreferences: state.laneWorkspacePreferences,
   }
 }
 
@@ -311,6 +312,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setModuleCardEffect: store.setModuleCardEffect,
     setResizableHandleStyle: store.setResizableHandleStyle,
     setHazardMode: store.setHazardMode,
+    patchLaneWorkspacePreferences: store.patchLaneWorkspacePreferences,
     addLane: store.addLane,
     removeLane: store.removeLane,
     renameLane: store.renameLane,
