@@ -83,6 +83,11 @@ export function installStartupDebug(): void {
 }
 
 export function startupDebug(label: string, detail?: unknown): void {
+  // React render markers can fire for every store subscription update. Keeping
+  // them in DevTools or forwarding them to the local log server makes debug
+  // mode itself capable of starving the page being diagnosed.
+  if (isHotDebugLabel(label)) return
+
   const controller = typeof window !== "undefined" ? window.__xiraniteDebug : undefined
   if (!controller) return
 
@@ -152,4 +157,10 @@ function summarizeDetail(detail: unknown): unknown {
   } catch {
     return String(detail)
   }
+}
+
+function isHotDebugLabel(label: string): boolean {
+  return label.startsWith("react:") && label.includes("render")
+    || label.includes("progressive-step")
+    || label.includes("page-image:")
 }
