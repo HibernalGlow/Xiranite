@@ -80,6 +80,12 @@ describe("ReaderWorkspaceLayout", () => {
     expect(fitted).toEqual([213, 333, 267, 187])
     expect(patch.readerSolo).toBe(false)
     expect(patch.readerWidthRatio).toBeCloseTo(0.333)
+
+    const portraitPatch = fitReaderSwimlanesToViewport(600, workspace.swimlane)
+    const portraitWidths = workspace.swimlane.laneOrder.map((laneId) => portraitPatch.lanes?.[laneId]?.width ?? 0)
+    expect(portraitWidths).toEqual([144, 150, 180, 126])
+    expect(portraitWidths.reduce((sum, width) => sum + width, 0)).toBe(600)
+    expect(portraitPatch.readerWidthRatio).toBe(0.25)
   })
 })
 

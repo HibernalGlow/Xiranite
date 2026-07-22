@@ -441,6 +441,25 @@ describe("Czkawka node", () => {
     expect([...screen.getByTestId("czkawka-lane-board").children].map((element) => element.getAttribute("data-testid"))).toEqual(["czkawka-lane-results", "czkawka-lane-source", "czkawka-lane-analysis"])
   })
 
+  test("uses the shared movable bar for lane focus and solo state", () => {
+    Object.assign(surface, { mode: "workspace", width: 1440, height: 860 })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" })
+    render(<Component compId="czkawka" host={host} />)
+
+    fireEvent.click(screen.getByRole("button", { name: /切换到.*分析与操作/ }))
+    expect(host.stateValue.workspaceLayout?.activeLane).toBe("analysis")
+
+    const handle = screen.getByRole("button", { name: "拖动或设置泳道切换栏" })
+    fireEvent.contextMenu(handle)
+    fireEvent.click(screen.getByRole("menuitem", { name: "当前泳道独占视口" }))
+    expect(host.stateValue.workspaceLayout?.soloLane).toBe("analysis")
+    expect(screen.getByTestId("czkawka-lane-analysis").getAttribute("data-swimlane-solo")).toBe("true")
+
+    fireEvent.contextMenu(handle)
+    fireEvent.contextMenu(handle)
+    expect(screen.queryByRole("menu", { name: "泳道操作栏设置" })).toBeNull()
+  })
+
   test("persists a movable and resizable analysis panel inside the node surface", () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }) })
     render(<Component compId="czkawka" host={host} />)

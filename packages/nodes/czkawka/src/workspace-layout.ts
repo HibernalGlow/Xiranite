@@ -9,9 +9,20 @@ export interface CzkawkaWorkspaceLayout {
   resultPanelMinimized: boolean;
   analysisPanelMinimized: boolean;
   laneOrder: CzkawkaLaneId[];
+  activeLane: CzkawkaLaneId;
+  soloLane: CzkawkaLaneId | null;
+  focusOnHover: boolean;
+  focusDelayMs: number;
+  edgeRevealDelayMs: number;
+  barHandleStyle: CzkawkaBarHandleStyle;
+  barHandlePosition: CzkawkaBarHandlePosition;
+  navigatorPositionX: number;
+  navigatorPositionY: number;
 }
 
 export type CzkawkaLaneId = "source" | "results" | "analysis";
+export type CzkawkaBarHandleStyle = "grip" | "groove" | "move" | "grab" | "edge";
+export type CzkawkaBarHandlePosition = "left" | "right";
 
 export const CZKAWKA_WORKSPACE_DEFAULTS: CzkawkaWorkspaceLayout = {
   version: 1,
@@ -24,6 +35,15 @@ export const CZKAWKA_WORKSPACE_DEFAULTS: CzkawkaWorkspaceLayout = {
   resultPanelMinimized: false,
   analysisPanelMinimized: false,
   laneOrder: ["source", "results", "analysis"],
+  activeLane: "results",
+  soloLane: null,
+  focusOnHover: false,
+  focusDelayMs: 650,
+  edgeRevealDelayMs: 250,
+  barHandleStyle: "grip",
+  barHandlePosition: "left",
+  navigatorPositionX: 96,
+  navigatorPositionY: 94,
 };
 
 export function normalizeCzkawkaWorkspaceLayout(
@@ -61,6 +81,15 @@ export function normalizeCzkawkaWorkspaceLayout(
     resultPanelMinimized: value.resultPanelMinimized === true,
     analysisPanelMinimized: value.analysisPanelMinimized === true,
     laneOrder: normalizeLaneOrder(value.laneOrder),
+    activeLane: normalizeLaneId(value.activeLane, CZKAWKA_WORKSPACE_DEFAULTS.activeLane),
+    soloLane: value.soloLane == null ? null : normalizeLaneId(value.soloLane, null),
+    focusOnHover: value.focusOnHover === true,
+    focusDelayMs: clamp(value.focusDelayMs, 200, 5000, CZKAWKA_WORKSPACE_DEFAULTS.focusDelayMs),
+    edgeRevealDelayMs: clamp(value.edgeRevealDelayMs, 100, 5000, CZKAWKA_WORKSPACE_DEFAULTS.edgeRevealDelayMs),
+    barHandleStyle: normalizeHandleStyle(value.barHandleStyle),
+    barHandlePosition: value.barHandlePosition === "right" ? "right" : "left",
+    navigatorPositionX: clamp(value.navigatorPositionX, 0, 100, CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionX),
+    navigatorPositionY: clamp(value.navigatorPositionY, 0, 100, CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionY),
   };
 }
 
@@ -88,4 +117,12 @@ function normalizeLaneOrder(value: CzkawkaLaneId[] | undefined): CzkawkaLaneId[]
   const next = (value ?? []).filter((id, index, items) => valid.has(id) && items.indexOf(id) === index);
   for (const id of CZKAWKA_WORKSPACE_DEFAULTS.laneOrder) if (!next.includes(id)) next.push(id);
   return next;
+}
+
+function normalizeLaneId<Fallback extends CzkawkaLaneId | null>(value: unknown, fallback: Fallback): CzkawkaLaneId | Fallback {
+  return value === "source" || value === "results" || value === "analysis" ? value : fallback;
+}
+
+function normalizeHandleStyle(value: unknown): CzkawkaBarHandleStyle {
+  return value === "groove" || value === "move" || value === "grab" || value === "edge" ? value : "grip";
 }

@@ -25,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { LaneCollapseIcon } from "@/components/workspace/lane/LaneCollapseIcon"
 import { LaneResizer } from "@/components/workspace/lane/LaneResizer"
+import { adjacentSwimlane, effectiveSwimlaneWidth } from "@/components/workspace/swimlane/model"
 import { cn } from "@/lib/utils"
 import type { ReaderShellConfigDto, ReaderSwimlaneId } from "../../adapters/reader-http-client"
 import {
@@ -145,7 +146,7 @@ export function ReaderSwimlaneWorkspace({
 
   function scheduleReveal(edge: "left" | "right"): void {
     if (disabled || !soloLaneId || panGestureRef.current || readerRestorePointerRef.current !== undefined) return
-    const laneId = adjacentLane(swimlane.laneOrder, soloLaneId, edge)
+    const laneId = adjacentSwimlane(swimlane.laneOrder, soloLaneId, edge)
     if (!laneId) return
     clearTimer(restoreTimerRef)
     if (previewLane === laneId || revealTimerRef.current !== undefined) return
@@ -326,13 +327,14 @@ export function ReaderSwimlaneWorkspace({
     const active = swimlane.activeLane === laneId
     const solo = soloLaneId === laneId
     const collapsed = lane.collapsed && !solo
-    const effectiveWidth = collapsed
-      ? COLLAPSED_WIDTH
-      : solo
-        ? viewportWidth
-        : laneId === "reader"
-          ? readerNormalWidth
-        : lane.width
+    const effectiveWidth = effectiveSwimlaneWidth(
+      laneId === "reader" ? readerNormalWidth : lane.width,
+      collapsed,
+      laneId,
+      { laneOrder: swimlane.laneOrder, activeLaneId: swimlane.activeLane, soloLaneId },
+      viewportWidth,
+      COLLAPSED_WIDTH,
+    )
     const content = laneId === "left" ? left : laneId === "right" ? right : laneId === "reader"
       ? reader
       : <div className="grid h-full place-items-center text-muted-foreground/50"><Columns3 className="size-5" /></div>
@@ -440,7 +442,7 @@ export function ReaderSwimlaneWorkspace({
           {swimlane.laneOrder.map(renderLane)}
         </div>
       </div>
-      {revealTriggersEnabled && adjacentLane(swimlane.laneOrder, soloLaneId, "left") ? (
+      {revealTriggersEnabled && adjacentSwimlane(swimlane.laneOrder, soloLaneId, "left") ? (
         <div
           aria-hidden="true"
           className="absolute z-40 cursor-w-resize"
@@ -450,7 +452,7 @@ export function ReaderSwimlaneWorkspace({
           onPointerLeave={schedulePreviewRestore}
         />
       ) : null}
-      {revealTriggersEnabled && adjacentLane(swimlane.laneOrder, soloLaneId, "right") ? (
+      {revealTriggersEnabled && adjacentSwimlane(swimlane.laneOrder, soloLaneId, "right") ? (
         <div
           aria-hidden="true"
           className="absolute z-40 cursor-e-resize"
@@ -788,12 +790,6 @@ function ReaderLaneMoreMenu({
       </DropdownMenuContent>
     </DropdownMenu>
   )
-}
-
-function adjacentLane(order: readonly ReaderSwimlaneId[], laneId: ReaderSwimlaneId, edge: "left" | "right"): ReaderSwimlaneId | undefined {
-  const index = order.indexOf(laneId)
-  if (index < 0) return undefined
-  return order[edge === "left" ? index - 1 : index + 1]
 }
 
 function clearTimer(ref: { current: ReturnType<typeof setTimeout> | undefined }): void {
