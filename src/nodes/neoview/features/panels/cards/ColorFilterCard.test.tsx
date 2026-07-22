@@ -55,11 +55,12 @@ describe("ColorFilterCard", () => {
     expect(store.getSnapshot()).toMatchObject({ invert: true, negative: true })
   })
 
-  it("keeps the resident Card mounted while its panel is inactive", () => {
+  it("[neoview.color-filter.lifecycle] does not subscribe to the control store while its panel is inactive", () => {
     const store = createReaderColorFilterStore({ persist: async (settings) => settings })
+    const subscribe = vi.spyOn(store, "subscribe")
     render(<DockedColorFilterCard colorFilter={store} panelActive={false} disabled client={{} as never} onGoTo={() => undefined} />)
-    expect(screen.getByRole("slider", { name: "亮度" }).hasAttribute("disabled")).toBe(false)
-    expect(document.querySelector('[data-neoview-card="color-filter"]')?.getAttribute("data-panel-active")).toBe("false")
+    expect(document.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(subscribe).not.toHaveBeenCalled()
   })
 
   it("settles the save state under React Strict Mode", async () => {

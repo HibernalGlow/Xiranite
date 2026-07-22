@@ -14,6 +14,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 
 import type { ReaderColorFilterPort } from "../../color-filter/ReaderColorFilterStore"
 import type { ReaderPanelContext } from "../registry"
+import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 import { ReaderCardSaveFeedback, useReaderCardMutation } from "./shared/ReaderCardMutation"
 import { ReaderSettingsSection, ReaderSettingsSlider, ReaderSettingsToggle } from "./shared/ReaderSettingsControls"
 
@@ -25,11 +26,12 @@ const SLIDERS = [
   { key: "hueRotate", label: "色相旋转", min: 0, max: 360, suffix: "°" },
 ] as const
 export default function DockedColorFilterCard({ colorFilter, panelActive = true }: ReaderPanelContext) {
+  if (!panelActive) return <ReaderCardEmptyState />
   if (!colorFilter) return <p className="text-xs text-muted-foreground">颜色滤镜尚未就绪。</p>
-  return <ColorFilterCard store={colorFilter} dataPanelActive={panelActive} />
+  return <ColorFilterCard store={colorFilter} />
 }
 
-export function ColorFilterCard({ store, disabled = false, dataPanelActive = true }: {
+export function ColorFilterCard({ store, disabled = false }: {
   store: ReaderColorFilterPort
   disabled?: boolean
   dataPanelActive?: boolean
@@ -56,7 +58,6 @@ export function ColorFilterCard({ store, disabled = false, dataPanelActive = tru
     <section
       className="@container space-y-3 text-xs text-muted-foreground"
       data-neoview-card="color-filter"
-      data-panel-active={dataPanelActive ? "true" : "false"}
     >
       <ReaderSettingsSection
         title="着色"
