@@ -15,7 +15,7 @@
  * 发生的 node 状态更新。
  */
 import { useEffect, useMemo, useRef, type ReactNode } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useShallow } from "zustand/react/shallow"
 import type { AppTheme, CardLayout, ComponentInstance, Lane, ViewMode, WorkspaceItem } from "@/types/workspace"
 import type { SwitchDisplayStyle } from "@/components/ui/switch-variants"
@@ -42,6 +42,17 @@ function workspaceSnapshotQueryKey(config: LocalBackendConfig | undefined) {
     config.baseUrl,
     config.token ? "token:set" : "token:none",
   ] as const
+}
+
+/**
+ * Components are intentionally excluded while automatic restore is disabled.
+ * Their payload can be large, but it cannot affect the live store in that
+ * mode, so it must not trigger another hydration pass.
+ */
+export function workspaceSnapshotHydrationKey(snapshot: WorkspaceSnapshot, restoreComponents = RESTORE_WORKSPACE_COMPONENTS): string {
+  return JSON.stringify(restoreComponents
+    ? snapshot
+    : { workspaces: snapshot.workspaces, lanes: snapshot.lanes })
 }
 
 function toWorkspaceDTO(workspace: WorkspaceItem, now: number): WorkspaceDTO {
@@ -102,6 +113,7 @@ async function persistWorkspaceSnapshot(snapshot: WorkspaceSnapshot): Promise<vo
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const locallyPersistedSnapshotRef = useRef<WorkspaceSnapshot | undefined>(undefined)
+  const lastHydratedSnapshotKeyRef = useRef<string>()
   /** Last SQLite component rows. Kept so skip-restore mode never writes an empty list. */
   const snapshotComponentsRef = useRef<ComponentDTO[]>([])
   const localBackendStatus = useLocalBackendStatus()
@@ -138,6 +150,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     enabled: localBackendReady,
     staleTime: 5_000,
     retry: 1,
+    placeholderData: keepPreviousData,
   })
 
   const { mutate: persistWorkspace } = useMutation({
@@ -146,6 +159,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     onSuccess: (_result, snapshot) => {
       queryClient.setQueryData(workspaceQueryKey, snapshot)
       locallyPersistedSnapshotRef.current = queryClient.getQueryData<WorkspaceSnapshot>(workspaceQueryKey)
+      lastHydratedSnapshotKeyRef.current = workspaceSnapshotHydrationKey(snapshot)
       if (RESTORE_WORKSPACE_COMPONENTS) {
         snapshotComponentsRef.current = snapshot.components
       }
@@ -165,6 +179,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
     snapshotComponentsRef.current = workspaceQuery.data.components
     const componentsToHydrate = RESTORE_WORKSPACE_COMPONENTS ? workspaceQuery.data.components : []
+    const hydrationKey = workspaceSnapshotHydrationKey(workspaceQuery.data)
+    if (hydrationKey === lastHydratedSnapshotKeyRef.current) return
+    lastHydratedSnapshotKeyRef.current = hydrationKey
 
     startupDebug("workspace:hydrate-store:begin", {
       workspaces: workspaceQuery.data.workspaces.length,
