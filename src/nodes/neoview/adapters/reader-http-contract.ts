@@ -1436,6 +1436,9 @@ export type ReaderDirectoryFilterDto = "all" | "library" | "archive" | "director
 export interface ReaderRadialMenuPatch {
   radialMenu: { config?: ReaderRadialMenuConfig; reset?: "defaults" }
 }
+
+export interface ReaderFolderRatingEntryDto { path: string; averageRating: number; count: number; direct: boolean }
+export interface ReaderFolderRatingCacheDto { entries: readonly ReaderFolderRatingEntryDto[]; updatedAt?: number }
 export interface ReaderVoiceControlPatch {
   voiceControl: Partial<ReaderVoiceControlConfig>
 }
@@ -1740,6 +1743,10 @@ export interface ReaderHttpClient {
   updateImageProcessing?(patch: ReaderImageProcessingPatchDto, signal?: AbortSignal): Promise<ReaderImageProcessingConfigDto>
   updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
   updateRadialMenu?(patch: ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRadialMenuConfig>
+  folderRatingCache?(signal?: AbortSignal): Promise<ReaderFolderRatingCacheDto>
+  rebuildFolderRatingCache?(signal?: AbortSignal): Promise<ReaderFolderRatingCacheDto>
+  supplementFolderRatingCache?(path: string, signal?: AbortSignal): Promise<ReaderFolderRatingCacheDto>
+  clearFolderRatingCache?(signal?: AbortSignal): Promise<void>
   updateVoiceControl?(patch: ReaderVoiceControlPatch, signal?: AbortSignal): Promise<ReaderVoiceControlConfig>
   inspectLegacySettings?(content: string, modules?: readonly string[], signal?: AbortSignal): Promise<ReaderSettingsMigrationInspection>
   importLegacySettings?(
