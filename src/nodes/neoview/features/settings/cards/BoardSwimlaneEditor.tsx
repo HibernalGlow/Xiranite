@@ -1,7 +1,6 @@
 import type {
   CollisionDetection,
   DragEndEvent,
-  DragOverEvent,
   DragStartEvent,
   UniqueIdentifier,
 } from "@dnd-kit/core"
@@ -170,16 +169,6 @@ export function BoardSwimlaneEditor({
     }
   }
 
-  function onDragOver(event: DragOverEvent) {
-    const { active, over } = event
-    if (!over) return
-    const activeId = String(active.id)
-    if (!findCardLocation(lanes, activeId)) return
-    const overId = String(over.id)
-    event.activatorEvent.preventDefault()
-    setLanes((current) => moveCardOver(current, activeId, overId))
-  }
-
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event
     setDrag(undefined)
@@ -190,16 +179,8 @@ export function BoardSwimlaneEditor({
       return
     }
     const activeId = String(active.id)
-    if (findCardLocation(lanes, activeId)) {
-      if (!cardTargetAccepts(lanes, activeId, String(over.id))) {
-        if (initialLanes) setLanes(initialLanes)
-        return
-      }
-      // Card ordering is updated during drag-over. Finalizing against a
-      // panel's full-height drop zone would append an untouched card to the
-      // bottom merely because the pointer was released over its own panel.
-      event.activatorEvent.preventDefault()
-    }
+    const base = initialLanes ?? lanes
+    setLanes(applyBoardDrop(base, activeId, String(over.id)))
   }
 
   function onDragCancel() {
@@ -207,10 +188,6 @@ export function BoardSwimlaneEditor({
     const initialLanes = dragInitialLanesRef.current
     dragInitialLanesRef.current = undefined
     if (initialLanes) setLanes(initialLanes)
-  }
-
-  function onPanelColumnsChange(columns: Record<UniqueIdentifier, BoardPanel[]>) {
-    setLanes((current) => acceptPanelColumns(current, columns))
   }
 
   const actions = <>
@@ -221,10 +198,10 @@ export function BoardSwimlaneEditor({
       <Kanban
         value={panelColumns}
         getItemValue={(panel) => panel.id}
-        onValueChange={onPanelColumnsChange}
+        // Keep the rendered board stable while dnd-kit measures collision
+        // targets. Placement is applied once in onDragEnd.
         collisionDetection={collisionDetection}
         onDragStart={onDragStart}
-        onDragOver={onDragOver}
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
@@ -537,19 +514,12 @@ export function createBoardPatch(shell: ReaderShellConfigDto, lanes: BoardLanes)
   }
 }
 
-function acceptPanelColumns(lanes: BoardLanes, columns: Record<UniqueIdentifier, BoardPanel[]>): BoardLanes {
-  const next: BoardLanes = {
-    left: columns.left ?? [],
-    right: columns.right ?? [],
-    hidden: columns.hidden ?? [],
-  }
-  for (const lane of LANES) {
-    for (const panel of next[lane.id]) {
-      const previous = findPanelLocation(lanes, panel.id)
-      if (lane.id === "hidden" && !panel.canHide && previous?.lane !== "hidden") return lanes
-      if (!panel.canMove && previous?.lane !== lane.id) return lanes
-    }
-  }
+export function applyBoardDrop(lanes: BoardLanes, activeId: string, overId: string): BoardLanes {
+  const next = findCardLocation(lanes, activeId)
+    ? moveCardToTarget(lanes, activeId, overId)
+    : findPanelLocation(lanes, activeId)
+      ? movePanelToTarget(lanes, activeId, overId)
+      : lanes
   return boardLanesEqual(lanes, next) ? lanes : next
 }
 
@@ -570,15 +540,12 @@ function boardLanesEqual(left: BoardLanes, right: BoardLanes): boolean {
   return true
 }
 
-function moveCardOver(lanes: BoardLanes, cardId: string, overId: string): BoardLanes {
+function moveCardToTarget(lanes: BoardLanes, cardId: string, overId: string): BoardLanes {
   const from = findCardLocation(lanes, cardId)
   if (!from) return lanes
   const target = resolveCardTarget(lanes, overId)
   if (!target) return lanes
   if (from.panelId === target.panelId && from.index === target.index) return lanes
-  const card = lanes[from.lane][from.panelIndex]?.cards[from.index]
-  if (!card) return lanes
-  if (overId === from.panelId || overId === panelDropId(from.panelId)) return lanes
   if (!cardTargetAccepts(lanes, cardId, overId)) return lanes
 
   const next = cloneLanes(lanes)
@@ -588,8 +555,33 @@ function moveCardOver(lanes: BoardLanes, cardId: string, overId: string): BoardL
   const [moved] = fromPanel.cards.splice(from.index, 1)
   if (!moved) return lanes
   const insertAt = from.panelId === target.panelId && from.index < target.index ? target.index - 1 : target.index
-  toPanel.cards.splice(Math.max(0, insertAt), 0, moved)
+  toPanel.cards.splice(Math.max(0, Math.min(insertAt, toPanel.cards.length)), 0, moved)
   return next
+}
+
+function movePanelToTarget(lanes: BoardLanes, panelId: string, overId: string): BoardLanes {
+  const from = findPanelLocation(lanes, panelId)
+  if (!from) return lanes
+  const targetLane = resolvePanelLane(lanes, overId)
+  if (!targetLane) return lanes
+  const panel = lanes[from.lane][from.index]
+  if (!panel || !panel.canMove || (targetLane === "hidden" && !panel.canHide)) return lanes
+  const overPanel = findPanelLocation(lanes, overId)
+  let insertAt = overPanel?.lane === targetLane ? overPanel.index : lanes[targetLane].length
+  if (from.lane === targetLane) {
+    if (from.index === insertAt) return lanes
+    if (from.index < insertAt) insertAt -= 1
+  }
+  const next = cloneLanes(lanes)
+  const [moved] = next[from.lane].splice(from.index, 1)
+  if (!moved) return lanes
+  next[targetLane].splice(Math.max(0, Math.min(insertAt, next[targetLane].length)), 0, moved)
+  return next
+}
+
+function resolvePanelLane(lanes: BoardLanes, overId: string): LaneId | undefined {
+  if (overId === "left" || overId === "right" || overId === "hidden") return overId
+  return findPanelLocation(lanes, overId)?.lane
 }
 
 function cardTargetAccepts(lanes: BoardLanes, cardId: string, overId: string): boolean {
@@ -657,10 +649,6 @@ function cloneLanes(lanes: BoardLanes): BoardLanes {
     right: lanes.right.map((panel) => ({ ...panel, cards: [...panel.cards] })),
     hidden: lanes.hidden.map((panel) => ({ ...panel, cards: [...panel.cards] })),
   }
-}
-
-function panelDropId(panelId: string): string {
-  return `panel-drop:${panelId}`
 }
 
 function BoardDragPreview({ drag }: { drag: DragState }) {

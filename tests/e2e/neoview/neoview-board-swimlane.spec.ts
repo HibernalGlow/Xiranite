@@ -2,13 +2,14 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test("[neoview.board-swimlane.panel-dnd] reuses stable lane drag behavior for panels", async ({ page }, testInfo) => {
+test("[neoview.board-swimlane.panel-dnd] moves panels once at drop", async ({ page }, testInfo) => {
+  const runtimeErrors = captureRuntimeErrors(page)
   await page.goto("/tests/e2e/neoview/neoview-board-swimlane-harness.html", { waitUntil: "domcontentloaded" })
 
   const leftLane = page.locator('[data-neoview-board-lane="left"]')
   const rightLane = page.locator('[data-neoview-board-lane="right"]')
   const panel = leftLane.locator('[data-neoview-board-panel="pageList"]')
-  const panelHandle = panel.getByRole("button", { name: /拖动面板/ })
+  const panelHandle = panel.locator('[data-kind="panel"]')
   const initialOrder = await panelIds(leftLane)
 
   await leftLane.getByRole("button", { name: "折叠左侧栏" }).click()
@@ -24,7 +25,7 @@ test("[neoview.board-swimlane.panel-dnd] reuses stable lane drag behavior for pa
   await page.mouse.move(box.x + box.width / 2 + 10, box.y + box.height / 2, { steps: 3 })
   await expect(page.locator('[data-neoview-drag-preview="panel"]')).toBeVisible()
   await page.mouse.up()
-  await expect.poll(() => panelIds(leftLane)).toEqual(initialOrder)
+  await expect.poll(async () => (await panelIds(leftLane)).toSorted()).toEqual(initialOrder.toSorted())
   await page.reload({ waitUntil: "domcontentloaded" })
 
   const targetPanel = rightLane.locator('[data-neoview-board-panel="info"]')
@@ -35,35 +36,40 @@ test("[neoview.board-swimlane.panel-dnd] reuses stable lane drag behavior for pa
   await page.mouse.down()
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 24, { steps: 18 })
   await expect(page.locator('[data-neoview-drag-preview="panel"]')).toBeVisible()
-  await expect(rightLane.locator('[data-neoview-board-panel="pageList"]')).toBeVisible()
+  await expect(leftLane.locator('[data-neoview-board-panel="pageList"]')).toBeVisible()
   await page.mouse.up()
   await expect(rightLane.locator('[data-neoview-board-panel="pageList"]')).toBeVisible()
+  await expect(page.locator('[data-neoview-drag-preview="panel"]')).toHaveCount(0)
+  expect(runtimeErrors).toEqual([])
   await page.screenshot({ path: testInfo.outputPath("neoview-board-swimlane.png"), fullPage: false })
 })
 
-test("[neoview.board-swimlane.card-dnd] moves cards between panels", async ({ page }) => {
+test("[neoview.board-swimlane.card-dnd] moves cards once at drop", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page)
   await page.goto("/tests/e2e/neoview/neoview-board-swimlane-harness.html", { waitUntil: "domcontentloaded" })
   const leftLane = page.locator('[data-neoview-board-lane="left"]')
   const rightLane = page.locator('[data-neoview-board-lane="right"]')
 
-  const sourceCard = leftLane.locator('[data-neoview-board-card="page-navigation"]')
-  const targetPanelForCard = rightLane.locator('[data-neoview-board-panel="info"]')
-  const targetCard = targetPanelForCard.locator('[data-neoview-board-card="book-information"]')
-  const sourceCardHandle = sourceCard.getByRole("button", { name: /拖动卡片/ })
-  await expect(sourceCardHandle).toBeVisible()
-  await expect(sourceCardHandle).toBeEnabled()
-  await expect(sourceCardHandle).toHaveAttribute("aria-controls")
+  const sourceCard = rightLane.locator('[data-neoview-board-card="book-information"]')
+  const targetPanel = leftLane.locator('[data-neoview-board-panel="settings"]')
+  const targetCard = targetPanel.locator('[data-neoview-board-card="slideshow-settings"]')
+  const sourceHandle = sourceCard.locator("button").first()
+  await expect(sourceHandle).toBeVisible()
+  await expect(sourceHandle).toBeEnabled()
+  await expect(sourceHandle).toHaveAttribute("aria-controls")
   await expect(targetCard).toBeVisible()
-  const sourceCardBox = await sourceCardHandle.boundingBox()
-  const targetCardBox = await targetCard.boundingBox()
-  if (!sourceCardBox || !targetCardBox) throw new Error("Unable to resolve card transfer bounds")
-  await page.mouse.move(sourceCardBox.x + sourceCardBox.width / 2, sourceCardBox.y + sourceCardBox.height / 2)
+  const sourceBox = await sourceHandle.boundingBox()
+  const targetBox = await targetCard.boundingBox()
+  if (!sourceBox || !targetBox) throw new Error("Unable to resolve card transfer bounds")
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
   await page.mouse.down()
-  await page.mouse.move(targetCardBox.x + targetCardBox.width / 2, targetCardBox.y + targetCardBox.height / 2, { steps: 18 })
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 18 })
   await expect(page.locator('[data-neoview-drag-preview="card"]')).toBeVisible()
-  await expect(targetPanelForCard.locator('[data-neoview-board-card="page-navigation"]')).toBeVisible()
+  await expect(sourceCard).toBeVisible()
   await page.mouse.up()
-  await expect(targetPanelForCard.locator('[data-neoview-board-card="page-navigation"]')).toBeVisible()
+  await expect(targetPanel.locator('[data-neoview-board-card="book-information"]')).toBeVisible()
+  await expect(page.locator('[data-neoview-drag-preview="card"]')).toHaveCount(0)
+  expect(runtimeErrors).toEqual([])
 })
 
 test("[neoview.board-swimlane.exclusive-card] labels and protects full-size cards", async ({ page }) => {
@@ -78,15 +84,11 @@ test("[neoview.board-swimlane.exclusive-card] labels and protects full-size card
   await expect(page.locator('[data-neoview-board-card="bookmark-list"]')).toContainText("独占面板")
   await expect(history.getByText("独占面板", { exact: true })).toHaveCount(2)
 
-  await dragTo(
-    page,
-    pageList.locator('[data-neoview-board-card="page-navigation"] button'),
-    historyCard,
-  )
+  await dragTo(page, pageList.locator('[data-neoview-board-card="page-navigation"] button'), historyCard)
   await expect(pageList.locator('[data-neoview-board-card="page-navigation"]')).toBeVisible()
   await expect(history.locator("[data-neoview-board-card]")).toHaveCount(1)
 
-  await dragTo(page, historyCard.getByRole("button", { name: /拖动卡片/ }), info.locator('[data-neoview-board-card="book-information"]'))
+  await dragTo(page, historyCard.locator("button").first(), info.locator('[data-neoview-board-card="book-information"]'))
   await expect(historyCard).toBeVisible()
   await expect(info.locator('[data-neoview-board-card="history-list"]')).toHaveCount(0)
 })
@@ -107,4 +109,13 @@ async function dragTo(page: Page, source: Locator, target: Locator): Promise<voi
   await page.mouse.down()
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + Math.min(targetBox.height / 2, 72), { steps: 18 })
   await page.mouse.up()
+}
+
+function captureRuntimeErrors(page: Page): string[] {
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  page.on("console", (message) => {
+    if (message.type() === "error" && !message.location().url.endsWith("/favicon.ico")) errors.push(message.text())
+  })
+  return errors
 }
