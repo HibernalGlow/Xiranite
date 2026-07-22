@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { RangeInput } from "@/components/ui/range-input"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 
@@ -247,7 +248,7 @@ function VoiceControlContent({ disabled, onInputAction, voiceControl, onVoiceCon
             </select>
           </label>
           <label className="flex items-center gap-2 text-[11px]">最低置信度
-            <Input aria-label="最低识别置信度" className="h-7 flex-1" type="range" min="0" max="1" step="0.1" value={voiceControl?.minConfidence ?? 0.6} disabled={disabled || !onVoiceControl} onChange={(event) => persistVoicePatch({ minConfidence: Number(event.currentTarget.value) })} />
+            <RangeInput aria-label="最低识别置信度" className="h-7 flex-1" min={0} max={1} step={0.1} value={voiceControl?.minConfidence ?? 0.6} disabled={disabled || !onVoiceControl} onChange={(event) => persistVoicePatch({ minConfidence: Number(event.currentTarget.value) })} />
             <span className="w-8 text-right tabular-nums">{Math.round((voiceControl?.minConfidence ?? 0.6) * 100)}%</span>
           </label>
         </div>

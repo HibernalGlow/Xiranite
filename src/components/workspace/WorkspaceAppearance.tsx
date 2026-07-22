@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { applyCustomTheme, applyFontPreset, applyThemePreset, getActiveCustomTheme, mirrorAestivusThemeStorage, resolveThemeScheme, type ThemeMode } from "@/lib/appearance"
+import { installNativeRangeProgressSync, syncAllNativeRangeProgress } from "@/lib/sliderSkin"
 import { useTheme } from "@/components/use-theme"
 import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
 
@@ -13,6 +14,7 @@ export function WorkspaceAppearance() {
     tabDisplayStyle: state.tabDisplayStyle,
     switchDisplayStyle: state.switchDisplayStyle,
     scrollbarDisplayStyle: state.scrollbarDisplayStyle,
+    sliderDisplayStyle: state.sliderDisplayStyle,
     choiceControlStyle: state.choiceControlStyle,
     fieldTitleStyle: state.fieldTitleStyle,
     moduleTitleStyle: state.moduleTitleStyle,
@@ -37,6 +39,14 @@ export function WorkspaceAppearance() {
   useEffect(() => {
     document.documentElement.dataset.scrollbarStyle = appearance.scrollbarDisplayStyle
   }, [appearance.scrollbarDisplayStyle])
+
+  useEffect(() => {
+    document.documentElement.dataset.sliderStyle = appearance.sliderDisplayStyle
+    // Re-sync native range fill rails after skin tokens change.
+    syncAllNativeRangeProgress(document)
+  }, [appearance.sliderDisplayStyle])
+
+  useEffect(() => installNativeRangeProgressSync(), [])
 
   useEffect(() => {
     document.documentElement.dataset.choiceControlStyle = appearance.choiceControlStyle

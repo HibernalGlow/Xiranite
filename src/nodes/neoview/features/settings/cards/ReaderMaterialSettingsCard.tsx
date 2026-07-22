@@ -2,7 +2,11 @@ import { Droplets, Layers3, RotateCcw, Sparkles } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { DEFAULT_MODULE_MAGIC_CARD_APPEARANCE, type ModuleMagicCardAppearance } from "@/components/ui/module-panel-variants"
+import { RangeInput } from "@/components/ui/range-input"
+import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
+import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import type { ReaderShellConfigDto, ReaderShellMaterialPatch, ReaderShellSurface } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext, ReaderSettingsCardContext } from "../../panels/registry"
 import { ReaderBarHandleGlyph, type ReaderBarHandleStyle } from "../../shell/ReaderBarHandleGlyph"
@@ -15,7 +19,7 @@ import {
   READER_SHELL_SURFACES,
   type ReaderShellMaterialDraft,
 } from "../../material/ReaderShellMaterial"
-import { SettingsCardShell } from "../SettingsCardShell"
+import { SettingsCardShell, SettingsToggleRow } from "../SettingsCardShell"
 
 const SURFACE_LABELS: Record<ReaderShellSurface, string> = { top: "顶栏", bottom: "底栏", sidebar: "侧栏" }
 const PRESET_LABELS = { solid: "实色", soft: "轻透", frosted: "磨砂" } as const
@@ -35,12 +39,22 @@ const CONTROLS = [
 ] as const
 
 type MaterialControl = typeof CONTROLS[number]["key"]
+const MAGIC_CARD_CONTROLS = [
+  { key: "radius", label: "光晕半径", min: 48, max: 320, unit: "px" },
+  { key: "opacity", label: "光晕强度", min: 5, max: 100, unit: "%" },
+  { key: "colorStrength", label: "主色浓度", min: 5, max: 100, unit: "%" },
+] as const
 
 export function ReaderMaterialSettingsCard({ shell, onMaterial, onWorkspace }: {
   shell: ReaderShellConfigDto
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
   onWorkspace?(patch: ReaderWorkspacePatch): void
 }) {
+  const { magicCardEffect, magicAppearance } = useWorkspaceShallowSelector((state) => ({
+    magicCardEffect: state.moduleCardEffect,
+    magicAppearance: state.moduleMagicCard,
+  }))
+  const workspaceActions = useWorkspaceActions()
   const initial = readerShellMaterialDraft(shell)
   const [draft, setDraft] = useState(initial)
   const draftRef = useRef(initial)
@@ -140,6 +154,57 @@ export function ReaderMaterialSettingsCard({ shell, onMaterial, onWorkspace }: {
         </div>
       </div>
 
+      <SettingsToggleRow
+        label="Magic Card 光效"
+        description="普通 Card 使用鼠标跟随光晕；独占全屏 Card 始终关闭。"
+        control={<Switch aria-label="Magic Card 光效" checked={magicCardEffect === "magic"} onCheckedChange={(enabled) => workspaceActions.setModuleCardEffect(enabled ? "magic" : "plain")} />}
+      />
+
+      {magicCardEffect === "magic" ? <div className="grid gap-3 border-t pt-3" data-magic-card-customization>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs font-medium">Magic Card 参数</span>
+          <Button
+            type="button"
+            size="icon-xs"
+            variant="ghost"
+            aria-label="恢复 Magic Card 默认参数"
+            disabled={sameMagicCardAppearance(magicAppearance, DEFAULT_MODULE_MAGIC_CARD_APPEARANCE)}
+            onClick={() => workspaceActions.setModuleMagicCardAppearance(DEFAULT_MODULE_MAGIC_CARD_APPEARANCE)}
+          >
+            <RotateCcw />
+          </Button>
+        </div>
+        {MAGIC_CARD_CONTROLS.map((control) => (
+          <label key={control.key} className="grid gap-2">
+            <span className="flex items-center justify-between gap-3 text-xs"><span>{control.label}</span><output className="tabular-nums text-muted-foreground">{magicAppearance[control.key]}{control.unit}</output></span>
+            <RangeInput
+              aria-label={control.label}
+              className="h-2 w-full"
+              min={control.min}
+              max={control.max}
+              step={1}
+              value={magicAppearance[control.key]}
+              onChange={(event) => workspaceActions.setModuleMagicCardAppearance({ [control.key]: Number(event.currentTarget.value) })}
+            />
+          </label>
+        ))}
+        <SettingsToggleRow
+          label="跟随主题色"
+          description="关闭后使用自定义光晕色。"
+          control={<Switch aria-label="Magic Card 跟随主题色" checked={magicAppearance.followThemeColor} onCheckedChange={(followThemeColor) => workspaceActions.setModuleMagicCardAppearance({ followThemeColor })} />}
+        />
+        {magicAppearance.followThemeColor ? null : <label className="flex items-center justify-between gap-3 text-xs">
+          <span>自定义光晕色</span>
+          <input
+            type="color"
+            aria-label="Magic Card 自定义光晕色"
+            className="h-8 w-12 cursor-pointer rounded border bg-transparent p-0.5"
+            value={magicAppearance.color}
+            onChange={(event) => workspaceActions.setModuleMagicCardAppearance({ color: event.currentTarget.value })}
+          />
+        </label>}
+      </div> : null}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex rounded-md border bg-muted/15 p-1" aria-label="材质表面">
           {READER_SHELL_SURFACES.map((item) => <Button key={item} type="button" size="sm" variant={surface === item ? "secondary" : "ghost"} aria-pressed={surface === item} onClick={() => setSurface(item)}>{SURFACE_LABELS[item]}</Button>)}
@@ -155,10 +220,9 @@ export function ReaderMaterialSettingsCard({ shell, onMaterial, onWorkspace }: {
           return (
             <label key={control.key} className="grid gap-2" data-material-control={control.key}>
               <span className="flex items-center justify-between gap-3 text-xs"><span>{control.label}</span><output className="tabular-nums text-muted-foreground">{value}{control.unit}</output></span>
-              <input
-                type="range"
+              <RangeInput
                 aria-label={`${SURFACE_LABELS[surface]}${control.label}`}
-                className={cn("h-2 w-full cursor-pointer accent-primary", saving && "cursor-wait")}
+                className={cn("h-2 w-full", saving && "cursor-wait")}
                 min={control.min}
                 max={control.max}
                 step={1}
@@ -214,6 +278,14 @@ function cloneMaterial(source: ReaderShellMaterialDraft): ReaderShellMaterialDra
     highlight: { ...source.highlight },
     shadow: { ...source.shadow },
   }
+}
+
+function sameMagicCardAppearance(left: ModuleMagicCardAppearance, right: ModuleMagicCardAppearance): boolean {
+  return left.radius === right.radius
+    && left.opacity === right.opacity
+    && left.colorStrength === right.colorStrength
+    && left.followThemeColor === right.followThemeColor
+    && left.color === right.color
 }
 
 export default function DockedReaderMaterialSettingsCard({ shell, onMaterial }: ReaderPanelContext) {

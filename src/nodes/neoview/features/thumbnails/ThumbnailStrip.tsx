@@ -2,6 +2,7 @@ import { startTransition, useEffect, useRef, useState, useSyncExternalStore } fr
 import { Grid3X3, Hash, Pin, PinOff, Sparkles, Target } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { RangeInput } from "@/components/ui/range-input"
 import { cn } from "@/lib/utils"
 import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
 import { ReaderViewerToggleStore, type ReaderViewerTogglePort } from "../viewer/ReaderViewerToggleStore"
@@ -186,11 +187,10 @@ export function ThumbnailStrip({
       {progressBarVisible ? <>
         <label className="sr-only" htmlFor={`neoview-bottom-progress-${sessionId}`}>阅读进度</label>
         <div className="min-w-0 max-w-full overflow-hidden border-t border-border/35 px-1 py-1" data-reader-bottom-progress="true">
-          <input
+          <RangeInput
             id={`neoview-bottom-progress-${sessionId}`}
-            type="range"
             aria-label="阅读进度"
-            className={cn("block h-2 w-full cursor-pointer accent-primary", progressBarGlow && "drop-shadow-[0_0_5px_color-mix(in_oklch,var(--primary)_75%,transparent)]")}
+            className={cn("block h-2 w-full", progressBarGlow && "drop-shadow-[0_0_5px_color-mix(in_oklch,var(--primary)_75%,transparent)]")}
             min={0}
             max={Math.max(0, totalPages - 1)}
             dir={direction === "right-to-left" ? "rtl" : "ltr"}

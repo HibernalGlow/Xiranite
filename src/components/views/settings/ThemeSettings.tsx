@@ -248,7 +248,7 @@ export function ThemeSettings() {
           <div
             ref={contentRef}
             className={cn(
-              "h-full min-h-0 overflow-y-auto",
+              "h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto",
               roomy ? "p-4" : chrome.navVariant === "select" ? "p-2" : "p-3",
             )}
             data-settings-scroll
@@ -256,7 +256,7 @@ export function ThemeSettings() {
             <section
               data-timeline-entry={section}
               data-settings-active-section={section}
-              className="space-y-3"
+              className="min-w-0 space-y-3"
             >
               {!chrome.contentOnly ? (
                 <header className="mb-1 px-0.5">

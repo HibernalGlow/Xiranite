@@ -76,6 +76,7 @@ vi.mock("@/store/workspaceStore", () => {
     tabDisplayStyle: "underline",
     switchDisplayStyle: "outlined",
     scrollbarDisplayStyle: "soft",
+    sliderDisplayStyle: "solid",
     choiceControlStyle: "segmented",
     fieldTitleStyle: "stacked",
     moduleTitleStyle: "legend",

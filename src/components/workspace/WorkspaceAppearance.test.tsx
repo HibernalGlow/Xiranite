@@ -23,6 +23,12 @@ describe("workspace appearance mode assignments", () => {
     await waitFor(() => expect(document.documentElement.dataset.scrollbarStyle).toBe("rounded"))
   })
 
+  test("applies the shared slider display preference on the document root", async () => {
+    useWorkspaceStore.getState().setSliderDisplayStyle("pill")
+    render(<WorkspaceAppearance />)
+    await waitFor(() => expect(document.documentElement.dataset.sliderStyle).toBe("pill"))
+  })
+
   test("switches the existing theme choice between independent light and dark assignments", async () => {
     const actions = useWorkspaceStore.getState()
     actions.setCustomThemes([{
