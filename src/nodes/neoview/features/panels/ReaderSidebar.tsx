@@ -16,6 +16,7 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as Reac
 import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPatch, ReaderSwimlaneLaneDto } from "../../adapters/reader-http-client"
 
 import { cn } from "@/lib/utils"
+import { neoviewDebug } from "../../neoviewDebug"
 import { readerShellMaterialDraft, readerShellMaterialStyle } from "../material/ReaderShellMaterial"
 import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
 import { InfoPanelActions } from "./InfoPanelActions"
@@ -58,7 +59,13 @@ export function ReaderSidebar({
   const panels = useMemo(() => availablePanels(side, shell, hasSession), [hasSession, shell, side])
   const panelIds = useMemo(() => panels.map((panel) => panel.id), [panels])
   const [localActivePanel, setLocalActivePanel] = useState<LegacyPanelId>(() => panels[0]?.id ?? (side === "left" ? "pageList" : "info"))
-  const [mountedPanels, setMountedPanels] = useState<ReadonlySet<LegacyPanelId>>(() => new Set(panelIds))
+  // Lane presentation used to mount every docked panel on first paint; that is the
+  // main freeze source when both swimlane sidebars appear with shell. Keep only the
+  // active panel mounted until the user visits another tab.
+  const [mountedPanels, setMountedPanels] = useState<ReadonlySet<LegacyPanelId>>(() => {
+    const initial = selectedPanelId ?? panels[0]?.id ?? (side === "left" ? "pageList" : "info")
+    return new Set(initial ? [initial as LegacyPanelId] : [])
+  })
   const activePanel = selectedPanelId ?? localActivePanel
   const active = panels.find((panel) => panel.id === activePanel) ?? panels[0]
   const layout = shell?.sidebars[side]
@@ -76,6 +83,26 @@ export function ReaderSidebar({
       ? readerShellMaterialStyle(readerShellMaterialDraft(shell), "sidebar")
       : sidebarStyle(layout, shell, side)
     : undefined
+
+  useEffect(() => {
+    const mountedAt = performance.now()
+    neoviewDebug("sidebar:mount", {
+      side,
+      presentation,
+      panelCount: panels.length,
+      activePanel,
+      mountedPanelCount: mountedPanels.size,
+    })
+    return () => {
+      neoviewDebug("sidebar:unmount", {
+        side,
+        presentation,
+        livedMs: Math.round(performance.now() - mountedAt),
+      })
+    }
+    // Mount diagnostics only — panel churn is expected while using the rail.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presentation, side])
 
   useEffect(() => {
     setMountedPanels((current) => {
