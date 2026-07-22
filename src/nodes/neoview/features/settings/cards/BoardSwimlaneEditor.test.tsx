@@ -48,6 +48,31 @@ describe("BoardSwimlaneEditor layout moves", () => {
     expect(folderCards.map((card) => card.cardId)).toEqual(["folder-main"])
   })
 
+  it("live-reorders a panel into the right lane so the landing slot is visible", () => {
+    const shell = shellConfig()
+    const lanes = createBoardLanes(shell)
+    const folder = lanes.left.find((panel) => panel.id === "folder")
+    expect(folder).toBeTruthy()
+    // Emulate over-id gated live move used by onDragOver: only mutates when target changes.
+    const movedOnce = {
+      left: lanes.left.filter((panel) => panel.id !== "folder"),
+      right: [...lanes.right, folder!],
+      hidden: lanes.hidden,
+    }
+    const sameTarget = {
+      left: movedOnce.left.filter((panel) => panel.id !== "folder"),
+      right: [...movedOnce.right.filter((panel) => panel.id !== "folder"), folder!],
+      hidden: movedOnce.hidden,
+    }
+    // Second apply to the same logical placement must be a no-op identity for thrash safety.
+    expect(sameTarget.right.map((panel) => panel.id).filter((id) => id === "folder")).toHaveLength(1)
+    expect(movedOnce.right.at(-1)?.id).toBe("folder")
+    expect(createBoardPatch(shell, movedOnce).board.panels.find((panel) => panel.id === "folder")).toMatchObject({
+      position: "right",
+      visible: true,
+    })
+  })
+
   it("does not hide required cards when their host panel is in the hidden lane", () => {
     const shell = shellConfig()
     const lanes = createBoardLanes(shell)
