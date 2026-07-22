@@ -70,7 +70,13 @@ export function installStartupDebug(): void {
     const now = performance.now()
     const lagMs = now - expected
     expected = now + 250
-    if (lagMs >= 250) startupDebug("event-loop:blocked", { lagMs: Math.round(lagMs) })
+    if (lagMs >= 250) {
+      startupDebug("event-loop:blocked", {
+        lagMs: Math.round(lagMs),
+        visibilityState: document.visibilityState,
+        focused: document.hasFocus(),
+      })
+    }
   }, 250)
 
   startupDebug("debug:installed", { href: window.location.href })

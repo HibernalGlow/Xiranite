@@ -1,6 +1,10 @@
 export const VITE_EAGER_DEPENDENCIES = [
   "@wailsio/runtime",
   "p-map",
+  // p-queue imports CommonJS eventemitter3. With noDiscovery enabled it must
+  // be prebundled, otherwise the browser sees eventemitter3 without a default
+  // ESM export and NeoView's lazy module fails to load.
+  "p-queue",
   "react",
   "react-dom",
   "react-dom/client",

@@ -1,19 +1,12 @@
 /**
  * Minimal edge-match: sample a few colors on each page edge and build CSS gradients.
- *
- * Simple optimisations only:
- * 1) LRU cache presentations by asset URL (no re-sample on revisit)
- * 2) Prefer an already-decoded <img> (page view or short registry) before loading again
- *
- * No speculative warm / preload storm.
+ * No preload hooks, no network warm, no PNG encode.
  */
 
 export const EDGE_MATCH_DEFAULTS = {
   sampleMaxEdge: 48,
   stops: 6,
   depth: 1,
-  presentationCacheLimit: 8,
-  decodedImageLimit: 4,
 } as const
 
 export interface EdgeColorFrame {
@@ -26,48 +19,6 @@ export interface EdgeColorFrame {
 export interface EdgeMatchPresentation {
   css: string
   average: string
-}
-
-const presentationCache = new Map<string, EdgeMatchPresentation>()
-const decodedImages = new Map<string, HTMLImageElement>()
-
-/** Read cached presentation without side effects other than LRU touch. */
-export function getCachedEdgeMatchPresentation(src: string): EdgeMatchPresentation | undefined {
-  const key = normalizeAssetUrl(src)
-  const hit = presentationCache.get(key)
-  if (!hit) return undefined
-  presentationCache.delete(key)
-  presentationCache.set(key, hit)
-  return hit
-}
-
-export function clearEdgeMatchPresentationCache(): void {
-  presentationCache.clear()
-}
-
-/** Test helper / manual seed — does not sample. */
-export function seedEdgeMatchPresentation(src: string, presentation: EdgeMatchPresentation): void {
-  putPresentation(src, presentation)
-}
-
-/**
- * Called from PageImage after decode succeeds.
- * Keeps a short list of decoded bitmaps so edge-match can sample without re-fetch.
- */
-export function noteReaderDecodedImage(src: string, image: HTMLImageElement): void {
-  if (!src || !image?.complete || image.naturalWidth <= 0) return
-  const key = normalizeAssetUrl(src)
-  if (decodedImages.has(key)) decodedImages.delete(key)
-  decodedImages.set(key, image)
-  while (decodedImages.size > EDGE_MATCH_DEFAULTS.decodedImageLimit) {
-    const oldest = decodedImages.keys().next().value
-    if (oldest === undefined) break
-    decodedImages.delete(oldest)
-  }
-}
-
-export function clearReaderDecodedImageNotes(): void {
-  decodedImages.clear()
 }
 
 export function sampleEdgeColorsFromPixels(
@@ -118,66 +69,11 @@ export function edgeFrameToPresentation(frame: EdgeColorFrame): EdgeMatchPresent
   return { css, average }
 }
 
-export function computeEdgeMatchPresentationFromImage(
-  src: string,
-  image: CanvasImageSource & { naturalWidth?: number; width?: number; naturalHeight?: number; height?: number },
-): EdgeMatchPresentation {
-  const presentation = edgeFrameToPresentation(sampleImageEdgeColors(image))
-  putPresentation(src, presentation)
-  return presentation
-}
-
 export async function computeEdgeMatchPresentation(src: string, signal?: AbortSignal): Promise<EdgeMatchPresentation> {
   if (signal?.aborted) throw new DOMException("The operation was aborted.", "AbortError")
-
-  const cached = getCachedEdgeMatchPresentation(src)
-  if (cached) return cached
-
-  const decoded = findDecodedImage(src)
-  if (decoded) {
-    try {
-      return computeEdgeMatchPresentationFromImage(src, decoded)
-    } catch {
-      // Tainted or unreadable bitmap — fall through to a controlled load.
-    }
-  }
-
   const image = await loadImage(src, signal)
   if (signal?.aborted) throw new DOMException("The operation was aborted.", "AbortError")
-  return computeEdgeMatchPresentationFromImage(src, image)
-}
-
-function findDecodedImage(src: string): HTMLImageElement | undefined {
-  const key = normalizeAssetUrl(src)
-  const noted = decodedImages.get(key)
-  if (noted && noted.complete && noted.naturalWidth > 0) return noted
-
-  if (typeof document === "undefined") return undefined
-  for (const image of Array.from(document.images)) {
-    if (!image.complete || image.naturalWidth <= 0) continue
-    if (normalizeAssetUrl(image.currentSrc || image.src) === key) return image
-  }
-  return undefined
-}
-
-function putPresentation(src: string, presentation: EdgeMatchPresentation): void {
-  const key = normalizeAssetUrl(src)
-  if (presentationCache.has(key)) presentationCache.delete(key)
-  presentationCache.set(key, presentation)
-  while (presentationCache.size > EDGE_MATCH_DEFAULTS.presentationCacheLimit) {
-    const oldest = presentationCache.keys().next().value
-    if (oldest === undefined) break
-    presentationCache.delete(oldest)
-  }
-}
-
-function normalizeAssetUrl(src: string): string {
-  if (typeof window === "undefined") return src
-  try {
-    return new URL(src, window.location.href).href
-  } catch {
-    return src
-  }
+  return edgeFrameToPresentation(sampleImageEdgeColors(image))
 }
 
 async function loadImage(src: string, signal?: AbortSignal): Promise<HTMLImageElement> {
@@ -210,7 +106,6 @@ async function loadImage(src: string, signal?: AbortSignal): Promise<HTMLImageEl
   } catch {
     if (!image.complete || image.naturalWidth <= 0) throw new Error("Failed to decode image for edge match")
   }
-  noteReaderDecodedImage(src, image)
   return image
 }
 

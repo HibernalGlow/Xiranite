@@ -15,7 +15,6 @@ import { neoviewDebug } from "../../neoviewDebug"
 import type { ReaderHttpClient, ReaderPageDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
-import { noteReaderDecodedImage } from "./edgeMatchBackground"
 import { readerUpscaleArtifactPage, readerUpscaleArtifactSnapshot, setReaderUpscaleArtifact } from "./ReaderUpscaleArtifactStore"
 
 export interface PageImageProps {
@@ -182,11 +181,9 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
             data-reader-page-image-decoded={!pending && decodedCommittedIdentity === identity ? candidate.id : undefined}
             style={pending || concealedForProbe ? { ...imageStyle, visibility: "hidden", pointerEvents: "none" } : imageStyle}
             onLoad={(event) => {
-              const element = event.currentTarget
               if (pending) {
-                void decodeTargetImage(element, identity, targetIdentityRef).then((decoded) => {
+                void decodeTargetImage(event.currentTarget, identity, targetIdentityRef).then((decoded) => {
                   if (!decoded) return
-                  noteReaderDecodedImage(candidate.assetUrl, element)
                   // Parent frame geometry and the visible bitmap must commit in
                   // one React batch, especially when orientation changes.
                   onCommittedPage?.(candidate)
@@ -195,17 +192,14 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
                   if (identity === sourceIdentityRef.current) setDecodedSourceIdentity(identity)
                 })
               } else if (identity === sourceIdentityRef.current) {
-                void decodeImage(element).then((decoded) => {
+                void decodeImage(event.currentTarget).then((decoded) => {
                   if (!decoded || identity !== sourceIdentityRef.current) return
-                  noteReaderDecodedImage(candidate.assetUrl, element)
                   setDecodedSourceIdentity(identity)
                   setDecodedCommittedIdentity(identity)
                 })
               } else {
-                void decodeImage(element).then((decoded) => {
-                  if (!decoded || identity !== targetIdentityRef.current) return
-                  noteReaderDecodedImage(candidate.assetUrl, element)
-                  setDecodedCommittedIdentity(identity)
+                void decodeImage(event.currentTarget).then((decoded) => {
+                  if (decoded && identity === targetIdentityRef.current) setDecodedCommittedIdentity(identity)
                 })
               }
             }}
