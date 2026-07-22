@@ -6,6 +6,24 @@ import { readerUpscaleArtifactSnapshot } from "./ReaderUpscaleArtifactStore"
 import { useReaderAdjacentPagePreloader } from "./useReaderAdjacentPagePreloader"
 
 describe("useReaderAdjacentPagePreloader", () => {
+  it("[neoview.preload.disabled] performs no adjacent lookup or decode work when disabled from first render", () => {
+    const client = clientWith({ listPages: vi.fn() })
+    const preload = vi.fn()
+
+    renderHook(() => useReaderAdjacentPagePreloader({
+      client,
+      sessionId: "reader-disabled",
+      activePageIndex: 4,
+      totalPages: 20,
+      enabled: false,
+      preload,
+    }))
+
+    expect(client.listPages).not.toHaveBeenCalled()
+    expect(client.frameWindow).toBeUndefined()
+    expect(preload).not.toHaveBeenCalled()
+  })
+
   it("[neoview.react.predecode] preloads neighbors independently of the thumbnail edge lifecycle", async () => {
     const pages = [page(3), page(4), page(5)]
     const client = clientWith({
