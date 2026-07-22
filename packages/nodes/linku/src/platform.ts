@@ -5,11 +5,10 @@ import {
   getNodeConfig,
   loadXiraniteConfig,
   resolveXiraniteConfigPath,
-  saveXiraniteConfig,
   stringifyToml,
   parseToml,
   stripBom,
-  type XiraniteConfig,
+  updateNodeConfigFile,
 } from "@xiranite/config"
 import type { LinkPathInfo, LinkuRuntime } from "./core.js"
 
@@ -68,19 +67,7 @@ async function writeLinkuConfig(content: string, path: string): Promise<void> {
   // Parse the core-provided standalone TOML (config_version + [[links]]) and merge into [nodes.linku]
   const parsed = parseToml(stripBom(content)) as { links?: LinkuNodeConfig["links"] }
   const links = parsed.links ?? []
-  const xconfig: XiraniteConfig = existing !== null
-    ? (await loadXiraniteConfig({ configPath: path })).config
-    : {}
-  const existingLinku = getNodeConfig<LinkuNodeConfig>(xconfig, "linku") ?? {}
-  const merged: LinkuNodeConfig = { ...existingLinku, links }
-  const updated = mergeNodeConfig(xconfig, "linku", merged)
-  await saveXiraniteConfig(updated, { configPath: path })
-}
-
-function mergeNodeConfig(config: XiraniteConfig, nodeId: string, patch: unknown): XiraniteConfig {
-  const nodes = { ...(config.nodes ?? {}) }
-  nodes[nodeId] = patch
-  return { ...config, nodes }
+  await updateNodeConfigFile("linku", { links }, { configPath: path })
 }
 
 function looksLikeLegacyLinkuToml(content: string): boolean {

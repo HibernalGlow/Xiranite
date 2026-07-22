@@ -691,6 +691,7 @@ describe("reader-http-client", () => {
       if (url.endsWith("/selection")) return Response.json({ sessionId: "browser-1", generation: 3, total: 2, selectedCount: 2, preview: ["D:/A.cbz", "D:/B.cbz"], truncated: false })
       if (url.endsWith("/emm-metadata/read")) return Response.json({ generation: 3, items: [{ path: "D:/A.cbz", metadata: { revision: 1, overrides: {}, inherited: ["rating", "manualTags", "translatedTitle"] } }] })
       if (url.endsWith("/emm-metadata") && init?.method === "PATCH") return Response.json({ generation: 4, refreshRequired: false, results: [{ index: 0, status: "succeeded", metadata: { revision: 2, overrides: { rating: 5 }, inherited: ["manualTags", "translatedTitle"] } }], succeeded: 1, conflicts: 0, failed: 0 })
+      if (url.includes("/emm-tags/manual")) return Response.json({ tags: [{ namespace: "manual", tag: "favorite", count: 3 }] })
       return Response.json({ tags: [{ category: "artist", tag: "Alice", favorite: true, translatedTag: "爱丽丝" }] })
     })
     vi.stubGlobal("fetch", fetchMock)
@@ -701,11 +702,13 @@ describe("reader-http-client", () => {
     await expect(client.readDirectoryEmm!("browser-1", 3, ["D:/A.cbz"])).resolves.toMatchObject({ items: [{ metadata: { revision: 1 } }] })
     await expect(client.editDirectoryEmm!("browser-1", { generation: 3, updates: [{ path: "D:/A.cbz", expectedRevision: 1, patch: { rating: 5 } }] })).resolves.toMatchObject({ succeeded: 1 })
     await expect(client.suggestDirectoryEmmTags!(8)).resolves.toEqual([{ category: "artist", tag: "Alice", favorite: true, translatedTag: "爱丽丝" }])
+    await expect(client.listManualEmmTags!(16)).resolves.toEqual([{ namespace: "manual", tag: "favorite", count: 3 }])
 
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ selection, previewLimit: 64 })
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({ generation: 3, paths: ["D:/A.cbz"] })
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ generation: 3, updates: [{ path: "D:/A.cbz", expectedRevision: 1, patch: { rating: 5 } }] })
     expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/reader/browser/emm-tags/suggestions?count=8")
+    expect(String(fetchMock.mock.calls[4]?.[0])).toContain("/reader/browser/emm-tags/manual?limit=16")
   })
 
   it("[neoview.folder.filter-client] sends the canonical type filter without reopening the browser session", async () => {
@@ -917,6 +920,18 @@ describe("reader-http-client", () => {
       policy: { maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
     })
     expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
+  })
+
+  it("[neoview.folder.penetration-describe-client] requests visible folder names in one bounded batch", async () => {
+    const described = { entries: [{ path: "D:/books/series", internalFiles: [{ name: "Book One", path: "D:/books/series/Book One.cbz" }] }] }
+    const fetchMock = vi.fn(async () => Response.json(described))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.describeFolderPenetration!("browser/source", ["D:/books/series"])).resolves.toEqual(described)
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/browser/s/browser%2Fsource/penetration/describe")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ paths: ["D:/books/series"] })
   })
 
   it("[neoview.folder.search-incremental] publishes bounded entry batches before the stream completes", async () => {

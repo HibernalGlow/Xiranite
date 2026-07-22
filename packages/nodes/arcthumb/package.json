@@ -1,0 +1,25 @@
+{
+  "name": "@xiranite/node-arcthumb",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "Native ArcThumb archive and ebook thumbnail workbench.",
+  "license": "MIT",
+  "bin": { "xarcthumb": "./dist/cli.js" },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./core": { "types": "./dist/core.d.ts", "default": "./dist/core.js" },
+    "./cli": { "types": "./dist/cli.d.ts", "default": "./dist/cli.js" },
+    "./platform": { "types": "./dist/platform.d.ts", "default": "./dist/platform.js" },
+    "./help": { "types": "./dist/help.d.ts", "default": "./dist/help.js" }
+  },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -p tsconfig.json", "build:tsc": "tsc -p tsconfig.json", "test": "vitest run src --passWithNoTests" },
+  "dependencies": {
+    "@xiranite/arcthumb-native": "workspace:*",
+    "@xiranite/cli-runtime": "workspace:*",
+    "@xiranite/config": "workspace:*",
+    "@xiranite/contract": "workspace:*"
+  },
+  "devDependencies": { "@types/node": "^24.12.0", "typescript": "^7.0.2", "vitest": "^4.1.10" }
+}

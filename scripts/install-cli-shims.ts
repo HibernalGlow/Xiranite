@@ -194,23 +194,28 @@ function renderCmdShim(shim: ShimSpec): string {
   if (shim.kind === "script") {
     header.push(`pushd "${shim.cwd ?? repoRoot}" || exit /b 1`)
     if (shim.name === "xr" || shim.name === "xrd") {
+      // cmd.exe does not update %* after SHIFT. Pass %2.. explicitly so
+      // `xr ui` does not become `bun run dev:ui ui` / `bun run dev ui`.
       header.push("if /I \"%~1\"==\"stop\" (")
-      header.push("  shift")
-      header.push("  bun run dev:stop %*")
+      header.push("  bun run dev:stop %2 %3 %4 %5 %6 %7 %8 %9")
       header.push("  set XIRANITE_EXIT_CODE=%ERRORLEVEL%")
       header.push("  popd")
       header.push("  exit /b %XIRANITE_EXIT_CODE%")
       header.push(")")
       header.push("if /I \"%~1\"==\"ui\" (")
-      header.push("  shift")
-      header.push(`  bun run ${shim.name === "xr" ? "dev:ui" : "dev:desktop:ui"} %*`)
+      header.push(`  bun run ${shim.name === "xr" ? "dev:ui" : "dev:desktop:ui"} %2 %3 %4 %5 %6 %7 %8 %9`)
       header.push("  set XIRANITE_EXIT_CODE=%ERRORLEVEL%")
       header.push("  popd")
       header.push("  exit /b %XIRANITE_EXIT_CODE%")
       header.push(")")
       header.push("if /I \"%~1\"==\"reboot\" (")
-      header.push("  shift")
-      header.push(`  bun run ${shim.name === "xr" ? "dev:reboot" : "dev:desktop:reboot"} %*`)
+      header.push(`  bun run ${shim.name === "xr" ? "dev:reboot" : "dev:desktop:reboot"} %2 %3 %4 %5 %6 %7 %8 %9`)
+      header.push("  set XIRANITE_EXIT_CODE=%ERRORLEVEL%")
+      header.push("  popd")
+      header.push("  exit /b %XIRANITE_EXIT_CODE%")
+      header.push(")")
+      header.push("if /I \"%~1\"==\"quick\" (")
+      header.push(`  bun run ${shim.name === "xr" ? "dev:quick" : "dev:desktop"} %2 %3 %4 %5 %6 %7 %8 %9`)
       header.push("  set XIRANITE_EXIT_CODE=%ERRORLEVEL%")
       header.push("  popd")
       header.push("  exit /b %XIRANITE_EXIT_CODE%")
@@ -247,6 +252,7 @@ function renderPosixShim(shim: ShimSpec): string {
     lines.push(`if [ \"$1\" = \"stop\" ]; then shift; exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run dev:stop \"$@\"; fi`)
     lines.push(`if [ \"$1\" = \"reboot\" ]; then shift; exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run ${shim.name === "xr" ? "dev:reboot" : "dev:desktop:reboot"} \"$@\"; fi`)
     lines.push(`if [ \"$1\" = \"ui\" ]; then shift; exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run ${shim.name === "xr" ? "dev:ui" : "dev:desktop:ui"} \"$@\"; fi`)
+    lines.push(`if [ \"$1\" = \"quick\" ]; then shift; exec bun --cwd ${shellQuote(shim.cwd ?? repoRoot)} run ${shim.name === "xr" ? "dev:quick" : "dev:desktop"} \"$@\"; fi`)
   }
   lines.push(invocation)
   return lines.join("\n") + "\n"

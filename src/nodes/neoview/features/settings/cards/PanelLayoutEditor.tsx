@@ -109,9 +109,16 @@ export function createPanelLayoutColumns(shell: ReaderShellConfigDto): LayoutCol
 
 export function createPanelBoardPatch(shell: ReaderShellConfigDto, columns: LayoutColumns): ReaderBoardLayoutPatch {
   const cards = Object.entries(columns).flatMap(([panelId, values]) => values.map((card, order) => {
+    const definition = CARD_DEFINITIONS.find((entry) => entry.id === card.id)
     const current = shell.cardLayout[card.id]
     return panelId === HIDDEN_COLUMN
-      ? { cardId: card.id, panelId: current?.panelId ?? CARD_DEFINITIONS.find((definition) => definition.id === card.id)?.defaultPanel ?? "settings", visible: false, order }
+      ? {
+          cardId: card.id,
+          panelId: current?.panelId ?? definition?.defaultPanel ?? "settings",
+          // Required cards (canHide:false) must stay visible even when undocked.
+          visible: definition?.canHide !== false ? false : true,
+          order,
+        }
       : { cardId: card.id, panelId, visible: true, order }
   }))
   const included = new Set(cards.map((card) => card.cardId))

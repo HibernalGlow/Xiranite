@@ -27,9 +27,7 @@ import {
 } from "@xiranite/cli-runtime/terminal";
 import {
   loadNodeConfigWithHints,
-  loadXiraniteConfig,
-  saveXiraniteConfig,
-  updateNodeConfig,
+  updateNodeConfigFile,
 } from "@xiranite/config";
 import {
   runSoundw,
@@ -139,17 +137,13 @@ function createPreferences(
     nodeId: "soundw",
     current,
     async save(values) {
-      const { config, path } = await loadXiraniteConfig(configOptions);
-      await saveXiraniteConfig(
-        updateNodeConfig(config, "soundw", {
+      await updateNodeConfigFile("soundw", {
           cli: {
             theme: values.theme,
             default_mode: values.defaultMode,
             language: values.language,
           },
-        }),
-        { ...configOptions, configPath: path },
-      );
+        }, configOptions);
     },
     async restore() {
       const context = await loadContext(host, true);

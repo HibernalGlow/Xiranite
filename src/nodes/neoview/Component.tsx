@@ -7,12 +7,13 @@ export interface NeoViewCardState extends Record<string, unknown> {
   browserOriginPath?: string | null
 }
 
-export function Component({ host }: NodeComponentProps<NeoViewCardState>) {
+export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>) {
   "use no memo"
   const initialPath = host.state.getData()?.path
   const initialBrowserOriginPath = host.state.getData()?.browserOriginPath ?? undefined
   return (
     <ReaderApp
+      sessionScopeId={compId}
       initialPath={initialPath}
       initialBrowserOriginPath={initialBrowserOriginPath}
       pickFile={host.localFiles?.pickFiles

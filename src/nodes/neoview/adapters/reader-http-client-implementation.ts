@@ -131,6 +131,20 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         body: JSON.stringify(patch),
         signal,
       }).then((value) => value.radialMenu),
+    folderRatingCache: (signal) => request<Contract.ReaderFolderRatingCacheDto>("/reader/folder-ratings", { signal }),
+    rebuildFolderRatingCache: (signal) => request<Contract.ReaderFolderRatingCacheDto>("/reader/folder-ratings/rebuild", { method: "POST", signal }),
+    supplementFolderRatingCache: (path, signal) => request<Contract.ReaderFolderRatingCacheDto>("/reader/folder-ratings/supplement", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }), signal }),
+    clearFolderRatingCache: (signal) => request<void>("/reader/folder-ratings", { method: "DELETE", signal }),
+    updateVoiceControl: (patch, signal) =>
+      request<Contract.ReaderRuntimeConfigDto>("/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+        signal,
+      }).then((value) => {
+        if (!value.voiceControl) throw new Error("Reader backend omitted voice control config")
+        return value.voiceControl
+      }),
     inspectLegacySettings: (content, modules, signal) =>
       request<Contract.ReaderSettingsMigrationInspection>("/reader/settings/migration/inspect", {
         method: "POST",
@@ -185,6 +199,13 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         body: JSON.stringify(patch),
         signal,
       }).then((value) => value.systemMonitor),
+    updatePreload: (patch, signal) =>
+      request<Contract.ReaderRuntimeConfigDto>("/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+        signal,
+      }).then((value) => value.preload),
     updateImageTrim: (patch, signal) =>
       request<Contract.ReaderRuntimeConfigDto>("/reader/config", {
         method: "PATCH",
@@ -276,6 +297,13 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         body: JSON.stringify({ path, ...(policy ? { policy } : {}) }),
         signal,
       }),
+    describeFolderPenetration: (sessionId, paths, signal) =>
+      request<{ entries: readonly Contract.ReaderFolderPenetrationDescriptionDto[] }>(`/reader/browser/s/${encodeURIComponent(sessionId)}/penetration/describe`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paths }),
+        signal,
+      }),
     cloneDirectoryBrowser: (sessionId, signal) =>
       request<Contract.ReaderDirectoryPageDto>(`/reader/browser/s/${encodeURIComponent(sessionId)}/clone`, { method: "POST", signal }),
     reopenDirectoryBrowser: (sessionId, signal) =>
@@ -363,6 +391,8 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
       }),
     suggestDirectoryEmmTags: (count = 8, signal) =>
       request<{ tags: Contract.ReaderEmmTagSuggestionDto[] }>(`/reader/browser/emm-tags/suggestions?count=${count}`, { signal }).then((value) => value.tags),
+    listManualEmmTags: (limit = 64, signal) =>
+      request<{ tags: Contract.ReaderManualTagSummaryDto[] }>(`/reader/browser/emm-tags/manual?limit=${limit}`, { signal }).then((value) => value.tags),
     listSearchHistory: (scope, limit = 20, signal) =>
       request<{ entries: Contract.ReaderSearchHistoryDto[] }>(`/reader/browser/search-history?scope=${encodeURIComponent(scope)}&limit=${limit}`, {
         signal,
@@ -470,6 +500,15 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         keepalive: true,
       }),
     metadata: (sessionId, signal) => request<Contract.ReaderMetadataDto>(`/reader/s/${encodeURIComponent(sessionId)}/metadata`, { signal }),
+    getEmmMetadata: (sessionId, signal) =>
+      request<Contract.ReaderEmmMetadataSnapshotDto>(`/reader/s/${encodeURIComponent(sessionId)}/emm-metadata`, { signal }),
+    updateEmmMetadata: (sessionId, expectedRevision, patch, signal) =>
+      request<Contract.ReaderEmmMetadataSnapshotDto>(`/reader/s/${encodeURIComponent(sessionId)}/emm-metadata`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expectedRevision, patch }),
+        signal,
+      }),
     pageMediaInformation: (sessionId, signal) =>
       request<Contract.ReaderPageMediaInformationDto>(`/reader/s/${encodeURIComponent(sessionId)}/page-media-information`, { signal }),
     diagnostics: (signal) =>
@@ -795,6 +834,21 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         method: "DELETE",
         signal,
       }),
+    listPlaylists: (signal) => request<{ items: Contract.ReaderPlaylistDto[] }>("/reader/library/playlists", { signal }).then((value) => value.items),
+    savePlaylist: (playlist, signal) => request<Contract.ReaderPlaylistDto>("/reader/library/playlists", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(playlist), signal,
+    }),
+    removePlaylist: (id, signal) => request<void>(`/reader/library/playlists/${encodeURIComponent(id)}`, { method: "DELETE", signal }),
+    listPlaylistEntries: (playlistId, signal) => request<{ items: Contract.ReaderPlaylistEntryDto[] }>(`/reader/library/playlists/${encodeURIComponent(playlistId)}/items`, { signal }).then((value) => value.items),
+    appendPlaylistEntries: (playlistId, entries, signal) => request<{ items: Contract.ReaderPlaylistEntryDto[] }>(`/reader/library/playlists/${encodeURIComponent(playlistId)}/items`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ entries }), signal,
+    }).then((value) => value.items),
+    removePlaylistEntries: (playlistId, ids, signal) => request<{ deleted: number }>(`/reader/library/playlists/${encodeURIComponent(playlistId)}/items`, {
+      method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }), signal,
+    }).then((value) => value.deleted),
+    reorderPlaylistEntries: (playlistId, ids, signal) => request<void>(`/reader/library/playlists/${encodeURIComponent(playlistId)}/items/order`, {
+      method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }), signal,
+    }),
     navigate: (sessionId, action, signal) =>
       request<Contract.ReaderNavigationDto>(`/reader/s/${encodeURIComponent(sessionId)}/navigate`, {
         method: "POST",

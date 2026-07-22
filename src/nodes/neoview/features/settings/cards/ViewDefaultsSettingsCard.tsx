@@ -5,7 +5,7 @@
  * @migration-status adapted
  */
 import { Columns2, Eye, Square } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import type { ReaderFitMode } from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
@@ -30,6 +30,11 @@ export function ViewDefaultsSettingsCard({
 }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string>()
+  const [doublePageGapDraft, setDoublePageGapDraft] = useState(() => String(viewDefaults.doublePageGap ?? 0))
+
+  useEffect(() => {
+    setDoublePageGapDraft(String(viewDefaults.doublePageGap ?? 0))
+  }, [viewDefaults.doublePageGap])
 
   async function commit(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
     if (saving) return
@@ -42,6 +47,17 @@ export function ViewDefaultsSettingsCard({
     } finally {
       setSaving(false)
     }
+  }
+
+  function commitDoublePageGap() {
+    const value = Number(doublePageGapDraft)
+    if (!Number.isFinite(value)) {
+      setDoublePageGapDraft(String(viewDefaults.doublePageGap ?? 0))
+      return
+    }
+    const normalized = Math.max(-500, Math.min(500, Math.round(value)))
+    setDoublePageGapDraft(String(normalized))
+    if (normalized !== (viewDefaults.doublePageGap ?? 0)) void commit({ doublePageGap: normalized })
   }
 
   return (
@@ -78,6 +94,32 @@ export function ViewDefaultsSettingsCard({
             disabled={saving}
             onClick={() => void commit({ pageMode: "double" })}
           ><Columns2 />双页</Button>
+        </div>
+      </div>
+      <div className="grid max-w-xs gap-2">
+        <label className="text-sm font-medium" htmlFor="neoview-double-page-gap">双页间距</label>
+        <div className="flex items-center gap-2">
+          <input
+            id="neoview-double-page-gap"
+            aria-label="双页间距"
+            type="number"
+            min={-500}
+            max={500}
+            step={1}
+            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            disabled={saving}
+            value={doublePageGapDraft}
+            onChange={(event) => setDoublePageGapDraft(event.currentTarget.value)}
+            onBlur={commitDoublePageGap}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur()
+              if (event.key === "Escape") {
+                setDoublePageGapDraft(String(viewDefaults.doublePageGap ?? 0))
+                event.currentTarget.blur()
+              }
+            }}
+          />
+          <span className="text-xs text-muted-foreground">px</span>
         </div>
       </div>
     </SettingsCardShell>

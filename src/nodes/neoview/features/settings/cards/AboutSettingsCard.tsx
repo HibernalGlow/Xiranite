@@ -12,7 +12,7 @@ const CAPABILITIES = [
   { name: "操作绑定", detail: "快捷键绑定与轮盘菜单（同卡双 Tab）" },
   { name: "影像与媒体", detail: "图片/视频格式、动图与字幕默认值" },
   { name: "超分", detail: "后端契约可用；侧栏超分卡按能力逐步接入" },
-  { name: "数据迁移", detail: "旧 NeoView 设置 inspect/import" },
+  { name: "数据与配置", detail: "TOML、Git 历史、恢复、导入导出与同步" },
 ] as const
 
 export function AboutSettingsCard() {

@@ -17,7 +17,7 @@ const shell: ReaderShellConfigDto = {
   panelLayout: {
     pageList: { visible: true, order: 0, position: "left" },
     info: { visible: true, order: 0, position: "right" },
-    settings: { visible: true, order: 1, position: "right" },
+    settings: { visible: true, order: 1, position: "left" },
   },
   cardLayout: {
     "page-navigation": { panelId: "pageList", visible: true, expanded: true, order: 0 },

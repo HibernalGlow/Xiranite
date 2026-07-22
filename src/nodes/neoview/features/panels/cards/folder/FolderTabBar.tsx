@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Copy, EyeOff, Folder, History, MoreVertical, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Copy, EyeOff, Folder, History, MoreVertical, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Search, X } from "lucide-react"
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -7,6 +7,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -17,12 +19,14 @@ export interface FolderTabBarItem {
   currentPath: string
   title: string
   pinned: boolean
+  kind?: "directory" | "search"
 }
 
 export interface RecentlyClosedFolderTabItem {
   id: string
   currentPath: string
   title: string
+  kind?: "directory" | "search"
 }
 
 export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, recentlyClosed, layout, onActivate, onCreate, onDuplicate, onClose, onTogglePinned, onCloseOthers, onCloseLeft, onCloseRight, onReopen, onLayoutChange }: {
@@ -89,7 +93,9 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
     if (rootRef.current) rootRef.current.style.width = `${layout.width}px`
   }
 
-  if (effectiveLayout === "none") {
+  // Host hides this component entirely for a single working tab. When rendered
+  // with one tab (tests / layout none), keep a compact menu without a strip.
+  if (tabs.length <= 1 || effectiveLayout === "none") {
     const tab = tabs.find((candidate) => candidate.id === activeTabId) ?? tabs[0]
     return (
       <div className="flex h-8 items-center gap-1" data-folder-tab-bar="false" data-folder-tab-layout="none">
@@ -153,8 +159,9 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
                 type="button"
                 role="tab"
                 aria-selected={active}
-                className="flex min-w-0 flex-1 items-center px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                title={tab.currentPath || tab.title}
+                data-folder-tab-kind={tab.kind ?? "directory"}
+                className="flex min-w-0 flex-1 items-center gap-1 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                title={tab.kind === "search" ? `${tab.title}\n${tab.currentPath}` : (tab.currentPath || tab.title)}
                 disabled={disabled}
                 onClick={() => onActivate(tab.id)}
                 onAuxClick={(event) => {
@@ -164,6 +171,9 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
                   }
                 }}
               >
+                {tab.kind === "search"
+                  ? <Search className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  : null}
                 <span className="truncate">{tab.title}</span>
               </button>
               {canClose ? (
@@ -184,20 +194,42 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="重新打开关闭的页签" title="重新打开关闭的页签" disabled={disabled || !recentlyClosed.length || tabs.length >= maxTabs}>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="size-7 shrink-0"
+            aria-label="重新打开关闭的页签"
+            title="重新打开关闭的页签"
+            disabled={disabled || !recentlyClosed.length || tabs.length >= maxTabs}
+          >
             <History />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          {[...recentlyClosed].reverse().map((tab) => (
-            <DropdownMenuItem key={tab.id} title={tab.currentPath} onSelect={() => onReopen(tab.id)}>
-              <History /><span className="truncate">{tab.title}</span>
-            </DropdownMenuItem>
-          ))}
+          {recentlyClosed.length === 0 ? (
+            <DropdownMenuItem disabled>暂无已关闭页签</DropdownMenuItem>
+          ) : (
+            [...recentlyClosed].reverse().map((tab) => (
+              <DropdownMenuItem key={tab.id} title={tab.currentPath} onSelect={() => onReopen(tab.id)}>
+                {tab.kind === "search" ? <Search /> : <History />}
+                <span className="truncate">{tab.title}</span>
+              </DropdownMenuItem>
+            ))
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <LayoutSettingsButton disabled={disabled} layout={layout} onLayoutChange={onLayoutChange} />
-      <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="新建文件夹标签" title="新建文件夹标签" disabled={disabled || tabs.length >= maxTabs} onClick={onCreate}>
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="ghost"
+        className="size-7 shrink-0"
+        aria-label="新建文件夹标签"
+        title="新建文件夹标签"
+        disabled={disabled || tabs.length >= maxTabs}
+        onClick={onCreate}
+      >
         <Plus />
       </Button>
       {vertical ? (
@@ -239,12 +271,16 @@ function FolderTabActionsMenu({ tab, disabled, canDuplicate, canClose, canCloseO
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button type="button" className="ml-1 grid size-5 shrink-0 place-items-center rounded hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" aria-label={`标签操作 ${tab.title}`} title="标签操作" disabled={disabled}>
-          {tab.pinned ? <Pin className="size-3 text-primary" /> : <Folder className="size-3.5 text-amber-500" />}
+          {tab.pinned
+            ? <Pin className="size-3 text-primary" />
+            : tab.kind === "search"
+              ? <Search className="size-3.5 text-muted-foreground" />
+              : <Folder className="size-3.5 text-amber-500" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-44">
-        <DropdownMenuItem onSelect={() => onTogglePinned(tab.id)}>
-          {tab.pinned ? <PinOff /> : <Pin />}{tab.pinned ? "取消固定" : "固定标签"}
+        <DropdownMenuItem disabled={tab.kind === "search"} onSelect={() => onTogglePinned(tab.id)}>
+          {tab.pinned ? <PinOff /> : <Pin />}{tab.kind === "search" ? "搜索标签不可固定" : tab.pinned ? "取消固定" : "固定标签"}
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!canDuplicate} onSelect={() => onDuplicate(tab.id)}><Copy />复制标签</DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -259,35 +295,47 @@ function FolderTabActionsMenu({ tab, disabled, canDuplicate, canClose, canCloseO
 
 const POSITIONS: readonly ReaderFolderRegionPosition[] = ["none", "top", "bottom", "left", "right"]
 const POSITION_LABELS: Record<ReaderFolderRegionPosition, string> = { none: "隐藏", top: "顶部", bottom: "底部", left: "左侧", right: "右侧" }
+const POSITION_ICONS = {
+  none: EyeOff,
+  top: PanelTop,
+  bottom: PanelBottom,
+  left: PanelLeft,
+  right: PanelRight,
+} as const
 
+/** Compact radio list — replaces the old 5-icon horizontal strip that inflated the menu. */
 function PositionChoices({ label, value, onChange }: { label: string; value: ReaderFolderRegionPosition; onChange(value: ReaderFolderRegionPosition): void }) {
   return (
     <>
       <DropdownMenuLabel>{label}</DropdownMenuLabel>
-      <div className="flex justify-center gap-1 px-2 py-1">
+      <DropdownMenuRadioGroup value={value} onValueChange={(next) => onChange(next as ReaderFolderRegionPosition)}>
         {POSITIONS.map((position) => {
-          const Icon = position === "none" ? EyeOff : position === "top" ? PanelTop : position === "bottom" ? PanelBottom : position === "left" ? PanelLeft : PanelRight
+          const Icon = POSITION_ICONS[position]
           return (
-            <Button
+            <DropdownMenuRadioItem
               key={position}
-              type="button"
-              size="icon-sm"
-              variant={value === position ? "default" : "ghost"}
+              value={position}
               aria-label={`${label}：${POSITION_LABELS[position]}`}
-              aria-pressed={value === position}
-              title={POSITION_LABELS[position]}
-              onClick={() => onChange(position)}
             >
-              <Icon />
-            </Button>
+              <Icon className="size-4" />
+              {POSITION_LABELS[position]}
+            </DropdownMenuRadioItem>
           )
         })}
-      </div>
+      </DropdownMenuRadioGroup>
     </>
   )
 }
 
-function LayoutSettingsButton({ disabled, layout, onLayoutChange }: { disabled: boolean; layout: ReaderFolderTabsConfig; onLayoutChange(patch: Partial<ReaderFolderTabsConfig>): void }) {
+function LayoutSettingsButton({
+  disabled,
+  layout,
+  onLayoutChange,
+}: {
+  disabled: boolean
+  layout: ReaderFolderTabsConfig
+  onLayoutChange(patch: Partial<ReaderFolderTabsConfig>): void
+}) {
   const [open, setOpen] = useState(false)
   const select = (patch: Partial<ReaderFolderTabsConfig>) => {
     onLayoutChange(patch)
@@ -300,7 +348,7 @@ function LayoutSettingsButton({ disabled, layout, onLayoutChange }: { disabled: 
           <MoreVertical />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-[calc(100vh-1rem)] w-52 overflow-y-auto">
+      <DropdownMenuContent align="end" className="w-44" data-folder-layout-settings="true">
         <PositionChoices label="标签栏位置" value={layout.layout} onChange={(value) => select({ layout: value })} />
         <DropdownMenuSeparator />
         <PositionChoices label="面包屑位置" value={layout.breadcrumbPosition} onChange={(value) => select({ breadcrumbPosition: value })} />

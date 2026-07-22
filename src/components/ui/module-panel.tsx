@@ -2,7 +2,9 @@ import type { LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
 import { MagicCard } from "@/components/ui/magic-card"
+import { moduleMagicCardProps } from "@/components/ui/module-panel-variants"
 import { cn } from "@/lib/utils"
+import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
 
 export interface ModulePanelProps {
   badge?: ReactNode
@@ -18,12 +20,15 @@ export interface ModulePanelProps {
 }
 
 export function ModulePanel({ badge, children, className, contentClassName, fill = false, grow = false, icon: Icon, subtitle, title, titleClassName }: ModulePanelProps) {
+  const magicAppearance = useWorkspaceShallowSelector((state) => state.moduleMagicCard)
   return <MagicCard
+    {...moduleMagicCardProps(magicAppearance)}
     className={cn(
       "module-panel-magic-card min-w-0 rounded-xl",
       "[[data-module-card-effect=plain]_&]:!bg-card [[data-module-card-effect=plain]_&]:!shadow-none",
       "[[data-module-card-effect=plain]_&_[data-slot=magic-card-gradient]]:hidden",
       "[[data-module-card-effect=plain]_&_[data-slot=magic-card-orb]]:hidden",
+      "[[data-module-panel-style=solid]_&_[data-slot=magic-card-surface]]:bg-card",
       "[[data-module-panel-style=outline]_&_[data-slot=magic-card-surface]]:bg-transparent",
       "[[data-module-panel-style=flat]_&_[data-slot=magic-card-surface]]:bg-transparent",
       (fill || grow) && "min-h-0",
@@ -34,7 +39,7 @@ export function ModulePanel({ badge, children, className, contentClassName, fill
       data-slot="module-panel"
     className={cn(
       "group/module-panel relative flex min-w-0 flex-col rounded-xl border px-2.5 pb-2.5 shadow-none",
-      "[[data-module-panel-style=solid]_&]:bg-card [[data-module-panel-style=solid]_&]:shadow-sm",
+      "[[data-module-panel-style=solid]_&]:shadow-sm",
       "[[data-module-panel-style=outline]_&]:bg-transparent",
       "[[data-module-panel-style=flat]_&]:rounded-none [[data-module-panel-style=flat]_&]:border-x-0 [[data-module-panel-style=flat]_&]:border-b-0 [[data-module-panel-style=flat]_&]:bg-transparent [[data-module-panel-style=flat]_&]:px-0",
       "[[data-module-title-style=inline]_&]:pt-2.5 [[data-module-title-style=bar]_&]:pt-9 [[data-module-title-style=minimal]_&]:pt-6",

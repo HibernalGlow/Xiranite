@@ -14,13 +14,22 @@ import { getRuntime } from "@/backend/client"
 import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
   createNodePresetOnBackend,
+  createNodeConfigBackupOnBackend,
   deleteNodePresetOnBackend,
+  exportNodeConfigFromBackend,
+  getConfigHistoryRepositoryFromBackend,
   getNodeConfigFromBackend,
+  getNodeConfigVersionsFromBackend,
   getNodePresetsFromBackend,
   getNodeUiConfigFromBackend,
+  importNodeConfigOnBackend,
+  inspectNodeConfigVersionFromBackend,
   openConfigFileWithBackend,
   saveNodeConfigToBackend,
   saveNodeUiConfigToBackend,
+  restoreNodeConfigVersionOnBackend,
+  setConfigHistoryRemoteOnBackend,
+  syncConfigHistoryOnBackend,
   updateNodePresetOnBackend,
 } from "@/backend/configRpcClient"
 import { cancelNodeOperationOnLocalBackend, runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
@@ -255,6 +264,33 @@ export function useNodeHostApi(
         if (!nodeId) throw new Error("Node ID is required for config.deletePreset")
         return deleteNodePresetOnBackend(nodeId, presetId)
       },
+      getVersions: async (options?: { limit?: number }) => {
+        if (!nodeId) throw new Error("Node ID is required for config.getVersions")
+        return getNodeConfigVersionsFromBackend(nodeId, options)
+      },
+      inspectVersion: async (revision: string) => {
+        if (!nodeId) throw new Error("Node ID is required for config.inspectVersion")
+        return inspectNodeConfigVersionFromBackend(nodeId, revision)
+      },
+      restoreVersion: async (revision: string) => {
+        if (!nodeId) throw new Error("Node ID is required for config.restoreVersion")
+        return restoreNodeConfigVersionOnBackend(nodeId, revision)
+      },
+      exportConfig: async (format?: "json" | "toml") => {
+        if (!nodeId) throw new Error("Node ID is required for config.exportConfig")
+        return exportNodeConfigFromBackend(nodeId, format)
+      },
+      importConfig: async (content: string, format?: "auto" | "json" | "toml") => {
+        if (!nodeId) throw new Error("Node ID is required for config.importConfig")
+        return importNodeConfigOnBackend(nodeId, content, format)
+      },
+      createBackup: async (label?: string) => {
+        if (!nodeId) throw new Error("Node ID is required for config.createBackup")
+        return createNodeConfigBackupOnBackend(nodeId, label)
+      },
+      getHistoryRepository: getConfigHistoryRepositoryFromBackend,
+      setHistoryRemote: setConfigHistoryRemoteOnBackend,
+      syncHistory: syncConfigHistoryOnBackend,
       getUi: async <T,>() => {
         if (!nodeId) throw new Error("Node ID is required for config.getUi")
         return getNodeUiConfigFromBackend<T>(nodeId)

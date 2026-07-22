@@ -769,6 +769,27 @@ test("[neoview.react.cbz-e2e] [neoview.thumbnail.react-e2e] [neoview.shell.e2e] 
   await expect(page.getByRole("button", { name: "转到第 1 页：001.jpg" }).locator("img")).toBeVisible()
   await expect(page.getByRole("button", { name: "转到第 2 页：002.png" }).locator("img")).toBeVisible()
   expect(await thumbnailViewport.getByRole("button").count()).toBeLessThanOrEqual(30)
+  const firstThumbnail = page.getByRole("button", { name: "转到第 1 页：001.jpg" })
+  const secondThumbnail = page.getByRole("button", { name: "转到第 2 页：002.png" })
+  const firstLeftToRightBox = await firstThumbnail.boundingBox()
+  const secondLeftToRightBox = await secondThumbnail.boundingBox()
+  expect(firstLeftToRightBox).not.toBeNull()
+  expect(secondLeftToRightBox).not.toBeNull()
+  expect(firstLeftToRightBox!.x).toBeLessThan(secondLeftToRightBox!.x)
+
+  await page.mouse.move(shellViewport.width / 2, 1)
+  await expect(topEdge).toBeVisible()
+  const directionResponse = page.waitForResponse((response) => response.url().endsWith("/options") && response.request().method() === "PATCH")
+  await topEdge.getByRole("button", { name: "切换阅读方向" }).click()
+  expect((await directionResponse).status()).toBe(200)
+  await page.mouse.move(shellViewport.width / 2, shellViewport.height - 1)
+  await expect(bottomEdge).toBeVisible()
+  await expect(thumbnailViewport).toHaveAttribute("data-reader-direction", "right-to-left")
+  const firstRightToLeftBox = await firstThumbnail.boundingBox()
+  const secondRightToLeftBox = await secondThumbnail.boundingBox()
+  expect(firstRightToLeftBox).not.toBeNull()
+  expect(secondRightToLeftBox).not.toBeNull()
+  expect(firstRightToLeftBox!.x).toBeGreaterThan(secondRightToLeftBox!.x)
 
   await page.getByRole("button", { name: "转到第 2 页：002.png" }).click()
   const second = page.getByRole("img", { name: "002.png" })
@@ -2179,6 +2200,9 @@ test("[neoview.folder.tabs-lifecycle-e2e] [neoview.folder.tabs-navigation-histor
 })
 
 test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and reveals tabs below breadcrumbs", async ({ page }, testInfo) => {
+  await page.setViewportSize(testInfo.project.name === "chromium-card"
+    ? { width: 900, height: 700 }
+    : { width: 1440, height: 900 })
   await page.addInitScript(({ baseUrl, token }) => {
     window.__XIRANITE_BACKEND__ = { baseUrl, token }
   }, { baseUrl: backend.url, token: backend.token })
@@ -2192,6 +2216,9 @@ test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and r
   const residentCard = folderPanel.locator('[data-reader-card="文件浏览"]')
   const folderCard = folderPanel.locator('[data-neoview-folder-card="true"]')
   await expect(folderCard).toBeVisible()
+  await page.locator('[data-reader-edge="top"]').evaluateAll((elements) => {
+    for (const element of elements) (element as HTMLElement).style.display = "none"
+  })
   await residentCard.evaluate((element) => element.setAttribute("data-compact-card-instance", "stable"))
   await expect(residentCard).toHaveAttribute("data-reader-card-chrome", "none")
   await expect(folderPanel.getByRole("heading", { name: "文件夹" })).toHaveCount(0)
@@ -2200,6 +2227,46 @@ test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and r
   await expect(folderPanel.locator('[data-folder-tab-bar="true"]')).toHaveCount(0)
   await expect(folderCard.getByRole("button", { name: "视图" })).toBeVisible()
   await expect(folderCard.getByRole("button", { name: "更多" })).toBeVisible()
+
+  const toolbar = folderCard.locator('[data-folder-toolbar-layout="single-row-scroll"]')
+  const navigation = toolbar.locator('[data-folder-toolbar-group="navigation"]')
+  const navigationPad = navigation.locator('[data-folder-navigation-pad="true"]')
+  const moreTools = toolbar.locator('[data-folder-toolbar-group="more"]')
+  await expect(toolbar).toBeVisible()
+  await expect(navigation).toBeVisible()
+  await expect(navigationPad).toBeVisible()
+  await expect(navigationPad).toHaveCSS("width", "32px")
+  await expect(navigationPad).toHaveCSS("height", "32px")
+  await expect(navigationPad.locator('[data-navigation-pad-position]')).toHaveCount(5)
+  await expect(moreTools).toBeVisible()
+  const toolbarGeometry = await toolbar.evaluate((element) => {
+    const navigation = element.querySelector<HTMLElement>('[data-folder-toolbar-group="navigation"]')
+    const primary = element.querySelector<HTMLElement>('[data-folder-toolbar-group="primary"]')
+    const more = element.querySelector<HTMLElement>('[data-folder-toolbar-group="more"]')
+    if (!navigation || !primary || !more) throw new Error("Folder toolbar groups are incomplete")
+    const toolbarBox = element.getBoundingClientRect()
+    const navigationBox = navigation.getBoundingClientRect()
+    const primaryBox = primary.getBoundingClientRect()
+    const moreBox = more.getBoundingClientRect()
+    return {
+      height: toolbarBox.height,
+      scrollWidth: primary.scrollWidth,
+      clientWidth: primary.clientWidth,
+      groupsInsideRow: [navigationBox, primaryBox, moreBox].every((box) => (
+        box.top >= toolbarBox.top - 1 && box.bottom <= toolbarBox.bottom + 1
+      )),
+      groupsOrdered: navigationBox.right <= primaryBox.left + 1 && primaryBox.right <= moreBox.left + 1,
+    }
+  })
+  expect(toolbarGeometry.height).toBeLessThanOrEqual(40)
+  expect(toolbarGeometry.scrollWidth).toBeGreaterThanOrEqual(toolbarGeometry.clientWidth)
+  expect(toolbarGeometry.groupsInsideRow).toBe(true)
+  expect(toolbarGeometry.groupsOrdered).toBe(true)
+  if (testInfo.project.name === "chromium-card") {
+    expect(toolbarGeometry.scrollWidth).toBeGreaterThan(toolbarGeometry.clientWidth)
+  }
+  await navigationPad.screenshot({ path: testInfo.outputPath(`neoview-folder-navigation-pad-${testInfo.project.name}.png`) })
+  await folderCard.screenshot({ path: testInfo.outputPath(`neoview-folder-compact-${testInfo.project.name}.png`) })
 
   const singleOrder = await folderCard.evaluate((element) => {
     const breadcrumb = element.querySelector('[data-folder-layout-region="breadcrumb"]')
@@ -2211,12 +2278,12 @@ test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and r
   await folderCard.getByRole("button", { name: "视图" }).click()
   await expect(page.getByRole("menuitemradio", { name: "紧凑列表" })).toBeVisible()
   await page.keyboard.press('Escape')
-  await page.screenshot({ path: testInfo.outputPath(`neoview-folder-compact-${testInfo.project.name}.png`) })
 
   await folderCard.getByRole("button", { name: "新建文件夹标签" }).click()
   await expect(folderPanel.locator('[data-folder-tab-count="2"]')).toBeVisible()
-  await expect(folderPanel.locator('[data-folder-tab-bar="true"]')).toBeVisible()
-  const multiOrder = await folderCard.evaluate((element) => {
+  const activeFolderCard = folderPanel.locator('[data-folder-tab-pane-active="true"] [data-neoview-folder-card="true"]')
+  await expect(activeFolderCard.locator('[data-folder-tab-bar="true"]')).toBeVisible()
+  const multiOrder = await activeFolderCard.evaluate((element) => {
     const breadcrumb = element.querySelector('[data-folder-layout-region="breadcrumb"]')
     const tabs = element.querySelector('[data-folder-layout-region="tabs"]')
     const toolbar = element.querySelector('[data-folder-layout-region="toolbar"]')
@@ -2228,7 +2295,7 @@ test("[neoview.folder.compact-chrome-e2e] keeps single-card chrome compact and r
   })
   expect(multiOrder).toBe(true)
   await expect(residentCard).toHaveAttribute("data-compact-card-instance", "stable")
-  await folderCard.screenshot({ path: testInfo.outputPath(`neoview-folder-tabs-${testInfo.project.name}.png`) })
+  await activeFolderCard.screenshot({ path: testInfo.outputPath(`neoview-folder-tabs-${testInfo.project.name}.png`) })
 })
 
 test("[neoview.folder.tabs-layout-e2e] persists nested folder chrome without changing current-directory listing semantics", async ({ page }) => {
@@ -2373,6 +2440,10 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
   await expect(sessionlessLeft.getByText("打开书本后显示页面导航")).toBeVisible()
 
   const sessionlessViewport = page.viewportSize()!
+  await page.mouse.move(sessionlessViewport.width / 2, sessionlessViewport.height - 1)
+  const sessionlessBottom = page.getByRole("region", { name: "NeoView 底部缩略图与导航栏" })
+  await expect(sessionlessBottom).toBeVisible()
+  await expect(sessionlessBottom.locator('[data-reader-bottom-empty="true"]')).toContainText("未打开书籍")
   await page.mouse.move(sessionlessViewport.width - 1, sessionlessViewport.height / 2)
   const sessionlessRight = page.locator('[data-reader-sidebar="right"]')
   await expect(sessionlessRight).toBeVisible()
@@ -2459,25 +2530,37 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
     expect(await chrome.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
   }
   const topChrome = page.locator('[data-reader-edge-chrome="top"]')
-  const windowBar = topChrome.locator('[data-reader-window-bar="true"]')
+  const leadingWindowBar = topChrome.locator('[data-reader-topbar-controls="leading"]')
+  const trailingWindowBar = topChrome.locator('[data-reader-topbar-controls="trailing"]')
   const breadcrumbBar = topChrome.locator('[data-reader-breadcrumb-bar="true"]')
   const breadcrumbPath = breadcrumbBar.locator('[data-reader-breadcrumb-path="true"]')
-  await expect(windowBar).toBeVisible()
+  await expect(leadingWindowBar).toBeVisible()
+  await expect(trailingWindowBar).toBeVisible()
   await expect(breadcrumbBar).toBeVisible()
   const fixtureName = basename(fixture.path)
-  await expect(windowBar).not.toContainText(fixtureName)
+  await expect(leadingWindowBar).not.toContainText(fixtureName)
+  await expect(trailingWindowBar).not.toContainText(fixtureName)
   await expect(breadcrumbBar).toContainText(fixtureName)
-  const windowBarBox = await windowBar.boundingBox()
   const breadcrumbBarBox = await breadcrumbBar.boundingBox()
-  expect(windowBarBox).not.toBeNull()
   expect(breadcrumbBarBox).not.toBeNull()
-  expect(breadcrumbBarBox!.y).toBeGreaterThanOrEqual(windowBarBox!.y + windowBarBox!.height - 1)
-  const breadcrumbPathBox = await breadcrumbPath.boundingBox()
-  expect(breadcrumbPathBox).not.toBeNull()
+  const modeButton = leadingWindowBar.getByRole("button", { name: /^(泳道模式|四边栏模式)$/ })
+  await expect(modeButton).toHaveCount(1)
+  const closeBookButtonBox = await breadcrumbBar.getByRole("button", { name: "关闭书籍" }).boundingBox()
+  const modeButtonBox = await modeButton.boundingBox()
+  expect(closeBookButtonBox).not.toBeNull()
+  expect(modeButtonBox).not.toBeNull()
   expect(Math.abs(
-    breadcrumbPathBox!.x + breadcrumbPathBox!.width / 2
-      - (breadcrumbBarBox!.x + breadcrumbBarBox!.width / 2),
-  )).toBeLessThanOrEqual(2)
+    closeBookButtonBox!.y + closeBookButtonBox!.height / 2
+      - (modeButtonBox!.y + modeButtonBox!.height / 2),
+  )).toBeLessThanOrEqual(1)
+  const breadcrumbPathBox = await breadcrumbPath.boundingBox()
+  const leadingWindowBarBox = await leadingWindowBar.boundingBox()
+  const trailingWindowBarBox = await trailingWindowBar.boundingBox()
+  expect(breadcrumbPathBox).not.toBeNull()
+  expect(leadingWindowBarBox).not.toBeNull()
+  expect(trailingWindowBarBox).not.toBeNull()
+  expect(breadcrumbPathBox!.x).toBeGreaterThanOrEqual(leadingWindowBarBox!.x + leadingWindowBarBox!.width - 1)
+  expect(breadcrumbPathBox!.x + breadcrumbPathBox!.width).toBeLessThanOrEqual(trailingWindowBarBox!.x + 1)
   await topChrome.getByRole("button", { name: "展开缩放设置" }).click()
   await expect(topChrome.locator('[data-reader-toolbar-panel="zoom"]')).toBeVisible()
   await topChrome.getByRole("button", { name: "展开旋转设置" }).click()
@@ -2488,7 +2571,7 @@ test("[neoview.sidebar-control.e2e] controls, drags and persists the shared Read
   page.on("request", (request) => {
     if (request.url() === `${backend.url}/reader/config` && request.method() === "PATCH" && request.postData()?.includes('"material"')) materialPatches += 1
   })
-  await windowBar.getByRole("button", { name: "打开 NeoView 设置" }).click()
+  await trailingWindowBar.getByRole("button", { name: "打开 NeoView 设置" }).click()
   const settingsDialog = page.getByRole("dialog")
   await settingsDialog.getByRole("button", { name: "外观" }).click()
   await expect(settingsDialog.getByRole("heading", { name: "界面材质" })).toBeVisible()

@@ -27,6 +27,10 @@ import type {
 import { isReaderDirectorySortField, type ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
 import type { ReaderDirectorySortPreferenceStore } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import type { ReaderDirectoryEmmRecord, ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
+import type { ReaderEmmRatingCatalogRecord, ReaderEmmRatingCatalogStore } from "../../ports/ReaderEmmRatingCatalogStore.js"
+import type { ReaderFolderRatingCacheSnapshot, ReaderFolderRatingCacheStore } from "../../ports/ReaderFolderRatingCacheStore.js"
+import type { ReaderManualTagCatalogStore, ReaderManualTagSummary } from "../../ports/ReaderManualTagCatalogStore.js"
+import type { ReaderFolderRatingEntry } from "../../application/metadata/ReaderFolderRatingCache.js"
 import type { ReaderEmmCatalogTag, ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
 import type { ReaderEmmOverrideRecord, ReaderEmmOverrides, ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { parseReaderEmmOverrides } from "../../application/metadata/ReaderEmmMetadataService.js"
@@ -42,6 +46,9 @@ export class SqliteReaderDataStore
     ReaderLibraryStatisticsStore,
     ReaderDirectorySortPreferenceStore,
     ReaderDirectoryEmmRecordStore,
+    ReaderEmmRatingCatalogStore,
+    ReaderFolderRatingCacheStore,
+    ReaderManualTagCatalogStore,
     ReaderEmmTagCatalogStore,
     ReaderEmmOverrideStore
 {
@@ -188,6 +195,16 @@ export class SqliteReaderDataStore
         );
         CREATE INDEX IF NOT EXISTS xr_reader_emm_overrides_updated_idx
           ON xr_reader_emm_overrides (updated_at DESC, path_key ASC);
+        CREATE TABLE IF NOT EXISTS xr_reader_folder_ratings (
+          path_key TEXT PRIMARY KEY NOT NULL,
+          display_path TEXT NOT NULL,
+          average_rating REAL NOT NULL CHECK (average_rating > 0 AND average_rating <= 5),
+          entry_count INTEGER NOT NULL CHECK (entry_count > 0),
+          direct INTEGER NOT NULL CHECK (direct IN (0, 1)),
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS xr_reader_folder_ratings_updated_idx
+          ON xr_reader_folder_ratings (updated_at DESC, path_key ASC);
         PRAGMA busy_timeout = 50;
       `)
       return new SqliteReaderDataStore(database, options.platform)
@@ -1269,6 +1286,74 @@ export class SqliteReaderDataStore
     return output
   }
 
+  async listEmmRatingRecords(signal?: AbortSignal): Promise<readonly ReaderEmmRatingCatalogRecord[]> {
+    this.#assertOpen()
+    signal?.throwIfAborted()
+    const output = new Map<string, ReaderEmmRatingCatalogRecord>()
+    if (this.#legacyDirectoryEmmAvailable) {
+      const rows = this.database.all(`SELECT key, ${this.#directoryRatingDataAvailable ? "rating_data" : "NULL AS rating_data"}, emm_json FROM thumbs WHERE emm_json IS NOT NULL OR ${this.#directoryRatingDataAvailable ? "rating_data IS NOT NULL" : "0"}`)
+      for (const row of rows) {
+        signal?.throwIfAborted()
+        const path = optionalText(row.key)
+        const rating = ratingFromRecord({ ratingData: optionalText(row.rating_data), emmJson: optionalText(row.emm_json) })
+        if (path && rating !== undefined) output.set(normalizeEmmPathKey(path), { path, rating })
+      }
+    }
+    for (const row of this.database.all("SELECT display_path, overrides_json FROM xr_reader_emm_overrides")) {
+      signal?.throwIfAborted()
+      const path = optionalText(row.display_path)
+      const rating = ratingFromOverride(optionalText(row.overrides_json))
+      if (path && rating !== undefined) output.set(normalizeEmmPathKey(path), { path, rating })
+    }
+    return [...output.values()]
+  }
+
+  async listManualTagSummaries(limit: number, signal?: AbortSignal): Promise<readonly ReaderManualTagSummary[]> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 256) throw new RangeError("Manual tag summary limit must be from 1 to 256.")
+    const counts = new Map<string, ReaderManualTagSummary>()
+    for (const row of this.database.all("SELECT overrides_json FROM xr_reader_emm_overrides WHERE overrides_json LIKE '%manualTags%'")) {
+      signal?.throwIfAborted()
+      const value = optionalText(row.overrides_json)
+      if (!value) continue
+      try {
+        const tags = (JSON.parse(value) as { manualTags?: unknown }).manualTags
+        if (!Array.isArray(tags)) continue
+        for (const tag of tags.slice(0, 256)) {
+          if (!tag || typeof tag !== "object") continue
+          const { namespace, tag: name } = tag as { namespace?: unknown; tag?: unknown }
+          if (typeof namespace !== "string" || typeof name !== "string" || !namespace.trim() || !name.trim()) continue
+          const key = `${namespace.trim().toLocaleLowerCase()}\0${name.trim().toLocaleLowerCase()}`
+          const current = counts.get(key)
+          counts.set(key, current ? { ...current, count: current.count + 1 } : { namespace: namespace.trim(), tag: name.trim(), count: 1 })
+        }
+      } catch { /* ignore malformed legacy override */ }
+    }
+    return [...counts.values()].sort((left, right) => right.count - left.count || left.namespace.localeCompare(right.namespace) || left.tag.localeCompare(right.tag)).slice(0, limit)
+  }
+
+  async loadFolderRatingCache(): Promise<ReaderFolderRatingCacheSnapshot> {
+    this.#assertOpen()
+    const rows = this.database.all("SELECT display_path, average_rating, entry_count, direct, updated_at FROM xr_reader_folder_ratings ORDER BY path_key ASC")
+    const entries = rows.map((row) => ({ path: requireString(row.display_path, "folder rating path"), averageRating: requireNumber(row.average_rating, "folder rating average"), count: requireInteger(row.entry_count, "folder rating count"), direct: requireBooleanInteger(row.direct, "folder rating direct") }))
+    const updatedAt = rows.reduce<number | undefined>((latest, row) => Math.max(latest ?? 0, requireInteger(row.updated_at, "folder rating update")), undefined)
+    return { entries, ...(updatedAt ? { updatedAt } : {}) }
+  }
+
+  async replaceFolderRatingCache(entries: readonly ReaderFolderRatingEntry[], updatedAt: number): Promise<void> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new Error("Folder rating update time is invalid.")
+    await this.#write(() => {
+      this.database.exec("DELETE FROM xr_reader_folder_ratings")
+      for (const entry of entries) {
+        if (!entry.path || !Number.isFinite(entry.averageRating) || entry.averageRating <= 0 || entry.averageRating > 5 || !Number.isSafeInteger(entry.count) || entry.count < 1) throw new Error("Folder rating entry is invalid.")
+        this.database.run("INSERT INTO xr_reader_folder_ratings (path_key, display_path, average_rating, entry_count, direct, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", normalizeEmmPathKey(entry.path), entry.path, entry.averageRating, entry.count, entry.direct ? 1 : 0, updatedAt)
+      }
+    })
+  }
+
+  async clearFolderRatingCache(): Promise<void> { this.#assertOpen(); await this.#write(() => this.database.exec("DELETE FROM xr_reader_folder_ratings")) }
+
   async sampleEmmTags(count: number, signal?: AbortSignal): Promise<readonly ReaderEmmCatalogTag[]> {
     this.#assertOpen()
     if (!Number.isSafeInteger(count) || count < 1 || count > 64) throw new RangeError("EMM tag sample count must be from 1 to 64.")
@@ -1961,6 +2046,11 @@ function requireBooleanInteger(value: unknown, name: string): boolean {
   return integer === 1
 }
 
+function requireNumber(value: unknown, name: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`Stored reader ${name} is invalid.`)
+  return value
+}
+
 const BookSettingsOverridesSchema = z
   .object({
     favorite: z.boolean().optional(),
@@ -2035,6 +2125,23 @@ function sameBookSettingsOverrides(left: ReaderBookSettingsOverrides, right: Rea
     left.pageMode === right.pageMode &&
     left.horizontalBook === right.horizontalBook
   )
+}
+
+function ratingFromRecord(record: ReaderDirectoryEmmRecord): number | undefined {
+  return ratingFromJson(record.ratingData, "value") ?? ratingFromJson(record.emmJson, "rating")
+}
+
+function ratingFromOverride(value: string | undefined): number | undefined {
+  return ratingFromJson(value, "rating")
+}
+
+function ratingFromJson(value: string | undefined, key: string): number | undefined {
+  if (!value) return undefined
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    const rating = parsed[key]
+    return typeof rating === "number" && Number.isFinite(rating) && rating > 0 && rating <= 5 ? rating : undefined
+  } catch { return undefined }
 }
 
 function isBusyError(error: unknown): boolean {

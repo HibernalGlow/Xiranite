@@ -5,15 +5,15 @@ import tailwindcss from "@tailwindcss/vite"
 import { Scanner } from "@tailwindcss/oxide"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vitest/config"
+import { collectLucideIconExports, rewriteLucideDeepImports } from "./scripts/lucide-deep-imports"
+import { reactCompilerModeForCommand } from "./scripts/react-compiler-mode"
+import { VITE_EAGER_DEPENDENCIES, VITE_EXCLUDED_DEPENDENCIES } from "./scripts/vite-dependency-policy"
 
 const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
-const reactCompilerMode = process.env.XIRANITE_REACT_COMPILER_MODE ?? "infer"
-
-if (reactCompilerMode !== "annotation" && reactCompilerMode !== "infer" && reactCompilerMode !== "off") {
-  throw new Error("XIRANITE_REACT_COMPILER_MODE must be annotation, infer, or off")
-}
+const lucideReactEntry = path.resolve(__dirname, "./node_modules/lucide-react/dist/esm/lucide-react.js")
+const propTypesDevShim = path.resolve(__dirname, "./src/vendor/prop-types-dev.ts")
 
 /**
  * Tailwind v4 normally watches every source file and re-emits the generated
@@ -63,8 +63,38 @@ function productionChunkReportPlugin() {
   }
 }
 
+function developmentCjsShimPlugin() {
+  return {
+    name: "xiranite:development-cjs-shims",
+    apply: "serve" as const,
+    enforce: "pre" as const,
+    resolveId(id: string) {
+      return id === "prop-types" ? propTypesDevShim : null
+    },
+  }
+}
+
+function lucideDeepImportsPlugin() {
+  let iconExports: Promise<ReturnType<typeof collectLucideIconExports>> | undefined
+  return {
+    name: "xiranite:lucide-deep-imports",
+    enforce: "pre" as const,
+    async transform(source: string, id: string) {
+      if (!source.includes("lucide-react") || !/\.[cm]?[jt]sx?(?:\?|$)/.test(id)) return null
+      iconExports ??= readFile(lucideReactEntry, "utf8").then(collectLucideIconExports)
+      const code = rewriteLucideDeepImports(source, id, await iconExports)
+      return code === null ? null : { code, map: null }
+    },
+  }
+}
+
+function reactCompilerBabelOptions(command: "build" | "serve") {
+  const mode = reactCompilerModeForCommand(command)
+  return mode === "off" ? undefined : { plugins: [["babel-plugin-react-compiler", { compilationMode: mode }]] }
+}
+
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   cacheDir: process.env.XIRANITE_VITE_CACHE_DIR,
   esbuild: {
     jsx: "automatic",
@@ -73,17 +103,16 @@ export default defineConfig({
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
   },
   plugins: [
+    developmentCjsShimPlugin(),
+    lucideDeepImportsPlugin(),
     tailwindCandidateSnapshotPlugin(),
     productionChunkReportPlugin(),
-    react({
-      babel: reactCompilerMode === "off"
-        ? undefined
-        : { plugins: [["babel-plugin-react-compiler", { compilationMode: reactCompilerMode }]] },
-    }),
+    react({ babel: reactCompilerBabelOptions(command) }),
     tailwindcss(),
   ],
   resolve: {
     alias: [
+      { find: "void-elements", replacement: path.resolve(__dirname, "src/vendor/void-elements.ts") },
       // Keep the browser entry on the source-level UI boundary. The NeoView
       // package build replaces dist non-atomically, and a stale Vite optimized
       // dependency can otherwise retain the Node-only core module graph.
@@ -118,36 +147,60 @@ export default defineConfig({
     ],
   },
   server: {
-    watch: {
-      ignored: ["**/.cache/**", "**/build/**", "**/artifacts/**", "**/native/target/**"],
+    // Background-transform the first open path after listen. This does not delay
+    // server startup; it reduces first-tab cost once the document is openable.
+    warmup: {
+      clientFiles: [
+        "./index.html",
+        "./src/main.tsx",
+      ],
     },
+    watch: {
+      // Vite watches the repository root. Exclude large non-runtime trees so
+      // Chokidar does not contend with the first HTTP transform after listen.
+      ignored: [
+        "**/.cache/**",
+        "**/.playwright-cli/**",
+        "**/.tmp/**",
+        "**/.turbo/**",
+        "**/artifacts/**",
+        "**/build/**",
+        "**/examples/**",
+        "**/migration/**",
+        "**/native/target/**",
+        "**/output/**",
+        "**/ref/**",
+        "**/tmp/**",
+      ],
+    },
+    // Keep HMR on the main HTTP server. Setting `hmr.port` to a different value
+    // opens a websocket-only listener that answers document GETs with 426/404 and
+    // steals free ports from the next managed XR session.
     hmr: process.env.VITE_XIRANITE_FRONTEND_DEV_URL
       ? {
           host: new URL(process.env.VITE_XIRANITE_FRONTEND_DEV_URL).hostname,
-          port: Number(new URL(process.env.VITE_XIRANITE_FRONTEND_DEV_URL).port) || 5173,
+          clientPort: Number(new URL(process.env.VITE_XIRANITE_FRONTEND_DEV_URL).port) || 5173,
         }
       : undefined,
   },
   optimizeDeps: {
-    // Standalone reference HTML under icon/ is not an application entry.
-    entries: ["index.html"],
+    // The generated node registry exposes many feature-only dynamic imports.
+    // Keep discovery disabled and explicitly prebundle only the compatibility
+    // dependencies below; a full cold crawl takes roughly a minute on Windows.
+    noDiscovery: true,
+    holdUntilCrawlEnd: false,
     // use-sync-external-store/shim 是 CommonJS（module.exports = require(...)),
     // 不预构建时浏览器 ESM `import { useSyncExternalStore }` 拿不到命名导出。
     // esbuild 预构建会把 CJS 转成 ESM 命名导出。zustand / @base-ui/react /
     // @tanstack/react-store 都通过 shim 入口引用。
-    include: [
-      "@wailsio/runtime",
-      "use-sync-external-store",
-      "use-sync-external-store/shim",
-      "use-sync-external-store/shim/with-selector",
-    ],
+    include: [...VITE_EAGER_DEPENDENCIES],
     // nuqs 必须排除预构建：nuqs 用 window.__NuqsAdapterContext 做全局单例检测，
     // 若 esbuild 把 `nuqs` 和 `nuqs/adapters/react` 各自打包成独立 chunk，
     // context-CayRnDCw.js 会被内联两次 → 两个 createContext 实例 →
     // "Multiple adapter contexts detected" (NUQS-303) + context provider 失效。
     // nuqs 是纯 ESM（type: module），浏览器原生 ESM 按 URL 去重模块，
     // exclude 后所有入口共享同一份 context 模块。
-    exclude: ["nuqs", "@xiranite/node-neoview"],
+    exclude: [...VITE_EXCLUDED_DEPENDENCIES],
     rolldownOptions: {
       transform: {
         define: {
@@ -180,4 +233,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

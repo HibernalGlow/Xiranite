@@ -41,7 +41,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Slot as SlotPrimitive } from "radix-ui";
+import * as SlotPrimitive from "@radix-ui/react-slot"
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 
@@ -157,6 +157,10 @@ const ITEM_NAME = "KanbanItem";
 const ITEM_HANDLE_NAME = "KanbanItemHandle";
 const OVERLAY_NAME = "KanbanOverlay";
 
+const DEFAULT_KANBAN_MEASURING: DndContextProps["measuring"] = {
+  droppable: { strategy: MeasuringStrategy.Always },
+};
+
 interface KanbanContextValue<T> {
   id: string;
   items: Record<UniqueIdentifier, T[]>;
@@ -214,6 +218,7 @@ function Kanban<T>(props: KanbanProps<T>) {
     accessibility,
     flatCursor = false,
     collisionDetection: collisionDetectionProp,
+    measuring,
     ...kanbanProps
   } = props;
 
@@ -617,11 +622,7 @@ function Kanban<T>(props: KanbanProps<T>) {
         sensors={sensors}
         {...kanbanProps}
         id={id}
-        measuring={{
-          droppable: {
-            strategy: MeasuringStrategy.Always,
-          },
-        }}
+        measuring={measuring ?? DEFAULT_KANBAN_MEASURING}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
@@ -797,11 +798,7 @@ function KanbanColumn(props: KanbanColumnProps) {
     <KanbanColumnContext.Provider value={columnContext}>
       <SortableContext
         items={items}
-        strategy={
-          context.orientation === "horizontal"
-            ? horizontalListSortingStrategy
-            : verticalListSortingStrategy
-        }
+        strategy={context.strategy}
       >
         <ColumnPrimitive
           id={id}

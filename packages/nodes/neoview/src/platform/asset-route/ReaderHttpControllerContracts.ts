@@ -88,6 +88,7 @@ import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpCont
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
 import { ReaderBookSettingsMigrationHttpController } from "./ReaderBookSettingsMigrationHttpController.js"
+import type { ReaderFolderRatingService } from "../../application/metadata/ReaderFolderRatingService.js"
 import { ReaderSourceWatchService } from "../../application/reader/ReaderSourceWatchService.js"
 import type { ReaderSourceWatcher } from "../../ports/ReaderSourceWatcher.js"
 import type { ReaderExplorerContextMenuProvider } from "../../ports/ReaderExplorerContextMenuProvider.js"
@@ -154,6 +155,8 @@ import {
   type NeoviewSwitchToastPatch,
   type NeoviewInfoOverlayPatch,
   type NeoviewSystemMonitorConfig,
+  type NeoviewPreloadConfig,
+  type NeoviewPreloadPatch,
   type NeoviewEmmConfig,
   type NeoviewEmmPatch,
   type NeoviewAiTranslationConfig,
@@ -186,6 +189,7 @@ import {
   type NeoviewRadialMenuPatch,
   type ReaderRadialMenuConfig,
 } from "../../application/config/ReaderRadialMenuConfig.js"
+import type { NeoviewVoiceControlPatch, ReaderVoiceControlConfig } from "../../application/config/ReaderVoiceControlConfig.js"
 import { DEFAULT_READER_INPUT_BINDINGS, cloneReaderInputBindings, type ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
@@ -247,11 +251,13 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     libraryService?: ReaderLibraryService
     directorySortPreferenceStore?: ReaderDirectorySortPreferenceStore
     directoryEmmRecordStore?: ReaderDirectoryEmmRecordStore
+    manualTagCatalogStore?: import("../../ports/ReaderManualTagCatalogStore.js").ReaderManualTagCatalogStore
     emmOverrideStore?: ReaderEmmOverrideStore
     emmCollectTagSource?: PlatformEmmCollectTagSource
     emmTranslationSource?: PlatformEmmTranslationSource
     searchHistoryStore?: ReaderSearchHistoryStore
     fileUndoJournalStore?: ReaderFileUndoJournalStore
+    folderRatingService?: ReaderFolderRatingService
     disposeLibraryService?: boolean
     presentationDiskCache?: ReaderPresentationDiskCache
     disposePresentationDiskCache?: boolean
@@ -291,6 +297,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     updateInfoOverlay?: (patch: NeoviewInfoOverlayPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInfoOverlaySettings>
     systemMonitor?: NeoviewSystemMonitorConfig
     updateSystemMonitor?: (patch: NeoviewSystemMonitorPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSystemMonitorConfig>
+    preload?: NeoviewPreloadConfig
+    updatePreload?: (patch: NeoviewPreloadPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewPreloadConfig>
     emm?: NeoviewEmmConfig
     updateEmm?: (patch: NeoviewEmmPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewEmmConfig>
     probeEmm?: (config: NeoviewEmmConfig) => Promise<ReaderEmmConnectionProbeResult>
@@ -307,6 +315,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     updateInputBindings?: (patch: NeoviewInputBindingsPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInputBindingsConfig>
     radialMenu?: ReaderRadialMenuConfig
     updateRadialMenu?: (patch: NeoviewRadialMenuPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderRadialMenuConfig>
+    voiceControl?: ReaderVoiceControlConfig
+    updateVoiceControl?: (patch: NeoviewVoiceControlPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderVoiceControlConfig>
     maxSeekableMediaEntryBytes?: number
     maxSeekableMediaTotalBytes?: number
     loadSettingsMigrationService?: () => Promise<ReaderSettingsMigrationService>

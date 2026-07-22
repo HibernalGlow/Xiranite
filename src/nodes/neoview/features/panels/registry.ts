@@ -15,7 +15,7 @@ import {
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
-import { Activity, Bell, BookMarked, BookOpen, BookOpenCheck, Bot, CalendarRange, Clock3, Cpu, Crop, DatabaseBackup, Eye, EyeOff, Film, FolderOpen, Gauge, HardDrive, Image, Info, Keyboard, Languages, LayoutDashboard, LayoutGrid, ListFilter, ListTree, Loader, Mic, Monitor, Palette, PanelLeft, PieChart, Play, Server, Sparkles, SlidersHorizontal, Tags, Trash2, TrendingUp, Video, type LucideIcon } from "lucide-react"
+import { Activity, Bell, Bookmark, BookMarked, BookOpen, BookOpenCheck, Bot, CalendarRange, ChartNoAxesGantt, Clock3, Cpu, Crop, DatabaseBackup, Eye, EyeOff, File, FileText, Film, Folder, FolderOpen, Gauge, HardDrive, History, Image, Info, Keyboard, Languages, LayoutDashboard, LayoutGrid, ListFilter, ListMusic, ListTree, Loader, Mic, Monitor, Palette, PanelLeft, PieChart, Play, Server, Settings, Settings2, Sparkles, SlidersHorizontal, Tag, Tags, Timer, Trash2, TrendingUp, Video, type LucideIcon } from "lucide-react"
 
 import type {
   ReaderBoardLayoutPatch,
@@ -23,6 +23,7 @@ import type {
   ReaderBookSettingsUpdateDto,
   ReaderHistoryListPreferencesDto,
   ReaderRadialMenuPatch,
+  ReaderVoiceControlPatch,
   ReaderHttpClient,
   ReaderPageListPreferencesDto,
   ReaderPreloadActionResultDto,
@@ -50,6 +51,7 @@ import type { ReaderPageTransitionPort } from "../page-transition/ReaderPageTran
 import type { ReaderSwitchToastPort } from "../switch-toast/ReaderSwitchToastStore"
 import type { InfoOverlayPort } from "./cards/InfoOverlayCard"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
+import type { ReaderWorkspacePatch } from "../workspace/ReaderWorkspaceLayout"
 
 export type ReaderPanelSide = "left" | "right"
 export type LegacyPanelId = ReaderPanelId
@@ -61,6 +63,7 @@ export interface ReaderPanelContext {
   panelActive?: boolean
   panelVisible?: boolean
   onGoTo(pageIndex: number): void | Promise<void>
+  onInputAction?(action: import("@xiranite/node-neoview/ui-core").ReaderInputAction): void
   onBookSettingsUpdated?(sessionId: string, update: ReaderBookSettingsUpdateDto): void
   bookmarkListPreferences?: ReaderBookmarkListPreferencesDto
   onBookmarkListPreferences?(patch: Partial<ReaderBookmarkListPreferencesDto>): Promise<ReaderBookmarkListPreferencesDto>
@@ -109,6 +112,10 @@ export interface ReaderPanelContext {
   onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu?: ReaderRuntimeConfigDto["radialMenu"]
   onRadialMenu?(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  voiceControl?: ReaderRuntimeConfigDto["voiceControl"]
+  onVoiceControl?(patch: ReaderVoiceControlPatch["voiceControl"]): Promise<NonNullable<ReaderRuntimeConfigDto["voiceControl"]>>
+  preload?: ReaderRuntimeConfigDto["preload"]
+  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
   onMaterial?(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
@@ -120,7 +127,7 @@ export interface ReaderPanelContext {
 export interface ReaderPanelDefinition {
   id: LegacyPanelId
   title: string
-  emoji: string
+  icon: LucideIcon
   defaultSide: ReaderPanelSide | "floating"
   defaultVisible: boolean
   defaultOrder: number
@@ -160,6 +167,7 @@ export type ReaderCardDefinitionSettingsSectionId =
 export interface ReaderSettingsCardContext {
   shell: ReaderShellConfigDto
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
+  onWorkspace?(patch: ReaderWorkspacePatch): void
   viewDefaults?: ReaderRuntimeConfigDto["viewDefaults"]
   onViewDefaults?(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   slideshow?: ReaderSlideshowConfig
@@ -168,6 +176,8 @@ export interface ReaderSettingsCardContext {
   onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   imageProcessing?: ReaderImageProcessingConfigDto
   onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
+  preload?: ReaderRuntimeConfigDto["preload"]
+  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
   inputBindings?: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu?: ReaderRuntimeConfigDto["radialMenu"]
@@ -189,10 +199,27 @@ export interface ResolvedPanelConfig extends LegacyPanelConfig {
   unknown: boolean
 }
 
+const PANEL_ICONS = {
+  folder: Folder,
+  history: History,
+  bookmark: Bookmark,
+  pageList: FileText,
+  playlist: ListMusic,
+  settings: Settings,
+  info: Info,
+  properties: Tag,
+  upscale: Sparkles,
+  insights: ChartNoAxesGantt,
+  control: Settings2,
+  ai: Bot,
+  benchmark: Timer,
+  cardwindow: File,
+} satisfies Record<ReaderPanelId, LucideIcon>
+
 export const PANEL_DEFINITIONS: readonly ReaderPanelDefinition[] = READER_PANEL_MANIFEST.map((definition) => ({
   id: definition.id,
   title: definition.title,
-  emoji: definition.emoji,
+  icon: PANEL_ICONS[definition.id],
   defaultSide: definition.defaultPosition,
   defaultVisible: definition.defaultVisible,
   defaultOrder: definition.defaultOrder,
@@ -206,6 +233,7 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "history-list": () => import("./cards/HistoryListCard"),
   "bookmark-list": () => import("./cards/BookmarkListCard"),
   "page-navigation": () => import("./cards/PageNavigationCard"),
+  "playlist-main": () => import("./cards/PlaylistMainCard"),
   "book-information": () => import("./cards/BookInformationCard"),
   "image-information": () => import("./cards/ImageInformationCard"),
   "storage-information": () => import("./cards/StorageInformationCard"),
@@ -250,7 +278,9 @@ const CARD_LOADERS: Record<ReaderCardId, ReaderCardDefinition["load"]> = {
   "slideshow-settings": () => import("../settings/cards/SlideshowSettingsCard"),
   "media-settings": () => import("../settings/cards/MediaSettingsCard"),
   "view-defaults-settings": () => import("../settings/cards/ViewDefaultsSettingsCard"),
+  "preload-settings": () => import("../settings/cards/PreloadSettingsCard"),
   "reader-material-settings": () => import("../settings/cards/ReaderMaterialSettingsCard"),
+  "ambient-background": () => import("./cards/AmbientBackgroundCard"),
   "board-layout-settings": () => import("../settings/cards/BoardLayoutSettingsCard"),
   "input-bindings-settings": () => import("../settings/cards/InputBindingsSettingsCard"),
   "data-migration-settings": () => import("../settings/cards/DataMigrationSettingsCard"),
@@ -262,6 +292,7 @@ const CARD_ICONS = {
   "history-list": Clock3,
   "bookmark-list": BookMarked,
   "page-navigation": ListTree,
+  "playlist-main": ListMusic,
   "book-information": BookOpen,
   "image-information": Image,
   "storage-information": HardDrive,
@@ -269,7 +300,9 @@ const CARD_ICONS = {
   "slideshow-settings": Play,
   "media-settings": Film,
   "view-defaults-settings": Eye,
+  "preload-settings": Gauge,
   "reader-material-settings": Palette,
+  "ambient-background": Sparkles,
   "board-layout-settings": LayoutDashboard,
   "input-bindings-settings": Keyboard,
   "data-migration-settings": DatabaseBackup,
@@ -317,6 +350,7 @@ const SETTINGS_CARD_LOADERS: Partial<Record<ReaderCardId, NonNullable<ReaderCard
   "slideshow-settings": async () => ({ default: (await import("../settings/cards/SlideshowSettingsCard")).SettingsSlideshowCard }),
   "media-settings": async () => ({ default: (await import("../settings/cards/MediaSettingsCard")).SettingsMediaCard }),
   "view-defaults-settings": async () => ({ default: (await import("../settings/cards/ViewDefaultsSettingsCard")).SettingsViewDefaultsCard }),
+  "preload-settings": async () => ({ default: (await import("../settings/cards/PreloadSettingsCard")).SettingsPreloadCard }),
   "reader-material-settings": async () => ({ default: (await import("../settings/cards/ReaderMaterialSettingsCard")).SettingsReaderMaterialCard }),
   "board-layout-settings": async () => ({ default: (await import("../settings/cards/BoardLayoutSettingsCard")).SettingsBoardLayoutCard }),
   "input-bindings-settings": async () => ({ default: (await import("../settings/cards/InputBindingsSettingsCard")).InputBindingsSettingsCard }),

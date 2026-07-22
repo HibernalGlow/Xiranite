@@ -15,7 +15,16 @@ export async function resolveManagedFrontendUrl(
   environment: DevFrontendEnvironment = Bun.env,
 ): Promise<string> {
   const configuredUrl = environment.FRONTEND_DEVSERVER_URL?.trim()
-  if (configuredUrl) return new URL(configuredUrl).href.replace(/\/$/, "")
+  if (configuredUrl) {
+    const url = new URL(configuredUrl)
+    const port = Number(url.port || (url.protocol === "https:" ? "443" : "80"))
+    if (!(await canListen(url.hostname === "localhost" ? "127.0.0.1" : url.hostname, port))) {
+      throw new Error(
+        `FRONTEND_DEVSERVER_URL port ${port} is already in use. Stop the occupying process or unset FRONTEND_DEVSERVER_URL so XR can pick a free port.`,
+      )
+    }
+    return url.href.replace(/\/$/, "")
+  }
 
   const preferredPort = parsePreferredPort(environment.XIRANITE_FRONTEND_PORT)
   for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset += 1) {
@@ -28,11 +37,42 @@ export async function resolveManagedFrontendUrl(
 }
 
 /**
- * All managed development sessions share this cache. Vite's metadata already
- * invalidates it when the lockfile or dependency-optimization config changes.
+ * Vite's dependency optimizer is a single-writer cache. A managed session owns
+ * the cache for its bound frontend port, so concurrent sessions cannot replace
+ * each other's dependency metadata or temporary bundles.
  */
-export function managedViteCacheDir(): string {
-  return resolve(repoRoot, ".cache", "vite", "managed")
+export function managedViteCacheDir(frontendUrl: string): string {
+  return resolve(repoRoot, ".cache", "vite", "sessions", String(frontendPortFromUrl(frontendUrl)))
+}
+
+export function frontendPortFromUrl(frontendUrl: string): number {
+  const frontend = new URL(frontendUrl)
+  return Number(frontend.port || (frontend.protocol === "https:" ? "443" : "80"))
+}
+
+export async function waitForPortFree(
+  host: string,
+  port: number,
+  options: { attempts?: number; delayMs?: number } = {},
+): Promise<boolean> {
+  const attempts = options.attempts ?? 50
+  const delayMs = options.delayMs ?? 100
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (await canListen(host, port)) return true
+    await Bun.sleep(delayMs)
+  }
+  return canListen(host, port)
+}
+
+export async function canListen(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = createServer()
+    server.unref()
+    server.once("error", () => resolve(false))
+    server.listen({ host, port, exclusive: true }, () => {
+      server.close(() => resolve(true))
+    })
+  })
 }
 
 function parsePreferredPort(value: string | undefined): number {
@@ -42,15 +82,4 @@ function parsePreferredPort(value: string | undefined): number {
     throw new Error("XIRANITE_FRONTEND_PORT must be an integer between 1 and 65535.")
   }
   return port
-}
-
-function canListen(host: string, port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const server = createServer()
-    server.unref()
-    server.once("error", () => resolve(false))
-    server.listen({ host, port, exclusive: true }, () => {
-      server.close(() => resolve(true))
-    })
-  })
 }

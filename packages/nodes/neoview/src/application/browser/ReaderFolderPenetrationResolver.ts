@@ -12,6 +12,7 @@ const DEFAULT_MAXIMUM_CACHE_ENTRIES = 512
 const DEFAULT_CACHE_TTL_MS = 30_000
 const HARD_MAXIMUM_DEPTH = 32
 const MINIMUM_MIXED_DIRECTORY_MEDIA = 2
+const DESCRIPTION_CONCURRENCY = 8
 const ARCHIVE_EXTENSIONS = new Set(["zip", "cbz", "rar", "cbr", "7z", "cb7"])
 const DOCUMENT_EXTENSIONS = new Set(["pdf", "epub"])
 const SIDECAR_EXTENSIONS = new Set([
@@ -51,6 +52,11 @@ export interface ReaderFolderPenetrationResolution {
   deferredDirectoryCount?: number
   chain: readonly ReaderFolderPenetrationStep[]
   reason: ReaderFolderPenetrationReason
+}
+
+export interface ReaderFolderPenetrationDescription {
+  path: string
+  internalFiles: readonly { name: string; path: string; kind: "file" | "directory" }[]
 }
 
 export interface ReaderFolderPenetrationResolverOptions {
@@ -128,6 +134,26 @@ export class ReaderFolderPenetrationResolver {
         flight.controller.abort(new DOMException("Penetration resolution has no consumers.", "AbortError"))
       }
     }
+  }
+
+  async describe(paths: readonly string[], signal?: AbortSignal): Promise<readonly ReaderFolderPenetrationDescription[]> {
+    if (paths.length > 64) throw new RangeError("Reader penetration describe accepts at most 64 paths.")
+    return mapConcurrent(paths, DESCRIPTION_CONCURRENCY, async (path) => {
+      const requestedPath = requirePath(path)
+      signal?.throwIfAborted()
+      try {
+        const listing = await this.provider.read(requestedPath, signal)
+        const classified = classifyEntries(listing.entries, this.options.mediaFormats)
+        const internalFiles = [
+          ...classified.archives.map(({ name, path: entryPath }) => ({ name: stripLastExtension(name), path: entryPath, kind: "file" as const })),
+          ...classified.directories.map(({ name, path: entryPath }) => ({ name, path: entryPath, kind: "directory" as const })),
+        ]
+        return { path: requestedPath, internalFiles }
+      } catch (error) {
+        signal?.throwIfAborted()
+        return { path: requestedPath, internalFiles: [] }
+      }
+    })
   }
 
   clear(): void {
@@ -243,6 +269,11 @@ function classifyEntries(entries: readonly ReaderDirectoryEntry[], mediaFormats?
   return output
 }
 
+function stripLastExtension(name: string): string {
+  const dot = name.lastIndexOf(".")
+  return dot > 0 ? name.slice(0, dot) : name
+}
+
 function normalizePolicy(policy: ReaderFolderPenetrationPolicy): NormalizedPolicy {
   const maxDepth = boundedInteger(policy.maxDepth, 1, HARD_MAXIMUM_DEPTH, 3)
   const requested = policy.terminalTargets ?? ["archive", "document", "media-directory", "file"]
@@ -299,6 +330,18 @@ async function waitForCaller<T>(promise: Promise<T>, signal?: AbortSignal): Prom
     promise,
     new Promise<never>((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true })),
   ])
+}
+
+async function mapConcurrent<T, R>(values: readonly T[], concurrency: number, task: (value: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(values.length)
+  let cursor = 0
+  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, async () => {
+    while (cursor < values.length) {
+      const index = cursor++
+      results[index] = await task(values[index]!)
+    }
+  }))
+  return results
 }
 
 function boundedInteger(value: number | undefined, minimum: number, maximum: number, fallback: number): number {

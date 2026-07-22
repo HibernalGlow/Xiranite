@@ -26,7 +26,7 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 
 import type {
   EngineVAction,
@@ -97,7 +97,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 
 function createEngineVDefinition(defaults: EnginevNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<EngineVInput, EngineVResult> { let cached: EngineVWallpaper[] = []; return { schema: createEngineVInteractionSchema({ workshopPath: defaults.workshop_root?.trim() || DEFAULT_WORKSHOP_PATH, exportPath: defaults.export_path ?? "", exportFormat: defaults.export_format ?? "json", maxWorkers: defaults.max_workers ?? 4, template: defaults.template ?? DEFAULT_TEMPLATE, imageBackend: defaults.image_backend ?? "auto", galleryColumns: defaults.gallery_columns ?? 0 } satisfies Partial<EngineVInteractionValues>, language), async run(input, onEvent) { const enriched = input.action !== "scan" && !input.wallpapers?.length ? { ...input, wallpapers: cached } : input; const result = await runEngineV(enriched, createNodeEngineVRuntime(), onEvent); if (result.data?.wallpapers?.length) cached = result.data.wallpapers; return result } } }
 
-function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "enginev", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "enginev", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<EnginevNodeConfig>("enginev", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? resolveTerminalLanguage(undefined, host.env) } } } }
+function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "enginev", current, async save(values) { await updateNodeConfigFile("enginev", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<EnginevNodeConfig>("enginev", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? resolveTerminalLanguage(undefined, host.env) } } } }
 
 function writeUsage(host: CliHost) { writeLine(host, `${CLI_NAME} - Wallpaper Engine workshop gallery manager`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} scan|filter|rename|delete|export [options] [--json]`) }
 

@@ -28,7 +28,7 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 
 import type { BandiaAction, BandiaArchiveFormat, BandiaExtractMode, BandiaInput, BandiaOverwriteMode, BandiaPathMapping } from "./core.js"
 import { mappingsToText, parseBandiaPaths, parsePathMappings, runBandia } from "./core.js"
@@ -107,7 +107,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 function createBandiaDefinition(defaults: BandiaNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<BandiaInput, import("./core.js").BandiaResult> {
   return { schema: createBandiaInteractionSchema({ mappingText: defaults.mappings ? JSON.stringify({ mappings: defaults.mappings }, null, 2) : "" } satisfies Partial<BandiaInteractionValues>, language), run: (input, onEvent) => runBandia(input, createNodeBandiaRuntime(), onEvent) }
 }
-function createBandiaPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "bandia", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "bandia", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<BandiaNodeConfig>("bandia", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? "zh" } } } }
+function createBandiaPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "bandia", current, async save(values) { await updateNodeConfigFile("bandia", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<BandiaNodeConfig>("bandia", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? "zh" } } } }
 function writeUsage(host: CliHost) { writeLine(host, `${CLI_NAME} - Bandizip archive pipeline`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} extract|compress|repack|export-efu [options] [--json]`) }
 
 function createDefaultHost(): CliHost {

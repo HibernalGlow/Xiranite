@@ -855,6 +855,7 @@ function uniqueBindingId(bindings: readonly ReaderInputBinding[], prefix: string
 function defaultContextForAction(action: ReaderInputAction): ReaderInputContext {
   if (action.startsWith("video.")) return "video"
   if (action.startsWith("shell.")) return "shell"
+  if (action.startsWith("workspace.")) return "shell"
   if (action.startsWith("viewer.")) return "reader"
   if (action.startsWith("file.") || action === "reader.open-settings") return "global"
   if (action.startsWith("radial.")) return "reader"

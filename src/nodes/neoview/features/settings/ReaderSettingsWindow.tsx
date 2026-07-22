@@ -2,6 +2,7 @@ import { Bell, BookOpen, Database, Gauge, Image, Info, Keyboard, LayoutGrid, Mon
 import { Suspense, useState, type ComponentType, type ReactNode } from "react"
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 import type {
   ReaderBoardLayoutPatch,
   ReaderInputBindingsPatch,
@@ -19,6 +20,7 @@ import type {
   ReaderViewDefaultsPatch,
 } from "../../adapters/reader-http-client"
 import { lazyReaderSettingsCard, settingsCardsForSection } from "../panels/registry"
+import type { ReaderWorkspacePatch } from "../workspace/ReaderWorkspaceLayout"
 import { SettingsUnavailableNote } from "./SettingsCardShell"
 
 export function ReaderSettingsWindow({
@@ -27,12 +29,14 @@ export function ReaderSettingsWindow({
   slideshow,
   media,
   imageProcessing,
+  preload,
   onClose,
   onBoardLayout,
   onViewDefaults,
   onSlideshow,
   onMedia,
   onImageProcessing,
+  onPreload,
   inputBindings,
   onInputBindings,
   radialMenu,
@@ -40,18 +44,22 @@ export function ReaderSettingsWindow({
   onLegacySettingsInspect,
   onLegacySettingsImport,
   onMaterial,
+  onWorkspace,
+  portalContainer,
 }: {
   shell: ReaderShellConfigDto
   viewDefaults: ReaderRuntimeConfigDto["viewDefaults"]
   slideshow?: ReaderSlideshowConfig
   media?: ReaderMediaConfigDto
   imageProcessing?: ReaderImageProcessingConfigDto
+  preload?: ReaderRuntimeConfigDto["preload"]
   onClose(): void
   onBoardLayout(patch: ReaderBoardLayoutPatch): Promise<void>
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
   onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
+  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
@@ -59,15 +67,25 @@ export function ReaderSettingsWindow({
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
+  onWorkspace?(patch: ReaderWorkspacePatch): void
+  portalContainer?: HTMLElement | null
 }) {
   const [active, setActive] = useState<SettingsSectionId>("layout")
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent
         bare
+        contained={Boolean(portalContainer)}
+        portalContainer={portalContainer}
         aria-describedby={undefined}
-        className="z-[91] !flex !gap-0 !p-0 h-[min(70rem,calc(100vh-2rem))] max-h-[calc(100vh-2rem)] w-[min(64rem,calc(100vw-2rem))] max-w-none flex-col overflow-hidden"
+        className={cn(
+          "z-[91] !flex !gap-0 !p-0 max-w-none flex-col overflow-hidden",
+          portalContainer
+            ? "h-auto max-h-none w-auto"
+            : "h-[min(70rem,calc(100vh-2rem))] max-h-[calc(100vh-2rem)] w-[min(64rem,calc(100vw-2rem))]",
+        )}
         overlayClassName="z-[90]"
+        data-reader-contained={Boolean(portalContainer)}
         style={{ display: "flex", flexDirection: "column", gap: 0, padding: 0 }}
       >
         <div className="shrink-0 border-b px-4 py-3">
@@ -103,6 +121,7 @@ export function ReaderSettingsWindow({
               slideshow={slideshow}
               media={media}
               imageProcessing={imageProcessing}
+              preload={preload}
               inputBindings={inputBindings}
               radialMenu={radialMenu}
               onSave={onBoardLayout}
@@ -110,11 +129,13 @@ export function ReaderSettingsWindow({
               onSlideshow={onSlideshow}
               onMedia={onMedia}
               onImageProcessing={onImageProcessing}
+              onPreload={onPreload}
               onInputBindings={onInputBindings}
               onRadialMenu={onRadialMenu}
               onLegacySettingsInspect={onLegacySettingsInspect}
               onLegacySettingsImport={onLegacySettingsImport}
               onMaterial={onMaterial}
+              onWorkspace={onWorkspace}
             />
           </div>
         </div>
@@ -130,11 +151,13 @@ function SettingsSection({
   slideshow,
   media,
   imageProcessing,
+  preload,
   onSave,
   onViewDefaults,
   onSlideshow,
   onMedia,
   onImageProcessing,
+  onPreload,
   inputBindings,
   onInputBindings,
   radialMenu,
@@ -142,6 +165,7 @@ function SettingsSection({
   onLegacySettingsInspect,
   onLegacySettingsImport,
   onMaterial,
+  onWorkspace,
 }: {
   sectionId: SettingsSectionId
   shell: ReaderShellConfigDto
@@ -149,11 +173,13 @@ function SettingsSection({
   slideshow?: ReaderSlideshowConfig
   media?: ReaderMediaConfigDto
   imageProcessing?: ReaderImageProcessingConfigDto
+  preload?: ReaderRuntimeConfigDto["preload"]
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
   onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
+  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
@@ -161,6 +187,7 @@ function SettingsSection({
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
+  onWorkspace?(patch: ReaderWorkspacePatch): void
 }) {
   const definitions = settingsCardsForSection(sectionId)
   if (!definitions.length) {
@@ -177,10 +204,10 @@ function SettingsSection({
     // fallbacks previously left a blank band above the real content.
     if (definition.id === "slideshow-settings" && (!slideshow || !onSlideshow)) continue
     if (definition.id === "media-settings" && (!media || !onMedia)) continue
+    if (definition.id === "preload-settings" && (!preload || !onPreload)) continue
     if (definition.id === "view-defaults-settings" && (!viewDefaults || !onViewDefaults)) continue
     if (definition.id === "input-bindings-settings" && (!inputBindings || !onInputBindings)) continue
     if (definition.id === "radial-menu-settings" && (!radialMenu || !onRadialMenu)) continue
-    if (definition.id === "data-migration-settings" && (!onLegacySettingsInspect || !onLegacySettingsImport)) continue
     if (definition.id === "reader-material-settings" && !onMaterial) continue
     if (definition.id === "board-layout-settings" && !onSave) continue
     cards.push(
@@ -191,6 +218,7 @@ function SettingsSection({
           slideshow={slideshow}
           media={media}
           imageProcessing={imageProcessing}
+          preload={preload}
           inputBindings={inputBindings}
           radialMenu={radialMenu}
           onSave={onSave}
@@ -198,11 +226,13 @@ function SettingsSection({
           onSlideshow={onSlideshow}
           onMedia={onMedia}
           onImageProcessing={onImageProcessing}
+          onPreload={onPreload}
           onInputBindings={onInputBindings}
           onRadialMenu={onRadialMenu}
           onLegacySettingsInspect={onLegacySettingsInspect}
           onLegacySettingsImport={onLegacySettingsImport}
           onMaterial={onMaterial}
+          onWorkspace={onWorkspace}
         />
       </Suspense>,
     )
@@ -246,9 +276,5 @@ const UNAVAILABLE_SECTIONS: Partial<Record<SettingsSectionId, { title: string; r
   books: {
     title: "书籍",
     reason: "本书方向/单双页等设置在右侧栏「本书设置」中按会话编辑；全局书籍默认值尚未单独成卡。",
-  },
-  performance: {
-    title: "性能",
-    reason: "呈现缓存与预加载阈值目前由节点配置/诊断链路管理，设置窗口可编辑面尚未开放。",
   },
 }

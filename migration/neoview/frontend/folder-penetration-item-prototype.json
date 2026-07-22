@@ -1,0 +1,13 @@
+{
+  "sourceRoot": "src",
+  "scaffoldPatterns": [
+    "^src/lib/components/panels/file/components/(?:FileItemCard|FileItemListView|FileItemGridView)\\.svelte$"
+  ],
+  "featureMappings": [
+    {
+      "featureId": "file-browser-navigation",
+      "sourcePatterns": ["^src/lib/components/panels/file/components/"]
+    }
+  ],
+  "classificationOverrides": []
+}

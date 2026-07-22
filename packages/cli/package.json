@@ -23,8 +23,8 @@
     "test": "vitest run src/index.test.ts src/workspace-tui-model.test.ts && bun test src/Tui.bun.test.tsx"
   },
   "dependencies": {
-    "@opentui/core": "0.4.3",
-    "@opentui/react": "0.4.3",
+    "@opentui/core": "0.4.5",
+    "@opentui/react": "0.4.5",
     "@xiranite/api": "workspace:*",
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/shared": "workspace:*",

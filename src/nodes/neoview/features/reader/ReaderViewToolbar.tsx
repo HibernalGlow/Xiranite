@@ -7,7 +7,7 @@
  * @source-hash sha256:c823ae6af0f8659ac7cccdaaa2eedfbbb8c8be5088b5148288bb57f3caf4acb5
  * @migration-status adapted
  */
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 import {
   AlignHorizontalSpaceAround,
   AlignVerticalSpaceAround,
@@ -18,12 +18,10 @@ import {
   ArrowLeftRight,
   ArrowRight,
   Ban,
-  BookMarked,
   Columns2,
   Equal,
   Expand,
   Frame,
-  Library,
   Maximize,
   MousePointer2,
   PanelsTopLeft,
@@ -39,14 +37,11 @@ import {
   Smartphone,
   SquareChevronLeft,
   SquareChevronRight,
-  ZoomIn,
-  ZoomOut,
   Rows2,
 } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
   rotateReaderPresentation,
-  stepReaderManualScale,
   type ReaderAutoRotation,
   type ReaderFitMode,
   type ReaderLayout,
@@ -56,6 +51,7 @@ import {
 } from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
+import { RangeInput } from "@/components/ui/range-input"
 import type { ReaderSlideshowPatch } from "../../adapters/reader-http-client"
 import type { ReaderMediaPriorityModeDto, ReaderPageOrderDto, ReaderPageSortModeDto } from "../../adapters/reader-http-client"
 
@@ -115,8 +111,6 @@ export function ReaderViewToolbar({
   onMagnifierConfigChange,
   slideshow,
   onSlideshowChange,
-  onPreviousBook,
-  onNextBook,
 }: {
   disabled?: boolean
   layout: ReaderLayout
@@ -142,35 +136,11 @@ export function ReaderViewToolbar({
   onMagnifierConfigChange?(patch: { zoom?: number; size?: number }): void | Promise<void>
   slideshow: ReaderSlideshow
   onSlideshowChange(patch: ReaderSlideshowPatch["slideshow"]): void | Promise<void>
-  onPreviousBook?(): void | Promise<void>
-  onNextBook?(): void | Promise<void>
 }) {
   const [expanded, setExpanded] = useState<ExpandedPanel | null>(null)
-  const [zoomInput, setZoomInput] = useState<string>()
-  const longPressRef = useRef<ReturnType<typeof setTimeout>>()
 
   function toggle(panel: ExpandedPanel) {
     setExpanded((current) => current === panel ? null : panel)
-  }
-
-  function beginZoomInput() {
-    longPressRef.current = setTimeout(() => {
-      longPressRef.current = undefined
-      setZoomInput(String(Math.round(presentation.manualScale * 100)))
-    }, 500)
-  }
-
-  function finishZoomInput() {
-    if (!longPressRef.current) return
-    clearTimeout(longPressRef.current)
-    longPressRef.current = undefined
-    onChange({ ...presentation, manualScale: 1 })
-  }
-
-  function commitZoomInput() {
-    const percent = Math.min(1000, Math.max(10, Number.parseInt(zoomInput ?? "100", 10) || 100))
-    onChange({ ...presentation, manualScale: percent / 100 })
-    setZoomInput(undefined)
   }
 
   const CurrentFitIcon = FIT_MODE_ICONS[presentation.fitMode]
@@ -179,17 +149,6 @@ export function ReaderViewToolbar({
     <div className="xiranite-app-region-no-drag min-w-0" data-reader-view-toolbar="true">
       <div className="flex min-h-12 min-w-0 flex-wrap items-center justify-start gap-1 px-3 py-1.5 lg:justify-center" data-reader-toolbar-row="primary">
         <Button title="页面排序" aria-label="页面排序" aria-expanded={expanded === "sort"} type="button" size="icon-sm" variant={expanded === "sort" ? "default" : "ghost"} disabled={disabled || !onPageOrderChange} onClick={() => toggle("sort")}><ArrowDownUp /></Button>
-        <Separator />
-        <Button title="上一个书籍" aria-label="上一个书籍" type="button" size="icon-sm" variant="ghost" disabled={disabled || !onPreviousBook} onClick={() => void onPreviousBook?.()}><BookMarked /></Button>
-        <Button title="下一个书籍" aria-label="下一个书籍" type="button" size="icon-sm" variant="ghost" disabled={disabled || !onNextBook} onClick={() => void onNextBook?.()}><Library /></Button>
-        <Separator />
-        <Button title="缩小" aria-label="缩小" type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={() => onChange({ ...presentation, manualScale: stepReaderManualScale(presentation.manualScale, -1) })}><ZoomOut /></Button>
-        {zoomInput === undefined ? (
-          <Button title="单击重置 100%，长按输入数值" aria-label="缩放百分比" type="button" size="sm" variant="ghost" disabled={disabled} onPointerDown={beginZoomInput} onPointerUp={finishZoomInput} onPointerLeave={finishZoomInput}><span className="w-10 text-[11px] tabular-nums">{Math.round(presentation.manualScale * 100)}%</span></Button>
-        ) : (
-          <input autoFocus aria-label="缩放百分比" className="h-8 w-16 rounded border border-border bg-background px-1 text-center text-xs tabular-nums" min={10} max={1000} type="number" value={zoomInput} onChange={(event) => setZoomInput(event.currentTarget.value)} onBlur={commitZoomInput} onKeyDown={(event) => { if (event.key === "Enter") commitZoomInput(); if (event.key === "Escape") setZoomInput(undefined) }} />
-        )}
-        <Button title="放大" aria-label="放大" type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={() => onChange({ ...presentation, manualScale: stepReaderManualScale(presentation.manualScale, 1) })}><ZoomIn /></Button>
         <Button title={`缩放模式：${FIT_MODES.find((mode) => mode.value === presentation.fitMode)?.label}`} aria-label="展开缩放设置" aria-expanded={expanded === "zoom"} type="button" size="icon-sm" variant={expanded === "zoom" ? "default" : "ghost"} disabled={disabled} onClick={() => toggle("zoom")}><CurrentFitIcon /></Button>
         <Separator />
         <div className="flex shrink-0 items-center rounded-full bg-muted/35 p-0.5" aria-label="页面布局">
@@ -283,7 +242,7 @@ function MagnifierPanel({ disabled, zoom, size, onChange }: { disabled?: boolean
   </>
 }
 
-function CommittedRange({ label, valueLabel, value, min, max, step, disabled, icon, onCommit }: { label: string; valueLabel: string; value: number; min: number; max: number; step: number; disabled?: boolean; icon?: ReactNode; onCommit(value: number): void }) {
+function CommittedRange({ label, valueLabel, value, min, max, step, disabled, icon, formatValue, onCommit }: { label: string; valueLabel: string; value: number; min: number; max: number; step: number; disabled?: boolean; icon?: ReactNode; formatValue?: (value: number) => string; onCommit(value: number): void }) {
   const [draft, setDraft] = useState(value)
   const committedRef = useRef(value)
   useEffect(() => {
@@ -297,12 +256,12 @@ function CommittedRange({ label, valueLabel, value, min, max, step, disabled, ic
     committedRef.current = clamped
     onCommit(clamped)
   }
-  const renderedLabel = label === "放大倍率" ? `${draft.toFixed(1)}x` : `${draft}px`
+  const renderedLabel = formatValue?.(draft) ?? (label === "放大倍率" ? `${draft.toFixed(1)}x` : `${draft}px`)
   return <label className="flex items-center gap-2 text-xs text-muted-foreground">
     <span className="mr-1 flex items-center gap-1">{icon}{label}</span>
     <span className="inline-flex min-w-37.5 items-center gap-2 rounded-full bg-muted/60 px-3 py-1 shadow-inner">
       <span className="w-10 text-right tabular-nums" aria-hidden="true">{value === draft ? valueLabel : renderedLabel}</span>
-      <input aria-label={label} className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-muted" type="range" min={min} max={max} step={step} value={draft} disabled={disabled} onChange={(event) => setDraft(Number(event.currentTarget.value))} onPointerUp={commit} onKeyUp={commit} onBlur={commit} />
+      <RangeInput aria-label={label} className="h-1 w-24" min={min} max={max} step={step} value={draft} disabled={disabled} onChange={(event) => setDraft(Number(event.currentTarget.value))} onPointerUp={commit} onKeyUp={commit} onBlur={commit} />
     </span>
   </label>
 }
@@ -328,7 +287,7 @@ function HoverScrollPanel({ disabled, enabled, speed, onChange }: { disabled?: b
     <Separator />
     <label className="flex items-center gap-2 text-xs text-muted-foreground">
       <span>倍率</span>
-      <input aria-label="悬停滚动倍率" className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-muted" type="range" min={0.5} max={10} step={0.5} value={draftSpeed} disabled={disabled || !onChange} onChange={(event) => setDraftSpeed(Number(event.currentTarget.value))} onPointerUp={commitSpeed} onKeyUp={commitSpeed} onBlur={commitSpeed} />
+      <RangeInput aria-label="悬停滚动倍率" className="h-1 w-20" min={0.5} max={10} step={0.5} value={draftSpeed} disabled={disabled || !onChange} onChange={(event) => setDraftSpeed(Number(event.currentTarget.value))} onPointerUp={commitSpeed} onKeyUp={commitSpeed} onBlur={commitSpeed} />
       <span className="w-10 text-center tabular-nums">{draftSpeed.toFixed(1)}x</span>
     </label>
   </>
@@ -336,6 +295,19 @@ function HoverScrollPanel({ disabled, enabled, speed, onChange }: { disabled?: b
 
 function ZoomPanel({ disabled, layout, presentation, onChange, onLayoutChange }: { disabled?: boolean; layout: ReaderLayout; presentation: ReaderPresentation; onChange(value: ReaderPresentation): void; onLayoutChange(patch: Partial<ReaderLayout>): void }) {
   return <>
+    <ZoomPercentageControl disabled={disabled} value={presentation.manualScale * 100} onCommit={(percent) => onChange({ ...presentation, manualScale: percent / 100 })} />
+    <CommittedRange
+      label="手动缩放"
+      valueLabel={`${Math.round(presentation.manualScale * 100)}%`}
+      value={presentation.manualScale * 100}
+      min={10}
+      max={1000}
+      step={10}
+      disabled={disabled}
+      formatValue={(value) => `${Math.round(value)}%`}
+      onCommit={(percent) => onChange({ ...presentation, manualScale: percent / 100 })}
+    />
+    <Separator />
     <span className="mr-1 text-xs text-muted-foreground">缩放模式</span>
     <div className="flex items-center rounded-full bg-muted/35 p-0.5">{FIT_MODES.map((mode) => {
       const Icon = FIT_MODE_ICONS[mode.value]
@@ -356,6 +328,37 @@ function ZoomPanel({ disabled, layout, presentation, onChange, onLayoutChange }:
     <Button title="宽度对齐（双页宽度统一）" aria-label="双页宽度统一" aria-pressed={presentation.widePageStretch === "uniform-width"} type="button" size="icon-sm" variant={presentation.widePageStretch === "uniform-width" ? "default" : "ghost"} disabled={disabled} onClick={() => onChange({ ...presentation, widePageStretch: "uniform-width" })}><AlignHorizontalSpaceAround /></Button>
     <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => onChange({ ...DEFAULT_READER_PRESENTATION })}>重置视图</Button>
   </>
+}
+
+function ZoomPercentageControl({ disabled, value, onCommit }: { disabled?: boolean; value: number; onCommit(value: number): void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState("")
+  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const longPressRef = useRef(false)
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+  const start = () => {
+    longPressRef.current = false
+    timerRef.current = setTimeout(() => {
+      longPressRef.current = true
+      setDraft(String(Math.round(value)))
+      setEditing(true)
+    }, 500)
+  }
+  const finish = () => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = undefined
+  }
+  const commit = () => {
+    const parsed = Number(draft)
+    if (Number.isFinite(parsed)) onCommit(Math.max(10, Math.min(1000, Math.round(parsed))))
+    setEditing(false)
+  }
+  const keyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") { event.preventDefault(); commit() }
+    if (event.key === "Escape") { event.preventDefault(); setEditing(false) }
+  }
+  if (editing) return <input aria-label="输入缩放百分比" autoFocus type="number" min={10} max={1000} step={1} className="h-7 w-16 rounded border bg-background px-1 text-center text-xs tabular-nums" value={draft} disabled={disabled} onChange={(event) => setDraft(event.currentTarget.value)} onKeyDown={keyDown} onBlur={commit} />
+  return <Button type="button" size="sm" variant="outline" className="h-7 min-w-16 text-xs tabular-nums" aria-label="缩放百分比" title="短按重置为 100%；按住输入百分比" disabled={disabled} onPointerDown={start} onPointerUp={finish} onPointerCancel={finish} onClick={() => { if (longPressRef.current) { longPressRef.current = false; return }; onCommit(100) }}>{Math.round(value)}%</Button>
 }
 
 const AUTO_ROTATIONS: Array<{ value: ReaderAutoRotation; label: string; icon: "ban" | "left" | "right" }> = [

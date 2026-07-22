@@ -27,7 +27,7 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 
 import type { KavvkaAction, KavvkaInput, KavvkaResult } from "./core.js"
 import { DEFAULT_KAVVKA_KEYWORDS, parseKavvkaKeywords, parseKavvkaPaths, runKavvka } from "./core.js"
@@ -135,8 +135,7 @@ function createKavvkaPreferences(host: CliHost, current: TerminalPreferenceValue
     nodeId: "kavvka",
     current,
     async save(values) {
-      const { config, path } = await loadXiraniteConfig(options)
-      await saveXiraniteConfig(updateNodeConfig(config, "kavvka", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path })
+      await updateNodeConfigFile("kavvka", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options)
     },
     async restore() {
       const { config } = await loadNodeConfigWithHints<KavvkaNodeConfig>("kavvka", { ...options, jsonMode: true })

@@ -49,6 +49,7 @@ import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.
 import { z } from "zod"
 import { ReaderEmmTagSuggestionService } from "../../application/metadata/ReaderEmmTagSuggestionService.js"
 import type { ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
+import type { ReaderManualTagCatalogStore } from "../../ports/ReaderManualTagCatalogStore.js"
 import { emmTranslationKey } from "../../ports/ReaderEmmTagTranslation.js"
 import {
   ReaderDirectorySelectionStaleError,
@@ -61,6 +62,7 @@ import {
 
 const BROWSER_SEARCH_HISTORY_PATH = "/reader/browser/search-history"
 const BROWSER_EMM_TAG_SUGGESTIONS_PATH = "/reader/browser/emm-tags/suggestions"
+const BROWSER_MANUAL_TAG_SUMMARIES_PATH = "/reader/browser/emm-tags/manual"
 const BROWSER_ROOTS_PATH = "/reader/browser/roots"
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
 const BROWSER_CHANGES_PATH = /^\/reader\/browser\/s\/([^/]+)\/changes$/
@@ -78,6 +80,7 @@ const BROWSER_SORT_PREFERENCES_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort\/pre
 const BROWSER_FILTER_PATH = /^\/reader\/browser\/s\/([^/]+)\/filter$/
 const BROWSER_SELECTION_PATH = /^\/reader\/browser\/s\/([^/]+)\/selection$/
 const BROWSER_PENETRATION_RESOLVE_PATH = /^\/reader\/browser\/s\/([^/]+)\/penetration\/resolve$/
+const BROWSER_PENETRATION_DESCRIBE_PATH = /^\/reader\/browser\/s\/([^/]+)\/penetration\/describe$/
 const BROWSER_CLONE_PATH = /^\/reader\/browser\/s\/([^/]+)\/clone$/
 const BROWSER_REOPEN_PATH = /^\/reader\/browser\/s\/([^/]+)\/reopen$/
 const BROWSER_SESSION_PATH = /^\/reader\/browser\/s\/([^/]+)$/
@@ -97,6 +100,9 @@ const FolderPenetrationCommandSchema = z.object({
     terminalTargets: z.array(z.enum(["archive", "document", "media-directory", "file"])).max(4).optional(),
   }).strict().optional(),
 }).strict()
+const FolderPenetrationDescribeCommandSchema = z.object({
+  paths: z.array(z.string().trim().min(1).max(32_768)).max(64),
+}).strict()
 
 export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   readonly #browser: ReaderFileTreeService
@@ -104,6 +110,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   readonly #searchHistory?: ReaderSearchHistoryService
   readonly #emmEditor?: ReaderDirectoryEmmEditService
   readonly #emmTagSuggestions?: ReaderEmmTagSuggestionService
+  readonly #manualTagCatalog?: ReaderManualTagCatalogStore
   readonly #emmTranslations: PlatformEmmTranslationSource
 
   constructor(
@@ -118,7 +125,9 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     emmOverrideStore?: ReaderEmmOverrideStore,
     collectTagSource = new PlatformEmmCollectTagSource(),
     emmTranslations = new PlatformEmmTranslationSource(),
+    manualTagCatalog?: ReaderManualTagCatalogStore,
   ) {
+    this.#manualTagCatalog = manualTagCatalog
     this.#emmTranslations = emmTranslations
     this.#searchHistory = searchHistory
     const listingProvider = new PlatformDirectoryListingProvider(mediaFormats)
@@ -149,6 +158,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
     if (url.pathname === BROWSER_EMM_TAG_SUGGESTIONS_PATH && request.method === "GET") return this.#suggestEmmTags(url, request.signal)
+    if (url.pathname === BROWSER_MANUAL_TAG_SUMMARIES_PATH && request.method === "GET") return this.#manualTags(url, request.signal)
     if (url.pathname === BROWSER_SEARCH_HISTORY_PATH) return this.#handleSearchHistory(request, url)
     if (url.pathname === BROWSER_ROOTS_PATH && request.method === "GET") return this.#roots(request.signal)
     if (url.pathname === "/reader/browser/sessions" && request.method === "POST") return this.#open(request)
@@ -185,6 +195,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (selectionMatch && request.method === "POST") return this.#selection(selectionMatch[1]!, request)
     const penetrationMatch = BROWSER_PENETRATION_RESOLVE_PATH.exec(url.pathname)
     if (penetrationMatch && request.method === "POST") return this.#resolvePenetration(penetrationMatch[1]!, request)
+    const penetrationDescribeMatch = BROWSER_PENETRATION_DESCRIBE_PATH.exec(url.pathname)
+    if (penetrationDescribeMatch && request.method === "POST") return this.#describePenetration(penetrationDescribeMatch[1]!, request)
     const cloneMatch = BROWSER_CLONE_PATH.exec(url.pathname)
     if (cloneMatch && request.method === "POST") return this.#clone(cloneMatch[1]!, request)
     const reopenMatch = BROWSER_REOPEN_PATH.exec(url.pathname)
@@ -424,6 +436,17 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     }
   }
 
+  async #manualTags(url: URL, signal: AbortSignal): Promise<Response> {
+    if (!this.#manualTagCatalog) return errorResponse("Reader manual tags are unavailable", 503)
+    try {
+      const limit = optionalInteger(url.searchParams.get("limit"), "limit", 1, 256) ?? 64
+      return Response.json({ tags: await this.#manualTagCatalog.listManualTagSummaries(limit, signal) }, responseInit())
+    } catch (error) {
+      if (signal.aborted) throw error
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
+
   async #readEmmMetadata(encodedSessionId: string, request: Request): Promise<Response> {
     const sessionId = safeDecode(encodedSessionId)
     if (!sessionId) return errorResponse("Browser session not found", 404)
@@ -540,6 +563,21 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       if (!session) return errorResponse("Browser session not found", 404)
       const policy: ReaderFolderPenetrationPolicy = parsed.data.policy ?? {}
       return Response.json(await this.#penetration.resolve(parsed.data.path, policy, request.signal), responseInit())
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
+
+  async #describePenetration(encodedSessionId: string, request: Request): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    const parsed = FolderPenetrationDescribeCommandSchema.safeParse(await request.json().catch(() => undefined))
+    if (!parsed.success) return errorResponse("Invalid folder penetration describe request", 400)
+    try {
+      const session = await this.#browser.list(sessionId, 0, 1, new Set(), request.signal)
+      if (!session) return errorResponse("Browser session not found", 404)
+      return Response.json({ entries: await this.#penetration.describe(parsed.data.paths, request.signal) }, responseInit())
     } catch (error) {
       if (request.signal.aborted) throw error
       return errorResponse(errorMessage(error), 400)

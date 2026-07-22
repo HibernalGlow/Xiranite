@@ -9,9 +9,26 @@ export interface CzkawkaWorkspaceLayout {
   resultPanelMinimized: boolean;
   analysisPanelMinimized: boolean;
   laneOrder: CzkawkaLaneId[];
+  activeLane: CzkawkaLaneId;
+  soloLane: CzkawkaLaneId | null;
+  focusOnHover: boolean;
+  soloOnFocus: boolean;
+  showNavigatorInSolo: boolean;
+  focusDelayMs: number;
+  edgeRevealDelayMs: number;
+  barHandleStyle: CzkawkaBarHandleStyle;
+  barHandlePosition: CzkawkaBarHandlePosition;
+  navigatorPositionX: number;
+  navigatorPositionY: number;
+  navigatorDock: "floating" | "left" | "right" | "top" | "bottom";
+  navigatorLane: CzkawkaLaneId;
+  navigatorFollowsFocus: boolean;
+  autoFitToViewport: boolean;
 }
 
 export type CzkawkaLaneId = "source" | "results" | "analysis";
+export type CzkawkaBarHandleStyle = "grip" | "groove" | "move" | "grab" | "edge";
+export type CzkawkaBarHandlePosition = "left" | "right";
 
 export const CZKAWKA_WORKSPACE_DEFAULTS: CzkawkaWorkspaceLayout = {
   version: 1,
@@ -24,6 +41,21 @@ export const CZKAWKA_WORKSPACE_DEFAULTS: CzkawkaWorkspaceLayout = {
   resultPanelMinimized: false,
   analysisPanelMinimized: false,
   laneOrder: ["source", "results", "analysis"],
+  activeLane: "results",
+  soloLane: null,
+  focusOnHover: false,
+  soloOnFocus: false,
+  showNavigatorInSolo: true,
+  focusDelayMs: 650,
+  edgeRevealDelayMs: 250,
+  barHandleStyle: "grip",
+  barHandlePosition: "left",
+  navigatorPositionX: 96,
+  navigatorPositionY: 94,
+  navigatorDock: "floating",
+  navigatorLane: "results",
+  navigatorFollowsFocus: false,
+  autoFitToViewport: false,
 };
 
 export function normalizeCzkawkaWorkspaceLayout(
@@ -61,6 +93,21 @@ export function normalizeCzkawkaWorkspaceLayout(
     resultPanelMinimized: value.resultPanelMinimized === true,
     analysisPanelMinimized: value.analysisPanelMinimized === true,
     laneOrder: normalizeLaneOrder(value.laneOrder),
+    activeLane: normalizeLaneId(value.activeLane, CZKAWKA_WORKSPACE_DEFAULTS.activeLane),
+    soloLane: value.soloLane == null ? null : normalizeLaneId(value.soloLane, null),
+    focusOnHover: value.focusOnHover === true,
+    soloOnFocus: value.soloOnFocus === true,
+    showNavigatorInSolo: value.showNavigatorInSolo !== false,
+    focusDelayMs: clamp(value.focusDelayMs, 200, 5000, CZKAWKA_WORKSPACE_DEFAULTS.focusDelayMs),
+    edgeRevealDelayMs: clamp(value.edgeRevealDelayMs, 100, 5000, CZKAWKA_WORKSPACE_DEFAULTS.edgeRevealDelayMs),
+    barHandleStyle: normalizeHandleStyle(value.barHandleStyle),
+    barHandlePosition: value.barHandlePosition === "right" ? "right" : "left",
+    navigatorPositionX: clamp(value.navigatorPositionX, 0, 100, CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionX),
+    navigatorPositionY: clamp(value.navigatorPositionY, 0, 100, CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionY),
+    navigatorDock: normalizeNavigatorDock(value.navigatorDock),
+    navigatorLane: normalizeLaneId(value.navigatorLane, CZKAWKA_WORKSPACE_DEFAULTS.navigatorLane),
+    navigatorFollowsFocus: value.navigatorFollowsFocus === true,
+    autoFitToViewport: value.autoFitToViewport === true,
   };
 }
 
@@ -88,4 +135,18 @@ function normalizeLaneOrder(value: CzkawkaLaneId[] | undefined): CzkawkaLaneId[]
   const next = (value ?? []).filter((id, index, items) => valid.has(id) && items.indexOf(id) === index);
   for (const id of CZKAWKA_WORKSPACE_DEFAULTS.laneOrder) if (!next.includes(id)) next.push(id);
   return next;
+}
+
+function normalizeLaneId<Fallback extends CzkawkaLaneId | null>(value: unknown, fallback: Fallback): CzkawkaLaneId | Fallback {
+  return value === "source" || value === "results" || value === "analysis" ? value : fallback;
+}
+
+function normalizeHandleStyle(value: unknown): CzkawkaBarHandleStyle {
+  return value === "groove" || value === "move" || value === "grab" || value === "edge" ? value : "grip";
+}
+
+function normalizeNavigatorDock(value: unknown): CzkawkaWorkspaceLayout["navigatorDock"] {
+  if (value === "left" || value === "right" || value === "top" || value === "bottom") return value;
+  if (value === "title") return "top";
+  return "floating";
 }

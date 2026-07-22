@@ -1,5 +1,5 @@
 import type { VariantProps } from "class-variance-authority"
-import { Slot } from "radix-ui"
+import * as Slot from "@radix-ui/react-slot"
 
 import { buttonGroupVariants } from "@/components/ui/button-group-variants"
 import { cn } from "@/lib/utils"

@@ -6,6 +6,7 @@
  */
 import { THEME_DESIGN_RECIPES } from "@/lib/appearance"
 import type { SetWorkspaceStore, WorkspaceUiActions, WorkspaceUiPreferences } from "./types"
+import { normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
 
 export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
   return {
@@ -108,13 +109,24 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setCardDoubleClickAction: (cardDoubleClickAction) => set({ cardDoubleClickAction }, false, "SET_CARD_DOUBLE_CLICK_ACTION"),
     setTabDisplayStyle: (tabDisplayStyle) => set({ tabDisplayStyle }, false, "SET_TAB_DISPLAY_STYLE"),
     setSwitchDisplayStyle: (switchDisplayStyle) => set({ switchDisplayStyle }, false, "SET_SWITCH_DISPLAY_STYLE"),
+    setScrollbarDisplayStyle: (scrollbarDisplayStyle) => set({ scrollbarDisplayStyle }, false, "SET_SCROLLBAR_DISPLAY_STYLE"),
+    setSliderDisplayStyle: (sliderDisplayStyle) => set({ sliderDisplayStyle }, false, "SET_SLIDER_DISPLAY_STYLE"),
     setChoiceControlStyle: (choiceControlStyle) => set({ choiceControlStyle }, false, "SET_CHOICE_CONTROL_STYLE"),
     setFieldTitleStyle: (fieldTitleStyle) => set({ fieldTitleStyle }, false, "SET_FIELD_TITLE_STYLE"),
     setModuleTitleStyle: (moduleTitleStyle) => set({ moduleTitleStyle }, false, "SET_MODULE_TITLE_STYLE"),
     setModulePanelStyle: (modulePanelStyle) => set({ modulePanelStyle }, false, "SET_MODULE_PANEL_STYLE"),
     setModuleCardEffect: (moduleCardEffect) => set({ moduleCardEffect }, false, "SET_MODULE_CARD_EFFECT"),
+    setModuleMagicCardAppearance: (patch) => set((state) => ({
+      moduleMagicCard: { ...state.moduleMagicCard, ...patch },
+    }), false, "SET_MODULE_MAGIC_CARD_APPEARANCE"),
     setResizableHandleStyle: (resizableHandleStyle) => set({ resizableHandleStyle }, false, "SET_RESIZABLE_HANDLE_STYLE"),
     setHazardMode: (hazardMode) => set({ hazardMode }, false, "SET_HAZARD_MODE"),
+    patchLaneWorkspacePreferences: (workspaceId, patch) => set((state) => ({
+      laneWorkspacePreferences: {
+        ...state.laneWorkspacePreferences,
+        [workspaceId]: normalizeSwimlanePreferences({ ...state.laneWorkspacePreferences[workspaceId], ...patch }),
+      },
+    }), false, "PATCH_LANE_WORKSPACE_PREFERENCES"),
   }
 }
 
@@ -133,6 +145,9 @@ function sanitizeUiPreferences(preferences: Partial<WorkspaceUiPreferences>): Pa
       ? { kind: "custom" as const, name: sanitized.activeCustomThemeName }
       : { kind: "preset" as const, name: sanitized.theme ?? "spatial" }
     sanitized.themeSelections = { light: selection, dark: selection }
+  }
+  if (sanitized.laneWorkspacePreferences) {
+    sanitized.laneWorkspacePreferences = Object.fromEntries(Object.entries(sanitized.laneWorkspacePreferences).map(([workspaceId, value]) => [workspaceId, normalizeSwimlanePreferences(value)]))
   }
   return sanitized
 }

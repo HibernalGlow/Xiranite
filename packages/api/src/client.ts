@@ -1,4 +1,5 @@
 import { treaty, type Treaty } from "@elysiajs/eden"
+import type { ConfigHistoryRepositoryStatus, ConfigVersion, ConfigVersionDetail, NodeConfigExportResult } from "@xiranite/services"
 import type {
   NodeOperationCleanupResponseDTO,
   NodeOperationDTO,
@@ -88,6 +89,15 @@ export interface XiraniteConfigClient {
   getConfigPath(): Promise<string>
   getNodeConfig<T = unknown>(nodeId: string): Promise<{ config: T | undefined; path: string }>
   updateNodeConfig<T = unknown>(nodeId: string, config: T): Promise<{ config: T; path: string }>
+  getNodeConfigVersions(nodeId: string, options?: { limit?: number }): Promise<{ versions: ConfigVersion[] }>
+  inspectNodeConfigVersion(nodeId: string, revision: string): Promise<ConfigVersionDetail>
+  restoreNodeConfigVersion<T = unknown>(nodeId: string, revision: string): Promise<{ config: T; path: string }>
+  exportNodeConfig(nodeId: string, format?: "json" | "toml"): Promise<NodeConfigExportResult>
+  importNodeConfig<T = unknown>(nodeId: string, content: string, format?: "auto" | "json" | "toml"): Promise<{ config: T; path: string }>
+  createNodeConfigBackup(nodeId: string, label?: string): Promise<{ version: ConfigVersion }>
+  getConfigHistoryRepositoryStatus(): Promise<ConfigHistoryRepositoryStatus>
+  setConfigHistoryRemote(url: string | null): Promise<ConfigHistoryRepositoryStatus>
+  syncConfigHistory(direction: "pull" | "push"): Promise<ConfigHistoryRepositoryStatus>
   getNodePresets<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string): Promise<{ presets: Array<NodePreset<TValues>> }>
   createNodePreset<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string, input: { name: string; values: TValues }): Promise<{ preset: NodePreset<TValues> }>
   updateNodePreset<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string, presetId: string, input: { name?: string; values?: TValues }): Promise<{ preset: NodePreset<TValues> }>
@@ -146,6 +156,68 @@ export function createXiraniteConfigClient(baseUrl: string, options: XiraniteCli
       })
       if (!response.ok) throw new Error(`Node config save failed: ${response.status}`)
       return await response.json() as { config: T; path: string }
+    },
+    async getNodeConfigVersions(nodeId: string, options: { limit?: number } = {}) {
+      const query = options.limit === undefined ? "" : `?limit=${encodeURIComponent(options.limit)}`
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}/versions${query}`), { headers })
+      if (!response.ok) throw new Error(`Node config history load failed: ${response.status}`)
+      return await response.json() as { versions: ConfigVersion[] }
+    },
+    async inspectNodeConfigVersion(nodeId: string, revision: string) {
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}/versions/${encodeURIComponent(revision)}`), { headers })
+      if (!response.ok) throw new Error(`Node config version load failed: ${response.status}`)
+      return await response.json() as ConfigVersionDetail
+    },
+    async restoreNodeConfigVersion<T = unknown>(nodeId: string, revision: string) {
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}/versions/${encodeURIComponent(revision)}/restore`), { method: "POST", headers })
+      if (!response.ok) throw new Error(`Node config restore failed: ${response.status}`)
+      return await response.json() as { config: T; path: string }
+    },
+    async exportNodeConfig(nodeId: string, format: "json" | "toml" = "toml") {
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}/export?format=${format}`), { headers })
+      if (!response.ok) throw new Error(`Node config export failed: ${response.status}`)
+      return await response.json() as NodeConfigExportResult
+    },
+    async importNodeConfig<T = unknown>(nodeId: string, content: string, format: "auto" | "json" | "toml" = "auto") {
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}/import`), {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ content, format }),
+      })
+      if (!response.ok) throw new Error(`Node config import failed: ${response.status}`)
+      return await response.json() as { config: T; path: string }
+    },
+    async createNodeConfigBackup(nodeId: string, label?: string) {
+      const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}/backup`), {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ label }),
+      })
+      if (!response.ok) throw new Error(`Node config backup failed: ${response.status}`)
+      return await response.json() as { version: ConfigVersion }
+    },
+    async getConfigHistoryRepositoryStatus() {
+      const response = await fetch(apiUrl(baseUrl, "/config/history-repository"), { headers })
+      if (!response.ok) throw new Error(`Config history repository load failed: ${response.status}`)
+      return await response.json() as ConfigHistoryRepositoryStatus
+    },
+    async setConfigHistoryRemote(url: string | null) {
+      const response = await fetch(apiUrl(baseUrl, "/config/history-repository/remote"), {
+        method: "PUT",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ url }),
+      })
+      if (!response.ok) throw new Error(`Config history remote update failed: ${response.status}`)
+      return await response.json() as ConfigHistoryRepositoryStatus
+    },
+    async syncConfigHistory(direction: "pull" | "push") {
+      const response = await fetch(apiUrl(baseUrl, "/config/history-repository/sync"), {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ direction }),
+      })
+      if (!response.ok) throw new Error(`Config history sync failed: ${response.status}`)
+      return await response.json() as ConfigHistoryRepositoryStatus
     },
     async getNodePresets<TValues extends Record<string, unknown> = Record<string, unknown>>(nodeId: string) {
       const response = await fetch(apiUrl(baseUrl, `/config/nodes/${encodeURIComponent(nodeId)}/presets`), { headers })

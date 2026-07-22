@@ -11,6 +11,7 @@ import { useSyncExternalStore } from "react"
 import type { ReaderSlideshow } from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
+import { RangeInput } from "@/components/ui/range-input"
 import type { ReaderSlideshowPatch } from "../../adapters/reader-http-client"
 
 export function ReaderSlideshowToolbar({
@@ -46,11 +47,10 @@ export function ReaderSlideshowToolbar({
       <label className="sr-only" htmlFor="neoview-slideshow-interval">幻灯片间隔</label>
       <span className="text-xs text-muted-foreground">间隔</span>
       <div className="flex items-center gap-1">
-        <input
-          type="range"
+        <RangeInput
           id="neoview-slideshow-interval"
           aria-label="幻灯片间隔"
-          className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-muted accent-primary disabled:cursor-not-allowed"
+          className="h-1 w-20 disabled:cursor-not-allowed"
           disabled={disabled}
           min={1}
           max={60}

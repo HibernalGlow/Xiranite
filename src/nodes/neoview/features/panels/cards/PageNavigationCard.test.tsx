@@ -13,7 +13,20 @@ describe("PageNavigationCard", () => {
     const view = render(<PageNavigationCard {...context(clientWith({ listPageCatalog }))} panelActive={false} />)
 
     expect(view.container.querySelector('[data-reader-card-empty="true"]')).toBeTruthy()
+    expect(view.container.querySelector('[data-neoview-page-list="true"]')?.className).toMatch(/h-full/)
     expect(listPageCatalog).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.page-list.exclusive-fill] fills the exclusive pageList pane like history/bookmark", async () => {
+    const listPageCatalog = vi.fn(async () => ({ pages: [page(0)], total: 1 }))
+    const view = render(<PageNavigationCard {...context(clientWith({ listPageCatalog }))} />)
+    await waitFor(() => expect(listPageCatalog).toHaveBeenCalledOnce())
+    const root = view.container.querySelector<HTMLElement>('[data-neoview-page-list="true"]')!
+    expect(root.className).toMatch(/\bh-full\b/)
+    expect(root.className).toMatch(/\bw-full\b/)
+    expect(root.className).toMatch(/\bflex-1\b/)
+    expect(root.className).toMatch(/\bmin-h-0\b/)
+    expect(view.container.querySelector('[data-neoview-page-list-viewport="true"]')?.className).toMatch(/flex-1/)
   })
 
   it("[neoview.page-list.panel-resident] keeps the virtual page surface resident after activation", async () => {

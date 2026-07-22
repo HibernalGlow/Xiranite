@@ -18,10 +18,11 @@ describe("EMM auxiliary property cards", () => {
   })
 
   it("[neoview.emm-cards.lifecycle] does no work while all cards are hidden", () => {
-    const client = { metadata: vi.fn(), suggestDirectoryEmmTags: vi.fn(), openDirectoryBrowser: vi.fn() } as unknown as ReaderHttpClient
+    const client = { metadata: vi.fn(), suggestDirectoryEmmTags: vi.fn(), listManualEmmTags: vi.fn(), openDirectoryBrowser: vi.fn() } as unknown as ReaderHttpClient
     render(<><EmmSyncCard {...context(client, false)} /><EmmRawDataCard {...context(client, false)} /><FavoriteTagsCard {...context(client, false)} /><FolderRatingsCard {...context(client, false)} /></>)
     expect(client.metadata).not.toHaveBeenCalled()
     expect(client.suggestDirectoryEmmTags).not.toHaveBeenCalled()
+    expect(client.listManualEmmTags).not.toHaveBeenCalled()
     expect(client.openDirectoryBrowser).not.toHaveBeenCalled()
   })
 
@@ -34,6 +35,44 @@ describe("EMM auxiliary property cards", () => {
     expect(metadata).toHaveBeenCalledOnce()
     fireEvent.change(screen.getByRole("textbox", { name: "过滤 EMM 字段和值" }), { target: { value: "artist" } })
     expect(screen.queryByText("filepath")).toBeNull()
+  })
+
+  it("[neoview.emm-sync.refresh] coalesces repeated rereads while the external projection is pending", async () => {
+    const reread = Promise.withResolvers<ReaderMetadataDto>()
+    const metadata = vi.fn()
+      .mockResolvedValueOnce(metadataDto())
+      .mockReturnValueOnce(reread.promise)
+    render(<EmmSyncCard {...context({ metadata } as unknown as ReaderHttpClient)} />)
+
+    expect(await screen.findByText("外部 EMM 数据已连接")).toBeTruthy()
+    const refresh = screen.getByRole("button", { name: "重新读取" })
+    fireEvent.click(refresh)
+    fireEvent.click(refresh)
+    expect(metadata).toHaveBeenCalledTimes(2)
+
+    reread.resolve(metadataDto())
+    expect(await screen.findByText("外部 EMM 数据已连接")).toBeTruthy()
+  })
+
+  it("[neoview.emm-sync.xr-overrides] edits only the current book XR override and refreshes its projection", async () => {
+    const metadata = vi.fn()
+      .mockResolvedValueOnce(metadataDto())
+      .mockResolvedValueOnce(metadataDto())
+    const getEmmMetadata = vi.fn(async () => ({ revision: 2, overrides: { rating: 3, translatedTitle: "旧译名" }, inherited: ["manualTags"] as const }))
+    const updateEmmMetadata = vi.fn(async () => ({ revision: 3, overrides: { rating: 5, translatedTitle: "新译名" }, inherited: ["manualTags"] as const }))
+    render(<EmmSyncCard {...context({ metadata, getEmmMetadata, updateEmmMetadata } as unknown as ReaderHttpClient)} />)
+
+    await screen.findByText("外部 EMM 数据已连接")
+    fireEvent.click(screen.getByRole("button", { name: "编辑 XR 覆盖" }))
+    expect(await screen.findByLabelText("XR 覆盖评分")).toBeTruthy()
+    expect((screen.getByRole("textbox", { name: "XR 覆盖评分" }) as HTMLInputElement).value).toBe("3")
+    fireEvent.change(screen.getByRole("textbox", { name: "XR 覆盖评分" }), { target: { value: "5" } })
+    fireEvent.change(screen.getByRole("textbox", { name: "XR 覆盖译名" }), { target: { value: "新译名" } })
+    fireEvent.click(screen.getByRole("button", { name: "保存覆盖" }))
+
+    await waitFor(() => expect(updateEmmMetadata).toHaveBeenCalledWith("reader-emm-aux", 2, { rating: 5, translatedTitle: "新译名" }))
+    await waitFor(() => expect(metadata).toHaveBeenCalledTimes(2))
+    expect(getEmmMetadata).toHaveBeenCalledOnce()
   })
 
   it("[neoview.emm-raw-data.session-replace] aborts stale metadata and publishes only the replacement session", async () => {
@@ -124,9 +163,12 @@ describe("EMM auxiliary property cards", () => {
 
   it("[neoview.favorite-tags.card] renders bounded translated suggestions", async () => {
     const suggestDirectoryEmmTags = vi.fn(async () => [{ category: "artist", tag: "Alice", translatedTag: "爱丽丝", favorite: true }])
-    render(<FavoriteTagsCard {...context({ suggestDirectoryEmmTags } as unknown as ReaderHttpClient)} />)
+    const listManualEmmTags = vi.fn(async () => [{ namespace: "manual", tag: "favorite", count: 3 }])
+    render(<FavoriteTagsCard {...context({ suggestDirectoryEmmTags, listManualEmmTags } as unknown as ReaderHttpClient)} />)
     expect(await screen.findByText("爱丽丝")).toBeTruthy()
     expect(suggestDirectoryEmmTags).toHaveBeenCalledWith(32, expect.any(AbortSignal))
+    expect(document.querySelector('[title="manual:favorite (3个文件)"]')).toBeTruthy()
+    expect(listManualEmmTags).toHaveBeenCalledWith(64, expect.any(AbortSignal))
   })
 
   it("[neoview.folder-ratings.card] batches the current directory and closes its private browser session", async () => {
@@ -143,6 +185,19 @@ describe("EMM auxiliary property cards", () => {
     expect(await screen.findByText("4.50")).toBeTruthy()
     expect(client.openDirectoryBrowser).toHaveBeenCalledWith("D:/books", expect.any(AbortSignal), "emm-folder-ratings", false)
     await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("ratings"))
+  })
+
+  it("[neoview.folder-ratings.cache-controls] invokes explicit cache commands without changing directory pagination", async () => {
+    const rebuildFolderRatingCache = vi.fn(async () => ({ entries: [], updatedAt: 1 }))
+    const supplementFolderRatingCache = vi.fn(async () => ({ entries: [], updatedAt: 2 }))
+    const client = { metadata: vi.fn(async () => metadataDto()), openDirectoryBrowser: vi.fn(async () => ({ sessionId: "ratings", entries: [], cursor: 0, total: 0 })), listDirectoryBrowser: vi.fn(async () => ({ sessionId: "ratings", entries: [], cursor: 0, total: 0 })), closeDirectoryBrowser: vi.fn(async () => undefined), folderRatingCache: vi.fn(async () => ({ entries: [] })), rebuildFolderRatingCache, supplementFolderRatingCache } as unknown as ReaderHttpClient
+    render(<FolderRatingsCard {...context(client)} />)
+    await screen.findByText("暂无评分")
+    fireEvent.click(screen.getByText("重算"))
+    await waitFor(() => expect(rebuildFolderRatingCache).toHaveBeenCalledOnce())
+    fireEvent.change(screen.getByPlaceholderText("输入路径补充评分"), { target: { value: "D:/books" } })
+    fireEvent.click(screen.getByText("补充"))
+    await waitFor(() => expect(supplementFolderRatingCache).toHaveBeenCalledWith("D:/books"))
   })
 })
 

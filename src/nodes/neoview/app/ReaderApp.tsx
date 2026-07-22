@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
-import { BookOpen, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, Trash2, X } from "lucide-react"
+import { BookOpen, ChevronRight, LoaderCircle, Pin, PinOff, Trash2, X } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
   DEFAULT_READER_INPUT_BINDINGS,
@@ -10,14 +10,16 @@ import {
   type ReaderInputAction,
   type ReaderInputBindingsConfig,
   type ReaderRadialMenuConfig,
+  type ReaderVoiceControlConfig,
 } from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { useContextMenu } from "@/components/context-menu"
 import { cn } from "@/lib/utils"
 import { FloatingWindowCaptionControls, FloatingWindowTitlebarReservation, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { useSwimlaneSessionStore } from "@/store/swimlaneSessionStore"
+import type { SwimlaneWorkspaceSessionState } from "@xiranite/shared/swimlane"
 import {
   createReaderHttpClient,
   READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
@@ -51,8 +53,10 @@ import {
   type ReaderShellLockMode,
   type ReaderInputBindingsPatch,
   type ReaderRadialMenuPatch,
+  type ReaderVoiceControlPatch,
   type ReaderSettingsMigrationImportResult,
   type ReaderSettingsMigrationInspection,
+  type ReaderSwimlaneId,
 } from "../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
@@ -77,16 +81,80 @@ import { createReaderSwitchToastStore } from "../features/switch-toast/ReaderSwi
 import { createReaderInfoOverlayStore } from "../features/info-overlay/ReaderInfoOverlayStore"
 import { createReaderImageTrimStore } from "../features/image-trim/ReaderImageTrimStore"
 import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCleanup"
+import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../features/workspace/ReaderSwimlaneWorkspace"
+import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
+
+function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConfigDto): boolean {
+  // Compare normalized workspace views — shell object identity always changes on patch.
+  try {
+    return JSON.stringify(readerWorkspaceConfig(left)) === JSON.stringify(readerWorkspaceConfig(right))
+  } catch {
+    return false
+  }
+}
+
+function readerWorkspaceWithSession(shell: ReaderShellConfigDto, session: SwimlaneWorkspaceSessionState | undefined): ReaderWorkspaceConfig {
+  const workspace = readerWorkspaceConfig(shell)
+  const laneOrder = workspace.swimlane.laneOrder
+  const configuredSoloLaneId = workspace.swimlane.soloLaneId ?? (workspace.swimlane.readerSolo ? "reader" : undefined)
+  const activeLane = session?.activeLaneId && laneOrder.includes(session.activeLaneId)
+    ? session.activeLaneId as ReaderSwimlaneId
+    : workspace.swimlane.activeLane
+  const sessionHasSoloLane = session !== undefined && Object.hasOwn(session, "soloLaneId")
+  const requestedSoloLaneId = sessionHasSoloLane ? session.soloLaneId ?? undefined : configuredSoloLaneId
+  const soloLaneId = requestedSoloLaneId && laneOrder.includes(requestedSoloLaneId)
+    ? requestedSoloLaneId as ReaderSwimlaneId
+    : undefined
+  const { soloLaneId: _configuredSoloLaneId, ...configuredSwimlane } = workspace.swimlane
+  return {
+    ...workspace,
+    swimlane: {
+      ...configuredSwimlane,
+      activeLane,
+      readerSolo: soloLaneId === "reader",
+      ...(soloLaneId ? { soloLaneId } : {}),
+    },
+  }
+}
+
+function splitReaderWorkspacePatch(
+  patch: ReaderWorkspacePatch,
+  current: ReaderWorkspaceConfig,
+): { sessionPatch?: SwimlaneWorkspaceSessionState; persistentPatch?: ReaderWorkspacePatch } {
+  const { activeLane, readerSolo, soloLaneId, ...persistentPatch } = patch
+  let nextSoloLaneId = current.swimlane.soloLaneId ?? (current.swimlane.readerSolo ? "reader" : null)
+  if (soloLaneId !== undefined) nextSoloLaneId = soloLaneId
+  if (readerSolo === true) nextSoloLaneId = "reader"
+  if (readerSolo === false && nextSoloLaneId === "reader") nextSoloLaneId = null
+  const sessionPatch = activeLane !== undefined || readerSolo !== undefined || soloLaneId !== undefined
+    ? {
+        ...(activeLane !== undefined ? { activeLaneId: activeLane } : {}),
+        ...(readerSolo !== undefined || soloLaneId !== undefined ? { soloLaneId: nextSoloLaneId } : {}),
+      }
+    : undefined
+  return {
+    sessionPatch,
+    ...(Object.keys(persistentPatch).length ? { persistentPatch } : {}),
+  }
+}
 
 type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
 const INITIAL_VIEW_DEFAULTS = {
   fitMode: DEFAULT_READER_PRESENTATION.fitMode,
   pageMode: "single",
+  doublePageGap: 0,
   splitWidePages: false,
   hoverScrollEnabled: true,
   hoverScrollSpeed: 2,
   magnifierZoom: 2,
   magnifierSize: 200,
+  background: {
+    color: "#000000",
+    mode: "solid",
+    ambient: { style: "vibrant", speed: 8, blur: 80, opacity: 0.8 },
+    aurora: { showRadialGradient: true },
+    spotlight: { color: "white" },
+  },
 } satisfies ReaderRuntimeConfigDto["viewDefaults"]
 const INITIAL_HISTORY_LIST_PREFERENCES: ReaderHistoryListPreferencesDto = {
   viewMode: "compact",
@@ -109,6 +177,7 @@ const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
   random: false,
   fadeTransition: true,
 }
+const INITIAL_PRELOAD_CONFIG = { maxCandidatePages: 4 } satisfies ReaderRuntimeConfigDto["preload"]
 const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   homePath: "",
   viewMode: "compact",
@@ -119,7 +188,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
-  penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
+  penetration: { enabled: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
@@ -164,6 +233,7 @@ function loadReaderFrame(): Promise<ReaderFrameModule> {
   return readerFrameModule
 }
 const LazyReaderFrame = lazy(async () => ({ default: (await loadReaderFrame()).ReaderFrame }))
+const LazyReaderBackgroundLayer = lazy(async () => ({ default: (await import("../features/reader/ReaderBackgroundLayer")).ReaderBackgroundLayer }))
 
 type ReaderViewToolbarModule = typeof import("../features/reader/ReaderViewToolbar")
 let readerViewToolbarModule: Promise<ReaderViewToolbarModule> | undefined
@@ -186,6 +256,7 @@ function loadReaderPresentation(): Promise<unknown> {
 }
 
 export interface ReaderAppProps {
+  sessionScopeId?: string
   initialPath?: string
   initialBrowserOriginPath?: string
   client?: ReaderHttpClient
@@ -197,6 +268,7 @@ export interface ReaderAppProps {
 }
 
 export function ReaderApp({
+  sessionScopeId = "standalone",
   initialPath = "",
   initialBrowserOriginPath,
   client: injectedClient,
@@ -209,9 +281,14 @@ export function ReaderApp({
   const surface = useNodeSurface()
   const floatingFrame = useFloatingWindowFrame()
   const contextMenu = useContextMenu()
+  const swimlaneSessionScopeId = `neoview:${sessionScopeId}`
+  const swimlaneSession = useSwimlaneSessionStore((state) => state.sessions[swimlaneSessionScopeId])
+  const ensureSwimlaneSession = useSwimlaneSessionStore((state) => state.ensureSession)
+  const patchSwimlaneSession = useSwimlaneSessionStore((state) => state.patchSession)
   const [client] = useState<ReaderHttpClient>(() => injectedClient ?? createReaderHttpClient())
   const clientRef = useRef(client)
   const shellRef = useRef<ReaderShellConfigDto | undefined>(undefined)
+  const readerInteractionRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
   const navigationPendingRef = useRef(false)
@@ -253,6 +330,7 @@ export function ReaderApp({
   const temporaryFitPresentationRef = useRef<ReaderPresentation>()
   const shellControlWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const shellControlGenerationRef = useRef(0)
+  const pendingWorkspaceWritesRef = useRef<Array<{ generation: number; patch: ReaderWorkspacePatch; base: ReaderShellConfigDto }>>([])
   const presentationTouchedRef = useRef(false)
   const [path, setPath] = useState(initialPath)
   const [browserOriginPath, setBrowserOriginPath] = useState(initialBrowserOriginPath)
@@ -322,15 +400,18 @@ export function ReaderApp({
   const [folderView, setFolderView] = useState<ReaderFolderViewConfig>(() => structuredClone(INITIAL_FOLDER_VIEW_CONFIG))
   const [inputBindings, setInputBindings] = useState<ReaderInputBindingsConfig>(() => structuredClone(DEFAULT_READER_INPUT_BINDINGS))
   const [radialMenu, setRadialMenu] = useState<ReaderRadialMenuConfig>(() => structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
+  const [voiceControl, setVoiceControl] = useState<ReaderVoiceControlConfig>()
   const [media, setMedia] = useState<ReaderMediaConfigDto>()
   const [imageProcessing, setImageProcessing] = useState<ReaderImageProcessingConfigDto>()
   const [slideshowConfig, setSlideshowConfig] = useState<ReaderSlideshowConfig>(() => ({ ...INITIAL_SLIDESHOW_CONFIG }))
+  const [preloadConfig, setPreloadConfig] = useState<ReaderRuntimeConfigDto["preload"]>(() => ({ ...INITIAL_PRELOAD_CONFIG }))
   const [slideshowFadeFrame, setSlideshowFadeFrame] = useState<string>()
   const [superResolution, setSuperResolution] = useState<ReaderRuntimeConfigDto["superResolution"]>()
   const [radialMenuRequest, setRadialMenuRequest] = useState<{ id: number; x: number; y: number }>()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const [magnifierEnabled, setMagnifierEnabled] = useState(false)
+  const [readerViewFullscreen, setReaderViewFullscreen] = useState(false)
   const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
     : undefined)
@@ -356,6 +437,7 @@ export function ReaderApp({
     void clientRef.current.config(controller.signal).then((config) => {
       setMedia(config.media)
       setImageProcessing(config.imageProcessing)
+      setPreloadConfig(config.preload ?? INITIAL_PRELOAD_CONFIG)
       setBookDefaults(config.book ?? INITIAL_BOOK_DEFAULTS)
       setSuperResolution(config.superResolution)
       videoController.configure(config.media)
@@ -396,6 +478,10 @@ export function ReaderApp({
       if (config.switchToast) switchToast.hydrate(config.switchToast)
       if (config.infoOverlay) infoOverlay.hydrate(config.infoOverlay)
       if (config.imageTrim) imageTrim.hydrate(config.imageTrim)
+      ensureSwimlaneSession(swimlaneSessionScopeId, {
+        activeLaneId: "reader",
+        soloLaneId: "reader",
+      })
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
       if (typeof localStorage !== "undefined") {
@@ -431,6 +517,7 @@ export function ReaderApp({
       inputBindingsRef.current = config.inputBindings
       setInputBindings(config.inputBindings)
       setRadialMenu(config.radialMenu ?? structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
+      setVoiceControl(config.voiceControl)
       if (!presentationTouchedRef.current) {
         setPresentation((current) => ({
           ...current,
@@ -831,7 +918,20 @@ export function ReaderApp({
   }
 
   async function persistViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
-    const next = { ...viewDefaultsRef.current, ...patch }
+    const current = viewDefaultsRef.current
+    const next = {
+      ...current,
+      ...patch,
+      ...(patch.background ? {
+        background: {
+          ...(current.background ?? INITIAL_VIEW_DEFAULTS.background),
+          ...patch.background,
+          ...(patch.background.ambient ? { ambient: { ...(current.background ?? INITIAL_VIEW_DEFAULTS.background).ambient, ...patch.background.ambient } } : {}),
+          ...(patch.background.aurora ? { aurora: { ...(current.background ?? INITIAL_VIEW_DEFAULTS.background).aurora, ...patch.background.aurora } } : {}),
+          ...(patch.background.spotlight ? { spotlight: { ...(current.background ?? INITIAL_VIEW_DEFAULTS.background).spotlight, ...patch.background.spotlight } } : {}),
+        },
+      } : {}),
+    }
     viewDefaultsRef.current = next
     setViewDefaults(next)
     const generation = ++viewDefaultsGenerationRef.current
@@ -894,6 +994,13 @@ export function ReaderApp({
     return updated
   }
 
+  async function persistVoiceControl(patch: ReaderVoiceControlPatch["voiceControl"]): Promise<ReaderVoiceControlConfig> {
+    if (!clientRef.current.updateVoiceControl) throw new Error("当前 Reader 后端不支持语音控制设置。")
+    const updated = await clientRef.current.updateVoiceControl({ voiceControl: patch })
+    setVoiceControl(updated)
+    return updated
+  }
+
   async function inspectLegacySettings(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection> {
     if (!clientRef.current.inspectLegacySettings) throw new Error("褰撳墠 Reader 鍚庣涓嶆敮鎸佹棫璁剧疆瀵煎叆銆")
     return clientRef.current.inspectLegacySettings(content, modules)
@@ -906,6 +1013,7 @@ export function ReaderApp({
     inputBindingsRef.current = config.inputBindings
     setInputBindings(config.inputBindings)
     setRadialMenu(config.radialMenu ?? structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
+    setVoiceControl(config.voiceControl)
     shellRef.current = config.shell
     setShell(config.shell)
     return result
@@ -935,6 +1043,13 @@ export function ReaderApp({
       toggleShellEdge,
       toggleShellPin,
       toggleSidebarControl,
+      workspace: {
+        toggleLayoutMode: toggleWorkspaceMode,
+        focusReader: () => commitWorkspace({ mode: "swimlane", activeLane: "reader" }),
+        focusAdjacent: focusAdjacentWorkspaceLane,
+        toggleActiveLaneFullscreen: toggleActiveWorkspaceLaneFullscreen,
+        fitLanes: fitWorkspaceLanes,
+      },
       openFile: () => choose("file"),
       closeFile: closeSession,
       deleteCurrentFile: client.executeFileOperations ? requestDeleteCurrentFile : undefined,
@@ -1280,33 +1395,107 @@ export function ReaderApp({
   function resetShellControl() {
     const previous = shellControlStore.getSnapshot()
     shellControlStore.replace(defaultShellControlSnapshot())
+    patchSwimlaneSession(swimlaneSessionScopeId, { activeLaneId: "reader", soloLaneId: "reader" })
     enqueueShellControl({ reset: "known-defaults" }, previous)
   }
 
   function persistShellControl(patch: ReaderShellControlPatch["shellControl"]) {
-    enqueueShellControl(patch)
+    const { workspace, ...persistent } = patch
+    if (workspace) commitWorkspace(workspace)
+    if (Object.keys(persistent).length > 0) enqueueShellControl(persistent)
   }
 
-  function enqueueShellControl(patch: ReaderShellControlPatch["shellControl"], rollback?: ReaderShellControlSnapshot) {
+  function toggleWorkspaceMode(): void {
+    const current = shellRef.current
+    if (!current) return
+    const workspace = currentReaderWorkspace(current)
+    commitWorkspace({ mode: workspace.mode === "swimlane" ? "edges" : "swimlane" })
+  }
+
+  function focusAdjacentWorkspaceLane(direction: "previous" | "next"): void {
+    const current = shellRef.current
+    if (!current) return
+    const workspace = currentReaderWorkspace(current)
+    const order = workspace.swimlane.laneOrder
+    const index = Math.max(0, order.indexOf(workspace.swimlane.activeLane))
+    const offset = direction === "previous" ? -1 : 1
+    const activeLane = order[(index + offset + order.length) % order.length] ?? "reader"
+    commitWorkspace({ mode: "swimlane", activeLane })
+  }
+
+  function toggleActiveWorkspaceLaneFullscreen(): void {
+    const current = shellRef.current
+    if (!current) return
+    const workspace = currentReaderWorkspace(current)
+    const activeLane = workspace.swimlane.activeLane
+    const currentSoloLane = workspace.swimlane.soloLaneId ?? (workspace.swimlane.readerSolo ? "reader" : undefined)
+    commitWorkspace({ mode: "swimlane", activeLane, soloLaneId: currentSoloLane === activeLane ? null : activeLane })
+  }
+
+  function fitWorkspaceLanes(): void {
+    const current = shellRef.current
+    if (!current) return
+    const workspace = currentReaderWorkspace(current)
+    const viewportWidth = document.querySelector<HTMLElement>('[data-reader-swimlane-viewport="true"]')?.clientWidth ?? window.innerWidth
+    commitWorkspace({ mode: "swimlane", ...fitReaderSwimlanesToViewport(viewportWidth, workspace.swimlane) })
+  }
+
+  function commitWorkspace(patch: ReaderWorkspacePatch): void {
+    const current = shellRef.current
+    if (!current) return
+    const { sessionPatch, persistentPatch } = splitReaderWorkspacePatch(patch, currentReaderWorkspace(current))
+    if (sessionPatch) patchSwimlaneSession(swimlaneSessionScopeId, sessionPatch)
+    if (!persistentPatch) return
+    const optimistic = applyReaderWorkspacePatch(current, persistentPatch)
+    // Skip pure no-ops (e.g. auto-fit re-emitting the same widths). Otherwise
+    // setShell every cycle thrashs the tree into Maximum update depth exceeded.
+    if (workspaceConfigEqual(current, optimistic)) return
+    shellRef.current = optimistic
+    setShell(optimistic)
+    enqueueShellControl({ workspace: persistentPatch }, undefined, current)
+  }
+
+  function currentReaderWorkspace(current: ReaderShellConfigDto): ReaderWorkspaceConfig {
+    return readerWorkspaceWithSession(current, useSwimlaneSessionStore.getState().sessions[swimlaneSessionScopeId])
+  }
+
+  function enqueueShellControl(
+    patch: ReaderShellControlPatch["shellControl"],
+    rollback?: ReaderShellControlSnapshot,
+    workspaceBase?: ReaderShellConfigDto,
+  ) {
     const generation = ++shellControlGenerationRef.current
+    if (patch.workspace && shellRef.current) {
+      pendingWorkspaceWritesRef.current.push({ generation, patch: patch.workspace, base: workspaceBase ?? shellRef.current })
+    }
     shellControlWriteQueueRef.current = shellControlWriteQueueRef.current.then(async () => {
       const update = clientRef.current.updateShellControl
       if (!update) return
+      const reconcile = (confirmed: ReaderShellConfigDto) => {
+        pendingWorkspaceWritesRef.current = pendingWorkspaceWritesRef.current.filter((entry) => entry.generation !== generation)
+        const displayed = pendingWorkspaceWritesRef.current.reduce(
+          (current, entry) => applyReaderWorkspacePatch(current, entry.patch),
+          confirmed,
+        )
+        shellRef.current = displayed
+        setShell(displayed)
+        if (generation === shellControlGenerationRef.current) shellControlStore.replace(shellControlSnapshot(confirmed))
+      }
       try {
-        const updated = await update({ expectedRevision: shellRef.current?.revision ?? 0, shellControl: patch })
-        shellRef.current = updated
-        setShell(updated)
-        if (generation === shellControlGenerationRef.current) shellControlStore.replace(shellControlSnapshot(updated))
+        let updated: ReaderShellConfigDto
+        try {
+          updated = await update({ expectedRevision: shellRef.current?.revision ?? 0, shellControl: patch })
+        } catch (cause) {
+          if (!(cause instanceof ReaderHttpError) || cause.status !== 409) throw cause
+          const latest = await clientRef.current.config()
+          updated = await update({ expectedRevision: latest.shell.revision ?? 0, shellControl: patch })
+        }
+        reconcile(updated)
       } catch (cause) {
         if (generation === shellControlGenerationRef.current && rollback) shellControlStore.replace(rollback)
-        if (cause instanceof ReaderHttpError && cause.status === 409) {
-          const latest = await clientRef.current.config().catch(() => undefined)
-          if (latest) {
-            shellRef.current = latest.shell
-            setShell(latest.shell)
-            if (generation === shellControlGenerationRef.current) shellControlStore.replace(shellControlSnapshot(latest.shell))
-          }
-        }
+        const failed = pendingWorkspaceWritesRef.current.find((entry) => entry.generation === generation)
+        const latest = await clientRef.current.config().catch(() => undefined)
+        if (failed || latest) reconcile(latest?.shell ?? failed!.base)
         setError(errorMessage(cause))
       }
     })
@@ -1416,6 +1605,13 @@ export function ReaderApp({
     return updated
   }
 
+  async function persistPreload(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]> {
+    if (!client.updatePreload) throw new Error("当前 Reader 不支持预读预算配置写入")
+    const updated = await client.updatePreload({ preload: patch })
+    setPreloadConfig(updated)
+    return updated
+  }
+
   function enqueueShellMutation(operation: () => Promise<void>): Promise<void> {
     const queued = shellControlWriteQueueRef.current.then(operation)
     shellControlWriteQueueRef.current = queued.then(() => undefined, () => undefined)
@@ -1474,6 +1670,43 @@ export function ReaderApp({
   const compact = surface.mode === "collapsed" || surface.mode === "compact" || surface.mode === "portrait"
   const frame = session?.frame
   const pathSegments = readerPathSegments(path)
+  const workspace = shell ? readerWorkspaceWithSession(shell, swimlaneSession) : undefined
+  const workspaceMode = workspace?.mode ?? "edges"
+  const readerSolo = workspace?.swimlane.readerSolo ?? true
+  const readerSoloActive = readerSolo && workspace?.swimlane.activeLane === "reader"
+  useEffect(() => {
+    if (!readerSoloActive && readerViewFullscreen) setReaderViewFullscreen(false)
+  }, [readerSoloActive, readerViewFullscreen])
+  const toggleReaderViewFullscreen = () => {
+    const next = !readerViewFullscreen
+    setReaderViewFullscreen(next)
+    commitWorkspace(next
+      ? { activeLane: "reader", readerSolo: true, soloLaneId: null, lanes: { reader: { collapsed: false } } }
+      : { readerSolo: false, soloLaneId: null })
+  }
+  const readerTopbarLeadingControls = (
+    <ReaderWindowBar
+      control={shellControl}
+      disabled={!shell}
+      mode={workspaceMode}
+      onModeChange={(mode) => commitWorkspace({ mode })}
+      onOpenSettings={() => setSettingsOpen(true)}
+      part="leading"
+    />
+  )
+  const readerTopbarTrailingControls = (
+    <ReaderWindowBar
+      control={shellControl}
+      disabled={!shell}
+      mode={workspaceMode}
+      readerViewFullscreen={readerViewFullscreen && readerSoloActive}
+      onModeChange={(mode) => commitWorkspace({ mode })}
+      onReaderViewFullscreenChange={toggleReaderViewFullscreen}
+      onOpenSettings={() => setSettingsOpen(true)}
+      windowControls={workspaceMode === "edges" || readerSoloActive ? <FloatingWindowCaptionControls integrated /> : undefined}
+      part="trailing"
+    />
+  )
   useReaderAdjacentPagePreloader({
     client,
     sessionId: session?.sessionId,
@@ -1485,10 +1718,10 @@ export function ReaderApp({
     preload: prefetchController.preload,
     cancel: prefetchController.cancel,
   })
-
   const topEdge: ReaderControlledEdgeSlot = {
     ariaLabel: "NeoView 顶部工具栏",
     triggerSize: shell?.edges.top.triggerSize,
+    triggerRect: workspace?.swimlane.edgeRevealZones.top,
     showDelayMs: shell?.showDelayMs,
     hideDelayMs: shell?.hideDelayMs,
     render: () => (
@@ -1497,31 +1730,53 @@ export function ReaderApp({
         data-reader-edge-chrome="top"
         style={edgeSurfaceStyle(shell, "top")}
       >
-        <div className={cn(floatingFrame && "xiranite-app-region-drag")} onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}>
-          <ReaderWindowBar control={shellControl} disabled={!shell} onOpenSettings={() => setSettingsOpen(true)} windowControls={<FloatingWindowCaptionControls integrated />} />
-        </div>
-        <div className={cn("xiranite-app-region-no-drag min-h-11 border-b border-border/45", compact ? "px-2" : "px-3")} data-reader-breadcrumb-bar="true">
-          {session ? (
-            <div className="grid min-h-11 grid-cols-[minmax(3.5rem,1fr)_minmax(0,3fr)_minmax(3.5rem,1fr)] items-center gap-1.5">
-              <Button className="justify-self-start" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
-              <nav className="flex min-w-0 items-center justify-center gap-1 overflow-hidden text-center" aria-label="当前书籍路径" data-reader-breadcrumb-path="true">
-                {pathSegments.map((segment, index) => (
-                  <span className="contents" key={`${segment}-${index}`}>
-                    {index > 0 ? <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65" aria-hidden="true" /> : null}
-                    <span className={cn("truncate text-xs", index === pathSegments.length - 1 ? "font-medium text-foreground" : "text-muted-foreground")}>{segment}</span>
-                  </span>
-                ))}
-              </nav>
-              <span className="justify-self-end text-[11px] tabular-nums text-muted-foreground">{(frame?.anchorPageIndex ?? 0) + 1} / {session.book.pageCount}</span>
+        <div
+          className={cn("xiranite-app-region-drag min-h-11 select-none border-b border-border/45", compact ? "pl-1" : "pl-2")}
+          data-reader-breadcrumb-bar="true"
+          onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}
+        >
+          {/* Idle and reading share the same three-column chrome; only the
+              session-specific affordances (close/reopen, page index) change. */}
+          <div className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)] items-center gap-1.5">
+            <div className="xiranite-app-region-no-drag flex min-w-0 items-center justify-self-start">
+              {session ? (
+                <Button className="border border-transparent bg-transparent text-foreground/80 shadow-none" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
+              ) : path.trim() ? (
+                <Button
+                  className="border border-transparent bg-transparent text-foreground/80 shadow-none"
+                  aria-label="打开书籍"
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => void openPath()}
+                >
+                  {busy ? <LoaderCircle className="animate-spin" /> : <BookOpen />}
+                </Button>
+              ) : null}
+              {readerTopbarLeadingControls}
             </div>
-          ) : (
-            <div className="flex min-h-11 items-center gap-1.5">
-              <Input aria-label="漫画、图片或目录路径" className="h-8 min-w-0 flex-1" value={path} placeholder="选择 CBZ、ZIP、图片或目录" onChange={(event) => setPath(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.stopPropagation(); void openPath() } }} />
-              {pickFile ? <Button aria-label="选择漫画或图片文件" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("file")}><ImageIcon />{compact ? null : "文件"}</Button> : null}
-              {pickDirectory ? <Button aria-label="选择图片目录" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("directory")}><FolderOpen />{compact ? null : "目录"}</Button> : null}
-              <Button aria-label="打开书籍" type="button" size={compact ? "icon-sm" : "sm"} onClick={() => void openPath()} disabled={!path.trim() || busy}>{busy ? <LoaderCircle className="animate-spin" /> : <BookOpen />}{compact ? null : "打开"}</Button>
+            <nav
+              className="flex min-w-0 items-center justify-center gap-1 overflow-hidden text-center"
+              aria-label={session ? "当前书籍路径" : pathSegments.length ? "最近书籍路径" : "NeoView"}
+              data-reader-breadcrumb-path="true"
+            >
+              {pathSegments.length ? pathSegments.map((segment, index) => (
+                <span className="contents" key={`${segment}-${index}`}>
+                  {index > 0 ? <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65" aria-hidden="true" /> : null}
+                  <span className={cn("truncate text-xs", index === pathSegments.length - 1 ? "font-medium text-foreground" : "text-muted-foreground")}>{segment}</span>
+                </span>
+              )) : (
+                <span className="truncate text-xs text-muted-foreground">NeoView</span>
+              )}
+            </nav>
+            <div className="xiranite-app-region-no-drag flex min-w-0 items-stretch justify-self-end">
+              {session ? (
+                <span className="hidden shrink-0 items-center px-1.5 text-[11px] tabular-nums text-muted-foreground lg:flex">{(frame?.anchorPageIndex ?? 0) + 1} / {session.book.pageCount}</span>
+              ) : null}
+              {readerTopbarTrailingControls}
             </div>
-          )}
+          </div>
         </div>
         {session ? (
           <Suspense fallback={null}>
@@ -1557,8 +1812,6 @@ export function ReaderApp({
               slideshow={slideshow}
               onSlideshowChange={persistSlideshow}
             
-              onPreviousBook={() => void switchAdjacentBook("previous")}
-              onNextBook={() => void switchAdjacentBook("next")}
             />
           </Suspense>
         ) : null}
@@ -1567,30 +1820,41 @@ export function ReaderApp({
     ),
   }
 
-  const bottomEdge: ReaderControlledEdgeSlot | undefined = session && (shell?.edges.bottom.enabled ?? true) ? {
+  const bottomEdge: ReaderControlledEdgeSlot | undefined = shell?.edges.bottom.enabled ? {
     ariaLabel: "NeoView 底部缩略图与导航栏",
     triggerSize: shell?.edges.bottom.triggerSize,
+    triggerRect: workspace?.swimlane.edgeRevealZones.bottom,
     showDelayMs: shell?.showDelayMs,
     hideDelayMs: shell?.hideDelayMs,
     render: () => (
       <div
-        className="border-t border-border/55 bg-background/94 shadow-[0_-12px_30px_rgb(0_0_0/0.24)] backdrop-blur-xl"
+        className="min-w-0 max-w-full overflow-x-hidden border-t border-border/55 bg-background/94 shadow-[0_-12px_30px_rgb(0_0_0/0.24)] backdrop-blur-xl"
         data-reader-edge-chrome="bottom"
         style={edgeSurfaceStyle(shell, "bottom")}
       >
-        <ThumbnailStrip
-          sessionId={session.sessionId}
-          totalPages={session.book.pageCount}
-          activePageIndex={session.frame.anchorPageIndex}
-          currentPages={session.visiblePages}
-          client={client}
-          compact={compact}
-          disabled={busy}
-          pinned={shell?.edges.bottom.pinned ?? false}
-          onPinnedChange={(pinned) => shellControl.setPinned("bottom", pinned)}
-          viewerToggles={viewerToggles}
-          onSelect={goTo}
-        />
+        {session ? (
+          <ThumbnailStrip
+            sessionId={session.sessionId}
+            totalPages={session.book.pageCount}
+            activePageIndex={session.frame.anchorPageIndex}
+            direction={session.frame.direction}
+            currentPages={session.visiblePages}
+            client={client}
+            compact={compact}
+            disabled={busy}
+            pinned={shell.edges.bottom.pinned}
+            onPinnedChange={(pinned) => shellControl.setPinned("bottom", pinned)}
+            viewerToggles={viewerToggles}
+            onSelect={goTo}
+          />
+        ) : (
+          <div className="flex min-h-10 items-center justify-center gap-2 px-2 py-1" data-reader-bottom-bar="true" data-reader-bottom-empty="true">
+            <Button type="button" size="sm" variant={shell.edges.bottom.pinned ? "default" : "ghost"} aria-label={shell.edges.bottom.pinned ? "取消钉住底栏" : "钉住底栏"} aria-pressed={shell.edges.bottom.pinned} onClick={() => shellControl.setPinned("bottom", !shell.edges.bottom.pinned)}>
+              {shell.edges.bottom.pinned ? <Pin /> : <PinOff />}<span className="text-xs">{shell.edges.bottom.pinned ? "已钉住" : "钉住"}</span>
+            </Button>
+            <span className="text-xs text-muted-foreground">未打开书籍</span>
+          </div>
+        )}
       </div>
     ),
   } : undefined
@@ -1600,6 +1864,7 @@ export function ReaderApp({
     disabled: busy,
     onGoTo: goTo,
     onBookSettingsUpdated: applyBookSettingsUpdate,
+    onInputAction: executeInputAction,
     bookmarkListPreferences,
     onBookmarkListPreferences: persistBookmarkListPreferences,
     historyListPreferences,
@@ -1633,12 +1898,16 @@ export function ReaderApp({
     onMediaChange: persistAnimatedVideoMode,
     imageProcessing,
     onImageProcessingChange: persistImageProcessing,
+    preload: preloadConfig,
+    onPreload: persistPreload,
     slideshow: slideshowConfig,
     onSlideshow: persistSlideshow,
     inputBindings,
     onInputBindings: persistInputBindings,
     radialMenu,
     onRadialMenu: persistRadialMenu,
+    voiceControl,
+    onVoiceControl: persistVoiceControl,
     onMaterial: commitShellMaterial,
     onLegacySettingsInspect: inspectLegacySettings,
     onLegacySettingsImport: importLegacySettings,
@@ -1678,6 +1947,64 @@ export function ReaderApp({
       </Suspense>
     ),
   } : undefined
+  const readerCanvas = (
+    <div
+      ref={readerInteractionRef}
+      className="relative h-full min-h-0 overflow-hidden"
+      style={{ backgroundColor: (viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background).mode === "solid" ? (viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background).color : "#000000" }}
+      data-reader-interaction-scope="true"
+      data-input-context="reader"
+      onPointerDown={handleInputPointerDown}
+      onPointerUp={inputRouter.onPointerUp}
+      onContextMenu={(event) => { if (radialMenuRequest) event.preventDefault() }}
+    >
+      {(viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background).mode !== "solid" ? <Suspense fallback={null}><LazyReaderBackgroundLayer config={viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background} imageSrc={session?.visiblePages.find((page) => page.mediaKind === "image")?.assetUrl} /></Suspense> : null}
+      {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={(action) => executeInputAction(action)} /></Suspense> : null}
+      {!session ? (
+        <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
+          <div>
+            <BookOpen className="mx-auto mb-3 size-8 opacity-60" />
+            <p>从文件夹、历史记录或播放列表打开漫画</p>
+          </div>
+        </div>
+      ) : (
+        <Suspense fallback={null}>
+          <LazyReaderFrame
+            pages={session.visiblePages}
+            framePages={session.frame.pages}
+            presentation={presentation}
+            panorama={session.frame.layout.panorama}
+            pageMode={session.frame.layout.pageMode}
+            doublePageGap={viewDefaults.doublePageGap ?? 0}
+            direction={session.frame.direction}
+            totalPages={session.book.pageCount}
+            anchorPageIndex={session.frame.anchorPageIndex}
+            preloadGeneration={session.preload?.generation}
+            hoverScrollEnabled={viewDefaults.hoverScrollEnabled ?? true}
+            hoverScrollSpeed={viewDefaults.hoverScrollSpeed ?? 2}
+            magnifierEnabled={magnifierEnabled}
+            magnifierZoom={viewDefaults.magnifierZoom ?? 2}
+            magnifierSize={viewDefaults.magnifierSize ?? 200}
+            colorFilter={colorFilter}
+            pageTransition={pageTransition}
+            slideshowFade={slideshowFadeFrame === `${session.sessionId}:${session.frame.generation}`}
+            videoController={videoController}
+            sessionId={session.sessionId}
+            client={client}
+            media={media}
+            superResolution={superResolution}
+            viewerToggles={viewerToggles}
+            onSubtitleConfigChange={persistSubtitleConfig}
+            onVisiblePageChange={syncPanoramaVisiblePage}
+            imageTrim={imageTrim}
+            onVideoListEnded={() => void navigate("next")}
+          />
+        </Suspense>
+      )}
+      {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}
+      {workspaceMode === "edges" && shell ? <DeferredSidebarFloatingController control={shellControl} shell={shell} disabled={busy} /> : null}
+    </div>
+  )
 
   return (
     <div
@@ -1685,14 +2012,11 @@ export function ReaderApp({
       data-reader-app="true"
       data-input-context="reader"
       data-context-menu-stop=""
-      className="h-full min-h-0 w-full touch-none overflow-hidden bg-background text-foreground"
+      className="relative flex h-full min-h-0 w-full min-w-0 max-w-full touch-none flex-col overflow-hidden overscroll-none bg-background text-foreground outline-none [contain:layout_paint]"
       tabIndex={0}
-      onPointerDown={handleInputPointerDown}
-      onPointerUp={inputRouter.onPointerUp}
-      onContextMenu={(event) => { if (radialMenuRequest) event.preventDefault() }}
     >
       <Suspense fallback={null}>
-        <LazyReaderGestureInputRuntime config={inputBindings} disabled={busy} target={surface.ref} claimPointer={inputRouter.claimPointer} dispatch={inputRouter.dispatch} />
+        <LazyReaderGestureInputRuntime config={inputBindings} disabled={busy} target={readerInteractionRef} claimPointer={inputRouter.claimPointer} dispatch={inputRouter.dispatch} />
       </Suspense>
       <Suspense fallback={null}>
         <LazyReaderSwitchToastRuntime port={switchToast} session={session} sourcePath={path} />
@@ -1700,61 +2024,75 @@ export function ReaderApp({
       <Suspense fallback={null}>
         <LazyReaderInfoOverlayRuntime port={infoOverlay} session={session} sourcePath={path} />
       </Suspense>
-      {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={(action) => executeInputAction(action)} /></Suspense> : null}
       <FloatingWindowTitlebarReservation />
-      <ReaderPanelDndProvider shell={shell} onMove={commitDraggedPanelLayout}>
-        <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
-          <div className="relative h-full min-h-0 overflow-hidden bg-black/95">
-          {!session ? (
-            <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
-              <div><BookOpen className="mx-auto mb-3 size-8 opacity-60" /><p>打开漫画或图片开始阅读</p></div>
-            </div>
-          ) : (
-            <Suspense fallback={null}>
-              <LazyReaderFrame
-                pages={session.visiblePages}
-                framePages={session.frame.pages}
-                presentation={presentation}
-                panorama={session.frame.layout.panorama}
-                pageMode={session.frame.layout.pageMode}
-                direction={session.frame.direction}
-                totalPages={session.book.pageCount}
-                anchorPageIndex={session.frame.anchorPageIndex}
-                preloadGeneration={session.preload?.generation}
-                hoverScrollEnabled={viewDefaults.hoverScrollEnabled ?? true}
-                hoverScrollSpeed={viewDefaults.hoverScrollSpeed ?? 2}
-                magnifierEnabled={magnifierEnabled}
-                magnifierZoom={viewDefaults.magnifierZoom ?? 2}
-                magnifierSize={viewDefaults.magnifierSize ?? 200}
-                colorFilter={colorFilter}
-                pageTransition={pageTransition}
-                slideshowFade={slideshowFadeFrame === `${session.sessionId}:${session.frame.generation}`}
-                videoController={videoController}
-                sessionId={session.sessionId}
-                client={client}
-                media={media}
-                superResolution={superResolution}
-                viewerToggles={viewerToggles}
-                onSubtitleConfigChange={persistSubtitleConfig}
-                onVisiblePageChange={syncPanoramaVisiblePage}
-                imageTrim={imageTrim}
-                onVideoListEnded={() => void navigate("next")}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <ReaderPanelDndProvider shell={shell} onMove={commitDraggedPanelLayout}>
+          {workspaceMode === "swimlane" && shell && workspace ? (
+            <ReaderSwimlaneErrorBoundary resetKey={`${workspaceMode}:${shell.revision ?? 0}`} onReturnToEdges={() => commitWorkspace({ mode: "edges" })}>
+              <ReaderSwimlaneWorkspace
+                shell={shell}
+                workspace={workspace}
+                disabled={!shell}
+                readerViewFullscreen={readerViewFullscreen && readerSoloActive}
+                onReaderViewFullscreenChange={toggleReaderViewFullscreen}
+                windowChrome={floatingFrame && !readerSoloActive ? {
+                  controls: <FloatingWindowCaptionControls integrated density="compact" />,
+                  onTitlebarDoubleClick: floatingFrame.handleTitlebarDoubleClick,
+                } : undefined}
+                onWorkspaceChange={commitWorkspace}
+                onOpenSettings={() => setSettingsOpen(true)}
+                reader={(
+                  <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, bottom: bottomEdge }}>
+                    {readerCanvas}
+                  </ReaderControlledEdgeShell>
+                )}
+                left={(
+                  <Suspense fallback={<div className="h-full w-full animate-pulse bg-background/85" aria-label="正在加载左侧泳道" />}>
+                    <LazyReaderSidebar
+                      side="left"
+                      presentation="lane"
+                      context={panelContext}
+                      shell={shell}
+                      selectedPanelId={workspace.swimlane.lanes.left.activePanelId}
+                      onSelectedPanelChange={(activePanelId) => commitWorkspace({ lanes: { left: { activePanelId } } })}
+                      onPanelBarChange={(patch) => commitWorkspace({ lanes: { left: patch } })}
+                      onCardLayoutCommit={(patch) => void commitCardLayout(patch)}
+                    />
+                  </Suspense>
+                )}
+                right={(
+                  <Suspense fallback={<div className="h-full w-full animate-pulse bg-background/85" aria-label="正在加载右侧泳道" />}>
+                    <LazyReaderSidebar
+                      side="right"
+                      presentation="lane"
+                      context={panelContext}
+                      shell={shell}
+                      selectedPanelId={workspace.swimlane.lanes.right.activePanelId}
+                      onSelectedPanelChange={(activePanelId) => commitWorkspace({ lanes: { right: { activePanelId } } })}
+                      onPanelBarChange={(patch) => commitWorkspace({ lanes: { right: patch } })}
+                      onCardLayoutCommit={(patch) => void commitCardLayout(patch)}
+                    />
+                  </Suspense>
+                )}
               />
-            </Suspense>
+            </ReaderSwimlaneErrorBoundary>
+          ) : (
+            <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
+              {readerCanvas}
+            </ReaderControlledEdgeShell>
           )}
-          {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}
-          {shell ? <DeferredSidebarFloatingController control={shellControl} shell={shell} disabled={busy} /> : null}
-          </div>
-        </ReaderControlledEdgeShell>
-      </ReaderPanelDndProvider>
+        </ReaderPanelDndProvider>
+      </div>
       {settingsOpen && shell ? (
         <Suspense fallback={null}>
           <LazyReaderSettingsWindow
+            portalContainer={surface.ref.current}
             shell={shell}
             viewDefaults={viewDefaults}
             slideshow={slideshowConfig}
             media={media}
             imageProcessing={imageProcessing}
+            preload={preloadConfig}
             inputBindings={inputBindings}
             radialMenu={radialMenu}
             onClose={() => setSettingsOpen(false)}
@@ -1763,11 +2101,13 @@ export function ReaderApp({
             onSlideshow={persistSlideshow}
             onMedia={persistAnimatedVideoMode}
             onImageProcessing={persistImageProcessing}
+            onPreload={persistPreload}
             onInputBindings={persistInputBindings}
             onRadialMenu={persistRadialMenu}
             onLegacySettingsInspect={inspectLegacySettings}
             onLegacySettingsImport={importLegacySettings}
             onMaterial={commitShellMaterial}
+            onWorkspace={commitWorkspace}
           />
         </Suspense>
       ) : null}

@@ -94,7 +94,6 @@ export function useReaderImagePreloader(
   }, [report, sessionId])
 
   useEffect(() => {
-    const images = imagesRef.current
     return () => {
       releaseRetained()
       if (sessionId) readerPreloadStatusStore.clear(sessionId)

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react"
 import { parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs"
+import { parseSettingsSectionId } from "@/components/views/settings/settingsNavigation"
 import { getWorkspaceState, useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import type { ViewMode } from "@/types/workspace"
 
@@ -8,10 +9,12 @@ const VIEW_MODES = ["dashboard", "cards", "dockview", "flow", "lane", "bento"] a
 const workspaceUrlParsers = {
   view: parseAsStringLiteral(VIEW_MODES).withDefault("cards"),
   workspace: parseAsString,
+  /** Global settings deep link: `?settings=workspace` opens the settings overlay on that stage. */
+  settings: parseAsString,
 }
 
 export function WorkspaceUrlState() {
-  const [{ view, workspace }, setUrlState] = useQueryStates(workspaceUrlParsers, {
+  const [{ view, workspace, settings }, setUrlState] = useQueryStates(workspaceUrlParsers, {
     history: "replace",
     shallow: true,
     clearOnDefault: false,
@@ -21,11 +24,13 @@ export function WorkspaceUrlState() {
     activeWorkspaceId: workspaceState.activeWorkspaceId,
     backendReady: workspaceState.backendReady,
     workspaces: workspaceState.workspaces,
+    overlay: workspaceState.overlay,
   }))
   const workspaceActions = useWorkspaceActions()
   const lastUrlStateRef = useRef<{ view: ViewMode; workspace: string | null } | null>(null)
   const suppressStoreToUrlRef = useRef(false)
   const workspaceIds = useMemo(() => new Set(state.workspaces.map((item) => item.id)), [state.workspaces])
+  const settingsSection = parseSettingsSectionId(settings)
 
   useEffect(() => {
     const currentUrlState = { view, workspace }
@@ -57,6 +62,20 @@ export function WorkspaceUrlState() {
       suppressStoreToUrlRef.current = true
     }
   }, [workspaceActions, state.backendReady, view, workspace, workspaceIds])
+
+  // Deep link: valid ?settings=<sectionId> opens the global settings overlay.
+  useEffect(() => {
+    if (!settingsSection) return
+    if (state.overlay === "settings") return
+    workspaceActions.setOverlay("settings")
+  }, [settingsSection, state.overlay, workspaceActions])
+
+  // Drop the settings query when the overlay is closed so the URL does not re-open it.
+  useEffect(() => {
+    if (state.overlay === "settings") return
+    if (!settings) return
+    void setUrlState({ settings: null })
+  }, [setUrlState, settings, state.overlay])
 
   useEffect(() => {
     if (suppressStoreToUrlRef.current) {

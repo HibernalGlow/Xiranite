@@ -269,6 +269,10 @@ export interface ReaderFolderPenetrationResolutionDto {
     | "permission"
     | "unsupported-content"
 }
+export interface ReaderFolderPenetrationDescriptionDto {
+  path: string
+  internalFiles: readonly { name: string; path: string; kind: "file" | "directory" }[]
+}
 export interface ReaderActivationProvenanceDto {
   browserOriginPath: string
   browserOriginEntryPath: string
@@ -631,6 +635,22 @@ export interface ReaderBookmarkListDto {
   system?: boolean
 }
 
+export interface ReaderPlaylistDto {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ReaderPlaylistEntryDto {
+  id: string
+  playlistId: string
+  source: { kind: "path" | "archive" | "directory"; path: string; entryPath?: string; entryPaths?: readonly string[] }
+  name: string
+  position: number
+  createdAt: number
+}
+
 export interface ReaderLibraryStatisticsDto {
   recentCount: number
   bookmarkCount: number
@@ -775,6 +795,7 @@ export interface ReaderEmmTagSuggestionDto {
   favorite: boolean
   translatedTag?: string
 }
+export interface ReaderManualTagSummaryDto { namespace: string; tag: string; count: number }
 
 export interface ReaderEmmMetadataSnapshotDto {
   revision: number
@@ -994,6 +1015,33 @@ export interface ReaderShellConfigDto {
     enableBlankAreaCollapse: boolean
     blankAreaCollapseMode: "single" | "double"
   }
+  workspace?: {
+    mode: "edges" | "swimlane"
+    swimlane: {
+      laneOrder: ReaderSwimlaneId[]
+      activeLane: ReaderSwimlaneId
+      readerSolo: boolean
+      readerSoloOnFocus: boolean
+      soloLaneId?: ReaderSwimlaneId
+      readerWidthRatio: number
+      edgeRevealDelayMs: number
+      edgeRevealZones: Record<"left" | "right" | "top" | "bottom", { x: number; y: number; width: number; height: number }>
+      readerFocusOnHover: boolean
+      readerFocusHoverDelayMs: number
+      manualScrollEnabled: boolean
+      showLaneNavigatorInReaderSolo: boolean
+      autoFitToViewport: boolean
+      barHandleStyle: "grip" | "groove" | "move" | "grab" | "edge"
+      barHandlePosition: "left" | "right"
+      laneNavigatorPositionX: number
+      laneNavigatorPositionY: number
+      laneNavigatorDock: "floating" | "reader-title" | "window-title"
+      windowControlsPlacement?: "lane" | "titlebar"
+      windowControlsOwnerLaneId?: ReaderSwimlaneId
+      windowControlsExpanded?: boolean
+      lanes: Record<ReaderSwimlaneId, ReaderSwimlaneLaneDto>
+    }
+  }
   panelLayout: Record<
     string,
     {
@@ -1012,6 +1060,20 @@ export interface ReaderShellConfigDto {
       height?: number
     }
   >
+}
+
+export type ReaderSwimlaneId = string
+
+export interface ReaderSwimlaneLaneDto {
+  width: number
+  collapsed: boolean
+  title?: string
+  activePanelId?: string
+  panelBarMode?: "pinned" | "floating"
+  panelBarDock?: "left" | "right" | "top" | "bottom"
+  panelBarPositionX?: number
+  panelBarPositionY?: number
+  panelBarConstrained?: boolean
 }
 
 export type ReaderShellEdge = "top" | "right" | "bottom" | "left"
@@ -1077,6 +1139,7 @@ export interface ReaderRuntimeConfigDto {
   viewDefaults: {
     fitMode: ReaderFitMode
     pageMode: PageMode
+    doublePageGap?: number
     splitWidePages?: boolean
     hoverScrollEnabled?: boolean
     hoverScrollSpeed?: number
@@ -1085,6 +1148,7 @@ export interface ReaderRuntimeConfigDto {
     orientation?: ReaderOrientation
     autoRotation?: ReaderAutoRotation
     widePageStretch?: ReaderWidePageStretch
+    background?: ReaderBackgroundConfigDto
   }
   book: ReaderBookDefaultsDto
   /** Optional because older backends omit it; GUI falls back to stay-on-last-page. */
@@ -1105,12 +1169,33 @@ export interface ReaderRuntimeConfigDto {
   switchToast?: ReaderSwitchToastSettings
   infoOverlay?: ReaderInfoOverlaySettings
   systemMonitor: ReaderSystemMonitorConfigDto
+  preload: { maxCandidatePages: number }
   emm?: ReaderEmmConfigDto
   aiTranslation?: ReaderAiTranslationConfigDto
   imageTrim?: ReaderImageTrimSettings
   superResolution?: ReaderSuperResolutionConfigDto
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
+  voiceControl?: ReaderVoiceControlConfig
+}
+
+export type ReaderBackgroundMode = "solid" | "auto" | "edge" | "ambient" | "aurora" | "spotlight"
+export type ReaderAmbientStyle = "gentle" | "vibrant" | "dynamic"
+
+export interface ReaderBackgroundConfigDto {
+  color: string
+  mode: ReaderBackgroundMode
+  ambient: { style: ReaderAmbientStyle; speed: number; blur: number; opacity: number }
+  aurora: { showRadialGradient: boolean }
+  spotlight: { color: string }
+}
+
+export interface ReaderBackgroundPatchDto {
+  color?: string
+  mode?: ReaderBackgroundMode
+  ambient?: Partial<ReaderBackgroundConfigDto["ambient"]>
+  aurora?: Partial<ReaderBackgroundConfigDto["aurora"]>
+  spotlight?: Partial<ReaderBackgroundConfigDto["spotlight"]>
 }
 
 export type {
@@ -1120,7 +1205,7 @@ export type {
   ReaderInputContext,
   ReaderInputDescriptor,
 } from "@xiranite/node-neoview/ui-core"
-import type { ReaderInputBindingsConfig, ReaderRadialMenuConfig } from "@xiranite/node-neoview/ui-core"
+import type { ReaderInputBindingsConfig, ReaderRadialMenuConfig, ReaderVoiceControlConfig } from "@xiranite/node-neoview/ui-core"
 
 export interface ReaderInputBindingsPatch {
   inputBindings: {
@@ -1383,6 +1468,12 @@ export interface ReaderRadialMenuPatch {
   radialMenu: { config?: ReaderRadialMenuConfig; reset?: "defaults" }
 }
 
+export interface ReaderFolderRatingEntryDto { path: string; averageRating: number; count: number; direct: boolean }
+export interface ReaderFolderRatingCacheDto { entries: readonly ReaderFolderRatingEntryDto[]; updatedAt?: number }
+export interface ReaderVoiceControlPatch {
+  voiceControl: Partial<ReaderVoiceControlConfig>
+}
+
 export interface ReaderSettingsMigrationReport {
   codecVersion: number
   sourceKind: string
@@ -1490,6 +1581,8 @@ export interface ReaderFolderEmptyAreaConfig {
 
 export interface ReaderFolderPenetrationConfig {
   enabled: boolean
+  showInternalFiles: boolean
+  internalItemsMode: "single" | "all"
   maxDepth: number
   terminalTargets: ReaderFolderPenetrationTerminalKindDto[]
 }
@@ -1564,6 +1657,7 @@ export interface ReaderViewDefaultsPatch {
   viewDefaults: {
     fitMode?: ReaderFitMode
     pageMode?: PageMode
+    doublePageGap?: number
     splitWidePages?: boolean
     hoverScrollEnabled?: boolean
     hoverScrollSpeed?: number
@@ -1572,6 +1666,7 @@ export interface ReaderViewDefaultsPatch {
     orientation?: ReaderOrientation
     autoRotation?: ReaderAutoRotation
     widePageStretch?: ReaderWidePageStretch
+    background?: ReaderBackgroundPatchDto
   }
 }
 
@@ -1640,6 +1735,31 @@ export interface ReaderShellControlPatch {
       >
     >
     sidebarInteraction?: Partial<NonNullable<ReaderShellConfigDto["sidebarInteraction"]>>
+    workspace?: {
+      mode?: NonNullable<ReaderShellConfigDto["workspace"]>["mode"]
+      laneOrder?: ReaderSwimlaneId[]
+      activeLane?: ReaderSwimlaneId
+      readerSolo?: boolean
+      readerSoloOnFocus?: boolean
+      soloLaneId?: ReaderSwimlaneId | null
+      readerWidthRatio?: number
+      edgeRevealDelayMs?: number
+      edgeRevealZones?: Record<"left" | "right" | "top" | "bottom", { x: number; y: number; width: number; height: number }>
+      readerFocusOnHover?: boolean
+      readerFocusHoverDelayMs?: number
+      manualScrollEnabled?: boolean
+      showLaneNavigatorInReaderSolo?: boolean
+      autoFitToViewport?: boolean
+      barHandleStyle?: "grip" | "groove" | "move" | "grab" | "edge"
+      barHandlePosition?: "left" | "right"
+      laneNavigatorPositionX?: number
+      laneNavigatorPositionY?: number
+      laneNavigatorDock?: "floating" | "reader-title" | "window-title"
+      windowControlsPlacement?: "lane" | "titlebar"
+      windowControlsOwnerLaneId?: ReaderSwimlaneId
+      windowControlsExpanded?: boolean
+      lanes?: Partial<Record<ReaderSwimlaneId, Partial<ReaderSwimlaneLaneDto>>>
+    }
     material?: ReaderShellMaterialPatch
     reset?: "known-defaults"
   }
@@ -1662,6 +1782,11 @@ export interface ReaderHttpClient {
   updateImageProcessing?(patch: ReaderImageProcessingPatchDto, signal?: AbortSignal): Promise<ReaderImageProcessingConfigDto>
   updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
   updateRadialMenu?(patch: ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRadialMenuConfig>
+  folderRatingCache?(signal?: AbortSignal): Promise<ReaderFolderRatingCacheDto>
+  rebuildFolderRatingCache?(signal?: AbortSignal): Promise<ReaderFolderRatingCacheDto>
+  supplementFolderRatingCache?(path: string, signal?: AbortSignal): Promise<ReaderFolderRatingCacheDto>
+  clearFolderRatingCache?(signal?: AbortSignal): Promise<void>
+  updateVoiceControl?(patch: ReaderVoiceControlPatch, signal?: AbortSignal): Promise<ReaderVoiceControlConfig>
   inspectLegacySettings?(content: string, modules?: readonly string[], signal?: AbortSignal): Promise<ReaderSettingsMigrationInspection>
   importLegacySettings?(
     content: string,
@@ -1674,6 +1799,7 @@ export interface ReaderHttpClient {
   updateSwitchToast?(patch: ReaderSwitchToastConfigPatch, signal?: AbortSignal): Promise<ReaderSwitchToastSettings>
   updateInfoOverlay?(patch: ReaderInfoOverlayConfigPatch, signal?: AbortSignal): Promise<ReaderInfoOverlaySettings>
   updateSystemMonitor?(patch: ReaderSystemMonitorConfigPatch, signal?: AbortSignal): Promise<ReaderSystemMonitorConfigDto>
+  updatePreload?(patch: { preload: Partial<ReaderRuntimeConfigDto["preload"]> }, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto["preload"]>
   updateEmm?(patch: ReaderEmmConfigPatch, signal?: AbortSignal): Promise<ReaderEmmConfigDto>
   probeEmm?(patch: ReaderEmmConfigPatch, signal?: AbortSignal): Promise<ReaderEmmConnectionProbeDto>
   updateAiTranslation?(patch: ReaderAiTranslationConfigPatch, signal?: AbortSignal): Promise<ReaderAiTranslationConfigDto>
@@ -1743,9 +1869,11 @@ export interface ReaderHttpClient {
     policy?: ReaderFolderPenetrationPolicyDto,
     signal?: AbortSignal,
   ): Promise<ReaderFolderPenetrationResolutionDto>
+  describeFolderPenetration?(sessionId: string, paths: readonly string[], signal?: AbortSignal): Promise<{ entries: readonly ReaderFolderPenetrationDescriptionDto[] }>
   readDirectoryEmm?(sessionId: string, generation: number, paths: readonly string[], signal?: AbortSignal): Promise<ReaderDirectoryEmmReadResultDto>
   editDirectoryEmm?(sessionId: string, command: ReaderDirectoryEmmEditCommandDto, signal?: AbortSignal): Promise<ReaderDirectoryEmmEditResultDto>
   suggestDirectoryEmmTags?(count?: number, signal?: AbortSignal): Promise<readonly ReaderEmmTagSuggestionDto[]>
+  listManualEmmTags?(limit?: number, signal?: AbortSignal): Promise<readonly ReaderManualTagSummaryDto[]>
   listSearchHistory?(scope: ReaderSearchHistoryScopeDto, limit?: number, signal?: AbortSignal): Promise<readonly ReaderSearchHistoryDto[]>
   recordSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<ReaderSearchHistoryDto>
   removeSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<boolean>
@@ -1804,6 +1932,13 @@ export interface ReaderHttpClient {
   pageAction?(sessionId: string, pageId: string, action: "copy" | "reveal" | "open", signal?: AbortSignal): Promise<ReaderPageCopyActionDto | void>
   releasePageActionLease?(sessionId: string, leaseToken: string): Promise<void>
   metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
+  getEmmMetadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderEmmMetadataSnapshotDto>
+  updateEmmMetadata?(
+    sessionId: string,
+    expectedRevision: number,
+    patch: ReaderEmmMetadataPatchDto,
+    signal?: AbortSignal,
+  ): Promise<ReaderEmmMetadataSnapshotDto>
   pageMediaInformation?(sessionId: string, signal?: AbortSignal): Promise<ReaderPageMediaInformationDto>
   diagnostics?(signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   systemMonitorSnapshot?(signal?: AbortSignal): Promise<ReaderSystemMonitorSnapshotDto>
@@ -1874,6 +2009,13 @@ export interface ReaderHttpClient {
     signal?: AbortSignal,
   ): Promise<ReaderBookmarkListDto>
   removeBookmarkList?(id: string, signal?: AbortSignal): Promise<void>
+  listPlaylists?(signal?: AbortSignal): Promise<readonly ReaderPlaylistDto[]>
+  savePlaylist?(playlist: { id?: string; name: string; createdAt?: number }, signal?: AbortSignal): Promise<ReaderPlaylistDto>
+  removePlaylist?(id: string, signal?: AbortSignal): Promise<void>
+  listPlaylistEntries?(playlistId: string, signal?: AbortSignal): Promise<readonly ReaderPlaylistEntryDto[]>
+  appendPlaylistEntries?(playlistId: string, entries: ReadonlyArray<{ id?: string; source: ReaderPlaylistEntryDto["source"]; name: string; createdAt?: number }>, signal?: AbortSignal): Promise<readonly ReaderPlaylistEntryDto[]>
+  removePlaylistEntries?(playlistId: string, ids: readonly string[], signal?: AbortSignal): Promise<number>
+  reorderPlaylistEntries?(playlistId: string, ids: readonly string[], signal?: AbortSignal): Promise<void>
   navigate(sessionId: string, action: "next" | "previous", signal?: AbortSignal): Promise<ReaderNavigationDto>
   goTo(sessionId: string, pageIndex: number, signal?: AbortSignal): Promise<ReaderNavigationDto>
   updateSessionOptions(

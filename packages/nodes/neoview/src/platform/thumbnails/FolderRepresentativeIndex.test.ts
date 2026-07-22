@@ -177,6 +177,88 @@ describe("FolderRepresentativeIndex", () => {
     })
     index.clear()
   })
+
+  it("[neoview.thumbnail.folder-index-diverse-children] samples sibling folders before repeating the first child", async () => {
+    const index = new FolderRepresentativeIndex({
+      readDirectory: async (path) => path.endsWith("artist-a")
+        ? [file("1.jpg"), file("2.jpg"), file("3.jpg"), file("4.jpg")]
+        : path.endsWith("artist-b")
+          ? [file("1.jpg"), file("2.jpg")]
+          : [directory("artist-a"), directory("artist-b")],
+      statPath: async () => stats(10, 100),
+    })
+
+    const selection = await index.resolve("D:/library", 50, undefined, 4)
+    expect(selection.paths.map((path) => path.replaceAll("\\", "/"))).toEqual([
+      "D:/library/artist-a/1.jpg",
+      "D:/library/artist-b/1.jpg",
+      "D:/library/artist-a/2.jpg",
+      "D:/library/artist-b/2.jpg",
+    ])
+    index.clear()
+  })
+
+  it("[neoview.thumbnail.folder-index-diverse-branches] balances nested media across direct child branches", async () => {
+    const index = new FolderRepresentativeIndex({
+      readDirectory: async (path) => {
+        const normalized = path.replaceAll("\\", "/")
+        if (normalized.endsWith("/library")) return [directory("already"), directory("wait")]
+        if (normalized.endsWith("/already")) return [directory("artist-a"), directory("artist-b"), directory("artist-c")]
+        if (normalized.endsWith("/wait")) return [directory("artist-x"), directory("artist-y")]
+        return [file("cover.jpg")]
+      },
+      statPath: async () => stats(10, 100),
+    })
+
+    const selection = await index.resolve("D:/library", 50, undefined, 4)
+    expect(selection.paths.map((path) => path.replaceAll("\\", "/"))).toEqual([
+      "D:/library/already/artist-a/cover.jpg",
+      "D:/library/wait/artist-x/cover.jpg",
+      "D:/library/already/artist-b/cover.jpg",
+      "D:/library/wait/artist-y/cover.jpg",
+    ])
+    index.clear()
+  })
+
+  it("[neoview.thumbnail.folder-index-diverse-nested-folders] samples distinct media folders inside a wrapper branch", async () => {
+    const index = new FolderRepresentativeIndex({
+      readDirectory: async (path) => {
+        const normalized = path.replaceAll("\\", "/")
+        if (normalized.endsWith("/library")) return [directory("wrapper")]
+        if (normalized.endsWith("/wrapper")) {
+          return [directory("artist-a"), directory("artist-b"), directory("artist-c"), directory("artist-d")]
+        }
+        return [file("1.jpg"), file("2.jpg"), file("3.jpg"), file("4.jpg")]
+      },
+      statPath: async () => stats(10, 100),
+    })
+
+    const selection = await index.resolve("D:/library", 50, undefined, 4)
+    expect(selection.paths.map((path) => path.replaceAll("\\", "/"))).toEqual([
+      "D:/library/wrapper/artist-a/1.jpg",
+      "D:/library/wrapper/artist-b/1.jpg",
+      "D:/library/wrapper/artist-c/1.jpg",
+      "D:/library/wrapper/artist-d/1.jpg",
+    ])
+    index.clear()
+  })
+
+  it("[neoview.thumbnail.folder-index-bounded-diversity] uses the requested mosaic count to bound sibling sampling", async () => {
+    const readDirectory = vi.fn(async (path: string) => path.endsWith("library")
+      ? Array.from({ length: 20 }, (_, index) => directory(`artist-${String(index).padStart(2, "0")}`))
+      : [file("cover.jpg")])
+    const index = new FolderRepresentativeIndex({
+      readDirectory,
+      statPath: async () => stats(10, 100),
+    })
+
+    const selection = await index.resolve("D:/library", 50, undefined, 9)
+    expect(selection.paths.map((path) => path.replaceAll("\\", "/"))).toEqual(
+      Array.from({ length: 9 }, (_, index) => `D:/library/artist-${String(index).padStart(2, "0")}/cover.jpg`),
+    )
+    expect(readDirectory).toHaveBeenCalledTimes(10)
+    index.clear()
+  })
 })
 
 function file(name: string) {

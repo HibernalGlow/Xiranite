@@ -279,6 +279,76 @@ describe("ContextMenuProvider", () => {
     })
   })
 
+  test("icon-row renders compact icon-only actions", async () => {
+    const onSelect = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <ContextMenuProvider>
+        <ContextTarget
+          items={[
+            {
+              type: "icon-row",
+              id: "demo-icons",
+              label: "Quick",
+              children: [
+                { id: "copy", label: "复制", onSelect },
+                { id: "cut", label: "剪切", onSelect },
+              ],
+            },
+          ]}
+        />
+      </ContextMenuProvider>,
+    )
+
+    fireEvent.contextMenu(screen.getByTestId("context-target"), {
+      clientX: 10,
+      clientY: 10,
+    })
+
+    const row = await screen.findByRole("group", { name: "Quick" })
+    expect(row.getAttribute("data-context-menu-icon-row")).toBe("demo-icons")
+    expect(row.className).toContain("justify-start")
+    expect(row.className).not.toContain("justify-between")
+    const content = document.querySelector<HTMLElement>('[data-slot="dropdown-menu-content"]')
+    expect(content?.className).toMatch(/max-w-\[15rem\]/)
+    await user.click(screen.getByRole("menuitem", { name: "复制" }))
+    expect(onSelect).toHaveBeenCalledTimes(1)
+  })
+
+  test("long labels truncate inside a capped menu width", async () => {
+    render(
+      <ContextMenuProvider>
+        <ContextTarget
+          items={[
+            {
+              type: "icon-row",
+              id: "icons",
+              label: "Quick",
+              children: [
+                { id: "a", label: "A", onSelect: vi.fn() },
+                { id: "b", label: "B", onSelect: vi.fn() },
+              ],
+            },
+            {
+              type: "label",
+              label: "(2017.05) (COMIC ExE 07) Extremely Long Archive Name That Must Not Stretch The Menu.zip",
+            },
+          ]}
+        />
+      </ContextMenuProvider>,
+    )
+
+    fireEvent.contextMenu(screen.getByTestId("context-target"), {
+      clientX: 10,
+      clientY: 10,
+    })
+
+    const footer = await screen.findByText(/Extremely Long Archive Name/)
+    expect(footer.className).toContain("truncate")
+    expect(document.querySelector('[data-slot="dropdown-menu-content"]')?.className).toMatch(/max-w-\[15rem\]/)
+  })
+
   test("editable target keeps native context menu (no custom menu opens)", async () => {
     const onSelect = vi.fn()
 

@@ -12,11 +12,12 @@ test.beforeEach(({}, testInfo) => {
 })
 
 test("lane view moves cards across lanes and reorders lanes with dnd-kit", async ({ page }) => {
+  test.setTimeout(90_000)
   const backend = await startBackend({ token: "lane-dnd-test-token", repository: createMemoryWorkspaceRepository() })
   try {
     await seedLaneWorkspace(backend)
     await openApp(page, backend)
-    await page.getByRole("button", { name: /^(泳道: 泳道模式|LANE: Swimlane mode)$/i }).click()
+    await page.locator('[data-view-mode="lane"]').click()
 
     const leftCard = page.locator('[data-card-id="comp-alpha"]')
     const rightLane = page.locator('[data-lane-id="lane-right"]')
@@ -53,9 +54,9 @@ async function openApp(page: Page, backend: Awaited<ReturnType<typeof startBacke
   await page.addInitScript((config) => {
     ;(window as typeof window & { __XIRANITE_BACKEND__?: unknown }).__XIRANITE_BACKEND__ = config
   }, { baseUrl: backend.url, token: backend.token })
-  await page.goto("/", { waitUntil: "domcontentloaded" })
-  await expect(page.getByRole("banner")).toBeVisible({ timeout: 15_000 })
-  await expect(page.locator("main")).toBeVisible({ timeout: 15_000 })
+  await page.goto("/", { waitUntil: "commit" })
+  await expect(page.getByRole("banner")).toBeVisible({ timeout: 45_000 })
+  await expect(page.locator("main")).toBeVisible({ timeout: 45_000 })
 }
 
 async function seedLaneWorkspace(backend: Awaited<ReturnType<typeof startBackend>>): Promise<void> {

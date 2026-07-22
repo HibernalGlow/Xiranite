@@ -11,7 +11,6 @@
  */
 import i18n, { type ResourceLanguage } from "i18next"
 import { initReactI18next } from "react-i18next"
-import { sleeptLocaleResources } from "@xiranite/node-sleept/i18n"
 
 export type Language = "en" | "zh"
 
@@ -60,7 +59,7 @@ async function loadLanguageResource(lang: Language): Promise<void> {
   const locale = (await localeLoaders[lang]()).default
   for (const ns of NS_KEYS) {
     const resource = ns === "module"
-      ? mergePackageNodeLocales(locale[ns] as ResourceLanguage, lang)
+      ? await mergePackageNodeLocales(locale[ns] as ResourceLanguage, lang)
       : locale[ns] as ResourceLanguage
     i18n.addResourceBundle(lang, ns, resource, true, true)
   }
@@ -72,19 +71,26 @@ async function loadLanguageResource(lang: Language): Promise<void> {
  * 当前仅 sleept 节点通过 `@xiranite/node-sleept/i18n` 自带 locale；
  * 其余 node 的文案继续由前端 `module` namespace 承载。
  * 合并策略：node 包资源覆盖前端同 key，避免重复维护。
+ * sleept locale is loaded dynamically so the browser entry does not pull a
+ * node package into the critical startup module graph.
  */
-function mergePackageNodeLocales(moduleResource: ResourceLanguage, lang: Language): ResourceLanguage {
+async function mergePackageNodeLocales(moduleResource: ResourceLanguage, lang: Language): Promise<ResourceLanguage> {
   const resource = moduleResource as Record<string, unknown>
   const nodes = (resource.nodes ?? {}) as Record<string, unknown>
-  return {
-    ...resource,
-    nodes: {
-      ...nodes,
-      sleept: {
-        ...((nodes.sleept ?? {}) as Record<string, unknown>),
-        ...sleeptLocaleResources[lang],
+  try {
+    const { sleeptLocaleResources } = await import("@xiranite/node-sleept/i18n")
+    return {
+      ...resource,
+      nodes: {
+        ...nodes,
+        sleept: {
+          ...((nodes.sleept ?? {}) as Record<string, unknown>),
+          ...sleeptLocaleResources[lang],
+        },
       },
-    },
+    }
+  } catch {
+    return moduleResource
   }
 }
 

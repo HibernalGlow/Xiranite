@@ -6,6 +6,8 @@ import { getActiveCustomTheme, mirrorAestivusThemeStorage, parseImportedThemeJso
 import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageUrl } from "@/lib/backgroundImage"
 import { useTheme } from "@/components/use-theme"
 import { changeLanguage, getCurrentLanguage, type Language } from "@/i18n"
+import { loadMelodeckConfig } from "@/nodes/melodeck/config"
+import { DEFAULT_MODULE_MAGIC_CARD_APPEARANCE, type ModuleMagicCardAppearance } from "@/components/ui/module-panel-variants"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import type { OverlayFloatingMetrics, WorkspaceUiPreferences } from "@/store/workspace/types"
 import type { AppCustomTheme, AppFontPreset, AppTheme, CardLayout } from "@/types/workspace"
@@ -18,13 +20,7 @@ const AESTIVUS_THEME_NAME_STORAGE_KEY = "theme-name"
 const AESTIVUS_THEME_MODE_STORAGE_KEY = "theme-mode"
 const AESTIVUS_CUSTOM_THEMES_STORAGE_KEY = "custom-themes"
 const I18N_STORAGE_KEY = "i18n.lang"
-const MUSIC_DOCK_MODE_STORAGE_KEY = "xiranite.musicDock.mode"
-const MUSIC_DOCK_TRACKS_STORAGE_KEY = "xiranite.musicDock.savedTracks"
-const MUSIC_DOCK_SOURCE_STORAGE_KEY = "xiranite.musicDock.sourcePath"
-const MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY = "xiranite.musicDock.floatingOffset"
 const LEGACY_CONFIG_CHANGED_EVENT = "xiranite:legacy-config-changed"
-
-type MusicDockMode = "bottom" | "floating"
 
 interface AppUiConfig {
   version?: number
@@ -35,19 +31,13 @@ interface AppUiConfig {
   i18n?: {
     language?: Language
   }
-  musicDock?: {
-    mode?: MusicDockMode
-    savedTracks?: unknown[]
-    sourcePath?: string
-    floatingOffset?: { x: number; y: number }
-  }
   migratedFrom?: {
     localStorageKeys?: string[]
     at?: string
   }
 }
 
-type BrowserLegacyConfig = Pick<AppUiConfig, "musicDock" | "migratedFrom"> & {
+type BrowserLegacyConfig = Pick<AppUiConfig, "migratedFrom"> & {
   workspace?: Partial<WorkspaceUiPreferences>
   appearance?: AppUiConfig["appearance"]
   i18n?: AppUiConfig["i18n"]
@@ -70,10 +60,11 @@ const FIELD_TITLE_STYLES = new Set<WorkspaceUiPreferences["fieldTitleStyle"]>(["
 const CARD_CLICK_ACTIONS = new Set<WorkspaceUiPreferences["cardClickAction"]>(["none", "focus", "fullscreen"])
 const TAB_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["tabDisplayStyle"]>(["underline", "surface", "pill", "boxed", "quiet"])
 const SWITCH_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["switchDisplayStyle"]>(["outlined", "filled", "minimal"])
+const SCROLLBAR_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["scrollbarDisplayStyle"]>(["thin", "soft", "solid", "rounded", "minimal"])
+const SLIDER_DISPLAY_STYLES = new Set<WorkspaceUiPreferences["sliderDisplayStyle"]>(["solid", "soft", "pill", "line", "minimal"])
 const THEME_MODES = new Set<ThemeMode>(["system", "light", "dark"])
 const LANGUAGES = new Set<Language>(["en", "zh"])
 const OVERLAY_MODES = new Set<WorkspaceUiPreferences["overlayMode"]>(["docked", "floating"])
-const MUSIC_DOCK_MODES = new Set<MusicDockMode>(["bottom", "floating"])
 
 export function AppConfigSync() {
   const backendStatus = useLocalBackendStatus()
@@ -114,6 +105,8 @@ export function AppConfigSync() {
 
     async function loadAppConfig() {
       try {
+        await loadMelodeckConfig()
+        if (cancelled) return
         const response = await getAppConfigFromBackend<AppUiConfig>(APP_UI_SECTION)
         if (cancelled) return
 
@@ -435,9 +428,12 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     cardDoubleClickAction: state.cardDoubleClickAction,
     tabDisplayStyle: state.tabDisplayStyle,
     switchDisplayStyle: state.switchDisplayStyle,
+    scrollbarDisplayStyle: state.scrollbarDisplayStyle,
+    sliderDisplayStyle: state.sliderDisplayStyle,
     moduleTitleStyle: state.moduleTitleStyle,
     modulePanelStyle: state.modulePanelStyle,
     moduleCardEffect: state.moduleCardEffect,
+    moduleMagicCard: state.moduleMagicCard,
     resizableHandleStyle: state.resizableHandleStyle,
     choiceControlStyle: state.choiceControlStyle,
     fieldTitleStyle: state.fieldTitleStyle,
@@ -448,7 +444,7 @@ function buildAppUiConfig(
   workspace: WorkspaceUiPreferences,
   colorMode: ThemeMode,
   language: Language,
-  legacy: Pick<AppUiConfig, "musicDock" | "migratedFrom">,
+  legacy: Pick<AppUiConfig, "migratedFrom">,
   migratedFrom?: AppUiConfig["migratedFrom"],
 ): AppUiConfig {
   return pruneUndefined({
@@ -456,7 +452,6 @@ function buildAppUiConfig(
     workspace: sanitizeWorkspaceConfig(workspace),
     appearance: { colorMode },
     i18n: { language },
-    musicDock: legacy.musicDock,
     migratedFrom,
   }) as AppUiConfig
 }
@@ -485,7 +480,6 @@ function normalizeAppUiConfig(value: unknown): AppUiConfig {
     workspace: normalizeWorkspacePreferences(value.workspace),
     appearance: normalizeAppearanceConfig(value.appearance),
     i18n: normalizeI18nConfig(value.i18n),
-    musicDock: normalizeMusicDockConfig(value.musicDock),
     migratedFrom: isRecord(value.migratedFrom) ? value.migratedFrom : undefined,
   }) as AppUiConfig
 }
@@ -541,9 +535,15 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (isOneOf(value.cardDoubleClickAction, CARD_CLICK_ACTIONS)) next.cardDoubleClickAction = value.cardDoubleClickAction
   if (isOneOf(value.tabDisplayStyle, TAB_DISPLAY_STYLES)) next.tabDisplayStyle = value.tabDisplayStyle
   if (isOneOf(value.switchDisplayStyle, SWITCH_DISPLAY_STYLES)) next.switchDisplayStyle = value.switchDisplayStyle
+  if (isOneOf(value.scrollbarDisplayStyle, SCROLLBAR_DISPLAY_STYLES)) next.scrollbarDisplayStyle = value.scrollbarDisplayStyle
+  if (isOneOf(value.sliderDisplayStyle, SLIDER_DISPLAY_STYLES)) next.sliderDisplayStyle = value.sliderDisplayStyle
   if (isOneOf(value.moduleTitleStyle, MODULE_TITLE_STYLES)) next.moduleTitleStyle = value.moduleTitleStyle
   if (isOneOf(value.modulePanelStyle, MODULE_PANEL_STYLES)) next.modulePanelStyle = value.modulePanelStyle
   if (isOneOf(value.moduleCardEffect, MODULE_CARD_EFFECTS)) next.moduleCardEffect = value.moduleCardEffect
+  {
+    const moduleMagicCard = normalizeModuleMagicCardAppearance(value.moduleMagicCard)
+    if (moduleMagicCard) next.moduleMagicCard = moduleMagicCard
+  }
   if (isOneOf(value.resizableHandleStyle, RESIZABLE_HANDLE_STYLES)) next.resizableHandleStyle = value.resizableHandleStyle
   if (isOneOf(value.choiceControlStyle, CHOICE_CONTROL_STYLES)) next.choiceControlStyle = value.choiceControlStyle
   const fieldTitleStyle = value.fieldTitleStyle ?? value.choiceControlLabelStyle
@@ -612,31 +612,10 @@ function normalizeOverlayFloatingMetrics(value: unknown): OverlayFloatingMetrics
   }
 }
 
-function normalizeMusicDockConfig(value: unknown): AppUiConfig["musicDock"] {
-  if (!isRecord(value)) return undefined
-  const mode = isOneOf(value.mode, MUSIC_DOCK_MODES) ? value.mode : undefined
-  const savedTracks = Array.isArray(value.savedTracks) ? value.savedTracks : undefined
-  const sourcePath = typeof value.sourcePath === "string" ? value.sourcePath : undefined
-  const floatingOffset = isRecord(value.floatingOffset)
-    && typeof value.floatingOffset.x === "number"
-    && typeof value.floatingOffset.y === "number"
-    ? { x: value.floatingOffset.x, y: value.floatingOffset.y }
-    : undefined
-  return mode || savedTracks || sourcePath || floatingOffset
-    ? { mode, savedTracks, sourcePath, floatingOffset }
-    : undefined
-}
-
 function readBrowserLegacyConfig(): BrowserLegacyConfig {
   if (typeof window === "undefined") return {}
   const keys: string[] = []
   const hasWorkspaceStore = window.localStorage.getItem(WORKSPACE_UI_STORAGE_KEY) !== null
-  const musicDock = normalizeMusicDockConfig({
-    mode: readLocalStorageValue(MUSIC_DOCK_MODE_STORAGE_KEY, keys),
-    savedTracks: parseJson(readLocalStorageValue(MUSIC_DOCK_TRACKS_STORAGE_KEY, keys)),
-    sourcePath: readLocalStorageValue(MUSIC_DOCK_SOURCE_STORAGE_KEY, keys),
-    floatingOffset: parseJson(readLocalStorageValue(MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY, keys)),
-  })
   const appearance = normalizeAppearanceConfig({
     colorMode: readLocalStorageValue(THEME_STORAGE_KEY, keys) ?? readLocalStorageValue(AESTIVUS_THEME_MODE_STORAGE_KEY, keys),
   })
@@ -656,7 +635,6 @@ function readBrowserLegacyConfig(): BrowserLegacyConfig {
     workspace,
     appearance,
     i18n,
-    musicDock,
     hasWorkspaceStore,
     migratedFrom: keys.length ? { localStorageKeys: [...new Set(keys)], at: new Date().toISOString() } : undefined,
   }) as BrowserLegacyConfig
@@ -729,10 +707,6 @@ function writeBrowserLegacyConfig(config: AppUiConfig) {
       )
     }
   }
-  if (config.musicDock?.mode) window.localStorage.setItem(MUSIC_DOCK_MODE_STORAGE_KEY, config.musicDock.mode)
-  if (config.musicDock?.savedTracks) window.localStorage.setItem(MUSIC_DOCK_TRACKS_STORAGE_KEY, JSON.stringify(config.musicDock.savedTracks))
-  if (config.musicDock?.sourcePath) window.localStorage.setItem(MUSIC_DOCK_SOURCE_STORAGE_KEY, config.musicDock.sourcePath)
-  if (config.musicDock?.floatingOffset) window.localStorage.setItem(MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY, JSON.stringify(config.musicDock.floatingOffset))
   dispatchLegacyConfigChanged()
 }
 
@@ -743,7 +717,7 @@ function readLocalStorageValue(key: string, foundKeys: string[]): string | null 
 }
 
 function isEmptyAppUiConfig(config: AppUiConfig): boolean {
-  return !config.workspace && !config.appearance && !config.i18n && !config.musicDock
+  return !config.workspace && !config.appearance && !config.i18n
 }
 
 function isLegacyConfigStorageKey(key: string): boolean {
@@ -771,17 +745,26 @@ function finiteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
-function clampRatio(value: number, min = 0): number {
-  return Math.min(1, Math.max(min, value))
+function normalizeModuleMagicCardAppearance(value: unknown): ModuleMagicCardAppearance | undefined {
+  if (!isRecord(value)) return undefined
+  const defaults = DEFAULT_MODULE_MAGIC_CARD_APPEARANCE
+  return {
+    radius: boundedInteger(value.radius, defaults.radius, 48, 320),
+    opacity: boundedInteger(value.opacity, defaults.opacity, 5, 100),
+    colorStrength: boundedInteger(value.colorStrength, defaults.colorStrength, 5, 100),
+    followThemeColor: typeof value.followThemeColor === "boolean" ? value.followThemeColor : defaults.followThemeColor,
+    color: typeof value.color === "string" && /^#[0-9a-f]{6}$/i.test(value.color) ? value.color : defaults.color,
+  }
 }
 
-function parseJson(value: string | null): unknown {
-  if (!value) return undefined
-  try {
-    return JSON.parse(value) as unknown
-  } catch {
-    return undefined
-  }
+function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, Math.round(value)))
+    : fallback
+}
+
+function clampRatio(value: number, min = 0): number {
+  return Math.min(1, Math.max(min, value))
 }
 
 function pruneUndefined(value: unknown): unknown {
@@ -820,8 +803,4 @@ const LEGACY_CONFIG_STORAGE_KEYS = new Set([
   AESTIVUS_THEME_MODE_STORAGE_KEY,
   AESTIVUS_CUSTOM_THEMES_STORAGE_KEY,
   I18N_STORAGE_KEY,
-  MUSIC_DOCK_MODE_STORAGE_KEY,
-  MUSIC_DOCK_TRACKS_STORAGE_KEY,
-  MUSIC_DOCK_SOURCE_STORAGE_KEY,
-  MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY,
 ])

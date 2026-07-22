@@ -13,6 +13,13 @@ import { cn } from "@/lib/utils"
 export type ReaderEdge = "top" | "right" | "bottom" | "left"
 export type ReaderEdgeInteraction = "auto" | "fixed-open" | "fixed-closed"
 
+export interface ReaderEdgeTriggerRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface ReaderEdgeSlot {
   render(active: boolean): ReactNode
   preload?(): void
@@ -21,6 +28,7 @@ export interface ReaderEdgeSlot {
   interaction: ReaderEdgeInteraction
   pinned?: boolean
   triggerSize?: number
+  triggerRect?: ReaderEdgeTriggerRect
   showDelayMs?: number
   hideDelayMs?: number
   className?: string
@@ -84,6 +92,7 @@ function ReaderEdgeSurface({
   const automatic = slot.interaction === "auto"
   const [mounted, setMounted] = useState(visible)
   const [presentation, setPresentation] = useState<ReaderEdgePresentation>(visible ? "visible" : "hidden")
+  const triggerRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -119,6 +128,20 @@ function ReaderEdgeSurface({
       clearTimer(showTimerRef)
       clearTimer(hideTimerRef)
     }
+  }, [automatic, visible])
+
+  useEffect(() => {
+    if (!automatic || visible) return
+    const handlePointerMove = (event: PointerEvent) => {
+      const trigger = triggerRef.current
+      if (!trigger || !containsPoint(trigger.getBoundingClientRect(), event.clientX, event.clientY)) {
+        clearTimer(showTimerRef)
+        return
+      }
+      scheduleShow()
+    }
+    window.addEventListener("pointermove", handlePointerMove, { passive: true })
+    return () => window.removeEventListener("pointermove", handlePointerMove)
   }, [automatic, visible])
 
   useEffect(() => () => {
@@ -246,10 +269,11 @@ function ReaderEdgeSurface({
   return (
     <>
       <div
+        ref={triggerRef}
         aria-hidden="true"
         data-reader-edge-trigger={edge}
-        className={cn("absolute z-40", triggerClass(edge))}
-        style={triggerStyle(edge, triggerSize)}
+        className={cn("absolute z-40", slot.triggerRect ? undefined : triggerClass(edge))}
+        style={slot.triggerRect ? triggerRectStyle(slot.triggerRect) : triggerStyle(edge, triggerSize)}
         onPointerEnter={scheduleShow}
         onPointerLeave={() => {
           if (!visibleRef.current) clearTimer(showTimerRef)
@@ -345,6 +369,25 @@ function triggerStyle(edge: ReaderEdge, size: number): React.CSSProperties {
   return edge === "top" || edge === "bottom" ? { height: size } : { width: size }
 }
 
+function triggerRectStyle(rect: ReaderEdgeTriggerRect): React.CSSProperties {
+  const x = clampPercent(rect.x)
+  const y = clampPercent(rect.y)
+  return {
+    left: `${x}%`,
+    top: `${y}%`,
+    width: `${clamp(rect.width, 1, 100 - x)}%`,
+    height: `${clamp(rect.height, 1, 100 - y)}%`,
+  }
+}
+
+function clampPercent(value: number): number {
+  return clamp(value, 0, 99)
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value))
+}
+
 function movingTowardEdge(edge: ReaderEdge, deltaX: number, deltaY: number): boolean {
   if (edge === "left") return deltaX < -1
   if (edge === "right") return deltaX > 1
@@ -357,6 +400,10 @@ function outsideRetractLine(edge: ReaderEdge, rect: DOMRect, x: number, y: numbe
   if (edge === "right") return x < rect.left - 10
   if (edge === "top") return y > rect.bottom + 10
   return y < rect.top - 10
+}
+
+function containsPoint(rect: DOMRect, x: number, y: number): boolean {
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
 }
 
 function isInputting(): boolean {
