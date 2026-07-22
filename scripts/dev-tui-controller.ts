@@ -71,7 +71,7 @@ export class ManagedDevTuiController implements DevTuiController {
     if (!session) return
 
     if (!(await isProcessAlive(session.supervisorPid))) {
-      await removeDevSession()
+      await removeDevSession(session.supervisorPid)
       this.#writeControl("\u001b[33m[开发控制台] 发现已失效的会话记录，已清除。请按 S 重新启动。\u001b[0m\r\n")
       this.#patch({ phase: "stopped", pid: undefined, startedAt: undefined, message: "就绪" })
       return
@@ -147,7 +147,7 @@ export class ManagedDevTuiController implements DevTuiController {
         this.#writeControl("\u001b[33m[开发控制台] 宿主进程在但前端不可达，改为重启。\u001b[0m\r\n")
         await this.#stop()
       } else {
-        await removeDevSession()
+        if (session) await removeDevSession(session.supervisorPid)
         this.#patch({ phase: "stopped", pid: undefined, startedAt: undefined })
       }
     }
@@ -209,6 +209,7 @@ export class ManagedDevTuiController implements DevTuiController {
 
       const session = await readDevSession()
       if (session && session.startedAt >= startedAt && !session.script.startsWith("dev-ui:")) {
+        await removeDevSession(launcherPid)
         const frontendUrl = session.frontendUrl
         this.#patch({
           phase: "running",
@@ -222,13 +223,20 @@ export class ManagedDevTuiController implements DevTuiController {
         }
 
         this.#writeControl(`\r\n\u001b[36m[开发控制台]\u001b[0m 前端地址 ${frontendUrl}\r\n`)
-        this.#writeControl("\u001b[36m[开发控制台]\u001b[0m 正在探测页面是否真正可访问…\r\n")
+        this.#writeControl("\u001b[36m[开发控制台]\u001b[0m 正在探测文档服务是否可打开…\r\n")
         try {
-          await waitForFrontendReady(frontendUrl, { attempts: 600, delayMs: 200, stabilityDelayMs: 300 })
+          // listen profile = index.html is servable. Full shell/module graph still
+          // compiles on first browser visit; waiting for it here only delays open.
+          await waitForFrontendReady(frontendUrl, {
+            profile: "listen",
+            attempts: 300,
+            delayMs: 100,
+            stabilityDelayMs: 150,
+          })
           if (this.#snapshot.phase === "stopping" || this.#snapshot.phase === "stopped") return
-          this.#writeControl(`\u001b[32m[开发控制台] 前端已就绪\u001b[0m ${frontendUrl}\r\n`)
-          this.#writeControl(`\u001b[32m[开发控制台] 请在浏览器打开上述地址（不要猜端口）。\u001b[0m\r\n`)
-          this.#patch({ message: `${this.#label}就绪 · ${frontendUrl}` })
+          this.#writeControl(`\u001b[32m[开发控制台] 前端已可打开\u001b[0m ${frontendUrl}\r\n`)
+          this.#writeControl("\u001b[32m[开发控制台] 请打开上述地址；首屏模块会在浏览器里继续按需编译。\u001b[0m\r\n")
+          this.#patch({ message: `${this.#label}可打开 · ${frontendUrl}` })
         } catch (error) {
           if (this.#snapshot.phase === "stopping" || this.#snapshot.phase === "stopped") return
           this.#writeControl(`\u001b[31m[开发控制台] 前端未就绪\u001b[0m ${error instanceof Error ? error.message : String(error)}\r\n`)
@@ -273,7 +281,7 @@ export class ManagedDevTuiController implements DevTuiController {
     }
     this.#launcherPid = null
     this.#stopLogTail()
-    await removeDevSession()
+    if (session) await removeDevSession(session.supervisorPid)
     this.#patch({ phase: "stopped", pid: undefined, startedAt: undefined, message: `${this.#label}已停止` })
   }
 

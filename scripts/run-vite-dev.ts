@@ -63,7 +63,7 @@ process.on("SIGTERM", () => { void stop() })
 process.on("exit", () => { void removeDevSession() })
 
 console.log(`[xiranite-frontend] ${frontendUrl}`)
-void waitForFrontendReady(frontendUrl).then(() => {
+void waitForFrontendReady(frontendUrl, { profile: "listen" }).then(() => {
   console.log(`[xiranite-frontend:ready] ${frontendUrl}`)
 }).catch((error: unknown) => {
   if (!stopping) console.error(`[xiranite-frontend:not-ready] ${error instanceof Error ? error.message : String(error)}`)
