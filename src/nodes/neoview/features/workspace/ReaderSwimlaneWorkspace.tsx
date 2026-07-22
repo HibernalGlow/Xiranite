@@ -108,10 +108,12 @@ export function ReaderSwimlaneWorkspace({
   const [previewLane, setPreviewLane] = useState<ReaderSwimlaneId>()
   const [draggedLane, setDraggedLane] = useState<ReaderSwimlaneId>()
   const [laneNavigatorTitleHost, setLaneNavigatorTitleHost] = useState<HTMLElement | null>(null)
-  const [windowControlsExpanded, setWindowControlsExpanded] = useState(false)
+  const [windowTitleHost, setWindowTitleHost] = useState<HTMLElement | null>(null)
   const swimlane = workspace.swimlane
   const soloLaneId = swimlane.soloLaneId ?? (swimlane.readerSolo ? "reader" : undefined)
-  const windowChromeOwnerLaneId = windowChrome ? resolveWindowChromeOwner(swimlane.laneOrder, swimlane.lanes, soloLaneId, swimlane.activeLane) : undefined
+  const windowChromeOwnerLaneId = windowChrome && swimlane.windowControlsPlacement !== "titlebar"
+    ? resolveWindowChromeOwner(swimlane.windowControlsOwnerLaneId, swimlane.laneOrder, swimlane.lanes, soloLaneId, swimlane.activeLane)
+    : undefined
   const revealTriggersEnabled = soloLaneId !== undefined && swimlane.activeLane === soloLaneId && previewLane === undefined
   const readerNormalWidth = readerLaneWidth(viewportWidth, swimlane.readerWidthRatio)
   const autoFitGeometryKey = swimlane.laneOrder.map((laneId) => `${laneId}:${swimlane.lanes[laneId]?.collapsed === true}`).join("|")
@@ -154,8 +156,6 @@ export function ReaderSwimlaneWorkspace({
       onWorkspaceChange({
         activeLane: laneId,
         ...(laneId === "reader" && swimlane.readerSoloOnFocus && !swimlane.readerSolo ? { readerSolo: true } : {}),
-        ...(laneId !== "reader" && swimlane.readerSolo ? { readerSolo: false } : {}),
-        ...(swimlane.soloLaneId && swimlane.soloLaneId !== laneId ? { soloLaneId: null } : {}),
       })
     }
     scrollLaneIntoView(laneId, "focus")
@@ -339,7 +339,11 @@ export function ReaderSwimlaneWorkspace({
   function removeLane(laneId: ReaderSwimlaneId): void {
     if (laneId === "left" || laneId === "reader" || laneId === "right") return
     const laneOrder = swimlane.laneOrder.filter((candidate) => candidate !== laneId)
-    onWorkspaceChange({ laneOrder, activeLane: swimlane.activeLane === laneId ? "reader" : swimlane.activeLane })
+    onWorkspaceChange({
+      laneOrder,
+      activeLane: swimlane.activeLane === laneId ? "reader" : swimlane.activeLane,
+      ...(swimlane.windowControlsOwnerLaneId === laneId ? { windowControlsOwnerLaneId: laneOrder.at(-1) ?? "right" } : {}),
+    })
   }
 
   function commitExplicitLaneWidth(laneId: ReaderSwimlaneId, requestedWidth: number): void {
@@ -439,11 +443,18 @@ export function ReaderSwimlaneWorkspace({
         })}
         onOpenSettings={laneId === "reader" ? onOpenSettings : undefined}
         setNavigatorTitleHost={laneId === "reader" ? setLaneNavigatorTitleHost : undefined}
+        windowControlsAvailable={windowChrome !== undefined}
+        windowControlsOwner={swimlane.windowControlsPlacement !== "titlebar" && swimlane.windowControlsOwnerLaneId === laneId}
+        windowControlsInTitlebar={swimlane.windowControlsPlacement === "titlebar"}
+        windowControlsExpanded={swimlane.windowControlsExpanded === true}
+        onWindowControlsOwnerChange={(owned) => onWorkspaceChange(owned
+          ? { windowControlsPlacement: "lane", windowControlsOwnerLaneId: laneId }
+          : { windowControlsPlacement: "titlebar" })}
+        onWindowControlsExpandedChange={(windowControlsExpanded) => onWorkspaceChange({ windowControlsExpanded })}
         windowDraggable={windowChrome !== undefined}
         windowChrome={windowChrome && laneId === windowChromeOwnerLaneId ? {
           controls: windowChrome.controls,
-          expanded: windowControlsExpanded,
-          onExpandedChange: setWindowControlsExpanded,
+          expanded: swimlane.windowControlsExpanded === true,
         } : undefined}
         onTitlebarDoubleClick={windowChrome?.onTitlebarDoubleClick}
         onResizeBoundary={nextLaneId ? (deltaRatio) => resizeLaneBoundary(laneId, nextLaneId, deltaRatio) : undefined}
@@ -509,14 +520,25 @@ export function ReaderSwimlaneWorkspace({
   return (
     <div
       ref={workspaceRef}
-      className="relative h-full min-h-0 w-full overflow-hidden bg-background"
+      className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-background"
       data-neoview-workspace-mode="swimlane"
       data-reader-swimlane-preview={previewLane}
       data-input-context="shell"
     >
+      {windowChrome && swimlane.windowControlsPlacement === "titlebar" ? <header
+        className="xiranite-app-region-drag flex h-7 shrink-0 select-none items-stretch border-b border-border/55 bg-card/70"
+        data-reader-window-titlebar="true"
+        data-reader-window-drag-region="true"
+        onDoubleClick={windowChrome.onTitlebarDoubleClick}
+      >
+        <div ref={setWindowTitleHost} className="min-w-0 flex-1 overflow-visible" data-reader-window-titlebar-control-slot="true" />
+        <div className="xiranite-app-region-no-drag ml-auto flex shrink-0 items-stretch">
+          <ReaderSwimlaneWindowChrome controls={windowChrome.controls} expanded={swimlane.windowControlsExpanded === true} />
+        </div>
+      </header> : null}
       <div
         ref={viewportRef}
-        className="h-full min-h-0 w-full overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="min-h-0 w-full flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         data-reader-swimlane-viewport="true"
       >
         <div className="flex h-full min-w-max items-stretch" data-reader-swimlane-strip="true">
@@ -553,7 +575,8 @@ export function ReaderSwimlaneWorkspace({
           positionX={swimlane.laneNavigatorPositionX}
           positionY={swimlane.laneNavigatorPositionY}
           dock={swimlane.laneNavigatorDock}
-          titleHost={laneNavigatorTitleHost}
+          readerTitleHost={laneNavigatorTitleHost}
+          windowTitleHost={windowTitleHost}
           boundsHost={workspaceRef.current}
           onSelect={activateLane}
           onAdd={addLane}
@@ -606,11 +629,16 @@ interface ReaderSwimlaneProps {
   onResetNavigatorPosition(): void
   onOpenSettings?(): void
   setNavigatorTitleHost?(node: HTMLElement | null): void
+  windowControlsAvailable: boolean
+  windowControlsOwner: boolean
+  windowControlsInTitlebar: boolean
+  windowControlsExpanded: boolean
+  onWindowControlsOwnerChange(owned: boolean): void
+  onWindowControlsExpandedChange(expanded: boolean): void
   windowDraggable: boolean
   windowChrome?: {
     controls: ReactNode
     expanded: boolean
-    onExpandedChange(expanded: boolean): void
   }
   onTitlebarDoubleClick?: MouseEventHandler<HTMLElement>
   onResizeBoundary?(deltaRatio: number): void
@@ -654,6 +682,12 @@ function ReaderSwimlane({
   onResetNavigatorPosition,
   onOpenSettings,
   setNavigatorTitleHost,
+  windowControlsAvailable,
+  windowControlsOwner,
+  windowControlsInTitlebar,
+  windowControlsExpanded,
+  onWindowControlsOwnerChange,
+  onWindowControlsExpandedChange,
   windowDraggable,
   windowChrome,
   onTitlebarDoubleClick,
@@ -778,11 +812,16 @@ function ReaderSwimlane({
             onResetWidth={onResetWidth}
             onResetNavigatorPosition={onResetNavigatorPosition}
             onOpenSettings={onOpenSettings}
+            windowControlsAvailable={windowControlsAvailable}
+            windowControlsOwner={windowControlsOwner}
+            windowControlsInTitlebar={windowControlsInTitlebar}
+            windowControlsExpanded={windowControlsExpanded}
+            onWindowControlsOwnerChange={onWindowControlsOwnerChange}
+            onWindowControlsExpandedChange={onWindowControlsExpandedChange}
           />
           {windowChrome ? <ReaderSwimlaneWindowChrome
             controls={windowChrome.controls}
             expanded={windowChrome.expanded}
-            onExpandedChange={windowChrome.onExpandedChange}
           /> : null}
         </div>
       </header>}
@@ -798,35 +837,47 @@ function ReaderSwimlane({
   )
 }
 
-function ReaderSwimlaneWindowChrome({ controls, expanded, onExpandedChange }: {
+function ReaderSwimlaneWindowChrome({ controls, expanded: pinnedExpanded }: {
   controls: ReactNode
   expanded: boolean
-  onExpandedChange(expanded: boolean): void
 }) {
+  const [hoverExpanded, setHoverExpanded] = useState(false)
+  const expanded = pinnedExpanded || hoverExpanded
   return (
-    <div className="flex h-7 shrink-0 items-stretch" data-reader-swimlane-window-chrome="true" data-reader-window-controls-expanded={expanded ? "true" : "false"}>
-      <button
-        type="button"
-        title={expanded ? "收起窗口控件" : "展开窗口控件"}
-        aria-label={expanded ? "收起窗口控件" : "展开窗口控件"}
-        aria-expanded={expanded}
-        className="grid size-7 place-items-center text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-        onClick={() => onExpandedChange(!expanded)}
-      >
-        {expanded ? <PanelTopClose className="size-3.5" /> : <PanelTopOpen className="size-3.5" />}
-      </button>
-      {expanded ? controls : null}
+    <div
+      className={cn(
+        "relative h-7 shrink-0 overflow-hidden transition-[width] duration-200 ease-out motion-reduce:transition-none",
+        expanded ? "w-24" : "w-8",
+      )}
+      data-reader-swimlane-window-chrome="true"
+      data-reader-window-controls-expanded={expanded ? "true" : "false"}
+      data-reader-window-controls-pinned={pinnedExpanded ? "true" : "false"}
+      onPointerEnter={() => setHoverExpanded(true)}
+      onPointerLeave={() => setHoverExpanded(false)}
+      onFocusCapture={() => setHoverExpanded(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setHoverExpanded(false)
+      }}
+    >
+      <div className={cn(
+        "absolute right-0 top-0 flex h-7 items-stretch",
+        !expanded && "[&_[data-window-caption-button]:not([data-window-control-action='close'])]:hidden",
+      )}>
+        {controls}
+      </div>
     </div>
   )
 }
 
 function resolveWindowChromeOwner(
+  configuredOwnerLaneId: ReaderSwimlaneId | undefined,
   laneOrder: readonly ReaderSwimlaneId[],
   lanes: ReaderWorkspaceConfig["swimlane"]["lanes"],
   soloLaneId: ReaderSwimlaneId | undefined,
   activeLaneId: ReaderSwimlaneId,
 ): ReaderSwimlaneId | undefined {
   if (soloLaneId && soloLaneId === activeLaneId && soloLaneId !== "reader") return soloLaneId
+  if (configuredOwnerLaneId && laneOrder.includes(configuredOwnerLaneId) && lanes[configuredOwnerLaneId]?.collapsed !== true) return configuredOwnerLaneId
   for (let index = laneOrder.length - 1; index >= 0; index--) {
     const laneId = laneOrder[index]
     if (!laneId || lanes[laneId]?.collapsed === true) continue
@@ -850,6 +901,12 @@ function ReaderLaneMoreMenu({
   onResetWidth,
   onResetNavigatorPosition,
   onOpenSettings,
+  windowControlsAvailable,
+  windowControlsOwner,
+  windowControlsInTitlebar,
+  windowControlsExpanded,
+  onWindowControlsOwnerChange,
+  onWindowControlsExpandedChange,
 }: {
   laneId: ReaderSwimlaneId
   label: string
@@ -864,6 +921,12 @@ function ReaderLaneMoreMenu({
   onResetWidth(): void
   onResetNavigatorPosition(): void
   onOpenSettings?(): void
+  windowControlsAvailable: boolean
+  windowControlsOwner: boolean
+  windowControlsInTitlebar: boolean
+  windowControlsExpanded: boolean
+  onWindowControlsOwnerChange(owned: boolean): void
+  onWindowControlsExpandedChange(expanded: boolean): void
 }) {
   const [widthDraft, setWidthDraft] = useState(() => String(Math.round(width)))
 
@@ -890,6 +953,15 @@ function ReaderLaneMoreMenu({
           {solo ? "退出全屏" : "当前泳道全屏"}
         </DropdownMenuItem>
         {laneId === "reader" && onOpenSettings ? <DropdownMenuItem onSelect={onOpenSettings}><Settings2 />打开 NeoView 设置</DropdownMenuItem> : null}
+        {windowControlsAvailable ? <>
+          <DropdownMenuSeparator />
+          <DropdownMenuCheckboxItem checked={windowControlsOwner} onCheckedChange={(checked) => onWindowControlsOwnerChange(checked === true)}>窗口控件归属此泳道</DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem checked={windowControlsInTitlebar} onCheckedChange={(checked) => onWindowControlsOwnerChange(checked !== true)}>使用顶部窗口标题栏</DropdownMenuCheckboxItem>
+          <DropdownMenuItem onSelect={() => onWindowControlsExpandedChange(!windowControlsExpanded)}>
+            {windowControlsExpanded ? <PanelTopClose /> : <PanelTopOpen />}
+            {windowControlsExpanded ? "收起窗口按钮" : "展开窗口按钮"}
+          </DropdownMenuItem>
+        </> : null}
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="grid gap-1.5 font-normal">
           <span className="text-xs text-muted-foreground">常规宽度</span>

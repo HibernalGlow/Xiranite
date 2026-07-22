@@ -127,6 +127,10 @@ describe("commitNeoviewConfig", () => {
           barHandlePosition: "right",
           laneNavigatorPositionX: 83,
           laneNavigatorPositionY: 92,
+          laneNavigatorDock: "window-title",
+          windowControlsPlacement: "titlebar",
+          windowControlsOwnerLaneId: "research",
+          windowControlsExpanded: true,
           lanes: {
             left: { width: 420, collapsed: false, activePanelId: "folder" },
             reader: { width: 1440 },
@@ -155,6 +159,10 @@ describe("commitNeoviewConfig", () => {
     expect(written).toContain('bar_handle_position = "right"')
     expect(written).toContain("lane_navigator_position_x = 83")
     expect(written).toContain("lane_navigator_position_y = 92")
+    expect(written).toContain('lane_navigator_dock = "window-title"')
+    expect(written).toContain('window_controls_placement = "titlebar"')
+    expect(written).toContain('window_controls_owner_lane_id = "research"')
+    expect(written).toContain("window_controls_expanded = true")
     expect(written).toContain('left = { width = 420, collapsed = false, active_panel_id = "folder" }')
     expect(written).toContain("reader = { width = 1440 }")
     expect(written).toContain('research = { width = 460, collapsed = false, title = "资料" }')
@@ -181,6 +189,10 @@ describe("commitNeoviewConfig", () => {
         barHandlePosition: "right",
         laneNavigatorPositionX: 83,
         laneNavigatorPositionY: 92,
+        laneNavigatorDock: "window-title",
+        windowControlsPlacement: "titlebar",
+        windowControlsOwnerLaneId: "research",
+        windowControlsExpanded: true,
         lanes: { research: { width: 460, collapsed: false, title: "资料" } },
       },
     })

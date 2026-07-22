@@ -1034,7 +1034,10 @@ export interface ReaderShellConfigDto {
       barHandlePosition: "left" | "right"
       laneNavigatorPositionX: number
       laneNavigatorPositionY: number
-      laneNavigatorDock: "floating" | "reader-title"
+      laneNavigatorDock: "floating" | "reader-title" | "window-title"
+      windowControlsPlacement?: "lane" | "titlebar"
+      windowControlsOwnerLaneId?: ReaderSwimlaneId
+      windowControlsExpanded?: boolean
       lanes: Record<ReaderSwimlaneId, ReaderSwimlaneLaneDto>
     }
   }
@@ -1749,7 +1752,10 @@ export interface ReaderShellControlPatch {
       barHandlePosition?: "left" | "right"
       laneNavigatorPositionX?: number
       laneNavigatorPositionY?: number
-      laneNavigatorDock?: "floating" | "reader-title"
+      laneNavigatorDock?: "floating" | "reader-title" | "window-title"
+      windowControlsPlacement?: "lane" | "titlebar"
+      windowControlsOwnerLaneId?: ReaderSwimlaneId
+      windowControlsExpanded?: boolean
       lanes?: Partial<Record<ReaderSwimlaneId, Partial<ReaderSwimlaneLaneDto>>>
     }
     material?: ReaderShellMaterialPatch
