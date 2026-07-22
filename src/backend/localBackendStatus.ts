@@ -29,19 +29,40 @@ export async function checkLocalBackendStatus(timeoutMs = DEFAULT_HEALTH_TIMEOUT
   }
 
   try {
-    await withTimeout(
-      createXiraniteSystemClient(config.baseUrl, { token: config.token }).health(),
-      timeoutMs,
-      `Local backend health check timed out after ${timeoutMs}ms`,
-    )
+    await checkHealth(config, timeoutMs)
     return { status: "ready", runtime, config }
   } catch (error) {
-    return {
-      status: "unreachable",
-      runtime,
-      config,
-      error: error instanceof Error ? error.message : String(error),
+    const refreshedConfig = await hydrateLocalBackendConfig({ refresh: true })
+    if (refreshedConfig && !sameConfig(config, refreshedConfig)) {
+      try {
+        await checkHealth(refreshedConfig, timeoutMs)
+        return { status: "ready", runtime, config: refreshedConfig }
+      } catch (refreshError) {
+        return unreachable(runtime, refreshedConfig, refreshError)
+      }
     }
+    return unreachable(runtime, config, error)
+  }
+}
+
+async function checkHealth(config: LocalBackendConfig, timeoutMs: number): Promise<void> {
+  await withTimeout(
+    createXiraniteSystemClient(config.baseUrl, { token: config.token }).health(),
+    timeoutMs,
+    `Local backend health check timed out after ${timeoutMs}ms`,
+  )
+}
+
+function sameConfig(left: LocalBackendConfig, right: LocalBackendConfig): boolean {
+  return left.baseUrl === right.baseUrl && left.token === right.token
+}
+
+function unreachable(runtime: RuntimeConnectionInfo, config: LocalBackendConfig, error: unknown): LocalBackendStatus {
+  return {
+    status: "unreachable",
+    runtime,
+    config,
+    error: error instanceof Error ? error.message : String(error),
   }
 }
 

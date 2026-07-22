@@ -13,7 +13,6 @@ declare global {
 }
 
 const PKG = "main.XiraniteService"
-const DEV_BACKEND_MANIFEST_URL = "/.well-known/xiranite/backend.json"
 const CONFIG_HYDRATE_TIMEOUT_MS = 1_500
 
 let hydrateWarningLogged = false
@@ -41,8 +40,14 @@ export function setLocalBackendConfig(config: Partial<LocalBackendConfig> | null
   return normalizedConfig
 }
 
-export async function hydrateLocalBackendConfig(): Promise<LocalBackendConfig | undefined> {
+export async function hydrateLocalBackendConfig(options: { refresh?: boolean } = {}): Promise<LocalBackendConfig | undefined> {
   if (typeof window === "undefined") return undefined
+
+  const existingConfig = normalizeLocalBackendConfig(window.__XIRANITE_BACKEND__)
+  // Status polling must not reread a manifest while a known endpoint is
+  // healthy. A transient Vite file read used to replace this endpoint with a
+  // stale manifest from another development session.
+  if (existingConfig && !options.refresh) return existingConfig
 
   const manifestConfig = await loadDevBackendManifest()
   if (manifestConfig) {
@@ -50,7 +55,6 @@ export async function hydrateLocalBackendConfig(): Promise<LocalBackendConfig | 
     return manifestConfig
   }
 
-  const existingConfig = normalizeLocalBackendConfig(window.__XIRANITE_BACKEND__)
   if (existingConfig) return existingConfig
 
   return await hydrateLocalBackendConfigFromDenoDesktop()
@@ -101,20 +105,17 @@ async function loadDevBackendManifest(): Promise<LocalBackendConfig | undefined>
   if (!import.meta.env.DEV) return undefined
 
   const port = window.location.port || (window.location.protocol === "https:" ? "443" : "80")
-  const urls = [`/.well-known/xiranite/backend-${port}.json`, DEV_BACKEND_MANIFEST_URL]
-  for (const url of urls) {
-    try {
-      const response = await withTimeout(
-        fetch(`${url}?t=${Date.now()}`, { cache: "no-store" }),
-        CONFIG_HYDRATE_TIMEOUT_MS,
-        `Timed out reading dev backend manifest after ${CONFIG_HYDRATE_TIMEOUT_MS}ms`,
-      )
-      if (!response.ok) continue
-      const config = normalizeLocalBackendConfig(await response.json() as Partial<LocalBackendConfig>)
-      if (config) return config
-    } catch (error) {
-      warnHydrateFailure(error)
-    }
+  const url = `/.well-known/xiranite/backend-${port}.json`
+  try {
+    const response = await withTimeout(
+      fetch(`${url}?t=${Date.now()}`, { cache: "no-store" }),
+      CONFIG_HYDRATE_TIMEOUT_MS,
+      `Timed out reading dev backend manifest after ${CONFIG_HYDRATE_TIMEOUT_MS}ms`,
+    )
+    if (!response.ok) return undefined
+    return normalizeLocalBackendConfig(await response.json() as Partial<LocalBackendConfig>)
+  } catch (error) {
+    warnHydrateFailure(error)
   }
   return undefined
 }
