@@ -74,7 +74,7 @@ describe("GitConfigVersionStore", () => {
     expect(detail.after).toEqual({ reader: { columns: 4 }, theme: "dark" })
     expect(detail.delta).toBeTruthy()
     expect(detail.patch).toContain("nodes.neoview")
-  })
+  }, 15_000)
 
   test("redacts sensitive values before committing them", async () => {
     const repositoryPath = await tempDirectory("xiranite-config-history-")

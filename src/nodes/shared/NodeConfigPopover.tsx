@@ -522,7 +522,7 @@ function PanelMessage({ children }: { children: React.ReactNode }) {
   return <div className="grid min-h-48 place-items-center rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">{children}</div>
 }
 
-function createBackendAdapters(nodeId: string, onReload: () => Promise<void> | void) {
+export function createBackendAdapters(nodeId: string, onReload: () => Promise<void> | void) {
   return {
     history: {
       list: (options?: { limit?: number }) => getNodeConfigVersionsFromBackend(nodeId, options),
