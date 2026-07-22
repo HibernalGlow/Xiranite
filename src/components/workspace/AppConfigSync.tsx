@@ -11,6 +11,7 @@ import { DEFAULT_MODULE_MAGIC_CARD_APPEARANCE, type ModuleMagicCardAppearance } 
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import type { OverlayFloatingMetrics, WorkspaceUiPreferences } from "@/store/workspace/types"
 import type { AppCustomTheme, AppFontPreset, AppTheme, CardLayout } from "@/types/workspace"
+import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 
 const APP_UI_SECTION = "ui"
 const APP_UI_CONFIG_VERSION = 2
@@ -105,9 +106,10 @@ export function AppConfigSync() {
 
     async function loadAppConfig() {
       try {
-        await loadMelodeckConfig()
+        startupDebug("config:app-ui:load:begin")
+        await startupDebugAsync("config:melodeck-migration", loadMelodeckConfig)
         if (cancelled) return
-        const response = await getAppConfigFromBackend<AppUiConfig>(APP_UI_SECTION)
+        const response = await startupDebugAsync("config:app-ui:request", () => getAppConfigFromBackend<AppUiConfig>(APP_UI_SECTION))
         if (cancelled) return
 
         const normalizedResponse = normalizeAppUiConfig(response.config)
@@ -129,11 +131,13 @@ export function AppConfigSync() {
           await saveAppConfigToBackend(APP_UI_SECTION, migrated)
           if (cancelled) return
           applyingRef.current = true
+          startupDebug("config:app-ui:apply-migrated:begin")
           applyAppUiConfig(
             migrated,
             syncActionsRef.current.workspaceActions,
             syncActionsRef.current.setTheme,
           )
+          startupDebug("config:app-ui:apply-migrated:end")
           migratedFromRef.current = migrated.migratedFrom
           lastSavedKeyRef.current = stableStringify(migrated)
           loadedRef.current = true
@@ -157,11 +161,13 @@ export function AppConfigSync() {
           if (cancelled) return
         }
         applyingRef.current = true
+        startupDebug("config:app-ui:apply-existing:begin")
         applyAppUiConfig(
           existing,
           syncActionsRef.current.workspaceActions,
           syncActionsRef.current.setTheme,
         )
+        startupDebug("config:app-ui:apply-existing:end")
         lastSavedKeyRef.current = stableStringify(buildAppUiConfig(
           {
             ...currentRef.current.workspace,
@@ -173,6 +179,7 @@ export function AppConfigSync() {
           migratedFromRef.current,
         ))
         loadedRef.current = true
+        startupDebug("config:app-ui:load:end")
         queueMicrotask(() => {
           applyingRef.current = false
         })
@@ -199,13 +206,15 @@ export function AppConfigSync() {
 
     async function loadCustomThemes() {
       try {
-        const response = await getCustomThemesFromBackend<AppCustomTheme>()
+        startupDebug("config:themes:load:begin")
+        const response = await startupDebugAsync("config:themes:request", () => getCustomThemesFromBackend<AppCustomTheme>())
         if (cancelled) return
         const themes = Array.isArray(response.themes) ? response.themes.filter(isCustomTheme) : []
         themesApplyingRef.current = true
         syncActionsRef.current.workspaceActions.setCustomThemes(themes)
         lastSavedThemesKeyRef.current = stableStringify(themes)
         themesLoadedRef.current = true
+        startupDebug("config:themes:load:end", { count: themes.length })
         queueMicrotask(() => {
           themesApplyingRef.current = false
         })
@@ -261,7 +270,8 @@ export function AppConfigSync() {
 
     async function loadBgImage() {
       try {
-        const response = await getBackgroundImageFromBackend()
+        startupDebug("config:bg-image:load:begin")
+        const response = await startupDebugAsync("config:bg-image:request", getBackgroundImageFromBackend)
         if (cancelled) return
         if (typeof response.url === "string" && response.url) {
           bgImageApplyingRef.current = true
@@ -272,6 +282,7 @@ export function AppConfigSync() {
           })
         }
         bgImageLoadedRef.current = true
+        startupDebug("config:bg-image:load:end", { hasImage: Boolean(response.url) })
       } catch (error) {
         console.warn("[config] bg-image sync failed:", error)
       }

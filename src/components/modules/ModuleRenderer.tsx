@@ -17,6 +17,7 @@ import { useNodeHostApi } from "./hostApi"
 import { NodeRenderBoundary } from "./NodeRenderBoundary"
 import { packageModuleLoaders } from "./packageModules.generated"
 import { LocalFilesProvider } from "@/nodes/shared/useLocalFileDrop"
+import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 
 type PackageModuleEntry = AppNodeEntry | HeadlessNodePackage
 type PackageModuleLoader = () => Promise<{ default: PackageModuleEntry }>
@@ -92,9 +93,12 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
       setEntry(null)
       return
     }
-    loader()
+    startupDebugAsync(`node-entry:${moduleId}`, loader)
       .then((mod) => {
-        if (!cancelled) setEntry(mod.default)
+        if (!cancelled) {
+          startupDebug(`node-entry:${moduleId}:commit`)
+          setEntry(mod.default)
+        }
       })
       .catch((error) => {
         console.error(`[module-renderer] failed to load entry for ${moduleId}`, error)

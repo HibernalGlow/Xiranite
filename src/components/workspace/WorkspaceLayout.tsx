@@ -9,12 +9,13 @@ import { cn } from "@/lib/utils"
 // lazy provider with children-as-Suspense-fallback would render those consumers without
 // context. Panel stays lazy; MusicPlayerSurface is already code-split inside Melodeck.
 import { WorkspaceMelodeckProvider } from "./WorkspaceMelodeck"
+import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 
 // Keep default cards view and secondary chrome out of the first WorkspaceLayout
 // transform. View-mode lazy loading already existed for dock/flow/lane/bento;
 // cards/Melodeck/overlays were still eager and dominated first-open cost.
-const CardView = lazy(() => import("./CardView").then((module) => ({ default: module.CardView })))
-const OverlayHost = lazy(() => import("./OverlayHost").then((module) => ({ default: module.OverlayHost })))
+const CardView = lazy(() => startupDebugAsync("lazy:card-view", () => import("./CardView")).then((module) => ({ default: module.CardView })))
+const OverlayHost = lazy(() => startupDebugAsync("lazy:overlay-host", () => import("./OverlayHost")).then((module) => ({ default: module.OverlayHost })))
 const SelectionToolbar = lazy(() => import("./SelectionToolbar").then((module) => ({ default: module.SelectionToolbar })))
 const AlphabetNodeRail = lazy(() => import("./AlphabetNodeRail").then((module) => ({ default: module.AlphabetNodeRail })))
 const WorkspaceMelodeckPanel = lazy(() =>
@@ -43,6 +44,8 @@ export function WorkspaceLayout() {
   const themeClass = chrome.activeCustomThemeName ? "" : chrome.theme === "endfield" ? "theme-endfield" : chrome.theme === "wuling" ? "theme-wuling" : ""
   const bgClass = `theme-bg-${chrome.bgMode || "dot-grid"}`
   const bgCoverClass = chrome.bgMode === "image" && chrome.bgCoverTopBar ? "theme-bg-cover-topbar" : ""
+
+  startupDebug("react:workspace-layout-render", { viewMode: chrome.viewMode })
 
   const bgStyles = {
     "--ws-bg-image-url": chrome.bgImageUrl ? `url(${JSON.stringify(toBackgroundImageCssUrl(chrome.bgImageUrl))})` : "none",

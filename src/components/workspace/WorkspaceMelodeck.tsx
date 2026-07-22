@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { cn } from "@/lib/utils"
+import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import {
   DEFAULT_MELODECK_CONFIG,
   loadMelodeckConfig,
@@ -104,14 +105,16 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
 
     const refreshMelodeckConfig = () => {
       applyingConfigRef.current = true
-      loadMelodeckConfig().then((config) => {
+      startupDebugAsync("melodeck:provider:config-load", loadMelodeckConfig).then((config) => {
         if (cancelled) return
+        startupDebug("melodeck:provider:apply:begin", { savedTracks: config.saved_tracks?.length ?? 0 })
         setMode(config.mode ?? DEFAULT_MELODECK_CONFIG.mode)
         setSavedTracks(config.saved_tracks ?? [])
         setSourcePath(config.source_path ?? "")
         setFloatingOffset(clampFloatingOffset(config.floating_offset ?? DEFAULT_MELODECK_CONFIG.floating_offset))
         setVisualizerStyle(config.visualizer_style ?? DEFAULT_MELODECK_CONFIG.visualizer_style)
         setConfigLoaded(true)
+        startupDebug("melodeck:provider:apply:end")
         queueMicrotask(() => {
           applyingConfigRef.current = false
         })
@@ -132,13 +135,14 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
   useEffect(() => {
     if (!backendKey || !configLoaded || applyingConfigRef.current) return
     const timer = window.setTimeout(() => {
-      saveMelodeckConfig({
+      startupDebug("melodeck:provider:config-save:begin")
+      startupDebugAsync("melodeck:provider:config-save", () => saveMelodeckConfig({
         mode,
         saved_tracks: savedTracks,
         source_path: sourcePath,
         floating_offset: floatingOffset,
         visualizer_style: visualizerStyle,
-      }).catch((error) => {
+      }, { broadcast: false })).catch((error) => {
         console.warn("[melodeck] config save failed:", error)
       })
     }, 400)
