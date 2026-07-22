@@ -1,10 +1,14 @@
-import { lazy, Suspense, type ReactNode } from "react"
+import { lazy, Suspense } from "react"
 import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { TopBar } from "./TopBar"
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
 import { toBackgroundImageCssUrl } from "@/lib/backgroundImage"
 import { cn } from "@/lib/utils"
+// Provider must be eager: TopBar mounts WorkspaceMelodeckTopBarSlot immediately, and a
+// lazy provider with children-as-Suspense-fallback would render those consumers without
+// context. Panel stays lazy; MusicPlayerSurface is already code-split inside Melodeck.
+import { WorkspaceMelodeckProvider } from "./WorkspaceMelodeck"
 
 // Keep default cards view and secondary chrome out of the first WorkspaceLayout
 // transform. View-mode lazy loading already existed for dock/flow/lane/bento;
@@ -13,9 +17,6 @@ const CardView = lazy(() => import("./CardView").then((module) => ({ default: mo
 const OverlayHost = lazy(() => import("./OverlayHost").then((module) => ({ default: module.OverlayHost })))
 const SelectionToolbar = lazy(() => import("./SelectionToolbar").then((module) => ({ default: module.SelectionToolbar })))
 const AlphabetNodeRail = lazy(() => import("./AlphabetNodeRail").then((module) => ({ default: module.AlphabetNodeRail })))
-const WorkspaceMelodeckProvider = lazy(() =>
-  import("./WorkspaceMelodeck").then((module) => ({ default: module.WorkspaceMelodeckProvider })),
-)
 const WorkspaceMelodeckPanel = lazy(() =>
   import("./WorkspaceMelodeck").then((module) => ({ default: module.WorkspaceMelodeckPanel })),
 )
@@ -27,14 +28,6 @@ const FlowView = lazy(() => import("./FlowView").then((module) => ({ default: mo
 const LaneView = lazy(() => import("./lane/LaneView").then((module) => ({ default: module.LaneView })))
 const BentoView = lazy(() => import("./BentoView").then((module) => ({ default: module.BentoView })))
 const UsageDashboard = lazy(() => import("@/components/views/UsageDashboard").then((module) => ({ default: module.UsageDashboard })))
-
-function MelodeckShell({ children }: { children: ReactNode }) {
-  return (
-    <Suspense fallback={<>{children}</>}>
-      <WorkspaceMelodeckProvider>{children}</WorkspaceMelodeckProvider>
-    </Suspense>
-  )
-}
 
 export function WorkspaceLayout() {
   const chrome = useWorkspaceShallowSelector((state) => ({
@@ -65,7 +58,7 @@ export function WorkspaceLayout() {
       <Suspense fallback={null}>
         <DefaultContextMenuItems />
       </Suspense>
-      <MelodeckShell>
+      <WorkspaceMelodeckProvider>
         <WorkspaceUrlState />
         <TopBar />
         <BackendStatusBanner />
@@ -92,7 +85,7 @@ export function WorkspaceLayout() {
             <WorkspaceMelodeckPanel />
           </Suspense>
         </main>
-      </MelodeckShell>
+      </WorkspaceMelodeckProvider>
     </div>
   )
 }
