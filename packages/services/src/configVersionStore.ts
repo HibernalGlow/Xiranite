@@ -1,13 +1,20 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { mkdir } from "node:fs/promises"
 import { join } from "node:path"
-import { getNodeConfig, parseToml, stringifyXiraniteConfig, type XiraniteConfig } from "@xiranite/config"
+import { getNodeConfig, parseToml, saveXiraniteConfig, stringifyXiraniteConfig, type XiraniteConfig } from "@xiranite/config"
 import { create, type Delta } from "jsondiffpatch"
 import PQueue from "p-queue"
+import { lock } from "proper-lockfile"
 import { simpleGit, type SimpleGit } from "simple-git"
 
 const SNAPSHOT_FILENAME = "xiranite.config.toml"
 const REDACTED = "[REDACTED]"
 const SENSITIVE_KEY = /(?:^|_)(?:api_?key|auth|credential|password|private_?key|secret|token)(?:$|_)/i
+const NEOVIEW_VOLATILE_HISTORY_PATHS = [
+  ["panels", "swimlane", "active_lane"],
+  ["panels", "swimlane", "solo_lane"],
+  ["panels", "swimlane", "reader_solo"],
+  ["panels", "swimlane", "*", "active_panel_id"],
+] as const
 
 export interface ConfigVersionRecordInput {
   nodeId: string
@@ -75,38 +82,41 @@ export class GitConfigVersionStore implements ConfigVersionStore {
 
   record(input: ConfigVersionRecordInput): Promise<ConfigVersion | null> {
     return this.queue.add(async () => {
-      await this.ensureRepository()
-      const before = sanitizeConfig(input.before)
-      const after = sanitizeConfig(input.after)
-      const beforeText = stringifyXiraniteConfig(before as Record<string, unknown>)
-      const afterText = stringifyXiraniteConfig(after as Record<string, unknown>)
+      await mkdir(this.repositoryPath, { recursive: true })
+      return this.withRepositoryWriteLock(async () => {
+        await this.ensureRepository()
+        const before = sanitizeConfig(input.before)
+        const after = sanitizeConfig(input.after)
+        const beforeText = stringifyXiraniteConfig(before as Record<string, unknown>)
+        const afterText = stringifyXiraniteConfig(after as Record<string, unknown>)
 
-      await this.ensureBaseline(beforeText)
-      if (!input.force && beforeText === afterText) return null
+        await this.ensureBaseline(beforeText)
+        if (!input.force && beforeText === afterText) return null
 
-      await writeFile(this.snapshotPath(), afterText, "utf8")
-      const fields = input.fields ?? changedTopLevelFields(
-        getNodeConfig(before, input.nodeId),
-        getNodeConfig(after, input.nodeId),
-      )
-      const message = input.message ?? `config(${input.nodeId}): update settings`
-      const commit = await this.git.commit(
-        commitMessage(message, input.nodeId, input.source, fields),
-        input.force ? { "--allow-empty": null } : { "--all": null },
-      )
-      this.commitsSinceMaintenance += 1
-      if (this.commitsSinceMaintenance >= 32) {
-        await this.git.raw(["gc", "--auto"])
-        this.commitsSinceMaintenance = 0
-      }
-      return {
-        revision: commit.commit,
-        nodeId: input.nodeId,
-        source: input.source,
-        message,
-        createdAt: new Date().toISOString(),
-        fields,
-      }
+        await this.writeSnapshot(after)
+        const fields = input.fields ?? changedTopLevelFields(
+          getNodeConfig(before, input.nodeId),
+          getNodeConfig(after, input.nodeId),
+        )
+        const message = input.message ?? `config(${input.nodeId}): update settings`
+        const commit = await this.git.commit(
+          commitMessage(message, input.nodeId, input.source, fields),
+          input.force ? { "--allow-empty": null } : { "--all": null },
+        )
+        this.commitsSinceMaintenance += 1
+        if (this.commitsSinceMaintenance >= 32) {
+          await this.git.raw(["gc", "--auto"])
+          this.commitsSinceMaintenance = 0
+        }
+        return {
+          revision: commit.commit,
+          nodeId: input.nodeId,
+          source: input.source,
+          message,
+          createdAt: new Date().toISOString(),
+          fields,
+        }
+      })
     })
   }
 
@@ -162,31 +172,37 @@ export class GitConfigVersionStore implements ConfigVersionStore {
 
   setRemote(url: string | null): Promise<ConfigHistoryRepositoryStatus> {
     return this.queue.add(async () => {
-      await this.ensureRepository()
-      const remotes = await this.git.getRemotes(true)
-      const origin = remotes.find((remote) => remote.name === "origin")
-      if (!url) {
-        if (origin) await this.git.removeRemote("origin")
-      } else if (origin) {
-        await this.git.remote(["set-url", "origin", url])
-      } else {
-        await this.git.addRemote("origin", url)
-      }
-      return this.readRepositoryStatus()
+      await mkdir(this.repositoryPath, { recursive: true })
+      return this.withRepositoryWriteLock(async () => {
+        await this.ensureRepository()
+        const remotes = await this.git.getRemotes(true)
+        const origin = remotes.find((remote) => remote.name === "origin")
+        if (!url) {
+          if (origin) await this.git.removeRemote("origin")
+        } else if (origin) {
+          await this.git.remote(["set-url", "origin", url])
+        } else {
+          await this.git.addRemote("origin", url)
+        }
+        return this.readRepositoryStatus()
+      })
     })
   }
 
   sync(direction: "pull" | "push"): Promise<ConfigHistoryRepositoryStatus> {
     return this.queue.add(async () => {
-      await this.ensureRepository()
-      const status = await this.readRepositoryStatus()
-      if (!status.remoteUrl) throw new Error("Config history remote is not configured")
-      if (direction === "pull") {
-        await this.git.pull("origin", status.branch, { "--rebase": "true" })
-      } else {
-        await this.git.push("origin", status.branch, { "--set-upstream": null })
-      }
-      return this.readRepositoryStatus()
+      await mkdir(this.repositoryPath, { recursive: true })
+      return this.withRepositoryWriteLock(async () => {
+        await this.ensureRepository()
+        const status = await this.readRepositoryStatus()
+        if (!status.remoteUrl) throw new Error("Config history remote is not configured")
+        if (direction === "pull") {
+          await this.git.pull("origin", status.branch, { "--rebase": "true" })
+        } else {
+          await this.git.push("origin", status.branch, { "--set-upstream": null })
+        }
+        return this.readRepositoryStatus()
+      })
     })
   }
 
@@ -207,13 +223,35 @@ export class GitConfigVersionStore implements ConfigVersionStore {
   }
 
   private async ensureBaseline(content: string): Promise<void> {
-    if (await this.hasHead()) {
-      const tracked = await readFile(this.snapshotPath(), "utf8").catch(() => "")
-      if (tracked === content) return
-    }
-    await writeFile(this.snapshotPath(), content, "utf8")
+    if (await this.hasHead()) return
+    await this.writeSnapshot(parseSnapshot(content))
     await this.git.add(SNAPSHOT_FILENAME)
     await this.git.commit(commitMessage("config: record baseline", "__baseline__", "baseline", []))
+  }
+
+  private writeSnapshot(config: XiraniteConfig): Promise<string> {
+    return saveXiraniteConfig(config, { configPath: this.snapshotPath() })
+  }
+
+  private async withRepositoryWriteLock<Result>(operation: () => Promise<Result>): Promise<Result> {
+    const release = await lock(this.repositoryPath, {
+      lockfilePath: join(this.repositoryPath, ".history-write.lock"),
+      realpath: false,
+      stale: 30_000,
+      update: 10_000,
+      retries: {
+        retries: 50,
+        factor: 1.2,
+        minTimeout: 20,
+        maxTimeout: 250,
+        randomize: true,
+      },
+    })
+    try {
+      return await operation()
+    } finally {
+      await release()
+    }
   }
 
   private async hasHead(): Promise<boolean> {
@@ -248,14 +286,69 @@ export function mergeRedactedValues(historical: unknown, current: unknown): unkn
   return historical
 }
 
+export function mergeConfigHistoryPreservedValues(nodeId: string, historical: unknown, current: unknown): unknown {
+  if (nodeId !== "neoview") return historical
+  let result = cloneValue(historical)
+  for (const path of NEOVIEW_VOLATILE_HISTORY_PATHS) {
+    result = overlayPath(result, current, path)
+  }
+  return result
+}
+
 function sanitizeConfig(value: XiraniteConfig): XiraniteConfig {
-  return redactValue(value) as XiraniteConfig
+  const sanitized = redactValue(value) as XiraniteConfig
+  const neoview = getNodeConfig(sanitized, "neoview")
+  if (!isRecord(neoview)) return sanitized
+  for (const path of NEOVIEW_VOLATILE_HISTORY_PATHS) deletePath(neoview, path)
+  return sanitized
 }
 
 function redactValue(value: unknown, key = ""): unknown {
   if (SENSITIVE_KEY.test(key)) return REDACTED
   if (Array.isArray(value)) return value.map((item) => redactValue(item))
   if (isRecord(value)) return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, redactValue(child, childKey)]))
+  return value
+}
+
+function deletePath(value: unknown, path: readonly string[], index = 0): void {
+  if (!isRecord(value)) return
+  const key = path[index]
+  if (!key) return
+  if (key === "*") {
+    for (const child of Object.values(value)) deletePath(child, path, index + 1)
+    return
+  }
+  if (index === path.length - 1) {
+    delete value[key]
+    return
+  }
+  deletePath(value[key], path, index + 1)
+}
+
+function overlayPath(target: unknown, source: unknown, path: readonly string[], index = 0): unknown {
+  if (!isRecord(source)) return target
+  const key = path[index]
+  if (!key) return target
+  const result = isRecord(target) ? { ...target } : {}
+  if (key === "*") {
+    for (const [childKey, child] of Object.entries(source)) {
+      const overlaid = overlayPath(result[childKey], child, path, index + 1)
+      if (overlaid !== undefined) result[childKey] = overlaid
+    }
+    return result
+  }
+  if (!Object.hasOwn(source, key)) return target
+  if (index === path.length - 1) {
+    result[key] = cloneValue(source[key])
+    return result
+  }
+  result[key] = overlayPath(result[key], source[key], path, index + 1)
+  return result
+}
+
+function cloneValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(cloneValue)
+  if (isRecord(value)) return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, cloneValue(child)]))
   return value
 }
 

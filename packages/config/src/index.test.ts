@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest"
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { randomUUID } from "node:crypto"
 import { tmpdir } from "node:os"
@@ -17,6 +17,8 @@ import {
   saveXiraniteConfig,
   stripBom,
   updateAppConfig,
+  updateNodeConfigFile,
+  updateXiraniteConfig,
   updateWebview2Config,
   updateNodeConfig,
   XIRANITE_CONFIG_FILENAME,
@@ -232,6 +234,60 @@ describe("saveXiraniteConfig", () => {
       schema_version: 1,
       reader: { reading_direction: "right-to-left", subtitle: { font_size: 24, color: "#fff" } },
     })
+  })
+
+  test("serializes concurrent patch transactions without losing unrelated nodes", async () => {
+    const dir = join(RUN_ROOT, "concurrent-update-test")
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+
+    await Promise.all(Array.from({ length: 16 }, (_, index) => updateXiraniteConfig(async (config) => {
+      await new Promise((resolve) => setTimeout(resolve, index % 3))
+      return updateNodeConfig(config, `writer-${index}`, { value: index })
+    }, { configPath: path })))
+
+    const { config } = await loadXiraniteConfig({ configPath: path })
+    expect(config.nodes).toEqual(Object.fromEntries(
+      Array.from({ length: 16 }, (_, index) => [`writer-${index}`, { value: index }]),
+    ))
+    expect((await readdir(dir)).filter((name) => name.includes(".xr-write.lock"))).toEqual([])
+  })
+
+  test("uses one lock for direct and symlinked paths to the same config", async () => {
+    const dir = join(RUN_ROOT, "symlink-update-test")
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    const alias = join(dir, "config-alias.toml")
+    await saveXiraniteConfig({ nodes: { seed: { value: true } } }, { configPath: path })
+    await symlink(path, alias, "file")
+
+    await Promise.all(Array.from({ length: 16 }, (_, index) => updateNodeConfigFile(
+      `writer-${index}`,
+      { value: index },
+      { configPath: index % 2 === 0 ? path : alias },
+    )))
+
+    const { config } = await loadXiraniteConfig({ configPath: path })
+    expect(config.nodes).toEqual({
+      seed: { value: true },
+      ...Object.fromEntries(Array.from({ length: 16 }, (_, index) => [`writer-${index}`, { value: index }])),
+    })
+    expect((await lstat(alias)).isSymbolicLink()).toBe(true)
+    expect((await readdir(dir)).filter((name) => name.includes(".xr-write.lock"))).toEqual([])
+  })
+
+  test("validates a transaction before replacing the existing file", async () => {
+    const dir = join(RUN_ROOT, "failed-update-test")
+    cases.add(dir)
+    const path = join(dir, XIRANITE_CONFIG_FILENAME)
+    const original = "[nodes.keep]\nenabled = true\n"
+    await mkdir(dir, { recursive: true })
+    await writeFile(path, original, "utf8")
+
+    await expect(updateXiraniteConfig(() => ({ webview2: { features: "invalid", switches: [] } } as never), {
+      configPath: path,
+    })).rejects.toThrow()
+    expect(await readFile(path, "utf8")).toBe(original)
   })
 })
 

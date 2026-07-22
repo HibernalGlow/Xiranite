@@ -27,7 +27,7 @@ import {
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, pathExists, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, pathExists, updateNodeConfigFile } from "@xiranite/config"
 
 import type { FindzAction, FindzData, FindzInput, FindzOutputFormat, FindzResult } from "./core.js"
 import { runFindz } from "./core.js"
@@ -195,7 +195,7 @@ async function legacyRunProgram(args = process.argv.slice(2), host: CliHost = cr
 }
 
 export async function runProgram(args=process.argv.slice(2),host:CliHost=createDefaultHost()):Promise<void>{await runInteractionCli({args,host,cliName:CLI_NAME,loadContext:async()=>{const{config}=await loadNodeConfigWithHints<FindzNodeConfig>("findz",{env:host.env,cwd:host.cwd,hintSink:{stderr:host.stderr},jsonMode:true});return{preferences:resolveInteractionPreferences(config),value:config??{}}},createDefinition:(d,language)=>({schema:createFindzInteractionSchema({paths:d.defaults?.paths?.join("\n")??d.defaults?.path,where:d.defaults?.where,noArchive:d.defaults?.noArchive,followSymlinks:d.defaults?.followSymlinks,withImageMeta:d.defaults?.imageMeta,maxResults:d.defaults?.maxResults,maxReturnFiles:d.defaults?.maxReturnFiles,groupBy:d.defaults?.groupBy,refine:d.defaults?.refine,sortBy:d.defaults?.sortBy,sortDesc:d.defaults?.sortDesc,outputFormat:d.output?.format,outputPath:d.output?.directory},language),run:(input,event)=>runFindz(input,createNodeFindzRuntime(),event)}),runPipe:(pipeArgs,pipeHost)=>pipeArgs.length?runMain(createProgram(pipeHost),{rawArgs:pipeArgs}):Promise.resolve(writeLine(pipeHost,`${CLI_NAME} ui | gd | search | archives-only | nested | refine | help-filter`)),runGuide:runGuidedInteraction,runUi:runTerminalUi,loadScreen:async()=>(await import("./Tui.js")).FindzTui,createPreferences:(_d,current)=>findzPreferences(host,current),reexecEntrypoint:process.argv[1],help})}
-function findzPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"findz",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"findz",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<FindzNodeConfig>("findz",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
+function findzPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"findz",current,async save(v){await updateNodeConfigFile("findz", {cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}, o)},async restore(){const{config}=await loadNodeConfigWithHints<FindzNodeConfig>("findz",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 function createDefaultHost(): CliHost {
   return {

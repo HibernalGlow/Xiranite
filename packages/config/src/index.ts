@@ -1,11 +1,14 @@
-import { readFile, writeFile, mkdir, access } from "node:fs/promises"
-import { dirname, join, resolve } from "node:path"
+import { readFile, mkdir, access, realpath } from "node:fs/promises"
+import { basename, dirname, join, resolve } from "node:path"
 import { homedir, platform as osPlatform } from "node:os"
+import { lock } from "proper-lockfile"
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
+import writeFileAtomic from "write-file-atomic"
 import { z } from "zod"
 import { stringifyXiraniteConfig } from "./xiraniteToml.js"
 
 export const XIRANITE_CONFIG_FILENAME = "xiranite.config.toml"
+export const XIRANITE_CONFIG_LOCK_SUFFIX = ".xr-write.lock"
 
 export interface Webview2Config {
   features: string[]
@@ -116,6 +119,33 @@ export interface LoadConfigOptions extends ResolveConfigPathOptions {
   allowMissing?: boolean
 }
 
+export interface XiraniteConfigWriteOptions extends ResolveConfigPathOptions {
+  lockRetries?: number
+}
+
+export interface UpdateXiraniteConfigOptions extends XiraniteConfigWriteOptions {
+  beforeWrite?: (context: {
+    before: XiraniteConfig
+    beforeText: string | undefined
+    config: XiraniteConfig
+    content: string
+    path: string
+  }) => Promise<void>
+}
+
+export interface UpdateXiraniteConfigResult {
+  before: XiraniteConfig
+  beforeText: string | undefined
+  changed: boolean
+  config: XiraniteConfig
+  path: string
+}
+
+export interface UpdateNodeConfigFileResult<NodeConfig = unknown> {
+  config: NodeConfig | undefined
+  path: string
+}
+
 export async function loadXiraniteConfig(options: LoadConfigOptions = {}): Promise<{ config: XiraniteConfig; path: string }> {
   const path = resolveXiraniteConfigPath(options)
   let content: string
@@ -134,12 +164,165 @@ export async function loadXiraniteConfig(options: LoadConfigOptions = {}): Promi
   return { config, path }
 }
 
-export async function saveXiraniteConfig(config: XiraniteConfig, options: ResolveConfigPathOptions = {}): Promise<string> {
+/**
+ * Atomically replaces the complete config. Callers changing one section must
+ * use updateXiraniteConfig or updateNodeConfigFile to avoid stale snapshots.
+ */
+export async function saveXiraniteConfig(config: XiraniteConfig, options: XiraniteConfigWriteOptions = {}): Promise<string> {
   const path = resolveXiraniteConfigPath(options)
-  const content = stringifyXiraniteConfig(config as Record<string, unknown>)
   await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, content, "utf8")
+  const targetPath = await canonicalWritablePath(path)
+  await withXiraniteConfigWriteLock(targetPath, options.lockRetries, async (assertLockHeld) => {
+    assertLockHeld()
+    await writeFileAtomic(targetPath, serializeValidatedConfig(config), { encoding: "utf8", fsync: true })
+    assertLockHeld()
+  })
   return path
+}
+
+export async function saveXiraniteConfigText(
+  content: string,
+  options: XiraniteConfigWriteOptions = {},
+): Promise<string> {
+  const path = resolveXiraniteConfigPath(options)
+  xiraniteConfigSchema.parse(parseToml(stripBom(content)))
+  await mkdir(dirname(path), { recursive: true })
+  const targetPath = await canonicalWritablePath(path)
+  await withXiraniteConfigWriteLock(targetPath, options.lockRetries, async (assertLockHeld) => {
+    assertLockHeld()
+    await writeFileAtomic(targetPath, content, { encoding: "utf8", fsync: true })
+    assertLockHeld()
+  })
+  return path
+}
+
+/**
+ * Runs a complete read-modify-write transaction under the shared cross-process
+ * config lock. Patch callers must use this instead of saving a stale snapshot.
+ */
+export async function updateXiraniteConfig(
+  updater: (config: XiraniteConfig) => XiraniteConfig | Promise<XiraniteConfig>,
+  options: UpdateXiraniteConfigOptions = {},
+): Promise<UpdateXiraniteConfigResult> {
+  const path = resolveXiraniteConfigPath(options)
+  await mkdir(dirname(path), { recursive: true })
+  const targetPath = await canonicalWritablePath(path)
+  return withXiraniteConfigWriteLock(targetPath, options.lockRetries, async (assertLockHeld) => {
+    const beforeText = await readOptionalConfigText(targetPath)
+    const loaded = beforeText === undefined
+      ? {}
+      : xiraniteConfigSchema.parse(parseToml(stripBom(beforeText)))
+    const before = structuredClone(loaded)
+    const updated = await updater(structuredClone(loaded))
+    const config = xiraniteConfigSchema.parse(updated)
+    const content = serializeValidatedConfig(config)
+    const changed = beforeText !== content
+    if (!changed) return { before, beforeText, changed, config, path }
+    assertLockHeld()
+    await options.beforeWrite?.({ before, beforeText, config, content, path })
+    assertLockHeld()
+    await writeFileAtomic(targetPath, content, { encoding: "utf8", fsync: true })
+    assertLockHeld()
+    return { before, beforeText, changed, config, path }
+  })
+}
+
+/** Atomically merges one node patch into the latest on-disk config. */
+export async function updateNodeConfigFile<NodeConfig>(
+  nodeId: string,
+  patch: NodeConfig,
+  options: UpdateXiraniteConfigOptions = {},
+): Promise<UpdateNodeConfigFileResult<NodeConfig>> {
+  const result = await updateXiraniteConfig(
+    (config) => updateNodeConfig(config, nodeId, patch),
+    options,
+  )
+  return {
+    config: getNodeConfig<NodeConfig>(result.config, nodeId),
+    path: result.path,
+  }
+}
+
+function serializeValidatedConfig(config: XiraniteConfig): string {
+  const validated = xiraniteConfigSchema.parse(config)
+  const content = stringifyXiraniteConfig(validated as Record<string, unknown>)
+  xiraniteConfigSchema.parse(parseToml(stripBom(content)))
+  return content
+}
+
+async function readOptionalConfigText(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, "utf8")
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === "ENOENT" || code === "ENOTDIR") return undefined
+    throw error
+  }
+}
+
+async function canonicalWritablePath(path: string): Promise<string> {
+  try {
+    return await realpath(path)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code !== "ENOENT" && code !== "ENOTDIR") throw error
+  }
+
+  try {
+    return join(await realpath(dirname(path)), basename(path))
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code !== "ENOENT" && code !== "ENOTDIR") throw error
+    return path
+  }
+}
+
+async function withXiraniteConfigWriteLock<Result>(
+  path: string,
+  lockRetries: number | undefined,
+  operation: (assertLockHeld: () => void) => Promise<Result>,
+): Promise<Result> {
+  const retries = lockRetries ?? 50
+  if (!Number.isSafeInteger(retries) || retries < 0 || retries > 100) {
+    throw new RangeError("Xiranite config lockRetries must be an integer between 0 and 100.")
+  }
+  let compromised: Error | undefined
+  let release: (() => Promise<void>) | undefined
+  try {
+    release = await lock(path, {
+      lockfilePath: `${path}${XIRANITE_CONFIG_LOCK_SUFFIX}`,
+      realpath: false,
+      stale: 30_000,
+      update: 10_000,
+      retries: {
+        retries,
+        factor: 1.2,
+        minTimeout: 20,
+        maxTimeout: 250,
+        randomize: true,
+      },
+      onCompromised: (error) => { compromised = error },
+    })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ELOCKED") {
+      throw new Error(`Timed out waiting for the Xiranite config writer: ${path}`, { cause: error })
+    }
+    throw error
+  }
+
+  const assertLockHeld = () => {
+    if (compromised) {
+      throw new Error(`Xiranite config writer lock was compromised: ${path}`, { cause: compromised })
+    }
+  }
+  try {
+    assertLockHeld()
+    return await operation(assertLockHeld)
+  } finally {
+    await release().catch((error) => {
+      if (!compromised) throw error
+    })
+  }
 }
 
 export function getNodeConfig<NodeConfig = unknown>(config: XiraniteConfig, nodeId: string): NodeConfig | undefined {

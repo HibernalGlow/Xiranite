@@ -30,9 +30,11 @@
     "@xiranite/shared": "workspace:*",
     "jsondiffpatch": "^0.7.6",
     "p-queue": "9.3.1",
+    "proper-lockfile": "4.1.2",
     "simple-git": "^3.36.0"
   },
   "devDependencies": {
+    "@types/proper-lockfile": "4.1.4",
     "typescript": "^7.0.2"
   }
 }

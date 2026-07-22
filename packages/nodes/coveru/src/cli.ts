@@ -3,7 +3,7 @@ import { hasPipedInput, readStdinLines, runGuidedInteraction, writeJson, writeLi
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 import { runCoveru } from "./core.js"
 import type { CoveruInput, CoveruOutputMode } from "./core.js"
 import { createNodeCoveruRuntime } from "./platform.js"
@@ -62,7 +62,7 @@ async function runLegacy(args: string[], host: CliHost): Promise<void> {
   if (!result.success) process.exitCode = 1
 }
 
-function coveruPreferences(current: TerminalPreferenceValues): TerminalPreferenceController { return { nodeId: "coveru", current, async save(values) { const { config, path } = await (await import("@xiranite/config")).loadXiraniteConfig({}); await (await import("@xiranite/config")).saveXiraniteConfig((await import("@xiranite/config")).updateNodeConfig(config, "coveru", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { configPath: path }) }, async restore() { return current } } }
+function coveruPreferences(current: TerminalPreferenceValues): TerminalPreferenceController { return { nodeId: "coveru", current, async save(values) { await updateNodeConfigFile("coveru", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }) }, async restore() { return current } } }
 
 if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) await runProgram()
 

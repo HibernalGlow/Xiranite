@@ -6,7 +6,7 @@ import { resolveInteractionPreferences, type CliInteractionPreferences, type Cli
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi } from "@xiranite/cli-runtime/terminal"
 import type { TerminalPreferenceController, TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 
 import type { RecycleuAction, RecycleuInput, RecycleuResult, RecycleuRuntime } from "./core.js"
 import { runRecycleu } from "./core.js"
@@ -72,11 +72,9 @@ function createPreferenceController(host: CliHost, current: TerminalPreferenceVa
     nodeId: "recycleu",
     current,
     async save(values) {
-      const { config, path } = await loadXiraniteConfig(configOptions)
-      const updated = updateNodeConfig(config, "recycleu", {
+      await updateNodeConfigFile("recycleu", {
         cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language },
-      })
-      await saveXiraniteConfig(updated, { ...configOptions, configPath: path })
+      }, configOptions)
     },
     async restore() {
       const { config } = await loadNodeConfigWithHints<RecycleuNodeConfig>("recycleu", { ...configOptions, jsonMode: true })

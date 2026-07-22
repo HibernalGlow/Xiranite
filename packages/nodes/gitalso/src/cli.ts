@@ -14,7 +14,7 @@ import {
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 
 import { runGitalso } from "./core.js"
 import { createNodeGitalsoRuntime } from "./platform.js"
@@ -221,7 +221,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
     createDefinition: (defaults, language) => ({ schema: createGitalsoInteractionSchema({ repoPath: defaults.repo_path, noVerify: defaults.no_verify, dryRun: true }, language), run: (input, event) => runGitalso(input, createNodeGitalsoRuntime(), event) }),
     runPipe: (pipeArgs, pipeHost) => pipeArgs.length ? runMain(createProgram(pipeHost), { rawArgs: pipeArgs }) : Promise.resolve(writeLine(pipeHost, `${CLI_NAME} ui | gd | status | generate | commit | push`)),
     runGuide: runGuidedInteraction, runUi: runTerminalUi, loadScreen: async () => (await import("./Tui.js")).GitalsoTui,
-    createPreferences: (_defaults, current) => ({ nodeId: "gitalso", current, save: async (values) => { const { config, path } = await loadXiraniteConfig({ env: host.env, cwd: host.cwd }); await saveXiraniteConfig(updateNodeConfig(config, "gitalso", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { env: host.env, cwd: host.cwd, configPath: path }) }, restore: async () => current } satisfies TerminalPreferenceController),
+    createPreferences: (_defaults, current) => ({ nodeId: "gitalso", current, save: async (values) => { await updateNodeConfigFile("gitalso", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, { env: host.env, cwd: host.cwd }) }, restore: async () => current } satisfies TerminalPreferenceController),
     reexecEntrypoint: process.argv[1], help,
   })
 }

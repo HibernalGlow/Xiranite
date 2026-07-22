@@ -3,7 +3,7 @@ import { hasPipedInput, nodeCliName, readStdinLines, runGuidedInteraction, write
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 import { runSynct } from "./core.js"
 import type { SynctAction, SynctFormatKey, SynctInput, SynctSourceMode } from "./core.js"
 import { createNodeSynctRuntime } from "./platform.js"
@@ -44,7 +44,7 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
   if (!result.success) process.exitCode = 1
 }
 
-function preferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "synct", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "synct", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<SynctNodeConfig>("synct", { ...options, jsonMode: true }); const p = resolveInteractionPreferences(config); return { theme: p.theme, defaultMode: p.mode, language: p.language ?? "zh" } } } }
+function preferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "synct", current, async save(values) { await updateNodeConfigFile("synct", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<SynctNodeConfig>("synct", { ...options, jsonMode: true }); const p = resolveInteractionPreferences(config); return { theme: p.theme, defaultMode: p.mode, language: p.language ?? "zh" } } } }
 function defaultHost(): CliHost { return { cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr } }
 function pathArgs(args: string[]): string[] { const commands = new Set(["scan", "plan", "archive", "run"]), valueOptions = new Set(["--source-mode", "--format"]); return args.filter((arg, index) => !arg.startsWith("--") && !commands.has(arg) && !valueOptions.has(args[index - 1] ?? "")) }
 function valueFor(args: string[], flag: string): string | undefined { const index = args.indexOf(flag); return index >= 0 ? args[index + 1] : undefined }

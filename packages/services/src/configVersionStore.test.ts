@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, test } from "vitest"
 import { parseToml } from "@xiranite/config"
+import { simpleGit } from "simple-git"
 import { ConfigService } from "./configService.js"
 import { GitConfigVersionStore } from "./configVersionStore.js"
 
@@ -95,6 +96,45 @@ describe("GitConfigVersionStore", () => {
     const trackedSnapshot = await readFile(join(repositoryPath, "xiranite.config.toml"), "utf8")
     expect(trackedSnapshot).not.toContain(secret)
   })
+
+  test("creates the repository baseline once even when a later snapshot diverges", async () => {
+    const repositoryPath = await tempDirectory("xiranite-config-history-")
+    const first = new GitConfigVersionStore({ repositoryPath })
+    const before = config({ neoview: { theme: "paper" } })
+    const after = config({ neoview: { theme: "dark" } })
+    await first.record({ nodeId: "neoview", source: "config-center", before, after })
+
+    const second = new GitConfigVersionStore({ repositoryPath })
+    const divergent = config({ neoview: { panels: { only: "partial" } } })
+    await second.record({ nodeId: "neoview", source: "node-api", before: divergent, after: divergent })
+
+    const subjects = await simpleGit(repositoryPath).raw(["log", "--format=%s"])
+    expect(subjects.split(/\r?\n/).filter((subject) => subject === "config: record baseline")).toHaveLength(1)
+  }, 15_000)
+
+  test("omits volatile NeoView focus state from automatic history", async () => {
+    const repositoryPath = await tempDirectory("xiranite-config-history-")
+    const store = new GitConfigVersionStore({ repositoryPath })
+    const before = config({ neoview: {
+      theme: "paper",
+      panels: { swimlane: { active_lane: "left", left: { active_panel_id: "history", width: 320 } } },
+    } })
+    const focusOnly = config({ neoview: {
+      theme: "paper",
+      panels: { swimlane: { active_lane: "right", left: { active_panel_id: "bookmark", width: 320 } } },
+    } })
+
+    expect(await store.record({ nodeId: "neoview", source: "node-api", before, after: focusOnly })).toBeNull()
+    const stable = config({ neoview: {
+      theme: "dark",
+      panels: { swimlane: { active_lane: "right", left: { active_panel_id: "bookmark", width: 320 } } },
+    } })
+    const version = await store.record({ nodeId: "neoview", source: "node-api", before: focusOnly, after: stable })
+    const detail = await store.inspectNode("neoview", version!.revision)
+    expect(detail.after).toEqual({ theme: "dark", panels: { swimlane: { left: { width: 320 } } } })
+    expect(detail.patch).not.toContain("active_panel_id")
+    expect(detail.patch).not.toContain("active_lane")
+  }, 15_000)
 })
 
 describe("ConfigService config history", () => {
@@ -104,9 +144,17 @@ describe("ConfigService config history", () => {
     const versions = new GitConfigVersionStore({ repositoryPath: join(root, "history") })
     const service = new ConfigService({ configPath, configVersions: versions })
 
-    await service.updateNodeConfig("neoview", { theme: "paper", token: "first-secret" })
+    await service.updateNodeConfig("neoview", {
+      theme: "paper",
+      token: "first-secret",
+      panels: { swimlane: { active_lane: "left", left: { active_panel_id: "history" } } },
+    })
     const oldVersion = (await service.getNodeConfigVersions("neoview")).versions[0]!
-    await service.updateNodeConfig("neoview", { theme: "dark", token: "current-secret" })
+    await service.updateNodeConfig("neoview", {
+      theme: "dark",
+      token: "current-secret",
+      panels: { swimlane: { active_lane: "right", left: { active_panel_id: "bookmark" } } },
+    })
     await service.updateNodeConfig("xlchemy", { format: "webp" })
 
     await service.restoreNodeConfigVersion("neoview", oldVersion.revision)
@@ -114,7 +162,11 @@ describe("ConfigService config history", () => {
     const current = parseToml(await readFile(configPath, "utf8")) as {
       nodes: Record<string, Record<string, unknown>>
     }
-    expect(current.nodes.neoview).toEqual({ theme: "paper", token: "current-secret" })
+    expect(current.nodes.neoview).toEqual({
+      theme: "paper",
+      token: "current-secret",
+      panels: { swimlane: { active_lane: "right", left: { active_panel_id: "bookmark" } } },
+    })
     expect(current.nodes.xlchemy).toEqual({ format: "webp" })
   }, 15_000)
 })

@@ -33,7 +33,7 @@ import {
   type TerminalInteractionDefinition,
 } from "@xiranite/cli-runtime/interaction"
 import { listTerminalThemes, runTerminalUi, writeTerminalNodeHelp, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 
 import type { TrenameAction, TrenameInput, TrenameOperation, TrenameResult, TrenameRuntime } from "./core.js"
 import { runTrename } from "./core.js"
@@ -196,8 +196,7 @@ function createTrenamePreferences(host: CliHost, current: TerminalPreferenceValu
     nodeId: "trename",
     current,
     async save(values) {
-      const { config, path } = await loadXiraniteConfig(options)
-      await saveXiraniteConfig(updateNodeConfig(config, "trename", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path })
+      await updateNodeConfigFile("trename", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options)
     },
     async restore() {
       const { config } = await loadNodeConfigWithHints<TrenameNodeConfig>("trename", { ...options, jsonMode: true })
