@@ -36,6 +36,10 @@ interface LegacyAppUiConfig {
 
 export const MELODECK_CONFIG_CHANGED_EVENT = "xiranite:melodeck-config-changed"
 
+interface SaveMelodeckConfigOptions {
+  broadcast?: boolean
+}
+
 const LEGACY_STORAGE_KEYS = {
   mode: "xiranite.musicDock.mode",
   savedTracks: "xiranite.musicDock.savedTracks",
@@ -54,9 +58,12 @@ export function loadMelodeckConfig(): Promise<MelodeckConfig> {
   return migrationInFlight
 }
 
-export async function saveMelodeckConfig(patch: Partial<MelodeckConfig>): Promise<void> {
+export async function saveMelodeckConfig(
+  patch: Partial<MelodeckConfig>,
+  options: SaveMelodeckConfigOptions = {},
+): Promise<void> {
   await saveNodeConfigToBackend("melodeck", patch)
-  dispatchMelodeckConfigChanged()
+  if (options.broadcast !== false) dispatchMelodeckConfigChanged()
 }
 
 async function loadAndMigrateMelodeckConfig(): Promise<MelodeckConfig> {
