@@ -47,6 +47,7 @@ export interface ReaderImagePreloader {
 export function useReaderImagePreloader(
   sessionId?: string,
   reportEvents?: (sessionId: string, generation: number, events: readonly ReaderPreloadEventDto[]) => void,
+  enabled = true,
 ): ReaderImagePreloader {
   const imagesRef = useRef(new Map<string, PreloadedImage>())
   const predecodeQueueRef = useRef<PQueue>()
@@ -171,7 +172,7 @@ export function useReaderImagePreloader(
   }, [clearPendingPredecodes, flushReports, releaseRetained, sessionId])
 
   const preload = useCallback((pages: readonly ReaderPageDto[], generation?: number) => {
-    if (typeof Image === "undefined" || !sessionId) return
+    if (!enabled || typeof Image === "undefined" || !sessionId) return
     const images = imagesRef.current
     const policy = resolveReaderPredecodePolicy(browserPredecodeDeviceHints())
     const admitted = admitPredecodePages(pages, policy)
@@ -217,7 +218,7 @@ export function useReaderImagePreloader(
         runPredecodeBatch(pending)
       }, PREDECODE_START_DELAY_MS)
     }
-  }, [releaseRetained, runPredecodeBatch, sessionId])
+  }, [enabled, releaseRetained, runPredecodeBatch, sessionId])
 
   const cancel = useCallback(() => {
     clearPendingPredecodes("cancel")

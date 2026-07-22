@@ -11,6 +11,21 @@ afterEach(() => {
 })
 
 describe("useReaderImagePreloader", () => {
+  it("[neoview.preload.disabled] creates no speculative image when the local firebreak is disabled", async () => {
+    const instances: FakeImage[] = []
+    vi.stubGlobal("Image", class extends FakeImage {
+      constructor() {
+        super()
+        instances.push(this)
+      }
+    })
+
+    render(<Fixture sessionId="reader-disabled" pages={[page(1)]} enabled={false} />)
+
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    expect(instances).toHaveLength(0)
+  })
+
   it("[neoview.react.predecode-adaptive-policy] selects bounded concurrency from device and network hints", () => {
     expect(resolveReaderPredecodePolicy({ deviceMemoryGb: 16, hardwareConcurrency: 16, effectiveConnectionType: "4g" })).toMatchObject({ concurrency: 1, maxRetainedImages: 1 })
     expect(resolveReaderPredecodePolicy({ deviceMemoryGb: 16, hardwareConcurrency: 16, saveData: true })).toMatchObject({ concurrency: 1, maxRetainedImages: 1 })
@@ -126,8 +141,8 @@ describe("useReaderImagePreloader", () => {
   })
 })
 
-function Fixture({ sessionId, pages, onControl }: { sessionId: string; pages: readonly ReaderPageDto[]; onControl?: (control: ReturnType<typeof useReaderImagePreloader>) => void }) {
-  const control = useReaderImagePreloader(sessionId)
+function Fixture({ sessionId, pages, enabled = true, onControl }: { sessionId: string; pages: readonly ReaderPageDto[]; enabled?: boolean; onControl?: (control: ReturnType<typeof useReaderImagePreloader>) => void }) {
+  const control = useReaderImagePreloader(sessionId, undefined, enabled)
   useEffect(() => control.preload(pages), [control.preload, pages])
   useEffect(() => onControl?.(control), [control, onControl])
   return null
