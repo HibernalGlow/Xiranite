@@ -80,6 +80,7 @@ const BROWSER_SORT_PREFERENCES_PATH = /^\/reader\/browser\/s\/([^/]+)\/sort\/pre
 const BROWSER_FILTER_PATH = /^\/reader\/browser\/s\/([^/]+)\/filter$/
 const BROWSER_SELECTION_PATH = /^\/reader\/browser\/s\/([^/]+)\/selection$/
 const BROWSER_PENETRATION_RESOLVE_PATH = /^\/reader\/browser\/s\/([^/]+)\/penetration\/resolve$/
+const BROWSER_PENETRATION_DESCRIBE_PATH = /^\/reader\/browser\/s\/([^/]+)\/penetration\/describe$/
 const BROWSER_CLONE_PATH = /^\/reader\/browser\/s\/([^/]+)\/clone$/
 const BROWSER_REOPEN_PATH = /^\/reader\/browser\/s\/([^/]+)\/reopen$/
 const BROWSER_SESSION_PATH = /^\/reader\/browser\/s\/([^/]+)$/
@@ -98,6 +99,9 @@ const FolderPenetrationCommandSchema = z.object({
     maxDepth: z.number().int().min(0).max(32).optional(),
     terminalTargets: z.array(z.enum(["archive", "document", "media-directory", "file"])).max(4).optional(),
   }).strict().optional(),
+}).strict()
+const FolderPenetrationDescribeCommandSchema = z.object({
+  paths: z.array(z.string().trim().min(1).max(32_768)).max(64),
 }).strict()
 
 export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
@@ -191,6 +195,8 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     if (selectionMatch && request.method === "POST") return this.#selection(selectionMatch[1]!, request)
     const penetrationMatch = BROWSER_PENETRATION_RESOLVE_PATH.exec(url.pathname)
     if (penetrationMatch && request.method === "POST") return this.#resolvePenetration(penetrationMatch[1]!, request)
+    const penetrationDescribeMatch = BROWSER_PENETRATION_DESCRIBE_PATH.exec(url.pathname)
+    if (penetrationDescribeMatch && request.method === "POST") return this.#describePenetration(penetrationDescribeMatch[1]!, request)
     const cloneMatch = BROWSER_CLONE_PATH.exec(url.pathname)
     if (cloneMatch && request.method === "POST") return this.#clone(cloneMatch[1]!, request)
     const reopenMatch = BROWSER_REOPEN_PATH.exec(url.pathname)
@@ -557,6 +563,21 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       if (!session) return errorResponse("Browser session not found", 404)
       const policy: ReaderFolderPenetrationPolicy = parsed.data.policy ?? {}
       return Response.json(await this.#penetration.resolve(parsed.data.path, policy, request.signal), responseInit())
+    } catch (error) {
+      if (request.signal.aborted) throw error
+      return errorResponse(errorMessage(error), 400)
+    }
+  }
+
+  async #describePenetration(encodedSessionId: string, request: Request): Promise<Response> {
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return errorResponse("Browser session not found", 404)
+    const parsed = FolderPenetrationDescribeCommandSchema.safeParse(await request.json().catch(() => undefined))
+    if (!parsed.success) return errorResponse("Invalid folder penetration describe request", 400)
+    try {
+      const session = await this.#browser.list(sessionId, 0, 1, new Set(), request.signal)
+      if (!session) return errorResponse("Browser session not found", 404)
+      return Response.json({ entries: await this.#penetration.describe(parsed.data.paths, request.signal) }, responseInit())
     } catch (error) {
       if (request.signal.aborted) throw error
       return errorResponse(errorMessage(error), 400)
