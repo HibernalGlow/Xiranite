@@ -6,7 +6,7 @@
  *
  * 轮询策略：
  * - 未就绪时每 2s 轮询一次（快速感知就绪）；
- * - 开发态就绪后每 1s 刷新 dev manifest，生产态降为 10s 一次；
+ * - 就绪后降为 10s 一次（节省 CPU/IO）；
  * - 窗口聚焦/网络恢复时立即 refetch；
  * - 后台也保持轮询（refetchIntervalInBackground），避免最小化时状态过时；
  * - retry: false — 轮询自身已是重试机制，单次失败不必让 TanStack Query 再叠加重试。
@@ -15,7 +15,6 @@ import { useQuery } from "@tanstack/react-query"
 import { checkLocalBackendStatus } from "@/backend/localBackendStatus"
 
 export const LOCAL_BACKEND_STATUS_QUERY_KEY = ["local-backend", "status"] as const
-export const LOCAL_BACKEND_READY_REFETCH_MS = import.meta.env.DEV ? 1_000 : 10_000
 
 export function useLocalBackendStatus() {
   return useQuery({
@@ -27,7 +26,7 @@ export function useLocalBackendStatus() {
     refetchInterval: (query) => {
       const status = query.state.data?.status
       if (!status || status !== "ready") return 2_000
-      return LOCAL_BACKEND_READY_REFETCH_MS
+      return 10_000
     },
     refetchIntervalInBackground: true,
     retry: false,
