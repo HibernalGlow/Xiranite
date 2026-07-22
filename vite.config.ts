@@ -171,6 +171,11 @@ export default defineConfig({
       : undefined,
   },
   optimizeDeps: {
+    // The generated node registry exposes many feature-only dynamic imports.
+    // Keep discovery disabled and explicitly prebundle only the compatibility
+    // dependencies below; a full cold crawl takes roughly a minute on Windows.
+    noDiscovery: true,
+    holdUntilCrawlEnd: false,
     // use-sync-external-store/shim 是 CommonJS（module.exports = require(...)),
     // 不预构建时浏览器 ESM `import { useSyncExternalStore }` 拿不到命名导出。
     // esbuild 预构建会把 CJS 转成 ESM 命名导出。zustand / @base-ui/react /
