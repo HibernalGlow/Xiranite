@@ -147,7 +147,7 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
               artwork={status?.artwork}
               fallbackMessage={session.resultSummary?.message}
             />
-            <LyricsView lyrics={status?.lyrics} position={status?.position ?? 0} />
+            <LyricsView lyrics={status?.lyrics} position={status?.position ?? 0} onSeek={seekTo} />
             <box flexDirection="column" flexShrink={0}>
               <box flexDirection="row" justifyContent="space-between">
                 <text fg={theme.colors.mutedForeground}>{formatTime(status?.position ?? 0)}</text>
@@ -245,7 +245,7 @@ const NowPlayingHeader = memo(function NowPlayingHeader({
   )
 })
 
-const LyricsView = memo(function LyricsView({ lyrics, position }: { lyrics?: MelodeckLyricLine[]; position: number }) {
+const LyricsView = memo(function LyricsView({ lyrics, position, onSeek }: { lyrics?: MelodeckLyricLine[]; position: number; onSeek(position: number): void }) {
   const theme = useTerminalTheme()
   const lines = lyrics ?? []
   const active = currentLyricIndex(lines, position)
@@ -258,11 +258,40 @@ const LyricsView = memo(function LyricsView({ lyrics, position }: { lyrics?: Mel
     <box id="melodeck-lyrics" flexGrow={1} minHeight={3} maxHeight={5} flexDirection="column" alignItems="center" justifyContent="center" overflow="hidden">
       {visible.length ? visible.map((line, index) => {
         const lineIndex = start + index
-        return <text key={`${line.time ?? "plain"}-${lineIndex}`} content={line.text} fg={lineIndex === active ? theme.colors.primary : theme.colors.mutedForeground} />
+        return (
+          <LyricLineControl
+            key={`${line.time ?? "plain"}-${lineIndex}`}
+            id={`melodeck-lyric-${lineIndex}`}
+            line={line}
+            active={lineIndex === active}
+            onSeek={onSeek}
+          />
+        )
       }) : <text content="No lyrics available" fg={theme.colors.mutedForeground} />}
     </box>
   )
 })
+
+function LyricLineControl({ id, line, active, onSeek }: { id: string; line: MelodeckLyricLine; active: boolean; onSeek(position: number): void }) {
+  const theme = useTerminalTheme()
+  const [hovered, setHovered] = useState(false)
+  const seekable = line.time != null && Number.isFinite(line.time)
+  return (
+    <box
+      id={id}
+      width="100%"
+      height={1}
+      flexShrink={0}
+      alignItems="center"
+      justifyContent="center"
+      onMouseDown={seekable ? () => onSeek(line.time!) : undefined}
+      onMouseOver={seekable ? () => setHovered(true) : undefined}
+      onMouseOut={seekable ? () => setHovered(false) : undefined}
+    >
+      <text content={line.text} fg={active || hovered ? theme.colors.primary : theme.colors.mutedForeground} />
+    </box>
+  )
+}
 
 function IconControl({ id, icon, primary = false, onClick }: { id: string; icon: string; primary?: boolean; onClick(): void }) {
   const theme = useTerminalTheme()
