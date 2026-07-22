@@ -60,6 +60,7 @@
         "@xiranite/node-linku": "workspace:*",
         "@xiranite/node-lorat": "workspace:*",
         "@xiranite/node-marku": "workspace:*",
+        "@xiranite/node-melodeck": "workspace:*",
         "@xiranite/node-migratef": "workspace:*",
         "@xiranite/node-movea": "workspace:*",
         "@xiranite/node-mvz": "workspace:*",
@@ -736,6 +737,23 @@
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "^7.0.2",
+      },
+    },
+    "packages/nodes/melodeck": {
+      "name": "@xiranite/node-melodeck",
+      "version": "0.1.0",
+      "bin": {
+        "xmelodeck": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10",
       },
     },
     "packages/nodes/migratef": {
@@ -2320,6 +2338,7 @@
     "@xiranite/node-lorat": ["@xiranite/node-lorat@workspace:packages/nodes/lorat"],
 
     "@xiranite/node-marku": ["@xiranite/node-marku@workspace:packages/nodes/marku"],
+    "@xiranite/node-melodeck": ["@xiranite/node-melodeck@workspace:packages/nodes/melodeck"],
 
     "@xiranite/node-migratef": ["@xiranite/node-migratef@workspace:packages/nodes/migratef"],
 

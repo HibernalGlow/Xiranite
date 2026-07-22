@@ -179,6 +179,7 @@
     "@xiranite/node-linku": "workspace:*",
     "@xiranite/node-lorat": "workspace:*",
     "@xiranite/node-marku": "workspace:*",
+    "@xiranite/node-melodeck": "workspace:*",
     "@xiranite/node-migratef": "workspace:*",
     "@xiranite/node-movea": "workspace:*",
     "@xiranite/node-mvz": "workspace:*",

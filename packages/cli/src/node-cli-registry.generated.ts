@@ -161,6 +161,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
   },
   {
     id: "migratef",
+  {
+    id: "melodeck",
+    packageName: "@xiranite/node-melodeck",
+    bin: nodeCliName("melodeck"),
+    description: "Local music playback deck backed by mpv JSON IPC.",
+  },
     packageName: "@xiranite/node-migratef",
     bin: nodeCliName("migratef"),
     description: "Move or copy files with preserve, flat, and direct modes plus undo history.",
