@@ -56,6 +56,57 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(document.querySelector<HTMLElement>('[data-reader-swimlane="right"]')?.style.width).toBe("300px")
   })
 
+  it("makes each titlebar draggable and gives compact window chrome to one rightmost lane", () => {
+    const onWorkspaceChange = vi.fn()
+    const onTitlebarDoubleClick = vi.fn()
+    const shell = shellConfig("swimlane")
+    shell.workspace!.swimlane.readerSolo = false
+    const windowChrome = {
+      controls: <div data-testid="compact-window-controls"><button type="button">min</button><button type="button">max</button><button type="button">close</button></div>,
+      onTitlebarDoubleClick,
+    }
+    const view = render(
+      <ReaderSwimlaneWorkspace
+        shell={shell}
+        workspace={readerWorkspaceConfig(shell)}
+        reader={<div>reader</div>}
+        left={<div>left</div>}
+        right={<div>right</div>}
+        windowChrome={windowChrome}
+        onWorkspaceChange={onWorkspaceChange}
+      />,
+    )
+
+    const headers = Array.from(document.querySelectorAll<HTMLElement>('[data-reader-swimlane-header]'))
+    expect(headers).toHaveLength(3)
+    expect(headers.every((header) => header.dataset.readerWindowDragRegion === "true" && header.className.includes("xiranite-app-region-drag"))).toBe(true)
+    expect(document.querySelectorAll('[data-reader-window-controls-owner]')).toHaveLength(1)
+    expect(document.querySelector('[data-reader-window-controls-owner="right"]')).toBeTruthy()
+    expect(screen.queryByTestId("compact-window-controls")).toBeNull()
+
+    fireEvent.doubleClick(document.querySelector('[data-reader-swimlane-header="left"]')!)
+    expect(onTitlebarDoubleClick).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole("button", { name: "展开窗口控件" }))
+    expect(screen.getByTestId("compact-window-controls").querySelectorAll("button")).toHaveLength(3)
+    expect(document.querySelector('[data-reader-swimlane-window-chrome="true"]')?.getAttribute("data-reader-window-controls-expanded")).toBe("true")
+
+    shell.workspace!.swimlane.laneOrder = ["right", "reader", "left"]
+    view.rerender(
+      <ReaderSwimlaneWorkspace
+        shell={shell}
+        workspace={readerWorkspaceConfig(shell)}
+        reader={<div>reader</div>}
+        left={<div>left</div>}
+        right={<div>right</div>}
+        windowChrome={windowChrome}
+        onWorkspaceChange={onWorkspaceChange}
+      />,
+    )
+    expect(document.querySelectorAll('[data-reader-window-controls-owner]')).toHaveLength(1)
+    expect(document.querySelector('[data-reader-window-controls-owner="left"]')).toBeTruthy()
+    expect(screen.getByTestId("compact-window-controls")).toBeTruthy()
+  })
+
   it("lets File Card contextmenu bubble to window while still activating the side lane", () => {
     const onWorkspaceChange = vi.fn()
     const windowContextMenu = vi.fn()

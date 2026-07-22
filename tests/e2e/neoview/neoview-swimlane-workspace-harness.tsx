@@ -2,6 +2,7 @@ import { StrictMode, useState } from "react"
 import { createRoot } from "react-dom/client"
 
 import "../../../src/styles/tailwind.css"
+import "../../../src/index.css"
 import "../../../src/styles/themes/index.css"
 import { FloatingWindowCaptionControls, FloatingWindowFrameProvider } from "../../../src/components/workspace/FloatingWindowFrame"
 import type { ReaderShellConfigDto, ReaderSwimlaneLaneDto } from "../../../src/nodes/neoview/adapters/reader-http-client"
@@ -94,7 +95,7 @@ function Harness() {
   )
 
   return (
-    <main className="relative h-screen w-screen overflow-hidden bg-background text-foreground" data-swimlane-harness="true">
+    <main className="xiranite-floating-window relative h-screen w-screen overflow-hidden bg-background text-foreground" data-swimlane-harness="true">
       {workspace.mode === "swimlane" ? (
         <ReaderSwimlaneWorkspace
           shell={shell}
@@ -102,16 +103,15 @@ function Harness() {
           reader={reader}
           left={<PanelLane side="left" lane={workspace.swimlane.lanes.left} onChange={(patch) => patchWorkspace({ lanes: { left: patch } })} />}
           right={<PanelLane side="right" lane={workspace.swimlane.lanes.right} onChange={(patch) => patchWorkspace({ lanes: { right: patch } })} />}
+          windowChrome={!readerSoloActive ? {
+            controls: <FloatingWindowCaptionControls integrated density="compact" />,
+            onTitlebarDoubleClick: frame.handleTitlebarDoubleClick,
+          } : undefined}
           onWorkspaceChange={patchWorkspace}
         />
       ) : (
         <div className="h-full" data-neoview-workspace-mode="edges">{reader}</div>
       )}
-      {workspace.mode === "swimlane" && !readerSoloActive ? (
-        <div className="pointer-events-none absolute right-0 top-0 z-[95] flex h-10 items-stretch" data-reader-transparent-windowbar="true">
-          <FloatingWindowCaptionControls integrated className="pointer-events-auto bg-transparent" />
-        </div>
-      ) : null}
     </main>
   )
 }

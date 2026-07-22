@@ -1937,14 +1937,6 @@ export function ReaderApp({
         <LazyReaderInfoOverlayRuntime port={infoOverlay} session={session} sourcePath={path} />
       </Suspense>
       <FloatingWindowTitlebarReservation />
-      {floatingFrame && workspaceMode === "swimlane" && !readerSoloActive ? (
-        <div
-          className="pointer-events-none absolute right-0 top-0 z-[95] flex h-10 items-stretch"
-          data-reader-transparent-windowbar="true"
-        >
-          <FloatingWindowCaptionControls integrated className="pointer-events-auto bg-transparent" />
-        </div>
-      ) : null}
       <div className="min-h-0 flex-1 overflow-hidden">
         <ReaderPanelDndProvider shell={shell} onMove={commitDraggedPanelLayout}>
           {workspaceMode === "swimlane" && shell && workspace ? (
@@ -1953,6 +1945,10 @@ export function ReaderApp({
                 shell={shell}
                 workspace={workspace}
                 disabled={!shell}
+                windowChrome={floatingFrame && !readerSoloActive ? {
+                  controls: <FloatingWindowCaptionControls integrated density="compact" />,
+                  onTitlebarDoubleClick: floatingFrame.handleTitlebarDoubleClick,
+                } : undefined}
                 onWorkspaceChange={commitWorkspace}
                 onOpenSettings={() => setSettingsOpen(true)}
                 reader={(
