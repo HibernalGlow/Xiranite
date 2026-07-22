@@ -644,8 +644,8 @@
       "featureId": "emm-ratings-tags-translation",
       "disposition": "migrate",
       "capabilityStatus": {
-        "core": "pending",
-        "transport": "partial",
+        "core": "complete",
+        "transport": "complete",
         "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
