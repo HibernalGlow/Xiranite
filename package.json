@@ -64,6 +64,7 @@
     "audit:node-tests": "bun scripts/audit-node-tests.ts",
     "audit:node-ui-quality": "bun scripts/audit-node-ui-quality.ts",
     "audit:node-runtime-risks": "bun scripts/audit-node-runtime-risks.ts",
+    "audit:config-runtime-state": "bun scripts/audit-config-runtime-state.ts",
     "audit:react-compiler-boundaries": "bun scripts/validate-react-compiler-boundaries.ts",
     "audit:tui": "node --experimental-strip-types scripts/audit-node-tuis.ts",
     "audit:build-chunks": "bun scripts/audit-build-chunks.ts",
