@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Copy, EyeOff, Folder, History, MoreVertical, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Search, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Copy, EyeOff, Folder, History, MoreVertical, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Search, X } from "lucide-react"
 import { useEffect, useRef, useState, type ComponentProps, type PointerEvent as ReactPointerEvent } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -331,6 +331,7 @@ function FolderTabActionPad({
       role="group"
       aria-label="标签页操作"
       data-folder-tab-action-pad="true"
+      data-folder-tab-action-pad-style="geometric"
     >
       <TabPadButton
         position="top"
@@ -362,20 +363,32 @@ function FolderTabActionPad({
         </DropdownMenuContent>
       </DropdownMenu>
       <LayoutSettingsButton pad disabled={disabled} layout={layout} onLayoutChange={onLayoutChange} />
+      {/* Geometric marks only — match navigation pad elegance (lines/dots, no dense Lucide glyphs). */}
       <div className="pointer-events-none absolute inset-0 z-[3] text-foreground" aria-hidden="true">
-        <Plus className={`absolute left-1/2 top-0.5 size-2 -translate-x-1/2 ${canCreate ? "" : "opacity-25"}`} />
-        <History className={`absolute left-0.5 top-1/2 size-2 -translate-y-1/2 ${canReopen ? "" : "opacity-25"}`} />
-        <MoreVertical className={`absolute right-0.5 top-1/2 size-2 -translate-y-1/2 ${disabled ? "opacity-25" : ""}`} />
+        <span className={`absolute left-1/2 top-1 size-2 -translate-x-1/2 ${canCreate ? "" : "opacity-25"}`}>
+          <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-current" />
+          <span className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-current" />
+        </span>
+        <span className={`absolute left-1 top-1/2 size-2 -translate-y-1/2 ${canReopen ? "" : "opacity-25"}`}>
+          <span className="absolute inset-0 rounded-full border border-current border-r-transparent" />
+          <span className="absolute left-0 top-0 h-1 w-px -rotate-45 bg-current" />
+        </span>
+        <span className={`absolute right-1.5 top-1/2 flex -translate-y-1/2 flex-col gap-0.5 ${disabled ? "opacity-25" : ""}`}>
+          <span className="size-0.5 rounded-full bg-current" />
+          <span className="size-0.5 rounded-full bg-current" />
+          <span className="size-0.5 rounded-full bg-current" />
+        </span>
       </div>
     </div>
   )
 }
 
+// Full-quadrant slices — same geometry as the folder navigation pad.
 const TAB_PAD_POSITION_CLASSES = {
-  top: "[clip-path:polygon(0_0,100%_0,70%_40%,30%_40%)]",
-  left: "[clip-path:polygon(0_0,40%_30%,40%_70%,0_100%)]",
-  right: "[clip-path:polygon(100%_0,60%_30%,60%_70%,100%_100%)]",
-  bottom: "[clip-path:polygon(30%_60%,70%_60%,100%_100%,0_100%)]",
+  top: "z-[1] [clip-path:polygon(0_0,100%_0,50%_50%)]",
+  left: "z-[1] [clip-path:polygon(0_0,50%_50%,0_100%)]",
+  right: "z-[1] [clip-path:polygon(100%_0,100%_100%,50%_50%)]",
+  bottom: "z-[1] [clip-path:polygon(0_100%,50%_50%,100%_100%)]",
 } as const
 
 function TabPadButton({
