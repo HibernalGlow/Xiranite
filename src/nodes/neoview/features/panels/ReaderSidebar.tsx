@@ -32,6 +32,9 @@ import {
   type ReaderPanelSide,
 } from "./registry"
 
+const MIN_CARD_REVEAL_IDLE_BUDGET_MS = 12
+const CARD_REVEAL_RETRY_DELAY_MS = 250
+
 export function ReaderSidebar({
   side,
   context,
@@ -110,8 +113,8 @@ export function ReaderSidebar({
       : new Set([...current, activePanel as LegacyPanelId])))
   }, [activePanel])
 
-  // Control panel can ship 8+ expanded cards; mount them progressively so the
-  // first card paints before the rest of the lazy chunk storm.
+  // Control panel can ship 8+ expanded cards. Never use an idle timeout here:
+  // that turns a busy reader frame into a forced burst of lazy card mounts.
   const activeCards = useMemo(
     () => (active ? cardsForPanel(active.id, shell, hasSession) : []),
     [active, hasSession, shell],
@@ -129,18 +132,30 @@ export function ReaderSidebar({
       panelId: active?.id,
       total: activeCards.length,
     })
-    const schedule = (fn: () => void) => {
+    const schedule = () => {
+      if (cancelled) return
+      if (document.visibilityState !== "visible") {
+        timeoutHandle = window.setTimeout(schedule, CARD_REVEAL_RETRY_DELAY_MS)
+        return
+      }
       if (typeof requestIdleCallback === "function") {
-        idleHandle = requestIdleCallback(fn, { timeout: 200 })
+        idleHandle = requestIdleCallback((deadline) => {
+          idleHandle = undefined
+          if (!deadline.didTimeout && deadline.timeRemaining() < MIN_CARD_REVEAL_IDLE_BUDGET_MS) {
+            timeoutHandle = window.setTimeout(schedule, CARD_REVEAL_RETRY_DELAY_MS)
+            return
+          }
+          revealNext()
+        })
       } else {
-        timeoutHandle = window.setTimeout(fn, 32)
+        timeoutHandle = window.setTimeout(revealNext, CARD_REVEAL_RETRY_DELAY_MS)
       }
     }
-    const revealMore = () => {
+    const revealNext = () => {
       if (cancelled) return
-      revealed = Math.min(activeCards.length, revealed + 2)
+      revealed = Math.min(activeCards.length, revealed + 1)
       setVisibleCardCount(revealed)
-      if (revealed < activeCards.length) schedule(revealMore)
+      if (revealed < activeCards.length) schedule()
       else {
         neoviewDebug("sidebar:cards:progressive-done", {
           side,
@@ -149,7 +164,7 @@ export function ReaderSidebar({
         })
       }
     }
-    schedule(revealMore)
+    schedule()
     return () => {
       cancelled = true
       if (idleHandle !== undefined && typeof cancelIdleCallback === "function") cancelIdleCallback(idleHandle)
@@ -229,6 +244,7 @@ export function ReaderSidebar({
             data-reader-panel-cache={panel.id}
             data-reader-panel-active={panelActive ? "true" : "false"}
             data-reader-panel-visible={panelVisible ? "true" : "false"}
+            data-reader-visible-card-count={panelActive ? visibleCardCount : 0}
             data-context-menu={panelVisible && panel.id === "info" ? "neoview-info" : undefined}
           >
             {exclusive ? null : <div className="sticky top-0 z-10 flex min-h-11 items-center gap-2 border-b border-border/50 bg-transparent px-3 py-2">
