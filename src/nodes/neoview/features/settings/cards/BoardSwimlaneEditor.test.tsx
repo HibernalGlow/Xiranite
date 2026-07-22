@@ -47,6 +47,25 @@ describe("BoardSwimlaneEditor layout moves", () => {
     const folderCards = patch.board.cards.filter((card) => card.panelId === "folder" && card.visible)
     expect(folderCards.map((card) => card.cardId)).toEqual(["folder-main"])
   })
+
+  it("does not hide required cards when their host panel is in the hidden lane", () => {
+    const shell = shellConfig()
+    const lanes = createBoardLanes(shell)
+    // playlist panel is defaultVisible:false → starts in the hidden lane with
+    // playlist-main (canHide:false). Saving must not emit visible:false for it.
+    const playlist = lanes.hidden.find((panel) => panel.id === "playlist")
+      ?? lanes.left.find((panel) => panel.id === "playlist")
+      ?? lanes.right.find((panel) => panel.id === "playlist")
+    expect(playlist).toBeTruthy()
+    expect(playlist!.cards.some((card) => card.id === "playlist-main" && card.canHide === false)).toBe(true)
+
+    const patch = createBoardPatch(shell, lanes)
+    expect(patch.board.panels.find((panel) => panel.id === "playlist")).toMatchObject({ visible: false })
+    expect(patch.board.cards.find((card) => card.cardId === "playlist-main")).toMatchObject({
+      panelId: "playlist",
+      visible: true,
+    })
+  })
 })
 
 function shellConfig(): ReaderShellConfigDto {

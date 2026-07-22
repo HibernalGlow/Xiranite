@@ -538,11 +538,13 @@ export function createBoardPatch(shell: ReaderShellConfigDto, lanes: BoardLanes)
 
   const cards = LANES.flatMap((lane) => lanes[lane.id].flatMap((panel) => {
     if (lane.id === "hidden") {
-      // Panel in hidden lane: its cards stay on that panel but undocked.
+      // Host panel is undocked. Hide only cards that allow it — required cards
+      // (playlist-main, folder-main, …) keep visible:true even when their panel
+      // sits in the board's hidden lane (matches default playlist panel state).
       return panel.cards.map((card, order) => ({
         cardId: card.id,
         panelId: panel.id,
-        visible: false,
+        visible: !card.canHide,
         order,
       }))
     }
