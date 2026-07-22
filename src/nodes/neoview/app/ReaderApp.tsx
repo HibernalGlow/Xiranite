@@ -1950,6 +1950,7 @@ export function ReaderApp({
       {settingsOpen && shell ? (
         <Suspense fallback={null}>
           <LazyReaderSettingsWindow
+            portalContainer={surface.ref.current}
             shell={shell}
             viewDefaults={viewDefaults}
             slideshow={slideshowConfig}
