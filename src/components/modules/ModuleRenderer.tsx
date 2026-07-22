@@ -24,6 +24,20 @@ type PackageModuleEntry = AppNodeEntry | HeadlessNodePackage
 type PackageModuleLoader = () => Promise<{ default: PackageModuleEntry }>
 
 const packageNodeLoaders = packageModuleLoaders as Readonly<Record<string, PackageModuleLoader>>
+const packageNodeEntryLoads = new Map<string, Promise<{ default: PackageModuleEntry }>>()
+
+function loadPackageNodeEntry(moduleId: string, loader: PackageModuleLoader): Promise<{ default: PackageModuleEntry }> {
+  const existing = packageNodeEntryLoads.get(moduleId)
+  if (existing) return existing
+
+  const pending = loader().catch((error: unknown) => {
+    // Failed entries must remain retryable after Vite updates a stale module graph.
+    packageNodeEntryLoads.delete(moduleId)
+    throw error
+  })
+  packageNodeEntryLoads.set(moduleId, pending)
+  return pending
+}
 
 const modules: Record<string, ReturnType<typeof lazy>> = {
   scratch:      lazy(() => import("./ScratchModule")),
@@ -98,7 +112,7 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
     if (moduleId === "neoview") {
       neoviewDebug("chunk:load:begin", { compId, moduleId })
     }
-    startupDebugAsync(`node-entry:${moduleId}`, loader)
+    startupDebugAsync(`node-entry:${moduleId}`, () => loadPackageNodeEntry(moduleId, loader))
       .then((mod) => {
         if (!cancelled) {
           const durationMs = Math.round((performance.now() - loadStartedAt) * 10) / 10

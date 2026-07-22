@@ -17,6 +17,7 @@ const testState = vi.hoisted(() => ({
   childThrow: false,
   controlledInput: false,
   loadFailuresRemaining: 0,
+  dedupeLoadCount: 0,
 }))
 
 const supportedCapabilities: readonly NodeCapabilityId[] = [
@@ -84,10 +85,6 @@ function TestNodeComponent(props: NodeComponentProps) {
 vi.mock("./packageModules.generated", () => ({
   packageModuleLoaders: {
     "test-node": async () => {
-      if (testState.loadFailuresRemaining > 0) {
-        testState.loadFailuresRemaining -= 1
-        throw new Error("stale module graph")
-      }
       return { default: {
         def: {
           id: "test-node",
@@ -104,6 +101,24 @@ vi.mock("./packageModules.generated", () => ({
         },
       } as AppNodeEntry }
     },
+    "retry-node": async () => {
+      if (testState.loadFailuresRemaining > 0) {
+        testState.loadFailuresRemaining -= 1
+        throw new Error("stale module graph")
+      }
+      return { default: {
+        def: {
+          id: "retry-node",
+          name: "Retry",
+          version: "0.1.0",
+          category: "other",
+          description: "test",
+          icon: "Box",
+        },
+        core: {},
+        Component: TestNodeComponent as ComponentType<NodeComponentProps>,
+      } as AppNodeEntry }
+    },
     "headless-node": () => Promise.resolve({
       default: {
         def: {
@@ -117,6 +132,21 @@ vi.mock("./packageModules.generated", () => ({
         core: {},
       },
     }),
+    "dedupe-node": async () => {
+      testState.dedupeLoadCount += 1
+      return { default: {
+        def: {
+          id: "dedupe-node",
+          name: "Dedupe",
+          version: "0.1.0",
+          category: "other",
+          description: "test",
+          icon: "Box",
+        },
+        core: {},
+        Component: TestNodeComponent as ComponentType<NodeComponentProps>,
+      } as AppNodeEntry }
+    },
   },
 }))
 
@@ -134,6 +164,7 @@ afterEach(() => {
   testState.childThrow = false
   testState.controlledInput = false
   testState.loadFailuresRemaining = 0
+  testState.dedupeLoadCount = 0
 })
 
 describe("ModuleRenderer package node rendering", () => {
@@ -149,16 +180,28 @@ describe("ModuleRenderer package node rendering", () => {
   test("retries a package entry after a stale module graph fails to load", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {})
     testState.loadFailuresRemaining = 1
-    render(<ModuleRenderer moduleId="test-node" compId="c1" />)
+    render(<ModuleRenderer moduleId="retry-node" compId="c1" />)
 
     fireEvent.click(await screen.findByRole("button", { name: "Retry loading" }))
 
     expect(await screen.findByTestId("test-node-content")).toBeTruthy()
     expect(spy).toHaveBeenCalledWith(
-      "[module-renderer] failed to load entry for test-node",
+      "[module-renderer] failed to load entry for retry-node",
       expect.objectContaining({ message: "stale module graph" }),
     )
     spy.mockRestore()
+  })
+
+  test("shares one dynamic entry load across concurrent node instances", async () => {
+    render(
+      <>
+        <ModuleRenderer moduleId="dedupe-node" compId="c1" />
+        <ModuleRenderer moduleId="dedupe-node" compId="c2" />
+      </>,
+    )
+
+    expect((await screen.findAllByTestId("test-node-content"))).toHaveLength(2)
+    expect(testState.dedupeLoadCount).toBe(1)
   })
 
   test("rerenders controlled node inputs when stable host state changes", async () => {
