@@ -15,7 +15,7 @@ export function DataMigrationSettingsCard() {
   const [tomlSource, setTomlSource] = useState<string>()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>()
-  const [managing, setManaging] = useState(false)
+  const [managing, setManaging] = useState(true)
 
   const loadConfig = useCallback(async () => {
     setLoading(true)
