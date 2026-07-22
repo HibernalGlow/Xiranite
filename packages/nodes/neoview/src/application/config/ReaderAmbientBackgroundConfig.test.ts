@@ -41,4 +41,14 @@ describe("NeoView ambient background configuration", () => {
     } })
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { background: { ambient: { speed: 99 } } } })).toThrow("background.ambient.speed")
   })
+
+  it("[neoview.ambient-background.edge-mode] parses and patches the edge match background mode", () => {
+    expect(parseNeoviewRuntimeConfig({
+      view: { background_mode: "edge" },
+    }).viewDefaults.background.mode).toBe("edge")
+
+    const parsed = parseNeoviewViewDefaultsPatch({ viewDefaults: { background: { mode: "edge" } } })
+    expect(parsed.patch.viewDefaults.background).toEqual({ mode: "edge" })
+    expect(parsed.tomlPatch).toEqual({ view: { background_mode: "edge" } })
+  })
 })

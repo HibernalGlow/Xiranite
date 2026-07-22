@@ -288,7 +288,7 @@ function parseNeoviewBackgroundConfig(view: Record<string, unknown> | undefined)
   const spotlightColor = spotlight?.color
   return {
     color: typeof colorValue === "string" && colorValue.trim() ? colorValue.trim() : defaults.color,
-    mode: optionalEnum(view?.background_mode ?? view?.backgroundMode, "[nodes.neoview.view].background_mode", ["solid", "auto", "ambient", "aurora", "spotlight"] as const) ?? defaults.mode,
+    mode: optionalEnum(view?.background_mode ?? view?.backgroundMode, "[nodes.neoview.view].background_mode", ["solid", "auto", "edge", "ambient", "aurora", "spotlight"] as const) ?? defaults.mode,
     ambient: {
       style: optionalEnum(ambient?.style, "[nodes.neoview.view.ambient].style", ["gentle", "vibrant", "dynamic"] as const) ?? defaults.ambient.style,
       speed: boundedNumber(ambient?.speed, 2, 20, defaults.ambient.speed, "[nodes.neoview.view.ambient].speed"),
@@ -2269,7 +2269,7 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
       backgroundPatch.background_color = next.color
     }
     if (background.mode !== undefined) {
-      next.mode = optionalEnum(background.mode, "reader view defaults patch.background.mode", ["solid", "auto", "ambient", "aurora", "spotlight"] as const)
+      next.mode = optionalEnum(background.mode, "reader view defaults patch.background.mode", ["solid", "auto", "edge", "ambient", "aurora", "spotlight"] as const)
       backgroundPatch.background_mode = next.mode
     }
     if (background.ambient !== undefined) {

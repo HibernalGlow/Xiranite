@@ -26,4 +26,14 @@ describe("ReaderBackgroundLayer", () => {
     expect(view.container.querySelector(".reader-background-aurora.is-masked")).toBeTruthy()
     expect(view.container.querySelector(".reader-background-ambient")).toBeNull()
   })
+
+  it("[neoview.ambient-background.edge-layer] keeps edge mode distinct from auto blur cover", () => {
+    const view = render(<ReaderBackgroundLayer config={{ ...config, mode: "edge" }} imageSrc="http://127.0.0.1/page/2" />)
+    const root = view.container.querySelector<HTMLElement>("[data-reader-background-mode='edge']")
+    expect(root).toBeTruthy()
+    expect(view.container.querySelector(".reader-background-image")).toBeNull()
+    // Async sample has not finished without a decodable image.
+    expect(view.container.querySelector(".reader-background-edge")).toBeNull()
+    expect(root?.getAttribute("data-reader-edge-ready")).toBe("false")
+  })
 })

@@ -1178,7 +1178,7 @@ export interface ReaderRuntimeConfigDto {
   voiceControl?: ReaderVoiceControlConfig
 }
 
-export type ReaderBackgroundMode = "solid" | "auto" | "ambient" | "aurora" | "spotlight"
+export type ReaderBackgroundMode = "solid" | "auto" | "edge" | "ambient" | "aurora" | "spotlight"
 export type ReaderAmbientStyle = "gentle" | "vibrant" | "dynamic"
 
 export interface ReaderBackgroundConfigDto {

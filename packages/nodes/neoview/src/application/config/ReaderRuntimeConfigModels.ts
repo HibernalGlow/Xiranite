@@ -373,7 +373,7 @@ export interface NeoviewViewDefaultsPatch {
   viewDefaults: Omit<Partial<NeoviewViewDefaults>, "background"> & { background?: NeoviewBackgroundPatch }
 }
 
-export type NeoviewBackgroundMode = "solid" | "auto" | "ambient" | "aurora" | "spotlight"
+export type NeoviewBackgroundMode = "solid" | "auto" | "edge" | "ambient" | "aurora" | "spotlight"
 export type NeoviewAmbientStyle = "gentle" | "vibrant" | "dynamic"
 
 export interface NeoviewBackgroundConfig {
