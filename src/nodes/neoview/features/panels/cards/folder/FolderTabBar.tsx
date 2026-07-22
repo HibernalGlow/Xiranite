@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Copy, EyeOff, Folder, History, MoreVertical, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Search, X } from "lucide-react"
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { useEffect, useRef, useState, type ComponentProps, type PointerEvent as ReactPointerEvent } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -91,30 +91,44 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
     if (rootRef.current) rootRef.current.style.width = `${layout.width}px`
   }
 
-  if (effectiveLayout === "none") {
+  // Single working tab: keep the compact action pad (and per-tab menu) without
+  // painting a one-item tab strip. Multi-tab still gets the full strip below.
+  if (tabs.length <= 1 || effectiveLayout === "none") {
     const tab = tabs.find((candidate) => candidate.id === activeTabId) ?? tabs[0]
-    return (
-      <div className="flex h-8 items-center gap-1" data-folder-tab-bar="false" data-folder-tab-layout="none">
-        {tab ? (
-          <FolderTabActionsMenu
-            tab={tab}
+    const showStrip = tabs.length > 1 && effectiveLayout !== "none"
+    if (!showStrip) {
+      return (
+        <div className="flex h-8 items-center gap-1" data-folder-tab-bar="false" data-folder-tab-layout="none">
+          {tab ? (
+            <FolderTabActionsMenu
+              tab={tab}
+              disabled={disabled}
+              canDuplicate={tabs.length < maxTabs}
+              canClose={false}
+              canCloseOthers={false}
+              canCloseLeft={false}
+              canCloseRight={false}
+              onDuplicate={onDuplicate}
+              onClose={onClose}
+              onTogglePinned={onTogglePinned}
+              onCloseOthers={onCloseOthers}
+              onCloseLeft={onCloseLeft}
+              onCloseRight={onCloseRight}
+            />
+          ) : null}
+          <FolderTabActionPad
             disabled={disabled}
-            canDuplicate={tabs.length < maxTabs}
-            canClose={false}
-            canCloseOthers={false}
-            canCloseLeft={false}
-            canCloseRight={false}
-            onDuplicate={onDuplicate}
-            onClose={onClose}
-            onTogglePinned={onTogglePinned}
-            onCloseOthers={onCloseOthers}
-            onCloseLeft={onCloseLeft}
-            onCloseRight={onCloseRight}
+            tabCount={tabs.length}
+            maxTabs={maxTabs}
+            recentlyClosed={recentlyClosed}
+            layout={layout}
+            onCreate={onCreate}
+            onReopen={onReopen}
+            onLayoutChange={onLayoutChange}
           />
-        ) : null}
-        <LayoutSettingsButton disabled={disabled} layout={layout} onLayoutChange={onLayoutChange} />
-      </div>
-    )
+        </div>
+      )
+    }
   }
 
   return (
@@ -188,24 +202,16 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
           )
         })}
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="重新打开关闭的页签" title="重新打开关闭的页签" disabled={disabled || !recentlyClosed.length || tabs.length >= maxTabs}>
-            <History />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          {[...recentlyClosed].reverse().map((tab) => (
-            <DropdownMenuItem key={tab.id} title={tab.currentPath} onSelect={() => onReopen(tab.id)}>
-              <History /><span className="truncate">{tab.title}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <LayoutSettingsButton disabled={disabled} layout={layout} onLayoutChange={onLayoutChange} />
-      <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="新建文件夹标签" title="新建文件夹标签" disabled={disabled || tabs.length >= maxTabs} onClick={onCreate}>
-        <Plus />
-      </Button>
+      <FolderTabActionPad
+        disabled={disabled}
+        tabCount={tabs.length}
+        maxTabs={maxTabs}
+        recentlyClosed={recentlyClosed}
+        layout={layout}
+        onCreate={onCreate}
+        onReopen={onReopen}
+        onLayoutChange={onLayoutChange}
+      />
       {vertical ? (
         <button
           type="button"
@@ -297,7 +303,120 @@ function PositionChoices({ label, value, onChange }: { label: string; value: Rea
   )
 }
 
-function LayoutSettingsButton({ disabled, layout, onLayoutChange }: { disabled: boolean; layout: ReaderFolderTabsConfig; onLayoutChange(patch: Partial<ReaderFolderTabsConfig>): void }) {
+/**
+ * 3-in-1 pad for tab chrome actions — same interaction language as the
+ * folder navigation 5-pad and breadcrumb 4-pad:
+ *   top    = new tab
+ *   left   = reopen closed tabs
+ *   right  = layout / more settings
+ */
+function FolderTabActionPad({
+  disabled,
+  tabCount,
+  maxTabs,
+  recentlyClosed,
+  layout,
+  onCreate,
+  onReopen,
+  onLayoutChange,
+}: {
+  disabled: boolean
+  tabCount: number
+  maxTabs: number
+  recentlyClosed: readonly RecentlyClosedFolderTabItem[]
+  layout: ReaderFolderTabsConfig
+  onCreate(): void
+  onReopen(id: string): void
+  onLayoutChange(patch: Partial<ReaderFolderTabsConfig>): void
+}) {
+  const canCreate = !disabled && tabCount < maxTabs
+  const canReopen = !disabled && recentlyClosed.length > 0 && tabCount < maxTabs
+  return (
+    <div
+      className="relative size-8 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/30 shadow-xs focus-within:ring-2 focus-within:ring-ring/50"
+      role="group"
+      aria-label="标签页操作"
+      data-folder-tab-action-pad="true"
+    >
+      <TabPadButton
+        position="top"
+        aria-label="新建文件夹标签"
+        title="新建文件夹标签"
+        disabled={!canCreate}
+        onClick={onCreate}
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <TabPadButton
+            position="left"
+            aria-label="重新打开关闭的页签"
+            title="重新打开关闭的页签"
+            disabled={!canReopen}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {recentlyClosed.length === 0 ? (
+            <DropdownMenuItem disabled>暂无已关闭页签</DropdownMenuItem>
+          ) : (
+            [...recentlyClosed].reverse().map((tab) => (
+              <DropdownMenuItem key={tab.id} title={tab.currentPath} onSelect={() => onReopen(tab.id)}>
+                {tab.kind === "search" ? <Search /> : <History />}
+                <span className="truncate">{tab.title}</span>
+              </DropdownMenuItem>
+            ))
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <LayoutSettingsButton pad disabled={disabled} layout={layout} onLayoutChange={onLayoutChange} />
+      <div className="pointer-events-none absolute inset-0 z-[3] text-foreground" aria-hidden="true">
+        <Plus className={`absolute left-1/2 top-0.5 size-2 -translate-x-1/2 ${canCreate ? "" : "opacity-25"}`} />
+        <History className={`absolute left-0.5 top-1/2 size-2 -translate-y-1/2 ${canReopen ? "" : "opacity-25"}`} />
+        <MoreVertical className={`absolute right-0.5 top-1/2 size-2 -translate-y-1/2 ${disabled ? "opacity-25" : ""}`} />
+      </div>
+    </div>
+  )
+}
+
+const TAB_PAD_POSITION_CLASSES = {
+  top: "[clip-path:polygon(0_0,100%_0,70%_40%,30%_40%)]",
+  left: "[clip-path:polygon(0_0,40%_30%,40%_70%,0_100%)]",
+  right: "[clip-path:polygon(100%_0,60%_30%,60%_70%,100%_100%)]",
+  bottom: "[clip-path:polygon(30%_60%,70%_60%,100%_100%,0_100%)]",
+} as const
+
+function TabPadButton({
+  position,
+  active = false,
+  className,
+  ...props
+}: ComponentProps<typeof Button> & {
+  position: keyof typeof TAB_PAD_POSITION_CLASSES
+  active?: boolean
+}) {
+  return (
+    <Button
+      type="button"
+      size="icon-sm"
+      variant={active ? "secondary" : "ghost"}
+      className={`absolute inset-0 z-[1] size-full min-w-0 rounded-none p-0 ${TAB_PAD_POSITION_CLASSES[position]} ${className ?? ""}`}
+      data-folder-tab-pad-position={position}
+      {...props}
+    />
+  )
+}
+
+function LayoutSettingsButton({
+  disabled,
+  layout,
+  onLayoutChange,
+  pad = false,
+}: {
+  disabled: boolean
+  layout: ReaderFolderTabsConfig
+  onLayoutChange(patch: Partial<ReaderFolderTabsConfig>): void
+  /** When true, render as the right slice of the 3-in-1 tab action pad. */
+  pad?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const select = (patch: Partial<ReaderFolderTabsConfig>) => {
     onLayoutChange(patch)
@@ -306,9 +425,19 @@ function LayoutSettingsButton({ disabled, layout, onLayoutChange }: { disabled: 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="标签栏布局设置" title="标签栏布局设置" disabled={disabled}>
-          <MoreVertical />
-        </Button>
+        {pad ? (
+          <TabPadButton
+            position="right"
+            active={open}
+            aria-label="标签栏布局设置"
+            title="标签栏布局设置"
+            disabled={disabled}
+          />
+        ) : (
+          <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="标签栏布局设置" title="标签栏布局设置" disabled={disabled}>
+            <MoreVertical />
+          </Button>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-[calc(100vh-1rem)] w-52 overflow-y-auto">
         <PositionChoices label="标签栏位置" value={layout.layout} onChange={(value) => select({ layout: value })} />
