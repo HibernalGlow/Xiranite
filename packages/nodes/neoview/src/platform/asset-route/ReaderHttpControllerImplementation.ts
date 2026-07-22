@@ -504,7 +504,7 @@ export class ReaderHttpController implements AsyncDisposable {
       }),
     )
     this.#sourceChanges = new ReaderSourceWatchService(options.sourceWatcher ?? new PlatformReaderSourceWatcher())
-    this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore, emmTranslations)
+    this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore, emmTranslations, options.emmOverrideStore)
     this.#pageMediaInformation = new ReaderPageMediaInformationService(
       options.loadPageMediaMetadataProvider ??
         (async () => {

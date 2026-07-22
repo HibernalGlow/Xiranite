@@ -1057,7 +1057,7 @@ export async function createReaderHeadlessController(
     ? new (await import("./application/reader/ReaderMediaProgressService.js")).ReaderMediaProgressService(mediaProgressStore)
     : undefined
   const bookMetadata = isReaderDirectoryEmmRecordStore(progressStore)
-    ? new (await import("./application/metadata/ReaderBookMetadataService.js")).ReaderBookMetadataService(progressStore)
+    ? new (await import("./application/metadata/ReaderBookMetadataService.js")).ReaderBookMetadataService(progressStore, undefined, isReaderEmmOverrideStore(progressStore) ? progressStore : undefined)
     : undefined
   const emmMetadata = isReaderEmmOverrideStore(progressStore)
     ? new (await import("./application/metadata/ReaderEmmMetadataService.js")).ReaderEmmMetadataService(progressStore)

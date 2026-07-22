@@ -1557,6 +1557,7 @@ export interface ReaderFolderEmptyAreaConfig {
 
 export interface ReaderFolderPenetrationConfig {
   enabled: boolean
+  showInternalFiles: boolean
   maxDepth: number
   terminalTargets: ReaderFolderPenetrationTerminalKindDto[]
 }
@@ -1901,6 +1902,13 @@ export interface ReaderHttpClient {
   pageAction?(sessionId: string, pageId: string, action: "copy" | "reveal" | "open", signal?: AbortSignal): Promise<ReaderPageCopyActionDto | void>
   releasePageActionLease?(sessionId: string, leaseToken: string): Promise<void>
   metadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderMetadataDto>
+  getEmmMetadata?(sessionId: string, signal?: AbortSignal): Promise<ReaderEmmMetadataSnapshotDto>
+  updateEmmMetadata?(
+    sessionId: string,
+    expectedRevision: number,
+    patch: ReaderEmmMetadataPatchDto,
+    signal?: AbortSignal,
+  ): Promise<ReaderEmmMetadataSnapshotDto>
   pageMediaInformation?(sessionId: string, signal?: AbortSignal): Promise<ReaderPageMediaInformationDto>
   diagnostics?(signal?: AbortSignal): Promise<ReaderStorageDiagnosticsDto>
   systemMonitorSnapshot?(signal?: AbortSignal): Promise<ReaderSystemMonitorSnapshotDto>
