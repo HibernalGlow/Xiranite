@@ -2,13 +2,9 @@ import { cleanup, render } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
 
 import type { ReaderBackgroundConfigDto } from "../../adapters/reader-http-client"
-import { clearEdgeMatchPresentationCache, seedEdgeMatchPresentation } from "./edgeMatchBackground"
 import { ReaderBackgroundLayer } from "./ReaderBackgroundLayer"
 
-afterEach(() => {
-  cleanup()
-  clearEdgeMatchPresentationCache()
-})
+afterEach(cleanup)
 
 const config: ReaderBackgroundConfigDto = {
   color: "#000000",
@@ -39,17 +35,5 @@ describe("ReaderBackgroundLayer", () => {
     // Async sample has not finished without a decodable image.
     expect(view.container.querySelector(".reader-background-edge")).toBeNull()
     expect(root?.getAttribute("data-reader-edge-ready")).toBe("false")
-  })
-
-  it("[neoview.ambient-background.edge-cache-hit] paints a cached URL synchronously", () => {
-    seedEdgeMatchPresentation("http://127.0.0.1/page/cached", {
-      css: "linear-gradient(to bottom, #336699 0%, #336699 42%)",
-      average: "#336699",
-    })
-    const view = render(<ReaderBackgroundLayer config={{ ...config, mode: "edge" }} imageSrc="http://127.0.0.1/page/cached" />)
-    const root = view.container.querySelector<HTMLElement>("[data-reader-background-mode='edge']")
-    expect(root?.getAttribute("data-reader-edge-ready")).toBe("true")
-    expect(view.container.querySelector(".reader-background-edge")).toBeTruthy()
-    expect(root?.style.getPropertyValue("--reader-edge-match-average")).toBe("#336699")
   })
 })

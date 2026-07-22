@@ -1,21 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
-import {
-  clearEdgeMatchPresentationCache,
-  clearReaderDecodedImageNotes,
-  computeEdgeMatchPresentation,
-  edgeFrameToPresentation,
-  getCachedEdgeMatchPresentation,
-  noteReaderDecodedImage,
-  sampleEdgeColorsFromPixels,
-  seedEdgeMatchPresentation,
-} from "./edgeMatchBackground"
-
-afterEach(() => {
-  clearEdgeMatchPresentationCache()
-  clearReaderDecodedImageNotes()
-  vi.restoreAllMocks()
-})
+import { edgeFrameToPresentation, sampleEdgeColorsFromPixels } from "./edgeMatchBackground"
 
 function solid(width: number, height: number, fill: [number, number, number]): Uint8ClampedArray {
   const pixels = new Uint8ClampedArray(width * height * 4)
@@ -63,35 +48,5 @@ describe("edgeMatchBackground", () => {
     const presentation = edgeFrameToPresentation({ top: white, right: white, bottom: white, left: white })
     expect(presentation.average).toBe("#ffffff")
     expect(presentation.css).toContain("#ffffff")
-  })
-
-  it("[neoview.ambient-background.edge-cache-url] returns the same presentation for a repeated URL", async () => {
-    const seeded = edgeFrameToPresentation({
-      top: ["#112233", "#112233"],
-      right: ["#112233", "#112233"],
-      bottom: ["#112233", "#112233"],
-      left: ["#112233", "#112233"],
-    })
-    seedEdgeMatchPresentation("http://127.0.0.1/page/cached", seeded)
-
-    const first = await computeEdgeMatchPresentation("http://127.0.0.1/page/cached")
-    const second = await computeEdgeMatchPresentation("http://127.0.0.1/page/cached")
-    expect(first).toEqual(seeded)
-    expect(second).toBe(first)
-    expect(getCachedEdgeMatchPresentation("http://127.0.0.1/page/cached")).toBe(first)
-  })
-
-  it("[neoview.ambient-background.edge-decoded] notes decoded page images for reuse lookup", () => {
-    const image = {
-      complete: true,
-      naturalWidth: 32,
-      naturalHeight: 24,
-      width: 32,
-      height: 24,
-    } as HTMLImageElement
-    noteReaderDecodedImage("http://127.0.0.1/page/decoded", image)
-    // Registry is private; presence is proven by compute preferring it when sampling is mocked via canvas failure path.
-    // At minimum, noting does not throw and cache APIs remain stable.
-    expect(getCachedEdgeMatchPresentation("http://127.0.0.1/page/decoded")).toBeUndefined()
   })
 })

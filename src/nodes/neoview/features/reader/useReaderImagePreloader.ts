@@ -1,7 +1,8 @@
-import pMap from "p-map"
+import PQueue from "p-queue"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 
 import type { ReaderPageDto, ReaderPreloadEventDto } from "../../adapters/reader-http-client"
+import { neoviewDebug } from "../../neoviewDebug"
 import { readerPreloadStatusStore } from "./ReaderPreloadStatusStore"
 
 // Keep first open paint free of adjacent decode work; freeze reports showed
@@ -48,9 +49,7 @@ export function useReaderImagePreloader(
   reportEvents?: (sessionId: string, generation: number, events: readonly ReaderPreloadEventDto[]) => void,
 ): ReaderImagePreloader {
   const imagesRef = useRef(new Map<string, PreloadedImage>())
-  const activeBatchRef = useRef<Promise<void>>()
-  const queuedBatchRef = useRef<PreloadedImage[]>()
-  const runPredecodeBatchRef = useRef<(pending: readonly PreloadedImage[]) => void>(() => undefined)
+  const predecodeQueueRef = useRef<PQueue>()
   const pumpTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const reportEventsRef = useRef(reportEvents)
   const pendingReportsRef = useRef(new Map<string, { sessionId: string; generation: number; events: ReaderPreloadEventDto[] }>())
@@ -97,64 +96,79 @@ export function useReaderImagePreloader(
     }
   }, [report, sessionId])
 
+  const clearPendingPredecodes = useCallback((reason: "cancel" | "replace" | "session-dispose") => {
+    const queue = predecodeQueueRef.current
+    if (!queue) return
+    const waiting = queue.size
+    queue.clear()
+    if (waiting > 0) {
+      neoviewDebug("reader:predecode:queue-cleared", {
+        sessionId,
+        reason,
+        waiting,
+        running: queue.pending,
+      })
+    }
+  }, [sessionId])
+
   const runPredecodeBatch = useCallback((pending: readonly PreloadedImage[]) => {
     const images = imagesRef.current
     const admitted = pending.filter((entry) => !entry.terminal && images.get(entry.assetUrl) === entry)
     if (!admitted.length) return
 
-    // A cancelled image.decode() is not reliably abortable in Chromium. Never
-    // append stale batches behind it: retain only the newest request and run it
-    // once the active decode settles.
-    if (activeBatchRef.current) {
-      queuedBatchRef.current = admitted
-      return
-    }
-
-    const policy = resolveReaderPredecodePolicy(browserPredecodeDeviceHints())
-    const completion = pMap(admitted, async (entry) => {
-      const { assetUrl } = entry
-      if (entry.terminal || images.get(assetUrl) !== entry) return
-      const image = entry.image
-      entry.started = true
-      entry.startedAt = performance.now()
-      image.onload = () => { entry.loadedAt = performance.now() }
-      image.src = assetUrl
-      readerPreloadStatusStore.begin(sessionId!, entry.pageIndex)
-      report(entry, "started", { activeLeases: images.size })
-      try {
-        await image.decode()
-        if (images.get(assetUrl)?.image !== image || entry.terminal) return
-        entry.terminal = true
-        readerPreloadStatusStore.ready(sessionId!, entry.pageIndex)
-        report(entry, "ready", preloadMetrics(entry, images.size))
-        performance.mark(READER_PREFETCH_READY_MARK, { detail: entry.pageIndex })
-      } catch {
-        if (images.get(assetUrl)?.image !== image || entry.terminal) return
-        entry.terminal = true
-        readerPreloadStatusStore.fail(sessionId!, entry.pageIndex)
-        report(entry, "failed", preloadMetrics(entry, images.size))
+    const queue = predecodeQueueRef.current ??= new PQueue({ concurrency: 1 })
+    // A page turn supersedes every waiting decode. PQueue cannot stop a task
+    // already running in Chromium, so the ownership checks below remain vital.
+    clearPendingPredecodes("replace")
+    const completion = queue.add(async () => {
+      neoviewDebug("reader:predecode:batch-start", {
+        sessionId,
+        pages: admitted.map((entry) => entry.pageIndex),
+        queued: queue.size,
+        running: queue.pending,
+      })
+      for (const entry of admitted) {
+        const { assetUrl } = entry
+        if (entry.terminal || images.get(assetUrl) !== entry) continue
+        const image = entry.image
+        entry.started = true
+        entry.startedAt = performance.now()
+        image.onload = () => { entry.loadedAt = performance.now() }
+        image.src = assetUrl
+        readerPreloadStatusStore.begin(sessionId!, entry.pageIndex)
+        report(entry, "started", { activeLeases: images.size })
+        try {
+          await image.decode()
+          if (images.get(assetUrl)?.image !== image || entry.terminal) continue
+          entry.terminal = true
+          readerPreloadStatusStore.ready(sessionId!, entry.pageIndex)
+          report(entry, "ready", preloadMetrics(entry, images.size))
+          performance.mark(READER_PREFETCH_READY_MARK, { detail: entry.pageIndex })
+        } catch {
+          if (images.get(assetUrl)?.image !== image || entry.terminal) continue
+          entry.terminal = true
+          readerPreloadStatusStore.fail(sessionId!, entry.pageIndex)
+          report(entry, "failed", preloadMetrics(entry, images.size))
+        }
       }
-    }, { concurrency: policy.concurrency }).then(() => undefined).catch(() => undefined)
-
-    activeBatchRef.current = completion
-    admitted.forEach((entry) => { entry.completion = completion })
-    void completion.then(() => {
-      if (activeBatchRef.current !== completion) return
-      activeBatchRef.current = undefined
-      const latest = queuedBatchRef.current
-      queuedBatchRef.current = undefined
-      if (latest) runPredecodeBatchRef.current(latest)
+      neoviewDebug("reader:predecode:batch-settled", {
+        sessionId,
+        pages: admitted.map((entry) => entry.pageIndex),
+        retained: images.size,
+      })
     })
-  }, [report, sessionId])
-  runPredecodeBatchRef.current = runPredecodeBatch
+    admitted.forEach((entry) => { entry.completion = completion })
+    void completion.catch(() => undefined)
+  }, [clearPendingPredecodes, report, sessionId])
 
   useEffect(() => {
     return () => {
+      clearPendingPredecodes("session-dispose")
       releaseRetained()
       if (sessionId) readerPreloadStatusStore.clear(sessionId)
       flushReports()
     }
-  }, [flushReports, releaseRetained, sessionId])
+  }, [clearPendingPredecodes, flushReports, releaseRetained, sessionId])
 
   const preload = useCallback((pages: readonly ReaderPageDto[], generation?: number) => {
     if (typeof Image === "undefined" || !sessionId) return
@@ -206,10 +220,10 @@ export function useReaderImagePreloader(
   }, [releaseRetained, runPredecodeBatch, sessionId])
 
   const cancel = useCallback(() => {
-    queuedBatchRef.current = undefined
+    clearPendingPredecodes("cancel")
     releaseRetained()
     if (sessionId) readerPreloadStatusStore.clear(sessionId)
-  }, [releaseRetained, sessionId])
+  }, [clearPendingPredecodes, releaseRetained, sessionId])
 
   return useMemo(() => ({ preload, cancel, releaseRetained }), [cancel, preload, releaseRetained])
 }
