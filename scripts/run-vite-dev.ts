@@ -23,8 +23,9 @@ if (!viteArgs.includes("--strictPort")) viteArgs.push("--strictPort")
 // A mismatched VITE_XIRANITE_FRONTEND_DEV_URL used to open a second websocket
 // listener (often on 5173/5174) that answered document GETs with 426/404.
 const frontendUrl = frontend.href.replace(/\/$/, "")
+const viteCacheDir = managedViteCacheDir(frontendUrl)
 
-const removedTemps = await clearStaleViteOptimizeTemps()
+const removedTemps = await clearStaleViteOptimizeTemps(viteCacheDir)
 if (removedTemps > 0) console.log(`[xiranite-frontend] cleared ${removedTemps} stale Vite optimize temp(s)`)
 
 const vite = spawnManagedVite(viteArgs, {
@@ -34,7 +35,7 @@ const vite = spawnManagedVite(viteArgs, {
   env: viteDevelopmentEnvironment(mode, {
     ...Bun.env,
     VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,
-    XIRANITE_VITE_CACHE_DIR: managedViteCacheDir(),
+    XIRANITE_VITE_CACHE_DIR: viteCacheDir,
   }),
 })
 
