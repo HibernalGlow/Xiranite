@@ -24,7 +24,7 @@ import {
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 import type { LoratAction, LoratInput, LoratResult, LoratRow, LoratStatusFilter } from "./core.js"
 import { DEFAULT_LORA_FOLDER, collectTriggerDb, filterLoratRows, parseTriggerDb, runLorat, summarizeLoratRows } from "./core.js"
 import { createNodeLoratRuntime, readClipboardText, readTextFile, writeTextFile } from "./platform.js"
@@ -132,8 +132,7 @@ function loratPreferences(host: CliHost, current: TerminalPreferenceValues): Ter
     nodeId: "lorat",
     current,
     async save(values) {
-      const { config, path } = await loadXiraniteConfig(options)
-      await saveXiraniteConfig(updateNodeConfig(config, "lorat", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path })
+      await updateNodeConfigFile("lorat", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options)
     },
     async restore() {
       const { config } = await loadNodeConfigWithHints<LoratNodeConfig>("lorat", { ...options, jsonMode: true })

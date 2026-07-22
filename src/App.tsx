@@ -11,9 +11,14 @@ import { lazy, Suspense } from "react"
 import { WorkspaceProvider } from "@/store/workspaceContext"
 import { WorkspaceAppearance } from "@/components/workspace/WorkspaceAppearance"
 import { AppConfigSync } from "@/components/workspace/AppConfigSync"
-import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout"
 import { ContextMenuProvider } from "@/components/context-menu"
 import { parseAsString, useQueryStates } from "nuqs"
+
+const WorkspaceLayout = lazy(() =>
+  import("@/components/workspace/WorkspaceLayout").then((module) => ({
+    default: module.WorkspaceLayout,
+  })),
+)
 
 const FloatingComponentWindow = lazy(() =>
   import("@/components/workspace/FloatingComponentWindow").then((module) => ({
@@ -41,18 +46,18 @@ export function App() {
       <ContextMenuProvider>
         <AppConfigSync />
         <WorkspaceAppearance />
-        {params.floatingComponent ? (
-          <Suspense fallback={<div className="h-screen bg-background" />}>
+        <Suspense fallback={<div className="h-screen bg-background" />}>
+          {params.floatingComponent ? (
             <FloatingComponentWindow
               compId={params.floatingComponent}
               windowId={params.windowId}
               moduleIdFallback={params.moduleId}
               titleFallback={params.title}
             />
-          </Suspense>
-        ) : (
-          <WorkspaceLayout />
-        )}
+          ) : (
+            <WorkspaceLayout />
+          )}
+        </Suspense>
       </ContextMenuProvider>
     </WorkspaceProvider>
   )

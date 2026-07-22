@@ -421,6 +421,12 @@ export async function createReaderHttpController(
   const directoryEmmStore = dataStore
     ? composeReaderEmmStores(dataStore, reloadableExternalEmmStore)
     : reloadableExternalEmmStore
+  const ratingCatalog = directoryEmmStore && "listEmmRatingRecords" in directoryEmmStore && typeof directoryEmmStore.listEmmRatingRecords === "function"
+    ? { listEmmRatingRecords: directoryEmmStore.listEmmRatingRecords.bind(directoryEmmStore) }
+    : undefined
+  const folderRatingService = dataStore && ratingCatalog
+    ? new (await import("./application/metadata/ReaderFolderRatingService.js")).ReaderFolderRatingService(ratingCatalog, dataStore as unknown as import("./ports/ReaderFolderRatingCacheStore.js").ReaderFolderRatingCacheStore)
+    : undefined
   let emmRuntimeConfig = runtimeConfig.emm
   const managedEmmRuntime = options.legacyEmmDatabasePaths === undefined
   const resolveEmmDatabasePaths = (config: NeoviewEmmConfig) => config.databasePaths.length
@@ -532,6 +538,8 @@ export async function createReaderHttpController(
     libraryService,
     directorySortPreferenceStore: dataStore,
     directoryEmmRecordStore: directoryEmmStore,
+    manualTagCatalogStore: dataStore as unknown as import("./ports/ReaderManualTagCatalogStore.js").ReaderManualTagCatalogStore | undefined,
+    folderRatingService,
     emmOverrideStore: dataStore,
     searchHistoryStore: dataStore,
     fileUndoJournalStore: dataStore,
@@ -563,12 +571,14 @@ export async function createReaderHttpController(
     switchToast: runtimeConfig.switchToast,
     infoOverlay: runtimeConfig.infoOverlay,
     systemMonitor: runtimeConfig.systemMonitor,
+    preload: runtimeConfig.preload,
     aiTranslation: runtimeConfig.aiTranslation,
     aiTranslationCache: thumbnailStore && "load" in thumbnailStore ? thumbnailStore as never : undefined,
     imageTrim: runtimeConfig.imageTrim,
     superResolution: runtimeConfig.superResolution,
     inputBindings: runtimeConfig.inputBindings,
     radialMenu: runtimeConfig.radialMenu,
+    voiceControl: runtimeConfig.voiceControl,
     presentationDiskCache,
     disposePresentationDiskCache: Boolean(presentationDiskCache && !options.presentationDiskCache),
     updateShellOptions: async (_patch, tomlPatch) => {
@@ -662,6 +672,12 @@ export async function createReaderHttpController(
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).systemMonitor
     },
+    updatePreload: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).preload
+    },
     updateEmm: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
@@ -710,6 +726,12 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).radialMenu
+    },
+    updateVoiceControl: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).voiceControl
     },
     loadSettingsMigrationService: () => createReaderSettingsMigrationService(options),
     loadBookSettingsMigrationService: options.loadBookSettingsMigrationService ?? (dataStore
@@ -1035,7 +1057,7 @@ export async function createReaderHeadlessController(
     ? new (await import("./application/reader/ReaderMediaProgressService.js")).ReaderMediaProgressService(mediaProgressStore)
     : undefined
   const bookMetadata = isReaderDirectoryEmmRecordStore(progressStore)
-    ? new (await import("./application/metadata/ReaderBookMetadataService.js")).ReaderBookMetadataService(progressStore)
+    ? new (await import("./application/metadata/ReaderBookMetadataService.js")).ReaderBookMetadataService(progressStore, undefined, isReaderEmmOverrideStore(progressStore) ? progressStore : undefined)
     : undefined
   const emmMetadata = isReaderEmmOverrideStore(progressStore)
     ? new (await import("./application/metadata/ReaderEmmMetadataService.js")).ReaderEmmMetadataService(progressStore)

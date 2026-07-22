@@ -25,7 +25,7 @@ import {
 import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource } from "@xiranite/cli-runtime/interaction"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 
 import type { RawfilterAction, RawfilterInput, RawfilterPlanItem, RawfilterResult, RawfilterRuntime } from "./core.js"
 import { runRawfilter } from "./core.js"
@@ -466,7 +466,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
     createPreferences: (_d, current) => rawfilterPreferences(host, current), reexecEntrypoint: process.argv[1], help,
   })
 }
-function rawfilterPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"rawfilter",current,async save(v){const{config,path}=await loadXiraniteConfig(o);await saveXiraniteConfig(updateNodeConfig(config,"rawfilter",{cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}),{...o,configPath:path})},async restore(){const{config}=await loadNodeConfigWithHints<RawfilterNodeConfig>("rawfilter",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
+function rawfilterPreferences(host:CliHost,current:TerminalPreferenceValues):TerminalPreferenceController{const o={env:host.env,cwd:host.cwd};return{nodeId:"rawfilter",current,async save(v){await updateNodeConfigFile("rawfilter", {cli:{theme:v.theme,default_mode:v.defaultMode,language:v.language}}, o)},async restore(){const{config}=await loadNodeConfigWithHints<RawfilterNodeConfig>("rawfilter",{...o,jsonMode:true});const p=resolveInteractionPreferences(config);return{theme:p.theme,defaultMode:p.mode,language:p.language??"zh"}}}}
 
 if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) {
   try {

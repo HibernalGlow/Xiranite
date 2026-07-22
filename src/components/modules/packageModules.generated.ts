@@ -3,6 +3,7 @@
 import type { AppNodeEntry, HeadlessNodePackage, NodeDef, NodeEntry, NodeHelp } from "@xiranite/contract"
 
 export const PACKAGE_MODULES = [
+  { id: "arcthumb", name: "ArcThumb", version: "0.1.0", category: "image", description: "Generate native cover thumbnails from comic archives and ebooks.", icon: "GalleryThumbnails", keywords: ["thumbnail", "cover", "archive", "ebook", "cbz", "epub"] },
   { id: "audiov", name: "AudioV", version: "0.1.0", category: "video", description: "Extract audio tracks from video files with a native ffmpeg workflow.", icon: "AudioLines", keywords: ["ffmpeg", "audio", "video", "media"] },
   { id: "bandia", name: "Bandia", version: "0.1.0", category: "file", description: "Batch extract, compress, repack, and export archive paths with Bandizip.", icon: "FileArchive", keywords: ["archive", "bandizip", "extract", "compress", "efu"] },
   { id: "batong", name: "BATONG", version: "0.1.0", category: "dev", description: "Migrate drawing-workflow coding-agent sessions with Baton.", icon: "Route", keywords: ["baton", "session", "migration", "claude", "codex", "drawing"] },
@@ -28,6 +29,7 @@ export const PACKAGE_MODULES = [
   { id: "linku", name: "Linku", version: "0.1.0", category: "file", description: "Create, move, list, and recover symlink records.", icon: "Link", keywords: ["symlink", "link", "move", "recover"] },
   { id: "lorat", name: "Lorat", version: "0.2.0", category: "image", description: "Collect LoRA downloads, manage trigger sidecars, and export TriggerDB JSON.", icon: "Tags", keywords: ["lora", "collection", "trigger", "comfyui", "sidecar", "triggerdb"] },
   { id: "marku", name: "Marku", version: "0.1.0", category: "text", description: "Run Markdown cleanup and conversion modules with preview diff.", icon: "FileCode", keywords: ["markdown", "diff", "text", "table"] },
+  { id: "melodeck", name: "Melodeck", version: "0.1.0", category: "audio", description: "Local music playback deck backed by mpv JSON IPC.", icon: "Music2", keywords: ["music", "audio", "player", "mpv", "playlist"] },
   { id: "migratef", name: "MigrateF", version: "0.1.0", category: "file", description: "Move or copy files with preserve, flat, and direct modes plus undo history.", icon: "FolderSync", keywords: ["copy", "move", "migration", "undo"] },
   { id: "movea", name: "Movea", version: "0.1.0", category: "file", description: "Scan first-level folders and move archives or loose folders into numbered targets.", icon: "FolderInput", keywords: ["archive", "move", "folder", "classify"] },
   { id: "mvz", name: "MVZ", version: "0.1.0", category: "file", description: "Delete, extract, move, or rename files inside archives from findz output.", icon: "Package", keywords: ["archive", "7z", "findz", "extract", "rename"] },
@@ -54,6 +56,7 @@ export const PACKAGE_MODULES = [
 ] satisfies NodeDef[]
 
 export const packageModuleLoaders = {
+  arcthumb: () => import("@/nodes/arcthumb/entry") as Promise<{ default: AppNodeEntry }>,
   audiov: () => import("@/nodes/audiov/entry") as Promise<{ default: AppNodeEntry }>,
   bandia: () => import("@/nodes/bandia/entry") as Promise<{ default: AppNodeEntry }>,
   batong: () => import("@xiranite/node-batong") as Promise<{ default: NodeEntry }>,
@@ -79,6 +82,7 @@ export const packageModuleLoaders = {
   linku: () => import("@/nodes/linku/entry") as Promise<{ default: AppNodeEntry }>,
   lorat: () => import("@/nodes/lorat/entry") as Promise<{ default: AppNodeEntry }>,
   marku: () => import("@/nodes/marku/entry") as Promise<{ default: AppNodeEntry }>,
+  melodeck: () => import("@/nodes/melodeck/entry") as Promise<{ default: AppNodeEntry }>,
   migratef: () => import("@/nodes/migratef/entry") as Promise<{ default: AppNodeEntry }>,
   movea: () => import("@/nodes/movea/entry") as Promise<{ default: AppNodeEntry }>,
   mvz: () => import("@/nodes/mvz/entry") as Promise<{ default: AppNodeEntry }>,
@@ -105,6 +109,7 @@ export const packageModuleLoaders = {
 } satisfies Partial<Record<string, () => Promise<{ default: NodeEntry | AppNodeEntry | HeadlessNodePackage }>>>
 
 export const nodeHelpLoaders = {
+  arcthumb: () => import("@xiranite/node-arcthumb/help") as Promise<{ help: NodeHelp }>,
   audiov: () => import("@xiranite/node-audiov/help") as Promise<{ help: NodeHelp }>,
   bandia: () => import("@xiranite/node-bandia/help") as Promise<{ help: NodeHelp }>,
   batong: () => import("@xiranite/node-batong/help") as Promise<{ help: NodeHelp }>,
@@ -130,6 +135,7 @@ export const nodeHelpLoaders = {
   linku: () => import("@xiranite/node-linku/help") as Promise<{ help: NodeHelp }>,
   lorat: () => import("@xiranite/node-lorat/help") as Promise<{ help: NodeHelp }>,
   marku: () => import("@xiranite/node-marku/help") as Promise<{ help: NodeHelp }>,
+  melodeck: () => import("@xiranite/node-melodeck/help") as Promise<{ help: NodeHelp }>,
   migratef: () => import("@xiranite/node-migratef/help") as Promise<{ help: NodeHelp }>,
   movea: () => import("@xiranite/node-movea/help") as Promise<{ help: NodeHelp }>,
   mvz: () => import("@xiranite/node-mvz/help") as Promise<{ help: NodeHelp }>,

@@ -3,6 +3,7 @@ import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
 import { desktopRuntimePermissionArgs, resolveDenoCommand } from "./deno-desktop-command"
+import { clearStaleViteOptimizeTemps, spawnManagedVite } from "./managed-process"
 import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
 
 const devSessionStartedAt = Date.now()
@@ -13,6 +14,7 @@ if (leanIndex !== -1) args.splice(leanIndex, 1)
 const frontendUrl = await resolveManagedFrontendUrl()
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
+const viteCacheDir = managedViteCacheDir(frontendUrl)
 
 if (await isFrontendReachable()) {
   throw new Error(
@@ -53,10 +55,10 @@ await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token }, fr
 console.log(`[xiranite-backend] ${backend.url}`)
 console.log(`[xiranite-frontend] ${frontendUrl}`)
 
-const vite = Bun.spawn([
-  process.execPath,
-  "x",
-  "vite",
+const removedTemps = await clearStaleViteOptimizeTemps(viteCacheDir)
+if (removedTemps > 0) console.log(`[xiranite-frontend] cleared ${removedTemps} stale Vite optimize temp(s)`)
+
+const vite = spawnManagedVite([
   "--host",
   frontend.hostname,
   "--port",
@@ -72,7 +74,7 @@ const vite = Bun.spawn([
     VITE_XIRANITE_BACKEND_URL: backend.url,
     VITE_XIRANITE_BACKEND_TOKEN: backend.token,
     VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,
-    XIRANITE_VITE_CACHE_DIR: managedViteCacheDir(),
+    XIRANITE_VITE_CACHE_DIR: viteCacheDir,
   },
 })
 
@@ -110,7 +112,13 @@ async function stop() {
   await Promise.all([removeBackendDevManifest(frontendUrl), removeDevSession()])
 }
 
-await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid], script: "dev-desktop-deno", startedAt: devSessionStartedAt })
+await writeDevSession({
+  supervisorPid: process.pid,
+  childPids: [vite.pid],
+  script: "dev-desktop-deno",
+  startedAt: devSessionStartedAt,
+  frontendUrl,
+})
 const stopRequestPoll = setInterval(() => {
   void consumeDevSessionStopRequest().then((requested) => { if (requested) void stop() })
 }, 100)
@@ -150,7 +158,13 @@ try {
       XIRANITE_BACKEND_TOKEN: backend.token,
     },
   })
-  await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid, desktop.pid], script: "dev-desktop-deno", startedAt: devSessionStartedAt })
+  await writeDevSession({
+    supervisorPid: process.pid,
+    childPids: [vite.pid, desktop.pid],
+    script: "dev-desktop-deno",
+    startedAt: devSessionStartedAt,
+    frontendUrl,
+  })
 
   const exitCode = await desktop.exited
   await stop()

@@ -134,10 +134,10 @@
       "sourceEvidence": ["src/lib/cards/properties/FavoriteTagsCard.svelte", "src/lib/stores/emm/manualTagStore.svelte.ts"],
       "targetContract": "List unique manual tags with namespace, translation, color and matching-file counts, refresh them explicitly and keep their dashed visual identity distinct from EMM favorites.",
       "surfaces": ["GUI"],
-      "capabilityStatus": {"core": "partial", "transport": "partial", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
-      "testIds": [],
-      "plannedTestIds": ["neoview.favorite-tags.manual"],
-      "notes": "Manual tags exist in the shared EMM domain, but this Card does not request or render the legacy manual-tag section."
+      "capabilityStatus": {"core": "partial", "transport": "complete", "gui": "partial", "cli": "not-applicable", "tui": "not-applicable", "evidence": "partial"},
+      "testIds": ["neoview.favorite-tags.manual-http", "neoview.favorite-tags.card", "neoview.emm-cards.lifecycle"],
+      "plannedTestIds": ["neoview.favorite-tags.manual-translation-color", "neoview.favorite-tags.manual-refresh"],
+      "notes": "The Card reads bounded unique manual-tag summaries through the canonical readonly route and renders their counts with the legacy dashed distinction. Translation/color metadata and a manual-only refresh remain absent because external EMM has no XR write ownership."
     },
     {
       "id": "favorite-tags.mixed-gender",

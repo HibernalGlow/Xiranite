@@ -28,7 +28,7 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 
 import type { EncodebAction, EncodebInput, EncodebMapping, EncodebResult, EncodebStrategy, EncodebTransform } from "./core.js"
 import { ENCODEB_PRESETS, parseEncodebPaths, runEncodeb } from "./core.js"
@@ -146,7 +146,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 }
 
 function createEncodebDefinition(defaults: EncodebNodeConfig, language: TerminalLanguage): TerminalInteractionDefinition<EncodebInput, EncodebResult> { return { schema: createEncodebInteractionSchema({ preset: defaults.preset ?? "cn", srcEncoding: defaults.src_encoding ?? "cp437", dstEncoding: defaults.dst_encoding ?? "cp936", strategy: defaults.strategy === "copy" ? "copy" : "replace", limit: defaults.limit ?? 200 } satisfies Partial<EncodebInteractionValues>, language), run: (input, onEvent) => runEncodeb(input, createNodeEncodebRuntime(), onEvent) } }
-function createEncodebPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "encodeb", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "encodeb", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<EncodebNodeConfig>("encodeb", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? "zh" } } } }
+function createEncodebPreferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "encodeb", current, async save(values) { await updateNodeConfigFile("encodeb", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<EncodebNodeConfig>("encodeb", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? "zh" } } } }
 function writeUsage(host: CliHost) { writeLine(host, `${CLI_NAME} - filename encoding recovery`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} find|preview|recover <paths...> [--json]`) }
 
 function createDefaultHost(): CliHost {

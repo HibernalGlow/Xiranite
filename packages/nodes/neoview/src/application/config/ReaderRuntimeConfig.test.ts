@@ -26,6 +26,7 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(parseNeoviewRuntimeConfig({ reader: { double_page_view: true, default_zoom_mode: "fitWidth" } }).viewDefaults).toEqual({
       fitMode: "fit-width",
       pageMode: "double",
+      doublePageGap: 0,
       splitWidePages: false,
       hoverScrollEnabled: true,
       hoverScrollSpeed: 2,
@@ -34,6 +35,13 @@ describe("parseNeoviewRuntimeConfig", () => {
       orientation: "horizontal",
       autoRotation: "none",
       widePageStretch: "uniform-height",
+      background: {
+        color: "#000000",
+        mode: "solid",
+        ambient: { style: "vibrant", speed: 8, blur: 80, opacity: 0.8 },
+        aurora: { showRadialGradient: true },
+        spotlight: { color: "white" },
+      },
     })
   })
 
@@ -195,10 +203,12 @@ describe("parseNeoviewRuntimeConfig", () => {
       orientation: "vertical",
       autoRotateMode: "horizontalRight",
       widePageStretch: "uniformHeight",
+      doublePageGap: -12,
     } } }).viewDefaults).toMatchObject({
       orientation: "vertical",
       autoRotation: "horizontal-right",
       widePageStretch: "uniform-height",
+      doublePageGap: -12,
     })
     expect(parseNeoviewRuntimeConfig({ reader: { view: { page_layout: { split_horizontal_pages: true } } } })).toMatchObject({
       sessionOptions: { layout: { pageMode: "single", splitWidePages: true } },
@@ -215,6 +225,7 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(parseNeoviewViewDefaultsPatch({ viewDefaults: {
       fitMode: "fit-height",
       pageMode: "double",
+      doublePageGap: -16,
       splitWidePages: true,
       hoverScrollEnabled: false,
       hoverScrollSpeed: 3.5,
@@ -227,6 +238,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       patch: { viewDefaults: {
         fitMode: "fit-height",
         pageMode: "double",
+        doublePageGap: -16,
         splitWidePages: true,
         hoverScrollEnabled: false,
         hoverScrollSpeed: 3.5,
@@ -239,6 +251,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       tomlPatch: { reader: {
         default_zoom_mode: "fitHeight",
         double_page_view: true,
+        double_page_gap: -16,
         split_wide_pages: true,
         hover_scroll_enabled: false,
         hover_scroll_speed: 3.5,
@@ -255,6 +268,7 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { hoverScrollSpeed: 12 } })).toThrow("between 0.5 and 10")
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { magnifierZoom: 0.5 } })).toThrow("between 1 and 5")
     expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { magnifierSize: 510 } })).toThrow("between 100 and 500")
+    expect(() => parseNeoviewViewDefaultsPatch({ viewDefaults: { doublePageGap: -501 } })).toThrow("between -500 and 500")
   })
 
   it("[neoview.folder.settings] [neoview.folder.search-settings] [neoview.folder.tabs-pin-config] normalizes folder view and legacy search settings", () => {
@@ -294,7 +308,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       typeFilter: "library",
       showHiddenFolders: false,
       tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
-      penetration: { enabled: true, maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
+      penetration: { enabled: true, showInternalFiles: true, internalItemsMode: "single", maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
       emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
       details: {
         columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
@@ -327,7 +341,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       hoverPreviewDelayMs: 1200,
       showHiddenFolders: true,
       confirmDelete: false,
-      penetration: { enabled: true, maxDepth: 10, terminalTargets: ["archive", "document"] },
+      penetration: { enabled: true, showInternalFiles: false, internalItemsMode: "single", maxDepth: 10, terminalTargets: ["archive", "document"] },
       tree: { visible: true, layout: "bottom", size: 320, pinnedPaths: ["E:/Books"] },
       tabs: { pinned: [{ path: "E:/Library", title: "Library" }] },
       details: { columnOrder: ["rating", "name"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 300, rating: 84 } },
@@ -344,7 +358,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         hoverPreviewDelayMs: 1200,
         showHiddenFolders: true,
         confirmDelete: false,
-        penetration: { enabled: true, maxDepth: 10, terminalTargets: ["archive", "document"] },
+        penetration: { enabled: true, showInternalFiles: false, internalItemsMode: "single", maxDepth: 10, terminalTargets: ["archive", "document"] },
         details: {
           columnOrder: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hiddenColumns: ["tags"],
@@ -367,7 +381,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         hover_preview_delay_ms: 1200,
         show_hidden_folders: true,
         confirm_delete: false,
-        penetration: { enabled: true, max_depth: 10, terminal_targets: ["archive", "document"] },
+        penetration: { enabled: true, show_internal_files: false, internal_items_mode: "single", max_depth: 10, terminal_targets: ["archive", "document"] },
         details: {
           column_order: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hidden_columns: ["tags"],
@@ -413,6 +427,8 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewFolderViewPatch({ folderView: { showHiddenFolders: "yes" } })).toThrow("showHiddenFolders")
     expect(parseNeoviewRuntimeConfig(undefined).folderView.penetration).toEqual({
       enabled: false,
+      showInternalFiles: true,
+      internalItemsMode: "single",
       maxDepth: 3,
       terminalTargets: ["archive", "document", "media-directory", "file"],
     })
@@ -556,6 +572,265 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewShellControlPatch({ expectedRevision: 0, shellControl: { edges: { center: { pinned: true } } } })).toThrow("unsupported edges")
     expect(() => parseNeoviewShellControlPatch({ expectedRevision: 0, shellControl: { edges: { top: { triggerSize: 129 } } } })).toThrow("triggerSize")
     expect(() => parseNeoviewShellControlPatch({ expectedRevision: 0, shellControl: { edges: { top: { lockMode: "forever" } } } })).toThrow("lockMode")
+  })
+
+  it("[neoview.swimlane.config] keeps edge mode as the compatible default and persists an independent lane workspace", () => {
+    const defaults = parseNeoviewRuntimeConfig({
+      panels: {
+        sidebars: {
+          left: { width: 438 },
+          right: { width: 366 },
+        },
+      },
+    }).shellOptions.workspace
+    expect(defaults).toEqual({
+      mode: "edges",
+      swimlane: {
+        laneOrder: ["left", "reader", "right"],
+        activeLane: "reader",
+        readerSolo: true,
+        readerSoloOnFocus: true,
+        readerWidthRatio: 0.5,
+        edgeRevealDelayMs: 180,
+        edgeRevealZones: {
+          left: { x: 0, y: 10, width: 1, height: 80 },
+          right: { x: 99, y: 10, width: 1, height: 80 },
+          top: { x: 10, y: 0, width: 80, height: 1 },
+          bottom: { x: 10, y: 99, width: 80, height: 1 },
+        },
+        readerFocusOnHover: true,
+        readerFocusHoverDelayMs: 650,
+        manualScrollEnabled: false,
+        showLaneNavigatorInReaderSolo: false,
+        autoFitToViewport: false,
+        barHandleStyle: "grip",
+        barHandlePosition: "left",
+        laneNavigatorPositionX: 92,
+        laneNavigatorPositionY: 96,
+        laneNavigatorDock: "floating",
+        windowControlsPlacement: "lane",
+        windowControlsOwnerLaneId: "right",
+        windowControlsExpanded: false,
+        lanes: {
+          left: { width: 438, collapsed: false, activePanelId: "folder", panelBarMode: "pinned", panelBarDock: "left", panelBarPositionX: 8, panelBarPositionY: 50, panelBarConstrained: true },
+          reader: { width: 960, collapsed: false },
+          right: { width: 366, collapsed: false, activePanelId: "info", panelBarMode: "pinned", panelBarDock: "right", panelBarPositionX: 92, panelBarPositionY: 50, panelBarConstrained: true },
+        },
+      },
+    })
+
+    const parsed = parseNeoviewRuntimeConfig({
+      panels: {
+        layout_mode: "swimlane",
+        swimlane: {
+          lane_order: ["right", "reader", "left"],
+          active_lane: "right",
+          reader_solo: false,
+          reader_solo_on_focus: false,
+          reader_width_ratio: 0.6,
+          edge_reveal_delay_ms: 420,
+          left_reveal_zone: { x: 3, y: 18, width: 7, height: 62 },
+          right_reveal_zone: { x: 90, y: 18, width: 7, height: 62 },
+          top_reveal_zone: { x: 14, y: 2, width: 72, height: 6 },
+          bottom_reveal_zone: { x: 14, y: 92, width: 72, height: 6 },
+          reader_focus_on_hover: false,
+          reader_focus_hover_delay_ms: 900,
+          manual_scroll_enabled: true,
+          show_lane_navigator_in_reader_solo: true,
+          auto_fit_to_viewport: true,
+          bar_handle_style: "edge",
+          bar_handle_position: "right",
+          lane_navigator_position_x: 84,
+          lane_navigator_position_y: 91,
+          lane_navigator_dock: "window-title",
+          window_controls_placement: "titlebar",
+          window_controls_owner_lane_id: "left",
+          window_controls_expanded: true,
+          left: { width: 512, collapsed: true, active_panel_id: "history", panel_bar_mode: "floating", panel_bar_dock: "bottom", panel_bar_position_x: 42, panel_bar_position_y: 88, panel_bar_constrained: false },
+          reader: { width: 1440, collapsed: false },
+          right: { width: 640, collapsed: false, active_panel_id: "properties", panel_bar_mode: "pinned", panel_bar_dock: "top" },
+        },
+      },
+    }).shellOptions.workspace
+    expect(parsed).toEqual({
+      mode: "swimlane",
+      swimlane: {
+        laneOrder: ["right", "reader", "left"],
+        activeLane: "right",
+        readerSolo: false,
+        readerSoloOnFocus: false,
+        readerWidthRatio: 0.6,
+        edgeRevealDelayMs: 420,
+        edgeRevealZones: {
+          left: { x: 3, y: 18, width: 7, height: 62 },
+          right: { x: 90, y: 18, width: 7, height: 62 },
+          top: { x: 14, y: 2, width: 72, height: 6 },
+          bottom: { x: 14, y: 92, width: 72, height: 6 },
+        },
+        readerFocusOnHover: false,
+        readerFocusHoverDelayMs: 900,
+        manualScrollEnabled: true,
+        showLaneNavigatorInReaderSolo: true,
+        autoFitToViewport: true,
+        barHandleStyle: "edge",
+        barHandlePosition: "right",
+        laneNavigatorPositionX: 84,
+        laneNavigatorPositionY: 91,
+        laneNavigatorDock: "window-title",
+        windowControlsPlacement: "titlebar",
+        windowControlsOwnerLaneId: "left",
+        windowControlsExpanded: true,
+        lanes: {
+          left: { width: 512, collapsed: true, activePanelId: "history", panelBarMode: "floating", panelBarDock: "bottom", panelBarPositionX: 42, panelBarPositionY: 88, panelBarConstrained: false },
+          reader: { width: 1440, collapsed: false },
+          right: { width: 640, collapsed: false, activePanelId: "properties", panelBarMode: "pinned", panelBarDock: "top", panelBarPositionX: 92, panelBarPositionY: 50, panelBarConstrained: true },
+        },
+      },
+    })
+
+    expect(parseNeoviewShellControlPatch({
+      expectedRevision: 8,
+      shellControl: {
+        workspace: {
+          mode: "swimlane",
+          laneOrder: ["right", "reader", "left"],
+          activeLane: "right",
+          readerSolo: true,
+          readerSoloOnFocus: false,
+          soloLaneId: "left",
+          readerWidthRatio: 0.65,
+          edgeRevealDelayMs: 300,
+          edgeRevealZones: {
+            left: { x: 4, y: 12, width: 8, height: 70 },
+            right: { x: 88, y: 12, width: 8, height: 70 },
+            top: { x: 12, y: 3, width: 76, height: 5 },
+            bottom: { x: 12, y: 92, width: 76, height: 5 },
+          },
+          readerFocusOnHover: true,
+          readerFocusHoverDelayMs: 800,
+          manualScrollEnabled: true,
+          showLaneNavigatorInReaderSolo: true,
+          barHandleStyle: "edge",
+          barHandlePosition: "right",
+          laneNavigatorPositionX: 82,
+          laneNavigatorPositionY: 93,
+          laneNavigatorDock: "window-title",
+          windowControlsPlacement: "titlebar",
+          windowControlsOwnerLaneId: "left",
+          windowControlsExpanded: true,
+          lanes: {
+            left: { width: 512, collapsed: true, activePanelId: "history", panelBarMode: "floating", panelBarDock: "bottom", panelBarPositionX: 44, panelBarPositionY: 92, panelBarConstrained: false },
+            reader: { width: 1320 },
+          },
+        },
+      },
+    })).toEqual({
+      patch: {
+        expectedRevision: 8,
+        shellControl: {
+          workspace: {
+            mode: "swimlane",
+            laneOrder: ["right", "reader", "left"],
+            activeLane: "right",
+            readerSolo: true,
+            readerSoloOnFocus: false,
+            soloLaneId: "left",
+            readerWidthRatio: 0.65,
+            edgeRevealDelayMs: 300,
+            edgeRevealZones: {
+              left: { x: 4, y: 12, width: 8, height: 70 },
+              right: { x: 88, y: 12, width: 8, height: 70 },
+              top: { x: 12, y: 3, width: 76, height: 5 },
+              bottom: { x: 12, y: 92, width: 76, height: 5 },
+            },
+            readerFocusOnHover: true,
+            readerFocusHoverDelayMs: 800,
+            manualScrollEnabled: true,
+            showLaneNavigatorInReaderSolo: true,
+            barHandleStyle: "edge",
+            barHandlePosition: "right",
+            laneNavigatorPositionX: 82,
+            laneNavigatorPositionY: 93,
+            laneNavigatorDock: "window-title",
+            windowControlsPlacement: "titlebar",
+            windowControlsOwnerLaneId: "left",
+            windowControlsExpanded: true,
+            lanes: {
+              left: { width: 512, collapsed: true, activePanelId: "history", panelBarMode: "floating", panelBarDock: "bottom", panelBarPositionX: 44, panelBarPositionY: 92, panelBarConstrained: false },
+              reader: { width: 1320 },
+            },
+          },
+        },
+      },
+      tomlPatch: {
+        panels: {
+          layout_mode: "swimlane",
+          swimlane: {
+            lane_order: ["right", "reader", "left"],
+            reader_solo_on_focus: false,
+            reader_width_ratio: 0.65,
+            edge_reveal_delay_ms: 300,
+            left_reveal_zone: { x: 4, y: 12, width: 8, height: 70 },
+            right_reveal_zone: { x: 88, y: 12, width: 8, height: 70 },
+            top_reveal_zone: { x: 12, y: 3, width: 76, height: 5 },
+            bottom_reveal_zone: { x: 12, y: 92, width: 76, height: 5 },
+            reader_focus_on_hover: true,
+            reader_focus_hover_delay_ms: 800,
+            manual_scroll_enabled: true,
+            show_lane_navigator_in_reader_solo: true,
+            bar_handle_style: "edge",
+            bar_handle_position: "right",
+            lane_navigator_position_x: 82,
+            lane_navigator_position_y: 93,
+            lane_navigator_dock: "window-title",
+            window_controls_placement: "titlebar",
+            window_controls_owner_lane_id: "left",
+            window_controls_expanded: true,
+            left: { width: 512, collapsed: true, active_panel_id: "history", panel_bar_mode: "floating", panel_bar_dock: "bottom", panel_bar_position_x: 44, panel_bar_position_y: 92, panel_bar_constrained: false },
+            reader: { width: 1320 },
+          },
+        },
+      },
+    })
+    expect(() => parseNeoviewShellControlPatch({
+      expectedRevision: 0,
+      shellControl: { workspace: { lanes: { reader: { width: 80 } } } },
+    })).toThrow("workspace.lanes.reader.width")
+    expect(() => parseNeoviewShellControlPatch({
+      expectedRevision: 0,
+      shellControl: { workspace: { readerWidthRatio: 1.1 } },
+    })).toThrow("workspace.readerWidthRatio")
+    expect(() => parseNeoviewShellControlPatch({
+      expectedRevision: 0,
+      shellControl: { workspace: { readerFocusHoverDelayMs: 100 } },
+    })).toThrow("workspace.readerFocusHoverDelayMs")
+    expect(() => parseNeoviewShellControlPatch({
+      expectedRevision: 0,
+      shellControl: { workspace: { edgeRevealDelayMs: 50 } },
+    })).toThrow("workspace.edgeRevealDelayMs")
+    expect(parseNeoviewShellControlPatch({
+      expectedRevision: 0,
+      shellControl: { workspace: { laneOrder: ["left", "future", "reader"] } },
+    }).patch.shellControl.workspace?.laneOrder).toEqual(["left", "future", "reader", "right"])
+    expect(parseNeoviewShellControlPatch({
+      expectedRevision: 1,
+      shellControl: {
+        workspace: {
+          laneOrder: ["left", "reader", "research", "right"],
+          activeLane: "research",
+          lanes: { research: { width: 420, collapsed: false, title: "资料" } },
+        },
+      },
+    }).tomlPatch.panels).toMatchObject({
+      swimlane: {
+        lane_order: ["left", "reader", "research", "right"],
+        research: { width: 420, collapsed: false, title: "资料" },
+      },
+    })
+    expect(parseNeoviewShellControlPatch({
+      expectedRevision: 1,
+      shellControl: { workspace: { activeLane: "research", readerSolo: true, soloLaneId: "research" } },
+    }).tomlPatch).toEqual({})
   })
 
   it("[neoview.material.persistence] reads and atomically writes the complete shell material", () => {
@@ -877,6 +1152,32 @@ describe("parseNeoviewRuntimeConfig", () => {
     })
   })
 
+  it("[neoview.ambient-background.layout] restores the Control panel for partial persisted Card state", () => {
+    expect(parseNeoviewRuntimeConfig({
+      panels: { card_state: { "ambient-background": { expanded: false } } },
+    }).shellOptions.cardLayout["ambient-background"]).toEqual({
+      panelId: "control", visible: true, expanded: false, order: 7,
+    })
+  })
+
+  it("[neoview.ambient-background.layout-compat] imports the removed Appearance Card id without reviving it", () => {
+    const legacyOnly = parseNeoviewRuntimeConfig({
+      panels: { card_state: { "ambient-background-settings": { expanded: false } } },
+    }).shellOptions.cardLayout
+    expect(legacyOnly["ambient-background"]).toEqual({
+      panelId: "control", visible: true, expanded: false, order: 7,
+    })
+    expect(legacyOnly["ambient-background-settings"]).toBeUndefined()
+
+    const mixed = parseNeoviewRuntimeConfig({
+      panels: { card_state: {
+        "ambient-background-settings": { expanded: false },
+        "ambient-background": { expanded: true },
+      } },
+    }).shellOptions.cardLayout
+    expect(mixed["ambient-background"]?.expanded).toBe(true)
+  })
+
   it("[neoview.settings.card-patch] validates card state and writes canonical TOML", () => {
     expect(parseNeoviewCardLayoutPatch({ cardId: "page-navigation", expanded: false, height: 320 })).toEqual({
       patch: { cardId: "page-navigation", expanded: false, height: 320 },
@@ -962,5 +1263,17 @@ describe("ReaderRuntimeConfig system monitor", () => {
     })
     expect(() => parseNeoviewSystemMonitorPatch({ systemMonitor: { refreshIntervalMs: 750 } })).toThrow("must be one of")
     expect(() => parseNeoviewSystemMonitorPatch({ systemMonitor: { maxSamples: 1_000 } })).toThrow("between 10 and 600")
+  })
+})
+
+describe("ReaderRuntimeConfig preload", () => {
+  it("[neoview.preload.persistence-patch] projects the bounded candidate budget into canonical TOML", async () => {
+    const { parseNeoviewPreloadPatch } = await import("./ReaderRuntimeConfigParser.js")
+    expect(parseNeoviewPreloadPatch({ preload: { maxCandidatePages: 12 } })).toEqual({
+      patch: { preload: { maxCandidatePages: 12 } },
+      tomlPatch: { performance: { preload_pages: 12 } },
+    })
+    expect(() => parseNeoviewPreloadPatch({ preload: { maxCandidatePages: 33 } })).toThrow("between 0 and 32")
+    expect(() => parseNeoviewPreloadPatch({ preload: {} })).toThrow("must change")
   })
 })

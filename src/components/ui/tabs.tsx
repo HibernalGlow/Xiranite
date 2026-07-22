@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import type { VariantProps } from "class-variance-authority"
-import { Tabs as TabsPrimitive } from "radix-ui"
+import * as TabsPrimitive from "@radix-ui/react-tabs"
 
 import { tabsListVariants } from "@/components/ui/tabs-variants"
 import { cn } from "@/lib/utils"

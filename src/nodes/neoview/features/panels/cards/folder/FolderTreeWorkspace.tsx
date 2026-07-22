@@ -1,7 +1,5 @@
-import { PanelBottom, PanelLeft, PanelRight, PanelTop } from "lucide-react"
 import { useRef, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
 
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ReaderFolderTreeLayout, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import FolderTreePanel from "./FolderTreePanel"
 
@@ -33,7 +31,6 @@ export default function FolderTreeWorkspace({
   size,
   pinnedPaths,
   onNavigate,
-  onLayoutChange,
   onSizeChange,
   onPinnedPathsChange,
 }: FolderTreeWorkspaceProps) {
@@ -41,24 +38,11 @@ export default function FolderTreeWorkspace({
 
   return (
     <div
-      className="relative grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border bg-background/60"
+      className="relative min-h-0 min-w-0 overflow-hidden rounded border bg-background/60"
       style={{ order: layout === "left" || layout === "top" ? 0 : 1 }}
       data-neoview-folder-tree-pane="true"
     >
-      <ToggleGroup
-        type="single"
-        size="sm"
-        value={layout}
-        className="justify-start border-b px-1 py-0.5"
-        aria-label="文件树位置"
-        onValueChange={(value) => { if (value) onLayoutChange(value as ReaderFolderTreeLayout) }}
-      >
-        <ToggleGroupItem value="left" aria-label="文件树位于左侧" title="左侧"><PanelLeft /></ToggleGroupItem>
-        <ToggleGroupItem value="right" aria-label="文件树位于右侧" title="右侧"><PanelRight /></ToggleGroupItem>
-        <ToggleGroupItem value="top" aria-label="文件树位于顶部" title="顶部"><PanelTop /></ToggleGroupItem>
-        <ToggleGroupItem value="bottom" aria-label="文件树位于底部" title="底部"><PanelBottom /></ToggleGroupItem>
-      </ToggleGroup>
-      <div className="min-h-0">
+      <div className="h-full min-h-0">
         <FolderTreePanel
           client={client}
           sessionId={sessionId}

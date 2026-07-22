@@ -375,7 +375,7 @@ export default function FolderTreePanel({ client, sessionId, currentPath, watchi
                   <FolderOpen />打开目录
                 </ContextMenuItem>
                 <ContextMenuItem disabled={disabled} onSelect={() => togglePinned(row.path)}>
-                  {pinned ? <PinOff /> : <Pin />}{pinned ? "取消固定" : "固定到文件树"}
+                  {pinned ? <PinOff /> : <Pin />}{pinned ? "取消置顶" : "置顶到文件树"}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
                 <ContextMenuItem disabled={disabled || row.loading || !row.available} onSelect={() => refreshRow(row)}>

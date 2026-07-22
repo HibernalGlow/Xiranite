@@ -22,6 +22,21 @@ describe("ReaderFrame", () => {
     expect([...frame!.querySelectorAll("img")].map((image) => image.alt)).toEqual(["000.jpg", "001.jpg"])
   })
 
+  it("[neoview.reader.double-page-gap] defaults to no gap and supports negative overlap without remounting media", () => {
+    const props = { pages: [page(0), page(1)], presentation: DEFAULT_READER_PRESENTATION, pageMode: "double" as const, totalPages: 2, anchorPageIndex: 0, sessionId: "reader", client: {} as ReaderHttpClient, videoController: {} as ReaderVideoController, onSubtitleConfigChange: vi.fn(), onVideoListEnded: vi.fn() }
+    const view = render(<ReaderFrame {...props} />)
+    const firstImage = view.container.querySelector<HTMLImageElement>('img[alt="000.jpg"]')
+    const secondSlot = view.container.querySelector<HTMLElement>('[data-reader-page-slot="1"]')!
+
+    expect(view.container.querySelector('[data-reader-frame]')?.getAttribute("data-reader-double-page-gap")).toBe("0")
+    expect(secondSlot.style.marginInlineStart).toBe("0")
+
+    view.rerender(<ReaderFrame {...props} doublePageGap={-18} />)
+    expect(view.container.querySelector('[data-reader-frame]')?.getAttribute("data-reader-double-page-gap")).toBe("-18")
+    expect(view.container.querySelector<HTMLElement>('[data-reader-page-slot="1"]')?.style.marginInlineStart).toBe("-18px")
+    expect(view.container.querySelector<HTMLImageElement>('img[alt="000.jpg"]')).toBe(firstImage)
+  })
+
   it("[neoview.image-trim.double-page] shares trim rendering while only the anchor physical page owns detection", () => {
     const imageTrim = {} as ReaderImageTrimPort
     render(<div style={{ width: 1600, height: 900 }}><ReaderFrame pages={[page(1), page(0)]} presentation={{ ...DEFAULT_READER_PRESENTATION, rotation: 90 }} pageMode="double" direction="right-to-left" totalPages={2} anchorPageIndex={0} imageTrim={imageTrim} sessionId="reader" client={{} as ReaderHttpClient} videoController={{} as ReaderVideoController} onSubtitleConfigChange={vi.fn()} onVideoListEnded={vi.fn()} /></div>)

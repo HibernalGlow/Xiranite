@@ -27,8 +27,8 @@ console.log("React Compiler boundary audit passed.")
 async function validateViteConfig() {
   const file = join(root, "vite.config.ts")
   const source = await readFile(file, "utf8")
-  if (!/XIRANITE_REACT_COMPILER_MODE\s*\?\?\s*["']infer["']/.test(source)) {
-    findings.push({ file, message: "React Compiler must default to compilationMode: infer." })
+  if (!/reactCompilerModeForCommand\(command\)/.test(source)) {
+    findings.push({ file, message: "React Compiler mode must be selected from the Vite build command." })
   }
   if (!/babel-plugin-react-compiler/.test(source)) {
     findings.push({ file, message: "React Compiler Babel plugin is missing." })

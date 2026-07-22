@@ -27,7 +27,7 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
 
 import type { CleanfInput, CleanfPresetId, CleanfResult } from "./core.js"
 import { CLEANING_PRESETS, getDefaultPresets, parseCleanfPaths, parseExcludeKeywords, PRESET_COMBINATIONS, runCleanf } from "./core.js"
@@ -99,7 +99,7 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
 
 function createCleanfDefinition(defaults: CleanfDefaults, language: TerminalLanguage): TerminalInteractionDefinition<CleanfInput, CleanfResult> { return { schema: createCleanfInteractionSchema({ presetsText: (defaults.presets?.length ? defaults.presets : getDefaultPresets()).join("\n"), exclude: defaults.exclude ?? "", preview: defaults.preview ?? true } satisfies Partial<CleanfInteractionValues>, language), run: (input, onEvent) => runCleanf(input, createNodeCleanfRuntime(), onEvent) } }
 
-function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "cleanf", current, async save(values) { const { config, path } = await loadXiraniteConfig(options); await saveXiraniteConfig(updateNodeConfig(config, "cleanf", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path }) }, async restore() { const { config } = await loadNodeConfigWithHints<CleanfNodeConfig>("cleanf", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? resolveTerminalLanguage(undefined, host.env) } } } }
+function createPreferenceController(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController { const options = { env: host.env, cwd: host.cwd }; return { nodeId: "cleanf", current, async save(values) { await updateNodeConfigFile("cleanf", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options) }, async restore() { const { config } = await loadNodeConfigWithHints<CleanfNodeConfig>("cleanf", { ...options, jsonMode: true }); const prefs = resolveInteractionPreferences(config); return { theme: prefs.theme, defaultMode: prefs.mode, language: prefs.language ?? resolveTerminalLanguage(undefined, host.env) } } } }
 
 function writeUsage(host: CliHost): void { writeLine(host, `${CLI_NAME} - preview or execute cleanup presets`); writeLine(host, `  ${CLI_NAME} ui [--lang zh|en] [--theme NAME]`); writeLine(host, `  ${CLI_NAME} gd`); writeLine(host, `  ${CLI_NAME} preview|run [--paths <folders>] [--presets <ids>] [--json]`) }
 

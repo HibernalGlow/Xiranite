@@ -19,6 +19,7 @@ import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurfa
 import { directoryEntryAt, FOLDER_MOSAIC_GROUP_SIZE, type DirectoryCatalog } from "./DirectoryCatalog"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
 import { FolderHoverPreview } from "./FolderHoverPreview"
+import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_LIST_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 
@@ -45,6 +46,7 @@ export default function FolderMosaicWorkspace({
   tileSize,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  penetrationFiles = EMPTY_PENETRATION_FILES,
   deleteMode = false,
   deleteStrategy = "trash",
   confirmDelete = true,
@@ -69,6 +71,7 @@ export default function FolderMosaicWorkspace({
   tileSize: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  penetrationFiles?: ReadonlyMap<string, readonly FolderPenetrationFileName[]>
   deleteMode?: boolean
   deleteStrategy?: FolderDeleteStrategy
   confirmDelete?: boolean
@@ -186,6 +189,7 @@ export default function FolderMosaicWorkspace({
           columnCount={columnCount}
           hoverPreviewEnabled={hoverPreviewEnabled}
           hoverPreviewDelayMs={hoverPreviewDelayMs}
+          penetrationFiles={penetrationFiles}
           deleteMode={deleteMode}
           deleteStrategy={deleteStrategy}
           confirmDelete={confirmDelete}
@@ -211,6 +215,7 @@ function DirectoryMosaicGroup({
   columnCount,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  penetrationFiles,
   deleteMode,
   deleteStrategy,
   confirmDelete,
@@ -230,6 +235,7 @@ function DirectoryMosaicGroup({
   columnCount: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  penetrationFiles: ReadonlyMap<string, readonly FolderPenetrationFileName[]>
   deleteMode: boolean
   deleteStrategy: FolderDeleteStrategy
   confirmDelete: boolean
@@ -268,6 +274,7 @@ function DirectoryMosaicGroup({
             thumbnailUrls={thumbnailUrlSets.get(entry.path)}
             hoverPreviewEnabled={hoverPreviewEnabled}
             hoverPreviewDelayMs={hoverPreviewDelayMs}
+            penetrationFiles={penetrationFiles.get(entry.path)}
             deleteMode={deleteMode}
             deleteStrategy={deleteStrategy}
             confirmDelete={confirmDelete}
@@ -280,7 +287,7 @@ function DirectoryMosaicGroup({
   )
 }
 
-function DirectoryMosaicItem({
+export function DirectoryMosaicItem({
   itemId,
   entry,
   index,
@@ -296,6 +303,7 @@ function DirectoryMosaicItem({
   thumbnailUrls,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  penetrationFiles,
   deleteMode,
   deleteStrategy,
   confirmDelete,
@@ -317,6 +325,7 @@ function DirectoryMosaicItem({
   thumbnailUrls?: readonly string[]
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  penetrationFiles?: readonly FolderPenetrationFileName[]
   deleteMode: boolean
   deleteStrategy: FolderDeleteStrategy
   confirmDelete: boolean
@@ -353,7 +362,7 @@ function DirectoryMosaicItem({
         data-folder-kind={entry.kind}
         data-folder-reader-supported={entry.readerSupported}
       >
-        <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
+        <span className="relative grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
           {thumbnailUrl
             ? <ReaderThumbnailSurface
                 url={thumbnailUrl}
@@ -365,6 +374,7 @@ function DirectoryMosaicItem({
                 onDimensions={(width, height) => onDimensions(entry.path, width, height)}
               />
             : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
+          {penetrationFiles?.length ? <span className="absolute inset-x-1 bottom-1 max-h-20 overflow-hidden"><FolderPenetrationFileNames files={penetrationFiles} variant="overlay" /></span> : null}
         </span>
         <span className="grid min-w-0 gap-0.5 border-t px-1.5 py-1">
           <span className="flex min-w-0 items-center gap-1">
@@ -385,6 +395,7 @@ function DirectoryMosaicItem({
 }
 
 const EMPTY_THUMBNAIL_URL_SETS: ReadonlyMap<string, readonly string[]> = new Map()
+const EMPTY_PENETRATION_FILES: ReadonlyMap<string, readonly FolderPenetrationFileName[]> = new Map()
 
 export function folderMosaicGeometry(span: FolderMosaicSpan, previewReady: boolean, columnCount: number): { columns: number; rows: number } {
   const maximumColumns = Math.max(1, columnCount)

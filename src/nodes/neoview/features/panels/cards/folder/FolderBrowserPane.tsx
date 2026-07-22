@@ -34,6 +34,12 @@ import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurfa
 import type { ReaderPanelContext } from "../../registry"
 import type { FolderContextEntry } from "./FolderContextActions"
 import {
+  createSearchDirectoryPage,
+  isVirtualSearchPath,
+  type FolderSearchTabSnapshot,
+} from "./search/folderSearchModel"
+import type { FolderSearchListingUpdate } from "./FolderSearchPanel"
+import {
   createDirectoryCatalog,
   directoryEntryAt,
   directoryLoadedEntries,
@@ -85,6 +91,7 @@ import {
   FolderEntryMetadata,
 } from "./FolderEntryPresentation"
 import { FolderHoverPreview } from "./FolderHoverPreview"
+import { FolderPenetrationFileNames, folderViewShowsPenetrationFiles, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { useFolderClipboard } from "./FolderClipboard"
 import { readerEntryClickIntent } from "../shared/ReaderEntryInteraction"
@@ -163,6 +170,8 @@ export const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   tagDisplay: DEFAULT_FOLDER_TAG_DISPLAY,
   penetration: {
     enabled: false,
+    showInternalFiles: true,
+    internalItemsMode: "single",
     maxDepth: 3,
     terminalTargets: ["archive", "document", "media-directory", "file"],
   },
@@ -258,6 +267,8 @@ export function FolderBrowserPane({
   onOpenInNewTab,
   folderNavigationEvents,
   initialClone,
+  initialSearchSnapshot,
+  onOpenSearchInNewTab,
   onCloneProvider,
 }: ReaderPanelContext & {
   active: boolean
@@ -275,7 +286,9 @@ export function FolderBrowserPane({
   onReopenFolderTab(): void
   onCurrentPathChange(path: string): void
   onOpenInNewTab(path: string): void
+  onOpenSearchInNewTab?(snapshot: FolderSearchTabSnapshot): void
   initialClone?: FolderBrowserCloneSnapshot
+  initialSearchSnapshot?: FolderSearchTabSnapshot
   onCloneProvider(provider?: FolderBrowserCloneProvider): void
 }) {
   const thumbnailsVisible = active && (panelVisible ?? true)
@@ -295,6 +308,8 @@ export function FolderBrowserPane({
       }
     | undefined
   >(undefined)
+  const penetrationDescriptionRequestRef = useRef<AbortController>()
+  const penetrationDescriptionSignatureRef = useRef("")
   const retryOperationRef = useRef<FolderRetryOperation | undefined>(undefined)
   const catalogRequestRef = useRef<AbortController | undefined>(undefined)
   const thumbnailRequestRef = useRef<AbortController | undefined>(undefined)
@@ -326,7 +341,14 @@ export function FolderBrowserPane({
   const chainAnchorIndexRef = useRef<number | undefined>(undefined)
   const navigationStatesRef = useRef(new Map<number, SavedDirectoryState>())
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
-  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(Boolean(initialSearchSnapshot))
+  const pendingSearchSnapshotRef = useRef(initialSearchSnapshot)
+  const searchOriginRef = useRef<{
+    catalog: DirectoryCatalog
+    state: SavedDirectoryState
+    rootPath: string
+  }>()
+  const searchCriteriaRef = useRef<FolderSearchTabSnapshot["criteria"]>()
   const [treeOpen, setTreeOpen] = useState(folderView.tree.visible)
   const [inlineTreeOpen, setInlineTreeOpen] = useState(false)
   const [treeLayout, setTreeLayout] = useState(folderView.tree.layout)
@@ -340,6 +362,7 @@ export function FolderBrowserPane({
   const [hoverPreviewEnabled, setHoverPreviewEnabled] = useState(folderView.hoverPreviewEnabled ?? true)
   const [hoverPreviewDelayMs, setHoverPreviewDelayMs] = useState(folderView.hoverPreviewDelayMs ?? 500)
   const [penetration, setPenetration] = useState<ReaderFolderPenetrationConfig>(folderView.penetration)
+  const [penetrationDescriptions, setPenetrationDescriptions] = useState<ReadonlyMap<string, readonly FolderPenetrationFileName[]>>(() => new Map())
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [deleteMode, setDeleteMode] = useState(false)
   const [deleteStrategy, setDeleteStrategy] = useState<FolderDeleteStrategy>("trash")
@@ -431,7 +454,30 @@ export function FolderBrowserPane({
   useEffect(() => setHoverPreviewEnabled(folderView.hoverPreviewEnabled ?? true), [folderView.hoverPreviewEnabled])
   useEffect(() => setHoverPreviewDelayMs(folderView.hoverPreviewDelayMs ?? 500), [folderView.hoverPreviewDelayMs])
   useEffect(() => setConfirmDelete(folderView.confirmDelete ?? true), [folderView.confirmDelete])
-  useEffect(() => setPenetration(folderView.penetration), [folderView.penetration])
+  // Parent cards rebuild `folderView.penetration` every render; only write when values change.
+  const penetrationSyncKey = [
+    folderView.penetration.enabled,
+    folderView.penetration.showInternalFiles,
+    folderView.penetration.internalItemsMode ?? "",
+    folderView.penetration.maxDepth,
+    folderView.penetration.terminalTargets.join(","),
+  ].join(":")
+  useEffect(() => {
+    setPenetration((current) => {
+      const next = folderView.penetration
+      if (
+        current.enabled === next.enabled
+        && current.showInternalFiles === next.showInternalFiles
+        && (current.internalItemsMode ?? "") === (next.internalItemsMode ?? "")
+        && current.maxDepth === next.maxDepth
+        && current.terminalTargets.join(",") === next.terminalTargets.join(",")
+      ) return current
+      return next
+    })
+    // folderView.penetration is intentionally omitted — identity churn; use the value key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [penetrationSyncKey])
+  useEffect(() => requestPenetrationDescriptions(visibleRangeRef.current), [penetration.enabled, penetration.showInternalFiles, viewMode, catalog?.sessionId, catalog?.generation])
   useEffect(() => setTreeOpen(folderView.tree.visible), [folderView.tree.visible])
   useEffect(() => setTreeLayout(folderView.tree.layout), [folderView.tree.layout])
   useEffect(() => setTreeSize(folderView.tree.size), [folderView.tree.size])
@@ -458,6 +504,10 @@ export function FolderBrowserPane({
 
   useEffect(() => {
     if (!thumbnailsVisible || !catalog || !viewUsesThumbnails(viewMode) || !client.listDirectoryBrowser || !client.prewarmLibraryThumbnails) return
+    // Virtual search is not a real browser listing — background compile via
+    // listDirectoryBrowser would re-read the origin folder, not the search hits.
+    // Viewport thumbnails still come from registerVisibleThumbnails via requestRange.
+    if (isVirtualSearchPath(catalog.path)) return
     const compilePreviewCount = previewGridEnabled ? previewCount : 1
     const compileKey = `${catalog.sessionId}:${catalog.generation}:${compilePreviewCount}`
     if (thumbnailCompileKeysRef.current.has(compileKey)) return
@@ -621,6 +671,7 @@ export function FolderBrowserPane({
   async function openBrowser(path: string) {
     const normalized = normalizeFolderNavigationPath(path)
     if (!normalized || !client.openDirectoryBrowser) return
+    clearSearchSession()
     setSearchOpen(false)
     setTreeOpen(false)
     const generation = beginNavigation()
@@ -661,7 +712,7 @@ export function FolderBrowserPane({
   }
 
   async function navigate(navigation: ReaderDirectoryNavigationDto, options: FolderNavigationOptions = {}) {
-    const normalizedNavigation =
+    let normalizedNavigation: ReaderDirectoryNavigationDto =
       navigation.action === "path"
         ? {
             ...navigation,
@@ -674,7 +725,24 @@ export function FolderBrowserPane({
       return
     }
     if (!client.navigateDirectoryBrowser) return
-    setSearchOpen(false)
+    if (isVirtualSearchPath(catalogRef.current?.path)) {
+      if (normalizedNavigation.action === "back") {
+        clearSearchSession({ restoreOrigin: true })
+        return
+      }
+      if (normalizedNavigation.action === "up") {
+        const parent = catalogRef.current?.parentPath
+        clearSearchSession()
+        setSearchOpen(false)
+        if (!parent) return
+        normalizedNavigation = { action: "path", path: normalizeFolderNavigationPath(parent) }
+      } else if (normalizedNavigation.action === "refresh") {
+        return
+      } else {
+        clearSearchSession()
+        setSearchOpen(false)
+      }
+    }
     if (!options.keepTree) setTreeOpen(false)
     // Only refresh needs an exact snapshot before applying the replacement generation.
     // Path/back/forward/up navigation can persist the lightweight state synchronously and
@@ -697,13 +765,6 @@ export function FolderBrowserPane({
       )
       if (generation === navigationGenerationRef.current) {
         let preferredState = normalizedNavigation.action === "refresh" ? capturedState : undefined
-        if (preferredState)
-          preferredState = {
-            ...preferredState,
-            thumbnailUrls: undefined,
-            thumbnailUrlSets: undefined,
-            thumbnailProfiles: undefined,
-          }
         if (preferredState && options.clearSelection) {
           preferredState = {
             ...preferredState,
@@ -725,7 +786,7 @@ export function FolderBrowserPane({
           }
         }
         applyPage(result, preferredState, false, {
-          preserveThumbnailCache: options.preserveThumbnailCache ?? navigation.action !== "refresh",
+          preserveThumbnailCache: options.preserveThumbnailCache ?? true,
         })
         retryOperationRef.current = undefined
       }
@@ -742,6 +803,7 @@ export function FolderBrowserPane({
     preserveViewport = false,
     options: { preserveThumbnailCache?: boolean } = {},
   ) {
+    const sameNavigationEntry = isSameFolderNavigationEntry(catalogRef.current, page)
     catalogRequestRef.current?.abort()
     catalogRequestRef.current = new AbortController()
     pendingCursorsRef.current.clear()
@@ -766,7 +828,12 @@ export function FolderBrowserPane({
       queueMicrotask(() => requestRange(visibleRangeRef.current))
       return
     }
-    visibleRangeRef.current = { startIndex: 0, endIndex: 0 }
+    visibleRangeRef.current = sameNavigationEntry
+      ? {
+          startIndex: page.cursor,
+          endIndex: Math.max(page.cursor, Math.min(page.total - 1, page.cursor + page.entries.length - 1)),
+        }
+      : { startIndex: 0, endIndex: 0 }
     const suggested = page.suggestedSelection
     let restored = restoreDirectoryVisitState(page, preferredState, navigationStatesRef.current, {
       total: page.total,
@@ -923,55 +990,92 @@ export function FolderBrowserPane({
   function requestRange(range: ListRange) {
     visibleRangeRef.current = range
     const current = catalogRef.current
-    if (!current || !client.listDirectoryBrowser) return
-    const metadataFields =
-      viewMode === "details"
-        ? DETAILS_METADATA_FIELDS.filter((field) => current.metadataCapabilities.includes(field))
-        : folderMetadataFieldsForView(viewMode, current.metadataCapabilities)
-    const cursors = directoryPageCursors(range.startIndex - 16, range.endIndex + 16, current.total, PAGE_SIZE)
-    for (const cursor of cursors) {
-      const requestKey = `${cursor}:${metadataFields.join(",")}`
-      if ((current.pages.has(cursor) && directoryPageHasMetadata(current, cursor, metadataFields)) || pendingCursorsRef.current.has(requestKey)) continue
-      pendingCursorsRef.current.add(requestKey)
-      const sessionId = current.sessionId
-      const generation = current.generation
-      const requestSignal = catalogRequestRef.current?.signal
-      const request = metadataFields.length
-        ? client.listDirectoryBrowser(sessionId, cursor, PAGE_SIZE, requestSignal, metadataFields)
-        : client.listDirectoryBrowser(sessionId, cursor, PAGE_SIZE, requestSignal)
-      void request
-        .then((page) => {
-          const latest = catalogRef.current
-          if (!latest || latest.sessionId !== sessionId || latest.generation !== generation) return
-          const merged = mergeDirectoryPage(latest, page)
-          const currentFocusedEntry = directoryEntryAt(merged, focusedIndexRef.current ?? -1)
-          if (currentFocusedEntry) setFocusedPath(currentFocusedEntry.path)
-          const center = Math.floor((visibleRangeRef.current.startIndex + visibleRangeRef.current.endIndex) / 2)
-          commitCatalog(trimDirectoryPages(merged, center, MAX_CACHED_PAGES))
-          const pending = pendingKeyboardCommandRef.current
-          if (pending && pending.generation === merged.generation && pending.index >= 0) {
-            const pendingEntry = directoryEntryAt(merged, pending.index)
-            if (pendingEntry) {
-              pendingKeyboardCommandRef.current = undefined
-              queueMicrotask(() => {
-                const latest = catalogRef.current
-                if (latest?.generation === pending.generation) {
-                  runFocusedKeyboardEntry(pending.kind, latest, pending.index)
-                }
-              })
+    requestPenetrationDescriptions(range, current)
+    if (!current) return
+    // Virtual search already holds every hit in-memory — skip listDirectoryBrowser
+    // paging, but still run the shared visible-thumbnail pipeline so scroll works.
+    if (!isVirtualSearchPath(current.path) && client.listDirectoryBrowser) {
+      const metadataFields =
+        viewMode === "details"
+          ? DETAILS_METADATA_FIELDS.filter((field) => current.metadataCapabilities.includes(field))
+          : folderMetadataFieldsForView(viewMode, current.metadataCapabilities)
+      const cursors = directoryPageCursors(range.startIndex - 16, range.endIndex + 16, current.total, PAGE_SIZE)
+      for (const cursor of cursors) {
+        const requestKey = `${cursor}:${metadataFields.join(",")}`
+        if ((current.pages.has(cursor) && directoryPageHasMetadata(current, cursor, metadataFields)) || pendingCursorsRef.current.has(requestKey)) continue
+        pendingCursorsRef.current.add(requestKey)
+        const sessionId = current.sessionId
+        const generation = current.generation
+        const requestSignal = catalogRequestRef.current?.signal
+        const request = metadataFields.length
+          ? client.listDirectoryBrowser(sessionId, cursor, PAGE_SIZE, requestSignal, metadataFields)
+          : client.listDirectoryBrowser(sessionId, cursor, PAGE_SIZE, requestSignal)
+        void request
+          .then((page) => {
+            const latest = catalogRef.current
+            if (!latest || latest.sessionId !== sessionId || latest.generation !== generation) return
+            const merged = mergeDirectoryPage(latest, page)
+            const currentFocusedEntry = directoryEntryAt(merged, focusedIndexRef.current ?? -1)
+            if (currentFocusedEntry) setFocusedPath(currentFocusedEntry.path)
+            const center = Math.floor((visibleRangeRef.current.startIndex + visibleRangeRef.current.endIndex) / 2)
+            commitCatalog(trimDirectoryPages(merged, center, MAX_CACHED_PAGES))
+            requestPenetrationDescriptions(visibleRangeRef.current, merged)
+            const pending = pendingKeyboardCommandRef.current
+            if (pending && pending.generation === merged.generation && pending.index >= 0) {
+              const pendingEntry = directoryEntryAt(merged, pending.index)
+              if (pendingEntry) {
+                pendingKeyboardCommandRef.current = undefined
+                queueMicrotask(() => {
+                  const latest = catalogRef.current
+                  if (latest?.generation === pending.generation) {
+                    runFocusedKeyboardEntry(pending.kind, latest, pending.index)
+                  }
+                })
+              }
             }
-          }
-          queueMicrotask(registerVisibleThumbnails)
-        })
-        .catch((cause) => {
-          if (!requestSignal?.aborted && !isAbortError(cause)) setError(folderErrorMessage(cause))
-        })
-        .finally(() => {
-          const latest = catalogRef.current
-          if (latest?.sessionId === sessionId && latest.generation === generation) pendingCursorsRef.current.delete(requestKey)
-        })
+            queueMicrotask(registerVisibleThumbnails)
+          })
+          .catch((cause) => {
+            if (!requestSignal?.aborted && !isAbortError(cause)) setError(folderErrorMessage(cause))
+          })
+          .finally(() => {
+            const latest = catalogRef.current
+            if (latest?.sessionId === sessionId && latest.generation === generation) pendingCursorsRef.current.delete(requestKey)
+          })
+      }
     }
     queueMicrotask(registerVisibleThumbnails)
+  }
+
+  function requestPenetrationDescriptions(range: ListRange, source = catalogRef.current) {
+    if (!folderViewShowsPenetrationFiles(viewMode, penetration.enabled, penetration.showInternalFiles) || !client.describeFolderPenetration || !source) {
+      penetrationDescriptionRequestRef.current?.abort()
+      penetrationDescriptionSignatureRef.current = ""
+      setPenetrationDescriptions((current) => current.size ? new Map() : current)
+      return
+    }
+    const paths: string[] = []
+    const end = Math.min(source.total - 1, range.endIndex)
+    for (let index = Math.max(0, range.startIndex); index <= end && paths.length < 64; index += 1) {
+      const entry = directoryEntryAt(source, index)
+      if (entry?.kind === "directory") paths.push(entry.path)
+    }
+    const signature = `${source.sessionId}:${source.generation}:${paths.join("\u0000")}`
+    if (signature === penetrationDescriptionSignatureRef.current) return
+    penetrationDescriptionSignatureRef.current = signature
+    penetrationDescriptionRequestRef.current?.abort()
+    if (!paths.length) {
+      setPenetrationDescriptions(new Map())
+      return
+    }
+    const controller = new AbortController()
+    penetrationDescriptionRequestRef.current = controller
+    void client.describeFolderPenetration(source.sessionId, paths, controller.signal).then(({ entries }) => {
+      if (controller.signal.aborted || penetrationDescriptionSignatureRef.current !== signature) return
+      setPenetrationDescriptions(new Map(entries.map((entry) => [entry.path, entry.internalFiles])))
+    }).catch((cause) => {
+      if (!controller.signal.aborted) setError(`读取内部文件失败：${folderErrorMessage(cause)}`)
+    })
   }
 
   function currentSavedState(): { current: DirectoryCatalog; state: SavedDirectoryState } | undefined {
@@ -1268,7 +1372,8 @@ export function FolderBrowserPane({
   }
 
   function handleDirectoryKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (searchOpen || isEditableKeyboardEvent(event)) return
+    // Search chrome uses its own input; list shortcuts stay active so views remain usable.
+    if (isEditableKeyboardEvent(event)) return
     const currentCatalog = catalogRef.current
     if (!currentCatalog || disabled || loading) return
     const currentIndex = Math.min(Math.max(focusedIndexRef.current ?? visibleRangeRef.current.startIndex, 0), Math.max(0, currentCatalog.total - 1))
@@ -1604,6 +1709,101 @@ export function FolderBrowserPane({
     onCurrentPathChange(next.path)
   }
 
+  function cloneDirectoryCatalog(source: DirectoryCatalog): DirectoryCatalog {
+    return {
+      ...source,
+      pages: new Map([...source.pages].map(([cursor, entries]) => [cursor, [...entries]])),
+      pageMetadataFields: new Map([...source.pageMetadataFields].map(([cursor, fields]) => [cursor, new Set(fields)])),
+    }
+  }
+
+  function clearSearchSession(options: { restoreOrigin?: boolean } = {}) {
+    const origin = searchOriginRef.current
+    searchOriginRef.current = undefined
+    searchCriteriaRef.current = undefined
+    pendingSearchSnapshotRef.current = undefined
+    if (options.restoreOrigin && origin) {
+      catalogRef.current = origin.catalog
+      setCatalog(origin.catalog)
+      onCurrentPathChange(origin.catalog.path)
+      setRestoreState(origin.state)
+      setSelection(origin.state.selection)
+      setFocusedIndex(origin.state.focusedIndex)
+      setFocusedPath(origin.state.focusedPath)
+      setViewMode(origin.state.viewMode)
+      setPreviewCount(origin.state.previewCount)
+      setMultiSelectMode(origin.state.multiSelectMode)
+      focusedIndexRef.current = origin.state.focusedIndex
+    }
+  }
+
+  function closeSearchChrome() {
+    clearSearchSession({ restoreOrigin: true })
+    setSearchOpen(false)
+  }
+
+  function applySearchListing(update: FolderSearchListingUpdate) {
+    if (update.phase === "cleared" || update.phase === "idle") {
+      clearSearchSession({ restoreOrigin: true })
+      return
+    }
+    const sessionId = sessionIdRef.current
+    if (!sessionId) return
+    const current = catalogRef.current
+    if (!searchOriginRef.current && current && !isVirtualSearchPath(current.path)) {
+      const state = captureCurrentState() ?? {
+        total: current.total,
+        viewMode,
+        previewCount,
+        multiSelectMode,
+        selection,
+        focusedPath,
+        focusedIndex,
+        anchorIndex: focusedIndex ?? 0,
+      }
+      searchOriginRef.current = {
+        catalog: cloneDirectoryCatalog(current),
+        state,
+        rootPath: current.path,
+      }
+    }
+    const rootPath = searchOriginRef.current?.rootPath
+      ?? (current && !isVirtualSearchPath(current.path) ? current.path : undefined)
+      ?? browserPath
+    const entries = update.result?.entries ?? update.streamedEntries
+    searchCriteriaRef.current = update.criteria
+    const page = createSearchDirectoryPage({
+      sessionId,
+      rootPath,
+      result: {
+        entries,
+        generation: update.result?.generation
+          ?? ((current && isVirtualSearchPath(current.path) ? current.generation : (current?.generation ?? 0)) + 1),
+        query: update.criteria.query,
+        mode: update.criteria.mode,
+      },
+      criteria: update.criteria,
+      base: searchOriginRef.current?.catalog ?? (current && !isVirtualSearchPath(current.path) ? current : undefined),
+    })
+    applyPage(page, undefined, isVirtualSearchPath(catalogRef.current?.path))
+    // Force the shared thumbnail pipeline for the virtual listing. If Virtuoso
+    // has not reported a viewport yet, seed the first page of hits so cover
+    // views do not sit on a single thumbnail until the user scrolls.
+    queueMicrotask(() => {
+      const latest = catalogRef.current
+      const range = visibleRangeRef.current
+      if (!latest || !isVirtualSearchPath(latest.path)) return
+      if (range.endIndex <= range.startIndex && latest.total > 0) {
+        requestRange({
+          startIndex: 0,
+          endIndex: Math.min(latest.total - 1, Math.max(0, MAX_THUMBNAILS - 1)),
+        })
+        return
+      }
+      requestRange(range)
+    })
+  }
+
   function releaseThumbnailContext() {
     resetThumbnailRegistration()
     const contextId = thumbnailContextRef.current
@@ -1638,7 +1838,8 @@ export function FolderBrowserPane({
   // Virtuoso/Niko can retain its viewport and existing thumbnail DOM.
   const virtualKey = catalog ? `${catalog.sessionId}:${catalog.navigationEntryId}:${viewMode}:${previewCount}` : `${viewMode}:${previewCount}`
   const tabLayout = folderView.tabs ?? DEFAULT_FOLDER_VIEW.tabs!
-  const showReturnFooter = folderView.emptyArea.showBackButton && !searchOpen
+  const searchListingActive = isVirtualSearchPath(catalog?.path)
+  const showReturnFooter = folderView.emptyArea.showBackButton && !searchListingActive
   const returnFooterContext = {
     disabled: disabled || loading || !catalog || (!catalog.canGoBack && !catalog.parentPath),
     onReturn: () =>
@@ -1751,6 +1952,19 @@ export function FolderBrowserPane({
               currentPath={catalog?.path}
               selection={directorySelectionDescriptor(selection)}
               selectedCount={selectedCount}
+              treePinnedPaths={folderView.tree.pinnedPaths}
+              onToggleTreePin={(path) => {
+                const current = folderView.tree.pinnedPaths
+                const key = path.replaceAll("\\", "/").replace(/\/+$/u, "").toLowerCase()
+                const pinned = current.some((candidate) => candidate.replaceAll("\\", "/").replace(/\/+$/u, "").toLowerCase() === key)
+                void onFolderView?.({
+                  tree: {
+                    pinnedPaths: pinned
+                      ? current.filter((candidate) => candidate.replaceAll("\\", "/").replace(/\/+$/u, "").toLowerCase() !== key)
+                      : [...current, path],
+                  },
+                })
+              }}
               onActivate={activate}
               onEnterRawDirectory={enterRawDirectory}
               onOpenInNewTab={onOpenInNewTab}
@@ -1789,6 +2003,17 @@ export function FolderBrowserPane({
               confirmDelete={confirmDelete}
               onCatalogUpdate={(update) => commitCatalog(update(catalog!))}
               onRefreshEmm={() => updateSort(catalog!.sort)}
+              onRefreshDirectory={() =>
+                navigate(
+                  { action: "refresh" },
+                  {
+                    keepTree: true,
+                    focusPath: focusedPath,
+                    preserveThumbnailCache: true,
+                  },
+                )
+              }
+              onReloadThumbnail={(entry) => refreshThumbnails(new Set([entry.path]))}
               renameRequest={renameRequest}
               onRenameRequestHandled={() => setRenameRequest(undefined)}
             />
@@ -1823,6 +2048,7 @@ export function FolderBrowserPane({
                   tagDisplay={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}
                   penetration={penetration}
                   treeOpen={treeOpen}
+                  treeLayout={treeLayout}
                   canTree={Boolean(client.treeDirectoryBrowser)}
                   inlineTreeOpen={inlineTreeOpen}
                   multiSelectMode={multiSelectMode}
@@ -1891,6 +2117,7 @@ export function FolderBrowserPane({
                     void updatePenetration(patch)
                   }}
                   onToggleTree={toggleTree}
+                  onTreeLayoutChange={switchTreeLayout}
                   onToggleInlineTree={toggleInlineTree}
                   onToggleMultiSelect={toggleMultiSelectMode}
                   onToggleDeleteMode={() => setDeleteMode((current) => !current)}
@@ -2044,53 +2271,70 @@ export function FolderBrowserPane({
                   </Suspense>
                 ) : null}
                 <div
-                  ref={listHostRef}
-                  className="min-h-0 min-w-0 overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  data-neoview-folder-list="true"
-                  data-focused-index={focusedIndex}
-                  role={searchOpen || inlineTreeOpen ? undefined : "listbox"}
-                  aria-label={searchOpen ? undefined : "文件项目"}
-                  aria-activedescendant={searchOpen || inlineTreeOpen ? undefined : focusedItemId}
-                  tabIndex={inlineTreeOpen ? -1 : 0}
-                  onKeyDown={inlineTreeOpen ? undefined : handleDirectoryKeyDown}
-                  {...(inlineTreeOpen ? {} : emptyAreaHandlers)}
+                  className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded border bg-background/60"
                   style={
                     {
                       order: treeOpen && (treeLayout === "right" || treeLayout === "bottom") ? 0 : 1,
                       "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%`,
                     } as CSSProperties
                   }
+                  data-neoview-folder-list-shell="true"
+                  data-folder-search-open={searchOpen || undefined}
+                  data-folder-search-listing={searchListingActive || undefined}
                 >
                   {searchOpen && sessionIdRef.current ? (
-                    <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载搜索" />}>
+                    <Suspense fallback={<div className="h-16 animate-pulse bg-muted/30" aria-label="正在加载搜索" />}>
                       <FolderSearchPanel
                         client={client}
                         sessionId={sessionIdRef.current}
                         disabled={disabled}
                         settings={folderView.search}
+                        rootPath={
+                          searchOriginRef.current?.rootPath
+                          ?? (catalog && !isVirtualSearchPath(catalog.path) ? catalog.path : undefined)
+                          ?? browserPath
+                        }
+                        tabCount={folderTabCount}
+                        maxTabs={maxFolderTabs}
+                        initialSnapshot={pendingSearchSnapshotRef.current}
                         onSettingsChange={(search) => void onFolderView?.({ search })}
-                        onActivate={activate}
-                        onClose={() => setSearchOpen(false)}
+                        onListingChange={applySearchListing}
+                        onClose={closeSearchChrome}
+                        onSaveToTab={onOpenSearchInNewTab}
                       />
                     </Suspense>
                   ) : null}
-                  {!searchOpen && inlineTreeOpen && sessionIdRef.current && catalog ? (
+                  <div
+                    ref={listHostRef}
+                    className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    data-neoview-folder-list="true"
+                    data-focused-index={focusedIndex}
+                    role={inlineTreeOpen ? undefined : "listbox"}
+                    aria-label={searchListingActive ? "搜索结果" : "文件项目"}
+                    aria-activedescendant={inlineTreeOpen ? undefined : focusedItemId}
+                    tabIndex={inlineTreeOpen ? -1 : 0}
+                    onKeyDown={inlineTreeOpen ? undefined : handleDirectoryKeyDown}
+                    {...(inlineTreeOpen ? {} : emptyAreaHandlers)}
+                  >
+                  {inlineTreeOpen && sessionIdRef.current && catalog ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载内联文件树" />}>
                       <FolderTreePanel
                         client={client}
                         sessionId={sessionIdRef.current}
-                        currentPath={catalog.path}
+                        currentPath={isVirtualSearchPath(catalog.path) ? (catalog.parentPath ?? catalog.path) : catalog.path}
                         watching={active && catalog.watching}
                         disabled={disabled || loading}
-                        pinnedPaths={[]}
+                        pinnedPaths={folderView.tree.pinnedPaths}
                         onNavigate={(path) => {
                           void navigate({ action: "path", path }, { keepTree: true })
                         }}
-                        onPinnedPathsChange={() => undefined}
+                        onPinnedPathsChange={(pinnedPaths) => {
+                          void onFolderView?.({ tree: { pinnedPaths } })
+                        }}
                       />
                     </Suspense>
                   ) : null}
-                  {!searchOpen && !inlineTreeOpen && catalog && catalog.total > 0 && viewUsesVirtuosoList(viewMode) ? (
+                  {!inlineTreeOpen && catalog && catalog.total > 0 && viewUsesVirtuosoList(viewMode) ? (
                     <Virtuoso
                       key={virtualKey}
                       ref={listRef}
@@ -2129,6 +2373,7 @@ export function FolderBrowserPane({
                             contentWidthPercent={contentWidthPercent}
                             hoverPreviewEnabled={active && hoverPreviewEnabled}
                             hoverPreviewDelayMs={hoverPreviewDelayMs}
+                            penetrationFiles={entry ? penetrationDescriptions.get(entry.path) : undefined}
                             deleteMode={deleteMode}
                             deleteStrategy={deleteStrategy}
                             confirmDelete={confirmDelete}
@@ -2138,7 +2383,7 @@ export function FolderBrowserPane({
                       }}
                     />
                   ) : null}
-                  {!searchOpen && !inlineTreeOpen && catalog && viewMode === "details" ? (
+                  {!inlineTreeOpen && catalog && viewMode === "details" ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载详细信息视图" />}>
                       <FolderDetailsView
                         key={virtualKey}
@@ -2166,7 +2411,7 @@ export function FolderBrowserPane({
                       />
                     </Suspense>
                   ) : null}
-                  {!searchOpen && !inlineTreeOpen && catalog && catalog.total > 0 && viewUsesFixedGrid(viewMode) ? (
+                  {!inlineTreeOpen && catalog && catalog.total > 0 && viewUsesFixedGrid(viewMode) ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载网格视图" />}>
                       <FolderGridWorkspace
                         virtualKey={virtualKey}
@@ -2181,6 +2426,7 @@ export function FolderBrowserPane({
                         thumbnailUrlSets={thumbnailUrlSets}
                         hoverPreviewEnabled={active && hoverPreviewEnabled}
                         hoverPreviewDelayMs={hoverPreviewDelayMs}
+                        penetrationFiles={penetrationDescriptions}
                         deleteMode={deleteMode}
                         deleteStrategy={deleteStrategy}
                         confirmDelete={confirmDelete}
@@ -2200,7 +2446,7 @@ export function FolderBrowserPane({
                       />
                     </Suspense>
                   ) : null}
-                  {!searchOpen && !inlineTreeOpen && catalog && catalog.total > 0 && viewUsesMosaicGrid(viewMode) ? (
+                  {!inlineTreeOpen && catalog && catalog.total > 0 && viewUsesMosaicGrid(viewMode) ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载自由缩略图视图" />}>
                       <FolderMosaicWorkspace
                         key={virtualKey}
@@ -2216,6 +2462,7 @@ export function FolderBrowserPane({
                         tileSize={thumbnailPixelSize(thumbnailWidthPercent)}
                         hoverPreviewEnabled={active && hoverPreviewEnabled}
                         hoverPreviewDelayMs={hoverPreviewDelayMs}
+                        penetrationFiles={penetrationDescriptions}
                         deleteMode={deleteMode}
                         deleteStrategy={deleteStrategy}
                         confirmDelete={confirmDelete}
@@ -2232,14 +2479,17 @@ export function FolderBrowserPane({
                       />
                     </Suspense>
                   ) : null}
-                  {!searchOpen && !inlineTreeOpen && catalog && catalog.total === 0 ? (
+                  {!inlineTreeOpen && catalog && catalog.total === 0 ? (
                     <div className="grid h-72 place-items-center px-4 text-center text-xs text-muted-foreground" data-folder-empty-state="true" role="status">
-                      {catalog.filter === "all" ? "此文件夹为空" : "没有符合当前筛选条件的项目"}
+                      {isVirtualSearchPath(catalog.path)
+                        ? "未找到匹配的搜索结果"
+                        : catalog.filter === "all" ? "此文件夹为空" : "没有符合当前筛选条件的项目"}
                     </div>
                   ) : null}
                   {!catalog ? (
                     <div className="grid h-72 place-items-center text-xs text-muted-foreground">{loading ? "正在读取目录…" : "选择一个目录"}</div>
                   ) : null}
+                  </div>
                 </div>
               </div>
             </div>
@@ -2250,7 +2500,7 @@ export function FolderBrowserPane({
   )
 }
 
-function DirectoryListItem({
+export function DirectoryListItem({
   itemId,
   entry,
   index,
@@ -2265,6 +2515,7 @@ function DirectoryListItem({
   contentWidthPercent,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  penetrationFiles,
   deleteMode,
   deleteStrategy,
   confirmDelete,
@@ -2276,6 +2527,7 @@ function DirectoryListItem({
   contentWidthPercent: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  penetrationFiles?: readonly FolderPenetrationFileName[]
   deleteMode: boolean
   deleteStrategy: FolderDeleteStrategy
   confirmDelete: boolean
@@ -2291,7 +2543,7 @@ function DirectoryListItem({
         <button
           id={itemId}
           type="button"
-          className={`flex w-full items-center gap-2 border-b pr-2 text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${deleteMode ? "pl-9" : "pl-2"} ${rich ? "h-[76px]" : "h-[34px]"}`}
+          className={`flex w-full items-center gap-2 border-b pr-2 text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${deleteMode ? "pl-9" : "pl-2"} ${rich ? "min-h-[76px] py-1.5" : penetrationFiles?.length ? "min-h-[34px] py-1" : "h-[34px]"}`}
           aria-selected={selected}
           data-focused={focused || undefined}
           disabled={disabled}
@@ -2332,6 +2584,7 @@ function DirectoryListItem({
             <span className="truncate">{entry.name}</span>
             {rich ? <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span> : null}
             {rich ? <FolderEntryFileMetadata entry={entry} /> : null}
+            <FolderPenetrationFileNames files={penetrationFiles} />
           </span>
           <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
         </button>
@@ -2398,6 +2651,13 @@ function sameFolderPath(left: string, right: string): boolean {
   return /^[a-z]:/iu.test(normalizedLeft) || /^[a-z]:/iu.test(normalizedRight)
     ? normalizedLeft.toLocaleLowerCase("en-US") === normalizedRight.toLocaleLowerCase("en-US")
     : normalizedLeft === normalizedRight
+}
+
+export function isSameFolderNavigationEntry(
+  previous: Pick<ReaderDirectoryPageDto, "sessionId" | "navigationEntryId"> | undefined,
+  next: Pick<ReaderDirectoryPageDto, "sessionId" | "navigationEntryId">,
+): boolean {
+  return previous?.sessionId === next.sessionId && previous.navigationEntryId === next.navigationEntryId
 }
 
 function folderEntryName(path: string): string {

@@ -1,6 +1,7 @@
 import type { ReaderBook, ViewSource } from "../../domain/book/book.js"
 import type { ReaderDirectoryEmmRecordStore, ReaderEmmRawField } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderEmmCatalogTag } from "../../ports/ReaderEmmTagCatalogStore.js"
+import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { emmTranslationKey } from "../../ports/ReaderEmmTagTranslation.js"
 import { legacyEmmBookPathKey, parseLegacyEmmBookMetadata, type ReaderBookEmmMetadata } from "./LegacyEmmBookMetadataCodec.js"
 
@@ -23,6 +24,7 @@ export class ReaderBookMetadataService {
   constructor(
     private readonly records?: ReaderDirectoryEmmRecordStore,
     private readonly translations?: ReaderBookEmmTagTranslationSource,
+    private readonly overrides?: ReaderEmmOverrideStore,
   ) {}
 
   async load(book: ReaderBook, signal?: AbortSignal): Promise<ReaderBookStaticMetadata> {
@@ -36,12 +38,18 @@ export class ReaderBookMetadataService {
       sourceFormat,
       pageCount: book.pages.length,
     }
-    if (!this.records?.directoryEmmAvailable) return base
     const key = legacyEmmBookPathKey(book.source.path)
-    const records = await this.records.readDirectoryEmmRecords([key], signal, { includeRaw: true })
+    const records = this.records?.directoryEmmAvailable
+      ? await this.records.readDirectoryEmmRecords([key], signal, { includeRaw: true })
+      : new Map()
     signal?.throwIfAborted()
     const record = records.get(key)
-    const emm = parseLegacyEmmBookMetadata(record?.emmJson, record?.manualTags)
+    const override = await this.overrides?.getEmmOverride(key)
+    signal?.throwIfAborted()
+    const sourceEmm = parseLegacyEmmBookMetadata(record?.emmJson)
+    const inheritedManualTags = parseLegacyEmmBookMetadata(undefined, record?.manualTags)?.tags ?? []
+    const manualTags = override?.overrides.manualTags ?? inheritedManualTags
+    const emm = composeEmm(sourceEmm, manualTags, override?.overrides.translatedTitle)
     const emmRaw = record?.rawFields?.length ? { schemaVersion: 1 as const, fields: record.rawFields } : undefined
     if (!emm) return emmRaw ? { ...base, emmRaw } : base
     if (!emm.tags.length || !this.translations) return { ...base, emm, ...(emmRaw ? { emmRaw } : {}) }
@@ -62,4 +70,15 @@ export class ReaderBookMetadataService {
       },
     }
   }
+}
+
+function composeEmm(
+  source: ReaderBookEmmMetadata | undefined,
+  manualTags: readonly { namespace: string; tag: string }[],
+  translatedTitle: string | undefined,
+): ReaderBookEmmMetadata | undefined {
+  const tags = [...(source?.tags ?? []), ...manualTags]
+  const title = translatedTitle ?? source?.translatedTitle
+  if (!tags.length && !title) return undefined
+  return { ...(title ? { translatedTitle: title } : {}), tags }
 }

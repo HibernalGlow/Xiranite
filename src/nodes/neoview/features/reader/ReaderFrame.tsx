@@ -32,13 +32,14 @@ import { ReaderMagnifierLayer } from "./ReaderMagnifierLayer"
 
 const LazyReaderPanoramaFrame = lazy(async () => ({ default: (await import("./ReaderPanoramaFrame")).ReaderPanoramaFrame }))
 
-export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, totalPages, anchorPageIndex, preloadGeneration, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, slideshowFade = false, videoController, sessionId, client, media, superResolution, viewerToggles, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
+export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, doublePageGap = 0, totalPages, anchorPageIndex, preloadGeneration, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, slideshowFade = false, videoController, sessionId, client, media, superResolution, viewerToggles, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   framePages?: readonly FramePage[]
   presentation: ReaderPresentation
   panorama?: boolean
   direction?: "left-to-right" | "right-to-left"
   pageMode?: "single" | "double"
+  doublePageGap?: number
   totalPages: number
   anchorPageIndex: number
   preloadGeneration?: number
@@ -100,7 +101,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
     error={upscalePreload.error}
     viewerToggles={viewerToggles}
   />
-  if (panorama) return <div className="relative h-full min-h-0 w-full"><ReaderPageTransitionLayer pageIndex={anchorPageIndex} slideshowFade={slideshowFade} slideshowTarget={slideshowTarget} fill><Suspense fallback={null}><LazyReaderPanoramaFrame key={`${sessionId}:${pageMode}:${direction}`} sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} hoverScrollEnabled={hoverScrollEnabled} hoverScrollSpeed={hoverScrollSpeed} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense></ReaderPageTransitionLayer>{progressLayer}</div>
+  if (panorama) return <div className="relative h-full min-h-0 w-full"><ReaderPageTransitionLayer pageIndex={anchorPageIndex} slideshowFade={slideshowFade} slideshowTarget={slideshowTarget} fill><Suspense fallback={null}><LazyReaderPanoramaFrame key={`${sessionId}:${pageMode}:${direction}`} sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} doublePageGap={doublePageGap} hoverScrollEnabled={hoverScrollEnabled} hoverScrollSpeed={hoverScrollSpeed} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense></ReaderPageTransitionLayer>{progressLayer}</div>
   const frameOrientation = pages.length > 1 ? "horizontal" : presentation.orientation
   const dimensions = displayedPages.flatMap((page, index) => page.dimensions
     ? [readerImageTrimEffectiveDimensions(page.dimensions, DEFAULT_READER_IMAGE_TRIM, framePages?.[index]?.cropInsets)]
@@ -108,7 +109,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
   const frameSize = dimensions.length === pages.length
     ? calculateReaderFrameSize(dimensions, presentation.rotation, frameOrientation, presentation.autoRotation, presentation.widePageStretch)
     : undefined
-  const gap = pages.length > 1 ? 4 * (pages.length - 1) : 0
+  const gap = pages.length > 1 ? doublePageGap * (pages.length - 1) : 0
   const available = viewport
     ? { width: Math.max(1, viewport.width - 16 - gap), height: Math.max(1, viewport.height - 16) }
     : undefined
@@ -144,35 +145,42 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
             : "grid h-max min-h-full w-max min-w-full place-items-center p-2"}>
           <ReaderPageTransitionLayer pageIndex={pages[0]?.index} store={slideshowFade ? undefined : pageTransition} slideshowFade={slideshowFade} slideshowTarget={slideshowTarget}>
             <div
-              className="flex shrink-0 items-center justify-center gap-1"
+              className="flex shrink-0 items-center justify-center"
               data-reader-frame="true"
+              data-reader-double-page-gap={pages.length > 1 ? doublePageGap : undefined}
               style={frameSize && scale ? {
                 width: frameSize.width * scale + gap,
                 height: frameSize.height * scale,
               } : undefined}
             >
               {pages.map((page, slotIndex) => (
-                <PageMedia
+                <div
                   key={`${page.mediaKind}:${slotIndex}`}
-                  page={page}
-                  rotation={displayedPages[slotIndex]?.dimensions
-                    ? effectiveReaderRotation(presentation.rotation, presentation.autoRotation, displayedPages[slotIndex]!.dimensions!)
-                    : presentation.rotation}
-                  scale={scale === undefined ? undefined : scale * (pageStretchScales[slotIndex] ?? 1)}
-                  fallbackSize={available}
-                  colorFilter={colorFilter}
-                  imageTrim={imageTrim}
-                  imageTrimDetectionActive={page.index === imageTrimDetectionPageIndex}
-                  presentationCropInsets={framePages?.[slotIndex]?.cropInsets}
-                  videoController={videoController}
-                  sessionId={sessionId}
-                  client={client}
-                  media={media}
-                  superResolution={superResolution}
-                  onSubtitleConfigChange={onSubtitleConfigChange}
-                  onVideoListEnded={onVideoListEnded}
-                  onCommittedPage={(committedPage) => commitSlotPage(slotIndex, committedPage)}
-                />
+                  className="flex shrink-0"
+                  data-reader-page-slot={slotIndex}
+                  style={slotIndex > 0 ? { marginInlineStart: doublePageGap } : undefined}
+                >
+                  <PageMedia
+                    page={page}
+                    rotation={displayedPages[slotIndex]?.dimensions
+                      ? effectiveReaderRotation(presentation.rotation, presentation.autoRotation, displayedPages[slotIndex]!.dimensions!)
+                      : presentation.rotation}
+                    scale={scale === undefined ? undefined : scale * (pageStretchScales[slotIndex] ?? 1)}
+                    fallbackSize={available}
+                    colorFilter={colorFilter}
+                    imageTrim={imageTrim}
+                    imageTrimDetectionActive={page.index === imageTrimDetectionPageIndex}
+                    presentationCropInsets={framePages?.[slotIndex]?.cropInsets}
+                    videoController={videoController}
+                    sessionId={sessionId}
+                    client={client}
+                    media={media}
+                    superResolution={superResolution}
+                    onSubtitleConfigChange={onSubtitleConfigChange}
+                    onVideoListEnded={onVideoListEnded}
+                    onCommittedPage={(committedPage) => commitSlotPage(slotIndex, committedPage)}
+                  />
+                </div>
               ))}
             </div>
           </ReaderPageTransitionLayer>

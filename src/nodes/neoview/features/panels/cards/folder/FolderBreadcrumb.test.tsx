@@ -50,37 +50,47 @@ describe("FolderBreadcrumb", () => {
     expect(onNavigate).toHaveBeenCalledWith("C:\\one")
   })
 
-  it("[neoview.folder.path-navigation] confirms Enter and cancels Escape or blur", async () => {
+  it("[neoview.folder.path-navigation] starts editing on current-segment click and confirms Enter / cancels Escape or blur", async () => {
     const onNavigate = vi.fn()
     render(<FolderBreadcrumb path={"C:\\books"} onNavigate={onNavigate} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑路径" }))
+    // Click the current breadcrumb segment (Explorer-style) instead of a dedicated edit button.
+    fireEvent.click(screen.getByRole("button", { name: "books" }))
     const input = await screen.findByRole("textbox", { name: "浏览路径" })
     fireEvent.change(input, { target: { value: "D:/library" } })
     fireEvent.submit(input.closest("form")!)
     expect(onNavigate).toHaveBeenCalledWith("D:\\library")
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑路径" }))
+    fireEvent.click(screen.getByRole("button", { name: "books" }))
     fireEvent.keyDown(screen.getByRole("textbox", { name: "浏览路径" }), { key: "Escape" })
     expect(screen.queryByRole("textbox", { name: "浏览路径" })).toBeNull()
 
     vi.useFakeTimers()
-    fireEvent.click(screen.getByRole("button", { name: "编辑路径" }))
+    fireEvent.click(screen.getByRole("button", { name: "books" }))
     fireEvent.blur(screen.getByRole("textbox", { name: "浏览路径" }))
     act(() => vi.advanceTimersByTime(151))
     expect(screen.queryByRole("textbox", { name: "浏览路径" })).toBeNull()
     expect(onNavigate).toHaveBeenCalledTimes(1)
   })
 
-  it("[neoview.folder.path-navigation] copies the authoritative current path", async () => {
+  it("[neoview.folder.path-navigation] starts editing when clicking empty breadcrumb padding", async () => {
+    render(<FolderBreadcrumb path={"C:\\books"} onNavigate={vi.fn()} />)
+    const spacer = document.querySelector("[data-breadcrumb-edit-hit='true'].flex-1")
+    expect(spacer).toBeTruthy()
+    fireEvent.click(spacer!)
+    expect(await screen.findByRole("textbox", { name: "浏览路径" })).toBeTruthy()
+  })
+
+  it("[neoview.folder.path-navigation] copies the authoritative current path from the actions menu", async () => {
     const onCopyPath = vi.fn(async () => undefined)
     render(<FolderBreadcrumb path={"C:\\books"} onNavigate={vi.fn()} onCopyPath={onCopyPath} />)
-    fireEvent.click(screen.getByRole("button", { name: "复制当前路径" }))
+    fireEvent.pointerDown(screen.getByRole("button", { name: "路径操作" }), { button: 0, pointerType: "mouse" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "复制当前路径" }))
     await waitFor(() => expect(onCopyPath).toHaveBeenCalledWith("C:\\books"))
     expect(screen.getByRole("status").textContent).toBe("已复制当前路径")
   })
 
-  it("[neoview.folder.breadcrumb-columns-modes] switches the same directory-column view between inline and floating hosts", async () => {
+  it("[neoview.folder.breadcrumb-columns-modes] keeps path actions in one menu and switches column hosts", async () => {
     const treeDirectoryBrowser = vi.fn(async (_sessionId: string, path?: string) => ({
       sessionId: "browser-1",
       path: path ?? "C:\\",
@@ -89,21 +99,43 @@ describe("FolderBreadcrumb", () => {
       cacheHit: false,
       excludedPaths: [],
     }))
+    const onCreateTab = vi.fn()
 
     render(<FolderBreadcrumb
       path={"C:\\manga"}
       client={{ treeDirectoryBrowser } as unknown as ReaderHttpClient}
       sessionId="browser-1"
+      canCreateTab
+      onCreateTab={onCreateTab}
       onNavigate={vi.fn()}
+      onCopyPath={vi.fn()}
     />)
 
-    fireEvent.click(screen.getByRole("button", { name: "展开目录列" }))
+    expect(document.querySelector("[data-breadcrumb-action-pad]")).toBeNull()
+    expect(screen.queryByRole("button", { name: "编辑路径" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "复制当前路径" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "新建文件夹标签" })).toBeNull()
+    expect(screen.getByRole("button", { name: "路径操作" })).toBeTruthy()
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "路径操作" }), { button: 0, pointerType: "mouse" })
+    expect(await screen.findByRole("menuitem", { name: "新建文件夹标签" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "展开目录列" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "编辑路径" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "复制当前路径" })).toBeTruthy()
+    expect(screen.getByRole("menuitemradio", { name: "下拉展开" })).toBeTruthy()
+    expect(screen.getByRole("menuitemradio", { name: "浮动窗口" })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "展开目录列" }))
     await waitFor(() => expect(document.querySelector("[data-breadcrumb-columns-inline='true']")).toBeTruthy())
     expect(await screen.findByRole("tree", { name: "目录列导航" })).toBeTruthy()
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "目录列显示方式" }), { button: 0, pointerType: "mouse" })
+    fireEvent.pointerDown(screen.getByRole("button", { name: "路径操作" }), { button: 0, pointerType: "mouse" })
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "浮动窗口" }))
     await waitFor(() => expect(document.querySelector("[data-breadcrumb-columns-inline='true']")).toBeNull())
     expect(await screen.findByRole("tree", { name: "目录列导航" })).toBeTruthy()
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "路径操作" }), { button: 0, pointerType: "mouse" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: "新建文件夹标签" }))
+    expect(onCreateTab).toHaveBeenCalledOnce()
   })
 })

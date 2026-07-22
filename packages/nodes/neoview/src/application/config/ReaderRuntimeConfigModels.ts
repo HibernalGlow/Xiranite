@@ -14,6 +14,7 @@ import { unwrapNeoviewConfigEnvelope } from "./NeoviewConfigEnvelope.js"
 import { parseNeoviewInputBindingsConfig } from "./ReaderInputBindingsConfig.js"
 import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 import { parseReaderRadialMenuConfig, type ReaderRadialMenuConfig } from "./ReaderRadialMenuConfig.js"
+import { DEFAULT_READER_VOICE_CONTROL_CONFIG, type ReaderVoiceControlConfig } from "./ReaderVoiceControlConfig.js"
 import type { SuperResolutionCustomModelManifest } from "../../ports/SuperResolutionProvider.js"
 import { DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG, parseNeoviewImageProcessingConfig, type NeoviewImageProcessingConfig } from "./ReaderImageProcessingConfig.js"
 import { parseSuperResolutionPreferences, type SuperResolutionPreferences } from "../../domain/super-resolution/super-resolution-preferences.js"
@@ -81,6 +82,7 @@ export interface NeoviewRuntimeConfig {
   presentationDiskCache: NeoviewPresentationDiskCacheConfig
   inputBindings: ReaderInputBindingsConfig
   radialMenu: ReaderRadialMenuConfig
+  voiceControl: ReaderVoiceControlConfig
   preload: NeoviewPreloadConfig
   systemMonitor: NeoviewSystemMonitorConfig
   emm: NeoviewEmmConfig
@@ -121,6 +123,10 @@ export interface NeoviewAiTranslationPatch {
 
 export interface NeoviewPreloadConfig {
   maxCandidatePages: number
+}
+
+export interface NeoviewPreloadPatch {
+  preload: Partial<NeoviewPreloadConfig>
 }
 
 export const NEOVIEW_SYSTEM_MONITOR_INTERVALS = [500, 1_000, 2_000, 5_000] as const
@@ -200,6 +206,8 @@ export type NeoviewFolderPenetrationTarget = (typeof NEOVIEW_FOLDER_PENETRATION_
 
 export interface NeoviewFolderPenetrationConfig {
   enabled: boolean
+  showInternalFiles: boolean
+  internalItemsMode: "single" | "all"
   maxDepth: number
   terminalTargets: NeoviewFolderPenetrationTarget[]
 }
@@ -349,6 +357,7 @@ export interface NeoviewPageListPatch {
 export interface NeoviewViewDefaults {
   fitMode: ReaderFitMode
   pageMode: PageMode
+  doublePageGap: number
   splitWidePages: boolean
   hoverScrollEnabled: boolean
   hoverScrollSpeed: number
@@ -357,10 +366,35 @@ export interface NeoviewViewDefaults {
   orientation?: ReaderOrientation
   autoRotation?: ReaderAutoRotation
   widePageStretch?: ReaderWidePageStretch
+  background: NeoviewBackgroundConfig
 }
 
 export interface NeoviewViewDefaultsPatch {
-  viewDefaults: Partial<NeoviewViewDefaults>
+  viewDefaults: Omit<Partial<NeoviewViewDefaults>, "background"> & { background?: NeoviewBackgroundPatch }
+}
+
+export type NeoviewBackgroundMode = "solid" | "auto" | "edge" | "ambient" | "aurora" | "spotlight"
+export type NeoviewAmbientStyle = "gentle" | "vibrant" | "dynamic"
+
+export interface NeoviewBackgroundConfig {
+  color: string
+  mode: NeoviewBackgroundMode
+  ambient: {
+    style: NeoviewAmbientStyle
+    speed: number
+    blur: number
+    opacity: number
+  }
+  aurora: { showRadialGradient: boolean }
+  spotlight: { color: string }
+}
+
+export interface NeoviewBackgroundPatch {
+  color?: string
+  mode?: NeoviewBackgroundMode
+  ambient?: Partial<NeoviewBackgroundConfig["ambient"]>
+  aurora?: Partial<NeoviewBackgroundConfig["aurora"]>
+  spotlight?: Partial<NeoviewBackgroundConfig["spotlight"]>
 }
 
 export interface NeoviewSlideshowConfig {
@@ -438,6 +472,77 @@ export interface NeoviewShellSidebarInteractionConfig {
   blankAreaCollapseMode: "single" | "double"
 }
 
+export const NEOVIEW_WORKSPACE_MODES = ["edges", "swimlane"] as const
+export type NeoviewWorkspaceMode = (typeof NEOVIEW_WORKSPACE_MODES)[number]
+
+export const NEOVIEW_SWIMLANE_IDS = ["left", "reader", "right"] as const
+export type NeoviewSwimlaneId = string
+
+export const NEOVIEW_PANEL_BAR_MODES = ["pinned", "floating"] as const
+export type NeoviewPanelBarMode = (typeof NEOVIEW_PANEL_BAR_MODES)[number]
+export const NEOVIEW_PANEL_BAR_DOCKS = ["left", "right", "top", "bottom"] as const
+export type NeoviewPanelBarDock = (typeof NEOVIEW_PANEL_BAR_DOCKS)[number]
+export const NEOVIEW_BAR_HANDLE_STYLES = ["grip", "groove", "move", "grab", "edge"] as const
+export type NeoviewBarHandleStyle = (typeof NEOVIEW_BAR_HANDLE_STYLES)[number]
+export const NEOVIEW_BAR_HANDLE_POSITIONS = ["left", "right"] as const
+export type NeoviewBarHandlePosition = (typeof NEOVIEW_BAR_HANDLE_POSITIONS)[number]
+export const NEOVIEW_LANE_NAVIGATOR_DOCKS = ["floating", "reader-title", "window-title"] as const
+export type NeoviewLaneNavigatorDock = (typeof NEOVIEW_LANE_NAVIGATOR_DOCKS)[number]
+export const NEOVIEW_WINDOW_CONTROLS_PLACEMENTS = ["lane", "titlebar"] as const
+export type NeoviewWindowControlsPlacement = (typeof NEOVIEW_WINDOW_CONTROLS_PLACEMENTS)[number]
+
+export interface NeoviewSwimlaneLaneConfig {
+  width: number
+  collapsed: boolean
+  title?: string
+  activePanelId?: string
+  panelBarMode?: NeoviewPanelBarMode
+  panelBarDock?: NeoviewPanelBarDock
+  panelBarPositionX?: number
+  panelBarPositionY?: number
+  panelBarConstrained?: boolean
+}
+
+export interface NeoviewSwimlaneRevealZone {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export const NEOVIEW_SWIMLANE_REVEAL_EDGES = ["left", "right", "top", "bottom"] as const
+export type NeoviewSwimlaneRevealEdge = (typeof NEOVIEW_SWIMLANE_REVEAL_EDGES)[number]
+
+export interface NeoviewSwimlaneConfig {
+  laneOrder: NeoviewSwimlaneId[]
+  activeLane: NeoviewSwimlaneId
+  readerSolo: boolean
+  readerSoloOnFocus: boolean
+  soloLaneId?: NeoviewSwimlaneId
+  readerWidthRatio: number
+  edgeRevealDelayMs: number
+  edgeRevealZones: Record<NeoviewSwimlaneRevealEdge, NeoviewSwimlaneRevealZone>
+  readerFocusOnHover: boolean
+  readerFocusHoverDelayMs: number
+  manualScrollEnabled: boolean
+  showLaneNavigatorInReaderSolo: boolean
+  autoFitToViewport: boolean
+  barHandleStyle: NeoviewBarHandleStyle
+  barHandlePosition: NeoviewBarHandlePosition
+  laneNavigatorPositionX: number
+  laneNavigatorPositionY: number
+  laneNavigatorDock: NeoviewLaneNavigatorDock
+  windowControlsPlacement: NeoviewWindowControlsPlacement
+  windowControlsOwnerLaneId: NeoviewSwimlaneId
+  windowControlsExpanded: boolean
+  lanes: Record<NeoviewSwimlaneId, NeoviewSwimlaneLaneConfig>
+}
+
+export interface NeoviewWorkspaceConfig {
+  mode: NeoviewWorkspaceMode
+  swimlane: NeoviewSwimlaneConfig
+}
+
 export type NeoviewShellSurface = "top" | "bottom" | "sidebar"
 export type NeoviewShellMaterialPreset = "solid" | "soft" | "frosted" | "custom"
 export type NeoviewShellSurfaceValues = Record<NeoviewShellSurface, number>
@@ -468,6 +573,7 @@ export interface NeoviewShellConfig {
   edges: Record<"top" | "right" | "bottom" | "left", NeoviewShellEdgeConfig>
   sidebars: Record<"left" | "right", NeoviewShellSidebarConfig>
   sidebarInteraction: NeoviewShellSidebarInteractionConfig
+  workspace: NeoviewWorkspaceConfig
   panelLayout: Record<string, NeoviewPanelLayout>
   cardLayout: Record<string, NeoviewCardLayout>
 }
@@ -532,6 +638,31 @@ export interface NeoviewShellControlPatch {
     }
     edges?: Partial<Record<"top" | "right" | "bottom" | "left", Partial<NeoviewShellEdgeConfig>>>
     sidebarInteraction?: Partial<NeoviewShellSidebarInteractionConfig>
+    workspace?: {
+      mode?: NeoviewWorkspaceMode
+      laneOrder?: NeoviewSwimlaneId[]
+      activeLane?: NeoviewSwimlaneId
+      readerSolo?: boolean
+      readerSoloOnFocus?: boolean
+      soloLaneId?: NeoviewSwimlaneId | null
+      readerWidthRatio?: number
+      edgeRevealDelayMs?: number
+      edgeRevealZones?: Record<NeoviewSwimlaneRevealEdge, NeoviewSwimlaneRevealZone>
+      readerFocusOnHover?: boolean
+      readerFocusHoverDelayMs?: number
+      manualScrollEnabled?: boolean
+      showLaneNavigatorInReaderSolo?: boolean
+      autoFitToViewport?: boolean
+      barHandleStyle?: NeoviewBarHandleStyle
+      barHandlePosition?: NeoviewBarHandlePosition
+      laneNavigatorPositionX?: number
+      laneNavigatorPositionY?: number
+      laneNavigatorDock?: NeoviewLaneNavigatorDock
+      windowControlsPlacement?: NeoviewWindowControlsPlacement
+      windowControlsOwnerLaneId?: NeoviewSwimlaneId
+      windowControlsExpanded?: boolean
+      lanes?: Partial<Record<NeoviewSwimlaneId, Partial<NeoviewSwimlaneLaneConfig>>>
+    }
     material?: NeoviewShellMaterialPatch
     reset?: "known-defaults"
   }
@@ -555,6 +686,7 @@ export const DEFAULT_NEOVIEW_PAGE_LIST_CONFIG: NeoviewPageListConfig = {
 export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   fitMode: DEFAULT_READER_PRESENTATION.fitMode,
   pageMode: DEFAULT_READER_LAYOUT.pageMode,
+  doublePageGap: 0,
   splitWidePages: DEFAULT_READER_LAYOUT.splitWidePages ?? false,
   hoverScrollEnabled: true,
   hoverScrollSpeed: 2,
@@ -563,6 +695,13 @@ export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   orientation: DEFAULT_READER_PRESENTATION.orientation,
   autoRotation: DEFAULT_READER_PRESENTATION.autoRotation,
   widePageStretch: DEFAULT_READER_PRESENTATION.widePageStretch,
+  background: {
+    color: "#000000",
+    mode: "solid",
+    ambient: { style: "vibrant", speed: 8, blur: 80, opacity: 0.8 },
+    aurora: { showRadialGradient: true },
+    spotlight: { color: "white" },
+  },
 }
 
 export const DEFAULT_NEOVIEW_BOOK_CONFIG: NeoviewBookConfig = {
@@ -594,6 +733,8 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   },
   penetration: {
     enabled: false,
+    showInternalFiles: true,
+    internalItemsMode: "single",
     maxDepth: 3,
     terminalTargets: [...NEOVIEW_FOLDER_PENETRATION_TARGETS],
   },
@@ -808,6 +949,41 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
     showDragHandle: false,
     enableBlankAreaCollapse: true,
     blankAreaCollapseMode: "single",
+  },
+  workspace: {
+    mode: "edges",
+    swimlane: {
+      laneOrder: ["left", "reader", "right"],
+      activeLane: "reader",
+      readerSolo: true,
+      readerSoloOnFocus: true,
+      readerWidthRatio: 0.5,
+      edgeRevealDelayMs: 180,
+      edgeRevealZones: {
+        left: { x: 0, y: 10, width: 1, height: 80 },
+        right: { x: 99, y: 10, width: 1, height: 80 },
+        top: { x: 10, y: 0, width: 80, height: 1 },
+        bottom: { x: 10, y: 99, width: 80, height: 1 },
+      },
+      readerFocusOnHover: true,
+      readerFocusHoverDelayMs: 650,
+      manualScrollEnabled: false,
+      showLaneNavigatorInReaderSolo: false,
+      autoFitToViewport: false,
+      barHandleStyle: "grip",
+      barHandlePosition: "left",
+      laneNavigatorPositionX: 92,
+      laneNavigatorPositionY: 96,
+      laneNavigatorDock: "floating",
+      windowControlsPlacement: "lane",
+      windowControlsOwnerLaneId: "right",
+      windowControlsExpanded: false,
+      lanes: {
+        left: { width: 320, collapsed: false, activePanelId: "folder", panelBarMode: "pinned", panelBarDock: "left", panelBarPositionX: 8, panelBarPositionY: 50, panelBarConstrained: true },
+        reader: { width: 960, collapsed: false },
+        right: { width: 280, collapsed: false, activePanelId: "info", panelBarMode: "pinned", panelBarDock: "right", panelBarPositionX: 92, panelBarPositionY: 50, panelBarConstrained: true },
+      },
+    },
   },
   panelLayout: Object.fromEntries(
     READER_PANEL_MANIFEST.map((panel) => [

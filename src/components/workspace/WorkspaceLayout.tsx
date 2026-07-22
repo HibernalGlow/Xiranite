@@ -1,17 +1,28 @@
 import { lazy, Suspense } from "react"
 import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { TopBar } from "./TopBar"
-import { CardView } from "./CardView"
-import { OverlayHost } from "./OverlayHost"
-import { SelectionToolbar } from "./SelectionToolbar"
-import { WorkspaceMusicDockPanel, WorkspaceMusicDockProvider } from "./WorkspaceMusicDock"
-import { AlphabetNodeRail } from "./AlphabetNodeRail"
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
-import { DefaultContextMenuItems } from "@/components/context-menu/defaults"
 import { toBackgroundImageCssUrl } from "@/lib/backgroundImage"
 import { cn } from "@/lib/utils"
+// Provider must be eager: TopBar mounts WorkspaceMelodeckTopBarSlot immediately, and a
+// lazy provider with children-as-Suspense-fallback would render those consumers without
+// context. Panel stays lazy; MusicPlayerSurface is already code-split inside Melodeck.
+import { WorkspaceMelodeckProvider } from "./WorkspaceMelodeck"
 
+// Keep default cards view and secondary chrome out of the first WorkspaceLayout
+// transform. View-mode lazy loading already existed for dock/flow/lane/bento;
+// cards/Melodeck/overlays were still eager and dominated first-open cost.
+const CardView = lazy(() => import("./CardView").then((module) => ({ default: module.CardView })))
+const OverlayHost = lazy(() => import("./OverlayHost").then((module) => ({ default: module.OverlayHost })))
+const SelectionToolbar = lazy(() => import("./SelectionToolbar").then((module) => ({ default: module.SelectionToolbar })))
+const AlphabetNodeRail = lazy(() => import("./AlphabetNodeRail").then((module) => ({ default: module.AlphabetNodeRail })))
+const WorkspaceMelodeckPanel = lazy(() =>
+  import("./WorkspaceMelodeck").then((module) => ({ default: module.WorkspaceMelodeckPanel })),
+)
+const DefaultContextMenuItems = lazy(() =>
+  import("@/components/context-menu/defaults").then((module) => ({ default: module.DefaultContextMenuItems })),
+)
 const DockviewView = lazy(() => import("./DockviewView").then((module) => ({ default: module.DockviewView })))
 const FlowView = lazy(() => import("./FlowView").then((module) => ({ default: module.FlowView })))
 const LaneView = lazy(() => import("./lane/LaneView").then((module) => ({ default: module.LaneView })))
@@ -44,8 +55,10 @@ export function WorkspaceLayout() {
       className={cn("flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass, bgClass, bgCoverClass)}
       style={bgStyles}
     >
-      <DefaultContextMenuItems />
-      <WorkspaceMusicDockProvider>
+      <Suspense fallback={null}>
+        <DefaultContextMenuItems />
+      </Suspense>
+      <WorkspaceMelodeckProvider>
         <WorkspaceUrlState />
         <TopBar />
         <BackendStatusBanner />
@@ -65,12 +78,14 @@ export function WorkspaceLayout() {
               {chrome.viewMode === "bento" && <BentoView />}
             </Suspense>
           </div>
-          <OverlayHost />
-          <SelectionToolbar />
-          <AlphabetNodeRail />
-          <WorkspaceMusicDockPanel />
+          <Suspense fallback={null}>
+            <OverlayHost />
+            <SelectionToolbar />
+            <AlphabetNodeRail />
+            <WorkspaceMelodeckPanel />
+          </Suspense>
         </main>
-      </WorkspaceMusicDockProvider>
+      </WorkspaceMelodeckProvider>
     </div>
   )
 }

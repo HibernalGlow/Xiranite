@@ -27,9 +27,7 @@ import {
 } from "@xiranite/cli-runtime/terminal";
 import {
   loadNodeConfigWithHints,
-  loadXiraniteConfig,
-  saveXiraniteConfig,
-  updateNodeConfig,
+  updateNodeConfigFile,
 } from "@xiranite/config";
 import {
   runSmartZip,
@@ -148,17 +146,13 @@ function preferences(
     nodeId: "smartzip",
     current,
     async save(values) {
-      const { config, path } = await loadXiraniteConfig(options);
-      await saveXiraniteConfig(
-        updateNodeConfig(config, "smartzip", {
+      await updateNodeConfigFile("smartzip", {
           cli: {
             theme: values.theme,
             default_mode: values.defaultMode,
             language: values.language,
           },
-        }),
-        { ...options, configPath: path },
-      );
+        }, options);
     },
     async restore() {
       const loaded = await context(host, true);

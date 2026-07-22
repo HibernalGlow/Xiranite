@@ -57,7 +57,7 @@ test("[neoview.toolbar.page-order-e2e] preserves physical page identity and stab
   const openedResponse = page.waitForResponse((response) => (
     response.url() === `${backend.url}/reader/sessions` && response.request().method() === "POST"
   ))
-  await page.getByRole("textbox", { name: "漫画、图片或目录路径" }).press("Enter")
+  await page.getByRole("button", { name: "打开书籍" }).click()
   const opened = await (await openedResponse).json() as { sessionId: string; visiblePages: Array<{ id: string; name: string }>; pageOrder: { sortMode: string } }
   expect(opened.pageOrder.sortMode).toBe("fileName")
   const physicalId = opened.visiblePages[0]!.id

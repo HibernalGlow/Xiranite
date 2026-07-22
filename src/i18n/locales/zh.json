@@ -127,13 +127,111 @@
   "settings": {
     "title": "设置",
     "header": "设置",
-    "headerSubtitle": "统一管理外观、运行时与本地数据配置。",
+    "headerSubtitle": "按时间线阶段浏览设置：外观 → 工作区 → 视图 → 运行时 → 数据。",
+    "search": {
+      "placeholder": "搜索设置（主题、泳道、WebView2…）",
+      "clear": "清除搜索",
+      "results": "搜索结果",
+      "empty": "未找到匹配的设置项",
+      "stage": "阶段",
+      "stepInStage": "位于「{{stage}}」"
+    },
     "sections": {
       "appearance": "外观",
       "background": "背景",
+      "workspace": "工作区",
       "runtime": "运行时",
       "data": "数据",
       "view": "视图"
+    },
+    "timeline": {
+      "navLabel": "设置时间线",
+      "railTitle": "设置时间线",
+      "stepsLabel": "子分类",
+      "advanced": "高级",
+      "advShort": "高级",
+      "stageDesc": {
+        "appearance": "主题、配色、字体语言与氛围效果。",
+        "workspace": "画布背景、操作栏与字母索引。",
+        "view": "泳道交互、组件皮肤与卡片点击行为。",
+        "runtime": "本地后端连接、热刷新与 WebView2 实验项。",
+        "data": "工作区持久化与数据库归属信息。"
+      },
+      "steps": {
+        "theme": "主题",
+        "color": "颜色模式",
+        "typography": "字体与语言",
+        "atmosphere": "氛围效果",
+        "themeImport": "导入主题 JSON",
+        "background": "背景画布",
+        "chrome": "操作栏",
+        "alphabet": "字母索引",
+        "swimlane": "泳道交互",
+        "components": "组件皮肤",
+        "cardInteraction": "卡片交互",
+        "connection": "运行时连接",
+        "webview2": "WebView2",
+        "storage": "本地数据"
+      },
+      "stepDesc": {
+        "theme": "选择内置主题预设，查看调色板与来源。",
+        "typography": "全局 UI 字体与界面语言。",
+        "atmosphere": "晕影、颗粒与环境光开关。",
+        "background": "网格 / 圆点 / 图片背景与纹理预览。",
+        "swimlane": "主泳道独占、悬停聚焦与导航栏行为。"
+      },
+      "fieldsTitle": "字段与互斥选项组",
+      "fieldsDesc": "标题样式同步到节点中的 Select、输入框、滑条等标准字段，以及压缩模式、输出位置等互斥组选项；不改变控件的键盘与表单语义。",
+      "controlStyle": "控件样式",
+      "fieldTitleStyle": "全局字段标题",
+      "choice": {
+        "segmented": "分段",
+        "pills": "胶囊",
+        "tabs": "标签",
+        "tiles": "卡片"
+      },
+      "fieldTitle": {
+        "stacked": "上置",
+        "legend": "悬浮图例",
+        "inline": "左侧",
+        "hidden": "隐藏"
+      },
+      "compressionPreview": "压缩模式",
+      "lossless": "无损",
+      "lossy": "有损",
+      "modulePanelTitle": "模块面板",
+      "modulePanelDesc": "统一节点内分区的标题、面板表面、魔法效果与拖拽手柄；已接入公共组件的节点会立即同步。",
+      "moduleTitleStyle": "标题样式",
+      "modulePanelStyle": "面板样式",
+      "moduleCardEffect": "卡片效果",
+      "resizableHandle": "拖拽手柄",
+      "moduleTitle": {
+        "legend": "悬浮角标",
+        "inline": "内嵌",
+        "bar": "顶部栏",
+        "minimal": "极简"
+      },
+      "modulePanel": {
+        "soft": "柔和",
+        "solid": "实色",
+        "outline": "描边",
+        "flat": "无框"
+      },
+      "moduleCard": {
+        "magic": "魔法",
+        "plain": "静态"
+      },
+      "handle": {
+        "grip": "握把",
+        "dots": "点阵",
+        "line": "强调线",
+        "minimal": "极简"
+      },
+      "previewModule": "预览模块",
+      "previewBadge": "12 项",
+      "previewModuleDesc": "标题和面板会使用全局样式；分隔线由公共 ResizableHandle 同步。",
+      "nodeHotReload": "节点后端源码自动刷新",
+      "nodeHotReloadDesc": "保存已使用节点的后端源码后，下一次运行该节点自动加载新代码；不会重启桌面端或其他节点。"
     },
     "view": {
       "cardInteraction": "卡片交互",
@@ -148,12 +246,14 @@
         "fullscreen": "全屏"
       },
       "componentDisplay": {
-        "title": "组件显示样式",
-        "description": "为 Tab 导航选择全局视觉样式。它只改变外观；Radix Tabs 的语义和键盘操作保持不变。",
+        "title": "组件皮肤",
+        "description": "下方每一块只调整一类共享控件的外观，覆盖各节点；不改变交互语义与键盘行为。",
+        "guide": "按编号与组件徽章快速定位。选项在标题下方，实时预览使用与节点相同的共享组件。",
+        "livePreview": "实时预览",
         "preview": "预览",
         "history": "历史",
         "details": "详情",
-        "previewHint": "这里使用的就是节点结果面板所用的共享组件。",
+        "previewHint": "这里使用的就是节点结果面板所用的共享 Tabs。",
         "historyHint": "切换显示类型不会改变 Tab 内容或操作。",
         "detailsHint": "后续组件偏好可在此扩展，不需要重写节点实现。",
         "styles": {
@@ -163,9 +263,15 @@
           "boxed": "分段",
           "quiet": "极简"
         },
+        "tabs": {
+          "title": "标签页",
+          "target": "Tabs",
+          "description": "节点结果栏、设置预览，以及所有共享的 Radix Tabs。"
+        },
         "switches": {
           "title": "开关",
-          "description": "默认的描边样式确保关闭状态在任意主题中都清晰可见。",
+          "target": "Switch",
+          "description": "节点卡片、设置行与配置面板中的布尔开关。",
           "preview": "关闭",
           "previewOn": "开启",
           "styles": {
@@ -173,6 +279,44 @@
             "filled": "填充",
             "minimal": "极简"
           }
+        },
+        "sliders": {
+          "title": "滑条",
+          "target": "Slider",
+          "description": "Magic Card 参数轨、设置密度滑条，以及所有共享的 Radix Slider。",
+          "previewHint": "与 Magic Card 光效参数相同的横向滑条控件。",
+          "previewRadius": "光晕半径",
+          "previewIntensity": "光晕强度",
+          "previewStrength": "主色浓度",
+          "styles": {
+            "solid": "实心",
+            "soft": "柔和",
+            "pill": "粗轨",
+            "line": "细线",
+            "minimal": "极简"
+          }
+        },
+        "scrollbars": {
+          "title": "滚动条",
+          "target": "Scrollbar",
+          "description": "纵向滑轨与横向底条；原生 overflow 与 ScrollArea 共用，覆盖各节点面板。",
+          "previewHint": "上方：纵横向同时出现。下方：单独的横向底条，对应宽表滚动。",
+          "previewLine": "共享滚动条示例行 {{n}} — 宽行用于同时预览纵向滑轨与横向底条",
+          "horizontalOnly": "横向底条",
+          "horizontalHint": "拖动这条底轨 — 与节点宽表相同的横向滚动条。",
+          "styles": {
+            "thin": "纤细",
+            "soft": "柔和",
+            "solid": "实心",
+            "rounded": "圆润",
+            "minimal": "极简"
+          }
+        },
+        "fields": {
+          "target": "Field / Choice"
+        },
+        "modulePanel": {
+          "target": "ModulePanel"
         }
       }
     },
@@ -888,6 +1032,57 @@
   },
   "module": {
     "unknown": "// 未知模块: {{id}}",
+    "configCenter": {
+      "trigger": "配置中心",
+      "description": "管理此节点的当前配置、变更历史、备份与可移植配置。",
+      "tabs": { "current": "当前配置", "presets": "预设", "history": "变更历史", "transfer": "导入 / 导出", "backup": "备份 / 同步" },
+      "autoRestore": "启动时恢复",
+      "save": "保存为默认配置",
+      "restore": "恢复已保存配置",
+      "reload": "从 TOML 重新读取",
+      "clear": "清除覆盖",
+      "openFile": "打开 TOML 文件",
+      "dirty": "当前参数与已保存配置不同。",
+      "empty": "暂无配置数据。",
+      "source": { "loading": "正在加载 TOML 视图…", "sections": "配置分区", "fields": "字段", "booleans": "启用开关", "items": "集合项目", "colors": "颜色", "title": "TOML 源码", "copy": "复制", "copied": "已复制" },
+      "preset": "预设",
+      "presetPlaceholder": "选择预设",
+      "presetDescription": "应用可复用的节点配置。",
+      "presetNew": "新建",
+      "presetApply": "应用",
+      "presetRename": "重命名",
+      "presetOverwrite": "覆盖",
+      "presetDelete": "删除",
+      "presetName": "预设名称",
+      "presetPreview": "预设数据",
+      "presetImport": "导入预设",
+      "presetExport": "导出预设",
+      "presetDeleteTitle": "删除此预设？",
+      "presetDeleteDescription": "此操作无法撤销。",
+      "presetOverwriteTitle": "覆盖此预设？",
+      "presetOverwriteDescription": "当前配置将替换此预设保存的值。",
+      "presets": { "empty": "此节点未声明预设。" },
+      "history": { "loading": "正在加载历史…", "unavailable": "此节点暂不支持版本历史。", "empty": "尚未记录配置变更。", "detail": "变更详情", "restore": "恢复此版本", "select": "请选择一个版本。", "noTextChanges": "此备份没有文本变更。" },
+      "export": { "title": "导出配置", "description": "仅导出此节点的配置分区，便于迁移和分享。" },
+      "import": { "title": "导入配置", "description": "粘贴 TOML 或 JSON；只会更新此节点的配置分区。", "action": "导入并重新读取" },
+      "backup": { "title": "本地 Git 备份", "description": "快照按增量保存，并与当前使用的 TOML 文件隔离。", "loading": "正在加载仓库…", "create": "创建备份", "unavailable": "此节点暂不支持 Git 备份。" },
+      "sync": { "title": "远端同步", "description": "拉取只更新历史仓库，不会覆盖当前生效的配置。", "remote": "Git 远端地址", "saveRemote": "保存远端", "pull": "拉取历史", "push": "推送历史" }
+    },
+    "neoview": {
+      "configData": {
+        "title": "数据与配置",
+        "description": "集中管理 xiranite.config.toml 中的 NeoView 节点配置与增量版本历史。",
+        "loading": "正在加载 NeoView 配置…",
+        "refresh": "刷新配置",
+        "openManager": "打开配置管理",
+        "closeManager": "返回概览",
+        "project": { "title": "项目配置", "description": "读取并展示 [nodes.neoview]，其他节点配置保持独立。" },
+        "history": { "title": "变更历史", "description": "使用系统 Git 保存脱敏后的增量快照，可按 NeoView 变更筛选和恢复。" },
+        "restore": { "title": "差异与恢复", "description": "以语义差异和统一 diff 检查版本；恢复时只写回 NeoView 分区。" },
+        "transfer": { "title": "迁移与同步", "description": "支持节点级 TOML/JSON 导入导出、本地备份和 Git 远端同步。" },
+        "overview": { "empty": "尚未保存 NeoView 项目配置。", "visual": "可视化", "loadingSource": "正在加载 TOML 高亮…", "sections": "配置分区", "fields": "有效字段", "items": "集合项目", "fieldsShort": "个字段", "moreFields": "个更多字段", "categories": { "reading": "阅读与视图", "layout": "界面与布局", "media": "图像与媒体", "input": "输入与交互", "data": "数据与服务", "other": "其他" } }
+      }
+    },
     "czkawka": {
       "name": "Czkawka",
       "description": "11 项文件分析工具与安全结果管理。",

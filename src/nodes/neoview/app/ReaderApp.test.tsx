@@ -6,21 +6,26 @@ vi.mock("media-chrome/react", () => import("@/test/media-chrome-react-stub"))
 import { DEFAULT_READER_INPUT_BINDINGS, DEFAULT_READER_RADIAL_MENU_CONFIG } from "@xiranite/node-neoview/ui-core"
 
 import { ContextMenuProvider } from "@/components/context-menu"
+import { useSwimlaneSessionStore } from "@/store/swimlaneSessionStore"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderPreloadPlanDto, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
-beforeEach(() => vi.stubGlobal("IntersectionObserver", class {
-  readonly root = null
-  readonly rootMargin = "0px"
-  readonly thresholds = [0.01]
-  constructor(private readonly callback: IntersectionObserverCallback) {}
-  observe(target: Element) { this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this as unknown as IntersectionObserver) }
-  disconnect() {}
-  unobserve() {}
-  takeRecords() { return [] }
-}))
+beforeEach(() => {
+  useSwimlaneSessionStore.getState().clearSessions()
+  vi.stubGlobal("IntersectionObserver", class {
+    readonly root = null
+    readonly rootMargin = "0px"
+    readonly thresholds = [0.01]
+    constructor(private readonly callback: IntersectionObserverCallback) {}
+    observe(target: Element) { this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this as unknown as IntersectionObserver) }
+    disconnect() {}
+    unobserve() {}
+    takeRecords() { return [] }
+  })
+})
 afterEach(() => {
   cleanup()
+  useSwimlaneSessionStore.getState().clearSessions()
   vi.unstubAllGlobals()
 })
 
@@ -58,12 +63,145 @@ describe("ReaderApp", () => {
     // are driven by the reader surface keybindings.
     const reader = document.querySelector("[data-reader-app]")!
     fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
+    await waitFor(() => expect(client.navigate).toHaveBeenCalledOnce())
     const secondImage = await screen.findByRole("img", { name: "002.jpg" })
     expect(secondImage.getAttribute("src")).toContain("page-2")
     expect(screen.getByText("2 / 2")).toBeTruthy()
 
     view.unmount()
     await waitFor(() => expect(client.close).toHaveBeenCalledWith("reader-1"))
+  })
+
+  it("switches reversibly between edge and swimlane workspaces without reopening the Reader session", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    let persistedShell = shellConfig()
+    const updateShellControl = vi.fn(async (request) => {
+      const workspace = request.shellControl.workspace
+      persistedShell = {
+        ...persistedShell,
+        revision: (persistedShell.revision ?? 0) + 1,
+        workspace: {
+          ...persistedShell.workspace!,
+          mode: workspace?.mode ?? persistedShell.workspace!.mode,
+          swimlane: {
+            ...persistedShell.workspace!.swimlane,
+            activeLane: workspace?.activeLane ?? persistedShell.workspace!.swimlane.activeLane,
+            readerSolo: workspace?.readerSolo ?? persistedShell.workspace!.swimlane.readerSolo,
+          },
+        },
+      }
+      return persistedShell
+    })
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: persistedShell })),
+      updateSidebarLayout: vi.fn(async () => persistedShell),
+      updateCardLayout: vi.fn(async () => persistedShell),
+      updateBoardLayout: vi.fn(async () => persistedShell),
+      updateShellControl,
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 1 })),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    const image = await screen.findByRole("img", { name: "001.jpg" })
+    expect(screen.getByRole("button", { name: "泳道模式" }).closest('[data-reader-breadcrumb-bar="true"]')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "泳道模式" }))
+    await waitFor(() => expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).toBeTruthy())
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Reader 视图全屏" }).closest('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+    expect(image.getAttribute("src")).toContain("page-1")
+    expect(await screen.findByRole("img", { name: "001.jpg" })).toBeTruthy()
+    expect(client.open).toHaveBeenCalledOnce()
+    expect(updateShellControl).toHaveBeenLastCalledWith(expect.objectContaining({
+      shellControl: { workspace: { mode: "swimlane" } },
+    }))
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "阅读器更多设置" }), { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole("menuitem", { name: "退出全屏" }))
+    await waitFor(() => expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy())
+    expect(screen.getByRole("button", { name: "Reader 视图全屏" }).closest('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+
+    fireEvent.pointerDown(document.querySelector('[data-reader-swimlane="right"]')!, { pointerId: 41, button: 0 })
+    await waitFor(() => expect(useSwimlaneSessionStore.getState().sessions["neoview:standalone"]?.activeLaneId).toBe("right"))
+    expect(updateShellControl).toHaveBeenCalledTimes(1)
+    fireEvent.pointerDown(screen.getByRole("button", { name: "阅读器更多设置" }), { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole("menuitem", { name: "当前泳道全屏" }))
+    await waitFor(() => expect(useSwimlaneSessionStore.getState().sessions["neoview:standalone"]).toMatchObject({ activeLaneId: "reader", soloLaneId: "reader" }))
+    expect(updateShellControl).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "四边栏模式" }))
+    await waitFor(() => expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).toBeNull())
+    expect(await screen.findByRole("img", { name: "001.jpg" })).toBeTruthy()
+    expect(client.open).toHaveBeenCalledOnce()
+    expect(updateShellControl).toHaveBeenLastCalledWith(expect.objectContaining({
+      shellControl: { workspace: { mode: "edges" } },
+    }))
+  })
+
+  it("keeps session-only workspace changes visible while a config write is pending", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+    let persistedShell = shellConfig()
+    let finishFirstWrite!: (value: ReaderShellConfigDto) => void
+    const firstWrite = new Promise<ReaderShellConfigDto>((resolve) => { finishFirstWrite = resolve })
+    const updateShellControl = vi.fn(async (request) => {
+      if (updateShellControl.mock.calls.length === 1) return await firstWrite
+      const workspace = request.shellControl.workspace
+      persistedShell = {
+        ...persistedShell,
+        revision: (persistedShell.revision ?? 0) + 1,
+        workspace: {
+          ...persistedShell.workspace!,
+          mode: workspace?.mode ?? persistedShell.workspace!.mode,
+          swimlane: {
+            ...persistedShell.workspace!.swimlane,
+            readerSolo: workspace?.readerSolo ?? persistedShell.workspace!.swimlane.readerSolo,
+          },
+        },
+      }
+      return persistedShell
+    })
+    const client: ReaderHttpClient = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: persistedShell })),
+      updateSidebarLayout: vi.fn(async () => persistedShell),
+      updateCardLayout: vi.fn(async () => persistedShell),
+      updateBoardLayout: vi.fn(async () => persistedShell),
+      updateShellControl,
+      updateViewDefaults: vi.fn(async (patch) => ({ ...runtimeConfig().viewDefaults, ...patch.viewDefaults })),
+      updateSlideshow: vi.fn(async (patch) => ({ ...runtimeConfig().slideshow, ...patch.slideshow })),
+      open: vi.fn(async () => opened),
+      listPages: vi.fn(async () => ({ pages: opened.visiblePages, total: 1 })),
+      navigate: vi.fn(),
+      goTo: vi.fn(),
+      updateSessionOptions: vi.fn(),
+      close: vi.fn(async () => undefined),
+    }
+    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("img", { name: "001.jpg" })
+
+    fireEvent.click(screen.getByRole("button", { name: "泳道模式" }))
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "阅读器更多设置" }), { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole("menuitem", { name: "退出全屏" }))
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+
+    persistedShell = {
+      ...persistedShell,
+      revision: 1,
+      workspace: { ...persistedShell.workspace!, mode: "swimlane" },
+    }
+    await act(async () => finishFirstWrite(persistedShell))
+
+    await waitFor(() => expect(updateShellControl).toHaveBeenCalledTimes(1))
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+    expect(persistedShell.workspace!.swimlane.readerSolo).toBe(true)
+    expect(useSwimlaneSessionStore.getState().sessions["neoview:standalone"]?.soloLaneId).toBeNull()
   })
 
   it("keeps global and sidebar controls out of the busy state while a page turn is pending", async () => {
@@ -804,6 +942,37 @@ describe("ReaderApp", () => {
     }))
   })
 
+  it("[neoview.shell.sessionless-bottom] mounts the bottom edge without opening a book", async () => {
+    const config = shellConfig()
+    const client = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
+    } as ReaderHttpClient
+
+    render(<ReaderApp sessionScopeId="sessionless-bottom-test" client={client} />)
+    const sessionlessBottom = await screen.findByRole("region", { name: "NeoView 底部缩略图与导航栏" })
+    expect(sessionlessBottom.querySelector('[data-reader-bottom-empty="true"]')).toBeTruthy()
+    expect(screen.getByText("未打开书籍")).toBeTruthy()
+    expect(client.config).toHaveBeenCalledOnce()
+  })
+
+  it("moves Reader fullscreen to the Reader lane titlebar without invoking browser fullscreen", async () => {
+    const config = shellConfig()
+    config.workspace!.mode = "swimlane"
+    const client = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
+    } as ReaderHttpClient
+    render(<ReaderApp sessionScopeId="reader-view-fullscreen-test" client={client} />)
+    const readerViewFullscreen = await screen.findByRole("button", { name: "Reader 视图全屏" })
+    const requestFullscreen = vi.fn(async () => undefined)
+    Object.defineProperty(document.querySelector<HTMLElement>('[data-reader-app="true"]')!, "requestFullscreen", { configurable: true, value: requestFullscreen })
+
+    fireEvent.click(readerViewFullscreen)
+    await waitFor(() => expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull())
+    expect(document.querySelector('[data-reader-view-fullscreen="true"]')).toBeTruthy()
+    expect(screen.getByRole("button", { name: "退出 Reader 视图全屏" })).toBeTruthy()
+    expect(requestFullscreen).not.toHaveBeenCalled()
+  })
+
   it("[neoview.settings.sessionless-card] mounts an explicitly docked setting card without opening a book", async () => {
     const config = shellConfig()
     config.edges.left = { enabled: true, initialVisible: true, pinned: true, triggerSize: 32 }
@@ -1025,6 +1194,23 @@ function shellConfig(): ReaderShellConfigDto {
       left: { width: 320, height: "full" as const, customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
       right: { width: 280, height: "full" as const, customHeight: 100, verticalAlign: 0, horizontalPosition: 0 },
     },
+    workspace: {
+      mode: "edges",
+      swimlane: {
+        laneOrder: ["left", "reader", "right"],
+        activeLane: "reader",
+        readerSolo: true,
+        readerWidthRatio: 0.5,
+        edgeRevealDelayMs: 180,
+        readerFocusOnHover: true,
+        readerFocusHoverDelayMs: 650,
+        lanes: {
+          left: { width: 320, collapsed: false, activePanelId: "folder" },
+          reader: { width: 960, collapsed: false },
+          right: { width: 280, collapsed: false, activePanelId: "info" },
+        },
+      },
+    },
     panelLayout: {
       pageList: { visible: true, order: 3, position: "left" },
       info: { visible: true, order: 0, position: "right" },
@@ -1050,7 +1236,7 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
       viewMode: "compact",
       previewCount: 4,
       showHiddenFolders: false,
-      penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
+      penetration: { enabled: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
       details: {
         columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
         hiddenColumns: [],

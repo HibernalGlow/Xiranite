@@ -1,8 +1,10 @@
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
-import { spawnManagedVite, stopProcessTree } from "./managed-process"
+import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness"
+import { clearStaleViteOptimizeTemps, spawnManagedVite, stopProcessTree } from "./managed-process"
 import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
+import { watchNeoviewBackendSource, type NeoviewBackendWatcher } from "./neoview-backend-watcher"
 
 const devSessionStartedAt = Date.now()
 const args = process.argv.slice(2)
@@ -18,10 +20,12 @@ const { startBackend } = await import("../packages/backend/src/index")
 const frontendUrl = await resolveManagedFrontendUrl()
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
+const viteCacheDir = managedViteCacheDir(frontendUrl)
 
 type DevBackend = Awaited<ReturnType<typeof startBackend>>
 
 let backend: DevBackend | null = null
+let neoviewWatcher: NeoviewBackendWatcher | null = null
 
 async function startManagedBackend(): Promise<DevBackend> {
   return await startBackend({
@@ -48,8 +52,12 @@ async function restartBackendFromDevScript() {
 
 backend = await startManagedBackend()
 await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token }, frontendUrl)
+neoviewWatcher = watchNeoviewBackendSource(restartBackendFromDevScript)
 console.log(`[xiranite-backend] ${backend.url}`)
 console.log(`[xiranite-frontend] ${frontendUrl}`)
+
+const removedTemps = await clearStaleViteOptimizeTemps(viteCacheDir)
+if (removedTemps > 0) console.log(`[xiranite-frontend] cleared ${removedTemps} stale Vite optimize temp(s)`)
 
 const vite = spawnManagedVite([
   "--host",
@@ -67,25 +75,9 @@ const vite = spawnManagedVite([
     VITE_XIRANITE_BACKEND_URL: backend.url,
     VITE_XIRANITE_BACKEND_TOKEN: backend.token,
     VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,
-    XIRANITE_VITE_CACHE_DIR: managedViteCacheDir(),
+    XIRANITE_VITE_CACHE_DIR: viteCacheDir,
   },
 })
-
-async function waitForFrontend() {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    try {
-      const response = await fetch(frontendUrl, { method: "HEAD" })
-      if (response.ok || response.status === 404) {
-        const runtime = await fetch(new URL("/node_modules/.vite/deps/@wailsio_runtime.js", frontendUrl))
-        if (runtime.ok) return
-      }
-    } catch {
-      // Vite is still starting.
-    }
-    await Bun.sleep(100)
-  }
-  throw new Error(`Timed out waiting for Vite dev server: ${frontendUrl}`)
-}
 
 let go: ReturnType<typeof Bun.spawn> | null = null
 let stopping = false
@@ -93,12 +85,19 @@ let stopping = false
 async function stop() {
   if (stopping) return
   stopping = true
+  neoviewWatcher?.close()
   backend?.close()
   await Promise.all([stopProcessTree(vite), ...(go ? [stopProcessTree(go)] : [])])
   await Promise.all([removeBackendDevManifest(frontendUrl), removeDevSession()])
 }
 
-await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid], script: "dev-desktop", startedAt: devSessionStartedAt })
+await writeDevSession({
+  supervisorPid: process.pid,
+  childPids: [vite.pid],
+  script: "dev-desktop",
+  startedAt: devSessionStartedAt,
+  frontendUrl,
+})
 const stopRequestPoll = setInterval(() => {
   void consumeDevSessionStopRequest().then((requested) => { if (requested) void stop() })
 }, 100)
@@ -108,7 +107,9 @@ process.on("SIGTERM", () => { void stop() })
 process.on("exit", () => { backend?.close(); void removeDevSession() })
 
 try {
-  await waitForFrontend()
+  console.log(formatFrontendWaitLog(frontendUrl, { profile: "desktop" }))
+  const ready = await waitForFrontendReady(frontendUrl, { profile: "desktop", sinceMs: devSessionStartedAt })
+  console.log(formatFrontendReadyLog(ready))
 
   // A Wails desktop window does not need its own Windows console. Keep the
   // terminal available only when explicitly requested for Go-side debugging.
@@ -129,7 +130,13 @@ try {
       XIRANITE_BACKEND_TOKEN: backend.token,
     },
   })
-  await writeDevSession({ supervisorPid: process.pid, childPids: [vite.pid, go.pid], script: "dev-desktop", startedAt: devSessionStartedAt })
+  await writeDevSession({
+    supervisorPid: process.pid,
+    childPids: [vite.pid, go.pid],
+    script: "dev-desktop",
+    startedAt: devSessionStartedAt,
+    frontendUrl,
+  })
 
   const exitCode = await go.exited
   await stop()

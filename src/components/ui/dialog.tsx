@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { XIcon } from "lucide-react"
-import { Dialog as DialogPrimitive } from "radix-ui"
+import * as DialogPrimitive from "@radix-ui/react-dialog"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -53,20 +53,27 @@ function DialogContent({
   showCloseButton = true,
   overlayClassName,
   bare = false,
+  contained = false,
+  portalContainer,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
   overlayClassName?: string
   /** Skip default grid/gap/padding layout; only keep positioning + chrome. */
   bare?: boolean
+  /** Position the dialog inside a supplied container instead of the viewport. */
+  contained?: boolean
+  portalContainer?: HTMLElement | null
 }) {
   return (
-    <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay className={overlayClassName} />
+    <DialogPortal data-slot="dialog-portal" container={portalContainer}>
+      <DialogOverlay className={cn(contained && "absolute", overlayClassName)} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          bare
+          contained
+            ? "absolute inset-3 z-50 rounded-lg border bg-background shadow-lg outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:inset-4"
+            : bare
             ? "fixed top-[50%] left-[50%] z-50 w-full translate-x-[-50%] translate-y-[-50%] rounded-lg border bg-background shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
             : "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
           className

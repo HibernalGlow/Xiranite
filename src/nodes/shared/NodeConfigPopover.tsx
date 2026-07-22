@@ -1,27 +1,98 @@
-import { useEffect, useId, useRef, useState } from "react"
-import { DatabaseZap, Download, Eraser, ExternalLink, Eye, Pencil, Plus, RefreshCw, RotateCcw, Save, Trash2, Upload } from "lucide-react"
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react"
+import {
+  Archive,
+  Clock3,
+  DatabaseZap,
+  Download,
+  Eraser,
+  ExternalLink,
+  FileJson,
+  FileUp,
+  GitPullRequestArrow,
+  Pencil,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  Settings2,
+  SlidersHorizontal,
+  Trash2,
+  Upload,
+} from "lucide-react"
+import type {
+  NodeConfigExport,
+  NodeConfigHistoryRepositoryStatus,
+  NodeConfigVersion,
+  NodeConfigVersionDetail,
+} from "@xiranite/contract"
+import {
+  createNodeConfigBackupOnBackend,
+  exportNodeConfigFromBackend,
+  getConfigHistoryRepositoryFromBackend,
+  getNodeConfigVersionsFromBackend,
+  getNodeConfigFromBackend,
+  importNodeConfigOnBackend,
+  inspectNodeConfigVersionFromBackend,
+  restoreNodeConfigVersionOnBackend,
+  openConfigFileWithBackend,
+  setConfigHistoryRemoteOnBackend,
+  syncConfigHistoryOnBackend,
+} from "@/backend/configRpcClient"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "./useNodeI18n"
 
+const LazyNodeConfigHistoryPanel = lazy(() => import("./NodeConfigHistoryPanel"))
+const LazyNodeConfigSourceView = lazy(() => import("./NodeConfigSourceView"))
+
 type NodeT = ReturnType<typeof useNodeI18n>["t"]
+type BusyOperation = "backup" | "export" | "import" | "open" | "preset" | "reload" | "restore" | "save" | "sync"
+
+export interface NodeConfigHistoryAdapter {
+  list: (options?: { limit?: number }) => Promise<{ versions: NodeConfigVersion[] }>
+  inspect: (revision: string) => Promise<NodeConfigVersionDetail>
+  restore: (revision: string) => Promise<unknown>
+}
+
+export interface NodeConfigTransferAdapter {
+  export: (format: "json" | "toml") => Promise<NodeConfigExport>
+  import: (content: string, format?: "auto" | "json" | "toml") => Promise<unknown>
+}
+
+export interface NodeConfigBackupAdapter {
+  status: () => Promise<NodeConfigHistoryRepositoryStatus>
+  create: (label?: string) => Promise<{ version: NodeConfigVersion }>
+  setRemote: (url: string | null) => Promise<NodeConfigHistoryRepositoryStatus>
+  sync: (direction: "pull" | "push") => Promise<NodeConfigHistoryRepositoryStatus>
+}
 
 export interface NodeConfigPopoverProps {
   configPath?: string
   autoRestoreKey?: string
   defaults?: Record<string, unknown>
   fallbackDefaults?: Record<string, unknown>
+  tomlSource?: string
   dirty: boolean
   triggerLabel?: string
   disabled?: boolean
@@ -29,9 +100,17 @@ export interface NodeConfigPopoverProps {
   t: NodeT
   onOpenFile?: () => Promise<void> | void
   onReload: () => Promise<void> | void
-  onRestore: () => void
+  onRestore: () => Promise<void> | void
   onSave: () => Promise<void> | void
   onClearOverride?: () => Promise<void> | void
+  history?: NodeConfigHistoryAdapter
+  transfer?: NodeConfigTransferAdapter
+  backup?: NodeConfigBackupAdapter
+  presentation?: {
+    current?: ComponentType<{ config: Record<string, unknown> | undefined; tomlSource?: string }>
+  }
+  onOpenChange?: (open: boolean) => Promise<void> | void
+  showCurrentActions?: boolean
   preset?: {
     value?: string
     options: Array<{ value: string; label: string; description?: string; editable?: boolean; values?: Record<string, unknown> }>
@@ -53,58 +132,129 @@ export interface NodeConfigButtonProps {
   uiDefaults?: Record<string, unknown>
   disabled?: boolean
   onOpenConfigFile?: () => Promise<void> | void
-    onResetOverride: () => Promise<void> | void
+  onResetOverride: () => Promise<void> | void
   onRestoreDefault: () => Promise<void> | void
   onSaveDefault: () => Promise<void> | void
+  presentation?: NodeConfigPopoverProps["presentation"]
 }
 
-/** Compatibility entry point for nodes that used the old duplicated config popovers. */
+/** Compatibility entry point used by every app-owned node. */
 export function NodeConfigButton(props: NodeConfigButtonProps) {
   const { t } = useNodeI18n(props.nodeKey)
-  const defaults = props.defaults || props.uiDefaults
+  const fallbackDefaults = props.defaults || props.uiDefaults
     ? { ...(props.defaults ?? {}), ...(props.uiDefaults ?? {}) }
     : undefined
+  const [persistedConfig, setPersistedConfig] = useState<Record<string, unknown>>()
+  const [tomlSource, setTomlSource] = useState<string>()
+  const [loadingConfig, setLoadingConfig] = useState(false)
+  const loadPersistedConfig = useCallback(async () => {
+    setLoadingConfig(true)
+    try {
+      const [result, exported] = await Promise.all([
+        getNodeConfigFromBackend<Record<string, unknown>>(props.nodeKey),
+        exportNodeConfigFromBackend(props.nodeKey, "toml"),
+      ])
+      setPersistedConfig(result.config)
+      setTomlSource(exported.content)
+    } finally {
+      setLoadingConfig(false)
+    }
+  }, [props.nodeKey])
+  const reload = useCallback(async () => {
+    await props.onResetOverride()
+    await loadPersistedConfig()
+  }, [loadPersistedConfig, props.onResetOverride])
+  const adapters = useMemo(() => createBackendAdapters(props.nodeKey, reload), [props.nodeKey, reload])
+
   return <NodeConfigPopover
     configPath={props.configFilePath}
     autoRestoreKey={props.nodeKey}
-    defaults={defaults}
+    defaults={persistedConfig}
+    fallbackDefaults={fallbackDefaults}
+    tomlSource={tomlSource}
     dirty={props.configDirty}
-    triggerLabel={props.nodeKey === "owithu" ? `owithu ${t("defaults.title", "默认配置")}` : `${props.nodeKey} defaults`}
+    triggerLabel={props.nodeKey === "owithu" ? `owithu ${t("defaults.title", "Defaults")}` : `${props.nodeKey} ${t("config.trigger", "configuration")}`}
     disabled={props.disabled}
     t={t}
     onOpenFile={props.onOpenConfigFile}
-    onReload={props.onResetOverride}
+    loading={loadingConfig}
+    onOpenChange={(nextOpen) => { if (nextOpen) return loadPersistedConfig() }}
+    onReload={reload}
     onRestore={props.onRestoreDefault}
-    onSave={props.onSaveDefault}
+    onSave={async () => { await props.onSaveDefault(); await loadPersistedConfig() }}
     onClearOverride={props.onResetOverride}
+    history={adapters.history}
+    transfer={adapters.transfer}
+    backup={adapters.backup}
+    presentation={props.presentation}
   />
 }
 
-/**
- * Shared configuration-management control for nodes. Nodes retain ownership
- * of which fields are persistable; this component only presents the common
- * save / restore / inspect / open-file workflow.
- */
+/** Standalone config-center entry for surfaces such as NeoView settings cards. */
+export function NodeConfigCenterButton({ nodeKey, presentation, onConfigChange }: { nodeKey: string; presentation?: NodeConfigPopoverProps["presentation"]; onConfigChange?: () => Promise<void> | void }) {
+  const { t } = useNodeI18n(nodeKey)
+  const [config, setConfig] = useState<Record<string, unknown>>()
+  const [tomlSource, setTomlSource] = useState<string>()
+  const [path, setPath] = useState<string>()
+  const [loading, setLoading] = useState(false)
+  const reload = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [result, exported] = await Promise.all([
+        getNodeConfigFromBackend<Record<string, unknown>>(nodeKey),
+        exportNodeConfigFromBackend(nodeKey, "toml"),
+      ])
+      setConfig(result.config)
+      setPath(result.path)
+      setTomlSource(exported.content)
+      await onConfigChange?.()
+    } finally {
+      setLoading(false)
+    }
+  }, [nodeKey, onConfigChange])
+  const adapters = useMemo(() => createBackendAdapters(nodeKey, reload), [nodeKey, reload])
+
+  return <NodeConfigPopover
+    configPath={path}
+    defaults={config}
+    tomlSource={tomlSource}
+    dirty={false}
+    loading={loading}
+    triggerLabel={`${nodeKey} ${t("config.trigger", "Configuration center")}`}
+    t={t}
+    onOpenChange={(nextOpen) => { if (nextOpen) return reload() }}
+    onOpenFile={openConfigFileWithBackend}
+    onReload={reload}
+    onRestore={reload}
+    onSave={() => undefined}
+    history={adapters.history}
+    transfer={adapters.transfer}
+    backup={adapters.backup}
+    presentation={presentation}
+    showCurrentActions={false}
+  />
+}
+
 export function NodeConfigPopover(props: NodeConfigPopoverProps) {
   const presetId = useId()
   const [open, setOpen] = useState(false)
-  const [busy, setBusy] = useState<"preset" | "reload" | "save" | "restore" | "open" | null>(null)
+  const [activeTab, setActiveTab] = useState("current")
+  const [busy, setBusy] = useState<BusyOperation | null>(null)
   const [presetEditor, setPresetEditor] = useState<"create" | "rename" | null>(null)
   const [presetName, setPresetName] = useState("")
   const [presetConfirmation, setPresetConfirmation] = useState<"delete" | "overwrite" | null>(null)
-  const [presetImportOpen, setPresetImportOpen] = useState(false)
   const [presetImportText, setPresetImportText] = useState("")
+  const [configImportText, setConfigImportText] = useState("")
   const autoRestoreKey = props.autoRestoreKey ?? (props.configPath ? `config:${props.configPath}` : undefined)
   const [autoRestore, setAutoRestore] = useState(() => autoRestoreKey ? window.localStorage.getItem(`xiranite:auto-restore:${autoRestoreKey}`) === "1" : false)
   const autoRestoredRef = useRef(false)
-  const disabled = Boolean(props.disabled || props.loading || busy)
-  const effectiveDefaults = props.defaults && Object.keys(props.defaults).length
-    ? props.defaults
-    : props.fallbackDefaults
-  const hasDefaults = effectiveDefaults !== undefined
+  const effectiveDefaults = props.defaults && Object.keys(props.defaults).length ? props.defaults : props.fallbackDefaults
   const selectedPreset = props.preset?.options.find((option) => option.value === props.preset?.value)
   const selectedPresetEditable = selectedPreset?.editable === true
-  const triggerLabel = props.triggerLabel ?? props.t("config.trigger", "配置管理")
+  const triggerLabel = props.triggerLabel ?? props.t("config.trigger", "Configuration center")
+  const disabled = Boolean(props.disabled || props.loading || busy)
+  const CurrentView = props.presentation?.current
+  const showCurrentActions = props.showCurrentActions !== false
 
   useEffect(() => {
     if (!autoRestore || !effectiveDefaults || autoRestoredRef.current) return
@@ -117,10 +267,10 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
     if (autoRestoreKey) window.localStorage.setItem(`xiranite:auto-restore:${autoRestoreKey}`, enabled ? "1" : "0")
   }
 
-  async function perform(kind: NonNullable<typeof busy>, action: () => Promise<void> | void) {
+  async function perform<T>(kind: BusyOperation, action: () => Promise<T> | T): Promise<T> {
     setBusy(kind)
     try {
-      await action()
+      return await action()
     } finally {
       setBusy(null)
     }
@@ -134,131 +284,292 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
   async function commitPresetEditor() {
     const name = presetName.trim()
     if (!name || !props.preset || !presetEditor) return
-    const action = presetEditor === "create"
-      ? () => props.preset?.onCreate?.(name)
-      : () => props.preset?.onRename?.(props.preset?.value ?? "", name)
-    await perform("preset", async () => { await action() })
+    if (presetEditor === "create") await perform("preset", () => props.preset?.onCreate?.(name))
+    else await perform("preset", () => props.preset?.onRename?.(props.preset?.value ?? "", name))
     setPresetEditor(null)
     setPresetName("")
   }
 
   async function confirmPresetMutation(kind: "delete" | "overwrite") {
     if (!props.preset) return
-    const action = kind === "overwrite"
-      ? () => props.preset?.onOverwrite?.(props.preset?.value ?? "")
-      : () => props.preset?.onDelete?.(props.preset?.value ?? "")
-    await perform("preset", async () => { await action() })
+    if (kind === "overwrite") await perform("preset", () => props.preset?.onOverwrite?.(props.preset?.value ?? ""))
+    else await perform("preset", () => props.preset?.onDelete?.(props.preset?.value ?? ""))
     setPresetConfirmation(null)
   }
 
+  async function exportConfig(format: "json" | "toml") {
+    if (!props.transfer) return
+    const exported = await perform("export", () => props.transfer!.export(format))
+    downloadText(exported.filename, exported.content, exported.mimeType)
+  }
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
+    <Dialog open={open} onOpenChange={(nextOpen) => { setOpen(nextOpen); void props.onOpenChange?.(nextOpen) }}>
+      <TooltipProvider><Tooltip>
         <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <Button
-              aria-label={triggerLabel}
-              disabled={disabled}
-              size="icon-sm"
-              variant={props.dirty ? "secondary" : "outline"}
-            >
+          <DialogTrigger asChild>
+            <Button aria-label={triggerLabel} disabled={disabled} size="icon-sm" variant={props.dirty ? "secondary" : "outline"}>
               <DatabaseZap />
             </Button>
-          </PopoverTrigger>
+          </DialogTrigger>
         </TooltipTrigger>
         <TooltipContent>{triggerLabel}</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="end" className="w-[min(92vw,360px)]">
-        <div className="mb-4">
-          <div className="text-sm font-semibold">{props.t("config.title", "配置管理")}</div>
-          <p className="text-xs text-muted-foreground">{props.t("config.description", "保存可复用默认值，或恢复本节点的已保存配置。")}</p>
-        </div>
-        <div className="flex flex-col gap-2">
-          {autoRestoreKey && <Field orientation="horizontal" className="items-center justify-between rounded-md border px-2.5 py-2"><FieldLabel className="text-xs">{props.t("config.autoRestore", "启动时恢复默认配置")}</FieldLabel><Switch checked={autoRestore} onCheckedChange={setAutoRestoreDefaults} /></Field>}
-          {props.preset && <>
-            <Field className="gap-1.5">
-              <FieldLabel htmlFor={presetId}>{props.t("config.preset", "预设")}</FieldLabel>
-              <Select disabled={disabled} value={props.preset.value ?? ""} onValueChange={(value) => void perform("preset", () => props.preset?.onValueChange(value))}>
-                <SelectTrigger id={presetId} className="w-full" size="sm"><SelectValue placeholder={props.t("config.presetPlaceholder", "选择预设")} /></SelectTrigger>
-                <SelectContent><SelectGroup>{props.preset.options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
-              </Select>
-              <FieldDescription className="text-xs">{props.preset.options.find((option) => option.value === props.preset?.value)?.description ?? props.t("config.presetDescription", "切换后保存为默认，即写入 TOML 配置。")}</FieldDescription>
-            </Field>
-            {(props.preset.onCreate || selectedPresetEditable) && (
-              <div className="grid grid-cols-2 gap-2">
-                {props.preset.onCreate && <Button disabled={disabled} size="sm" variant="outline" onClick={() => beginPresetEditor("create")}><Plus data-icon="inline-start" />{props.t("config.presetNew", "新建预设")}</Button>}
-                {selectedPreset && <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("preset", () => props.preset?.onValueChange(selectedPreset.value))}><RotateCcw data-icon="inline-start" />{props.t("config.presetApply", "应用预设")}</Button>}
-                {selectedPresetEditable && props.preset.onRename && <Button disabled={disabled} size="sm" variant="outline" onClick={() => beginPresetEditor("rename")}><Pencil data-icon="inline-start" />{props.t("config.presetRename", "重命名")}</Button>}
-                {selectedPresetEditable && props.preset.onOverwrite && <Button disabled={disabled} size="sm" variant="outline" onClick={() => setPresetConfirmation("overwrite")}><Save data-icon="inline-start" />{props.t("config.presetOverwrite", "保存当前到预设")}</Button>}
-                {selectedPresetEditable && props.preset.onDelete && <Button disabled={disabled} size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setPresetConfirmation("delete")}><Trash2 data-icon="inline-start" />{props.t("config.presetDelete", "删除预设")}</Button>}
-              </div>
-            )}
-            {(props.preset.onImport || props.preset.onExport) && <div className="grid grid-cols-2 gap-2">
-              {props.preset.onImport && <Button disabled={disabled} size="sm" variant="outline" onClick={() => setPresetImportOpen(true)}><Upload data-icon="inline-start" />{props.t("config.presetImport", "导入预设")}</Button>}
-              {props.preset.onExport && <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("preset", props.preset!.onExport!)}><Download data-icon="inline-start" />{props.t("config.presetExport", "导出预设")}</Button>}
-            </div>}
-            <Dialog open={presetImportOpen} onOpenChange={setPresetImportOpen}>
-              <DialogContent>
-                <DialogHeader><DialogTitle>{props.t("config.presetImport", "导入预设")}</DialogTitle><DialogDescription>{props.t("config.presetImportDescription", "粘贴由配置管理导出的 JSON 预设。")}</DialogDescription></DialogHeader>
-                <Textarea className="min-h-48 font-mono text-xs" value={presetImportText} onChange={(event) => setPresetImportText(event.currentTarget.value)} placeholder='{"presets": [...]}' />
-                <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setPresetImportOpen(false)}>{props.t("common:cancel", "取消")}</Button><Button disabled={!presetImportText.trim() || disabled} onClick={() => void perform("preset", async () => { await props.preset?.onImport?.(presetImportText); setPresetImportText(""); setPresetImportOpen(false) })}>{props.t("config.presetImport", "导入预设")}</Button></div>
-              </DialogContent>
-            </Dialog>
-            {selectedPreset?.values && (
-              <Dialog>
-                <DialogTrigger asChild><Button disabled={disabled} size="sm" variant="ghost"><Eye data-icon="inline-start" />{props.t("config.presetView", "查看预设配置")}</Button></DialogTrigger>
-                <DialogContent>
-                  <DialogHeader><DialogTitle>{selectedPreset.label}</DialogTitle><DialogDescription>{selectedPreset.description ?? props.t("config.customPresetDescription", "此节点的自定义预设")}</DialogDescription></DialogHeader>
-                  <ScrollArea className="max-h-[50vh] rounded-md border bg-muted/30"><pre className="p-3 text-xs leading-5">{JSON.stringify(selectedPreset.values, null, 2)}</pre></ScrollArea>
-                </DialogContent>
-              </Dialog>
-            )}
-            {presetEditor && (
-              <div className="grid gap-2 rounded-md border bg-muted/20 p-2">
-                <Field className="gap-1.5">
-                  <FieldLabel htmlFor={`${presetId}-name`}>{props.t("config.presetName", "预设名称")}</FieldLabel>
-                  <Input id={`${presetId}-name`} autoFocus disabled={disabled} value={presetName} onChange={(event) => setPresetName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void commitPresetEditor() }} />
-                </Field>
-                <div className="flex justify-end gap-2"><Button disabled={disabled} size="sm" variant="ghost" onClick={() => setPresetEditor(null)}>{props.t("common:cancel", "取消")}</Button><Button disabled={disabled || !presetName.trim()} size="sm" onClick={() => void commitPresetEditor()}>{presetEditor === "create" ? props.t("config.presetCreate", "创建") : props.t("config.presetRename", "重命名")}</Button></div>
-              </div>
-            )}
-            <AlertDialog open={presetConfirmation !== null} onOpenChange={(nextOpen) => { if (!nextOpen) setPresetConfirmation(null) }}>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{presetConfirmation === "delete" ? props.t("config.presetDeleteTitle", "删除此预设？") : props.t("config.presetOverwriteTitle", "保存当前配置到此预设？")}</AlertDialogTitle>
-                  <AlertDialogDescription>{presetConfirmation === "delete" ? props.t("config.presetDeleteDescription", "此操作无法撤销。") : props.t("config.presetOverwriteDescription", "将用当前节点参数替换此预设保存的参数；如需恢复参数，请使用“应用预设”。")}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={disabled}>{props.t("common:cancel", "取消")}</AlertDialogCancel>
-                  <AlertDialogAction disabled={disabled} variant={presetConfirmation === "delete" ? "destructive" : "default"} onClick={() => { if (presetConfirmation) void confirmPresetMutation(presetConfirmation) }}>{presetConfirmation === "delete" ? props.t("config.presetDelete", "删除预设") : props.t("config.presetOverwrite", "保存当前到预设")}</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <Separator />
-          </>}
-          <Button disabled={disabled} size="sm" onClick={() => void perform("save", props.onSave)}><Save data-icon="inline-start" />{props.t("config.save", "保存为默认")}</Button>
-          <Button disabled={disabled || !hasDefaults} size="sm" variant="outline" onClick={() => void perform("restore", props.onRestore)}><RotateCcw data-icon="inline-start" />{props.t("config.restore", "恢复默认")}</Button>
-          <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("reload", props.onReload)}><RefreshCw data-icon="inline-start" />{props.t("config.reload", "重新读取")}</Button>
-          {props.onClearOverride && <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("restore", props.onClearOverride!)}><Eraser data-icon="inline-start" />{props.t("config.clear", "清除覆盖")}</Button>}
-          <Separator />
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button disabled={!hasDefaults} size="sm" variant="ghost"><Eye data-icon="inline-start" />{props.t("config.view", "查看配置")}</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{props.t("config.previewTitle", "默认配置")}</DialogTitle>
-                <DialogDescription>{props.configPath ?? props.t("config.noPath", "尚未连接配置文件")}</DialogDescription>
-              </DialogHeader>
-              <ScrollArea className="max-h-[50vh] rounded-md border bg-muted/30">
-                <pre className="p-3 text-xs leading-5">{JSON.stringify(effectiveDefaults, null, 2)}</pre>
-              </ScrollArea>
-            </DialogContent>
-          </Dialog>
-          <Button disabled={disabled || !props.onOpenFile} size="sm" variant="ghost" onClick={() => void perform("open", () => props.onOpenFile?.())}><ExternalLink data-icon="inline-start" />{props.t("config.openFile", "打开文件")}</Button>
-        </div>
-        {props.dirty && <p className={cn("mt-3 text-xs text-muted-foreground")}>{props.t("config.dirty", "当前参数与已保存默认值不同。")}</p>}
-      </PopoverContent>
-    </Popover>
+      </Tooltip></TooltipProvider>
+      <DialogContent className="h-[min(760px,calc(100vh-2rem))] max-w-[min(1040px,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden p-0 sm:max-w-[min(1040px,calc(100vw-2rem))]">
+        <DialogHeader className="border-b px-5 py-4 pr-12">
+          <DialogTitle>{triggerLabel}</DialogTitle>
+          <DialogDescription>{props.configPath ?? props.t("config.description", "Manage this node's settings, history, backups, and portable configuration.")}</DialogDescription>
+        </DialogHeader>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="min-h-0 gap-0 px-5 pb-5">
+          <div className="overflow-x-auto pb-3">
+            <TabsList className="min-w-max" variant="line">
+              <TabsTrigger value="current"><SlidersHorizontal />{props.t("config.tabs.current", "Current configuration")}</TabsTrigger>
+              <TabsTrigger value="presets"><Settings2 />{props.t("config.tabs.presets", "Presets")}</TabsTrigger>
+              <TabsTrigger value="history"><Clock3 />{props.t("config.tabs.history", "Change history")}</TabsTrigger>
+              <TabsTrigger value="transfer"><FileUp />{props.t("config.tabs.transfer", "Import / export")}</TabsTrigger>
+              <TabsTrigger value="backup"><Archive />{props.t("config.tabs.backup", "Backup / sync")}</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="current" className="min-h-0 overflow-auto">
+            <div className="grid min-h-full gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+              <section className="min-w-0 rounded-md border bg-muted/20">
+                {CurrentView ? <CurrentView config={effectiveDefaults} tomlSource={props.tomlSource} /> : props.tomlSource && effectiveDefaults ? <Suspense fallback={<PanelMessage>{props.t("config.source.loading", "Loading TOML view...")}</PanelMessage>}><LazyNodeConfigSourceView config={effectiveDefaults} source={props.tomlSource} labels={sourceLabels(props.t)} /></Suspense> : <StructuredConfigView config={effectiveDefaults} emptyLabel={props.t("config.empty", "No configuration data.")} />}
+              </section>
+              <aside className="flex flex-col gap-2">
+                {autoRestoreKey ? <Field orientation="horizontal" className="items-center justify-between rounded-md border px-3 py-2"><FieldLabel className="text-xs">{props.t("config.autoRestore", "Restore on startup")}</FieldLabel><Switch checked={autoRestore} onCheckedChange={setAutoRestoreDefaults} /></Field> : null}
+                {showCurrentActions ? <Button disabled={disabled} size="sm" onClick={() => void perform("save", props.onSave)}><Save data-icon="inline-start" />{props.t("config.save", "Save as default")}</Button> : null}
+                {showCurrentActions ? <Button disabled={disabled || !effectiveDefaults} size="sm" variant="outline" onClick={() => void perform("restore", props.onRestore)}><RotateCcw data-icon="inline-start" />{props.t("config.restore", "Restore saved configuration")}</Button> : null}
+                <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("reload", props.onReload)}><RefreshCw data-icon="inline-start" />{props.t("config.reload", "Reload from TOML")}</Button>
+                {showCurrentActions && props.onClearOverride ? <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("restore", props.onClearOverride!)}><Eraser data-icon="inline-start" />{props.t("config.clear", "Clear override")}</Button> : null}
+                <Separator />
+                <Button disabled={disabled || !props.onOpenFile} size="sm" variant="ghost" onClick={() => void perform("open", () => props.onOpenFile?.())}><ExternalLink data-icon="inline-start" />{props.t("config.openFile", "Open TOML file")}</Button>
+                {props.dirty ? <p className={cn("rounded-md border border-warning/30 bg-warning/5 p-2 text-xs text-muted-foreground")}>{props.t("config.dirty", "Current parameters differ from the saved configuration.")}</p> : null}
+              </aside>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="presets" className="min-h-0 overflow-auto">
+            <PresetPanel
+              disabled={disabled}
+              preset={props.preset}
+              presetId={presetId}
+              selectedPreset={selectedPreset}
+              selectedPresetEditable={selectedPresetEditable}
+              editor={presetEditor}
+              name={presetName}
+              importText={presetImportText}
+              t={props.t}
+              onApply={(value) => void perform("preset", () => props.preset?.onValueChange(value))}
+              onBeginEditor={beginPresetEditor}
+              onCommitEditor={() => void commitPresetEditor()}
+              onEditorChange={setPresetEditor}
+              onNameChange={setPresetName}
+              onImportTextChange={setPresetImportText}
+              onImport={() => void perform("preset", async () => { await props.preset?.onImport?.(presetImportText); setPresetImportText("") })}
+              onExport={() => void perform("preset", () => props.preset?.onExport?.())}
+              onConfirm={setPresetConfirmation}
+            />
+          </TabsContent>
+
+          <TabsContent value="history" className="min-h-0 overflow-hidden">
+            {activeTab === "history" && props.history ? (
+              <Suspense fallback={<PanelMessage>{props.t("config.history.loading", "Loading history...")}</PanelMessage>}>
+                <LazyNodeConfigHistoryPanel adapter={props.history} t={props.t} />
+              </Suspense>
+            ) : <PanelMessage>{props.t("config.history.unavailable", "Version history is unavailable for this node.")}</PanelMessage>}
+          </TabsContent>
+
+          <TabsContent value="transfer" className="min-h-0 overflow-auto">
+            <div className="grid gap-5 lg:grid-cols-2">
+              <section className="space-y-3">
+                <div><h3 className="text-sm font-semibold">{props.t("config.export.title", "Export configuration")}</h3><p className="text-xs text-muted-foreground">{props.t("config.export.description", "Export only this node's section in a portable format.")}</p></div>
+                <div className="flex flex-wrap gap-2">
+                  <Button disabled={disabled || !props.transfer} variant="outline" onClick={() => void exportConfig("toml")}><Download />TOML</Button>
+                  <Button disabled={disabled || !props.transfer} variant="outline" onClick={() => void exportConfig("json")}><FileJson />JSON</Button>
+                </div>
+              </section>
+              <section className="space-y-3">
+                <div><h3 className="text-sm font-semibold">{props.t("config.import.title", "Import configuration")}</h3><p className="text-xs text-muted-foreground">{props.t("config.import.description", "Paste TOML or JSON. Only this node's section will be updated.")}</p></div>
+                <Textarea className="min-h-64 font-mono text-xs" value={configImportText} onChange={(event) => setConfigImportText(event.currentTarget.value)} placeholder="[nodes.example]" />
+                <Button disabled={disabled || !props.transfer || !configImportText.trim()} onClick={() => void perform("import", async () => { await props.transfer?.import(configImportText, "auto"); setConfigImportText(""); await props.onReload() })}><Upload />{props.t("config.import.action", "Import and reload")}</Button>
+              </section>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="backup" className="min-h-0 overflow-auto">
+            {activeTab === "backup" && props.backup ? <BackupPanel adapter={props.backup} disabled={disabled} t={props.t} perform={perform} /> : <PanelMessage>{props.t("config.backup.unavailable", "Git backup is unavailable for this node.")}</PanelMessage>}
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+
+      <AlertDialog open={presetConfirmation !== null} onOpenChange={(nextOpen) => { if (!nextOpen) setPresetConfirmation(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{presetConfirmation === "delete" ? props.t("config.presetDeleteTitle", "Delete this preset?") : props.t("config.presetOverwriteTitle", "Overwrite this preset?")}</AlertDialogTitle>
+            <AlertDialogDescription>{presetConfirmation === "delete" ? props.t("config.presetDeleteDescription", "This action cannot be undone.") : props.t("config.presetOverwriteDescription", "The preset values will be replaced by the current configuration.")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={disabled}>{props.t("common:cancel", "Cancel")}</AlertDialogCancel>
+            <AlertDialogAction disabled={disabled} variant={presetConfirmation === "delete" ? "destructive" : "default"} onClick={() => { if (presetConfirmation) void confirmPresetMutation(presetConfirmation) }}>{presetConfirmation === "delete" ? props.t("config.presetDelete", "Delete preset") : props.t("config.presetOverwrite", "Overwrite preset")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Dialog>
   )
+}
+
+interface PresetPanelProps {
+  disabled: boolean
+  preset: NodeConfigPopoverProps["preset"]
+  presetId: string
+  selectedPreset?: NonNullable<NodeConfigPopoverProps["preset"]>["options"][number]
+  selectedPresetEditable: boolean
+  editor: "create" | "rename" | null
+  name: string
+  importText: string
+  t: NodeT
+  onApply: (value: string) => void
+  onBeginEditor: (mode: "create" | "rename") => void
+  onCommitEditor: () => void
+  onEditorChange: (value: "create" | "rename" | null) => void
+  onNameChange: (value: string) => void
+  onImportTextChange: (value: string) => void
+  onImport: () => void
+  onExport: () => void
+  onConfirm: (value: "delete" | "overwrite") => void
+}
+
+function PresetPanel(props: PresetPanelProps) {
+  if (!props.preset) return <PanelMessage>{props.t("config.presets.empty", "This node does not declare presets.")}</PanelMessage>
+  return <div className="grid gap-5 lg:grid-cols-[minmax(260px,360px)_minmax(0,1fr)]">
+    <section className="space-y-3">
+      <Field className="gap-1.5">
+        <FieldLabel htmlFor={props.presetId}>{props.t("config.preset", "Preset")}</FieldLabel>
+        <Select disabled={props.disabled} value={props.preset.value ?? ""} onValueChange={props.onApply}>
+          <SelectTrigger id={props.presetId} className="w-full" size="sm"><SelectValue placeholder={props.t("config.presetPlaceholder", "Select preset")} /></SelectTrigger>
+          <SelectContent><SelectGroup>{props.preset.options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup></SelectContent>
+        </Select>
+        <FieldDescription>{props.selectedPreset?.description ?? props.t("config.presetDescription", "Apply a reusable node configuration.")}</FieldDescription>
+      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        {props.preset.onCreate ? <Button disabled={props.disabled} size="sm" variant="outline" onClick={() => props.onBeginEditor("create")}><Plus />{props.t("config.presetNew", "New")}</Button> : null}
+        {props.selectedPreset ? <Button disabled={props.disabled} size="sm" variant="outline" onClick={() => props.onApply(props.selectedPreset!.value)}><RotateCcw />{props.t("config.presetApply", "Apply")}</Button> : null}
+        {props.selectedPresetEditable && props.preset.onRename ? <Button disabled={props.disabled} size="sm" variant="outline" onClick={() => props.onBeginEditor("rename")}><Pencil />{props.t("config.presetRename", "Rename")}</Button> : null}
+        {props.selectedPresetEditable && props.preset.onOverwrite ? <Button disabled={props.disabled} size="sm" variant="outline" onClick={() => props.onConfirm("overwrite")}><Save />{props.t("config.presetOverwrite", "Overwrite")}</Button> : null}
+        {props.selectedPresetEditable && props.preset.onDelete ? <Button disabled={props.disabled} size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => props.onConfirm("delete")}><Trash2 />{props.t("config.presetDelete", "Delete")}</Button> : null}
+      </div>
+      {props.editor ? <div className="space-y-2 rounded-md border p-3"><FieldLabel htmlFor={`${props.presetId}-name`}>{props.t("config.presetName", "Preset name")}</FieldLabel><Input id={`${props.presetId}-name`} autoFocus value={props.name} onChange={(event) => props.onNameChange(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") props.onCommitEditor() }} /><div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => props.onEditorChange(null)}>{props.t("common:cancel", "Cancel")}</Button><Button disabled={!props.name.trim()} onClick={props.onCommitEditor}>{props.t("common:save", "Save")}</Button></div></div> : null}
+    </section>
+    <section className="space-y-3">
+      <h3 className="text-sm font-semibold">{props.selectedPreset?.label ?? props.t("config.presetPreview", "Preset data")}</h3>
+      <StructuredConfigView config={props.selectedPreset?.values} emptyLabel={props.t("config.empty", "No configuration data.")} />
+      {(props.preset.onImport || props.preset.onExport) ? <div className="space-y-2"><Textarea className="min-h-32 font-mono text-xs" value={props.importText} onChange={(event) => props.onImportTextChange(event.currentTarget.value)} placeholder='{"presets": [...]}' /><div className="flex gap-2">{props.preset.onImport ? <Button disabled={props.disabled || !props.importText.trim()} variant="outline" onClick={props.onImport}><Upload />{props.t("config.presetImport", "Import presets")}</Button> : null}{props.preset.onExport ? <Button disabled={props.disabled} variant="outline" onClick={props.onExport}><Download />{props.t("config.presetExport", "Export presets")}</Button> : null}</div></div> : null}
+    </section>
+  </div>
+}
+
+function BackupPanel(props: { adapter: NodeConfigBackupAdapter; disabled: boolean; t: NodeT; perform: <T>(kind: BusyOperation, action: () => Promise<T> | T) => Promise<T> }) {
+  const [status, setStatus] = useState<NodeConfigHistoryRepositoryStatus | null>(null)
+  const [remoteUrl, setRemoteUrl] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void props.adapter.status().then((next) => {
+      if (!active) return
+      setStatus(next)
+      setRemoteUrl(next.remoteUrl ?? "")
+    }, (reason) => { if (active) setError(errorMessage(reason)) })
+    return () => { active = false }
+  }, [props.adapter])
+
+  async function run(action: () => Promise<NodeConfigHistoryRepositoryStatus>) {
+    setError(null)
+    try {
+      setStatus(await props.perform("sync", action))
+    } catch (reason) {
+      setError(errorMessage(reason))
+    }
+  }
+
+  return <div className="grid gap-5 lg:grid-cols-2">
+    <section className="space-y-3">
+      <div><h3 className="text-sm font-semibold">{props.t("config.backup.title", "Local Git backup")}</h3><p className="text-xs text-muted-foreground">{props.t("config.backup.description", "Snapshots are incremental and stored outside the live TOML file.")}</p></div>
+      <div className="rounded-md border bg-muted/20 p-3 font-mono text-xs break-all">{status?.path ?? props.t("config.backup.loading", "Loading repository...")}</div>
+      <Button disabled={props.disabled || !status} onClick={() => void props.perform("backup", () => props.adapter.create())}><Archive />{props.t("config.backup.create", "Create backup")}</Button>
+    </section>
+    <section className="space-y-3">
+      <div><h3 className="text-sm font-semibold">{props.t("config.sync.title", "Remote synchronization")}</h3><p className="text-xs text-muted-foreground">{props.t("config.sync.description", "Pull updates the history repository only; it never overwrites the active configuration.")}</p></div>
+      <Field><FieldLabel htmlFor="config-history-remote">{props.t("config.sync.remote", "Git remote")}</FieldLabel><Input id="config-history-remote" value={remoteUrl} onChange={(event) => setRemoteUrl(event.currentTarget.value)} placeholder="https://..." /></Field>
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={props.disabled || !status} variant="outline" onClick={() => void run(() => props.adapter.setRemote(remoteUrl.trim() || null))}><Save />{props.t("config.sync.saveRemote", "Save remote")}</Button>
+        <Button disabled={props.disabled || !status?.remoteUrl} variant="outline" onClick={() => void run(() => props.adapter.sync("pull"))}><GitPullRequestArrow />{props.t("config.sync.pull", "Pull history")}</Button>
+        <Button disabled={props.disabled || !status?.remoteUrl} variant="outline" onClick={() => void run(() => props.adapter.sync("push"))}><Upload />{props.t("config.sync.push", "Push history")}</Button>
+      </div>
+      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+    </section>
+  </div>
+}
+
+function StructuredConfigView({ config, emptyLabel }: { config: Record<string, unknown> | undefined; emptyLabel: string }) {
+  if (!config) return <PanelMessage>{emptyLabel}</PanelMessage>
+  const lines = JSON.stringify(config, null, 2).split("\n")
+  return <ScrollArea className="h-full max-h-[540px]"><pre className="p-4 text-xs leading-5">{lines.map((line, index) => <span className="block" key={`${index}-${line}`}>{line.trim()}</span>)}</pre></ScrollArea>
+}
+
+function PanelMessage({ children }: { children: React.ReactNode }) {
+  return <div className="grid min-h-48 place-items-center rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">{children}</div>
+}
+
+export function createBackendAdapters(nodeId: string, onReload: () => Promise<void> | void) {
+  return {
+    history: {
+      list: (options?: { limit?: number }) => getNodeConfigVersionsFromBackend(nodeId, options),
+      inspect: (revision: string) => inspectNodeConfigVersionFromBackend(nodeId, revision),
+      restore: async (revision: string) => {
+        const result = await restoreNodeConfigVersionOnBackend(nodeId, revision)
+        await onReload()
+        return result
+      },
+    } satisfies NodeConfigHistoryAdapter,
+    transfer: {
+      export: (format: "json" | "toml") => exportNodeConfigFromBackend(nodeId, format),
+      import: (content: string, format?: "auto" | "json" | "toml") => importNodeConfigOnBackend(nodeId, content, format),
+    } satisfies NodeConfigTransferAdapter,
+    backup: {
+      status: getConfigHistoryRepositoryFromBackend,
+      create: (label?: string) => createNodeConfigBackupOnBackend(nodeId, label),
+      setRemote: setConfigHistoryRemoteOnBackend,
+      sync: syncConfigHistoryOnBackend,
+    } satisfies NodeConfigBackupAdapter,
+  }
+}
+
+function downloadText(filename: string, content: string, mimeType: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: `${mimeType};charset=utf-8` }))
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
+
+function errorMessage(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
+function sourceLabels(t: NodeT) {
+  return {
+    sections: t("config.source.sections", "Sections"),
+    fields: t("config.source.fields", "Fields"),
+    booleans: t("config.source.booleans", "Enabled switches"),
+    collectionItems: t("config.source.items", "Collection items"),
+    colors: t("config.source.colors", "Colors"),
+    source: t("config.source.title", "TOML source"),
+    copy: t("config.source.copy", "Copy"),
+    copied: t("config.source.copied", "Copied"),
+  }
 }

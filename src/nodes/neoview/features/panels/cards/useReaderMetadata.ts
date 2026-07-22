@@ -77,7 +77,9 @@ function acquire(store: Map<string, MetadataEntry>, entry: MetadataEntry, client
 
 function retryEntry(entry: MetadataEntry, client: ReaderHttpClient, sessionId: string): void {
   if (entry.references <= 0) return
-  entry.controller?.abort()
+  // One shared entry serves sibling cards. A second click while the reread is
+  // pending must not abort and restart the same external metadata request.
+  if (entry.request) return
   update(entry, { loading: true })
   startRequest(entry, client, sessionId)
 }

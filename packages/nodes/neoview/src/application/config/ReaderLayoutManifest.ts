@@ -68,11 +68,12 @@ export const READER_CARD_MANIFEST = [
   card("slideshow-settings", "幻灯片", "settings", true, true, 0, true, false, "general"),
   card("media-settings", "影像", "settings", true, true, 1, true, false, "image"),
   card("view-defaults-settings", "视图默认值", "settings", true, true, 2, true, false, "view"),
-  card("reader-material-settings", "界面材质", "settings", true, true, 3, true, false, "appearance"),
-  card("board-layout-settings", "布局看板", "settings", true, true, 4, true, false, "layout"),
-  card("input-bindings-settings", "操作绑定", "settings", true, true, 5, true, false, "bindings"),
-  card("data-migration-settings", "数据迁移", "settings", true, true, 6, true, false, "data"),
-  card("about-settings", "关于", "settings", true, true, 7, true, false, "about"),
+  card("preload-settings", "预读预算", "settings", true, true, 3, true, false, "performance"),
+  card("reader-material-settings", "界面材质", "settings", true, true, 4, true, false, "appearance"),
+  card("board-layout-settings", "布局看板", "settings", true, true, 5, true, false, "layout"),
+  card("input-bindings-settings", "操作绑定", "settings", true, true, 6, true, false, "bindings"),
+  card("data-migration-settings", "数据与配置", "settings", true, true, 7, true, false, "data"),
+  card("about-settings", "关于", "settings", true, true, 8, true, false, "about"),
   card("preload-status", "预加载状态", "info", true, true, 4, true, true),
   card("progressive-upscale", "递进超分", "upscale", true, true, 0, true, false),
   card("upscale-model", "模型选择", "upscale", true, true, 1, true, false),
@@ -96,6 +97,7 @@ export const READER_CARD_MANIFEST = [
   card("sidebar-height", "侧边栏高度", "control", true, true, 4, true, false),
   card("image-trim", "图像裁剪", "control", true, true, 5, true, false),
   card("animated-video-mode", "动图视频模式", "control", true, true, 6, true, false),
+  card("ambient-background", "动态背景", "control", true, true, 7, true, false),
   card("system-monitor", "系统资源监控", "insights", true, true, 0, true, false),
   card("daily-trend", "最近 7 日阅读趋势", "insights", true, true, 1, true, false),
   card("reading-streak", "连续阅读", "insights", true, true, 2, true, false),
@@ -110,6 +112,7 @@ export const READER_CARD_MANIFEST = [
   card("translation-overlay", "翻译叠加层", "ai", false, true, 5, true, false),
   card("voice-control", "语音控制", "ai", false, true, 6, true, false),
   card("ai-tags", "AI 标签推断", "ai", false, true, 7, true, false),
+  exclusiveCard("playlist-main", "Playlist", "playlist", true, true, 0, false, false),
 ] as const satisfies readonly ReaderCardManifestEntry[]
 
 export type ReaderPanelId = typeof READER_PANEL_MANIFEST[number]["id"]

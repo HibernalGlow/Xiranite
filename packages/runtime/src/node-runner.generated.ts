@@ -4,6 +4,13 @@ import { createNodeModuleLoader } from "./node-module-loader.js"
 import type { NodeSpec } from "./node-runner.js"
 
 export const generatedNodeSpecs: Record<string, NodeSpec> = {
+  arcthumb: {
+    packageName: "@xiranite/node-arcthumb",
+    loadCore: createNodeModuleLoader(() => import("@xiranite/node-arcthumb/core"), { nodeId: "arcthumb", entry: "core" }),
+    run: "runArcthumb",
+    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-arcthumb/platform"), { nodeId: "arcthumb", entry: "platform" }),
+    createRuntime: "createNodeArcthumbRuntime",
+  },
   audiov: {
     packageName: "@xiranite/node-audiov",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-audiov/core"), { nodeId: "audiov", entry: "core" }),
@@ -177,6 +184,13 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     run: "runMarku",
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-marku/platform"), { nodeId: "marku", entry: "platform" }),
     createRuntime: "createNodeMarkuRuntime",
+  },
+  melodeck: {
+    packageName: "@xiranite/node-melodeck",
+    loadCore: createNodeModuleLoader(() => import("@xiranite/node-melodeck/core"), { nodeId: "melodeck", entry: "core" }),
+    run: "runMelodeck",
+    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-melodeck/platform"), { nodeId: "melodeck", entry: "platform" }),
+    createRuntime: "createNodeMelodeckRuntime",
   },
   migratef: {
     packageName: "@xiranite/node-migratef",

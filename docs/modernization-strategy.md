@@ -2,12 +2,15 @@
 
 ## 实时状态
 
-更新时间：2026-07-07
+更新时间：2026-07-22
 
-当前阶段：P4 Local Backend / NodeRunner operation / Wails 窗口与 dev proxy 主线已完成；CLI 与节点测试矩阵、operation UI、旧 EngineV facade 清理、节点 registry 代码生成、前端死代码清理、LaneView/Kanban `@dnd-kit` 迁移、view renderer lazy-load 拆包、FlowView 轻壳 + idle tldraw gate、OverlayHost 视图按需加载、FloatingComponentWindow 独立 chunk、workspace 动画运行时移除、DatabaseModule 轻壳 + ocean 实现拆分、BlockNoteModule 轻壳 + idle 重编辑器拆分、workspace Zustand selector/direct actions、内部 reducer 移除与 slice 拆分、UI 偏好 Zustand persist、nuqs URL 状态第一轮接入、Local Backend lifecycle TanStack Query 收口与运行时错误提示条均已收尾。验收标准维持为 Vitest + React Testing Library + happy-dom + MSW + Playwright，真实运行测试必须使用真实文件或真实本机能力，产物写入 `artifacts/`。
+当前阶段：P4 Local Backend / NodeRunner operation / Wails 窗口与 dev proxy 主线已完成；CLI 与节点测试矩阵、operation UI、旧 EngineV facade 清理、节点 registry 代码生成、前端死代码清理、LaneView/Kanban `@dnd-kit` 迁移、view renderer lazy-load 拆包、FlowView 轻壳 + idle tldraw gate、OverlayHost 视图按需加载、FloatingComponentWindow 独立 chunk、workspace 动画运行时移除、DatabaseModule 轻壳 + ocean 实现拆分、BlockNoteModule 轻壳 + idle 重编辑器拆分、workspace Zustand selector/direct actions、内部 reducer 移除与 slice 拆分、UI 偏好 Zustand persist、nuqs URL 状态第一轮接入、Local Backend lifecycle TanStack Query 收口与运行时错误提示条均已收尾。**全局设置中心**已从单体 `ThemeSettings` 拆为 `settings/*`，并接入 Aceternity Timeline + Magic UI ScrollProgress / MagicCard / BlurFade / BorderBeam（规划见 `docs/settings-center-plan.md`）。验收标准维持为 Vitest + React Testing Library + happy-dom + MSW + Playwright；设置中心测试以 smoke 为主可放宽；真实运行测试必须使用真实文件或真实本机能力，产物写入 `artifacts/`。
+
+**源码行数门禁（全局）**：生产实现文件（`.ts` / `.tsx`，不含 `*.test.*`）单文件 **不超过 1000 行**；逼近 900 行必须先拆分。测试文件可放宽。
 
 当前 ToDo：
 
+- [x] 全局设置中心：拆分 `ThemeSettings`；阶段+子步骤快切轨、**仅挂载当前阶段**、搜索/深链；规划 `docs/settings-center-plan.md`。
 - [x] `audit:node-runtime-risks` 当前为 24/24 clean：stale logs、缺少 `finally`、缺少 `host.actions.run` fallback、PowerShell 非交互与进度污染均已横向扫过。
 - [x] `audit:node-architecture` 已接入根 package scripts，并纳入 `test:packages`；当前全量节点架构校验通过，覆盖 contract 不暴露 card/runner/CLI 字段、Component 无壳、CLI 不导入 React UI、core 不碰平台 API、demo shell 不出现在 exports。
 - [x] Playwright 真实浏览器测试当前 32/32 passed，覆盖 24 个保留节点、DatabaseModule 真实渲染、FlowView 空画布/非空画布 lazy-load、LaneView/Kanban DnD 与 nuqs URL 状态；`recycleu` 已真实清理限定 C 盘回收站 fixture，未触碰既有 D/E 回收站内容。

@@ -25,7 +25,7 @@ import type { CliCommand, CliHost } from "@xiranite/cli-runtime"
 import { resolveInteractionPreferences, type CliInteractionPreferencesSource, type TerminalInteractionDefinition } from "@xiranite/cli-runtime/interaction"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
-import { loadNodeConfigWithHints, loadXiraniteConfig, saveXiraniteConfig, stringifyToml, updateNodeConfig } from "@xiranite/config"
+import { loadNodeConfigWithHints, stringifyToml, updateNodeConfigFile } from "@xiranite/config"
 
 import type { ScoolpAction, ScoolpInput, ScoolpResult } from "./core.js"
 import { formatSize, runScoolp } from "./core.js"
@@ -145,8 +145,7 @@ function createScoolpPreferences(host: CliHost, current: TerminalPreferenceValue
     nodeId: "scoolp",
     current,
     async save(values) {
-      const { config, path } = await loadXiraniteConfig(options)
-      await saveXiraniteConfig(updateNodeConfig(config, "scoolp", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }), { ...options, configPath: path })
+      await updateNodeConfigFile("scoolp", { cli: { theme: values.theme, default_mode: values.defaultMode, language: values.language } }, options)
     },
     async restore() {
       const { config } = await loadNodeConfigWithHints<ScoolpNodeConfig>("scoolp", { ...options, jsonMode: true })

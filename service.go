@@ -493,9 +493,8 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 			TitleBar:                application.MacTitleBarHiddenInset,
 		},
 		Windows: application.WindowsWindow{
-			Theme:                             application.SystemDefault,
-			ResizeDebounceMS:                  0,
-			DisableFramelessWindowDecorations: true,
+			Theme:            application.SystemDefault,
+			ResizeDebounceMS: 0,
 		},
 		BackgroundColour: application.NewRGB(20, 20, 20),
 		URL:              "/?" + query.Encode(),

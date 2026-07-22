@@ -14,6 +14,41 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.penetration-describe-http] returns direct internal archive names for visible folders", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-penetration-describe-"))
+    directories.push(directory)
+    const first = join(directory, "first")
+    const second = join(directory, "second")
+    await Promise.all([mkdir(first), mkdir(second)])
+    await Promise.all([
+      writeFile(join(first, "Book One.cbz"), "book"),
+      writeFile(join(first, "notes.txt"), "notes"),
+      writeFile(join(second, "Book.Two.zip"), "book"),
+    ])
+    const route = new ReaderDirectoryBrowserRoute()
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const page = await opened.json() as { sessionId: string }
+      const response = (await route.handle(new Request(`http://localhost/reader/browser/s/${page.sessionId}/penetration/describe`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paths: [first, second] }),
+      })))!
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ entries: [
+        { path: first, internalFiles: [{ name: "Book One", path: join(first, "Book One.cbz"), kind: "file" }] },
+        { path: second, internalFiles: [{ name: "Book.Two", path: join(second, "Book.Two.zip"), kind: "file" }] },
+      ] })
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.penetration-http] resolves one nested folder chain through the active browser session", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-penetration-"))
     directories.push(directory)
@@ -134,6 +169,31 @@ describe("ReaderDirectoryBrowserRoute", () => {
       ] })
       expect(sampleEmmTags).toHaveBeenCalledWith(4, expect.any(AbortSignal))
       expect((await route.handle(new Request("http://localhost/reader/browser/emm-tags/suggestions?count=33")))?.status).toBe(400)
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.favorite-tags.manual-http] exposes bounded manual tag summaries without a browser session", async () => {
+    const listManualTagSummaries = vi.fn(async () => [
+      { namespace: "manual", tag: "favorite", count: 3 },
+    ])
+    const route = new ReaderDirectoryBrowserRoute(
+      undefined, undefined, undefined, {}, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { listManualTagSummaries } as never,
+    )
+    try {
+      const response = (await route.handle(new Request("http://localhost/reader/browser/emm-tags/manual?limit=8")))!
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ tags: [{ namespace: "manual", tag: "favorite", count: 3 }] })
+      expect(listManualTagSummaries).toHaveBeenCalledWith(8, expect.any(AbortSignal))
+      expect((await route.handle(new Request("http://localhost/reader/browser/emm-tags/manual?limit=257")))?.status).toBe(400)
+      const unavailable = new ReaderDirectoryBrowserRoute()
+      try {
+        expect((await unavailable.handle(new Request("http://localhost/reader/browser/emm-tags/manual")))?.status).toBe(503)
+      } finally {
+        await unavailable[Symbol.asyncDispose]()
+      }
     } finally {
       await route[Symbol.asyncDispose]()
     }

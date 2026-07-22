@@ -1,0 +1,2 @@
+import type { ArcThumbAction, ArcThumbData, ArcThumbFormat } from "@xiranite/node-arcthumb/core"
+export interface ArcThumbCardState { action?: ArcThumbAction; pathsText?: string; maxDimension?: number; format?: ArcThumbFormat; quality?: number; sortOrder?: "natural" | "alphabetical"; coverMode?: "ignore" | "prefer" | "only"; outputDir?: string; write?: boolean; overwrite?: boolean; recursive?: boolean; running?: boolean; progress?: number; status?: string; result?: ArcThumbData | null }

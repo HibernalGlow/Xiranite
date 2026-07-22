@@ -70,4 +70,34 @@ describe("FolderTabBar", () => {
     expect(view.container.querySelector('[data-folder-tab-layout="top"]')).toBeTruthy()
     expect(view.getAllByRole("tab")).toHaveLength(2)
   })
+
+  it("[neoview.folder.tabs-actions] keeps separate create / reopen / layout icon buttons", async () => {
+    const user = userEvent.setup()
+    render(
+      <FolderTabBar
+        {...callbacks}
+        tabs={[
+          { id: "one", currentPath: "C:/books", title: "books", pinned: false },
+          { id: "two", currentPath: "C:/other", title: "other", pinned: false },
+        ]}
+        activeTabId="two"
+        disabled={false}
+        maxTabs={8}
+        recentlyClosed={[{ id: "closed-1", currentPath: "C:/old", title: "old", kind: "directory" }]}
+        layout={{ ...layout, layout: "top" }}
+      />,
+    )
+
+    expect(document.querySelector("[data-folder-tab-action-pad]")).toBeNull()
+    expect(screen.getByRole("button", { name: "新建文件夹标签" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "重新打开关闭的页签" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "标签栏布局设置" })).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: "新建文件夹标签" }))
+    expect(callbacks.onCreate).toHaveBeenCalledOnce()
+
+    await user.click(screen.getByRole("button", { name: "重新打开关闭的页签" }))
+    await user.click(await screen.findByRole("menuitem", { name: /old/ }))
+    expect(callbacks.onReopen).toHaveBeenCalledWith("closed-1")
+  })
 })

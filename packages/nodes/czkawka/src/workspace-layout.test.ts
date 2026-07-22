@@ -45,4 +45,41 @@ describe("Czkawka workspace layout", () => {
     });
     expect(updateCzkawkaWorkspaceLayout(CZKAWKA_WORKSPACE_DEFAULTS, { laneOrder: ["results", "analysis", "source"] }).laneOrder).toEqual(["results", "analysis", "source"]);
   });
+
+  test("normalizes shared swimlane focus and bar preferences", () => {
+    expect(normalizeCzkawkaWorkspaceLayout({
+      version: 1,
+      activeLane: "analysis",
+      soloLane: "analysis",
+      focusOnHover: true,
+      soloOnFocus: true,
+      showNavigatorInSolo: false,
+      focusDelayMs: 10,
+      edgeRevealDelayMs: 9000,
+      barHandleStyle: "groove",
+      barHandlePosition: "right",
+      navigatorPositionX: 72,
+      navigatorPositionY: 88,
+      navigatorDock: "title" as never,
+      navigatorLane: "source",
+      navigatorFollowsFocus: true,
+      autoFitToViewport: true,
+    })).toMatchObject({
+      activeLane: "analysis",
+      soloLane: "analysis",
+      focusOnHover: true,
+      soloOnFocus: true,
+      showNavigatorInSolo: false,
+      focusDelayMs: 200,
+      edgeRevealDelayMs: 5000,
+      barHandleStyle: "groove",
+      barHandlePosition: "right",
+      navigatorPositionX: 72,
+      navigatorPositionY: 88,
+      navigatorDock: "top",
+      navigatorLane: "source",
+      navigatorFollowsFocus: true,
+      autoFitToViewport: true,
+    });
+  });
 });

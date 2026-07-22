@@ -14,6 +14,7 @@ import { unwrapNeoviewConfigEnvelope } from "./NeoviewConfigEnvelope.js"
 import { parseNeoviewInputBindingsConfig } from "./ReaderInputBindingsConfig.js"
 import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 import { parseReaderRadialMenuConfig, type ReaderRadialMenuConfig } from "./ReaderRadialMenuConfig.js"
+import { DEFAULT_READER_VOICE_CONTROL_CONFIG, parseReaderVoiceControlConfig } from "./ReaderVoiceControlConfig.js"
 import type { SuperResolutionCustomModelManifest } from "../../ports/SuperResolutionProvider.js"
 import { DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG, parseNeoviewImageProcessingConfig, type NeoviewImageProcessingConfig } from "./ReaderImageProcessingConfig.js"
 import { parseSuperResolutionPreferences, type SuperResolutionPreferences } from "../../domain/super-resolution/super-resolution-preferences.js"
@@ -83,6 +84,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
       presentationDiskCache: Models.DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG,
       inputBindings: parseNeoviewInputBindingsConfig(undefined),
       radialMenu: parseReaderRadialMenuConfig(undefined),
+      voiceControl: DEFAULT_READER_VOICE_CONTROL_CONFIG,
       preload: Models.DEFAULT_NEOVIEW_PRELOAD_CONFIG,
       systemMonitor: Models.DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
       emm: Models.DEFAULT_NEOVIEW_EMM_CONFIG,
@@ -102,6 +104,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
   const image = optionalRecord(config.image, "[nodes.neoview.image]")
   const imageProcessing = optionalRecord(image?.processing, "[nodes.neoview.image.processing]")
   const view = optionalRecord(config.view, "[nodes.neoview.view]")
+  const background = parseNeoviewBackgroundConfig(view)
   const colorFilter = optionalRecord(image?.color_filter, "[nodes.neoview.image.color_filter]")
   const pageTransition = optionalRecord(image?.page_transition, "[nodes.neoview.image.page_transition]")
   const switchToast = optionalRecord(
@@ -126,6 +129,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
   const aiTranslation = optionalRecord(config.ai_translation ?? config.aiTranslation, "[nodes.neoview.ai_translation]")
   const superResolution = optionalRecord(config.super_resolution, "[nodes.neoview.super_resolution]")
   const bindings = optionalRecord(config.bindings, "[nodes.neoview.bindings]")
+  const voiceControl = optionalRecord(config.voice_control ?? config.voiceControl, "[nodes.neoview.voice_control]")
   const presentationDiskCache = optionalRecord(performance?.presentation_disk_cache, "[nodes.neoview.performance.presentation_disk_cache]")
 
   const bookConfig = parseBookConfig(book, legacyBook)
@@ -164,6 +168,13 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
     "[nodes.neoview.reader].default_zoom_mode",
   )
   const pageMode = doublePage === undefined ? DEFAULT_READER_LAYOUT.pageMode : doublePage ? "double" : "single"
+  const doublePageGap = boundedNumber(
+    reader?.double_page_gap ?? nestedValue(reader, "view", "double_page_gap") ?? nestedValue(reader, "view", "doublePageGap"),
+    -500,
+    500,
+    Models.DEFAULT_NEOVIEW_VIEW_DEFAULTS.doublePageGap,
+    "[nodes.neoview.reader].double_page_gap",
+  )
   const orientation =
     optionalEnum(reader?.orientation ?? nestedValue(reader, "view", "orientation"), "[nodes.neoview.reader].orientation", [
       "horizontal",
@@ -194,6 +205,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
     viewDefaults: {
       fitMode,
       pageMode,
+      doublePageGap,
       splitWidePages: splitWidePages ?? false,
       hoverScrollEnabled,
       hoverScrollSpeed,
@@ -202,6 +214,7 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
       orientation,
       autoRotation,
       widePageStretch,
+      background,
     },
     book: bookConfig,
     pageList: {
@@ -258,10 +271,36 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
     presentationDiskCache: parsePresentationDiskCache(presentationDiskCache),
     inputBindings: parseNeoviewInputBindingsConfig(bindings),
     radialMenu: parseReaderRadialMenuConfig(bindings?.radial_menus),
+    voiceControl: parseReaderVoiceControlConfig(voiceControl),
     preload: parsePreloadConfig(performance, image, legacyBook),
     systemMonitor: parseSystemMonitorConfig(systemMonitor),
     emm: parseEmmConfig(emm),
     aiTranslation: parseAiTranslationConfig(aiTranslation),
+  }
+}
+
+function parseNeoviewBackgroundConfig(view: Record<string, unknown> | undefined): Models.NeoviewBackgroundConfig {
+  const defaults = Models.DEFAULT_NEOVIEW_VIEW_DEFAULTS.background
+  const ambient = optionalRecord(view?.ambient, "[nodes.neoview.view.ambient]")
+  const aurora = optionalRecord(view?.aurora, "[nodes.neoview.view.aurora]")
+  const spotlight = optionalRecord(view?.spotlight, "[nodes.neoview.view.spotlight]")
+  const colorValue = view?.background_color ?? view?.backgroundColor
+  const spotlightColor = spotlight?.color
+  return {
+    color: typeof colorValue === "string" && colorValue.trim() ? colorValue.trim() : defaults.color,
+    mode: optionalEnum(view?.background_mode ?? view?.backgroundMode, "[nodes.neoview.view].background_mode", ["solid", "auto", "edge", "ambient", "aurora", "spotlight"] as const) ?? defaults.mode,
+    ambient: {
+      style: optionalEnum(ambient?.style, "[nodes.neoview.view.ambient].style", ["gentle", "vibrant", "dynamic"] as const) ?? defaults.ambient.style,
+      speed: boundedNumber(ambient?.speed, 2, 20, defaults.ambient.speed, "[nodes.neoview.view.ambient].speed"),
+      blur: boundedNumber(ambient?.blur, 20, 150, defaults.ambient.blur, "[nodes.neoview.view.ambient].blur"),
+      opacity: boundedNumber(ambient?.opacity, 0.3, 1, defaults.ambient.opacity, "[nodes.neoview.view.ambient].opacity"),
+    },
+    aurora: {
+      showRadialGradient: optionalBoolean(aurora?.show_radial_gradient ?? aurora?.showRadialGradient, "[nodes.neoview.view.aurora].show_radial_gradient") ?? defaults.aurora.showRadialGradient,
+    },
+    spotlight: {
+      color: typeof spotlightColor === "string" && spotlightColor.trim() ? spotlightColor.trim() : defaults.spotlight.color,
+    },
   }
 }
 
@@ -541,6 +580,26 @@ function parsePreloadConfig(
     "[nodes.neoview.performance].preload_pages",
   )
   return { maxCandidatePages: Math.min(requested, 32) }
+}
+
+export function parseNeoviewPreloadPatch(value: unknown): {
+  patch: Models.NeoviewPreloadPatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, "reader preload patch")
+  if (Object.keys(record).some((key) => key !== "preload")) {
+    throw new Error("reader preload patch contains unsupported fields.")
+  }
+  const source = requireRecord(record.preload, "reader preload patch.preload")
+  if (Object.keys(source).some((key) => key !== "maxCandidatePages")) {
+    throw new Error("reader preload patch contains unsupported fields.")
+  }
+  if (source.maxCandidatePages === undefined) throw new Error("reader preload patch must change maxCandidatePages.")
+  const maxCandidatePages = boundedInteger(source.maxCandidatePages, 0, 32, "reader preload patch.maxCandidatePages")
+  return {
+    patch: { preload: { maxCandidatePages } },
+    tomlPatch: { performance: { preload_pages: maxCandidatePages } },
+  }
 }
 
 function parseSuperResolutionConfig(value: Record<string, unknown> | undefined): Models.NeoviewSuperResolutionConfig {
@@ -1457,7 +1516,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   }
   if (folder.penetration !== undefined) {
     const penetration = requireRecord(folder.penetration, "reader folder view patch.penetration")
-    const allowedPenetration = new Set(["enabled", "maxDepth", "terminalTargets"])
+    const allowedPenetration = new Set(["enabled", "showInternalFiles", "internalItemsMode", "maxDepth", "terminalTargets"])
     const unknownPenetration = Object.keys(penetration).filter((key) => !allowedPenetration.has(key))
     if (unknownPenetration.length) throw new Error(`reader folder view patch.penetration contains unsupported fields: ${unknownPenetration.join(", ")}.`)
     const penetrationPatch: Partial<Models.NeoviewFolderPenetrationConfig> = {}
@@ -1465,6 +1524,14 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     if (penetration.enabled !== undefined) {
       penetrationPatch.enabled = optionalBoolean(penetration.enabled, "reader folder view patch.penetration.enabled")
       penetrationToml.enabled = penetrationPatch.enabled
+    }
+    if (penetration.showInternalFiles !== undefined) {
+      penetrationPatch.showInternalFiles = optionalBoolean(penetration.showInternalFiles, "reader folder view patch.penetration.showInternalFiles")
+      penetrationToml.show_internal_files = penetrationPatch.showInternalFiles
+    }
+    if (penetration.internalItemsMode !== undefined) {
+      penetrationPatch.internalItemsMode = optionalEnum(penetration.internalItemsMode, "reader folder view patch.penetration.internalItemsMode", ["single", "all"])
+      penetrationToml.internal_items_mode = penetrationPatch.internalItemsMode
     }
     if (penetration.maxDepth !== undefined) {
       penetrationPatch.maxDepth = boundedInteger(penetration.maxDepth, 1, 32, "reader folder view patch.penetration.maxDepth")
@@ -1714,6 +1781,10 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Mode
     penetration: {
       enabled:
         optionalBoolean(penetration?.enabled, "[nodes.neoview.folder.penetration].enabled") ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.enabled,
+      showInternalFiles:
+        optionalBoolean(penetration?.show_internal_files ?? penetration?.showInternalFiles, "[nodes.neoview.folder.penetration].show_internal_files") ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.showInternalFiles,
+      internalItemsMode:
+        optionalEnum(penetration?.internal_items_mode ?? penetration?.internalItemsMode, "[nodes.neoview.folder.penetration].internal_items_mode", ["single", "all"]) ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.internalItemsMode,
       maxDepth:
         penetration?.max_depth === undefined
           ? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.maxDepth
@@ -2100,6 +2171,7 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
   const allowed = new Set([
     "fitMode",
     "pageMode",
+    "doublePageGap",
     "splitWidePages",
     "hoverScrollEnabled",
     "hoverScrollSpeed",
@@ -2108,12 +2180,14 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
     "orientation",
     "autoRotation",
     "widePageStretch",
+    "background",
   ])
   const unknown = Object.keys(defaults).filter((key) => !allowed.has(key))
   if (unknown.length) throw new Error(`reader view defaults patch contains unsupported fields: ${unknown.join(", ")}.`)
   const patch: Models.NeoviewViewDefaultsPatch = { viewDefaults: {} }
   const readerPatch: Record<string, unknown> = {}
   const magnifierPatch: Record<string, unknown> = {}
+  const backgroundPatch: Record<string, unknown> = {}
   if (defaults.fitMode !== undefined) {
     patch.viewDefaults.fitMode = readerFitMode(defaults.fitMode, "reader view defaults patch.fitMode")
     readerPatch.default_zoom_mode = persistedReaderFitMode(patch.viewDefaults.fitMode)
@@ -2121,6 +2195,16 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
   if (defaults.pageMode !== undefined) {
     patch.viewDefaults.pageMode = optionalEnum(defaults.pageMode, "reader view defaults patch.pageMode", ["single", "double"] as const)
     readerPatch.double_page_view = patch.viewDefaults.pageMode === "double"
+  }
+  if (defaults.doublePageGap !== undefined) {
+    patch.viewDefaults.doublePageGap = boundedNumber(
+      defaults.doublePageGap,
+      -500,
+      500,
+      Models.DEFAULT_NEOVIEW_VIEW_DEFAULTS.doublePageGap,
+      "reader view defaults patch.doublePageGap",
+    )
+    readerPatch.double_page_gap = patch.viewDefaults.doublePageGap
   }
   if (defaults.splitWidePages !== undefined) {
     patch.viewDefaults.splitWidePages = requiredBoolean(defaults.splitWidePages, "reader view defaults patch.splitWidePages")
@@ -2172,12 +2256,57 @@ export function parseNeoviewViewDefaultsPatch(value: unknown): {
     patch.viewDefaults.widePageStretch = readerWidePageStretch(defaults.widePageStretch)
     readerPatch.wide_page_stretch = persistedReaderWidePageStretch(patch.viewDefaults.widePageStretch)
   }
+  if (defaults.background !== undefined) {
+    const background = requireRecord(defaults.background, "reader view defaults patch.background")
+    const allowedBackground = new Set(["color", "mode", "ambient", "aurora", "spotlight"])
+    const unknownBackground = Object.keys(background).filter((key) => !allowedBackground.has(key))
+    if (unknownBackground.length) throw new Error(`reader view defaults patch.background contains unsupported fields: ${unknownBackground.join(", ")}.`)
+    const backgroundConfig = Models.DEFAULT_NEOVIEW_VIEW_DEFAULTS.background
+    const next: Models.NeoviewBackgroundPatch = {}
+    if (background.color !== undefined) {
+      if (typeof background.color !== "string" || !background.color.trim() || background.color.length > 128) throw new Error("reader view defaults patch.background.color must be a non-empty string.")
+      next.color = background.color.trim()
+      backgroundPatch.background_color = next.color
+    }
+    if (background.mode !== undefined) {
+      next.mode = optionalEnum(background.mode, "reader view defaults patch.background.mode", ["solid", "auto", "edge", "ambient", "aurora", "spotlight"] as const)
+      backgroundPatch.background_mode = next.mode
+    }
+    if (background.ambient !== undefined) {
+      const ambient = requireRecord(background.ambient, "reader view defaults patch.background.ambient")
+      const ambientPatch: Partial<Models.NeoviewBackgroundConfig["ambient"]> = {}
+      if (ambient.style !== undefined) ambientPatch.style = optionalEnum(ambient.style, "reader view defaults patch.background.ambient.style", ["gentle", "vibrant", "dynamic"] as const)
+      if (ambient.speed !== undefined) ambientPatch.speed = boundedNumber(ambient.speed, 2, 20, backgroundConfig.ambient.speed, "reader view defaults patch.background.ambient.speed")
+      if (ambient.blur !== undefined) ambientPatch.blur = boundedNumber(ambient.blur, 20, 150, backgroundConfig.ambient.blur, "reader view defaults patch.background.ambient.blur")
+      if (ambient.opacity !== undefined) ambientPatch.opacity = boundedNumber(ambient.opacity, 0.3, 1, backgroundConfig.ambient.opacity, "reader view defaults patch.background.ambient.opacity")
+      next.ambient = ambientPatch
+      backgroundPatch.ambient = ambientPatch
+    }
+    if (background.aurora !== undefined) {
+      const aurora = requireRecord(background.aurora, "reader view defaults patch.background.aurora")
+      const showRadialGradient = requiredBoolean(aurora.showRadialGradient, "reader view defaults patch.background.aurora.showRadialGradient")
+      next.aurora = { showRadialGradient }
+      backgroundPatch.aurora = { show_radial_gradient: showRadialGradient }
+    }
+    if (background.spotlight !== undefined) {
+      const spotlight = requireRecord(background.spotlight, "reader view defaults patch.background.spotlight")
+      if (typeof spotlight.color !== "string" || !spotlight.color.trim() || spotlight.color.length > 128) throw new Error("reader view defaults patch.background.spotlight.color must be a non-empty string.")
+      next.spotlight = { color: spotlight.color.trim() }
+      backgroundPatch.spotlight = next.spotlight
+    }
+    if (!Object.keys(next).length) throw new Error("reader view defaults patch.background must change at least one field.")
+    patch.viewDefaults.background = next
+  }
   if (!Object.keys(patch.viewDefaults).length) throw new Error("reader view defaults patch must change at least one field.")
+  const viewPatch = {
+    ...(Object.keys(magnifierPatch).length ? { magnifier: magnifierPatch } : {}),
+    ...backgroundPatch,
+  }
   return {
     patch,
     tomlPatch: {
       ...(Object.keys(readerPatch).length ? { reader: readerPatch } : {}),
-      ...(Object.keys(magnifierPatch).length ? { view: { magnifier: magnifierPatch } } : {}),
+      ...(Object.keys(viewPatch).length ? { view: viewPatch } : {}),
     },
   }
 }
@@ -2192,12 +2321,12 @@ export function parseNeoviewShellControlPatch(value: unknown): {
   const expectedRevision = boundedInteger(record.expectedRevision, 0, Number.MAX_SAFE_INTEGER, "reader shell control patch.expectedRevision")
   const control = requireRecord(record.shellControl, "reader shell control patch.shellControl")
   const unknownControl = Object.keys(control).filter(
-    (key) => key !== "floating" && key !== "edges" && key !== "sidebarInteraction" && key !== "material" && key !== "reset",
+    (key) => key !== "floating" && key !== "edges" && key !== "sidebarInteraction" && key !== "workspace" && key !== "material" && key !== "reset",
   )
   if (unknownControl.length) throw new Error(`reader shell control patch contains unsupported fields: ${unknownControl.join(", ")}.`)
   const reset = control.reset === undefined ? undefined : optionalEnum(control.reset, "reader shell control patch.reset", ["known-defaults"] as const)
-  if (reset && (control.floating !== undefined || control.edges !== undefined || control.sidebarInteraction !== undefined || control.material !== undefined)) {
-    throw new Error("reader shell control patch.reset cannot be combined with floating, edges, sidebarInteraction or material.")
+  if (reset && (control.floating !== undefined || control.edges !== undefined || control.sidebarInteraction !== undefined || control.workspace !== undefined || control.material !== undefined)) {
+    throw new Error("reader shell control patch.reset cannot be combined with floating, edges, sidebarInteraction, workspace or material.")
   }
   if (reset) {
     return {
@@ -2206,6 +2335,24 @@ export function parseNeoviewShellControlPatch(value: unknown): {
         Models.DEFAULT_NEOVIEW_SHELL_CONFIG.floatingControl,
         Models.DEFAULT_NEOVIEW_SHELL_CONFIG.edges,
         Models.DEFAULT_NEOVIEW_SHELL_CONFIG.sidebarInteraction,
+        {
+          mode: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.mode,
+          laneOrder: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.laneOrder,
+          activeLane: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.activeLane,
+          readerSolo: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.readerSolo,
+          readerSoloOnFocus: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.readerSoloOnFocus,
+          readerWidthRatio: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.readerWidthRatio,
+          edgeRevealDelayMs: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.edgeRevealDelayMs,
+          edgeRevealZones: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.edgeRevealZones,
+          readerFocusOnHover: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.readerFocusOnHover,
+          readerFocusHoverDelayMs: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.readerFocusHoverDelayMs,
+          manualScrollEnabled: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.manualScrollEnabled,
+          showLaneNavigatorInReaderSolo: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.showLaneNavigatorInReaderSolo,
+          windowControlsPlacement: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.windowControlsPlacement,
+          windowControlsOwnerLaneId: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.windowControlsOwnerLaneId,
+          windowControlsExpanded: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.windowControlsExpanded,
+          lanes: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.lanes,
+        },
         {
           preset: Models.DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG.preset,
           opacity: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.opacity,
@@ -2285,6 +2432,135 @@ export function parseNeoviewShellControlPatch(value: unknown): {
     if (!Object.keys(sidebarInteractionPatch).length) throw new Error("reader shell control patch.sidebarInteraction must change at least one field.")
     patch.shellControl.sidebarInteraction = sidebarInteractionPatch
   }
+  let workspacePatch: Models.NeoviewShellControlPatch["shellControl"]["workspace"]
+  if (control.workspace !== undefined) {
+    const workspace = requireRecord(control.workspace, "reader shell control patch.workspace")
+    const unknown = Object.keys(workspace).filter((key) => ![
+      "mode",
+      "laneOrder",
+      "activeLane",
+      "readerSolo",
+      "readerSoloOnFocus",
+      "soloLaneId",
+      "readerWidthRatio",
+      "edgeRevealDelayMs",
+      "edgeRevealZones",
+      "readerFocusOnHover",
+      "readerFocusHoverDelayMs",
+      "manualScrollEnabled",
+      "showLaneNavigatorInReaderSolo",
+      "autoFitToViewport",
+      "barHandleStyle",
+      "barHandlePosition",
+      "laneNavigatorPositionX",
+      "laneNavigatorPositionY",
+      "laneNavigatorDock",
+      "windowControlsPlacement",
+      "windowControlsOwnerLaneId",
+      "windowControlsExpanded",
+      "lanes",
+    ].includes(key))
+    if (unknown.length) throw new Error(`reader shell control patch.workspace contains unsupported fields: ${unknown.join(", ")}.`)
+    workspacePatch = {}
+    if (workspace.mode !== undefined) {
+      workspacePatch.mode = optionalEnum(workspace.mode, "workspace.mode", Models.NEOVIEW_WORKSPACE_MODES)
+    }
+    if (workspace.laneOrder !== undefined) {
+      workspacePatch.laneOrder = normalizedSwimlaneOrder(workspace.laneOrder, Models.NEOVIEW_SWIMLANE_IDS, "workspace.laneOrder", true)
+    }
+    if (workspace.activeLane !== undefined) {
+      workspacePatch.activeLane = requireLayoutId(workspace.activeLane, "workspace.activeLane")
+    }
+    if (workspace.readerSolo !== undefined) {
+      workspacePatch.readerSolo = requiredBoolean(workspace.readerSolo, "workspace.readerSolo")
+    }
+    if (workspace.readerSoloOnFocus !== undefined) {
+      workspacePatch.readerSoloOnFocus = requiredBoolean(workspace.readerSoloOnFocus, "workspace.readerSoloOnFocus")
+    }
+    if (workspace.soloLaneId !== undefined) {
+      workspacePatch.soloLaneId = workspace.soloLaneId === null ? null : requireLayoutId(workspace.soloLaneId, "workspace.soloLaneId")
+    }
+    if (workspace.readerWidthRatio !== undefined) {
+      workspacePatch.readerWidthRatio = readerWidthRatio(workspace.readerWidthRatio, "workspace.readerWidthRatio")
+    }
+    if (workspace.edgeRevealDelayMs !== undefined) {
+      workspacePatch.edgeRevealDelayMs = edgeRevealDelay(workspace.edgeRevealDelayMs, "workspace.edgeRevealDelayMs")
+    }
+    if (workspace.edgeRevealZones !== undefined) {
+      const zones = requireRecord(workspace.edgeRevealZones, "workspace.edgeRevealZones")
+      const unknownZones = Object.keys(zones).filter((edge) => !Models.NEOVIEW_SWIMLANE_REVEAL_EDGES.includes(edge as Models.NeoviewSwimlaneRevealEdge))
+      if (unknownZones.length) throw new Error(`workspace.edgeRevealZones contains unsupported edges: ${unknownZones.join(", ")}.`)
+      workspacePatch.edgeRevealZones = {
+        left: revealZone(zones.left, "workspace.edgeRevealZones.left", Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.edgeRevealZones.left),
+        right: revealZone(zones.right, "workspace.edgeRevealZones.right", Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.edgeRevealZones.right),
+        top: revealZone(zones.top, "workspace.edgeRevealZones.top", Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.edgeRevealZones.top),
+        bottom: revealZone(zones.bottom, "workspace.edgeRevealZones.bottom", Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.edgeRevealZones.bottom),
+      }
+    }
+    if (workspace.readerFocusOnHover !== undefined) {
+      workspacePatch.readerFocusOnHover = requiredBoolean(workspace.readerFocusOnHover, "workspace.readerFocusOnHover")
+    }
+    if (workspace.readerFocusHoverDelayMs !== undefined) {
+      workspacePatch.readerFocusHoverDelayMs = readerFocusHoverDelay(workspace.readerFocusHoverDelayMs, "workspace.readerFocusHoverDelayMs")
+    }
+    if (workspace.manualScrollEnabled !== undefined) {
+      workspacePatch.manualScrollEnabled = requiredBoolean(workspace.manualScrollEnabled, "workspace.manualScrollEnabled")
+    }
+    if (workspace.showLaneNavigatorInReaderSolo !== undefined) {
+      workspacePatch.showLaneNavigatorInReaderSolo = requiredBoolean(workspace.showLaneNavigatorInReaderSolo, "workspace.showLaneNavigatorInReaderSolo")
+    }
+    if (workspace.autoFitToViewport !== undefined) {
+      workspacePatch.autoFitToViewport = requiredBoolean(workspace.autoFitToViewport, "workspace.autoFitToViewport")
+    }
+    if (workspace.barHandleStyle !== undefined) {
+      workspacePatch.barHandleStyle = optionalEnum(workspace.barHandleStyle, "workspace.barHandleStyle", Models.NEOVIEW_BAR_HANDLE_STYLES)
+    }
+    if (workspace.barHandlePosition !== undefined) {
+      workspacePatch.barHandlePosition = optionalEnum(workspace.barHandlePosition, "workspace.barHandlePosition", Models.NEOVIEW_BAR_HANDLE_POSITIONS)
+    }
+    if (workspace.laneNavigatorPositionX !== undefined) workspacePatch.laneNavigatorPositionX = boundedNumber(workspace.laneNavigatorPositionX, 0, 100, 92, "workspace.laneNavigatorPositionX")
+    if (workspace.laneNavigatorPositionY !== undefined) workspacePatch.laneNavigatorPositionY = boundedNumber(workspace.laneNavigatorPositionY, 0, 100, 96, "workspace.laneNavigatorPositionY")
+    if (workspace.laneNavigatorDock !== undefined) workspacePatch.laneNavigatorDock = optionalEnum(workspace.laneNavigatorDock, "workspace.laneNavigatorDock", Models.NEOVIEW_LANE_NAVIGATOR_DOCKS)
+    if (workspace.windowControlsPlacement !== undefined) workspacePatch.windowControlsPlacement = optionalEnum(workspace.windowControlsPlacement, "workspace.windowControlsPlacement", Models.NEOVIEW_WINDOW_CONTROLS_PLACEMENTS)
+    if (workspace.windowControlsOwnerLaneId !== undefined) workspacePatch.windowControlsOwnerLaneId = requireLayoutId(workspace.windowControlsOwnerLaneId, "workspace.windowControlsOwnerLaneId")
+    if (workspace.windowControlsExpanded !== undefined) workspacePatch.windowControlsExpanded = requiredBoolean(workspace.windowControlsExpanded, "workspace.windowControlsExpanded")
+    if (workspace.lanes !== undefined) {
+      const lanes = requireRecord(workspace.lanes, "reader shell control patch.workspace.lanes")
+      const lanePatches: NonNullable<Models.NeoviewShellControlPatch["shellControl"]["workspace"]>["lanes"] = {}
+      for (const laneId of Object.keys(lanes)) {
+        requireLayoutId(laneId, `reader shell control patch.workspace.lanes.${laneId}`)
+        const source = requireRecord(lanes[laneId], `reader shell control patch.workspace.lanes.${laneId}`)
+        const unknownLaneFields = Object.keys(source).filter((key) => ![
+          "width",
+          "collapsed",
+          "title",
+          "activePanelId",
+          "panelBarMode",
+          "panelBarDock",
+          "panelBarPositionX",
+          "panelBarPositionY",
+          "panelBarConstrained",
+        ].includes(key))
+        if (unknownLaneFields.length) throw new Error(`reader shell control patch.workspace.lanes.${laneId} contains unsupported fields: ${unknownLaneFields.join(", ")}.`)
+        const lane: Partial<Models.NeoviewSwimlaneLaneConfig> = {}
+        if (source.width !== undefined) lane.width = swimlaneWidth(source.width, laneId, `workspace.lanes.${laneId}.width`)
+        if (source.collapsed !== undefined) lane.collapsed = requiredBoolean(source.collapsed, `workspace.lanes.${laneId}.collapsed`)
+        if (source.title !== undefined) lane.title = requireLaneTitle(source.title, `workspace.lanes.${laneId}.title`)
+        if (source.activePanelId !== undefined) lane.activePanelId = requireLayoutId(source.activePanelId, `workspace.lanes.${laneId}.activePanelId`)
+        if (source.panelBarMode !== undefined) lane.panelBarMode = optionalEnum(source.panelBarMode, `workspace.lanes.${laneId}.panelBarMode`, Models.NEOVIEW_PANEL_BAR_MODES)
+        if (source.panelBarDock !== undefined) lane.panelBarDock = optionalEnum(source.panelBarDock, `workspace.lanes.${laneId}.panelBarDock`, Models.NEOVIEW_PANEL_BAR_DOCKS)
+        if (source.panelBarPositionX !== undefined) lane.panelBarPositionX = boundedNumber(source.panelBarPositionX, 0, 100, 50, `workspace.lanes.${laneId}.panelBarPositionX`)
+        if (source.panelBarPositionY !== undefined) lane.panelBarPositionY = boundedNumber(source.panelBarPositionY, 0, 100, 50, `workspace.lanes.${laneId}.panelBarPositionY`)
+        if (source.panelBarConstrained !== undefined) lane.panelBarConstrained = requiredBoolean(source.panelBarConstrained, `workspace.lanes.${laneId}.panelBarConstrained`)
+        if (!Object.keys(lane).length) throw new Error(`reader shell control patch.workspace.lanes.${laneId} must change at least one field.`)
+        lanePatches[laneId] = lane
+      }
+      if (!Object.keys(lanePatches).length) throw new Error("reader shell control patch.workspace.lanes must change at least one lane.")
+      workspacePatch.lanes = lanePatches
+    }
+    if (!Object.keys(workspacePatch).length) throw new Error("reader shell control patch.workspace must change at least one field.")
+    patch.shellControl.workspace = workspacePatch
+  }
   let materialPatch: Models.NeoviewShellControlPatch["shellControl"]["material"]
   if (control.material !== undefined) {
     const material = requireRecord(control.material, "reader shell control patch.material")
@@ -2302,17 +2578,65 @@ export function parseNeoviewShellControlPatch(value: unknown): {
     if (!Object.keys(materialPatch).length) throw new Error("reader shell control patch.material must change at least one field.")
     patch.shellControl.material = materialPatch
   }
-  if (!patch.shellControl.floating && !patch.shellControl.edges && !patch.shellControl.sidebarInteraction && !patch.shellControl.material)
+  if (!patch.shellControl.floating && !patch.shellControl.edges && !patch.shellControl.sidebarInteraction && !patch.shellControl.workspace && !patch.shellControl.material)
     throw new Error("reader shell control patch must change at least one field.")
   return {
     patch,
-    tomlPatch: shellControlTomlPatch(floatingPatch, edgePatches, sidebarInteractionPatch, materialPatch),
+    tomlPatch: shellControlTomlPatch(floatingPatch, edgePatches, sidebarInteractionPatch, workspacePatch, materialPatch),
   }
 }
 
 const NEOVIEW_SHELL_EDGES = ["top", "right", "bottom", "left"] as const
 type NeoviewShellEdge = (typeof NEOVIEW_SHELL_EDGES)[number]
 const NEOVIEW_SHELL_SURFACES = ["top", "bottom", "sidebar"] as const
+
+function normalizedSwimlaneOrder(
+  value: unknown,
+  fallback: readonly Models.NeoviewSwimlaneId[],
+  path: string,
+  _strict = false,
+): Models.NeoviewSwimlaneId[] {
+  if (value === undefined) return [...fallback]
+  const source = requiredStringArray(value, path)
+  const order = source
+    .map((laneId) => requireLayoutId(laneId, path))
+    .filter((laneId, index, lanes) => lanes.indexOf(laneId) === index)
+  if (order.length > 32) throw new Error(`${path} cannot contain more than 32 lanes.`)
+  for (const laneId of Models.NEOVIEW_SWIMLANE_IDS) if (!order.includes(laneId)) order.push(laneId)
+  return order
+}
+
+function swimlaneWidth(value: unknown, laneId: Models.NeoviewSwimlaneId, path: string, fallback = laneId === "reader" ? 960 : laneId === "right" ? 280 : 320): number {
+  return boundedNumber(value, laneId === "reader" ? 120 : 240, 8_192, fallback, path)
+}
+
+function readerWidthRatio(value: unknown, path: string, fallback = 0.5): number {
+  return boundedNumber(value, 0.25, 1, fallback, path)
+}
+
+function revealZone(value: unknown, path: string, fallback: Models.NeoviewSwimlaneRevealZone): Models.NeoviewSwimlaneRevealZone {
+  const source = requireRecord(value, path)
+  const unknown = Object.keys(source).filter((key) => !["x", "y", "width", "height"].includes(key))
+  if (unknown.length) throw new Error(`${path} contains unsupported fields: ${unknown.join(", ")}.`)
+  const x = boundedNumber(source.x, 0, 99, fallback.x, `${path}.x`)
+  const y = boundedNumber(source.y, 0, 99, fallback.y, `${path}.y`)
+  return {
+    x,
+    y,
+    width: boundedNumber(source.width, 1, 100 - x, Math.min(fallback.width, 100 - x), `${path}.width`),
+    height: boundedNumber(source.height, 1, 100 - y, Math.min(fallback.height, 100 - y), `${path}.height`),
+  }
+}
+
+function readerFocusHoverDelay(value: unknown, path: string, fallback = 650): number {
+  if (value === undefined) return fallback
+  return boundedInteger(value, 200, 5_000, path)
+}
+
+function edgeRevealDelay(value: unknown, path: string, fallback = 180): number {
+  if (value === undefined) return fallback
+  return boundedInteger(value, 100, 5_000, path)
+}
 
 function shellSurfaceNumberPatch(value: unknown, label: string, minimum: number, maximum: number): Partial<Models.NeoviewShellSurfaceValues> {
   const source = requireRecord(value, label)
@@ -2330,6 +2654,7 @@ function shellControlTomlPatch(
   floating: Partial<Models.NeoviewShellFloatingControlConfig> | undefined,
   edges: Partial<Record<NeoviewShellEdge, Partial<Models.NeoviewShellEdgeConfig>>> | undefined,
   sidebarInteraction: Partial<Models.NeoviewShellSidebarInteractionConfig> | undefined,
+  workspace: Models.NeoviewShellControlPatch["shellControl"]["workspace"] | undefined,
   material: Models.NeoviewShellMaterialPatch | undefined,
 ): Record<string, unknown> {
   const panels: Record<string, unknown> = {}
@@ -2359,6 +2684,52 @@ function shellControlTomlPatch(
     if (sidebarInteraction.blankAreaCollapseMode !== undefined) value.blank_area_collapse_mode = sidebarInteraction.blankAreaCollapseMode
     panels.sidebar_interaction = value
   }
+  if (workspace) {
+    if (workspace.mode !== undefined) panels.layout_mode = workspace.mode
+    const value: Record<string, unknown> = {}
+    if (workspace.laneOrder !== undefined) value.lane_order = workspace.laneOrder
+    // activeLane, readerSolo and soloLaneId are accepted for old clients but
+    // belong to the per-instance frontend session and must not re-enter TOML.
+    if (workspace.readerSoloOnFocus !== undefined) value.reader_solo_on_focus = workspace.readerSoloOnFocus
+    if (workspace.readerWidthRatio !== undefined) value.reader_width_ratio = workspace.readerWidthRatio
+    if (workspace.edgeRevealDelayMs !== undefined) value.edge_reveal_delay_ms = workspace.edgeRevealDelayMs
+    if (workspace.edgeRevealZones !== undefined) {
+      value.left_reveal_zone = workspace.edgeRevealZones.left
+      value.right_reveal_zone = workspace.edgeRevealZones.right
+      value.top_reveal_zone = workspace.edgeRevealZones.top
+      value.bottom_reveal_zone = workspace.edgeRevealZones.bottom
+    }
+    if (workspace.readerFocusOnHover !== undefined) value.reader_focus_on_hover = workspace.readerFocusOnHover
+    if (workspace.readerFocusHoverDelayMs !== undefined) value.reader_focus_hover_delay_ms = workspace.readerFocusHoverDelayMs
+    if (workspace.manualScrollEnabled !== undefined) value.manual_scroll_enabled = workspace.manualScrollEnabled
+    if (workspace.showLaneNavigatorInReaderSolo !== undefined) value.show_lane_navigator_in_reader_solo = workspace.showLaneNavigatorInReaderSolo
+    if (workspace.autoFitToViewport !== undefined) value.auto_fit_to_viewport = workspace.autoFitToViewport
+    if (workspace.barHandleStyle !== undefined) value.bar_handle_style = workspace.barHandleStyle
+    if (workspace.barHandlePosition !== undefined) value.bar_handle_position = workspace.barHandlePosition
+    if (workspace.laneNavigatorPositionX !== undefined) value.lane_navigator_position_x = workspace.laneNavigatorPositionX
+    if (workspace.laneNavigatorPositionY !== undefined) value.lane_navigator_position_y = workspace.laneNavigatorPositionY
+    if (workspace.laneNavigatorDock !== undefined) value.lane_navigator_dock = workspace.laneNavigatorDock
+    if (workspace.windowControlsPlacement !== undefined) value.window_controls_placement = workspace.windowControlsPlacement
+    if (workspace.windowControlsOwnerLaneId !== undefined) value.window_controls_owner_lane_id = workspace.windowControlsOwnerLaneId
+    if (workspace.windowControlsExpanded !== undefined) value.window_controls_expanded = workspace.windowControlsExpanded
+    if (workspace.lanes !== undefined) {
+      for (const [laneId, source] of Object.entries(workspace.lanes)) {
+        if (!source) continue
+        const lane: Record<string, unknown> = {}
+        if (source.width !== undefined) lane.width = source.width
+        if (source.collapsed !== undefined) lane.collapsed = source.collapsed
+        if (source.title !== undefined) lane.title = source.title
+        if (source.activePanelId !== undefined) lane.active_panel_id = source.activePanelId
+        if (source.panelBarMode !== undefined) lane.panel_bar_mode = source.panelBarMode
+        if (source.panelBarDock !== undefined) lane.panel_bar_dock = source.panelBarDock
+        if (source.panelBarPositionX !== undefined) lane.panel_bar_position_x = source.panelBarPositionX
+        if (source.panelBarPositionY !== undefined) lane.panel_bar_position_y = source.panelBarPositionY
+        if (source.panelBarConstrained !== undefined) lane.panel_bar_constrained = source.panelBarConstrained
+        value[laneId] = lane
+      }
+    }
+    if (Object.keys(value).length) panels.swimlane = value
+  }
   if (material) {
     if (material.opacity) {
       if (material.opacity.top !== undefined) panels.top_toolbar_opacity = material.opacity.top
@@ -2381,7 +2752,7 @@ function shellControlTomlPatch(
     }
     if (Object.keys(value).length) panels.material = value
   }
-  return { panels }
+  return Object.keys(panels).length ? { panels } : {}
 }
 
 export function parseNeoviewSidebarLayoutPatch(value: unknown): {
@@ -2576,6 +2947,10 @@ function parseShellOptions(panels: Record<string, unknown> | undefined, reader: 
       trigger: unknown
     }
   >
+  const parsedSidebars = {
+    left: sidebarConfig("left", left),
+    right: sidebarConfig("right", right),
+  }
   return {
     showDelayMs: secondsToMilliseconds(timing?.show_delay_sec, "[nodes.neoview.panels.auto_hide_timing].show_delay_sec"),
     hideDelayMs: secondsToMilliseconds(timing?.hide_delay_sec, "[nodes.neoview.panels.auto_hide_timing].hide_delay_sec"),
@@ -2625,10 +3000,7 @@ function parseShellOptions(panels: Record<string, unknown> | undefined, reader: 
         edgeConfig(edge, optionalRecord(canonicalEdges?.[edge], `[nodes.neoview.panels.edges.${edge}]`), legacyEdges[edge]),
       ]),
     ) as Models.NeoviewShellConfig["edges"],
-    sidebars: {
-      left: sidebarConfig("left", left),
-      right: sidebarConfig("right", right),
-    },
+    sidebars: parsedSidebars,
     sidebarInteraction: {
       showDragHandle:
         optionalBoolean(canonicalInteraction?.show_drag_handle, "sidebar_interaction.show_drag_handle") ??
@@ -2640,8 +3012,147 @@ function parseShellOptions(panels: Record<string, unknown> | undefined, reader: 
         optionalEnum(canonicalInteraction?.blank_area_collapse_mode, "sidebar_interaction.blank_area_collapse_mode", ["single", "double"] as const) ??
         Models.DEFAULT_NEOVIEW_SHELL_CONFIG.sidebarInteraction.blankAreaCollapseMode,
     },
+    workspace: parseWorkspaceConfig(panels, parsedSidebars),
     panelLayout: parsePanelLayout(panels),
     cardLayout: parseCardLayout(panels),
+  }
+}
+
+function parseWorkspaceConfig(
+  panels: Record<string, unknown>,
+  sidebars: Models.NeoviewShellConfig["sidebars"],
+): Models.NeoviewWorkspaceConfig {
+  const source = optionalRecord(panels.swimlane, "[nodes.neoview.panels.swimlane]")
+  const defaults = Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane
+  const laneOrder = normalizedSwimlaneOrder(source?.lane_order ?? source?.laneOrder, defaults.laneOrder, "[nodes.neoview.panels.swimlane].lane_order")
+  const laneIds = [...laneOrder]
+  const reservedSwimlaneKeys = new Set([
+    "lane_order", "laneOrder", "active_lane", "activeLane", "reader_solo", "readerSolo",
+    "reader_solo_on_focus", "readerSoloOnFocus", "solo_lane", "soloLaneId",
+    "reader_width_ratio", "readerWidthRatio", "edge_reveal_delay_ms", "edgeRevealDelayMs",
+    "left_reveal_zone", "leftRevealZone", "right_reveal_zone", "rightRevealZone",
+    "top_reveal_zone", "topRevealZone", "bottom_reveal_zone", "bottomRevealZone",
+    "reader_focus_on_hover", "readerFocusOnHover", "reader_focus_hover_delay_ms", "readerFocusHoverDelayMs",
+    "manual_scroll_enabled", "manualScrollEnabled",
+    "show_lane_navigator_in_reader_solo", "showLaneNavigatorInReaderSolo",
+    "auto_fit_to_viewport", "autoFitToViewport",
+    "bar_handle_style", "barHandleStyle", "bar_handle_position", "barHandlePosition", "lane_navigator_position_x", "laneNavigatorPositionX",
+    "lane_navigator_position_y", "laneNavigatorPositionY",
+    "lane_navigator_dock", "laneNavigatorDock",
+    "window_controls_placement", "windowControlsPlacement",
+    "window_controls_owner_lane_id", "windowControlsOwnerLaneId",
+    "window_controls_expanded", "windowControlsExpanded",
+  ])
+  for (const [key, value] of Object.entries(source ?? {})) {
+    if (!reservedSwimlaneKeys.has(key) && value && typeof value === "object" && !Array.isArray(value) && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(key) && !laneIds.includes(key)) laneIds.push(key)
+  }
+  const lanes = Object.fromEntries(laneIds.map((laneId) => {
+    const lane = optionalRecord(source?.[laneId], `[nodes.neoview.panels.swimlane].${laneId}`)
+    const laneDefaults = defaults.lanes[laneId] ?? { width: 320, collapsed: false }
+    const fallbackWidth = laneId === "left" ? sidebars.left.width : laneId === "right" ? sidebars.right.width : laneDefaults.width
+    const activePanelValue = lane?.active_panel_id ?? lane?.activePanelId
+    const panelBarMode = optionalEnum(lane?.panel_bar_mode ?? lane?.panelBarMode, `[nodes.neoview.panels.swimlane].${laneId}.panel_bar_mode`, Models.NEOVIEW_PANEL_BAR_MODES) ?? laneDefaults.panelBarMode
+    const panelBarDock = optionalEnum(lane?.panel_bar_dock ?? lane?.panelBarDock, `[nodes.neoview.panels.swimlane].${laneId}.panel_bar_dock`, Models.NEOVIEW_PANEL_BAR_DOCKS) ?? laneDefaults.panelBarDock
+    const panelBarPositionX = lane?.panel_bar_position_x ?? lane?.panelBarPositionX
+    const panelBarPositionY = lane?.panel_bar_position_y ?? lane?.panelBarPositionY
+    const panelBarConstrained = optionalBoolean(lane?.panel_bar_constrained ?? lane?.panelBarConstrained, `[nodes.neoview.panels.swimlane].${laneId}.panel_bar_constrained`) ?? laneDefaults.panelBarConstrained
+    return [laneId, {
+      width: swimlaneWidth(lane?.width, laneId, `[nodes.neoview.panels.swimlane].${laneId}.width`, fallbackWidth),
+      collapsed: optionalBoolean(lane?.collapsed, `[nodes.neoview.panels.swimlane].${laneId}.collapsed`) ?? laneDefaults.collapsed,
+      ...((lane?.title ?? laneDefaults.title) === undefined ? {} : {
+        title: requireLaneTitle(lane?.title ?? laneDefaults.title, `[nodes.neoview.panels.swimlane].${laneId}.title`),
+      }),
+      ...(activePanelValue === undefined
+        ? (laneDefaults.activePanelId ? { activePanelId: laneDefaults.activePanelId } : {})
+        : { activePanelId: requireLayoutId(activePanelValue, `[nodes.neoview.panels.swimlane].${laneId}.active_panel_id`) }),
+      ...(panelBarMode ? { panelBarMode } : {}),
+      ...(panelBarDock ? { panelBarDock } : {}),
+      ...(panelBarPositionX === undefined && laneDefaults.panelBarPositionX === undefined ? {} : {
+        panelBarPositionX: boundedNumber(panelBarPositionX, 0, 100, laneDefaults.panelBarPositionX ?? 50, `[nodes.neoview.panels.swimlane].${laneId}.panel_bar_position_x`),
+      }),
+      ...(panelBarPositionY === undefined && laneDefaults.panelBarPositionY === undefined ? {} : {
+        panelBarPositionY: boundedNumber(panelBarPositionY, 0, 100, laneDefaults.panelBarPositionY ?? 50, `[nodes.neoview.panels.swimlane].${laneId}.panel_bar_position_y`),
+      }),
+      ...(panelBarConstrained === undefined ? {} : { panelBarConstrained }),
+    }]
+  })) as Models.NeoviewSwimlaneConfig["lanes"]
+  if (!source?.left) lanes.left.width = sidebars.left.width
+  if (!source?.right) lanes.right.width = sidebars.right.width
+  const activeLaneValue = source?.active_lane ?? source?.activeLane
+  const activeLane = activeLaneValue === undefined
+    ? defaults.activeLane
+    : requireLayoutId(activeLaneValue, "[nodes.neoview.panels.swimlane].active_lane")
+  const soloLaneValue = source?.solo_lane ?? source?.soloLaneId
+  const soloLaneId = typeof soloLaneValue === "string" && soloLaneValue.trim()
+    ? requireLayoutId(soloLaneValue, "[nodes.neoview.panels.swimlane].solo_lane")
+    : undefined
+  return {
+    mode:
+      optionalEnum(panels.layout_mode ?? panels.layoutMode, "[nodes.neoview.panels].layout_mode", Models.NEOVIEW_WORKSPACE_MODES) ??
+      Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.mode,
+    swimlane: {
+      laneOrder,
+      activeLane: laneOrder.includes(activeLane) ? activeLane : defaults.activeLane,
+      readerSolo:
+        optionalBoolean(source?.reader_solo ?? source?.readerSolo, "[nodes.neoview.panels.swimlane].reader_solo") ?? defaults.readerSolo,
+      readerSoloOnFocus:
+        optionalBoolean(source?.reader_solo_on_focus ?? source?.readerSoloOnFocus, "[nodes.neoview.panels.swimlane].reader_solo_on_focus") ?? defaults.readerSoloOnFocus,
+      ...(soloLaneId && laneOrder.includes(soloLaneId) ? { soloLaneId } : {}),
+      readerWidthRatio: readerWidthRatio(
+        source?.reader_width_ratio ?? source?.readerWidthRatio,
+        "[nodes.neoview.panels.swimlane].reader_width_ratio",
+        Math.min(1, Math.max(0.25, lanes.reader.width / 1_920)),
+      ),
+      edgeRevealDelayMs: edgeRevealDelay(
+        source?.edge_reveal_delay_ms ?? source?.edgeRevealDelayMs,
+        "[nodes.neoview.panels.swimlane].edge_reveal_delay_ms",
+        defaults.edgeRevealDelayMs,
+      ),
+      edgeRevealZones: {
+        left: revealZone(source?.left_reveal_zone ?? source?.leftRevealZone ?? defaults.edgeRevealZones.left, "[nodes.neoview.panels.swimlane].left_reveal_zone", defaults.edgeRevealZones.left),
+        right: revealZone(source?.right_reveal_zone ?? source?.rightRevealZone ?? defaults.edgeRevealZones.right, "[nodes.neoview.panels.swimlane].right_reveal_zone", defaults.edgeRevealZones.right),
+        top: revealZone(source?.top_reveal_zone ?? source?.topRevealZone ?? defaults.edgeRevealZones.top, "[nodes.neoview.panels.swimlane].top_reveal_zone", defaults.edgeRevealZones.top),
+        bottom: revealZone(source?.bottom_reveal_zone ?? source?.bottomRevealZone ?? defaults.edgeRevealZones.bottom, "[nodes.neoview.panels.swimlane].bottom_reveal_zone", defaults.edgeRevealZones.bottom),
+      },
+      readerFocusOnHover:
+        optionalBoolean(source?.reader_focus_on_hover ?? source?.readerFocusOnHover, "[nodes.neoview.panels.swimlane].reader_focus_on_hover") ??
+        defaults.readerFocusOnHover,
+      readerFocusHoverDelayMs: readerFocusHoverDelay(
+        source?.reader_focus_hover_delay_ms ?? source?.readerFocusHoverDelayMs,
+        "[nodes.neoview.panels.swimlane].reader_focus_hover_delay_ms",
+        defaults.readerFocusHoverDelayMs,
+      ),
+      manualScrollEnabled:
+        optionalBoolean(source?.manual_scroll_enabled ?? source?.manualScrollEnabled, "[nodes.neoview.panels.swimlane].manual_scroll_enabled") ??
+        defaults.manualScrollEnabled,
+      showLaneNavigatorInReaderSolo:
+        optionalBoolean(
+          source?.show_lane_navigator_in_reader_solo ?? source?.showLaneNavigatorInReaderSolo,
+          "[nodes.neoview.panels.swimlane].show_lane_navigator_in_reader_solo",
+        ) ?? defaults.showLaneNavigatorInReaderSolo,
+      autoFitToViewport:
+        optionalBoolean(source?.auto_fit_to_viewport ?? source?.autoFitToViewport, "[nodes.neoview.panels.swimlane].auto_fit_to_viewport") ?? defaults.autoFitToViewport,
+      barHandleStyle:
+        optionalEnum(source?.bar_handle_style ?? source?.barHandleStyle, "[nodes.neoview.panels.swimlane].bar_handle_style", Models.NEOVIEW_BAR_HANDLE_STYLES) ?? defaults.barHandleStyle,
+      barHandlePosition:
+        optionalEnum(source?.bar_handle_position ?? source?.barHandlePosition, "[nodes.neoview.panels.swimlane].bar_handle_position", Models.NEOVIEW_BAR_HANDLE_POSITIONS) ?? defaults.barHandlePosition,
+      laneNavigatorPositionX: boundedNumber(source?.lane_navigator_position_x ?? source?.laneNavigatorPositionX, 0, 100, defaults.laneNavigatorPositionX, "[nodes.neoview.panels.swimlane].lane_navigator_position_x"),
+      laneNavigatorPositionY: boundedNumber(source?.lane_navigator_position_y ?? source?.laneNavigatorPositionY, 0, 100, defaults.laneNavigatorPositionY, "[nodes.neoview.panels.swimlane].lane_navigator_position_y"),
+      laneNavigatorDock:
+        optionalEnum(source?.lane_navigator_dock ?? source?.laneNavigatorDock, "[nodes.neoview.panels.swimlane].lane_navigator_dock", Models.NEOVIEW_LANE_NAVIGATOR_DOCKS) ?? defaults.laneNavigatorDock,
+      windowControlsPlacement:
+        optionalEnum(source?.window_controls_placement ?? source?.windowControlsPlacement, "[nodes.neoview.panels.swimlane].window_controls_placement", Models.NEOVIEW_WINDOW_CONTROLS_PLACEMENTS) ?? defaults.windowControlsPlacement,
+      windowControlsOwnerLaneId: (() => {
+        const owner = requireLayoutId(
+          source?.window_controls_owner_lane_id ?? source?.windowControlsOwnerLaneId ?? defaults.windowControlsOwnerLaneId,
+          "[nodes.neoview.panels.swimlane].window_controls_owner_lane_id",
+        )
+        return laneOrder.includes(owner) ? owner : laneOrder.at(-1) ?? defaults.windowControlsOwnerLaneId
+      })(),
+      windowControlsExpanded:
+        optionalBoolean(source?.window_controls_expanded ?? source?.windowControlsExpanded, "[nodes.neoview.panels.swimlane].window_controls_expanded") ?? defaults.windowControlsExpanded,
+      lanes,
+    },
   }
 }
 
@@ -2659,7 +3170,18 @@ function parseCardLayout(panels: Record<string, unknown>): Record<string, Models
     }
   }
   const canonical = optionalRecord(panels.card_state, "[nodes.neoview.panels.card_state]")
+  const legacyAmbientBackground = canonical?.["ambient-background-settings"]
+  if (canonical?.["ambient-background"] === undefined && legacyAmbientBackground !== undefined) {
+    if (!isRecord(legacyAmbientBackground)) throw new Error("[nodes.neoview.panels.card_state.ambient-background-settings] must be a table.")
+    result["ambient-background"] = parseCardValue(
+      "ambient-background",
+      undefined,
+      legacyAmbientBackground,
+      result["ambient-background"],
+    )
+  }
   for (const [cardId, value] of Object.entries(canonical ?? {})) {
+    if (cardId === "ambient-background-settings") continue
     if (!isRecord(value)) throw new Error(`[nodes.neoview.panels.card_state.${cardId}] must be a table.`)
     result[cardId] = parseCardValue(cardId, undefined, value, result[cardId])
   }
@@ -3050,6 +3572,13 @@ function requiredBoolean(value: unknown, path: string): boolean {
 function requireLayoutId(value: unknown, path: string): string {
   if (typeof value !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(value)) throw new Error(`${path} is invalid.`)
   return value
+}
+
+function requireLaneTitle(value: unknown, path: string): string {
+  if (typeof value !== "string") throw new Error(`${path} must be a string.`)
+  const title = value.trim()
+  if (!title || title.length > 80) throw new Error(`${path} must contain 1 to 80 characters.`)
+  return title
 }
 
 function optionalEnum<const Values extends readonly string[]>(value: unknown, path: string, values: Values): Values[number] | undefined {

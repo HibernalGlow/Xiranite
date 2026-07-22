@@ -27,9 +27,7 @@ import {
 } from "@xiranite/cli-runtime/terminal";
 import {
   loadNodeConfigWithHints,
-  loadXiraniteConfig,
-  saveXiraniteConfig,
-  updateNodeConfig,
+  updateNodeConfigFile,
 } from "@xiranite/config";
 import {
   runTimeu,
@@ -140,17 +138,13 @@ function preferences(
     nodeId: "timeu",
     current,
     async save(values) {
-      const { config, path } = await loadXiraniteConfig(configOptions);
-      await saveXiraniteConfig(
-        updateNodeConfig(config, "timeu", {
+      await updateNodeConfigFile("timeu", {
           cli: {
             theme: values.theme,
             default_mode: values.defaultMode,
             language: values.language,
           },
-        }),
-        { ...configOptions, configPath: path },
-      );
+        }, configOptions);
     },
     async restore() {
       const loaded = await context(host, true);

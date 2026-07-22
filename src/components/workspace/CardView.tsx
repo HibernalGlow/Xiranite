@@ -34,6 +34,7 @@ const MODULE_MASONRY_HEIGHTS: Record<string, number> = {
   "node-history": 520,
   "node-operations": 500,
   "music-player": 340,
+  melodeck: 340,
   settings: 420,
   scratch: 360,
   tasks: 440,

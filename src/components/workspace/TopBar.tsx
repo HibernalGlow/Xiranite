@@ -12,7 +12,7 @@ import { useTheme } from "@/components/use-theme"
 import { getActiveCustomTheme, resolveThemeScheme, THEME_PRESET_OPTIONS } from "@/lib/appearance"
 import type { ViewMode, CardLayout, AppCustomTheme, AppTheme } from "@/types/workspace"
 import { WorkspaceIcon, IconPicker } from "@/components/workspace/WorkspaceIcon"
-import { WorkspaceMusicDockTopBarSlot } from "@/components/workspace/WorkspaceMusicDock"
+import { WorkspaceMelodeckTopBarSlot } from "@/components/workspace/WorkspaceMelodeck"
 import {
   Activity, Settings, Grid, SplitSquareVertical, AlignJustify, Target,
   Gauge, LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
@@ -500,7 +500,7 @@ export function TopBar() {
       {/* Spacer */}
       <div className="flex-1" />
 
-      <WorkspaceMusicDockTopBarSlot />
+      <WorkspaceMelodeckTopBarSlot />
 
       {/* ── 弹出层入口（取代侧栏）── */}
       <div className="xiranite-app-region-no-drag flex items-center gap-1">

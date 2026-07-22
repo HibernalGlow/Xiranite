@@ -57,8 +57,8 @@ export function MagicCard(props: MagicCardProps) {
     children,
     className,
     gradientSize = 200,
-    gradientColor = "color-mix(in oklch, var(--primary) 18%, transparent)",
-    gradientOpacity = 0.55,
+    gradientColor = "color-mix(in oklch, var(--primary) 40%, transparent)",
+    gradientOpacity = 0.5,
     gradientFrom = "color-mix(in oklch, var(--primary) 72%, transparent)",
     gradientTo = "color-mix(in oklch, var(--primary) 38%, transparent)",
     mode = "gradient",
@@ -113,6 +113,9 @@ export function MagicCard(props: MagicCardProps) {
         else orbVisible.set(0)
         return
       }
+
+      orbVisible.set(0)
+      if (reason === "enter") return
 
       const off = -gradientSizeRef.current
       mouseX.set(off)
@@ -180,6 +183,7 @@ export function MagicCard(props: MagicCardProps) {
       {mode === "gradient" && (
         <motion.div
           suppressHydrationWarning
+          aria-hidden="true"
           data-slot="magic-card-gradient"
           className="pointer-events-none absolute inset-px z-30 rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
           style={{
@@ -189,7 +193,7 @@ export function MagicCard(props: MagicCardProps) {
                 transparent 100%
               )
             `,
-            opacity: gradientOpacity,
+            filter: `opacity(${gradientOpacity})`,
           }}
         />
       )}
@@ -216,7 +220,12 @@ export function MagicCard(props: MagicCardProps) {
           }}
         />
       )}
-      <div className="relative z-40">{children}</div>
+      <div
+        data-slot="magic-card-content"
+        className="relative z-40 h-full min-h-0 w-full min-w-0"
+      >
+        {children}
+      </div>
     </motion.div>
   )
 }

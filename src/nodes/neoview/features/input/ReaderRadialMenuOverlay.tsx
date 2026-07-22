@@ -32,6 +32,13 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
     menuObserver?.observe(element.shadowRoot!, { childList: true, subtree: true })
     let moving = false
     let activeMenuId = configRef.current.activeMenuId
+    const boundary = element.parentElement?.getBoundingClientRect()
+    const localPoint = boundary && boundary.width > 0 && boundary.height > 0
+      ? { x: request.x - boundary.left, y: request.y - boundary.top }
+      : { x: request.x, y: request.y }
+    element.viewport = boundary && boundary.width > 0 && boundary.height > 0
+      ? { width: boundary.width, height: boundary.height }
+      : undefined
     const applyMenu = () => {
       const current = configRef.current
       const menu = current.menus.find((candidate) => candidate.id === activeMenuId) ?? current.menus[0]
@@ -62,7 +69,7 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
       moving = true
       activeMenuId = menuId
       if (applyMenu()) requestAnimationFrame(() => {
-        element.open(request.x, request.y)
+        element.open(localPoint.x, localPoint.y)
         labelMenu(element)
       })
       queueMicrotask(() => { moving = false })
@@ -74,7 +81,7 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
     element.addEventListener("ray-moveto", handleMoveTo)
     element.addEventListener("ray-close", handleClose)
     applyMenu()
-    element.open(request.x, request.y)
+    element.open(localPoint.x, localPoint.y)
     labelMenu(element)
     return () => {
       element.removeEventListener("ray-select", handleSelect)
@@ -88,7 +95,8 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
   return createElement("neoview-ray-menu", {
     ref: elementRef,
     "data-reader-radial-menu": "true",
-    style: { position: "fixed", inset: 0, zIndex: 70 },
+    "data-input-context": "modal",
+    style: { position: "absolute", inset: 0, zIndex: 70 },
   })
 }
 

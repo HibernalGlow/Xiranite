@@ -7,6 +7,7 @@ import { DEFAULT_READER_LAYOUT, type FrameSnapshot, type ReaderLayout } from "..
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { ReaderMediaFormatRegistryRef } from "../../domain/page/media.js"
+import { normalizeReaderConfigPatch } from "./ReaderConfigSectionRegistry.js"
 import { DEFAULT_READER_COLOR_FILTER, type ReaderColorFilterSettings } from "../../domain/color-filter/ReaderColorFilter.js"
 import { DEFAULT_READER_PAGE_TRANSITION, type ReaderPageTransitionSettings } from "../../domain/page-transition/ReaderPageTransition.js"
 import { DEFAULT_READER_SWITCH_TOAST, type ReaderSwitchToastSettings } from "../../application/switch-toast/ReaderSwitchToast.js"
@@ -88,6 +89,7 @@ import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpCont
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
 import { ReaderBookSettingsMigrationHttpController } from "./ReaderBookSettingsMigrationHttpController.js"
+import { ReaderFolderRatingHttpController } from "./ReaderFolderRatingHttpController.js"
 import { ReaderSourceWatchService } from "../../application/reader/ReaderSourceWatchService.js"
 import type { ReaderSourceWatcher } from "../../ports/ReaderSourceWatcher.js"
 import type { ReaderExplorerContextMenuProvider } from "../../ports/ReaderExplorerContextMenuProvider.js"
@@ -123,6 +125,7 @@ import {
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
   DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
   DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
+  DEFAULT_NEOVIEW_PRELOAD_CONFIG,
   parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
   parseNeoviewShellControlPatch,
@@ -134,6 +137,7 @@ import {
   parseNeoviewSwitchToastPatch,
   parseNeoviewInfoOverlayPatch,
   parseNeoviewSystemMonitorPatch,
+  parseNeoviewPreloadPatch,
   parseNeoviewEmmPatch,
   parseNeoviewAiTranslationPatch,
   DEFAULT_NEOVIEW_EMM_CONFIG,
@@ -154,6 +158,8 @@ import {
   type NeoviewSwitchToastPatch,
   type NeoviewInfoOverlayPatch,
   type NeoviewSystemMonitorConfig,
+  type NeoviewPreloadConfig,
+  type NeoviewPreloadPatch,
   type NeoviewEmmConfig,
   type NeoviewEmmPatch,
   type NeoviewAiTranslationConfig,
@@ -186,6 +192,11 @@ import {
   type NeoviewRadialMenuPatch,
   type ReaderRadialMenuConfig,
 } from "../../application/config/ReaderRadialMenuConfig.js"
+import {
+  DEFAULT_READER_VOICE_CONTROL_CONFIG,
+  parseReaderVoiceControlPatch,
+  type ReaderVoiceControlConfig,
+} from "../../application/config/ReaderVoiceControlConfig.js"
 import { DEFAULT_READER_INPUT_BINDINGS, cloneReaderInputBindings, type ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
@@ -269,6 +280,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #systemIntegration: ReaderSystemIntegrationHttpController
   readonly #settingsMigration?: ReaderSettingsMigrationHttpController
   readonly #bookSettingsMigration?: ReaderBookSettingsMigrationHttpController
+  readonly #folderRatings?: ReaderFolderRatingHttpController
   readonly #library?: ReaderLibraryHttpController
   readonly #opds: ReaderOpdsHttpController
   readonly #libraryService?: ReaderLibraryService
@@ -319,6 +331,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #switchToast: ReaderSwitchToastSettings
   #infoOverlay: ReaderInfoOverlaySettings
   #systemMonitor: NeoviewSystemMonitorConfig
+  #preload: NeoviewPreloadConfig
   #emm: NeoviewEmmConfig
   #aiTranslation: NeoviewAiTranslationConfig
   readonly #ai: ReaderAiHttpController
@@ -326,6 +339,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #superResolution: NeoviewSuperResolutionConfig
   #inputBindings: ReaderInputBindingsConfig
   #radialMenu: ReaderRadialMenuConfig
+  #voiceControl: ReaderVoiceControlConfig
   #sessionOptions: Partial<ReaderSessionOptions>
   readonly #updateShellOptions?: ReaderHttpControllerOptions["updateShellOptions"]
   readonly #updateViewDefaults?: ReaderHttpControllerOptions["updateViewDefaults"]
@@ -342,6 +356,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateSwitchToast?: ReaderHttpControllerOptions["updateSwitchToast"]
   readonly #updateInfoOverlay?: ReaderHttpControllerOptions["updateInfoOverlay"]
   readonly #updateSystemMonitor?: ReaderHttpControllerOptions["updateSystemMonitor"]
+  readonly #updatePreload?: ReaderHttpControllerOptions["updatePreload"]
   readonly #updateEmm?: ReaderHttpControllerOptions["updateEmm"]
   readonly #probeEmm?: ReaderHttpControllerOptions["probeEmm"]
   readonly #updateAiTranslation?: ReaderHttpControllerOptions["updateAiTranslation"]
@@ -349,6 +364,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updateSuperResolution?: ReaderHttpControllerOptions["updateSuperResolution"]
   readonly #updateInputBindings?: ReaderHttpControllerOptions["updateInputBindings"]
   readonly #updateRadialMenu?: ReaderHttpControllerOptions["updateRadialMenu"]
+  readonly #updateVoiceControl?: ReaderHttpControllerOptions["updateVoiceControl"]
   #configUpdateQueue: Promise<void> = Promise.resolve()
   #hibernateCheck?: Promise<void>
   readonly #bookMetadataLoads = new Map<
@@ -489,7 +505,7 @@ export class ReaderHttpController implements AsyncDisposable {
       }),
     )
     this.#sourceChanges = new ReaderSourceWatchService(options.sourceWatcher ?? new PlatformReaderSourceWatcher())
-    this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore, emmTranslations)
+    this.#bookMetadata = new ReaderBookMetadataService(options.directoryEmmRecordStore, emmTranslations, options.emmOverrideStore)
     this.#pageMediaInformation = new ReaderPageMediaInformationService(
       options.loadPageMediaMetadataProvider ??
         (async () => {
@@ -569,6 +585,7 @@ export class ReaderHttpController implements AsyncDisposable {
       options.emmOverrideStore,
       options.emmCollectTagSource,
       emmTranslations,
+      options.manualTagCatalogStore,
     )
     this.#fileOperations = new ReaderFileOperationHttpController(
       async () => {
@@ -610,6 +627,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#bookSettingsMigration = options.loadBookSettingsMigrationService
       ? new ReaderBookSettingsMigrationHttpController(options.loadBookSettingsMigrationService)
       : undefined
+    this.#folderRatings = options.folderRatingService ? new ReaderFolderRatingHttpController(options.folderRatingService, (operation) => this.#runConfigMutation(operation)) : undefined
     this.#libraryService = options.libraryService
     this.#library = options.libraryService
       ? new ReaderLibraryHttpController(
@@ -655,6 +673,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#switchToast = options.switchToast ?? DEFAULT_READER_SWITCH_TOAST
     this.#infoOverlay = options.infoOverlay ?? DEFAULT_READER_INFO_OVERLAY
     this.#systemMonitor = options.systemMonitor ?? DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG
+    this.#preload = options.preload ?? DEFAULT_NEOVIEW_PRELOAD_CONFIG
     this.#emm = options.emm ?? DEFAULT_NEOVIEW_EMM_CONFIG
     this.#aiTranslation = options.aiTranslation ?? DEFAULT_NEOVIEW_AI_TRANSLATION_CONFIG
     this.#ai = new ReaderAiHttpController({
@@ -666,6 +685,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#superResolution = options.superResolution ?? DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG
     this.#inputBindings = options.inputBindings ?? cloneReaderInputBindings(DEFAULT_READER_INPUT_BINDINGS)
     this.#radialMenu = options.radialMenu ?? cloneReaderRadialMenuConfig(DEFAULT_READER_RADIAL_MENU_CONFIG)
+    this.#voiceControl = options.voiceControl ?? DEFAULT_READER_VOICE_CONTROL_CONFIG
     this.#sessionOptions = options.sessionOptions ?? {}
     this.#updateShellOptions = options.updateShellOptions
     this.#updateViewDefaults = options.updateViewDefaults
@@ -682,6 +702,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateSwitchToast = options.updateSwitchToast
     this.#updateInfoOverlay = options.updateInfoOverlay
     this.#updateSystemMonitor = options.updateSystemMonitor
+    this.#updatePreload = options.updatePreload
     this.#updateEmm = options.updateEmm
     this.#probeEmm = options.probeEmm
     this.#disposeEmmResources = options.disposeEmmResources
@@ -690,6 +711,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateSuperResolution = options.updateSuperResolution
     this.#updateInputBindings = options.updateInputBindings
     this.#updateRadialMenu = options.updateRadialMenu
+    this.#updateVoiceControl = options.updateVoiceControl
   }
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -715,6 +737,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (settingsMigrationResponse) return settingsMigrationResponse
     const bookSettingsMigrationResponse = await this.#bookSettingsMigration?.handle(request)
     if (bookSettingsMigrationResponse) return bookSettingsMigrationResponse
+    const folderRatingResponse = await this.#folderRatings?.handle(request)
+    if (folderRatingResponse) return folderRatingResponse
     const libraryResponse = await this.#library?.handle(request)
     if (libraryResponse) return libraryResponse
     const aiResponse = await this.#ai.handle(request)
@@ -1050,8 +1074,14 @@ export class ReaderHttpController implements AsyncDisposable {
   }
 
   async #patchShellConfig(request: Request): Promise<Response> {
-    const body = await readControlJson(request)
-    if (!body) return jsonResponse({ error: "Reader config patch must be a JSON object" }, 400)
+    const rawBody = await readControlJson(request)
+    if (!rawBody) return jsonResponse({ error: "Reader config patch must be a JSON object" }, 400)
+    let body: Record<string, unknown>
+    try {
+      body = normalizeReaderConfigPatch(rawBody)
+    } catch (error) {
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
     if (Object.hasOwn(body, "imageProcessing")) {
       if (!this.#updateImageProcessing) return jsonResponse({ error: "Reader image processing config is read-only" }, 405)
       let parsed: ReturnType<typeof parseNeoviewImageProcessingPatch>
@@ -1135,6 +1165,18 @@ export class ReaderHttpController implements AsyncDisposable {
       } catch (error) {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
+    }
+    if (Object.hasOwn(body, "voiceControl")) {
+      if (!this.#updateVoiceControl) return jsonResponse({ error: "Reader voice control config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseReaderVoiceControlPatch>
+      try { parsed = parseReaderVoiceControlPatch(body) } catch (error) { return jsonResponse({ error: errorMessage(error) }, 400) }
+      let updated: ReaderVoiceControlConfig | undefined
+      const operation = this.#configUpdateQueue.then(async () => {
+        updated = await this.#updateVoiceControl!(parsed.patch, parsed.tomlPatch)
+        this.#voiceControl = updated
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try { await operation; return jsonResponse(this.#configDto()) } catch (error) { return jsonResponse({ error: errorMessage(error) }, 500) }
     }
     if (Object.hasOwn(body, "colorFilter")) {
       if (!this.#updateColorFilter) return jsonResponse({ error: "Reader color filter config is read-only" }, 405)
@@ -1230,6 +1272,25 @@ export class ReaderHttpController implements AsyncDisposable {
       }
       const operation = this.#configUpdateQueue.then(async () => {
         this.#systemMonitor = await this.#updateSystemMonitor!(parsed.patch, parsed.tomlPatch)
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
+    if (Object.hasOwn(body, "preload")) {
+      if (!this.#updatePreload) return jsonResponse({ error: "Reader preload config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewPreloadPatch>
+      try {
+        parsed = parseNeoviewPreloadPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      const operation = this.#configUpdateQueue.then(async () => {
+        this.#preload = await this.#updatePreload!(parsed.patch, parsed.tomlPatch)
       })
       this.#configUpdateQueue = operation.catch(() => undefined)
       try {
@@ -1547,6 +1608,7 @@ export class ReaderHttpController implements AsyncDisposable {
       switchToast: this.#switchToast,
       infoOverlay: this.#infoOverlay,
       systemMonitor: this.#systemMonitor,
+      preload: this.#preload,
       emm: this.#emm,
       aiTranslation: this.#aiTranslation,
       imageTrim: this.#imageTrim,
@@ -1559,6 +1621,7 @@ export class ReaderHttpController implements AsyncDisposable {
       },
       inputBindings: this.#inputBindings,
       radialMenu: this.#radialMenu,
+      voiceControl: this.#voiceControl,
     }
   }
 

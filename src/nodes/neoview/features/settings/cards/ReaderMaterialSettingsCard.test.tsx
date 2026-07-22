@@ -1,12 +1,54 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { DEFAULT_MODULE_MAGIC_CARD_APPEARANCE } from "@/components/ui/module-panel-variants"
+import { useWorkspaceStore } from "@/store/workspaceStore"
 import type { ReaderShellConfigDto } from "../../../adapters/reader-http-client"
+import { readerWorkspaceConfig } from "../../workspace/ReaderWorkspaceLayout"
 import { ReaderMaterialSettingsCard } from "./ReaderMaterialSettingsCard"
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  useWorkspaceStore.getState().setModuleCardEffect("magic")
+  useWorkspaceStore.getState().setModuleMagicCardAppearance(DEFAULT_MODULE_MAGIC_CARD_APPEARANCE)
+})
 
 describe("ReaderMaterialSettingsCard", () => {
+  it("toggles the shared Magic Card effect without changing reader material persistence", () => {
+    useWorkspaceStore.getState().setModuleCardEffect("plain")
+    const onMaterial = vi.fn()
+    render(<ReaderMaterialSettingsCard shell={createShell()} onMaterial={onMaterial} />)
+
+    const effect = screen.getByRole("switch", { name: "Magic Card 光效" })
+    expect(effect.getAttribute("data-state")).toBe("unchecked")
+    fireEvent.click(effect)
+    expect(useWorkspaceStore.getState().moduleCardEffect).toBe("magic")
+    expect(effect.getAttribute("data-state")).toBe("checked")
+    expect(onMaterial).not.toHaveBeenCalled()
+  })
+
+  it("customizes and resets the shared Magic Card defaults without changing reader material persistence", () => {
+    const onMaterial = vi.fn()
+    render(<ReaderMaterialSettingsCard shell={createShell()} onMaterial={onMaterial} />)
+
+    fireEvent.change(screen.getByRole("slider", { name: "光晕半径" }), { target: { value: "196" } })
+    fireEvent.change(screen.getByRole("slider", { name: "光晕强度" }), { target: { value: "72" } })
+    fireEvent.click(screen.getByRole("switch", { name: "Magic Card 跟随主题色" }))
+    fireEvent.change(screen.getByLabelText("Magic Card 自定义光晕色"), { target: { value: "#ff3366" } })
+
+    expect(useWorkspaceStore.getState().moduleMagicCard).toEqual({
+      ...DEFAULT_MODULE_MAGIC_CARD_APPEARANCE,
+      radius: 196,
+      opacity: 72,
+      followThemeColor: false,
+      color: "#ff3366",
+    })
+    expect(onMaterial).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "恢复 Magic Card 默认参数" }))
+    expect(useWorkspaceStore.getState().moduleMagicCard).toEqual(DEFAULT_MODULE_MAGIC_CARD_APPEARANCE)
+  })
+
   it("[neoview.material.preview-persistence] previews locally and commits once on release", async () => {
     const shell = createShell()
     const onMaterial = vi.fn(async (patch) => createShell({
@@ -92,6 +134,19 @@ describe("ReaderMaterialSettingsCard", () => {
     expect(edge.style.backdropFilter).toContain("blur(12px)")
     expect(onMaterial).not.toHaveBeenCalled()
     edge.remove()
+  })
+
+  it("configures handle style and position independently", () => {
+    const shell = createShell()
+    shell.workspace = readerWorkspaceConfig(shell)
+    const onWorkspace = vi.fn()
+    render(<ReaderMaterialSettingsCard shell={shell} onMaterial={vi.fn()} onWorkspace={onWorkspace} />)
+
+    fireEvent.click(screen.getByRole("button", { name: "三槽" }))
+    fireEvent.click(screen.getByRole("button", { name: "右侧" }))
+
+    expect(onWorkspace).toHaveBeenNthCalledWith(1, { barHandleStyle: "groove" })
+    expect(onWorkspace).toHaveBeenNthCalledWith(2, { barHandlePosition: "right" })
   })
 })
 

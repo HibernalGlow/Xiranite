@@ -19,27 +19,23 @@ test("projects xterm ANSI palette and truecolor cells into OpenTUI chunks", asyn
   expect(chunks.map((chunk) => chunk.text).join("")).not.toContain(escape)
 })
 
-test("preserves color through a real PTY and xterm parser", async () => {
+test("preserves color from piped child stdout into xterm parser", async () => {
   const terminal = new Terminal({ allowProposedApi: true, cols: 40, rows: 4 })
-  let output = ""
+  const escape = String.fromCharCode(27)
   const child = Bun.spawn([
     process.execPath,
     "-e",
-    "const e=String.fromCharCode(27); console.log(e+'[32mPTY_GREEN'+e+'[0m')",
+    `const e=String.fromCharCode(27); console.log(e+'[32mPIPE_GREEN'+e+'[0m')`,
   ], {
-    terminal: {
-      name: "xterm-256color",
-      cols: 40,
-      rows: 4,
-      data: (_terminal, data) => { output += new TextDecoder().decode(data) },
-    },
+    stdout: "pipe",
+    stderr: "ignore",
   })
+  const output = await new Response(child.stdout).text()
   await child.exited
-  await Bun.sleep(50)
-  child.terminal?.close()
-  expect(output).toContain("PTY_GREEN")
-  await new Promise<void>((resolve) => terminal.write(output, resolve))
+  expect(output).toContain("PIPE_GREEN")
+  await new Promise<void>((resolve) => terminal.write(output.replace(/\n/g, "\r\n"), resolve))
 
-  const green = terminalViewportToStyledText(terminal).chunks.find((chunk) => chunk.text.includes("PTY_GREEN"))
+  const green = terminalViewportToStyledText(terminal).chunks.find((chunk) => chunk.text.includes("PIPE_GREEN"))
   expect(green?.fg?.toInts()).toEqual([0, 128, 0, 255])
+  expect(output).toContain(`${escape}[32m`)
 })

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { ReaderBook } from "../../domain/book/book.js"
 import type { ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
+import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { ReaderBookMetadataService } from "./ReaderBookMetadataService.js"
 
 describe("ReaderBookMetadataService", () => {
@@ -69,10 +70,28 @@ describe("ReaderBookMetadataService", () => {
       emm: { tags: [{ namespace: "artist", tag: "Alice" }] },
     })
   })
+
+  it("[neoview.emm-sync.xr-overrides] overlays XR title and manual tags without changing the external source record", async () => {
+    const readDirectoryEmmRecords = vi.fn(async (paths: readonly string[]) => new Map([
+      [paths[0]!, { emmJson: JSON.stringify({ translated_title: "外部译名", tags: [{ namespace: "artist", tag: "Alice" }] }), manualTags: JSON.stringify([{ namespace: "external", tag: "old" }]) }],
+    ]))
+    const getEmmOverride = vi.fn(async () => ({ path: "D:\\books\\demo.cbz", revision: 1, updatedAt: 1, overrides: { translatedTitle: "XR 译名", manualTags: [{ namespace: "manual", tag: "favorite" }] } }))
+    const service = new ReaderBookMetadataService(store(readDirectoryEmmRecords), undefined, overrides(getEmmOverride))
+
+    await expect(service.load(book({ kind: "archive", path: "D:/books/demo.cbz" }))).resolves.toMatchObject({
+      emm: { translatedTitle: "XR 译名", tags: [{ namespace: "artist", tag: "Alice" }, { namespace: "manual", tag: "favorite" }] },
+    })
+    expect(readDirectoryEmmRecords).toHaveBeenCalledOnce()
+    expect(getEmmOverride).toHaveBeenCalledWith("D:\\books\\demo.cbz")
+  })
 })
 
 function store(readDirectoryEmmRecords: ReaderDirectoryEmmRecordStore["readDirectoryEmmRecords"]): ReaderDirectoryEmmRecordStore {
   return { directoryEmmAvailable: true, readDirectoryEmmRecords }
+}
+
+function overrides(getEmmOverride: ReaderEmmOverrideStore["getEmmOverride"]): ReaderEmmOverrideStore {
+  return { getEmmOverride, saveEmmOverride: async () => undefined }
 }
 
 function book(source: ReaderBook["source"]): ReaderBook {

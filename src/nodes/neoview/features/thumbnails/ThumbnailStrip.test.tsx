@@ -42,6 +42,13 @@ describe("ThumbnailStrip", () => {
     expect(view.container.querySelectorAll("button span.absolute")).toHaveLength(0)
     fireEvent.click(screen.getByRole("button", { name: "显示区域参考线" }))
     expect(view.container.querySelector('[data-reader-area-guide="true"]')).not.toBeNull()
+    const viewport = view.container.querySelector('[data-testid="neoview-thumbnail-viewport"]')!
+    const track = view.container.querySelector('[data-reader-thumbnail-track="true"]')!
+    const progress = view.container.querySelector('[data-reader-bottom-progress="true"]')!
+    expect(viewport.getAttribute("data-reader-native-scrollbar")).toBe("top")
+    expect(viewport.className).toContain("scale-y-[-1]")
+    expect(track.className).toContain("scale-y-[-1]")
+    expect(progress.compareDocumentPosition(viewport) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
     fireEvent.change(screen.getByRole("slider", { name: "阅读进度" }), { target: { value: "8" } })
     expect(onSelect).toHaveBeenCalledWith(8)
   })
@@ -67,6 +74,40 @@ describe("ThumbnailStrip", () => {
     fireEvent.error(image)
     expect(view.container.querySelector("img")).toBeNull()
     expect(document.querySelector("canvas")).toBeNull()
+  })
+
+  it("[neoview.thumbnail.direction-react] mirrors visual order without changing physical page indexes", async () => {
+    const pages = Array.from({ length: 5 }, (_, index) => page(index))
+    const onSelect = vi.fn()
+    const props = {
+      sessionId: "reader-direction",
+      totalPages: pages.length,
+      activePageIndex: 0,
+      currentPages: pages,
+      client: clientWith({ listPages: vi.fn(async () => ({ pages, total: pages.length })) }),
+      compact: false,
+      onSelect,
+    }
+    const view = render(<ThumbnailStrip {...props} direction="left-to-right" />)
+    const first = view.container.querySelector<HTMLButtonElement>('[aria-label="转到第 1 页：001.jpg"]')!
+    const last = view.container.querySelector<HTMLButtonElement>('[aria-label="转到第 5 页：005.jpg"]')!
+    expect(first.style.transform).toBe("translateX(2px)")
+    expect(last.style.transform).toBe("translateX(370px)")
+
+    view.rerender(<ThumbnailStrip {...props} direction="right-to-left" />)
+    expect(first.style.transform).toBe("translateX(370px)")
+    expect(last.style.transform).toBe("translateX(2px)")
+    expect(Array.from(view.container.querySelectorAll('button[aria-label^="转到第"]')).map((button) => button.getAttribute("aria-label"))).toEqual([
+      "转到第 5 页：005.jpg",
+      "转到第 4 页：004.jpg",
+      "转到第 3 页：003.jpg",
+      "转到第 2 页：002.jpg",
+      "转到第 1 页：001.jpg",
+    ])
+    expect(view.container.querySelector('[data-testid="neoview-thumbnail-viewport"]')?.getAttribute("data-reader-direction")).toBe("right-to-left")
+    expect(view.container.querySelector('[aria-label="阅读进度"]')?.getAttribute("dir")).toBe("rtl")
+    fireEvent.click(last)
+    expect(onSelect).toHaveBeenCalledWith(4)
   })
 
   it("[neoview.bindings.viewer-toggle-react] follows the shared page-info provider", async () => {

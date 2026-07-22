@@ -253,6 +253,34 @@ export interface NodePreset<TValues extends Record<string, unknown> = Record<str
   values: TValues
 }
 
+export interface NodeConfigVersion {
+  revision: string
+  nodeId: string
+  source: string
+  message: string
+  createdAt: string
+  fields: string[]
+}
+
+export interface NodeConfigVersionDetail extends NodeConfigVersion {
+  before: unknown
+  after: unknown
+  delta?: unknown
+  patch: string
+}
+
+export interface NodeConfigHistoryRepositoryStatus {
+  path: string
+  branch: string
+  remoteUrl: string | null
+}
+
+export interface NodeConfigExport {
+  content: string
+  filename: string
+  mimeType: string
+}
+
 export interface NodeConfigCapability<TConfig = unknown> {
   get: () => Promise<{ config: TConfig | undefined; path: string }>
   save: (config: TConfig) => Promise<void>
@@ -260,6 +288,15 @@ export interface NodeConfigCapability<TConfig = unknown> {
   createPreset?: <TValues extends Record<string, unknown> = Record<string, unknown>>(input: { name: string; values: TValues }) => Promise<{ preset: NodePreset<TValues> }>
   updatePreset?: <TValues extends Record<string, unknown> = Record<string, unknown>>(presetId: string, input: { name?: string; values?: TValues }) => Promise<{ preset: NodePreset<TValues> }>
   deletePreset?: (presetId: string) => Promise<{ deleted: boolean }>
+  getVersions?: (options?: { limit?: number }) => Promise<{ versions: NodeConfigVersion[] }>
+  inspectVersion?: (revision: string) => Promise<NodeConfigVersionDetail>
+  restoreVersion?: (revision: string) => Promise<{ config: TConfig; path: string }>
+  exportConfig?: (format?: "json" | "toml") => Promise<NodeConfigExport>
+  importConfig?: (content: string, format?: "auto" | "json" | "toml") => Promise<{ config: TConfig; path: string }>
+  createBackup?: (label?: string) => Promise<{ version: NodeConfigVersion }>
+  getHistoryRepository?: () => Promise<NodeConfigHistoryRepositoryStatus>
+  setHistoryRemote?: (url: string | null) => Promise<NodeConfigHistoryRepositoryStatus>
+  syncHistory?: (direction: "pull" | "push") => Promise<NodeConfigHistoryRepositoryStatus>
   getUi?: <TUiConfig = unknown>() => Promise<{ config: TUiConfig | undefined; path: string }>
   saveUi?: <TUiConfig = unknown>(config: TUiConfig) => Promise<void>
   openFile?: () => Promise<void> | void

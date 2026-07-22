@@ -4,6 +4,12 @@ import { nodeCliName } from "@xiranite/cli-runtime"
 
 export const GENERATED_NODE_CLI_REGISTRY = [
   {
+    id: "arcthumb",
+    packageName: "@xiranite/node-arcthumb",
+    bin: nodeCliName("arcthumb"),
+    description: "Generate native cover thumbnails from comic archives and ebooks.",
+  },
+  {
     id: "audiov",
     packageName: "@xiranite/node-audiov",
     bin: nodeCliName("audiov"),
@@ -152,6 +158,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     packageName: "@xiranite/node-marku",
     bin: nodeCliName("marku"),
     description: "Run Markdown cleanup and conversion modules with preview diff.",
+  },
+  {
+    id: "melodeck",
+    packageName: "@xiranite/node-melodeck",
+    bin: nodeCliName("melodeck"),
+    description: "Local music playback deck backed by mpv JSON IPC.",
   },
   {
     id: "migratef",

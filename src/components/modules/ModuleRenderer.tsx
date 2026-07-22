@@ -32,7 +32,6 @@ const modules: Record<string, ReturnType<typeof lazy>> = {
   kanban:       lazy(() => import("./KanbanModule")),
   database:     lazy(() => import("./DatabaseModule")),
   blocknote:    lazy(() => import("./BlockNoteModule")),
-  "music-player": lazy(() => import("./MusicPlayerModule")),
   "settings":          lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.SettingsModule }))),
   "module-registry":   lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.ModuleRegistryModule }))),
   "node-history":      lazy(() => import("./OverlayViewModules").then((m) => ({ default: m.NodeHistoryModule }))),
@@ -48,12 +47,13 @@ export interface ModuleProps {
 export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId: string }) {
   "use memo"
   const { t } = useTranslation()
+  const resolvedModuleId = moduleId === "music-player" ? "melodeck" : moduleId
 
-  if (packageNodeLoaders[moduleId]) {
-    return <PackageNodeRenderer moduleId={moduleId} compId={compId} />
+  if (packageNodeLoaders[resolvedModuleId]) {
+    return <PackageNodeRenderer moduleId={resolvedModuleId} compId={compId} />
   }
 
-  const Comp = modules[moduleId] as ComponentType<ModuleProps> | undefined
+  const Comp = modules[resolvedModuleId] as ComponentType<ModuleProps> | undefined
   if (!Comp) {
     return (
       <div className="flex items-center justify-center h-full text-xs font-mono text-muted-foreground">

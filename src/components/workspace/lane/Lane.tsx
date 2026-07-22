@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Pencil, Ellipsis, EyeOff, Trash2 } from "lucide-react"
+import { Pencil, Ellipsis, Eraser, EyeOff, RotateCcw, Trash2 } from "lucide-react"
 import type { Lane as LaneType } from "@/types/workspace"
 import { useWorkspaceActions } from "@/store/workspaceStore"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
@@ -20,6 +20,7 @@ import { translateLabel } from "@/lib/i18nLabel"
 import { LaneCard } from "./LaneCard"
 import { LaneResizer } from "./LaneResizer"
 import { LaneCollapseIcon } from "./LaneCollapseIcon"
+import { SwimlaneCollapseDragButton } from "@/components/workspace/swimlane/SwimlaneCollapseDragButton"
 import { KanbanColumn, KanbanColumnHandle } from "@/components/ui/kanban"
 import { cn } from "@/lib/utils"
 
@@ -35,9 +36,20 @@ const formatRatioInput = (ratio: number) => Number(ratio.toFixed(2)).toString()
 interface Props {
   lane: LaneType
   components: { id: string; moduleId: string }[]
+  active?: boolean
+  solo?: boolean
+  soloWidth?: number
+  onActivate?(): void
+  onHoverFocus?(): void
+  onHoverFocusCancel?(): void
+  onTitleHostChange?(node: HTMLElement | null): void
+  hideTitleForNavigator?: boolean
+  onWidthRatioChange?(ratio: number): void
+  onClear?(): void
+  onResetNavigatorPosition?(): void
 }
 
-export function Lane({ lane, components }: Props) {
+export function Lane({ lane, components, active = false, solo = false, soloWidth, onActivate, onHoverFocus, onHoverFocusCancel, onTitleHostChange, hideTitleForNavigator = false, onWidthRatioChange, onClear, onResetNavigatorPosition }: Props) {
   const { t } = useTranslation()
   const workspaceActions = useWorkspaceActions()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -49,7 +61,7 @@ export function Lane({ lane, components }: Props) {
     workspaceActions.deployComponent(moduleId, { viewMode: "lane", laneId: lane.id })
   }, [lane.id, workspaceActions])
   const { isModuleOver, moduleDropHandlers } = useModuleDropTarget(handleDropModule)
-  const laneWidth = Math.max(MIN_EXPANDED_LANE_WIDTH, Math.round(lane.widthRatio * LANE_WIDTH_UNIT))
+  const laneWidth = solo ? Math.max(1, soloWidth ?? 960) : Math.max(MIN_EXPANDED_LANE_WIDTH, Math.round(lane.widthRatio * LANE_WIDTH_UNIT))
   const columnStyle = lane.collapsed
     ? { flex: "0 0 3rem" }
     : { flex: `0 0 ${laneWidth}px`, width: laneWidth }
@@ -67,7 +79,7 @@ export function Lane({ lane, components }: Props) {
 
   function commitRatioInput() {
     const val = parseFloat(ratioInput)
-    if (!isNaN(val) && val > 0) workspaceActions.setLaneWidthRatio(lane.id, val)
+    if (!isNaN(val) && val > 0) (onWidthRatioChange ?? ((ratio) => workspaceActions.setLaneWidthRatio(lane.id, ratio)))(val)
     setRatioInput(formatRatioInput(lane.widthRatio))
   }
 
@@ -79,22 +91,18 @@ export function Lane({ lane, components }: Props) {
         data-lane-id={lane.id}
         style={columnStyle}
         className="xiranite-ui-copy h-full w-auto min-w-12 flex-shrink-0 items-center gap-2 rounded-none border-0 border-r border-border/40 bg-muted/20 px-1 py-3 hover:bg-muted/40"
+        data-swimlane-active={active}
+        onPointerEnter={onHoverFocus}
+        onPointerLeave={onHoverFocusCancel}
+        onPointerDownCapture={() => { if (!active) onActivate?.() }}
       >
-        <button
-          onClick={() => workspaceActions.toggleLaneCollapse(lane.id)}
-          className="text-muted-foreground hover:text-foreground"
-          title={t("common:expand")}
-        >
-          <LaneCollapseIcon collapsed />
-        </button>
         <KanbanColumnHandle
-          disabled={renaming}
+          asChild
           data-lane-drag-handle="true"
-          className="text-[10px] font-mono tracking-widest text-muted-foreground"
-          style={{ writingMode: "vertical-rl" }}
         >
-          {translateLabel(lane.label, t)}
+          <SwimlaneCollapseDragButton collapsed laneLabel={translateLabel(lane.label, t)} onClick={() => workspaceActions.toggleLaneCollapse(lane.id)} />
         </KanbanColumnHandle>
+        <span className="text-[10px] font-mono tracking-widest text-muted-foreground" style={{ writingMode: "vertical-rl" }}>{translateLabel(lane.label, t)}</span>
       </KanbanColumn>
     )
   }
@@ -107,35 +115,42 @@ export function Lane({ lane, components }: Props) {
       data-lane-id={lane.id}
       style={columnStyle}
       className="xiranite-ui-copy relative h-full w-auto min-w-60 gap-0 rounded-none border-0 border-r border-border/40 bg-card/40 p-0"
+      data-swimlane-active={active}
+      data-swimlane-solo={solo}
+      onPointerEnter={onHoverFocus}
+      onPointerLeave={onHoverFocusCancel}
+      onPointerDownCapture={(event) => {
+        if (active) return
+        event.preventDefault()
+        event.stopPropagation()
+        onActivate?.()
+      }}
     >
       {/* 标题栏 */}
       <div className="flex items-center gap-1.5 h-8 px-2 border-b border-border/40 bg-muted/30 flex-shrink-0">
-        <button
-          onClick={() => workspaceActions.toggleLaneCollapse(lane.id)}
-          className="text-muted-foreground hover:text-foreground"
-          title={t("common:collapse")}
-        >
-          <LaneCollapseIcon collapsed={false} />
-        </button>
+        <KanbanColumnHandle asChild disabled={renaming} data-lane-drag-handle="true">
+          <SwimlaneCollapseDragButton collapsed={false} laneLabel={translateLabel(lane.label, t)} onClick={() => workspaceActions.toggleLaneCollapse(lane.id)} />
+        </KanbanColumnHandle>
 
-        {renaming ? (
+        <span ref={onTitleHostChange} className="flex min-w-0 flex-1" data-swimlane-navigator-title-slot={lane.id}>
+        {hideTitleForNavigator ? null : renaming ? (
           <input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={commitRename}
             onKeyDown={(e) => { if (e.key === "Enter") commitRename() }}
-            className="flex-1 bg-background border border-border px-1 py-0 text-[11px] font-mono rounded-sm outline-none focus:border-primary"
+            className="min-w-0 flex-1 bg-background border border-border px-1 py-0 text-[11px] font-mono rounded-sm outline-none focus:border-primary"
           />
         ) : (
-          <KanbanColumnHandle
-            data-lane-drag-handle="true"
-            className="flex-1 truncate text-left text-[11px] font-mono font-semibold uppercase tracking-widest text-muted-foreground"
-            title={t("common:dragReorder")}
+          <span
+            className="min-w-0 flex-1 truncate text-left text-[11px] font-mono font-semibold uppercase tracking-widest text-muted-foreground"
+            title={translateLabel(lane.label, t)}
           >
             {translateLabel(lane.label, t)}
-          </KanbanColumnHandle>
+          </span>
         )}
+        </span>
 
         <button
           onClick={(e) => {
@@ -179,7 +194,7 @@ export function Lane({ lane, components }: Props) {
                 {RATIO_PRESETS.map(preset => (
                   <button
                     key={preset}
-                    onClick={(e) => { e.stopPropagation(); workspaceActions.setLaneWidthRatio(lane.id, preset) }}
+                    onClick={(e) => { e.stopPropagation(); (onWidthRatioChange ?? ((ratio) => workspaceActions.setLaneWidthRatio(lane.id, ratio)))(preset) }}
                     className={cn(
                       "py-1 rounded-sm border text-[10px] font-mono",
                       Math.abs(lane.widthRatio - preset) < 0.01
@@ -212,6 +227,22 @@ export function Lane({ lane, components }: Props) {
               className="flex items-center gap-2 px-2 py-1.5 w-full text-left hover:bg-muted/60 rounded-sm border-t border-border/60"
             >
               <EyeOff className="h-3.5 w-3.5" /> {t("common:hide")}
+            </button>
+            <button
+              type="button"
+              disabled={components.length === 0 || !onClear}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onClear?.() }}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-45"
+            >
+              <Eraser className="h-3.5 w-3.5" /> 清空当前泳道
+            </button>
+            <button
+              type="button"
+              disabled={!onResetNavigatorPosition}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onResetNavigatorPosition?.() }}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-muted/60 disabled:pointer-events-none disabled:opacity-45"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> 重置操作栏位置
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); workspaceActions.removeLane(lane.id) }}
@@ -248,7 +279,7 @@ export function Lane({ lane, components }: Props) {
         className="absolute inset-y-0 right-0 z-20 w-2 translate-x-1 bg-transparent hover:bg-primary/30"
         onResize={(deltaRatio) => {
           widthRatioRef.current += deltaRatio
-          workspaceActions.setLaneWidthRatio(lane.id, widthRatioRef.current)
+          ;(onWidthRatioChange ?? ((ratio) => workspaceActions.setLaneWidthRatio(lane.id, ratio)))(widthRatioRef.current)
         }}
       />
     </KanbanColumn>
