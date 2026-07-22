@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { DEFAULT_READER_LAYOUT, DEFAULT_READER_PRESENTATION, ReaderSlideshow } from "@xiranite/node-neoview/ui-core"
 
@@ -145,6 +145,29 @@ describe("ReaderViewToolbar", () => {
     expect(configChanged).toHaveBeenLastCalledWith({ size: 320 })
     expect(configChanged).toHaveBeenCalledTimes(2)
     slideshow.dispose()
+  })
+
+  it("[neoview.toolbar.zoom-percentage] resets on click and supports bounded long-press numeric entry", () => {
+    vi.useFakeTimers()
+    const changed = vi.fn()
+    const slideshow = createSlideshow()
+    render(<ReaderViewToolbar layout={DEFAULT_READER_LAYOUT} direction="left-to-right" presentation={{ ...DEFAULT_READER_PRESENTATION, manualScale: 1.3 }} onChange={changed} onLayoutChange={vi.fn()} onDirectionChange={vi.fn()} slideshow={slideshow} onSlideshowChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "展开缩放设置" }))
+    const percent = screen.getByRole("button", { name: "缩放百分比" })
+    fireEvent.click(percent)
+    expect(changed).toHaveBeenLastCalledWith({ ...DEFAULT_READER_PRESENTATION, manualScale: 1 })
+    fireEvent.pointerDown(percent)
+    act(() => vi.advanceTimersByTime(500))
+    const input = screen.getByRole("spinbutton", { name: "输入缩放百分比" })
+    fireEvent.change(input, { target: { value: "1200" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    expect(changed).toHaveBeenLastCalledWith({ ...DEFAULT_READER_PRESENTATION, manualScale: 10 })
+    fireEvent.pointerDown(screen.getByRole("button", { name: "缩放百分比" }))
+    act(() => vi.advanceTimersByTime(500))
+    fireEvent.keyDown(screen.getByRole("spinbutton", { name: "输入缩放百分比" }), { key: "Escape" })
+    expect(changed).toHaveBeenCalledTimes(2)
+    slideshow.dispose()
+    vi.useRealTimers()
   })
 })
 

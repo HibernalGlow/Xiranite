@@ -7,7 +7,7 @@
  * @source-hash sha256:c823ae6af0f8659ac7cccdaaa2eedfbbb8c8be5088b5148288bb57f3caf4acb5
  * @migration-status adapted
  */
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react"
 import {
   AlignHorizontalSpaceAround,
   AlignVerticalSpaceAround,
@@ -294,6 +294,7 @@ function HoverScrollPanel({ disabled, enabled, speed, onChange }: { disabled?: b
 
 function ZoomPanel({ disabled, layout, presentation, onChange, onLayoutChange }: { disabled?: boolean; layout: ReaderLayout; presentation: ReaderPresentation; onChange(value: ReaderPresentation): void; onLayoutChange(patch: Partial<ReaderLayout>): void }) {
   return <>
+    <ZoomPercentageControl disabled={disabled} value={presentation.manualScale * 100} onCommit={(percent) => onChange({ ...presentation, manualScale: percent / 100 })} />
     <CommittedRange
       label="手动缩放"
       valueLabel={`${Math.round(presentation.manualScale * 100)}%`}
@@ -326,6 +327,37 @@ function ZoomPanel({ disabled, layout, presentation, onChange, onLayoutChange }:
     <Button title="宽度对齐（双页宽度统一）" aria-label="双页宽度统一" aria-pressed={presentation.widePageStretch === "uniform-width"} type="button" size="icon-sm" variant={presentation.widePageStretch === "uniform-width" ? "default" : "ghost"} disabled={disabled} onClick={() => onChange({ ...presentation, widePageStretch: "uniform-width" })}><AlignHorizontalSpaceAround /></Button>
     <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => onChange({ ...DEFAULT_READER_PRESENTATION })}>重置视图</Button>
   </>
+}
+
+function ZoomPercentageControl({ disabled, value, onCommit }: { disabled?: boolean; value: number; onCommit(value: number): void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState("")
+  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const longPressRef = useRef(false)
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+  const start = () => {
+    longPressRef.current = false
+    timerRef.current = setTimeout(() => {
+      longPressRef.current = true
+      setDraft(String(Math.round(value)))
+      setEditing(true)
+    }, 500)
+  }
+  const finish = () => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = undefined
+  }
+  const commit = () => {
+    const parsed = Number(draft)
+    if (Number.isFinite(parsed)) onCommit(Math.max(10, Math.min(1000, Math.round(parsed))))
+    setEditing(false)
+  }
+  const keyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") { event.preventDefault(); commit() }
+    if (event.key === "Escape") { event.preventDefault(); setEditing(false) }
+  }
+  if (editing) return <input aria-label="输入缩放百分比" autoFocus type="number" min={10} max={1000} step={1} className="h-7 w-16 rounded border bg-background px-1 text-center text-xs tabular-nums" value={draft} disabled={disabled} onChange={(event) => setDraft(event.currentTarget.value)} onKeyDown={keyDown} onBlur={commit} />
+  return <Button type="button" size="sm" variant="outline" className="h-7 min-w-16 text-xs tabular-nums" aria-label="缩放百分比" title="短按重置为 100%；按住输入百分比" disabled={disabled} onPointerDown={start} onPointerUp={finish} onPointerCancel={finish} onClick={() => { if (longPressRef.current) { longPressRef.current = false; return }; onCommit(100) }}>{Math.round(value)}%</Button>
 }
 
 const AUTO_ROTATIONS: Array<{ value: ReaderAutoRotation; label: string; icon: "ban" | "left" | "right" }> = [
