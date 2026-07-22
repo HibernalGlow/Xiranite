@@ -336,7 +336,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     await context.onFolderView?.({ tabs: { pinned: pinnedTabConfig(nextTabs) } })
   }
 
-  const tabBar = (
+  const tabBar = tabs.length > 1 ? (
     <Suspense fallback={<div className="h-8 rounded-md border bg-muted/30" aria-hidden="true" />}>
       <FolderTabBar
         tabs={tabs}
@@ -357,7 +357,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
         onLayoutChange={(tabs) => { void context.onFolderView?.({ tabs }) }}
       />
     </Suspense>
-  )
+  ) : undefined
 
   return (
     <div
