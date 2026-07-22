@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { ReaderShellConfigDto } from "../../../adapters/reader-http-client"
-import { createBoardLanes, createBoardPatch } from "./BoardSwimlaneEditor"
+import { applyBoardDrop, createBoardLanes, createBoardPatch } from "./BoardSwimlaneEditor"
 
 describe("BoardSwimlaneEditor layout moves", () => {
   it("moves a panel from left to right without dropping its cards", () => {
@@ -46,6 +46,24 @@ describe("BoardSwimlaneEditor layout moves", () => {
       panelId: "playlist",
       visible: true,
     })
+  })
+
+  it("applies a cross-panel card move exactly once at drop", () => {
+    const lanes = createBoardLanes(shellConfig())
+    const moved = applyBoardDrop(lanes, "book-information", "slideshow-settings")
+
+    expect(lanes.right.find((panel) => panel.id === "info")?.cards.some((card) => card.id === "book-information")).toBe(true)
+    expect(moved.left.find((panel) => panel.id === "settings")?.cards.some((card) => card.id === "book-information")).toBe(true)
+    expect(applyBoardDrop(moved, "book-information", "book-information")).toBe(moved)
+  })
+
+  it("applies a cross-lane panel move exactly once at drop", () => {
+    const lanes = createBoardLanes(shellConfig())
+    const moved = applyBoardDrop(lanes, "settings", "info")
+
+    expect(moved.left.some((panel) => panel.id === "settings")).toBe(false)
+    expect(moved.right.some((panel) => panel.id === "settings")).toBe(true)
+    expect(applyBoardDrop(moved, "settings", "settings")).toBe(moved)
   })
 })
 
