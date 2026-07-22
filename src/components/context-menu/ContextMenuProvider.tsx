@@ -348,7 +348,7 @@ function MenuController({
         side="bottom"
         sideOffset={0}
         alignOffset={0}
-        className="z-[2000] min-w-48"
+        className="z-[2000] w-max min-w-[11.5rem] max-w-[15rem]"
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <MenuItems items={items} runItem={runItem} />
@@ -429,9 +429,20 @@ function MenuItems({
           return <DropdownMenuSeparator key={key} />
         }
         if (item.type === "label") {
-          return <DropdownMenuLabel key={key} inset={item.inset}>{item.label}</DropdownMenuLabel>
+          return (
+            <DropdownMenuLabel
+              key={key}
+              inset={item.inset}
+              title={item.label}
+              className="max-w-full truncate font-normal text-muted-foreground"
+            >
+              {item.label}
+            </DropdownMenuLabel>
+          )
         }
         // Icon-only toolbar row (Neo-style compact actions).
+        // Pack icons left — never stretch with justify-between, or a long footer
+        // label will blow the row into a sparse strip across the whole menu width.
         if (item.type === "icon-row") {
           const icons = (item.children ?? []).filter((child) => !child.hidden)
           if (icons.length === 0) return null
@@ -441,7 +452,7 @@ function MenuItems({
                 role="group"
                 aria-label={item.label}
                 data-context-menu-icon-row={item.id ?? "true"}
-                className="flex flex-row flex-wrap items-center justify-between gap-0.5 px-1 py-0.5"
+                className="flex w-full flex-row flex-wrap items-center justify-start gap-0.5 px-1 py-0.5"
               >
                 {icons.map((child, ci) => {
                   const childKey = child.id ?? `${key}-icon-${ci}`
@@ -450,7 +461,7 @@ function MenuItems({
                       key={childKey}
                       disabled={child.disabled}
                       variant={child.destructive ? "destructive" : "default"}
-                      className="size-8 shrink-0 justify-center gap-0 p-0"
+                      className="size-7 shrink-0 justify-center gap-0 p-0"
                       aria-label={child.label}
                       title={child.label}
                       data-testid={child.testId}
@@ -476,11 +487,11 @@ function MenuItems({
         if (item.type === "submenu" || (item.children && item.children.length > 0 && item.type !== "group")) {
           return (
             <DropdownMenuSub key={key}>
-              <DropdownMenuSubTrigger inset={item.inset}>
+              <DropdownMenuSubTrigger inset={item.inset} className="min-w-0 max-w-full">
                 {item.icon}
-                <span>{item.label}</span>
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
               </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="z-[2000] min-w-48">
+              <DropdownMenuSubContent className="z-[2000] w-max min-w-[10rem] max-w-[15rem]">
                 <MenuItems items={item.children ?? []} runItem={runItem} />
               </DropdownMenuSubContent>
             </DropdownMenuSub>
@@ -533,6 +544,7 @@ function MenuItems({
             disabled={item.disabled}
             variant={item.destructive ? "destructive" : "default"}
             data-testid={item.testId}
+            title={item.label}
             onSelect={(e) => {
               if (item.disabled) {
                 e.preventDefault()
@@ -548,7 +560,7 @@ function MenuItems({
             }}
           >
             {item.icon}
-            <span className="flex-1">{item.label}</span>
+            <span className="min-w-0 flex-1 truncate">{item.label}</span>
             {item.shortcut && <DropdownMenuShortcut>{item.shortcut}</DropdownMenuShortcut>}
           </DropdownMenuItem>
         )
