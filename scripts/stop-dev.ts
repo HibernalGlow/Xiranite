@@ -1,56 +1,56 @@
 import { frontendPortFromUrl, waitForPortFree } from "./dev-frontend-url"
-import { readDevSession, removeDevSession, requestDevSessionStop } from "./dev-session"
+import { readDevSessions, removeDevSession, requestDevSessionStop, type DevSession } from "./dev-session"
 
-const session = await readDevSession()
+const sessions = await readDevSessions()
 
-if (!session) {
-  console.log("[Xiranite 开发] 当前没有受管开发会话。")
+if (sessions.length === 0) {
+  console.log("[Xiranite dev] No managed development sessions are active.")
   process.exit(0)
 }
 
-const recordedPids = [...new Set([session.supervisorPid, ...session.childPids])]
-const frontendUrl = session.frontendUrl
-const frontendPort = frontendUrl ? frontendPortFromUrl(frontendUrl) : undefined
-const host = frontendUrl ? new URL(frontendUrl).hostname === "localhost" ? "127.0.0.1" : new URL(frontendUrl).hostname : "127.0.0.1"
+let failed = false
+for (const session of sessions) {
+  if (!(await stopSession(session))) failed = true
+}
 
-// TUI launcher sessions do not poll the soft-stop request; kill their tree now so
-// reboot/start cannot race a half-built `bun run dev` process.
-if (session.script.startsWith("dev-ui:")) {
-  console.log(`[Xiranite 开发] 正在终止 TUI 启动器（进程号 ${session.supervisorPid}）。`)
-  for (const pid of recordedPids) await terminateProcessTree(pid)
-} else {
-  await requestDevSessionStop()
-  console.log(`[Xiranite 开发] 已请求安全停止${session.script.includes("desktop") ? "桌面" : "浏览器"}开发宿主（进程号 ${session.supervisorPid}）。`)
+console.log(`[Xiranite dev] Stopped ${sessions.length} managed development session(s).`)
+process.exit(failed ? 1 : 0)
 
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    await Bun.sleep(100)
-    if (!(await anyRecordedProcessAlive(recordedPids))) break
-  }
+async function stopSession(session: DevSession): Promise<boolean> {
+  const recordedPids = [...new Set([session.supervisorPid, ...session.childPids])]
+  const frontendUrl = session.frontendUrl
 
-  if (await anyRecordedProcessAlive(recordedPids)) {
-    for (const pid of recordedPids) {
-      if (await isRecordedDevProcess(pid, session.startedAt)) await terminateProcessTree(pid)
-    }
-    for (let attempt = 0; attempt < 50; attempt += 1) {
+  if (session.script.startsWith("dev-ui:")) {
+    for (const pid of recordedPids) await terminateProcessTree(pid)
+  } else {
+    await requestDevSessionStop(session.supervisorPid)
+    for (let attempt = 0; attempt < 100; attempt += 1) {
       await Bun.sleep(100)
       if (!(await anyRecordedProcessAlive(recordedPids))) break
     }
+
+    if (await anyRecordedProcessAlive(recordedPids)) {
+      for (const pid of recordedPids) {
+        if (await isRecordedDevProcess(pid, session.startedAt)) await terminateProcessTree(pid)
+      }
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        await Bun.sleep(100)
+        if (!(await anyRecordedProcessAlive(recordedPids))) break
+      }
+    }
   }
-}
 
-if (frontendPort !== undefined) {
-  await freeFrontendPort(host, frontendPort)
-}
+  if (frontendUrl) {
+    const frontend = new URL(frontendUrl)
+    const host = frontend.hostname === "localhost" ? "127.0.0.1" : frontend.hostname
+    await freeFrontendPort(host, frontendPortFromUrl(frontendUrl))
+  }
 
-if (await anyRecordedProcessAlive(recordedPids)) {
-  await removeDevSession()
-  console.warn("[Xiranite 开发] 停止超时；已终止记录的 Xiranite 进程树，但未能确认所有 PID 退出。")
-  process.exit(1)
+  const alive = await anyRecordedProcessAlive(recordedPids)
+  await removeDevSession(session.supervisorPid)
+  if (alive) console.warn(`[Xiranite dev] Could not confirm session ${session.supervisorPid} exited.`)
+  return !alive
 }
-
-await removeDevSession()
-console.log("[Xiranite 开发] 受管开发会话已停止。")
-process.exit(0)
 
 async function freeFrontendPort(bindHost: string, port: number): Promise<void> {
   if (await waitForPortFree(bindHost, port, { attempts: 20, delayMs: 100 })) return
