@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Copy, EyeOff, Folder, History, MoreVertical, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Copy, EyeOff, Folder, History, MoreVertical, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Search, X } from "lucide-react"
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -17,12 +17,14 @@ export interface FolderTabBarItem {
   currentPath: string
   title: string
   pinned: boolean
+  kind?: "directory" | "search"
 }
 
 export interface RecentlyClosedFolderTabItem {
   id: string
   currentPath: string
   title: string
+  kind?: "directory" | "search"
 }
 
 export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, recentlyClosed, layout, onActivate, onCreate, onDuplicate, onClose, onTogglePinned, onCloseOthers, onCloseLeft, onCloseRight, onReopen, onLayoutChange }: {
@@ -153,8 +155,9 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
                 type="button"
                 role="tab"
                 aria-selected={active}
-                className="flex min-w-0 flex-1 items-center px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                title={tab.currentPath || tab.title}
+                data-folder-tab-kind={tab.kind ?? "directory"}
+                className="flex min-w-0 flex-1 items-center gap-1 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                title={tab.kind === "search" ? `${tab.title}\n${tab.currentPath}` : (tab.currentPath || tab.title)}
                 disabled={disabled}
                 onClick={() => onActivate(tab.id)}
                 onAuxClick={(event) => {
@@ -164,6 +167,9 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
                   }
                 }}
               >
+                {tab.kind === "search"
+                  ? <Search className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  : null}
                 <span className="truncate">{tab.title}</span>
               </button>
               {canClose ? (
@@ -239,12 +245,16 @@ function FolderTabActionsMenu({ tab, disabled, canDuplicate, canClose, canCloseO
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button type="button" className="ml-1 grid size-5 shrink-0 place-items-center rounded hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" aria-label={`标签操作 ${tab.title}`} title="标签操作" disabled={disabled}>
-          {tab.pinned ? <Pin className="size-3 text-primary" /> : <Folder className="size-3.5 text-amber-500" />}
+          {tab.pinned
+            ? <Pin className="size-3 text-primary" />
+            : tab.kind === "search"
+              ? <Search className="size-3.5 text-muted-foreground" />
+              : <Folder className="size-3.5 text-amber-500" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-44">
-        <DropdownMenuItem onSelect={() => onTogglePinned(tab.id)}>
-          {tab.pinned ? <PinOff /> : <Pin />}{tab.pinned ? "取消固定" : "固定标签"}
+        <DropdownMenuItem disabled={tab.kind === "search"} onSelect={() => onTogglePinned(tab.id)}>
+          {tab.pinned ? <PinOff /> : <Pin />}{tab.kind === "search" ? "搜索标签不可固定" : tab.pinned ? "取消固定" : "固定标签"}
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!canDuplicate} onSelect={() => onDuplicate(tab.id)}><Copy />复制标签</DropdownMenuItem>
         <DropdownMenuSeparator />
