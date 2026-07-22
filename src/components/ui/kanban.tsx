@@ -41,7 +41,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Slot as SlotPrimitive } from "radix-ui";
+import * as SlotPrimitive from "@radix-ui/react-slot"
 import * as React from "react";
 import * as ReactDOM from "react-dom";
 
