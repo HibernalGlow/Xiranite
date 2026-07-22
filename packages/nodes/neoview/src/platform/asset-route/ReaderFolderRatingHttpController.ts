@@ -13,7 +13,8 @@ export class ReaderFolderRatingHttpController {
     if (path === `${ROOT}/supplement` && request.method === "POST") {
       const body = await request.json().catch(() => undefined) as { path?: unknown } | undefined
       if (!body || typeof body.path !== "string") return json({ error: "path must be a string" }, 400)
-      return json(await this.runMutation(() => this.service.supplement(body.path)))
+      const folderPath = body.path
+      return json(await this.runMutation(() => this.service.supplement(folderPath)))
     }
     if (path === ROOT && request.method === "DELETE") {
       await this.runMutation(() => this.service.clear())
