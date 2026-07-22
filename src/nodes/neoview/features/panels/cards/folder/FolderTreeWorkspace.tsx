@@ -1,27 +1,10 @@
-import { PanelBottom, PanelLeft, PanelRight, PanelTop, type LucideIcon } from "lucide-react"
 import { useRef, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
 
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import type { ReaderFolderTreeLayout, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import FolderTreePanel from "./FolderTreePanel"
 
 const MIN_TREE_SIZE = 100
 const MAX_TREE_SIZE = 500
-
-const TREE_LAYOUT_OPTIONS: readonly { value: ReaderFolderTreeLayout; label: string; icon: LucideIcon }[] = [
-  { value: "left", label: "左侧", icon: PanelLeft },
-  { value: "right", label: "右侧", icon: PanelRight },
-  { value: "top", label: "顶部", icon: PanelTop },
-  { value: "bottom", label: "底部", icon: PanelBottom },
-]
 
 interface FolderTreeWorkspaceProps {
   client: ReaderHttpClient
@@ -48,13 +31,10 @@ export default function FolderTreeWorkspace({
   size,
   pinnedPaths,
   onNavigate,
-  onLayoutChange,
   onSizeChange,
   onPinnedPathsChange,
 }: FolderTreeWorkspaceProps) {
   const gestureRef = useRef<TreeResizeGesture | undefined>(undefined)
-  const current = TREE_LAYOUT_OPTIONS.find((option) => option.value === layout) ?? TREE_LAYOUT_OPTIONS[0]!
-  const CurrentIcon = current.icon
 
   return (
     <div
@@ -62,43 +42,6 @@ export default function FolderTreeWorkspace({
       style={{ order: layout === "left" || layout === "top" ? 0 : 1 }}
       data-neoview-folder-tree-pane="true"
     >
-      {/* Single compact control instead of a full-width 4-icon position strip. */}
-      <div className="absolute right-1 top-1 z-20">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="secondary"
-              className="size-6 border border-border/70 bg-background/95 shadow-sm"
-              aria-label={`文件树位置：${current.label}`}
-              title={`文件树位置：${current.label}`}
-              disabled={disabled}
-              data-folder-tree-layout-trigger="true"
-            >
-              <CurrentIcon className="size-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-36" data-folder-tree-layout-menu="true">
-            <DropdownMenuLabel>文件树位置</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={layout}
-              onValueChange={(value) => onLayoutChange(value as ReaderFolderTreeLayout)}
-            >
-              {TREE_LAYOUT_OPTIONS.map(({ value, label, icon: Icon }) => (
-                <DropdownMenuRadioItem
-                  key={value}
-                  value={value}
-                  aria-label={`文件树位于${label}`}
-                >
-                  <Icon className="size-4" />
-                  {label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
       <div className="h-full min-h-0">
         <FolderTreePanel
           client={client}

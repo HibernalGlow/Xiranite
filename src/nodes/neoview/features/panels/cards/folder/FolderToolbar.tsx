@@ -17,6 +17,10 @@ import {
   Lock,
   MoreHorizontal,
   MousePointerClick,
+  PanelBottom,
+  PanelLeft,
+  PanelRight,
+  PanelTop,
   RefreshCw,
   Rows3,
   Search,
@@ -61,6 +65,7 @@ import type {
   ReaderFolderEmptyAreaConfig,
   ReaderFolderPenetrationConfig,
   ReaderFolderTagDisplayConfig,
+  ReaderFolderTreeLayout,
   ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
 import {
@@ -118,6 +123,7 @@ export type FolderToolbarProps = {
   tagDisplay: ReaderFolderTagDisplayConfig
   penetration: ReaderFolderPenetrationConfig
   treeOpen: boolean
+  treeLayout: ReaderFolderTreeLayout
   canTree: boolean
   inlineTreeOpen: boolean
   multiSelectMode: boolean
@@ -160,6 +166,7 @@ export type FolderToolbarProps = {
   onTogglePenetration(enabled: boolean): void
   onUpdatePenetration(patch: Partial<ReaderFolderPenetrationConfig>): void
   onToggleTree(): void
+  onTreeLayoutChange(layout: ReaderFolderTreeLayout): void
   onToggleInlineTree(): void
   onToggleMultiSelect(): void
   onToggleDeleteMode?(): void
@@ -171,6 +178,24 @@ export type FolderToolbarProps = {
   onRefreshVisibleThumbnails(): void
   onRefreshSelectedThumbnails(): void
   onCancelThumbnailRefresh(): void
+}
+
+const TREE_LAYOUT_OPTIONS: readonly {
+  value: ReaderFolderTreeLayout
+  label: string
+  icon: LucideIcon
+}[] = [
+  { value: "left", label: "左侧", icon: PanelLeft },
+  { value: "right", label: "右侧", icon: PanelRight },
+  { value: "top", label: "顶部", icon: PanelTop },
+  { value: "bottom", label: "底部", icon: PanelBottom },
+]
+
+const TREE_LAYOUT_LABELS: Readonly<Record<ReaderFolderTreeLayout, string>> = {
+  left: "左侧",
+  right: "右侧",
+  top: "顶部",
+  bottom: "底部",
 }
 
 /**
@@ -205,6 +230,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     tagDisplay,
     penetration,
     treeOpen,
+    treeLayout,
     canTree,
     inlineTreeOpen,
     multiSelectMode,
@@ -247,6 +273,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     onTogglePenetration,
     onUpdatePenetration,
     onToggleTree,
+    onTreeLayoutChange,
     onToggleInlineTree,
     onToggleMultiSelect,
     onToggleDeleteMode = () => undefined,
@@ -538,6 +565,36 @@ export default function FolderToolbar(props: FolderToolbarProps) {
               <ListTree className="size-4" />
               内联树
             </DropdownMenuCheckboxItem>
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger disabled={!canTree}>
+                <FolderTree className="size-4" />
+                <span className="flex min-w-0 flex-1 flex-col text-left">
+                  <span>文件树位置</span>
+                  <span className="truncate text-[10px] font-normal text-muted-foreground">
+                    {TREE_LAYOUT_LABELS[treeLayout]}
+                  </span>
+                </span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-36" data-folder-toolbar-menu="tree-layout">
+                <DropdownMenuRadioGroup
+                  value={treeLayout}
+                  onValueChange={(value) => onTreeLayoutChange(value as ReaderFolderTreeLayout)}
+                >
+                  {TREE_LAYOUT_OPTIONS.map(({ value, label, icon: Icon }) => (
+                    <DropdownMenuRadioItem
+                      key={value}
+                      value={value}
+                      aria-label={`文件树位于${label}`}
+                      disabled={!canTree}
+                    >
+                      <Icon className="size-4" />
+                      {label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
 
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>

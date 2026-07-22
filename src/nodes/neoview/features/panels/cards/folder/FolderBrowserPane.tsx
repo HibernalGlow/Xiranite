@@ -2025,6 +2025,7 @@ export function FolderBrowserPane({
                   tagDisplay={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}
                   penetration={penetration}
                   treeOpen={treeOpen}
+                  treeLayout={treeLayout}
                   canTree={Boolean(client.treeDirectoryBrowser)}
                   inlineTreeOpen={inlineTreeOpen}
                   multiSelectMode={multiSelectMode}
@@ -2093,6 +2094,7 @@ export function FolderBrowserPane({
                     void updatePenetration(patch)
                   }}
                   onToggleTree={toggleTree}
+                  onTreeLayoutChange={switchTreeLayout}
                   onToggleInlineTree={toggleInlineTree}
                   onToggleMultiSelect={toggleMultiSelectMode}
                   onToggleDeleteMode={() => setDeleteMode((current) => !current)}
