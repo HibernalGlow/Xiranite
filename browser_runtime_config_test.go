@@ -23,6 +23,17 @@ func TestResolveXiraniteConfigPathPriority(t *testing.T) {
 	}
 }
 
+func TestResolveDevelopmentWebviewUserDataPath(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), xiraniteConfigFilename)
+	want := filepath.Join(filepath.Dir(configPath), "webview2-dev")
+	if got := resolveDevelopmentWebviewUserDataPath(configPath, true); got != want {
+		t.Fatalf("resolveDevelopmentWebviewUserDataPath() = %q, want %q", got, want)
+	}
+	if got := resolveDevelopmentWebviewUserDataPath(configPath, false); got != "" {
+		t.Fatalf("production WebView2 user data path = %q, want the Wails default", got)
+	}
+}
+
 func TestLoadBrowserRuntimeConfigDefaultsWhenSectionMissing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), xiraniteConfigFilename)
 	if err := os.WriteFile(path, []byte("[workspace]\ndefault = \"ws-default\"\n"), 0o644); err != nil {
