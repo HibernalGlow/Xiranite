@@ -2347,6 +2347,9 @@ export function parseNeoviewShellControlPatch(value: unknown): {
           readerFocusOnHover: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.readerFocusOnHover,
           readerFocusHoverDelayMs: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.readerFocusHoverDelayMs,
           showLaneNavigatorInReaderSolo: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.showLaneNavigatorInReaderSolo,
+          windowControlsPlacement: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.windowControlsPlacement,
+          windowControlsOwnerLaneId: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.windowControlsOwnerLaneId,
+          windowControlsExpanded: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.windowControlsExpanded,
           lanes: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.lanes,
         },
         {
@@ -2450,6 +2453,9 @@ export function parseNeoviewShellControlPatch(value: unknown): {
       "laneNavigatorPositionX",
       "laneNavigatorPositionY",
       "laneNavigatorDock",
+      "windowControlsPlacement",
+      "windowControlsOwnerLaneId",
+      "windowControlsExpanded",
       "lanes",
     ].includes(key))
     if (unknown.length) throw new Error(`reader shell control patch.workspace contains unsupported fields: ${unknown.join(", ")}.`)
@@ -2510,6 +2516,9 @@ export function parseNeoviewShellControlPatch(value: unknown): {
     if (workspace.laneNavigatorPositionX !== undefined) workspacePatch.laneNavigatorPositionX = boundedNumber(workspace.laneNavigatorPositionX, 0, 100, 92, "workspace.laneNavigatorPositionX")
     if (workspace.laneNavigatorPositionY !== undefined) workspacePatch.laneNavigatorPositionY = boundedNumber(workspace.laneNavigatorPositionY, 0, 100, 96, "workspace.laneNavigatorPositionY")
     if (workspace.laneNavigatorDock !== undefined) workspacePatch.laneNavigatorDock = optionalEnum(workspace.laneNavigatorDock, "workspace.laneNavigatorDock", Models.NEOVIEW_LANE_NAVIGATOR_DOCKS)
+    if (workspace.windowControlsPlacement !== undefined) workspacePatch.windowControlsPlacement = optionalEnum(workspace.windowControlsPlacement, "workspace.windowControlsPlacement", Models.NEOVIEW_WINDOW_CONTROLS_PLACEMENTS)
+    if (workspace.windowControlsOwnerLaneId !== undefined) workspacePatch.windowControlsOwnerLaneId = requireLayoutId(workspace.windowControlsOwnerLaneId, "workspace.windowControlsOwnerLaneId")
+    if (workspace.windowControlsExpanded !== undefined) workspacePatch.windowControlsExpanded = requiredBoolean(workspace.windowControlsExpanded, "workspace.windowControlsExpanded")
     if (workspace.lanes !== undefined) {
       const lanes = requireRecord(workspace.lanes, "reader shell control patch.workspace.lanes")
       const lanePatches: NonNullable<Models.NeoviewShellControlPatch["shellControl"]["workspace"]>["lanes"] = {}
@@ -2695,6 +2704,9 @@ function shellControlTomlPatch(
     if (workspace.laneNavigatorPositionX !== undefined) value.lane_navigator_position_x = workspace.laneNavigatorPositionX
     if (workspace.laneNavigatorPositionY !== undefined) value.lane_navigator_position_y = workspace.laneNavigatorPositionY
     if (workspace.laneNavigatorDock !== undefined) value.lane_navigator_dock = workspace.laneNavigatorDock
+    if (workspace.windowControlsPlacement !== undefined) value.window_controls_placement = workspace.windowControlsPlacement
+    if (workspace.windowControlsOwnerLaneId !== undefined) value.window_controls_owner_lane_id = workspace.windowControlsOwnerLaneId
+    if (workspace.windowControlsExpanded !== undefined) value.window_controls_expanded = workspace.windowControlsExpanded
     if (workspace.lanes !== undefined) {
       for (const [laneId, source] of Object.entries(workspace.lanes)) {
         if (!source) continue
@@ -3021,6 +3033,9 @@ function parseWorkspaceConfig(
     "bar_handle_style", "barHandleStyle", "bar_handle_position", "barHandlePosition", "lane_navigator_position_x", "laneNavigatorPositionX",
     "lane_navigator_position_y", "laneNavigatorPositionY",
     "lane_navigator_dock", "laneNavigatorDock",
+    "window_controls_placement", "windowControlsPlacement",
+    "window_controls_owner_lane_id", "windowControlsOwnerLaneId",
+    "window_controls_expanded", "windowControlsExpanded",
   ])
   for (const [key, value] of Object.entries(source ?? {})) {
     if (!reservedSwimlaneKeys.has(key) && value && typeof value === "object" && !Array.isArray(value) && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(key) && !laneIds.includes(key)) laneIds.push(key)
@@ -3116,6 +3131,17 @@ function parseWorkspaceConfig(
       laneNavigatorPositionY: boundedNumber(source?.lane_navigator_position_y ?? source?.laneNavigatorPositionY, 0, 100, defaults.laneNavigatorPositionY, "[nodes.neoview.panels.swimlane].lane_navigator_position_y"),
       laneNavigatorDock:
         optionalEnum(source?.lane_navigator_dock ?? source?.laneNavigatorDock, "[nodes.neoview.panels.swimlane].lane_navigator_dock", Models.NEOVIEW_LANE_NAVIGATOR_DOCKS) ?? defaults.laneNavigatorDock,
+      windowControlsPlacement:
+        optionalEnum(source?.window_controls_placement ?? source?.windowControlsPlacement, "[nodes.neoview.panels.swimlane].window_controls_placement", Models.NEOVIEW_WINDOW_CONTROLS_PLACEMENTS) ?? defaults.windowControlsPlacement,
+      windowControlsOwnerLaneId: (() => {
+        const owner = requireLayoutId(
+          source?.window_controls_owner_lane_id ?? source?.windowControlsOwnerLaneId ?? defaults.windowControlsOwnerLaneId,
+          "[nodes.neoview.panels.swimlane].window_controls_owner_lane_id",
+        )
+        return laneOrder.includes(owner) ? owner : laneOrder.at(-1) ?? defaults.windowControlsOwnerLaneId
+      })(),
+      windowControlsExpanded:
+        optionalBoolean(source?.window_controls_expanded ?? source?.windowControlsExpanded, "[nodes.neoview.panels.swimlane].window_controls_expanded") ?? defaults.windowControlsExpanded,
       lanes,
     },
   }

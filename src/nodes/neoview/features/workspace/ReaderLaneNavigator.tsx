@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { createPortal } from "react-dom"
-import { BookOpen, Columns3, PanelLeft, PanelRight, Pin, PinOff, Plus, Trash2 } from "lucide-react"
+import { BookOpen, Columns3, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Trash2 } from "lucide-react"
 
 import { SwimlaneBarMenuItem, SwimlaneNavigatorBar } from "@/components/workspace/swimlane/SwimlaneNavigatorBar"
 import { SwimlaneBarAppearanceMenu } from "@/components/workspace/swimlane/SwimlaneBarAppearanceMenu"
@@ -18,7 +18,8 @@ export function ReaderLaneNavigator({
   positionX = 92,
   positionY = 96,
   dock = "floating",
-  titleHost,
+  readerTitleHost,
+  windowTitleHost,
   boundsHost,
   onSelect,
   onAdd,
@@ -39,8 +40,9 @@ export function ReaderLaneNavigator({
   handlePosition?: ReaderBarHandlePosition
   positionX?: number
   positionY?: number
-  dock?: "floating" | "reader-title"
-  titleHost?: HTMLElement | null
+  dock?: "floating" | "reader-title" | "window-title"
+  readerTitleHost?: HTMLElement | null
+  windowTitleHost?: HTMLElement | null
   boundsHost?: HTMLElement | null
   onSelect(laneId: ReaderSwimlaneId): void
   onAdd(title: string): void
@@ -52,13 +54,19 @@ export function ReaderLaneNavigator({
   onHandlePositionChange(position: ReaderBarHandlePosition): void
   onShowInReaderSoloChange(enabled: boolean): void
   onPositionChange?(position: { x: number; y: number }): void
-  onDockChange?(dock: "floating" | "reader-title"): void
+  onDockChange?(dock: "floating" | "reader-title" | "window-title"): void
 }) {
   const formRef = useRef<HTMLFormElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [title, setTitle] = useState("")
   const activeIsCustom = activeLane !== "left" && activeLane !== "reader" && activeLane !== "right"
+  const effectiveDock = dock === "window-title" && !windowTitleHost ? "floating" : dock
+  // Floating controls retain their historic Reader-lane coordinate system.
+  // The independent window titlebar is an explicit third dock, never a
+  // transparent replacement for the Reader titlebar.
+  const titleHost = effectiveDock === "window-title" ? windowTitleHost : readerTitleHost
+  const titleDock = effectiveDock === "window-title" ? "window-title" : "reader-title"
 
   useEffect(() => {
     if (!addOpen) return
@@ -108,21 +116,21 @@ export function ReaderLaneNavigator({
       handleStyle={handleStyle}
       handlePosition={handlePosition}
       position={{ x: positionX, y: positionY }}
-      dock={dock === "reader-title" ? "top" : "floating"}
+      dock={effectiveDock === "floating" ? "floating" : "top"}
       allowedDocks={["top"]}
       titleHost={titleHost}
+      dockHost={titleDock === "window-title" ? windowTitleHost?.parentElement : undefined}
       boundsHost={boundsHost}
       className="max-w-[calc(100vw-1.5rem)]"
       onSelect={onSelect}
       onPositionChange={onPositionChange}
-      onDockChange={(next) => onDockChange?.(next === "top" ? "reader-title" : "floating")}
+      onDockChange={(next) => onDockChange?.(next === "top" ? titleDock : "floating")}
       menu={<>
         <SwimlaneBarMenuItem onSelect={() => setAddOpen(true)}><Plus className="size-3.5" />添加泳道</SwimlaneBarMenuItem>
         <SwimlaneFitMenuItems autoFit={autoFit} onFit={onFit} onAutoFitChange={onAutoFitChange} />
-        <SwimlaneBarMenuItem onSelect={() => onDockChange?.(dock === "reader-title" ? "floating" : "reader-title")}>
-          {dock === "reader-title" ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
-          {dock === "reader-title" ? "改为悬浮" : "固定到 Reader 标题栏"}
-        </SwimlaneBarMenuItem>
+        {dock !== "floating" ? <SwimlaneBarMenuItem onSelect={() => onDockChange?.("floating")}><PinOff className="size-3.5" />改为悬浮</SwimlaneBarMenuItem> : null}
+        {dock !== "reader-title" ? <SwimlaneBarMenuItem onSelect={() => onDockChange?.("reader-title")}><Pin className="size-3.5" />固定到 Reader 标题栏</SwimlaneBarMenuItem> : null}
+        {windowTitleHost && dock !== "window-title" ? <SwimlaneBarMenuItem onSelect={() => onDockChange?.("window-title")}><PanelTop className="size-3.5" />固定到窗口标题栏</SwimlaneBarMenuItem> : null}
         <ContextMenuCheckboxItem checked={showInReaderSolo} onCheckedChange={(checked) => onShowInReaderSoloChange(checked === true)}>Reader 独占时显示</ContextMenuCheckboxItem>
         <SwimlaneBarAppearanceMenu style={handleStyle} position={handlePosition} onStyleChange={onHandleStyleChange} onPositionChange={onHandlePositionChange} />
         {activeIsCustom ? <SwimlaneBarMenuItem destructive onSelect={() => onRemove(activeLane)}><Trash2 className="size-3.5" />删除当前泳道</SwimlaneBarMenuItem> : null}

@@ -486,8 +486,10 @@ export const NEOVIEW_BAR_HANDLE_STYLES = ["grip", "groove", "move", "grab", "edg
 export type NeoviewBarHandleStyle = (typeof NEOVIEW_BAR_HANDLE_STYLES)[number]
 export const NEOVIEW_BAR_HANDLE_POSITIONS = ["left", "right"] as const
 export type NeoviewBarHandlePosition = (typeof NEOVIEW_BAR_HANDLE_POSITIONS)[number]
-export const NEOVIEW_LANE_NAVIGATOR_DOCKS = ["floating", "reader-title"] as const
+export const NEOVIEW_LANE_NAVIGATOR_DOCKS = ["floating", "reader-title", "window-title"] as const
 export type NeoviewLaneNavigatorDock = (typeof NEOVIEW_LANE_NAVIGATOR_DOCKS)[number]
+export const NEOVIEW_WINDOW_CONTROLS_PLACEMENTS = ["lane", "titlebar"] as const
+export type NeoviewWindowControlsPlacement = (typeof NEOVIEW_WINDOW_CONTROLS_PLACEMENTS)[number]
 
 export interface NeoviewSwimlaneLaneConfig {
   width: number
@@ -529,6 +531,9 @@ export interface NeoviewSwimlaneConfig {
   laneNavigatorPositionX: number
   laneNavigatorPositionY: number
   laneNavigatorDock: NeoviewLaneNavigatorDock
+  windowControlsPlacement: NeoviewWindowControlsPlacement
+  windowControlsOwnerLaneId: NeoviewSwimlaneId
+  windowControlsExpanded: boolean
   lanes: Record<NeoviewSwimlaneId, NeoviewSwimlaneLaneConfig>
 }
 
@@ -651,6 +656,9 @@ export interface NeoviewShellControlPatch {
       laneNavigatorPositionX?: number
       laneNavigatorPositionY?: number
       laneNavigatorDock?: NeoviewLaneNavigatorDock
+      windowControlsPlacement?: NeoviewWindowControlsPlacement
+      windowControlsOwnerLaneId?: NeoviewSwimlaneId
+      windowControlsExpanded?: boolean
       lanes?: Partial<Record<NeoviewSwimlaneId, Partial<NeoviewSwimlaneLaneConfig>>>
     }
     material?: NeoviewShellMaterialPatch
@@ -964,6 +972,9 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
       laneNavigatorPositionX: 92,
       laneNavigatorPositionY: 96,
       laneNavigatorDock: "floating",
+      windowControlsPlacement: "lane",
+      windowControlsOwnerLaneId: "right",
+      windowControlsExpanded: false,
       lanes: {
         left: { width: 320, collapsed: false, activePanelId: "folder", panelBarMode: "pinned", panelBarDock: "left", panelBarPositionX: 8, panelBarPositionY: 50, panelBarConstrained: true },
         reader: { width: 960, collapsed: false },

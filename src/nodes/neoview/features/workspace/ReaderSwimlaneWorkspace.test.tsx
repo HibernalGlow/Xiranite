@@ -56,16 +56,20 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(document.querySelector<HTMLElement>('[data-reader-swimlane="right"]')?.style.width).toBe("300px")
   })
 
-  it("makes each titlebar draggable and gives compact window chrome to one rightmost lane", () => {
-    const onWorkspaceChange = vi.fn()
+  it("moves the single hover chrome through lane menus and the standalone titlebar", () => {
     const onTitlebarDoubleClick = vi.fn()
-    const shell = shellConfig("swimlane")
+    let shell = shellConfig("swimlane")
     shell.workspace!.swimlane.readerSolo = false
     const windowChrome = {
-      controls: <div data-testid="compact-window-controls"><button type="button">min</button><button type="button">max</button><button type="button">close</button></div>,
+      controls: <div data-testid="compact-window-controls"><button data-window-caption-button data-window-control-action="minimize" type="button">min</button><button data-window-caption-button data-window-control-action="maximize" type="button">max</button><button data-window-caption-button data-window-control-action="close" type="button">close</button></div>,
       onTitlebarDoubleClick,
     }
-    const view = render(
+    let view: ReturnType<typeof render>
+    const onWorkspaceChange = vi.fn((patch: ReaderWorkspacePatch) => {
+      shell = applyReaderWorkspacePatch(shell, patch)
+      view.rerender(workspace())
+    })
+    const workspace = () => (
       <ReaderSwimlaneWorkspace
         shell={shell}
         workspace={readerWorkspaceConfig(shell)}
@@ -74,37 +78,58 @@ describe("ReaderSwimlaneWorkspace", () => {
         right={<div>right</div>}
         windowChrome={windowChrome}
         onWorkspaceChange={onWorkspaceChange}
-      />,
+      />
     )
+    view = render(workspace())
 
     const headers = Array.from(document.querySelectorAll<HTMLElement>('[data-reader-swimlane-header]'))
     expect(headers).toHaveLength(3)
     expect(headers.every((header) => header.dataset.readerWindowDragRegion === "true" && header.className.includes("xiranite-app-region-drag"))).toBe(true)
     expect(document.querySelectorAll('[data-reader-window-controls-owner]')).toHaveLength(1)
     expect(document.querySelector('[data-reader-window-controls-owner="right"]')).toBeTruthy()
-    expect(screen.queryByTestId("compact-window-controls")).toBeNull()
+    const chrome = document.querySelector<HTMLElement>('[data-reader-swimlane-window-chrome="true"]')!
+    expect(chrome.dataset.readerWindowControlsExpanded).toBe("false")
+    expect(chrome.className).toContain("w-8")
 
     fireEvent.doubleClick(document.querySelector('[data-reader-swimlane-header="left"]')!)
     expect(onTitlebarDoubleClick).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByRole("button", { name: "展开窗口控件" }))
-    expect(screen.getByTestId("compact-window-controls").querySelectorAll("button")).toHaveLength(3)
-    expect(document.querySelector('[data-reader-swimlane-window-chrome="true"]')?.getAttribute("data-reader-window-controls-expanded")).toBe("true")
+    fireEvent.pointerEnter(chrome)
+    expect(chrome.dataset.readerWindowControlsExpanded).toBe("true")
+    expect(chrome.className).toContain("w-24")
+    fireEvent.pointerLeave(chrome)
+    expect(chrome.dataset.readerWindowControlsExpanded).toBe("false")
 
-    shell.workspace!.swimlane.laneOrder = ["right", "reader", "left"]
-    view.rerender(
-      <ReaderSwimlaneWorkspace
-        shell={shell}
-        workspace={readerWorkspaceConfig(shell)}
-        reader={<div>reader</div>}
-        left={<div>left</div>}
-        right={<div>right</div>}
-        windowChrome={windowChrome}
-        onWorkspaceChange={onWorkspaceChange}
-      />,
-    )
+    fireEvent.pointerDown(screen.getByRole("button", { name: "左侧面板更多设置" }), { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "窗口控件归属此泳道" }))
+    expect(shell.workspace!.swimlane).toMatchObject({ windowControlsPlacement: "lane", windowControlsOwnerLaneId: "left" })
     expect(document.querySelectorAll('[data-reader-window-controls-owner]')).toHaveLength(1)
     expect(document.querySelector('[data-reader-window-controls-owner="left"]')).toBeTruthy()
-    expect(screen.getByTestId("compact-window-controls")).toBeTruthy()
+
+    onWorkspaceChange({ laneOrder: ["right", "reader", "left"] })
+    expect(document.querySelector('[data-reader-window-controls-owner="left"]')).toBeTruthy()
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "左侧面板更多设置" }), { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "使用顶部窗口标题栏" }))
+    expect(shell.workspace!.swimlane.windowControlsPlacement).toBe("titlebar")
+    const windowTitlebar = document.querySelector<HTMLElement>('[data-reader-window-titlebar="true"]')!
+    expect(windowTitlebar.className).toContain("xiranite-app-region-drag")
+    expect(document.querySelector('[data-reader-window-titlebar-control-slot="true"]')?.className).not.toContain("xiranite-app-region-no-drag")
+    expect(document.querySelectorAll('[data-reader-window-controls-owner]')).toHaveLength(0)
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "右侧面板更多设置" }), { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole("menuitem", { name: "展开窗口按钮" }))
+    expect(shell.workspace!.swimlane.windowControlsExpanded).toBe(true)
+    expect(document.querySelector('[data-reader-window-titlebar="true"] [data-reader-window-controls-pinned="true"]')).toBeTruthy()
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "拖动或设置泳道切换栏" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "固定到窗口标题栏" }))
+    expect(shell.workspace!.swimlane.laneNavigatorDock).toBe("window-title")
+    expect(document.querySelector('[data-reader-window-titlebar-control-slot="true"] [data-reader-lane-navigator="true"]')).toBeTruthy()
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "拖动或设置泳道切换栏" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "固定到 Reader 标题栏" }))
+    expect(shell.workspace!.swimlane.laneNavigatorDock).toBe("reader-title")
+    expect(document.querySelector('[data-reader-lane-navigator-title-slot="true"] [data-reader-lane-navigator="true"]')).toBeTruthy()
   })
 
   it("lets File Card contextmenu bubble to window while still activating the side lane", () => {
@@ -129,7 +154,7 @@ describe("ReaderSwimlaneWorkspace", () => {
 
       fireEvent.contextMenu(screen.getByRole("button", { name: "Folder entry" }))
       expect(windowContextMenu).toHaveBeenCalledTimes(1)
-      expect(onWorkspaceChange).toHaveBeenCalledWith({ activeLane: "left", readerSolo: false })
+      expect(onWorkspaceChange).toHaveBeenCalledWith({ activeLane: "left" })
     } finally {
       window.removeEventListener("contextmenu", windowContextMenu)
     }
@@ -514,8 +539,9 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(onWorkspaceChange).toHaveBeenLastCalledWith({ laneNavigatorDock: "floating", laneNavigatorPositionX: 92, laneNavigatorPositionY: 96 })
   })
 
-  it("exits Reader fullscreen when a side lane receives focus and restores it only on Reader focus", () => {
+  it("keeps Reader fullscreen while a revealed side lane receives focus", () => {
     let shell = shellConfig("swimlane", "reader")
+    shell.workspace!.swimlane.soloLaneId = "reader"
     let view: ReturnType<typeof render>
     const onWorkspaceChange = vi.fn((patch: ReaderWorkspacePatch) => {
       shell = applyReaderWorkspacePatch(shell, patch)
@@ -538,11 +564,15 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(readerLane().style.width).toBe(`${window.innerWidth}px`)
     expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
 
+    const trigger = document.querySelector<HTMLElement>('[data-reader-swimlane-trigger="right"]')!
+    fireEvent.pointerEnter(trigger)
+    act(() => vi.advanceTimersByTime(180))
+    expect(document.querySelector('[data-reader-swimlane-preview="right"]')).toBeTruthy()
+
     fireEvent.pointerDown(screen.getByRole("button", { name: "Right state action" }), { pointerId: 31, button: 0 })
-    expect(shell.workspace!.swimlane).toMatchObject({ activeLane: "right", readerSolo: false, readerSoloOnFocus: true })
-    expect(shell.workspace!.swimlane.soloLaneId).toBeUndefined()
-    expect(readerLane().style.width).toBe(`${window.innerWidth * 0.5}px`)
-    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+    expect(shell.workspace!.swimlane).toMatchObject({ activeLane: "right", readerSolo: true, readerSoloOnFocus: true, soloLaneId: "reader" })
+    expect(readerLane().style.width).toBe(`${window.innerWidth}px`)
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
     expect(rightLane().style.width).toBe("300px")
 
     fireEvent.click(screen.getByRole("button", { name: "Reader state action" }))
@@ -553,7 +583,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(shell.workspace!.swimlane).toMatchObject({ readerSolo: true, readerSoloOnFocus: false })
     expect(readerLane().style.width).toBe(`${window.innerWidth}px`)
 
-    onWorkspaceChange({ readerSolo: false })
+    onWorkspaceChange({ readerSolo: false, soloLaneId: null })
     expect(readerLane().style.width).toBe(`${window.innerWidth * 0.5}px`)
     expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
     onWorkspaceChange({ activeLane: "right" })

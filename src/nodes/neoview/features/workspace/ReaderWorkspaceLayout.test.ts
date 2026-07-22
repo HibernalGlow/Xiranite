@@ -19,6 +19,9 @@ describe("ReaderWorkspaceLayout", () => {
         edgeRevealDelayMs: 180,
         readerFocusOnHover: true,
         readerFocusHoverDelayMs: 650,
+        windowControlsPlacement: "lane",
+        windowControlsOwnerLaneId: "right",
+        windowControlsExpanded: false,
         lanes: {
           left: { width: 444, activePanelId: "folder" },
           reader: { width: 960 },
@@ -39,6 +42,10 @@ describe("ReaderWorkspaceLayout", () => {
       readerFocusOnHover: false,
       readerFocusHoverDelayMs: 900,
       laneOrder: ["right", "reader", "left"],
+      laneNavigatorDock: "window-title",
+      windowControlsPlacement: "titlebar",
+      windowControlsOwnerLaneId: "left",
+      windowControlsExpanded: true,
       lanes: { right: { width: 720, activePanelId: "properties" } },
     })
 
@@ -54,6 +61,10 @@ describe("ReaderWorkspaceLayout", () => {
         readerFocusOnHover: false,
         readerFocusHoverDelayMs: 900,
         laneOrder: ["right", "reader", "left"],
+        laneNavigatorDock: "window-title",
+        windowControlsPlacement: "titlebar",
+        windowControlsOwnerLaneId: "left",
+        windowControlsExpanded: true,
         lanes: { right: { width: 720, activePanelId: "properties" } },
       },
     })

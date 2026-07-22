@@ -23,6 +23,7 @@ const DEFAULT_READER_FOCUS_HOVER_DELAY_MS = 650
 const DEFAULT_SHOW_LANE_NAVIGATOR_IN_READER_SOLO = false
 const DEFAULT_BAR_HANDLE_STYLE = "grip" as const
 const DEFAULT_BAR_HANDLE_POSITION = "left" as const
+const DEFAULT_WINDOW_CONTROLS_OWNER_LANE_ID = "right" as const
 export const DEFAULT_LANE_NAVIGATOR_POSITION = { x: 92, y: 96 } as const
 const DEFAULT_EDGE_REVEAL_ZONES = {
   left: { x: 0, y: 10, width: 1, height: 80 },
@@ -54,7 +55,10 @@ export function readerWorkspaceConfig(shell: ReaderShellConfigDto): ReaderWorksp
         barHandlePosition: normalizeBarHandlePosition(workspace.swimlane.barHandlePosition),
         laneNavigatorPositionX: clampPercent(workspace.swimlane.laneNavigatorPositionX, DEFAULT_LANE_NAVIGATOR_POSITION.x),
         laneNavigatorPositionY: clampPercent(workspace.swimlane.laneNavigatorPositionY, DEFAULT_LANE_NAVIGATOR_POSITION.y),
-        laneNavigatorDock: workspace.swimlane.laneNavigatorDock === "reader-title" ? "reader-title" : "floating",
+        laneNavigatorDock: normalizeLaneNavigatorDock(workspace.swimlane.laneNavigatorDock),
+        windowControlsPlacement: workspace.swimlane.windowControlsPlacement === "titlebar" ? "titlebar" : "lane",
+        windowControlsOwnerLaneId: normalizeWindowControlsOwnerLaneId(workspace.swimlane.windowControlsOwnerLaneId, laneOrder),
+        windowControlsExpanded: workspace.swimlane.windowControlsExpanded === true,
         lanes: Object.fromEntries(laneOrder.map((laneId) => [
           laneId,
           normalizeLane(
@@ -86,6 +90,9 @@ export function readerWorkspaceConfig(shell: ReaderShellConfigDto): ReaderWorksp
       laneNavigatorPositionX: DEFAULT_LANE_NAVIGATOR_POSITION.x,
       laneNavigatorPositionY: DEFAULT_LANE_NAVIGATOR_POSITION.y,
       laneNavigatorDock: "floating",
+      windowControlsPlacement: "lane",
+      windowControlsOwnerLaneId: DEFAULT_WINDOW_CONTROLS_OWNER_LANE_ID,
+      windowControlsExpanded: false,
       lanes: {
         left: { width: shell.sidebars.left.width, collapsed: false, activePanelId: "folder", ...defaultPanelBar("left") },
         reader: { width: 960, collapsed: false },
@@ -98,11 +105,12 @@ export function readerWorkspaceConfig(shell: ReaderShellConfigDto): ReaderWorksp
 export function applyReaderWorkspacePatch(shell: ReaderShellConfigDto, patch: ReaderWorkspacePatch): ReaderShellConfigDto {
   const current = readerWorkspaceConfig(shell)
   const soloLaneId = patch.soloLaneId === null ? undefined : patch.soloLaneId ?? current.swimlane.soloLaneId
+  const laneOrder = patch.laneOrder ? normalizeLaneOrder(patch.laneOrder) : current.swimlane.laneOrder
   const next: ReaderWorkspaceConfig = {
     mode: patch.mode ?? current.mode,
     swimlane: {
-      laneOrder: patch.laneOrder ? normalizeLaneOrder(patch.laneOrder) : current.swimlane.laneOrder,
-      activeLane: patch.activeLane ? normalizeLaneId(patch.activeLane, patch.laneOrder ?? current.swimlane.laneOrder) : current.swimlane.activeLane,
+      laneOrder,
+      activeLane: patch.activeLane ? normalizeLaneId(patch.activeLane, laneOrder) : current.swimlane.activeLane,
       readerSolo: patch.readerSolo ?? current.swimlane.readerSolo,
       readerSoloOnFocus: patch.readerSoloOnFocus ?? current.swimlane.readerSoloOnFocus,
       ...(soloLaneId ? { soloLaneId } : {}),
@@ -125,11 +133,27 @@ export function applyReaderWorkspacePatch(shell: ReaderShellConfigDto, patch: Re
       barHandlePosition: patch.barHandlePosition === undefined ? current.swimlane.barHandlePosition : normalizeBarHandlePosition(patch.barHandlePosition),
       laneNavigatorPositionX: clampPercent(patch.laneNavigatorPositionX, current.swimlane.laneNavigatorPositionX),
       laneNavigatorPositionY: clampPercent(patch.laneNavigatorPositionY, current.swimlane.laneNavigatorPositionY),
-      laneNavigatorDock: patch.laneNavigatorDock === undefined ? current.swimlane.laneNavigatorDock : patch.laneNavigatorDock === "reader-title" ? "reader-title" : "floating",
+      laneNavigatorDock: patch.laneNavigatorDock === undefined ? current.swimlane.laneNavigatorDock : normalizeLaneNavigatorDock(patch.laneNavigatorDock),
+      windowControlsPlacement: patch.windowControlsPlacement === undefined ? current.swimlane.windowControlsPlacement : patch.windowControlsPlacement === "titlebar" ? "titlebar" : "lane",
+      windowControlsOwnerLaneId: normalizeWindowControlsOwnerLaneId(patch.windowControlsOwnerLaneId ?? current.swimlane.windowControlsOwnerLaneId, laneOrder),
+      windowControlsExpanded: patch.windowControlsExpanded ?? current.swimlane.windowControlsExpanded,
       lanes: mergeLanePatches(current.swimlane.lanes, patch.lanes),
     },
   }
   return { ...shell, workspace: next }
+}
+
+function normalizeLaneNavigatorDock(value: unknown): "floating" | "reader-title" | "window-title" {
+  if (value === "reader-title" || value === "window-title") return value
+  return "floating"
+}
+
+function normalizeWindowControlsOwnerLaneId(value: unknown, laneOrder: readonly ReaderSwimlaneId[]): ReaderSwimlaneId {
+  if (typeof value === "string" && laneOrder.includes(value)) return value
+  if (value !== undefined) return laneOrder.at(-1) ?? DEFAULT_WINDOW_CONTROLS_OWNER_LANE_ID
+  return laneOrder.includes(DEFAULT_WINDOW_CONTROLS_OWNER_LANE_ID)
+    ? DEFAULT_WINDOW_CONTROLS_OWNER_LANE_ID
+    : laneOrder.at(-1) ?? "reader"
 }
 
 export function reorderedReaderLanes(
