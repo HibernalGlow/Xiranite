@@ -7,10 +7,12 @@ vi.mock("./Lane", () => ({
 }))
 
 import { INITIAL_STATE } from "@/store/workspace/constants"
+import { useSwimlaneSessionStore } from "@/store/swimlaneSessionStore"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import { LaneView } from "./LaneView"
 
 beforeEach(() => {
+  useSwimlaneSessionStore.getState().clearSessions()
   useWorkspaceStore.setState({
     ...INITIAL_STATE,
     activeWorkspaceId: "lane-test",
@@ -27,6 +29,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  useSwimlaneSessionStore.getState().clearSessions()
   useWorkspaceStore.setState({ ...INITIAL_STATE })
 })
 
@@ -35,13 +38,13 @@ describe("LaneView shared swimlane framework", () => {
     render(<LaneView />)
 
     fireEvent.click(screen.getByRole("button", { name: "Beta (0)" }))
-    expect(useWorkspaceStore.getState().laneWorkspacePreferences["lane-test"]?.activeLaneId).toBe("lane-b")
+    expect(useSwimlaneSessionStore.getState().sessions["workspace:lane-test"]?.activeLaneId).toBe("lane-b")
 
     const handle = screen.getByRole("button", { name: "拖动或设置泳道切换栏" })
     fireEvent.contextMenu(handle)
     fireEvent.click(screen.getByRole("menuitem", { name: "当前泳道独占视口" }))
 
-    expect(useWorkspaceStore.getState().laneWorkspacePreferences["lane-test"]?.soloLaneId).toBe("lane-b")
+    expect(useSwimlaneSessionStore.getState().sessions["workspace:lane-test"]?.soloLaneId).toBe("lane-b")
     expect(document.querySelector('[data-lane-id="lane-b"]')?.getAttribute("data-swimlane-solo")).toBe("true")
   })
 
@@ -115,11 +118,37 @@ describe("LaneView shared swimlane framework", () => {
     render(<LaneView />)
 
     fireEvent.click(screen.getByRole("button", { name: "Beta (0)" }))
-    expect(useWorkspaceStore.getState().laneWorkspacePreferences["lane-test"]?.soloLaneId).toBe("lane-b")
+    expect(useSwimlaneSessionStore.getState().sessions["workspace:lane-test"]?.soloLaneId).toBe("lane-b")
     expect(screen.getByRole("navigation", { name: "泳道快速切换" })).toBeTruthy()
 
     useWorkspaceStore.getState().patchLaneWorkspacePreferences("lane-test", { showNavigatorInSolo: false })
     await waitFor(() => expect(screen.queryByRole("navigation", { name: "泳道快速切换" })).toBeNull())
+  })
+
+  it("restores independent focus and solo state when switching workspaces", async () => {
+    useWorkspaceStore.setState({
+      activeWorkspaceId: "workspace-a",
+      workspaces: [{ id: "workspace-a", label: "A" }, { id: "workspace-b", label: "B" }],
+      lanes: [
+        { id: "lane-a", workspaceId: "workspace-a", label: "Alpha", widthRatio: 1, collapsed: false, cardOrder: [] },
+        { id: "lane-b", workspaceId: "workspace-a", label: "Beta", widthRatio: 1, collapsed: false, cardOrder: [] },
+        { id: "lane-c", workspaceId: "workspace-b", label: "Gamma", widthRatio: 1, collapsed: false, cardOrder: [] },
+        { id: "lane-d", workspaceId: "workspace-b", label: "Delta", widthRatio: 1, collapsed: false, cardOrder: [] },
+      ],
+    })
+    render(<LaneView />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Beta (0)" }))
+    fireEvent.contextMenu(document.querySelector('[data-swimlane-bar-handle="true"]')!)
+    fireEvent.click(screen.getAllByRole("menuitem")[0]!)
+
+    useWorkspaceStore.setState({ activeWorkspaceId: "workspace-b" })
+    fireEvent.click(await screen.findByRole("button", { name: "Delta (0)" }))
+    expect(useSwimlaneSessionStore.getState().sessions["workspace:workspace-b"]?.activeLaneId).toBe("lane-d")
+
+    useWorkspaceStore.setState({ activeWorkspaceId: "workspace-a" })
+    await waitFor(() => expect(document.querySelector('[data-lane-id="lane-b"]')?.getAttribute("data-swimlane-active")).toBe("true"))
+    expect(document.querySelector('[data-lane-id="lane-b"]')?.getAttribute("data-swimlane-solo")).toBe("true")
   })
 
   it("repairs orphaned components into the first real lane instead of rendering an unmanageable column", async () => {

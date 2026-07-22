@@ -6,21 +6,26 @@ vi.mock("media-chrome/react", () => import("@/test/media-chrome-react-stub"))
 import { DEFAULT_READER_INPUT_BINDINGS, DEFAULT_READER_RADIAL_MENU_CONFIG } from "@xiranite/node-neoview/ui-core"
 
 import { ContextMenuProvider } from "@/components/context-menu"
+import { useSwimlaneSessionStore } from "@/store/swimlaneSessionStore"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderPreloadPlanDto, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
-beforeEach(() => vi.stubGlobal("IntersectionObserver", class {
-  readonly root = null
-  readonly rootMargin = "0px"
-  readonly thresholds = [0.01]
-  constructor(private readonly callback: IntersectionObserverCallback) {}
-  observe(target: Element) { this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this as unknown as IntersectionObserver) }
-  disconnect() {}
-  unobserve() {}
-  takeRecords() { return [] }
-}))
+beforeEach(() => {
+  useSwimlaneSessionStore.getState().clearSessions()
+  vi.stubGlobal("IntersectionObserver", class {
+    readonly root = null
+    readonly rootMargin = "0px"
+    readonly thresholds = [0.01]
+    constructor(private readonly callback: IntersectionObserverCallback) {}
+    observe(target: Element) { this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this as unknown as IntersectionObserver) }
+    disconnect() {}
+    unobserve() {}
+    takeRecords() { return [] }
+  })
+})
 afterEach(() => {
   cleanup()
+  useSwimlaneSessionStore.getState().clearSessions()
   vi.unstubAllGlobals()
 })
 
@@ -123,13 +128,11 @@ describe("ReaderApp", () => {
     expect(screen.getByRole("button", { name: "Reader 全屏" }).closest('[data-reader-breadcrumb-bar="true"]')).toBeTruthy()
 
     fireEvent.pointerDown(document.querySelector('[data-reader-swimlane="right"]')!, { pointerId: 41, button: 0 })
-    await waitFor(() => expect(updateShellControl).toHaveBeenLastCalledWith(expect.objectContaining({
-      shellControl: { workspace: { activeLane: "right" } },
-    })))
+    await waitFor(() => expect(useSwimlaneSessionStore.getState().sessions["neoview:standalone"]?.activeLaneId).toBe("right"))
+    expect(updateShellControl).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole("button", { name: "Reader 全屏" }))
-    await waitFor(() => expect(updateShellControl).toHaveBeenLastCalledWith(expect.objectContaining({
-      shellControl: { workspace: { activeLane: "reader", readerSolo: true } },
-    })))
+    await waitFor(() => expect(useSwimlaneSessionStore.getState().sessions["neoview:standalone"]).toMatchObject({ activeLaneId: "reader", soloLaneId: "reader" }))
+    expect(updateShellControl).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole("button", { name: "四边栏模式" }))
     await waitFor(() => expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).toBeNull())
@@ -140,7 +143,7 @@ describe("ReaderApp", () => {
     }))
   })
 
-  it("keeps later optimistic workspace changes visible while an earlier write is pending", async () => {
+  it("keeps session-only workspace changes visible while a config write is pending", async () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     let persistedShell = shellConfig()
     let finishFirstWrite!: (value: ReaderShellConfigDto) => void
@@ -192,10 +195,10 @@ describe("ReaderApp", () => {
     }
     await act(async () => finishFirstWrite(persistedShell))
 
-    await waitFor(() => expect(updateShellControl).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(updateShellControl).toHaveBeenCalledTimes(1))
     expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
-    await waitFor(() => expect(persistedShell.workspace!.swimlane.readerSolo).toBe(false))
-    expect(updateShellControl.mock.calls[1]![0].expectedRevision).toBe(1)
+    expect(persistedShell.workspace!.swimlane.readerSolo).toBe(true)
+    expect(useSwimlaneSessionStore.getState().sessions["neoview:standalone"]?.soloLaneId).toBeNull()
   })
 
   it("keeps global and sidebar controls out of the busy state while a page turn is pending", async () => {
