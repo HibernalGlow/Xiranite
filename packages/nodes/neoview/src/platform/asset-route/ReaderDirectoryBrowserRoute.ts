@@ -49,6 +49,7 @@ import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.
 import { z } from "zod"
 import { ReaderEmmTagSuggestionService } from "../../application/metadata/ReaderEmmTagSuggestionService.js"
 import type { ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
+import type { ReaderManualTagCatalogStore } from "../../ports/ReaderManualTagCatalogStore.js"
 import { emmTranslationKey } from "../../ports/ReaderEmmTagTranslation.js"
 import {
   ReaderDirectorySelectionStaleError,
@@ -61,6 +62,7 @@ import {
 
 const BROWSER_SEARCH_HISTORY_PATH = "/reader/browser/search-history"
 const BROWSER_EMM_TAG_SUGGESTIONS_PATH = "/reader/browser/emm-tags/suggestions"
+const BROWSER_MANUAL_TAG_SUMMARIES_PATH = "/reader/browser/emm-tags/manual"
 const BROWSER_ROOTS_PATH = "/reader/browser/roots"
 const BROWSER_ENTRIES_PATH = /^\/reader\/browser\/s\/([^/]+)\/entries$/
 const BROWSER_CHANGES_PATH = /^\/reader\/browser\/s\/([^/]+)\/changes$/
@@ -104,6 +106,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   readonly #searchHistory?: ReaderSearchHistoryService
   readonly #emmEditor?: ReaderDirectoryEmmEditService
   readonly #emmTagSuggestions?: ReaderEmmTagSuggestionService
+  readonly #manualTagCatalog?: ReaderManualTagCatalogStore
   readonly #emmTranslations: PlatformEmmTranslationSource
 
   constructor(
@@ -118,7 +121,9 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     emmOverrideStore?: ReaderEmmOverrideStore,
     collectTagSource = new PlatformEmmCollectTagSource(),
     emmTranslations = new PlatformEmmTranslationSource(),
+    manualTagCatalog?: ReaderManualTagCatalogStore,
   ) {
+    this.#manualTagCatalog = manualTagCatalog
     this.#emmTranslations = emmTranslations
     this.#searchHistory = searchHistory
     const listingProvider = new PlatformDirectoryListingProvider(mediaFormats)
@@ -149,6 +154,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
     if (url.pathname === BROWSER_EMM_TAG_SUGGESTIONS_PATH && request.method === "GET") return this.#suggestEmmTags(url, request.signal)
+    if (url.pathname === BROWSER_MANUAL_TAG_SUMMARIES_PATH && request.method === "GET") return this.#manualTags(url, request.signal)
     if (url.pathname === BROWSER_SEARCH_HISTORY_PATH) return this.#handleSearchHistory(request, url)
     if (url.pathname === BROWSER_ROOTS_PATH && request.method === "GET") return this.#roots(request.signal)
     if (url.pathname === "/reader/browser/sessions" && request.method === "POST") return this.#open(request)
@@ -421,6 +427,17 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
       if (error instanceof z.ZodError) return errorResponse("Reader directory EMM edit command is invalid", 400)
       const message = errorMessage(error)
       return errorResponse(message, message.includes("stale") ? 409 : 400)
+    }
+  }
+
+  async #manualTags(url: URL, signal: AbortSignal): Promise<Response> {
+    if (!this.#manualTagCatalog) return errorResponse("Reader manual tags are unavailable", 503)
+    try {
+      const limit = optionalInteger(url.searchParams.get("limit"), "limit", 1, 256) ?? 64
+      return Response.json({ tags: await this.#manualTagCatalog.listManualTagSummaries(limit, signal) }, responseInit())
+    } catch (error) {
+      if (signal.aborted) throw error
+      return errorResponse(errorMessage(error), 400)
     }
   }
 
