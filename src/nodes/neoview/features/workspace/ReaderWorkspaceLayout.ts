@@ -3,7 +3,7 @@ import type {
   ReaderShellControlPatch,
   ReaderSwimlaneId,
 } from "../../adapters/reader-http-client"
-import { reorderSwimlanes } from "@/components/workspace/swimlane/model"
+import { fitSwimlaneWidthsToViewport, reorderSwimlanes } from "@/components/workspace/swimlane/model"
 
 export type ReaderWorkspaceConfig = NonNullable<ReaderShellConfigDto["workspace"]>
 export type ReaderWorkspacePatch = NonNullable<ReaderShellControlPatch["shellControl"]["workspace"]>
@@ -11,6 +11,11 @@ export type ReaderWorkspacePatch = NonNullable<ReaderShellControlPatch["shellCon
 const LANE_ORDER: readonly ReaderSwimlaneId[] = ["left", "reader", "right"]
 export const MIN_READER_WIDTH_RATIO = 0.25
 export const MAX_READER_WIDTH_RATIO = 1
+/** Matches NeoView shell-control validation for non-reader swimlanes. */
+export const MIN_PANEL_SWIMLANE_WIDTH = 240
+export const MIN_READER_SWIMLANE_WIDTH = 120
+export const MAX_SWIMLANE_WIDTH = 8_192
+const COLLAPSED_SWIMLANE_WIDTH = 44
 const LEGACY_READER_REFERENCE_WIDTH = 1_920
 const DEFAULT_READER_WIDTH_RATIO = 0.5
 const DEFAULT_EDGE_REVEAL_DELAY_MS = 180
@@ -145,24 +150,40 @@ export function fitReaderSwimlanesToViewport(
   swimlane: ReaderWorkspaceConfig["swimlane"],
 ): ReaderWorkspacePatch {
   const width = Math.max(1, Math.round(viewportWidth))
-  const collapsed = swimlane.laneOrder.filter((laneId) => swimlane.lanes[laneId].collapsed)
-  const expanded = swimlane.laneOrder.filter((laneId) => !collapsed.includes(laneId))
-  const available = Math.max(expanded.length, width - collapsed.length * 44)
-  const lanes: NonNullable<ReaderWorkspacePatch["lanes"]> = {}
-  const weightedWidth = (laneId: ReaderSwimlaneId) => laneId === "reader"
-    ? readerLaneWidth(width, swimlane.readerWidthRatio)
-    : Math.max(1, swimlane.lanes[laneId].width)
-  const readerExpanded = expanded.includes("reader")
-  if (readerExpanded) {
-    const totalWeight = expanded.reduce((sum, laneId) => sum + weightedWidth(laneId), 0)
-    const readerMinimum = Math.min(available, Math.round(width * MIN_READER_WIDTH_RATIO))
-    const readerMaximum = Math.min(available, Math.round(width * MAX_READER_WIDTH_RATIO))
-    const readerWidth = clamp(Math.round(available * weightedWidth("reader") / totalWeight), readerMinimum, readerMaximum)
-    lanes.reader = { width: readerWidth }
-    distributeWidths(expanded.filter((laneId) => laneId !== "reader"), available - readerWidth, weightedWidth, lanes)
-  } else {
-    distributeWidths(expanded, available, weightedWidth, lanes)
-  }
+  const readerMinimum = Math.max(MIN_READER_SWIMLANE_WIDTH, Math.min(width, Math.round(width * MIN_READER_WIDTH_RATIO)))
+  const readerMaximum = Math.max(readerMinimum, Math.min(MAX_SWIMLANE_WIDTH, Math.round(width * MAX_READER_WIDTH_RATIO)))
+  // Prefer shared fit with the same min/max contract the shell-control parser enforces,
+  // so auto-fit never emits widths that fail `workspace.lanes.*.width` validation.
+  const fitted = fitSwimlaneWidthsToViewport(
+    width,
+    swimlane.laneOrder.map((laneId) => {
+      const lane = swimlane.lanes[laneId]
+      const preferred = laneId === "reader"
+        ? readerLaneWidth(width, swimlane.readerWidthRatio)
+        : Math.max(1, Number.isFinite(lane?.width) ? lane!.width : 320)
+      return {
+        id: laneId,
+        width: preferred,
+        collapsed: lane?.collapsed === true,
+        collapsedWidth: COLLAPSED_SWIMLANE_WIDTH,
+        minimumWidth: laneId === "reader" ? readerMinimum : MIN_PANEL_SWIMLANE_WIDTH,
+        maximumWidth: laneId === "reader" ? readerMaximum : MAX_SWIMLANE_WIDTH,
+      }
+    }),
+  )
+  const lanes = Object.fromEntries(
+    Object.entries(fitted).map(([laneId, laneWidth]) => [
+      laneId,
+      {
+        width: sanitizeSwimlaneWidth(
+          laneId,
+          laneWidth,
+          laneId === "reader" ? readerMinimum : MIN_PANEL_SWIMLANE_WIDTH,
+          laneId === "reader" ? readerMaximum : MAX_SWIMLANE_WIDTH,
+        ),
+      },
+    ]),
+  ) as NonNullable<ReaderWorkspacePatch["lanes"]>
   const readerWidth = lanes.reader?.width ?? readerLaneWidth(width, swimlane.readerWidthRatio)
   return {
     readerSolo: false,
@@ -171,22 +192,15 @@ export function fitReaderSwimlanesToViewport(
   }
 }
 
-function distributeWidths(
-  laneIds: readonly ReaderSwimlaneId[],
-  available: number,
-  weight: (laneId: ReaderSwimlaneId) => number,
-  lanes: NonNullable<ReaderWorkspacePatch["lanes"]>,
-): void {
-  if (laneIds.length === 0) return
-  const totalWeight = laneIds.reduce((sum, laneId) => sum + weight(laneId), 0)
-  let assigned = 0
-  laneIds.forEach((laneId, index) => {
-    const laneWidth = index === laneIds.length - 1
-      ? available - assigned
-      : Math.max(1, Math.round(available * weight(laneId) / totalWeight))
-    assigned += laneWidth
-    lanes[laneId] = { width: laneWidth }
-  })
+export function sanitizeSwimlaneWidth(
+  laneId: ReaderSwimlaneId | string,
+  value: number | undefined,
+  minimum = laneId === "reader" ? MIN_READER_SWIMLANE_WIDTH : MIN_PANEL_SWIMLANE_WIDTH,
+  maximum = MAX_SWIMLANE_WIDTH,
+  fallback = laneId === "reader" ? 960 : laneId === "right" ? 280 : 320,
+): number {
+  const source = Number.isFinite(value) ? value! : fallback
+  return Math.round(clamp(source, minimum, maximum))
 }
 
 function normalizeLaneOrder(order: readonly ReaderSwimlaneId[]): ReaderSwimlaneId[] {
@@ -257,7 +271,7 @@ function normalizeLane(
     panelBarConstrained: lane?.panelBarConstrained !== false,
   }
   return {
-    width: Number.isFinite(lane?.width) ? lane!.width : width,
+    width: sanitizeSwimlaneWidth(laneId, Number.isFinite(lane?.width) ? lane!.width : width),
     collapsed: lane?.collapsed === true,
     ...(lane?.title ? { title: lane.title } : {}),
     ...(lane?.activePanelId || activePanelId ? { activePanelId: lane?.activePanelId ?? activePanelId } : {}),

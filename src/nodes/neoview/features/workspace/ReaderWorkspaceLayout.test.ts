@@ -76,15 +76,21 @@ describe("ReaderWorkspaceLayout", () => {
 
     const patch = fitReaderSwimlanesToViewport(1_000, workspace.swimlane)
     const fitted = workspace.swimlane.laneOrder.map((laneId) => patch.lanes?.[laneId]?.width ?? 0)
+    // Panel lanes stay within the shell-control contract (240..8192); reader keeps ratio floor.
+    expect(fitted).toEqual([240, 280, 240, 240])
     expect(fitted.reduce((sum, width) => sum + width, 0)).toBe(1_000)
-    expect(fitted).toEqual([213, 333, 267, 187])
+    expect(fitted.every((width, index) => {
+      const laneId = workspace.swimlane.laneOrder[index]
+      return laneId === "reader" ? width >= 120 : width >= 240
+    })).toBe(true)
     expect(patch.readerSolo).toBe(false)
-    expect(patch.readerWidthRatio).toBeCloseTo(0.333)
+    expect(patch.readerWidthRatio).toBeCloseTo(0.28)
 
     const portraitPatch = fitReaderSwimlanesToViewport(600, workspace.swimlane)
     const portraitWidths = workspace.swimlane.laneOrder.map((laneId) => portraitPatch.lanes?.[laneId]?.width ?? 0)
-    expect(portraitWidths).toEqual([144, 150, 180, 126])
-    expect(portraitWidths.reduce((sum, width) => sum + width, 0)).toBe(600)
+    // Viewport is smaller than the sum of minima, so total may exceed the viewport.
+    expect(portraitWidths).toEqual([240, 150, 240, 240])
+    expect(portraitWidths.reduce((sum, width) => sum + width, 0)).toBe(870)
     expect(portraitPatch.readerWidthRatio).toBe(0.25)
   })
 })
