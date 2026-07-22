@@ -296,6 +296,18 @@ export function parseFolderPath(path: string): readonly FolderBreadcrumbItem[] {
     return [{ name: /^bookmark:/i.test(value) ? "书签" : "历史", path: value, root: true }]
   }
 
+  if (value === "virtual://search" || value.startsWith("virtual://search/")) {
+    const rest = value === "virtual://search" ? "" : value.slice("virtual://search/".length)
+    let label = "搜索结果"
+    if (rest) {
+      try { label = decodeURIComponent(rest) || label } catch { label = rest }
+    }
+    return [
+      { name: "搜索", path: "virtual://search", root: true },
+      ...(rest ? [{ name: label, path: value, root: false }] : []),
+    ]
+  }
+
   if (/^[\\/]{2}/.test(value)) {
     const parts = value.replace(/\//g, "\\").split("\\").filter(Boolean)
     if (!parts.length) return [{ name: "网络", path: "\\\\", root: true }]

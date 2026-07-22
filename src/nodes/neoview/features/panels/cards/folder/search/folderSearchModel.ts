@@ -1,76 +1,148 @@
 /**
  * Pure folder-search domain helpers shared by GUI, tests and tab snapshots.
- * Keeps request shaping and tab titles out of React components.
+ * Keeps request shaping and virtual-list page building out of React components.
  */
-import { z } from "zod"
-
 import type {
   ReaderDirectoryEntryDto,
+  ReaderDirectoryPageDto,
   ReaderDirectorySearchKindDto,
   ReaderDirectorySearchModeDto,
   ReaderDirectorySearchOptionsDto,
   ReaderDirectorySearchResultDto,
+  ReaderDirectorySortDto,
   ReaderFolderSearchConfig,
 } from "../../../../../../adapters/reader-http-client"
 
 export const SEARCH_RESULT_LIMIT = 512
 export const SEARCH_HISTORY_LIMIT = 20
+/** Virtual listing path for search results — same File Card views consume this catalog. */
+export const VIRTUAL_SEARCH_PATH = "virtual://search"
 
-export const folderSearchModeSchema = z.enum(["text", "glob"])
-export const folderSearchKindSchema = z.enum(["all", "file", "directory"])
-export const folderSearchTagModeSchema = z.enum(["all", "any"])
+const DEFAULT_SEARCH_SORT: ReaderDirectorySortDto = {
+  field: "name",
+  order: "asc",
+  directoriesFirst: true,
+}
 
-export const folderSearchCriteriaSchema = z.object({
-  query: z.string(),
-  mode: folderSearchModeSchema,
-  kind: folderSearchKindSchema,
-  caseSensitive: z.boolean(),
-  includeSubfolders: z.boolean(),
-  searchInPath: z.boolean(),
-  includeTags: z.array(z.string().min(1)).max(64),
-  excludeTags: z.array(z.string().min(1)).max(64),
-  tagMode: folderSearchTagModeSchema,
-})
+export type FolderSearchCriteria = {
+  query: string
+  mode: ReaderDirectorySearchModeDto
+  kind: ReaderDirectorySearchKindDto
+  caseSensitive: boolean
+  includeSubfolders: boolean
+  searchInPath: boolean
+  includeTags: string[]
+  excludeTags: string[]
+  tagMode: "all" | "any"
+}
 
-export type FolderSearchCriteria = z.infer<typeof folderSearchCriteriaSchema>
+export type FolderSearchResultSnapshot = {
+  entries: ReaderDirectoryEntryDto[]
+  scanned: number
+  matched: number
+  truncated: boolean
+  rootPath: string
+  generation: number
+  query: string
+  mode: ReaderDirectorySearchModeDto
+}
 
-export const folderSearchResultSnapshotSchema = z.object({
-  entries: z.array(z.custom<ReaderDirectoryEntryDto>()),
-  scanned: z.number().int().nonnegative(),
-  matched: z.number().int().nonnegative(),
-  truncated: z.boolean(),
-  rootPath: z.string(),
-  generation: z.number().int().nonnegative(),
-  query: z.string(),
-  mode: folderSearchModeSchema,
-})
+export type FolderSearchTabSnapshot = {
+  criteria: FolderSearchCriteria
+  result?: FolderSearchResultSnapshot
+  rootPath: string
+}
 
-export type FolderSearchResultSnapshot = z.infer<typeof folderSearchResultSnapshotSchema>
+export function isVirtualSearchPath(path: string | undefined | null): boolean {
+  return typeof path === "string" && (path === VIRTUAL_SEARCH_PATH || path.startsWith(`${VIRTUAL_SEARCH_PATH}/`))
+}
 
-export const folderSearchTabSnapshotSchema = z.object({
-  criteria: folderSearchCriteriaSchema,
-  result: folderSearchResultSnapshotSchema.optional(),
-  rootPath: z.string().min(1),
-})
+export function virtualSearchPath(query: string): string {
+  const normalized = query.trim()
+  return normalized ? `${VIRTUAL_SEARCH_PATH}/${encodeURIComponent(normalized)}` : VIRTUAL_SEARCH_PATH
+}
 
-export type FolderSearchTabSnapshot = z.infer<typeof folderSearchTabSnapshotSchema>
+export function virtualSearchLabel(path: string): string {
+  if (!isVirtualSearchPath(path)) return path
+  if (path === VIRTUAL_SEARCH_PATH) return "搜索结果"
+  try {
+    return decodeURIComponent(path.slice(VIRTUAL_SEARCH_PATH.length + 1)) || "搜索结果"
+  } catch {
+    return path.slice(VIRTUAL_SEARCH_PATH.length + 1) || "搜索结果"
+  }
+}
+
+/**
+ * Build a directory page from search hits so list/grid/details/mosaic
+ * renderers can reuse the normal File Card virtualization path.
+ */
+export function createSearchDirectoryPage(input: {
+  sessionId: string
+  rootPath: string
+  result: Pick<ReaderDirectorySearchResultDto, "entries" | "generation" | "query" | "mode">
+  criteria: Pick<FolderSearchCriteria, "query">
+  base?: Pick<
+    ReaderDirectoryPageDto,
+    | "filter"
+    | "filterOptions"
+    | "sort"
+    | "sortFields"
+    | "metadataFields"
+    | "metadataCapabilities"
+    | "sortSource"
+    | "sortTemporary"
+    | "globalDefaultSort"
+    | "tabDefaultSort"
+    | "navigationEntryId"
+    | "generation"
+  >
+}): ReaderDirectoryPageDto {
+  const query = input.criteria.query.trim() || input.result.query
+  const sort = input.base?.sort ?? DEFAULT_SEARCH_SORT
+  const sortFields = input.base?.sortFields ?? ["name", "date", "size", "type", "path"]
+  const metadataFields = input.base?.metadataFields ?? []
+  const generation = Math.max(1, input.result.generation || (input.base?.generation ?? 0) + 1)
+  return {
+    sessionId: input.sessionId,
+    // Negative ids keep search listings out of real browser history slots.
+    navigationEntryId: -(1_000_000 + (generation % 1_000_000)),
+    path: virtualSearchPath(query),
+    parentPath: input.rootPath || undefined,
+    entries: [...input.result.entries],
+    cursor: 0,
+    total: input.result.entries.length,
+    canGoBack: true,
+    canGoForward: false,
+    generation,
+    filter: input.base?.filter ?? "all",
+    filterOptions: input.base?.filterOptions ?? ["all", "archive", "directory", "video"],
+    sort,
+    sortFields: [...sortFields],
+    metadataFields: [...metadataFields],
+    metadataCapabilities: [...(input.base?.metadataCapabilities ?? metadataFields)],
+    sortSource: input.base?.sortSource ?? "temporary",
+    sortTemporary: true,
+    globalDefaultSort: input.base?.globalDefaultSort ?? sort,
+    tabDefaultSort: input.base?.tabDefaultSort ?? sort,
+    watching: false,
+  }
+}
 
 export function createDefaultSearchCriteria(
   settings: Pick<ReaderFolderSearchConfig, "includeSubfolders" | "searchInPath">,
   overrides: Partial<FolderSearchCriteria> = {},
 ): FolderSearchCriteria {
-  return folderSearchCriteriaSchema.parse({
-    query: "",
-    mode: "text",
-    kind: "all",
-    caseSensitive: false,
-    includeSubfolders: settings.includeSubfolders,
-    searchInPath: settings.searchInPath,
-    includeTags: [],
-    excludeTags: [],
-    tagMode: "all",
-    ...overrides,
-  })
+  return {
+    query: overrides.query ?? "",
+    mode: overrides.mode ?? "text",
+    kind: overrides.kind ?? "all",
+    caseSensitive: overrides.caseSensitive ?? false,
+    includeSubfolders: overrides.includeSubfolders ?? settings.includeSubfolders,
+    searchInPath: overrides.searchInPath ?? settings.searchInPath,
+    includeTags: [...(overrides.includeTags ?? [])],
+    excludeTags: [...(overrides.excludeTags ?? [])],
+    tagMode: overrides.tagMode ?? "all",
+  }
 }
 
 export function hasSearchCriteria(criteria: Pick<FolderSearchCriteria, "query" | "includeTags" | "excludeTags">): boolean {
@@ -117,8 +189,8 @@ export function buildDirectorySearchOptions(
 export function snapshotSearchResult(
   result: ReaderDirectorySearchResultDto,
 ): FolderSearchResultSnapshot {
-  return folderSearchResultSnapshotSchema.parse({
-    entries: result.entries,
+  return {
+    entries: [...result.entries],
     scanned: result.scanned,
     matched: result.matched,
     truncated: result.truncated,
@@ -126,7 +198,7 @@ export function snapshotSearchResult(
     generation: result.generation,
     query: result.query,
     mode: result.mode,
-  })
+  }
 }
 
 export function createSearchTabSnapshot(input: {
@@ -134,14 +206,16 @@ export function createSearchTabSnapshot(input: {
   rootPath: string
   result?: ReaderDirectorySearchResultDto
 }): FolderSearchTabSnapshot {
-  return folderSearchTabSnapshotSchema.parse({
+  return {
     criteria: {
       ...input.criteria,
       query: input.criteria.query.trim(),
+      includeTags: [...input.criteria.includeTags],
+      excludeTags: [...input.criteria.excludeTags],
     },
     rootPath: input.rootPath,
     result: input.result ? snapshotSearchResult(input.result) : undefined,
-  })
+  }
 }
 
 export function searchTabTitle(criteria: Pick<FolderSearchCriteria, "query" | "includeTags" | "excludeTags">): string {

@@ -33,7 +33,12 @@ import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../../adapters/reader
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
 import type { ReaderPanelContext } from "../../registry"
 import type { FolderContextEntry } from "./FolderContextActions"
-import type { FolderSearchTabSnapshot } from "./search/folderSearchModel"
+import {
+  createSearchDirectoryPage,
+  isVirtualSearchPath,
+  type FolderSearchTabSnapshot,
+} from "./search/folderSearchModel"
+import type { FolderSearchListingUpdate } from "./FolderSearchPanel"
 import {
   createDirectoryCatalog,
   directoryEntryAt,
@@ -337,6 +342,12 @@ export function FolderBrowserPane({
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
   const [searchOpen, setSearchOpen] = useState(Boolean(initialSearchSnapshot))
   const pendingSearchSnapshotRef = useRef(initialSearchSnapshot)
+  const searchOriginRef = useRef<{
+    catalog: DirectoryCatalog
+    state: SavedDirectoryState
+    rootPath: string
+  }>()
+  const searchCriteriaRef = useRef<FolderSearchTabSnapshot["criteria"]>()
   const [treeOpen, setTreeOpen] = useState(folderView.tree.visible)
   const [inlineTreeOpen, setInlineTreeOpen] = useState(false)
   const [treeLayout, setTreeLayout] = useState(folderView.tree.layout)
@@ -633,6 +644,7 @@ export function FolderBrowserPane({
   async function openBrowser(path: string) {
     const normalized = normalizeFolderNavigationPath(path)
     if (!normalized || !client.openDirectoryBrowser) return
+    clearSearchSession()
     setSearchOpen(false)
     setTreeOpen(false)
     const generation = beginNavigation()
@@ -673,7 +685,7 @@ export function FolderBrowserPane({
   }
 
   async function navigate(navigation: ReaderDirectoryNavigationDto, options: FolderNavigationOptions = {}) {
-    const normalizedNavigation =
+    let normalizedNavigation: ReaderDirectoryNavigationDto =
       navigation.action === "path"
         ? {
             ...navigation,
@@ -686,7 +698,24 @@ export function FolderBrowserPane({
       return
     }
     if (!client.navigateDirectoryBrowser) return
-    setSearchOpen(false)
+    if (isVirtualSearchPath(catalogRef.current?.path)) {
+      if (normalizedNavigation.action === "back") {
+        clearSearchSession({ restoreOrigin: true })
+        return
+      }
+      if (normalizedNavigation.action === "up") {
+        const parent = catalogRef.current?.parentPath
+        clearSearchSession()
+        setSearchOpen(false)
+        if (!parent) return
+        normalizedNavigation = { action: "path", path: normalizeFolderNavigationPath(parent) }
+      } else if (normalizedNavigation.action === "refresh") {
+        return
+      } else {
+        clearSearchSession()
+        setSearchOpen(false)
+      }
+    }
     if (!options.keepTree) setTreeOpen(false)
     // Only refresh needs an exact snapshot before applying the replacement generation.
     // Path/back/forward/up navigation can persist the lightweight state synchronously and
@@ -935,7 +964,8 @@ export function FolderBrowserPane({
     visibleRangeRef.current = range
     const current = catalogRef.current
     requestPenetrationDescriptions(range, current)
-    if (!current || !client.listDirectoryBrowser) return
+    // Search listings already hold the full result set in-memory.
+    if (!current || !client.listDirectoryBrowser || isVirtualSearchPath(current.path)) return
     const metadataFields =
       viewMode === "details"
         ? DETAILS_METADATA_FIELDS.filter((field) => current.metadataCapabilities.includes(field))
@@ -1312,7 +1342,8 @@ export function FolderBrowserPane({
   }
 
   function handleDirectoryKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (searchOpen || isEditableKeyboardEvent(event)) return
+    // Search chrome uses its own input; list shortcuts stay active so views remain usable.
+    if (isEditableKeyboardEvent(event)) return
     const currentCatalog = catalogRef.current
     if (!currentCatalog || disabled || loading) return
     const currentIndex = Math.min(Math.max(focusedIndexRef.current ?? visibleRangeRef.current.startIndex, 0), Math.max(0, currentCatalog.total - 1))
@@ -1648,6 +1679,85 @@ export function FolderBrowserPane({
     onCurrentPathChange(next.path)
   }
 
+  function cloneDirectoryCatalog(source: DirectoryCatalog): DirectoryCatalog {
+    return {
+      ...source,
+      pages: new Map([...source.pages].map(([cursor, entries]) => [cursor, [...entries]])),
+      pageMetadataFields: new Map([...source.pageMetadataFields].map(([cursor, fields]) => [cursor, new Set(fields)])),
+    }
+  }
+
+  function clearSearchSession(options: { restoreOrigin?: boolean } = {}) {
+    const origin = searchOriginRef.current
+    searchOriginRef.current = undefined
+    searchCriteriaRef.current = undefined
+    pendingSearchSnapshotRef.current = undefined
+    if (options.restoreOrigin && origin) {
+      catalogRef.current = origin.catalog
+      setCatalog(origin.catalog)
+      onCurrentPathChange(origin.catalog.path)
+      setRestoreState(origin.state)
+      setSelection(origin.state.selection)
+      setFocusedIndex(origin.state.focusedIndex)
+      setFocusedPath(origin.state.focusedPath)
+      setViewMode(origin.state.viewMode)
+      setPreviewCount(origin.state.previewCount)
+      setMultiSelectMode(origin.state.multiSelectMode)
+      focusedIndexRef.current = origin.state.focusedIndex
+    }
+  }
+
+  function closeSearchChrome() {
+    clearSearchSession({ restoreOrigin: true })
+    setSearchOpen(false)
+  }
+
+  function applySearchListing(update: FolderSearchListingUpdate) {
+    if (update.phase === "cleared" || update.phase === "idle") {
+      clearSearchSession({ restoreOrigin: true })
+      return
+    }
+    const sessionId = sessionIdRef.current
+    if (!sessionId) return
+    const current = catalogRef.current
+    if (!searchOriginRef.current && current && !isVirtualSearchPath(current.path)) {
+      const state = captureCurrentState() ?? {
+        total: current.total,
+        viewMode,
+        previewCount,
+        multiSelectMode,
+        selection,
+        focusedPath,
+        focusedIndex,
+        anchorIndex: focusedIndex ?? 0,
+      }
+      searchOriginRef.current = {
+        catalog: cloneDirectoryCatalog(current),
+        state,
+        rootPath: current.path,
+      }
+    }
+    const rootPath = searchOriginRef.current?.rootPath
+      ?? (current && !isVirtualSearchPath(current.path) ? current.path : undefined)
+      ?? browserPath
+    const entries = update.result?.entries ?? update.streamedEntries
+    searchCriteriaRef.current = update.criteria
+    const page = createSearchDirectoryPage({
+      sessionId,
+      rootPath,
+      result: {
+        entries,
+        generation: update.result?.generation
+          ?? ((current && isVirtualSearchPath(current.path) ? current.generation : (current?.generation ?? 0)) + 1),
+        query: update.criteria.query,
+        mode: update.criteria.mode,
+      },
+      criteria: update.criteria,
+      base: searchOriginRef.current?.catalog ?? (current && !isVirtualSearchPath(current.path) ? current : undefined),
+    })
+    applyPage(page, undefined, isVirtualSearchPath(catalogRef.current?.path))
+  }
+
   function releaseThumbnailContext() {
     resetThumbnailRegistration()
     const contextId = thumbnailContextRef.current
@@ -1682,7 +1792,8 @@ export function FolderBrowserPane({
   // Virtuoso/Niko can retain its viewport and existing thumbnail DOM.
   const virtualKey = catalog ? `${catalog.sessionId}:${catalog.navigationEntryId}:${viewMode}:${previewCount}` : `${viewMode}:${previewCount}`
   const tabLayout = folderView.tabs ?? DEFAULT_FOLDER_VIEW.tabs!
-  const showReturnFooter = folderView.emptyArea.showBackButton && !searchOpen
+  const searchListingActive = isVirtualSearchPath(catalog?.path)
+  const showReturnFooter = folderView.emptyArea.showBackButton && !searchListingActive
   const returnFooterContext = {
     disabled: disabled || loading || !catalog || (!catalog.canGoBack && !catalog.parentPath),
     onReturn: () =>
@@ -2088,52 +2199,57 @@ export function FolderBrowserPane({
                   </Suspense>
                 ) : null}
                 <div
-                  ref={listHostRef}
-                  className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded border bg-background/60 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  data-neoview-folder-list="true"
-                  data-focused-index={focusedIndex}
-                  role={searchOpen || inlineTreeOpen ? undefined : "listbox"}
-                  aria-label={searchOpen ? undefined : "文件项目"}
-                  aria-activedescendant={searchOpen || inlineTreeOpen ? undefined : focusedItemId}
-                  tabIndex={inlineTreeOpen || searchOpen ? -1 : 0}
-                  onKeyDown={inlineTreeOpen || searchOpen ? undefined : handleDirectoryKeyDown}
-                  {...(inlineTreeOpen || searchOpen ? {} : emptyAreaHandlers)}
+                  className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded border bg-background/60"
                   style={
                     {
                       order: treeOpen && (treeLayout === "right" || treeLayout === "bottom") ? 0 : 1,
                       "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%`,
                     } as CSSProperties
                   }
+                  data-neoview-folder-list-shell="true"
+                  data-folder-search-open={searchOpen || undefined}
+                  data-folder-search-listing={searchListingActive || undefined}
                 >
                   {searchOpen && sessionIdRef.current ? (
-                    <div className="min-h-0 flex-1">
-                      <Suspense fallback={<div className="h-full min-h-0 animate-pulse bg-muted/30" aria-label="正在加载搜索" />}>
-                        <FolderSearchPanel
-                          client={client}
-                          sessionId={sessionIdRef.current}
-                          disabled={disabled}
-                          settings={folderView.search}
-                          rootPath={catalog?.path ?? browserPath}
-                          tabCount={folderTabCount}
-                          maxTabs={maxFolderTabs}
-                          initialSnapshot={pendingSearchSnapshotRef.current}
-                          onSettingsChange={(search) => void onFolderView?.({ search })}
-                          onActivate={activate}
-                          onClose={() => {
-                            pendingSearchSnapshotRef.current = undefined
-                            setSearchOpen(false)
-                          }}
-                          onSaveToTab={onOpenSearchInNewTab}
-                        />
-                      </Suspense>
-                    </div>
+                    <Suspense fallback={<div className="h-16 animate-pulse bg-muted/30" aria-label="正在加载搜索" />}>
+                      <FolderSearchPanel
+                        client={client}
+                        sessionId={sessionIdRef.current}
+                        disabled={disabled}
+                        settings={folderView.search}
+                        rootPath={
+                          searchOriginRef.current?.rootPath
+                          ?? (catalog && !isVirtualSearchPath(catalog.path) ? catalog.path : undefined)
+                          ?? browserPath
+                        }
+                        tabCount={folderTabCount}
+                        maxTabs={maxFolderTabs}
+                        initialSnapshot={pendingSearchSnapshotRef.current}
+                        onSettingsChange={(search) => void onFolderView?.({ search })}
+                        onListingChange={applySearchListing}
+                        onClose={closeSearchChrome}
+                        onSaveToTab={onOpenSearchInNewTab}
+                      />
+                    </Suspense>
                   ) : null}
-                  {!searchOpen && inlineTreeOpen && sessionIdRef.current && catalog ? (
+                  <div
+                    ref={listHostRef}
+                    className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    data-neoview-folder-list="true"
+                    data-focused-index={focusedIndex}
+                    role={inlineTreeOpen ? undefined : "listbox"}
+                    aria-label={searchListingActive ? "搜索结果" : "文件项目"}
+                    aria-activedescendant={inlineTreeOpen ? undefined : focusedItemId}
+                    tabIndex={inlineTreeOpen ? -1 : 0}
+                    onKeyDown={inlineTreeOpen ? undefined : handleDirectoryKeyDown}
+                    {...(inlineTreeOpen ? {} : emptyAreaHandlers)}
+                  >
+                  {inlineTreeOpen && sessionIdRef.current && catalog ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载内联文件树" />}>
                       <FolderTreePanel
                         client={client}
                         sessionId={sessionIdRef.current}
-                        currentPath={catalog.path}
+                        currentPath={isVirtualSearchPath(catalog.path) ? (catalog.parentPath ?? catalog.path) : catalog.path}
                         watching={active && catalog.watching}
                         disabled={disabled || loading}
                         pinnedPaths={[]}
@@ -2144,7 +2260,7 @@ export function FolderBrowserPane({
                       />
                     </Suspense>
                   ) : null}
-                  {!searchOpen && !inlineTreeOpen && catalog && catalog.total > 0 && viewUsesVirtuosoList(viewMode) ? (
+                  {!inlineTreeOpen && catalog && catalog.total > 0 && viewUsesVirtuosoList(viewMode) ? (
                     <Virtuoso
                       key={virtualKey}
                       ref={listRef}
@@ -2193,7 +2309,7 @@ export function FolderBrowserPane({
                       }}
                     />
                   ) : null}
-                  {!searchOpen && !inlineTreeOpen && catalog && viewMode === "details" ? (
+                  {!inlineTreeOpen && catalog && viewMode === "details" ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载详细信息视图" />}>
                       <FolderDetailsView
                         key={virtualKey}
@@ -2221,7 +2337,7 @@ export function FolderBrowserPane({
                       />
                     </Suspense>
                   ) : null}
-                  {!searchOpen && !inlineTreeOpen && catalog && catalog.total > 0 && viewUsesFixedGrid(viewMode) ? (
+                  {!inlineTreeOpen && catalog && catalog.total > 0 && viewUsesFixedGrid(viewMode) ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载网格视图" />}>
                       <FolderGridWorkspace
                         virtualKey={virtualKey}
@@ -2256,7 +2372,7 @@ export function FolderBrowserPane({
                       />
                     </Suspense>
                   ) : null}
-                  {!searchOpen && !inlineTreeOpen && catalog && catalog.total > 0 && viewUsesMosaicGrid(viewMode) ? (
+                  {!inlineTreeOpen && catalog && catalog.total > 0 && viewUsesMosaicGrid(viewMode) ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载自由缩略图视图" />}>
                       <FolderMosaicWorkspace
                         key={virtualKey}
@@ -2289,14 +2405,17 @@ export function FolderBrowserPane({
                       />
                     </Suspense>
                   ) : null}
-                  {!searchOpen && !inlineTreeOpen && catalog && catalog.total === 0 ? (
+                  {!inlineTreeOpen && catalog && catalog.total === 0 ? (
                     <div className="grid h-72 place-items-center px-4 text-center text-xs text-muted-foreground" data-folder-empty-state="true" role="status">
-                      {catalog.filter === "all" ? "此文件夹为空" : "没有符合当前筛选条件的项目"}
+                      {isVirtualSearchPath(catalog.path)
+                        ? "未找到匹配的搜索结果"
+                        : catalog.filter === "all" ? "此文件夹为空" : "没有符合当前筛选条件的项目"}
                     </div>
                   ) : null}
                   {!catalog ? (
                     <div className="grid h-72 place-items-center text-xs text-muted-foreground">{loading ? "正在读取目录…" : "选择一个目录"}</div>
                   ) : null}
+                  </div>
                 </div>
               </div>
             </div>

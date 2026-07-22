@@ -396,7 +396,7 @@ describe("FolderMainCard", () => {
           onOpen={onOpen}
           onGoTo={vi.fn()}
           switchToast={{ show: showToast } as never}
-          folderView={folderViewConfig({ penetration: { enabled: true, showInternalFiles: true, maxDepth: 3, terminalTargets: ["archive", "media-directory"] } })}
+          folderView={folderViewConfig({ penetration: { enabled: true, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "media-directory"] } })}
         />
       </VirtuosoMockContext.Provider>,
     )
@@ -1135,13 +1135,21 @@ describe("FolderMainCard", () => {
     const view = render(renderCard(layout()))
     const ui = within(view.container)
     await ui.findByTitle("C:/books/book.cbz")
-    expect(view.container.querySelector('[data-folder-toolbar-layout="wrapping"]')).toBeTruthy()
-    expect(view.container.querySelector('[data-folder-tab-bar="true"]')).toBeTruthy()
-    expect(ui.getByRole("button", { name: "标签操作 books" })).toBeTruthy()
+    expect(view.container.querySelector('[data-folder-toolbar-layout="single-row-scroll"]')).toBeTruthy()
+    const navigationPad = ui.getByRole("group", { name: "文件夹导航" })
+    expect(navigationPad.getAttribute("data-folder-navigation-pad")).toBe("true")
+    expect(navigationPad.querySelectorAll("[data-navigation-pad-position]")).toHaveLength(5)
+    expect(ui.getByRole("button", { name: "后退" }).getAttribute("data-navigation-pad-position")).toBe("left")
+    expect(ui.getByRole("button", { name: "前进" }).getAttribute("data-navigation-pad-position")).toBe("right")
+    expect(ui.getByRole("button", { name: "上级" }).getAttribute("data-navigation-pad-position")).toBe("up")
+    expect(ui.getByRole("button", { name: "刷新" }).getAttribute("data-navigation-pad-position")).toBe("center")
+    expect(view.container.querySelector('[data-folder-tab-bar="true"]')).toBeNull()
+    expect(ui.getByRole("button", { name: "新建文件夹标签" })).toBeTruthy()
     expect(view.container.querySelector('[data-folder-tab-count="1"]')).toBeTruthy()
 
     createFolderTab(ui)
     await waitFor(() => expect(view.container.querySelector('[data-folder-tab-count="2"]')).toBeTruthy())
+    await waitFor(() => expect(view.container.querySelector('[data-folder-tab-bar="true"]')).toBeTruthy())
     const breadcrumb = view.container.querySelector('[data-folder-layout-region="breadcrumb"]')!
     const tabRegion = view.container.querySelector('[data-folder-layout-region="tabs"]')!
     expect(breadcrumb.compareDocumentPosition(tabRegion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -1158,7 +1166,7 @@ describe("FolderMainCard", () => {
     onFolderView.mockClear()
     fireEvent.pointerDown(separator, { pointerId: 7, clientX: 100 })
     fireEvent.pointerMove(separator, { pointerId: 7, clientX: 180 })
-    expect(view.container.querySelector<HTMLElement>('[data-folder-tab-layout="left"]')?.style.width).toBe("240px")
+    expect(view.container.querySelector<HTMLElement>('[data-folder-tab-pane-active="true"] [data-folder-tab-layout="left"]')?.style.width).toBe("240px")
     expect(onFolderView).not.toHaveBeenCalled()
     fireEvent.pointerUp(separator, { pointerId: 7, clientX: 180 })
     await waitFor(() => expect(onFolderView).toHaveBeenCalledTimes(1))
@@ -1962,6 +1970,52 @@ describe("FolderMainCard", () => {
     ))
   })
 
+  it("[neoview.folder.search-virtual-list] renders search hits in the File Card list views instead of an overlay", async () => {
+    const opened = page({
+      total: 2,
+      entries: [
+        { name: "keep.cbz", path: "C:/books/keep.cbz", kind: "file", readerSupported: true },
+        { name: "other.txt", path: "C:/books/other.txt", kind: "file", readerSupported: false },
+      ],
+    })
+    const hit = { name: "found.cbz", path: "C:/books/deep/found.cbz", kind: "file" as const, readerSupported: true }
+    const client = {
+      openDirectoryBrowser: vi.fn(async () => opened),
+      searchDirectoryBrowser: vi.fn(async () => ({
+        sessionId: "browser-1",
+        rootPath: "C:/books",
+        generation: 2,
+        query: "found",
+        mode: "text" as const,
+        entries: [hit],
+        scanned: 8,
+        matched: 1,
+        truncated: false,
+      })),
+      closeDirectoryBrowser: vi.fn(async () => undefined),
+    } as unknown as ReaderHttpClient
+    const view = render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>,
+    )
+    const ui = within(view.container)
+    const host = await ui.findByRole("listbox", { name: "文件项目" })
+    fireEvent.keyDown(host, { key: "f", ctrlKey: true })
+    const searchInput = await ui.findByRole("textbox", { name: "搜索文件" })
+    fireEvent.change(searchInput, { target: { value: "found" } })
+    fireEvent.submit(searchInput.closest("form")!)
+
+    // Search chrome stays mounted while results feed the shared virtual list.
+    expect(view.container.querySelector('[data-neoview-folder-search-chrome="true"]')).toBeTruthy()
+    await waitFor(() => expect(ui.getByRole("listbox", { name: "搜索结果" })).toBeTruthy())
+    await waitFor(() => expect(ui.getByText("found.cbz")).toBeTruthy())
+    expect(ui.queryByText("keep.cbz")).toBeNull()
+    expect(view.container.querySelector('[data-folder-search-listing="true"]')).toBeTruthy()
+    // Result rows are File Card list items, not a private search result list.
+    expect(view.container.querySelector("[data-search-result-item]")).toBeNull()
+  })
+
   it("[neoview.folder.path-navigation] keeps the current directory on failure and routes Explorer shortcuts outside editors", async () => {
     const opened = page({ path: "C:\\books\\series", parentPath: "C:\\books", canGoBack: true, canGoForward: true })
     const navigateDirectoryBrowser = vi.fn(async (_sessionId: string, navigation: { action: string }) => {
@@ -2715,8 +2769,12 @@ describe("FolderMainCard", () => {
     openFolderMoreMenu(ui)
     fireEvent.click(await screen.findByRole("menuitem", { name: /穿透设置/ }))
     expect(await screen.findByRole("dialog", { name: "穿透设置" })).toBeTruthy()
-    fireEvent.click(screen.getByRole("switch", { name: "显示内部文件名" }))
+    fireEvent.click(screen.getByRole("switch", { name: "显示内部条目" }))
     await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ penetration: { showInternalFiles: false } }))
+    const mode = screen.getByRole("combobox", { name: "内部条目显示" })
+    fireEvent.pointerDown(mode, { button: 0, pointerType: "mouse" })
+    fireEvent.click(await screen.findByRole("option", { name: "全部" }))
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ penetration: { internalItemsMode: "all" } }))
     const depth = screen.getByRole("combobox", { name: "最大穿透层数" })
     fireEvent.pointerDown(depth, { button: 0, pointerType: "mouse" })
     fireEvent.click(await screen.findByRole("option", { name: "5 层" }))
@@ -2797,7 +2855,7 @@ function folderViewConfig(overrides: Partial<ReaderFolderViewConfig> = {}): Read
     bannerWidthPercent: 50,
     confirmDelete: true,
     tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
-    penetration: { enabled: false, showInternalFiles: true, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
+    penetration: { enabled: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
     emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
     details: {
       columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
