@@ -114,8 +114,8 @@ describe("ReaderApp", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "泳道模式" }))
     await waitFor(() => expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).toBeTruthy())
-    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
-    expect(screen.getByRole("button", { name: "退出 Reader 全屏" }).closest('[data-reader-breadcrumb-bar="true"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Reader 视图全屏" }).closest('[data-reader-swimlane-header="reader"]')).toBeTruthy()
     expect(image.getAttribute("src")).toContain("page-1")
     expect(await screen.findByRole("img", { name: "001.jpg" })).toBeTruthy()
     expect(client.open).toHaveBeenCalledOnce()
@@ -123,14 +123,16 @@ describe("ReaderApp", () => {
       shellControl: { workspace: { mode: "swimlane" } },
     }))
 
-    fireEvent.click(screen.getByRole("button", { name: "退出 Reader 全屏" }))
+    fireEvent.pointerDown(screen.getByRole("button", { name: "阅读器更多设置" }), { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole("menuitem", { name: "退出全屏" }))
     await waitFor(() => expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy())
-    expect(screen.getByRole("button", { name: "Reader 全屏" }).closest('[data-reader-breadcrumb-bar="true"]')).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Reader 视图全屏" }).closest('[data-reader-swimlane-header="reader"]')).toBeTruthy()
 
     fireEvent.pointerDown(document.querySelector('[data-reader-swimlane="right"]')!, { pointerId: 41, button: 0 })
     await waitFor(() => expect(useSwimlaneSessionStore.getState().sessions["neoview:standalone"]?.activeLaneId).toBe("right"))
     expect(updateShellControl).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole("button", { name: "Reader 全屏" }))
+    fireEvent.pointerDown(screen.getByRole("button", { name: "阅读器更多设置" }), { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole("menuitem", { name: "当前泳道全屏" }))
     await waitFor(() => expect(useSwimlaneSessionStore.getState().sessions["neoview:standalone"]).toMatchObject({ activeLaneId: "reader", soloLaneId: "reader" }))
     expect(updateShellControl).toHaveBeenCalledTimes(1)
 
@@ -185,7 +187,8 @@ describe("ReaderApp", () => {
     await screen.findByRole("img", { name: "001.jpg" })
 
     fireEvent.click(screen.getByRole("button", { name: "泳道模式" }))
-    fireEvent.click(await screen.findByRole("button", { name: "退出 Reader 全屏" }))
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "阅读器更多设置" }), { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole("menuitem", { name: "退出全屏" }))
     expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
 
     persistedShell = {
@@ -937,6 +940,37 @@ describe("ReaderApp", () => {
       ...config,
       cardLayout: { ...config.cardLayout, "page-navigation": { ...config.cardLayout["page-navigation"]!, expanded: false } },
     }))
+  })
+
+  it("[neoview.shell.sessionless-bottom] mounts the bottom edge without opening a book", async () => {
+    const config = shellConfig()
+    const client = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
+    } as ReaderHttpClient
+
+    render(<ReaderApp sessionScopeId="sessionless-bottom-test" client={client} />)
+    const sessionlessBottom = await screen.findByRole("region", { name: "NeoView 底部缩略图与导航栏" })
+    expect(sessionlessBottom.querySelector('[data-reader-bottom-empty="true"]')).toBeTruthy()
+    expect(screen.getByText("未打开书籍")).toBeTruthy()
+    expect(client.config).toHaveBeenCalledOnce()
+  })
+
+  it("moves Reader fullscreen to the Reader lane titlebar without invoking browser fullscreen", async () => {
+    const config = shellConfig()
+    config.workspace!.mode = "swimlane"
+    const client = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
+    } as ReaderHttpClient
+    render(<ReaderApp sessionScopeId="reader-view-fullscreen-test" client={client} />)
+    const readerViewFullscreen = await screen.findByRole("button", { name: "Reader 视图全屏" })
+    const requestFullscreen = vi.fn(async () => undefined)
+    Object.defineProperty(document.querySelector<HTMLElement>('[data-reader-app="true"]')!, "requestFullscreen", { configurable: true, value: requestFullscreen })
+
+    fireEvent.click(readerViewFullscreen)
+    await waitFor(() => expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull())
+    expect(document.querySelector('[data-reader-view-fullscreen="true"]')).toBeTruthy()
+    expect(screen.getByRole("button", { name: "退出 Reader 视图全屏" })).toBeTruthy()
+    expect(requestFullscreen).not.toHaveBeenCalled()
   })
 
   it("[neoview.settings.sessionless-card] mounts an explicitly docked setting card without opening a book", async () => {

@@ -45,6 +45,10 @@ describe("ReaderSwimlaneWorkspace", () => {
     )
 
     const strip = document.querySelector('[data-reader-swimlane-strip="true"]')!
+    const viewport = document.querySelector<HTMLElement>('[data-reader-swimlane-viewport="true"]')!
+    expect(viewport.getAttribute("data-scrollbar")).toBe("hidden")
+    expect(viewport.dataset.readerManualScroll).toBe("disabled")
+    expect(viewport.className).toContain("overflow-x-hidden")
     expect(strip.querySelectorAll(":scope > [data-reader-swimlane]")).toHaveLength(3)
     expect(document.querySelector('[data-reader-swimlane="reader"]')?.className).toContain("inset_0_3px_0_var(--primary)")
     expect(document.querySelector('[data-reader-swimlane="reader"]')?.className).not.toContain("ring-primary")
@@ -178,7 +182,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     const action = screen.getByRole("button", { name: "Reader action" })
     expect(document.querySelector<HTMLElement>('[data-reader-swimlane="reader"]')?.style.width).toBe(`${window.innerWidth}px`)
     expect(document.querySelector<HTMLElement>('[data-reader-swimlane="right"]')?.style.width).toBe("300px")
-    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "定位阅读器泳道" }))
     expect(onWorkspaceChange).toHaveBeenCalledWith({ activeLane: "reader" })
     expect(readerAction).not.toHaveBeenCalled()
@@ -195,7 +199,7 @@ describe("ReaderSwimlaneWorkspace", () => {
       />,
     )
     expect(document.querySelector<HTMLElement>('[data-reader-swimlane="reader"]')?.style.width).toBe(`${window.innerWidth}px`)
-    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Reader action" }))
     expect(readerAction).toHaveBeenCalledOnce()
   })
@@ -214,12 +218,16 @@ describe("ReaderSwimlaneWorkspace", () => {
         onWorkspaceChange={onWorkspaceChange}
       />,
     )
+    const viewport = document.querySelector<HTMLElement>('[data-reader-swimlane-viewport="true"]')!
+    const scrollTo = vi.fn()
+    viewport.scrollTo = scrollTo
     const trigger = document.querySelector<HTMLElement>('[data-reader-swimlane-trigger="right"]')!
     fireEvent.pointerEnter(trigger)
     act(() => vi.advanceTimersByTime(419))
     expect(document.querySelector('[data-reader-swimlane-preview="right"]')).toBeNull()
     act(() => vi.advanceTimersByTime(1))
     expect(document.querySelector('[data-reader-swimlane-preview="right"]')).toBeTruthy()
+    expect(scrollTo).toHaveBeenCalled()
     expect(document.querySelector('[data-reader-swimlane-trigger="right"]')).toBeNull()
     expect(onWorkspaceChange).not.toHaveBeenCalled()
   })
@@ -299,7 +307,7 @@ describe("ReaderSwimlaneWorkspace", () => {
       />,
     )
     expect(document.querySelector<HTMLElement>('[data-reader-swimlane="reader"]')?.style.width).toBe("600px")
-    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
 
     const ordinaryShell = shellConfig("swimlane", "reader")
     ordinaryShell.workspace!.swimlane.readerSolo = false
@@ -432,6 +440,76 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(onWorkspaceChange).toHaveBeenLastCalledWith({ lanes: { left: { width: 420 } } })
   })
 
+  it("moves Reader fullscreen to the Reader titlebar and hides that chrome while active", () => {
+    const shell = shellConfig("swimlane", "reader")
+    shell.workspace!.swimlane.readerSolo = false
+    const onReaderViewFullscreenChange = vi.fn()
+    const onWorkspaceChange = vi.fn()
+    const view = render(
+      <ReaderSwimlaneWorkspace
+        shell={shell}
+        workspace={readerWorkspaceConfig(shell)}
+        reader={<div>reader</div>}
+        left={<div>left</div>}
+        right={<div>right</div>}
+        readerViewFullscreen={false}
+        onReaderViewFullscreenChange={onReaderViewFullscreenChange}
+        onWorkspaceChange={onWorkspaceChange}
+      />,
+    )
+
+    const readerViewButton = screen.getByRole("button", { name: "Reader 视图全屏" })
+    expect(readerViewButton.closest('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+    expect(readerViewButton.querySelector("svg.lucide-scan")).toBeTruthy()
+    expect(readerViewButton.getAttribute("aria-pressed")).toBe("false")
+    fireEvent.click(readerViewButton)
+    expect(onReaderViewFullscreenChange).toHaveBeenCalledOnce()
+    expect(onWorkspaceChange).not.toHaveBeenCalled()
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "阅读器更多设置" }), { button: 0, ctrlKey: false })
+    const laneFullscreen = screen.getByRole("menuitem", { name: "当前泳道全屏" })
+    expect(laneFullscreen.querySelector("svg.lucide-maximize-2")).toBeTruthy()
+    fireEvent.click(laneFullscreen)
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith({ activeLane: "reader", readerSolo: true, soloLaneId: null, lanes: { reader: { collapsed: false } } })
+
+    view.rerender(
+      <ReaderSwimlaneWorkspace
+        shell={shell}
+        workspace={readerWorkspaceConfig(shell)}
+        reader={<div>reader</div>}
+        left={<div>left</div>}
+        right={<div>right</div>}
+        readerViewFullscreen
+        onReaderViewFullscreenChange={onReaderViewFullscreenChange}
+        onWorkspaceChange={onWorkspaceChange}
+      />,
+    )
+    const fullscreenLane = document.querySelector<HTMLElement>('[data-reader-view-fullscreen="true"]')
+    expect(fullscreenLane).toBeTruthy()
+    expect(fullscreenLane?.style.border).toBe("0px")
+    expect(fullscreenLane?.style.boxShadow).toBe("none")
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
+  })
+
+  it("keeps the Reader titlebar for current-lane fullscreen from the more menu", () => {
+    const shell = shellConfig("swimlane", "reader")
+    shell.workspace!.swimlane.readerSolo = true
+    render(
+      <ReaderSwimlaneWorkspace
+        shell={shell}
+        workspace={readerWorkspaceConfig(shell)}
+        reader={<div>reader</div>}
+        left={<div>left</div>}
+        right={<div>right</div>}
+        readerViewFullscreen={false}
+        onReaderViewFullscreenChange={vi.fn()}
+        onWorkspaceChange={vi.fn()}
+      />,
+    )
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-view-fullscreen="true"]')).toBeNull()
+  })
+
   it("persists collapse and drag reorder from lane chrome", () => {
     const shell = shellConfig("swimlane", "reader")
     shell.workspace!.swimlane.readerSolo = false
@@ -562,7 +640,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     const readerLane = () => document.querySelector<HTMLElement>('[data-reader-swimlane="reader"]')!
     const rightLane = () => document.querySelector<HTMLElement>('[data-reader-swimlane="right"]')!
     expect(readerLane().style.width).toBe(`${window.innerWidth}px`)
-    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
 
     const trigger = document.querySelector<HTMLElement>('[data-reader-swimlane-trigger="right"]')!
     fireEvent.pointerEnter(trigger)
@@ -572,7 +650,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     fireEvent.pointerDown(screen.getByRole("button", { name: "Right state action" }), { pointerId: 31, button: 0 })
     expect(shell.workspace!.swimlane).toMatchObject({ activeLane: "right", readerSolo: true, readerSoloOnFocus: true, soloLaneId: "reader" })
     expect(readerLane().style.width).toBe(`${window.innerWidth}px`)
-    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
     expect(rightLane().style.width).toBe("300px")
 
     fireEvent.click(screen.getByRole("button", { name: "Reader state action" }))
@@ -631,6 +709,7 @@ function shellConfig(mode: "edges" | "swimlane", activeLane: "left" | "reader" |
         edgeRevealDelayMs: 180,
         readerFocusOnHover: true,
         readerFocusHoverDelayMs: 650,
+        manualScrollEnabled: false,
         lanes: {
           left: { width: 320, collapsed: false, activePanelId: "folder" },
           reader: { width: 960, collapsed: false },
