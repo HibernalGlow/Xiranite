@@ -24,8 +24,10 @@ import { loadWorkspaceSnapshot as loadWorkspaceSnapshotRpc, persistWorkspaceSnap
 import type { LocalBackendConfig } from "@/backend/localBackendConfig"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceStore } from "@/store/workspaceStore"
+import { RESTORE_WORKSPACE_COMPONENTS } from "@/store/workspace/restorePolicy"
 import type { WSStore } from "@/store/workspace/types"
 import type { ComponentDTO, LaneDTO, WorkspaceDTO, WorkspaceSnapshotDTO } from "@xiranite/shared"
+import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 
 type WorkspaceSnapshot = WorkspaceSnapshotDTO
 
@@ -90,7 +92,7 @@ function toComponentDTO(component: ComponentInstance, now: number): ComponentDTO
 }
 
 async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
-  return loadWorkspaceSnapshotRpc()
+  return startupDebugAsync("workspace:load-snapshot", loadWorkspaceSnapshotRpc)
 }
 
 async function persistWorkspaceSnapshot(snapshot: WorkspaceSnapshot): Promise<void> {
@@ -100,6 +102,8 @@ async function persistWorkspaceSnapshot(snapshot: WorkspaceSnapshot): Promise<vo
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const locallyPersistedSnapshotRef = useRef<WorkspaceSnapshot | undefined>(undefined)
+  /** Last SQLite component rows. Kept so skip-restore mode never writes an empty list. */
+  const snapshotComponentsRef = useRef<ComponentDTO[]>([])
   const localBackendStatus = useLocalBackendStatus()
   const localBackendReady = localBackendStatus.data?.status === "ready"
   const workspaceQueryKey = workspaceSnapshotQueryKey(localBackendStatus.data?.config)
@@ -113,6 +117,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       components: state.components,
     })),
   )
+
+  startupDebug("react:workspace-provider-render", {
+    backendStatus: localBackendStatus.data?.status ?? "pending",
+    backendReady,
+    workspaces: workspaces.length,
+    lanes: lanes.length,
+    components: components.length,
+    restoreComponents: RESTORE_WORKSPACE_COMPONENTS,
+  })
 
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined
@@ -133,6 +146,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     onSuccess: (_result, snapshot) => {
       queryClient.setQueryData(workspaceQueryKey, snapshot)
       locallyPersistedSnapshotRef.current = queryClient.getQueryData<WorkspaceSnapshot>(workspaceQueryKey)
+      if (RESTORE_WORKSPACE_COMPONENTS) {
+        snapshotComponentsRef.current = snapshot.components
+      }
     },
     onError: (error) => {
       console.error("[backend] persist failed:", error)
@@ -147,8 +163,24 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     // updates that happened while the request was in flight.
     if (workspaceQuery.data === locallyPersistedSnapshotRef.current) return
 
-    hydrate(workspaceQuery.data.workspaces, workspaceQuery.data.lanes, workspaceQuery.data.components)
+    snapshotComponentsRef.current = workspaceQuery.data.components
+    const componentsToHydrate = RESTORE_WORKSPACE_COMPONENTS ? workspaceQuery.data.components : []
+
+    startupDebug("workspace:hydrate-store:begin", {
+      workspaces: workspaceQuery.data.workspaces.length,
+      lanes: workspaceQuery.data.lanes.length,
+      components: workspaceQuery.data.components.length,
+      restoringComponents: componentsToHydrate.length,
+      restoreComponents: RESTORE_WORKSPACE_COMPONENTS,
+    })
+    if (!RESTORE_WORKSPACE_COMPONENTS && workspaceQuery.data.components.length > 0) {
+      console.info(
+        `[workspace] component restore disabled — skipped ${workspaceQuery.data.components.length} instance(s) (SQLite rows kept)`,
+      )
+    }
+    hydrate(workspaceQuery.data.workspaces, workspaceQuery.data.lanes, componentsToHydrate)
     setBackendReady(true)
+    startupDebug("workspace:hydrate-store:end")
   }, [hydrate, setBackendReady, workspaceQuery.data])
 
   useEffect(() => {
@@ -169,10 +201,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
     const timer = setTimeout(() => {
       const now = Date.now()
+      // While restore is off, never rewrite component rows from the live store
+      // (which starts empty). Keep the last SQLite snapshot so NeoView instances
+      // remain available once restore is re-enabled.
+      const nextComponents = RESTORE_WORKSPACE_COMPONENTS
+        ? components.map((component) => toComponentDTO(component, now))
+        : snapshotComponentsRef.current
       persistWorkspace({
         workspaces: workspaces.map((workspace) => toWorkspaceDTO(workspace, now)),
         lanes: lanes.map((lane) => toLaneDTO(lane, now)),
-        components: components.map((component) => toComponentDTO(component, now)),
+        components: nextComponents,
       })
     }, 500)
 
