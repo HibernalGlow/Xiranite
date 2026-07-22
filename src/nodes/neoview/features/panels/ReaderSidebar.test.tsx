@@ -333,6 +333,16 @@ describe("ReaderSidebar layout gestures", () => {
     expect(folderPanel.querySelector('[data-reader-card-chrome="none"]')?.className).toContain("h-full")
     expect(folderPanel.querySelector('[data-reader-card-chrome="none"]')?.className).toContain("w-full")
     expect(document.querySelector('[data-reader-panel-cache="folder"] h2')).toBeNull()
+
+    // page-navigation is also exclusivePanel; chrome must match history/bookmark/folder.
+    fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
+    const pageListPanel = document.querySelector<HTMLElement>('[data-reader-panel="pageList"]')!
+    expect(pageListPanel.className).toContain("h-full")
+    expect(pageListPanel.querySelector('[data-reader-card="页面导航"]')?.getAttribute("data-reader-card-chrome")).toBe("none")
+    expect(pageListPanel.querySelector('[data-neoview-page-list="true"]')?.className).toMatch(/h-full/)
+    expect(pageListPanel.querySelector('[data-neoview-page-list="true"]')?.className).toMatch(/w-full/)
+    expect(pageListPanel.querySelector("h2")).toBeNull()
+    expect(screen.queryByRole("button", { name: "折叠页面导航" })).toBeNull()
   })
 
   it("[neoview.sidebar-height.blank-collapse] collapses only blank sidebar clicks in the configured mode", () => {

@@ -14,7 +14,6 @@ import { cn } from "@/lib/utils"
 import type { ReaderHttpClient, ReaderPageDto } from "../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import type { ReaderPanelContext } from "../registry"
-import { ReaderCardEmptyState } from "./ReaderCardEmptyState"
 import {
   createSparsePageCatalog,
   mergeSparsePagePositions,
@@ -38,8 +37,26 @@ const catalogBatchModule = import("./page-list/requestPageCatalogBatch")
 export default function PageNavigationCard(context: ReaderPanelContext) {
   const residentRef = useRef(context.panelActive !== false)
   if (context.panelActive !== false) residentRef.current = true
-  if (!residentRef.current) return <ReaderCardEmptyState />
-  if (!context.session) return <ReaderCardEmptyState>打开书本后显示页面导航</ReaderCardEmptyState>
+  // exclusivePanel is declared on the manifest; match history/bookmark fill contract so the
+  // frameless pageList rail actually consumes the whole pane instead of content-sized chrome.
+  if (!residentRef.current) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-1 flex-col" data-neoview-page-list="true" data-page-list-state="inactive">
+        <div className="grid min-h-24 flex-1 place-items-center px-3 py-4 text-center text-[11px] text-muted-foreground" data-reader-card-empty="true">
+          打开书本后显示页面导航
+        </div>
+      </div>
+    )
+  }
+  if (!context.session) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-1 flex-col" data-neoview-page-list="true" data-page-list-state="empty">
+        <div className="grid min-h-24 flex-1 place-items-center px-3 py-4 text-center text-[11px] text-muted-foreground" data-reader-card-empty="true">
+          打开书本后显示页面导航
+        </div>
+      </div>
+    )
+  }
   const totalPages = normalizePageCount(context.session.book.pageCount)
   const activePageIndex = clampPageIndex(context.session.frame.anchorPageIndex, totalPages)
   return (
@@ -357,8 +374,9 @@ function PageListCard({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-2"
+      className="flex h-full min-h-0 w-full flex-1 flex-col gap-2"
       data-neoview-page-list="true"
+      data-page-list-state="ready"
       data-page-list-mode={viewMode}
       data-focused-position={focusedPosition}
       data-preview-index={previewIndex}
@@ -371,7 +389,7 @@ function PageListCard({
         }
       }}
     >
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
@@ -389,18 +407,20 @@ function PageListCard({
           onClick={() => void commitPreference({ followProgress: !followProgress })}
         ><Navigation /></IconToggle>
       </div>
-      <Suspense fallback={<div className="h-8" aria-hidden="true" />}>
-        <PageListToolbar
-          client={client}
-          sessionId={sessionId}
-          totalPages={totalPages}
-          resultCount={resultCount}
-          filtered={Boolean(deferredQuery)}
-          viewMode={viewMode}
-          disabled={disabled}
-          onViewModeChange={(mode) => void commitPreference({ viewMode: mode })}
-        />
-      </Suspense>
+      <div className="shrink-0">
+        <Suspense fallback={<div className="h-8" aria-hidden="true" />}>
+          <PageListToolbar
+            client={client}
+            sessionId={sessionId}
+            totalPages={totalPages}
+            resultCount={resultCount}
+            filtered={Boolean(deferredQuery)}
+            viewMode={viewMode}
+            disabled={disabled}
+            onViewModeChange={(mode) => void commitPreference({ viewMode: mode })}
+          />
+        </Suspense>
+      </div>
       {preferencesError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{preferencesError}</div> : null}
       {navigationError ? <div role="alert" className="rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">{navigationError}</div> : null}
       <Suspense fallback={null}>
@@ -410,6 +430,7 @@ function PageListCard({
         ref={viewportRef}
         className="min-h-0 flex-1 overflow-auto rounded border bg-background/55 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         data-neoview-page-list-viewport="true"
+        data-neoview-library-viewport="true"
         role="listbox"
         aria-label="页面"
         tabIndex={0}
@@ -458,7 +479,7 @@ function PageListCard({
         )}
       </div>
       {totalPages > 1 ? (
-        <div className="grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2 border-t pt-2">
+        <div className="grid shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2 border-t pt-2">
           <span className="text-right text-[10px] tabular-nums text-muted-foreground">{sliderIndex + 1}</span>
           <div onKeyDown={(event) => event.stopPropagation()}>
             <Slider
@@ -478,7 +499,7 @@ function PageListCard({
           <span className="text-[10px] tabular-nums text-muted-foreground">{totalPages}</span>
         </div>
       ) : null}
-      <div className="flex gap-1">
+      <div className="flex shrink-0 gap-1">
         <Input
           aria-label="跳转页码"
           type="number"
