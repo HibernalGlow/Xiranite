@@ -323,6 +323,8 @@ export function ReaderApp({
   const readerInteractionRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
+  const openOperationRef = useRef<AbortController | undefined>(undefined)
+  const activeSourcePathRef = useRef(initialPath.trim())
   const navigationPendingRef = useRef(false)
   const slideshowSessionRef = useRef<ReaderSessionDto | undefined>(undefined)
   const [slideshow] = useState(() => new ReaderSlideshow({
@@ -737,11 +739,28 @@ export function ReaderApp({
 
   async function openPath(nextPath = path, provenance?: import("../adapters/reader-http-client").ReaderActivationProvenanceDto) {
     const normalizedPath = nextPath.trim()
-    if (!normalizedPath || busy) return
+    if (!normalizedPath || busy || openOperationRef.current) {
+      neoviewDebug("reader:open:skipped", {
+        sessionScopeId,
+        path: normalizedPath || undefined,
+        reason: !normalizedPath ? "empty" : openOperationRef.current ? "open-active" : "busy",
+      })
+      return
+    }
+    if (sessionRef.current && activeSourcePathRef.current === normalizedPath) {
+      neoviewDebug("reader:open:skipped", {
+        sessionScopeId,
+        path: normalizedPath,
+        reason: "same-active-source",
+        sessionId: sessionRef.current,
+      })
+      return
+    }
     slideshow.stop()
     operationRef.current?.abort()
     const controller = new AbortController()
     operationRef.current = controller
+    openOperationRef.current = controller
     setBusy(true)
     setError(undefined)
     const openStartedAt = performance.now()
@@ -774,6 +793,7 @@ export function ReaderApp({
       // Path chrome can update urgently; session/frame work is transitioned so the
       // main thread is not monopolized by LazyReaderFrame + decode in one turn.
       setPath(normalizedPath)
+      activeSourcePathRef.current = normalizedPath
       setBrowserOriginPath(nextBrowserOriginPath)
       onPathCommitted?.(normalizedPath, nextBrowserOriginPath)
       startTransition(() => {
@@ -810,6 +830,7 @@ export function ReaderApp({
         setError(errorMessage(cause))
       }
     } finally {
+      if (openOperationRef.current === controller) openOperationRef.current = undefined
       if (operationRef.current === controller) operationRef.current = undefined
       if (!controller.signal.aborted) setBusy(false)
     }
@@ -1272,6 +1293,7 @@ export function ReaderApp({
       void clientRef.current.metadata?.(replacement.sessionId, controller.signal).then((metadata) => {
         if (sessionRef.current !== replacement.sessionId) return
         setPath(metadata.book.sourcePath)
+        activeSourcePathRef.current = metadata.book.sourcePath
         onPathCommitted?.(metadata.book.sourcePath, browserOriginPath)
       }).catch(() => undefined)
       // Book-switch toast is owned by ReaderSwitchToastRuntime via book.id change.
@@ -1504,6 +1526,7 @@ export function ReaderApp({
         throw new Error(failed?.error ?? failed?.errorCode ?? "移动到回收站失败")
       }
       setPath("")
+      activeSourcePathRef.current = ""
       switchToast.show({ title: "已移到回收站", description: sourcePath })
     } catch (cause) {
       if (controller.signal.aborted) return
