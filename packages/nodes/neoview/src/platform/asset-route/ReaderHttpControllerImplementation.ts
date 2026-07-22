@@ -7,6 +7,7 @@ import { DEFAULT_READER_LAYOUT, type FrameSnapshot, type ReaderLayout } from "..
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
 import { ReaderMediaFormatRegistryRef } from "../../domain/page/media.js"
+import { normalizeReaderConfigPatch } from "./ReaderConfigSectionRegistry.js"
 import { DEFAULT_READER_COLOR_FILTER, type ReaderColorFilterSettings } from "../../domain/color-filter/ReaderColorFilter.js"
 import { DEFAULT_READER_PAGE_TRANSITION, type ReaderPageTransitionSettings } from "../../domain/page-transition/ReaderPageTransition.js"
 import { DEFAULT_READER_SWITCH_TOAST, type ReaderSwitchToastSettings } from "../../application/switch-toast/ReaderSwitchToast.js"
@@ -1073,8 +1074,14 @@ export class ReaderHttpController implements AsyncDisposable {
   }
 
   async #patchShellConfig(request: Request): Promise<Response> {
-    const body = await readControlJson(request)
-    if (!body) return jsonResponse({ error: "Reader config patch must be a JSON object" }, 400)
+    const rawBody = await readControlJson(request)
+    if (!rawBody) return jsonResponse({ error: "Reader config patch must be a JSON object" }, 400)
+    let body: Record<string, unknown>
+    try {
+      body = normalizeReaderConfigPatch(rawBody)
+    } catch (error) {
+      return jsonResponse({ error: errorMessage(error) }, 400)
+    }
     if (Object.hasOwn(body, "imageProcessing")) {
       if (!this.#updateImageProcessing) return jsonResponse({ error: "Reader image processing config is read-only" }, 405)
       let parsed: ReturnType<typeof parseNeoviewImageProcessingPatch>
