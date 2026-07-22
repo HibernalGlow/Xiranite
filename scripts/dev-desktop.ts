@@ -1,7 +1,7 @@
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
-import { waitForFrontendReady } from "./frontend-readiness"
+import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness"
 import { clearStaleViteOptimizeTemps, spawnManagedVite, stopProcessTree } from "./managed-process"
 import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
 import { watchNeoviewBackendSource, type NeoviewBackendWatcher } from "./neoview-backend-watcher"
@@ -107,8 +107,9 @@ process.on("SIGTERM", () => { void stop() })
 process.on("exit", () => { backend?.close(); void removeDevSession() })
 
 try {
-  await waitForFrontendReady(frontendUrl, { profile: "desktop" })
-  console.log(`[xiranite-frontend:ready] ${frontendUrl}`)
+  console.log(formatFrontendWaitLog(frontendUrl, { profile: "desktop" }))
+  const ready = await waitForFrontendReady(frontendUrl, { profile: "desktop", sinceMs: devSessionStartedAt })
+  console.log(formatFrontendReadyLog(ready))
 
   // A Wails desktop window does not need its own Windows console. Keep the
   // terminal available only when explicitly requested for Go-side debugging.

@@ -1,6 +1,6 @@
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
-import { waitForFrontendReady } from "./frontend-readiness"
+import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness"
 import { clearStaleViteOptimizeTemps, spawnManagedVite, stopProcessTree } from "./managed-process"
 import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
 
@@ -62,9 +62,11 @@ process.on("SIGINT", () => { void stop() })
 process.on("SIGTERM", () => { void stop() })
 process.on("exit", () => { void removeDevSession() })
 
+const sessionStartedAt = Date.now()
 console.log(`[xiranite-frontend] ${frontendUrl}`)
-void waitForFrontendReady(frontendUrl, { profile: "listen" }).then(() => {
-  console.log(`[xiranite-frontend:ready] ${frontendUrl}`)
+console.log(formatFrontendWaitLog(frontendUrl, { profile: "listen" }))
+void waitForFrontendReady(frontendUrl, { profile: "listen", sinceMs: sessionStartedAt }).then((result) => {
+  console.log(formatFrontendReadyLog(result))
 }).catch((error: unknown) => {
   if (!stopping) console.error(`[xiranite-frontend:not-ready] ${error instanceof Error ? error.message : String(error)}`)
 })
