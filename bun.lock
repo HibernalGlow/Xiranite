@@ -35,6 +35,7 @@
         "@wailsio/runtime": "latest",
         "@xiranite/api": "workspace:*",
         "@xiranite/contract": "workspace:*",
+        "@xiranite/node-arcthumb": "workspace:*",
         "@xiranite/node-audiov": "workspace:*",
         "@xiranite/node-bandia": "workspace:*",
         "@xiranite/node-batong": "workspace:*",
@@ -320,6 +321,24 @@
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "^7.0.2",
+      },
+    },
+    "packages/nodes/arcthumb": {
+      "name": "@xiranite/node-arcthumb",
+      "version": "0.1.0",
+      "bin": {
+        "xarcthumb": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@xiranite/arcthumb-native": "workspace:*",
+        "@xiranite/cli-runtime": "workspace:*",
+        "@xiranite/config": "workspace:*",
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10",
       },
     },
     "packages/nodes/audiov": {
@@ -2290,6 +2309,8 @@
 
     "@xiranite/image-native": ["@xiranite/image-native@workspace:packages/image-native"],
 
+    "@xiranite/node-arcthumb": ["@xiranite/node-arcthumb@workspace:packages/nodes/arcthumb"],
+
     "@xiranite/node-audiov": ["@xiranite/node-audiov@workspace:packages/nodes/audiov"],
 
     "@xiranite/node-bandia": ["@xiranite/node-bandia@workspace:packages/nodes/bandia"],
@@ -2339,6 +2360,7 @@
     "@xiranite/node-lorat": ["@xiranite/node-lorat@workspace:packages/nodes/lorat"],
 
     "@xiranite/node-marku": ["@xiranite/node-marku@workspace:packages/nodes/marku"],
+
     "@xiranite/node-melodeck": ["@xiranite/node-melodeck@workspace:packages/nodes/melodeck"],
 
     "@xiranite/node-migratef": ["@xiranite/node-migratef@workspace:packages/nodes/migratef"],
