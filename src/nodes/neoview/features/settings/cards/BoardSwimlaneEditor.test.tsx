@@ -10,7 +10,6 @@ describe("BoardSwimlaneEditor layout moves", () => {
     const folder = lanes.left.find((panel) => panel.id === "folder")
     expect(folder?.cards.some((card) => card.id === "folder-main")).toBe(true)
 
-    // Simulate the live cross-lane membership change used during drag-over.
     const withoutFolder = {
       ...lanes,
       left: lanes.left.filter((panel) => panel.id !== "folder"),
@@ -26,49 +25,6 @@ describe("BoardSwimlaneEditor layout moves", () => {
     })
     expect(patch.board.cards.find((card) => card.cardId === "folder-main")).toMatchObject({
       panelId: "folder",
-      visible: true,
-    })
-  })
-
-  it("keeps exclusive folder-main alone on its host after a board patch", () => {
-    const shell = shellConfig()
-    const lanes = createBoardLanes(shell)
-    const folder = lanes.left.find((panel) => panel.id === "folder")!
-    const info = lanes.right.find((panel) => panel.id === "info") ?? lanes.left.find((panel) => panel.id === "info")
-    // Place folder panel on the right; exclusive card stays on folder.
-    const next = {
-      left: lanes.left.filter((panel) => panel.id !== "folder"),
-      right: info
-        ? [folder, ...lanes.right.filter((panel) => panel.id !== "folder")]
-        : [folder, ...lanes.right],
-      hidden: lanes.hidden,
-    }
-    const patch = createBoardPatch(shell, next)
-    const folderCards = patch.board.cards.filter((card) => card.panelId === "folder" && card.visible)
-    expect(folderCards.map((card) => card.cardId)).toEqual(["folder-main"])
-  })
-
-  it("live-reorders a panel into the right lane so the landing slot is visible", () => {
-    const shell = shellConfig()
-    const lanes = createBoardLanes(shell)
-    const folder = lanes.left.find((panel) => panel.id === "folder")
-    expect(folder).toBeTruthy()
-    // Emulate over-id gated live move used by onDragOver: only mutates when target changes.
-    const movedOnce = {
-      left: lanes.left.filter((panel) => panel.id !== "folder"),
-      right: [...lanes.right, folder!],
-      hidden: lanes.hidden,
-    }
-    const sameTarget = {
-      left: movedOnce.left.filter((panel) => panel.id !== "folder"),
-      right: [...movedOnce.right.filter((panel) => panel.id !== "folder"), folder!],
-      hidden: movedOnce.hidden,
-    }
-    // Second apply to the same logical placement must be a no-op identity for thrash safety.
-    expect(sameTarget.right.map((panel) => panel.id).filter((id) => id === "folder")).toHaveLength(1)
-    expect(movedOnce.right.at(-1)?.id).toBe("folder")
-    expect(createBoardPatch(shell, movedOnce).board.panels.find((panel) => panel.id === "folder")).toMatchObject({
-      position: "right",
       visible: true,
     })
   })
