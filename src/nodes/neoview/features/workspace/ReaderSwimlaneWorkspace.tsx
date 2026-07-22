@@ -156,6 +156,7 @@ export function ReaderSwimlaneWorkspace({
       onWorkspaceChange({
         activeLane: laneId,
         ...(laneId === "reader" && swimlane.readerSoloOnFocus && !swimlane.readerSolo ? { readerSolo: true } : {}),
+        ...(swimlane.soloLaneId && swimlane.soloLaneId !== "reader" && swimlane.soloLaneId !== laneId ? { soloLaneId: null } : {}),
       })
     }
     scrollLaneIntoView(laneId, "focus")
