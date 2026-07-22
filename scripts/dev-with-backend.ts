@@ -1,5 +1,4 @@
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
-import { closeBackendAfterHandoff } from "./backend-restart-handoff"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
 import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness"
@@ -40,7 +39,7 @@ async function restartBackendFromDevScript() {
   backend = next
   await writeBackendDevManifest({ baseUrl: next.url, token: next.token }, frontendUrl)
   console.log(`[xiranite-backend:restart] ${next.url}`)
-  closeBackendAfterHandoff(previous)
+  if (previous) setTimeout(() => previous.close(), 250)
   return {
     restarted: true,
     supported: true,
