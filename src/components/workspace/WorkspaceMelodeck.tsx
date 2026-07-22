@@ -83,6 +83,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const playbackControlsRef = useRef<MusicPlaybackControls | null>(null)
   const applyingConfigRef = useRef(false)
+  const skipNextSaveRef = useRef(false)
   const [collapsed, setCollapsed] = useState(true)
   const [mode, setMode] = useState<DockMode>(DEFAULT_MELODECK_CONFIG.mode)
   const [playback, setPlaybackState] = useState<MusicPlaybackState>(EMPTY_PLAYBACK_STATE)
@@ -105,6 +106,9 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
 
     const refreshMelodeckConfig = () => {
       applyingConfigRef.current = true
+      // Load-apply must not round-trip a save of the same snapshot; that was
+      // blocking the event loop for ~1s on every desktop boot (see startup debug).
+      skipNextSaveRef.current = true
       startupDebugAsync("melodeck:provider:config-load", loadMelodeckConfig).then((config) => {
         if (cancelled) return
         startupDebug("melodeck:provider:apply:begin", { savedTracks: config.saved_tracks?.length ?? 0 })
@@ -120,6 +124,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
         })
       }).catch((error) => {
         applyingConfigRef.current = false
+        skipNextSaveRef.current = false
         console.warn("[melodeck] config load failed:", error)
       })
     }
@@ -134,6 +139,10 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
 
   useEffect(() => {
     if (!backendKey || !configLoaded || applyingConfigRef.current) return
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false
+      return
+    }
     const timer = window.setTimeout(() => {
       startupDebug("melodeck:provider:config-save:begin")
       startupDebugAsync("melodeck:provider:config-save", () => saveMelodeckConfig({
