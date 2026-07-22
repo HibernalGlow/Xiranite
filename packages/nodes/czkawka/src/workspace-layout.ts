@@ -18,6 +18,8 @@ export interface CzkawkaWorkspaceLayout {
   barHandlePosition: CzkawkaBarHandlePosition;
   navigatorPositionX: number;
   navigatorPositionY: number;
+  navigatorDock: "floating" | "title";
+  autoFitToViewport: boolean;
 }
 
 export type CzkawkaLaneId = "source" | "results" | "analysis";
@@ -44,6 +46,8 @@ export const CZKAWKA_WORKSPACE_DEFAULTS: CzkawkaWorkspaceLayout = {
   barHandlePosition: "left",
   navigatorPositionX: 96,
   navigatorPositionY: 94,
+  navigatorDock: "floating",
+  autoFitToViewport: false,
 };
 
 export function normalizeCzkawkaWorkspaceLayout(
@@ -90,6 +94,8 @@ export function normalizeCzkawkaWorkspaceLayout(
     barHandlePosition: value.barHandlePosition === "right" ? "right" : "left",
     navigatorPositionX: clamp(value.navigatorPositionX, 0, 100, CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionX),
     navigatorPositionY: clamp(value.navigatorPositionY, 0, 100, CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionY),
+    navigatorDock: value.navigatorDock === "title" ? "title" : "floating",
+    autoFitToViewport: value.autoFitToViewport === true,
   };
 }
 

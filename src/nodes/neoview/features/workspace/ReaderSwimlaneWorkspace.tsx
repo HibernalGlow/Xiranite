@@ -10,7 +10,7 @@ import {
   type ReactNode,
   type WheelEvent as ReactWheelEvent,
 } from "react"
-import { AlertTriangle, BookOpen, Columns3, Ellipsis, GripVertical, Maximize2, Minimize2, PanelLeft, PanelRight, PanelsTopLeft, RotateCcw, Settings2 } from "lucide-react"
+import { AlertTriangle, BookOpen, Columns3, Ellipsis, Maximize2, Minimize2, PanelLeft, PanelRight, PanelsTopLeft, RotateCcw, Settings2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -23,8 +23,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { LaneCollapseIcon } from "@/components/workspace/lane/LaneCollapseIcon"
 import { LaneResizer } from "@/components/workspace/lane/LaneResizer"
+import { SwimlaneCollapseDragButton } from "@/components/workspace/swimlane/SwimlaneCollapseDragButton"
 import { adjacentSwimlane, effectiveSwimlaneWidth } from "@/components/workspace/swimlane/model"
 import { cn } from "@/lib/utils"
 import type { ReaderShellConfigDto, ReaderSwimlaneId } from "../../adapters/reader-http-client"
@@ -79,6 +79,7 @@ export function ReaderSwimlaneWorkspace({
   onOpenSettings,
 }: ReaderSwimlaneWorkspaceProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
+  const workspaceRef = useRef<HTMLDivElement>(null)
   const laneRefs = useRef<Partial<Record<ReaderSwimlaneId, HTMLElement | null>>>({})
   const [viewportWidth, setViewportWidth] = useState(() => typeof window === "undefined" ? 960 : Math.max(1, window.innerWidth))
   const liveWidthsRef = useRef<Record<ReaderSwimlaneId, number>>(Object.fromEntries(
@@ -99,6 +100,7 @@ export function ReaderSwimlaneWorkspace({
   const soloLaneId = swimlane.soloLaneId ?? (swimlane.readerSolo ? "reader" : undefined)
   const revealTriggersEnabled = soloLaneId !== undefined && swimlane.activeLane === soloLaneId && previewLane === undefined
   const readerNormalWidth = readerLaneWidth(viewportWidth, swimlane.readerWidthRatio)
+  const autoFitGeometryKey = swimlane.laneOrder.map((laneId) => `${laneId}:${swimlane.lanes[laneId]?.collapsed === true}`).join("|")
 
   useEffect(() => {
     liveWidthsRef.current = Object.fromEntries(swimlane.laneOrder.map((laneId) => [
@@ -236,6 +238,14 @@ export function ReaderSwimlaneWorkspace({
 
   function commitLaneWidth(laneId: ReaderSwimlaneId): void {
     const next = Math.round(liveWidthsRef.current[laneId])
+    if (swimlane.autoFitToViewport) {
+      onWorkspaceChange(fitReaderSwimlanesToViewport(viewportWidth, {
+        ...swimlane,
+        lanes: { ...swimlane.lanes, [laneId]: { ...swimlane.lanes[laneId], width: next } },
+        ...(laneId === "reader" ? { readerWidthRatio: clamp(next / viewportWidth, MIN_READER_WIDTH_RATIO, MAX_READER_WIDTH_RATIO) } : {}),
+      }))
+      return
+    }
     if (laneId === "reader") {
       const readerWidthRatio = clamp(next / viewportWidth, MIN_READER_WIDTH_RATIO, MAX_READER_WIDTH_RATIO)
       if (readerWidthRatio !== swimlane.readerWidthRatio || next !== swimlane.lanes.reader.width) {
@@ -254,6 +264,11 @@ export function ReaderSwimlaneWorkspace({
     const measuredWidth = viewportRef.current?.getBoundingClientRect().width || viewportRef.current?.clientWidth || window.innerWidth
     onWorkspaceChange(fitReaderSwimlanesToViewport(measuredWidth, swimlane))
   }
+
+  useEffect(() => {
+    if (!swimlane.autoFitToViewport || soloLaneId) return
+    onWorkspaceChange(fitReaderSwimlanesToViewport(viewportWidth, swimlane))
+  }, [autoFitGeometryKey, swimlane.autoFitToViewport, soloLaneId, viewportWidth])
 
   function addLane(title: string): void {
     const existing = new Set(swimlane.laneOrder)
@@ -428,6 +443,7 @@ export function ReaderSwimlaneWorkspace({
 
   return (
     <div
+      ref={workspaceRef}
       className="relative h-full min-h-0 w-full overflow-hidden bg-background"
       data-neoview-workspace-mode="swimlane"
       data-reader-swimlane-preview={previewLane}
@@ -473,10 +489,22 @@ export function ReaderSwimlaneWorkspace({
           positionY={swimlane.laneNavigatorPositionY}
           dock={swimlane.laneNavigatorDock}
           titleHost={laneNavigatorTitleHost}
+          boundsHost={workspaceRef.current}
           onSelect={activateLane}
           onAdd={addLane}
           onRemove={removeLane}
           onFit={fitLanesToViewport}
+          autoFit={swimlane.autoFitToViewport}
+          onAutoFitChange={(autoFitToViewport) => {
+            if (!autoFitToViewport) {
+              onWorkspaceChange({ autoFitToViewport })
+              return
+            }
+            const measuredWidth = viewportRef.current?.getBoundingClientRect().width || viewportWidth
+            onWorkspaceChange({ ...fitReaderSwimlanesToViewport(measuredWidth, swimlane), autoFitToViewport })
+          }}
+          onHandleStyleChange={(barHandleStyle) => onWorkspaceChange({ barHandleStyle })}
+          onHandlePositionChange={(barHandlePosition) => onWorkspaceChange({ barHandlePosition })}
           onShowInReaderSoloChange={(enabled) => onWorkspaceChange({ showLaneNavigatorInReaderSolo: enabled })}
           onPositionChange={({ x, y }) => onWorkspaceChange({ laneNavigatorPositionX: x, laneNavigatorPositionY: y })}
           onDockChange={(dock) => onWorkspaceChange({ laneNavigatorDock: dock })}
@@ -584,18 +612,7 @@ function ReaderSwimlane({
         onDragOver={(event) => event.preventDefault()}
         onDrop={onDrop}
       >
-        <button
-          type="button"
-          draggable
-          className="grid size-8 cursor-grab place-items-center text-muted-foreground hover:text-foreground hover:[&_[data-lane-handle-default]]:hidden hover:[&_[data-lane-handle-drag]]:block active:cursor-grabbing"
-          aria-label={`展开${label}泳道；按住可拖动`}
-          onClick={() => { onCollapsedChange?.(false); onActivate() }}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-        >
-          <span data-lane-handle-default><LaneCollapseIcon collapsed /></span>
-          <GripVertical data-lane-handle-drag className="hidden size-3.5" />
-        </button>
+        <SwimlaneCollapseDragButton collapsed laneLabel={`${label}泳道`} draggable className="size-8" onClick={() => { onCollapsedChange?.(false); onActivate() }} onDragStart={onDragStart} onDragEnd={onDragEnd} />
         <Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />
         <span className="text-[10px] font-medium text-muted-foreground" style={{ writingMode: "vertical-rl" }}>{label}</span>
       </section>
@@ -652,18 +669,7 @@ function ReaderSwimlane({
         onPointerUp={onHeaderPointerUp}
         onPointerCancel={onHeaderPointerUp}
       >
-        <button
-          type="button"
-          draggable
-          className={cn("grid size-6 shrink-0 cursor-grab place-items-center text-muted-foreground hover:text-foreground hover:[&_[data-lane-handle-default]]:hidden hover:[&_[data-lane-handle-drag]]:block active:cursor-grabbing", active && "text-primary")}
-          aria-label={onCollapsedChange ? `折叠${label}泳道；按住可拖动` : `拖动${label}泳道`}
-          onClick={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-        >
-          <span data-lane-handle-default>{onCollapsedChange ? <LaneCollapseIcon collapsed={false} /> : <Icon className="size-3.5 opacity-70" aria-hidden="true" />}</span>
-          <GripVertical data-lane-handle-drag className="hidden size-3.5" />
-        </button>
+        <SwimlaneCollapseDragButton collapsed={false} laneLabel={`${label}泳道`} draggable className={cn("size-6", active && "text-primary")} onClick={onCollapsedChange ? () => onCollapsedChange(true) : undefined} onDragStart={onDragStart} onDragEnd={onDragEnd} />
         {hideLabel ? null : <span className={cn("min-w-0 shrink truncate text-[11px] font-semibold text-muted-foreground", active && "text-foreground")}>{label}</span>}
         {laneId === "reader"
           ? <div ref={setNavigatorTitleHost} className="min-w-0 flex-1 overflow-visible" data-reader-lane-navigator-title-slot="true" />

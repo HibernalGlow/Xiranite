@@ -58,6 +58,8 @@ describe("Czkawka workspace layout", () => {
       barHandlePosition: "right",
       navigatorPositionX: 72,
       navigatorPositionY: 88,
+      navigatorDock: "title",
+      autoFitToViewport: true,
     })).toMatchObject({
       activeLane: "analysis",
       soloLane: "analysis",
@@ -68,6 +70,8 @@ describe("Czkawka workspace layout", () => {
       barHandlePosition: "right",
       navigatorPositionX: 72,
       navigatorPositionY: 88,
+      navigatorDock: "title",
+      autoFitToViewport: true,
     });
   });
 });

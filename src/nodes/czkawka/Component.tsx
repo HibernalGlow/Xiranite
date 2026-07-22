@@ -3,7 +3,7 @@ import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/
 import { smartSelect, type CzkawkaAction, type CzkawkaData, type CzkawkaInput, type CzkawkaSelectionStrategy, type CzkawkaTool } from "@xiranite/node-czkawka/core"
 import { applyCzkawkaFilters, normalizeCzkawkaFilterState, type CzkawkaFilterResult, type CzkawkaFilterState, type CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
 import { applyCzkawkaDirectorySelection, applyCzkawkaGroupSelection, applyCzkawkaTextSelection, calculateCzkawkaSelectionStats, createCzkawkaSelectionHistory, createDefaultCzkawkaSelectionAssistantConfig, invertCzkawkaSelection, pushCzkawkaSelectionHistory, redoCzkawkaSelectionHistory, selectAllCzkawkaEntries, undoCzkawkaSelectionHistory, type CzkawkaSelectionAssistantConfig, type CzkawkaSelectionHistory, type CzkawkaSelectionResult, type CzkawkaSelectionStats } from "@xiranite/node-czkawka/selection-assistant"
-import { AlertTriangle, ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderOpen, FolderSearch2, FolderX, GripVertical, HardDrive, Image, Link2Off, Maximize2, Minimize2, MoveRight, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelTopOpen, Play, Save, Search, Settings2, TableProperties, Trash2, Video, X } from "lucide-react"
+import { AlertTriangle, ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderOpen, FolderSearch2, FolderX, HardDrive, Image, Link2Off, Maximize2, Minimize2, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelTopOpen, Pin, PinOff, Play, Save, Search, Settings2, TableProperties, Trash2, Video, X } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -40,10 +40,12 @@ import { normalizeCzkawkaWorkspaceLayout, updateCzkawkaWorkspaceLayout, type Czk
 import { czkawkaStateMigrationPatch, normalizeCzkawkaCardState } from "./state"
 import { CzkawkaSimilarFoldersView } from "./similar-folders-view"
 import { CzkawkaSimilarityReferenceDialog } from "./similarity-reference-dialog"
-import { LaneCollapseIcon } from "@/components/workspace/lane/LaneCollapseIcon"
 import { LaneResizer } from "@/components/workspace/lane/LaneResizer"
+import { SwimlaneCollapseDragButton } from "@/components/workspace/swimlane/SwimlaneCollapseDragButton"
 import { SwimlaneBarMenuItem, SwimlaneNavigatorBar } from "@/components/workspace/swimlane/SwimlaneNavigatorBar"
-import { adjacentSwimlane, reorderSwimlanes } from "@/components/workspace/swimlane/model"
+import { SwimlaneBarAppearanceMenu } from "@/components/workspace/swimlane/SwimlaneBarAppearanceMenu"
+import { SwimlaneFitMenuItems } from "@/components/workspace/swimlane/SwimlaneFitMenuItems"
+import { adjacentSwimlane, fitSwimlaneWidthsToViewport, reorderSwimlanes } from "@/components/workspace/swimlane/model"
 
 const TOOLS: Array<{
   id: CzkawkaTool
@@ -514,13 +516,16 @@ function Full(props: View) {
   const floatingOpen = props.floatingAvailable && props.floatingAnalysisPanel.open
   const layout = props.workspaceLayout
   const boardRef = useRef<HTMLDivElement>(null)
+  const workspaceRef = useRef<HTMLDivElement>(null)
   const focusTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const revealTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const restoreTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const [boardWidth, setBoardWidth] = useState(960)
   const [previewLane, setPreviewLane] = useState<CzkawkaLaneId>()
+  const [activeTitleHost, setActiveTitleHost] = useState<HTMLElement | null>(null)
   const [draggedLane, setDraggedLane] = useState<CzkawkaLaneId | null>(null)
   const visibleLaneOrder = layout.laneOrder.filter((id) => !(floatingOpen && id === "analysis"))
+  const visibleLaneKey = visibleLaneOrder.join("|")
   const activeLane = visibleLaneOrder.includes(layout.activeLane) ? layout.activeLane : visibleLaneOrder[0] ?? "results"
   const lanes: Record<CzkawkaLaneId, { collapsed: boolean; collapsedLabel: string; defaultWidth: number; label: string; resizeLabel: string; width: number; content: React.ReactNode }> = {
     source: { collapsed: layout.sourcePanelMinimized, collapsedLabel: props.t("workspace.restoreConditions", "恢复扫描条件"), defaultWidth: 300, label: `${props.t("sections.conditions", "扫描条件")} / LANE`, resizeLabel: props.t("workspace.resizeConditions", "调整扫描条件宽度"), width: layout.sourcePanelWidth, content: <SourcePanel {...props} /> },
@@ -536,6 +541,12 @@ function Full(props: View) {
     observer.observe(board)
     return () => observer.disconnect()
   }, [])
+  useEffect(() => {
+    if (!layout.autoFitToViewport) return
+    const next = fitCzkawkaLayoutToViewport(layout, boardWidth, visibleLaneOrder)
+    if (sameCzkawkaWidths(layout, next)) return
+    props.setWorkspaceLayout(next)
+  }, [boardWidth, layout.analysisPanelMinimized, layout.autoFitToViewport, layout.resultPanelMinimized, layout.sourcePanelMinimized, props.setWorkspaceLayout, visibleLaneKey])
   function scrollLane(id: CzkawkaLaneId) {
     const board = boardRef.current
     const lane = board?.querySelector<HTMLElement>(`[data-czkawka-lane-id="${id}"]`)
@@ -552,9 +563,13 @@ function Full(props: View) {
   }, [])
 
   function patchLane(id: CzkawkaLaneId, patch: { collapsed?: boolean; width?: number }) {
-    if (id === "source") props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { sourcePanelMinimized: patch.collapsed, sourcePanelWidth: patch.width }))
-    if (id === "results") props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { resultPanelMinimized: patch.collapsed, resultPanelWidth: patch.width }))
-    if (id === "analysis") props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { analysisPanelMinimized: patch.collapsed, analysisPanelWidth: patch.width }))
+    let next = id === "source"
+      ? updateCzkawkaWorkspaceLayout(layout, { sourcePanelMinimized: patch.collapsed, sourcePanelWidth: patch.width })
+      : id === "results"
+        ? updateCzkawkaWorkspaceLayout(layout, { resultPanelMinimized: patch.collapsed, resultPanelWidth: patch.width })
+        : updateCzkawkaWorkspaceLayout(layout, { analysisPanelMinimized: patch.collapsed, analysisPanelWidth: patch.width })
+    if (layout.autoFitToViewport) next = fitCzkawkaLayoutToViewport(next, boardWidth, visibleLaneOrder)
+    props.setWorkspaceLayout(next)
   }
   function moveLane(target: CzkawkaLaneId) {
     if (!draggedLane || draggedLane === target) return
@@ -608,7 +623,7 @@ function Full(props: View) {
   return (
     <div data-testid="czkawka-full-view" className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
       <Header {...props} />
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+      <div ref={workspaceRef} className="relative flex min-h-0 flex-1 overflow-hidden">
         <div ref={boardRef} data-testid="czkawka-lane-board" className="flex min-h-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden border-l border-border/40">
           {visibleLaneOrder.map((id) => <CzkawkaSwimlane
           key={id}
@@ -620,6 +635,8 @@ function Full(props: View) {
           onActivate={() => activateLane(id)}
           onHoverFocus={() => scheduleFocus(id)}
           onHoverFocusCancel={cancelFocus}
+          onTitleHostChange={activeLane === id ? setActiveTitleHost : undefined}
+          hideTitleForNavigator={activeLane === id && layout.navigatorDock === "title" && activeTitleHost !== null}
           onCollapsedChange={(collapsed) => patchLane(id, { collapsed })}
           onWidthChange={(width) => patchLane(id, { width })}
           onDragStart={() => setDraggedLane(id)}
@@ -632,8 +649,12 @@ function Full(props: View) {
           handleStyle={layout.barHandleStyle}
           handlePosition={layout.barHandlePosition}
           position={{ x: layout.navigatorPositionX, y: layout.navigatorPositionY }}
+          dock={layout.navigatorDock}
+          titleHost={activeTitleHost}
+          boundsHost={workspaceRef.current}
           onSelect={activateLane}
           onPositionChange={({ x, y }) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { navigatorPositionX: x, navigatorPositionY: y }))}
+          onDockChange={(navigatorDock) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { navigatorDock }))}
           menu={<>
             <SwimlaneBarMenuItem onSelect={() => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { soloLane: layout.soloLane === activeLane ? null : activeLane, activeLane }))}>
               {layout.soloLane === activeLane ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
@@ -642,9 +663,23 @@ function Full(props: View) {
             <SwimlaneBarMenuItem onSelect={() => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { focusOnHover: !layout.focusOnHover }))}>
               <Settings2 className="size-3.5" />{layout.focusOnHover ? "关闭悬停聚焦" : "开启悬停聚焦"}
             </SwimlaneBarMenuItem>
-            <SwimlaneBarMenuItem onSelect={() => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { barHandlePosition: layout.barHandlePosition === "left" ? "right" : "left" }))}>
-              <MoveRight className="size-3.5" />手柄移到{layout.barHandlePosition === "left" ? "右" : "左"}侧
+            <SwimlaneFitMenuItems
+              autoFit={layout.autoFitToViewport}
+              onFit={() => props.setWorkspaceLayout(fitCzkawkaLayoutToViewport(layout, boardWidth, visibleLaneOrder))}
+              onAutoFitChange={(autoFitToViewport) => props.setWorkspaceLayout(autoFitToViewport
+                ? fitCzkawkaLayoutToViewport(updateCzkawkaWorkspaceLayout(layout, { autoFitToViewport }), boardWidth, visibleLaneOrder)
+                : updateCzkawkaWorkspaceLayout(layout, { autoFitToViewport }))}
+            />
+            <SwimlaneBarMenuItem onSelect={() => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { navigatorDock: layout.navigatorDock === "title" ? "floating" : "title" }))}>
+              {layout.navigatorDock === "title" ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+              {layout.navigatorDock === "title" ? "改为悬浮" : "固定到当前泳道标题栏"}
             </SwimlaneBarMenuItem>
+            <SwimlaneBarAppearanceMenu
+              style={layout.barHandleStyle}
+              position={layout.barHandlePosition}
+              onStyleChange={(barHandleStyle) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { barHandleStyle }))}
+              onPositionChange={(barHandlePosition) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { barHandlePosition }))}
+            />
           </>}
         />
         {layout.soloLane === activeLane ? <>
@@ -658,22 +693,44 @@ function Full(props: View) {
   )
 }
 
-function CzkawkaSwimlane({ children, active, collapsed, collapsedLabel, defaultWidth, effectiveWidth, label, onActivate, onCollapsedChange, onDragStart, onDrop, onHoverFocus, onHoverFocusCancel, onWidthChange, resizeLabel, solo, testId, width }: { children: React.ReactNode; active: boolean; collapsed: boolean; collapsedLabel: string; defaultWidth: number; effectiveWidth: number; label: string; onActivate: () => void; onCollapsedChange: (collapsed: boolean) => void; onDragStart: () => void; onDrop: () => void; onHoverFocus: () => void; onHoverFocusCancel: () => void; onWidthChange: (width: number) => void; resizeLabel: string; solo: boolean; testId: string; width: number }) {
+function fitCzkawkaLayoutToViewport(layout: CzkawkaWorkspaceLayout, viewportWidth: number, laneOrder: readonly CzkawkaLaneId[]): CzkawkaWorkspaceLayout {
+  const widths = fitSwimlaneWidthsToViewport(viewportWidth, laneOrder.map((id) => ({
+    id,
+    width: id === "source" ? layout.sourcePanelWidth : id === "results" ? layout.resultPanelWidth : layout.analysisPanelWidth,
+    collapsed: id === "source" ? layout.sourcePanelMinimized : id === "results" ? layout.resultPanelMinimized : layout.analysisPanelMinimized,
+    collapsedWidth: 48,
+    minimumWidth: id === "results" ? 360 : id === "source" ? 220 : 210,
+    maximumWidth: id === "results" ? 1_200 : id === "source" ? 560 : 520,
+  })))
+  return updateCzkawkaWorkspaceLayout(layout, {
+    sourcePanelWidth: widths.source ?? layout.sourcePanelWidth,
+    resultPanelWidth: widths.results ?? layout.resultPanelWidth,
+    analysisPanelWidth: widths.analysis ?? layout.analysisPanelWidth,
+  })
+}
+
+function sameCzkawkaWidths(left: CzkawkaWorkspaceLayout, right: CzkawkaWorkspaceLayout): boolean {
+  return left.sourcePanelWidth === right.sourcePanelWidth
+    && left.resultPanelWidth === right.resultPanelWidth
+    && left.analysisPanelWidth === right.analysisPanelWidth
+}
+
+function CzkawkaSwimlane({ children, active, collapsed, collapsedLabel, defaultWidth, effectiveWidth, hideTitleForNavigator, label, onActivate, onCollapsedChange, onDragStart, onDrop, onHoverFocus, onHoverFocusCancel, onTitleHostChange, onWidthChange, resizeLabel, solo, testId, width }: { children: React.ReactNode; active: boolean; collapsed: boolean; collapsedLabel: string; defaultWidth: number; effectiveWidth: number; hideTitleForNavigator: boolean; label: string; onActivate: () => void; onCollapsedChange: (collapsed: boolean) => void; onDragStart: () => void; onDrop: () => void; onHoverFocus: () => void; onHoverFocusCancel: () => void; onTitleHostChange?: (node: HTMLElement | null) => void; onWidthChange: (width: number) => void; resizeLabel: string; solo: boolean; testId: string; width: number }) {
   const widthRef = useRef(width)
   useEffect(() => { widthRef.current = width }, [width])
   if (collapsed) return (
     <section data-testid={`czkawka-lane-${testId}`} data-czkawka-lane-id={testId} data-swimlane-active={active} onPointerEnter={onHoverFocus} onPointerLeave={onHoverFocusCancel} onPointerDown={onActivate} onDragOver={(event) => event.preventDefault()} onDrop={onDrop} className="flex h-full w-12 shrink-0 flex-col items-center gap-2 border-r border-border/40 bg-muted/20 px-1 py-3 hover:bg-muted/40">
-      <button type="button" aria-label={collapsedLabel} className="text-muted-foreground hover:text-foreground" onClick={() => onCollapsedChange(false)}><LaneCollapseIcon collapsed /></button>
-      <button type="button" draggable aria-label={`拖拽${label}`} className="cursor-grab text-muted-foreground/70 hover:text-foreground" onDragStart={onDragStart}><GripVertical className="size-3.5" /></button>
+      <SwimlaneCollapseDragButton collapsed laneLabel={label} draggable aria-label={collapsedLabel} onClick={() => onCollapsedChange(false)} onDragStart={onDragStart} />
       <span className="text-[10px] font-mono tracking-widest text-muted-foreground" style={{ writingMode: "vertical-rl" }}>{label}</span>
     </section>
   )
   return (
     <section data-testid={`czkawka-lane-${testId}`} data-czkawka-lane-id={testId} data-swimlane-active={active} data-swimlane-solo={solo} onPointerEnter={onHoverFocus} onPointerLeave={onHoverFocusCancel} onPointerDown={onActivate} onDragOver={(event) => event.preventDefault()} onDrop={onDrop} className={cn("relative flex h-full min-w-60 shrink-0 flex-col border-r border-border/40 bg-card/40", active && "ring-1 ring-inset ring-primary/35")} style={{ width: effectiveWidth }}>
         <header className="flex h-8 shrink-0 items-center gap-1.5 border-b border-border/40 bg-muted/30 px-2">
-        <button type="button" aria-label={collapsedLabel.replace("恢复", "折叠")} className="text-muted-foreground hover:text-foreground" onClick={() => onCollapsedChange(true)}><LaneCollapseIcon collapsed={false} /></button>
-        <span className="min-w-0 flex-1 truncate text-left text-[11px] font-mono font-semibold uppercase tracking-widest text-muted-foreground" title={label}>{label}</span>
-        <button type="button" draggable aria-label={`拖拽${label}`} className="cursor-grab text-muted-foreground/70 hover:text-foreground" onDragStart={onDragStart}><GripVertical className="size-3.5" /></button>
+        <SwimlaneCollapseDragButton collapsed={false} laneLabel={label} draggable aria-label={collapsedLabel.replace("恢复", "折叠")} onClick={() => onCollapsedChange(true)} onDragStart={onDragStart} />
+        <span ref={onTitleHostChange} className="flex min-w-0 flex-1" data-swimlane-navigator-title-slot={active ? "true" : undefined}>
+          {hideTitleForNavigator ? null : <span data-swimlane-lane-title="true" className="min-w-0 flex-1 truncate text-left text-[11px] font-mono font-semibold uppercase tracking-widest text-muted-foreground" title={label}>{label}</span>}
+        </span>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">{children}</div>
       <LaneResizer label={resizeLabel} className="absolute inset-y-0 right-0 z-20 w-2 translate-x-1" onReset={() => onWidthChange(defaultWidth)} onResize={(deltaRatio) => { widthRef.current += deltaRatio * 320; onWidthChange(widthRef.current) }} />
@@ -872,6 +929,12 @@ function CzkawkaNodeSettings({ props }: { props: View }) {
                 <Select value={props.workspaceLayout.barHandlePosition} onValueChange={(barHandlePosition) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, { barHandlePosition: barHandlePosition as CzkawkaBarHandlePosition }))}>
                   <SelectTrigger aria-label="操作栏拖拽手柄位置"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="left">左侧</SelectItem><SelectItem value="right">右侧</SelectItem></SelectContent>
+                </Select>
+              </Field>
+              <Field label={props.t("settings.navigatorDock", "泳道切换栏位置")}>
+                <Select value={props.workspaceLayout.navigatorDock} onValueChange={(navigatorDock) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, { navigatorDock: navigatorDock === "title" ? "title" : "floating" }))}>
+                  <SelectTrigger aria-label="泳道切换栏位置"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="floating">悬浮</SelectItem><SelectItem value="title">活动泳道标题栏</SelectItem></SelectContent>
                 </Select>
               </Field>
             </SettingsSection>

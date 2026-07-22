@@ -44,6 +44,7 @@ export function readerWorkspaceConfig(shell: ReaderShellConfigDto): ReaderWorksp
         readerFocusOnHover: workspace.swimlane.readerFocusOnHover ?? true,
         readerFocusHoverDelayMs: normalizeReaderFocusHoverDelay(workspace.swimlane.readerFocusHoverDelayMs),
         showLaneNavigatorInReaderSolo: workspace.swimlane.showLaneNavigatorInReaderSolo ?? DEFAULT_SHOW_LANE_NAVIGATOR_IN_READER_SOLO,
+        autoFitToViewport: workspace.swimlane.autoFitToViewport ?? false,
         barHandleStyle: normalizeBarHandleStyle(workspace.swimlane.barHandleStyle),
         barHandlePosition: normalizeBarHandlePosition(workspace.swimlane.barHandlePosition),
         laneNavigatorPositionX: clampPercent(workspace.swimlane.laneNavigatorPositionX, DEFAULT_LANE_NAVIGATOR_POSITION.x),
@@ -74,6 +75,7 @@ export function readerWorkspaceConfig(shell: ReaderShellConfigDto): ReaderWorksp
       readerFocusOnHover: true,
       readerFocusHoverDelayMs: DEFAULT_READER_FOCUS_HOVER_DELAY_MS,
       showLaneNavigatorInReaderSolo: DEFAULT_SHOW_LANE_NAVIGATOR_IN_READER_SOLO,
+      autoFitToViewport: false,
       barHandleStyle: DEFAULT_BAR_HANDLE_STYLE,
       barHandlePosition: DEFAULT_BAR_HANDLE_POSITION,
       laneNavigatorPositionX: DEFAULT_LANE_NAVIGATOR_POSITION.x,
@@ -113,6 +115,7 @@ export function applyReaderWorkspacePatch(shell: ReaderShellConfigDto, patch: Re
         ? current.swimlane.readerFocusHoverDelayMs
         : normalizeReaderFocusHoverDelay(patch.readerFocusHoverDelayMs),
       showLaneNavigatorInReaderSolo: patch.showLaneNavigatorInReaderSolo ?? current.swimlane.showLaneNavigatorInReaderSolo,
+      autoFitToViewport: patch.autoFitToViewport ?? current.swimlane.autoFitToViewport,
       barHandleStyle: patch.barHandleStyle === undefined ? current.swimlane.barHandleStyle : normalizeBarHandleStyle(patch.barHandleStyle),
       barHandlePosition: patch.barHandlePosition === undefined ? current.swimlane.barHandlePosition : normalizeBarHandlePosition(patch.barHandlePosition),
       laneNavigatorPositionX: clampPercent(patch.laneNavigatorPositionX, current.swimlane.laneNavigatorPositionX),

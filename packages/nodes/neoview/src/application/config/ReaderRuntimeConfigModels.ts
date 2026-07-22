@@ -496,6 +496,7 @@ export interface NeoviewSwimlaneConfig {
   readerFocusOnHover: boolean
   readerFocusHoverDelayMs: number
   showLaneNavigatorInReaderSolo: boolean
+  autoFitToViewport: boolean
   barHandleStyle: NeoviewBarHandleStyle
   barHandlePosition: NeoviewBarHandlePosition
   laneNavigatorPositionX: number
@@ -617,6 +618,7 @@ export interface NeoviewShellControlPatch {
       readerFocusOnHover?: boolean
       readerFocusHoverDelayMs?: number
       showLaneNavigatorInReaderSolo?: boolean
+      autoFitToViewport?: boolean
       barHandleStyle?: NeoviewBarHandleStyle
       barHandlePosition?: NeoviewBarHandlePosition
       laneNavigatorPositionX?: number
@@ -920,6 +922,7 @@ export const DEFAULT_NEOVIEW_SHELL_CONFIG: NeoviewShellConfig = {
       readerFocusOnHover: true,
       readerFocusHoverDelayMs: 650,
       showLaneNavigatorInReaderSolo: false,
+      autoFitToViewport: false,
       barHandleStyle: "grip",
       barHandlePosition: "left",
       laneNavigatorPositionX: 92,

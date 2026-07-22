@@ -1,6 +1,7 @@
 export type SwimlaneBarHandleStyle = "grip" | "groove" | "move" | "grab" | "edge"
 export type SwimlaneBarHandlePosition = "left" | "right"
 export type SwimlaneBarDock = "left" | "right" | "top" | "bottom" | "floating"
+export type SwimlaneNavigatorDock = "floating" | "title"
 
 export interface SwimlaneGeometry {
   width: number
@@ -23,6 +24,8 @@ export interface SwimlaneWorkspacePreferences {
   barHandlePosition: SwimlaneBarHandlePosition
   navigatorPositionX: number
   navigatorPositionY: number
+  navigatorDock: SwimlaneNavigatorDock
+  autoFitToViewport: boolean
 }
 
 export const DEFAULT_SWIMLANE_WORKSPACE_PREFERENCES: SwimlaneWorkspacePreferences = {
@@ -33,6 +36,8 @@ export const DEFAULT_SWIMLANE_WORKSPACE_PREFERENCES: SwimlaneWorkspacePreference
   barHandlePosition: "left",
   navigatorPositionX: 96,
   navigatorPositionY: 94,
+  navigatorDock: "floating",
+  autoFitToViewport: false,
 }
 
 export function normalizeSwimlanePreferences(value: Partial<SwimlaneWorkspacePreferences> | undefined): SwimlaneWorkspacePreferences {
@@ -46,7 +51,61 @@ export function normalizeSwimlanePreferences(value: Partial<SwimlaneWorkspacePre
     barHandlePosition: value?.barHandlePosition === "right" ? "right" : "left",
     navigatorPositionX: clamp(value?.navigatorPositionX, 0, 100, DEFAULT_SWIMLANE_WORKSPACE_PREFERENCES.navigatorPositionX),
     navigatorPositionY: clamp(value?.navigatorPositionY, 0, 100, DEFAULT_SWIMLANE_WORKSPACE_PREFERENCES.navigatorPositionY),
+    navigatorDock: value?.navigatorDock === "title" ? "title" : "floating",
+    autoFitToViewport: value?.autoFitToViewport === true,
   }
+}
+
+export interface SwimlaneWidthConstraint<Id extends string = string> {
+  id: Id
+  width: number
+  collapsed?: boolean
+  collapsedWidth?: number
+  minimumWidth?: number
+  maximumWidth?: number
+}
+
+export function fitSwimlaneWidthsToViewport<Id extends string>(
+  viewportWidth: number,
+  lanes: readonly SwimlaneWidthConstraint<Id>[],
+): Record<Id, number> {
+  const expanded = lanes.filter((lane) => !lane.collapsed)
+  const collapsedWidth = lanes.reduce((sum, lane) => sum + (lane.collapsed ? Math.max(0, lane.collapsedWidth ?? 44) : 0), 0)
+  const minimumTotal = expanded.reduce((sum, lane) => sum + Math.max(1, lane.minimumWidth ?? 1), 0)
+  const available = Math.max(minimumTotal, Math.round(Math.max(1, viewportWidth) - collapsedWidth))
+  const result = {} as Record<Id, number>
+  const pending = new Set(expanded.map((lane) => lane.id))
+  let remaining = available
+
+  while (pending.size > 0) {
+    const candidates = expanded.filter((lane) => pending.has(lane.id))
+    const totalWeight = candidates.reduce((sum, lane) => sum + Math.max(1, lane.width), 0)
+    const bounded = candidates.find((lane) => {
+      const target = remaining * Math.max(1, lane.width) / totalWeight
+      return target < Math.max(1, lane.minimumWidth ?? 1) || target > Math.max(1, lane.maximumWidth ?? Number.POSITIVE_INFINITY)
+    })
+    if (!bounded) break
+    const target = remaining * Math.max(1, bounded.width) / totalWeight
+    const width = Math.round(Math.min(
+      Math.max(1, bounded.maximumWidth ?? Number.POSITIVE_INFINITY),
+      Math.max(Math.max(1, bounded.minimumWidth ?? 1), target),
+    ))
+    result[bounded.id] = width
+    remaining -= width
+    pending.delete(bounded.id)
+  }
+
+  const candidates = expanded.filter((lane) => pending.has(lane.id))
+  const totalWeight = candidates.reduce((sum, lane) => sum + Math.max(1, lane.width), 0)
+  let assigned = 0
+  candidates.forEach((lane, index) => {
+    const width = index === candidates.length - 1
+      ? remaining - assigned
+      : Math.round(remaining * Math.max(1, lane.width) / totalWeight)
+    result[lane.id] = Math.max(1, width)
+    assigned += result[lane.id]
+  })
+  return result
 }
 
 export function normalizeSwimlaneOrder<Id extends string>(
