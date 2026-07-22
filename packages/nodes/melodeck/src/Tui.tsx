@@ -1,14 +1,14 @@
 /* @jsxImportSource @opentui/react */
 import { useKeyboard } from "@opentui/react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import {
   ClickTarget,
   TerminalImagePreview,
+  TerminalSlider,
   TerminalThemeProvider,
   WorkbenchPanel,
   resolveTerminalTheme,
-  terminalIcon,
   useAnimation,
   useTerminalChromeActions,
   useTerminalTheme,
@@ -35,14 +35,13 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
   const session = useTerminalUiSession(definition)
   const frame = useAnimation({ intervalMs: 480 })
   const [liveStatus, setLiveStatus] = useState(session.result?.data?.status)
+  const [observerRevision, setObserverRevision] = useState(0)
+  const observerActiveRef = useRef(false)
   const resultStatus = session.result?.data?.status
   const ipcPath = String(session.values.ipcPath ?? "").trim() || DEFAULT_MELODECK_IPC
   const status = liveStatus ?? resultStatus
   const configuredPaths = splitPaths(session.values.paths)
   const queue = status?.playlist.length ? status.playlist : configuredPaths
-  const progress = status?.duration
-    ? Math.max(0, Math.min(100, (status.position / status.duration) * 100))
-    : session.progress
   const stateLabel = status?.running ? (status.paused ? "PAUSED" : "PLAYING") : "READY"
   const stateColor = status?.paused ? theme.colors.warning : status?.running ? theme.colors.success : theme.colors.mutedForeground
 
@@ -60,23 +59,41 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
   })
 
   useEffect(() => {
-    if (resultStatus) setLiveStatus(resultStatus)
+    if (!resultStatus) return
+    if (resultStatus.running && !observerActiveRef.current) {
+      setObserverRevision((revision) => revision + 1)
+    }
+    setLiveStatus((current) => ({
+      ...resultStatus,
+      artist: resultStatus.artist || (current?.path === resultStatus.path ? current.artist : ""),
+      album: resultStatus.album || (current?.path === resultStatus.path ? current.album : ""),
+      artwork: resultStatus.artwork ?? (current?.path === resultStatus.path ? current.artwork : undefined),
+    }))
   }, [resultStatus])
 
   useEffect(() => {
     let cancelled = false
     let dispose: (() => void) | undefined
+    observerActiveRef.current = false
     void observe(ipcPath, (next) => {
-      if (!cancelled) setLiveStatus(next)
+      if (cancelled) return
+      observerActiveRef.current = next.running
+      setLiveStatus(next)
     }).then((nextDispose) => {
       if (cancelled) nextDispose()
-      else dispose = nextDispose
-    }).catch(() => undefined)
+      else {
+        observerActiveRef.current = true
+        dispose = nextDispose
+      }
+    }).catch(() => {
+      observerActiveRef.current = false
+    })
     return () => {
       cancelled = true
+      observerActiveRef.current = false
       dispose?.()
     }
-  }, [ipcPath, observe, resultStatus?.running])
+  }, [ipcPath, observe, observerRevision])
 
   const run = (action: MelodeckAction) => {
     void session.requestAction("action", action)
@@ -96,7 +113,7 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
     <box width="100%" height="100%" paddingLeft={1} paddingRight={1} flexDirection="column" overflow="hidden">
       <box height={4} flexShrink={0} borderStyle="single" borderColor={theme.colors.border} paddingLeft={1} paddingRight={1} flexDirection="row" justifyContent="space-between">
         <box flexDirection="column">
-          <text fg={theme.colors.primary}><b>{`${terminalIcon("status")} MELODECK // LOCAL PLAYER`}</b></text>
+          <text fg={theme.colors.primary}><b>MELODECK // LOCAL PLAYER</b></text>
           <text fg={theme.colors.mutedForeground}>mpv IPC | persistent queue | Space pause/resume | P/N tracks</text>
         </box>
         <text fg={stateColor}>{`${stateLabel} ${[".", "o", "O", "o"][frame % 4]}`}</text>
@@ -138,26 +155,48 @@ function MelodeckScreen({ definition, onExit, observe = observeMelodeck }: Melod
               </box>
             </box>
             <box flexGrow={1} />
-            <SeekBar
-              value={progress}
-              position={status?.position ?? 0}
-              duration={status?.duration ?? 0}
-              onSeek={seekTo}
-            />
+            <box flexDirection="column" flexShrink={0}>
+              <box flexDirection="row" justifyContent="space-between">
+                <text fg={theme.colors.mutedForeground}>{formatTime(status?.position ?? 0)}</text>
+                <text fg={theme.colors.mutedForeground}>{formatTime(status?.duration ?? 0)}</text>
+              </box>
+              <TerminalSlider
+                id="melodeck-seek"
+                value={status?.position ?? 0}
+                min={0}
+                max={status?.duration && status.duration > 0 ? status.duration : 100}
+                step={0.5}
+                width="100%"
+                foregroundColor={theme.colors.primary}
+                backgroundColor={theme.colors.border}
+                disabled={!status?.duration}
+                onChange={seekTo}
+              />
+            </box>
             <box height={3} flexShrink={0} flexDirection="row" justifyContent="center" alignItems="center" gap={3}>
-              <IconControl id="melodeck-previous" icon="⏮" onClick={() => run("previous")} />
+              <IconControl id="melodeck-previous" icon="|<" onClick={() => run("previous")} />
               <IconControl
                 id="melodeck-play"
-                icon={status?.running && !status.paused ? "⏸" : "▶"}
+                icon={status?.running && !status.paused ? "||" : ">"}
                 primary
                 onClick={() => run(status?.running ? "toggle" : "play")}
               />
-              <IconControl id="melodeck-next" icon="⏭" onClick={() => run("next")} />
-              <IconControl id="melodeck-stop" icon="■" onClick={() => run("stop")} />
+              <IconControl id="melodeck-next" icon=">|" onClick={() => run("next")} />
+              <IconControl id="melodeck-stop" icon="[]" onClick={() => run("stop")} />
             </box>
-            <box height={2} flexShrink={0} flexDirection="row" justifyContent="center" alignItems="center" gap={1}>
+            <box height={1} flexShrink={0} flexDirection="row" justifyContent="center" alignItems="center" gap={1}>
               <text fg={theme.colors.mutedForeground}>VOL</text>
-              <ValueBar id="melodeck-volume" value={status?.volume ?? Number(session.values.volume ?? 80)} width={18} onChange={setVolume} />
+              <TerminalSlider
+                id="melodeck-volume"
+                value={status?.volume ?? Number(session.values.volume ?? 80)}
+                min={0}
+                max={100}
+                step={1}
+                width={18}
+                foregroundColor={theme.colors.primary}
+                backgroundColor={theme.colors.border}
+                onChange={setVolume}
+              />
               <text fg={theme.colors.mutedForeground}>{`${Math.round(status?.volume ?? Number(session.values.volume ?? 80))}%`}</text>
             </box>
             <text fg={theme.colors.mutedForeground}>Left/Right seek 10s | Up/Down volume | C clear queue</text>
@@ -182,58 +221,7 @@ function IconControl({ id, icon, primary = false, onClick }: { id: string; icon:
       onMouseOver={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}
     >
-      <text fg={primary || hovered ? theme.colors.primary : theme.colors.mutedForeground}>{hovered ? <b>{icon}</b> : icon}</text>
-      <text>{""}</text>
-    </box>
-  )
-}
-
-function SeekBar({ value, position, duration, onSeek }: { value: number; position: number; duration: number; onSeek(position: number): void }) {
-  const theme = useTerminalTheme()
-  const width = 46
-  const filled = Math.max(0, Math.min(width, Math.round((value / 100) * width)))
-  return (
-    <box flexDirection="column" flexShrink={0}>
-      <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme.colors.mutedForeground}>{formatTime(position)}</text>
-        <text fg={theme.colors.mutedForeground}>{formatTime(duration)}</text>
-      </box>
-      <box
-        id="melodeck-seek"
-        width={width}
-        height={1}
-        onMouseDown={(event) => {
-          const target = event.target
-          if (!target || duration <= 0) return
-          const ratio = Math.max(0, Math.min(1, (event.x - target.x) / Math.max(1, target.width - 1)))
-          onSeek(ratio * duration)
-        }}
-      >
-        <text fg={theme.colors.primary}>{"━".repeat(filled)}</text>
-        <text fg={theme.colors.mutedForeground}>{"─".repeat(width - filled)}</text>
-      </box>
-    </box>
-  )
-}
-
-function ValueBar({ id, value, width, onChange }: { id: string; value: number; width: number; onChange(value: number): void }) {
-  const theme = useTerminalTheme()
-  const normalized = Math.max(0, Math.min(100, value))
-  const filled = Math.max(0, Math.min(width, Math.round((normalized / 100) * width)))
-  return (
-    <box
-      id={id}
-      width={width}
-      height={1}
-      onMouseDown={(event) => {
-        const target = event.target
-        if (!target) return
-        const ratio = Math.max(0, Math.min(1, (event.x - target.x) / Math.max(1, target.width - 1)))
-        onChange(Math.round(ratio * 100))
-      }}
-    >
-      <text fg={theme.colors.primary}>{"━".repeat(filled)}</text>
-      <text fg={theme.colors.mutedForeground}>{"─".repeat(width - filled)}</text>
+      <text content={icon} fg={primary || hovered ? theme.colors.primary : theme.colors.mutedForeground} />
     </box>
   )
 }

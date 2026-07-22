@@ -9,6 +9,7 @@ export { fieldIcon, terminalIcon } from "../icons.js";
 export { ActionTabs } from "./action-tabs.js";
 export { ActionLauncher } from "./action-launcher.js";
 export { ProgressBar } from "./progress-bar.js";
+export { TerminalSlider, type TerminalSliderProps } from "./slider.js";
 export {
   ClickTarget,
   ExecutionActions,
