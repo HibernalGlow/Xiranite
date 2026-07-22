@@ -25,6 +25,14 @@
   opacity: var(--reader-ambient-opacity, 0.8);
 }
 
+.reader-background-edge {
+  position: absolute;
+  inset: 0;
+  background-color: var(--reader-edge-match-average, #000);
+  background-image: var(--reader-edge-match-css);
+  background-repeat: no-repeat;
+}
+
 .reader-background-ambient {
   position: absolute;
   inset: -40%;

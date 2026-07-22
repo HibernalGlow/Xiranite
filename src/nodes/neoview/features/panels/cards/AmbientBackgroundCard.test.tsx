@@ -21,7 +21,11 @@ describe("AmbientBackgroundCard", () => {
     expect(screen.getByRole("heading", { name: "动态背景" })).toBeTruthy()
     expect(screen.getByRole("switch", { name: "启用动态背景" })).toBeTruthy()
     expect(screen.getByRole("button", { name: /流光溢彩/ })).toBeTruthy()
-    expect(screen.getAllByRole("button").filter((button) => button.getAttribute("data-background-mode"))).toHaveLength(5)
+    expect(screen.getAllByRole("button").filter((button) => button.getAttribute("data-background-mode"))).toHaveLength(6)
+    expect(screen.getByRole("button", { name: /边缘匹配/ })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: /边缘匹配/ }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ mode: "edge" }))
 
     fireEvent.click(screen.getByRole("button", { name: /流光溢彩/ }))
     expect(await screen.findByText("流光溢彩设置")).toBeTruthy()

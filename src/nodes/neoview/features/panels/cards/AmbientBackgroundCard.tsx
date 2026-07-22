@@ -3,7 +3,7 @@
  * @source-hash sha256:e7ed31ea4c7feca500574dcfb3f1c82d3f6cd41fecb1845fb1da4bf014fe106c
  * @migration-status adapted
  */
-import { Flashlight, Image, Paintbrush, RotateCcw, Sparkles, Waves } from "lucide-react"
+import { Blend, Flashlight, Image, Paintbrush, RotateCcw, Sparkles, Waves } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import "./AmbientBackgroundCard.css"
 const MODES = [
   { value: "solid", label: "固定颜色", description: "使用设置的背景颜色", icon: Paintbrush },
   { value: "auto", label: "自动匹配", description: "从当前图片提取主色调", icon: Image },
+  { value: "edge", label: "边缘匹配", description: "从页面四边采样，生成可贴边变化的无缝背景", icon: Blend },
   { value: "ambient", label: "流光溢彩", description: "从当前图片生成流动渐变", icon: Sparkles },
   { value: "aurora", label: "极光", description: "缓慢波动的极光效果", icon: Waves },
   { value: "spotlight", label: "聚光灯", description: "舞台聚光灯效果", icon: Flashlight },
