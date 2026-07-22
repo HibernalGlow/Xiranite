@@ -619,10 +619,7 @@ function Kanban<T>(props: KanbanProps<T>) {
         id={id}
         measuring={{
           droppable: {
-            // WhileDragging is enough for layout shifts mid-gesture. Always
-            // remeasures every frame and, with live onValueChange, can nest
-            // setState into Maximum update depth (NeoView board lanes).
-            strategy: MeasuringStrategy.WhileDragging,
+            strategy: MeasuringStrategy.Always,
           },
         }}
         onDragStart={onDragStart}
