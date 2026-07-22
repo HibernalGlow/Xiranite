@@ -70,6 +70,12 @@ describe("Melodeck core", () => {
     const result = await runMelodeck({ action: "status", ipcPath: "pipe" }, host)
     expect(result.data?.status.paused).toBe(true)
   })
+  it("includes shared track lyrics in refreshed status", async () => {
+    const host = runtime()
+    host.metadata = vi.fn(async () => ({ lyrics: [{ time: 12, text: "Current line" }] }))
+    const result = await runMelodeck({ action: "status", ipcPath: "pipe" }, host)
+    expect(result.data?.status.lyrics).toEqual([{ time: 12, text: "Current line" }])
+  })
   it("seeks and changes volume through mpv before refreshing state", async () => {
     const host = runtime()
     expect((await runMelodeck({ action: "seek", seekSeconds: -10, ipcPath: "pipe" }, host)).success).toBe(true)
