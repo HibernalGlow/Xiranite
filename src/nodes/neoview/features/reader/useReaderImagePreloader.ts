@@ -17,8 +17,8 @@ export interface ReaderPredecodeDeviceHints {
 }
 
 export interface ReaderPredecodePolicy {
-  concurrency: 1 | 2
-  maxRetainedImages: 1 | 2
+  concurrency: 1
+  maxRetainedImages: 1
   maxEstimatedPixels: number
 }
 
@@ -48,7 +48,9 @@ export function useReaderImagePreloader(
   reportEvents?: (sessionId: string, generation: number, events: readonly ReaderPreloadEventDto[]) => void,
 ): ReaderImagePreloader {
   const imagesRef = useRef(new Map<string, PreloadedImage>())
-  const batchTailRef = useRef<Promise<void>>(Promise.resolve())
+  const activeBatchRef = useRef<Promise<void>>()
+  const queuedBatchRef = useRef<PreloadedImage[]>()
+  const runPredecodeBatchRef = useRef<(pending: readonly PreloadedImage[]) => void>(() => undefined)
   const pumpTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const reportEventsRef = useRef(reportEvents)
   const pendingReportsRef = useRef(new Map<string, { sessionId: string; generation: number; events: ReaderPreloadEventDto[] }>())
@@ -94,6 +96,57 @@ export function useReaderImagePreloader(
       pumpTimerRef.current = undefined
     }
   }, [report, sessionId])
+
+  const runPredecodeBatch = useCallback((pending: readonly PreloadedImage[]) => {
+    const images = imagesRef.current
+    const admitted = pending.filter((entry) => !entry.terminal && images.get(entry.assetUrl) === entry)
+    if (!admitted.length) return
+
+    // A cancelled image.decode() is not reliably abortable in Chromium. Never
+    // append stale batches behind it: retain only the newest request and run it
+    // once the active decode settles.
+    if (activeBatchRef.current) {
+      queuedBatchRef.current = admitted
+      return
+    }
+
+    const policy = resolveReaderPredecodePolicy(browserPredecodeDeviceHints())
+    const completion = pMap(admitted, async (entry) => {
+      const { assetUrl } = entry
+      if (entry.terminal || images.get(assetUrl) !== entry) return
+      const image = entry.image
+      entry.started = true
+      entry.startedAt = performance.now()
+      image.onload = () => { entry.loadedAt = performance.now() }
+      image.src = assetUrl
+      readerPreloadStatusStore.begin(sessionId!, entry.pageIndex)
+      report(entry, "started", { activeLeases: images.size })
+      try {
+        await image.decode()
+        if (images.get(assetUrl)?.image !== image || entry.terminal) return
+        entry.terminal = true
+        readerPreloadStatusStore.ready(sessionId!, entry.pageIndex)
+        report(entry, "ready", preloadMetrics(entry, images.size))
+        performance.mark(READER_PREFETCH_READY_MARK, { detail: entry.pageIndex })
+      } catch {
+        if (images.get(assetUrl)?.image !== image || entry.terminal) return
+        entry.terminal = true
+        readerPreloadStatusStore.fail(sessionId!, entry.pageIndex)
+        report(entry, "failed", preloadMetrics(entry, images.size))
+      }
+    }, { concurrency: policy.concurrency }).then(() => undefined).catch(() => undefined)
+
+    activeBatchRef.current = completion
+    admitted.forEach((entry) => { entry.completion = completion })
+    void completion.then(() => {
+      if (activeBatchRef.current !== completion) return
+      activeBatchRef.current = undefined
+      const latest = queuedBatchRef.current
+      queuedBatchRef.current = undefined
+      if (latest) runPredecodeBatchRef.current(latest)
+    })
+  }, [report, sessionId])
+  runPredecodeBatchRef.current = runPredecodeBatch
 
   useEffect(() => {
     return () => {
@@ -147,37 +200,13 @@ export function useReaderImagePreloader(
       pumpTimerRef.current = setTimeout(() => {
         pumpTimerRef.current = undefined
         pending.forEach((entry) => { entry.scheduled = true })
-        const completion = batchTailRef.current.then(async () => pMap(pending, async (entry) => {
-          const { assetUrl } = entry
-          if (entry.terminal || images.get(assetUrl) !== entry) return
-          const image = entry.image
-          entry.started = true
-          entry.startedAt = performance.now()
-          image.onload = () => { entry.loadedAt = performance.now() }
-          image.src = assetUrl
-          readerPreloadStatusStore.begin(sessionId, entry.pageIndex)
-          report(entry, "started", { activeLeases: images.size })
-          try {
-            await image.decode()
-            if (images.get(assetUrl)?.image !== image || entry.terminal) return
-            entry.terminal = true
-            readerPreloadStatusStore.ready(sessionId, entry.pageIndex)
-            report(entry, "ready", preloadMetrics(entry, images.size))
-            performance.mark(READER_PREFETCH_READY_MARK, { detail: entry.pageIndex })
-          } catch {
-            if (images.get(assetUrl)?.image !== image || entry.terminal) return
-            entry.terminal = true
-            readerPreloadStatusStore.fail(sessionId, entry.pageIndex)
-            report(entry, "failed", preloadMetrics(entry, images.size))
-          }
-        }, { concurrency: policy.concurrency })).then(() => undefined).catch(() => undefined)
-        batchTailRef.current = completion
-        pending.forEach((entry) => { entry.completion = completion })
+        runPredecodeBatch(pending)
       }, PREDECODE_START_DELAY_MS)
     }
-  }, [releaseRetained, report, sessionId])
+  }, [releaseRetained, runPredecodeBatch, sessionId])
 
   const cancel = useCallback(() => {
+    queuedBatchRef.current = undefined
     releaseRetained()
     if (sessionId) readerPreloadStatusStore.clear(sessionId)
   }, [releaseRetained, sessionId])
@@ -201,9 +230,7 @@ function admitPredecodePages(pages: readonly ReaderPageDto[], policy: ReaderPred
 
 export function resolveReaderPredecodePolicy(hints: ReaderPredecodeDeviceHints): ReaderPredecodePolicy {
   const constrainedNetwork = hints.saveData === true || hints.effectiveConnectionType === "slow-2g" || hints.effectiveConnectionType === "2g"
-  const capableDevice = (hints.deviceMemoryGb ?? 4) >= 8 && (hints.hardwareConcurrency ?? 4) >= 8
   if (constrainedNetwork) return { concurrency: 1, maxRetainedImages: 1, maxEstimatedPixels: 12_000_000 }
-  if (capableDevice) return { concurrency: 2, maxRetainedImages: 2, maxEstimatedPixels: 32_000_000 }
   return { concurrency: 1, maxRetainedImages: 1, maxEstimatedPixels: 20_000_000 }
 }
 
