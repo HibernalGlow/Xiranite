@@ -92,6 +92,13 @@ const INITIAL_VIEW_DEFAULTS = {
   hoverScrollSpeed: 2,
   magnifierZoom: 2,
   magnifierSize: 200,
+  background: {
+    color: "#000000",
+    mode: "solid",
+    ambient: { style: "vibrant", speed: 8, blur: 80, opacity: 0.8 },
+    aurora: { showRadialGradient: true },
+    spotlight: { color: "white" },
+  },
 } satisfies ReaderRuntimeConfigDto["viewDefaults"]
 const INITIAL_HISTORY_LIST_PREFERENCES: ReaderHistoryListPreferencesDto = {
   viewMode: "compact",
@@ -170,6 +177,7 @@ function loadReaderFrame(): Promise<ReaderFrameModule> {
   return readerFrameModule
 }
 const LazyReaderFrame = lazy(async () => ({ default: (await loadReaderFrame()).ReaderFrame }))
+const LazyReaderBackgroundLayer = lazy(async () => ({ default: (await import("../features/reader/ReaderBackgroundLayer")).ReaderBackgroundLayer }))
 
 type ReaderViewToolbarModule = typeof import("../features/reader/ReaderViewToolbar")
 let readerViewToolbarModule: Promise<ReaderViewToolbarModule> | undefined
@@ -843,7 +851,20 @@ export function ReaderApp({
   }
 
   async function persistViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
-    const next = { ...viewDefaultsRef.current, ...patch }
+    const current = viewDefaultsRef.current
+    const next = {
+      ...current,
+      ...patch,
+      ...(patch.background ? {
+        background: {
+          ...(current.background ?? INITIAL_VIEW_DEFAULTS.background),
+          ...patch.background,
+          ...(patch.background.ambient ? { ambient: { ...(current.background ?? INITIAL_VIEW_DEFAULTS.background).ambient, ...patch.background.ambient } } : {}),
+          ...(patch.background.aurora ? { aurora: { ...(current.background ?? INITIAL_VIEW_DEFAULTS.background).aurora, ...patch.background.aurora } } : {}),
+          ...(patch.background.spotlight ? { spotlight: { ...(current.background ?? INITIAL_VIEW_DEFAULTS.background).spotlight, ...patch.background.spotlight } } : {}),
+        },
+      } : {}),
+    }
     viewDefaultsRef.current = next
     setViewDefaults(next)
     const generation = ++viewDefaultsGenerationRef.current
@@ -1817,13 +1838,15 @@ export function ReaderApp({
   const readerCanvas = (
     <div
       ref={readerInteractionRef}
-      className="relative h-full min-h-0 overflow-hidden bg-black/95"
+      className="relative h-full min-h-0 overflow-hidden"
+      style={{ backgroundColor: (viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background).mode === "solid" ? (viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background).color : "#000000" }}
       data-reader-interaction-scope="true"
       data-input-context="reader"
       onPointerDown={handleInputPointerDown}
       onPointerUp={inputRouter.onPointerUp}
       onContextMenu={(event) => { if (radialMenuRequest) event.preventDefault() }}
     >
+      {(viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background).mode !== "solid" ? <Suspense fallback={null}><LazyReaderBackgroundLayer config={viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background} imageSrc={session?.visiblePages.find((page) => page.mediaKind === "image")?.assetUrl} /></Suspense> : null}
       {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={(action) => executeInputAction(action)} /></Suspense> : null}
       {!session ? (
         <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">

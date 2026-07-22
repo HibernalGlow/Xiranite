@@ -97,6 +97,7 @@ export const READER_CARD_MANIFEST = [
   card("sidebar-height", "侧边栏高度", "control", true, true, 4, true, false),
   card("image-trim", "图像裁剪", "control", true, true, 5, true, false),
   card("animated-video-mode", "动图视频模式", "control", true, true, 6, true, false),
+  card("ambient-background", "动态背景", "control", true, true, 7, true, false),
   card("system-monitor", "系统资源监控", "insights", true, true, 0, true, false),
   card("daily-trend", "最近 7 日阅读趋势", "insights", true, true, 1, true, false),
   card("reading-streak", "连续阅读", "insights", true, true, 2, true, false),

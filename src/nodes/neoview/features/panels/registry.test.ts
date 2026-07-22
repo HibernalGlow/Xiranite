@@ -197,10 +197,25 @@ describe("NeoView panel and card registries", () => {
       requiresSession: false,
       canHide: true,
     })
-    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "image-trim", "animated-video-mode"])
+    expect(cardsForPanel("control").map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "image-trim", "animated-video-mode", "ambient-background"])
     expect(cardsForPanel("control", {
       cardLayout: { "thumbnail-maintenance": { panelId: "control", visible: true, expanded: true, order: 1 } },
-    } as never, false).map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "image-trim", "animated-video-mode", "thumbnail-maintenance"])
+    } as never, false).map((card) => card.id)).toEqual(["switch-toast", "sidebar-control", "color-filter", "page-transition", "sidebar-height", "image-trim", "animated-video-mode", "ambient-background", "thumbnail-maintenance"])
+  })
+
+  it("[neoview.ambient-background.registry] keeps the legacy Card in Control and out of Settings", () => {
+    const definition = CARD_DEFINITIONS.find((card) => card.id === "ambient-background")
+    expect(definition).toMatchObject({
+      title: "动态背景",
+      defaultPanel: "control",
+      defaultSidebarVisible: true,
+      requiresSession: false,
+      canHide: true,
+    })
+    expect(definition?.settingsSectionId).toBeUndefined()
+    expect(definition?.icon).toBeTruthy()
+    expect(cardsForPanel("control", undefined, false).map((card) => card.id)).toContain("ambient-background")
+    expect(cardsForPanel("settings", undefined, false).map((card) => card.id)).not.toContain("ambient-background")
   })
 
   it("[neoview.switch-toast.registry] exposes the legacy Card first, resident and lazy", () => {

@@ -365,10 +365,35 @@ export interface NeoviewViewDefaults {
   orientation?: ReaderOrientation
   autoRotation?: ReaderAutoRotation
   widePageStretch?: ReaderWidePageStretch
+  background: NeoviewBackgroundConfig
 }
 
 export interface NeoviewViewDefaultsPatch {
-  viewDefaults: Partial<NeoviewViewDefaults>
+  viewDefaults: Omit<Partial<NeoviewViewDefaults>, "background"> & { background?: NeoviewBackgroundPatch }
+}
+
+export type NeoviewBackgroundMode = "solid" | "auto" | "ambient" | "aurora" | "spotlight"
+export type NeoviewAmbientStyle = "gentle" | "vibrant" | "dynamic"
+
+export interface NeoviewBackgroundConfig {
+  color: string
+  mode: NeoviewBackgroundMode
+  ambient: {
+    style: NeoviewAmbientStyle
+    speed: number
+    blur: number
+    opacity: number
+  }
+  aurora: { showRadialGradient: boolean }
+  spotlight: { color: string }
+}
+
+export interface NeoviewBackgroundPatch {
+  color?: string
+  mode?: NeoviewBackgroundMode
+  ambient?: Partial<NeoviewBackgroundConfig["ambient"]>
+  aurora?: Partial<NeoviewBackgroundConfig["aurora"]>
+  spotlight?: Partial<NeoviewBackgroundConfig["spotlight"]>
 }
 
 export interface NeoviewSlideshowConfig {
@@ -659,6 +684,13 @@ export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   orientation: DEFAULT_READER_PRESENTATION.orientation,
   autoRotation: DEFAULT_READER_PRESENTATION.autoRotation,
   widePageStretch: DEFAULT_READER_PRESENTATION.widePageStretch,
+  background: {
+    color: "#000000",
+    mode: "solid",
+    ambient: { style: "vibrant", speed: 8, blur: 80, opacity: 0.8 },
+    aurora: { showRadialGradient: true },
+    spotlight: { color: "white" },
+  },
 }
 
 export const DEFAULT_NEOVIEW_BOOK_CONFIG: NeoviewBookConfig = {
