@@ -1199,3 +1199,15 @@ describe("ReaderRuntimeConfig system monitor", () => {
     expect(() => parseNeoviewSystemMonitorPatch({ systemMonitor: { maxSamples: 1_000 } })).toThrow("between 10 and 600")
   })
 })
+
+describe("ReaderRuntimeConfig preload", () => {
+  it("[neoview.preload.persistence-patch] projects the bounded candidate budget into canonical TOML", async () => {
+    const { parseNeoviewPreloadPatch } = await import("./ReaderRuntimeConfigParser.js")
+    expect(parseNeoviewPreloadPatch({ preload: { maxCandidatePages: 12 } })).toEqual({
+      patch: { preload: { maxCandidatePages: 12 } },
+      tomlPatch: { performance: { preload_pages: 12 } },
+    })
+    expect(() => parseNeoviewPreloadPatch({ preload: { maxCandidatePages: 33 } })).toThrow("between 0 and 32")
+    expect(() => parseNeoviewPreloadPatch({ preload: {} })).toThrow("must change")
+  })
+})
