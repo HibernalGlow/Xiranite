@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
-import { BookOpen, ChevronRight, FolderOpen, ImageIcon, LoaderCircle, Trash2, X } from "lucide-react"
+import { BookOpen, ChevronRight, LoaderCircle, Trash2, X } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
   DEFAULT_READER_INPUT_BINDINGS,
@@ -14,7 +14,6 @@ import {
 } from "@xiranite/node-neoview/ui-core"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { useContextMenu } from "@/components/context-menu"
 import { cn } from "@/lib/utils"
 import { FloatingWindowCaptionControls, FloatingWindowTitlebarReservation, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
@@ -1646,35 +1645,48 @@ export function ReaderApp({
           data-reader-breadcrumb-bar="true"
           onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}
         >
-          {session ? (
-            <div className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)] items-center gap-1.5">
-              <div className="xiranite-app-region-no-drag flex min-w-0 items-stretch justify-self-start">
+          {/* Idle and reading share the same three-column chrome; only the
+              session-specific affordances (close/reopen, page index) change. */}
+          <div className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)] items-center gap-1.5">
+            <div className="xiranite-app-region-no-drag flex min-w-0 items-stretch justify-self-start">
+              {session ? (
                 <Button className="justify-self-start" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
-                {readerTopbarLeadingControls}
-              </div>
-              <nav className="flex min-w-0 items-center justify-center gap-1 overflow-hidden text-center" aria-label="当前书籍路径" data-reader-breadcrumb-path="true">
-                {pathSegments.map((segment, index) => (
-                  <span className="contents" key={`${segment}-${index}`}>
-                    {index > 0 ? <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65" aria-hidden="true" /> : null}
-                    <span className={cn("truncate text-xs", index === pathSegments.length - 1 ? "font-medium text-foreground" : "text-muted-foreground")}>{segment}</span>
-                  </span>
-                ))}
-              </nav>
-              <div className="xiranite-app-region-no-drag flex min-w-0 items-stretch justify-self-end">
-                <span className="hidden shrink-0 items-center px-1.5 text-[11px] tabular-nums text-muted-foreground lg:flex">{(frame?.anchorPageIndex ?? 0) + 1} / {session.book.pageCount}</span>
-                {readerTopbarTrailingControls}
-              </div>
-            </div>
-          ) : (
-            <div className="xiranite-app-region-no-drag flex min-h-11 min-w-0 items-center gap-1.5">
+              ) : path.trim() ? (
+                <Button
+                  className="justify-self-start"
+                  aria-label="打开书籍"
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => void openPath()}
+                >
+                  {busy ? <LoaderCircle className="animate-spin" /> : <BookOpen />}
+                </Button>
+              ) : null}
               {readerTopbarLeadingControls}
-              <Input aria-label="漫画、图片或目录路径" className="h-8 min-w-0 flex-1" value={path} placeholder="选择 CBZ、ZIP、图片或目录" onChange={(event) => setPath(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.stopPropagation(); void openPath() } }} />
-              {pickFile ? <Button aria-label="选择漫画或图片文件" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("file")}><ImageIcon />{compact ? null : "文件"}</Button> : null}
-              {pickDirectory ? <Button aria-label="选择图片目录" type="button" size={compact ? "icon-sm" : "sm"} variant="ghost" onClick={() => void choose("directory")}><FolderOpen />{compact ? null : "目录"}</Button> : null}
-              <Button aria-label="打开书籍" type="button" size={compact ? "icon-sm" : "sm"} onClick={() => void openPath()} disabled={!path.trim() || busy}>{busy ? <LoaderCircle className="animate-spin" /> : <BookOpen />}{compact ? null : "打开"}</Button>
+            </div>
+            <nav
+              className="flex min-w-0 items-center justify-center gap-1 overflow-hidden text-center"
+              aria-label={session ? "当前书籍路径" : pathSegments.length ? "最近书籍路径" : "NeoView"}
+              data-reader-breadcrumb-path="true"
+            >
+              {pathSegments.length ? pathSegments.map((segment, index) => (
+                <span className="contents" key={`${segment}-${index}`}>
+                  {index > 0 ? <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65" aria-hidden="true" /> : null}
+                  <span className={cn("truncate text-xs", index === pathSegments.length - 1 ? "font-medium text-foreground" : "text-muted-foreground")}>{segment}</span>
+                </span>
+              )) : (
+                <span className="truncate text-xs text-muted-foreground">NeoView</span>
+              )}
+            </nav>
+            <div className="xiranite-app-region-no-drag flex min-w-0 items-stretch justify-self-end">
+              {session ? (
+                <span className="hidden shrink-0 items-center px-1.5 text-[11px] tabular-nums text-muted-foreground lg:flex">{(frame?.anchorPageIndex ?? 0) + 1} / {session.book.pageCount}</span>
+              ) : null}
               {readerTopbarTrailingControls}
             </div>
-          )}
+          </div>
         </div>
         {session ? (
           <Suspense fallback={null}>
@@ -1850,7 +1862,10 @@ export function ReaderApp({
       {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={(action) => executeInputAction(action)} /></Suspense> : null}
       {!session ? (
         <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
-          <div><BookOpen className="mx-auto mb-3 size-8 opacity-60" /><p>打开漫画或图片开始阅读</p></div>
+          <div>
+            <BookOpen className="mx-auto mb-3 size-8 opacity-60" />
+            <p>从文件夹、历史记录或播放列表打开漫画</p>
+          </div>
         </div>
       ) : (
         <Suspense fallback={null}>
