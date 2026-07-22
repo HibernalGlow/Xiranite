@@ -1,4 +1,4 @@
-import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil, Scissors, Tags, Trash2, Undo2 } from "lucide-react"
+import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil, Pin, PinOff, Scissors, Tags, Trash2, Undo2 } from "lucide-react"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 
 import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
@@ -42,6 +42,8 @@ export default function FolderContextActions({
   onRefreshEmm = () => undefined,
   renameRequest,
   onRenameRequestHandled,
+  treePinnedPaths = [],
+  onToggleTreePin,
 }: {
   client: ReaderHttpClient
   disabled: boolean
@@ -64,6 +66,9 @@ export default function FolderContextActions({
   onRefreshEmm?(focusPath: string): Promise<void> | void
   renameRequest?: FolderContextEntry
   onRenameRequestHandled?(): void
+  /** Paths pinned to the folder tree root list (shown above volume roots). */
+  treePinnedPaths?: readonly string[]
+  onToggleTreePin?(path: string): void
 }) {
   const clipboard = useFolderClipboard()
   const contextMenu = useContextMenu()
@@ -283,8 +288,17 @@ export default function FolderContextActions({
       canUndoDelete: Boolean(client.undoLatestFileOperations),
       confirmDelete,
       canEditMetadata: Boolean(sessionId && generation !== undefined && selection && client.resolveDirectorySelection && client.readDirectoryEmm && client.editDirectoryEmm),
+      canPinTree: entry.kind === "directory" && Boolean(onToggleTreePin),
+      treePinned: entry.kind === "directory" && treePinnedPaths.some((path) => sameTreePinPath(path, entry.path)),
       onAction: run,
       onUndoDelete: () => run("undo-delete", entry),
+      onToggleTreePin: () => {
+        onToggleTreePin?.(entry.path)
+        const pinned = treePinnedPaths.some((path) => sameTreePinPath(path, entry.path))
+        const message = pinned ? `已取消置顶 ${entry.name}` : `已置顶 ${entry.name} 到文件树`
+        setFeedback({ kind: "status", text: message })
+        switchToast?.show({ title: message })
+      },
     }) : null
   })
 
@@ -346,23 +360,94 @@ export function buildFolderContextMenuItems(
     canUndoDelete?: boolean
     confirmDelete?: boolean
     canEditMetadata?: boolean
+    canPinTree?: boolean
+    treePinned?: boolean
     onAction(action: FolderContextAction, entry: FolderContextEntry): void | Promise<void>
     onUndoDelete?(): void | Promise<void>
+    onToggleTreePin?(): void
   },
 ): ContextMenuItemDef[] {
   const unavailable = options.disabled || options.pending
   const primaryAction: FolderContextAction = entry.kind === "file" && !entry.readerSupported ? "system-open" : "activate"
-  const items: ContextMenuItemDef[] = [
+  const trashItem = buildTrashContextMenuItem(entry, {
+    disabled: unavailable || !options.canTrash,
+    confirm: options.confirmDelete !== false,
+    onTrash: () => options.onAction("trash", entry),
+  })
+  const deleteItem = buildDeleteContextMenuItem(entry, {
+    disabled: unavailable || !options.canDelete,
+    confirm: options.confirmDelete !== false,
+    onDelete: () => options.onAction("delete", entry),
+  })
+
+  // Row 1 — Neo-style edit icons: cut / copy / paste / trash / rename
+  const editIcons: ContextMenuItemDef[] = [
+    { id: "neoview-folder-cut", label: "剪切", icon: <Scissors />, disabled: unavailable || !options.canClipboard, onSelect: () => options.onAction("cut", entry) },
+    { id: "neoview-folder-copy", label: "复制", icon: <Copy />, disabled: unavailable || !options.canClipboard, onSelect: () => options.onAction("copy", entry) },
     {
-      id: "neoview-folder-open",
-      label: "打开",
-      icon: entry.kind === "directory" ? <FolderOpen /> : <BookOpen />,
-      disabled: unavailable || (primaryAction === "system-open" && !options.canOpenSystem),
-      onSelect: () => options.onAction(primaryAction, entry),
+      id: "neoview-folder-paste",
+      label: entry.kind === "directory" ? "粘贴到此文件夹" : "粘贴到当前文件夹",
+      icon: <ClipboardPaste />,
+      disabled: unavailable || !options.canPaste,
+      onSelect: () => options.onAction("paste", entry),
     },
+    trashItem,
+    { id: "neoview-folder-rename", label: "重命名", icon: <Pencil />, disabled: unavailable || !options.canRename, onSelect: () => options.onAction("rename", entry) },
   ]
+
+  // Row 2 — Neo-style open / navigate icons
+  const openIcons: ContextMenuItemDef[] = []
+  if (entry.kind === "directory") {
+    openIcons.push(
+      {
+        id: "neoview-folder-enter-raw",
+        label: "进入文件夹",
+        icon: <FolderOpen />,
+        disabled: unavailable || !options.canEnterRawDirectory,
+        onSelect: () => options.onAction("enter-raw", entry),
+      },
+      {
+        id: "neoview-folder-open-new-tab",
+        label: "在新标签页中打开",
+        icon: <PanelsTopLeft />,
+        disabled: unavailable,
+        onSelect: () => options.onAction("new-tab", entry),
+      },
+      {
+        id: "neoview-folder-open-as-book",
+        label: "作为书籍打开",
+        icon: <BookOpen />,
+        disabled: unavailable || !options.canOpenAsBook,
+        onSelect: () => options.onAction("open-as-book", entry),
+      },
+    )
+  } else {
+    openIcons.push(
+      {
+        id: "neoview-folder-open",
+        label: "打开",
+        icon: <BookOpen />,
+        disabled: unavailable || (primaryAction === "system-open" && !options.canOpenSystem),
+        onSelect: () => options.onAction(primaryAction, entry),
+      },
+      {
+        id: "neoview-folder-system-open",
+        label: "用默认软件打开",
+        icon: <ExternalLink />,
+        disabled: unavailable || !options.canOpenSystem,
+        onSelect: () => options.onAction("system-open", entry),
+      },
+    )
+  }
+  openIcons.push({
+    id: "neoview-folder-reveal",
+    label: "在资源管理器中显示",
+    icon: <FolderOpen />,
+    disabled: unavailable || !options.canReveal,
+    onSelect: () => options.onAction("reveal", entry),
+  })
   if (options.canUndoDelete) {
-    items.push({
+    openIcons.push({
       id: "neoview-folder-undo-delete",
       label: "撤销上次删除",
       icon: <Undo2 />,
@@ -370,41 +455,108 @@ export function buildFolderContextMenuItems(
       onSelect: options.onUndoDelete,
     })
   }
+
+  // Submenu: open variants not already primary for this entry kind
+  const openMore: ContextMenuItemDef[] = []
   if (entry.kind === "directory") {
-    items.push(
-      { id: "neoview-folder-enter-raw", label: "进入文件夹", icon: <FolderOpen />, disabled: unavailable || !options.canEnterRawDirectory, onSelect: () => options.onAction("enter-raw", entry) },
-      { id: "neoview-folder-open-new-tab", label: "在新标签页中打开", icon: <PanelsTopLeft />, disabled: unavailable, onSelect: () => options.onAction("new-tab", entry) },
-      { id: "neoview-folder-open-as-book", label: "作为书籍打开", icon: <BookOpen />, disabled: unavailable || !options.canOpenAsBook, onSelect: () => options.onAction("open-as-book", entry) },
+    openMore.push(
+      {
+        id: "neoview-folder-open",
+        label: "打开",
+        icon: <FolderOpen />,
+        disabled: unavailable,
+        onSelect: () => options.onAction("activate", entry),
+      },
+      {
+        id: "neoview-folder-system-open",
+        label: "用默认软件打开",
+        icon: <ExternalLink />,
+        disabled: unavailable || !options.canOpenSystem,
+        onSelect: () => options.onAction("system-open", entry),
+      },
+    )
+  } else {
+    openMore.push(
+      {
+        id: "neoview-folder-open-new-tab",
+        label: "在新标签页中打开",
+        icon: <PanelsTopLeft />,
+        disabled: unavailable,
+        onSelect: () => options.onAction("new-tab", entry),
+      },
     )
   }
-  items.push(
-    { id: "neoview-folder-system-open", label: "用默认软件打开", icon: <ExternalLink />, disabled: unavailable || !options.canOpenSystem, onSelect: () => options.onAction("system-open", entry) },
-    { id: "neoview-folder-reveal", label: "在资源管理器中显示", icon: <FolderOpen />, disabled: unavailable || !options.canReveal, onSelect: () => options.onAction("reveal", entry) },
+
+  return [
+    { type: "icon-row", id: "neoview-folder-edit-row", label: "编辑", children: editIcons },
+    { type: "icon-row", id: "neoview-folder-open-row", label: "打开", children: openIcons },
     { type: "separator" },
-    { id: "neoview-folder-copy", label: "复制", icon: <Copy />, disabled: unavailable || !options.canClipboard, onSelect: () => options.onAction("copy", entry) },
-    { id: "neoview-folder-cut", label: "剪切", icon: <Scissors />, disabled: unavailable || !options.canClipboard, onSelect: () => options.onAction("cut", entry) },
-    { id: "neoview-folder-paste", label: entry.kind === "directory" ? "粘贴到此文件夹" : "粘贴到当前文件夹", icon: <ClipboardPaste />, disabled: unavailable || !options.canPaste, onSelect: () => options.onAction("paste", entry) },
+    {
+      id: "neoview-folder-toggle-bookmark",
+      label: "添加/移除书签",
+      icon: <BookmarkPlus />,
+      disabled: unavailable || !options.canBookmark,
+      onSelect: () => options.onAction("toggle-bookmark", entry),
+    },
+    {
+      id: "neoview-folder-edit-metadata",
+      label: "编辑标签与评分",
+      icon: <Tags />,
+      disabled: unavailable || !options.canEditMetadata,
+      onSelect: () => options.onAction("edit-metadata", entry),
+    },
+    ...(options.canPinTree
+      ? [{
+          id: "neoview-folder-pin-tree",
+          label: options.treePinned ? "取消置顶（文件树）" : "置顶到文件树",
+          icon: options.treePinned ? <PinOff /> : <Pin />,
+          disabled: unavailable,
+          onSelect: options.onToggleTreePin,
+        } satisfies ContextMenuItemDef]
+      : []),
     { type: "separator" },
-    { id: "neoview-folder-toggle-bookmark", label: "添加/移除书签", icon: <BookmarkPlus />, disabled: unavailable || !options.canBookmark, onSelect: () => options.onAction("toggle-bookmark", entry) },
-    { id: "neoview-folder-edit-metadata", label: "编辑标签与评分", icon: <Tags />, disabled: unavailable || !options.canEditMetadata, onSelect: () => options.onAction("edit-metadata", entry) },
-    { type: "separator" },
-    { id: "neoview-folder-copy-path", label: "复制路径", icon: <Copy />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-path", entry) },
-    { id: "neoview-folder-copy-name", label: "复制名称", icon: <FileText />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-name", entry) },
-    { id: "neoview-folder-rename", label: "重命名", icon: <Pencil />, disabled: unavailable || !options.canRename, onSelect: () => options.onAction("rename", entry) },
-    buildTrashContextMenuItem(entry, {
-      disabled: unavailable || !options.canTrash,
-      confirm: options.confirmDelete !== false,
-      onTrash: () => options.onAction("trash", entry),
-    }),
-    buildDeleteContextMenuItem(entry, {
-      disabled: unavailable || !options.canDelete,
-      confirm: options.confirmDelete !== false,
-      onDelete: () => options.onAction("delete", entry),
-    }),
+    {
+      type: "submenu",
+      id: "neoview-folder-open-more",
+      label: "打开方式",
+      icon: <ExternalLink />,
+      children: openMore,
+    },
+    {
+      type: "submenu",
+      id: "neoview-folder-copy-info",
+      label: "复制信息",
+      icon: <Copy />,
+      children: [
+        { id: "neoview-folder-copy-path", label: "复制路径", icon: <Copy />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-path", entry) },
+        { id: "neoview-folder-copy-name", label: "复制名称", icon: <FileText />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-name", entry) },
+      ],
+    },
+    {
+      type: "submenu",
+      id: "neoview-folder-delete-menu",
+      label: "删除选项",
+      icon: <Trash2 />,
+      children: [deleteItem],
+    },
     { type: "separator" },
     { id: "neoview-folder-entry-name", type: "label", label: entry.name },
-  )
-  return items
+  ]
+}
+
+/** Walk icon-rows / submenus to find a nested item by id (for tests and capability checks). */
+export function findFolderContextMenuItem(
+  items: readonly ContextMenuItemDef[],
+  id: string,
+): ContextMenuItemDef | undefined {
+  for (const item of items) {
+    if (item.id === id) return item
+    if (item.children?.length) {
+      const nested = findFolderContextMenuItem(item.children, id)
+      if (nested) return nested
+    }
+  }
+  return undefined
 }
 
 export function buildTrashContextMenuItem(
@@ -454,6 +606,11 @@ function folderTrashCommandEntry(value: unknown): FolderContextEntry | undefined
     || typeof data.name !== "string" || !data.name || (data.kind !== "file" && data.kind !== "directory")
     || typeof data.readerSupported !== "boolean") return undefined
   return data as FolderContextEntry
+}
+
+function sameTreePinPath(left: string, right: string): boolean {
+  const normalize = (value: string) => value.replaceAll("\\", "/").replace(/\/+$/u, "").toLowerCase()
+  return normalize(left) === normalize(right)
 }
 
 function folderDeleteStrategy(value: unknown): "trash" | "permanent" {
