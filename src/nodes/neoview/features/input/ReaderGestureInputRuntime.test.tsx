@@ -122,6 +122,24 @@ describe("ReaderGestureInputRuntime", () => {
 
     expect(execute).not.toHaveBeenCalled()
   })
+
+  it("[neoview.bindings.scroll-isolation] leaves configuration scroll areas in control of wheel input", () => {
+    const dispatch = vi.fn(() => true)
+    render(<Harness config={{ bindings: [
+      { id: "wheel", action: "reader.next-page", context: "reader", enabled: true, input: { device: "wheel", direction: "down" } },
+    ] }} dispatch={dispatch} claimPointer={vi.fn()} />)
+
+    const scrollArea = document.createElement("div")
+    scrollArea.dataset.inputInteractive = "true"
+    const source = document.createElement("pre")
+    scrollArea.append(source)
+    screen.getByTestId("gesture-target").append(scrollArea)
+    const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 120 })
+    source.dispatchEvent(event)
+
+    expect(dispatch).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(false)
+  })
 })
 
 function Harness({ config, claimPointer, dispatch }: {

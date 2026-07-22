@@ -93,7 +93,11 @@ describe("NodeConfigPopover configuration center", () => {
     await waitFor(() => expect(document.querySelector(".node-config-toml .shiki")).toBeTruthy())
     expect(screen.queryByText('"accent": "#22c55e"')).toBeNull()
     expect(screen.getAllByText("#22c55e").length).toBeGreaterThan(0)
-    expect(document.querySelector('[data-slot="scroll-area"]')?.className).toContain("h-[min(30rem,calc(100dvh-12rem))]")
+    const sourceScroll = document.querySelector('[data-node-config-source-scroll="true"]')
+    expect(sourceScroll?.className).toContain("h-[min(30rem,calc(100dvh-12rem))]")
+    expect(sourceScroll?.className).toContain("overflow-hidden")
+    expect(sourceScroll?.getAttribute("data-input-interactive")).toBe("true")
+    expect(sourceScroll?.querySelector('[data-slot="scroll-area-viewport"]')).toBeTruthy()
   })
 })
 
