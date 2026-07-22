@@ -1,7 +1,7 @@
 import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
-import { waitForFrontendReady } from "./frontend-readiness"
+import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness"
 import { clearStaleViteOptimizeTemps, spawnManagedVite, stopProcessTree } from "./managed-process"
 import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
 import { watchNeoviewBackendSource, type NeoviewBackendWatcher } from "./neoview-backend-watcher"
@@ -106,8 +106,11 @@ process.on("exit", () => { backend?.close(); void removeDevSession() })
 // Browser sessions only need the document server listening. Waiting for the
 // full WorkspaceLayout/Wails graph made "ready" much slower than Vite itself
 // and did not match what dynamic route loading already optimizes for.
-void waitForFrontendReady(frontendUrl, { profile: "listen" }).then(() => {
-  console.log(`[xiranite-frontend:ready] ${frontendUrl}`)
+// Timing: Vite prints its own "ready in X ms"; the lines below measure our
+// probe from spawn until the document/entry paths respond.
+console.log(formatFrontendWaitLog(frontendUrl, { profile: "listen" }))
+void waitForFrontendReady(frontendUrl, { profile: "listen", sinceMs: devSessionStartedAt }).then((result) => {
+  console.log(formatFrontendReadyLog(result))
 }).catch((error: unknown) => {
   if (!stopping) console.error(`[xiranite-frontend:not-ready] ${error instanceof Error ? error.message : String(error)}`)
 })

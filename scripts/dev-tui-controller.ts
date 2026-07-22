@@ -7,7 +7,7 @@ import { RGBA, StyledText, TextAttributes, type TextChunk } from "@opentui/core"
 import { Terminal, type IBufferCell } from "@xterm/headless"
 
 import { readDevSession, removeDevSession, writeDevSession } from "./dev-session"
-import { waitForFrontendReady } from "./frontend-readiness"
+import { formatFrontendReadyLog, waitForFrontendReady } from "./frontend-readiness"
 
 export type DevTarget = "dev" | "dev:desktop"
 export type DevPhase = "stopped" | "starting" | "running" | "stopping" | "error"
@@ -227,16 +227,26 @@ export class ManagedDevTuiController implements DevTuiController {
         try {
           // listen profile = index.html is servable. Full shell/module graph still
           // compiles on first browser visit; waiting for it here only delays open.
-          await waitForFrontendReady(frontendUrl, {
+          const probeStartedAt = Date.now()
+          const ready = await waitForFrontendReady(frontendUrl, {
             profile: "listen",
             attempts: 300,
             delayMs: 100,
             stabilityDelayMs: 150,
+            sinceMs: startedAt,
           })
           if (this.#snapshot.phase === "stopping" || this.#snapshot.phase === "stopped") return
-          this.#writeControl(`\u001b[32m[开发控制台] 前端已可打开\u001b[0m ${frontendUrl}\r\n`)
+          const gapFromSessionMs = Date.now() - startedAt
+          this.#writeControl(
+            `\u001b[32m[开发控制台] 前端已可打开\u001b[0m ${frontendUrl}`
+              + ` probe=${ready.durationMs}ms`
+              + ` attempts=${ready.attemptsUsed}`
+              + ` since-start=${ready.sinceStartMs ?? gapFromSessionMs}ms`
+              + ` (local-wait=${Date.now() - probeStartedAt}ms)\r\n`,
+          )
+          this.#writeControl(`\u001b[2m${formatFrontendReadyLog(ready)}\u001b[0m\r\n`)
           this.#writeControl("\u001b[32m[开发控制台] 请打开上述地址；首屏模块会在浏览器里继续按需编译。\u001b[0m\r\n")
-          this.#patch({ message: `${this.#label}可打开 · ${frontendUrl}` })
+          this.#patch({ message: `${this.#label}可打开 · ${frontendUrl} · ${ready.durationMs}ms` })
         } catch (error) {
           if (this.#snapshot.phase === "stopping" || this.#snapshot.phase === "stopped") return
           this.#writeControl(`\u001b[31m[开发控制台] 前端未就绪\u001b[0m ${error instanceof Error ? error.message : String(error)}\r\n`)
