@@ -155,6 +155,8 @@ import {
   type NeoviewSwitchToastPatch,
   type NeoviewInfoOverlayPatch,
   type NeoviewSystemMonitorConfig,
+  type NeoviewPreloadConfig,
+  type NeoviewPreloadPatch,
   type NeoviewEmmConfig,
   type NeoviewEmmPatch,
   type NeoviewAiTranslationConfig,
