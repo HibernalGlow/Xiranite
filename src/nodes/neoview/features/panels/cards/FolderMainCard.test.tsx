@@ -2151,8 +2151,11 @@ describe("FolderMainCard", () => {
     await ui.findByRole("button", { name: "视图" })
     selectFolderToolbarAction(ui, "文件树")
     await waitFor(() => expect(onFolderView).toHaveBeenLastCalledWith({ tree: { visible: true } }))
+    await waitFor(() => expect(view.container.querySelector('[data-folder-tree-layout-trigger="true"]')).toBeTruthy())
     for (const [name, layout] of [["文件树位于右侧", "right"], ["文件树位于底部", "bottom"], ["文件树位于左侧", "left"], ["文件树位于顶部", "top"]] as const) {
-      fireEvent.click(ui.getByRole("radio", { name }))
+      const trigger = view.container.querySelector('[data-folder-tree-layout-trigger="true"]') as HTMLElement
+      fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" })
+      fireEvent.click(await screen.findByRole("menuitemradio", { name }))
       await waitFor(() => expect(onFolderView).toHaveBeenLastCalledWith({ tree: { layout } }))
     }
     const browser = view.container.querySelector('[data-neoview-folder-tree-pane="true"]')?.parentElement as HTMLElement
