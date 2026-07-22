@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight, Copy, EyeOff, Folder, History, MoreVertical, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Search, X } from "lucide-react"
-import { useEffect, useRef, useState, type ComponentProps, type PointerEvent as ReactPointerEvent } from "react"
+import { ChevronLeft, ChevronRight, Copy, EyeOff, Folder, History, MoreVertical, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Search, X } from "lucide-react"
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -192,16 +192,46 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
           )
         })}
       </div>
-      <FolderTabActionPad
-        disabled={disabled}
-        tabCount={tabs.length}
-        maxTabs={maxTabs}
-        recentlyClosed={recentlyClosed}
-        layout={layout}
-        onCreate={onCreate}
-        onReopen={onReopen}
-        onLayoutChange={onLayoutChange}
-      />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="size-7 shrink-0"
+            aria-label="重新打开关闭的页签"
+            title="重新打开关闭的页签"
+            disabled={disabled || !recentlyClosed.length || tabs.length >= maxTabs}
+          >
+            <History />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {recentlyClosed.length === 0 ? (
+            <DropdownMenuItem disabled>暂无已关闭页签</DropdownMenuItem>
+          ) : (
+            [...recentlyClosed].reverse().map((tab) => (
+              <DropdownMenuItem key={tab.id} title={tab.currentPath} onSelect={() => onReopen(tab.id)}>
+                {tab.kind === "search" ? <Search /> : <History />}
+                <span className="truncate">{tab.title}</span>
+              </DropdownMenuItem>
+            ))
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <LayoutSettingsButton disabled={disabled} layout={layout} onLayoutChange={onLayoutChange} />
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="ghost"
+        className="size-7 shrink-0"
+        aria-label="新建文件夹标签"
+        title="新建文件夹标签"
+        disabled={disabled || tabs.length >= maxTabs}
+        onClick={onCreate}
+      >
+        <Plus />
+      </Button>
       {vertical ? (
         <button
           type="button"
@@ -297,132 +327,14 @@ function PositionChoices({ label, value, onChange }: { label: string; value: Rea
   )
 }
 
-/**
- * 3-in-1 pad for tab chrome actions — same interaction language as the
- * folder navigation 5-pad and breadcrumb 4-pad:
- *   top    = new tab
- *   left   = reopen closed tabs
- *   right  = layout / more settings
- */
-function FolderTabActionPad({
-  disabled,
-  tabCount,
-  maxTabs,
-  recentlyClosed,
-  layout,
-  onCreate,
-  onReopen,
-  onLayoutChange,
-}: {
-  disabled: boolean
-  tabCount: number
-  maxTabs: number
-  recentlyClosed: readonly RecentlyClosedFolderTabItem[]
-  layout: ReaderFolderTabsConfig
-  onCreate(): void
-  onReopen(id: string): void
-  onLayoutChange(patch: Partial<ReaderFolderTabsConfig>): void
-}) {
-  const canCreate = !disabled && tabCount < maxTabs
-  const canReopen = !disabled && recentlyClosed.length > 0 && tabCount < maxTabs
-  return (
-    <div
-      className="relative size-8 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/30 shadow-xs focus-within:ring-2 focus-within:ring-ring/50"
-      role="group"
-      aria-label="标签页操作"
-      data-folder-tab-action-pad="true"
-      data-folder-tab-action-pad-style="geometric"
-    >
-      <TabPadButton
-        position="top"
-        aria-label="新建文件夹标签"
-        title="新建文件夹标签"
-        disabled={!canCreate}
-        onClick={onCreate}
-      />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <TabPadButton
-            position="left"
-            aria-label="重新打开关闭的页签"
-            title="重新打开关闭的页签"
-            disabled={!canReopen}
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          {recentlyClosed.length === 0 ? (
-            <DropdownMenuItem disabled>暂无已关闭页签</DropdownMenuItem>
-          ) : (
-            [...recentlyClosed].reverse().map((tab) => (
-              <DropdownMenuItem key={tab.id} title={tab.currentPath} onSelect={() => onReopen(tab.id)}>
-                {tab.kind === "search" ? <Search /> : <History />}
-                <span className="truncate">{tab.title}</span>
-              </DropdownMenuItem>
-            ))
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <LayoutSettingsButton pad disabled={disabled} layout={layout} onLayoutChange={onLayoutChange} />
-      {/* Geometric marks only — match navigation pad elegance (lines/dots, no dense Lucide glyphs). */}
-      <div className="pointer-events-none absolute inset-0 z-[3] text-foreground" aria-hidden="true">
-        <span className={`absolute left-1/2 top-1 size-2 -translate-x-1/2 ${canCreate ? "" : "opacity-25"}`}>
-          <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-current" />
-          <span className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-current" />
-        </span>
-        <span className={`absolute left-1 top-1/2 size-2 -translate-y-1/2 ${canReopen ? "" : "opacity-25"}`}>
-          <span className="absolute inset-0 rounded-full border border-current border-r-transparent" />
-          <span className="absolute left-0 top-0 h-1 w-px -rotate-45 bg-current" />
-        </span>
-        <span className={`absolute right-1.5 top-1/2 flex -translate-y-1/2 flex-col gap-0.5 ${disabled ? "opacity-25" : ""}`}>
-          <span className="size-0.5 rounded-full bg-current" />
-          <span className="size-0.5 rounded-full bg-current" />
-          <span className="size-0.5 rounded-full bg-current" />
-        </span>
-      </div>
-    </div>
-  )
-}
-
-// Full-quadrant slices — same geometry as the folder navigation pad.
-const TAB_PAD_POSITION_CLASSES = {
-  top: "z-[1] [clip-path:polygon(0_0,100%_0,50%_50%)]",
-  left: "z-[1] [clip-path:polygon(0_0,50%_50%,0_100%)]",
-  right: "z-[1] [clip-path:polygon(100%_0,100%_100%,50%_50%)]",
-  bottom: "z-[1] [clip-path:polygon(0_100%,50%_50%,100%_100%)]",
-} as const
-
-function TabPadButton({
-  position,
-  active = false,
-  className,
-  ...props
-}: ComponentProps<typeof Button> & {
-  position: keyof typeof TAB_PAD_POSITION_CLASSES
-  active?: boolean
-}) {
-  return (
-    <Button
-      type="button"
-      size="icon-sm"
-      variant={active ? "secondary" : "ghost"}
-      className={`absolute inset-0 z-[1] size-full min-w-0 rounded-none p-0 ${TAB_PAD_POSITION_CLASSES[position]} ${className ?? ""}`}
-      data-folder-tab-pad-position={position}
-      {...props}
-    />
-  )
-}
-
 function LayoutSettingsButton({
   disabled,
   layout,
   onLayoutChange,
-  pad = false,
 }: {
   disabled: boolean
   layout: ReaderFolderTabsConfig
   onLayoutChange(patch: Partial<ReaderFolderTabsConfig>): void
-  /** When true, render as the right slice of the 3-in-1 tab action pad. */
-  pad?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const select = (patch: Partial<ReaderFolderTabsConfig>) => {
@@ -432,19 +344,9 @@ function LayoutSettingsButton({
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
-        {pad ? (
-          <TabPadButton
-            position="right"
-            active={open}
-            aria-label="标签栏布局设置"
-            title="标签栏布局设置"
-            disabled={disabled}
-          />
-        ) : (
-          <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="标签栏布局设置" title="标签栏布局设置" disabled={disabled}>
-            <MoreVertical />
-          </Button>
-        )}
+        <Button type="button" size="icon-sm" variant="ghost" className="size-7 shrink-0" aria-label="标签栏布局设置" title="标签栏布局设置" disabled={disabled}>
+          <MoreVertical />
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44" data-folder-layout-settings="true">
         <PositionChoices label="标签栏位置" value={layout.layout} onChange={(value) => select({ layout: value })} />
