@@ -297,6 +297,13 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         body: JSON.stringify({ path, ...(policy ? { policy } : {}) }),
         signal,
       }),
+    describeFolderPenetration: (sessionId, paths, signal) =>
+      request<{ entries: readonly Contract.ReaderFolderPenetrationDescriptionDto[] }>(`/reader/browser/s/${encodeURIComponent(sessionId)}/penetration/describe`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paths }),
+        signal,
+      }),
     cloneDirectoryBrowser: (sessionId, signal) =>
       request<Contract.ReaderDirectoryPageDto>(`/reader/browser/s/${encodeURIComponent(sessionId)}/clone`, { method: "POST", signal }),
     reopenDirectoryBrowser: (sessionId, signal) =>

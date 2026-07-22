@@ -269,6 +269,10 @@ export interface ReaderFolderPenetrationResolutionDto {
     | "permission"
     | "unsupported-content"
 }
+export interface ReaderFolderPenetrationDescriptionDto {
+  path: string
+  internalFiles: readonly { name: string; path: string }[]
+}
 export interface ReaderActivationProvenanceDto {
   browserOriginPath: string
   browserOriginEntryPath: string
@@ -1025,6 +1029,7 @@ export interface ReaderShellConfigDto {
       readerFocusOnHover: boolean
       readerFocusHoverDelayMs: number
       showLaneNavigatorInReaderSolo: boolean
+      autoFitToViewport: boolean
       barHandleStyle: "grip" | "groove" | "move" | "grab" | "edge"
       barHandlePosition: "left" | "right"
       laneNavigatorPositionX: number
@@ -1716,6 +1721,7 @@ export interface ReaderShellControlPatch {
       readerFocusOnHover?: boolean
       readerFocusHoverDelayMs?: number
       showLaneNavigatorInReaderSolo?: boolean
+      autoFitToViewport?: boolean
       barHandleStyle?: "grip" | "groove" | "move" | "grab" | "edge"
       barHandlePosition?: "left" | "right"
       laneNavigatorPositionX?: number
@@ -1832,6 +1838,7 @@ export interface ReaderHttpClient {
     policy?: ReaderFolderPenetrationPolicyDto,
     signal?: AbortSignal,
   ): Promise<ReaderFolderPenetrationResolutionDto>
+  describeFolderPenetration?(sessionId: string, paths: readonly string[], signal?: AbortSignal): Promise<{ entries: readonly ReaderFolderPenetrationDescriptionDto[] }>
   readDirectoryEmm?(sessionId: string, generation: number, paths: readonly string[], signal?: AbortSignal): Promise<ReaderDirectoryEmmReadResultDto>
   editDirectoryEmm?(sessionId: string, command: ReaderDirectoryEmmEditCommandDto, signal?: AbortSignal): Promise<ReaderDirectoryEmmEditResultDto>
   suggestDirectoryEmmTags?(count?: number, signal?: AbortSignal): Promise<readonly ReaderEmmTagSuggestionDto[]>

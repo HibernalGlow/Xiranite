@@ -922,6 +922,18 @@ describe("reader-http-client", () => {
     expect(new Headers(init?.headers).get("x-xiranite-token")).toBe("reader-token")
   })
 
+  it("[neoview.folder.penetration-describe-client] requests visible folder names in one bounded batch", async () => {
+    const described = { entries: [{ path: "D:/books/series", internalFiles: [{ name: "Book One", path: "D:/books/series/Book One.cbz" }] }] }
+    const fetchMock = vi.fn(async () => Response.json(described))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.describeFolderPenetration!("browser/source", ["D:/books/series"])).resolves.toEqual(described)
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/browser/s/browser%2Fsource/penetration/describe")
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ paths: ["D:/books/series"] })
+  })
+
   it("[neoview.folder.search-incremental] publishes bounded entry batches before the stream completes", async () => {
     let streamController!: ReadableStreamDefaultController<Uint8Array>
     const encoder = new TextEncoder()

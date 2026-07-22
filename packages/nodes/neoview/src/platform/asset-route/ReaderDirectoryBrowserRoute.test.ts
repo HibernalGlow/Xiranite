@@ -14,6 +14,41 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.penetration-describe-http] returns direct internal archive names for visible folders", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-penetration-describe-"))
+    directories.push(directory)
+    const first = join(directory, "first")
+    const second = join(directory, "second")
+    await Promise.all([mkdir(first), mkdir(second)])
+    await Promise.all([
+      writeFile(join(first, "Book One.cbz"), "book"),
+      writeFile(join(first, "notes.txt"), "notes"),
+      writeFile(join(second, "Book.Two.zip"), "book"),
+    ])
+    const route = new ReaderDirectoryBrowserRoute()
+    try {
+      const opened = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: directory }),
+      })))!
+      const page = await opened.json() as { sessionId: string }
+      const response = (await route.handle(new Request(`http://localhost/reader/browser/s/${page.sessionId}/penetration/describe`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ paths: [first, second] }),
+      })))!
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({ entries: [
+        { path: first, internalFiles: [{ name: "Book One", path: join(first, "Book One.cbz") }] },
+        { path: second, internalFiles: [{ name: "Book.Two", path: join(second, "Book.Two.zip") }] },
+      ] })
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.penetration-http] resolves one nested folder chain through the active browser session", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-penetration-"))
     directories.push(directory)

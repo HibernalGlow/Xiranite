@@ -16,8 +16,8 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = d
   await runInteractionCli({ args, host, cliName: CLI_NAME, loadContext: async () => { const { config } = await loadNodeConfigWithHints<Record<string, unknown>>("arcthumb", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: true }); return { preferences: resolveInteractionPreferences(config), value: config ?? {} } }, createDefinition: (defaults, language) => ({ schema: createArcThumbInteractionSchema(defaults as Partial<InteractionValues>, language), run: (input, event) => runArcThumb(input, createArcThumbRuntime(), event) }), runPipe, runGuide: runGuidedInteraction, runUi: runTerminalUi, loadScreen: async () => (await import("./Tui.js")).ArcThumbTui, reexecEntrypoint: process.argv[1], help })
 }
 async function runPipe(args: string[], host: CliHost) {
-  const json = args.includes("--json"), action = args.includes("render") ? "render" : "inspect"
-  let paths = args.filter((arg, index) => !arg.startsWith("--") && arg !== action && !["--output-dir", "--format", "--size", "--quality"].includes(args[index - 1] ?? ""))
+  const json = args.includes("--json"), action: ArcThumbInput["action"] = args.includes("system-thumbnail") ? "system-thumbnail" : args.includes("render") ? "render" : "inspect"
+  let paths = args.filter((arg, index) => !arg.startsWith("--") && !["inspect", "render", "system-thumbnail"].includes(arg) && !["--output-dir", "--format", "--size", "--quality"].includes(args[index - 1] ?? ""))
   if (paths.includes("-")) paths = paths.filter((path) => path !== "-").concat(await readStdinLines(host.stdin)); else if (!paths.length && hasPipedInput(host.stdin)) paths = await readStdinLines(host.stdin)
   const input: ArcThumbInput = { action, paths, outputDir: value(args, "--output-dir"), format: value(args, "--format") as ArcThumbInput["format"], maxDimension: number(args, "--size"), quality: number(args, "--quality"), write: args.includes("--write"), overwrite: args.includes("--overwrite"), recursive: !args.includes("--no-recursive") }
   const result = await runArcThumb(input, createArcThumbRuntime())

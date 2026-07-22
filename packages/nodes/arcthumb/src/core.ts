@@ -1,7 +1,7 @@
-import type { ArchiveThumbnail, ArchiveThumbnailOptions, ArcThumbInfo } from "@xiranite/arcthumb-native"
+import type { ArchiveThumbnail, ArchiveThumbnailOptions, ArcThumbInfo, EncodedSystemThumbnail, EncodedSystemThumbnailOptions } from "@xiranite/arcthumb-native"
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
-export type ArcThumbAction = "inspect" | "render"
+export type ArcThumbAction = "inspect" | "render" | "system-thumbnail"
 export type ArcThumbFormat = NonNullable<ArchiveThumbnailOptions["format"]>
 export interface ArcThumbInput { action?: ArcThumbAction; paths?: string[]; listText?: string; recursive?: boolean; maxDimension?: number; format?: ArcThumbFormat; quality?: number; sortOrder?: ArchiveThumbnailOptions["sortOrder"]; coverMode?: ArchiveThumbnailOptions["coverMode"]; outputDir?: string; write?: boolean; overwrite?: boolean }
 export interface ArcThumbItem { path: string; status: "ready" | "written" | "skipped" | "error"; width?: number; height?: number; bytes?: number; sourceName?: string; contentKind?: string; mimeType?: string; outputPath?: string; previewDataUrl?: string; reason?: string }
@@ -10,6 +10,7 @@ export type ArcThumbResult = NodeRunResult<ArcThumbData>
 export interface ArcThumbRuntime {
   info: () => ArcThumbInfo
   createArchiveThumbnail: (options: ArchiveThumbnailOptions) => Promise<ArchiveThumbnail>
+  getCachedSystemThumbnailEncoded: (options: EncodedSystemThumbnailOptions) => Promise<EncodedSystemThumbnail | undefined>
   pathInfo: (path: string) => Promise<{ path: string; exists: boolean; isFile: boolean; isDirectory: boolean }>
   listDir: (path: string) => Promise<Array<{ path: string; isFile: boolean; isDirectory: boolean }>>
   writeFile: (path: string, data: Uint8Array) => Promise<void>
@@ -33,8 +34,17 @@ export async function runArcThumb(input: ArcThumbInput, runtime: ArcThumbRuntime
   const items: ArcThumbItem[] = []
   for (const [index, path] of paths.entries()) {
     onEvent({ type: "progress", progress: Math.round(index / Math.max(paths.length, 1) * 100), message: `Rendering ${runtime.basename(path)}.` })
-    if (!isArcThumbInput(path, runtime)) { items.push({ path, status: "skipped", reason: "unsupported_extension" }); continue }
     try {
+      if (options.action === "system-thumbnail") {
+        const thumbnail = await runtime.getCachedSystemThumbnailEncoded({ path, maxDimension: options.maxDimension, format: options.format, quality: options.quality })
+        if (!thumbnail) {
+          items.push({ path, status: "skipped", reason: "system_thumbnail_not_cached" })
+          continue
+        }
+        items.push({ path, status: "ready", width: thumbnail.width, height: thumbnail.height, bytes: thumbnail.data.length, contentKind: "system-cache", mimeType: thumbnail.mimeType, previewDataUrl: thumbnail.data.length <= MAX_PREVIEW_BYTES ? `data:${thumbnail.mimeType};base64,${thumbnail.data.toString("base64")}` : undefined })
+        continue
+      }
+      if (!isArcThumbInput(path, runtime)) { items.push({ path, status: "skipped", reason: "unsupported_extension" }); continue }
       const thumbnail = await runtime.createArchiveThumbnail({ path, maxDimension: options.maxDimension, format: options.format, quality: options.quality, sortOrder: options.sortOrder, coverMode: options.coverMode })
       const outputPath = outputFor(path, options, runtime)
       const item: ArcThumbItem = { path, status: "ready", width: thumbnail.width, height: thumbnail.height, bytes: thumbnail.data.length, sourceName: thumbnail.sourceName, contentKind: thumbnail.contentKind, mimeType: thumbnail.mimeType, outputPath, previewDataUrl: thumbnail.data.length <= MAX_PREVIEW_BYTES ? `data:${thumbnail.mimeType};base64,${thumbnail.data.toString("base64")}` : undefined }
