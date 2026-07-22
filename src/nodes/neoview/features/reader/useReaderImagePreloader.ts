@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import type { ReaderPageDto, ReaderPreloadEventDto } from "../../adapters/reader-http-client"
 import { readerPreloadStatusStore } from "./ReaderPreloadStatusStore"
 
-const PREDECODE_START_DELAY_MS = 350
+// Keep first open paint free of adjacent decode work; freeze reports showed
+// open:committed → full-window stall when predecode raced the first frame.
+const PREDECODE_START_DELAY_MS = 700
 export const READER_PREFETCH_READY_MARK = "neoview-reader-prefetch-ready"
 
 export interface ReaderPredecodeDeviceHints {
