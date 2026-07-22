@@ -58,6 +58,8 @@ export type ContextMenuItemType =
   | "checkbox"
   | "radio"
   | "submenu"
+  /** Horizontal icon-only toolbar row (Neo-style compact actions). */
+  | "icon-row"
 
 export interface ContextMenuItemDef {
   /** Stable id, also used as React key when present. Falls back to index. */
@@ -105,7 +107,12 @@ export interface ContextMenuItemDef {
   radioValue?: string
   /** Callback when radio changes. */
   onRadioChange?: (value: string) => void | Promise<void>
-  /** Submenu children. Renders as a submenu trigger. */
+  /**
+   * Nested items.
+   * - `submenu` / default with children → nested menu
+   * - `group` → logical group
+   * - `icon-row` → horizontal icon-only buttons (label becomes aria-label/title)
+   */
   children?: ContextMenuItemDef[]
 }
 
@@ -423,6 +430,47 @@ function MenuItems({
         }
         if (item.type === "label") {
           return <DropdownMenuLabel key={key} inset={item.inset}>{item.label}</DropdownMenuLabel>
+        }
+        // Icon-only toolbar row (Neo-style compact actions).
+        if (item.type === "icon-row") {
+          const icons = (item.children ?? []).filter((child) => !child.hidden)
+          if (icons.length === 0) return null
+          return (
+            <DropdownMenuGroup key={key}>
+              <div
+                role="group"
+                aria-label={item.label}
+                data-context-menu-icon-row={item.id ?? "true"}
+                className="flex flex-row flex-wrap items-center justify-between gap-0.5 px-1 py-0.5"
+              >
+                {icons.map((child, ci) => {
+                  const childKey = child.id ?? `${key}-icon-${ci}`
+                  return (
+                    <DropdownMenuItem
+                      key={childKey}
+                      disabled={child.disabled}
+                      variant={child.destructive ? "destructive" : "default"}
+                      className="size-8 shrink-0 justify-center gap-0 p-0"
+                      aria-label={child.label}
+                      title={child.label}
+                      data-testid={child.testId}
+                      onSelect={(e) => {
+                        if (child.disabled) {
+                          e.preventDefault()
+                          return
+                        }
+                        if (child.keepOpen) e.preventDefault()
+                        runItem(child)
+                      }}
+                    >
+                      {child.icon}
+                      <span className="sr-only">{child.label}</span>
+                    </DropdownMenuItem>
+                  )
+                })}
+              </div>
+            </DropdownMenuGroup>
+          )
         }
         // Submenu: explicit "submenu" type OR children present.
         if (item.type === "submenu" || (item.children && item.children.length > 0 && item.type !== "group")) {
