@@ -182,5 +182,27 @@ describe("folderSearchModel", () => {
     expect(page.canGoBack).toBe(true)
     expect(page.watching).toBe(false)
     expect(page.sessionId).toBe("browser-1")
+
+    // Full hit list lives in one in-memory page so File Card viewport helpers
+    // (directoryEntryAt / directoryLoadedEntries / thumbnails) can address every index.
+    const many = createSearchDirectoryPage({
+      sessionId: "browser-1",
+      rootPath: "D:/books",
+      criteria: createDefaultSearchCriteria({ includeSubfolders: true, searchInPath: false }, { query: "batch" }),
+      result: {
+        entries: Array.from({ length: 40 }, (_, index) => ({
+          name: `item-${index}.cbz`,
+          path: `D:/books/item-${index}.cbz`,
+          kind: "file" as const,
+          readerSupported: true,
+        })),
+        generation: 1,
+        query: "batch",
+        mode: "text",
+      },
+    })
+    expect(many.total).toBe(40)
+    expect(many.entries[0]?.path).toBe("D:/books/item-0.cbz")
+    expect(many.entries[39]?.path).toBe("D:/books/item-39.cbz")
   })
 })

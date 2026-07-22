@@ -481,6 +481,10 @@ export function FolderBrowserPane({
 
   useEffect(() => {
     if (!thumbnailsVisible || !catalog || !viewUsesThumbnails(viewMode) || !client.listDirectoryBrowser || !client.prewarmLibraryThumbnails) return
+    // Virtual search is not a real browser listing — background compile via
+    // listDirectoryBrowser would re-read the origin folder, not the search hits.
+    // Viewport thumbnails still come from registerVisibleThumbnails via requestRange.
+    if (isVirtualSearchPath(catalog.path)) return
     const compilePreviewCount = previewGridEnabled ? previewCount : 1
     const compileKey = `${catalog.sessionId}:${catalog.generation}:${compilePreviewCount}`
     if (thumbnailCompileKeysRef.current.has(compileKey)) return
@@ -964,55 +968,58 @@ export function FolderBrowserPane({
     visibleRangeRef.current = range
     const current = catalogRef.current
     requestPenetrationDescriptions(range, current)
-    // Search listings already hold the full result set in-memory.
-    if (!current || !client.listDirectoryBrowser || isVirtualSearchPath(current.path)) return
-    const metadataFields =
-      viewMode === "details"
-        ? DETAILS_METADATA_FIELDS.filter((field) => current.metadataCapabilities.includes(field))
-        : folderMetadataFieldsForView(viewMode, current.metadataCapabilities)
-    const cursors = directoryPageCursors(range.startIndex - 16, range.endIndex + 16, current.total, PAGE_SIZE)
-    for (const cursor of cursors) {
-      const requestKey = `${cursor}:${metadataFields.join(",")}`
-      if ((current.pages.has(cursor) && directoryPageHasMetadata(current, cursor, metadataFields)) || pendingCursorsRef.current.has(requestKey)) continue
-      pendingCursorsRef.current.add(requestKey)
-      const sessionId = current.sessionId
-      const generation = current.generation
-      const requestSignal = catalogRequestRef.current?.signal
-      const request = metadataFields.length
-        ? client.listDirectoryBrowser(sessionId, cursor, PAGE_SIZE, requestSignal, metadataFields)
-        : client.listDirectoryBrowser(sessionId, cursor, PAGE_SIZE, requestSignal)
-      void request
-        .then((page) => {
-          const latest = catalogRef.current
-          if (!latest || latest.sessionId !== sessionId || latest.generation !== generation) return
-          const merged = mergeDirectoryPage(latest, page)
-          const currentFocusedEntry = directoryEntryAt(merged, focusedIndexRef.current ?? -1)
-          if (currentFocusedEntry) setFocusedPath(currentFocusedEntry.path)
-          const center = Math.floor((visibleRangeRef.current.startIndex + visibleRangeRef.current.endIndex) / 2)
-          commitCatalog(trimDirectoryPages(merged, center, MAX_CACHED_PAGES))
-          requestPenetrationDescriptions(visibleRangeRef.current, merged)
-          const pending = pendingKeyboardCommandRef.current
-          if (pending && pending.generation === merged.generation && pending.index >= 0) {
-            const pendingEntry = directoryEntryAt(merged, pending.index)
-            if (pendingEntry) {
-              pendingKeyboardCommandRef.current = undefined
-              queueMicrotask(() => {
-                const latest = catalogRef.current
-                if (latest?.generation === pending.generation) {
-                  runFocusedKeyboardEntry(pending.kind, latest, pending.index)
-                }
-              })
+    if (!current) return
+    // Virtual search already holds every hit in-memory — skip listDirectoryBrowser
+    // paging, but still run the shared visible-thumbnail pipeline so scroll works.
+    if (!isVirtualSearchPath(current.path) && client.listDirectoryBrowser) {
+      const metadataFields =
+        viewMode === "details"
+          ? DETAILS_METADATA_FIELDS.filter((field) => current.metadataCapabilities.includes(field))
+          : folderMetadataFieldsForView(viewMode, current.metadataCapabilities)
+      const cursors = directoryPageCursors(range.startIndex - 16, range.endIndex + 16, current.total, PAGE_SIZE)
+      for (const cursor of cursors) {
+        const requestKey = `${cursor}:${metadataFields.join(",")}`
+        if ((current.pages.has(cursor) && directoryPageHasMetadata(current, cursor, metadataFields)) || pendingCursorsRef.current.has(requestKey)) continue
+        pendingCursorsRef.current.add(requestKey)
+        const sessionId = current.sessionId
+        const generation = current.generation
+        const requestSignal = catalogRequestRef.current?.signal
+        const request = metadataFields.length
+          ? client.listDirectoryBrowser(sessionId, cursor, PAGE_SIZE, requestSignal, metadataFields)
+          : client.listDirectoryBrowser(sessionId, cursor, PAGE_SIZE, requestSignal)
+        void request
+          .then((page) => {
+            const latest = catalogRef.current
+            if (!latest || latest.sessionId !== sessionId || latest.generation !== generation) return
+            const merged = mergeDirectoryPage(latest, page)
+            const currentFocusedEntry = directoryEntryAt(merged, focusedIndexRef.current ?? -1)
+            if (currentFocusedEntry) setFocusedPath(currentFocusedEntry.path)
+            const center = Math.floor((visibleRangeRef.current.startIndex + visibleRangeRef.current.endIndex) / 2)
+            commitCatalog(trimDirectoryPages(merged, center, MAX_CACHED_PAGES))
+            requestPenetrationDescriptions(visibleRangeRef.current, merged)
+            const pending = pendingKeyboardCommandRef.current
+            if (pending && pending.generation === merged.generation && pending.index >= 0) {
+              const pendingEntry = directoryEntryAt(merged, pending.index)
+              if (pendingEntry) {
+                pendingKeyboardCommandRef.current = undefined
+                queueMicrotask(() => {
+                  const latest = catalogRef.current
+                  if (latest?.generation === pending.generation) {
+                    runFocusedKeyboardEntry(pending.kind, latest, pending.index)
+                  }
+                })
+              }
             }
-          }
-          queueMicrotask(registerVisibleThumbnails)
-        })
-        .catch((cause) => {
-          if (!requestSignal?.aborted && !isAbortError(cause)) setError(folderErrorMessage(cause))
-        })
-        .finally(() => {
-          const latest = catalogRef.current
-          if (latest?.sessionId === sessionId && latest.generation === generation) pendingCursorsRef.current.delete(requestKey)
-        })
+            queueMicrotask(registerVisibleThumbnails)
+          })
+          .catch((cause) => {
+            if (!requestSignal?.aborted && !isAbortError(cause)) setError(folderErrorMessage(cause))
+          })
+          .finally(() => {
+            const latest = catalogRef.current
+            if (latest?.sessionId === sessionId && latest.generation === generation) pendingCursorsRef.current.delete(requestKey)
+          })
+      }
     }
     queueMicrotask(registerVisibleThumbnails)
   }
@@ -1756,6 +1763,22 @@ export function FolderBrowserPane({
       base: searchOriginRef.current?.catalog ?? (current && !isVirtualSearchPath(current.path) ? current : undefined),
     })
     applyPage(page, undefined, isVirtualSearchPath(catalogRef.current?.path))
+    // Force the shared thumbnail pipeline for the virtual listing. If Virtuoso
+    // has not reported a viewport yet, seed the first page of hits so cover
+    // views do not sit on a single thumbnail until the user scrolls.
+    queueMicrotask(() => {
+      const latest = catalogRef.current
+      const range = visibleRangeRef.current
+      if (!latest || !isVirtualSearchPath(latest.path)) return
+      if (range.endIndex <= range.startIndex && latest.total > 0) {
+        requestRange({
+          startIndex: 0,
+          endIndex: Math.min(latest.total - 1, Math.max(0, MAX_THUMBNAILS - 1)),
+        })
+        return
+      }
+      requestRange(range)
+    })
   }
 
   function releaseThumbnailContext() {
