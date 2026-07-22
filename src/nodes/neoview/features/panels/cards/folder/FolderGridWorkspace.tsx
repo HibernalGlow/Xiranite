@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type R
 import type { ReaderDirectoryEntryDto, ReaderFolderViewMode } from "../../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
 import { directoryEntryAt, viewUsesBanner, type DirectoryCatalog } from "./DirectoryCatalog"
-import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
+import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata, FolderEntryPenetrationHint } from "./FolderEntryPresentation"
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_GRID_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
@@ -27,6 +27,7 @@ export default function FolderGridWorkspace({
   thumbnailUrlSets = EMPTY_THUMBNAIL_URL_SETS,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  penetrationEnabled = false,
   deleteMode,
   deleteStrategy,
   confirmDelete = true,
@@ -52,6 +53,7 @@ export default function FolderGridWorkspace({
   thumbnailUrlSets?: ReadonlyMap<string, readonly string[]>
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  penetrationEnabled?: boolean
   deleteMode?: boolean
   deleteStrategy?: FolderDeleteStrategy
   confirmDelete?: boolean
@@ -151,6 +153,7 @@ export default function FolderGridWorkspace({
             thumbnailUrls={entry ? thumbnailUrlSets.get(entry.path) : undefined}
             hoverPreviewEnabled={hoverPreviewEnabled}
             hoverPreviewDelayMs={hoverPreviewDelayMs}
+            penetrationEnabled={penetrationEnabled}
             deleteMode={Boolean(deleteMode)}
             deleteStrategy={deleteStrategy ?? "trash"}
             confirmDelete={confirmDelete}
@@ -176,13 +179,14 @@ interface DirectoryGridItemProps {
   thumbnailUrls?: readonly string[]
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  penetrationEnabled?: boolean
   deleteMode?: boolean
   deleteStrategy?: FolderDeleteStrategy
   confirmDelete?: boolean
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }
 
-export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
+export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, penetrationEnabled = false, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
   if (!entry) return <div className="h-24 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   return (
     <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
@@ -213,7 +217,7 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
           : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
       <span className="grid min-w-0 content-center gap-0.5 px-2 py-1.5" data-folder-entry-info="two-line">
-        <span className="truncate font-medium" data-folder-entry-line="name">{entry.name}</span>
+        <span className="flex min-w-0 items-center gap-1" data-folder-entry-line="name"><span className="truncate font-medium">{entry.name}</span><FolderEntryPenetrationHint entry={entry} enabled={penetrationEnabled} /></span>
         <span className="flex min-w-0 items-center gap-1" data-folder-entry-line="metadata">
           <FolderEntryFileMetadata entry={entry} className="min-w-0" />
           <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} className="min-w-0" />
@@ -227,7 +231,7 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
 
 const EMPTY_THUMBNAIL_URL_SETS: ReadonlyMap<string, readonly string[]> = new Map()
 
-export function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
+export function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, penetrationEnabled = false, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
   if (!entry) return (
     <div className="grid w-full grid-rows-[auto_1.75rem] overflow-hidden rounded border bg-background" aria-hidden="true">
       <span className="aspect-[2/3] w-full animate-pulse bg-muted/30" />
@@ -265,7 +269,7 @@ export function DirectoryGridItem({ itemId, entry, index, disabled, selected, fo
       </span>
       <span className="flex min-w-0 items-center gap-1 border-t px-1.5 py-1.5">
         <FolderEntryIcon entry={entry} className="size-3.5" />
-        <span className="truncate">{entry.name}</span>
+        <span className="flex min-w-0 items-center gap-1"><span className="truncate">{entry.name}</span><FolderEntryPenetrationHint entry={entry} enabled={penetrationEnabled} /></span>
       </span>
       {showMetadata ? <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} className="h-5 border-t px-1.5" /> : null}
     </button>

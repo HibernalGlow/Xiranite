@@ -2180,6 +2180,7 @@ export function FolderBrowserPane({
                         thumbnailUrlSets={thumbnailUrlSets}
                         hoverPreviewEnabled={active && hoverPreviewEnabled}
                         hoverPreviewDelayMs={hoverPreviewDelayMs}
+                        penetrationEnabled={penetration.enabled}
                         deleteMode={deleteMode}
                         deleteStrategy={deleteStrategy}
                         confirmDelete={confirmDelete}
