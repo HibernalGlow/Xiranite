@@ -102,6 +102,12 @@ samp {
   -webkit-app-region: no-drag;
 }
 
+.xiranite-floating-window [data-reader-window-drag-region="true"] :is(button, a, input, textarea, select, [role="button"], [draggable="true"]),
+.xiranite-floating-window [data-reader-window-drag-region="true"] :is(button, a, input, textarea, select, [role="button"], [draggable="true"]) * {
+  --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
+}
+
 /* Window caption controls are host chrome, not node controls. Keep them out
    of per-theme button treatments so they remain flush with the titlebar. */
 .xiranite-node-surface [data-window-caption-button] {
@@ -124,6 +130,11 @@ samp {
 .xiranite-node-surface [data-window-caption-button][data-window-caption-tone="close"]:hover {
   background: #c42b1c !important;
   color: white !important;
+}
+
+.xiranite-node-surface [data-window-caption-density="compact"] [data-window-caption-button] {
+  min-height: 1.75rem !important;
+  width: 2rem !important;
 }
 
 /* ── Workspace canvas dot/grid background ── */

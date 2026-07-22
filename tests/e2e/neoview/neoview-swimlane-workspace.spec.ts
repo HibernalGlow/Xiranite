@@ -65,8 +65,28 @@ test("[neoview.swimlane.drag-e2e] freezes Reader width and docks the panel bar",
   await openOrdinarySwimlane(page)
   const readerLane = page.locator('[data-reader-swimlane="reader"]')
   const rightLane = page.locator('[data-reader-swimlane="right"]')
+  const windowDragHeaders = page.locator('[data-reader-window-drag-region="true"]')
+  const windowChromeOwner = page.locator('[data-reader-window-controls-owner]')
   const rightBar = page.locator('[data-reader-panel-bar="right"]')
   const rightHandle = rightBar.getByRole("button", { name: "拖动或设置面板操作栏" })
+  await expect(windowDragHeaders).toHaveCount(3)
+  await expect.poll(() => windowDragHeaders.evaluateAll((headers) => headers.every((header) => (
+    getComputedStyle(header).getPropertyValue("--wails-draggable").trim() === "drag"
+  )))).toBe(true)
+  await expect(windowChromeOwner).toHaveCount(1)
+  await expect(windowChromeOwner).toHaveAttribute("data-reader-window-controls-owner", "right")
+  await expect(page.getByTestId("floating-window-integrated-controls")).toHaveCount(0)
+  await windowChromeOwner.getByRole("button", { name: "展开窗口控件" }).click()
+  const compactWindowControls = windowChromeOwner.getByTestId("floating-window-integrated-controls")
+  await expect(compactWindowControls).toHaveAttribute("data-window-caption-density", "compact")
+  await expect(compactWindowControls.getByRole("button")).toHaveCount(3)
+  await expect.poll(() => compactWindowControls.getByRole("button").evaluateAll((buttons) => buttons.every((button) => {
+    const box = button.getBoundingClientRect()
+    return box.width === 32 && box.height <= 28
+  }))).toBe(true)
+  await expect.poll(() => rightHandle.evaluate((handle) => (
+    getComputedStyle(handle).getPropertyValue("--wails-draggable").trim()
+  ))).toBe("no-drag")
   const rightLaneBox = await rightLane.boundingBox()
   const rightHandleBox = await rightHandle.boundingBox()
   expect(rightLaneBox).not.toBeNull()

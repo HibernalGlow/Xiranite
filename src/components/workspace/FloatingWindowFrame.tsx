@@ -76,9 +76,10 @@ export function FloatingWindowNodeHeader({ children, className }: {
   )
 }
 
-export function FloatingWindowCaptionControls({ className, integrated = false }: {
+export function FloatingWindowCaptionControls({ className, integrated = false, density = "default" }: {
   className?: string
   integrated?: boolean
+  density?: "default" | "compact"
 }) {
   const frame = useFloatingWindowFrame()
   const { t } = useTranslation()
@@ -90,11 +91,15 @@ export function FloatingWindowCaptionControls({ className, integrated = false }:
 
   if (!frame) return null
 
-  const buttonClass = "grid min-h-9 w-11 place-items-center text-foreground/70 transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
+  const buttonClass = cn(
+    "grid place-items-center text-foreground/70 transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45",
+    density === "compact" ? "min-h-7 w-8" : "min-h-9 w-11",
+  )
 
   return (
     <div
       data-testid={integrated ? "floating-window-integrated-controls" : "floating-window-fallback-controls"}
+      data-window-caption-density={density}
       className={cn("xiranite-app-region-no-drag flex shrink-0 self-stretch items-stretch", className)}
     >
       <button data-window-caption-button type="button" title={t("common:minimize")} aria-label={t("common:minimize")} disabled={frame.pending} onClick={() => frame.control("minimize")} className={buttonClass}>

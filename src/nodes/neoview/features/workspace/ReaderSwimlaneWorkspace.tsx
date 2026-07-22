@@ -6,11 +6,12 @@ import {
   useState,
   type CSSProperties,
   type ErrorInfo,
+  type MouseEventHandler,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type WheelEvent as ReactWheelEvent,
 } from "react"
-import { AlertTriangle, BookOpen, Columns3, Ellipsis, Maximize2, Minimize2, PanelLeft, PanelRight, PanelsTopLeft, RotateCcw, Settings2 } from "lucide-react"
+import { AlertTriangle, BookOpen, Columns3, Ellipsis, Maximize2, Minimize2, PanelLeft, PanelRight, PanelsTopLeft, PanelTopClose, PanelTopOpen, RotateCcw, Settings2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -63,6 +64,10 @@ interface ReaderSwimlaneWorkspaceProps {
   left: ReactNode
   right: ReactNode
   disabled?: boolean
+  windowChrome?: {
+    controls: ReactNode
+    onTitlebarDoubleClick?: MouseEventHandler<HTMLElement>
+  }
   onWorkspaceChange(patch: ReaderWorkspacePatch): void
   onOpenSettings?(): void
 }
@@ -81,6 +86,7 @@ export function ReaderSwimlaneWorkspace({
   left,
   right,
   disabled = false,
+  windowChrome,
   onWorkspaceChange,
   onOpenSettings,
 }: ReaderSwimlaneWorkspaceProps) {
@@ -102,8 +108,10 @@ export function ReaderSwimlaneWorkspace({
   const [previewLane, setPreviewLane] = useState<ReaderSwimlaneId>()
   const [draggedLane, setDraggedLane] = useState<ReaderSwimlaneId>()
   const [laneNavigatorTitleHost, setLaneNavigatorTitleHost] = useState<HTMLElement | null>(null)
+  const [windowControlsExpanded, setWindowControlsExpanded] = useState(false)
   const swimlane = workspace.swimlane
   const soloLaneId = swimlane.soloLaneId ?? (swimlane.readerSolo ? "reader" : undefined)
+  const windowChromeOwnerLaneId = windowChrome ? resolveWindowChromeOwner(swimlane.laneOrder, swimlane.lanes, soloLaneId, swimlane.activeLane) : undefined
   const revealTriggersEnabled = soloLaneId !== undefined && swimlane.activeLane === soloLaneId && previewLane === undefined
   const readerNormalWidth = readerLaneWidth(viewportWidth, swimlane.readerWidthRatio)
   const autoFitGeometryKey = swimlane.laneOrder.map((laneId) => `${laneId}:${swimlane.lanes[laneId]?.collapsed === true}`).join("|")
@@ -431,6 +439,13 @@ export function ReaderSwimlaneWorkspace({
         })}
         onOpenSettings={laneId === "reader" ? onOpenSettings : undefined}
         setNavigatorTitleHost={laneId === "reader" ? setLaneNavigatorTitleHost : undefined}
+        windowDraggable={windowChrome !== undefined}
+        windowChrome={windowChrome && laneId === windowChromeOwnerLaneId ? {
+          controls: windowChrome.controls,
+          expanded: windowControlsExpanded,
+          onExpandedChange: setWindowControlsExpanded,
+        } : undefined}
+        onTitlebarDoubleClick={windowChrome?.onTitlebarDoubleClick}
         onResizeBoundary={nextLaneId ? (deltaRatio) => resizeLaneBoundary(laneId, nextLaneId, deltaRatio) : undefined}
         onResizeEnd={nextLaneId ? () => commitLaneWidths([laneId, nextLaneId]) : undefined}
         onHeaderPointerDown={beginPan}
@@ -591,6 +606,13 @@ interface ReaderSwimlaneProps {
   onResetNavigatorPosition(): void
   onOpenSettings?(): void
   setNavigatorTitleHost?(node: HTMLElement | null): void
+  windowDraggable: boolean
+  windowChrome?: {
+    controls: ReactNode
+    expanded: boolean
+    onExpandedChange(expanded: boolean): void
+  }
+  onTitlebarDoubleClick?: MouseEventHandler<HTMLElement>
   onResizeBoundary?(deltaRatio: number): void
   onResizeEnd?(): void
   onHeaderPointerDown(event: ReactPointerEvent<HTMLElement>): void
@@ -632,6 +654,9 @@ function ReaderSwimlane({
   onResetNavigatorPosition,
   onOpenSettings,
   setNavigatorTitleHost,
+  windowDraggable,
+  windowChrome,
+  onTitlebarDoubleClick,
   onResizeBoundary,
   onResizeEnd,
   onHeaderPointerDown,
@@ -715,25 +740,29 @@ function ReaderSwimlane({
       {hideHeader ? null : <header
         className={cn(
           "flex h-8 shrink-0 select-none items-center gap-1.5 border-b border-border/55 px-2 transition-colors",
+          windowDraggable && "xiranite-app-region-drag",
           active
             ? "bg-primary/12 text-foreground"
             : laneId === "reader" ? "text-foreground shadow-[inset_0_-1px_0_var(--border)] backdrop-blur-xl" : "bg-muted/25",
         )}
         style={!active && laneId === "reader" ? { background: "color-mix(in oklch, var(--card) 92%, var(--primary))" } : undefined}
         data-reader-swimlane-header={laneId}
+        data-reader-window-drag-region={windowDraggable ? "true" : undefined}
+        data-reader-window-controls-owner={windowChrome ? laneId : undefined}
         data-reader-swimlane-header-material={!active && laneId === "reader" ? "reader-muted" : active ? "active" : "panel-muted"}
         data-input-context="shell"
-        onPointerDown={onHeaderPointerDown}
-        onPointerMove={onHeaderPointerMove}
-        onPointerUp={onHeaderPointerUp}
-        onPointerCancel={onHeaderPointerUp}
+        onDoubleClick={windowDraggable ? onTitlebarDoubleClick : undefined}
+        onPointerDown={windowDraggable ? undefined : onHeaderPointerDown}
+        onPointerMove={windowDraggable ? undefined : onHeaderPointerMove}
+        onPointerUp={windowDraggable ? undefined : onHeaderPointerUp}
+        onPointerCancel={windowDraggable ? undefined : onHeaderPointerUp}
       >
-        <SwimlaneCollapseDragButton collapsed={false} laneLabel={`${label}泳道`} draggable className={cn("size-6", active && "text-primary")} onClick={onCollapsedChange ? () => onCollapsedChange(true) : undefined} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+        <SwimlaneCollapseDragButton collapsed={false} laneLabel={`${label}泳道`} draggable className={cn("xiranite-app-region-no-drag size-6", active && "text-primary")} onClick={onCollapsedChange ? () => onCollapsedChange(true) : undefined} onDragStart={onDragStart} onDragEnd={onDragEnd} />
         {hideLabel ? null : <span className={cn("min-w-0 shrink truncate text-[11px] font-semibold text-muted-foreground", active && "text-foreground")}>{label}</span>}
         {laneId === "reader"
           ? <div ref={setNavigatorTitleHost} className="min-w-0 flex-1 overflow-visible" data-reader-lane-navigator-title-slot="true" />
           : <div className="min-w-0 flex-1 overflow-visible" data-reader-panel-bar-title-slot={laneId} />}
-        <div className="ml-auto flex shrink-0 items-center gap-0.5" data-reader-swimlane-actions={laneId}>
+        <div className="xiranite-app-region-no-drag ml-auto flex shrink-0 items-center gap-0.5" data-reader-swimlane-actions={laneId}>
           {solo ? <span className="mr-1 size-1.5 rounded-full bg-primary" title={`${label}全屏已开启`} /> : null}
           <ReaderLaneMoreMenu
             laneId={laneId}
@@ -750,6 +779,11 @@ function ReaderSwimlane({
             onResetNavigatorPosition={onResetNavigatorPosition}
             onOpenSettings={onOpenSettings}
           />
+          {windowChrome ? <ReaderSwimlaneWindowChrome
+            controls={windowChrome.controls}
+            expanded={windowChrome.expanded}
+            onExpandedChange={windowChrome.onExpandedChange}
+          /> : null}
         </div>
       </header>}
       <div className="min-h-0 flex-1 overflow-hidden" data-reader-swimlane-content={laneId}>{children}</div>
@@ -762,6 +796,44 @@ function ReaderSwimlane({
       /> : null}
     </section>
   )
+}
+
+function ReaderSwimlaneWindowChrome({ controls, expanded, onExpandedChange }: {
+  controls: ReactNode
+  expanded: boolean
+  onExpandedChange(expanded: boolean): void
+}) {
+  return (
+    <div className="flex h-7 shrink-0 items-stretch" data-reader-swimlane-window-chrome="true" data-reader-window-controls-expanded={expanded ? "true" : "false"}>
+      <button
+        type="button"
+        title={expanded ? "收起窗口控件" : "展开窗口控件"}
+        aria-label={expanded ? "收起窗口控件" : "展开窗口控件"}
+        aria-expanded={expanded}
+        className="grid size-7 place-items-center text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        onClick={() => onExpandedChange(!expanded)}
+      >
+        {expanded ? <PanelTopClose className="size-3.5" /> : <PanelTopOpen className="size-3.5" />}
+      </button>
+      {expanded ? controls : null}
+    </div>
+  )
+}
+
+function resolveWindowChromeOwner(
+  laneOrder: readonly ReaderSwimlaneId[],
+  lanes: ReaderWorkspaceConfig["swimlane"]["lanes"],
+  soloLaneId: ReaderSwimlaneId | undefined,
+  activeLaneId: ReaderSwimlaneId,
+): ReaderSwimlaneId | undefined {
+  if (soloLaneId && soloLaneId === activeLaneId && soloLaneId !== "reader") return soloLaneId
+  for (let index = laneOrder.length - 1; index >= 0; index--) {
+    const laneId = laneOrder[index]
+    if (!laneId || lanes[laneId]?.collapsed === true) continue
+    if (laneId === "reader" && soloLaneId === "reader") continue
+    return laneId
+  }
+  return laneOrder[laneOrder.length - 1]
 }
 
 function ReaderLaneMoreMenu({
