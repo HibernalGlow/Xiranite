@@ -3,6 +3,7 @@ import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from 
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
 import { spawnManagedVite, stopProcessTree } from "./managed-process"
 import { viteDevelopmentEnvironment, type ViteDevelopmentMode } from "./vite-dev-environment"
+import { watchNeoviewBackendSource, type NeoviewBackendWatcher } from "./neoview-backend-watcher"
 
 const devSessionStartedAt = Date.now()
 const args = process.argv.slice(2)
@@ -22,6 +23,7 @@ const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : 
 type DevBackend = Awaited<ReturnType<typeof startBackend>>
 
 let backend: DevBackend | null = null
+let neoviewWatcher: NeoviewBackendWatcher | null = null
 
 async function startManagedBackend(): Promise<DevBackend> {
   return await startBackend({
@@ -48,6 +50,7 @@ async function restartBackendFromDevScript() {
 
 backend = await startManagedBackend()
 await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token }, frontendUrl)
+neoviewWatcher = watchNeoviewBackendSource(restartBackendFromDevScript)
 console.log(`[xiranite-backend] ${backend.url}`)
 console.log(`[xiranite-frontend] ${frontendUrl}`)
 
@@ -93,6 +96,7 @@ let stopping = false
 async function stop() {
   if (stopping) return
   stopping = true
+  neoviewWatcher?.close()
   backend?.close()
   await Promise.all([stopProcessTree(vite), ...(go ? [stopProcessTree(go)] : [])])
   await Promise.all([removeBackendDevManifest(frontendUrl), removeDevSession()])
