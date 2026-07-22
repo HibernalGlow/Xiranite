@@ -455,7 +455,7 @@ export function ReaderApp({
   const [readerFrameAllowed, setReaderFrameAllowed] = useState(false)
   const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
-    : undefined)
+    : undefined, BACKGROUND_READER_PREDECODE_ENABLED)
   const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
   shellRef.current = shell
