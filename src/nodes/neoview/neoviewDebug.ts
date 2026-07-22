@@ -4,7 +4,7 @@
  * Always prints in DEV (no ?debug=1 required). When startup debug is enabled,
  * events are also mirrored into window.__xiraniteDebug.
  */
-import { startupDebug } from "@/lib/startupDebug"
+import { isStartupDebugEnabled, startupDebug } from "@/lib/startupDebug"
 
 export interface NeoviewLiveInstance {
   compId: string
@@ -14,6 +14,7 @@ export interface NeoviewLiveInstance {
 
 const liveInstances = new Map<string, NeoviewLiveInstance>()
 let sequence = 0
+const MAX_REMOTE_EVENTS = 200
 
 export function neoviewLiveCount(): number {
   return liveInstances.size
@@ -54,7 +55,10 @@ export function noteNeoviewUnmount(compId: string): number {
 }
 
 export function neoviewDebug(label: string, detail?: unknown): void {
-  if (!import.meta.env.DEV) return
+  // Diagnostics must never change normal reader scheduling. In particular,
+  // PageImage mounts on every page turn, so logging it unconditionally makes
+  // the local Vite middleware and DevTools a second preload workload.
+  if (!import.meta.env.DEV || !isStartupDebugEnabled()) return
 
   const event = {
     sequence: ++sequence,
@@ -63,6 +67,11 @@ export function neoviewDebug(label: string, detail?: unknown): void {
     label,
     detail,
   }
+
+  // Never console- or network-log hot render paths. The retained startup log
+  // still contains lifecycle marks, while page-by-page activity would retain
+  // DevTools objects and issue an unbounded stream of local POSTs.
+  if (isHotPathLabel(label)) return
 
   const prefix = `[neoview #${event.sequence} t=${event.t}ms live=${event.live}] ${label}`
   if (detail === undefined) console.info(prefix)
@@ -73,12 +82,9 @@ export function neoviewDebug(label: string, detail?: unknown): void {
     ...(detail === undefined ? {} : { detail }),
   })
 
-  // Never network-log hot render paths: openPath triggers dozens of ReaderApp
-  // re-renders, and each POST was enough to freeze the desktop WebView.
-  if (isHotPathLabel(label)) return
-
-  // Always persist lifecycle marks to the Vite middleware log file so freezes
-  // can be inspected without copying DevTools output.
+  // Bound file logging independently of the in-memory startup-debug ring.
+  // A diagnostic session must not become a persistent background workload.
+  if (event.sequence > MAX_REMOTE_EVENTS) return
   void fetch("/__xiranite-debug-log", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -96,7 +102,9 @@ export function neoviewDebug(label: string, detail?: unknown): void {
 }
 
 function isHotPathLabel(label: string): boolean {
-  return label.includes("render:") || label.includes("progressive-step")
+  return label.includes("render:")
+    || label.includes("progressive-step")
+    || label.startsWith("page-image:")
 }
 
 function summarizeDetail(detail: unknown): unknown {
