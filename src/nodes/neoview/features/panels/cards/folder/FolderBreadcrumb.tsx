@@ -1,4 +1,4 @@
-import { ChevronRight, Columns3, Copy, Folder, HardDrive, MoreHorizontal, Pencil, Plus } from "lucide-react"
+import { ChevronRight, Folder, HardDrive, MoreHorizontal } from "lucide-react"
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -219,6 +219,7 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
             role="group"
             aria-label="面包屑操作"
             data-breadcrumb-action-pad="true"
+            data-breadcrumb-action-pad-style="geometric"
           >
             {canCreateTab && onCreateTab ? (
               <BreadcrumbPadButton
@@ -260,11 +261,29 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
+            {/* Geometric marks only — same visual language as the navigation pad (lines/bars, no dense icons). */}
             <div className="pointer-events-none absolute inset-0 z-[3] text-foreground" aria-hidden="true">
-              {canCreateTab && onCreateTab ? <Plus className={`absolute left-1/2 top-0.5 size-2 -translate-x-1/2 ${disabled || loading ? "opacity-25" : ""}`} /> : null}
-              {columnsAvailable ? <Columns3 className={`absolute left-0.5 top-1/2 size-2 -translate-y-1/2 ${disabled || loading ? "opacity-25" : ""}`} /> : null}
-              <Pencil className={`absolute right-0.5 top-1/2 size-2 -translate-y-1/2 ${disabled || loading ? "opacity-25" : ""}`} />
-              <Copy className={`absolute bottom-0.5 left-1/2 size-2 -translate-x-1/2 ${disabled || loading || !path || !onCopyPath ? "opacity-25" : ""}`} />
+              {canCreateTab && onCreateTab ? (
+                <span className={`absolute left-1/2 top-1 size-2 -translate-x-1/2 ${disabled || loading ? "opacity-25" : ""}`}>
+                  <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-current" />
+                  <span className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-current" />
+                </span>
+              ) : null}
+              {columnsAvailable ? (
+                <span className={`absolute left-1 top-1/2 flex h-2.5 -translate-y-1/2 gap-0.5 ${disabled || loading ? "opacity-25" : ""}`}>
+                  <span className="w-px bg-current" />
+                  <span className="w-px bg-current" />
+                  <span className="w-px bg-current" />
+                </span>
+              ) : null}
+              <span className={`absolute right-1 top-1/2 size-2 -translate-y-1/2 ${disabled || loading ? "opacity-25" : ""}`}>
+                <span className="absolute bottom-0 left-0 h-px w-1.5 bg-current" />
+                <span className="absolute bottom-0 left-1/2 h-1.5 w-px origin-bottom -translate-x-1/2 -rotate-[28deg] bg-current" />
+              </span>
+              <span className={`absolute bottom-0.5 left-1/2 size-2 -translate-x-1/2 ${disabled || loading || !path || !onCopyPath ? "opacity-25" : ""}`}>
+                <span className="absolute left-0 top-0 size-1.5 rounded-[1px] border border-current" />
+                <span className="absolute bottom-0 right-0 size-1.5 rounded-[1px] border border-current" />
+              </span>
             </div>
           </div>
         </>
@@ -280,11 +299,12 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
   )
 }
 
+// Full-quadrant slices — same geometry as the folder navigation pad.
 const BREADCRUMB_PAD_POSITION_CLASSES = {
-  top: "[clip-path:polygon(0_0,100%_0,70%_40%,30%_40%)]",
-  left: "[clip-path:polygon(0_0,40%_30%,40%_70%,0_100%)]",
-  right: "[clip-path:polygon(100%_0,60%_30%,60%_70%,100%_100%)]",
-  bottom: "[clip-path:polygon(30%_60%,70%_60%,100%_100%,0_100%)]",
+  top: "z-[1] [clip-path:polygon(0_0,100%_0,50%_50%)]",
+  left: "z-[1] [clip-path:polygon(0_0,50%_50%,0_100%)]",
+  right: "z-[1] [clip-path:polygon(100%_0,100%_100%,50%_50%)]",
+  bottom: "z-[1] [clip-path:polygon(0_100%,50%_50%,100%_100%)]",
 } as const
 
 function BreadcrumbPadButton({
