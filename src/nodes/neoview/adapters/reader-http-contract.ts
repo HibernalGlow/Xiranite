@@ -791,6 +791,7 @@ export interface ReaderEmmTagSuggestionDto {
   favorite: boolean
   translatedTag?: string
 }
+export interface ReaderManualTagSummaryDto { namespace: string; tag: string; count: number }
 
 export interface ReaderEmmMetadataSnapshotDto {
   revision: number
@@ -1832,6 +1833,7 @@ export interface ReaderHttpClient {
   readDirectoryEmm?(sessionId: string, generation: number, paths: readonly string[], signal?: AbortSignal): Promise<ReaderDirectoryEmmReadResultDto>
   editDirectoryEmm?(sessionId: string, command: ReaderDirectoryEmmEditCommandDto, signal?: AbortSignal): Promise<ReaderDirectoryEmmEditResultDto>
   suggestDirectoryEmmTags?(count?: number, signal?: AbortSignal): Promise<readonly ReaderEmmTagSuggestionDto[]>
+  listManualEmmTags?(limit?: number, signal?: AbortSignal): Promise<readonly ReaderManualTagSummaryDto[]>
   listSearchHistory?(scope: ReaderSearchHistoryScopeDto, limit?: number, signal?: AbortSignal): Promise<readonly ReaderSearchHistoryDto[]>
   recordSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<ReaderSearchHistoryDto>
   removeSearchHistory?(scope: ReaderSearchHistoryScopeDto, query: string, signal?: AbortSignal): Promise<boolean>

@@ -377,6 +377,8 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
       }),
     suggestDirectoryEmmTags: (count = 8, signal) =>
       request<{ tags: Contract.ReaderEmmTagSuggestionDto[] }>(`/reader/browser/emm-tags/suggestions?count=${count}`, { signal }).then((value) => value.tags),
+    listManualEmmTags: (limit = 64, signal) =>
+      request<{ tags: Contract.ReaderManualTagSummaryDto[] }>(`/reader/browser/emm-tags/manual?limit=${limit}`, { signal }).then((value) => value.tags),
     listSearchHistory: (scope, limit = 20, signal) =>
       request<{ entries: Contract.ReaderSearchHistoryDto[] }>(`/reader/browser/search-history?scope=${encodeURIComponent(scope)}&limit=${limit}`, {
         signal,
