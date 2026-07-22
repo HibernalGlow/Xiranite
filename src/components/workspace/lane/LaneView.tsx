@@ -124,6 +124,7 @@ export function LaneView() {
   // 每个 lane 内的组件列表（按 cardOrder 排序；不在 cardOrder 中的也加上，放到末尾）
   const kanbanValue = useMemo<Record<UniqueIdentifier, LaneCardItem[]>>(() => {
     const columns: Record<UniqueIdentifier, LaneCardItem[]> = {}
+    const visibleLaneIds = new Set(wsLanes.map((lane) => lane.id))
     for (const lane of wsLanes) {
       const order = lane.cardOrder ?? []
       const ordered = order
@@ -139,14 +140,32 @@ export function LaneView() {
       }
       columns[lane.id] = ordered
     }
+    const fallbackLane = wsLanes[0]
+    if (fallbackLane) {
+      const fallbackItems = columns[fallbackLane.id] ?? []
+      const fallbackIds = new Set(fallbackItems.map((item) => item.id))
+      for (const component of laneComponents) {
+        if ((!component.laneId || !visibleLaneIds.has(component.laneId)) && !fallbackIds.has(component.id)) {
+          fallbackItems.push({ id: component.id, moduleId: component.moduleId })
+          fallbackIds.add(component.id)
+        }
+      }
+      columns[fallbackLane.id] = fallbackItems
+    }
     return columns
   }, [wsLanes, laneComponents])
 
-  // 没归属任何 lane 的组件 — 兜底到第一个 lane（不修改 store，仅 UI 展示）
+  // Repair missing or deleted lane ownership through the normal lane action.
   const orphanComponents = useMemo(() => {
     const laneIds = new Set(wsLanes.map(l => l.id))
     return laneComponents.filter(c => !c.laneId || !laneIds.has(c.laneId))
   }, [laneComponents, wsLanes])
+
+  useEffect(() => {
+    const fallbackLaneId = wsLanes[0]?.id
+    if (!fallbackLaneId) return
+    for (const component of orphanComponents) workspaceActions.moveComponentToLane(component.id, fallbackLaneId)
+  }, [orphanComponents, workspaceActions, wsLanes])
 
   const handleKanbanChange = useCallback((columns: Record<UniqueIdentifier, LaneCardItem[]>) => {
     const visibleLaneIds = new Set(wsLanes.map((lane) => lane.id))
@@ -194,8 +213,11 @@ export function LaneView() {
       left: scroller.scrollLeft + laneRect.left - scrollerRect.left,
       behavior: "smooth",
     })
-    if (activate) workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { activeLaneId: laneId })
-  }, [activeWorkspaceId, workspaceActions])
+    if (activate) workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, {
+      activeLaneId: laneId,
+      ...(preferences.soloOnFocus ? { soloLaneId: laneId } : {}),
+    })
+  }, [activeWorkspaceId, preferences.soloOnFocus, workspaceActions])
 
   useEffect(() => {
     if (activeLaneId) scrollToLane(activeLaneId, false)
@@ -299,6 +321,7 @@ export function LaneView() {
                 onTitleHostChange={activeLaneId === lane.id ? setActiveTitleHost : undefined}
                 hideTitleForNavigator={activeLaneId === lane.id && preferences.navigatorDock === "title" && activeTitleHost !== null}
                 onWidthRatioChange={(ratio) => preferences.autoFitToViewport ? fitWorkspaceLanes({ [lane.id]: ratio }) : workspaceActions.setLaneWidthRatio(lane.id, ratio)}
+                onClear={() => workspaceActions.setComponentsVisibility((kanbanValue[lane.id] ?? []).map((component) => component.id), "lane", false)}
               />
             ))}
           </KanbanBoard>
@@ -316,26 +339,6 @@ export function LaneView() {
           )}
         </div>
 
-        {orphanComponents.length > 0 && (
-          <div className="xiranite-ui-copy flex w-72 flex-shrink-0 flex-col border-l border-border/40 bg-card/40">
-            <div className="h-8 px-2 flex items-center border-b border-border/40 bg-muted/30">
-              <span className="text-[11px] font-mono font-semibold tracking-widest uppercase text-muted-foreground">
-                {t("common:unfiled")}
-              </span>
-            </div>
-            <div className="flex-1 overflow-y-auto p-2">
-              {orphanComponents.map((component) => (
-                <div
-                  key={component.id}
-                  className="rounded-md border border-border/40 bg-card/70 px-2 py-1.5 text-[10px] font-mono text-muted-foreground"
-                >
-                  {component.moduleId}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Add Lane 按钮 */}
         <div className="flex-shrink-0 w-12 flex items-center justify-center border-l border-border/40">
           <button
@@ -350,7 +353,7 @@ export function LaneView() {
           <div data-swimlane-reveal-trigger="left" className="absolute inset-y-12 left-0 z-30 w-2" onPointerEnter={() => scheduleReveal("left")} onPointerLeave={restoreReveal} />
           <div data-swimlane-reveal-trigger="right" className="absolute inset-y-12 right-0 z-30 w-2" onPointerEnter={() => scheduleReveal("right")} onPointerLeave={restoreReveal} />
         </> : null}
-        <SwimlaneNavigatorBar
+        {soloLaneId !== activeLaneId || preferences.showNavigatorInSolo ? <SwimlaneNavigatorBar
           items={wsLanes.map((lane) => ({ id: lane.id, label: `${translateLabel(lane.label, t)} (${kanbanValue[lane.id]?.length ?? 0})` }))}
           activeId={activeLaneId ?? wsLanes[0]!.id}
           handleStyle={preferences.barHandleStyle}
@@ -389,7 +392,7 @@ export function LaneView() {
               onPositionChange={(barHandlePosition) => workspaceActions.patchLaneWorkspacePreferences(activeWorkspaceId, { barHandlePosition })}
             />
           </>}
-        />
+        /> : null}
       </div>
       <KanbanOverlay className="z-[1000]">
         {({ value, variant }) => {

@@ -45,6 +45,7 @@ import { SwimlaneCollapseDragButton } from "@/components/workspace/swimlane/Swim
 import { SwimlaneBarMenuItem, SwimlaneNavigatorBar } from "@/components/workspace/swimlane/SwimlaneNavigatorBar"
 import { SwimlaneBarAppearanceMenu } from "@/components/workspace/swimlane/SwimlaneBarAppearanceMenu"
 import { SwimlaneFitMenuItems } from "@/components/workspace/swimlane/SwimlaneFitMenuItems"
+import { SwimlaneInteractionSettings } from "@/components/workspace/swimlane/SwimlaneInteractionSettings"
 import { adjacentSwimlane, fitSwimlaneWidthsToViewport, reorderSwimlanes } from "@/components/workspace/swimlane/model"
 
 const TOOLS: Array<{
@@ -582,7 +583,10 @@ function Full(props: View) {
     clearTimeout(revealTimerRef.current)
     clearTimeout(restoreTimerRef.current)
     setPreviewLane(undefined)
-    props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { activeLane: id }))
+    props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, {
+      activeLane: id,
+      ...(layout.soloOnFocus ? { soloLane: id } : {}),
+    }))
   }
   function scheduleFocus(id: CzkawkaLaneId) {
     if (!layout.focusOnHover || activeLane === id || focusTimerRef.current) return
@@ -643,7 +647,7 @@ function Full(props: View) {
           onDrop={() => moveLane(id)}
           >{lanes[id].content}</CzkawkaSwimlane>)}
         </div>
-        <SwimlaneNavigatorBar
+        {layout.soloLane === activeLane && !layout.showNavigatorInSolo ? null : <SwimlaneNavigatorBar
           items={navigatorItems}
           activeId={activeLane}
           handleStyle={layout.barHandleStyle}
@@ -681,7 +685,7 @@ function Full(props: View) {
               onPositionChange={(barHandlePosition) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(layout, { barHandlePosition }))}
             />
           </>}
-        />
+        />}
         {layout.soloLane === activeLane ? <>
           <div data-swimlane-reveal-trigger="left" className="absolute inset-y-10 left-0 z-30 w-2" onPointerEnter={() => scheduleReveal("left")} onPointerLeave={restoreReveal} />
           <div data-swimlane-reveal-trigger="right" className="absolute inset-y-10 right-0 z-30 w-2" onPointerEnter={() => scheduleReveal("right")} onPointerLeave={restoreReveal} />
@@ -916,9 +920,11 @@ function CzkawkaNodeSettings({ props }: { props: View }) {
               <p className="text-[11px] leading-relaxed text-muted-foreground">{props.t("cache.restartHint", "缓存与配置目录在首次原生扫描时初始化；修改后需重启桌面后端。")}</p>
             </SettingsSection>
             <SettingsSection title={props.t("settings.swimlaneWorkspace", "泳道工作区")}>
-              <SwitchLine label={props.t("settings.focusLaneOnHover", "悬停后聚焦泳道")} checked={props.workspaceLayout.focusOnHover} onChange={(focusOnHover) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, { focusOnHover }))} />
-              <Field label={props.t("settings.focusDelay", "悬停聚焦延迟（毫秒）")}><Input aria-label="泳道悬停聚焦延迟" type="number" min={200} max={5000} value={props.workspaceLayout.focusDelayMs} onChange={(event) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, { focusDelayMs: Number(event.currentTarget.value) }))} /></Field>
-              <Field label={props.t("settings.edgeRevealDelay", "边缘展开延迟（毫秒）")}><Input aria-label="泳道边缘展开延迟" type="number" min={100} max={5000} value={props.workspaceLayout.edgeRevealDelayMs} onChange={(event) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, { edgeRevealDelayMs: Number(event.currentTarget.value) }))} /></Field>
+              <SwimlaneInteractionSettings
+                value={{ soloOnFocus: props.workspaceLayout.soloOnFocus, showNavigatorInSolo: props.workspaceLayout.showNavigatorInSolo, edgeRevealDelayMs: props.workspaceLayout.edgeRevealDelayMs, focusOnHover: props.workspaceLayout.focusOnHover, focusDelayMs: props.workspaceLayout.focusDelayMs }}
+                labels={{ soloOnFocus: "泳道聚焦时自动全屏", showNavigatorInSolo: "独占时显示泳道切换栏", focusOnHover: "悬停后重新聚焦泳道", focusDelay: "泳道重新聚焦延迟" }}
+                onChange={(patch) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, patch))}
+              />
               <Field label={props.t("settings.barHandleStyle", "操作栏拖拽手柄样式")}>
                 <Select value={props.workspaceLayout.barHandleStyle} onValueChange={(barHandleStyle) => props.setWorkspaceLayout(updateCzkawkaWorkspaceLayout(props.workspaceLayout, { barHandleStyle: barHandleStyle as CzkawkaBarHandleStyle }))}>
                   <SelectTrigger aria-label="操作栏拖拽手柄样式"><SelectValue /></SelectTrigger>

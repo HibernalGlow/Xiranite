@@ -24,6 +24,8 @@ import { ChoiceControlField } from "@/components/ui/choice-control"
 import { MODULE_CARD_EFFECTS, MODULE_PANEL_STYLES, MODULE_TITLE_STYLES, RESIZABLE_HANDLE_STYLES, type ModuleCardEffect, type ModulePanelStyle, type ModuleTitleStyle, type ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 import { ModulePanel } from "@/components/ui/module-panel"
 import { OverlayViewShell } from "@/components/workspace/OverlayViewShell"
+import { SwimlaneInteractionSettings } from "@/components/workspace/swimlane/SwimlaneInteractionSettings"
+import { normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
 import { Webview2ExperimentsPanel } from "@/components/views/Webview2ExperimentsPanel"
 import { Terminal, Paintbrush, Sun, Moon, Monitor, Palette, Languages, Grid, CircleDot, Image, Upload, X, Code2, Server, RefreshCcw, Copy, ExternalLink, Database, HardDrive, Type, PanelRight, PanelBottom, ToggleLeft, Circle, Box, PencilLine, Rocket, Flame, PackageOpen, BookOpen, PenTool, Zap, GitBranch, Aperture } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -233,6 +235,8 @@ export function ThemeSettings() {
     modulePanelStyle: workspace.modulePanelStyle,
     moduleCardEffect: workspace.moduleCardEffect,
     resizableHandleStyle: workspace.resizableHandleStyle,
+    activeWorkspaceId: workspace.activeWorkspaceId,
+    laneWorkspacePreferences: workspace.laneWorkspacePreferences,
   }))
   const workspaceActions = useWorkspaceActions()
   const { theme: colorMode, setTheme: setColorMode } = useTheme()
@@ -278,6 +282,7 @@ export function ThemeSettings() {
   const activeThemePaletteLabels = activeCustomTheme
     ? ["background", "primary", "border", "foreground"]
     : active.paletteLabelKeys.map((key) => t(key))
+  const lanePreferences = normalizeSwimlanePreferences(state.laneWorkspacePreferences[state.activeWorkspaceId])
   const backendStatusKind = backendStatus.data?.status ?? (backendStatus.isFetching ? "checking" : "unknown")
   const backendStatusLabel = backendStatusKind === "ready"
     ? t("settings:developerRuntime.statusReady")
@@ -1280,6 +1285,23 @@ export function ThemeSettings() {
           />
 
           <div className={cn("bg-card border border-border rounded-sm p-4 space-y-4", section !== "view" && "hidden")}>
+            <div className="grid gap-3 border-b border-border/60 pb-4">
+              <div>
+                <h3 className="text-sm font-semibold">泳道交互</h3>
+                <p className="mt-1 text-xs text-muted-foreground">当前工作区的泳道聚焦、独占和边缘调阅。</p>
+              </div>
+              <SwimlaneInteractionSettings
+                value={{
+                  soloOnFocus: lanePreferences.soloOnFocus,
+                  showNavigatorInSolo: lanePreferences.showNavigatorInSolo,
+                  edgeRevealDelayMs: lanePreferences.edgeRevealDelayMs,
+                  focusOnHover: lanePreferences.focusOnHover,
+                  focusDelayMs: lanePreferences.focusDelayMs,
+                }}
+                labels={{ soloOnFocus: "泳道聚焦时自动全屏", showNavigatorInSolo: "独占时显示泳道切换栏", focusOnHover: "悬停后重新聚焦泳道", focusDelay: "泳道重新聚焦延迟" }}
+                onChange={(patch) => workspaceActions.patchLaneWorkspacePreferences(state.activeWorkspaceId, patch)}
+              />
+            </div>
             <div className="space-y-3 border-b border-border/60 pb-4">
               <div>
                 <h3 className="text-sm font-semibold">{t("settings:view.componentDisplay.title", "Component display")}</h3>

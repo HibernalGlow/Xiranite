@@ -36,6 +36,9 @@ pass state changes back through their existing storage boundary.
   independently composable handle glyph and left/right position.
 - `SwimlaneFitMenuItems.tsx`: shared one-shot and persistent proportional-fit
   menu actions.
+- `SwimlaneInteractionSettings.tsx`: storage-agnostic controlled settings for
+  focus-to-solo, navigator visibility while solo, edge reveal delay, hover
+  focus, and hover-focus delay.
 - `SwimlaneCollapseDragButton.tsx`: a lane fold button that becomes the lane
   reorder grip only while hovered or held.
 - `LaneResizer.tsx`: shared accessible resize session with release, cancel,
@@ -77,6 +80,16 @@ The framework does not write storage directly.
 
 Switching a consumer to the shared framework must not migrate data into a new
 database or rewrite another presentation's geometry.
+
+`SwimlaneInteractionSettings` always emits the same five camel-case values:
+`soloOnFocus`, `showNavigatorInSolo`, `edgeRevealDelayMs`, `focusOnHover`, and
+`focusDelayMs`. Project lane mode stores them directly in the active
+workspace's `laneWorkspacePreferences`; Czkawka maps them to its existing
+`workspaceLayout`; NeoView maps them to `readerSoloOnFocus`,
+`showLaneNavigatorInReaderSolo`, `edgeRevealDelayMs`, `readerFocusOnHover`,
+and `readerFocusHoverDelayMs` before writing its canonical TOML-backed
+workspace patch. Labels may be consumer-specific, but the shared component
+must not import or know any node DTO.
 
 ## Consumer-specific policy
 
