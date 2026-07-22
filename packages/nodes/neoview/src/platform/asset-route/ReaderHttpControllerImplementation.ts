@@ -88,6 +88,7 @@ import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpCont
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
 import { ReaderBookSettingsMigrationHttpController } from "./ReaderBookSettingsMigrationHttpController.js"
+import { ReaderFolderRatingHttpController } from "./ReaderFolderRatingHttpController.js"
 import { ReaderSourceWatchService } from "../../application/reader/ReaderSourceWatchService.js"
 import type { ReaderSourceWatcher } from "../../ports/ReaderSourceWatcher.js"
 import type { ReaderExplorerContextMenuProvider } from "../../ports/ReaderExplorerContextMenuProvider.js"
@@ -274,6 +275,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #systemIntegration: ReaderSystemIntegrationHttpController
   readonly #settingsMigration?: ReaderSettingsMigrationHttpController
   readonly #bookSettingsMigration?: ReaderBookSettingsMigrationHttpController
+  readonly #folderRatings?: ReaderFolderRatingHttpController
   readonly #library?: ReaderLibraryHttpController
   readonly #opds: ReaderOpdsHttpController
   readonly #libraryService?: ReaderLibraryService
@@ -617,6 +619,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#bookSettingsMigration = options.loadBookSettingsMigrationService
       ? new ReaderBookSettingsMigrationHttpController(options.loadBookSettingsMigrationService)
       : undefined
+    this.#folderRatings = options.folderRatingService ? new ReaderFolderRatingHttpController(options.folderRatingService, (operation) => this.#runConfigMutation(operation)) : undefined
     this.#libraryService = options.libraryService
     this.#library = options.libraryService
       ? new ReaderLibraryHttpController(
@@ -724,6 +727,8 @@ export class ReaderHttpController implements AsyncDisposable {
     if (settingsMigrationResponse) return settingsMigrationResponse
     const bookSettingsMigrationResponse = await this.#bookSettingsMigration?.handle(request)
     if (bookSettingsMigrationResponse) return bookSettingsMigrationResponse
+    const folderRatingResponse = await this.#folderRatings?.handle(request)
+    if (folderRatingResponse) return folderRatingResponse
     const libraryResponse = await this.#library?.handle(request)
     if (libraryResponse) return libraryResponse
     const aiResponse = await this.#ai.handle(request)

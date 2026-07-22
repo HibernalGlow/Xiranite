@@ -421,6 +421,12 @@ export async function createReaderHttpController(
   const directoryEmmStore = dataStore
     ? composeReaderEmmStores(dataStore, reloadableExternalEmmStore)
     : reloadableExternalEmmStore
+  const ratingCatalog = directoryEmmStore && "listEmmRatingRecords" in directoryEmmStore && typeof directoryEmmStore.listEmmRatingRecords === "function"
+    ? { listEmmRatingRecords: directoryEmmStore.listEmmRatingRecords.bind(directoryEmmStore) }
+    : undefined
+  const folderRatingService = dataStore && ratingCatalog
+    ? new (await import("./application/metadata/ReaderFolderRatingService.js")).ReaderFolderRatingService(ratingCatalog, dataStore as unknown as import("./ports/ReaderFolderRatingCacheStore.js").ReaderFolderRatingCacheStore)
+    : undefined
   let emmRuntimeConfig = runtimeConfig.emm
   const managedEmmRuntime = options.legacyEmmDatabasePaths === undefined
   const resolveEmmDatabasePaths = (config: NeoviewEmmConfig) => config.databasePaths.length
@@ -532,6 +538,7 @@ export async function createReaderHttpController(
     libraryService,
     directorySortPreferenceStore: dataStore,
     directoryEmmRecordStore: directoryEmmStore,
+    folderRatingService,
     emmOverrideStore: dataStore,
     searchHistoryStore: dataStore,
     fileUndoJournalStore: dataStore,

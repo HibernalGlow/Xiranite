@@ -88,6 +88,7 @@ import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpCont
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
 import { ReaderBookSettingsMigrationHttpController } from "./ReaderBookSettingsMigrationHttpController.js"
+import type { ReaderFolderRatingService } from "../../application/metadata/ReaderFolderRatingService.js"
 import { ReaderSourceWatchService } from "../../application/reader/ReaderSourceWatchService.js"
 import type { ReaderSourceWatcher } from "../../ports/ReaderSourceWatcher.js"
 import type { ReaderExplorerContextMenuProvider } from "../../ports/ReaderExplorerContextMenuProvider.js"
@@ -253,6 +254,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     emmTranslationSource?: PlatformEmmTranslationSource
     searchHistoryStore?: ReaderSearchHistoryStore
     fileUndoJournalStore?: ReaderFileUndoJournalStore
+    folderRatingService?: ReaderFolderRatingService
     disposeLibraryService?: boolean
     presentationDiskCache?: ReaderPresentationDiskCache
     disposePresentationDiskCache?: boolean
