@@ -23,6 +23,7 @@ export const help = {
         { label: "Open TUI", command: "xmelodeck ui", description: "Open the terminal music deck." },
         { label: "Play files", command: "xmelodeck play D:/Music/track.flac", description: "Launch a local queue." },
         { label: "Control", command: "xmelodeck pause", description: "Pause the active mpv IPC session." },
+        { label: "Seek", command: "xmelodeck seek --seek 10", description: "Seek the active track by a relative number of seconds." },
       ],
     },
   ],
