@@ -100,6 +100,7 @@ function selectFolderToolbarAction(scope: ReturnType<typeof within> | typeof scr
   // Items that live under the 更多 menu
   const moreLabels = new Set([
     "内联树",
+    "文件树位置",
     "类型筛选",
     "显示类型",
     "项目尺寸",
@@ -116,6 +117,10 @@ function selectFolderToolbarAction(scope: ReturnType<typeof within> | typeof scr
     if (label === "项目尺寸") {
       const trigger = screen.getByText("项目尺寸")
       fireEvent.pointerMove(trigger, { pointerType: "mouse" })
+      return
+    }
+    if (label === "文件树位置") {
+      fireEvent.pointerMove(screen.getByText("文件树位置"), { pointerType: "mouse" })
       return
     }
     if (label === "类型筛选" || label === "显示类型") {
@@ -2151,10 +2156,10 @@ describe("FolderMainCard", () => {
     await ui.findByRole("button", { name: "视图" })
     selectFolderToolbarAction(ui, "文件树")
     await waitFor(() => expect(onFolderView).toHaveBeenLastCalledWith({ tree: { visible: true } }))
-    await waitFor(() => expect(view.container.querySelector('[data-folder-tree-layout-trigger="true"]')).toBeTruthy())
+    expect(view.container.querySelector('[data-folder-tree-layout-trigger="true"]')).toBeNull()
     for (const [name, layout] of [["文件树位于右侧", "right"], ["文件树位于底部", "bottom"], ["文件树位于左侧", "left"], ["文件树位于顶部", "top"]] as const) {
-      const trigger = view.container.querySelector('[data-folder-tree-layout-trigger="true"]') as HTMLElement
-      fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" })
+      openFolderMoreMenu(ui)
+      fireEvent.pointerMove(screen.getByText("文件树位置"), { pointerType: "mouse" })
       fireEvent.click(await screen.findByRole("menuitemradio", { name }))
       await waitFor(() => expect(onFolderView).toHaveBeenLastCalledWith({ tree: { layout } }))
     }
