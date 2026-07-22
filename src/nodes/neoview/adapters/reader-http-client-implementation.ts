@@ -500,6 +500,15 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         keepalive: true,
       }),
     metadata: (sessionId, signal) => request<Contract.ReaderMetadataDto>(`/reader/s/${encodeURIComponent(sessionId)}/metadata`, { signal }),
+    getEmmMetadata: (sessionId, signal) =>
+      request<Contract.ReaderEmmMetadataSnapshotDto>(`/reader/s/${encodeURIComponent(sessionId)}/emm-metadata`, { signal }),
+    updateEmmMetadata: (sessionId, expectedRevision, patch, signal) =>
+      request<Contract.ReaderEmmMetadataSnapshotDto>(`/reader/s/${encodeURIComponent(sessionId)}/emm-metadata`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expectedRevision, patch }),
+        signal,
+      }),
     pageMediaInformation: (sessionId, signal) =>
       request<Contract.ReaderPageMediaInformationDto>(`/reader/s/${encodeURIComponent(sessionId)}/page-media-information`, { signal }),
     diagnostics: (signal) =>

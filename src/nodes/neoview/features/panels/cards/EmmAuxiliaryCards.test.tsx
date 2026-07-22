@@ -54,6 +54,27 @@ describe("EMM auxiliary property cards", () => {
     expect(await screen.findByText("外部 EMM 数据已连接")).toBeTruthy()
   })
 
+  it("[neoview.emm-sync.xr-overrides] edits only the current book XR override and refreshes its projection", async () => {
+    const metadata = vi.fn()
+      .mockResolvedValueOnce(metadataDto())
+      .mockResolvedValueOnce(metadataDto())
+    const getEmmMetadata = vi.fn(async () => ({ revision: 2, overrides: { rating: 3, translatedTitle: "旧译名" }, inherited: ["manualTags"] as const }))
+    const updateEmmMetadata = vi.fn(async () => ({ revision: 3, overrides: { rating: 5, translatedTitle: "新译名" }, inherited: ["manualTags"] as const }))
+    render(<EmmSyncCard {...context({ metadata, getEmmMetadata, updateEmmMetadata } as unknown as ReaderHttpClient)} />)
+
+    await screen.findByText("外部 EMM 数据已连接")
+    fireEvent.click(screen.getByRole("button", { name: "编辑 XR 覆盖" }))
+    expect(await screen.findByLabelText("XR 覆盖评分")).toBeTruthy()
+    expect((screen.getByRole("textbox", { name: "XR 覆盖评分" }) as HTMLInputElement).value).toBe("3")
+    fireEvent.change(screen.getByRole("textbox", { name: "XR 覆盖评分" }), { target: { value: "5" } })
+    fireEvent.change(screen.getByRole("textbox", { name: "XR 覆盖译名" }), { target: { value: "新译名" } })
+    fireEvent.click(screen.getByRole("button", { name: "保存覆盖" }))
+
+    await waitFor(() => expect(updateEmmMetadata).toHaveBeenCalledWith("reader-emm-aux", 2, { rating: 5, translatedTitle: "新译名" }))
+    await waitFor(() => expect(metadata).toHaveBeenCalledTimes(2))
+    expect(getEmmMetadata).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.emm-raw-data.session-replace] aborts stale metadata and publishes only the replacement session", async () => {
     const requests = new Map<string, {
       deferred: ReturnType<typeof Promise.withResolvers<ReaderMetadataDto>>
