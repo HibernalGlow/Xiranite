@@ -216,7 +216,12 @@ export function MagicCard(props: MagicCardProps) {
           }}
         />
       )}
-      <div className="relative z-40">{children}</div>
+      <div
+        data-slot="magic-card-content"
+        className="relative z-40 h-full min-h-0 w-full min-w-0"
+      >
+        {children}
+      </div>
     </motion.div>
   )
 }
