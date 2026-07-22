@@ -9,7 +9,7 @@ const backend = vi.hoisted(() => ({
 
 vi.mock("@/backend/configRpcClient", () => backend)
 
-import { loadMelodeckConfig } from "./config"
+import { loadMelodeckConfig, MELODECK_CONFIG_CHANGED_EVENT, saveMelodeckConfig } from "./config"
 
 describe("Melodeck config migration", () => {
   beforeEach(() => {
@@ -62,5 +62,27 @@ describe("Melodeck config migration", () => {
     expect(config.volume).toBe(65)
     expect(window.localStorage.getItem("xiranite.musicDock.sourcePath")).toBeNull()
     expect(window.localStorage.getItem("xiranite.musicDock.visualizerStyle")).toBeNull()
+  })
+
+  it("broadcasts direct config saves so other Melodeck surfaces refresh", async () => {
+    const listener = vi.fn()
+    window.addEventListener(MELODECK_CONFIG_CHANGED_EVENT, listener)
+
+    await saveMelodeckConfig({ mode: "floating" })
+
+    expect(backend.saveNodeConfigToBackend).toHaveBeenCalledWith("melodeck", { mode: "floating" })
+    expect(listener).toHaveBeenCalledTimes(1)
+    window.removeEventListener(MELODECK_CONFIG_CHANGED_EVENT, listener)
+  })
+
+  it("supports silent provider persistence without refreshing itself", async () => {
+    const listener = vi.fn()
+    window.addEventListener(MELODECK_CONFIG_CHANGED_EVENT, listener)
+
+    await saveMelodeckConfig({ mode: "bottom" }, { broadcast: false })
+
+    expect(backend.saveNodeConfigToBackend).toHaveBeenCalledWith("melodeck", { mode: "bottom" })
+    expect(listener).not.toHaveBeenCalled()
+    window.removeEventListener(MELODECK_CONFIG_CHANGED_EVENT, listener)
   })
 })
