@@ -1028,6 +1028,7 @@ export interface ReaderShellConfigDto {
       edgeRevealZones: Record<"left" | "right" | "top" | "bottom", { x: number; y: number; width: number; height: number }>
       readerFocusOnHover: boolean
       readerFocusHoverDelayMs: number
+      manualScrollEnabled: boolean
       showLaneNavigatorInReaderSolo: boolean
       autoFitToViewport: boolean
       barHandleStyle: "grip" | "groove" | "move" | "grab" | "edge"
@@ -1746,6 +1747,7 @@ export interface ReaderShellControlPatch {
       edgeRevealZones?: Record<"left" | "right" | "top" | "bottom", { x: number; y: number; width: number; height: number }>
       readerFocusOnHover?: boolean
       readerFocusHoverDelayMs?: number
+      manualScrollEnabled?: boolean
       showLaneNavigatorInReaderSolo?: boolean
       autoFitToViewport?: boolean
       barHandleStyle?: "grip" | "groove" | "move" | "grab" | "edge"

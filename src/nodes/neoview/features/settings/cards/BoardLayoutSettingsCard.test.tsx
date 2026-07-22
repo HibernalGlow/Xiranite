@@ -17,6 +17,8 @@ describe("BoardLayoutSettingsCard", () => {
     expect(onWorkspace).toHaveBeenLastCalledWith({ readerSoloOnFocus: false })
     fireEvent.click(screen.getByRole("switch", { name: "Reader 独占时显示泳道切换栏" }))
     expect(onWorkspace).toHaveBeenLastCalledWith({ showLaneNavigatorInReaderSolo: true })
+    fireEvent.click(screen.getByRole("switch", { name: "允许手动横向滚动" }))
+    expect(onWorkspace).toHaveBeenLastCalledWith({ manualScrollEnabled: true })
 
     const revealDelay = screen.getByRole("spinbutton", { name: "左右泳道展开延迟" })
     fireEvent.change(revealDelay, { target: { value: "430" } })
@@ -96,6 +98,7 @@ function shell(): ReaderShellConfigDto {
         },
         readerFocusOnHover: true,
         readerFocusHoverDelayMs: 650,
+        manualScrollEnabled: false,
         showLaneNavigatorInReaderSolo: false,
         barHandleStyle: "grip",
         barHandlePosition: "left",

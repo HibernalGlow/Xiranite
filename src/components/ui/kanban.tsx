@@ -798,11 +798,7 @@ function KanbanColumn(props: KanbanColumnProps) {
     <KanbanColumnContext.Provider value={columnContext}>
       <SortableContext
         items={items}
-        strategy={
-          context.orientation === "horizontal"
-            ? horizontalListSortingStrategy
-            : verticalListSortingStrategy
-        }
+        strategy={context.strategy}
       >
         <ColumnPrimitive
           id={id}

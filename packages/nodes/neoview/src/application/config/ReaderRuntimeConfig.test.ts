@@ -600,6 +600,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         },
         readerFocusOnHover: true,
         readerFocusHoverDelayMs: 650,
+        manualScrollEnabled: false,
         showLaneNavigatorInReaderSolo: false,
         autoFitToViewport: false,
         barHandleStyle: "grip",
@@ -634,6 +635,7 @@ describe("parseNeoviewRuntimeConfig", () => {
           bottom_reveal_zone: { x: 14, y: 92, width: 72, height: 6 },
           reader_focus_on_hover: false,
           reader_focus_hover_delay_ms: 900,
+          manual_scroll_enabled: true,
           show_lane_navigator_in_reader_solo: true,
           auto_fit_to_viewport: true,
           bar_handle_style: "edge",
@@ -667,6 +669,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         },
         readerFocusOnHover: false,
         readerFocusHoverDelayMs: 900,
+        manualScrollEnabled: true,
         showLaneNavigatorInReaderSolo: true,
         autoFitToViewport: true,
         barHandleStyle: "edge",
@@ -705,6 +708,7 @@ describe("parseNeoviewRuntimeConfig", () => {
           },
           readerFocusOnHover: true,
           readerFocusHoverDelayMs: 800,
+          manualScrollEnabled: true,
           showLaneNavigatorInReaderSolo: true,
           barHandleStyle: "edge",
           barHandlePosition: "right",
@@ -741,6 +745,7 @@ describe("parseNeoviewRuntimeConfig", () => {
             },
             readerFocusOnHover: true,
             readerFocusHoverDelayMs: 800,
+            manualScrollEnabled: true,
             showLaneNavigatorInReaderSolo: true,
             barHandleStyle: "edge",
             barHandlePosition: "right",
@@ -762,10 +767,7 @@ describe("parseNeoviewRuntimeConfig", () => {
           layout_mode: "swimlane",
           swimlane: {
             lane_order: ["right", "reader", "left"],
-            active_lane: "right",
-            reader_solo: true,
             reader_solo_on_focus: false,
-            solo_lane: "left",
             reader_width_ratio: 0.65,
             edge_reveal_delay_ms: 300,
             left_reveal_zone: { x: 4, y: 12, width: 8, height: 70 },
@@ -774,6 +776,7 @@ describe("parseNeoviewRuntimeConfig", () => {
             bottom_reveal_zone: { x: 12, y: 92, width: 76, height: 5 },
             reader_focus_on_hover: true,
             reader_focus_hover_delay_ms: 800,
+            manual_scroll_enabled: true,
             show_lane_navigator_in_reader_solo: true,
             bar_handle_style: "edge",
             bar_handle_position: "right",
@@ -821,10 +824,13 @@ describe("parseNeoviewRuntimeConfig", () => {
     }).tomlPatch.panels).toMatchObject({
       swimlane: {
         lane_order: ["left", "reader", "research", "right"],
-        active_lane: "research",
         research: { width: 420, collapsed: false, title: "资料" },
       },
     })
+    expect(parseNeoviewShellControlPatch({
+      expectedRevision: 1,
+      shellControl: { workspace: { activeLane: "research", readerSolo: true, soloLaneId: "research" } },
+    }).tomlPatch).toEqual({})
   })
 
   it("[neoview.material.persistence] reads and atomically writes the complete shell material", () => {

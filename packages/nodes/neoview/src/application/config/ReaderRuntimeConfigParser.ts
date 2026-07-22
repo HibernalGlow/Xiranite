@@ -2346,6 +2346,7 @@ export function parseNeoviewShellControlPatch(value: unknown): {
           edgeRevealZones: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.edgeRevealZones,
           readerFocusOnHover: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.readerFocusOnHover,
           readerFocusHoverDelayMs: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.readerFocusHoverDelayMs,
+          manualScrollEnabled: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.manualScrollEnabled,
           showLaneNavigatorInReaderSolo: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.showLaneNavigatorInReaderSolo,
           windowControlsPlacement: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.windowControlsPlacement,
           windowControlsOwnerLaneId: Models.DEFAULT_NEOVIEW_SHELL_CONFIG.workspace.swimlane.windowControlsOwnerLaneId,
@@ -2446,6 +2447,7 @@ export function parseNeoviewShellControlPatch(value: unknown): {
       "edgeRevealZones",
       "readerFocusOnHover",
       "readerFocusHoverDelayMs",
+      "manualScrollEnabled",
       "showLaneNavigatorInReaderSolo",
       "autoFitToViewport",
       "barHandleStyle",
@@ -2500,6 +2502,9 @@ export function parseNeoviewShellControlPatch(value: unknown): {
     }
     if (workspace.readerFocusHoverDelayMs !== undefined) {
       workspacePatch.readerFocusHoverDelayMs = readerFocusHoverDelay(workspace.readerFocusHoverDelayMs, "workspace.readerFocusHoverDelayMs")
+    }
+    if (workspace.manualScrollEnabled !== undefined) {
+      workspacePatch.manualScrollEnabled = requiredBoolean(workspace.manualScrollEnabled, "workspace.manualScrollEnabled")
     }
     if (workspace.showLaneNavigatorInReaderSolo !== undefined) {
       workspacePatch.showLaneNavigatorInReaderSolo = requiredBoolean(workspace.showLaneNavigatorInReaderSolo, "workspace.showLaneNavigatorInReaderSolo")
@@ -2683,10 +2688,9 @@ function shellControlTomlPatch(
     if (workspace.mode !== undefined) panels.layout_mode = workspace.mode
     const value: Record<string, unknown> = {}
     if (workspace.laneOrder !== undefined) value.lane_order = workspace.laneOrder
-    if (workspace.activeLane !== undefined) value.active_lane = workspace.activeLane
-    if (workspace.readerSolo !== undefined) value.reader_solo = workspace.readerSolo
+    // activeLane, readerSolo and soloLaneId are accepted for old clients but
+    // belong to the per-instance frontend session and must not re-enter TOML.
     if (workspace.readerSoloOnFocus !== undefined) value.reader_solo_on_focus = workspace.readerSoloOnFocus
-    if (workspace.soloLaneId !== undefined) value.solo_lane = workspace.soloLaneId ?? ""
     if (workspace.readerWidthRatio !== undefined) value.reader_width_ratio = workspace.readerWidthRatio
     if (workspace.edgeRevealDelayMs !== undefined) value.edge_reveal_delay_ms = workspace.edgeRevealDelayMs
     if (workspace.edgeRevealZones !== undefined) {
@@ -2697,6 +2701,7 @@ function shellControlTomlPatch(
     }
     if (workspace.readerFocusOnHover !== undefined) value.reader_focus_on_hover = workspace.readerFocusOnHover
     if (workspace.readerFocusHoverDelayMs !== undefined) value.reader_focus_hover_delay_ms = workspace.readerFocusHoverDelayMs
+    if (workspace.manualScrollEnabled !== undefined) value.manual_scroll_enabled = workspace.manualScrollEnabled
     if (workspace.showLaneNavigatorInReaderSolo !== undefined) value.show_lane_navigator_in_reader_solo = workspace.showLaneNavigatorInReaderSolo
     if (workspace.autoFitToViewport !== undefined) value.auto_fit_to_viewport = workspace.autoFitToViewport
     if (workspace.barHandleStyle !== undefined) value.bar_handle_style = workspace.barHandleStyle
@@ -2747,7 +2752,7 @@ function shellControlTomlPatch(
     }
     if (Object.keys(value).length) panels.material = value
   }
-  return { panels }
+  return Object.keys(panels).length ? { panels } : {}
 }
 
 export function parseNeoviewSidebarLayoutPatch(value: unknown): {
@@ -3028,6 +3033,7 @@ function parseWorkspaceConfig(
     "left_reveal_zone", "leftRevealZone", "right_reveal_zone", "rightRevealZone",
     "top_reveal_zone", "topRevealZone", "bottom_reveal_zone", "bottomRevealZone",
     "reader_focus_on_hover", "readerFocusOnHover", "reader_focus_hover_delay_ms", "readerFocusHoverDelayMs",
+    "manual_scroll_enabled", "manualScrollEnabled",
     "show_lane_navigator_in_reader_solo", "showLaneNavigatorInReaderSolo",
     "auto_fit_to_viewport", "autoFitToViewport",
     "bar_handle_style", "barHandleStyle", "bar_handle_position", "barHandlePosition", "lane_navigator_position_x", "laneNavigatorPositionX",
@@ -3116,6 +3122,9 @@ function parseWorkspaceConfig(
         "[nodes.neoview.panels.swimlane].reader_focus_hover_delay_ms",
         defaults.readerFocusHoverDelayMs,
       ),
+      manualScrollEnabled:
+        optionalBoolean(source?.manual_scroll_enabled ?? source?.manualScrollEnabled, "[nodes.neoview.panels.swimlane].manual_scroll_enabled") ??
+        defaults.manualScrollEnabled,
       showLaneNavigatorInReaderSolo:
         optionalBoolean(
           source?.show_lane_navigator_in_reader_solo ?? source?.showLaneNavigatorInReaderSolo,
