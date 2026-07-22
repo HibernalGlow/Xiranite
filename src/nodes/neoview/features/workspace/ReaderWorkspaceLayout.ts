@@ -18,7 +18,7 @@ const DEFAULT_READER_FOCUS_HOVER_DELAY_MS = 650
 const DEFAULT_SHOW_LANE_NAVIGATOR_IN_READER_SOLO = false
 const DEFAULT_BAR_HANDLE_STYLE = "grip" as const
 const DEFAULT_BAR_HANDLE_POSITION = "left" as const
-const DEFAULT_LANE_NAVIGATOR_POSITION = { x: 92, y: 96 } as const
+export const DEFAULT_LANE_NAVIGATOR_POSITION = { x: 92, y: 96 } as const
 const DEFAULT_EDGE_REVEAL_ZONES = {
   left: { x: 0, y: 10, width: 1, height: 80 },
   right: { x: 99, y: 10, width: 1, height: 80 },

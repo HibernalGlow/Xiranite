@@ -108,13 +108,14 @@ export function ReaderLaneNavigator({
       handleStyle={handleStyle}
       handlePosition={handlePosition}
       position={{ x: positionX, y: positionY }}
-      dock={dock === "reader-title" ? "title" : "floating"}
+      dock={dock === "reader-title" ? "top" : "floating"}
+      allowedDocks={["top"]}
       titleHost={titleHost}
       boundsHost={boundsHost}
       className="max-w-[calc(100vw-1.5rem)]"
       onSelect={onSelect}
       onPositionChange={onPositionChange}
-      onDockChange={(next) => onDockChange?.(next === "title" ? "reader-title" : "floating")}
+      onDockChange={(next) => onDockChange?.(next === "top" ? "reader-title" : "floating")}
       menu={<>
         <SwimlaneBarMenuItem onSelect={() => setAddOpen(true)}><Plus className="size-3.5" />添加泳道</SwimlaneBarMenuItem>
         <SwimlaneFitMenuItems autoFit={autoFit} onFit={onFit} onAutoFitChange={onAutoFitChange} />

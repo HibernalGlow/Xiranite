@@ -46,7 +46,8 @@ describe("ReaderSwimlaneWorkspace", () => {
 
     const strip = document.querySelector('[data-reader-swimlane-strip="true"]')!
     expect(strip.querySelectorAll(":scope > [data-reader-swimlane]")).toHaveLength(3)
-    expect(document.querySelector('[data-reader-swimlane="reader"]')?.className).toContain("ring-primary/55")
+    expect(document.querySelector('[data-reader-swimlane="reader"]')?.className).toContain("inset_0_3px_0_var(--primary)")
+    expect(document.querySelector('[data-reader-swimlane="reader"]')?.className).not.toContain("ring-primary")
     expect(document.querySelector('[data-reader-swimlane="left"]')?.className).not.toContain("ring-primary/55")
     fireEvent.pointerDown(screen.getByRole("button", { name: "Right action" }), { pointerId: 3, button: 0 })
     expect(readerPointer).not.toHaveBeenCalled()
@@ -137,8 +138,9 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(screen.getByRole("button", { name: "Right action" })).toBeTruthy()
   })
 
-  it("resizes both side lanes from the boundary facing a fullscreen Reader", () => {
-    const shell = shellConfig("swimlane", "right")
+  it("renders one hidden shared divider per ordinary lane boundary and resizes both neighbors", () => {
+    const shell = shellConfig("swimlane", "reader")
+    shell.workspace!.swimlane.readerSolo = false
     const onWorkspaceChange = vi.fn()
     render(
       <ReaderSwimlaneWorkspace
@@ -151,25 +153,31 @@ describe("ReaderSwimlaneWorkspace", () => {
       />,
     )
 
-    expect(screen.getAllByRole("separator", { name: /调整左侧面板泳道宽度/ })).toHaveLength(2)
-    expect(screen.getAllByRole("separator", { name: /调整右侧面板泳道宽度/ })).toHaveLength(2)
-    const left = screen.getByRole("separator", { name: "从右侧调整左侧面板泳道宽度" })
-    const right = screen.getByRole("separator", { name: "从左侧调整右侧面板泳道宽度" })
+    const dividers = screen.getAllByRole("separator")
+    expect(dividers).toHaveLength(2)
+    const left = screen.getByRole("separator", { name: "调整左侧面板与阅读器泳道宽度" })
+    const right = screen.getByRole("separator", { name: "调整阅读器与右侧面板泳道宽度" })
     expect(left.getAttribute("data-lane-resizer-edge")).toBe("end")
-    expect(right.getAttribute("data-lane-resizer-edge")).toBe("start")
+    expect(right.getAttribute("data-lane-resizer-edge")).toBe("end")
+    expect(document.querySelector('[data-reader-swimlane="left"]')?.className).not.toContain("border-r")
+    expect(document.querySelector('[data-reader-swimlane="reader"]')?.className).not.toContain("border-r")
+    expect(document.querySelector('[data-reader-swimlane="right"]')?.className).not.toContain("border-r")
 
     fireEvent.pointerDown(left, { pointerId: 51, clientX: 100, button: 0 })
     fireEvent.pointerMove(window, { pointerId: 51, clientX: 132 })
     fireEvent.pointerUp(window, { pointerId: 51, clientX: 132 })
-    expect(onWorkspaceChange).toHaveBeenCalledWith({ lanes: { left: { width: 352 } } })
+    expect(onWorkspaceChange).toHaveBeenCalledWith({
+      readerWidthRatio: 0.46875,
+      lanes: { left: { width: 352 }, reader: { width: 480 } },
+    })
 
-    const viewport = document.querySelector<HTMLElement>('[data-reader-swimlane-viewport="true"]')!
-    viewport.scrollLeft = 200
     fireEvent.pointerDown(right, { pointerId: 52, clientX: 300, button: 0 })
     fireEvent.pointerMove(window, { pointerId: 52, clientX: 268 })
     fireEvent.pointerUp(window, { pointerId: 52, clientX: 268 })
-    expect(onWorkspaceChange).toHaveBeenCalledWith({ lanes: { right: { width: 332 } } })
-    expect(viewport.scrollLeft).toBe(232)
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith({
+      readerWidthRatio: 0.4375,
+      lanes: { reader: { width: 448 }, right: { width: 332 } },
+    })
   })
 
   it("restores ordinary Reader width from the current viewport ratio and freezes resize after release", () => {
@@ -207,7 +215,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     const readerLane = document.querySelector<HTMLElement>('[data-reader-swimlane="reader"]')!
     expect(readerLane.style.width).toBe("300px")
     expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
-    const separator = screen.getByRole("separator", { name: "从右侧调整阅读器泳道宽度" })
+    const separator = screen.getByRole("separator", { name: "调整阅读器与右侧面板泳道宽度" })
     fireEvent.pointerDown(separator, { pointerId: 13, clientX: 100, button: 0 })
     fireEvent.pointerMove(window, { pointerId: 13, clientX: 160 })
     fireEvent.pointerUp(window, { pointerId: 13, clientX: 160 })
@@ -217,8 +225,28 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(onWorkspaceChange).toHaveBeenCalledOnce()
     expect(onWorkspaceChange).toHaveBeenCalledWith({
       readerWidthRatio: 0.6,
-      lanes: { reader: { width: 360 } },
+      lanes: { reader: { width: 360 }, right: { width: 240 } },
     })
+  })
+
+  it("uses the current theme material for an unfocused Reader title bar", () => {
+    const shell = shellConfig("swimlane", "left")
+    shell.workspace!.swimlane.readerSolo = false
+    render(
+      <ReaderSwimlaneWorkspace
+        shell={shell}
+        workspace={readerWorkspaceConfig(shell)}
+        reader={<div>reader</div>}
+        left={<div>left</div>}
+        right={<div>right</div>}
+        onWorkspaceChange={vi.fn()}
+      />,
+    )
+
+    const header = document.querySelector<HTMLElement>('[data-reader-swimlane-header="reader"]')!
+    expect(header.dataset.readerSwimlaneHeaderMaterial).toBe("reader-muted")
+    expect(header.className).toContain("text-foreground")
+    expect(header.className).not.toContain("bg-black")
   })
 
   it("optionally restores latent Reader solo after dwelling inside the inactive Reader lane", () => {
@@ -401,6 +429,10 @@ describe("ReaderSwimlaneWorkspace", () => {
     fireEvent.pointerDown(screen.getByRole("button", { name: "阅读器更多设置" }), { button: 0, ctrlKey: false })
     fireEvent.click(screen.getByRole("menuitem", { name: "打开 NeoView 设置" }))
     expect(onOpenSettings).toHaveBeenCalledOnce()
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "左侧面板更多设置" }), { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole("menuitem", { name: "重置操作栏位置" }))
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith({ laneNavigatorDock: "floating", laneNavigatorPositionX: 92, laneNavigatorPositionY: 96 })
   })
 
   it("preserves the complete Reader and lane fullscreen state machine across focus changes", () => {

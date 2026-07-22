@@ -31,6 +31,7 @@ import type { ReaderShellConfigDto, ReaderSwimlaneId } from "../../adapters/read
 import {
   MAX_READER_WIDTH_RATIO,
   MIN_READER_WIDTH_RATIO,
+  DEFAULT_LANE_NAVIGATOR_POSITION,
   fitReaderSwimlanesToViewport,
   readerLaneWidth,
   reorderedReaderLanes,
@@ -220,40 +221,54 @@ export function ReaderSwimlaneWorkspace({
     scrollViewport(viewport, Math.max(0, target))
   }
 
-  function resizeLane(laneId: ReaderSwimlaneId, deltaRatio: number): void {
-    if (soloLaneId === laneId) return
-    const minimum = laneId === "reader" ? viewportWidth * MIN_READER_WIDTH_RATIO : 240
-    const maximum = laneId === "reader" ? viewportWidth * MAX_READER_WIDTH_RATIO : 8_192
-    const next = clamp(liveWidthsRef.current[laneId] + deltaRatio * 320, minimum, maximum)
-    liveWidthsRef.current[laneId] = next
-    const lane = laneRefs.current[laneId]
-    if (lane) lane.style.width = `${next}px`
+  function laneWidthBounds(laneId: ReaderSwimlaneId): { minimum: number; maximum: number } {
+    return laneId === "reader"
+      ? { minimum: viewportWidth * MIN_READER_WIDTH_RATIO, maximum: viewportWidth * MAX_READER_WIDTH_RATIO }
+      : { minimum: 240, maximum: 8_192 }
   }
 
-  function resizeLaneFromStart(laneId: ReaderSwimlaneId, deltaRatio: number): void {
-    resizeLane(laneId, -deltaRatio)
-    const viewport = viewportRef.current
-    if (viewport) viewport.scrollLeft = Math.max(0, viewport.scrollLeft - deltaRatio * 320)
+  function resizeLaneBoundary(leftLaneId: ReaderSwimlaneId, rightLaneId: ReaderSwimlaneId, deltaRatio: number): void {
+    if (soloLaneId === leftLaneId || soloLaneId === rightLaneId) return
+    const leftWidth = liveWidthsRef.current[leftLaneId]
+    const rightWidth = liveWidthsRef.current[rightLaneId]
+    const leftBounds = laneWidthBounds(leftLaneId)
+    const rightBounds = laneWidthBounds(rightLaneId)
+    const delta = clamp(
+      deltaRatio * 320,
+      Math.max(leftBounds.minimum - leftWidth, rightWidth - rightBounds.maximum),
+      Math.min(leftBounds.maximum - leftWidth, rightWidth - rightBounds.minimum),
+    )
+    if (!delta) return
+    const nextLeft = leftWidth + delta
+    const nextRight = rightWidth - delta
+    liveWidthsRef.current[leftLaneId] = nextLeft
+    liveWidthsRef.current[rightLaneId] = nextRight
+    const leftLane = laneRefs.current[leftLaneId]
+    const rightLane = laneRefs.current[rightLaneId]
+    if (leftLane) leftLane.style.width = `${nextLeft}px`
+    if (rightLane) rightLane.style.width = `${nextRight}px`
   }
 
-  function commitLaneWidth(laneId: ReaderSwimlaneId): void {
-    const next = Math.round(liveWidthsRef.current[laneId])
+  function commitLaneWidths(laneIds: readonly ReaderSwimlaneId[]): void {
+    const widths = Object.fromEntries(laneIds.map((laneId) => [laneId, Math.round(liveWidthsRef.current[laneId])])) as Record<ReaderSwimlaneId, number>
     if (swimlane.autoFitToViewport) {
       onWorkspaceChange(fitReaderSwimlanesToViewport(viewportWidth, {
         ...swimlane,
-        lanes: { ...swimlane.lanes, [laneId]: { ...swimlane.lanes[laneId], width: next } },
-        ...(laneId === "reader" ? { readerWidthRatio: clamp(next / viewportWidth, MIN_READER_WIDTH_RATIO, MAX_READER_WIDTH_RATIO) } : {}),
+        lanes: {
+          ...swimlane.lanes,
+          ...Object.fromEntries(laneIds.map((laneId) => [laneId, { ...swimlane.lanes[laneId], width: widths[laneId] }])),
+        },
+        ...(laneIds.includes("reader") ? { readerWidthRatio: clamp(widths.reader / viewportWidth, MIN_READER_WIDTH_RATIO, MAX_READER_WIDTH_RATIO) } : {}),
       }))
       return
     }
-    if (laneId === "reader") {
-      const readerWidthRatio = clamp(next / viewportWidth, MIN_READER_WIDTH_RATIO, MAX_READER_WIDTH_RATIO)
-      if (readerWidthRatio !== swimlane.readerWidthRatio || next !== swimlane.lanes.reader.width) {
-        onWorkspaceChange({ readerWidthRatio, lanes: { reader: { width: next } } })
-      }
-      return
-    }
-    if (next !== swimlane.lanes[laneId].width) onWorkspaceChange({ lanes: { [laneId]: { width: next } } })
+    const changedLaneIds = laneIds.filter((laneId) => widths[laneId] !== swimlane.lanes[laneId].width)
+    if (!changedLaneIds.length) return
+    const lanes = Object.fromEntries(changedLaneIds.map((laneId) => [laneId, { width: widths[laneId] }]))
+    onWorkspaceChange({
+      ...(changedLaneIds.includes("reader") ? { readerWidthRatio: clamp(widths.reader / viewportWidth, MIN_READER_WIDTH_RATIO, MAX_READER_WIDTH_RATIO) } : {}),
+      lanes,
+    })
   }
 
   function fitLanesToViewport(): void {
@@ -338,6 +353,8 @@ export function ReaderSwimlaneWorkspace({
   }
 
   function renderLane(laneId: ReaderSwimlaneId): ReactNode {
+    const laneIndex = swimlane.laneOrder.indexOf(laneId)
+    const nextLaneId = swimlane.laneOrder[laneIndex + 1]
     const lane = swimlane.lanes[laneId] ?? { width: 320, collapsed: false }
     const active = swimlane.activeLane === laneId
     const solo = soloLaneId === laneId
@@ -363,7 +380,7 @@ export function ReaderSwimlaneWorkspace({
         collapsed={collapsed}
         width={effectiveWidth}
         solo={solo}
-        resizable={!solo}
+        resizeBoundaryWith={nextLaneId && !solo && soloLaneId !== nextLaneId ? nextLaneId : undefined}
         dragged={draggedLane === laneId}
         setRef={(node) => { laneRefs.current[laneId] = node }}
         onActivate={() => activateLane(laneId)}
@@ -378,11 +395,15 @@ export function ReaderSwimlaneWorkspace({
         maximumWidth={laneId === "reader" ? Math.round(viewportWidth * MAX_READER_WIDTH_RATIO) : 8_192}
         onWidthCommit={(width) => commitExplicitLaneWidth(laneId, width)}
         onResetWidth={() => commitExplicitLaneWidth(laneId, laneId === "reader" ? viewportWidth * 0.5 : DEFAULT_LANE_WIDTHS[laneId] ?? 320)}
+        onResetNavigatorPosition={() => onWorkspaceChange({
+          laneNavigatorDock: "floating",
+          laneNavigatorPositionX: DEFAULT_LANE_NAVIGATOR_POSITION.x,
+          laneNavigatorPositionY: DEFAULT_LANE_NAVIGATOR_POSITION.y,
+        })}
         onOpenSettings={laneId === "reader" ? onOpenSettings : undefined}
         setNavigatorTitleHost={laneId === "reader" ? setLaneNavigatorTitleHost : undefined}
-        onResize={(deltaRatio) => resizeLane(laneId, deltaRatio)}
-        onResizeFromStart={(deltaRatio) => resizeLaneFromStart(laneId, deltaRatio)}
-        onResizeEnd={() => commitLaneWidth(laneId)}
+        onResizeBoundary={nextLaneId ? (deltaRatio) => resizeLaneBoundary(laneId, nextLaneId, deltaRatio) : undefined}
+        onResizeEnd={nextLaneId ? () => commitLaneWidths([laneId, nextLaneId]) : undefined}
         onHeaderPointerDown={beginPan}
         onHeaderPointerMove={movePan}
         onHeaderPointerUp={(event) => endPan(event, laneId)}
@@ -525,7 +546,7 @@ interface ReaderSwimlaneProps {
   minimumWidth: number
   maximumWidth: number
   solo: boolean
-  resizable: boolean
+  resizeBoundaryWith?: ReaderSwimlaneId
   dragged: boolean
   children: ReactNode
   setRef(node: HTMLElement | null): void
@@ -534,11 +555,11 @@ interface ReaderSwimlaneProps {
   onCollapsedChange?(collapsed: boolean): void
   onWidthCommit(width: number): void
   onResetWidth(): void
+  onResetNavigatorPosition(): void
   onOpenSettings?(): void
   setNavigatorTitleHost?(node: HTMLElement | null): void
-  onResize(deltaRatio: number): void
-  onResizeFromStart(deltaRatio: number): void
-  onResizeEnd(): void
+  onResizeBoundary?(deltaRatio: number): void
+  onResizeEnd?(): void
   onHeaderPointerDown(event: ReactPointerEvent<HTMLElement>): void
   onHeaderPointerMove(event: ReactPointerEvent<HTMLElement>): void
   onHeaderPointerUp(event: ReactPointerEvent<HTMLElement>): void
@@ -566,7 +587,7 @@ function ReaderSwimlane({
   minimumWidth,
   maximumWidth,
   solo,
-  resizable,
+  resizeBoundaryWith,
   dragged,
   children,
   setRef,
@@ -575,10 +596,10 @@ function ReaderSwimlane({
   onCollapsedChange,
   onWidthCommit,
   onResetWidth,
+  onResetNavigatorPosition,
   onOpenSettings,
   setNavigatorTitleHost,
-  onResize,
-  onResizeFromStart,
+  onResizeBoundary,
   onResizeEnd,
   onHeaderPointerDown,
   onHeaderPointerMove,
@@ -604,8 +625,8 @@ function ReaderSwimlane({
         ref={setRef}
         style={style}
         className={cn(
-          "flex h-full shrink-0 flex-col items-center gap-2 border-r border-border/55 bg-muted/20 px-1 py-2 transition-colors",
-          active && "z-10 bg-primary/12 ring-1 ring-inset ring-primary/55 shadow-[inset_3px_0_0_var(--primary)]",
+          "flex h-full shrink-0 flex-col items-center gap-2 bg-muted/20 px-1 py-2 transition-colors",
+          active && "z-10 bg-primary/12 shadow-[inset_0_3px_0_var(--primary)]",
         )}
         data-reader-swimlane={laneId}
         data-reader-swimlane-active={active ? "true" : "false"}
@@ -631,8 +652,8 @@ function ReaderSwimlane({
       ref={setRef}
       style={style}
       className={cn(
-        "relative flex h-full min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-r border-border/55 bg-card/45 transition-[background-color,box-shadow] duration-150",
-        active && "z-10 bg-card/70 ring-1 ring-inset ring-primary/55 shadow-[inset_0_3px_0_var(--primary),0_8px_24px_rgb(0_0_0/0.14)]",
+        "relative flex h-full min-h-0 min-w-0 shrink-0 flex-col overflow-hidden bg-card/45 transition-[background-color,box-shadow] duration-150",
+        active && "z-10 bg-card/70 shadow-[inset_0_3px_0_var(--primary),0_8px_24px_rgb(0_0_0/0.14)]",
         dragged && "opacity-55",
       )}
       data-reader-swimlane={laneId}
@@ -657,12 +678,14 @@ function ReaderSwimlane({
     >
       {hideHeader ? null : <header
         className={cn(
-          "flex h-8 shrink-0 select-none items-center gap-1.5 border-b border-border/45 px-2",
+          "flex h-8 shrink-0 select-none items-center gap-1.5 border-b border-border/55 px-2 transition-colors",
           active
             ? "bg-primary/12 text-foreground"
-            : laneId === "reader" ? "bg-black/80 text-white" : "bg-muted/25",
+            : laneId === "reader" ? "text-foreground shadow-[inset_0_-1px_0_var(--border)] backdrop-blur-xl" : "bg-muted/25",
         )}
+        style={!active && laneId === "reader" ? { background: "color-mix(in oklch, var(--card) 92%, var(--primary))" } : undefined}
         data-reader-swimlane-header={laneId}
+        data-reader-swimlane-header-material={!active && laneId === "reader" ? "reader-muted" : active ? "active" : "panel-muted"}
         data-input-context="shell"
         onPointerDown={onHeaderPointerDown}
         onPointerMove={onHeaderPointerMove}
@@ -688,29 +711,19 @@ function ReaderSwimlane({
             onCollapsedChange={onCollapsedChange}
             onWidthCommit={onWidthCommit}
             onResetWidth={onResetWidth}
+            onResetNavigatorPosition={onResetNavigatorPosition}
             onOpenSettings={onOpenSettings}
           />
         </div>
       </header>}
       <div className="min-h-0 flex-1 overflow-hidden" data-reader-swimlane-content={laneId}>{children}</div>
-      {resizable ? (
-        <>
-          <LaneResizer
-            label={`从左侧调整${label}泳道宽度`}
-            edge="start"
-            className="absolute inset-y-0 left-0 z-30 w-2"
-            onResize={onResizeFromStart}
-            onResizeEnd={onResizeEnd}
-          />
-          <LaneResizer
-            label={`从右侧调整${label}泳道宽度`}
-            edge="end"
-            className="absolute inset-y-0 right-0 z-30 w-2"
-            onResize={onResize}
-            onResizeEnd={onResizeEnd}
-          />
-        </>
-      ) : null}
+      {resizeBoundaryWith ? <LaneResizer
+        label={`调整${label}与${DEFAULT_LANE_LABELS[resizeBoundaryWith] ?? resizeBoundaryWith}泳道宽度`}
+        edge="end"
+        className="absolute inset-y-0 right-0 z-30 w-2"
+        onResize={onResizeBoundary}
+        onResizeEnd={onResizeEnd}
+      /> : null}
     </section>
   )
 }
@@ -727,6 +740,7 @@ function ReaderLaneMoreMenu({
   onCollapsedChange,
   onWidthCommit,
   onResetWidth,
+  onResetNavigatorPosition,
   onOpenSettings,
 }: {
   laneId: ReaderSwimlaneId
@@ -740,6 +754,7 @@ function ReaderLaneMoreMenu({
   onCollapsedChange?(collapsed: boolean): void
   onWidthCommit(width: number): void
   onResetWidth(): void
+  onResetNavigatorPosition(): void
   onOpenSettings?(): void
 }) {
   const [widthDraft, setWidthDraft] = useState(() => String(Math.round(width)))
@@ -789,6 +804,7 @@ function ReaderLaneMoreMenu({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuItem onSelect={onResetWidth}><RotateCcw />恢复默认宽度</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onResetNavigatorPosition}><PanelsTopLeft />重置操作栏位置</DropdownMenuItem>
         {onCollapsedChange ? <>
           <DropdownMenuSeparator />
           <DropdownMenuCheckboxItem checked={collapsed} onCheckedChange={(checked) => onCollapsedChange(checked === true)}>折叠泳道</DropdownMenuCheckboxItem>

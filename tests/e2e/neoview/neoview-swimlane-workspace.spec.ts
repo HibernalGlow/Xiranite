@@ -26,7 +26,7 @@ test("[neoview.swimlane.workspace-e2e] keeps flat reveal, Reader focus and fused
   await expect(page.locator('[data-reader-swimlane="right"]')).toHaveJSProperty("offsetWidth", 380)
   await expect(readerLane.locator('[data-reader-swimlane-header="reader"]')).toHaveCount(0)
   const rightEdgeBeforeResize = await page.locator('[data-reader-swimlane="right"]').evaluate((lane) => lane.getBoundingClientRect().right)
-  await dragHorizontally(page, page.getByRole("separator", { name: "从左侧调整右侧面板泳道宽度" }), -40)
+  await dragHorizontally(page, page.getByRole("separator", { name: "调整阅读器与右侧面板泳道宽度" }), -40)
   await expect(page.locator('[data-reader-swimlane="right"]')).toHaveJSProperty("offsetWidth", 420)
   const rightEdgeAfterResize = await page.locator('[data-reader-swimlane="right"]').evaluate((lane) => lane.getBoundingClientRect().right)
   expect(rightEdgeAfterResize).toBeCloseTo(rightEdgeBeforeResize, 0)
@@ -56,12 +56,12 @@ test("[neoview.swimlane.workspace-e2e] keeps flat reveal, Reader focus and fused
   await expect(workspace).toHaveAttribute("data-reader-swimlane-preview", "left")
   await page.getByRole("button", { name: "文件夹" }).click()
   await expect(page.locator('[data-reader-swimlane="left"]')).toHaveAttribute("data-reader-swimlane-active", "true")
-  await dragHorizontally(page, page.getByRole("separator", { name: "从右侧调整左侧面板泳道宽度" }), 40)
+  await dragHorizontally(page, page.getByRole("separator", { name: "调整左侧面板与阅读器泳道宽度" }), 40)
   await expect(page.locator('[data-reader-swimlane="left"]')).toHaveJSProperty("offsetWidth", 380)
   await page.screenshot({ path: testInfo.outputPath("neoview-swimlane-focus-1920x1080.png") })
 })
 
-test("[neoview.swimlane.drag-e2e] freezes Reader width and docks the panel bar", async ({ page }) => {
+test("[neoview.swimlane.drag-e2e] freezes Reader width and docks the panel bar", async ({ page }, testInfo) => {
   await openOrdinarySwimlane(page)
   const readerLane = page.locator('[data-reader-swimlane="reader"]')
   const rightLane = page.locator('[data-reader-swimlane="right"]')
@@ -79,7 +79,7 @@ test("[neoview.swimlane.drag-e2e] freezes Reader width and docks the panel bar",
   await expect(rightBar).toHaveAttribute("data-reader-panel-bar-dock", "bottom")
   await expect(rightBar).toHaveClass(/flex-row/)
 
-  const separator = page.getByRole("separator", { name: "从右侧调整阅读器泳道宽度" })
+  const separator = page.getByRole("separator", { name: "调整阅读器与右侧面板泳道宽度" })
   const box = await separator.boundingBox()
   expect(box).not.toBeNull()
   await page.mouse.move(box!.x + box!.width / 2, box!.y + 120)
@@ -90,6 +90,7 @@ test("[neoview.swimlane.drag-e2e] freezes Reader width and docks the panel bar",
   await page.mouse.move(box!.x + 220, box!.y + 120)
   await page.waitForTimeout(80)
   expect(await readerLane.evaluate((node) => node.getBoundingClientRect().width)).toBeCloseTo(releasedWidth, 0)
+  await page.screenshot({ path: testInfo.outputPath("neoview-swimlane-shared-divider-1920x1080.png") })
 })
 
 test("[neoview.swimlane.portrait-e2e] adds lanes, fits proportions and stays bounded in portrait", async ({ page }, testInfo) => {
