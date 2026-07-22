@@ -532,13 +532,9 @@ export function buildFolderContextMenuItems(
         { id: "neoview-folder-copy-name", label: "复制名称", icon: <FileText />, disabled: unavailable || !options.canCopyText, onSelect: () => options.onAction("copy-name", entry) },
       ],
     },
-    {
-      type: "submenu",
-      id: "neoview-folder-delete-menu",
-      label: "删除选项",
-      icon: <Trash2 />,
-      children: [deleteItem],
-    },
+    // Permanent delete stays a full-row destructive action for discoverability;
+    // recycle-bin trash lives in the icon toolbar (Neo layout).
+    deleteItem,
     { type: "separator" },
     { id: "neoview-folder-entry-name", type: "label", label: entry.name },
   ]

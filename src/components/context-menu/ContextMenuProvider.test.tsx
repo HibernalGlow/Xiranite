@@ -279,6 +279,39 @@ describe("ContextMenuProvider", () => {
     })
   })
 
+  test("icon-row renders compact icon-only actions", async () => {
+    const onSelect = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <ContextMenuProvider>
+        <ContextTarget
+          items={[
+            {
+              type: "icon-row",
+              id: "demo-icons",
+              label: "Quick",
+              children: [
+                { id: "copy", label: "复制", onSelect },
+                { id: "cut", label: "剪切", onSelect },
+              ],
+            },
+          ]}
+        />
+      </ContextMenuProvider>,
+    )
+
+    fireEvent.contextMenu(screen.getByTestId("context-target"), {
+      clientX: 10,
+      clientY: 10,
+    })
+
+    const row = await screen.findByRole("group", { name: "Quick" })
+    expect(row.getAttribute("data-context-menu-icon-row")).toBe("demo-icons")
+    await user.click(screen.getByRole("menuitem", { name: "复制" }))
+    expect(onSelect).toHaveBeenCalledTimes(1)
+  })
+
   test("editable target keeps native context menu (no custom menu opens)", async () => {
     const onSelect = vi.fn()
 

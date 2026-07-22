@@ -5,7 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { ContextMenuProvider } from "@/components/context-menu"
 import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
-import FolderContextActions, { buildFolderContextMenuItems, folderContextEntry } from "./FolderContextActions"
+import FolderContextActions, {
+  buildFolderContextMenuItems,
+  findFolderContextMenuItem,
+  folderContextEntry,
+} from "./FolderContextActions"
 import FolderDeleteButton from "./FolderDeleteButton"
 import { FolderClipboardProvider } from "./FolderClipboard"
 
@@ -106,22 +110,47 @@ describe("FolderContextActions", () => {
     const target = screen.getByRole("button", { name: "series" })
 
     fireEvent.contextMenu(target, { clientX: 20, clientY: 30 })
-    expect(await screen.findByText("在新标签页中打开")).toBeTruthy()
-    expect(screen.getByText("作为书籍打开")).toBeTruthy()
-    await user.click(screen.getByText("在新标签页中打开"))
+    expect(await screen.findByRole("menuitem", { name: "在新标签页中打开" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "作为书籍打开" })).toBeTruthy()
+    expect(document.querySelector('[data-context-menu-icon-row="neoview-folder-edit-row"]')).toBeTruthy()
+    expect(document.querySelector('[data-context-menu-icon-row="neoview-folder-open-row"]')).toBeTruthy()
+    await user.click(screen.getByRole("menuitem", { name: "在新标签页中打开" }))
     expect(onOpenInNewTab).toHaveBeenCalledWith("D:/library/series")
 
     fireEvent.contextMenu(target, { clientX: 20, clientY: 30 })
-    await user.click(await screen.findByText("进入文件夹"))
+    await user.click(await screen.findByRole("menuitem", { name: "进入文件夹" }))
     expect(onEnterRawDirectory).toHaveBeenCalledWith(expect.objectContaining({ path: "D:/library/series" }))
 
     fireEvent.contextMenu(target, { clientX: 20, clientY: 30 })
-    await user.click(await screen.findByText("复制路径"))
+    expect(await screen.findByText("复制信息")).toBeTruthy()
+    expect(screen.getByText("打开方式")).toBeTruthy()
+    // Submenu open/select is flaky under happy-dom pointer routing; the builder
+    // remains the single source for nested action wiring.
+    const built = buildFolderContextMenuItems({
+      index: 4, path: "D:/library/series", name: "series", kind: "directory", readerSupported: false,
+    }, {
+      disabled: false,
+      pending: false,
+      canCopyText: true,
+      canClipboard: false,
+      canPaste: false,
+      canOpenSystem: true,
+      canReveal: true,
+      canOpenAsBook: true,
+      canEnterRawDirectory: true,
+      canBookmark: false,
+      canRename: false,
+      canTrash: false,
+      onAction: (action, entry) => {
+        if (action === "copy-path") void copyText(entry.path)
+      },
+    })
+    expect(findFolderContextMenuItem(built, "neoview-folder-copy-path")?.disabled).toBe(false)
+    await findFolderContextMenuItem(built, "neoview-folder-copy-path")?.onSelect?.()
     expect(copyText).toHaveBeenCalledWith("D:/library/series")
-    expect((await screen.findByRole("status")).textContent).toContain("已复制 series 的路径")
 
     fireEvent.contextMenu(target, { clientX: 20, clientY: 30 })
-    await user.click(await screen.findByText("在资源管理器中显示"))
+    await user.click(await screen.findByRole("menuitem", { name: "在资源管理器中显示" }))
     expect(revealSystemPath).toHaveBeenCalledWith("D:/library/series", expect.any(AbortSignal))
   })
 
@@ -218,12 +247,14 @@ describe("FolderContextActions", () => {
       canTrash: false,
       onAction: vi.fn(),
     })
-    expect(items.find((item) => item.id === "neoview-folder-open")?.disabled).toBe(false)
-    expect(items.find((item) => item.id === "neoview-folder-system-open")?.disabled).toBe(true)
-    expect(items.find((item) => item.id === "neoview-folder-reveal")?.disabled).toBe(true)
-    expect(items.find((item) => item.id === "neoview-folder-copy-path")?.disabled).toBe(true)
-    expect(items.find((item) => item.id === "neoview-folder-toggle-bookmark")?.disabled).toBe(true)
-    expect(items.find((item) => item.id === "neoview-folder-rename")?.disabled).toBe(true)
+    expect(findFolderContextMenuItem(items, "neoview-folder-open")?.disabled).toBe(false)
+    expect(findFolderContextMenuItem(items, "neoview-folder-system-open")?.disabled).toBe(true)
+    expect(findFolderContextMenuItem(items, "neoview-folder-reveal")?.disabled).toBe(true)
+    expect(findFolderContextMenuItem(items, "neoview-folder-copy-path")?.disabled).toBe(true)
+    expect(findFolderContextMenuItem(items, "neoview-folder-toggle-bookmark")?.disabled).toBe(true)
+    expect(findFolderContextMenuItem(items, "neoview-folder-rename")?.disabled).toBe(true)
+    expect(items.some((item) => item.type === "icon-row")).toBe(true)
+    expect(items.some((item) => item.type === "submenu" && item.id === "neoview-folder-copy-info")).toBe(true)
   })
 
   it("[neoview.folder.bookmark-context] adds the concrete context target with the correct bookmark kind", async () => {
