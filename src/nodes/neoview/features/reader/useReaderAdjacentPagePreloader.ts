@@ -1,4 +1,3 @@
-import pMap from "p-map"
 import { useEffect } from "react"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderPreloadPlanDto, ReaderUpscaleArtifactProbeResultDto } from "../../adapters/reader-http-client"
@@ -70,10 +69,13 @@ export function useReaderAdjacentPagePreloader({
         preloadResolved(candidates)
         return
       }
-      const probes = await pMap(candidates.slice(0, MAX_UPSCALE_PROBE_CANDIDATES), async (page) => ({
+      // This is deliberately a native Promise.all rather than p-map. There
+      // are at most two probes, and p-map v4 resolves a Node-only os branch in
+      // Vite's browser bundle even when auto-upscale is disabled.
+      const probes = await Promise.all(candidates.slice(0, MAX_UPSCALE_PROBE_CANDIDATES).map(async (page) => ({
         page,
         result: await client.probeUpscalePage!(sessionId, page.id, controller.signal).catch(() => ({ status: "miss" as const })),
-      }), { concurrency: MAX_UPSCALE_PROBE_CANDIDATES })
+      })))
       if (controller.signal.aborted) return
       const results = new Map(probes.map(({ page, result }) => [page.id, result]))
       const preloadPages = candidates.map((page) => artifactPageFromProbe(sessionId, page, results.get(page.id)) ?? page)
