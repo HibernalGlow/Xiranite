@@ -28,12 +28,14 @@ export function ReaderSettingsWindow({
   slideshow,
   media,
   imageProcessing,
+  preload,
   onClose,
   onBoardLayout,
   onViewDefaults,
   onSlideshow,
   onMedia,
   onImageProcessing,
+  onPreload,
   inputBindings,
   onInputBindings,
   radialMenu,
@@ -48,12 +50,14 @@ export function ReaderSettingsWindow({
   slideshow?: ReaderSlideshowConfig
   media?: ReaderMediaConfigDto
   imageProcessing?: ReaderImageProcessingConfigDto
+  preload?: ReaderRuntimeConfigDto["preload"]
   onClose(): void
   onBoardLayout(patch: ReaderBoardLayoutPatch): Promise<void>
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
   onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
+  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
@@ -106,6 +110,7 @@ export function ReaderSettingsWindow({
               slideshow={slideshow}
               media={media}
               imageProcessing={imageProcessing}
+              preload={preload}
               inputBindings={inputBindings}
               radialMenu={radialMenu}
               onSave={onBoardLayout}
@@ -113,6 +118,7 @@ export function ReaderSettingsWindow({
               onSlideshow={onSlideshow}
               onMedia={onMedia}
               onImageProcessing={onImageProcessing}
+              onPreload={onPreload}
               onInputBindings={onInputBindings}
               onRadialMenu={onRadialMenu}
               onLegacySettingsInspect={onLegacySettingsInspect}
@@ -134,11 +140,13 @@ function SettingsSection({
   slideshow,
   media,
   imageProcessing,
+  preload,
   onSave,
   onViewDefaults,
   onSlideshow,
   onMedia,
   onImageProcessing,
+  onPreload,
   inputBindings,
   onInputBindings,
   radialMenu,
@@ -154,11 +162,13 @@ function SettingsSection({
   slideshow?: ReaderSlideshowConfig
   media?: ReaderMediaConfigDto
   imageProcessing?: ReaderImageProcessingConfigDto
+  preload?: ReaderRuntimeConfigDto["preload"]
   onSave(patch: ReaderBoardLayoutPatch): Promise<void>
   onViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]): Promise<void>
   onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
   onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
+  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
@@ -183,6 +193,7 @@ function SettingsSection({
     // fallbacks previously left a blank band above the real content.
     if (definition.id === "slideshow-settings" && (!slideshow || !onSlideshow)) continue
     if (definition.id === "media-settings" && (!media || !onMedia)) continue
+    if (definition.id === "preload-settings" && (!preload || !onPreload)) continue
     if (definition.id === "view-defaults-settings" && (!viewDefaults || !onViewDefaults)) continue
     if (definition.id === "input-bindings-settings" && (!inputBindings || !onInputBindings)) continue
     if (definition.id === "radial-menu-settings" && (!radialMenu || !onRadialMenu)) continue
@@ -196,6 +207,7 @@ function SettingsSection({
           slideshow={slideshow}
           media={media}
           imageProcessing={imageProcessing}
+          preload={preload}
           inputBindings={inputBindings}
           radialMenu={radialMenu}
           onSave={onSave}
@@ -203,6 +215,7 @@ function SettingsSection({
           onSlideshow={onSlideshow}
           onMedia={onMedia}
           onImageProcessing={onImageProcessing}
+          onPreload={onPreload}
           onInputBindings={onInputBindings}
           onRadialMenu={onRadialMenu}
           onLegacySettingsInspect={onLegacySettingsInspect}
@@ -252,9 +265,5 @@ const UNAVAILABLE_SECTIONS: Partial<Record<SettingsSectionId, { title: string; r
   books: {
     title: "书籍",
     reason: "本书方向/单双页等设置在右侧栏「本书设置」中按会话编辑；全局书籍默认值尚未单独成卡。",
-  },
-  performance: {
-    title: "性能",
-    reason: "呈现缓存与预加载阈值目前由节点配置/诊断链路管理，设置窗口可编辑面尚未开放。",
   },
 }

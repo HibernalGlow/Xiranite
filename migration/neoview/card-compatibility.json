@@ -1349,11 +1349,12 @@
       "capabilityStatus": {
         "core": "not-applicable",
         "transport": "not-applicable",
-        "gui": "pending",
+        "gui": "partial",
         "cli": "not-applicable",
         "tui": "not-applicable",
-        "evidence": "pending"
+        "evidence": "partial"
       },
+      "currentCardId": "preload-settings",
       "sourceComponent": "src/lib/cards/settings/PerformanceSettingsCard.svelte",
       "sourceDisposition": "component"
     },

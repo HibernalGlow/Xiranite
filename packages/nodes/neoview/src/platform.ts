@@ -571,6 +571,7 @@ export async function createReaderHttpController(
     switchToast: runtimeConfig.switchToast,
     infoOverlay: runtimeConfig.infoOverlay,
     systemMonitor: runtimeConfig.systemMonitor,
+    preload: runtimeConfig.preload,
     aiTranslation: runtimeConfig.aiTranslation,
     aiTranslationCache: thumbnailStore && "load" in thumbnailStore ? thumbnailStore as never : undefined,
     imageTrim: runtimeConfig.imageTrim,
@@ -670,6 +671,12 @@ export async function createReaderHttpController(
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
       return parseNeoviewRuntimeConfig(committed.nodeConfig).systemMonitor
+    },
+    updatePreload: async (_patch, tomlPatch) => {
+      const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
+      const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
+      const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
+      return parseNeoviewRuntimeConfig(committed.nodeConfig).preload
     },
     updateEmm: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")

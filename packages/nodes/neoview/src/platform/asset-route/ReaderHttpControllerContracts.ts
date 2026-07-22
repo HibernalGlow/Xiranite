@@ -295,6 +295,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     updateInfoOverlay?: (patch: NeoviewInfoOverlayPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInfoOverlaySettings>
     systemMonitor?: NeoviewSystemMonitorConfig
     updateSystemMonitor?: (patch: NeoviewSystemMonitorPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSystemMonitorConfig>
+    preload?: NeoviewPreloadConfig
+    updatePreload?: (patch: NeoviewPreloadPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewPreloadConfig>
     emm?: NeoviewEmmConfig
     updateEmm?: (patch: NeoviewEmmPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewEmmConfig>
     probeEmm?: (config: NeoviewEmmConfig) => Promise<ReaderEmmConnectionProbeResult>
