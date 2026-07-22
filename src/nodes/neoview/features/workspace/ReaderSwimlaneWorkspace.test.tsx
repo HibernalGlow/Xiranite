@@ -51,7 +51,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(document.querySelector('[data-reader-swimlane="left"]')?.className).not.toContain("ring-primary/55")
     fireEvent.pointerDown(screen.getByRole("button", { name: "Right action" }), { pointerId: 3, button: 0 })
     expect(readerPointer).not.toHaveBeenCalled()
-    expect(onWorkspaceChange).toHaveBeenCalledWith({ activeLane: "right" })
+    expect(onWorkspaceChange).toHaveBeenCalledWith({ activeLane: "right", readerSolo: false })
     expect(document.querySelector<HTMLElement>('[data-reader-swimlane="reader"]')?.style.width).toBe(`${window.innerWidth}px`)
     expect(document.querySelector<HTMLElement>('[data-reader-swimlane="right"]')?.style.width).toBe("300px")
   })
@@ -78,7 +78,7 @@ describe("ReaderSwimlaneWorkspace", () => {
 
       fireEvent.contextMenu(screen.getByRole("button", { name: "Folder entry" }))
       expect(windowContextMenu).toHaveBeenCalledTimes(1)
-      expect(onWorkspaceChange).toHaveBeenCalledWith({ activeLane: "left" })
+      expect(onWorkspaceChange).toHaveBeenCalledWith({ activeLane: "left", readerSolo: false })
     } finally {
       window.removeEventListener("contextmenu", windowContextMenu)
     }
@@ -463,7 +463,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(onWorkspaceChange).toHaveBeenLastCalledWith({ laneNavigatorDock: "floating", laneNavigatorPositionX: 92, laneNavigatorPositionY: 96 })
   })
 
-  it("preserves the complete Reader and lane fullscreen state machine across focus changes", () => {
+  it("exits Reader fullscreen when a side lane receives focus and restores it only on Reader focus", () => {
     let shell = shellConfig("swimlane", "reader")
     let view: ReturnType<typeof render>
     const onWorkspaceChange = vi.fn((patch: ReaderWorkspacePatch) => {
@@ -488,9 +488,10 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "Right state action" }), { pointerId: 31, button: 0 })
-    expect(shell.workspace!.swimlane).toMatchObject({ activeLane: "right", readerSolo: true, readerSoloOnFocus: true })
+    expect(shell.workspace!.swimlane).toMatchObject({ activeLane: "right", readerSolo: false, readerSoloOnFocus: true })
     expect(shell.workspace!.swimlane.soloLaneId).toBeUndefined()
-    expect(readerLane().style.width).toBe(`${window.innerWidth}px`)
+    expect(readerLane().style.width).toBe(`${window.innerWidth * 0.5}px`)
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
     expect(rightLane().style.width).toBe("300px")
 
     fireEvent.click(screen.getByRole("button", { name: "Reader state action" }))

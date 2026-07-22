@@ -142,10 +142,11 @@ export function ReaderSwimlaneWorkspace({
     clearTimer(restoreTimerRef)
     clearTimer(readerFocusTimerRef)
     setPreviewLane(undefined)
-    if (swimlane.activeLane !== laneId || (swimlane.soloLaneId && swimlane.soloLaneId !== laneId)) {
+    if (swimlane.activeLane !== laneId || (soloLaneId && soloLaneId !== laneId)) {
       onWorkspaceChange({
         activeLane: laneId,
         ...(laneId === "reader" && swimlane.readerSoloOnFocus && !swimlane.readerSolo ? { readerSolo: true } : {}),
+        ...(laneId !== "reader" && swimlane.readerSolo ? { readerSolo: false } : {}),
         ...(swimlane.soloLaneId && swimlane.soloLaneId !== laneId ? { soloLaneId: null } : {}),
       })
     }

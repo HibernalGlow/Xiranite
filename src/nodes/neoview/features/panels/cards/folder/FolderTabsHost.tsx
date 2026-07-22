@@ -422,7 +422,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
 
   return (
     <div
-      className="grid min-h-0 min-w-0 w-full flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]"
+      className="grid h-full min-h-0 min-w-0 w-full flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]"
       data-folder-tab-count={tabs.length}
     >
       {tabs.map((tab) => {

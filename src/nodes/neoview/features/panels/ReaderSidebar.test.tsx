@@ -330,18 +330,26 @@ describe("ReaderSidebar layout gestures", () => {
 
     const folderPanel = document.querySelector<HTMLElement>('[data-reader-panel-cache="folder"]')!
     expect(folderPanel.className).toContain("h-full")
+    expect(folderPanel.className).toContain("w-full")
+    expect(folderPanel.className).toContain("basis-full")
     expect(folderPanel.querySelector('[data-reader-card-chrome="none"]')?.className).toContain("h-full")
     expect(folderPanel.querySelector('[data-reader-card-chrome="none"]')?.className).toContain("w-full")
+    expect(folderPanel.querySelector('[data-folder-tab-count]')?.className).toContain("h-full")
     expect(document.querySelector('[data-reader-panel-cache="folder"] h2')).toBeNull()
 
-    // page-navigation is also exclusivePanel; chrome must match history/bookmark/folder.
-    fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
+    for (const [buttonName, panelId] of [["历史记录", "history"], ["书签", "bookmark"], ["页面列表", "pageList"]] as const) {
+      fireEvent.click(screen.getByRole("button", { name: buttonName }))
+      const panel = document.querySelector<HTMLElement>(`[data-reader-panel="${panelId}"]`)!
+      expect(panel.className).toContain("h-full")
+      expect(panel.className).toContain("w-full")
+      expect(panel.className).toContain("basis-full")
+      expect(panel.querySelector('[data-reader-card-chrome="none"]')).toBeTruthy()
+      expect(panel.querySelector("h2")).toBeNull()
+    }
+
     const pageListPanel = document.querySelector<HTMLElement>('[data-reader-panel="pageList"]')!
-    expect(pageListPanel.className).toContain("h-full")
-    expect(pageListPanel.querySelector('[data-reader-card="页面导航"]')?.getAttribute("data-reader-card-chrome")).toBe("none")
     expect(pageListPanel.querySelector('[data-neoview-page-list="true"]')?.className).toMatch(/h-full/)
     expect(pageListPanel.querySelector('[data-neoview-page-list="true"]')?.className).toMatch(/w-full/)
-    expect(pageListPanel.querySelector("h2")).toBeNull()
     expect(screen.queryByRole("button", { name: "折叠页面导航" })).toBeNull()
   })
 

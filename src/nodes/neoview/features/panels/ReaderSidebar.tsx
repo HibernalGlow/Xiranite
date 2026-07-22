@@ -148,7 +148,7 @@ export function ReaderSidebar({
             key={panel.id}
             className={cn(
               "min-h-0 min-w-0 flex-1 overscroll-contain",
-              exclusive ? "relative flex h-full min-h-0 flex-col overflow-hidden" : "overflow-y-auto",
+              exclusive ? "relative flex h-full w-full basis-full flex-col self-stretch overflow-hidden" : "overflow-y-auto",
               !panelActive && "pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden",
             )}
             style={!panelActive ? { contentVisibility: "hidden", containIntrinsicSize: "auto 100%" } : undefined}
@@ -186,7 +186,9 @@ export function ReaderSidebar({
                 onPointerCancel={cancelGesture}
               >↕</button>
             ) : null}
-            <div className={cn(exclusive ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden" : "grid gap-2 px-3 py-3")}>
+            <div className={cn(exclusive
+              ? "flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden [&>*]:h-full [&>*]:min-h-0 [&>*]:min-w-0 [&>*]:w-full [&>*]:flex-1"
+              : "grid gap-2 px-3 py-3")}>
               {cards.map((card) => {
                 const Card = lazyReaderCard(card.id)
                 const cardLayout = shell?.cardLayout[card.id]
