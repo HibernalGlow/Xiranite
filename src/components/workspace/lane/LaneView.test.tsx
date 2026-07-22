@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("./Lane", () => ({
-  Lane: ({ lane, active, solo, hideTitleForNavigator, onTitleHostChange }: { lane: { id: string; label: string }; active: boolean; solo: boolean; hideTitleForNavigator?: boolean; onTitleHostChange?(node: HTMLElement | null): void }) => <section data-lane-id={lane.id} data-swimlane-active={active} data-swimlane-solo={solo}><header><span ref={onTitleHostChange}>{hideTitleForNavigator ? null : <span data-lane-title>{lane.label}</span>}</span></header></section>,
+  Lane: ({ lane, components, active, solo, hideTitleForNavigator, onTitleHostChange, onClear }: { lane: { id: string; label: string }; components: Array<{ id: string }>; active: boolean; solo: boolean; hideTitleForNavigator?: boolean; onTitleHostChange?(node: HTMLElement | null): void; onClear?(): void }) => <section data-lane-id={lane.id} data-swimlane-active={active} data-swimlane-solo={solo}><header><span ref={onTitleHostChange}>{hideTitleForNavigator ? null : <span data-lane-title>{lane.label}</span>}</span><button type="button" onClick={onClear}>Clear {lane.label}</button></header>{components.map((component) => <span key={component.id} data-component-id={component.id} />)}</section>,
 }))
 
 import { INITIAL_STATE } from "@/store/workspace/constants"
@@ -68,5 +68,55 @@ describe("LaneView shared swimlane framework", () => {
     fireEvent.contextMenu(screen.getByRole("button", { name: "拖动或设置泳道切换栏" }))
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "常驻按比例适应视口" }))
     expect(useWorkspaceStore.getState().laneWorkspacePreferences["lane-test"]?.autoFitToViewport).toBe(true)
+  })
+
+  it("applies shared focus-to-solo and solo navigator preferences", async () => {
+    useWorkspaceStore.setState({
+      laneWorkspacePreferences: {
+        "lane-test": {
+          ...useWorkspaceStore.getState().laneWorkspacePreferences["lane-test"],
+          soloOnFocus: true,
+          showNavigatorInSolo: true,
+          focusOnHover: false,
+          focusDelayMs: 650,
+          edgeRevealDelayMs: 250,
+          barHandleStyle: "grip",
+          barHandlePosition: "left",
+          navigatorPositionX: 92,
+          navigatorPositionY: 94,
+          navigatorDock: "floating",
+          autoFitToViewport: false,
+        },
+      },
+    })
+    render(<LaneView />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Beta (0)" }))
+    expect(useWorkspaceStore.getState().laneWorkspacePreferences["lane-test"]?.soloLaneId).toBe("lane-b")
+    expect(screen.getByRole("navigation", { name: "泳道快速切换" })).toBeTruthy()
+
+    useWorkspaceStore.getState().patchLaneWorkspacePreferences("lane-test", { showNavigatorInSolo: false })
+    await waitFor(() => expect(screen.queryByRole("navigation", { name: "泳道快速切换" })).toBeNull())
+  })
+
+  it("repairs orphaned components into the first real lane instead of rendering an unmanageable column", async () => {
+    useWorkspaceStore.setState({
+      components: [{ id: "orphan", moduleId: "example", state: "docked", workspaceId: "lane-test", laneId: "deleted-lane" }],
+    })
+    render(<LaneView />)
+
+    await waitFor(() => expect(useWorkspaceStore.getState().components[0]?.laneId).toBe("lane-a"))
+    expect(screen.queryByText("未归类")).toBeNull()
+  })
+
+  it("clears the current lane only from lane presentation", async () => {
+    useWorkspaceStore.setState({
+      components: [{ id: "card-a", moduleId: "example", state: "docked", workspaceId: "lane-test", laneId: "lane-a" }],
+    })
+    render(<LaneView />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear Alpha" }))
+    await waitFor(() => expect(useWorkspaceStore.getState().components[0]?.hiddenIn).toMatchObject({ lane: true }))
+    expect(useWorkspaceStore.getState().components[0]?.moduleId).toBe("example")
   })
 })

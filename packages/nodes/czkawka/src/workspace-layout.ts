@@ -12,6 +12,8 @@ export interface CzkawkaWorkspaceLayout {
   activeLane: CzkawkaLaneId;
   soloLane: CzkawkaLaneId | null;
   focusOnHover: boolean;
+  soloOnFocus: boolean;
+  showNavigatorInSolo: boolean;
   focusDelayMs: number;
   edgeRevealDelayMs: number;
   barHandleStyle: CzkawkaBarHandleStyle;
@@ -40,6 +42,8 @@ export const CZKAWKA_WORKSPACE_DEFAULTS: CzkawkaWorkspaceLayout = {
   activeLane: "results",
   soloLane: null,
   focusOnHover: false,
+  soloOnFocus: false,
+  showNavigatorInSolo: true,
   focusDelayMs: 650,
   edgeRevealDelayMs: 250,
   barHandleStyle: "grip",
@@ -88,6 +92,8 @@ export function normalizeCzkawkaWorkspaceLayout(
     activeLane: normalizeLaneId(value.activeLane, CZKAWKA_WORKSPACE_DEFAULTS.activeLane),
     soloLane: value.soloLane == null ? null : normalizeLaneId(value.soloLane, null),
     focusOnHover: value.focusOnHover === true,
+    soloOnFocus: value.soloOnFocus === true,
+    showNavigatorInSolo: value.showNavigatorInSolo !== false,
     focusDelayMs: clamp(value.focusDelayMs, 200, 5000, CZKAWKA_WORKSPACE_DEFAULTS.focusDelayMs),
     edgeRevealDelayMs: clamp(value.edgeRevealDelayMs, 100, 5000, CZKAWKA_WORKSPACE_DEFAULTS.edgeRevealDelayMs),
     barHandleStyle: normalizeHandleStyle(value.barHandleStyle),

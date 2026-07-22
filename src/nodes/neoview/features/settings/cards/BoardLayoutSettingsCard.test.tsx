@@ -7,6 +7,29 @@ import { BoardLayoutSettingsCard } from "./BoardLayoutSettingsCard"
 afterEach(cleanup)
 
 describe("BoardLayoutSettingsCard", () => {
+  it("maps shared swimlane interaction fields to Reader workspace fields", () => {
+    const onWorkspace = vi.fn()
+    render(<BoardLayoutSettingsCard shell={shell()} onSave={vi.fn(async () => undefined)} onWorkspace={onWorkspace} />)
+
+    const interaction = screen.getByRole("tab", { name: "交互" })
+    fireEvent.mouseDown(interaction, { button: 0 })
+    fireEvent.click(interaction)
+    fireEvent.click(screen.getByRole("switch", { name: "Reader 聚焦时自动全屏" }))
+    expect(onWorkspace).toHaveBeenLastCalledWith({ readerSoloOnFocus: false })
+    fireEvent.click(screen.getByRole("switch", { name: "Reader 独占时显示泳道底栏" }))
+    expect(onWorkspace).toHaveBeenLastCalledWith({ showLaneNavigatorInReaderSolo: true })
+
+    const revealDelay = screen.getByRole("spinbutton", { name: "左右泳道展开延迟" })
+    fireEvent.change(revealDelay, { target: { value: "430" } })
+    fireEvent.blur(revealDelay)
+    expect(onWorkspace).toHaveBeenLastCalledWith({ edgeRevealDelayMs: 430 })
+
+    const focusDelay = screen.getByRole("spinbutton", { name: "Reader 重新聚焦延迟" })
+    fireEvent.change(focusDelay, { target: { value: "900" } })
+    fireEvent.blur(focusDelay)
+    expect(onWorkspace).toHaveBeenLastCalledWith({ readerFocusHoverDelayMs: 900 })
+  })
+
   it("[neoview.swimlane.vertical-reveal-zones] mirrors top and bottom zones only while vertical linking is enabled", () => {
     const onWorkspace = vi.fn()
     render(<BoardLayoutSettingsCard shell={shell()} onSave={vi.fn(async () => undefined)} onWorkspace={onWorkspace} />)

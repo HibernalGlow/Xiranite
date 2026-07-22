@@ -18,6 +18,8 @@ export interface SwimlaneWorkspacePreferences {
   activeLaneId?: string
   soloLaneId?: string | null
   focusOnHover: boolean
+  soloOnFocus: boolean
+  showNavigatorInSolo: boolean
   focusDelayMs: number
   edgeRevealDelayMs: number
   barHandleStyle: SwimlaneBarHandleStyle
@@ -30,6 +32,8 @@ export interface SwimlaneWorkspacePreferences {
 
 export const DEFAULT_SWIMLANE_WORKSPACE_PREFERENCES: SwimlaneWorkspacePreferences = {
   focusOnHover: false,
+  soloOnFocus: false,
+  showNavigatorInSolo: true,
   focusDelayMs: 650,
   edgeRevealDelayMs: 250,
   barHandleStyle: "grip",
@@ -45,6 +49,8 @@ export function normalizeSwimlanePreferences(value: Partial<SwimlaneWorkspacePre
     activeLaneId: typeof value?.activeLaneId === "string" ? value.activeLaneId : undefined,
     soloLaneId: typeof value?.soloLaneId === "string" || value?.soloLaneId === null ? value.soloLaneId : undefined,
     focusOnHover: value?.focusOnHover === true,
+    soloOnFocus: value?.soloOnFocus === true,
+    showNavigatorInSolo: value?.showNavigatorInSolo !== false,
     focusDelayMs: clamp(value?.focusDelayMs, 200, 5000, DEFAULT_SWIMLANE_WORKSPACE_PREFERENCES.focusDelayMs),
     edgeRevealDelayMs: clamp(value?.edgeRevealDelayMs, 100, 5000, DEFAULT_SWIMLANE_WORKSPACE_PREFERENCES.edgeRevealDelayMs),
     barHandleStyle: value?.barHandleStyle === "groove" || value?.barHandleStyle === "move" || value?.barHandleStyle === "grab" || value?.barHandleStyle === "edge" ? value.barHandleStyle : "grip",

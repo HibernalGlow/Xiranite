@@ -6,6 +6,7 @@ import { Columns3, LayoutGrid, MousePointer2, PanelsTopLeft, RotateCcw } from "l
 import { lazy, Suspense, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SwimlaneInteractionSettings as SharedSwimlaneInteractionSettings } from "@/components/workspace/swimlane/SwimlaneInteractionSettings"
 import type { ReaderBoardLayoutPatch, ReaderShellConfigDto } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext, ReaderSettingsCardContext } from "../../panels/registry"
 import type { ReaderWorkspacePatch } from "../../workspace/ReaderWorkspaceLayout"
@@ -85,59 +86,24 @@ function SwimlaneInteractionSettings({ shell, onWorkspace }: {
   onWorkspace(patch: ReaderWorkspacePatch): void
 }) {
   const swimlane = shell.workspace!.swimlane
-  const [edgeDelayDraft, setEdgeDelayDraft] = useState(() => String(swimlane.edgeRevealDelayMs))
-  const [focusDelayDraft, setFocusDelayDraft] = useState(() => String(swimlane.readerFocusHoverDelayMs))
-
-  useEffect(() => setEdgeDelayDraft(String(swimlane.edgeRevealDelayMs)), [swimlane.edgeRevealDelayMs])
-  useEffect(() => setFocusDelayDraft(String(swimlane.readerFocusHoverDelayMs)), [swimlane.readerFocusHoverDelayMs])
-
-  function commitEdgeDelay() {
-    const normalized = normalizedDelay(edgeDelayDraft, 100, swimlane.edgeRevealDelayMs)
-    setEdgeDelayDraft(String(normalized))
-    if (normalized !== swimlane.edgeRevealDelayMs) onWorkspace({ edgeRevealDelayMs: normalized })
-  }
-
-  function commitFocusDelay() {
-    const normalized = normalizedDelay(focusDelayDraft, 200, swimlane.readerFocusHoverDelayMs)
-    setFocusDelayDraft(String(normalized))
-    if (normalized !== swimlane.readerFocusHoverDelayMs) onWorkspace({ readerFocusHoverDelayMs: normalized })
-  }
 
   return (
     <div className="grid gap-3">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <DelayInput
-          id="neoview-edge-reveal-delay"
-          label="左右泳道展开延迟"
-          min={100}
-          value={edgeDelayDraft}
-          onChange={setEdgeDelayDraft}
-          onCommit={commitEdgeDelay}
-          onReset={() => setEdgeDelayDraft(String(swimlane.edgeRevealDelayMs))}
-        />
-        <DelayInput
-          id="neoview-reader-focus-hover-delay"
-          label="Reader 重新聚焦延迟"
-          min={200}
-          value={focusDelayDraft}
-          disabled={!swimlane.readerFocusOnHover}
-          onChange={setFocusDelayDraft}
-          onCommit={commitFocusDelay}
-          onReset={() => setFocusDelayDraft(String(swimlane.readerFocusHoverDelayMs))}
-        />
-      </div>
+      <SharedSwimlaneInteractionSettings
+        value={{ soloOnFocus: swimlane.readerSoloOnFocus, showNavigatorInSolo: swimlane.showLaneNavigatorInReaderSolo, edgeRevealDelayMs: swimlane.edgeRevealDelayMs, focusOnHover: swimlane.readerFocusOnHover, focusDelayMs: swimlane.readerFocusHoverDelayMs }}
+        labels={{ soloOnFocus: "Reader 聚焦时自动全屏", showNavigatorInSolo: "Reader 独占时显示泳道底栏", focusOnHover: "Reader 悬停后重新聚焦", focusDelay: "Reader 重新聚焦延迟" }}
+        onChange={(patch) => onWorkspace({
+          ...(patch.soloOnFocus === undefined ? {} : { readerSoloOnFocus: patch.soloOnFocus }),
+          ...(patch.showNavigatorInSolo === undefined ? {} : { showLaneNavigatorInReaderSolo: patch.showNavigatorInSolo }),
+          ...(patch.edgeRevealDelayMs === undefined ? {} : { edgeRevealDelayMs: patch.edgeRevealDelayMs }),
+          ...(patch.focusOnHover === undefined ? {} : { readerFocusOnHover: patch.focusOnHover }),
+          ...(patch.focusDelayMs === undefined ? {} : { readerFocusHoverDelayMs: patch.focusDelayMs }),
+        })}
+      />
       <RevealZoneEditor
         zones={swimlane.edgeRevealZones ?? DEFAULT_REVEAL_ZONES}
         onChange={(edgeRevealZones) => onWorkspace({ edgeRevealZones })}
       />
-      <label className="flex items-center justify-between gap-4 border-t border-border/55 pt-3 text-sm">
-        <span>Reader 悬停自动聚焦</span>
-        <input
-          type="checkbox"
-          checked={swimlane.readerFocusOnHover}
-          onChange={(event) => onWorkspace({ readerFocusOnHover: event.currentTarget.checked })}
-        />
-      </label>
     </div>
   )
 }
@@ -156,18 +122,6 @@ function SwimlaneWorkspaceSettings({ shell, onWorkspace }: {
           <Button type="button" size="sm" variant={shell.workspace!.mode === "swimlane" ? "default" : "ghost"} aria-pressed={shell.workspace!.mode === "swimlane"} onClick={() => onWorkspace({ mode: "swimlane" })}><Columns3 />泳道</Button>
         </div>
       </div>
-      <label className="flex items-center justify-between gap-4 border-t border-border/55 pt-3 text-sm">
-        <span>Reader 聚焦时自动全屏</span>
-        <input type="checkbox" checked={swimlane.readerSoloOnFocus} onChange={(event) => onWorkspace({ readerSoloOnFocus: event.currentTarget.checked })} />
-      </label>
-      <label className="flex items-center justify-between gap-4 border-t border-border/55 pt-3 text-sm">
-        <span>Reader 独占时显示泳道底栏</span>
-        <input
-          type="checkbox"
-          checked={swimlane.showLaneNavigatorInReaderSolo}
-          onChange={(event) => onWorkspace({ showLaneNavigatorInReaderSolo: event.currentTarget.checked })}
-        />
-      </label>
     </div>
   )
 }
@@ -388,49 +342,4 @@ function resizedZone(zone: RevealZones[RevealEdge], corner: RevealCorner, pointe
 
 function clampPercent(value: number): number {
   return Math.round(Math.min(99, Math.max(0, value)) * 10) / 10
-}
-
-function DelayInput({ id, label, min, value, disabled = false, onChange, onCommit, onReset }: {
-  id: string
-  label: string
-  min: number
-  value: string
-  disabled?: boolean
-  onChange(value: string): void
-  onCommit(): void
-  onReset(): void
-}) {
-  return (
-    <label className="grid gap-2 text-sm" htmlFor={id}>
-      <span>{label}</span>
-      <span className="flex items-center gap-2">
-        <input
-          id={id}
-          aria-label={label}
-          type="number"
-          min={min}
-          max={5_000}
-          step={50}
-          disabled={disabled}
-          className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 text-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          value={value}
-          onChange={(event) => onChange(event.currentTarget.value)}
-          onBlur={onCommit}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") event.currentTarget.blur()
-            if (event.key === "Escape") {
-              onReset()
-              event.currentTarget.blur()
-            }
-          }}
-        />
-        <span className="text-xs text-muted-foreground">ms</span>
-      </span>
-    </label>
-  )
-}
-
-function normalizedDelay(value: string, minimum: number, fallback: number): number {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? Math.round(Math.min(5_000, Math.max(minimum, parsed))) : fallback
 }

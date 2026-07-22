@@ -24,8 +24,10 @@ describe("swimlane model", () => {
   })
 
   it("normalizes workspace interaction preferences", () => {
-    expect(normalizeSwimlanePreferences({ focusOnHover: true, focusDelayMs: 10, edgeRevealDelayMs: 9000, barHandleStyle: "groove", barHandlePosition: "right", navigatorDock: "title", autoFitToViewport: true })).toMatchObject({
+    expect(normalizeSwimlanePreferences({ focusOnHover: true, soloOnFocus: true, showNavigatorInSolo: false, focusDelayMs: 10, edgeRevealDelayMs: 9000, barHandleStyle: "groove", barHandlePosition: "right", navigatorDock: "title", autoFitToViewport: true })).toMatchObject({
       focusOnHover: true,
+      soloOnFocus: true,
+      showNavigatorInSolo: false,
       focusDelayMs: 200,
       edgeRevealDelayMs: 5000,
       barHandleStyle: "groove",

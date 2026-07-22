@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, describe, expect, test, vi } from "vitest"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { CzkawkaData, CzkawkaInput } from "@xiranite/node-czkawka/core"
+import { CZKAWKA_WORKSPACE_DEFAULTS } from "@xiranite/node-czkawka/workspace-layout"
 import { Component, scanInput } from "./Component"
 import type { CzkawkaCardState } from "./types"
 import i18n from "@/i18n"
@@ -473,6 +474,46 @@ describe("Czkawka node", () => {
     fireEvent.contextMenu(screen.getByRole("button", { name: "拖动或设置泳道切换栏" }))
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "常驻按比例适应视口" }))
     expect(host.stateValue.workspaceLayout?.autoFitToViewport).toBe(true)
+  })
+
+  test("maps shared swimlane interaction settings into Czkawka state", () => {
+    Object.assign(surface, { mode: "workspace", width: 1440, height: 860 })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" })
+    render(<Component compId="czkawka" host={host} />)
+
+    fireEvent.click(screen.getByRole("button", { name: /节点设置|Node settings/ }))
+    const settings = screen.getByRole("dialog")
+    fireEvent.click(within(settings).getByRole("switch", { name: "泳道聚焦时自动全屏" }))
+    fireEvent.click(within(settings).getByRole("switch", { name: "独占时显示泳道切换栏" }))
+    const revealDelay = within(settings).getByRole("spinbutton", { name: "左右泳道展开延迟" })
+    fireEvent.change(revealDelay, { target: { value: "420" } })
+    fireEvent.blur(revealDelay)
+    const focusDelay = within(settings).getByRole("spinbutton", { name: "泳道重新聚焦延迟" })
+    fireEvent.click(within(settings).getByRole("switch", { name: "悬停后重新聚焦泳道" }))
+    fireEvent.change(focusDelay, { target: { value: "780" } })
+    fireEvent.blur(focusDelay)
+
+    expect(host.stateValue.workspaceLayout).toMatchObject({
+      soloOnFocus: true,
+      showNavigatorInSolo: false,
+      edgeRevealDelayMs: 420,
+      focusOnHover: true,
+      focusDelayMs: 780,
+    })
+  })
+
+  test("uses shared focus-to-solo and solo navigator behavior", () => {
+    Object.assign(surface, { mode: "workspace", width: 1440, height: 860 })
+    const host = createHost({
+      tool: "duplicate-files",
+      includedDirectoriesText: "D:/media",
+      workspaceLayout: { ...CZKAWKA_WORKSPACE_DEFAULTS, soloOnFocus: true, showNavigatorInSolo: false },
+    })
+    render(<Component compId="czkawka" host={host} />)
+
+    fireEvent.click(screen.getByRole("button", { name: /切换到.*分析与操作/ }))
+    expect(host.stateValue.workspaceLayout).toMatchObject({ activeLane: "analysis", soloLane: "analysis" })
+    expect(screen.queryByRole("navigation", { name: "泳道快速切换" })).toBeNull()
   })
 
   test("persists a movable and resizable analysis panel inside the node surface", () => {

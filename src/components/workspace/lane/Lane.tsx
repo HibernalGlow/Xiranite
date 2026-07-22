@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Pencil, Ellipsis, EyeOff, Trash2 } from "lucide-react"
+import { Pencil, Ellipsis, Eraser, EyeOff, Trash2 } from "lucide-react"
 import type { Lane as LaneType } from "@/types/workspace"
 import { useWorkspaceActions } from "@/store/workspaceStore"
 import { useModuleDropTarget } from "@/hooks/useModuleDropTarget"
@@ -45,9 +45,10 @@ interface Props {
   onTitleHostChange?(node: HTMLElement | null): void
   hideTitleForNavigator?: boolean
   onWidthRatioChange?(ratio: number): void
+  onClear?(): void
 }
 
-export function Lane({ lane, components, active = false, solo = false, soloWidth, onActivate, onHoverFocus, onHoverFocusCancel, onTitleHostChange, hideTitleForNavigator = false, onWidthRatioChange }: Props) {
+export function Lane({ lane, components, active = false, solo = false, soloWidth, onActivate, onHoverFocus, onHoverFocusCancel, onTitleHostChange, hideTitleForNavigator = false, onWidthRatioChange, onClear }: Props) {
   const { t } = useTranslation()
   const workspaceActions = useWorkspaceActions()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -225,6 +226,14 @@ export function Lane({ lane, components, active = false, solo = false, soloWidth
               className="flex items-center gap-2 px-2 py-1.5 w-full text-left hover:bg-muted/60 rounded-sm border-t border-border/60"
             >
               <EyeOff className="h-3.5 w-3.5" /> {t("common:hide")}
+            </button>
+            <button
+              type="button"
+              disabled={components.length === 0 || !onClear}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onClear?.() }}
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-45"
+            >
+              <Eraser className="h-3.5 w-3.5" /> 清空当前泳道
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); workspaceActions.removeLane(lane.id) }}
