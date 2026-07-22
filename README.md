@@ -43,7 +43,7 @@ bun run dev:lean
 # 仅启动 Vite 前端（后端独立运行时）
 bun run dev:vite
 
-# 低内存 Vite 开发模式（关闭开发期 React Compiler，默认 1 GiB 堆预算）
+# 低内存 Vite 开发模式（开发期 Compiler 默认已关闭；额外限制为 1 GiB 堆预算）
 bun run dev:vite:lean
 
 # 启动桌面端开发模式
@@ -52,6 +52,8 @@ bun run dev:desktop
 # 低内存桌面开发模式
 bun run dev:desktop:lean
 ```
+
+普通 Vite 开发服务器固定关闭 React Compiler；生产构建默认使用 `infer`。Compiler 性能基准通过专用诊断环境显式覆盖，不影响日常开发启动。
 
 多 Agent 并行开发时的端口、后端 manifest 与共享 Vite 缓存约定见 [开发会话说明](docs/development-sessions.md)。
 

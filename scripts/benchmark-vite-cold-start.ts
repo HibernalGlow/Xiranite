@@ -89,6 +89,53 @@ const VARIANTS: Variant[] = [
     },
   },
   {
+    id: "no-pretransform",
+    description: "Disable recursive static-import pre-transform",
+    override: { server: { preTransformRequests: false } },
+  },
+  {
+    id: "no-pretransform-no-optimize",
+    description: "Disable recursive pre-transform and explicit dependency optimization",
+    override: {
+      server: { preTransformRequests: false },
+      optimizeDeps: {
+        noDiscovery: true,
+        holdUntilCrawlEnd: false,
+        include: [],
+        exclude: [],
+      },
+    },
+  },
+  {
+    id: "watch-ignore-all",
+    description: "Ignore the repository tree in Chokidar",
+    override: { server: { watch: { ignored: ["**/*"] } } },
+  },
+  {
+    id: "watch-ignore-nonruntime",
+    description: "Ignore large non-runtime repository trees in Chokidar",
+    override: {
+      server: {
+        watch: {
+          ignored: [
+            "**/.cache/**",
+            "**/.playwright-cli/**",
+            "**/.tmp/**",
+            "**/.turbo/**",
+            "**/artifacts/**",
+            "**/build/**",
+            "**/examples/**",
+            "**/migration/**",
+            "**/native/target/**",
+            "**/output/**",
+            "**/ref/**",
+            "**/tmp/**",
+          ],
+        },
+      },
+    },
+  },
+  {
     id: "no-optimize-include",
     description: "optimizeDeps.include emptied",
     override: {
