@@ -82,8 +82,21 @@ export function BoardSwimlaneEditor({
   const [drag, setDrag] = useState<DragState>()
   const [collapsedLanes, setCollapsedLanes] = useState<Record<LaneId, boolean>>({ left: false, right: false, hidden: false })
   const dragInitialLanesRef = useRef<BoardLanes>()
+  // Only re-sync the draft when the board itself changes. Depending on the whole
+  // `shell` object reset the kanban whenever workspace auto-fit / material wrote
+  // a new shell identity — wiping in-progress left/right moves and thrashing render.
+  const boardSyncKey = `${shell.revision ?? 0}\0${JSON.stringify(shell.panelLayout)}\0${JSON.stringify(shell.cardLayout)}`
 
-  useEffect(() => setLanes(createBoardLanes(shell)), [shell])
+  useEffect(() => {
+    if (saving) return
+    setLanes((current) => {
+      const next = createBoardLanes(shell)
+      // Avoid re-render thrash when the board payload is unchanged.
+      return boardLanesEqual(current, next) ? current : next
+    })
+    // shell is read when boardSyncKey changes (revision / panel / card layout).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional board-only sync
+  }, [boardSyncKey, saving])
 
   const panelColumns = useMemo<Record<UniqueIdentifier, BoardPanel[]>>(() => ({
     left: lanes.left,
@@ -536,7 +549,24 @@ function acceptPanelColumns(lanes: BoardLanes, columns: Record<UniqueIdentifier,
       if (!panel.canMove && previous?.lane !== lane.id) return lanes
     }
   }
-  return next
+  return boardLanesEqual(lanes, next) ? lanes : next
+}
+
+function boardLanesEqual(left: BoardLanes, right: BoardLanes): boolean {
+  for (const lane of LANES) {
+    const leftPanels = left[lane.id]
+    const rightPanels = right[lane.id]
+    if (leftPanels.length !== rightPanels.length) return false
+    for (let index = 0; index < leftPanels.length; index += 1) {
+      const a = leftPanels[index]!
+      const b = rightPanels[index]!
+      if (a.id !== b.id || a.cards.length !== b.cards.length) return false
+      for (let cardIndex = 0; cardIndex < a.cards.length; cardIndex += 1) {
+        if (a.cards[cardIndex]!.id !== b.cards[cardIndex]!.id) return false
+      }
+    }
+  }
+  return true
 }
 
 function moveCardOver(lanes: BoardLanes, cardId: string, overId: string): BoardLanes {

@@ -185,11 +185,31 @@ export function fitReaderSwimlanesToViewport(
     ]),
   ) as NonNullable<ReaderWorkspacePatch["lanes"]>
   const readerWidth = lanes.reader?.width ?? readerLaneWidth(width, swimlane.readerWidthRatio)
+  // Do not force readerSolo here — callers that need to leave solo mode (one-shot
+  // fit / enable auto-fit) pass `readerSolo: false` explicitly. Auto-fit effects
+  // must stay pure width patches so they can no-op without thrashing shell state.
   return {
-    readerSolo: false,
     readerWidthRatio: clamp(readerWidth / width, MIN_READER_WIDTH_RATIO, MAX_READER_WIDTH_RATIO),
     lanes,
   }
+}
+
+/** True when a fit patch would not change any live swimlane width or reader ratio. */
+export function isSwimlaneFitNoOp(
+  swimlane: ReaderWorkspaceConfig["swimlane"],
+  patch: ReaderWorkspacePatch,
+): boolean {
+  if (patch.readerWidthRatio !== undefined
+    && Math.abs(patch.readerWidthRatio - swimlane.readerWidthRatio) > 1e-9) {
+    return false
+  }
+  if (patch.readerSolo !== undefined && patch.readerSolo !== swimlane.readerSolo) return false
+  if (!patch.lanes) return true
+  for (const [laneId, lane] of Object.entries(patch.lanes)) {
+    if (lane?.width === undefined) continue
+    if (lane.width !== swimlane.lanes[laneId]?.width) return false
+  }
+  return true
 }
 
 export function sanitizeSwimlaneWidth(

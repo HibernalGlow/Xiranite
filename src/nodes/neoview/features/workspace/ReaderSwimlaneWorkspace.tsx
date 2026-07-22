@@ -36,6 +36,7 @@ import {
   MIN_READER_WIDTH_RATIO,
   DEFAULT_LANE_NAVIGATOR_POSITION,
   fitReaderSwimlanesToViewport,
+  isSwimlaneFitNoOp,
   readerLaneWidth,
   reorderedReaderLanes,
   sanitizeSwimlaneWidth,
@@ -292,12 +293,25 @@ export function ReaderSwimlaneWorkspace({
     clearTimer(readerFocusTimerRef)
     setPreviewLane(undefined)
     const measuredWidth = viewportRef.current?.getBoundingClientRect().width || viewportRef.current?.clientWidth || window.innerWidth
-    onWorkspaceChange(fitReaderSwimlanesToViewport(measuredWidth, swimlane))
+    // One-shot fit expands every lane, so leave Reader solo if needed.
+    onWorkspaceChange({ ...fitReaderSwimlanesToViewport(measuredWidth, swimlane), readerSolo: false })
   }
 
+  // Keep latest swimlane/callback in refs so the auto-fit effect only re-runs on
+  // primitive geometry changes — not on every parent re-render (commitWorkspace and
+  // readerWorkspaceConfig both produce new identities each time).
+  const swimlaneRef = useRef(swimlane)
+  const onWorkspaceChangeRef = useRef(onWorkspaceChange)
+  swimlaneRef.current = swimlane
+  onWorkspaceChangeRef.current = onWorkspaceChange
+
   useEffect(() => {
-    if (!swimlane.autoFitToViewport || soloLaneId) return
-    onWorkspaceChange(fitReaderSwimlanesToViewport(viewportWidth, swimlane))
+    const current = swimlaneRef.current
+    if (!current.autoFitToViewport || soloLaneId) return
+    const patch = fitReaderSwimlanesToViewport(viewportWidth, current)
+    // Unconditional commits rewrite shell every cycle → Maximum update depth.
+    if (isSwimlaneFitNoOp(current, patch)) return
+    onWorkspaceChangeRef.current(patch)
   }, [autoFitGeometryKey, swimlane.autoFitToViewport, soloLaneId, viewportWidth])
 
   function addLane(title: string): void {
@@ -536,7 +550,11 @@ export function ReaderSwimlaneWorkspace({
               return
             }
             const measuredWidth = viewportRef.current?.getBoundingClientRect().width || viewportWidth
-            onWorkspaceChange({ ...fitReaderSwimlanesToViewport(measuredWidth, swimlane), autoFitToViewport })
+            onWorkspaceChange({
+              ...fitReaderSwimlanesToViewport(measuredWidth, swimlane),
+              autoFitToViewport,
+              readerSolo: false,
+            })
           }}
           onHandleStyleChange={(barHandleStyle) => onWorkspaceChange({ barHandleStyle })}
           onHandlePositionChange={(barHandlePosition) => onWorkspaceChange({ barHandlePosition })}
