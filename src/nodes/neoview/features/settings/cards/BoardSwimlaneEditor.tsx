@@ -82,8 +82,13 @@ export function BoardSwimlaneEditor({
   const [drag, setDrag] = useState<DragState>()
   const [collapsedLanes, setCollapsedLanes] = useState<Record<LaneId, boolean>>({ left: false, right: false, hidden: false })
   const dragInitialLanesRef = useRef<BoardLanes>()
-  /** Recent board signatures in this drag gesture — blocks A↔B setState thrash. */
-  const dragSignatureHistoryRef = useRef<string[]>([])
+  /**
+   * Stable live-reorder gate: only commit a layout mutation when the drop
+   * target id changes. Continuous remeasure must not re-run setState every frame
+   * (that was the Maximum update depth path). Visual gap still updates because
+   * each new over id moves the item once into the landing slot.
+   */
+  const lastOverIdRef = useRef<string | null>(null)
   // Only re-sync the draft when the board itself changes. Depending on the whole
   // `shell` object reset the kanban whenever workspace auto-fit / material wrote
   // a new shell identity — wiping in-progress left/right moves and thrashing render.
@@ -160,7 +165,7 @@ export function BoardSwimlaneEditor({
     const title = panel?.title ?? card?.title ?? activeId
     if (kind === "panel" || kind === "card") {
       dragInitialLanesRef.current = cloneLanes(lanes)
-      dragSignatureHistoryRef.current = [boardSignature(lanes)]
+      lastOverIdRef.current = null
       setDrag({
         kind,
         id: activeId,
@@ -175,27 +180,23 @@ export function BoardSwimlaneEditor({
 
   function onDragOver(event: DragOverEvent) {
     const { active, over } = event
-    if (!over) return
-    // Always suppress Kanban's built-in live reorder. Its continuous remeasure
-    // + cross-column arrayMove thrash (A→B→A) is what blows Maximum update depth
-    // when dragging panels/cards between left/right board lanes.
+    // Own live reorder ourselves. Kanban's onValueChange path remeasures every
+    // frame and thrashs setState; we only mutate when the drop target id changes.
     event.activatorEvent.preventDefault()
+    if (!over) return
     const activeId = String(active.id)
     const overId = String(over.id)
+    if (lastOverIdRef.current === overId) return
+    lastOverIdRef.current = overId
+
     setLanes((current) => {
+      // Full placement (lane + index) so siblings open a landing gap under the ghost.
       const next = findCardLocation(current, activeId)
-        ? moveCardAcrossContainers(current, activeId, overId)
+        ? moveCardToTarget(current, activeId, overId)
         : findPanelLocation(current, activeId)
-          ? movePanelAcrossLanes(current, activeId, overId)
+          ? movePanelToTarget(current, activeId, overId)
           : current
-      if (next === current || boardLanesEqual(current, next)) return current
-      const signature = boardSignature(next)
-      const history = dragSignatureHistoryRef.current
-      // Same as last apply, or reverse of the last apply (A↔B oscillation).
-      if (history.at(-1) === signature) return current
-      if (history.length >= 2 && history.at(-2) === signature) return current
-      dragSignatureHistoryRef.current = [...history, signature].slice(-8)
-      return next
+      return boardLanesEqual(current, next) ? current : next
     })
   }
 
@@ -203,9 +204,9 @@ export function BoardSwimlaneEditor({
     const { active, over } = event
     const initialLanes = dragInitialLanesRef.current
     dragInitialLanesRef.current = undefined
-    dragSignatureHistoryRef.current = []
+    lastOverIdRef.current = null
     setDrag(undefined)
-    // Suppress Kanban end-of-drag reorder too; we own placement.
+    // Suppress Kanban's end-of-drag reorder; placement is already applied live.
     event.activatorEvent.preventDefault()
     if (!over) {
       if (initialLanes) setLanes(initialLanes)
@@ -213,32 +214,28 @@ export function BoardSwimlaneEditor({
     }
     const activeId = String(active.id)
     const overId = String(over.id)
-    if (findCardLocation(lanes, activeId) || findCardLocation(initialLanes ?? lanes, activeId)) {
-      if (!cardTargetAccepts(lanes, activeId, overId) && initialLanes) {
-        // Allow finalize against current lanes if the card already moved live.
-        if (!findCardLocation(lanes, activeId)) {
-          setLanes(initialLanes)
-          return
+    // One final snap to the release target (covers the case where the last
+    // pointer frame never fired onDragOver for this over id).
+    setLanes((current) => {
+      if (findCardLocation(current, activeId)) {
+        if (!cardTargetAccepts(current, activeId, overId)) {
+          return initialLanes && !findCardLocation(current, activeId) ? initialLanes : current
         }
-      }
-      // Finalize card order (including within-panel insert index) once.
-      setLanes((current) => {
         const next = moveCardToTarget(current, activeId, overId)
         return boardLanesEqual(current, next) ? current : next
-      })
-      return
-    }
-    if (findPanelLocation(lanes, activeId) || findPanelLocation(initialLanes ?? lanes, activeId)) {
-      setLanes((current) => {
+      }
+      if (findPanelLocation(current, activeId)) {
         const next = movePanelToTarget(current, activeId, overId)
         return boardLanesEqual(current, next) ? current : next
-      })
-    }
+      }
+      // Active item missing from live state — restore snapshot.
+      return initialLanes ?? current
+    })
   }
 
   function onDragCancel() {
     setDrag(undefined)
-    dragSignatureHistoryRef.current = []
+    lastOverIdRef.current = null
     const initialLanes = dragInitialLanesRef.current
     dragInitialLanesRef.current = undefined
     if (initialLanes) setLanes(initialLanes)
@@ -252,8 +249,8 @@ export function BoardSwimlaneEditor({
       <Kanban
         value={panelColumns}
         getItemValue={(panel) => panel.id}
-        // Intentionally omit onValueChange: live column mutations are owned by
-        // onDragOver/onDragEnd above to avoid nested setState thrash.
+        // Live reorder is owned by onDragOver (gated by lastOverId). Do not also
+        // wire onValueChange — dual writers caused Maximum update depth.
         collisionDetection={collisionDetection}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
@@ -278,13 +275,13 @@ export function BoardSwimlaneEditor({
             />
           ))}
         </KanbanBoard>
-        <KanbanOverlay className="z-[1000]">
+        <KanbanOverlay className="z-[1000] drop-shadow-xl">
           {() => drag ? <BoardDragPreview drag={drag} /> : null}
         </KanbanOverlay>
       </Kanban>
       {error ? <p role="alert" className="text-sm text-destructive">保存失败：{error}</p> : null}
       <p className="text-[11px] text-muted-foreground">
-        提示：不可隐藏的卡片不会进「隐藏」泳道；独占卡片不能与其他卡片共用可见面板。
+        拖动时跟随指针显示虚影，列表会让出落地空位；不可隐藏的卡片不会进「隐藏」泳道，独占卡片不能与其他卡片共用可见面板。
       </p>
   </>
   if (embedded) return <div className="grid gap-3"><div className="flex flex-wrap justify-end gap-2">{actions}</div>{content}</div>
@@ -391,7 +388,7 @@ function SortablePanel({
   return (
     <KanbanItem
       value={panel.id}
-      className="relative z-0 h-auto flex-none overflow-visible rounded-md border bg-card p-0 shadow-sm data-dragging:z-20"
+      className="relative z-0 h-auto flex-none overflow-visible rounded-md border bg-card p-0 shadow-sm data-dragging:z-20 data-dragging:border-dashed data-dragging:border-primary/45 data-dragging:bg-primary/5 data-dragging:opacity-40 data-dragging:shadow-none"
       data-neoview-board-panel={panel.id}
     >
       <header className="flex items-center gap-1.5 border-b px-2 py-1.5">
@@ -444,7 +441,7 @@ function SortableCard({
   return (
     <KanbanItem
       value={card.id}
-      className="relative z-0 flex h-auto min-h-8 flex-none items-center gap-1.5 rounded border bg-background px-2 py-1.5 text-[11px] data-dragging:z-30"
+      className="relative z-0 flex h-auto min-h-8 flex-none items-center gap-1.5 rounded border bg-background px-2 py-1.5 text-[11px] data-dragging:z-30 data-dragging:border-dashed data-dragging:border-primary/45 data-dragging:bg-primary/5 data-dragging:opacity-40 data-dragging:shadow-none"
       data-neoview-board-card={card.id}
       data-neoview-board-card-panel={panelId}
     >
@@ -581,31 +578,6 @@ function boardSignature(lanes: BoardLanes): string {
       .join("|")
     return `${lane.id}={${panels}}`
   }).join(";")
-}
-
-/** Live drag-over: only change card panel membership, never fine-grained index thrash. */
-function moveCardAcrossContainers(lanes: BoardLanes, cardId: string, overId: string): BoardLanes {
-  const from = findCardLocation(lanes, cardId)
-  if (!from) return lanes
-  const target = resolveCardTarget(lanes, overId)
-  if (!target) return lanes
-  // Same panel → leave ordering alone until dragEnd.
-  if (from.panelId === target.panelId) return lanes
-  if (!cardTargetAccepts(lanes, cardId, overId)) return lanes
-  return moveCardToTarget(lanes, cardId, overId)
-}
-
-/** Live drag-over: only change panel lane membership. */
-function movePanelAcrossLanes(lanes: BoardLanes, panelId: string, overId: string): BoardLanes {
-  const from = findPanelLocation(lanes, panelId)
-  if (!from) return lanes
-  const targetLane = resolvePanelLane(lanes, overId)
-  if (!targetLane || targetLane === from.lane) return lanes
-  const panel = lanes[from.lane][from.index]
-  if (!panel) return lanes
-  if (targetLane === "hidden" && !panel.canHide) return lanes
-  if (!panel.canMove) return lanes
-  return movePanelToLane(lanes, panelId, targetLane, lanes[targetLane].length)
 }
 
 function moveCardToTarget(lanes: BoardLanes, cardId: string, overId: string): BoardLanes {
@@ -745,28 +717,28 @@ function BoardDragPreview({ drag }: { drag: DragState }) {
     const PanelIcon = drag.icon ?? PanelLeft
     return (
       <article
-        className="w-80 overflow-hidden rounded-md border border-primary/40 bg-card shadow-2xl"
+        className="pointer-events-none w-80 overflow-hidden rounded-md border-2 border-primary/55 bg-card/95 shadow-2xl ring-2 ring-primary/20 backdrop-blur-sm"
         data-neoview-drag-preview="panel"
-        style={{ width: drag.width, minHeight: drag.height }}
+        style={{ width: drag.width ?? 320, minHeight: drag.height ?? 72 }}
       >
-        <header className="flex items-center gap-2 border-b px-3 py-2">
-          <span className="grid size-6 place-items-center rounded bg-muted" aria-hidden="true"><PanelIcon className="size-3.5" /></span>
+        <header className="flex items-center gap-2 border-b border-primary/20 bg-primary/5 px-3 py-2">
+          <span className="grid size-6 place-items-center rounded bg-primary/15 text-primary" aria-hidden="true"><PanelIcon className="size-3.5" /></span>
           <span className="min-w-0 flex-1 truncate text-xs font-medium">{drag.title}</span>
           <span className="text-[10px] tabular-nums text-muted-foreground">{drag.cardCount ?? 0}</span>
         </header>
-        <div className="min-h-12 bg-muted/20" aria-hidden="true" />
+        <div className="min-h-12 bg-muted/25" aria-hidden="true" />
       </article>
     )
   }
 
   return (
     <div
-      className="flex w-72 items-center gap-2 rounded border border-primary/40 bg-background px-3 py-2 text-[11px] shadow-2xl"
+      className="pointer-events-none flex w-72 items-center gap-2 rounded border-2 border-primary/55 bg-background/95 px-3 py-2 text-[11px] shadow-2xl ring-2 ring-primary/20 backdrop-blur-sm"
       data-neoview-drag-preview="card"
-      style={{ width: drag.width, minHeight: drag.height }}
+      style={{ width: drag.width ?? 288, minHeight: drag.height ?? 32 }}
     >
-      <GripVertical className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <span className="min-w-0 truncate">{drag.title}</span>
+      <GripVertical className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+      <span className="min-w-0 truncate font-medium">{drag.title}</span>
     </div>
   )
 }
