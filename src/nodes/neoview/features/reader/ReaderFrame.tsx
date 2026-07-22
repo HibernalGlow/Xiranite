@@ -5,6 +5,7 @@
  * @migration-status adapted
  */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
+import { neoviewDebug } from "../../neoviewDebug"
 import {
   calculateReaderFrameSize,
   calculateReaderScale,
@@ -65,12 +66,41 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
   const viewportRef = useRef<HTMLDivElement>(null)
   const viewport = useObservedSize(viewportRef, panorama)
   const [committedSlots, setCommittedSlots] = useState<{ sessionId: string; pages: ReaderPageDto[] }>(() => ({ sessionId, pages }))
+  const [upscalePreloadEnabled, setUpscalePreloadEnabled] = useState(false)
   const displayedPages = committedSlots.sessionId === sessionId
     ? pages.map((page, index) => {
         const committed = committedSlots.pages[index]
         return committed?.mediaKind === page.mediaKind ? committed : page
       })
     : pages
+  useEffect(() => {
+    const mountedAt = performance.now()
+    neoviewDebug("reader-frame:mount", {
+      sessionId,
+      totalPages,
+      anchorPageIndex,
+      panorama: Boolean(panorama),
+      pageMode,
+      pageCount: pages.length,
+    })
+    const raf = requestAnimationFrame(() => {
+      neoviewDebug("reader-frame:first-frame", {
+        sessionId,
+        sinceMountMs: Math.round((performance.now() - mountedAt) * 10) / 10,
+      })
+    })
+    // Keep auto-upscale off the first paint; start after the current page can settle.
+    const upscaleTimer = window.setTimeout(() => setUpscalePreloadEnabled(true), 800)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.clearTimeout(upscaleTimer)
+      neoviewDebug("reader-frame:unmount", {
+        sessionId,
+        livedMs: Math.round(performance.now() - mountedAt),
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount lifetime is session-scoped
+  }, [sessionId])
   useEffect(() => {
     setCommittedSlots((current) => current.sessionId === sessionId ? current : { sessionId, pages })
   }, [pages, sessionId])
@@ -88,7 +118,13 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
     ? pages.filter((page) => page.mediaKind !== "video").map((page) => page.id).join("\0") || undefined
     : undefined
   useReaderHoverScroll(viewportRef, { enabled: hoverScrollEnabled && !panorama, speed: hoverScrollSpeed, pageKey: hoverScrollPageKey })
-  const upscalePreload = useReaderUpscalePreload({ client, sessionId, preloadGeneration, currentPageIndex: anchorPageIndex, superResolution })
+  const upscalePreload = useReaderUpscalePreload({
+    client,
+    sessionId,
+    preloadGeneration,
+    currentPageIndex: anchorPageIndex,
+    superResolution: upscalePreloadEnabled ? superResolution : undefined,
+  })
   const currentPageId = pages.find((page) => page.index === anchorPageIndex)?.id ?? pages[0]?.id
   const progressLayer = <ReaderProgressLayer
     sessionId={sessionId}

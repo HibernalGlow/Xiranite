@@ -10,6 +10,7 @@ import {
 } from "@xiranite/node-neoview/ui-core"
 import { DEFAULT_READER_IMAGE_TRIM, readerImageCropTranslation, readerImageTrimClipPath, readerImageTrimEffectiveDimensions, type ReaderImageCropInsets } from "@xiranite/node-neoview/ui-core"
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
+import { neoviewDebug } from "../../neoviewDebug"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
@@ -88,6 +89,34 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
     if (!element) return
     return imageTrim.registerImage(committedIdentity, element)
   }, [committedIdentity, decodedCommittedIdentity, imageTrim, imageTrimDetectionActive])
+
+  useEffect(() => {
+    const startedAt = performance.now()
+    neoviewDebug("page-image:mount", {
+      pageId: page.id,
+      pageIndex: page.index,
+      mediaKind: page.mediaKind,
+      hasDimensions: Boolean(page.dimensions),
+    })
+    return () => {
+      neoviewDebug("page-image:unmount", {
+        pageId: page.id,
+        pageIndex: page.index,
+        livedMs: Math.round(performance.now() - startedAt),
+      })
+    }
+  }, [page.id, page.index, page.mediaKind, page.dimensions])
+
+  useEffect(() => {
+    if (decodedCommittedIdentity !== committedIdentity) return
+    neoviewDebug("page-image:decoded", {
+      pageId: committedPage.id,
+      pageIndex: committedPage.index,
+      natural: imageRef.current
+        ? { w: imageRef.current.naturalWidth, h: imageRef.current.naturalHeight }
+        : undefined,
+    })
+  }, [committedIdentity, committedPage.id, committedPage.index, decodedCommittedIdentity])
 
   useEffect(() => {
     if (!settings.colorizeEnabled || !settings.onlyBlackAndWhite) {

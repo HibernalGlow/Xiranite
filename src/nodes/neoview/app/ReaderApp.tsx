@@ -239,7 +239,16 @@ const LazyReaderSettingsWindow = lazy(async () => ({ default: (await loadReaderS
 type ReaderFrameModule = typeof import("../features/reader/ReaderFrame")
 let readerFrameModule: Promise<ReaderFrameModule> | undefined
 function loadReaderFrame(): Promise<ReaderFrameModule> {
-  readerFrameModule ??= import("../features/reader/ReaderFrame")
+  if (!readerFrameModule) {
+    const startedAt = performance.now()
+    neoviewDebug("reader:frame-chunk:load:begin")
+    readerFrameModule = import("../features/reader/ReaderFrame").then((module) => {
+      neoviewDebug("reader:frame-chunk:load:end", {
+        durationMs: Math.round((performance.now() - startedAt) * 10) / 10,
+      })
+      return module
+    })
+  }
   return readerFrameModule
 }
 const LazyReaderFrame = lazy(async () => ({ default: (await loadReaderFrame()).ReaderFrame }))
@@ -477,10 +486,12 @@ export function ReaderApp({
           })
           setReaderFrameAllowed(true)
         }
+        // Prefer a short settle window so folder/history sidebars finish their
+        // post-open re-render before the heavy PageImage/decode path starts.
         if (typeof requestIdleCallback === "function") {
-          idleHandle = requestIdleCallback(allow, { timeout: 120 })
+          idleHandle = requestIdleCallback(allow, { timeout: 250 })
         } else {
-          timeoutHandle = window.setTimeout(allow, 16)
+          timeoutHandle = window.setTimeout(allow, 48)
         }
       })
     })
@@ -517,6 +528,9 @@ export function ReaderApp({
       initialPath: initialPath || undefined,
       surface: surface.mode,
     })
+    // Warm the frame chunk before the user opens a book so open:committed does
+    // not pay module-evaluation cost on the freeze-critical turn.
+    void loadReaderFrame().catch(() => undefined)
     const controller = new AbortController()
     const configStartedAt = performance.now()
     neoviewDebug("reader:config:request", { sessionScopeId })
