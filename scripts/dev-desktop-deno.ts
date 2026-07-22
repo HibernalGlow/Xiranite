@@ -14,6 +14,7 @@ if (leanIndex !== -1) args.splice(leanIndex, 1)
 const frontendUrl = await resolveManagedFrontendUrl()
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
+const viteCacheDir = managedViteCacheDir(frontendUrl)
 
 if (await isFrontendReachable()) {
   throw new Error(
@@ -54,7 +55,7 @@ await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token }, fr
 console.log(`[xiranite-backend] ${backend.url}`)
 console.log(`[xiranite-frontend] ${frontendUrl}`)
 
-const removedTemps = await clearStaleViteOptimizeTemps()
+const removedTemps = await clearStaleViteOptimizeTemps(viteCacheDir)
 if (removedTemps > 0) console.log(`[xiranite-frontend] cleared ${removedTemps} stale Vite optimize temp(s)`)
 
 const vite = spawnManagedVite([
@@ -73,7 +74,7 @@ const vite = spawnManagedVite([
     VITE_XIRANITE_BACKEND_URL: backend.url,
     VITE_XIRANITE_BACKEND_TOKEN: backend.token,
     VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,
-    XIRANITE_VITE_CACHE_DIR: managedViteCacheDir(),
+    XIRANITE_VITE_CACHE_DIR: viteCacheDir,
   },
 })
 

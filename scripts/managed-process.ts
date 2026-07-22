@@ -1,18 +1,20 @@
 import { readdir, rm } from "node:fs/promises"
 import { resolve } from "node:path"
 
-import { managedViteCacheDir } from "./dev-frontend-url"
-
 export function spawnManagedVite(args: readonly string[], options: Bun.SpawnOptions.OptionsObject) {
-  return Bun.spawn([process.execPath, resolve(import.meta.dir, "..", "node_modules", "vite", "bin", "vite.js"), ...args], options)
+  const nodeExecutable = Bun.env.XIRANITE_NODE_EXECUTABLE?.trim() || Bun.which("node")
+  if (!nodeExecutable) {
+    throw new Error("Node.js is required to run the managed Vite server. Install Node.js or set XIRANITE_NODE_EXECUTABLE.")
+  }
+  return Bun.spawn([nodeExecutable, resolve(import.meta.dir, "..", "node_modules", "vite", "bin", "vite.js"), ...args], options)
 }
 
 /**
- * Interrupted optimize-deps runs leave `deps_temp_*` directories in the shared
- * managed cache. Clear them before a new supervisor starts so the next cold
+ * Interrupted optimize-deps runs leave `deps_temp_*` directories in a session
+ * cache. Clear them before its supervisor starts so the next cold
  * prebundle can finish instead of thrashing against abandoned temp trees.
  */
-export async function clearStaleViteOptimizeTemps(cacheDir = managedViteCacheDir()): Promise<number> {
+export async function clearStaleViteOptimizeTemps(cacheDir: string): Promise<number> {
   let removed = 0
   let entries: string[] = []
   try {

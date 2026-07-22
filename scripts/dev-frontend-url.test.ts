@@ -42,8 +42,13 @@ describe("resolveManagedFrontendUrl", () => {
 })
 
 describe("managedViteCacheDir", () => {
-  it("is stable across managed frontend endpoints", () => {
-    expect(managedViteCacheDir()).toMatch(/\.cache[\\/]vite[\\/]managed$/)
+  it("isolates optimizer state by managed frontend port", () => {
+    const first = managedViteCacheDir("http://127.0.0.1:5173")
+    const second = managedViteCacheDir("http://127.0.0.1:5174")
+
+    expect(first).toMatch(/\.cache[\\/]vite[\\/]sessions[\\/]5173$/)
+    expect(second).toMatch(/\.cache[\\/]vite[\\/]sessions[\\/]5174$/)
+    expect(first).not.toBe(second)
   })
 })
 

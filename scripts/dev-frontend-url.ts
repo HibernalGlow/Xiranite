@@ -37,11 +37,12 @@ export async function resolveManagedFrontendUrl(
 }
 
 /**
- * All managed development sessions share this cache. Vite's metadata already
- * invalidates it when the lockfile or dependency-optimization config changes.
+ * Vite's dependency optimizer is a single-writer cache. A managed session owns
+ * the cache for its bound frontend port, so concurrent sessions cannot replace
+ * each other's dependency metadata or temporary bundles.
  */
-export function managedViteCacheDir(): string {
-  return resolve(repoRoot, ".cache", "vite", "managed")
+export function managedViteCacheDir(frontendUrl: string): string {
+  return resolve(repoRoot, ".cache", "vite", "sessions", String(frontendPortFromUrl(frontendUrl)))
 }
 
 export function frontendPortFromUrl(frontendUrl: string): number {
