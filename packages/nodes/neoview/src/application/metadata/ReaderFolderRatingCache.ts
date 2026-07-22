@@ -65,7 +65,7 @@ export function normalizeReaderFolderRatingPath(path: string): string {
 function parentPath(path: string): string | undefined {
   const normalized = normalizeReaderFolderRatingPath(path)
   const separator = normalized.lastIndexOf("/")
-  return separator > 0 ? normalized.slice(0, separator) : undefined
+  return separator > 2 ? normalized.slice(0, separator) : undefined
 }
 
 function pathDepth(path: string): number { return path.split("/").filter(Boolean).length }
