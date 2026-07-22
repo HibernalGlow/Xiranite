@@ -113,7 +113,11 @@ async function runBun(args: string[], mode: CompilerMode): Promise<void> {
 }
 
 function compilerEnv(mode: CompilerMode): Record<string, string | undefined> {
-  return { ...process.env, XIRANITE_REACT_COMPILER_MODE: mode }
+  return {
+    ...process.env,
+    XIRANITE_REACT_COMPILER_DIAGNOSTIC: "1",
+    XIRANITE_REACT_COMPILER_MODE: mode,
+  }
 }
 
 async function waitForServer(baseUrl: string): Promise<void> {

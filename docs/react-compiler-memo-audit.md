@@ -2,7 +2,7 @@
 
 ## 结论
 
-React Compiler 已在 Vite 中以 `infer` 模式启用。浏览器端由 `src/**` 引入的 React 组件会自动获得编译器的细粒度 memo；新增代码不应再把 `useMemo`、`useCallback` 或 `React.memo` 当作默认模板。
+React Compiler 在 Vite 生产构建中以 `infer` 模式启用，开发服务器默认关闭以降低冷启动和 HMR 转换成本。生产包内由 `src/**` 引入的 React 组件会自动获得编译器的细粒度 memo；新增代码不应再把 `useMemo`、`useCallback` 或 `React.memo` 当作默认模板。
 
 不要一次性删除现有调用。它们可分为三类：纯渲染缓存可以逐步删除；为外部 API 提供引用稳定性的调用要逐项核实；未进入 Vite 浏览器构建的 CLI/TUI 包不在本次范围内。
 
@@ -81,7 +81,7 @@ rg -n --glob '*.{ts,tsx}' 'useMemo\(|useCallback\(|React\.memo\(|\bmemo\(' src p
 
 ## 2026-07-14：节点宿主边界策略
 
-Vite 继续以 `compilationMode: "infer"` 启用 React Compiler。节点 UI 不能直接套用这一默认策略：节点入口在渲染期通过稳定的 `host.state.getData()` 读取 workspace store，而该命令式读取不是 Compiler 可追踪的 React 输入。
+Vite 生产构建继续以 `compilationMode: "infer"` 启用 React Compiler，开发服务器默认关闭。节点 UI 不能直接套用生产编译策略：节点入口在渲染期通过稳定的 `host.state.getData()` 读取 workspace store，而该命令式读取不是 Compiler 可追踪的 React 输入。
 
 因此，以下边界必须保留 `"use no memo"`：
 

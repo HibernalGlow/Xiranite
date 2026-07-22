@@ -17,10 +17,13 @@
 Warm iteration shortcuts:
 
 - `bun run dev:quick` or `xr quick` — skip registry + package rebuild, start backend + Vite only (use when packages are already built)
-- `bun run dev:lean` / `dev:quick:lean` — disable React Compiler in Vite for lower transform cost
+- `bun run dev:lean` / `dev:quick:lean` — keep the development Compiler off and cap the Vite heap
 - Keep `.cache/vite/managed`; avoid `dev:clean` unless deps are broken
 
+Ordinary `vite serve` always disables React Compiler, even if `XIRANITE_REACT_COMPILER_MODE` is inherited. Production builds default to `infer`; only the dedicated compiler benchmark enables the diagnostic development override.
+
 Browser readiness probes only `/` + `/src/main.tsx`. Desktop attach still waits for the fuller shell graph including `@wailsio_runtime`.
+Vite must keep the configured non-runtime watcher ignores: `ref`, generated caches/artifacts, temporary trees, migration fixtures, and examples contain hundreds of thousands of files but are not HMR inputs.
 
 ## Addressing
 

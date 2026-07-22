@@ -6,6 +6,7 @@ import { Scanner } from "@tailwindcss/oxide"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vitest/config"
 import { collectLucideIconExports, rewriteLucideDeepImports } from "./scripts/lucide-deep-imports"
+import { reactCompilerModeForCommand } from "./scripts/react-compiler-mode"
 import { VITE_EAGER_DEPENDENCIES, VITE_EXCLUDED_DEPENDENCIES } from "./scripts/vite-dependency-policy"
 
 const appSrc = path.resolve(__dirname, "./src")
@@ -13,11 +14,6 @@ const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
 const lucideReactEntry = path.resolve(__dirname, "./node_modules/lucide-react/dist/esm/lucide-react.js")
 const propTypesDevShim = path.resolve(__dirname, "./src/vendor/prop-types-dev.ts")
-const reactCompilerMode = process.env.XIRANITE_REACT_COMPILER_MODE ?? "infer"
-
-if (reactCompilerMode !== "annotation" && reactCompilerMode !== "infer" && reactCompilerMode !== "off") {
-  throw new Error("XIRANITE_REACT_COMPILER_MODE must be annotation, infer, or off")
-}
 
 /**
  * Tailwind v4 normally watches every source file and re-emits the generated
@@ -92,8 +88,13 @@ function lucideDeepImportsPlugin() {
   }
 }
 
+function reactCompilerBabelOptions(command: "build" | "serve") {
+  const mode = reactCompilerModeForCommand(command)
+  return mode === "off" ? undefined : { plugins: [["babel-plugin-react-compiler", { compilationMode: mode }]] }
+}
+
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   cacheDir: process.env.XIRANITE_VITE_CACHE_DIR,
   esbuild: {
     jsx: "automatic",
@@ -106,11 +107,7 @@ export default defineConfig({
     lucideDeepImportsPlugin(),
     tailwindCandidateSnapshotPlugin(),
     productionChunkReportPlugin(),
-    react({
-      babel: reactCompilerMode === "off"
-        ? undefined
-        : { plugins: [["babel-plugin-react-compiler", { compilationMode: reactCompilerMode }]] },
-    }),
+    react({ babel: reactCompilerBabelOptions(command) }),
     tailwindcss(),
   ],
   resolve: {
@@ -156,14 +153,25 @@ export default defineConfig({
       clientFiles: [
         "./index.html",
         "./src/main.tsx",
-        "./src/App.tsx",
-        "./src/components/workspace/WorkspaceLayout.tsx",
-        "./src/components/workspace/CardView.tsx",
-        "./src/components/workspace/TopBar.tsx",
       ],
     },
     watch: {
-      ignored: ["**/.cache/**", "**/build/**", "**/artifacts/**", "**/native/target/**"],
+      // Vite watches the repository root. Exclude large non-runtime trees so
+      // Chokidar does not contend with the first HTTP transform after listen.
+      ignored: [
+        "**/.cache/**",
+        "**/.playwright-cli/**",
+        "**/.tmp/**",
+        "**/.turbo/**",
+        "**/artifacts/**",
+        "**/build/**",
+        "**/examples/**",
+        "**/migration/**",
+        "**/native/target/**",
+        "**/output/**",
+        "**/ref/**",
+        "**/tmp/**",
+      ],
     },
     // Keep HMR on the main HTTP server. Setting `hmr.port` to a different value
     // opens a websocket-only listener that answers document GETs with 426/404 and
@@ -225,4 +233,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))
