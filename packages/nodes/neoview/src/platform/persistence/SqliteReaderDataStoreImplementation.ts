@@ -29,6 +29,7 @@ import type { ReaderDirectorySortPreferenceStore } from "../../application/brows
 import type { ReaderDirectoryEmmRecord, ReaderDirectoryEmmRecordStore } from "../../ports/ReaderDirectoryEmmRecordStore.js"
 import type { ReaderEmmRatingCatalogRecord, ReaderEmmRatingCatalogStore } from "../../ports/ReaderEmmRatingCatalogStore.js"
 import type { ReaderFolderRatingCacheSnapshot, ReaderFolderRatingCacheStore } from "../../ports/ReaderFolderRatingCacheStore.js"
+import type { ReaderManualTagCatalogStore, ReaderManualTagSummary } from "../../ports/ReaderManualTagCatalogStore.js"
 import type { ReaderFolderRatingEntry } from "../../application/metadata/ReaderFolderRatingCache.js"
 import type { ReaderEmmCatalogTag, ReaderEmmTagCatalogStore } from "../../ports/ReaderEmmTagCatalogStore.js"
 import type { ReaderEmmOverrideRecord, ReaderEmmOverrides, ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
@@ -47,6 +48,7 @@ export class SqliteReaderDataStore
     ReaderDirectoryEmmRecordStore,
     ReaderEmmRatingCatalogStore,
     ReaderFolderRatingCacheStore,
+    ReaderManualTagCatalogStore,
     ReaderEmmTagCatalogStore,
     ReaderEmmOverrideStore
 {
@@ -1304,6 +1306,30 @@ export class SqliteReaderDataStore
       if (path && rating !== undefined) output.set(normalizeEmmPathKey(path), { path, rating })
     }
     return [...output.values()]
+  }
+
+  async listManualTagSummaries(limit: number, signal?: AbortSignal): Promise<readonly ReaderManualTagSummary[]> {
+    this.#assertOpen()
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 256) throw new RangeError("Manual tag summary limit must be from 1 to 256.")
+    const counts = new Map<string, ReaderManualTagSummary>()
+    for (const row of this.database.all("SELECT overrides_json FROM xr_reader_emm_overrides WHERE overrides_json LIKE '%manualTags%'")) {
+      signal?.throwIfAborted()
+      const value = optionalText(row.overrides_json)
+      if (!value) continue
+      try {
+        const tags = (JSON.parse(value) as { manualTags?: unknown }).manualTags
+        if (!Array.isArray(tags)) continue
+        for (const tag of tags.slice(0, 256)) {
+          if (!tag || typeof tag !== "object") continue
+          const { namespace, tag: name } = tag as { namespace?: unknown; tag?: unknown }
+          if (typeof namespace !== "string" || typeof name !== "string" || !namespace.trim() || !name.trim()) continue
+          const key = `${namespace.trim().toLocaleLowerCase()}\0${name.trim().toLocaleLowerCase()}`
+          const current = counts.get(key)
+          counts.set(key, current ? { ...current, count: current.count + 1 } : { namespace: namespace.trim(), tag: name.trim(), count: 1 })
+        }
+      } catch { /* ignore malformed legacy override */ }
+    }
+    return [...counts.values()].sort((left, right) => right.count - left.count || left.namespace.localeCompare(right.namespace) || left.tag.localeCompare(right.tag)).slice(0, limit)
   }
 
   async loadFolderRatingCache(): Promise<ReaderFolderRatingCacheSnapshot> {
