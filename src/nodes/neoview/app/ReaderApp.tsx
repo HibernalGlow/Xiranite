@@ -208,7 +208,16 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
 }
 let readerSidebarModule: Promise<ReaderSidebarModule> | undefined
 function loadReaderSidebar(): Promise<ReaderSidebarModule> {
-  readerSidebarModule ??= import("../features/panels/ReaderSidebar")
+  if (!readerSidebarModule) {
+    const startedAt = performance.now()
+    neoviewDebug("sidebar:chunk:load:begin")
+    readerSidebarModule = import("../features/panels/ReaderSidebar").then((module) => {
+      neoviewDebug("sidebar:chunk:load:end", {
+        durationMs: Math.round((performance.now() - startedAt) * 10) / 10,
+      })
+      return module
+    })
+  }
   return readerSidebarModule
 }
 const LazyReaderSidebar = lazy(async () => ({ default: (await loadReaderSidebar()).ReaderSidebar }))
@@ -279,6 +288,10 @@ export function ReaderApp({
   copyFiles,
   onPathCommitted,
 }: ReaderAppProps) {
+  neoviewDebug("reader:render:begin", {
+    sessionScopeId,
+    initialPath: initialPath || undefined,
+  })
   const surface = useNodeSurface()
   const floatingFrame = useFloatingWindowFrame()
   const contextMenu = useContextMenu()
@@ -296,6 +309,7 @@ export function ReaderApp({
     })
     return created
   })
+  neoviewDebug("reader:render:client-ready", { sessionScopeId })
   const clientRef = useRef(client)
   const shellRef = useRef<ReaderShellConfigDto | undefined>(undefined)
   const readerInteractionRef = useRef<HTMLDivElement>(null)
@@ -382,6 +396,7 @@ export function ReaderApp({
     },
     onError: (cause) => setError(errorMessage(cause)),
   }))
+  neoviewDebug("reader:render:stores-ready", { sessionScopeId })
   const [videoController] = useState(() => new ReaderVideoController())
   const [viewerToggles] = useState(() => new ReaderViewerToggleStore())
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
@@ -422,12 +437,16 @@ export function ReaderApp({
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const [magnifierEnabled, setMagnifierEnabled] = useState(false)
   const [readerViewFullscreen, setReaderViewFullscreen] = useState(false)
+  /** Swimlane left/right sidebars are deferred until after the first shell paint. */
+  const [swimlaneSidebarsReady, setSwimlaneSidebarsReady] = useState(false)
   const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
     : undefined)
+  neoviewDebug("reader:render:preloader-ready", { sessionScopeId, hasSession: Boolean(session) })
   const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
   shellRef.current = shell
+  neoviewDebug("reader:render:hooks-ready", { sessionScopeId, hasSession: Boolean(session), hasShell: Boolean(shell) })
 
   useDeferredFinalCleanup(() => {
     neoviewDebug("reader:dispose", {
@@ -562,11 +581,13 @@ export function ReaderApp({
         applyMs: Math.round((performance.now() - applyStartedAt) * 10) / 10,
         totalMs: Math.round((performance.now() - configStartedAt) * 10) / 10,
         sinceBootMs: Math.round((performance.now() - readerBootedAtRef.current) * 10) / 10,
+        workspaceMode: config.shell?.workspace?.mode,
       })
       requestAnimationFrame(() => {
         neoviewDebug("reader:config:frame-after-apply", {
           sessionScopeId,
           sinceBootMs: Math.round((performance.now() - readerBootedAtRef.current) * 10) / 10,
+          workspaceMode: config.shell?.workspace?.mode,
         })
       })
     }).catch((cause) => {
@@ -1752,6 +1773,55 @@ export function ReaderApp({
   useEffect(() => {
     if (!readerSoloActive && readerViewFullscreen) setReaderViewFullscreen(false)
   }, [readerSoloActive, readerViewFullscreen])
+
+  // First paint only the swimlane chrome + reader canvas. Mounting both sidebars
+  // (and every docked card inside them) on the same frame as setShell freezes the UI.
+  useEffect(() => {
+    if (workspaceMode !== "swimlane" || !shell) {
+      setSwimlaneSidebarsReady(false)
+      return
+    }
+    setSwimlaneSidebarsReady(false)
+    let cancelled = false
+    let outerRaf = 0
+    let innerRaf = 0
+    let idleHandle: number | undefined
+    let timeoutHandle: number | undefined
+    const startedAt = performance.now()
+    neoviewDebug("reader:swimlane-shell:schedule-sidebars", {
+      sessionScopeId,
+      revision: shell.revision,
+    })
+    outerRaf = requestAnimationFrame(() => {
+      innerRaf = requestAnimationFrame(() => {
+        if (cancelled) return
+        neoviewDebug("reader:swimlane-shell:first-paint", {
+          sessionScopeId,
+          sinceScheduleMs: Math.round((performance.now() - startedAt) * 10) / 10,
+        })
+        const reveal = () => {
+          if (cancelled) return
+          neoviewDebug("reader:swimlane-sidebars:ready", {
+            sessionScopeId,
+            sinceScheduleMs: Math.round((performance.now() - startedAt) * 10) / 10,
+          })
+          setSwimlaneSidebarsReady(true)
+        }
+        if (typeof requestIdleCallback === "function") {
+          idleHandle = requestIdleCallback(reveal, { timeout: 400 })
+        } else {
+          timeoutHandle = window.setTimeout(reveal, 50)
+        }
+      })
+    })
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(outerRaf)
+      cancelAnimationFrame(innerRaf)
+      if (idleHandle !== undefined && typeof cancelIdleCallback === "function") cancelIdleCallback(idleHandle)
+      if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle)
+    }
+  }, [sessionScopeId, shell, workspaceMode])
   const toggleReaderViewFullscreen = () => {
     const next = !readerViewFullscreen
     setReaderViewFullscreen(next)
@@ -2121,8 +2191,8 @@ export function ReaderApp({
                     {readerCanvas}
                   </ReaderControlledEdgeShell>
                 )}
-                left={(
-                  <Suspense fallback={<div className="h-full w-full animate-pulse bg-background/85" aria-label="正在加载左侧泳道" />}>
+                left={swimlaneSidebarsReady ? (
+                  <Suspense fallback={<div className="h-full w-full animate-pulse bg-background/85" aria-label="正在加载左侧泳道" data-sidebar-deferred="left-loading" />}>
                     <LazyReaderSidebar
                       side="left"
                       presentation="lane"
@@ -2134,9 +2204,11 @@ export function ReaderApp({
                       onCardLayoutCommit={(patch) => void commitCardLayout(patch)}
                     />
                   </Suspense>
+                ) : (
+                  <div className="h-full w-full animate-pulse bg-background/70" aria-label="左侧泳道待加载" data-sidebar-deferred="left" />
                 )}
-                right={(
-                  <Suspense fallback={<div className="h-full w-full animate-pulse bg-background/85" aria-label="正在加载右侧泳道" />}>
+                right={swimlaneSidebarsReady ? (
+                  <Suspense fallback={<div className="h-full w-full animate-pulse bg-background/85" aria-label="正在加载右侧泳道" data-sidebar-deferred="right-loading" />}>
                     <LazyReaderSidebar
                       side="right"
                       presentation="lane"
@@ -2148,6 +2220,8 @@ export function ReaderApp({
                       onCardLayoutCommit={(patch) => void commitCardLayout(patch)}
                     />
                   </Suspense>
+                ) : (
+                  <div className="h-full w-full animate-pulse bg-background/70" aria-label="右侧泳道待加载" data-sidebar-deferred="right" />
                 )}
               />
             </ReaderSwimlaneErrorBoundary>

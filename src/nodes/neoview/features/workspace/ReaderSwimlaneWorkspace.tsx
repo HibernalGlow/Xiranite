@@ -44,6 +44,7 @@ import {
   type ReaderWorkspaceConfig,
   type ReaderWorkspacePatch,
 } from "./ReaderWorkspaceLayout"
+import { neoviewDebug } from "../../neoviewDebug"
 import { ReaderLaneNavigator } from "./ReaderLaneNavigator"
 
 const DEFAULT_LANE_LABELS: Record<string, string> = {
@@ -98,6 +99,32 @@ export function ReaderSwimlaneWorkspace({
   const workspaceRef = useRef<HTMLDivElement>(null)
   const laneRefs = useRef<Partial<Record<ReaderSwimlaneId, HTMLElement | null>>>({})
   const [viewportWidth, setViewportWidth] = useState(() => typeof window === "undefined" ? 960 : Math.max(1, window.innerWidth))
+  const swimlane = workspace.swimlane
+
+  useEffect(() => {
+    const mountedAt = performance.now()
+    neoviewDebug("swimlane:workspace-mount", {
+      mode: workspace.mode,
+      laneOrder: swimlane.laneOrder,
+      activeLane: swimlane.activeLane,
+      autoFitToViewport: swimlane.autoFitToViewport,
+      manualScrollEnabled: swimlane.manualScrollEnabled,
+      revision: shell.revision,
+    })
+    const raf = requestAnimationFrame(() => {
+      neoviewDebug("swimlane:workspace-first-frame", {
+        sinceMountMs: Math.round((performance.now() - mountedAt) * 10) / 10,
+      })
+    })
+    return () => {
+      cancelAnimationFrame(raf)
+      neoviewDebug("swimlane:workspace-unmount", {
+        livedMs: Math.round(performance.now() - mountedAt),
+      })
+    }
+    // One-shot mount diagnostics for freeze triage; geometry churn is logged elsewhere.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const liveWidthsRef = useRef<Record<ReaderSwimlaneId, number>>(Object.fromEntries(
     workspace.swimlane.laneOrder.map((laneId) => [
       laneId,
@@ -113,7 +140,6 @@ export function ReaderSwimlaneWorkspace({
   const [draggedLane, setDraggedLane] = useState<ReaderSwimlaneId>()
   const [laneNavigatorTitleHost, setLaneNavigatorTitleHost] = useState<HTMLElement | null>(null)
   const [windowTitleHost, setWindowTitleHost] = useState<HTMLElement | null>(null)
-  const swimlane = workspace.swimlane
   const soloLaneId = swimlane.soloLaneId ?? (swimlane.readerSolo ? "reader" : undefined)
   const windowChromeOwnerLaneId = windowChrome && swimlane.windowControlsPlacement !== "titlebar"
     ? resolveWindowChromeOwner(swimlane.windowControlsOwnerLaneId, swimlane.laneOrder, swimlane.lanes, soloLaneId, swimlane.activeLane)
