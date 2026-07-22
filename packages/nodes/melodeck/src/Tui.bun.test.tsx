@@ -124,4 +124,34 @@ describe("Melodeck OpenTUI screen", () => {
       await act(async () => setup.renderer.destroy())
     }
   })
+
+  test("seeks to a synchronized lyric when its line is clicked", async () => {
+    const inputs: Array<{ action?: string; seekSeconds?: number }> = []
+    const live = { running: true, paused: false, path: "D:/Music/live.flac", title: "Live Track", artist: "Artist", album: "Album", lyrics: [{ time: 5, text: "Earlier lyric" }, { time: 20, text: "Current lyric" }, { time: 40, text: "Later lyric" }], duration: 120, position: 20, volume: 60, playlist: ["D:/Music/live.flac"] }
+    const setup = await testRender(
+      <MelodeckTui
+        definition={{
+          schema: createMelodeckInteractionSchema({}, "en"),
+          run: async (input) => {
+            inputs.push(input)
+            return { success: true, message: "Updated", data: { command: [], status: live, output: "", errors: [] } }
+          },
+        }}
+        language="en"
+        onExit={() => undefined}
+        observe={async (_ipc, onStatus) => { onStatus(live); return () => undefined }}
+      />,
+      { width: 128, height: 34, useMouse: true },
+    )
+    try {
+      await act(async () => setup.renderOnce())
+      await act(async () => setup.waitFor(() => setup.captureCharFrame().includes("Later lyric")))
+      const lyric = setup.renderer.root.findDescendantById("melodeck-lyric-2")!
+      await act(async () => setup.mockMouse.click(lyric.x + 1, lyric.y))
+      await act(async () => setup.waitFor(() => inputs.length === 1))
+      expect(inputs[0]).toMatchObject({ action: "seek", seekSeconds: 20 })
+    } finally {
+      await act(async () => setup.renderer.destroy())
+    }
+  })
 })
