@@ -249,6 +249,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     libraryService?: ReaderLibraryService
     directorySortPreferenceStore?: ReaderDirectorySortPreferenceStore
     directoryEmmRecordStore?: ReaderDirectoryEmmRecordStore
+    manualTagCatalogStore?: import("../../ports/ReaderManualTagCatalogStore.js").ReaderManualTagCatalogStore
     emmOverrideStore?: ReaderEmmOverrideStore
     emmCollectTagSource?: PlatformEmmCollectTagSource
     emmTranslationSource?: PlatformEmmTranslationSource

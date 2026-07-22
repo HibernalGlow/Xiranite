@@ -538,6 +538,7 @@ export async function createReaderHttpController(
     libraryService,
     directorySortPreferenceStore: dataStore,
     directoryEmmRecordStore: directoryEmmStore,
+    manualTagCatalogStore: dataStore as unknown as import("./ports/ReaderManualTagCatalogStore.js").ReaderManualTagCatalogStore | undefined,
     folderRatingService,
     emmOverrideStore: dataStore,
     searchHistoryStore: dataStore,
