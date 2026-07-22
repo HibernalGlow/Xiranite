@@ -1,4 +1,4 @@
-import { memo, useRef, type MouseEvent } from "react"
+import { memo, useEffect, useRef, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
@@ -7,6 +7,7 @@ import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { useComponentSurfaceStatus } from "@/lib/componentSurfaceStatus"
+import { neoviewDebug } from "@/nodes/neoview/neoviewDebug"
 import { ComponentProgressStrip } from "./ComponentProgressStrip"
 import { NodeSurfaceChrome, type NodeSurfaceChromeAction } from "./NodeSurfaceChrome"
 import { createSurfaceCommonActions } from "./createSurfaceCommonActions"
@@ -61,6 +62,19 @@ function ComponentCardInner({ comp, layout, cardLayout: _cardLayout, isLayoutRes
   const isCompact = layout.state === "compact"
   const isFocusedState = layout.state === "focused"
   const isMasonry = positioning === "masonry"
+
+  useEffect(() => {
+    if (comp.collapsed || moduleId !== "neoview") return
+    neoviewDebug("card-view:body-mount", {
+      componentId: comp.id,
+      layoutState: layout.state,
+      w: Math.round(layout.w),
+      h: Math.round(layout.h),
+    })
+    return () => {
+      neoviewDebug("card-view:body-unmount", { componentId: comp.id })
+    }
+  }, [comp.collapsed, comp.id, layout.h, layout.state, layout.w, moduleId])
 
   function toggleCollapse() {
     workspaceActions.toggleCollapse(comp.id)

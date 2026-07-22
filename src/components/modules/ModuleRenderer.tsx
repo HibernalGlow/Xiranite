@@ -18,6 +18,7 @@ import { NodeRenderBoundary } from "./NodeRenderBoundary"
 import { packageModuleLoaders } from "./packageModules.generated"
 import { LocalFilesProvider } from "@/nodes/shared/useLocalFileDrop"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
+import { neoviewDebug } from "@/nodes/neoview/neoviewDebug"
 
 type PackageModuleEntry = AppNodeEntry | HeadlessNodePackage
 type PackageModuleLoader = () => Promise<{ default: PackageModuleEntry }>
@@ -93,21 +94,36 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
       setEntry(null)
       return
     }
+    const loadStartedAt = performance.now()
+    if (moduleId === "neoview") {
+      neoviewDebug("chunk:load:begin", { compId, moduleId })
+    }
     startupDebugAsync(`node-entry:${moduleId}`, loader)
       .then((mod) => {
         if (!cancelled) {
-          startupDebug(`node-entry:${moduleId}:commit`)
+          const durationMs = Math.round((performance.now() - loadStartedAt) * 10) / 10
+          startupDebug(`node-entry:${moduleId}:commit`, { durationMs, compId })
+          if (moduleId === "neoview") {
+            neoviewDebug("chunk:load:end", { compId, durationMs })
+          }
           setEntry(mod.default)
         }
       })
       .catch((error) => {
         console.error(`[module-renderer] failed to load entry for ${moduleId}`, error)
+        if (moduleId === "neoview") {
+          neoviewDebug("chunk:load:error", {
+            compId,
+            durationMs: Math.round((performance.now() - loadStartedAt) * 10) / 10,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
         if (!cancelled) setEntry(null)
       })
     return () => {
       cancelled = true
     }
-  }, [loadRevision, moduleId])
+  }, [compId, loadRevision, moduleId])
 
   if (entry === undefined) {
     return <div className="p-4"><Skeleton className="h-32 w-full" /></div>
@@ -142,14 +158,27 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
 
   const Component = entry.Component as ComponentType<NodeComponentProps>
   return (
-    <div className="xiranite-node-surface h-full min-h-0 w-full overflow-hidden">
+    <div className="xiranite-node-surface h-full min-h-0 w-full overflow-hidden" data-module-id={moduleId} data-component-id={compId}>
       <NodeRenderBoundary moduleId={moduleId}>
         <LocalFilesProvider value={host.localFiles}>
+          <PackageNodeMountProbe moduleId={moduleId} compId={compId} />
           <Component compId={compId} host={host} />
         </LocalFilesProvider>
       </NodeRenderBoundary>
     </div>
   )
+}
+
+/** One-shot mount/unmount log for package nodes (NeoView freeze diagnosis). */
+function PackageNodeMountProbe({ moduleId, compId }: { moduleId: string; compId: string }) {
+  useEffect(() => {
+    if (moduleId !== "neoview") return
+    neoviewDebug("host:component-mounted", { compId })
+    return () => {
+      neoviewDebug("host:component-unmounted", { compId })
+    }
+  }, [compId, moduleId])
+  return null
 }
 
 function isRenderableNodeEntry(entry: PackageModuleEntry): entry is AppNodeEntry {

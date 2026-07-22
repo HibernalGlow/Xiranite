@@ -61,6 +61,7 @@ import {
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
 import { watchReaderSourceChanges } from "../features/reader/watchReaderSourceChanges"
+import { neoviewDebug, neoviewDebugAsync } from "../neoviewDebug"
 import { ReaderControlledEdgeShell, type ReaderControlledEdgeSlot } from "../features/shell/ReaderControlledEdgeShell"
 import { createReaderShellControlStore, type ReaderShellControlHydration, type ReaderShellControlSnapshot } from "../features/shell/ReaderShellControlStore"
 import type { ReaderShellControlPort } from "../features/shell/ReaderShellControlPort"
@@ -285,7 +286,16 @@ export function ReaderApp({
   const swimlaneSession = useSwimlaneSessionStore((state) => state.sessions[swimlaneSessionScopeId])
   const ensureSwimlaneSession = useSwimlaneSessionStore((state) => state.ensureSession)
   const patchSwimlaneSession = useSwimlaneSessionStore((state) => state.patchSession)
-  const [client] = useState<ReaderHttpClient>(() => injectedClient ?? createReaderHttpClient())
+  const readerBootedAtRef = useRef(performance.now())
+  const [client] = useState<ReaderHttpClient>(() => {
+    const created = injectedClient ?? createReaderHttpClient()
+    neoviewDebug("reader:client-created", {
+      sessionScopeId,
+      injected: Boolean(injectedClient),
+      initialPath: initialPath || undefined,
+    })
+    return created
+  })
   const clientRef = useRef(client)
   const shellRef = useRef<ReaderShellConfigDto | undefined>(undefined)
   const readerInteractionRef = useRef<HTMLDivElement>(null)
@@ -420,6 +430,11 @@ export function ReaderApp({
   shellRef.current = shell
 
   useDeferredFinalCleanup(() => {
+    neoviewDebug("reader:dispose", {
+      sessionScopeId,
+      livedMs: Math.round(performance.now() - readerBootedAtRef.current),
+      hadSession: Boolean(sessionRef.current),
+    })
     operationRef.current?.abort()
     slideshow.dispose()
     colorFilter.dispose()
@@ -433,8 +448,23 @@ export function ReaderApp({
   })
 
   useEffect(() => {
+    neoviewDebug("reader:mount", {
+      sessionScopeId,
+      initialPath: initialPath || undefined,
+      surface: surface.mode,
+    })
     const controller = new AbortController()
+    const configStartedAt = performance.now()
+    neoviewDebug("reader:config:request", { sessionScopeId })
     void clientRef.current.config(controller.signal).then((config) => {
+      const networkMs = Math.round((performance.now() - configStartedAt) * 10) / 10
+      neoviewDebug("reader:config:response", {
+        sessionScopeId,
+        networkMs,
+        workspaceMode: config.shell?.workspace?.mode,
+        hasShell: Boolean(config.shell),
+      })
+      const applyStartedAt = performance.now()
       setMedia(config.media)
       setImageProcessing(config.imageProcessing)
       setPreloadConfig(config.preload ?? INITIAL_PRELOAD_CONFIG)
@@ -527,7 +557,27 @@ export function ReaderApp({
           widePageStretch: config.viewDefaults.widePageStretch ?? DEFAULT_READER_PRESENTATION.widePageStretch,
         }))
       }
-    }).catch(() => undefined)
+      neoviewDebug("reader:config:applied", {
+        sessionScopeId,
+        applyMs: Math.round((performance.now() - applyStartedAt) * 10) / 10,
+        totalMs: Math.round((performance.now() - configStartedAt) * 10) / 10,
+        sinceBootMs: Math.round((performance.now() - readerBootedAtRef.current) * 10) / 10,
+      })
+      requestAnimationFrame(() => {
+        neoviewDebug("reader:config:frame-after-apply", {
+          sessionScopeId,
+          sinceBootMs: Math.round((performance.now() - readerBootedAtRef.current) * 10) / 10,
+        })
+      })
+    }).catch((cause) => {
+      if (!controller.signal.aborted) {
+        neoviewDebug("reader:config:failed", {
+          sessionScopeId,
+          durationMs: Math.round((performance.now() - configStartedAt) * 10) / 10,
+          error: cause instanceof Error ? cause.message : String(cause),
+        })
+      }
+    })
     return () => controller.abort()
   }, [])
 
@@ -610,10 +660,20 @@ export function ReaderApp({
     operationRef.current = controller
     setBusy(true)
     setError(undefined)
+    const openStartedAt = performance.now()
+    neoviewDebug("reader:open:begin", {
+      sessionScopeId,
+      path: normalizedPath,
+      provenance: provenance?.kind,
+    })
     try {
       const previousSession = sessionRef.current
       const presentationReady = loadReaderPresentation()
-      const opened = await clientRef.current.open(normalizedPath, controller.signal, provenance)
+      const opened = await neoviewDebugAsync(
+        "reader:open:http",
+        () => clientRef.current.open(normalizedPath, controller.signal, provenance),
+        { sessionScopeId, path: normalizedPath },
+      )
       try {
         await presentationReady
       } catch (error) {
@@ -636,8 +696,23 @@ export function ReaderApp({
       if (previousSession && previousSession !== opened.sessionId) {
         void clientRef.current.close(previousSession).catch(() => undefined)
       }
+      neoviewDebug("reader:open:committed", {
+        sessionScopeId,
+        path: normalizedPath,
+        sessionId: opened.sessionId,
+        pageCount: opened.book?.pageCount,
+        durationMs: Math.round((performance.now() - openStartedAt) * 10) / 10,
+      })
     } catch (cause) {
-      if (!controller.signal.aborted) setError(errorMessage(cause))
+      if (!controller.signal.aborted) {
+        neoviewDebug("reader:open:failed", {
+          sessionScopeId,
+          path: normalizedPath,
+          durationMs: Math.round((performance.now() - openStartedAt) * 10) / 10,
+          error: cause instanceof Error ? cause.message : String(cause),
+        })
+        setError(errorMessage(cause))
+      }
     } finally {
       if (operationRef.current === controller) operationRef.current = undefined
       if (!controller.signal.aborted) setBusy(false)
