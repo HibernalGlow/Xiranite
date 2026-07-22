@@ -35,6 +35,37 @@ test("Czkawka TUI renders the complete workbench in English", async () => {
   } finally { await act(async () => screen.renderer.destroy()) }
 })
 
+test("Czkawka TUI reuses shared swimlane focus, solo, collapse, resize, dock, and reset behavior", async () => {
+  const schema = createCzkawkaInteractionSchema({ includedDirectoriesText: "D:/media" }, "zh")
+  const screen = await testRender(<CzkawkaTui definition={{ schema, run: async () => ({ success: true, message: "done" }) }} language="zh" onExit={() => undefined} />, { width: 170, height: 46, useMouse: true })
+  try {
+    await act(async () => screen.renderOnce())
+    await click(screen, "czkawka-lanes-analysis")
+    const analysisBefore = screen.renderer.root.findDescendantById("czkawka-lane-analysis")!.width
+    await click(screen, "czkawka-lane-width-plus")
+    expect(screen.renderer.root.findDescendantById("czkawka-lane-analysis")!.width).toBeGreaterThan(analysisBefore)
+
+    await click(screen, "czkawka-lane-solo")
+    expect(screen.renderer.root.findDescendantById("czkawka-lane-source")).toBeUndefined()
+    expect(screen.renderer.root.findDescendantById("czkawka-lane-results")).toBeUndefined()
+    await click(screen, "czkawka-lane-solo")
+
+    await click(screen, "czkawka-lane-collapse")
+    expect(screen.renderer.root.findDescendantById("czkawka-expand-analysis")).toBeDefined()
+    await click(screen, "czkawka-expand-analysis")
+
+    await click(screen, "czkawka-lane-dock-top")
+    const topNavigator = screen.renderer.root.findDescendantById("czkawka-lane-navigator")!
+    expect(topNavigator.y).toBeLessThan(screen.renderer.root.findDescendantById("czkawka-lane-results")!.y)
+    await click(screen, "czkawka-lane-dock-right")
+    const rightNavigator = screen.renderer.root.findDescendantById("czkawka-lane-navigator")!
+    expect(rightNavigator.x).toBeGreaterThan(screen.renderer.root.findDescendantById("czkawka-lane-results")!.x)
+    await click(screen, "czkawka-lane-reset-bar")
+    const resetNavigator = screen.renderer.root.findDescendantById("czkawka-lane-navigator")!
+    expect(resetNavigator.x).toBeGreaterThan(screen.renderer.root.findDescendantById("czkawka-lane-results")!.x)
+  } finally { await act(async () => screen.renderer.destroy()) }
+})
+
 test("Czkawka TUI selects results, exposes media metadata, and opens the active path", async () => {
   const openPath = vi.fn(async () => undefined)
   const entry = { id: "media-1", groupId: 0, path: "D:/media/track.flac", name: "track.flac", size: 2048, modifiedDate: 10, width: 1920, height: 1080, similarity: "3", title: "Terminal Song", artist: "CLI Artist", genre: "Synth", year: "2026", length: "03:15", bitrate: 320, hash: "abc", detail: "fingerprint match" }
