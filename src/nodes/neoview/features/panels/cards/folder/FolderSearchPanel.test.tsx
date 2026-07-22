@@ -1,17 +1,17 @@
 import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react"
-import { VirtuosoMockContext } from "react-virtuoso"
 import { useState } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderDirectorySearchOptionsDto, ReaderDirectorySearchResultDto, ReaderFolderSearchConfig, ReaderHttpClient, ReaderSearchHistoryDto } from "../../../../adapters/reader-http-client"
-import FolderSearchPanel from "./FolderSearchPanel"
+import FolderSearchPanel, { type FolderSearchListingUpdate } from "./FolderSearchPanel"
 
 afterEach(cleanup)
 
 describe("FolderSearchPanel", () => {
   it("[neoview.folder.search-current] [neoview.folder.search-recursive] [neoview.folder.search-path-gui] sends shared search options", async () => {
     const searchDirectoryBrowser = vi.fn(async (_sessionId: string, query: string) => result(query))
-    const view = renderPanel({ searchDirectoryBrowser } as unknown as ReaderHttpClient)
+    const onListingChange = vi.fn()
+    const view = renderPanel({ searchDirectoryBrowser } as unknown as ReaderHttpClient, undefined, onListingChange)
     const current = within(view.container)
     const input = current.getByRole("textbox", { name: "搜索文件" })
 
@@ -23,7 +23,10 @@ describe("FolderSearchPanel", () => {
       expect.objectContaining({ mode: "text", kind: "all", searchInPath: false, maximumDepth: undefined, maximumResults: 512 }),
       expect.any(AbortSignal),
     ))
-    await waitFor(() => expect(current.getByText("未找到“cover”")).toBeTruthy())
+    await waitFor(() => expect(onListingChange).toHaveBeenCalledWith(expect.objectContaining({
+      phase: "empty",
+      result: expect.objectContaining({ query: "cover", matched: 0 }),
+    })))
 
     fireEvent.click(current.getByRole("button", { name: "子目录" }))
     fireEvent.submit(input.closest("form")!)
@@ -61,20 +64,23 @@ describe("FolderSearchPanel", () => {
     ])
   })
 
-  it("[neoview.folder.search-single-click-open] opens a search result on one click", async () => {
+  it("[neoview.folder.search-listing-publish] publishes settled hits for the virtual file list", async () => {
     const entry = { name: "book.cbz", path: "D:/book.cbz", kind: "file" as const, readerSupported: true }
-    const onActivate = vi.fn()
+    const onListingChange = vi.fn()
     const view = renderPanel({
       searchDirectoryBrowser: vi.fn(async () => result("book", [entry])),
-    } as unknown as ReaderHttpClient, undefined, onActivate)
+    } as unknown as ReaderHttpClient, undefined, onListingChange)
     const current = within(view.container)
     const input = current.getByRole("textbox", { name: "搜索文件" })
     fireEvent.change(input, { target: { value: "book" } })
     fireEvent.submit(input.closest("form")!)
 
-    fireEvent.click(await current.findByTitle("D:/book.cbz"))
-    expect(onActivate).toHaveBeenCalledOnce()
-    expect(onActivate).toHaveBeenCalledWith(entry)
+    await waitFor(() => expect(onListingChange).toHaveBeenCalledWith(expect.objectContaining({
+      phase: "success",
+      result: expect.objectContaining({ matched: 1, entries: [entry] }),
+    })))
+    // Chrome must not own a private result listbox — File Card views do.
+    expect(current.queryByTitle("D:/book.cbz")).toBeNull()
   })
 
   it("[neoview.folder.emm-tags-gui] searches structured favorite tags with legacy click modifiers", async () => {
@@ -124,14 +130,15 @@ describe("FolderSearchPanel", () => {
     ))
   })
 
-  it("[neoview.folder.search-stale] ignores a superseded search and renders error and truncated states", async () => {
+  it("[neoview.folder.search-stale] ignores a superseded search and surfaces error/truncated status", async () => {
     const first = deferred<ReaderDirectorySearchResultDto>()
     const second = deferred<ReaderDirectorySearchResultDto>()
     const searchDirectoryBrowser = vi.fn()
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise)
       .mockRejectedValueOnce(new Error("搜索服务不可用"))
-    const view = renderPanel({ searchDirectoryBrowser } as unknown as ReaderHttpClient)
+    const onListingChange = vi.fn()
+    const view = renderPanel({ searchDirectoryBrowser } as unknown as ReaderHttpClient, undefined, onListingChange)
     const current = within(view.container)
     const input = current.getByRole("textbox", { name: "搜索文件" })
 
@@ -140,25 +147,32 @@ describe("FolderSearchPanel", () => {
     fireEvent.change(input, { target: { value: "new" } })
     fireEvent.submit(input.closest("form")!)
     second.resolve(result("new", [{ name: "new.cbz", path: "D:/new.cbz", kind: "file", readerSupported: true }], true))
-    await waitFor(() => expect(current.getByText("new.cbz")).toBeTruthy())
-    expect(current.getByText("已截断至 512 项")).toBeTruthy()
+    await waitFor(() => expect(onListingChange).toHaveBeenCalledWith(expect.objectContaining({
+      phase: "success",
+      result: expect.objectContaining({ query: "new", truncated: true }),
+    })))
+    expect(current.getByText(/已截断至 512/).textContent).toContain("已截断至 512")
     first.resolve(result("old", [{ name: "old.cbz", path: "D:/old.cbz", kind: "file", readerSupported: true }]))
     await Promise.resolve()
-    expect(current.queryByText("old.cbz")).toBeNull()
+    const successCalls = onListingChange.mock.calls
+      .map((call) => call[0] as FolderSearchListingUpdate)
+      .filter((update) => update.phase === "success")
+    expect(successCalls.at(-1)?.result?.query).toBe("new")
 
     fireEvent.change(input, { target: { value: "failure" } })
     fireEvent.submit(input.closest("form")!)
     await waitFor(() => expect(current.getByRole("alert").textContent).toContain("搜索服务不可用"))
   })
 
-  it("[neoview.folder.search-incremental] virtualizes a settled batch while the NDJSON stream is still active", async () => {
+  it("[neoview.folder.search-incremental] streams batches to the virtual listing before settle", async () => {
     const finished = deferred<ReaderDirectorySearchResultDto>()
     let options: ReaderDirectorySearchOptionsDto | undefined
     const searchDirectoryBrowser = vi.fn((_sessionId, _query, nextOptions: ReaderDirectorySearchOptionsDto) => {
       options = nextOptions
       return finished.promise
     })
-    const view = renderPanel({ searchDirectoryBrowser } as unknown as ReaderHttpClient)
+    const onListingChange = vi.fn()
+    const view = renderPanel({ searchDirectoryBrowser } as unknown as ReaderHttpClient, undefined, onListingChange)
     const current = within(view.container)
     const input = current.getByRole("textbox", { name: "搜索文件" })
     fireEvent.change(input, { target: { value: "batch" } })
@@ -172,11 +186,17 @@ describe("FolderSearchPanel", () => {
     }))
 
     act(() => options!.onEntries!(entries))
-    await waitFor(() => expect(current.getByText("batch-0.cbz")).toBeTruthy())
-    expect(current.queryByText("batch-15.cbz")).toBeNull()
+    await waitFor(() => expect(onListingChange).toHaveBeenCalledWith(expect.objectContaining({
+      phase: "streaming",
+      streamedEntries: entries,
+    })))
     expect(current.getByText("已找到 16 项，正在搜索")).toBeTruthy()
     await act(async () => finished.resolve(result("batch", entries)))
-    await waitFor(() => expect(current.getByText("16 个结果 / 扫描 16 项")).toBeTruthy())
+    await waitFor(() => expect(onListingChange).toHaveBeenCalledWith(expect.objectContaining({
+      phase: "success",
+      result: expect.objectContaining({ matched: 16 }),
+    })))
+    expect(current.getByText("16 个结果 / 扫描 16 项")).toBeTruthy()
   })
 
   it("[neoview.folder.search-history-gui] loads, selects, records, removes and clears shared history", async () => {
@@ -257,17 +277,14 @@ describe("FolderSearchPanel", () => {
       }),
     } as unknown as ReaderHttpClient
     const view = render(
-      <VirtuosoMockContext.Provider value={{ viewportHeight: 240, itemHeight: 48 }}>
-        <FolderSearchPanel
-          client={client}
-          sessionId="browser-1"
-          disabled={false}
-          settings={DEFAULT_SEARCH_SETTINGS}
-          onSettingsChange={vi.fn()}
-          onActivate={vi.fn()}
-          onClose={onClose}
-        />
-      </VirtuosoMockContext.Provider>,
+      <FolderSearchPanel
+        client={client}
+        sessionId="browser-1"
+        disabled={false}
+        settings={DEFAULT_SEARCH_SETTINGS}
+        onSettingsChange={vi.fn()}
+        onClose={onClose}
+      />,
     )
     const current = within(view.container)
     const input = current.getByRole("textbox", { name: "搜索文件" })
@@ -284,20 +301,19 @@ describe("FolderSearchPanel", () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it("[neoview.folder.search-clear-distinct] clears the query without closing the panel", () => {
+  it("[neoview.folder.search-clear-distinct] clears the query and restores the directory listing", () => {
     const onClose = vi.fn()
+    const onListingChange = vi.fn()
     const view = render(
-      <VirtuosoMockContext.Provider value={{ viewportHeight: 240, itemHeight: 48 }}>
-        <FolderSearchPanel
-          client={{} as ReaderHttpClient}
-          sessionId="browser-1"
-          disabled={false}
-          settings={DEFAULT_SEARCH_SETTINGS}
-          onSettingsChange={vi.fn()}
-          onActivate={vi.fn()}
-          onClose={onClose}
-        />
-      </VirtuosoMockContext.Provider>,
+      <FolderSearchPanel
+        client={{} as ReaderHttpClient}
+        sessionId="browser-1"
+        disabled={false}
+        settings={DEFAULT_SEARCH_SETTINGS}
+        onSettingsChange={vi.fn()}
+        onListingChange={onListingChange}
+        onClose={onClose}
+      />,
     )
     const current = within(view.container)
     const input = current.getByRole("textbox", { name: "搜索文件" }) as HTMLInputElement
@@ -305,6 +321,7 @@ describe("FolderSearchPanel", () => {
     fireEvent.click(current.getByRole("button", { name: "清除搜索" }))
     expect(input.value).toBe("")
     expect(onClose).not.toHaveBeenCalled()
+    expect(onListingChange).toHaveBeenCalledWith(expect.objectContaining({ phase: "cleared" }))
     expect(current.getByRole("button", { name: "关闭搜索" })).toBeTruthy()
   })
 
@@ -312,29 +329,26 @@ describe("FolderSearchPanel", () => {
     const onSaveToTab = vi.fn()
     const entry = { name: "book.cbz", path: "D:/books/book.cbz", kind: "file" as const, readerSupported: true }
     const view = render(
-      <VirtuosoMockContext.Provider value={{ viewportHeight: 240, itemHeight: 48 }}>
-        <FolderSearchPanel
-          client={{
-            searchDirectoryBrowser: vi.fn(async () => result("book", [entry])),
-          } as unknown as ReaderHttpClient}
-          sessionId="browser-1"
-          disabled={false}
-          settings={DEFAULT_SEARCH_SETTINGS}
-          rootPath="D:/books"
-          tabCount={1}
-          maxTabs={8}
-          onSettingsChange={vi.fn()}
-          onActivate={vi.fn()}
-          onClose={vi.fn()}
-          onSaveToTab={onSaveToTab}
-        />
-      </VirtuosoMockContext.Provider>,
+      <FolderSearchPanel
+        client={{
+          searchDirectoryBrowser: vi.fn(async () => result("book", [entry])),
+        } as unknown as ReaderHttpClient}
+        sessionId="browser-1"
+        disabled={false}
+        settings={DEFAULT_SEARCH_SETTINGS}
+        rootPath="D:/books"
+        tabCount={1}
+        maxTabs={8}
+        onSettingsChange={vi.fn()}
+        onClose={vi.fn()}
+        onSaveToTab={onSaveToTab}
+      />,
     )
     const current = within(view.container)
     const input = current.getByRole("textbox", { name: "搜索文件" })
     fireEvent.change(input, { target: { value: "book" } })
     fireEvent.submit(input.closest("form")!)
-    await waitFor(() => expect(current.getByText("book.cbz")).toBeTruthy())
+    await waitFor(() => expect(current.getByText(/1 个结果/)).toBeTruthy())
 
     fireEvent.click(current.getByRole("button", { name: "保存搜索到新标签页" }))
     expect(onSaveToTab).toHaveBeenCalledWith(expect.objectContaining({
@@ -344,49 +358,51 @@ describe("FolderSearchPanel", () => {
     }))
   })
 
-  it("[neoview.folder.search-restore-tab] hydrates a saved tab snapshot without re-querying", async () => {
+  it("[neoview.folder.search-restore-tab] hydrates a saved tab snapshot into the virtual listing", async () => {
     const searchDirectoryBrowser = vi.fn()
+    const onListingChange = vi.fn()
     const entry = { name: "saved.cbz", path: "D:/saved.cbz", kind: "file" as const, readerSupported: true }
     const view = render(
-      <VirtuosoMockContext.Provider value={{ viewportHeight: 240, itemHeight: 48 }}>
-        <FolderSearchPanel
-          client={{ searchDirectoryBrowser } as unknown as ReaderHttpClient}
-          sessionId="browser-9"
-          disabled={false}
-          settings={DEFAULT_SEARCH_SETTINGS}
-          rootPath="D:/books"
-          initialSnapshot={{
+      <FolderSearchPanel
+        client={{ searchDirectoryBrowser } as unknown as ReaderHttpClient}
+        sessionId="browser-9"
+        disabled={false}
+        settings={DEFAULT_SEARCH_SETTINGS}
+        rootPath="D:/books"
+        initialSnapshot={{
+          rootPath: "D:/books",
+          criteria: {
+            query: "saved",
+            mode: "text",
+            kind: "all",
+            caseSensitive: false,
+            includeSubfolders: true,
+            searchInPath: false,
+            includeTags: [],
+            excludeTags: [],
+            tagMode: "all",
+          },
+          result: {
+            entries: [entry],
+            scanned: 4,
+            matched: 1,
+            truncated: false,
             rootPath: "D:/books",
-            criteria: {
-              query: "saved",
-              mode: "text",
-              kind: "all",
-              caseSensitive: false,
-              includeSubfolders: true,
-              searchInPath: false,
-              includeTags: [],
-              excludeTags: [],
-              tagMode: "all",
-            },
-            result: {
-              entries: [entry],
-              scanned: 4,
-              matched: 1,
-              truncated: false,
-              rootPath: "D:/books",
-              generation: 2,
-              query: "saved",
-              mode: "text",
-            },
-          }}
-          onSettingsChange={vi.fn()}
-          onActivate={vi.fn()}
-          onClose={vi.fn()}
-        />
-      </VirtuosoMockContext.Provider>,
+            generation: 2,
+            query: "saved",
+            mode: "text",
+          },
+        }}
+        onSettingsChange={vi.fn()}
+        onListingChange={onListingChange}
+        onClose={vi.fn()}
+      />,
     )
     const current = within(view.container)
-    expect(await current.findByText("saved.cbz")).toBeTruthy()
+    await waitFor(() => expect(onListingChange).toHaveBeenCalledWith(expect.objectContaining({
+      phase: "success",
+      result: expect.objectContaining({ matched: 1, query: "saved" }),
+    })))
     expect(current.getByText("1 个结果 / 扫描 4 项")).toBeTruthy()
     expect(searchDirectoryBrowser).not.toHaveBeenCalled()
     expect((current.getByRole("textbox", { name: "搜索文件" }) as HTMLInputElement).value).toBe("saved")
@@ -399,20 +415,40 @@ const DEFAULT_SEARCH_SETTINGS: ReaderFolderSearchConfig = {
   searchInPath: false,
 }
 
-function SearchPanelHarness({ client, onSettingsChange, onActivate }: { client: ReaderHttpClient; onSettingsChange?: (patch: Partial<ReaderFolderSearchConfig>) => void; onActivate: (entry: ReaderDirectorySearchResultDto["entries"][number]) => void }) {
+function SearchPanelHarness({
+  client,
+  onSettingsChange,
+  onListingChange,
+}: {
+  client: ReaderHttpClient
+  onSettingsChange?: (patch: Partial<ReaderFolderSearchConfig>) => void
+  onListingChange?: (update: FolderSearchListingUpdate) => void
+}) {
   const [settings, setSettings] = useState(DEFAULT_SEARCH_SETTINGS)
   function updateSettings(patch: Partial<ReaderFolderSearchConfig>) {
     setSettings((current) => ({ ...current, ...patch }))
     onSettingsChange?.(patch)
   }
-  return <FolderSearchPanel client={client} sessionId="browser-1" disabled={false} settings={settings} onSettingsChange={updateSettings} onActivate={onActivate} onClose={vi.fn()} />
+  return (
+    <FolderSearchPanel
+      client={client}
+      sessionId="browser-1"
+      disabled={false}
+      settings={settings}
+      onSettingsChange={updateSettings}
+      onListingChange={onListingChange}
+      onClose={vi.fn()}
+    />
+  )
 }
 
-function renderPanel(client: ReaderHttpClient, onSettingsChange?: (patch: Partial<ReaderFolderSearchConfig>) => void, onActivate = vi.fn()) {
+function renderPanel(
+  client: ReaderHttpClient,
+  onSettingsChange?: (patch: Partial<ReaderFolderSearchConfig>) => void,
+  onListingChange?: (update: FolderSearchListingUpdate) => void,
+) {
   return render(
-    <VirtuosoMockContext.Provider value={{ viewportHeight: 240, itemHeight: 48 }}>
-      <SearchPanelHarness client={client} onSettingsChange={onSettingsChange} onActivate={onActivate} />
-    </VirtuosoMockContext.Provider>,
+    <SearchPanelHarness client={client} onSettingsChange={onSettingsChange} onListingChange={onListingChange} />,
   )
 }
 

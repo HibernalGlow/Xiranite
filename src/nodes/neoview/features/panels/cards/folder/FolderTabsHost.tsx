@@ -9,7 +9,7 @@ import type {
 } from "../../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../../registry"
 import type { FolderBrowserCloneProvider, FolderBrowserCloneSnapshot } from "../FolderMainCard"
-import { searchTabTitle, type FolderSearchTabSnapshot } from "./search/folderSearchModel"
+import { isVirtualSearchPath, searchTabTitle, virtualSearchLabel, type FolderSearchTabSnapshot } from "./search/folderSearchModel"
 
 const FolderTabBar = lazy(() => import("./FolderTabBar"))
 const MAX_FOLDER_TABS = 8
@@ -342,6 +342,18 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
   function updateTabPath(id: string, path: string) {
     const next = tabs.map((tab) => {
       if (tab.id !== id || tab.currentPath === path) return tab
+      if (isVirtualSearchPath(path)) {
+        return {
+          ...tab,
+          kind: "search" as const,
+          currentPath: path,
+          title: uniqueFolderTabTitle(searchTabTitle({
+            query: virtualSearchLabel(path) === "搜索结果" ? "" : virtualSearchLabel(path),
+            includeTags: tab.searchSnapshot?.criteria.includeTags ?? [],
+            excludeTags: tab.searchSnapshot?.criteria.excludeTags ?? [],
+          }), tabs.filter((candidate) => candidate.id !== id)),
+        }
+      }
       // Navigating away from a search workspace converts it back to a directory tab.
       return {
         ...tab,

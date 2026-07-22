@@ -5,12 +5,16 @@ import {
   buildDirectorySearchOptions,
   canSaveSearchToTab,
   createDefaultSearchCriteria,
+  createSearchDirectoryPage,
   createSearchTabSnapshot,
   hasSearchCriteria,
+  isVirtualSearchPath,
   restoreResultFromSnapshot,
   searchTabTitle,
   snapshotSearchResult,
   splitTagKey,
+  virtualSearchLabel,
+  virtualSearchPath,
 } from "./folderSearchModel"
 
 describe("folderSearchModel", () => {
@@ -147,5 +151,36 @@ describe("folderSearchModel", () => {
       ...result,
       sessionId: "browser-2",
     })
+  })
+
+  it("[neoview.folder.search-virtual-page] builds a virtual directory page for File Card views", () => {
+    expect(isVirtualSearchPath("virtual://search")).toBe(true)
+    expect(isVirtualSearchPath("virtual://search/cover")).toBe(true)
+    expect(isVirtualSearchPath("D:/books")).toBe(false)
+    expect(virtualSearchPath("cover art")).toBe("virtual://search/cover%20art")
+    expect(virtualSearchLabel("virtual://search/cover%20art")).toBe("cover art")
+
+    const page = createSearchDirectoryPage({
+      sessionId: "browser-1",
+      rootPath: "D:/books",
+      criteria: createDefaultSearchCriteria({ includeSubfolders: true, searchInPath: false }, { query: "cover" }),
+      result: {
+        entries: [
+          { name: "a.cbz", path: "D:/books/a.cbz", kind: "file", readerSupported: true },
+          { name: "b", path: "D:/books/b", kind: "directory", readerSupported: false },
+        ],
+        generation: 9,
+        query: "cover",
+        mode: "text",
+      },
+    })
+    expect(page.path).toBe("virtual://search/cover")
+    expect(page.parentPath).toBe("D:/books")
+    expect(page.total).toBe(2)
+    expect(page.entries).toHaveLength(2)
+    expect(page.cursor).toBe(0)
+    expect(page.canGoBack).toBe(true)
+    expect(page.watching).toBe(false)
+    expect(page.sessionId).toBe("browser-1")
   })
 })
