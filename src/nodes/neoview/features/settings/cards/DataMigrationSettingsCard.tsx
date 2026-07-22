@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useState } from "react"
-import { Database, RefreshCw } from "lucide-react"
+import { Database, RefreshCw, Settings2, X } from "lucide-react"
 
 import { exportNodeConfigFromBackend, getNodeConfigFromBackend } from "@/backend/configRpcClient"
 import { Button } from "@/components/ui/button"
-import { NodeConfigCenterButton } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import type { ReaderPanelContext, ReaderSettingsCardContext } from "../../panels/registry"
 import { SettingsCardShell } from "../SettingsCardShell"
 import { NeoViewConfigOverview } from "./NeoViewConfigOverview"
-
-const NEOVIEW_CONFIG_PRESENTATION = { current: NeoViewConfigOverview }
+import { NeoViewEmbeddedConfigCenter } from "./NeoViewEmbeddedConfigCenter"
 
 export function DataMigrationSettingsCard() {
   const { t } = useNodeI18n("neoview")
@@ -17,6 +15,7 @@ export function DataMigrationSettingsCard() {
   const [tomlSource, setTomlSource] = useState<string>()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>()
+  const [managing, setManaging] = useState(false)
 
   const loadConfig = useCallback(async () => {
     setLoading(true)
@@ -44,11 +43,11 @@ export function DataMigrationSettingsCard() {
       description={t("configData.description", "Manage NeoView's project TOML configuration and incremental version history.")}
       icon={Database}
       className="overflow-hidden"
-      actions={<div className="flex items-center gap-1"><Button aria-label={t("configData.refresh", "Refresh configuration")} disabled={loading} size="icon-sm" variant="ghost" onClick={() => void loadConfig()}><RefreshCw className={loading ? "animate-spin" : undefined} /></Button><NodeConfigCenterButton nodeKey="neoview" presentation={NEOVIEW_CONFIG_PRESENTATION} onConfigChange={loadConfig} /></div>}
+      actions={<div className="flex items-center gap-1"><Button aria-label={t("configData.refresh", "Refresh configuration")} disabled={loading} size="icon-sm" variant="ghost" onClick={() => void loadConfig()}><RefreshCw className={loading ? "animate-spin" : undefined} /></Button><Button aria-label={managing ? t("configData.closeManager", "Back to overview") : t("configData.openManager", "Open configuration management")} size="icon-sm" variant={managing ? "secondary" : "outline"} onClick={() => setManaging((value) => !value)}>{managing ? <X /> : <Settings2 />}</Button></div>}
     >
       {loading && !config ? <div className="grid min-h-56 place-items-center text-sm text-muted-foreground">{t("configData.loading", "Loading NeoView configuration...")}</div> : null}
       {error ? <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</div> : null}
-      {config ? <div className="-mx-3 -mb-3 border-t"><NeoViewConfigOverview config={config} tomlSource={tomlSource} /></div> : null}
+      {config ? <div className="-mx-3 -mb-3 border-t">{managing ? <NeoViewEmbeddedConfigCenter config={config} tomlSource={tomlSource} onReload={loadConfig} /> : <NeoViewConfigOverview config={config} tomlSource={tomlSource} />}</div> : null}
     </SettingsCardShell>
   )
 }

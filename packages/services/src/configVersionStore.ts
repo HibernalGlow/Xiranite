@@ -114,7 +114,10 @@ export class GitConfigVersionStore implements ConfigVersionStore {
     return this.queue.add(async () => {
       await this.ensureRepository()
       if (!(await this.hasHead())) return []
-      const limit = Math.min(200, Math.max(1, Math.floor(options.limit ?? 50)))
+      const requestedLimit = options.limit ?? 50
+      const limit = Number.isFinite(requestedLimit)
+        ? Math.min(200, Math.max(1, Math.floor(requestedLimit)))
+        : 50
       const output = await this.git.raw([
         "log",
         `--max-count=${limit}`,

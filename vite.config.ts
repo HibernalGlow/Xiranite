@@ -147,7 +147,15 @@ export default defineConfig({
     // "Multiple adapter contexts detected" (NUQS-303) + context provider 失效。
     // nuqs 是纯 ESM（type: module），浏览器原生 ESM 按 URL 去重模块，
     // exclude 后所有入口共享同一份 context 模块。
-    exclude: ["nuqs", "@xiranite/node-neoview"],
+    exclude: [
+      "nuqs",
+      "@xiranite/node-neoview",
+      "@shikijs/core",
+      "@shikijs/engine-javascript",
+      "@shikijs/langs/toml",
+      "@shikijs/themes/github-light",
+      "@shikijs/themes/github-dark",
+    ],
     rolldownOptions: {
       transform: {
         define: {
