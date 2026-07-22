@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 import path, { dirname, resolve } from "path"
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs"
-import { readFile, mkdir, writeFile } from "node:fs/promises"
+import { existsSync, mkdirSync, readFileSync } from "node:fs"
+import { appendFile, readFile, mkdir, writeFile } from "node:fs/promises"
 import tailwindcss from "@tailwindcss/vite"
 import { Scanner } from "@tailwindcss/oxide"
 import react from "@vitejs/plugin-react"
@@ -85,8 +85,20 @@ function developmentDebugLogPlugin() {
     }) {
       const logPath = resolve(server.config.root, ".tmp/neoview-debug.log")
       mkdirSync(dirname(logPath), { recursive: true })
-      appendFileSync(logPath, `\n---- session ${new Date().toISOString()} ----\n`, "utf8")
+      void appendFile(logPath, `\n---- session ${new Date().toISOString()} ----\n`, "utf8")
       console.info(`[xiranite-debug] writing browser timeline to ${logPath}`)
+      let writeQueue = Promise.resolve()
+
+      const appendEvents = (events: readonly { sequence?: unknown; elapsedMs?: unknown; label?: unknown; detail?: unknown }[]) => {
+        const lines = events.slice(0, 200).map((event) => (
+          `[xiranite-debug #${String(event.sequence)} +${String(event.elapsedMs)}ms] ${String(event.label)}${event.detail === undefined ? "" : ` ${JSON.stringify(event.detail)}`}`
+        ))
+        if (!lines.length) return
+        writeQueue = writeQueue
+          .catch(() => undefined)
+          .then(() => appendFile(logPath, `${lines.join("\n")}\n`, "utf8"))
+          .catch(() => undefined)
+      }
 
       server.middlewares.use("/__xiranite-debug-log", (request, response) => {
         if (request.method === "GET") {
@@ -109,10 +121,11 @@ function developmentDebugLogPlugin() {
         })
         request.on("end", () => {
           try {
-            const event = JSON.parse(body) as { sequence?: unknown; elapsedMs?: unknown; label?: unknown; detail?: unknown }
-            const line = `[xiranite-debug #${String(event.sequence)} +${String(event.elapsedMs)}ms] ${String(event.label)}${event.detail === undefined ? "" : ` ${JSON.stringify(event.detail)}`}`
-            console.log(line)
-            appendFileSync(logPath, `${line}\n`, "utf8")
+            const payload = JSON.parse(body) as { events?: unknown } | { sequence?: unknown; elapsedMs?: unknown; label?: unknown; detail?: unknown }
+            const events = "events" in payload && Array.isArray(payload.events)
+              ? payload.events as { sequence?: unknown; elapsedMs?: unknown; label?: unknown; detail?: unknown }[]
+              : [payload]
+            appendEvents(events)
           } catch {
             console.warn("[xiranite-debug] invalid browser event")
           }

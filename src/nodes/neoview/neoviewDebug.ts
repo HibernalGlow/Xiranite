@@ -14,7 +14,6 @@ export interface NeoviewLiveInstance {
 
 const liveInstances = new Map<string, NeoviewLiveInstance>()
 let sequence = 0
-const MAX_REMOTE_EVENTS = 200
 
 export function neoviewLiveCount(): number {
   return liveInstances.size
@@ -73,47 +72,18 @@ export function neoviewDebug(label: string, detail?: unknown): void {
   // DevTools objects and issue an unbounded stream of local POSTs.
   if (isHotPathLabel(label)) return
 
-  const prefix = `[neoview #${event.sequence} t=${event.t}ms live=${event.live}] ${label}`
-  if (detail === undefined) console.info(prefix)
-  else console.info(prefix, detail)
-
+  // startupDebug owns console and transport output. Sending this event again
+  // doubles every lifecycle write while React development checks are active.
   startupDebug(`neoview:${label}`, {
     live: event.live,
     ...(detail === undefined ? {} : { detail }),
   })
-
-  // Bound file logging independently of the in-memory startup-debug ring.
-  // A diagnostic session must not become a persistent background workload.
-  if (event.sequence > MAX_REMOTE_EVENTS) return
-  void fetch("/__xiranite-debug-log", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      sequence: event.sequence,
-      elapsedMs: event.t,
-      label: `neoview:${label}`,
-      detail: {
-        live: event.live,
-        ...(detail === undefined ? {} : { detail: summarizeDetail(detail) }),
-      },
-    }),
-    keepalive: true,
-  }).catch(() => undefined)
 }
 
 function isHotPathLabel(label: string): boolean {
   return label.includes("render:")
     || label.includes("progressive-step")
     || label.startsWith("page-image:")
-}
-
-function summarizeDetail(detail: unknown): unknown {
-  if (detail instanceof Error) return { name: detail.name, message: detail.message, stack: detail.stack }
-  try {
-    return JSON.parse(JSON.stringify(detail)) as unknown
-  } catch {
-    return String(detail)
-  }
 }
 
 export async function neoviewDebugAsync<T>(label: string, operation: () => T | PromiseLike<T>, detail?: unknown): Promise<T> {
