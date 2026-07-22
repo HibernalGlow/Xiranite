@@ -17,14 +17,11 @@ vi.mock("@/backend/configRpcClient", async (importOriginal) => ({
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 describe("DataMigrationSettingsCard", () => {
-  test("replaces its overview with the embedded config center without opening a dialog", async () => {
+  test("opens directly into the embedded config center without opening a dialog", async () => {
     render(<DataMigrationSettingsCard />)
 
-    expect(await screen.findByText("界面与布局")).toBeTruthy()
+    expect(await screen.findByRole("tab", { name: "当前配置" })).toBeTruthy()
     expect(screen.queryByRole("dialog")).toBeNull()
-
-    fireEvent.click(screen.getByRole("button", { name: "打开配置管理" }))
-    await waitFor(() => expect(screen.getByRole("tab", { name: "当前配置" })).toBeTruthy())
     expect(screen.getByRole("tab", { name: "变更历史" })).toBeTruthy()
     expect(screen.getByRole("tab", { name: "导入 / 导出" })).toBeTruthy()
     expect(screen.getByRole("tab", { name: "备份 / 同步" })).toBeTruthy()

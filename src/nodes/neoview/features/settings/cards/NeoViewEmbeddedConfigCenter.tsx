@@ -18,7 +18,7 @@ export function NeoViewEmbeddedConfigCenter({ config, tomlSource, onReload }: { 
   const [tab, setTab] = useState("current")
   const adapters = useMemo(() => createBackendAdapters("neoview", onReload), [onReload])
 
-  return <Tabs value={tab} onValueChange={setTab} className="min-h-0 gap-0">
+  return <Tabs value={tab} onValueChange={setTab} className="min-h-0 gap-0 overscroll-contain">
     <div className="overflow-x-auto border-b px-3 py-2">
       <TabsList variant="line" className="min-w-max">
         <TabsTrigger value="current">{t("config.tabs.current", "Current configuration")}</TabsTrigger>

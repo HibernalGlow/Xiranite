@@ -53,7 +53,7 @@ export function NeoViewConfigOverview({ config, tomlSource }: { config: Record<s
       })}
       </div>
     </TabsContent>
-    <TabsContent value="source" className="min-w-0">
+    <TabsContent value="source" className="min-h-0 min-w-0 overflow-hidden">
       {mode === "source" && tomlSource && config ? <Suspense fallback={<div className="grid min-h-48 place-items-center text-sm text-muted-foreground">{t("configData.overview.loadingSource", "Loading TOML highlighting...")}</div>}><LazyNodeConfigSourceView config={config} source={tomlSource} labels={neoSourceLabels(t)} /></Suspense> : null}
     </TabsContent>
   </Tabs>

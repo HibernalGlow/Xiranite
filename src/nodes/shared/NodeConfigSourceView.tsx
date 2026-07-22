@@ -56,7 +56,7 @@ export default function NodeConfigSourceView({ config, source, labels }: { confi
       <h3 className="text-xs font-semibold">{labels.source}</h3>
       <Button size="sm" variant="ghost" onClick={() => void copySource()}>{copied ? <Check /> : <Clipboard />}{copied ? labels.copied : labels.copy}</Button>
     </div>
-    <ScrollArea className="max-h-[430px] bg-background">
+    <ScrollArea className="h-[min(30rem,calc(100dvh-12rem))] max-h-full overscroll-contain bg-background">
       {highlighted ? <div className="node-config-toml text-xs leading-5" dangerouslySetInnerHTML={{ __html: highlighted }} /> : <pre className="overflow-x-auto p-4 text-xs leading-5"><code>{source}</code></pre>}
     </ScrollArea>
   </div>
