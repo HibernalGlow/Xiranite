@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
+import { lazy, startTransition, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
 import { BookOpen, ChevronRight, LoaderCircle, Pin, PinOff, Trash2, X } from "lucide-react"
 import {
   DEFAULT_READER_PRESENTATION,
@@ -435,12 +435,63 @@ export function ReaderApp({
   const [swimlaneSidebarsReady, setSwimlaneSidebarsReady] = useState(false)
   /** Right rail mounts a beat after left so control-panel cards do not compete with history. */
   const [swimlaneRightSidebarReady, setSwimlaneRightSidebarReady] = useState(false)
+  /**
+   * After openPath commits, defer LazyReaderFrame by one paint+idle so chrome stays
+   * interactive. Mounting frame+decode+adjacent preload on the same turn freezes the WebView.
+   */
+  const [readerFrameAllowed, setReaderFrameAllowed] = useState(false)
   const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
     : undefined)
   const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
   shellRef.current = shell
+
+  useEffect(() => {
+    if (!session?.sessionId) {
+      setReaderFrameAllowed(false)
+      return
+    }
+    setReaderFrameAllowed(false)
+    let cancelled = false
+    let outerRaf = 0
+    let innerRaf = 0
+    let idleHandle: number | undefined
+    let timeoutHandle: number | undefined
+    const startedAt = performance.now()
+    neoviewDebug("reader:frame:defer", {
+      sessionScopeId,
+      sessionId: session.sessionId,
+      pageCount: session.book.pageCount,
+      visiblePages: session.visiblePages.length,
+    })
+    outerRaf = requestAnimationFrame(() => {
+      innerRaf = requestAnimationFrame(() => {
+        if (cancelled) return
+        const allow = () => {
+          if (cancelled) return
+          neoviewDebug("reader:frame:mount-allowed", {
+            sessionScopeId,
+            sessionId: session.sessionId,
+            waitMs: Math.round((performance.now() - startedAt) * 10) / 10,
+          })
+          setReaderFrameAllowed(true)
+        }
+        if (typeof requestIdleCallback === "function") {
+          idleHandle = requestIdleCallback(allow, { timeout: 120 })
+        } else {
+          timeoutHandle = window.setTimeout(allow, 16)
+        }
+      })
+    })
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(outerRaf)
+      cancelAnimationFrame(innerRaf)
+      if (idleHandle !== undefined && typeof cancelIdleCallback === "function") cancelIdleCallback(idleHandle)
+      if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle)
+    }
+  }, [session?.book.pageCount, session?.sessionId, session?.visiblePages.length, sessionScopeId])
 
   useDeferredFinalCleanup(() => {
     neoviewDebug("reader:dispose", {
@@ -700,14 +751,18 @@ export function ReaderApp({
         return
       }
       sessionRef.current = opened.sessionId
-      setSlideshowFadeFrame(undefined)
-      setSession(opened)
-      setPresentation({ ...DEFAULT_READER_PRESENTATION, ...viewDefaultsRef.current })
       presentationTouchedRef.current = false
-      setPath(normalizedPath)
       const nextBrowserOriginPath = provenance?.browserOriginPath ?? browserOriginPath
+      // Path chrome can update urgently; session/frame work is transitioned so the
+      // main thread is not monopolized by LazyReaderFrame + decode in one turn.
+      setPath(normalizedPath)
       setBrowserOriginPath(nextBrowserOriginPath)
       onPathCommitted?.(normalizedPath, nextBrowserOriginPath)
+      startTransition(() => {
+        setSlideshowFadeFrame(undefined)
+        setSession(opened)
+        setPresentation({ ...DEFAULT_READER_PRESENTATION, ...viewDefaultsRef.current })
+      })
       if (previousSession && previousSession !== opened.sessionId) {
         void clientRef.current.close(previousSession).catch(() => undefined)
       }
@@ -1873,7 +1928,13 @@ export function ReaderApp({
     activePageIndex: frame?.anchorPageIndex,
     totalPages: session?.book.pageCount,
     plan: session?.preload,
-    enabled: !session || cancelledPreloadFrame?.sessionId !== session.sessionId || cancelledPreloadFrame.generation !== session.frame.generation,
+    // Wait until the visible frame is allowed to mount — adjacent preload on the
+    // same turn as setSession was part of the full-window freeze after open.
+    enabled: readerFrameAllowed && (
+      !session
+      || cancelledPreloadFrame?.sessionId !== session.sessionId
+      || cancelledPreloadFrame.generation !== session.frame.generation
+    ),
     upscaleEnabled: superResolution?.provider !== "disabled" && superResolution?.preferences.autoUpscaleEnabled === true,
     preload: prefetchController.preload,
     cancel: prefetchController.cancel,
@@ -2118,7 +2179,14 @@ export function ReaderApp({
       onPointerUp={inputRouter.onPointerUp}
       onContextMenu={(event) => { if (radialMenuRequest) event.preventDefault() }}
     >
-      {(viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background).mode !== "solid" ? <Suspense fallback={null}><LazyReaderBackgroundLayer config={viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background} imageSrc={session?.visiblePages.find((page) => page.mediaKind === "image")?.assetUrl} /></Suspense> : null}
+      {(viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background).mode !== "solid" && readerFrameAllowed ? (
+        <Suspense fallback={null}>
+          <LazyReaderBackgroundLayer
+            config={viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background}
+            imageSrc={session?.visiblePages.find((page) => page.mediaKind === "image")?.assetUrl}
+          />
+        </Suspense>
+      ) : null}
       {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={(action) => executeInputAction(action)} /></Suspense> : null}
       {!session ? (
         <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
@@ -2127,8 +2195,19 @@ export function ReaderApp({
             <p>从文件夹、历史记录或播放列表打开漫画</p>
           </div>
         </div>
+      ) : !readerFrameAllowed ? (
+        <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55" data-reader-frame-deferred="true">
+          <div>
+            <LoaderCircle className="mx-auto mb-3 size-8 animate-spin opacity-70" />
+            <p>正在准备页面…</p>
+          </div>
+        </div>
       ) : (
-        <Suspense fallback={null}>
+        <Suspense fallback={
+          <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55" data-reader-frame-loading="true">
+            <LoaderCircle className="mx-auto size-8 animate-spin opacity-70" />
+          </div>
+        }>
           <LazyReaderFrame
             pages={session.visiblePages}
             framePages={session.frame.pages}
