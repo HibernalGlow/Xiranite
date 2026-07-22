@@ -578,6 +578,7 @@ export class ReaderHttpController implements AsyncDisposable {
       options.emmOverrideStore,
       options.emmCollectTagSource,
       emmTranslations,
+      options.manualTagCatalogStore,
     )
     this.#fileOperations = new ReaderFileOperationHttpController(
       async () => {
