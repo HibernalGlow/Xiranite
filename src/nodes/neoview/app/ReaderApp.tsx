@@ -439,6 +439,8 @@ export function ReaderApp({
   const [readerViewFullscreen, setReaderViewFullscreen] = useState(false)
   /** Swimlane left/right sidebars are deferred until after the first shell paint. */
   const [swimlaneSidebarsReady, setSwimlaneSidebarsReady] = useState(false)
+  /** Right rail mounts a beat after left so control-panel cards do not compete with history. */
+  const [swimlaneRightSidebarReady, setSwimlaneRightSidebarReady] = useState(false)
   const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
     : undefined)
@@ -1779,14 +1781,17 @@ export function ReaderApp({
   useEffect(() => {
     if (workspaceMode !== "swimlane" || !shell) {
       setSwimlaneSidebarsReady(false)
+      setSwimlaneRightSidebarReady(false)
       return
     }
     setSwimlaneSidebarsReady(false)
+    setSwimlaneRightSidebarReady(false)
     let cancelled = false
     let outerRaf = 0
     let innerRaf = 0
     let idleHandle: number | undefined
     let timeoutHandle: number | undefined
+    let rightTimeout: number | undefined
     const startedAt = performance.now()
     neoviewDebug("reader:swimlane-shell:schedule-sidebars", {
       sessionScopeId,
@@ -1799,18 +1804,26 @@ export function ReaderApp({
           sessionScopeId,
           sinceScheduleMs: Math.round((performance.now() - startedAt) * 10) / 10,
         })
-        const reveal = () => {
+        const revealLeft = () => {
           if (cancelled) return
-          neoviewDebug("reader:swimlane-sidebars:ready", {
+          neoviewDebug("reader:swimlane-sidebars:left-ready", {
             sessionScopeId,
             sinceScheduleMs: Math.round((performance.now() - startedAt) * 10) / 10,
           })
           setSwimlaneSidebarsReady(true)
+          rightTimeout = window.setTimeout(() => {
+            if (cancelled) return
+            neoviewDebug("reader:swimlane-sidebars:right-ready", {
+              sessionScopeId,
+              sinceScheduleMs: Math.round((performance.now() - startedAt) * 10) / 10,
+            })
+            setSwimlaneRightSidebarReady(true)
+          }, 120)
         }
         if (typeof requestIdleCallback === "function") {
-          idleHandle = requestIdleCallback(reveal, { timeout: 400 })
+          idleHandle = requestIdleCallback(revealLeft, { timeout: 400 })
         } else {
-          timeoutHandle = window.setTimeout(reveal, 50)
+          timeoutHandle = window.setTimeout(revealLeft, 50)
         }
       })
     })
@@ -1820,6 +1833,7 @@ export function ReaderApp({
       cancelAnimationFrame(innerRaf)
       if (idleHandle !== undefined && typeof cancelIdleCallback === "function") cancelIdleCallback(idleHandle)
       if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle)
+      if (rightTimeout !== undefined) window.clearTimeout(rightTimeout)
     }
   }, [sessionScopeId, shell, workspaceMode])
   const toggleReaderViewFullscreen = () => {
@@ -2207,7 +2221,7 @@ export function ReaderApp({
                 ) : (
                   <div className="h-full w-full animate-pulse bg-background/70" aria-label="左侧泳道待加载" data-sidebar-deferred="left" />
                 )}
-                right={swimlaneSidebarsReady ? (
+                right={swimlaneRightSidebarReady ? (
                   <Suspense fallback={<div className="h-full w-full animate-pulse bg-background/85" aria-label="正在加载右侧泳道" data-sidebar-deferred="right-loading" />}>
                     <LazyReaderSidebar
                       side="right"
