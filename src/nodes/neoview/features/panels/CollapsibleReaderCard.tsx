@@ -9,6 +9,7 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from "react"
 import { ChevronDown, ChevronUp, GripHorizontal, RotateCcw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { MagicCard } from "@/components/ui/magic-card"
 import { cn } from "@/lib/utils"
 import { ReaderCardChromeProvider } from "./ReaderCardChromeContext"
 
@@ -119,7 +120,21 @@ export function CollapsibleReaderCard({
     </section>
   )
 
-  return card
+  return (
+    <MagicCard
+      className={cn(
+        "neoview-card-magic min-w-0 rounded-xl",
+        "[[data-module-card-effect=plain]_&]:!bg-card [[data-module-card-effect=plain]_&]:!shadow-none",
+        "[[data-module-card-effect=plain]_&_[data-slot=magic-card-gradient]]:hidden",
+        "[[data-module-card-effect=plain]_&_[data-slot=magic-card-orb]]:hidden",
+        "[[data-module-panel-style=outline]_&_[data-slot=magic-card-surface]]:bg-transparent",
+        "[[data-module-panel-style=flat]_&_[data-slot=magic-card-surface]]:bg-transparent",
+        frameless && "flex h-full min-h-0 w-full flex-1 rounded-none border-0 !bg-transparent [&_[data-slot=magic-card-gradient]]:hidden [&_[data-slot=magic-card-orb]]:hidden [&_[data-slot=magic-card-surface]]:hidden",
+      )}
+    >
+      {card}
+    </MagicCard>
+  )
 
   function startHeightGesture(event: ReactPointerEvent<HTMLButtonElement>): void {
     const content = contentRef.current
