@@ -14,12 +14,19 @@ import {
 import { motion, useDragControls, type PanInfo } from "motion/react"
 import { Disc3, GripHorizontal, Maximize2, Minimize2, PanelBottom, Pause, PictureInPicture2, Play, SkipBack, SkipForward, X } from "lucide-react"
 import type { MusicPlaybackControls, MusicPlaybackState, PersistedTrack } from "@/components/modules/musicPlayer/MusicPlayerSurface"
-import { DEFAULT_MUSIC_VISUALIZER_STYLE, normalizeMusicVisualizerStyle, type MusicVisualizerStyle } from "@/components/modules/musicPlayer/visualizerStyles"
+import type { MusicVisualizerStyle } from "@/components/modules/musicPlayer/visualizerStyles"
 import { DynamicIsland, DynamicIslandProvider } from "@/components/ui/dynamic-island"
 import { useDynamicIslandSize } from "@/components/ui/dynamic-island-context"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { cn } from "@/lib/utils"
+import {
+  DEFAULT_MELODECK_CONFIG,
+  loadMelodeckConfig,
+  MELODECK_CONFIG_CHANGED_EVENT,
+  saveMelodeckConfig,
+} from "@/nodes/melodeck/config"
 
 type DockMode = "bottom" | "floating" | "fullscreen"
 
@@ -28,9 +35,9 @@ interface FloatingOffset {
   y: number
 }
 
-type MusicDockIslandVariant = "full" | "mini"
+type MelodeckIslandVariant = "full" | "mini"
 
-interface MusicDockContextValue {
+interface MelodeckContextValue {
   collapsed: boolean
   mode: DockMode
   audioRef: RefObject<HTMLAudioElement | null>
@@ -52,13 +59,7 @@ interface MusicDockContextValue {
   setFloatingOffset(offset: FloatingOffset): void
 }
 
-const MUSIC_DOCK_MODE_STORAGE_KEY = "xiranite.musicDock.mode"
-const MUSIC_DOCK_TRACKS_STORAGE_KEY = "xiranite.musicDock.savedTracks"
-const MUSIC_DOCK_SOURCE_STORAGE_KEY = "xiranite.musicDock.sourcePath"
-const MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY = "xiranite.musicDock.floatingOffset"
-const MUSIC_DOCK_VISUALIZER_STYLE_STORAGE_KEY = "xiranite.musicDock.visualizerStyle"
-const LEGACY_CONFIG_CHANGED_EVENT = "xiranite:legacy-config-changed"
-const MUSIC_DOCK_GLASS_SHADOW_CLASS = "shadow-[0_14px_44px_rgba(0,0,0,0.16)] dark:shadow-[0_20px_64px_rgba(0,0,0,0.34)]"
+const MELODECK_GLASS_SHADOW_CLASS = "shadow-[0_14px_44px_rgba(0,0,0,0.16)] dark:shadow-[0_20px_64px_rgba(0,0,0,0.34)]"
 const EMPTY_PLAYBACK_STATE: MusicPlaybackState = {
   hasTrack: false,
   isPlaying: false,
@@ -74,64 +75,78 @@ const MusicVisualizerIcon = lazy(() =>
     default: module.MusicVisualizerIcon,
   })),
 )
-const MusicDockContext = createContext<MusicDockContextValue | null>(null)
+const MelodeckContext = createContext<MelodeckContextValue | null>(null)
 
-export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }) {
+export function WorkspaceMelodeckProvider({ children }: { children: ReactNode }) {
+  const backendStatus = useLocalBackendStatus()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const playbackControlsRef = useRef<MusicPlaybackControls | null>(null)
+  const applyingConfigRef = useRef(false)
   const [collapsed, setCollapsed] = useState(true)
-  const [mode, setMode] = useState<DockMode>(() => readDockMode())
+  const [mode, setMode] = useState<DockMode>(DEFAULT_MELODECK_CONFIG.mode)
   const [playback, setPlaybackState] = useState<MusicPlaybackState>(EMPTY_PLAYBACK_STATE)
-  const [visualizerStyle, setVisualizerStyle] = useState<MusicVisualizerStyle>(() => readVisualizerStyle())
+  const [visualizerStyle, setVisualizerStyle] = useState<MusicVisualizerStyle>(DEFAULT_MELODECK_CONFIG.visualizer_style)
   const [surfaceMounted, setSurfaceMounted] = useState(false)
-  const [savedTracks, setSavedTracks] = useState<PersistedTrack[]>(() => readSavedTracks())
-  const [sourcePath, setSourcePath] = useState(() => readSourcePath())
-  const [floatingOffset, setFloatingOffset] = useState<FloatingOffset>(() => readFloatingOffset())
+  const [savedTracks, setSavedTracks] = useState<PersistedTrack[]>([])
+  const [sourcePath, setSourcePath] = useState("")
+  const [floatingOffset, setFloatingOffset] = useState<FloatingOffset>(DEFAULT_MELODECK_CONFIG.floating_offset)
+  const [configLoaded, setConfigLoaded] = useState(false)
+  const backendKey = backendStatus.data?.status === "ready" && backendStatus.data.config
+    ? `${backendStatus.data.config.baseUrl}\n${backendStatus.data.config.token ?? ""}`
+    : ""
   const setPlaybackControls = useCallback((controls: MusicPlaybackControls | null) => {
     playbackControlsRef.current = controls
   }, [])
 
   useEffect(() => {
-    writeDockMode(mode)
-  }, [mode])
+    if (!backendKey) return
+    let cancelled = false
 
-  useEffect(() => {
-    writeSavedTracks(savedTracks)
-  }, [savedTracks])
-
-  useEffect(() => {
-    writeSourcePath(sourcePath)
-  }, [sourcePath])
-
-  useEffect(() => {
-    writeFloatingOffset(floatingOffset)
-  }, [floatingOffset])
-
-  useEffect(() => {
-    writeVisualizerStyle(visualizerStyle)
-  }, [visualizerStyle])
-
-  useEffect(() => {
-    const refreshMusicDockConfig = () => {
-      setMode(readDockMode())
-      setSavedTracks((current) => {
-        const next = readSavedTracks()
-        return areSavedTracksEqual(current, next) ? current : next
+    const refreshMelodeckConfig = () => {
+      applyingConfigRef.current = true
+      loadMelodeckConfig().then((config) => {
+        if (cancelled) return
+        setMode(config.mode ?? DEFAULT_MELODECK_CONFIG.mode)
+        setSavedTracks(config.saved_tracks ?? [])
+        setSourcePath(config.source_path ?? "")
+        setFloatingOffset(clampFloatingOffset(config.floating_offset ?? DEFAULT_MELODECK_CONFIG.floating_offset))
+        setVisualizerStyle(config.visualizer_style ?? DEFAULT_MELODECK_CONFIG.visualizer_style)
+        setConfigLoaded(true)
+        queueMicrotask(() => {
+          applyingConfigRef.current = false
+        })
+      }).catch((error) => {
+        applyingConfigRef.current = false
+        console.warn("[melodeck] config load failed:", error)
       })
-      setSourcePath(readSourcePath())
-      setFloatingOffset((current) => {
-        const next = readFloatingOffset()
-        return areFloatingOffsetsEqual(current, next) ? current : next
-      })
-      setVisualizerStyle(readVisualizerStyle())
     }
 
-    window.addEventListener(LEGACY_CONFIG_CHANGED_EVENT, refreshMusicDockConfig)
-    return () => window.removeEventListener(LEGACY_CONFIG_CHANGED_EVENT, refreshMusicDockConfig)
-  }, [])
+    refreshMelodeckConfig()
+    window.addEventListener(MELODECK_CONFIG_CHANGED_EVENT, refreshMelodeckConfig)
+    return () => {
+      cancelled = true
+      window.removeEventListener(MELODECK_CONFIG_CHANGED_EVENT, refreshMelodeckConfig)
+    }
+  }, [backendKey])
+
+  useEffect(() => {
+    if (!backendKey || !configLoaded || applyingConfigRef.current) return
+    const timer = window.setTimeout(() => {
+      saveMelodeckConfig({
+        mode,
+        saved_tracks: savedTracks,
+        source_path: sourcePath,
+        floating_offset: floatingOffset,
+        visualizer_style: visualizerStyle,
+      }).catch((error) => {
+        console.warn("[melodeck] config save failed:", error)
+      })
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [backendKey, configLoaded, floatingOffset, mode, savedTracks, sourcePath, visualizerStyle])
 
   return (
-    <MusicDockContext.Provider
+    <MelodeckContext.Provider
       value={{
         collapsed,
         mode,
@@ -155,16 +170,16 @@ export function WorkspaceMusicDockProvider({ children }: { children: ReactNode }
       }}
     >
       {children}
-    </MusicDockContext.Provider>
+    </MelodeckContext.Provider>
   )
 }
 
-export function WorkspaceMusicDockTopBarSlot() {
+export function WorkspaceMelodeckTopBarSlot() {
   const variant = useTopBarMusicIslandVariant()
 
   if (variant === "full") {
     return (
-      <div data-music-dock="topbar-slot-full" className="xiranite-app-region-no-drag relative z-[2400] h-12 w-[206px] shrink-0 overflow-visible">
+      <div data-melodeck="topbar-slot-full" className="xiranite-app-region-no-drag relative z-[2400] h-12 w-[206px] shrink-0 overflow-visible">
         <DynamicIslandProvider
           initialSize="minimalLeading"
           presets={{
@@ -172,14 +187,14 @@ export function WorkspaceMusicDockTopBarSlot() {
             compact: { width: 396, aspectRatio: 156 / 396, borderRadius: 28 },
           }}
         >
-          <MusicDockIsland variant="full" />
+          <MelodeckIsland variant="full" />
         </DynamicIslandProvider>
       </div>
     )
   }
 
   return (
-    <div data-music-dock="topbar-slot-mini" className="xiranite-app-region-no-drag relative z-[2400] h-12 w-[64px] shrink-0 overflow-visible">
+    <div data-melodeck="topbar-slot-mini" className="xiranite-app-region-no-drag relative z-[2400] h-12 w-[64px] shrink-0 overflow-visible">
       <DynamicIslandProvider
         initialSize="minimalLeading"
         presets={{
@@ -187,14 +202,14 @@ export function WorkspaceMusicDockTopBarSlot() {
           compact: { width: 320, aspectRatio: 156 / 320, borderRadius: 28 },
         }}
       >
-        <MusicDockIsland variant="mini" />
+        <MelodeckIsland variant="mini" />
       </DynamicIslandProvider>
     </div>
   )
 }
 
-function useTopBarMusicIslandVariant(): MusicDockIslandVariant {
-  const [variant, setVariant] = useState<MusicDockIslandVariant>(() => (
+function useTopBarMusicIslandVariant(): MelodeckIslandVariant {
+  const [variant, setVariant] = useState<MelodeckIslandVariant>(() => (
     typeof window !== "undefined" && window.matchMedia("(min-width: 1280px)").matches ? "full" : "mini"
   ))
 
@@ -209,8 +224,8 @@ function useTopBarMusicIslandVariant(): MusicDockIslandVariant {
   return variant
 }
 
-function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
-  const dock = useMusicDock()
+function MelodeckIsland({ variant }: { variant: MelodeckIslandVariant }) {
+  const dock = useMelodeck()
   const islandRef = useRef<HTMLDivElement>(null)
   const { state, setSize } = useDynamicIslandSize()
   const expanded = state.size === "compact"
@@ -253,7 +268,7 @@ function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
 
   return (
     <DynamicIsland
-      id={`music-dock-topbar-island-${variant}`}
+      id={`melodeck-topbar-island-${variant}`}
       className={cn(
         "absolute right-0 top-[7px] mx-0 max-w-[calc(100vw-9rem)] border border-border/55 bg-background/78 text-foreground shadow-[0_8px_24px_color-mix(in_oklch,var(--foreground)_12%,transparent)] ring-1 ring-border/25 backdrop-blur-xl backdrop-saturate-150",
         "supports-[backdrop-filter]:bg-background/62",
@@ -263,8 +278,8 @@ function MusicDockIsland({ variant }: { variant: MusicDockIslandVariant }) {
     >
       <div
         ref={islandRef}
-        data-music-dock-island-state={expanded ? "expanded" : "collapsed"}
-        data-music-dock-island-variant={variant}
+        data-melodeck-island-state={expanded ? "expanded" : "collapsed"}
+        data-melodeck-island-variant={variant}
         className={cn(
           "flex h-full w-full min-w-0 flex-col overflow-hidden",
           collapsedMini ? "p-1" : expanded ? "px-3 py-2.5" : "px-2 py-1",
@@ -383,7 +398,7 @@ function MusicIslandExpandedPlayer({
   onHidePanel(): void
   onShowInMode(mode: DockMode): void
 }) {
-  const dock = useMusicDock()
+  const dock = useMelodeck()
 
   if (!expanded) return null
 
@@ -525,8 +540,8 @@ function MusicIslandAction({
   )
 }
 
-export function WorkspaceMusicDockPanel() {
-  const dock = useMusicDock()
+export function WorkspaceMelodeckPanel() {
+  const dock = useMelodeck()
   const dragControls = useDragControls()
   const dragBoundsRef = useRef<HTMLDivElement>(null)
   const backgroundMode = dock.collapsed
@@ -609,8 +624,8 @@ export function WorkspaceMusicDockPanel() {
         animate={!backgroundMode && dock.mode !== "floating" ? { x: 0, y: 0 } : undefined}
         style={!backgroundMode && dock.mode === "floating" ? dock.floatingOffset : undefined}
         transition={{ type: "spring", stiffness: 380, damping: 34 }}
-        data-music-dock="panel"
-        data-music-dock-mode={dock.mode}
+        data-melodeck="panel"
+        data-melodeck-mode={dock.mode}
         className={cn(
           "absolute bottom-0 overflow-hidden",
           backgroundMode
@@ -627,14 +642,14 @@ export function WorkspaceMusicDockPanel() {
       >
         <div className={cn(
           "xiranite-app-region-no-drag relative isolate flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card/[0.16] backdrop-blur-2xl backdrop-saturate-150",
-          MUSIC_DOCK_GLASS_SHADOW_CLASS,
+          MELODECK_GLASS_SHADOW_CLASS,
           dock.mode !== "bottom" && "border-border/65 shadow-[0_26px_90px_rgba(0,0,0,0.26)] dark:shadow-[0_30px_96px_rgba(0,0,0,0.52)]"
         )}>
-          <MusicDockAmbientLayer />
+          <MelodeckAmbientLayer />
           {dock.mode !== "bottom" && (
             <div className="relative z-10 flex h-9 shrink-0 items-center gap-2 border-b border-border/30 bg-background/[0.14] px-2 text-muted-foreground backdrop-blur-2xl backdrop-saturate-150">
               <div
-                data-music-dock-part="drag-handle"
+                data-melodeck-part="drag-handle"
                 className={cn(
                   "flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1",
                   dock.mode === "floating" && "cursor-grab touch-none active:cursor-grabbing",
@@ -684,7 +699,7 @@ export function WorkspaceMusicDockPanel() {
             </div>
           )}
 
-          <Suspense fallback={<MusicDockSurfaceFallback />}>
+          <Suspense fallback={<MelodeckSurfaceFallback />}>
             <MusicPlayerSurface
               audioRef={dock.audioRef}
               savedTracks={dock.savedTracks}
@@ -706,7 +721,7 @@ export function WorkspaceMusicDockPanel() {
   )
 }
 
-function MusicDockSurfaceFallback() {
+function MelodeckSurfaceFallback() {
   return (
     <div className="relative z-10 grid min-h-0 flex-1 place-items-center p-4 text-xs text-muted-foreground">
       Loading music player...
@@ -714,7 +729,7 @@ function MusicDockSurfaceFallback() {
   )
 }
 
-function MusicDockAmbientLayer() {
+function MelodeckAmbientLayer() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       <div className="absolute inset-0 bg-[linear-gradient(145deg,hsl(var(--card)/0.20),transparent_55%,hsl(var(--muted)/0.14)),linear-gradient(90deg,hsl(var(--primary)/0.07),transparent_42%,hsl(var(--accent)/0.07))]" />
@@ -725,89 +740,10 @@ function MusicDockAmbientLayer() {
   )
 }
 
-function useMusicDock(): MusicDockContextValue {
-  const context = useContext(MusicDockContext)
-  if (!context) throw new Error("WorkspaceMusicDock components must be rendered inside WorkspaceMusicDockProvider.")
+function useMelodeck(): MelodeckContextValue {
+  const context = useContext(MelodeckContext)
+  if (!context) throw new Error("WorkspaceMelodeck components must be rendered inside WorkspaceMelodeckProvider.")
   return context
-}
-
-function readDockMode(): DockMode {
-  if (typeof window === "undefined") return "bottom"
-  const stored = window.localStorage.getItem(MUSIC_DOCK_MODE_STORAGE_KEY)
-  return stored === "floating" || stored === "fullscreen" ? stored : "bottom"
-}
-
-function writeDockMode(mode: DockMode) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(MUSIC_DOCK_MODE_STORAGE_KEY, mode)
-  dispatchLegacyConfigChanged()
-}
-
-function readSavedTracks(): PersistedTrack[] {
-  if (typeof window === "undefined") return []
-
-  try {
-    const value = window.localStorage.getItem(MUSIC_DOCK_TRACKS_STORAGE_KEY)
-    if (!value) return []
-    const parsed = JSON.parse(value) as unknown
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(isPersistedTrack)
-  } catch {
-    return []
-  }
-}
-
-function writeSavedTracks(tracks: PersistedTrack[]) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(MUSIC_DOCK_TRACKS_STORAGE_KEY, JSON.stringify(tracks))
-  dispatchLegacyConfigChanged()
-}
-
-function readSourcePath(): string {
-  if (typeof window === "undefined") return ""
-  return window.localStorage.getItem(MUSIC_DOCK_SOURCE_STORAGE_KEY) ?? ""
-}
-
-function writeSourcePath(path: string) {
-  if (typeof window === "undefined") return
-  if (path) window.localStorage.setItem(MUSIC_DOCK_SOURCE_STORAGE_KEY, path)
-  else window.localStorage.removeItem(MUSIC_DOCK_SOURCE_STORAGE_KEY)
-  dispatchLegacyConfigChanged()
-}
-
-function readFloatingOffset(): FloatingOffset {
-  if (typeof window === "undefined") return { x: 0, y: 0 }
-
-  try {
-    const value = window.localStorage.getItem(MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY)
-    if (!value) return { x: 0, y: 0 }
-    const parsed = JSON.parse(value) as unknown
-    if (!parsed || typeof parsed !== "object") return { x: 0, y: 0 }
-    const offset = parsed as FloatingOffset
-    return clampFloatingOffset({
-      x: Number.isFinite(offset.x) ? offset.x : 0,
-      y: Number.isFinite(offset.y) ? offset.y : 0,
-    })
-  } catch {
-    return { x: 0, y: 0 }
-  }
-}
-
-function writeFloatingOffset(offset: FloatingOffset) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(MUSIC_DOCK_FLOATING_OFFSET_STORAGE_KEY, JSON.stringify(offset))
-  dispatchLegacyConfigChanged()
-}
-
-function readVisualizerStyle(): MusicVisualizerStyle {
-  if (typeof window === "undefined") return DEFAULT_MUSIC_VISUALIZER_STYLE
-  return normalizeMusicVisualizerStyle(window.localStorage.getItem(MUSIC_DOCK_VISUALIZER_STYLE_STORAGE_KEY))
-}
-
-function writeVisualizerStyle(style: MusicVisualizerStyle) {
-  if (typeof window === "undefined") return
-  window.localStorage.setItem(MUSIC_DOCK_VISUALIZER_STYLE_STORAGE_KEY, style)
-  dispatchLegacyConfigChanged()
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -843,24 +779,4 @@ function clampFloatingOffset(offset: FloatingOffset): FloatingOffset {
     x: clamp(offset.x, inset - baseLeft, 0),
     y: clamp(offset.y, inset - baseTop, 0),
   }
-}
-
-function isPersistedTrack(value: unknown): value is PersistedTrack {
-  if (!value || typeof value !== "object") return false
-  const track = value as PersistedTrack
-  return typeof track.name === "string" && (track.path === undefined || typeof track.path === "string")
-}
-
-function areSavedTracksEqual(left: PersistedTrack[], right: PersistedTrack[]): boolean {
-  if (left.length !== right.length) return false
-  return left.every((track, index) => track.name === right[index]?.name && track.path === right[index]?.path)
-}
-
-function areFloatingOffsetsEqual(left: FloatingOffset, right: FloatingOffset): boolean {
-  return left.x === right.x && left.y === right.y
-}
-
-function dispatchLegacyConfigChanged() {
-  if (typeof window === "undefined") return
-  window.dispatchEvent(new CustomEvent(LEGACY_CONFIG_CHANGED_EVENT))
 }

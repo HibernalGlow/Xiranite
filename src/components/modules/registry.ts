@@ -69,14 +69,6 @@ export const MODULE_REGISTRY: ModuleDef[] = [
     icon: "FileText",
   },
   {
-    id: "music-player",
-    name: "MUSIC PLAYER",
-    version: "v0.1.0",
-    category: "MEDIA",
-    description: "Local music player backed by Xiranite runtime file service. Supports FLAC folders, playlists, and themed dock playback.",
-    icon: "Music2",
-  },
-  {
     id: "settings",
     name: "SETTINGS",
     version: "v1.0.0",

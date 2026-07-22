@@ -4,7 +4,7 @@ import { TopBar } from "./TopBar"
 import { CardView } from "./CardView"
 import { OverlayHost } from "./OverlayHost"
 import { SelectionToolbar } from "./SelectionToolbar"
-import { WorkspaceMusicDockPanel, WorkspaceMusicDockProvider } from "./WorkspaceMusicDock"
+import { WorkspaceMelodeckPanel, WorkspaceMelodeckProvider } from "./WorkspaceMelodeck"
 import { AlphabetNodeRail } from "./AlphabetNodeRail"
 import { WorkspaceUrlState } from "./WorkspaceUrlState"
 import { BackendStatusBanner } from "./BackendStatusBanner"
@@ -45,7 +45,7 @@ export function WorkspaceLayout() {
       style={bgStyles}
     >
       <DefaultContextMenuItems />
-      <WorkspaceMusicDockProvider>
+      <WorkspaceMelodeckProvider>
         <WorkspaceUrlState />
         <TopBar />
         <BackendStatusBanner />
@@ -68,9 +68,9 @@ export function WorkspaceLayout() {
           <OverlayHost />
           <SelectionToolbar />
           <AlphabetNodeRail />
-          <WorkspaceMusicDockPanel />
+          <WorkspaceMelodeckPanel />
         </main>
-      </WorkspaceMusicDockProvider>
+      </WorkspaceMelodeckProvider>
     </div>
   )
 }

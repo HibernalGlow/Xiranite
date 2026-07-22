@@ -49,7 +49,13 @@ export async function runMelodeck(input: MelodeckInput, runtime: MelodeckRuntime
     : action === "status" ? { command: ["get_property", "pause"] }
     : { command: ["set_property", "volume", volume] }
   onEvent({ type: "progress", progress: 40, message: `Sending mpv command: ${action}.` })
-  const response = await runtime.command(ipc, ipcCommand)
+  let response: Record<string, unknown>
+  try {
+    response = await runtime.command(ipc, ipcCommand)
+  } catch (error) {
+    if (action === "status") return ok("Melodeck is not running.", status, command)
+    return fail(`mpv IPC is unavailable: ${error instanceof Error ? error.message : String(error)}`, status, command)
+  }
   if (response.error && response.error !== "success") return fail(`mpv command failed: ${String(response.error)}`, status, command)
   const next = { ...status, running: action !== "stop", paused: action === "pause" || action === "toggle" }
   onEvent({ type: "progress", progress: 100, message: `Melodeck ${action} completed.` })
