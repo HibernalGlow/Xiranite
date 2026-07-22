@@ -5,10 +5,14 @@ import tailwindcss from "@tailwindcss/vite"
 import { Scanner } from "@tailwindcss/oxide"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vitest/config"
+import { collectLucideIconExports, rewriteLucideDeepImports } from "./scripts/lucide-deep-imports"
+import { VITE_EAGER_DEPENDENCIES, VITE_EXCLUDED_DEPENDENCIES } from "./scripts/vite-dependency-policy"
 
 const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
+const lucideReactEntry = path.resolve(__dirname, "./node_modules/lucide-react/dist/esm/lucide-react.js")
+const propTypesDevShim = path.resolve(__dirname, "./src/vendor/prop-types-dev.ts")
 const reactCompilerMode = process.env.XIRANITE_REACT_COMPILER_MODE ?? "infer"
 
 if (reactCompilerMode !== "annotation" && reactCompilerMode !== "infer" && reactCompilerMode !== "off") {
@@ -63,6 +67,31 @@ function productionChunkReportPlugin() {
   }
 }
 
+function developmentCjsShimPlugin() {
+  return {
+    name: "xiranite:development-cjs-shims",
+    apply: "serve" as const,
+    enforce: "pre" as const,
+    resolveId(id: string) {
+      return id === "prop-types" ? propTypesDevShim : null
+    },
+  }
+}
+
+function lucideDeepImportsPlugin() {
+  let iconExports: Promise<ReturnType<typeof collectLucideIconExports>> | undefined
+  return {
+    name: "xiranite:lucide-deep-imports",
+    enforce: "pre" as const,
+    async transform(source: string, id: string) {
+      if (!source.includes("lucide-react") || !/\.[cm]?[jt]sx?(?:\?|$)/.test(id)) return null
+      iconExports ??= readFile(lucideReactEntry, "utf8").then(collectLucideIconExports)
+      const code = rewriteLucideDeepImports(source, id, await iconExports)
+      return code === null ? null : { code, map: null }
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   cacheDir: process.env.XIRANITE_VITE_CACHE_DIR,
@@ -73,6 +102,8 @@ export default defineConfig({
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
   },
   plugins: [
+    developmentCjsShimPlugin(),
+    lucideDeepImportsPlugin(),
     tailwindCandidateSnapshotPlugin(),
     productionChunkReportPlugin(),
     react({
@@ -84,6 +115,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: [
+      { find: "void-elements", replacement: path.resolve(__dirname, "src/vendor/void-elements.ts") },
       // Keep the browser entry on the source-level UI boundary. The NeoView
       // package build replaces dist non-atomically, and a stale Vite optimized
       // dependency can otherwise retain the Node-only core module graph.
@@ -118,6 +150,13 @@ export default defineConfig({
     ],
   },
   server: {
+    warmup: {
+      clientFiles: [
+        "./src/main.tsx",
+        "./src/App.tsx",
+        "./src/components/workspace/WorkspaceLayout.tsx",
+      ],
+    },
     watch: {
       ignored: ["**/.cache/**", "**/build/**", "**/artifacts/**", "**/native/target/**"],
     },
@@ -132,33 +171,18 @@ export default defineConfig({
       : undefined,
   },
   optimizeDeps: {
-    // Standalone reference HTML under icon/ is not an application entry.
-    entries: ["index.html"],
     // use-sync-external-store/shim 是 CommonJS（module.exports = require(...)),
     // 不预构建时浏览器 ESM `import { useSyncExternalStore }` 拿不到命名导出。
     // esbuild 预构建会把 CJS 转成 ESM 命名导出。zustand / @base-ui/react /
     // @tanstack/react-store 都通过 shim 入口引用。
-    include: [
-      "@wailsio/runtime",
-      "use-sync-external-store",
-      "use-sync-external-store/shim",
-      "use-sync-external-store/shim/with-selector",
-    ],
+    include: [...VITE_EAGER_DEPENDENCIES],
     // nuqs 必须排除预构建：nuqs 用 window.__NuqsAdapterContext 做全局单例检测，
     // 若 esbuild 把 `nuqs` 和 `nuqs/adapters/react` 各自打包成独立 chunk，
     // context-CayRnDCw.js 会被内联两次 → 两个 createContext 实例 →
     // "Multiple adapter contexts detected" (NUQS-303) + context provider 失效。
     // nuqs 是纯 ESM（type: module），浏览器原生 ESM 按 URL 去重模块，
     // exclude 后所有入口共享同一份 context 模块。
-    exclude: [
-      "nuqs",
-      "@xiranite/node-neoview",
-      "@shikijs/core",
-      "@shikijs/engine-javascript",
-      "@shikijs/langs/toml",
-      "@shikijs/themes/github-light",
-      "@shikijs/themes/github-dark",
-    ],
+    exclude: [...VITE_EXCLUDED_DEPENDENCIES],
     rolldownOptions: {
       transform: {
         define: {
