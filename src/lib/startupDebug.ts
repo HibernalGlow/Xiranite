@@ -1,6 +1,7 @@
 const DEBUG_STORAGE_KEY = "xiranite.startupDebug"
 const MAX_EVENTS = 500
 const MAX_REMOTE_EVENTS = 200
+const MAX_LONG_TASK_EVENTS = 50
 
 export interface StartupDebugEvent {
   sequence: number
@@ -79,7 +80,34 @@ export function installStartupDebug(): void {
     }
   }, 250)
 
+  observeLongTasks()
+
   startupDebug("debug:installed", { href: window.location.href })
+}
+
+function observeLongTasks(): void {
+  if (typeof PerformanceObserver === "undefined") return
+
+  let observed = 0
+  try {
+    const observer = new PerformanceObserver((entries) => {
+      for (const entry of entries.getEntries()) {
+        if (observed >= MAX_LONG_TASK_EVENTS) {
+          observer.disconnect()
+          return
+        }
+        observed += 1
+        startupDebug("performance:long-task", {
+          durationMs: Math.round(entry.duration * 10) / 10,
+          startMs: Math.round(entry.startTime * 10) / 10,
+          name: entry.name,
+        })
+      }
+    })
+    observer.observe({ type: "longtask", buffered: true })
+  } catch {
+    // Chromium may not expose Long Task entries in every WebView build.
+  }
 }
 
 export function startupDebug(label: string, detail?: unknown): void {
