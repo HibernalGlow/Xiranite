@@ -8,8 +8,8 @@ import { folderViewShowsPenetrationFiles } from "./FolderPenetrationFileNames"
 
 const entry = { name: "container", path: "D:/library/container", kind: "directory" as const, readerSupported: true }
 const penetrationFiles = [
-  { name: "First Book", path: "D:/library/container/First Book.cbz" },
-  { name: "Second.Book", path: "D:/library/container/Second.Book.zip" },
+  { name: "First Book", path: "D:/library/container/First Book.cbz", kind: "file" as const },
+  { name: "chapters", path: "D:/library/container/chapters", kind: "directory" as const },
 ]
 
 describe("Folder Card penetration file names", () => {
@@ -45,7 +45,7 @@ describe("Folder Card penetration file names", () => {
 
     const list = screen.getByRole("button").querySelector('[data-folder-penetration-files="true"]')
     expect(list?.textContent).toContain("First Book")
-    expect(list?.textContent).toContain("Second.Book")
+    expect(list?.textContent).toContain("chapters")
     expect(list?.textContent).not.toContain("显示内部文件")
     cleanup()
   })
@@ -71,7 +71,7 @@ describe("Folder Card penetration file names", () => {
     else render(<DirectoryMosaicItem {...common} span="square" previewReady={false} columnCount={4} deleteMode={false} deleteStrategy="trash" confirmDelete onDimensions={vi.fn()} />)
 
     expect(screen.getByText("First Book")).toBeTruthy()
-    expect(screen.getByText("Second.Book")).toBeTruthy()
+    expect(screen.getByText("chapters")).toBeTruthy()
     cleanup()
   })
 })

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
@@ -94,8 +94,20 @@ describe("FolderBreadcrumb", () => {
       path={"C:\\manga"}
       client={{ treeDirectoryBrowser } as unknown as ReaderHttpClient}
       sessionId="browser-1"
+      canCreateTab
+      onCreateTab={vi.fn()}
       onNavigate={vi.fn()}
+      onCopyPath={vi.fn()}
     />)
+
+    const actions = screen.getByRole("group", { name: "面包屑操作" })
+    const actionUi = within(actions)
+    expect(actions.getAttribute("data-breadcrumb-action-pad")).toBe("true")
+    expect(actions.querySelectorAll("[data-breadcrumb-pad-position]")).toHaveLength(4)
+    expect(actionUi.getByRole("button", { name: "目录列显示方式" })).toBeTruthy()
+    expect(actionUi.getByRole("button", { name: "新建文件夹标签" })).toBeTruthy()
+    expect(actionUi.getByRole("button", { name: "编辑路径" })).toBeTruthy()
+    expect(actionUi.getByRole("button", { name: "复制当前路径" })).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "展开目录列" }))
     await waitFor(() => expect(document.querySelector("[data-breadcrumb-columns-inline='true']")).toBeTruthy())

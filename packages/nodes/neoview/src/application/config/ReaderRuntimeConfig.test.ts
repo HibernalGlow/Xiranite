@@ -308,7 +308,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       typeFilter: "library",
       showHiddenFolders: false,
       tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
-      penetration: { enabled: true, showInternalFiles: true, maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
+      penetration: { enabled: true, showInternalFiles: true, internalItemsMode: "single", maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
       emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
       details: {
         columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
@@ -341,7 +341,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       hoverPreviewDelayMs: 1200,
       showHiddenFolders: true,
       confirmDelete: false,
-      penetration: { enabled: true, showInternalFiles: false, maxDepth: 10, terminalTargets: ["archive", "document"] },
+      penetration: { enabled: true, showInternalFiles: false, internalItemsMode: "single", maxDepth: 10, terminalTargets: ["archive", "document"] },
       tree: { visible: true, layout: "bottom", size: 320, pinnedPaths: ["E:/Books"] },
       tabs: { pinned: [{ path: "E:/Library", title: "Library" }] },
       details: { columnOrder: ["rating", "name"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 300, rating: 84 } },
@@ -358,7 +358,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         hoverPreviewDelayMs: 1200,
         showHiddenFolders: true,
         confirmDelete: false,
-        penetration: { enabled: true, showInternalFiles: false, maxDepth: 10, terminalTargets: ["archive", "document"] },
+        penetration: { enabled: true, showInternalFiles: false, internalItemsMode: "single", maxDepth: 10, terminalTargets: ["archive", "document"] },
         details: {
           columnOrder: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hiddenColumns: ["tags"],
@@ -381,7 +381,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         hover_preview_delay_ms: 1200,
         show_hidden_folders: true,
         confirm_delete: false,
-        penetration: { enabled: true, show_internal_files: false, max_depth: 10, terminal_targets: ["archive", "document"] },
+        penetration: { enabled: true, show_internal_files: false, internal_items_mode: "single", max_depth: 10, terminal_targets: ["archive", "document"] },
         details: {
           column_order: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hidden_columns: ["tags"],
@@ -428,6 +428,7 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(parseNeoviewRuntimeConfig(undefined).folderView.penetration).toEqual({
       enabled: false,
       showInternalFiles: true,
+      internalItemsMode: "single",
       maxDepth: 3,
       terminalTargets: ["archive", "document", "media-directory", "file"],
     })

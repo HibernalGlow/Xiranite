@@ -271,7 +271,7 @@ export interface ReaderFolderPenetrationResolutionDto {
 }
 export interface ReaderFolderPenetrationDescriptionDto {
   path: string
-  internalFiles: readonly { name: string; path: string }[]
+  internalFiles: readonly { name: string; path: string; kind: "file" | "directory" }[]
 }
 export interface ReaderActivationProvenanceDto {
   browserOriginPath: string
@@ -1578,6 +1578,7 @@ export interface ReaderFolderEmptyAreaConfig {
 export interface ReaderFolderPenetrationConfig {
   enabled: boolean
   showInternalFiles: boolean
+  internalItemsMode: "single" | "all"
   maxDepth: number
   terminalTargets: ReaderFolderPenetrationTerminalKindDto[]
 }

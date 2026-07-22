@@ -18,11 +18,12 @@ function provider(listings: Record<string, ReaderDirectoryListing>, aliases: Rec
 }
 
 describe("ReaderFolderPenetrationResolver", () => {
-  it("[neoview.folder.penetration-describe] returns direct archive names without extensions", async () => {
+  it("[neoview.folder.penetration-describe] returns direct archive and folder names", async () => {
     const resolver = new ReaderFolderPenetrationResolver(provider({
       "/library/one": { path: "/library/one", entries: [
         file("/library/one/First Book.cbz"),
         file("/library/one/Second.Book.zip"),
+        directory("/library/one/chapters"),
         file("/library/one/notes.txt"),
       ] },
     }))
@@ -30,8 +31,9 @@ describe("ReaderFolderPenetrationResolver", () => {
     await expect(resolver.describe(["/library/one"])).resolves.toEqual([{
       path: "/library/one",
       internalFiles: [
-        { name: "First Book", path: "/library/one/First Book.cbz" },
-        { name: "Second.Book", path: "/library/one/Second.Book.zip" },
+        { name: "First Book", path: "/library/one/First Book.cbz", kind: "file" },
+        { name: "Second.Book", path: "/library/one/Second.Book.zip", kind: "file" },
+        { name: "chapters", path: "/library/one/chapters", kind: "directory" },
       ],
     }])
   })
