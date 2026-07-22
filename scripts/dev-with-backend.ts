@@ -103,7 +103,10 @@ process.on("SIGINT", () => { void stop() })
 process.on("SIGTERM", () => { void stop() })
 process.on("exit", () => { backend?.close(); void removeDevSession() })
 
-void waitForFrontendReady(frontendUrl).then(() => {
+// Browser sessions only need the document server listening. Waiting for the
+// full WorkspaceLayout/Wails graph made "ready" much slower than Vite itself
+// and did not match what dynamic route loading already optimizes for.
+void waitForFrontendReady(frontendUrl, { profile: "listen" }).then(() => {
   console.log(`[xiranite-frontend:ready] ${frontendUrl}`)
 }).catch((error: unknown) => {
   if (!stopping) console.error(`[xiranite-frontend:not-ready] ${error instanceof Error ? error.message : String(error)}`)

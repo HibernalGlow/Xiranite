@@ -107,7 +107,7 @@ process.on("SIGTERM", () => { void stop() })
 process.on("exit", () => { backend?.close(); void removeDevSession() })
 
 try {
-  await waitForFrontendReady(frontendUrl)
+  await waitForFrontendReady(frontendUrl, { profile: "desktop" })
   console.log(`[xiranite-frontend:ready] ${frontendUrl}`)
 
   // A Wails desktop window does not need its own Windows console. Keep the
