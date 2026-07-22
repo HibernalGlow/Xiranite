@@ -60,7 +60,9 @@ describe("Czkawka workspace layout", () => {
       barHandlePosition: "right",
       navigatorPositionX: 72,
       navigatorPositionY: 88,
-      navigatorDock: "title",
+      navigatorDock: "title" as never,
+      navigatorLane: "source",
+      navigatorFollowsFocus: true,
       autoFitToViewport: true,
     })).toMatchObject({
       activeLane: "analysis",
@@ -74,7 +76,9 @@ describe("Czkawka workspace layout", () => {
       barHandlePosition: "right",
       navigatorPositionX: 72,
       navigatorPositionY: 88,
-      navigatorDock: "title",
+      navigatorDock: "top",
+      navigatorLane: "source",
+      navigatorFollowsFocus: true,
       autoFitToViewport: true,
     });
   });

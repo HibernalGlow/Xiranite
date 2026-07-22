@@ -20,7 +20,9 @@ export interface CzkawkaWorkspaceLayout {
   barHandlePosition: CzkawkaBarHandlePosition;
   navigatorPositionX: number;
   navigatorPositionY: number;
-  navigatorDock: "floating" | "title";
+  navigatorDock: "floating" | "left" | "right" | "top" | "bottom";
+  navigatorLane: CzkawkaLaneId;
+  navigatorFollowsFocus: boolean;
   autoFitToViewport: boolean;
 }
 
@@ -51,6 +53,8 @@ export const CZKAWKA_WORKSPACE_DEFAULTS: CzkawkaWorkspaceLayout = {
   navigatorPositionX: 96,
   navigatorPositionY: 94,
   navigatorDock: "floating",
+  navigatorLane: "results",
+  navigatorFollowsFocus: false,
   autoFitToViewport: false,
 };
 
@@ -100,7 +104,9 @@ export function normalizeCzkawkaWorkspaceLayout(
     barHandlePosition: value.barHandlePosition === "right" ? "right" : "left",
     navigatorPositionX: clamp(value.navigatorPositionX, 0, 100, CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionX),
     navigatorPositionY: clamp(value.navigatorPositionY, 0, 100, CZKAWKA_WORKSPACE_DEFAULTS.navigatorPositionY),
-    navigatorDock: value.navigatorDock === "title" ? "title" : "floating",
+    navigatorDock: normalizeNavigatorDock(value.navigatorDock),
+    navigatorLane: normalizeLaneId(value.navigatorLane, CZKAWKA_WORKSPACE_DEFAULTS.navigatorLane),
+    navigatorFollowsFocus: value.navigatorFollowsFocus === true,
     autoFitToViewport: value.autoFitToViewport === true,
   };
 }
@@ -137,4 +143,10 @@ function normalizeLaneId<Fallback extends CzkawkaLaneId | null>(value: unknown, 
 
 function normalizeHandleStyle(value: unknown): CzkawkaBarHandleStyle {
   return value === "groove" || value === "move" || value === "grab" || value === "edge" ? value : "grip";
+}
+
+function normalizeNavigatorDock(value: unknown): CzkawkaWorkspaceLayout["navigatorDock"] {
+  if (value === "left" || value === "right" || value === "top" || value === "bottom") return value;
+  if (value === "title") return "top";
+  return "floating";
 }
