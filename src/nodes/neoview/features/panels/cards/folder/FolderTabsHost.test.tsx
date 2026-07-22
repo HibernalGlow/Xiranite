@@ -74,7 +74,7 @@ function folderViewConfig(): ReaderFolderViewConfig {
     hoverPreviewDelayMs: 500,
     confirmDelete: true,
     tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
-    penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
+    penetration: { enabled: false, showInternalFiles: true, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
     emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: true },
     details: {
       columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],

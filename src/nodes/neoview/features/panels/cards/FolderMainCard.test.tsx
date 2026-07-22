@@ -396,7 +396,7 @@ describe("FolderMainCard", () => {
           onOpen={onOpen}
           onGoTo={vi.fn()}
           switchToast={{ show: showToast } as never}
-          folderView={folderViewConfig({ penetration: { enabled: true, maxDepth: 3, terminalTargets: ["archive", "media-directory"] } })}
+          folderView={folderViewConfig({ penetration: { enabled: true, showInternalFiles: true, maxDepth: 3, terminalTargets: ["archive", "media-directory"] } })}
         />
       </VirtuosoMockContext.Provider>,
     )
@@ -2715,6 +2715,8 @@ describe("FolderMainCard", () => {
     openFolderMoreMenu(ui)
     fireEvent.click(await screen.findByRole("menuitem", { name: /穿透设置/ }))
     expect(await screen.findByRole("dialog", { name: "穿透设置" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("switch", { name: "显示内部文件名" }))
+    await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ penetration: { showInternalFiles: false } }))
     const depth = screen.getByRole("combobox", { name: "最大穿透层数" })
     fireEvent.pointerDown(depth, { button: 0, pointerType: "mouse" })
     fireEvent.click(await screen.findByRole("option", { name: "5 层" }))
@@ -2795,7 +2797,7 @@ function folderViewConfig(overrides: Partial<ReaderFolderViewConfig> = {}): Read
     bannerWidthPercent: 50,
     confirmDelete: true,
     tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
-    penetration: { enabled: false, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
+    penetration: { enabled: false, showInternalFiles: true, maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
     emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
     details: {
       columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],

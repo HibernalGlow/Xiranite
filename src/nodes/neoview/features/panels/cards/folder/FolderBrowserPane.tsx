@@ -1,5 +1,5 @@
 import { Virtuoso, type GridStateSnapshot, type ListRange, type StateSnapshot, type VirtuosoGridHandle, type VirtuosoHandle } from "react-virtuoso"
-import { GalleryHorizontalEnd, Grid2X2, LayoutGrid, List, Package, RefreshCw, Rows3, TableProperties, type LucideIcon } from "lucide-react"
+import { GalleryHorizontalEnd, Grid2X2, LayoutGrid, List, RefreshCw, Rows3, TableProperties, type LucideIcon } from "lucide-react"
 import {
   lazy,
   Suspense,
@@ -85,6 +85,7 @@ import {
   FolderEntryMetadata,
 } from "./FolderEntryPresentation"
 import { FolderHoverPreview } from "./FolderHoverPreview"
+import { FolderPenetrationFileNames, folderViewShowsPenetrationFiles, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { useFolderClipboard } from "./FolderClipboard"
 import { readerEntryClickIntent } from "../shared/ReaderEntryInteraction"
@@ -163,6 +164,7 @@ export const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   tagDisplay: DEFAULT_FOLDER_TAG_DISPLAY,
   penetration: {
     enabled: false,
+    showInternalFiles: true,
     maxDepth: 3,
     terminalTargets: ["archive", "document", "media-directory", "file"],
   },
@@ -342,7 +344,7 @@ export function FolderBrowserPane({
   const [hoverPreviewEnabled, setHoverPreviewEnabled] = useState(folderView.hoverPreviewEnabled ?? true)
   const [hoverPreviewDelayMs, setHoverPreviewDelayMs] = useState(folderView.hoverPreviewDelayMs ?? 500)
   const [penetration, setPenetration] = useState<ReaderFolderPenetrationConfig>(folderView.penetration)
-  const [penetrationDescriptions, setPenetrationDescriptions] = useState<ReadonlyMap<string, readonly { name: string; path: string }[]>>(() => new Map())
+  const [penetrationDescriptions, setPenetrationDescriptions] = useState<ReadonlyMap<string, readonly FolderPenetrationFileName[]>>(() => new Map())
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [deleteMode, setDeleteMode] = useState(false)
   const [deleteStrategy, setDeleteStrategy] = useState<FolderDeleteStrategy>("trash")
@@ -435,7 +437,7 @@ export function FolderBrowserPane({
   useEffect(() => setHoverPreviewDelayMs(folderView.hoverPreviewDelayMs ?? 500), [folderView.hoverPreviewDelayMs])
   useEffect(() => setConfirmDelete(folderView.confirmDelete ?? true), [folderView.confirmDelete])
   useEffect(() => setPenetration(folderView.penetration), [folderView.penetration])
-  useEffect(() => requestPenetrationDescriptions(visibleRangeRef.current), [penetration.enabled, catalog?.sessionId, catalog?.generation])
+  useEffect(() => requestPenetrationDescriptions(visibleRangeRef.current), [penetration.enabled, penetration.showInternalFiles, viewMode, catalog?.sessionId, catalog?.generation])
   useEffect(() => setTreeOpen(folderView.tree.visible), [folderView.tree.visible])
   useEffect(() => setTreeLayout(folderView.tree.layout), [folderView.tree.layout])
   useEffect(() => setTreeSize(folderView.tree.size), [folderView.tree.size])
@@ -980,7 +982,7 @@ export function FolderBrowserPane({
   }
 
   function requestPenetrationDescriptions(range: ListRange, source = catalogRef.current) {
-    if (!penetration.enabled || !client.describeFolderPenetration || !source) {
+    if (!folderViewShowsPenetrationFiles(viewMode, penetration.enabled, penetration.showInternalFiles) || !client.describeFolderPenetration || !source) {
       penetrationDescriptionRequestRef.current?.abort()
       penetrationDescriptionSignatureRef.current = ""
       setPenetrationDescriptions((current) => current.size ? new Map() : current)
@@ -2218,6 +2220,7 @@ export function FolderBrowserPane({
                         thumbnailUrlSets={thumbnailUrlSets}
                         hoverPreviewEnabled={active && hoverPreviewEnabled}
                         hoverPreviewDelayMs={hoverPreviewDelayMs}
+                        penetrationFiles={penetrationDescriptions}
                         deleteMode={deleteMode}
                         deleteStrategy={deleteStrategy}
                         confirmDelete={confirmDelete}
@@ -2253,6 +2256,7 @@ export function FolderBrowserPane({
                         tileSize={thumbnailPixelSize(thumbnailWidthPercent)}
                         hoverPreviewEnabled={active && hoverPreviewEnabled}
                         hoverPreviewDelayMs={hoverPreviewDelayMs}
+                        penetrationFiles={penetrationDescriptions}
                         deleteMode={deleteMode}
                         deleteStrategy={deleteStrategy}
                         confirmDelete={confirmDelete}
@@ -2314,7 +2318,7 @@ export function DirectoryListItem({
   contentWidthPercent: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
-  penetrationFiles?: readonly { name: string; path: string }[]
+  penetrationFiles?: readonly FolderPenetrationFileName[]
   deleteMode: boolean
   deleteStrategy: FolderDeleteStrategy
   confirmDelete: boolean
@@ -2371,16 +2375,7 @@ export function DirectoryListItem({
             <span className="truncate">{entry.name}</span>
             {rich ? <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span> : null}
             {rich ? <FolderEntryFileMetadata entry={entry} /> : null}
-            {penetrationFiles?.length ? (
-              <span className="grid min-w-0 gap-0.5 pt-0.5" data-folder-penetration-files="true">
-                {penetrationFiles.map((file) => (
-                  <span key={file.path} className="flex min-w-0 items-start gap-1 border-t border-dashed first:border-0" title={file.path}>
-                    <Package className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-                    <span className="break-all text-[10px] leading-tight text-muted-foreground">{file.name}</span>
-                  </span>
-                ))}
-              </span>
-            ) : null}
+            <FolderPenetrationFileNames files={penetrationFiles} />
           </span>
           <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} />
         </button>

@@ -206,6 +206,7 @@ export type NeoviewFolderPenetrationTarget = (typeof NEOVIEW_FOLDER_PENETRATION_
 
 export interface NeoviewFolderPenetrationConfig {
   enabled: boolean
+  showInternalFiles: boolean
   maxDepth: number
   terminalTargets: NeoviewFolderPenetrationTarget[]
 }
@@ -689,6 +690,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   },
   penetration: {
     enabled: false,
+    showInternalFiles: true,
     maxDepth: 3,
     terminalTargets: [...NEOVIEW_FOLDER_PENETRATION_TARGETS],
   },
