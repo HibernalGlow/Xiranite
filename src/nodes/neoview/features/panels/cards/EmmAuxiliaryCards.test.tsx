@@ -144,6 +144,19 @@ describe("EMM auxiliary property cards", () => {
     expect(client.openDirectoryBrowser).toHaveBeenCalledWith("D:/books", expect.any(AbortSignal), "emm-folder-ratings", false)
     await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("ratings"))
   })
+
+  it("[neoview.folder-ratings.cache-controls] invokes explicit cache commands without changing directory pagination", async () => {
+    const rebuildFolderRatingCache = vi.fn(async () => ({ entries: [], updatedAt: 1 }))
+    const supplementFolderRatingCache = vi.fn(async () => ({ entries: [], updatedAt: 2 }))
+    const client = { metadata: vi.fn(async () => metadataDto()), openDirectoryBrowser: vi.fn(async () => ({ sessionId: "ratings", entries: [], cursor: 0, total: 0 })), listDirectoryBrowser: vi.fn(async () => ({ sessionId: "ratings", entries: [], cursor: 0, total: 0 })), closeDirectoryBrowser: vi.fn(async () => undefined), folderRatingCache: vi.fn(async () => ({ entries: [] })), rebuildFolderRatingCache, supplementFolderRatingCache } as unknown as ReaderHttpClient
+    render(<FolderRatingsCard {...context(client)} />)
+    await screen.findByText("暂无评分")
+    fireEvent.click(screen.getByText("重算"))
+    await waitFor(() => expect(rebuildFolderRatingCache).toHaveBeenCalledOnce())
+    fireEvent.change(screen.getByPlaceholderText("输入路径补充评分"), { target: { value: "D:/books" } })
+    fireEvent.click(screen.getByText("补充"))
+    await waitFor(() => expect(supplementFolderRatingCache).toHaveBeenCalledWith("D:/books"))
+  })
 })
 
 function context(client: ReaderHttpClient, panelActive = true) {
