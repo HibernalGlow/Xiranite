@@ -22,6 +22,11 @@ vi.mock("@xiranite/api/client", () => ({
   })),
 }))
 
+// Lifecycle tests assert real hydrate/persist behavior; keep restore enabled here.
+vi.mock("@/store/workspace/restorePolicy", () => ({
+  RESTORE_WORKSPACE_COMPONENTS: true,
+}))
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
