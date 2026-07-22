@@ -1047,11 +1047,16 @@ describe("FolderMainCard", () => {
     await ui.findByTitle("C:/A/a.cbz")
     fireEvent.click(ui.getByTitle("C:/A/a.cbz"), { ctrlKey: true })
     selectFolderViewMode(ui, "详细信息")
+    // Single-tab chrome is hidden; open a second tab so the tab strip (and 标签操作) appears.
+    createFolderTab(ui)
+    await waitFor(() => expect(view.container.querySelector('[data-folder-tab-count="2"]')).toBeTruthy())
+    fireEvent.click(await ui.findByRole("tab", { name: "A" }))
     fireEvent.pointerDown(ui.getByRole("button", { name: "标签操作 A" }), { button: 0, pointerType: "mouse" })
     fireEvent.click(await screen.findByRole("menuitem", { name: "复制标签" }))
 
     await waitFor(() => expect(client.cloneDirectoryBrowser).toHaveBeenCalledWith("browser-source", expect.any(AbortSignal)))
-    await waitFor(() => expect(view.container.querySelector('[data-folder-tab-count="2"]')).toBeTruthy())
+    await waitFor(() => expect(view.container.querySelector('[data-folder-tab-count="3"]')).toBeTruthy())
+    // Extra working tab uses empty homePath (no second open); clone reuses the source session.
     expect(client.openDirectoryBrowser).toHaveBeenCalledTimes(1)
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-folder-view-mode")).toBe("details")
@@ -1100,19 +1105,19 @@ describe("FolderMainCard", () => {
 
     await waitFor(() => expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-b", true))
     expect(ui.queryByRole("tab", { name: "B" })).toBeNull()
-    await waitFor(() => expect(ui.getByRole("button", { name: "重新打开关闭的页签" }).getAttribute("disabled")).toBeNull())
-    fireEvent.pointerDown(ui.getByRole("button", { name: "重新打开关闭的页签" }), { button: 0, pointerType: "mouse" })
-    fireEvent.click(await screen.findByRole("menuitem", { name: /./ }))
-    await waitFor(() => expect(reopenDirectoryBrowser).toHaveBeenCalledTimes(1))
-    expect(ui.getByRole("button", { name: "重新打开关闭的页签" }).getAttribute("disabled")).toBeNull()
+    // Single working tab hides the tab chrome; reopen is via Ctrl/Cmd+Shift+T.
+    expect(view.container.querySelector('[data-folder-tab-bar="true"]')).toBeNull()
+    expect(view.container.querySelector('[data-folder-tab-count="1"]')).toBeTruthy()
 
+    fireEvent.keyDown(window, { key: "T", ctrlKey: true, shiftKey: true })
+    await waitFor(() => expect(reopenDirectoryBrowser).toHaveBeenCalledTimes(1))
+    // First attempt fails and keeps the entry; second shortcut succeeds.
     fireEvent.keyDown(window, { key: "T", ctrlKey: true, shiftKey: true })
     await waitFor(() => expect(ui.getByRole("tab", { name: "B" }).getAttribute("aria-selected")).toBe("true"))
     expect(reopenDirectoryBrowser).toHaveBeenLastCalledWith("browser-b", expect.any(AbortSignal))
     expect(openDirectoryBrowser).toHaveBeenCalledTimes(2)
     expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-count")).toBe("1")
     await waitFor(() => expect(view.container.querySelector('[data-table-engine="niko-sparse"]')).toBeTruthy())
-    expect(ui.getByRole("button", { name: "重新打开关闭的页签" }).getAttribute("disabled")).not.toBeNull()
     view.unmount()
     expect(closeDirectoryBrowser).toHaveBeenCalledWith("browser-restored")
   })
@@ -1138,12 +1143,14 @@ describe("FolderMainCard", () => {
     expect(view.container.querySelector('[data-folder-toolbar-layout="single-row-scroll"]')).toBeTruthy()
     const navigationPad = ui.getByRole("group", { name: "文件夹导航" })
     expect(navigationPad.getAttribute("data-folder-navigation-pad")).toBe("true")
-    expect(navigationPad.querySelectorAll("[data-navigation-pad-position]")).toHaveLength(5)
+    expect(navigationPad.getAttribute("data-folder-navigation-pad-mode")).toBe("four-way")
+    expect(navigationPad.querySelectorAll("[data-navigation-pad-position]")).toHaveLength(4)
     expect(ui.getByRole("button", { name: "后退" }).getAttribute("data-navigation-pad-position")).toBe("left")
     expect(ui.getByRole("button", { name: "前进" }).getAttribute("data-navigation-pad-position")).toBe("right")
     expect(ui.getByRole("button", { name: "上级" }).getAttribute("data-navigation-pad-position")).toBe("up")
-    expect(ui.getByRole("button", { name: "刷新" }).getAttribute("data-navigation-pad-position")).toBe("center")
+    expect(ui.queryByRole("button", { name: "刷新" })).toBeNull()
     expect(view.container.querySelector('[data-folder-tab-bar="true"]')).toBeNull()
+    expect(view.container.querySelector('[data-folder-tab-bar="false"]')).toBeNull()
     expect(ui.getByRole("button", { name: "新建文件夹标签" })).toBeTruthy()
     expect(view.container.querySelector('[data-folder-tab-count="1"]')).toBeTruthy()
 
@@ -1231,7 +1238,7 @@ describe("FolderMainCard", () => {
 
     view.rerender(renderCard(folderViewConfig({ homePath: "C:/home" })))
     fireEvent.click(ui.getByTitle("C:/current/book.cbz"), { ctrlKey: true })
-    fireEvent.click(ui.getByRole("button", { name: "刷新" }))
+    fireEvent.contextMenu(ui.getByRole("group", { name: "文件夹导航" }))
     await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "refresh" }, expect.any(AbortSignal), "C:/current/book.cbz"))
     await waitFor(() => expect(ui.getByTitle("C:/current/book.cbz").getAttribute("aria-selected")).toBe("true"))
 
