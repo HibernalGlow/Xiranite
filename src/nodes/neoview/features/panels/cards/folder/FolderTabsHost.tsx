@@ -384,10 +384,9 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     await context.onFolderView?.({ tabs: { pinned: pinnedTabConfig(nextTabs) } })
   }
 
-  // Always mount tab chrome so the 3-in-1 action pad (create / reopen / layout)
-  // stays available with a single working tab. FolderTabBar itself hides the
-  // multi-tab strip when only one tab is open.
-  const tabBar = (
+  // Hide the entire tab chrome for a single working tab (create lives on the
+  // breadcrumb pad; reopen remains available via Ctrl/Cmd+Shift+T).
+  const tabBar = tabs.length > 1 ? (
     <Suspense fallback={<div className="h-8 rounded-md border bg-muted/30" aria-hidden="true" />}>
       <FolderTabBar
         tabs={tabs.map((tab) => ({
@@ -419,7 +418,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
         onLayoutChange={(tabs) => { void context.onFolderView?.({ tabs }) }}
       />
     </Suspense>
-  )
+  ) : undefined
 
   return (
     <div

@@ -91,44 +91,32 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
     if (rootRef.current) rootRef.current.style.width = `${layout.width}px`
   }
 
-  // Single working tab: keep the compact action pad (and per-tab menu) without
-  // painting a one-item tab strip. Multi-tab still gets the full strip below.
+  // Host hides this component entirely for a single working tab. When rendered
+  // with one tab (tests / layout none), keep a compact menu without a strip.
   if (tabs.length <= 1 || effectiveLayout === "none") {
     const tab = tabs.find((candidate) => candidate.id === activeTabId) ?? tabs[0]
-    const showStrip = tabs.length > 1 && effectiveLayout !== "none"
-    if (!showStrip) {
-      return (
-        <div className="flex h-8 items-center gap-1" data-folder-tab-bar="false" data-folder-tab-layout="none">
-          {tab ? (
-            <FolderTabActionsMenu
-              tab={tab}
-              disabled={disabled}
-              canDuplicate={tabs.length < maxTabs}
-              canClose={false}
-              canCloseOthers={false}
-              canCloseLeft={false}
-              canCloseRight={false}
-              onDuplicate={onDuplicate}
-              onClose={onClose}
-              onTogglePinned={onTogglePinned}
-              onCloseOthers={onCloseOthers}
-              onCloseLeft={onCloseLeft}
-              onCloseRight={onCloseRight}
-            />
-          ) : null}
-          <FolderTabActionPad
+    return (
+      <div className="flex h-8 items-center gap-1" data-folder-tab-bar="false" data-folder-tab-layout="none">
+        {tab ? (
+          <FolderTabActionsMenu
+            tab={tab}
             disabled={disabled}
-            tabCount={tabs.length}
-            maxTabs={maxTabs}
-            recentlyClosed={recentlyClosed}
-            layout={layout}
-            onCreate={onCreate}
-            onReopen={onReopen}
-            onLayoutChange={onLayoutChange}
+            canDuplicate={tabs.length < maxTabs}
+            canClose={false}
+            canCloseOthers={false}
+            canCloseLeft={false}
+            canCloseRight={false}
+            onDuplicate={onDuplicate}
+            onClose={onClose}
+            onTogglePinned={onTogglePinned}
+            onCloseOthers={onCloseOthers}
+            onCloseLeft={onCloseLeft}
+            onCloseRight={onCloseRight}
           />
-        </div>
-      )
-    }
+        ) : null}
+        <LayoutSettingsButton disabled={disabled} layout={layout} onLayoutChange={onLayoutChange} />
+      </div>
+    )
   }
 
   return (
