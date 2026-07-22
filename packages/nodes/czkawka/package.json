@@ -37,7 +37,6 @@
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
-    "@xiranite/shared": "workspace:*",
     "@xiranite/czkawka-native": "workspace:*"
   },
   "devDependencies": {

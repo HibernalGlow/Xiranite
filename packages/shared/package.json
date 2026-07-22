@@ -9,10 +9,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./swimlane": {
-      "types": "./dist/swimlane.d.ts",
-      "default": "./dist/swimlane.js"
     }
   },
   "files": [
