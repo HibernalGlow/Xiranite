@@ -288,10 +288,6 @@ export function ReaderApp({
   copyFiles,
   onPathCommitted,
 }: ReaderAppProps) {
-  neoviewDebug("reader:render:begin", {
-    sessionScopeId,
-    initialPath: initialPath || undefined,
-  })
   const surface = useNodeSurface()
   const floatingFrame = useFloatingWindowFrame()
   const contextMenu = useContextMenu()
@@ -309,7 +305,6 @@ export function ReaderApp({
     })
     return created
   })
-  neoviewDebug("reader:render:client-ready", { sessionScopeId })
   const clientRef = useRef(client)
   const shellRef = useRef<ReaderShellConfigDto | undefined>(undefined)
   const readerInteractionRef = useRef<HTMLDivElement>(null)
@@ -396,7 +391,6 @@ export function ReaderApp({
     },
     onError: (cause) => setError(errorMessage(cause)),
   }))
-  neoviewDebug("reader:render:stores-ready", { sessionScopeId })
   const [videoController] = useState(() => new ReaderVideoController())
   const [viewerToggles] = useState(() => new ReaderViewerToggleStore())
   const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
@@ -444,11 +438,9 @@ export function ReaderApp({
   const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
     : undefined)
-  neoviewDebug("reader:render:preloader-ready", { sessionScopeId, hasSession: Boolean(session) })
   const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
   shellRef.current = shell
-  neoviewDebug("reader:render:hooks-ready", { sessionScopeId, hasSession: Boolean(session), hasShell: Boolean(shell) })
 
   useDeferredFinalCleanup(() => {
     neoviewDebug("reader:dispose", {
@@ -725,6 +717,14 @@ export function ReaderApp({
         sessionId: opened.sessionId,
         pageCount: opened.book?.pageCount,
         durationMs: Math.round((performance.now() - openStartedAt) * 10) / 10,
+      })
+      requestAnimationFrame(() => {
+        neoviewDebug("reader:open:frame-after-commit", {
+          sessionScopeId,
+          sessionId: opened.sessionId,
+          pageCount: opened.book?.pageCount,
+          sinceOpenMs: Math.round((performance.now() - openStartedAt) * 10) / 10,
+        })
       })
     } catch (cause) {
       if (!controller.signal.aborted) {
@@ -1778,14 +1778,18 @@ export function ReaderApp({
 
   // First paint only the swimlane chrome + reader canvas. Mounting both sidebars
   // (and every docked card inside them) on the same frame as setShell freezes the UI.
+  // Do not re-run when `shell` identity/revision churns after openPath — that was
+  // unmounting history/control mid-read and storming ReaderApp renders.
+  const shellPresent = Boolean(shell)
   useEffect(() => {
-    if (workspaceMode !== "swimlane" || !shell) {
+    if (workspaceMode !== "swimlane" || !shellPresent) {
       setSwimlaneSidebarsReady(false)
       setSwimlaneRightSidebarReady(false)
       return
     }
-    setSwimlaneSidebarsReady(false)
-    setSwimlaneRightSidebarReady(false)
+    // Keep sidebars once revealed; shell patches after open must not tear them down.
+    if (swimlaneSidebarsReady) return
+
     let cancelled = false
     let outerRaf = 0
     let innerRaf = 0
@@ -1793,10 +1797,7 @@ export function ReaderApp({
     let timeoutHandle: number | undefined
     let rightTimeout: number | undefined
     const startedAt = performance.now()
-    neoviewDebug("reader:swimlane-shell:schedule-sidebars", {
-      sessionScopeId,
-      revision: shell.revision,
-    })
+    neoviewDebug("reader:swimlane-shell:schedule-sidebars", { sessionScopeId })
     outerRaf = requestAnimationFrame(() => {
       innerRaf = requestAnimationFrame(() => {
         if (cancelled) return
@@ -1835,7 +1836,7 @@ export function ReaderApp({
       if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle)
       if (rightTimeout !== undefined) window.clearTimeout(rightTimeout)
     }
-  }, [sessionScopeId, shell, workspaceMode])
+  }, [sessionScopeId, shellPresent, swimlaneSidebarsReady, workspaceMode])
   const toggleReaderViewFullscreen = () => {
     const next = !readerViewFullscreen
     setReaderViewFullscreen(next)

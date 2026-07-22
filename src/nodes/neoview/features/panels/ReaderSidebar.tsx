@@ -140,13 +140,14 @@ export function ReaderSidebar({
       if (cancelled) return
       revealed = Math.min(activeCards.length, revealed + 2)
       setVisibleCardCount(revealed)
-      neoviewDebug("sidebar:cards:progressive-step", {
-        side,
-        panelId: active?.id,
-        visible: revealed,
-        total: activeCards.length,
-      })
       if (revealed < activeCards.length) schedule(revealMore)
+      else {
+        neoviewDebug("sidebar:cards:progressive-done", {
+          side,
+          panelId: active?.id,
+          total: activeCards.length,
+        })
+      }
     }
     schedule(revealMore)
     return () => {

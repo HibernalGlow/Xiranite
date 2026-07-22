@@ -11,14 +11,8 @@ export interface NeoViewCardState extends Record<string, unknown> {
 
 export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>) {
   "use no memo"
-  neoviewDebug("component:render:begin", { compId })
   const initialPath = host.state.getData()?.path
   const initialBrowserOriginPath = host.state.getData()?.browserOriginPath ?? undefined
-  neoviewDebug("component:render:props", {
-    compId,
-    path: initialPath || undefined,
-    hasBrowserOriginPath: Boolean(initialBrowserOriginPath),
-  })
 
   useEffect(() => {
     noteNeoviewMount(compId, { path: initialPath })
@@ -36,7 +30,6 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
     }
   }, [compId, initialPath])
 
-  neoviewDebug("component:render:reader-app", { compId })
   return (
     <ReaderApp
       sessionScopeId={compId}
