@@ -83,7 +83,7 @@ describe("xlchemy core contract", () => {
   })
 
   test("emits incremental result snapshots while converting", async () => {
-    const events: Array<{ data?: unknown }> = []
+    const events: Array<{ progress?: number; data?: unknown }> = []
     const result = await runXlchemy({
       action: "convert", paths: ["/photos/a.png"], format: "WebP", lossless: false, quality: 80, effort: 6, threads: 2,
       outputMode: "source", preserveMetadata: false, preserveStructure: true, overwrite: true, recursive: true,
@@ -112,6 +112,8 @@ describe("xlchemy core contract", () => {
     expect(result.data?.files.at(-1)?.sourcePath).toBe("/bulk/2499.png")
     expect(snapshots.length).toBeLessThan(10)
     expect(Math.max(...snapshots.map((snapshot) => snapshot.result.files.length))).toBeLessThanOrEqual(20)
+    expect(events.find((event) => (event.data as { kind?: string } | undefined)?.kind === "xlchemy-progress-count")?.data).toMatchObject({ completed: 0, total: 2_500 })
+    expect(events.some((event) => typeof event.progress === "number" && event.progress > 0 && event.progress < 100)).toBe(true)
   })
 
   test("diagnoses PATH tools without requiring input files or leaking probe arguments", async () => {

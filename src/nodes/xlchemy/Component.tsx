@@ -34,6 +34,7 @@ import { ConversionLog, ProgressWorkbench, WorkbenchTelemetry } from "./Progress
 import { DataAnalysis } from "./DataAnalysis"
 import { FilenameRuleEditor } from "./FilenameRuleEditor"
 import { ClipboardConvertDialog } from "./ClipboardConvertDialog"
+import { analyzeEfuUrl } from "./efu"
 import { FloatingWindowCaptionControls, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 
 export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>) {
@@ -47,9 +48,13 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   const [cancelling, setCancelling] = useState(false)
   const cancellationRequestedRef = useRef(false)
   const [defaults, setDefaults] = useState<Partial<XlchemyCardState>>()
+  const [configLoaded, setConfigLoaded] = useState(false)
   const [customPresets, setCustomPresets] = useState<XlchemyCustomPreset[]>([])
   const [configPath, setConfigPath] = useState<string>()
   const [configDirty, setConfigDirty] = useState(false)
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const configSaveQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const persistedConfigSignatureRef = useRef("")
 
   const paths = splitLines(data.pathsText)
   const result = data.result ?? null
@@ -64,7 +69,10 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     try {
       const [response, presetResponse] = await Promise.all([pending, pendingPresets])
       if (response) {
-        setDefaults(normalizeXlchemyDefaults(response.config)); setConfigPath(response.path)
+        const loadedDefaults = normalizeXlchemyDefaults(response.config)
+        setDefaults(loadedDefaults); setConfigPath(response.path)
+        persistedConfigSignatureRef.current = configSignature(loadedDefaults)
+        setConfigLoaded(true)
         const startup: Partial<XlchemyCardState> = {}
         if (response.config?.disableDownscalingStartup) startup.downscaleEnabled = false
         if (response.config?.disableDeleteStartup) startup.deleteOriginal = false
@@ -81,8 +89,21 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     })
     if (!picked?.length) return
     const efuFiles = [...new Set([...(dataRef.current.efuFiles ?? []), ...picked])]
-    const message = `已加入 ${picked.length} 个 EFU 文件；执行时由后端流式读取，不会展开到界面内存。`
-    patch({ efuFiles, progressText: message, logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
+    const startMessage = `正在流式分析 ${picked.length} 个 EFU 文件…`
+    patch({ efuFiles, progressText: startMessage, logs: [...(dataRef.current.logs ?? []), startMessage].slice(-120) })
+    for (const path of picked) {
+      try {
+        const url = host.localFiles?.getUrl?.(path)
+        if (!url) throw new Error("当前宿主不能读取本地 EFU。")
+        const analysis = await analyzeEfuUrl(url)
+        const efuAnalysisByPath = { ...(dataRef.current.efuAnalysisByPath ?? {}), [path]: analysis }
+        const message = `已分析 ${baseName(path)}：${analysis.totalFiles.toLocaleString()} 个图片条目；路径明细未载入界面内存。`
+        patch({ efuAnalysisByPath, progressText: message, logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
+      } catch (error) {
+        const message = `${baseName(path)} 分析失败：${error instanceof Error ? error.message : String(error)}；转换时仍会由后端流式读取。`
+        patch({ progressText: message, logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
+      }
+    }
   }
 
   async function pickInputFiles() {
@@ -100,8 +121,22 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }, [data.excludedFormatsText])
   useEffect(() => {
     if (!defaults) return
-    setConfigDirty(XL_SAVED_FIELDS.some((field) => JSON.stringify(data[field] ?? null) !== JSON.stringify(defaults[field] ?? null)))
+    setConfigDirty(configSignature({ ...defaults, ...data }) !== configSignature(defaults))
   }, [data, defaults])
+  const currentConfigSignature = configSignature({ ...(defaults ?? {}), ...data })
+  useEffect(() => {
+    if (!configLoaded || currentConfigSignature === persistedConfigSignatureRef.current) return
+    if (!host.config?.save && !host.saveNodeConfig) return
+    const config = snapshotSavedConfig({ ...(defaults ?? {}), ...dataRef.current })
+    autoSaveTimerRef.current = setTimeout(() => {
+      void enqueueConfigSave(config).then(() => {
+        persistedConfigSignatureRef.current = configSignature(config)
+        setDefaults(config)
+        setConfigDirty(configSignature({ ...config, ...dataRef.current }) !== persistedConfigSignatureRef.current)
+      }).catch(() => setConfigDirty(true))
+    }, 600)
+    return () => clearTimeout(autoSaveTimerRef.current)
+  }, [configLoaded, currentConfigSignature, host])
 
   function patch(next: Partial<XlchemyCardState>) {
     dataRef.current = { ...dataRef.current, ...next }
@@ -110,15 +145,23 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }
 
   async function saveDefaults() {
-    const config: XlchemyNodeConfig = {}
-    for (const field of XL_SAVED_FIELDS) {
-      const value = dataRef.current[field]
-      if (value !== undefined) (config as Record<string, unknown>)[field] = value
-    }
-    if (host.config?.save) await host.config.save(config)
-    else await host.saveNodeConfig?.(config)
+    clearTimeout(autoSaveTimerRef.current)
+    const config = snapshotSavedConfig({ ...(defaults ?? {}), ...dataRef.current })
+    await enqueueConfigSave(config)
+    persistedConfigSignatureRef.current = configSignature(config)
     setDefaults(config)
     setConfigDirty(false)
+  }
+
+  function enqueueConfigSave(config: XlchemyNodeConfig): Promise<void> {
+    const save = host.config?.save
+      ? () => host.config!.save!(config)
+      : host.saveNodeConfig
+        ? () => host.saveNodeConfig!(config)
+        : async () => undefined
+    const pending = configSaveQueueRef.current.catch(() => undefined).then(save)
+    configSaveQueueRef.current = pending.then(() => undefined, () => undefined)
+    return pending
   }
 
   function selectPreset(presetId: string) {
@@ -198,13 +241,14 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     if (!run) { patch({ phase: "error", progressText: t("errors.backend", "GUI 已就绪，等待 Xlchemy 后端执行接口接入。") }); return }
     setRunning(true)
     if (nextAction === "diagnose") patch({ action: nextAction, environment: pendingEnvironment(), environmentCheckedAt: undefined, progressText: "正在检测 PATH 与 slimg CFFI 工具链…" })
-    else patch({ action: nextAction, phase: "running", progress: 0, progressText: t("status.start", "正在准备 Xlchemy 转换任务…"), analysisTab: nextAction === "convert" ? "output" : dataRef.current.analysisTab, result: null })
+    else patch({ action: nextAction, phase: "running", progress: 0, processedCount: 0, runInputCount: undefined, progressText: t("status.start", "正在准备 Xlchemy 转换任务…"), analysisTab: nextAction === "convert" ? "output" : dataRef.current.analysisTab, result: null })
     try {
       const response = await run<XlchemyInput, XlchemyData>("xlchemy", input, (event: NodeRunEvent) => {
         if (event.type === "progress") {
           const currentFile = /^Converting (.+)\.$/.exec(event.message)?.[1]
           const liveResult = readLiveResult(event.data)
-          patch({ progress: event.progress ?? dataRef.current.progress ?? 0, progressText: event.message, ...(currentFile ? { currentFile } : {}), ...(liveResult ? { result: liveResult } : {}), logs: [...(dataRef.current.logs ?? []), `${new Date().toTimeString().slice(0, 8)} ${event.message ?? "Progress"}`].slice(-120) })
+          const progressCount = readProgressCount(event.data)
+          patch({ progress: event.progress ?? dataRef.current.progress ?? 0, progressText: event.message, ...(progressCount ? { processedCount: progressCount.completed, runInputCount: progressCount.total } : liveResult ? { processedCount: liveResult.inputCount } : {}), ...(currentFile ? { currentFile } : {}), ...(liveResult ? { result: liveResult } : {}), logs: [...(dataRef.current.logs ?? []), `${new Date().toTimeString().slice(0, 8)} ${event.message ?? "Progress"}`].slice(-120) })
         }
       }) as NodeRunResult<XlchemyData>
       if (nextAction === "diagnose") patch({ environment: response.data?.environment?.length ? response.data.environment : unavailableEnvironment("运行端待刷新，请重新检测"), environmentCheckedAt: response.data?.environment?.length ? new Date().toISOString() : undefined, progressText: response.data?.environment?.length ? response.message : "运行端尚未加载新版工具检测，请刷新后重试。" })
@@ -212,7 +256,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
         const cancelled = cancellationRequestedRef.current
         const lastFile = response.data?.files.at(-1)
         const sizeChange = lastFile?.sourceBytes !== undefined && lastFile.outputBytes !== undefined ? `${formatCompactBytes(lastFile.sourceBytes)} → ${formatCompactBytes(lastFile.outputBytes)}` : undefined
-        const next: Partial<XlchemyCardState> = { phase: cancelled ? "cancelled" : response.success ? "completed" : "error", progress: response.success ? 100 : cancelled ? dataRef.current.progress ?? 0 : 0, progressText: sizeChange ? `${response.message} · ${sizeChange}` : response.message, ...(lastFile ? { currentFile: baseName(lastFile.sourcePath) } : {}), result: response.data ?? null }
+        const next: Partial<XlchemyCardState> = { phase: cancelled ? "cancelled" : response.success ? "completed" : "error", progress: response.success ? 100 : cancelled ? dataRef.current.progress ?? 0 : 0, processedCount: response.data?.inputCount ?? dataRef.current.processedCount, runInputCount: response.data?.inputCount ?? dataRef.current.runInputCount, progressText: sizeChange ? `${response.message} · ${sizeChange}` : response.message, ...(lastFile ? { currentFile: baseName(lastFile.sourcePath) } : {}), result: response.data ?? null }
         if (response.success && nextAction === "convert" && dataRef.current.autoClearCompleted && response.data) {
           const completed = new Set(response.data.files.filter((file) => file.status === "converted").map((file) => file.sourcePath))
           const remaining = splitLines(dataRef.current.pathsText).filter((path) => !completed.has(path))
@@ -311,6 +355,19 @@ const XL_FACTORY_DEFAULTS: Partial<XlchemyCardState> = {
   downscaleLongestSide: 1920, downscaleMegapixels: 2.1, downscaleResample: "default",
 }
 
+function snapshotSavedConfig(data: Partial<XlchemyCardState>): XlchemyNodeConfig {
+  const config: XlchemyNodeConfig = {}
+  for (const field of XL_SAVED_FIELDS) {
+    const value = data[field]
+    if (value !== undefined) (config as Record<string, unknown>)[field] = value
+  }
+  return config
+}
+
+function configSignature(data?: Partial<XlchemyCardState>) {
+  return JSON.stringify(snapshotSavedConfig(data ?? {}))
+}
+
 function normalizeCustomPresets(value: unknown): XlchemyCustomPreset[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((candidate) => {
@@ -352,7 +409,7 @@ function CollapsedView(props: ViewProps) {
 }
 
 function CompactView(props: ViewProps & { portrait: boolean }) {
-  return <div data-testid={props.portrait ? "xlchemy-portrait-view" : "xlchemy-compact-view"} className="flex min-h-0 flex-1 flex-col gap-2 p-2"><Header props={props} /><ScrollArea className="min-h-0 flex-1"><div className="flex flex-col gap-2 pr-2"><WorkbenchCard title={props.t("sections.input", "输入文件")} grow><InputWorkbench props={props} /></WorkbenchCard><ConfigurationCard props={props} /><OperationsCard props={props} /><WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard><WorkbenchCard title="转换结果"><ResultPanel props={props} /></WorkbenchCard></div></ScrollArea></div>
+  return <div data-testid={props.portrait ? "xlchemy-portrait-view" : "xlchemy-compact-view"} className="flex min-h-0 flex-1 flex-col gap-2 p-2"><Header props={props} /><ScrollArea className="min-h-0 flex-1"><div className="flex flex-col gap-2 pr-2"><WorkbenchCard title={props.t("sections.input", "输入文件")} grow><InputWorkbench props={props} /></WorkbenchCard><ConfigurationCard props={props} /><OperationsCard props={props} /><WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard><WorkbenchCard title="转换结果"><ResultPanel props={props} /></WorkbenchCard></div></ScrollArea></div>
 }
 
 function FullView(props: ViewProps) {
@@ -364,7 +421,7 @@ function FullView(props: ViewProps) {
         <ScrollArea className="min-h-0 @2xl/xlchemy:h-full"><div className="flex flex-col gap-2 pr-2">
             <WorkbenchCard icon={FolderInput} title={props.t("sections.input", "输入文件")} grow><InputWorkbench props={props} /></WorkbenchCard>
             <OperationsCard props={props} />
-            <WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard>
+            <WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard>
         </div></ScrollArea>
         <ScrollArea className="min-h-0 @2xl/xlchemy:h-full"><div className="flex flex-col gap-2 pr-2">
             <ConfigurationCard props={props} />
@@ -383,7 +440,7 @@ function WorkspaceWorkbench({ props }: { props: ViewProps }) {
         <WorkbenchCard fill grow icon={FolderInput} title={props.t("sections.input", "输入文件")}><InputWorkbench props={props} /></WorkbenchCard>
         <div className="grid min-h-0 grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] gap-2">
           <OperationsCard fill props={props} />
-          <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
+          <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
         </div>
       </div>
       <div data-testid="xlchemy-workspace-right-column" className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(220px,1fr)] gap-2">
@@ -579,6 +636,12 @@ function readLiveResult(value: unknown): XlchemyData | undefined {
   if (!result || typeof result !== "object" || !Array.isArray((result as { files?: unknown }).files)) return undefined
   return result as XlchemyData
 }
+function readProgressCount(value: unknown): { completed: number; total: number } | undefined {
+  if (!value || typeof value !== "object") return undefined
+  const candidate = value as { completed?: unknown; total?: unknown }
+  return typeof candidate.completed === "number" && typeof candidate.total === "number" ? { completed: candidate.completed, total: candidate.total } : undefined
+}
+function selectedEfuAnalyses(data: XlchemyCardState) { return (data.efuFiles ?? []).flatMap((path) => data.efuAnalysisByPath?.[path] ? [data.efuAnalysisByPath[path]] : []) }
 function pendingEnvironment() { return ENVIRONMENT_TARGETS.map(([id, label, purpose]) => ({ id, label, purpose, available: false, runnable: false, detail: "等待检测" })) }
 function unavailableEnvironment(detail: string) { return ENVIRONMENT_TARGETS.map(([id, label, purpose]) => ({ id, label, purpose, available: false, runnable: false, detail })) }
 function baseName(path: string) { return path.replace(/\\/g, "/").split("/").filter(Boolean).at(-1) ?? path }
@@ -588,7 +651,7 @@ function statusLabel(props: ViewProps) { if (props.running || props.data.phase =
 function buildInput(action: XlchemyAction, data: XlchemyCardState): XlchemyInput { const normalized = normalizeXlchemyInput({ action, paths: splitLines(data.pathsText), efuFiles: data.efuFiles, format: data.format, lossless: data.lossless, quality: data.quality, effort: data.effort, maxCompression: data.maxCompression, threads: data.threads, outputMode: data.outputMode, outputDir: data.outputDir, preserveMetadata: data.preserveMetadata, preserveStructure: data.preserveStructure, preserveTimestamps: data.preserveTimestamps, overwrite: data.overwrite, existingPolicy: data.existingPolicy, recursive: data.recursive, deleteOriginal: data.deleteOriginal, deleteOriginalMode: data.deleteOriginalMode, intelligentEffort: data.intelligentEffort, jxlModular: data.jxlModular, jxlVerify: data.jxlVerify, jxlPngFallback: data.jxlPngFallback, jxlNormalize: data.jxlNormalize, jxlNormalizeWhen: data.jxlNormalizeWhen, chromaSubsampling: data.chromaSubsampling, metadataMode: data.metadataMode, keepIfLarger: data.keepIfLarger, copyIfLarger: data.copyIfLarger, smallestFormatPool: { png: data.smallestPng ?? true, webp: data.smallestWebp ?? true, jxl: data.smallestJxl ?? true }, jpegEncoder: data.jpegEncoder, avifEncoder: data.avifEncoder, avifBitDepth: data.avifBitDepth, avifAomIqTune: data.avifAomIqTune, disableProgressiveJpegli: data.disableProgressiveJpegli, autoLosslessJpeg: data.autoLosslessJpeg, enableCustomArgs: data.enableCustomArgs, cjxlArgs: data.cjxlArgs, avifencArgs: data.avifencArgs, cjpegliArgs: data.cjpegliArgs, imageMagickArgs: data.imageMagickArgs, ramOptimizer: data.ramOptimizer, ramOptimizerRules: data.ramOptimizerRules, exiftoolWipeArgs: data.exiftoolWipeArgs, exiftoolPreserveArgs: data.exiftoolPreserveArgs, exiftoolUnsafeWipeArgs: data.exiftoolUnsafeWipeArgs, exiftoolCustomArgs: data.exiftoolCustomArgs, processingOrder: data.processingOrder, excludedFormats: String(data.excludedFormatsText ?? "avif,jxl,webp,gif").split(/[,;\s]+/).filter(Boolean), downscale: { enabled: data.downscaleEnabled ?? false, mode: data.downscaleMode ?? "resolution", width: data.downscaleWidth ?? 1920, height: data.downscaleHeight ?? 1080, percent: data.downscalePercent ?? 50, fileSizeKb: data.downscaleFileSizeKb ?? 500, shortestSide: data.downscaleShortestSide ?? 1080, longestSide: data.downscaleLongestSide ?? 1920, megapixels: data.downscaleMegapixels ?? 2.1, resample: data.downscaleResample ?? "default" } }); normalized.efuFiles = [...new Set(data.efuFiles ?? [])]; return normalized }
 
 function hasInputSources(props: Pick<ViewProps, "data" | "paths">) { return props.paths.length > 0 || Boolean(props.data.efuFiles?.length) }
-function inputSourceLabel(props: Pick<ViewProps, "data" | "paths">) { const efuCount = props.data.efuFiles?.length ?? 0; return efuCount ? `${props.paths.length} 项 + ${efuCount} EFU` : `${props.paths.length} 项` }
+function inputSourceLabel(props: Pick<ViewProps, "data" | "paths">) { const efuCount = props.data.efuFiles?.length ?? 0, efuItems = selectedEfuAnalyses(props.data).reduce((sum, item) => sum + item.totalFiles, 0); return efuCount ? `${(props.paths.length + efuItems).toLocaleString()} 项 · ${efuCount} EFU` : `${props.paths.length} 项` }
 function playCompletionTone(volume: number) { const AudioContextCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext; if (!AudioContextCtor) return; const context = new AudioContextCtor(), oscillator = context.createOscillator(), gain = context.createGain(); oscillator.frequency.value = 660; gain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)) * 0.12, context.currentTime); gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22); oscillator.connect(gain).connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.22); oscillator.addEventListener("ended", () => void context.close()) }
 function getHostData(host: NodeComponentProps<XlchemyCardState>["host"], compId: string): XlchemyCardState { return host.state?.getData?.() ?? host.getData<XlchemyCardState>(compId) ?? {} }
 

@@ -73,7 +73,10 @@ function telemetryWave(activity: number, errors: number, progress: number): stri
 export function ProgressWorkbench(props: { data: XlchemyCardState; format: string; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; onPatch: (patch: Partial<XlchemyCardState>) => void }) {
   const [startedAt, setStartedAt] = useState(() => Date.now()), [now, setNow] = useState(() => Date.now())
   useEffect(() => { if (!props.running) return; setStartedAt(Date.now()); const timer = window.setInterval(() => setNow(Date.now()), 500); return () => window.clearInterval(timer) }, [props.running])
-  const elapsedMs = props.running ? now - startedAt : props.result?.elapsedMs ?? 0, total = props.result?.inputCount ?? props.paths.length, completed = props.result?.convertedCount ?? Math.round(total * props.progress / 100)
+  const analyzedEfuTotal = (props.data.efuFiles ?? []).reduce((sum, path) => sum + (props.data.efuAnalysisByPath?.[path]?.totalFiles ?? 0), 0)
+  const total = props.data.runInputCount ?? props.result?.inputCount ?? props.paths.length + analyzedEfuTotal
+  const completed = props.data.processedCount ?? props.result?.inputCount ?? Math.round(total * props.progress / 100)
+  const elapsedMs = props.running ? now - startedAt : props.result?.elapsedMs ?? 0
   const etaMs = props.running && completed > 0 ? elapsedMs / completed * Math.max(0, total - completed) : 0, speed = elapsedMs > 0 && completed > 0 ? completed / (elapsedMs / 1000) : 0
   const showCounter = props.data.showProgressCounter ?? true, showSummary = props.data.showProgressSummary ?? true, showEta = props.data.showProgressEta ?? true, showFormat = props.data.showProgressFormat ?? true, showEncoder = props.data.showProgressEncoder ?? true, showCurrentFile = props.data.showProgressCurrentFile ?? true, showSizeChange = props.data.showProgressSizeChange ?? true
   const encoder = props.format === "JPEG XL" ? "cjxl" : props.format === "AVIF" ? props.data.avifEncoder === "svt" ? "SVT-AV1" : "AOM AV1" : props.format === "JPEG" ? props.data.jpegEncoder === "libjpeg" ? "libjpeg" : "JPEGLI" : props.format

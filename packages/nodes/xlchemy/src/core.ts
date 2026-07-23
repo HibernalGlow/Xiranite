@@ -254,7 +254,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     if (!options.paths.length && !options.efuFiles?.length) return failure("At least one image, folder, or EFU file is required.")
     if (options.efuFiles?.length && !runtime.streamEfuPaths) return failure("The current runtime does not support streaming EFU inputs.")
     if (options.outputMode === "directory" && !options.outputDir) return failure("An output directory is required in directory mode.")
-    onEvent({ type: "progress", progress: 5, message: "Discovering image inputs." })
+    onEvent({ type: "progress", progress: 0, message: "Discovering image inputs." })
     const directSources = await discoverImages(options.paths, options.recursive, runtime)
     const excluded = new Set(options.excludedFormats?.map((value) => value.replace(/^\./, "").toLowerCase()) ?? [])
     const accepts = (path: string) => {
@@ -263,7 +263,12 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       if (options.format === "Lossless JPEG Transcoding") return ["jpg", "jpeg", "jfif", "jif", "jpe"].includes(extension)
       return XL_IMAGE_EXTENSIONS.has(runtime.extname(path).toLowerCase()) && !excluded.has(extension)
     }
-    const sourceStream = streamInputSources(directSources.filter(accepts), options.efuFiles ?? [], runtime, accepts)
+    const acceptedDirectSources = directSources.filter(accepts)
+    const efuInputCount = await countEfuSources(options.efuFiles ?? [], runtime, accepts)
+    if (runtime.isCancelled?.()) return cancelled([], started)
+    const totalInputCount = acceptedDirectSources.length + efuInputCount
+    onEvent({ type: "progress", progress: 0, message: `Discovered ${totalInputCount} image(s).`, data: progressCount(0, totalInputCount) })
+    const sourceStream = streamInputSources(acceptedDirectSources, options.efuFiles ?? [], runtime, accepts)
     const orderedSources = requiresMaterializedOrder(options.processingOrder)
       ? await orderSources(await collectAsync(sourceStream), options.processingOrder, runtime)
       : sourceStream
@@ -276,17 +281,17 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       const item = await planFile(source, roots, options, runtime)
       const result = options.action !== "convert" || item.status !== "planned"
         ? item
-        : await convertFileWithProgress(item, options, runtime, onEvent, summary.inputCount)
+        : await convertFileWithProgress(item, options, runtime, onEvent, summary.inputCount, totalInputCount)
       appendSummary(summary, result)
       const now = Date.now()
       if (summary.inputCount === 1 || now - lastLiveResultAt >= LIVE_RESULT_INTERVAL_MS) {
-        emitLiveResult(onEvent, summary, started)
+        emitLiveResult(onEvent, summary, started, totalInputCount)
         lastLiveResultAt = now
       }
       if (runtime.isCancelled?.()) return cancelledSummary(summary, started)
     }
     if (!summary.inputCount) return failure("No supported images were found.")
-    emitLiveResult(onEvent, summary, started)
+    emitLiveResult(onEvent, summary, started, totalInputCount)
     const data = summaryData(summary, Date.now() - started)
     if (options.action !== "convert") {
       onEvent({ type: "progress", progress: 100, message: `Planned ${data.inputCount} image(s).` })
@@ -299,9 +304,20 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
   }
 }
 
-async function convertFileWithProgress(item: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void, completed: number) {
-  onEvent({ type: "progress", message: `Converting ${runtime.basename(item.sourcePath)}.`, data: { kind: "xlchemy-progress-count", completed } })
+async function convertFileWithProgress(item: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void, completed: number, total: number) {
+  onEvent({ type: "progress", progress: progressPercent(completed, total), message: `Converting ${runtime.basename(item.sourcePath)}.`, data: progressCount(completed, total) })
   return await convertFile(item, input, runtime, onEvent)
+}
+
+async function countEfuSources(efuFiles: string[], runtime: XlchemyRuntime, accepts: (path: string) => boolean): Promise<number> {
+  let count = 0
+  for (const efuFile of efuFiles) {
+    for await (const source of runtime.streamEfuPaths!(efuFile)) {
+      if (runtime.isCancelled?.()) return count
+      if (accepts(source)) count += 1
+    }
+  }
+  return count
 }
 
 async function* streamInputSources(directSources: string[], efuFiles: string[], runtime: XlchemyRuntime, accepts: (path: string) => boolean): AsyncGenerator<string> {
@@ -404,14 +420,18 @@ function summaryData(summary: XlchemySummary, elapsedMs: number, live = false): 
   }
 }
 
-function emitLiveResult(onEvent: (event: NodeRunEvent) => void, summary: XlchemySummary, started: number) {
+function emitLiveResult(onEvent: (event: NodeRunEvent) => void, summary: XlchemySummary, started: number, total: number) {
   const snapshot = summaryData(summary, Date.now() - started, true)
   onEvent({
     type: "progress",
+    progress: progressPercent(summary.inputCount, total),
     message: `Processed ${summary.inputCount} image(s).`,
-    data: { kind: "xlchemy-live-result", result: snapshot },
+    data: { kind: "xlchemy-live-result", completed: summary.inputCount, total, result: snapshot },
   })
 }
+
+function progressCount(completed: number, total: number) { return { kind: "xlchemy-progress-count", completed, total } }
+function progressPercent(completed: number, total: number) { return total > 0 ? Math.min(99.99, Math.round(completed / total * 10_000) / 100) : 0 }
 
 const XLCHEMY_TOOLS: Array<{ id: string; label: string; purpose: string; versionArgs: string[] }> = [
   { id: "cjxl", label: "cjxl", purpose: "JPEG XL 编码", versionArgs: ["--version"] },

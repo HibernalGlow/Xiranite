@@ -7,6 +7,8 @@ import type { XlchemyCardState } from "./types"
 const dataSchema = z.object({
   action: z.enum(["plan", "convert", "diagnose"]).optional(),
   pathsText: z.string().optional(),
+  efuFiles: z.array(z.string()).optional(),
+  efuAnalysisByPath: z.record(z.string(), z.object({ totalFiles: z.number(), totalSize: z.number(), minSize: z.number(), medianSize: z.number(), maxSize: z.number(), formats: z.array(z.object({ key: z.string(), count: z.number(), size: z.number() })), folders: z.array(z.object({ key: z.string(), count: z.number(), size: z.number() })) })).optional(),
   format: z.enum(["JPEG XL", "AVIF", "WebP", "PNG", "TIFF", "JPEG", "Lossless JPEG Transcoding", "JPEG Reconstruction", "Smallest Lossless"]).optional(),
   lossless: z.boolean().optional(),
   quality: z.number().optional(),
@@ -34,6 +36,8 @@ const dataSchema = z.object({
   selectedPaths: z.array(z.string()).optional(), inputViewMode: z.enum(["list", "tree"]).optional(), inputSortField: z.enum(["name", "ext", "size", "dir"]).optional(), inputSortDesc: z.boolean().optional(), showOriginalPreview: z.boolean().optional(),
   phase: z.enum(["idle", "running", "completed", "cancelled", "error"]).optional(),
   progress: z.number().optional(),
+  processedCount: z.number().optional(),
+  runInputCount: z.number().optional(),
   progressText: z.string().optional(),
   currentFile: z.string().optional(),
   logs: z.array(z.string()).optional(),

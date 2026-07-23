@@ -2,11 +2,23 @@ import type { XlchemyAction, XlchemyData, XlchemyDownscaleMode, XlchemyFilenameR
 
 export type XlchemyPhase = "idle" | "running" | "completed" | "cancelled" | "error"
 
+export interface XlchemyEfuAnalysis {
+  totalFiles: number
+  totalSize: number
+  minSize: number
+  medianSize: number
+  maxSize: number
+  formats: Array<{ key: string; count: number; size: number }>
+  folders: Array<{ key: string; count: number; size: number }>
+}
+
 export interface XlchemyCardState {
   action?: XlchemyAction
   pathsText?: string
   /** Native EFU paths are streamed by the backend instead of expanded into card state. */
   efuFiles?: string[]
+  /** Fixed-size summaries used by input analysis; individual EFU rows stay out of React state. */
+  efuAnalysisByPath?: Record<string, XlchemyEfuAnalysis>
   format?: XlchemyFormat
   lossless?: boolean
   quality?: number
@@ -83,6 +95,8 @@ export interface XlchemyCardState {
   showOriginalPreview?: boolean
   phase?: XlchemyPhase
   progress?: number
+  processedCount?: number
+  runInputCount?: number
   progressText?: string
   currentFile?: string
   logs?: string[]

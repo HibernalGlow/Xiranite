@@ -3,12 +3,13 @@ import { BarChart3, FolderOpen } from "lucide-react"
 import type { XlchemyData } from "@xiranite/node-xlchemy/core"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import type { XlchemyEfuAnalysis } from "./types"
 
 type InputEntry = { ext: string; folder: string; size: number }
 type Distribution = { key: string; count: number; size: number }
 
-export function DataAnalysis(props: { paths: string[]; result: XlchemyData | null; activeTab?: "input" | "output"; onTabChange?: (tab: "input" | "output") => void }) {
-  const input = buildInputStats(props.paths, props.result)
+export function DataAnalysis(props: { paths: string[]; efuAnalyses?: XlchemyEfuAnalysis[]; result: XlchemyData | null; activeTab?: "input" | "output"; onTabChange?: (tab: "input" | "output") => void }) {
+  const input = buildInputStats(props.paths, props.efuAnalyses ?? [], props.result)
   const output = buildOutputStats(props.result)
   return <Tabs defaultValue="input" value={props.activeTab} className="flex min-h-0 flex-col gap-2" data-testid="xlchemy-data-analysis" onValueChange={(tab) => props.onTabChange?.(tab as "input" | "output")}>
     <TabsList className="grid w-full grid-cols-2">
@@ -34,22 +35,25 @@ export function DataAnalysis(props: { paths: string[]; result: XlchemyData | nul
   </Tabs>
 }
 
-function buildInputStats(paths: string[], result: XlchemyData | null) {
+function buildInputStats(paths: string[], efuAnalyses: XlchemyEfuAnalysis[], result: XlchemyData | null) {
   const sizes = new Map(result?.files.map((file) => [normalizePath(file.sourcePath), file.sourceBytes ?? 0]) ?? [])
   const entries: InputEntry[] = paths.map((path) => {
     const normalized = normalizePath(path), name = normalized.split("/").at(-1) ?? normalized, directory = normalized.includes("/") ? normalized.slice(0, normalized.lastIndexOf("/")) : "", dot = name.lastIndexOf(".")
     return { ext: dot > 0 ? name.slice(dot + 1).toLowerCase() : "unknown", folder: directory.split("/").filter(Boolean).at(-1) ?? "/", size: sizes.get(normalized) ?? 0 }
   })
-  const totalSize = entries.reduce((sum, entry) => sum + entry.size, 0), sortedSizes = entries.map((entry) => entry.size).sort((a, b) => a - b)
+  const directSize = entries.reduce((sum, entry) => sum + entry.size, 0), sortedSizes = entries.map((entry) => entry.size).sort((a, b) => a - b)
+  const totalFiles = entries.length + efuAnalyses.reduce((sum, item) => sum + item.totalFiles, 0)
+  const totalSize = directSize + efuAnalyses.reduce((sum, item) => sum + item.totalSize, 0)
+  const directFormats = distribute(entries, "ext"), directFolders = distribute(entries, "folder")
   return {
-    totalFiles: entries.length,
+    totalFiles,
     totalSize,
-    avgSize: entries.length ? Math.round(totalSize / entries.length) : 0,
-    minSize: sortedSizes[0] ?? 0,
-    medianSize: sortedSizes[Math.floor(sortedSizes.length / 2)] ?? 0,
-    maxSize: sortedSizes.at(-1) ?? 0,
-    formats: distribute(entries, "ext"),
-    folders: distribute(entries, "folder").slice(0, 6),
+    avgSize: totalFiles ? Math.round(totalSize / totalFiles) : 0,
+    minSize: minOrZero([sortedSizes[0], ...efuAnalyses.map((item) => item.minSize)]),
+    medianSize: weightedMedianApprox(entries.length ? sortedSizes[Math.floor(sortedSizes.length / 2)] ?? 0 : 0, entries.length, efuAnalyses),
+    maxSize: Math.max(sortedSizes.at(-1) ?? 0, ...efuAnalyses.map((item) => item.maxSize)),
+    formats: mergeDistributions([directFormats, ...efuAnalyses.map((item) => item.formats)]),
+    folders: mergeDistributions([directFolders, ...efuAnalyses.map((item) => item.folders)]).slice(0, 6),
   }
 }
 
@@ -65,6 +69,9 @@ function buildOutputStats(result: XlchemyData | null) {
 }
 
 function distribute(entries: InputEntry[], field: "ext" | "folder"): Distribution[] { const values = new Map<string, { count: number; size: number }>(); for (const entry of entries) { const current = values.get(entry[field]) ?? { count: 0, size: 0 }; current.count += 1; current.size += entry.size; values.set(entry[field], current) } return [...values.entries()].map(([key, value]) => ({ key, ...value })).sort((a, b) => b.size - a.size) }
+function mergeDistributions(groups: Distribution[][]): Distribution[] { const values = new Map<string, { count: number; size: number }>(); for (const group of groups) for (const item of group) { const current = values.get(item.key) ?? { count: 0, size: 0 }; current.count += item.count; current.size += item.size; values.set(item.key, current) } return [...values.entries()].map(([key, value]) => ({ key, ...value })).sort((a, b) => b.size - a.size || b.count - a.count) }
+function weightedMedianApprox(directMedian: number, directCount: number, analyses: XlchemyEfuAnalysis[]) { const candidates = [...(directCount ? [{ value: directMedian, count: directCount }] : []), ...analyses.map((item) => ({ value: item.medianSize, count: item.totalFiles }))].sort((a, b) => a.value - b.value), midpoint = candidates.reduce((sum, item) => sum + item.count, 0) / 2; let seen = 0; for (const item of candidates) { seen += item.count; if (seen >= midpoint) return item.value } return 0 }
+function minOrZero(values: Array<number | undefined>) { const defined = values.filter((value): value is number => value !== undefined); return defined.length ? Math.min(...defined) : 0 }
 function Summary({ highlightFirst, items }: { highlightFirst?: boolean; items: Array<[string, string]> }) { return <div className="grid grid-cols-3 gap-1.5">{items.map(([value, label], index) => <div key={label} className={cn("flex flex-col items-center gap-0.5 rounded-md bg-muted/50 px-1 py-1.5", highlightFirst && index === 0 && "bg-primary/10")}><span className={cn("text-sm font-bold tabular-nums", highlightFirst && index === 0 && "text-primary")}>{value}</span><span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span></div>)}</div> }
 function Section({ children, title }: { children: ReactNode; title: string }) { return <section className="flex flex-col gap-1"><h4 className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>{children}</section> }
 function DistributionBars({ accent, items }: { accent?: boolean; items: Distribution[] }) { const max = Math.max(...items.map((item) => item.size), 1); return <div className="flex flex-col gap-1">{items.map((item) => <div key={item.key} className="grid h-4 grid-cols-[3.5rem_minmax(0,1fr)_4.75rem] items-center gap-1.5"><span className="truncate text-right text-[10px] font-semibold" title={item.key}>{accent ? item.key : `.${item.key}`}</span><div className="h-2.5 overflow-hidden rounded-sm bg-muted"><div className={cn("h-full min-w-0.5 rounded-sm bg-primary transition-[width]", accent && "bg-chart-2")} style={{ width: `${item.size / max * 100}%` }} /></div><span className="text-[9px] tabular-nums text-muted-foreground">{item.count} · {formatBytes(item.size)}</span></div>)}</div> }
