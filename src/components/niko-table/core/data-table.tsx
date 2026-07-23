@@ -89,8 +89,8 @@ export interface DataTableContainerProps {
  * <DataTable height={600}>
  *   <DataTableHeader />
  *   <DataTableBody
- *     onScroll={(e) => console.log(`Scrolled ${e.percentage}%`)}
- *     onScrolledBottom={() => console.log('Load more data')}
+ *     onScroll={handleScroll}
+ *     onScrolledBottom={loadMore}
  *   />
  * </DataTable>
  *

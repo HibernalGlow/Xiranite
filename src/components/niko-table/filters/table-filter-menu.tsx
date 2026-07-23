@@ -26,6 +26,7 @@ import {
 } from "lucide-react"
 import * as React from "react"
 
+import { createLogger } from "@/lib/logger"
 import { TableRangeFilter } from "./table-range-filter"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -86,6 +87,8 @@ import type {
 const PrecomputedOptionsContext = React.createContext<
   Record<string, Option[]> | undefined
 >(undefined)
+
+const logger = createLogger("niko-table.filter-menu")
 
 /* --------------------------------- Utilities -------------------------------- */
 
@@ -594,9 +597,7 @@ function useInitialFilters<TData>(
     // If controlled, use controlled filters (normalize to ensure filterId exists)
     if (controlledFilters) {
       const normalized = normalizeFiltersFromUrl(controlledFilters)
-      if (process.env.NODE_ENV === "development") {
-        console.log("[useInitialFilters] Using controlled filters:", normalized)
-      }
+      logger.debug("filters.initial.controlled", { filters: normalized })
       return normalized
     }
 
@@ -611,12 +612,7 @@ function useInitialFilters<TData>(
         filters: (FilterWithoutId<TData> | ExtendedColumnFilter<TData>)[]
       }
       const normalized = normalizeFiltersFromUrl(filterObj.filters)
-      if (process.env.NODE_ENV === "development") {
-        console.log(
-          "[useInitialFilters] Extracted from globalFilter:",
-          normalized,
-        )
-      }
+      logger.debug("filters.initial.global", { filters: normalized })
       return normalized
     }
 
@@ -631,19 +627,12 @@ function useInitialFilters<TData>(
         )
       if (extractedFilters.length > 0) {
         const normalized = normalizeFiltersFromUrl(extractedFilters)
-        if (process.env.NODE_ENV === "development") {
-          console.log(
-            "[useInitialFilters] Extracted from columnFilters:",
-            normalized,
-          )
-        }
+        logger.debug("filters.initial.columns", { filters: normalized })
         return normalized
       }
     }
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[useInitialFilters] No initial filters found")
-    }
+    logger.debug("filters.initial.empty")
     return []
     // Only run once on mount - we don't want to reset when table state changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -684,31 +673,25 @@ function useSyncFiltersWithTable<TData>(
   React.useEffect(() => {
     // Skip if controlled - parent handles table state
     if (isControlled) {
-      if (process.env.NODE_ENV === "development") {
-        console.log(
-          "[useSyncFiltersWithTable] Controlled mode - skipping table sync",
-        )
-      }
+      logger.debug("filters.sync.skip-controlled")
       return
     }
 
     // Mark that we've synced at least once
     hasSyncedRef.current = true
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("[useSyncFiltersWithTable] Syncing filters:", {
-        filterCount: filters.length,
-        hasOrFilters: filterLogic.hasOrFilters,
-        hasSameColumnFilters: filterLogic.hasSameColumnFilters,
-        joinOperator: filterLogic.joinOperator,
-        filters: filters.map(f => ({
-          id: f.id,
-          operator: f.operator,
-          joinOp: f.joinOperator,
-          value: f.value,
-        })),
-      })
-    }
+    logger.debug("filters.sync.begin", {
+      filterCount: filters.length,
+      hasOrFilters: filterLogic.hasOrFilters,
+      hasSameColumnFilters: filterLogic.hasSameColumnFilters,
+      joinOperator: filterLogic.joinOperator,
+      filters: filters.map(f => ({
+        id: f.id,
+        operator: f.operator,
+        joinOp: f.joinOperator,
+        value: f.value,
+      })),
+    })
 
     // Use core utility to determine routing
     if (filterLogic.shouldUseGlobalFilter) {
@@ -719,15 +702,10 @@ function useSyncFiltersWithTable<TData>(
         joinOperator: filterLogic.joinOperator,
       })
 
-      if (process.env.NODE_ENV === "development") {
-        console.log(
-          "[useSyncFiltersWithTable] Set globalFilter (OR/MIXED logic)",
-          {
-            hasOrFilters: filterLogic.hasOrFilters,
-            hasSameColumnFilters: filterLogic.hasSameColumnFilters,
-          },
-        )
-      }
+      logger.debug("filters.sync.global", {
+        hasOrFilters: filterLogic.hasOrFilters,
+        hasSameColumnFilters: filterLogic.hasSameColumnFilters,
+      })
     } else {
       // BUILD COLUMN FILTERS ARRAY
       // Each filter becomes a separate columnFilter entry
@@ -745,12 +723,7 @@ function useSyncFiltersWithTable<TData>(
 
       table.setColumnFilters(columnFilters)
 
-      if (process.env.NODE_ENV === "development") {
-        console.log(
-          "[useSyncFiltersWithTable] Set columnFilters (columnFilters-only architecture)",
-          "- pure AND logic",
-        )
-      }
+      logger.debug("filters.sync.columns")
     }
   }, [filters, filterLogic, table, isControlled])
 }
