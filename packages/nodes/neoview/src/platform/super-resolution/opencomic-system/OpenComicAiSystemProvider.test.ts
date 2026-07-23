@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 import type { SuperResolutionRequest } from "../../../ports/SuperResolutionProvider.js"
 import {
   OpenComicAiSystemProvider,
+  SuperResolutionOutputUnavailableError,
   waitForSuperResolutionOutput,
   type OpenComicSystemRuntime,
 } from "./OpenComicAiSystemProvider.js"
@@ -108,6 +109,25 @@ describe("OpenComicAiSystemProvider", () => {
     } finally {
       await rm(root, { recursive: true, force: true })
     }
+  })
+
+  it("[neoview.super-resolution.provider-daemon-missing-output] retries once without the daemon", async () => {
+    const runtime = fakeRuntime()
+    const waitForOutput = vi.fn()
+      .mockRejectedValueOnce(new SuperResolutionOutputUnavailableError(request.destinationPath))
+      .mockResolvedValueOnce(undefined)
+    const provider = createProvider({ runtime, waitForOutput })
+
+    await expect(provider.upscale(request)).resolves.toMatchObject({ destinationPath: request.destinationPath })
+    expect(runtime.pipeline).toHaveBeenCalledTimes(2)
+    expect(runtime.closeAllProcesses).toHaveBeenCalledOnce()
+    expect(runtime.setConcurrentDaemons).toHaveBeenNthCalledWith(1, 0)
+    expect(runtime.setConcurrentDaemons).toHaveBeenNthCalledWith(2, 1)
+    expect(runtime.setConcurrentDaemons).toHaveBeenNthCalledWith(3, 0)
+
+    await provider.upscale(request)
+    expect(runtime.pipeline).toHaveBeenCalledTimes(3)
+    expect(runtime.setConcurrentDaemons).toHaveBeenCalledTimes(3)
   })
 
   it("[neoview.super-resolution.provider-abort] closes owned daemons when a task is cancelled", async () => {

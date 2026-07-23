@@ -119,6 +119,7 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
   #runtime?: Promise<OpenComicSystemRuntime>
   #configuredRuntime?: OpenComicSystemRuntime
   #configuredDaemonCount?: number
+  #upscaylDaemonDisabled = false
   #disposed = false
 
   constructor(options: OpenComicAiSystemProviderOptions) {
@@ -149,8 +150,9 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     this.#binaryPaths.set(request.model.engine, capability.executablePath)
 
     const runtime = await this.#runtimeInstance()
+    let daemonCount = 0
     if (request.model.engine === "upscayl") {
-      const daemonCount = capability.daemonSupported === true ? this.#maxDaemons : 0
+      daemonCount = capability.daemonSupported === true && !this.#upscaylDaemonDisabled ? this.#maxDaemons : 0
       if (this.#configuredDaemonCount !== daemonCount) {
         runtime.setConcurrentDaemons(daemonCount)
         this.#configuredDaemonCount = daemonCount
@@ -161,25 +163,39 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     const timeoutSignal = AbortSignal.timeout(this.#taskTimeoutMs)
     const executionSignal = context.signal ? AbortSignal.any([context.signal, timeoutSignal]) : timeoutSignal
     executionSignal.throwIfAborted()
-    const work = runtime.pipeline(
-      request.sourcePath,
-      request.destinationPath,
-      [{
-        model: request.model.id,
-        scale: request.scale,
-        noise: request.noise,
-        tileSize: request.tileSize,
-        gpuId: request.gpuId,
-        tta: request.tta,
-      }],
-      (completed) => context.onProgress?.({ completed: normalizeProgress(completed) }),
-      false,
-    )
-    const outputPath = await raceWithAbort(work, executionSignal, () => runtime.closeAllProcesses())
-    if (pathKey(outputPath) !== pathKey(request.destinationPath)) {
-      throw new Error(`Super-resolution runtime returned an unexpected output path: ${outputPath}`)
+    const runPipeline = async (): Promise<void> => {
+      const work = runtime.pipeline(
+        request.sourcePath,
+        request.destinationPath,
+        [{
+          model: request.model.id,
+          scale: request.scale,
+          noise: request.noise,
+          tileSize: request.tileSize,
+          gpuId: request.gpuId,
+          tta: request.tta,
+        }],
+        (completed) => context.onProgress?.({ completed: normalizeProgress(completed) }),
+        false,
+      )
+      const outputPath = await raceWithAbort(work, executionSignal, () => runtime.closeAllProcesses())
+      if (pathKey(outputPath) !== pathKey(request.destinationPath)) {
+        throw new Error(`Super-resolution runtime returned an unexpected output path: ${outputPath}`)
+      }
+      await this.#waitForOutput(request.destinationPath, executionSignal)
     }
-    await this.#waitForOutput(request.destinationPath, executionSignal)
+
+    try {
+      await runPipeline()
+    } catch (error) {
+      if (request.model.engine !== "upscayl" || daemonCount === 0 || !(error instanceof SuperResolutionOutputUnavailableError)) throw error
+      this.#upscaylDaemonDisabled = true
+      runtime.closeAllProcesses()
+      runtime.setConcurrentDaemons(0)
+      this.#configuredDaemonCount = 0
+      executionSignal.throwIfAborted()
+      await runPipeline()
+    }
 
     const [source, output] = await Promise.all([
       this.#inspectImage(request.sourcePath, executionSignal),
@@ -214,6 +230,7 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     this.#runtime = undefined
     this.#configuredRuntime = undefined
     this.#configuredDaemonCount = undefined
+    this.#upscaylDaemonDisabled = false
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
@@ -289,9 +306,16 @@ export async function waitForSuperResolutionOutput(
       lastError = error
     }
     if (Date.now() >= deadline) {
-      throw new Error(`Super-resolution runtime completed before its output became available: ${path}`, { cause: lastError })
+      throw new SuperResolutionOutputUnavailableError(path, { cause: lastError })
     }
     await abortableDelay(pollIntervalMs, signal)
+  }
+}
+
+export class SuperResolutionOutputUnavailableError extends Error {
+  constructor(path: string, options?: ErrorOptions) {
+    super(`Super-resolution runtime completed before its output became available: ${path}`, options)
+    this.name = "SuperResolutionOutputUnavailableError"
   }
 }
 
