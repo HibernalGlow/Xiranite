@@ -24,7 +24,6 @@ import { loadWorkspaceSnapshot as loadWorkspaceSnapshotRpc, persistWorkspaceSnap
 import type { LocalBackendConfig } from "@/backend/localBackendConfig"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { useWorkspaceStore } from "@/store/workspaceStore"
-import { RESTORE_WORKSPACE_COMPONENTS } from "@/store/workspace/restorePolicy"
 import type { WSStore } from "@/store/workspace/types"
 import type { ComponentDTO, LaneDTO, WorkspaceDTO, WorkspaceSnapshotDTO } from "@xiranite/shared"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
@@ -49,7 +48,7 @@ function workspaceSnapshotQueryKey(config: LocalBackendConfig | undefined) {
  * Their payload can be large, but it cannot affect the live store in that
  * mode, so it must not trigger another hydration pass.
  */
-export function workspaceSnapshotHydrationKey(snapshot: WorkspaceSnapshot, restoreComponents = RESTORE_WORKSPACE_COMPONENTS): string {
+export function workspaceSnapshotHydrationKey(snapshot: WorkspaceSnapshot, restoreComponents = false): string {
   return JSON.stringify(restoreComponents
     ? snapshot
     : { workspaces: snapshot.workspaces, lanes: snapshot.lanes })
@@ -123,6 +122,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const hydrate = useWorkspaceStore((state) => state.hydrate)
   const setBackendReady = useWorkspaceStore((state) => state.setBackendReady)
   const backendReady = useWorkspaceStore((state) => state.backendReady)
+  const restoreWorkspaceComponents = useWorkspaceStore((state) => state.restoreWorkspaceComponents)
+  const restoreComponentsForSessionRef = useRef(false)
+  if (restoreWorkspaceComponents) restoreComponentsForSessionRef.current = true
+  const restoreComponents = restoreComponentsForSessionRef.current
   const { workspaces, lanes, components } = useWorkspaceStore(
     useShallow((state) => ({
       workspaces: state.workspaces,
@@ -137,7 +140,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     workspaces: workspaces.length,
     lanes: lanes.length,
     components: components.length,
-    restoreComponents: RESTORE_WORKSPACE_COMPONENTS,
+    restoreComponents,
   })
 
   useEffect(() => {
@@ -160,8 +163,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     onSuccess: (_result, snapshot) => {
       queryClient.setQueryData(workspaceQueryKey, snapshot)
       locallyPersistedSnapshotRef.current = queryClient.getQueryData<WorkspaceSnapshot>(workspaceQueryKey)
-      lastHydratedSnapshotKeyRef.current = workspaceSnapshotHydrationKey(snapshot)
-      if (RESTORE_WORKSPACE_COMPONENTS) {
+      lastHydratedSnapshotKeyRef.current = workspaceSnapshotHydrationKey(snapshot, restoreComponents)
+      if (restoreComponents) {
         snapshotComponentsRef.current = snapshot.components
       }
     },
@@ -179,8 +182,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (workspaceQuery.data === locallyPersistedSnapshotRef.current) return
 
     snapshotComponentsRef.current = workspaceQuery.data.components
-    const componentsToHydrate = RESTORE_WORKSPACE_COMPONENTS ? workspaceQuery.data.components : []
-    const hydrationKey = workspaceSnapshotHydrationKey(workspaceQuery.data)
+    const componentsToHydrate = restoreComponents ? workspaceQuery.data.components : []
+    const hydrationKey = workspaceSnapshotHydrationKey(workspaceQuery.data, restoreComponents)
     if (hydrationKey === lastHydratedSnapshotKeyRef.current) return
     lastHydratedSnapshotKeyRef.current = hydrationKey
 
@@ -189,9 +192,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       lanes: workspaceQuery.data.lanes.length,
       components: workspaceQuery.data.components.length,
       restoringComponents: componentsToHydrate.length,
-      restoreComponents: RESTORE_WORKSPACE_COMPONENTS,
+      restoreComponents,
     })
-    if (!RESTORE_WORKSPACE_COMPONENTS && workspaceQuery.data.components.length > 0) {
+    if (!restoreComponents && workspaceQuery.data.components.length > 0) {
       console.info(
         `[workspace] component restore disabled — skipped ${workspaceQuery.data.components.length} instance(s) (SQLite rows kept)`,
       )
@@ -203,7 +206,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     hydrate(workspaceQuery.data.workspaces, workspaceQuery.data.lanes, componentsToHydrate)
     setBackendReady(true)
     startupDebug("workspace:hydrate-store:end")
-  }, [hydrate, setBackendReady, workspaceQuery.data])
+  }, [hydrate, restoreComponents, setBackendReady, workspaceQuery.data])
 
   useEffect(() => {
     if (backendReady && (!localBackendReady || workspaceQuery.isError || (workspaceQuery.isPending && !workspaceQuery.data))) {
@@ -232,7 +235,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       // While restore is off, never rewrite component rows from the live store
       // (which starts empty). Keep the last SQLite snapshot so NeoView instances
       // remain available once restore is re-enabled.
-      const nextComponents = RESTORE_WORKSPACE_COMPONENTS
+      const nextComponents = restoreComponents
         ? components.map((component) => toComponentDTO(component, now))
         : snapshotComponentsRef.current
       persistWorkspace({
@@ -245,7 +248,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return () => {
       clearTimeout(timer)
     }
-  }, [workspaces, lanes, components, backendReady, localBackendReady, persistWorkspace])
+  }, [workspaces, lanes, components, backendReady, localBackendReady, persistWorkspace, restoreComponents])
 
   return useMemo(() => <>{children}</>, [children])
 }

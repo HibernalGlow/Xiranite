@@ -87,6 +87,7 @@ function selectWorkspaceUiPreferences(state: WSStore): WorkspaceUiPreferences {
     modulePanelStyle: state.modulePanelStyle,
     resizableHandleStyle: state.resizableHandleStyle,
     hazardMode: state.hazardMode,
+    restoreWorkspaceComponents: state.restoreWorkspaceComponents,
     laneWorkspacePreferences: state.laneWorkspacePreferences,
   }
 }
@@ -222,6 +223,7 @@ function selectWorkspaceState(store: WSStore): WSState {
     modulePanelStyle: store.modulePanelStyle,
     resizableHandleStyle: store.resizableHandleStyle,
     hazardMode: store.hazardMode,
+    restoreWorkspaceComponents: store.restoreWorkspaceComponents,
   }
 }
 
@@ -319,6 +321,7 @@ function selectWorkspaceActions(store: WSStore): WorkspaceActions {
     setModulePanelStyle: store.setModulePanelStyle,
     setResizableHandleStyle: store.setResizableHandleStyle,
     setHazardMode: store.setHazardMode,
+    setRestoreWorkspaceComponents: store.setRestoreWorkspaceComponents,
     patchLaneWorkspacePreferences: store.patchLaneWorkspacePreferences,
     addLane: store.addLane,
     removeLane: store.removeLane,

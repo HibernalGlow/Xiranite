@@ -6,6 +6,7 @@ import {
   PanelBottom,
   PanelRight,
   ToggleLeft,
+  RotateCcw,
   Upload,
   X,
 } from "lucide-react"
@@ -42,10 +43,33 @@ export function WorkspaceSection() {
     alphabetIndexOpacity: workspace.alphabetIndexOpacity,
     alphabetIndexStyle: workspace.alphabetIndexStyle,
     alphabetIndexWaveIntensity: workspace.alphabetIndexWaveIntensity,
+    restoreWorkspaceComponents: workspace.restoreWorkspaceComponents,
   }))
 
   return (
     <div className="space-y-3">
+      <SettingsStepCard
+        id="startup-restore"
+        title="启动时恢复节点"
+        description="控制应用启动时是否恢复上次工作区中的节点实例。"
+        icon={RotateCcw}
+        delay={0.01}
+      >
+        <div className="flex items-center justify-between gap-4 rounded-sm border border-border/40 bg-muted/15 px-3 py-2">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">自动恢复节点</p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+              下次启动生效。关闭不会删除已保存节点，也不会关闭当前节点。
+            </p>
+          </div>
+          <Switch
+            aria-label="自动恢复节点"
+            checked={state.restoreWorkspaceComponents}
+            onCheckedChange={workspaceActions.setRestoreWorkspaceComponents}
+          />
+        </div>
+      </SettingsStepCard>
+
       <SettingsStepCard
         id="background"
         title={t("settings:background.title")}

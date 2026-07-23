@@ -117,6 +117,7 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setModulePanelStyle: (modulePanelStyle) => set({ modulePanelStyle }, false, "SET_MODULE_PANEL_STYLE"),
     setResizableHandleStyle: (resizableHandleStyle) => set({ resizableHandleStyle }, false, "SET_RESIZABLE_HANDLE_STYLE"),
     setHazardMode: (hazardMode) => set({ hazardMode }, false, "SET_HAZARD_MODE"),
+    setRestoreWorkspaceComponents: (restoreWorkspaceComponents) => set({ restoreWorkspaceComponents }, false, "SET_RESTORE_WORKSPACE_COMPONENTS"),
     patchLaneWorkspacePreferences: (workspaceId, patch) => set((state) => ({
       laneWorkspacePreferences: {
         ...state.laneWorkspacePreferences,

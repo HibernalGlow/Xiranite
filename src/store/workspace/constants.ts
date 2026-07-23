@@ -88,5 +88,6 @@ export const INITIAL_STATE: WSState = {
   modulePanelStyle: "soft",
   resizableHandleStyle: "grip",
   hazardMode: false,
+  restoreWorkspaceComponents: false,
   laneWorkspacePreferences: {},
 }
