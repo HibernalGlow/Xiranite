@@ -14,7 +14,10 @@ if (leanIndex !== -1) args.splice(leanIndex, 1)
 process.env.XIRANITE_LAZY_NODE_BUILD = "1"
 process.env.XIRANITE_NODE_SOURCE = "1"
 process.env.XIRANITE_NODE_SOURCE_HMR ??= "1"
-const { startBackend } = await import("../packages/backend/src/index")
+const [{ startBackend }, { invalidateDevelopmentSourceModules }] = await Promise.all([
+  import("../packages/backend/src/index"),
+  import("../packages/runtime/src/node-runner"),
+])
 const frontendUrl = await resolveManagedFrontendUrl()
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
@@ -35,6 +38,7 @@ async function startManagedBackend(): Promise<DevBackend> {
 
 async function restartBackendFromDevScript() {
   const previous = backend
+  invalidateDevelopmentSourceModules()
   const next = await startManagedBackend()
   backend = next
   await writeBackendDevManifest({ baseUrl: next.url, token: next.token }, frontendUrl)

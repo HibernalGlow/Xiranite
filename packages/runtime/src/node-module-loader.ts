@@ -19,6 +19,7 @@ interface DevelopmentSource {
 
 let developmentSourceHotReloadEnabled = process.env.XIRANITE_NODE_SOURCE_HMR === "1"
 const developmentSourceLoadingEnabled = process.env.XIRANITE_NODE_SOURCE === "1"
+let developmentSourceRevision = 0
 
 export function getDevelopmentSourceHotReloadEnabled(): boolean {
   return developmentSourceLoadingEnabled && developmentSourceHotReloadEnabled
@@ -29,6 +30,13 @@ export function setDevelopmentSourceHotReloadEnabled(enabled: boolean): boolean 
   if (!developmentSourceLoadingEnabled) return false
   developmentSourceHotReloadEnabled = enabled
   return developmentSourceHotReloadEnabled
+}
+
+/** Invalidates source modules before a managed backend restart. */
+export function invalidateDevelopmentSourceModules(): boolean {
+  if (!getDevelopmentSourceHotReloadEnabled()) return false
+  developmentSourceRevision += 1
+  return true
 }
 
 /**
@@ -59,13 +67,14 @@ export function createNodeModuleLoader(productionLoader: ModuleLoader, source?: 
 
     const loader: ModuleLoader = () => {
       ensureWatcher()
+      const currentRevision = revision + developmentSourceRevision
       const url = pathToFileURL(file)
-      if (revision > 0) url.searchParams.set("xiranite-node-revision", String(revision))
+      if (currentRevision > 0) url.searchParams.set("xiranite-node-revision", String(currentRevision))
       return import(url.href) as Promise<NodeModule>
     }
     loader.getRevision = () => {
       ensureWatcher()
-      return revision
+      return revision + developmentSourceRevision
     }
     return loader
   }
