@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderSessionDto, ReaderSuperResolutionConfigDto } from "../../../adapters/reader-http-client"
 import { setReaderUpscaleArtifact } from "../../reader/ReaderUpscaleArtifactStore"
+import { setReaderUpscalePreload } from "../../reader/ReaderUpscalePreloadStore"
 import UpscaleCacheCard from "./UpscaleCacheCard"
 import UpscaleConditionsCard from "./UpscaleConditionsCard"
 import UpscaleModelCard from "./UpscaleModelCard"
@@ -177,6 +178,12 @@ describe("NeoView upscale Cards", () => {
     expect(await screen.findByText("已完成")).toBeTruthy()
     expect(screen.getByAltText("超分图").getAttribute("src")).toBe("http://reader/upscaled.png")
     expect(client.upscalePage).not.toHaveBeenCalled()
+  })
+  it("[neoview.super-resolution.status-card-log] shows recent preload events", async () => {
+    setReaderUpscalePreload("session-1", [{ contextId: "reader:session-1", generation: 1, mode: "nearby", state: "running", planned: 2, settled: 0, failed: 0, cancelled: 0, pending: 2, progress: 0, startedAt: 1, updatedAt: 2, events: [{ id: "event-1", at: 2, level: "error", pageIndex: 1, message: "Page 2 failed: truncated output." }] }])
+    const client = context().client
+    render(<UpscaleStatusCard {...context(client)} />)
+    expect(screen.getByText("Page 2 failed: truncated output.")).toBeTruthy()
   })
 })
 

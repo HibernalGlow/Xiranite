@@ -93,6 +93,14 @@ export type SuperResolutionPreloadLiveState =
   | "cancelled"
   | "failed"
 
+export interface SuperResolutionPreloadLogEntry {
+  id: string
+  at: number
+  level: "info" | "success" | "error"
+  message: string
+  pageIndex?: number
+}
+
 export interface SuperResolutionPreloadLiveSnapshot {
   contextId: string
   generation: number
@@ -110,6 +118,7 @@ export interface SuperResolutionPreloadLiveSnapshot {
   startedAt: number
   updatedAt: number
   completedAt?: number
+  events?: readonly SuperResolutionPreloadLogEntry[]
 }
 
 export type { ResourcePriority }

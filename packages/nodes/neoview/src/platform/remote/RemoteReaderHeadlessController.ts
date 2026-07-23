@@ -89,6 +89,14 @@ const remoteSuperResolutionArtifactResultSchema = z.discriminatedUnion("status",
 
 export type RemoteSuperResolutionArtifactResult = z.infer<typeof remoteSuperResolutionArtifactResultSchema>
 
+const preloadLogEntrySchema = z.object({
+  id: z.string().min(1),
+  at: z.number().nonnegative(),
+  level: z.enum(["info", "success", "error"]),
+  message: z.string().max(512),
+  pageIndex: z.number().int().nonnegative().optional(),
+}).strict()
+
 const preloadSnapshotSchema = z.object({
   contextId: z.string().min(1),
   generation: z.number().int().nonnegative(),
@@ -103,6 +111,7 @@ const preloadSnapshotSchema = z.object({
   startedAt: z.number().nonnegative(),
   updatedAt: z.number().nonnegative(),
   completedAt: z.number().nonnegative().optional(),
+  events: z.array(preloadLogEntrySchema).max(64).optional(),
 }).strict()
 
 const preloadEnvelopeSchema = z.object({ snapshots: z.array(preloadSnapshotSchema).max(256) }).strict()

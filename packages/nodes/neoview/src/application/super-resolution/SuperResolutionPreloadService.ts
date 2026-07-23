@@ -17,6 +17,7 @@ import type {
   SuperResolutionPreloadBatchResult,
   SuperResolutionPreloadLiveSnapshot,
   SuperResolutionPreloadLiveState,
+  SuperResolutionPreloadLogEntry,
   SuperResolutionPreloadPageOutcome,
   SuperResolutionPreloadPageRunner,
   SuperResolutionPreloadPlanInput,
@@ -86,6 +87,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
   readonly #tracked = new LRUCache<string, TrackedBatch>({ max: 128 })
   readonly #coverage = new Map<string, ContextCoverage>()
   readonly #progressiveUnlocked = new Set<string>()
+  #eventSequence = 0
   #disposed = false
 
   constructor(
@@ -406,6 +408,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
     const outcomes = await pMap(runnable, async ({ page, priority }): Promise<SuperResolutionPreloadPageOutcome> => {
       try {
         signal.throwIfAborted()
+        this.#appendEvent(key, { level: "info", pageIndex: page.index, message: `Started page ${page.index + 1}.` })
         const destinationContext = {
           contextId: input.contextId,
           generation: input.generation,
@@ -436,6 +439,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
         }
         const outcome = { pageId: page.id, pageIndex: page.index, status: "settled" as const, output }
         this.#recordOutcome(key, page.index, outcome.status, outputProvidesUpscale(output))
+        this.#appendEvent(key, { level: "success", pageIndex: page.index, message: `Finished page ${page.index + 1}.` })
         notify(input.onPageSettled, outcome)
         return outcome
       } catch (error) {
@@ -446,6 +450,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
           error,
         }
         this.#recordOutcome(key, page.index, outcome.status, false)
+        this.#appendEvent(key, { level: "error", pageIndex: page.index, message: `Page ${page.index + 1} failed: ${errorMessage(error)}` })
         notify(input.onPageSettled, outcome)
         return outcome
       }
@@ -498,6 +503,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
         upscaledPages: coverage.upscaled.size,
         startedAt: now,
         updatedAt: now,
+        events: [this.#createEvent(key, { at: now, level: "info", message: batchStateMessage(state) })],
       },
     })
   }
@@ -506,6 +512,16 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
     const tracked = this.#tracked.peek(key)
     if (!tracked) return
     tracked.snapshot = { ...tracked.snapshot, ...patch, updatedAt: Date.now() }
+  }
+
+  #appendEvent(key: string, event: Omit<SuperResolutionPreloadLogEntry, "id" | "at">): void {
+    const snapshot = this.#tracked.peek(key)?.snapshot
+    if (!snapshot) return
+    this.#update(key, { events: [...(snapshot.events ?? []), this.#createEvent(key, { ...event, at: Date.now() })].slice(-64) })
+  }
+
+  #createEvent(key: string, event: Omit<SuperResolutionPreloadLogEntry, "id">): SuperResolutionPreloadLogEntry {
+    return { ...event, id: `${key}:${++this.#eventSequence}` }
   }
 
   #recordOutcome(
@@ -557,6 +573,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
         progress: result.planned ? result.settled / result.planned : 0,
         completedAt: Date.now(),
       })
+      this.#appendEvent(key, { level: result.failed ? "error" : "success", message: `Batch ${state}: ${result.settled} settled, ${result.failed} failed.` })
       return result
     } catch (error) {
       const active = this.#active.get(key)
@@ -568,6 +585,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
         pending: 0,
         completedAt: Date.now(),
       })
+      this.#appendEvent(key, { level: "error", message: `Batch failed: ${errorMessage(error)}` })
       throw error
     }
   }
@@ -623,6 +641,17 @@ function mergeBatchResults(
 function outputProvidesUpscale(output: SuperResolutionPageResult | SuperResolutionArtifactWarmResult): boolean {
   if ("status" in output) return output.status === "hit" || output.status === "shared" || output.status === "generated"
   return output.decision.kind === "run" && output.result !== undefined
+}
+
+function batchStateMessage(state: SuperResolutionPreloadLiveState): string {
+  if (state === "countdown") return "Waiting for progressive preload dwell time."
+  if (state === "queued") return "Preload batch queued."
+  return `Preload batch ${state}.`
+}
+
+function errorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.length > 512 ? `${message.slice(0, 509)}...` : message
 }
 
 function emptyResult(
