@@ -60,7 +60,7 @@ function LoratWorkbench({ definition, language, onExit }: TerminalUiScreenProps<
     </box>
 
     <box height={7} flexShrink={0} marginTop={1} flexDirection="row" gap={1}>
-      {surface === "manage" ? <><F id="folderPath" width="45%" /><F id="search" width="28%" /><F id="statusFilter" /></> : <><F id="collectionRoot" width="40%" /><F id="collectionItemsJson" width="40%" /><F id="collectionOverwrite" /></>}
+      {surface === "manage" ? <><F id="folderPath" width="45%" /><F id="search" width="28%" /><F id="statusFilter" /></> : <><F id="collectionRoot" width="32%" /><F id="collectionItemsJson" width="32%" /><F id="collectionOverwrite" /><F id="collectionCreateModelFolder" /></>}
     </box>
 
     <box flexGrow={1} minHeight={0} marginTop={1} flexDirection="row" gap={1}>

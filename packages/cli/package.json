@@ -41,6 +41,7 @@
     "@xiranite/node-kavvka": "workspace:*",
     "@xiranite/node-lata": "workspace:*",
     "@xiranite/node-linedup": "workspace:*",
+    "@xiranite/node-logx": "workspace:*",
     "@xiranite/node-linku": "workspace:*",
     "@xiranite/node-marku": "workspace:*",
     "@xiranite/node-migratef": "workspace:*",

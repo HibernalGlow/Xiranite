@@ -148,6 +148,12 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Create, move, list, and recover symlink records.",
   },
   {
+    id: "logx",
+    packageName: "@xiranite/node-logx",
+    bin: nodeCliName("logx"),
+    description: "Inspect, query, aggregate, and diagnose structured Xiranite logs.",
+  },
+  {
     id: "lorat",
     packageName: "@xiranite/node-lorat",
     bin: nodeCliName("lorat"),

@@ -55,6 +55,10 @@ describe("app-owned lorat Component", () => {
       }
 
       expect(screen.getByLabelText("lorat LoRA 目录")).toBeTruthy()
+      expect(screen.getByTestId("lorat-titlebar")).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "整理" })).toBeTruthy()
+      expect(screen.getByRole("tab", { name: "收集" })).toBeTruthy()
+      expect(screen.getByRole("button", { name: "配置管理" })).toBeTruthy()
       expect(screen.getByTestId("lorat-action-picker")).toBeTruthy()
       expect(screen.getByRole("tab", { name: "模型" })).toBeTruthy()
       expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
@@ -162,7 +166,7 @@ describe("app-owned lorat Component", () => {
   test("saves, restores, and clears default config controls", async () => {
     setSurface("regular")
     const host = createHost(
-      { folderPath: "D:/current", action: "scan", search: "alice" },
+      { folderPath: "D:/current", action: "scan", search: "alice", collectionRoot: "D:/LoRA", collectionOverwrite: true, collectionCreateModelFolder: true },
       { config: { folderPath: "D:/default", action: "apply_db", search: "" } },
     )
     render(<Component compId="comp-lorat" host={host} />)
@@ -170,13 +174,31 @@ describe("app-owned lorat Component", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "配置管理" }).className).toContain("bg-secondary"))
     await user.click(screen.getByRole("button", { name: "配置管理" }))
-    await user.click(screen.getByRole("button", { name: "恢复默认" }))
+    await user.click(screen.getByRole("button", { name: /恢复/ }))
     expect(host.state.folderPath).toBe("D:/default")
     expect(host.state.action).toBe("apply_db")
     expect(host.state.search).toBe("")
 
-    await user.click(screen.getByRole("button", { name: "保存为默认" }))
-    expect(host.savedConfig).toBeDefined()
+    await user.click(screen.getByRole("button", { name: "保存为默认配置" }))
+    expect(host.savedConfig).toMatchObject({
+      lora_folder: "D:/default",
+      collection_root: "D:/LoRA",
+      collection_overwrite: true,
+      collection_create_model_folder: true,
+    })
+  })
+
+  test("keeps workflow tabs and configuration in the titlebar while collecting", async () => {
+    setSurface("regular")
+    render(<Component compId="comp-lorat" host={createHost({ collectionRoot: "D:/ComfyUI/models/loras" })} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("tab", { name: "收集" }))
+
+    const titlebar = screen.getByTestId("lorat-titlebar")
+    expect(titlebar.contains(screen.getByRole("tab", { name: "整理" }))).toBe(true)
+    expect(titlebar.contains(screen.getByRole("tab", { name: "收集" }))).toBe(true)
+    expect(titlebar.contains(screen.getByRole("button", { name: "配置管理" }))).toBe(true)
   })
 
   test("queues a desktop-dropped LoRA in the collection tab and sends a collect request", async () => {
@@ -251,7 +273,7 @@ describe("app-owned lorat Component", () => {
     expect(host.state.collectionItems?.[0]?.sourcePath).toBe("D:/Downloads/picked_style.safetensors")
   })
 
-  test("stages a pathless browser-dropped LoRA before queueing it", async () => {
+  test("stages a pathless browser-selected LoRA before queueing it", async () => {
     setSurface("regular")
     const stagedFiles: File[] = []
     const host = createHost({ collectionRoot: "D:/ComfyUI/models/loras" })
@@ -266,11 +288,39 @@ describe("app-owned lorat Component", () => {
     await userEvent.setup().click(screen.getByRole("tab", { name: "收集" }))
     const model = new File(["model"], "neon_browser.safetensors", { type: "application/octet-stream" })
 
-    fireEvent.drop(screen.getByTestId("lorat-collection-model-drop"), { dataTransfer: { files: [model] } })
+    const input = document.querySelector('input[type="file"][accept*=".safetensors"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [model] } })
 
     await waitFor(() => expect(screen.getByText("neon_browser.safetensors")).toBeTruthy())
     expect(stagedFiles).toEqual([model])
     expect(host.state.collectionItems?.[0]?.sourcePath).toBe("C:/Temp/xiranite/neon_browser.safetensors")
+  })
+
+  test("scans nested Windows folders into directory tags", async () => {
+    setSurface("regular")
+    const listedPaths: string[] = []
+    const host = createHost({
+      collectionRoot: "D:\\ComfyUI\\models\\loras",
+      collectionItems: [{ id: "model-1", sourcePath: "D:\\Downloads\\neon.safetensors", sourceName: "neon.safetensors", targetRelativeDir: "", triggerText: "neon" }],
+    })
+    host.localFiles = {
+      getUrl: (path) => `local://${path}`,
+      list: async (path) => {
+        listedPaths.push(path)
+        return path.endsWith("\\style")
+          ? [{ name: "anime", path: `${path}\\anime`, isDirectory: true, sizeBytes: 0, lastModified: 0, type: "inode/directory" }]
+          : [{ name: "style", path: `${path}\\style`, isDirectory: true, sizeBytes: 0, lastModified: 0, type: "inode/directory" }]
+      },
+    }
+    render(<Component compId="comp-lorat" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("tab", { name: "收集" }))
+
+    await user.click(await screen.findByRole("button", { name: "style" }))
+    expect(host.state.collectionItems?.[0]?.targetRelativeDir).toBe("style")
+    await user.click(await screen.findByRole("button", { name: "anime" }))
+    expect(host.state.collectionItems?.[0]?.targetRelativeDir).toBe("style/anime")
+    expect(listedPaths).toContain("D:\\ComfyUI\\models\\loras\\style")
   })
 
   test("pastes a clipboard image and records source metadata for collection", async () => {
@@ -382,6 +432,24 @@ describe("app-owned lorat Component", () => {
     fireEvent.change(triggerInput, { target: { value: "alice, blonde hair" } })
     expect(host.state.rows?.[0]?.trigger).toBe("alice, blonde hair")
     expect(host.state.rows?.[0]?.changed).toBe(true)
+  })
+
+  test("shows collected LoRAs separately with reveal and copy actions", async () => {
+    setSurface("regular")
+    const revealPath = vi.fn(async () => undefined)
+    const collected = { ...SAMPLE_ROW, source: "collection", trigger: "alice_style", originalTrigger: "alice_style" }
+    const host = createHost({ rows: [collected], logs: [] })
+    host.localFiles = { getUrl: (path) => `local://${path}`, revealPath }
+    render(<Component compId="comp-lorat" host={host} />)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("tab", { name: "已收集 1" }))
+    await user.click(screen.getByRole("button", { name: `复制触发词 ${collected.name}` }))
+    expect(host.copiedText).toBe("alice_style")
+    await user.click(screen.getByRole("button", { name: `复制文件名 ${collected.name}` }))
+    expect(host.copiedText).toBe(collected.name)
+    await user.click(screen.getByRole("button", { name: `在资源管理器中显示 ${collected.name}` }))
+    expect(revealPath).toHaveBeenCalledWith(collected.filePath)
   })
 
   test("renders Dice data table filtering controls for Lorat rows", () => {

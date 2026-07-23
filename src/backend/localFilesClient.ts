@@ -51,6 +51,7 @@ export async function listLocalFiles(
   sourcePath: string,
   options: {
     recursive?: boolean
+    includeDirectories?: boolean
     extensions?: string[]
     limit?: number
   } = {},
@@ -59,6 +60,7 @@ export async function listLocalFiles(
   const url = new URL("/local-files/list", config.baseUrl)
   url.searchParams.set("path", sourcePath)
   if (options.recursive) url.searchParams.set("recursive", "1")
+  if (options.includeDirectories) url.searchParams.set("includeDirectories", "1")
   if (options.extensions?.length) url.searchParams.set("extensions", options.extensions.join(","))
   if (options.limit) url.searchParams.set("limit", String(options.limit))
   if (config.token) url.searchParams.set("token", config.token)

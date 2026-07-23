@@ -9,6 +9,7 @@ export interface LoratCardState {
   collectionRoot?: string
   collectionItems?: LoratCollectionDraft[]
   collectionOverwrite?: boolean
+  collectionCreateModelFolder?: boolean
   collectionResults?: LoratCollectionResult[]
   triggerDbJson?: string
   search?: string
@@ -41,6 +42,7 @@ export const CONFIG_FIELDS: Array<keyof LoratCardState> = [
   "folderPath",
   "collectionRoot",
   "collectionOverwrite",
+  "collectionCreateModelFolder",
   "triggerDbJson",
   "search",
   "statusFilter",

@@ -506,8 +506,9 @@ describe("backend", () => {
   test("serves local audio files with range support and lists music entries", async () => {
     const dataDir = await createTempDataDir()
     const musicDir = join(dataDir, "music")
+    const albumsDir = join(musicDir, "albums")
     const audioPath = join(musicDir, "track.flac")
-    await mkdir(musicDir, { recursive: true })
+    await mkdir(albumsDir, { recursive: true })
     await writeFile(audioPath, TINY_FLAC_HEADER)
     await writeFile(join(musicDir, "notes.txt"), "not audio")
     const backend = await startBackend({ token: "test-token", repository: createMemoryWorkspaceRepository() })
@@ -525,6 +526,12 @@ describe("backend", () => {
         sizeBytes: TINY_FLAC_HEADER.length,
         isDirectory: false,
       }])
+
+      const directories = await fetch(`${backend.url}/local-files/list?path=${encodeURIComponent(musicDir)}&includeDirectories=1&token=test-token`)
+      expect(directories.status).toBe(200)
+      expect(await directories.json()).toMatchObject({
+        entries: expect.arrayContaining([{ name: "albums", path: albumsDir, isDirectory: true }]),
+      })
 
       const range = await fetch(`${backend.url}/local-files?path=${encodeURIComponent(audioPath)}&token=test-token`, {
         headers: { range: "bytes=0-3" },

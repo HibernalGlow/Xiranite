@@ -48,6 +48,9 @@ interface LoratCliOptions {
 
 interface LoratNodeConfig extends CliInteractionPreferencesSource {
   lora_folder?: string
+  collection_root?: string
+  collection_overwrite?: boolean
+  collection_create_model_folder?: boolean
   status_filter?: string
   search?: string
 }
@@ -111,6 +114,9 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
     createDefinition: (defaults, language) => ({
       schema: createLoratInteractionSchema({
         folderPath: defaults.lora_folder,
+        collectionRoot: defaults.collection_root,
+        collectionOverwrite: defaults.collection_overwrite,
+        collectionCreateModelFolder: defaults.collection_create_model_folder,
         search: defaults.search,
         statusFilter: normalizeStatus(defaults.status_filter),
       }, language),
