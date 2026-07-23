@@ -87,6 +87,38 @@ export const nodeRunResultSchema = z.object({
   outputPath: z.string().optional(),
 })
 
+export const nexusCaptureKindSchema = z.enum(["page", "selection", "image", "link"])
+
+export const nexusCaptureRequestSchema = z.object({
+  version: z.literal(1),
+  targetNodeId: z.string().trim().min(1),
+  kind: nexusCaptureKindSchema,
+  source: z.object({
+    url: z.string().url(),
+    title: z.string().optional(),
+    pageUrl: z.string().url().optional(),
+    capturedAt: z.string().datetime(),
+  }),
+  content: z.object({
+    text: z.string().optional(),
+    html: z.string().optional(),
+    markdown: z.string().optional(),
+    fullHtml: z.string().optional(),
+  }).optional(),
+  attachments: z.array(z.object({
+    url: z.string().url(),
+    name: z.string().optional(),
+    mimeType: z.string().optional(),
+    dataBase64: z.string().optional(),
+  })).max(20).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+
+export const nexusCaptureSchema = nexusCaptureRequestSchema.extend({
+  id: z.string().min(1),
+  receivedAt: z.string().datetime(),
+})
+
 export const nodeRunRequestSchema = z.object({
   input: z.unknown().optional(),
   context: z.object({
@@ -277,6 +309,9 @@ export type CreateWorkspaceInput = z.infer<typeof createWorkspaceInputSchema>
 export type RenameWorkspaceInput = z.infer<typeof renameWorkspaceInputSchema>
 export type WorkspaceSnapshotDTO = z.infer<typeof workspaceSnapshotSchema>
 export type NodeRunEventDTO = z.infer<typeof nodeRunEventSchema>
+export type NexusCaptureKindDTO = z.infer<typeof nexusCaptureKindSchema>
+export type NexusCaptureRequestDTO = z.infer<typeof nexusCaptureRequestSchema>
+export type NexusCaptureDTO = z.infer<typeof nexusCaptureSchema>
 export type NodeOperationPhaseDTO = z.infer<typeof nodeOperationPhaseSchema>
 export interface NodeRunResultDTO<TData = unknown> {
   success: boolean

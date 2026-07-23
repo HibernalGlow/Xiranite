@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia"
 import type { XiraniteServices } from "@xiranite/services"
 import {
   createWorkspaceInputSchema,
+  nexusCaptureRequestSchema,
   nodeRunHistoryClearQuerySchema,
   nodeRunHistoryQuerySchema,
   nodeRunRequestSchema,
@@ -12,10 +13,29 @@ import {
   type NodeOperationStreamMessageDTO,
   type NodeRunEventDTO,
 } from "@xiranite/shared"
+import { NexusCaptureInbox } from "./nexusCaptureInbox.js"
 
 export function createXiraniteApp(services: XiraniteServices) {
+  const nexusCaptures = new NexusCaptureInbox()
   return new Elysia({ name: "xiranite-api" })
     .get("/health", () => ({ ok: true }))
+    .post("/nexus/captures", ({ body, set }) => {
+      const capture = nexusCaptures.add(body)
+      set.status = 202
+      return { id: capture.id, accepted: true }
+    }, {
+      body: nexusCaptureRequestSchema,
+    })
+    .get("/nexus/captures", ({ query }) => ({
+      captures: nexusCaptures.list(query.targetNodeId || undefined),
+    }), {
+      query: t.Object({ targetNodeId: t.Optional(t.String()) }),
+    })
+    .delete("/nexus/captures/:id", ({ params, set }) => {
+      const removed = nexusCaptures.remove(params.id)
+      if (!removed) set.status = 404
+      return { removed }
+    })
     .post("/system/restart", async ({ set }) => {
       const restartBackend = services.system?.restartBackend
       if (!restartBackend) {
