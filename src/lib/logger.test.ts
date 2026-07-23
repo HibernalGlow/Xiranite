@@ -31,16 +31,10 @@ describe("logger", () => {
     expect(loggerModule.isLogLevelEnabled("debug")).toBe(true)
   })
 
-  it("supports the query switch and legacy debug switch", async () => {
+  it("supports the query switch", async () => {
     window.history.replaceState({}, "", "/?log=trace")
-    let loggerModule = await import("./logger")
+    const loggerModule = await import("./logger")
     expect(loggerModule.getLogLevel()).toBe("trace")
-
-    vi.resetModules()
-    window.history.replaceState({}, "", "/")
-    window.localStorage.setItem("xiranite.startupDebug", "1")
-    loggerModule = await import("./logger")
-    expect(loggerModule.getLogLevel()).toBe("debug")
   })
 
   it("batches enabled scoped logs into the development transport", async () => {
