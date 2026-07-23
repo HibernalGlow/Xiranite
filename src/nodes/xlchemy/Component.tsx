@@ -416,7 +416,7 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
 }
 
 interface ViewProps {
-  cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; portalContainer?: HTMLElement | null; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
+  alwaysShowQuality?: boolean; cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; portalContainer?: HTMLElement | null; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
   onCancel: () => void; onClipboardRead: () => Promise<ClipboardImageData>; onClipboardConvert: (source: ClipboardImageData) => Promise<ClipboardConversionResult>; onClipboardCopy: (output: ClipboardImageData) => Promise<void>; onExecute: (action: XlchemyAction) => void; onImportEfu: () => Promise<void>; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
 }
 
@@ -497,6 +497,7 @@ function InputWorkbench({ props }: { props: ViewProps }) {
   const lossless = format === "PNG" || format === "TIFF" || format === "Lossless JPEG Transcoding" || format === "Smallest Lossless" ? true : props.data.clipboardLossless ?? false
   const clipboardProps: ViewProps = {
     ...props,
+    alwaysShowQuality: true,
     format,
     data: { ...props.data, format, lossless, quality: props.data.clipboardQuality ?? 85 },
     onPatch: (patch) => {
@@ -513,7 +514,7 @@ function InputWorkbench({ props }: { props: ViewProps }) {
 }
 
 function FormatControls({ props }: { props: ViewProps }) {
-  const lossy = !(props.data.lossless ?? false), outputMode = props.data.outputMode ?? "source", supportsLosslessChoice = ["JPEG XL", "AVIF", "WebP", "TIFF"].includes(props.format), showQuality = props.format === "JPEG" || (supportsLosslessChoice && lossy), chromaUnavailable = props.format === "AVIF" && props.data.avifEncoder === "slimg"
+  const lossy = !(props.data.lossless ?? false), outputMode = props.data.outputMode ?? "source", supportsLosslessChoice = ["JPEG XL", "AVIF", "WebP", "TIFF"].includes(props.format), qualityUnavailable = props.format !== "JPEG" && (!supportsLosslessChoice || !lossy), showQuality = props.alwaysShowQuality || !qualityUnavailable, chromaUnavailable = props.format === "AVIF" && props.data.avifEncoder === "slimg"
   const selectFormat = (format: XlchemyFormat) => props.onPatch({ format, ...(format === "PNG" || format === "Lossless JPEG Transcoding" || format === "Smallest Lossless" ? { lossless: true } : format === "JPEG" || format === "JPEG Reconstruction" ? { lossless: false } : {}) })
   return <div className="flex flex-col gap-2">
     <div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-2">
@@ -525,7 +526,7 @@ function FormatControls({ props }: { props: ViewProps }) {
     </div>
     {outputMode === "directory" && <InputGroup><InputGroupInput aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} /><InputGroupAddon align="inline-end"><InputGroupButton aria-label="选择输出目录" disabled={props.running || !props.onPickDirectory} size="icon-xs" onClick={async () => { const path = await props.onPickDirectory?.(); if (path) props.onPatch({ outputDir: path }) }}><FolderInput /></InputGroupButton></InputGroupAddon></InputGroup>}
     {props.format === "Smallest Lossless" && <ChoiceControlField label="最小格式池"><ToggleGroup type="multiple" value={[(props.data.smallestPng ?? true) ? "png" : "", (props.data.smallestWebp ?? true) ? "webp" : "", (props.data.smallestJxl ?? true) ? "jxl" : ""].filter(Boolean)} className="grid w-full grid-cols-3" size="sm" onValueChange={(values) => values.length && props.onPatch({ smallestPng: values.includes("png"), smallestWebp: values.includes("webp"), smallestJxl: values.includes("jxl") })}><ToggleGroupItem value="png">PNG</ToggleGroupItem><ToggleGroupItem value="webp">WebP</ToggleGroupItem><ToggleGroupItem value="jxl">JXL</ToggleGroupItem></ToggleGroup></ChoiceControlField>}
-    {showQuality && <XlchemySliderField label="质量" value={props.data.quality ?? 60} min={1} max={100} step={props.data.qualityPrecisionSnapping === false ? 1 : 5} onChange={(quality) => props.onPatch({ quality })} />}
+    {showQuality && <XlchemySliderField disabled={qualityUnavailable} displayValue={qualityUnavailable ? "无损" : undefined} label="质量" value={props.data.quality ?? 60} min={1} max={100} step={props.data.qualityPrecisionSnapping === false ? 1 : 5} onChange={(quality) => props.onPatch({ quality })} />}
   </div>
 }
 
