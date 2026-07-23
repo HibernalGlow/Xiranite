@@ -26,6 +26,10 @@ func Listen() (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
+	return listenPipe(name)
+}
+
+func listenPipe(name string) (net.Listener, error) {
 	token := windows.GetCurrentProcessToken()
 	user, err := token.GetTokenUser()
 	if err != nil {
