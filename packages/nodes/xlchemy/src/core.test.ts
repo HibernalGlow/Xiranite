@@ -282,6 +282,8 @@ describe("xlchemy core contract", () => {
   test("materializes, converts and cleans up an inline clipboard image", async () => {
     const runtime = fakeRuntime()
     const cleanup = vi.fn(async () => undefined)
+    const streamEfuPaths = vi.fn(async function* () { yield "/photos/events/b.jpg" })
+    runtime.streamEfuPaths = streamEfuPaths
     runtime.createTemporaryFile = async (extension, base64) => {
       expect(extension).toBe(".png")
       expect(base64).toBe("cG5n")
@@ -294,11 +296,13 @@ describe("xlchemy core contract", () => {
     runtime.cleanupTemporaryFile = cleanup
 
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: [], format: "PNG", quality: 72, outputMode: "source", overwrite: false, preserveMetadata: false }), runtime)
-    const clipboardResult = await runXlchemy({ ...normalizeXlchemyInput({ action: "convert", paths: [], format: "PNG", quality: 72, outputMode: "source", preserveMetadata: false }), inlineSource: { base64: "cG5n", mimeType: "image/png" } }, runtime)
+    const clipboardResult = await runXlchemy({ ...normalizeXlchemyInput({ action: "convert", paths: ["/photos/events/b.jpg"], efuFiles: ["/lists/large.efu"], format: "PNG", quality: 72, outputMode: "source", preserveMetadata: false }), inlineSource: { base64: "cG5n", mimeType: "image/png" } }, runtime)
 
     expect(result.success).toBe(false)
     expect(clipboardResult.success).toBe(true)
     expect(clipboardResult.data?.clipboardOutput).toEqual({ base64: "d2VicA==", mimeType: "image/png" })
+    expect(clipboardResult.data?.inputCount).toBe(1)
+    expect(streamEfuPaths).not.toHaveBeenCalled()
     expect(cleanup).toHaveBeenCalledWith("/photos/a.png")
   })
 })
