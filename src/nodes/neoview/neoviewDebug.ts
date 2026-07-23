@@ -1,8 +1,8 @@
 /**
  * NeoView freeze diagnostics.
  *
- * Always prints in DEV (no ?debug=1 required). When startup debug is enabled,
- * events are also mirrored into window.__xiraniteDebug.
+ * Uses the shared debug level and startup timeline. Enable it with `?log=debug`
+ * or `window.__xiraniteLog.setLevel("debug")`.
  */
 import { isStartupDebugEnabled, startupDebug } from "@/lib/startupDebug"
 

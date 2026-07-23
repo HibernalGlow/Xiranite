@@ -1,9 +1,9 @@
-const DEBUG_STORAGE_KEY = "xiranite.startupDebug"
+import { createLogger, isLogLevelEnabled, onLogLevelChange } from "./logger"
+
 const MAX_EVENTS = 500
-const MAX_REMOTE_EVENTS = 200
 const MAX_LONG_TASK_EVENTS = 50
-const REMOTE_FLUSH_DELAY_MS = 100
-const REMOTE_BATCH_SIZE = 20
+
+const logger = createLogger("startup")
 
 export interface StartupDebugEvent {
   sequence: number
@@ -13,7 +13,7 @@ export interface StartupDebugEvent {
 }
 
 interface StartupDebugController {
-  enabled: true
+  enabled: boolean
   startedAt: number
   events: StartupDebugEvent[]
   mark: (label: string, detail?: unknown) => void
@@ -27,20 +27,10 @@ declare global {
 
 let installed = false
 let sequence = 0
-let remoteFlushTimer: number | undefined
-let pendingRemoteEvents: StartupDebugEvent[] = []
+let cleanupDebugObservers: (() => void) | undefined
 
 export function isStartupDebugEnabled(): boolean {
-  if (!import.meta.env.DEV || typeof window === "undefined") return false
-
-  const params = new URLSearchParams(window.location.search)
-  if (params.get("debug") === "1" || params.get("xiraniteDebug") === "1") return true
-
-  try {
-    return window.localStorage.getItem(DEBUG_STORAGE_KEY) === "1"
-  } catch {
-    return false
-  }
+  return import.meta.env.DEV && typeof window !== "undefined" && isLogLevelEnabled("debug")
 }
 
 export function installStartupDebug(): void {
@@ -57,7 +47,7 @@ export function installStartupDebug(): void {
   }
   window.__xiraniteDebug = controller
 
-  window.addEventListener("error", (event) => {
+  const handleWindowError = (event: ErrorEvent) => {
     startupDebug("window:error", {
       message: event.message,
       filename: event.filename,
@@ -65,13 +55,15 @@ export function installStartupDebug(): void {
       column: event.colno,
       error: event.error,
     })
-  })
-  window.addEventListener("unhandledrejection", (event) => {
+  }
+  const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
     startupDebug("window:unhandled-rejection", event.reason)
-  })
+  }
+  window.addEventListener("error", handleWindowError)
+  window.addEventListener("unhandledrejection", handleUnhandledRejection)
 
   let expected = performance.now() + 250
-  window.setInterval(() => {
+  const eventLoopInterval = window.setInterval(() => {
     const now = performance.now()
     const lagMs = now - expected
     expected = now + 250
@@ -84,13 +76,27 @@ export function installStartupDebug(): void {
     }
   }, 250)
 
-  observeLongTasks()
+  const disconnectLongTaskObserver = observeLongTasks()
+  cleanupDebugObservers = () => {
+    window.removeEventListener("error", handleWindowError)
+    window.removeEventListener("unhandledrejection", handleUnhandledRejection)
+    window.clearInterval(eventLoopInterval)
+    disconnectLongTaskObserver()
+    controller.enabled = false
+    if (window.__xiraniteDebug === controller) delete window.__xiraniteDebug
+    installed = false
+  }
 
   startupDebug("debug:installed", { href: window.location.href })
 }
 
-function observeLongTasks(): void {
-  if (typeof PerformanceObserver === "undefined") return
+export function uninstallStartupDebug(): void {
+  cleanupDebugObservers?.()
+  cleanupDebugObservers = undefined
+}
+
+function observeLongTasks(): () => void {
+  if (typeof PerformanceObserver === "undefined") return () => undefined
 
   let observed = 0
   try {
@@ -109,12 +115,15 @@ function observeLongTasks(): void {
       }
     })
     observer.observe({ type: "longtask", buffered: true })
+    return () => observer.disconnect()
   } catch {
     // Chromium may not expose Long Task entries in every WebView build.
+    return () => undefined
   }
 }
 
 export function startupDebug(label: string, detail?: unknown): void {
+  if (!isStartupDebugEnabled()) return
   // React render markers can fire for every store subscription update. Keeping
   // them in DevTools or forwarding them to the local log server makes debug
   // mode itself capable of starving the page being diagnosed.
@@ -132,35 +141,11 @@ export function startupDebug(label: string, detail?: unknown): void {
   controller.events.push(event)
   if (controller.events.length > MAX_EVENTS) controller.events.shift()
 
-  const prefix = `[xiranite debug #${event.sequence} +${event.elapsedMs}ms] ${label}`
-  if (detail === undefined) console.info(prefix)
-  else console.info(prefix, detail)
-
-  if (event.sequence <= MAX_REMOTE_EVENTS) enqueueRemoteDebugEvent(event)
-}
-
-function enqueueRemoteDebugEvent(event: StartupDebugEvent): void {
-  pendingRemoteEvents.push({
-    ...event,
-    ...(event.detail === undefined ? {} : { detail: summarizeDetail(event.detail) }),
+  logger.debug(label, {
+    sequence: event.sequence,
+    elapsedMs: event.elapsedMs,
+    ...(detail === undefined ? {} : { detail }),
   })
-  if (remoteFlushTimer !== undefined) return
-  remoteFlushTimer = window.setTimeout(flushRemoteDebugEvents, REMOTE_FLUSH_DELAY_MS)
-}
-
-function flushRemoteDebugEvents(): void {
-  remoteFlushTimer = undefined
-  const events = pendingRemoteEvents.splice(0, REMOTE_BATCH_SIZE)
-  if (!events.length) return
-  void fetch("/__xiranite-debug-log", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ events }),
-    keepalive: true,
-  }).catch(() => undefined)
-  if (pendingRemoteEvents.length) {
-    remoteFlushTimer = window.setTimeout(flushRemoteDebugEvents, 0)
-  }
 }
 
 export function startupDebugAsync<T>(label: string, operation: () => T | PromiseLike<T>): Promise<T> {
@@ -192,16 +177,10 @@ export function startupDebugAsync<T>(label: string, operation: () => T | Promise
   )
 }
 
-installStartupDebug()
-
-function summarizeDetail(detail: unknown): unknown {
-  if (detail instanceof Error) return { name: detail.name, message: detail.message, stack: detail.stack }
-  try {
-    return JSON.parse(JSON.stringify(detail)) as unknown
-  } catch {
-    return String(detail)
-  }
-}
+onLogLevelChange(() => {
+  if (isStartupDebugEnabled()) installStartupDebug()
+  else uninstallStartupDebug()
+})
 
 function isHotDebugLabel(label: string): boolean {
   return label.startsWith("react:") && label.includes("render")

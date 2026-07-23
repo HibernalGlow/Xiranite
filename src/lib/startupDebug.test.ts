@@ -5,21 +5,29 @@ const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
 beforeEach(() => {
   vi.resetModules()
   vi.useFakeTimers()
-  window.localStorage.setItem("xiranite.startupDebug", "1")
+  window.localStorage.setItem("xiranite.log.level", "debug")
   vi.stubGlobal("fetch", fetchMock)
   vi.spyOn(window, "setInterval").mockReturnValue(0)
-  vi.spyOn(console, "info").mockImplementation(() => undefined)
   fetchMock.mockClear()
 })
 
 afterEach(() => {
-  window.localStorage.removeItem("xiranite.startupDebug")
+  window.localStorage.removeItem("xiranite.log.level")
   vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
 describe("startupDebug", () => {
+  it("uninstalls diagnostics when the shared level is lowered", async () => {
+    await import("./startupDebug")
+    expect(window.__xiraniteDebug?.enabled).toBe(true)
+
+    window.__xiraniteLog?.setLevel("warn")
+
+    expect(window.__xiraniteDebug).toBeUndefined()
+  })
+
   it("batches diagnostic events into one bounded transport request", async () => {
     const { startupDebug } = await import("./startupDebug")
     await vi.advanceTimersByTimeAsync(100)
@@ -33,8 +41,8 @@ describe("startupDebug", () => {
     const [, request] = fetchMock.mock.calls[0]!
     expect(JSON.parse(String((request as RequestInit).body))).toMatchObject({
       events: [
-        { label: "qa:first", detail: { ordinal: 1 } },
-        { label: "qa:second", detail: { ordinal: 2 } },
+        { type: "debug", scope: "xiranite:startup", args: ["qa:first", { sequence: 2, detail: { ordinal: 1 } }] },
+        { type: "debug", scope: "xiranite:startup", args: ["qa:second", { sequence: 3, detail: { ordinal: 2 } }] },
       ],
     })
   })
@@ -51,7 +59,11 @@ describe("startupDebug", () => {
     const [, request] = fetchMock.mock.calls[0]!
     expect(JSON.parse(String((request as RequestInit).body))).toMatchObject({
       events: [
-        { label: "neoview:qa:single-transport", detail: { live: 0, detail: { component: "reader" } } },
+        {
+          type: "debug",
+          scope: "xiranite:startup",
+          args: ["neoview:qa:single-transport", { detail: { live: 0, detail: { component: "reader" } } }],
+        },
       ],
     })
   })
