@@ -28,17 +28,24 @@ export async function checkLocalBackendStatus(timeoutMs = DEFAULT_HEALTH_TIMEOUT
     }
   }
 
+  // The dev supervisor replaces the in-process backend and updates the
+  // port-scoped manifest while the desktop host keeps its startup config.
+  // Prefer the manifest before probing so a still-draining old endpoint does
+  // not keep the UI attached to sessions that no longer exist.
+  const refreshedConfig = await hydrateLocalBackendConfig({ refresh: true })
+  if (refreshedConfig) config = refreshedConfig
+
   try {
     await checkHealth(config, timeoutMs)
     return { status: "ready", runtime, config }
   } catch (error) {
-    const refreshedConfig = await hydrateLocalBackendConfig({ refresh: true })
-    if (refreshedConfig && !sameConfig(config, refreshedConfig)) {
+    const recoveryConfig = await hydrateLocalBackendConfig({ refresh: true })
+    if (recoveryConfig && !sameConfig(config, recoveryConfig)) {
       try {
-        await checkHealth(refreshedConfig, timeoutMs)
-        return { status: "ready", runtime, config: refreshedConfig }
+        await checkHealth(recoveryConfig, timeoutMs)
+        return { status: "ready", runtime, config: recoveryConfig }
       } catch (refreshError) {
-        return unreachable(runtime, refreshedConfig, refreshError)
+        return unreachable(runtime, recoveryConfig, refreshError)
       }
     }
     return unreachable(runtime, config, error)

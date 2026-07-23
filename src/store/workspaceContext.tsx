@@ -14,7 +14,7 @@
  * query cache 的快照不能再次触发 hydrate，否则会覆盖持久化请求在途期间
  * 发生的 node 状态更新。
  */
-import { useEffect, useMemo, useRef, type ReactNode } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useShallow } from "zustand/react/shallow"
 import type { AppTheme, CardLayout, ComponentInstance, Lane, ViewMode, WorkspaceItem } from "@/types/workspace"
@@ -41,6 +41,23 @@ function workspaceSnapshotQueryKey(config: LocalBackendConfig | undefined) {
     config.baseUrl,
     config.token ? "token:set" : "token:none",
   ] as const
+}
+
+export function BackendConnectionBoundary({ config, children }: { config?: LocalBackendConfig, children: ReactNode }) {
+  const connectionKey = config ? `${config.baseUrl}\0${config.token ?? ""}` : undefined
+  const previousConnectionKeyRef = useRef<string>()
+  const [generation, setGeneration] = useState(0)
+
+  useEffect(() => {
+    if (!connectionKey) return
+    const previousConnectionKey = previousConnectionKeyRef.current
+    previousConnectionKeyRef.current = connectionKey
+    if (previousConnectionKey && previousConnectionKey !== connectionKey) {
+      setGeneration((current) => current + 1)
+    }
+  }, [connectionKey])
+
+  return <Fragment key={generation}>{children}</Fragment>
 }
 
 /**
@@ -250,7 +267,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }
   }, [workspaces, lanes, components, backendReady, localBackendReady, persistWorkspace, restoreComponents])
 
-  return useMemo(() => <>{children}</>, [children])
+  const content = useMemo(() => children, [children])
+  return <BackendConnectionBoundary config={localBackendStatus.data?.config}>{content}</BackendConnectionBoundary>
 }
 
 /**

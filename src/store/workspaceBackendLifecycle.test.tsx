@@ -4,10 +4,11 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import i18next from "i18next"
 import { I18nextProvider, initReactI18next } from "react-i18next"
+import { useState } from "react"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { createXiraniteSystemClient, createXiraniteWorkspaceClient } from "@xiranite/api/client"
 import { BackendStatusBanner } from "@/components/workspace/BackendStatusBanner"
-import { WorkspaceProvider, workspaceSnapshotHydrationKey } from "./workspaceContext"
+import { BackendConnectionBoundary, WorkspaceProvider, workspaceSnapshotHydrationKey } from "./workspaceContext"
 import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceStore } from "./workspaceStore"
 
 const healthMock = vi.hoisted(() => vi.fn())
@@ -23,6 +24,7 @@ vi.mock("@xiranite/api/client", () => ({
 }))
 
 beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })))
   useWorkspaceStore.setState({ restoreWorkspaceComponents: true, components: [] })
 })
 
@@ -32,12 +34,36 @@ afterEach(() => {
   healthMock.mockReset()
   loadSnapshotMock.mockReset()
   persistSnapshotMock.mockReset()
+  vi.unstubAllGlobals()
   delete window.__XIRANITE_BACKEND__
   localStorage.clear()
   useWorkspaceStore.setState({ restoreWorkspaceComponents: false, components: [] })
 })
 
 describe("WorkspaceProvider backend lifecycle", () => {
+  test("remounts backend-owned content when the backend connection changes", async () => {
+    let mounts = 0
+    function BackendOwnedProbe() {
+      const [instance] = useState(() => ++mounts)
+      return <output data-testid="backend-instance">{instance}</output>
+    }
+
+    const view = render(
+      <BackendConnectionBoundary config={{ baseUrl: "http://127.0.0.1:39110", token: "old-token" }}>
+        <BackendOwnedProbe />
+      </BackendConnectionBoundary>,
+    )
+    expect(screen.getByTestId("backend-instance").textContent).toBe("1")
+
+    view.rerender(
+      <BackendConnectionBoundary config={{ baseUrl: "http://127.0.0.1:39111", token: "new-token" }}>
+        <BackendOwnedProbe />
+      </BackendConnectionBoundary>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId("backend-instance").textContent).toBe("2"))
+  })
+
   test("does not rehydrate for component-only snapshots while component restore is disabled", () => {
     const base = {
       workspaces: [{ id: "ws-stable", label: "Stable", createdAt: 1, updatedAt: 1 }],

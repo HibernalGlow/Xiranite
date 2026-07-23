@@ -27,6 +27,7 @@ export function useLocalBackendStatus() {
     refetchInterval: (query) => {
       const status = query.state.data?.status
       if (!status || status !== "ready") return 2_000
+      if (import.meta.env.DEV) return 2_000
       return 10_000
     },
     refetchIntervalInBackground: true,
