@@ -4,22 +4,15 @@ import { ArrowLeftRight, Check, ClipboardPaste, Copy, Image as ImageIcon, Loader
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Field, FieldLabel } from "@/components/ui/field"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+import { XlchemyFormatField, XlchemySliderField } from "./ConversionControls"
 
 export type ClipboardImageData = { base64: string; mimeType: string }
 export type ClipboardConversionResult = { data: XlchemyData; format: XlchemyFormat; output: ClipboardImageData; quality: number }
 
-const CLIPBOARD_FORMATS: Array<{ value: XlchemyFormat; label: string }> = [
-  { value: "JPEG XL", label: "JPEG XL (.jxl)" },
-  { value: "AVIF", label: "AVIF (.avif)" },
-  { value: "WebP", label: "WebP (.webp)" },
-  { value: "PNG", label: "PNG (.png)" },
-  { value: "TIFF", label: "TIFF (.tiff)" },
-  { value: "JPEG", label: "JPEG (.jpg)" },
-]
+const CLIPBOARD_FORMATS: XlchemyFormat[] = ["JPEG XL", "AVIF", "WebP", "PNG", "TIFF", "JPEG"]
 
 export function ClipboardConvertDialog(props: {
   disabled?: boolean
@@ -29,6 +22,7 @@ export function ClipboardConvertDialog(props: {
   onRead: () => Promise<ClipboardImageData>
   onConvert: (source: ClipboardImageData) => Promise<ClipboardConversionResult>
   onCopy: (output: ClipboardImageData) => Promise<void>
+  portalContainer?: HTMLElement | null
 }) {
   const [open, setOpen] = useState(false)
   const [source, setSource] = useState<ClipboardImageData>()
@@ -76,15 +70,15 @@ export function ClipboardConvertDialog(props: {
 
   return <Dialog open={open} onOpenChange={changeOpen}>
     <Tooltip><TooltipTrigger asChild><DialogTrigger asChild><Button aria-label="打开剪贴板图片工作台" disabled={props.disabled} size="icon-sm" variant="ghost"><ClipboardPaste /></Button></DialogTrigger></TooltipTrigger><TooltipContent>剪贴板图片工作台</TooltipContent></Tooltip>
-    <DialogContent bare className="grid h-[min(820px,calc(100dvh-2rem))] w-[min(1120px,calc(100vw-2rem))] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden p-0" data-testid="xlchemy-clipboard-workbench">
+    <DialogContent bare contained={Boolean(props.portalContainer)} portalContainer={props.portalContainer} className={cn("grid grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden p-0", props.portalContainer ? "inset-2 h-auto w-auto sm:inset-3" : "h-[min(820px,calc(100dvh-2rem))] w-[min(1120px,calc(100vw-2rem))]")} data-testid="xlchemy-clipboard-workbench">
       <DialogHeader className="border-b px-5 py-4 pr-12">
         <div className="flex items-center gap-2"><div className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground"><ClipboardPaste className="size-4" /></div><DialogTitle>剪贴板图片工作台</DialogTitle>{result ? <Badge variant="secondary">{result.format}</Badge> : null}</div>
         <DialogDescription>读取、转换、对比并在确认后复制结果。</DialogDescription>
       </DialogHeader>
 
       <div className="grid items-end gap-3 border-b bg-muted/20 px-5 py-3 md:grid-cols-[minmax(11rem,0.7fr)_minmax(14rem,1fr)_auto]">
-        <Field className="gap-1"><FieldLabel className="text-[10px]">目标格式</FieldLabel><Select value={props.format} onValueChange={(clipboardFormat) => { props.onChange({ clipboardFormat: clipboardFormat as XlchemyFormat }); setResult(undefined); setCopied(false) }}><SelectTrigger aria-label="剪贴板目标格式" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{CLIPBOARD_FORMATS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-        <Field className="gap-2 pb-1"><div className="flex items-center justify-between"><FieldLabel className="text-[10px]">质量</FieldLabel><span className="text-xs tabular-nums text-muted-foreground">{lossless ? "无损" : props.quality}</span></div><Slider aria-label="剪贴板质量" disabled={lossless} min={1} max={100} step={1} value={[props.quality]} onValueChange={([clipboardQuality]) => { if (clipboardQuality === undefined) return; props.onChange({ clipboardQuality }); setResult(undefined); setCopied(false) }} /></Field>
+        <XlchemyFormatField ariaLabel="剪贴板目标格式" formats={CLIPBOARD_FORMATS} value={props.format} onChange={(clipboardFormat) => { props.onChange({ clipboardFormat }); setResult(undefined); setCopied(false) }} />
+        <div className="pb-1"><XlchemySliderField disabled={lossless} displayValue={lossless ? "无损" : undefined} label="剪贴板质量" min={1} max={100} value={props.quality} onChange={(clipboardQuality) => { props.onChange({ clipboardQuality }); setResult(undefined); setCopied(false) }} /></div>
         <div className="flex items-center justify-end gap-1"><Tooltip><TooltipTrigger asChild><Button aria-label="重新读取剪贴板图片" disabled={loading || converting} size="icon" variant="outline" onClick={() => void readClipboard()}>{loading ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}</Button></TooltipTrigger><TooltipContent>重新读取剪贴板</TooltipContent></Tooltip><Button disabled={!source || converting || loading} onClick={() => void convert()}>{converting ? <LoaderCircle className="animate-spin" /> : <Sparkles />}{converting ? "转换中" : "转换"}</Button><Button disabled={!result || converting} variant="default" onClick={() => void copyResult()}>{copied ? <Check /> : <Copy />}{copied ? "已复制" : "复制结果"}</Button></div>
       </div>
 
