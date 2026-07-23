@@ -110,13 +110,14 @@ describe("parseNeoviewRuntimeConfig", () => {
   })
 
   it("[neoview.preload.config-runtime] consolidates canonical and legacy candidate budgets with a safety cap", () => {
-    expect(parseNeoviewRuntimeConfig({ performance: { preload_pages: 7, preload_items: 3 } }).preload).toEqual({ maxCandidatePages: 7, browserPredecodeEnabled: true })
-    expect(parseNeoviewRuntimeConfig({ performance: { preLoadSize: 5 } }).preload).toEqual({ maxCandidatePages: 5, browserPredecodeEnabled: true })
-    expect(parseNeoviewRuntimeConfig({ image: { preloadCount: 6 } }).preload).toEqual({ maxCandidatePages: 6, browserPredecodeEnabled: true })
-    expect(parseNeoviewRuntimeConfig({ reader: { book: { preloadPages: 8 } } }).preload).toEqual({ maxCandidatePages: 8, browserPredecodeEnabled: true })
-    expect(parseNeoviewRuntimeConfig({ performance: { preload_pages: 999 } }).preload).toEqual({ maxCandidatePages: 32, browserPredecodeEnabled: true })
-    expect(parseNeoviewRuntimeConfig({ performance: { browser_predecode_enabled: false } }).preload).toEqual({ maxCandidatePages: 4, browserPredecodeEnabled: false })
-    expect(parseNeoviewRuntimeConfig({ performance: { browserPredecodeEnabled: false } }).preload).toEqual({ maxCandidatePages: 4, browserPredecodeEnabled: false })
+    expect(parseNeoviewRuntimeConfig({ performance: { preload_pages: 7, preload_items: 3 } }).preload).toEqual({ maxCandidatePages: 7, browserPredecodeEnabled: true, browserPredecodePages: 1 })
+    expect(parseNeoviewRuntimeConfig({ performance: { preLoadSize: 5 } }).preload).toEqual({ maxCandidatePages: 5, browserPredecodeEnabled: true, browserPredecodePages: 1 })
+    expect(parseNeoviewRuntimeConfig({ image: { preloadCount: 6 } }).preload).toEqual({ maxCandidatePages: 6, browserPredecodeEnabled: true, browserPredecodePages: 1 })
+    expect(parseNeoviewRuntimeConfig({ reader: { book: { preloadPages: 8 } } }).preload).toEqual({ maxCandidatePages: 8, browserPredecodeEnabled: true, browserPredecodePages: 1 })
+    expect(parseNeoviewRuntimeConfig({ performance: { preload_pages: 999 } }).preload).toEqual({ maxCandidatePages: 32, browserPredecodeEnabled: true, browserPredecodePages: 1 })
+    expect(parseNeoviewRuntimeConfig({ performance: { browser_predecode_enabled: false } }).preload).toEqual({ maxCandidatePages: 4, browserPredecodeEnabled: false, browserPredecodePages: 1 })
+    expect(parseNeoviewRuntimeConfig({ performance: { browserPredecodeEnabled: false } }).preload).toEqual({ maxCandidatePages: 4, browserPredecodeEnabled: false, browserPredecodePages: 1 })
+    expect(parseNeoviewRuntimeConfig({ performance: { browser_predecode_pages: 3 } }).preload).toEqual({ maxCandidatePages: 4, browserPredecodeEnabled: true, browserPredecodePages: 3 })
     expect(() => parseNeoviewRuntimeConfig({ performance: { preload_pages: -1 } })).toThrow("preload_pages")
   })
 
@@ -1278,6 +1279,10 @@ describe("ReaderRuntimeConfig preload", () => {
     expect(parseNeoviewPreloadPatch({ preload: { browserPredecodeEnabled: false } })).toEqual({
       patch: { preload: { browserPredecodeEnabled: false } },
       tomlPatch: { performance: { browser_predecode_enabled: false } },
+    })
+    expect(parseNeoviewPreloadPatch({ preload: { browserPredecodePages: 3 } })).toEqual({
+      patch: { preload: { browserPredecodePages: 3 } },
+      tomlPatch: { performance: { browser_predecode_pages: 3 } },
     })
     expect(() => parseNeoviewPreloadPatch({ preload: { maxCandidatePages: 33 } })).toThrow("between 0 and 32")
     expect(() => parseNeoviewPreloadPatch({ preload: {} })).toThrow("must change")

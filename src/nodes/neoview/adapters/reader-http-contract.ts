@@ -1172,6 +1172,7 @@ export interface ReaderRuntimeConfigDto {
   preload: {
     maxCandidatePages: number
     browserPredecodeEnabled: boolean
+    browserPredecodePages: number
   }
   emm?: ReaderEmmConfigDto
   aiTranslation?: ReaderAiTranslationConfigDto

@@ -90,6 +90,20 @@ describe("useReaderImagePreloader", () => {
     await waitFor(() => expect(instances.map((image) => image.src)).toEqual([pages[0]!.assetUrl]))
   })
 
+  it("[neoview.react.predecode-page-limit] retains the configured nearby page count with serial decode", async () => {
+    const instances: FakeImage[] = []
+    vi.stubGlobal("Image", class extends FakeImage {
+      constructor() {
+        super()
+        instances.push(this)
+      }
+    })
+    render(<Fixture sessionId="reader-1" pages={[page(1), page(2), page(3)]} maxRetainedImages={3} />)
+
+    await waitFor(() => expect(instances).toHaveLength(3))
+    expect(instances.map((image) => image.fetchPriority)).toEqual(["high", "low", "low"])
+  })
+
   it("[neoview.preload.cancel-session] releases speculative images without waiting for unmount", async () => {
     const instances: FakeImage[] = []
     vi.stubGlobal("Image", class extends FakeImage {
@@ -155,8 +169,8 @@ describe("useReaderImagePreloader", () => {
   })
 })
 
-function Fixture({ sessionId, pages, enabled = true, onControl }: { sessionId: string; pages: readonly ReaderPageDto[]; enabled?: boolean; onControl?: (control: ReturnType<typeof useReaderImagePreloader>) => void }) {
-  const control = useReaderImagePreloader(sessionId, undefined, enabled)
+function Fixture({ sessionId, pages, enabled = true, maxRetainedImages = 1, onControl }: { sessionId: string; pages: readonly ReaderPageDto[]; enabled?: boolean; maxRetainedImages?: number; onControl?: (control: ReturnType<typeof useReaderImagePreloader>) => void }) {
+  const control = useReaderImagePreloader(sessionId, undefined, enabled, maxRetainedImages)
   useEffect(() => control.preload(pages), [control.preload, pages])
   useEffect(() => onControl?.(control), [control, onControl])
   return null

@@ -4,9 +4,10 @@
  * @ast-prototype migration/neoview/frontend/tsx-scaffold/src/lib/cards/info/PreloadStatusCard.tsx
  * @migration-status partial
  */
-import { lazy, Suspense, useCallback, useSyncExternalStore } from "react"
+import { lazy, Suspense, useCallback, useEffect, useState, useSyncExternalStore } from "react"
 import { cn } from "@/lib/utils"
-import type { ReaderStorageDiagnosticsDto } from "../../../adapters/reader-http-client"
+import { Switch } from "@/components/ui/switch"
+import type { ReaderRuntimeConfigDto, ReaderStorageDiagnosticsDto } from "../../../adapters/reader-http-client"
 import {
   readerPreloadStatusStore,
   type ReaderPreloadEntryStatus,
@@ -20,7 +21,7 @@ const LazyPreloadActionControls = lazy(() => import("./PreloadActionControls").t
 const PAGES_BEHIND = 3
 const PAGES_AHEAD = 5
 
-export default function PreloadStatusCard({ session, client, disabled, panelActive = true, onPreloadAction }: ReaderPanelContext) {
+export default function PreloadStatusCard({ session, client, disabled, panelActive = true, onPreloadAction, preload, onPreload }: ReaderPanelContext) {
   if (!session) return <PreloadStatusEmptyView state="no-session" />
   if (!panelActive) return <PreloadStatusEmptyView state="inactive" />
   return (
@@ -32,6 +33,8 @@ export default function PreloadStatusCard({ session, client, disabled, panelActi
       totalPages={session.book.pageCount}
       disabled={disabled}
       onPreloadAction={onPreloadAction}
+      preload={preload}
+      onPreload={onPreload}
     />
   )
 }
@@ -44,6 +47,8 @@ function PreloadStatusContent({
   totalPages,
   disabled,
   onPreloadAction,
+  preload,
+  onPreload,
 }: {
   client: ReaderPanelContext["client"]
   sessionId: string
@@ -52,6 +57,8 @@ function PreloadStatusContent({
   totalPages: number
   disabled: boolean
   onPreloadAction?: ReaderPanelContext["onPreloadAction"]
+  preload?: ReaderRuntimeConfigDto["preload"]
+  onPreload?: ReaderPanelContext["onPreload"]
 }) {
   const diagnostics = useReaderPreloadDiagnostics(client, sessionId, frameGeneration)
   return (
@@ -66,6 +73,8 @@ function PreloadStatusContent({
       actionsDisabled={disabled}
       onPreloadAction={onPreloadAction}
       onActionComplete={diagnostics.retry}
+      preload={preload}
+      onPreload={onPreload}
     />
   )
 }
@@ -81,6 +90,8 @@ export function PreloadStatusView({
   actionsDisabled = false,
   onPreloadAction,
   onActionComplete,
+  preload,
+  onPreload,
   store = readerPreloadStatusStore,
 }: {
   sessionId: string
@@ -93,6 +104,8 @@ export function PreloadStatusView({
   actionsDisabled?: boolean
   onPreloadAction?: ReaderPanelContext["onPreloadAction"]
   onActionComplete?: () => void
+  preload?: ReaderRuntimeConfigDto["preload"]
+  onPreload?: ReaderPanelContext["onPreload"]
   store?: ReaderPreloadStatusStore
 }) {
   const subscribe = useCallback((listener: () => void) => store.subscribe(sessionId, listener), [sessionId, store])
@@ -105,7 +118,7 @@ export function PreloadStatusView({
   const predecodeByPage = new Map(snapshot.entries.map((entry) => [entry.pageIndex, entry.status]))
   const serverByPage = new Map(diagnostics?.reader?.sessionPreload?.pages.map((entry) => [entry.pageIndex, entry.outcome]) ?? [])
   const nearbyPages = buildNearbyPages(currentPageIndex, totalPages)
-  const preload = diagnostics?.reader?.preload
+  const serverPreload = diagnostics?.reader?.preload
 
   return (
     <div className="space-y-3 text-xs" data-neoview-preload-status="true">
@@ -163,13 +176,15 @@ export function PreloadStatusView({
         <StatusMetric label="失败" value={snapshot.failedCount} tone="failed" />
       </div>
 
-      {preload ? (
+      {serverPreload ? (
         <div className="grid grid-cols-3 gap-1.5" aria-label="服务端预加载队列">
-          <QueueMetric label="邻近" value={preload.candidates.near} />
-          <QueueMetric label="前方" value={preload.candidates.ahead} />
-          <QueueMetric label="后台" value={preload.candidates.background} />
+          <QueueMetric label="邻近" value={serverPreload.candidates.near} />
+          <QueueMetric label="前方" value={serverPreload.candidates.ahead} />
+          <QueueMetric label="后台" value={serverPreload.candidates.background} />
         </div>
       ) : null}
+
+      {preload && onPreload ? <BrowserPredecodeControls preload={preload} onChange={onPreload} disabled={actionsDisabled} /> : null}
 
       <Suspense fallback={null}>
         <LazyPreloadActionControls
@@ -250,6 +265,67 @@ function PageStatus({ pageIndex, current, status, serverOutcome, serverAvailable
       <span className="block text-[10px]">P{pageIndex + 1}</span>
       <span className="block text-[9px]">{label}</span>
     </div>
+  )
+}
+
+function BrowserPredecodeControls({
+  preload,
+  onChange,
+  disabled,
+}: {
+  preload: ReaderRuntimeConfigDto["preload"]
+  onChange: NonNullable<ReaderPanelContext["onPreload"]>
+  disabled: boolean
+}) {
+  const [draft, setDraft] = useState(() => String(preload.browserPredecodePages))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string>()
+  useEffect(() => setDraft(String(preload.browserPredecodePages)), [preload.browserPredecodePages])
+
+  async function commit(patch: Partial<ReaderRuntimeConfigDto["preload"]>) {
+    if (saving) return
+    setSaving(true)
+    setError(undefined)
+    try {
+      await onChange(patch)
+    } catch (cause) {
+      setDraft(String(preload.browserPredecodePages))
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function commitCount() {
+    const requested = Number(draft)
+    if (!Number.isFinite(requested)) {
+      setDraft(String(preload.browserPredecodePages))
+      return
+    }
+    const browserPredecodePages = Math.min(4, Math.max(1, Math.round(requested)))
+    setDraft(String(browserPredecodePages))
+    if (browserPredecodePages !== preload.browserPredecodePages) void commit({ browserPredecodePages })
+  }
+
+  return (
+    <section className="space-y-2 border-y border-border/60 py-2" aria-label="浏览器预解码设置">
+      <div className="flex items-center justify-between gap-3">
+        <div className="grid gap-0.5">
+          <span className="text-[10px] font-medium">相邻页预解码</span>
+          <span className="text-[9px] text-muted-foreground">串行 decode，像素预算会限制实际保留数量。</span>
+        </div>
+        <Switch checked={preload.browserPredecodeEnabled} disabled={disabled || saving} onCheckedChange={(browserPredecodeEnabled) => void commit({ browserPredecodeEnabled })} aria-label="相邻页预解码" />
+      </div>
+      <label className="flex items-center justify-between gap-3 text-[10px]">
+        <span>预解码页数</span>
+        <input type="number" min={1} max={4} step={1} value={draft} disabled={disabled || saving || !preload.browserPredecodeEnabled} aria-label="预解码页数"
+          className="h-7 w-16 rounded border border-input bg-background px-2 text-right tabular-nums"
+          onChange={(event) => setDraft(event.currentTarget.value)}
+          onBlur={commitCount}
+          onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") { setDraft(String(preload.browserPredecodePages)); event.currentTarget.blur() } }} />
+      </label>
+      {error ? <p role="alert" className="text-[10px] text-destructive">保存失败：{error}</p> : null}
+    </section>
   )
 }
 

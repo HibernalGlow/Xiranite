@@ -231,6 +231,18 @@ describe("PreloadStatusCard", () => {
     expect(onPreloadAction).toHaveBeenLastCalledWith("release-retained", expect.any(AbortSignal))
   })
 
+  it("[neoview.preload-status.controls] updates browser predecode controls without changing the server candidate budget", async () => {
+    const onPreload = vi.fn(async (patch) => ({ maxCandidatePages: 4, browserPredecodeEnabled: patch.browserPredecodeEnabled ?? true, browserPredecodePages: patch.browserPredecodePages ?? 1 }))
+    render(<PreloadStatusCard {...panelContext(vi.fn(async () => diagnosticsDto()), sessionDto())} preload={{ maxCandidatePages: 4, browserPredecodeEnabled: true, browserPredecodePages: 1 }} onPreload={onPreload} />)
+
+    fireEvent.click(screen.getByRole("switch", { name: "相邻页预解码" }))
+    await waitFor(() => expect(onPreload).toHaveBeenCalledWith({ browserPredecodeEnabled: false }))
+    const pages = screen.getByRole("spinbutton", { name: "预解码页数" })
+    fireEvent.change(pages, { target: { value: "3" } })
+    fireEvent.blur(pages)
+    await waitFor(() => expect(onPreload).toHaveBeenCalledWith({ browserPredecodePages: 3 }))
+  })
+
   it("[neoview.preload.action-rollback] sanitizes failures without reporting a committed action", async () => {
     const onPreloadAction = vi.fn(async () => { throw new Error("D:/private/cache") })
     render(<PreloadStatusCard {...panelContext(vi.fn(async () => diagnosticsDto()), sessionDto())} onPreloadAction={onPreloadAction} />)
