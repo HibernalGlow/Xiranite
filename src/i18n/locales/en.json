@@ -556,6 +556,13 @@
         "description": "Inspired by Vite's open-source build-tool site: dark developer-stage canvas, purple-blue hero glow, yellow lightning accents, and fast docs/code controls carried into node interiors."
       }
     },
+    "desktopTray": {
+      "title": "System tray",
+      "description": "Control the desktop shell's notification-area presence. Nodes can contribute actions here or declare their own tray icon.",
+      "keepRunning": "Keep Xiranite in the system tray",
+      "keepRunningDescription": "Closing the main window hides it. Use the tray icon to restore Xiranite or exit it explicitly.",
+      "unsupported": "The active runtime does not provide a system tray adapter."
+    },
     "developerRuntime": {
       "title": "Developer Runtime",
       "description": "Inspect the frontend source and local backend used by the desktop shell. Wails dev proxy is selected at startup, so it is not a hot runtime toggle.",

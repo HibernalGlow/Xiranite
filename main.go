@@ -20,6 +20,7 @@ type FileDropEvent struct {
 
 func init() {
 	application.RegisterEvent[FileDropEvent]("files-dropped")
+	application.RegisterEvent[TrayActionEvent]("tray-action")
 }
 
 func main() {
@@ -78,6 +79,7 @@ func main() {
 	})
 
 	wireFileDrop(win)
+	service.trayManager = newDesktopTrayManager(App, win)
 	primeWindowFrame(win)
 
 	if err := App.Run(); err != nil {

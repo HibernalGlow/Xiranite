@@ -7,10 +7,13 @@ const runtime = vi.hoisted(() => ({
     runtime.isFullscreen = !runtime.isFullscreen
   }),
   ToggleMaximise: vi.fn(async () => undefined),
+  callByName: vi.fn(),
+  eventsOn: vi.fn(() => vi.fn()),
 }))
 
 vi.mock("@wailsio/runtime", () => ({
-  Call: { ByName: vi.fn() },
+  Call: { ByName: runtime.callByName },
+  Events: { On: runtime.eventsOn },
   Window: runtime,
 }))
 
@@ -37,5 +40,37 @@ describe("Wails window runtime", () => {
     expect(runtime.ToggleFullscreen).toHaveBeenCalledTimes(2)
     expect(runtime.IsFullscreen).toHaveBeenCalledTimes(2)
     expect(runtime.ToggleMaximise).not.toHaveBeenCalled()
+  })
+
+  it("adapts the generic tray runtime to Wails calls and events", async () => {
+    runtime.callByName.mockResolvedValueOnce({
+      supported: true,
+      mainTray: true,
+      standaloneTrays: true,
+    })
+    const trays = createWailsRuntime().trays
+
+    await expect(trays.getCapabilities()).resolves.toMatchObject({ supported: true })
+    await trays.setMainEnabled(false)
+    await trays.sync([{ id: "xiranite.main", kind: "main", tooltip: "Xiranite", items: [] }])
+
+    expect(runtime.callByName).toHaveBeenNthCalledWith(1, "main.XiraniteService.TrayCapabilities")
+    expect(runtime.callByName).toHaveBeenNthCalledWith(2, "main.XiraniteService.TraySetMainEnabled", false)
+    expect(runtime.callByName).toHaveBeenNthCalledWith(
+      3,
+      "main.XiraniteService.TraySync",
+      JSON.stringify([{
+        id: "xiranite.main",
+        kind: "main",
+        tooltip: "Xiranite",
+        items: [],
+      }]),
+    )
+
+    const handler = vi.fn()
+    await trays.subscribe(handler)
+    const eventHandler = runtime.eventsOn.mock.calls[0]?.[1] as ((event: unknown) => void) | undefined
+    eventHandler?.({ data: { trayId: "xiranite.main", itemId: "node.music.play" } })
+    expect(handler).toHaveBeenCalledWith({ trayId: "xiranite.main", itemId: "node.music.play" })
   })
 })

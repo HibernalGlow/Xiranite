@@ -556,6 +556,13 @@
         "description": "吸收 Vite 开源构建工具官网的深色开发舞台、紫蓝英雄光晕、黄色闪电强调，以及快速文档与代码控件节奏，并覆盖节点内部。"
       }
     },
+    "desktopTray": {
+      "title": "系统托盘",
+      "description": "控制桌面壳在 Windows 通知区域中的驻留。节点可以合并操作到这里，也可以声明自己的独立托盘。",
+      "keepRunning": "让 Xiranite 驻留系统托盘",
+      "keepRunningDescription": "关闭主窗口时仅隐藏窗口，可从托盘图标恢复或明确退出。",
+      "unsupported": "当前运行时没有提供系统托盘 adapter。"
+    },
     "developerRuntime": {
       "title": "开发运行时",
       "description": "查看桌面壳当前连接的前端来源与本地后端。Wails dev proxy 在启动时确定，不支持运行中热切换。",

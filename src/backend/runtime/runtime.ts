@@ -124,6 +124,43 @@ export interface WindowRuntime {
   setFrame(frame: WindowFrame, id?: string): Promise<WindowCommandResult>
 }
 
+export interface TrayCapabilities {
+  supported: boolean
+  mainTray: boolean
+  standaloneTrays: boolean
+  message?: string
+}
+
+export interface TrayMenuItemSpec {
+  id: string
+  label: string
+  type?: "action" | "separator"
+  enabled?: boolean
+  checked?: boolean
+  children?: TrayMenuItemSpec[]
+}
+
+export interface NativeTraySpec {
+  id: string
+  kind: "main" | "standalone"
+  tooltip: string
+  /** Browser-resolvable image URL or data URL; the active adapter resolves it. */
+  icon?: string
+  items: TrayMenuItemSpec[]
+}
+
+export interface TrayActionEvent {
+  trayId: string
+  itemId: string
+}
+
+export interface TrayRuntime {
+  getCapabilities(): Promise<TrayCapabilities>
+  setMainEnabled(enabled: boolean): Promise<void>
+  sync(specs: NativeTraySpec[]): Promise<void>
+  subscribe(handler: (event: TrayActionEvent) => void): Promise<() => void>
+}
+
 export interface RuntimeInterface {
   readonly kind: "web" | "wails" | "deno-desktop" | "tauri" | "electron"
   storage: StorageRuntime
@@ -133,6 +170,7 @@ export interface RuntimeInterface {
   events: EventBusRuntime
   nodeRunner: NodeRunnerRuntime
   windows: WindowRuntime
+  trays: TrayRuntime
 }
 
 export type RuntimeAdapterFactory = () => RuntimeInterface | Promise<RuntimeInterface>
