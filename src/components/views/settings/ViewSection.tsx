@@ -23,11 +23,9 @@ import {
 } from "@/components/ui/choice-control-variants"
 import { ModulePanel } from "@/components/ui/module-panel"
 import {
-  MODULE_CARD_EFFECTS,
   MODULE_PANEL_STYLES,
   MODULE_TITLE_STYLES,
   RESIZABLE_HANDLE_STYLES,
-  type ModuleCardEffect,
   type ModulePanelStyle,
   type ModuleTitleStyle,
   type ResizableHandleStyle,
@@ -61,7 +59,6 @@ export function ViewSection() {
     fieldTitleStyle: workspace.fieldTitleStyle,
     moduleTitleStyle: workspace.moduleTitleStyle,
     modulePanelStyle: workspace.modulePanelStyle,
-    moduleCardEffect: workspace.moduleCardEffect,
     resizableHandleStyle: workspace.resizableHandleStyle,
   }))
   const lanePreferences = normalizeSwimlanePreferences(state.laneWorkspacePreferences[state.activeWorkspaceId])
@@ -470,16 +467,6 @@ export function ViewSection() {
                 flat: t("settings:timeline.modulePanel.flat"),
               }}
               onChange={(value) => workspaceActions.setModulePanelStyle(value as ModulePanelStyle)}
-            />
-            <PreferenceToggle
-              label={t("settings:timeline.moduleCardEffect")}
-              value={state.moduleCardEffect}
-              values={MODULE_CARD_EFFECTS}
-              labels={{
-                magic: t("settings:timeline.moduleCard.magic"),
-                plain: t("settings:timeline.moduleCard.plain"),
-              }}
-              onChange={(value) => workspaceActions.setModuleCardEffect(value as ModuleCardEffect)}
             />
             <PreferenceToggle
               label={t("settings:timeline.resizableHandle")}

@@ -200,10 +200,9 @@
       "lossless": "无损",
       "lossy": "有损",
       "modulePanelTitle": "模块面板",
-      "modulePanelDesc": "统一节点内分区的标题、面板表面、魔法效果与拖拽手柄；已接入公共组件的节点会立即同步。",
+      "modulePanelDesc": "统一节点内分区的标题、面板表面与拖拽手柄；已接入公共组件的节点会立即同步。",
       "moduleTitleStyle": "标题样式",
       "modulePanelStyle": "面板样式",
-      "moduleCardEffect": "卡片效果",
       "resizableHandle": "拖拽手柄",
       "moduleTitle": {
         "legend": "悬浮角标",
@@ -216,10 +215,6 @@
         "solid": "实色",
         "outline": "描边",
         "flat": "无框"
-      },
-      "moduleCard": {
-        "magic": "魔法",
-        "plain": "静态"
       },
       "handle": {
         "grip": "握把",

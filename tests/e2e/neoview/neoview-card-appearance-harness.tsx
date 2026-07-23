@@ -12,17 +12,16 @@ const cards: Array<{
   icon: ComponentType<{ className?: string }>
   titleStyle: "legend" | "inline" | "bar" | "minimal"
   panelStyle: "soft" | "solid" | "outline" | "flat"
-  effect: "magic" | "plain"
 }> = [
-  { title: "书籍信息", icon: BookOpen, titleStyle: "legend", panelStyle: "soft", effect: "magic" },
-  { title: "图像信息", icon: Image, titleStyle: "inline", panelStyle: "solid", effect: "magic" },
-  { title: "存储信息", icon: HardDrive, titleStyle: "bar", panelStyle: "outline", effect: "magic" },
-  { title: "时间信息", icon: Clock3, titleStyle: "minimal", panelStyle: "flat", effect: "magic" },
-  { title: "页面导航", icon: ListTree, titleStyle: "legend", panelStyle: "solid", effect: "plain" },
-  { title: "处理状态", icon: Activity, titleStyle: "inline", panelStyle: "outline", effect: "plain" },
-  { title: "切换提示", icon: Bell, titleStyle: "bar", panelStyle: "soft", effect: "plain" },
-  { title: "图像裁剪", icon: Crop, titleStyle: "minimal", panelStyle: "solid", effect: "plain" },
-  { title: "界面材质", icon: Palette, titleStyle: "legend", panelStyle: "soft", effect: "magic" },
+  { title: "书籍信息", icon: BookOpen, titleStyle: "legend", panelStyle: "soft" },
+  { title: "图像信息", icon: Image, titleStyle: "inline", panelStyle: "solid" },
+  { title: "存储信息", icon: HardDrive, titleStyle: "bar", panelStyle: "outline" },
+  { title: "时间信息", icon: Clock3, titleStyle: "minimal", panelStyle: "flat" },
+  { title: "页面导航", icon: ListTree, titleStyle: "legend", panelStyle: "solid" },
+  { title: "处理状态", icon: Activity, titleStyle: "inline", panelStyle: "outline" },
+  { title: "切换提示", icon: Bell, titleStyle: "bar", panelStyle: "soft" },
+  { title: "图像裁剪", icon: Crop, titleStyle: "minimal", panelStyle: "solid" },
+  { title: "界面材质", icon: Palette, titleStyle: "legend", panelStyle: "soft" },
 ]
 
 function Harness() {
@@ -30,8 +29,8 @@ function Harness() {
   return (
     <main className="min-h-screen bg-background p-6 text-foreground">
       <div className="mx-auto grid max-w-[1260px] grid-cols-3 gap-4" data-neoview-card-appearance-grid>
-        {cards.map(({ title, icon: Icon, titleStyle, panelStyle, effect }, index) => (
-          <div key={title} data-module-title-style={titleStyle} data-module-panel-style={panelStyle} data-module-card-effect={effect}>
+        {cards.map(({ title, icon: Icon, titleStyle, panelStyle }, index) => (
+          <div key={title} data-module-title-style={titleStyle} data-module-panel-style={panelStyle}>
             <CollapsibleReaderCard title={title} icon={<Icon className="size-3.5" />} collapsed={collapsed[title] ?? false} onCollapsedChange={(next) => setCollapsed((current) => ({ ...current, [title]: next }))}>
               {index === cards.length - 1 ? (
                 <SettingsCardShell id="material-preview" title={title} description="说明与操作保留，重复主标题由共享标题栏承载。" actions={<button type="button" className="rounded border px-2 py-1 text-[10px]">重置</button>}>

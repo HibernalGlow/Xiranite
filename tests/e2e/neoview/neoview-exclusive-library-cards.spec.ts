@@ -54,15 +54,13 @@ test("[neoview.card.exclusive-size] fills File, history, bookmark and Page List 
 })
 
 async function expectExclusiveCardToFillPanel(panel: Locator, card: Locator, content: Locator, viewport?: Locator): Promise<void> {
-  const [panelBox, magicContentBox, cardBox, contentBox, viewportBox] = await Promise.all([
+  const [panelBox, cardBox, contentBox, viewportBox] = await Promise.all([
     panel.boundingBox(),
-    panel.locator('[data-slot="magic-card-content"]').boundingBox(),
     card.boundingBox(),
     content.boundingBox(),
     viewport?.boundingBox(),
   ])
-  if (!panelBox || !magicContentBox || !cardBox || !contentBox) throw new Error("Unable to measure exclusive card")
-  expect(Math.abs(magicContentBox.width - panelBox.width)).toBeLessThanOrEqual(2)
+  if (!panelBox || !cardBox || !contentBox) throw new Error("Unable to measure exclusive card")
   expect(Math.abs(cardBox.width - panelBox.width)).toBeLessThanOrEqual(2)
   expect(Math.abs(contentBox.width - panelBox.width)).toBeLessThanOrEqual(2)
   expect(Math.abs(cardBox.height - panelBox.height)).toBeLessThanOrEqual(2)

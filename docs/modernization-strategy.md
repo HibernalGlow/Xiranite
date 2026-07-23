@@ -4,7 +4,7 @@
 
 更新时间：2026-07-22
 
-当前阶段：P4 Local Backend / NodeRunner operation / Wails 窗口与 dev proxy 主线已完成；CLI 与节点测试矩阵、operation UI、旧 EngineV facade 清理、节点 registry 代码生成、前端死代码清理、LaneView/Kanban `@dnd-kit` 迁移、view renderer lazy-load 拆包、FlowView 轻壳 + idle tldraw gate、OverlayHost 视图按需加载、FloatingComponentWindow 独立 chunk、workspace 动画运行时移除、DatabaseModule 轻壳 + ocean 实现拆分、BlockNoteModule 轻壳 + idle 重编辑器拆分、workspace Zustand selector/direct actions、内部 reducer 移除与 slice 拆分、UI 偏好 Zustand persist、nuqs URL 状态第一轮接入、Local Backend lifecycle TanStack Query 收口与运行时错误提示条均已收尾。**全局设置中心**已从单体 `ThemeSettings` 拆为 `settings/*`，并接入 Aceternity Timeline + Magic UI ScrollProgress / MagicCard / BlurFade / BorderBeam（规划见 `docs/settings-center-plan.md`）。验收标准维持为 Vitest + React Testing Library + happy-dom + MSW + Playwright；设置中心测试以 smoke 为主可放宽；真实运行测试必须使用真实文件或真实本机能力，产物写入 `artifacts/`。
+当前阶段：P4 Local Backend / NodeRunner operation / Wails 窗口与 dev proxy 主线已完成；CLI 与节点测试矩阵、operation UI、旧 EngineV facade 清理、节点 registry 代码生成、前端死代码清理、LaneView/Kanban `@dnd-kit` 迁移、view renderer lazy-load 拆包、FlowView 轻壳 + idle tldraw gate、OverlayHost 视图按需加载、FloatingComponentWindow 独立 chunk、workspace 动画运行时移除、DatabaseModule 轻壳 + ocean 实现拆分、BlockNoteModule 轻壳 + idle 重编辑器拆分、workspace Zustand selector/direct actions、内部 reducer 移除与 slice 拆分、UI 偏好 Zustand persist、nuqs URL 状态第一轮接入、Local Backend lifecycle TanStack Query 收口与运行时错误提示条均已收尾。**全局设置中心**已从单体 `ThemeSettings` 拆为 `settings/*`，并接入 Aceternity Timeline + Magic UI ScrollProgress / BlurFade / BorderBeam（规划见 `docs/settings-center-plan.md`）。验收标准维持为 Vitest + React Testing Library + happy-dom + MSW + Playwright；设置中心测试以 smoke 为主可放宽；真实运行测试必须使用真实文件或真实本机能力，产物写入 `artifacts/`。
 
 **源码行数门禁（全局）**：生产实现文件（`.ts` / `.tsx`，不含 `*.test.*`）单文件 **不超过 1000 行**；逼近 900 行必须先拆分。测试文件可放宽。
 
