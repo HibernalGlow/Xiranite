@@ -113,6 +113,35 @@ describe("lorat core", () => {
     expect(result.data?.collection[0]?.status).toBe("collected")
   })
 
+  test("creates a model folder and accepts Windows relative separators", async () => {
+    const copied: string[] = []
+    const result = await collectLoratModels({
+      collectionRoot: "D:\\ComfyUI\\models\\loras",
+      collectionCreateModelFolder: true,
+      collectionItems: [{
+        sourcePath: "D:\\Downloads\\neon_mecha_v2.safetensors",
+        previewSourcePath: "D:\\Downloads\\neon_mecha.png",
+        targetRelativeDir: "style\\mecha",
+        triggerText: "neon_mecha",
+      }],
+    }, {
+      scanModels: async () => [],
+      writeNoTrigger: async () => undefined,
+      writeTrigger: async () => undefined,
+      copyFile: async (source, target) => { copied.push(`${source}->${target}`) },
+      fileExists: async () => false,
+      joinPath: (...parts) => parts.join("\\"),
+      basename: (path) => path.replace(/\\/g, "/").split("/").at(-1) ?? path,
+      extname: (path) => path.slice(path.lastIndexOf(".")),
+    })
+
+    expect(result.success).toBe(true)
+    expect(copied).toEqual([
+      "D:\\Downloads\\neon_mecha_v2.safetensors->D:\\ComfyUI\\models\\loras\\style\\mecha\\neon_mecha_v2\\neon_mecha_v2.safetensors",
+      "D:\\Downloads\\neon_mecha.png->D:\\ComfyUI\\models\\loras\\style\\mecha\\neon_mecha_v2\\neon_mecha_v2.preview.png",
+    ])
+  })
+
   test("formats TOML-style trigger comments without exposing them as trigger words", () => {
     const sidecar = formatTriggerSidecar("alice, blue hair", {
       sourceUrl: "https://example.com/model?id=1",

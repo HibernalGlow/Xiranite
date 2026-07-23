@@ -125,6 +125,7 @@
     "wails:build": "bun run build && bun run build:backend:js && bun run build:native-assets && bun run wails:syso && go build -mod=mod -tags production,devtools -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe .",
     "wails:build:incremental": "bun run build:incremental && bun run build:backend:js && bun run build:native-assets && bun run wails:syso && go build -mod=mod -tags production,devtools -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe .",
     "wails:build:local": "bun scripts/build-wails-local.ts",
+    "wails:install:scoop": "cp build/wails/Xiranite.exe D:/scoop/apps/xiranite/current/Xiranite.exe",
     "wails:start": "go run -mod=mod ."
   },
   "dependencies": {
@@ -183,6 +184,7 @@
     "@xiranite/node-lata": "workspace:*",
     "@xiranite/node-linedup": "workspace:*",
     "@xiranite/node-linku": "workspace:*",
+    "@xiranite/node-logx": "workspace:*",
     "@xiranite/node-lorat": "workspace:*",
     "@xiranite/node-marku": "workspace:*",
     "@xiranite/node-melodeck": "workspace:*",

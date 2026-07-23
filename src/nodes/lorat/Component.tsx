@@ -63,9 +63,9 @@ export function Component({ compId, host }: NodeComponentProps) {
   const selectedKeys = rows.filter((row) => row.selected).map((row) => row.key)
 
   async function reloadDefaults() {
-    const response = await host.getNodeConfig?.<Partial<LoratCardState>>()
+    const response = await host.getNodeConfig?.<LoratPersistedConfig>()
     if (!response) return
-    setDefaults(response.config)
+    setDefaults(normalizeLoratConfig(response.config))
     setConfigFilePath(response.path)
   }
 
@@ -85,6 +85,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     data.scopeFilter,
     data.collectionRoot,
     data.collectionOverwrite,
+    data.collectionCreateModelFolder,
     defaults,
   ])
 
@@ -116,6 +117,18 @@ export function Component({ compId, host }: NodeComponentProps) {
   async function copyResults() {
     const lines = filteredRows.map((row) => `${row.name}\t${row.status}\t${row.trigger}\t${row.source}`)
     await host.clipboard?.writeText?.(lines.join("\n"))
+  }
+
+  async function copyRowTrigger(row: LoratRow) {
+    await host.clipboard?.writeText?.(row.trigger)
+  }
+
+  async function copyRowFilename(row: LoratRow) {
+    await host.clipboard?.writeText?.(row.name)
+  }
+
+  async function revealRow(row: LoratRow) {
+    await host.localFiles?.revealPath?.(row.filePath)
   }
 
   async function execute(nextAction: LoratAction = action, overrideKeys?: string[]) {
@@ -192,11 +205,12 @@ export function Component({ compId, host }: NodeComponentProps) {
       }) as NodeRunResult<LoratData>
 
       const next = response.data
+      const collectedRows = nextAction === "collect" ? rowsFromCollection(next?.collection, current) : []
       patch({
         phase: response.success ? "completed" : "error",
         progress: response.success ? 100 : 0,
         progressText: response.message,
-        rows: next?.rows ?? currentRows,
+        rows: mergeLoratRows(next?.rows ?? currentRows, collectedRows),
         triggerDbJson: next?.triggerDbJson || current.triggerDbJson,
         collectionResults: next?.collection ?? current.collectionResults,
       })
@@ -247,7 +261,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       const value = dataRef.current[field]
       if (value !== undefined) (config as Record<string, unknown>)[field] = value
     }
-    await host.saveNodeConfig?.(config)
+    await host.saveNodeConfig?.(serializeLoratConfig(config))
     setDefaults(config)
     setConfigDirty(false)
   }
@@ -262,6 +276,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       folderPath: undefined,
       collectionRoot: undefined,
       collectionOverwrite: undefined,
+      collectionCreateModelFolder: undefined,
       triggerDbJson: undefined,
       search: undefined,
       statusFilter: undefined,
@@ -302,6 +317,8 @@ export function Component({ compId, host }: NodeComponentProps) {
     onConfirmRowAction: confirmRowAction,
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
+    onCopyRowFilename: copyRowFilename,
+    onCopyRowTrigger: copyRowTrigger,
     onEditTrigger: editTrigger,
     onExecute: execute,
     onOpenConfigFile: host.openConfigFile,
@@ -312,6 +329,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     onResetOverride: resetOverride,
     onRestoreDefault: restoreDefault,
     onReloadDefaults: reloadDefaults,
+    onRevealRow: revealRow,
     onSaveDefault: saveAsDefault,
     onSelectMissing: selectMissing,
     onToggleRow: toggleRow,
@@ -326,7 +344,7 @@ export function Component({ compId, host }: NodeComponentProps) {
           {surface.mode === "collapsed" || forceCollapsedSurface ? (
             <CollapsedView {...commonProps} />
           ) : (
-            <LoratWorkspaceTabs compact={compactSurface} data={data} onPatch={patch}>
+            <LoratWorkspaceTabs compact={compactSurface} viewProps={commonProps}>
               <TabsContent value="manage" className="mt-0 min-h-0 flex-1">
                 {compactSurface
                   ? (portraitCompact ? <PortraitCompactView {...commonProps} /> : <CompactView {...commonProps} />)
@@ -366,21 +384,28 @@ type ViewProps = ReturnType<typeof createViewProps>
 function LoratWorkspaceTabs(props: {
   children: React.ReactNode
   compact: boolean
-  data: LoratCardState
-  onPatch: (patch: Partial<LoratCardState>) => void
+  viewProps: ViewProps
 }) {
+  const view = props.viewProps
   return (
     <Tabs
-      value={props.data.workspaceTab ?? "manage"}
+      value={view.data.workspaceTab ?? "manage"}
       className="flex min-h-0 flex-1 flex-col gap-2"
-      onValueChange={(workspaceTab) => props.onPatch({ workspaceTab: workspaceTab as LoratCardState["workspaceTab"] })}
+      onValueChange={(workspaceTab) => view.onPatch({ workspaceTab: workspaceTab as LoratCardState["workspaceTab"] })}
     >
-      <div className={cn("flex shrink-0 items-center justify-between gap-2 px-3 pt-3", props.compact && "px-2 pt-2")}>
-        <TabsList aria-label="Lorat 工作流" variant="line">
-          <TabsTrigger value="manage">整理</TabsTrigger>
-          <TabsTrigger value="collect">收集</TabsTrigger>
-        </TabsList>
-        <span className="text-xs text-muted-foreground">LoRA</span>
+      <div data-testid="lorat-titlebar" className={cn("shrink-0 px-3 pt-3", props.compact && "px-2 pt-2")}>
+        <FloatingWindowNodeHeader className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <HeaderLine actionMeta={view.actionMeta} status={view.status} subtitle={view.data.workspaceTab === "collect" ? "下载入库、预览与触发词" : view.data.progressText || summaryText(view)} />
+            <div className="xiranite-app-region-no-drag ml-auto flex shrink-0 items-center gap-1">
+              <TabsList aria-label="Lorat 工作流" variant="line">
+                <TabsTrigger value="manage">整理</TabsTrigger>
+                <TabsTrigger value="collect">收集</TabsTrigger>
+              </TabsList>
+              <LoratConfigPopover props={view} />
+            </div>
+          </div>
+        </FloatingWindowNodeHeader>
       </div>
       {props.children}
     </Tabs>
@@ -408,6 +433,8 @@ function createViewProps(props: {
   onConfirmRowAction: (row: LoratRow, action: "write_triggers" | "mark_no_trigger") => void
   onCopyLogs: () => void
   onCopyResults: () => void
+  onCopyRowFilename: (row: LoratRow) => void
+  onCopyRowTrigger: (row: LoratRow) => void
   onEditTrigger: (row: LoratRow, trigger: string) => void
   onExecute: (action?: LoratAction, overrideKeys?: string[]) => void
   onOpenConfigFile?: () => Promise<void> | void
@@ -418,6 +445,7 @@ function createViewProps(props: {
   onResetOverride: () => void
   onRestoreDefault: () => void
   onReloadDefaults: () => Promise<void>
+  onRevealRow: (row: LoratRow) => void
   onSaveDefault: () => void
   onSelectMissing: () => void
   onToggleRow: (row: LoratRow) => void
@@ -453,8 +481,7 @@ function CollapsedView(props: ViewProps) {
 function CompactView(props: ViewProps) {
   return (
     <div data-testid="lorat-compact-view" className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
-        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
+      <div className="flex shrink-0 items-center justify-end gap-2 px-3 pb-2">
         <div className="flex shrink-0 items-center gap-1">
           <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           {props.running ? <ActionIconButton destructive icon={Square} label="运行中" onClick={() => undefined} /> : <RunActionButton compact props={props} />}
@@ -469,7 +496,7 @@ function CompactView(props: ViewProps) {
           <StatusStrip compact progress={props.progress} status={props.status} text={props.data.progressText} />
         )}
         <div className="min-h-0 flex-1">
-          <LoratResultTabs compact filteredRows={props.filteredRows} logs={props.logs} running={props.running} onClearSelection={props.onClearSelection} onConfirmRowAction={props.onConfirmRowAction} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} onEditTrigger={props.onEditTrigger} onSelectMissing={props.onSelectMissing} onToggleRow={props.onToggleRow} />
+          <LoratResultTabs compact filteredRows={props.filteredRows} logs={props.logs} running={props.running} onClearSelection={props.onClearSelection} onConfirmRowAction={props.onConfirmRowAction} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} onCopyRowFilename={props.onCopyRowFilename} onCopyRowTrigger={props.onCopyRowTrigger} onEditTrigger={props.onEditTrigger} onRevealRow={props.onRevealRow} onSelectMissing={props.onSelectMissing} onToggleRow={props.onToggleRow} />
         </div>
       </div>
     </div>
@@ -479,8 +506,7 @@ function CompactView(props: ViewProps) {
 function PortraitCompactView(props: ViewProps) {
   return (
     <div data-testid="lorat-portrait-view" className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2">
-        <HeaderLine actionMeta={props.actionMeta} status={props.status} subtitle={props.data.progressText || summaryText(props)} />
+      <div className="flex shrink-0 items-center justify-end gap-2">
         <div className="flex shrink-0 items-center gap-1">
           <OptionsPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
           {props.running ? <ActionIconButton destructive icon={Square} label="运行中" onClick={() => undefined} /> : <RunActionButton compact props={props} />}
@@ -493,7 +519,7 @@ function PortraitCompactView(props: ViewProps) {
         <ToolbarActions {...props} compact />
       </div>
       <div className="min-h-0 flex-1">
-        <LoratResultTabs compact filteredRows={props.filteredRows} logs={props.logs} running={props.running} onClearSelection={props.onClearSelection} onConfirmRowAction={props.onConfirmRowAction} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} onEditTrigger={props.onEditTrigger} onSelectMissing={props.onSelectMissing} onToggleRow={props.onToggleRow} />
+        <LoratResultTabs compact filteredRows={props.filteredRows} logs={props.logs} running={props.running} onClearSelection={props.onClearSelection} onConfirmRowAction={props.onConfirmRowAction} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} onCopyRowFilename={props.onCopyRowFilename} onCopyRowTrigger={props.onCopyRowTrigger} onEditTrigger={props.onEditTrigger} onRevealRow={props.onRevealRow} onSelectMissing={props.onSelectMissing} onToggleRow={props.onToggleRow} />
       </div>
     </div>
   )
@@ -503,15 +529,8 @@ function FullView(props: ViewProps) {
   return (
     <div data-testid="lorat-full-view" className="flex min-h-0 flex-1 flex-col gap-3 p-3">
       <div className="flex shrink-0 flex-col gap-3 @4xl/lorat:flex-row @4xl/lorat:items-center @4xl/lorat:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 @4xl/lorat:flex-row @4xl/lorat:items-center">
-          <HeaderLine
-            actionMeta={props.actionMeta}
-            status={props.status}
-            subtitle={props.data.progressText || `${props.actionMeta.label} / ${props.data.folderPath ? "已设目录" : "待输入"} / ${props.rows.length} 行`}
-          />
-          <div data-testid="lorat-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
-            <ToolbarActions {...props} />
-          </div>
+        <div data-testid="lorat-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
+          <ToolbarActions {...props} />
         </div>
         <StatsPanel progress={props.progress} stats={props.stats} />
       </div>
@@ -535,7 +554,7 @@ function FullView(props: ViewProps) {
         </section>
 
         <div className="min-h-0">
-          <LoratResultTabs filteredRows={props.filteredRows} logs={props.logs} running={props.running} onClearSelection={props.onClearSelection} onConfirmRowAction={props.onConfirmRowAction} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} onEditTrigger={props.onEditTrigger} onSelectMissing={props.onSelectMissing} onToggleRow={props.onToggleRow} />
+          <LoratResultTabs filteredRows={props.filteredRows} logs={props.logs} running={props.running} onClearSelection={props.onClearSelection} onConfirmRowAction={props.onConfirmRowAction} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} onCopyRowFilename={props.onCopyRowFilename} onCopyRowTrigger={props.onCopyRowTrigger} onEditTrigger={props.onEditTrigger} onRevealRow={props.onRevealRow} onSelectMissing={props.onSelectMissing} onToggleRow={props.onToggleRow} />
         </div>
       </div>
     </div>
@@ -551,20 +570,24 @@ function ToolbarActions(props: ViewProps & { compact?: boolean }) {
       <ActionIconButton disabled={!props.filteredRows.length} icon={Copy} label="复制结果" onClick={props.onCopyResults} />
       <ActionIconButton disabled={!props.logs.length} icon={ScrollText} label="复制日志" onClick={props.onCopyLogs} />
       <ActionIconButton icon={RotateCcw} label="清空状态" onClick={props.onReset} />
-      {!props.compact && (
-        <NodeConfigPopover
-          configPath={props.configFilePath}
-          defaults={props.defaults}
-          dirty={props.configDirty}
-          disabled={props.running}
-          t={props.t}
-          onOpenFile={props.onOpenConfigFile}
-          onReload={props.onReloadDefaults}
-          onRestore={props.onRestoreDefault}
-          onSave={props.onSaveDefault}
-        />
-      )}
     </div>
+  )
+}
+
+function LoratConfigPopover({ props }: { props: ViewProps }) {
+  return (
+    <NodeConfigPopover
+      configPath={props.configFilePath}
+      defaults={props.defaults}
+      dirty={props.configDirty}
+      disabled={props.running}
+      triggerLabel="配置管理"
+      t={props.t}
+      onOpenFile={props.onOpenConfigFile}
+      onReload={props.onReloadDefaults}
+      onRestore={props.onRestoreDefault}
+      onSave={props.onSaveDefault}
+    />
   )
 }
 
@@ -618,7 +641,6 @@ function HeaderLine({ actionMeta, status, subtitle }: {
   subtitle: string
 }) {
   return (
-    <FloatingWindowNodeHeader>
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
         <div className={cn("grid size-8 shrink-0 place-items-center rounded-lg", status.iconClass)}>
@@ -633,7 +655,6 @@ function HeaderLine({ actionMeta, status, subtitle }: {
         </div>
       </div>
     </div>
-    </FloatingWindowNodeHeader>
   )
 }
 
@@ -703,6 +724,7 @@ function buildInput(action: LoratAction, data: LoratCardState, selectedKeys: str
     collectionRoot: data.collectionRoot,
     collectionItems: data.collectionItems,
     collectionOverwrite: data.collectionOverwrite,
+    collectionCreateModelFolder: data.collectionCreateModelFolder,
     triggerDbJson: data.triggerDbJson,
     rows: data.rows,
     selectedKeys,
@@ -767,4 +789,78 @@ function summaryText(props: ViewProps): string {
   }
   if (props.data.folderPath) return `${props.data.folderPath} 等待扫描`
   return "粘贴目录后开始扫描"
+}
+
+type LoratPersistedConfig = Partial<LoratCardState> & {
+  lora_folder?: string
+  collection_root?: string
+  collection_overwrite?: boolean
+  collection_create_model_folder?: boolean
+  trigger_db_json?: string
+  status_filter?: LoratCardState["statusFilter"]
+  scope_filter?: LoratCardState["scopeFilter"]
+}
+
+function normalizeLoratConfig(config?: LoratPersistedConfig): Partial<LoratCardState> {
+  if (!config) return {}
+  return {
+    ...config,
+    folderPath: config.folderPath ?? config.lora_folder,
+    collectionRoot: config.collectionRoot ?? config.collection_root,
+    collectionOverwrite: config.collectionOverwrite ?? config.collection_overwrite,
+    collectionCreateModelFolder: config.collectionCreateModelFolder ?? config.collection_create_model_folder,
+    triggerDbJson: config.triggerDbJson ?? config.trigger_db_json,
+    statusFilter: config.statusFilter ?? config.status_filter,
+    scopeFilter: config.scopeFilter ?? config.scope_filter,
+  }
+}
+
+function serializeLoratConfig(config: Partial<LoratCardState>): LoratPersistedConfig {
+  return Object.fromEntries(Object.entries({
+    action: config.action,
+    lora_folder: config.folderPath,
+    collection_root: config.collectionRoot,
+    collection_overwrite: config.collectionOverwrite,
+    collection_create_model_folder: config.collectionCreateModelFolder,
+    trigger_db_json: config.triggerDbJson,
+    search: config.search,
+    status_filter: config.statusFilter,
+    scope_filter: config.scopeFilter,
+  }).filter(([, value]) => value !== undefined)) as LoratPersistedConfig
+}
+
+function rowsFromCollection(collection: LoratData["collection"] | undefined, state: LoratCardState): LoratRow[] {
+  return (collection ?? []).flatMap((result) => {
+    if (result.status !== "collected" || !result.targetPath) return []
+    const normalizedPath = result.targetPath.replace(/\\/g, "/")
+    const name = normalizedPath.split("/").at(-1) ?? result.item.sourcePath.replace(/\\/g, "/").split("/").at(-1) ?? "model.safetensors"
+    const stem = name.replace(/\.[^.]+$/, "")
+    const selectedDir = result.item.targetRelativeDir.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")
+    const relativeDir = [selectedDir, state.collectionCreateModelFolder ? stem : ""].filter(Boolean).join("/")
+    const trigger = result.item.triggerText?.trim() ?? ""
+    return [{
+      key: [relativeDir, stem].filter(Boolean).join("/"),
+      name,
+      stem,
+      filePath: result.targetPath,
+      relativeDir,
+      relativePath: [relativeDir, name].filter(Boolean).join("/"),
+      pathParts: relativeDir ? relativeDir.split("/") : [],
+      status: trigger ? "trigger" : "missing",
+      originalStatus: trigger ? "trigger" : "missing",
+      trigger,
+      originalTrigger: trigger,
+      source: "collection",
+      dbKey: "",
+      changed: false,
+      selected: false,
+    } satisfies LoratRow]
+  })
+}
+
+function mergeLoratRows(current: LoratRow[], added: LoratRow[]): LoratRow[] {
+  if (!added.length) return current
+  const byPath = new Map(current.map((row) => [row.filePath.replace(/\\/g, "/").toLowerCase(), row]))
+  for (const row of added) byPath.set(row.filePath.replace(/\\/g, "/").toLowerCase(), row)
+  return [...byPath.values()]
 }

@@ -13,13 +13,14 @@ export type LoratInteractionValues = InteractionValues & {
   collectionRoot: string
   collectionItemsJson: string
   collectionOverwrite: boolean
+  collectionCreateModelFolder: boolean
 }
 
 export function createLoratInteractionSchema(defaults: Partial<LoratInteractionValues> = {}, language: TerminalLanguage = "zh"): TerminalInteractionSchema<LoratInput, LoratResult> {
   const zh = language === "zh"
   const initialValues = {
     action: "scan", folderPath: "", triggerDbJson: "{}", rowsJson: "[]", selectedKeys: "",
-    search: "", statusFilter: "all", collectionRoot: "", collectionItemsJson: "[]", collectionOverwrite: false,
+    search: "", statusFilter: "all", collectionRoot: "", collectionItemsJson: "[]", collectionOverwrite: false, collectionCreateModelFolder: false,
     ...Object.fromEntries(Object.entries(defaults).filter(([, value]) => value !== undefined)),
   } as LoratInteractionValues
   const fields: InteractionField[] = [
@@ -43,12 +44,13 @@ export function createLoratInteractionSchema(defaults: Partial<LoratInteractionV
       { value: "trigger", label: zh ? "有触发词" : "Trigger" }, { value: "notrigger", label: zh ? "无触发词" : "No trigger" },
     ], visibleWhen: (v) => v.action === "scan" },
     { id: "collectionOverwrite", label: zh ? "覆盖同名模型" : "Overwrite", kind: "boolean", visibleWhen: (v) => v.action === "collect" },
+    { id: "collectionCreateModelFolder", label: zh ? "每个 LoRA 单独建文件夹" : "Create a folder per LoRA", kind: "boolean", visibleWhen: (v) => v.action === "collect" },
   ]
   return {
     id: "lorat", title: "LoRaT", description: zh ? "LoRA 模型、触发词 sidecar 与 TriggerDB 工作台" : "LoRA models, trigger sidecars, and TriggerDB workbench",
     initialValues, fields,
     view: { sections: [{ id: "library", title: zh ? "模型库" : "Model library", fieldIds: fields.map((field) => field.id) }], dashboard: { title: "LoRaT", display: (v) => ({ primary: String(v.folderPath || v.collectionRoot), secondary: String(v.action), metrics: [] }) } },
-    toInput: (v) => ({ action: v.action as LoratAction, folderPath: String(v.folderPath ?? ""), collectionRoot: String(v.collectionRoot ?? ""), collectionItems: parseArray<LoratCollectionItem>(v.collectionItemsJson), collectionOverwrite: v.collectionOverwrite === true, triggerDbJson: String(v.triggerDbJson ?? "{}"), rows: parseArray<LoratRow>(v.rowsJson), selectedKeys: split(v.selectedKeys), search: String(v.search ?? ""), statusFilter: v.statusFilter as LoratStatusFilter }),
+    toInput: (v) => ({ action: v.action as LoratAction, folderPath: String(v.folderPath ?? ""), collectionRoot: String(v.collectionRoot ?? ""), collectionItems: parseArray<LoratCollectionItem>(v.collectionItemsJson), collectionOverwrite: v.collectionOverwrite === true, collectionCreateModelFolder: v.collectionCreateModelFolder === true, triggerDbJson: String(v.triggerDbJson ?? "{}"), rows: parseArray<LoratRow>(v.rowsJson), selectedKeys: split(v.selectedKeys), search: String(v.search ?? ""), statusFilter: v.statusFilter as LoratStatusFilter }),
     validate(_v, input) {
       if (input.action === "collect") return input.collectionRoot?.trim() && input.collectionItems?.length ? null : zh ? "请输入收集根目录和待收集项目。" : "Enter a collection root and items."
       if (input.action === "scan") return input.folderPath?.trim() ? null : zh ? "请输入 LoRA 目录。" : "Enter a LoRA folder."

@@ -171,6 +171,13 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-linku/platform"), { nodeId: "linku", entry: "platform" }),
     createRuntime: "createNodeLinkuRuntime",
   },
+  logx: {
+    packageName: "@xiranite/node-logx",
+    loadCore: createNodeModuleLoader(() => import("@xiranite/node-logx/core"), { nodeId: "logx", entry: "core" }),
+    run: "runLogx",
+    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-logx/platform"), { nodeId: "logx", entry: "platform" }),
+    createRuntime: "createNodeLogxRuntime",
+  },
   lorat: {
     packageName: "@xiranite/node-lorat",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-lorat/core"), { nodeId: "lorat", entry: "core" }),

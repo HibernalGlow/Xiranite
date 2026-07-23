@@ -14,6 +14,7 @@ export interface LoratInput {
   collectionRoot?: string
   collectionItems?: LoratCollectionItem[]
   collectionOverwrite?: boolean
+  collectionCreateModelFolder?: boolean
   triggerDbJson?: string
   rows?: LoratRow[]
   selectedKeys?: string[]
@@ -217,7 +218,11 @@ export async function collectLoratModels(
     try {
       const sourceName = runtime.basename(item.sourcePath)
       if (!isLoratModelName(sourceName)) throw new Error(`Unsupported LoRA model file: ${sourceName}`)
-      const targetParts = normalizeCollectionRelativeDir(item.targetRelativeDir)
+      const stem = basenameNoExt(sourceName)
+      const targetParts = [
+        ...normalizeCollectionRelativeDir(item.targetRelativeDir),
+        ...(input.collectionCreateModelFolder ? [stem] : []),
+      ]
       const targetDir = runtime.joinPath(root, ...targetParts)
       const targetPath = runtime.joinPath(targetDir, sourceName)
       if (!input.collectionOverwrite && await runtime.fileExists(targetPath)) {
@@ -226,7 +231,6 @@ export async function collectLoratModels(
       }
 
       await runtime.copyFile(item.sourcePath, targetPath)
-      const stem = basenameNoExt(sourceName)
       let previewPath: string | undefined
       if (item.previewSourcePath) {
         const previewExt = runtime.extname(item.previewSourcePath).toLowerCase()

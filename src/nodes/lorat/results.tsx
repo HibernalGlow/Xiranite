@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import type { ColumnDef, ColumnFiltersState, SortingState } from "@tanstack/react-table"
 import { getCoreRowModel, getFacetedRowModel, getFacetedUniqueValues, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table"
 import type { LoratRow } from "@xiranite/node-lorat/core"
-import { Copy, ListChecks, ScrollText, Tags, XCircle } from "lucide-react"
+import { Copy, FileText, FolderOpen, ListChecks, ScrollText, Tags, XCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -24,11 +24,15 @@ export function LoratResultTabs(props: {
   onConfirmRowAction: (row: LoratRow, action: "write_triggers" | "mark_no_trigger") => void
   onCopyLogs: () => void
   onCopyResults: () => void
+  onCopyRowFilename: (row: LoratRow) => void
+  onCopyRowTrigger: (row: LoratRow) => void
   onEditTrigger: (row: LoratRow, trigger: string) => void
+  onRevealRow: (row: LoratRow) => void
   onSelectMissing: () => void
   onToggleRow: (row: LoratRow) => void
 }) {
   const hasRows = props.filteredRows.length > 0
+  const collectedRows = useMemo(() => props.filteredRows.filter((row) => row.source === "collection"), [props.filteredRows])
   const preferredTab = props.running ? "logs" : hasRows ? "rows" : props.logs.length ? "logs" : "rows"
   const [tab, setTab] = useState(preferredTab)
   useEffect(() => { setTab(preferredTab) }, [preferredTab])
@@ -37,10 +41,14 @@ export function LoratResultTabs(props: {
     <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col">
       <TabsList variant="line" className="shrink-0">
         <TabsTrigger value="rows">模型</TabsTrigger>
+        <TabsTrigger value="collected">已收集{collectedRows.length ? ` ${collectedRows.length}` : ""}</TabsTrigger>
         <TabsTrigger value="logs">日志</TabsTrigger>
       </TabsList>
       <TabsContent value="rows" className="min-h-0 flex-1">
-        <RowsPanel compact={props.compact} filteredRows={props.filteredRows} onConfirmRowAction={props.onConfirmRowAction} onEditTrigger={props.onEditTrigger} onToggleRow={props.onToggleRow} />
+        <RowsPanel compact={props.compact} filteredRows={props.filteredRows} onConfirmRowAction={props.onConfirmRowAction} onCopyRowFilename={props.onCopyRowFilename} onCopyRowTrigger={props.onCopyRowTrigger} onEditTrigger={props.onEditTrigger} onRevealRow={props.onRevealRow} onToggleRow={props.onToggleRow} />
+      </TabsContent>
+      <TabsContent value="collected" className="min-h-0 flex-1">
+        <RowsPanel compact={props.compact} emptyText="收集成功的 LoRA 会显示在这里。" filteredRows={collectedRows} onConfirmRowAction={props.onConfirmRowAction} onCopyRowFilename={props.onCopyRowFilename} onCopyRowTrigger={props.onCopyRowTrigger} onEditTrigger={props.onEditTrigger} onRevealRow={props.onRevealRow} onToggleRow={props.onToggleRow} />
       </TabsContent>
       <TabsContent value="logs" className="min-h-0 flex-1">
         <TextPanel compact={props.compact} emptyText="运行日志会显示在这里。" icon={ScrollText} lines={props.logs} onCopy={props.onCopyLogs} />
@@ -51,9 +59,13 @@ export function LoratResultTabs(props: {
 
 function RowsPanel(props: {
   compact?: boolean
+  emptyText?: string
   filteredRows: LoratRow[]
   onConfirmRowAction: (row: LoratRow, action: "write_triggers" | "mark_no_trigger") => void
+  onCopyRowFilename: (row: LoratRow) => void
+  onCopyRowTrigger: (row: LoratRow) => void
   onEditTrigger: (row: LoratRow, trigger: string) => void
+  onRevealRow: (row: LoratRow) => void
   onToggleRow: (row: LoratRow) => void
 }) {
   const Icon = ListChecks
@@ -159,6 +171,9 @@ function RowsPanel(props: {
       header: "",
       cell: ({ row }) => (
         <div className="flex items-center justify-end gap-0.5">
+          <Button aria-label={`在资源管理器中显示 ${row.original.name}`} size="icon-sm" variant="ghost" onClick={() => props.onRevealRow(row.original)}><FolderOpen /></Button>
+          <Button aria-label={`复制文件名 ${row.original.name}`} size="icon-sm" variant="ghost" onClick={() => props.onCopyRowFilename(row.original)}><Copy /></Button>
+          <Button aria-label={`复制触发词 ${row.original.name}`} disabled={!row.original.trigger.trim()} size="icon-sm" variant="ghost" onClick={() => props.onCopyRowTrigger(row.original)}><FileText /></Button>
           <Button
             aria-label={`写入触发词 ${row.original.name}`}
             size="icon-sm"
@@ -225,7 +240,7 @@ function RowsPanel(props: {
       <div className={props.compact ? "flex shrink-0 items-center justify-between gap-2 px-2 py-1.5" : "flex shrink-0 items-center justify-between gap-2 px-3 py-2"}>
         <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-muted-foreground">
           <Icon className="size-3.5" />
-          <span>{props.filteredRows.length ? `${props.filteredRows.length} 个模型` : "等待扫描"}</span>
+          <span>{props.filteredRows.length ? `${props.filteredRows.length} 个模型` : props.emptyText ?? "等待扫描"}</span>
         </div>
       </div>
       <Separator />

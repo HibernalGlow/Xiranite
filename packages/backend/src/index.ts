@@ -444,6 +444,7 @@ async function listLocalFiles(url: URL): Promise<Response> {
   if (!info) return jsonResponse({ error: "Local path was not found." }, 404)
 
   const recursive = url.searchParams.get("recursive") === "1" || url.searchParams.get("recursive") === "true"
+  const includeDirectories = url.searchParams.get("includeDirectories") === "1" || url.searchParams.get("includeDirectories") === "true"
   const extensionSet = parseExtensionFilter(url.searchParams.get("extensions"))
   const maxEntries = Math.min(Number(url.searchParams.get("limit") ?? 2000) || 2000, 10_000)
   const entries: LocalFileEntry[] = []
@@ -453,7 +454,7 @@ async function listLocalFiles(url: URL): Promise<Response> {
       entries.push(toLocalFileEntry(resolved, info))
     }
   } else if (info.isDirectory()) {
-    await collectLocalFiles(resolved, { recursive, extensionSet, entries, maxEntries })
+    await collectLocalFiles(resolved, { recursive, includeDirectories, extensionSet, entries, maxEntries })
   } else {
     return jsonResponse({ error: "Local path is not a file or directory." }, 400)
   }
@@ -469,6 +470,7 @@ async function collectLocalFiles(
   dirPath: string,
   options: {
     recursive: boolean
+    includeDirectories: boolean
     extensionSet: Set<string> | undefined
     entries: LocalFileEntry[]
     maxEntries: number
@@ -482,6 +484,10 @@ async function collectLocalFiles(
 
     const entryPath = path.join(dirPath, entry.name)
     if (entry.isDirectory()) {
+      if (options.includeDirectories) {
+        const info = await stat(entryPath).catch(() => null)
+        if (info?.isDirectory()) options.entries.push(toLocalDirectoryEntry(entryPath, info))
+      }
       if (options.recursive) {
         await collectLocalFiles(entryPath, options)
       }
@@ -674,6 +680,17 @@ function filePathFromDatabaseUrl(url: string): string | undefined {
 
 function randomToken(): string {
   return randomBytes(32).toString("base64url")
+}
+
+function toLocalDirectoryEntry(filePath: string, info: Awaited<ReturnType<typeof stat>>): LocalFileEntry {
+  return {
+    name: path.basename(filePath),
+    path: filePath,
+    isDirectory: true,
+    sizeBytes: 0,
+    lastModified: toSafeNumber(info.mtimeMs),
+    type: "inode/directory",
+  }
 }
 
 function toFetchRequest(incoming: IncomingMessage, signal?: AbortSignal): Request {

@@ -1,14 +1,14 @@
-import { useId, useMemo, useRef, useState, type ChangeEvent, type HTMLAttributes } from "react"
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type HTMLAttributes } from "react"
 import type { NodeClipboardCapability, NodeLocalFilesCapability } from "@xiranite/contract"
 import type { LoratCollectionResult } from "@xiranite/node-lorat/core"
 import type { NexusCaptureDTO } from "@xiranite/shared"
-import { ClipboardPaste, ImagePlus, PackageCheck, Trash2, Upload, X } from "lucide-react"
+import { ChevronRight, ClipboardPaste, Folder, FolderOpen, ImagePlus, LoaderCircle, PackageCheck, Trash2, Upload, X } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field"
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText } from "@/components/ui/input-group"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { TagsInput, TagsInputInput, TagsInputItem, TagsInputList } from "@/components/ui/tags-input"
@@ -47,22 +47,56 @@ export function LoratCollectionPanel(props: {
   const [importing, setImporting] = useState(false)
   const inputDisabled = props.disabled || importing
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({})
+  const [directoryLevel, setDirectoryLevel] = useState("")
+  const [directories, setDirectories] = useState<Array<{ name: string; path: string }>>([])
+  const [directoriesLoading, setDirectoriesLoading] = useState(false)
   const selected = items.find((item) => item.id === selectedId) ?? items[0]
   const resultBySource = useMemo(() => new Map((props.data.collectionResults ?? []).map((result) => [result.item.sourcePath, result])), [props.data.collectionResults])
   const modelDrop = useLocalFileDrop({
     disabled: inputDisabled,
     subscribeDrops: props.localFiles?.subscribeDrops,
     onDropPaths: addModelPaths,
-    onDropFiles: (files) => void addModels(files),
     onUnsupported: () => setDropMessage(props.t("collection.desktopOnly", "需要桌面端提供本机路径，浏览器文件不能直接复制到 LoRA 库。")),
   })
   const previewDrop = useLocalFileDrop({
     disabled: inputDisabled,
     subscribeDrops: props.localFiles?.subscribeDrops,
     onDropPaths: bindPreviewPaths,
-    onDropFiles: (files) => void bindPreview(files),
     onUnsupported: () => setDropMessage(props.t("collection.desktopOnly", "需要桌面端提供本机路径，浏览器文件不能直接复制到 LoRA 库。")),
   })
+
+  useEffect(() => {
+    setDirectoryLevel("")
+  }, [props.data.collectionRoot])
+
+  useEffect(() => {
+    const root = props.data.collectionRoot?.trim()
+    if (!root || !props.localFiles?.list) {
+      setDirectories([])
+      return
+    }
+    let disposed = false
+    const timeout = window.setTimeout(() => {
+      setDirectoriesLoading(true)
+      void props.localFiles!.list!(joinHostPath(root, directoryLevel), { recursive: false, includeDirectories: true, limit: 500 })
+        .then((entries) => {
+          if (disposed) return
+          setDirectories(entries.filter((entry) => entry.isDirectory).map((entry) => ({ name: entry.name, path: entry.path })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })))
+          setDropMessage("")
+        })
+        .catch((error) => {
+          if (!disposed) {
+            setDirectories([])
+            setDropMessage(error instanceof Error ? error.message : String(error))
+          }
+        })
+        .finally(() => { if (!disposed) setDirectoriesLoading(false) })
+    }, 250)
+    return () => {
+      disposed = true
+      window.clearTimeout(timeout)
+    }
+  }, [directoryLevel, props.data.collectionRoot, props.localFiles])
 
   function replaceItems(next: LoratCollectionDraft[]) {
     props.onPatch({ collectionItems: next })
@@ -103,7 +137,7 @@ export function LoratCollectionPanel(props: {
         id: `${sourcePath}:${Date.now()}:${next.length}`,
         sourcePath,
         sourceName,
-        targetRelativeDir: suggestRelativeDir(sourcePath, sourceName),
+        targetRelativeDir: suggestRelativeDir(sourcePath, sourceName, props.data.collectionCreateModelFolder ?? false),
         triggerText: inferTrigger(sourceName),
       })
     }
@@ -241,6 +275,22 @@ export function LoratCollectionPanel(props: {
     }
   }
 
+  async function browseCollectionRoot() {
+    if (!props.localFiles?.pickDirectory) return
+    try {
+      const collectionRoot = await props.localFiles.pickDirectory()
+      if (collectionRoot) props.onPatch({ collectionRoot })
+    } catch (error) {
+      setDropMessage(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  function selectDirectory(name: string) {
+    const next = normalizeRelativePath([directoryLevel, name].filter(Boolean).join("/"))
+    patchSelected({ targetRelativeDir: next })
+    setDirectoryLevel(next)
+  }
+
   async function pastePreview() {
     if (!selected) {
       setDropMessage(props.t("collection.selectFirst", "先从队列选择一个 LoRA，再绑定预览图。"))
@@ -305,6 +355,7 @@ export function LoratCollectionPanel(props: {
             icon={Upload}
             onBrowse={() => void browseModels()}
             targetProps={modelDrop.targetProps}
+            dragging={modelDrop.dragging}
             testId="lorat-collection-model-drop"
           />
           <input ref={modelInputRef} accept={MODEL_EXTENSIONS.join(",")} className="sr-only" multiple type="file" onChange={handleModelInput} />
@@ -318,7 +369,7 @@ export function LoratCollectionPanel(props: {
         <section className="flex min-h-0 flex-col rounded-lg border bg-card p-3">
           <div
             {...previewDrop.targetProps}
-            className="grid min-h-44 flex-1 place-items-center rounded-md border border-dashed bg-muted/20 p-3 text-center"
+            className={cn("grid min-h-44 flex-1 place-items-center rounded-md border border-dashed bg-muted/20 p-3 text-center transition-colors", previewDrop.dragging && "border-primary bg-primary/5 ring-2 ring-primary/20")}
             data-testid="lorat-collection-preview-drop"
           >
             {selected && previewUrls[selected.id] ? <img alt={selected.previewName ?? selected.sourceName} className="h-full max-h-64 w-full rounded object-contain" src={previewUrls[selected.id]} /> : <div className="flex flex-col items-center gap-2 text-muted-foreground"><ImagePlus /><span className="text-sm font-medium">{selected ? props.t("collection.dropPreview", "拖入图片绑定预览") : props.t("collection.selectModel", "从队列选择 LoRA")}</span><span className="text-xs">{props.t("collection.previewHint", "PNG、JPG、WEBP 或 AVIF")}</span></div>}
@@ -331,12 +382,12 @@ export function LoratCollectionPanel(props: {
           <FieldGroup className="gap-4">
             <Field>
               <FieldLabel htmlFor={rootInputId}>{props.t("collection.libraryRoot", "LoRA 库目录")}</FieldLabel>
-              <InputGroup><InputGroupAddon align="inline-start"><InputGroupText>~/</InputGroupText></InputGroupAddon><InputGroupInput id={rootInputId} disabled={props.disabled} placeholder="D:\\ComfyUI\\models\\loras" value={props.data.collectionRoot ?? ""} onChange={(event) => props.onPatch({ collectionRoot: event.currentTarget.value })} /></InputGroup>
+              <InputGroup><InputGroupAddon align="inline-start"><InputGroupText>~/</InputGroupText></InputGroupAddon><InputGroupInput id={rootInputId} disabled={props.disabled} placeholder="D:\\ComfyUI\\models\\loras" value={props.data.collectionRoot ?? ""} onChange={(event) => props.onPatch({ collectionRoot: event.currentTarget.value })} />{props.localFiles?.pickDirectory && <InputGroupAddon align="inline-end"><InputGroupButton aria-label={props.t("collection.pickRoot", "选择 LoRA 库目录")} disabled={props.disabled} size="icon-xs" onClick={() => void browseCollectionRoot()}><FolderOpen /></InputGroupButton></InputGroupAddon>}</InputGroup>
             </Field>
             <Field>
               <FieldLabel htmlFor={targetInputId}>{props.t("collection.relativeDir", "相对存放目录")}</FieldLabel>
               <InputGroup><InputGroupAddon align="inline-start"><InputGroupText>/</InputGroupText></InputGroupAddon><InputGroupInput id={targetInputId} disabled={!selected || props.disabled} placeholder="style/mecha" value={selected?.targetRelativeDir ?? ""} onChange={(event) => patchSelected({ targetRelativeDir: event.currentTarget.value })} /></InputGroup>
-              <div className="flex flex-wrap gap-1">{DIRECTORY_SUGGESTIONS.map((directory) => <Button key={directory} disabled={!selected || props.disabled} size="xs" variant="outline" onClick={() => patchSelected({ targetRelativeDir: directory })}>/{directory}/</Button>)}</div>
+              <DirectoryTags directories={directories} level={directoryLevel} loading={directoriesLoading} disabled={!selected || inputDisabled} onLevelChange={setDirectoryLevel} onSelect={selectDirectory} />
             </Field>
             <Field>
               <FieldTitle>{props.t("collection.triggers", "触发词")}</FieldTitle>
@@ -360,6 +411,10 @@ export function LoratCollectionPanel(props: {
               <FieldContent><FieldLabel htmlFor={overwriteId}>{props.t("collection.overwrite", "覆盖已有文件")}</FieldLabel><FieldDescription>{props.t("collection.overwriteHint", "默认跳过同名目标文件。")}</FieldDescription></FieldContent>
               <Switch id={overwriteId} checked={props.data.collectionOverwrite ?? false} disabled={props.disabled} onCheckedChange={(collectionOverwrite) => props.onPatch({ collectionOverwrite })} />
             </Field>
+            <Field orientation="horizontal">
+              <FieldContent><FieldLabel htmlFor={`${overwriteId}-folder`}>{props.t("collection.createModelFolder", "每个 LoRA 单独建文件夹")}</FieldLabel><FieldDescription>{props.t("collection.createModelFolderHint", "把模型、预览图和 trigger.txt 放在同一个模型目录。")}</FieldDescription></FieldContent>
+              <Switch id={`${overwriteId}-folder`} checked={props.data.collectionCreateModelFolder ?? false} disabled={props.disabled} onCheckedChange={(collectionCreateModelFolder) => props.onPatch({ collectionCreateModelFolder })} />
+            </Field>
             <CollectionCommitButton canCollect={canCollect} running={props.running} t={props.t} onCollect={props.onCollect} />
           </FieldGroup>
         </section>
@@ -368,9 +423,26 @@ export function LoratCollectionPanel(props: {
   )
 }
 
-function DropTarget(props: { description: string; disabled: boolean; icon: typeof Upload; label: string; onBrowse: () => void; targetProps: HTMLAttributes<HTMLDivElement>; testId: string }) {
+function DropTarget(props: { description: string; disabled: boolean; dragging: boolean; icon: typeof Upload; label: string; onBrowse: () => void; targetProps: HTMLAttributes<HTMLDivElement>; testId: string }) {
   const Icon = props.icon
-  return <div {...props.targetProps} data-testid={props.testId} className="grid place-items-center gap-1.5 p-4 text-center"><Icon className="text-muted-foreground" /><span className="text-sm font-medium">{props.label}</span><span className="text-xs text-muted-foreground">{props.description}</span><Button disabled={props.disabled} size="xs" variant="outline" onClick={props.onBrowse}>浏览文件</Button></div>
+  return <div {...props.targetProps} data-testid={props.testId} className={cn("grid place-items-center gap-1.5 p-4 text-center transition-colors", props.dragging && "bg-primary/5 ring-2 ring-inset ring-primary/20")}><Icon className="text-muted-foreground" /><span className="text-sm font-medium">{props.label}</span><span className="text-xs text-muted-foreground">{props.description}</span><Button disabled={props.disabled} size="xs" variant="outline" onClick={props.onBrowse}>浏览文件</Button></div>
+}
+
+function DirectoryTags(props: { directories: Array<{ name: string; path: string }>; disabled: boolean; level: string; loading: boolean; onLevelChange: (level: string) => void; onSelect: (name: string) => void }) {
+  const parts = normalizeRelativePath(props.level).split("/").filter(Boolean)
+  return (
+    <div className="grid gap-1.5" data-testid="lorat-directory-tags">
+      <div className="flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted-foreground">
+        <Button aria-label="返回 LoRA 根目录" disabled={props.disabled || !parts.length} size="icon-xs" variant="ghost" onClick={() => props.onLevelChange("")}><Folder /></Button>
+        {parts.map((part, index) => <span key={`${part}-${index}`} className="flex min-w-0 items-center gap-1"><ChevronRight className="size-3 shrink-0" /><Button className="h-6 max-w-36 px-1.5" disabled={props.disabled} size="xs" variant="ghost" onClick={() => props.onLevelChange(parts.slice(0, index + 1).join("/"))}>{part}</Button></span>)}
+        {props.loading && <LoaderCircle className="size-3 animate-spin" />}
+      </div>
+      <div aria-label="LoRA 子文件夹" className="flex min-h-7 flex-wrap gap-1" role="list">
+        {props.directories.map((directory) => <span key={directory.path.replace(/\\/g, "/").toLowerCase()} className="min-w-0" role="listitem"><Button className="h-7 max-w-full px-2" disabled={props.disabled} size="xs" variant="outline" onClick={() => props.onSelect(directory.name)}><Folder data-icon="inline-start" /><span className="truncate">{directory.name}</span></Button></span>)}
+        {!props.loading && !props.directories.length && <span className="text-xs text-muted-foreground">当前层没有子文件夹</span>}
+      </div>
+    </div>
+  )
 }
 
 function CollectionQueueItem(props: { item: LoratCollectionDraft; result?: LoratCollectionResult; selected: boolean; onRemove: () => void; onSelect: () => void }) {
@@ -420,12 +492,22 @@ async function fileFromNexusAttachment(attachment: NonNullable<NexusCaptureDTO["
   return new File([await response.blob()], name, { type: response.headers.get("content-type") || mimeType })
 }
 
-function suggestRelativeDir(path: string, name: string): string {
+function suggestRelativeDir(path: string, name: string, createModelFolder: boolean): string {
   const normalized = path.replace(/\\/g, "/").toLowerCase()
   const matched = DIRECTORY_SUGGESTIONS.find((segment) => normalized.includes(`/${segment}/`))
   if (matched) return matched
   const stem = name.replace(/\.(safetensors|ckpt|pt)$/i, "").replace(/[_\s]+/g, "-").toLowerCase()
-  return `uncategorized/${stem}`
+  return createModelFolder ? "uncategorized" : `uncategorized/${stem}`
+}
+
+function normalizeRelativePath(value: string): string {
+  return value.replace(/\\/g, "/").replace(/\/{2,}/g, "/").replace(/^\/+|\/+$/g, "")
+}
+
+function joinHostPath(root: string, relative: string): string {
+  if (!relative) return root
+  const separator = root.includes("\\") && !root.includes("/") ? "\\" : "/"
+  return `${root.replace(/[\\/]+$/, "")}${separator}${normalizeRelativePath(relative).replace(/\//g, separator)}`
 }
 
 function inferTrigger(name: string): string {
