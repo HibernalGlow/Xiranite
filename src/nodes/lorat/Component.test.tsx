@@ -363,6 +363,7 @@ describe("app-owned lorat Component", () => {
 
   test("applies a Nexus page capture to the selected collection item", async () => {
     setSurface("regular")
+    const stagedFiles: File[] = []
     const host = createHost({
       collectionRoot: "D:/ComfyUI/models/loras",
       collectionItems: [{
@@ -373,6 +374,13 @@ describe("app-owned lorat Component", () => {
         triggerText: "neon_style",
       }],
     })
+    host.localFiles = {
+      getUrl: (path) => `local://${path}`,
+      stageFiles: async (files) => {
+        stagedFiles.push(...files)
+        return ["C:/Temp/xiranite/nexus-lead.jpg"]
+      },
+    }
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       if (init?.method === "DELETE") {
@@ -394,6 +402,13 @@ describe("app-owned lorat Component", () => {
                 capturedAt: "2026-07-23T12:00:00.000Z",
               },
               content: { text: "SDXL v2" },
+              attachments: [{
+                url: "https://civitai.com/images/neon.jpg",
+                name: "neon.jpg",
+                mimeType: "image/jpeg",
+                dataBase64: "aW1hZ2U=",
+              }],
+              metadata: { author: "Creator", published: "2026-07-22" },
               receivedAt: "2026-07-23T12:00:01.000Z",
             }],
           }),
@@ -412,8 +427,11 @@ describe("app-owned lorat Component", () => {
 
     await waitFor(() => expect(host.state.collectionItems?.[0]).toMatchObject({
       sourceUrl: "https://civitai.com/models/123",
-      notes: "SDXL v2",
+      notes: "Author: Creator\nPublished: 2026-07-22\nSDXL v2",
+      previewSourcePath: "C:/Temp/xiranite/nexus-lead.jpg",
+      previewName: "neon.jpg",
     }))
+    expect(stagedFiles[0]).toMatchObject({ name: "neon.jpg", type: "image/jpeg" })
     const deleteRequest = fetchMock.mock.calls.find(([, init]) => init?.method === "DELETE")
     expect(String(deleteRequest?.[0])).toContain("/nexus/captures/capture-1")
     expect(deleteRequest?.[1]).toMatchObject({ method: "DELETE" })

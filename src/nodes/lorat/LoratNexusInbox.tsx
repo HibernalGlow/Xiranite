@@ -62,13 +62,18 @@ export function LoratNexusInbox(props: {
       <ScrollArea className="max-h-32">
         <div className="space-y-1">
           {captures.map((capture) => {
-            const Icon = capture.kind === "image" ? Image : capture.kind === "selection" ? TextCursorInput : Link
+            const hasImage = Boolean(capture.attachments?.length)
+            const Icon = hasImage ? Image : capture.kind === "selection" ? TextCursorInput : Link
+            const details = [
+              typeof capture.metadata?.author === "string" ? capture.metadata.author : "",
+              typeof capture.metadata?.published === "string" ? capture.metadata.published : "",
+            ].filter(Boolean).join(" · ")
             return (
               <div key={capture.id} className="flex min-w-0 items-center gap-2 border-b py-1.5 last:border-b-0">
                 <Icon className="size-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium">{capture.source.title || capture.source.url}</p>
-                  <p className="truncate text-xs text-muted-foreground">{capture.content?.text || capture.source.url}</p>
+                  <p className="truncate text-xs text-muted-foreground">{details || capture.content?.text || capture.source.url}</p>
                 </div>
                 <Button disabled={props.disabled || loading || !props.hasSelection} size="xs" variant="outline" onClick={() => void apply(capture)}>Apply</Button>
               </div>
