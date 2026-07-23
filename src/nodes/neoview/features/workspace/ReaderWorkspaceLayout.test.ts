@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { ReaderShellConfigDto } from "../../adapters/reader-http-client"
-import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, isSwimlaneFitNoOp, readerWorkspaceConfig, reorderedReaderLanes } from "./ReaderWorkspaceLayout"
+import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, isSwimlaneFitNoOp, readerSwimlaneWidthField, readerWorkspaceConfig, reorderedReaderLanes } from "./ReaderWorkspaceLayout"
 
 describe("ReaderWorkspaceLayout", () => {
   it("keeps the legacy edge shell as default and derives only initial lane widths", () => {
@@ -76,6 +76,31 @@ describe("ReaderWorkspaceLayout", () => {
   it("normalizes lane reordering without dropping the Reader", () => {
     expect(reorderedReaderLanes(["left", "reader", "right"], "right", "left")).toEqual(["right", "left", "reader"])
     expect(reorderedReaderLanes(["reader", "reader"] as never, "reader", "reader")).toEqual(["reader", "left", "right"])
+  })
+
+  it("keeps independent width slots for orientation and Reader solo state", () => {
+    const updated = applyReaderWorkspacePatch(shellConfig(), {
+      lanes: {
+        left: {
+          landscapeWidth: 360,
+          portraitWidth: 280,
+          landscapeReaderSoloWidth: 440,
+          portraitReaderSoloWidth: 320,
+        },
+      },
+    })
+
+    expect(readerWorkspaceConfig(updated).swimlane.lanes.left).toMatchObject({
+      width: 320,
+      landscapeWidth: 360,
+      portraitWidth: 280,
+      landscapeReaderSoloWidth: 440,
+      portraitReaderSoloWidth: 320,
+    })
+    expect(readerSwimlaneWidthField("landscape", false)).toBe("landscapeWidth")
+    expect(readerSwimlaneWidthField("portrait", false)).toBe("portraitWidth")
+    expect(readerSwimlaneWidthField("landscape", true)).toBe("landscapeReaderSoloWidth")
+    expect(readerSwimlaneWidthField("portrait", true)).toBe("portraitReaderSoloWidth")
   })
 
   it("keeps dynamic lanes and fits every expanded lane to the viewport without changing proportions", () => {

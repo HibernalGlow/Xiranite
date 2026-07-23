@@ -495,6 +495,10 @@ export type NeoviewWindowControlsPlacement = (typeof NEOVIEW_WINDOW_CONTROLS_PLA
 
 export interface NeoviewSwimlaneLaneConfig {
   width: number
+  landscapeWidth?: number
+  portraitWidth?: number
+  landscapeReaderSoloWidth?: number
+  portraitReaderSoloWidth?: number
   collapsed: boolean
   title?: string
   activePanelId?: string

@@ -1066,6 +1066,10 @@ export type ReaderSwimlaneId = string
 
 export interface ReaderSwimlaneLaneDto {
   width: number
+  landscapeWidth?: number
+  portraitWidth?: number
+  landscapeReaderSoloWidth?: number
+  portraitReaderSoloWidth?: number
   collapsed: boolean
   title?: string
   activePanelId?: string

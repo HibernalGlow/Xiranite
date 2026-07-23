@@ -37,12 +37,13 @@ import {
   MIN_READER_WIDTH_RATIO,
   DEFAULT_LANE_NAVIGATOR_POSITION,
   fitReaderSwimlanesToViewport,
-  isSwimlaneFitNoOp,
   readerLaneWidth,
+  readerSwimlaneWidthField,
   reorderedReaderLanes,
   sanitizeSwimlaneWidth,
   type ReaderWorkspaceConfig,
   type ReaderWorkspacePatch,
+  type ReaderSwimlaneWidthField,
 } from "./ReaderWorkspaceLayout"
 import { neoviewDebug } from "../../neoviewDebug"
 import { ReaderLaneNavigator } from "./ReaderLaneNavigator"
@@ -99,7 +100,12 @@ export function ReaderSwimlaneWorkspace({
   const workspaceRef = useRef<HTMLDivElement>(null)
   const laneRefs = useRef<Partial<Record<ReaderSwimlaneId, HTMLElement | null>>>({})
   const [viewportWidth, setViewportWidth] = useState(() => typeof window === "undefined" ? 960 : Math.max(1, window.innerWidth))
+  const [viewportHeight, setViewportHeight] = useState(() => typeof window === "undefined" ? 540 : Math.max(1, window.innerHeight))
   const swimlane = workspace.swimlane
+  const soloLaneId = swimlane.soloLaneId ?? (swimlane.readerSolo ? "reader" : undefined)
+  const orientation = viewportWidth >= viewportHeight ? "landscape" : "portrait"
+  const widthField = readerSwimlaneWidthField(orientation, soloLaneId === "reader")
+  const normalWidthField = readerSwimlaneWidthField(orientation, false)
 
   useEffect(() => {
     const mountedAt = performance.now()
@@ -128,11 +134,12 @@ export function ReaderSwimlaneWorkspace({
   const liveWidthsRef = useRef<Record<ReaderSwimlaneId, number>>(Object.fromEntries(
     workspace.swimlane.laneOrder.map((laneId) => [
       laneId,
-      laneId === "reader" ? readerLaneWidth(viewportWidth, workspace.swimlane.readerWidthRatio) : workspace.swimlane.lanes[laneId]?.width ?? 320,
+      configuredLaneWidth(laneId),
     ]),
   ))
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const restoreTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const previewResizeRef = useRef(false)
   const readerFocusTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const panGestureRef = useRef<PanGesture | undefined>(undefined)
   const readerRestorePointerRef = useRef<number | undefined>(undefined)
@@ -140,25 +147,27 @@ export function ReaderSwimlaneWorkspace({
   const [draggedLane, setDraggedLane] = useState<ReaderSwimlaneId>()
   const [laneNavigatorTitleHost, setLaneNavigatorTitleHost] = useState<HTMLElement | null>(null)
   const [windowTitleHost, setWindowTitleHost] = useState<HTMLElement | null>(null)
-  const soloLaneId = swimlane.soloLaneId ?? (swimlane.readerSolo ? "reader" : undefined)
   const windowChromeOwnerLaneId = windowChrome && swimlane.windowControlsPlacement !== "titlebar"
     ? resolveWindowChromeOwner(swimlane.windowControlsOwnerLaneId, swimlane.laneOrder, swimlane.lanes, soloLaneId, swimlane.activeLane)
     : undefined
   const revealTriggersEnabled = soloLaneId !== undefined && swimlane.activeLane === soloLaneId && previewLane === undefined
-  const readerNormalWidth = readerLaneWidth(viewportWidth, swimlane.readerWidthRatio)
+  const readerNormalWidth = configuredLaneWidth("reader", normalWidthField)
   const autoFitGeometryKey = swimlane.laneOrder.map((laneId) => `${laneId}:${swimlane.lanes[laneId]?.collapsed === true}`).join("|")
 
   useEffect(() => {
     liveWidthsRef.current = Object.fromEntries(swimlane.laneOrder.map((laneId) => [
       laneId,
-      laneId === "reader" ? readerNormalWidth : swimlane.lanes[laneId]?.width ?? 320,
+      configuredLaneWidth(laneId),
     ]))
-  }, [readerNormalWidth, swimlane.laneOrder, swimlane.lanes])
+  }, [readerNormalWidth, swimlane.laneOrder, swimlane.lanes, widthField])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
     if (!viewport) return
-    const update = () => setViewportWidth(Math.max(1, viewport.clientWidth || window.innerWidth))
+    const update = () => {
+      setViewportWidth(Math.max(1, viewport.clientWidth || window.innerWidth))
+      setViewportHeight(Math.max(1, viewport.clientHeight || window.innerHeight))
+    }
     update()
     if (typeof ResizeObserver === "undefined") return
     const observer = new ResizeObserver(update)
@@ -207,7 +216,7 @@ export function ReaderSwimlaneWorkspace({
 
   function schedulePreviewRestore(): void {
     clearTimer(revealTimerRef)
-    if (!previewLane || !soloLaneId || restoreTimerRef.current !== undefined) return
+    if (!previewLane || !soloLaneId || previewResizeRef.current || restoreTimerRef.current !== undefined) return
     restoreTimerRef.current = setTimeout(() => {
       restoreTimerRef.current = undefined
       setPreviewLane(undefined)
@@ -263,7 +272,7 @@ export function ReaderSwimlaneWorkspace({
     } else if (laneEnd > viewEnd) {
       target = laneEnd - viewport.clientWidth
     }
-    scrollViewport(viewport, Math.max(0, target))
+    scrollViewport(viewport, Math.max(0, target), reason === "preview" ? "auto" : undefined)
   }
 
   function laneWidthBounds(laneId: ReaderSwimlaneId): { minimum: number; maximum: number } {
@@ -275,15 +284,35 @@ export function ReaderSwimlaneWorkspace({
     return { minimum: MIN_PANEL_SWIMLANE_WIDTH, maximum: MAX_SWIMLANE_WIDTH }
   }
 
+  function configuredLaneWidth(laneId: ReaderSwimlaneId, field: ReaderSwimlaneWidthField = widthField): number {
+    const lane = swimlane.lanes[laneId]
+    const profiled = lane?.[field]
+    if (laneId === "reader") {
+      return sanitizeSwimlaneWidth(laneId, profiled, undefined, undefined, readerLaneWidth(viewportWidth, swimlane.readerWidthRatio))
+    }
+    return sanitizeSwimlaneWidth(laneId, profiled, undefined, undefined, lane?.width ?? DEFAULT_LANE_WIDTHS[laneId] ?? 320)
+  }
+
   function resolvedLiveWidth(laneId: ReaderSwimlaneId): number {
     const bounds = laneWidthBounds(laneId)
     const fallback = laneId === "reader"
       ? readerNormalWidth
-      : swimlane.lanes[laneId]?.width ?? DEFAULT_LANE_WIDTHS[laneId] ?? 320
+      : configuredLaneWidth(laneId)
     return sanitizeSwimlaneWidth(laneId, liveWidthsRef.current[laneId], bounds.minimum, bounds.maximum, fallback)
   }
 
   function resizeLaneBoundary(leftLaneId: ReaderSwimlaneId, rightLaneId: ReaderSwimlaneId, deltaRatio: number): void {
+    const previewLaneId = previewLane === leftLaneId || previewLane === rightLaneId ? previewLane : undefined
+    if (previewLaneId && (soloLaneId === leftLaneId || soloLaneId === rightLaneId)) {
+      const currentWidth = resolvedLiveWidth(previewLaneId)
+      const bounds = laneWidthBounds(previewLaneId)
+      const direction = previewLaneId === leftLaneId ? 1 : -1
+      const nextWidth = clamp(currentWidth + direction * deltaRatio * 320, bounds.minimum, bounds.maximum)
+      liveWidthsRef.current[previewLaneId] = nextWidth
+      const preview = laneRefs.current[previewLaneId]
+      if (preview) preview.style.width = `${nextWidth}px`
+      return
+    }
     if (soloLaneId === leftLaneId || soloLaneId === rightLaneId) return
     const leftWidth = resolvedLiveWidth(leftLaneId)
     const rightWidth = resolvedLiveWidth(rightLaneId)
@@ -308,19 +337,23 @@ export function ReaderSwimlaneWorkspace({
   function commitLaneWidths(laneIds: readonly ReaderSwimlaneId[]): void {
     const widths = Object.fromEntries(laneIds.map((laneId) => [laneId, resolvedLiveWidth(laneId)])) as Record<ReaderSwimlaneId, number>
     if (swimlane.autoFitToViewport) {
-      onWorkspaceChange(fitReaderSwimlanesToViewport(viewportWidth, {
+      const fitted = fitReaderSwimlanesToViewport(viewportWidth, {
         ...swimlane,
         lanes: {
           ...swimlane.lanes,
-          ...Object.fromEntries(laneIds.map((laneId) => [laneId, { ...swimlane.lanes[laneId], width: widths[laneId] }])),
+          ...Object.fromEntries(swimlane.laneOrder.map((laneId) => [laneId, { ...swimlane.lanes[laneId], width: laneIds.includes(laneId) ? widths[laneId] : configuredLaneWidth(laneId) }])),
         },
         ...(laneIds.includes("reader") ? { readerWidthRatio: clamp(widths.reader / viewportWidth, MIN_READER_WIDTH_RATIO, MAX_READER_WIDTH_RATIO) } : {}),
-      }))
+      })
+      onWorkspaceChange({
+        ...fitted,
+        lanes: Object.fromEntries(Object.entries(fitted.lanes ?? {}).map(([laneId, lane]) => [laneId, { [widthField]: lane?.width }])) as ReaderWorkspacePatch["lanes"],
+      })
       return
     }
-    const changedLaneIds = laneIds.filter((laneId) => widths[laneId] !== swimlane.lanes[laneId].width)
+    const changedLaneIds = laneIds.filter((laneId) => widths[laneId] !== swimlane.lanes[laneId]?.[widthField])
     if (!changedLaneIds.length) return
-    const lanes = Object.fromEntries(changedLaneIds.map((laneId) => [laneId, { width: widths[laneId] }]))
+    const lanes = Object.fromEntries(changedLaneIds.map((laneId) => [laneId, { [widthField]: widths[laneId] }]))
     onWorkspaceChange({
       ...(changedLaneIds.includes("reader") ? { readerWidthRatio: clamp(widths.reader / viewportWidth, MIN_READER_WIDTH_RATIO, MAX_READER_WIDTH_RATIO) } : {}),
       lanes,
@@ -348,11 +381,16 @@ export function ReaderSwimlaneWorkspace({
   useEffect(() => {
     const current = swimlaneRef.current
     if (!current.autoFitToViewport || soloLaneId) return
-    const patch = fitReaderSwimlanesToViewport(viewportWidth, current)
+    const patch = fitReaderSwimlanesToViewport(viewportWidth, {
+      ...current,
+      lanes: Object.fromEntries(current.laneOrder.map((laneId) => [laneId, { ...current.lanes[laneId], width: configuredLaneWidth(laneId) }])),
+    })
     // Unconditional commits rewrite shell every cycle → Maximum update depth.
-    if (isSwimlaneFitNoOp(current, patch)) return
-    onWorkspaceChangeRef.current(patch)
-  }, [autoFitGeometryKey, swimlane.autoFitToViewport, soloLaneId, viewportWidth])
+    const profileLanes = Object.fromEntries(Object.entries(patch.lanes ?? {}).map(([laneId, lane]) => [laneId, { [widthField]: lane?.width }])) as ReaderWorkspacePatch["lanes"]
+    const profileNoOp = Object.entries(patch.lanes ?? {}).every(([laneId, lane]) => lane?.width === configuredLaneWidth(laneId))
+    if (profileNoOp && (patch.readerWidthRatio === undefined || Math.abs(patch.readerWidthRatio - current.readerWidthRatio) <= 1e-9)) return
+    onWorkspaceChangeRef.current({ ...patch, lanes: profileLanes })
+  }, [autoFitGeometryKey, swimlane.autoFitToViewport, soloLaneId, viewportWidth, widthField])
 
   function addLane(title: string): void {
     const existing = new Set(swimlane.laneOrder)
@@ -384,11 +422,11 @@ export function ReaderSwimlaneWorkspace({
     if (laneId === "reader") {
       onWorkspaceChange({
         readerWidthRatio: clamp(next / viewportWidth, MIN_READER_WIDTH_RATIO, MAX_READER_WIDTH_RATIO),
-        lanes: { reader: { width: next } },
+        lanes: { reader: { [widthField]: next } },
       })
       return
     }
-    onWorkspaceChange({ lanes: { [laneId]: { width: next } } })
+    onWorkspaceChange({ lanes: { [laneId]: { [widthField]: next } } })
   }
 
   function beginPan(event: ReactPointerEvent<HTMLElement>): void {
@@ -430,9 +468,15 @@ export function ReaderSwimlaneWorkspace({
     const lane = swimlane.lanes[laneId] ?? { width: 320, collapsed: false }
     const active = swimlane.activeLane === laneId
     const solo = soloLaneId === laneId
+    const previewBoundary = Boolean(
+      previewLane
+      && nextLaneId
+      && ((laneId === previewLane && nextLaneId === soloLaneId) || (laneId === soloLaneId && nextLaneId === previewLane)),
+    )
     const collapsed = lane.collapsed && !solo
+    const configuredWidth = laneId === "reader" ? readerNormalWidth : configuredLaneWidth(laneId)
     const effectiveWidth = effectiveSwimlaneWidth(
-      laneId === "reader" ? readerNormalWidth : lane.width,
+      configuredWidth,
       collapsed,
       laneId,
       { laneOrder: swimlane.laneOrder, activeLaneId: swimlane.activeLane, soloLaneId },
@@ -454,7 +498,7 @@ export function ReaderSwimlaneWorkspace({
         collapsed={collapsed}
         width={effectiveWidth}
         solo={solo}
-        resizeBoundaryWith={!readerViewFullscreen && nextLaneId && !solo && soloLaneId !== nextLaneId ? nextLaneId : undefined}
+        resizeBoundaryWith={!readerViewFullscreen && nextLaneId && ((!solo && soloLaneId !== nextLaneId) || previewBoundary) ? nextLaneId : undefined}
         dragged={draggedLane === laneId}
         setRef={(node) => { laneRefs.current[laneId] = node }}
         onActivate={() => activateLane(laneId)}
@@ -464,7 +508,7 @@ export function ReaderSwimlaneWorkspace({
             ? { activeLane: "reader", readerSolo: true, soloLaneId: null, lanes: { reader: { collapsed: false } } }
             : { activeLane: laneId, soloLaneId: laneId, lanes: { [laneId]: { collapsed: false } } })}
         onCollapsedChange={(next) => onWorkspaceChange({ lanes: { [laneId]: { collapsed: next } } })}
-        configuredWidth={laneId === "reader" ? readerNormalWidth : lane.width}
+        configuredWidth={configuredWidth}
         minimumWidth={laneWidthBounds(laneId).minimum}
         maximumWidth={laneWidthBounds(laneId).maximum}
         onWidthCommit={(width) => commitExplicitLaneWidth(laneId, width)}
@@ -492,8 +536,21 @@ export function ReaderSwimlaneWorkspace({
           expanded: swimlane.windowControlsExpanded === true,
         } : undefined}
         onTitlebarDoubleClick={windowChrome?.onTitlebarDoubleClick}
+        onResizeStart={previewBoundary ? () => {
+          previewResizeRef.current = true
+          cancelPreviewRestore()
+        } : undefined}
         onResizeBoundary={nextLaneId ? (deltaRatio) => resizeLaneBoundary(laneId, nextLaneId, deltaRatio) : undefined}
-        onResizeEnd={nextLaneId ? () => commitLaneWidths([laneId, nextLaneId]) : undefined}
+        onResizeEnd={nextLaneId ? () => {
+          previewResizeRef.current = false
+          commitLaneWidths(previewBoundary && previewLane ? [previewLane] : [laneId, nextLaneId])
+        } : undefined}
+        onResizePointerEnter={previewBoundary ? cancelPreviewRestore : undefined}
+        onResizePointerLeave={previewBoundary ? (event) => {
+          const related = event.relatedTarget
+          if (previewLane && related instanceof Node && laneRefs.current[previewLane]?.contains(related)) cancelPreviewRestore()
+          else schedulePreviewRestore()
+        } : undefined}
         onHeaderPointerDown={beginPan}
         onHeaderPointerMove={movePan}
         onHeaderPointerUp={(event) => endPan(event, laneId)}
@@ -686,7 +743,10 @@ interface ReaderSwimlaneProps {
   }
   onTitlebarDoubleClick?: MouseEventHandler<HTMLElement>
   onResizeBoundary?(deltaRatio: number): void
+  onResizeStart?(): void
   onResizeEnd?(): void
+  onResizePointerEnter?(): void
+  onResizePointerLeave?(event: ReactPointerEvent<HTMLDivElement>): void
   onHeaderPointerDown(event: ReactPointerEvent<HTMLElement>): void
   onHeaderPointerMove(event: ReactPointerEvent<HTMLElement>): void
   onHeaderPointerUp(event: ReactPointerEvent<HTMLElement>): void
@@ -740,7 +800,10 @@ function ReaderSwimlane({
   windowChrome,
   onTitlebarDoubleClick,
   onResizeBoundary,
+  onResizeStart,
   onResizeEnd,
+  onResizePointerEnter,
+  onResizePointerLeave,
   onHeaderPointerDown,
   onHeaderPointerMove,
   onHeaderPointerUp,
@@ -895,8 +958,11 @@ function ReaderSwimlane({
         label={`调整${label}与${DEFAULT_LANE_LABELS[resizeBoundaryWith] ?? resizeBoundaryWith}泳道宽度`}
         edge="end"
         className="absolute inset-y-0 right-0 z-30 w-2"
+        onResizeStart={onResizeStart}
         onResize={onResizeBoundary}
         onResizeEnd={onResizeEnd}
+        onPointerEnter={onResizePointerEnter}
+        onPointerLeave={onResizePointerLeave}
       /> : null}
     </section>
   )
@@ -1065,8 +1131,8 @@ function clearTimer(ref: { current: ReturnType<typeof setTimeout> | undefined })
   ref.current = undefined
 }
 
-function scrollViewport(viewport: HTMLElement, left: number): void {
-  if (typeof viewport.scrollTo === "function") viewport.scrollTo({ left, behavior: reducedMotion() ? "auto" : "smooth" })
+function scrollViewport(viewport: HTMLElement, left: number, behavior?: ScrollBehavior): void {
+  if (typeof viewport.scrollTo === "function") viewport.scrollTo({ left, behavior: behavior ?? (reducedMotion() ? "auto" : "smooth") })
   else viewport.scrollLeft = left
 }
 

@@ -2,6 +2,77 @@ import { expect, test, type Page } from "@playwright/test"
 
 const HARNESS = "/tests/e2e/neoview/neoview-swimlane-workspace-harness.html"
 
+test("[neoview.swimlane.preview-resize-e2e] keeps an auto-revealed side lane open on its divider", async ({ page }, testInfo) => {
+  await openHarness(page, { width: 1920, height: 1080 })
+  await page.locator('[data-reader-breadcrumb-bar="true"]').getByRole("button", { name: "泳道模式" }).click()
+  const workspace = page.locator('[data-neoview-workspace-mode="swimlane"]')
+  const rightLane = page.locator('[data-reader-swimlane="right"]')
+  await page.locator('[data-reader-swimlane-trigger="right"]').hover()
+  await expect(workspace).toHaveAttribute("data-reader-swimlane-preview", "right")
+
+  const divider = page.getByRole("separator", { name: "调整阅读器与右侧面板泳道宽度" })
+  await divider.hover()
+  await page.waitForTimeout(500)
+  await expect(workspace).toHaveAttribute("data-reader-swimlane-preview", "right")
+  await expect(divider).toBeVisible()
+
+  const initialWidth = await rightLane.evaluate((lane) => lane.getBoundingClientRect().width)
+  await dragHorizontally(page, divider, -40)
+  await expect(rightLane).toHaveJSProperty("offsetWidth", initialWidth + 40)
+  await expect(workspace).toHaveAttribute("data-reader-swimlane-preview", "right")
+  await page.screenshot({ path: testInfo.outputPath("neoview-swimlane-preview-resize-1920x1080.png") })
+})
+
+test("[neoview.swimlane.preview-resize-anchor-e2e] keeps the left divider under the pointer after release", async ({ page }) => {
+  await openHarness(page, { width: 1920, height: 1080 })
+  await page.locator('[data-reader-breadcrumb-bar="true"]').getByRole("button", { name: "泳道模式" }).click()
+  const workspace = page.locator('[data-neoview-workspace-mode="swimlane"]')
+  await page.locator('[data-reader-swimlane-trigger="left"]').hover()
+  await expect(workspace).toHaveAttribute("data-reader-swimlane-preview", "left")
+  const divider = page.getByRole("separator", { name: "调整左侧面板与阅读器泳道宽度" })
+  await divider.hover()
+  const box = await divider.boundingBox()
+  expect(box).not.toBeNull()
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box!.x - 40, box!.y + box!.height / 2, { steps: 8 })
+  const beforeRelease = await divider.evaluate((node) => node.getBoundingClientRect().x)
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+  const afterRelease = await divider.evaluate((node) => node.getBoundingClientRect().x)
+  expect(Math.abs(afterRelease - beforeRelease)).toBeLessThanOrEqual(1)
+})
+
+test("[neoview.swimlane.width-profiles-e2e] restores widths by orientation and Reader fullscreen state", async ({ page }) => {
+  await openHarness(page, { width: 1920, height: 1080 })
+  await page.locator('[data-reader-breadcrumb-bar="true"]').getByRole("button", { name: "泳道模式" }).click()
+  const workspace = page.locator('[data-neoview-workspace-mode="swimlane"]')
+  const rightLane = page.locator('[data-reader-swimlane="right"]')
+  await page.locator('[data-reader-swimlane-trigger="right"]').hover()
+  await expect(workspace).toHaveAttribute("data-reader-swimlane-preview", "right")
+  let divider = page.getByRole("separator", { name: "调整阅读器与右侧面板泳道宽度" })
+  await dragHorizontally(page, divider, -40)
+  await expect(rightLane).toHaveJSProperty("offsetWidth", 420)
+
+  await page.setViewportSize({ width: 700, height: 1000 })
+  await expect(rightLane).toHaveJSProperty("offsetWidth", 380)
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await expect(rightLane).toHaveJSProperty("offsetWidth", 420)
+
+  await page.getByRole("button", { name: "阅读器更多设置" }).click()
+  await page.getByRole("menuitem", { name: "退出全屏" }).click()
+  await expect(rightLane).toHaveJSProperty("offsetWidth", 380)
+  divider = page.getByRole("separator", { name: "调整阅读器与右侧面板泳道宽度" })
+  await dragHorizontally(page, divider, -30)
+  const landscapeNormalWidth = await rightLane.evaluate((lane) => lane.getBoundingClientRect().width)
+  expect(landscapeNormalWidth).toBeGreaterThan(380)
+  expect(landscapeNormalWidth).not.toBe(420)
+
+  await page.getByRole("button", { name: "阅读器更多设置" }).click()
+  await page.getByRole("menuitem", { name: "当前泳道全屏" }).click()
+  await expect(rightLane).toHaveJSProperty("offsetWidth", 420)
+})
+
 test("[neoview.swimlane.workspace-e2e] keeps flat reveal, Reader focus and fused chrome", async ({ page }, testInfo) => {
   await openHarness(page, { width: 1920, height: 1080 })
   const breadcrumb = page.locator('[data-reader-breadcrumb-bar="true"]')

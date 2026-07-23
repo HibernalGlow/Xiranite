@@ -7,6 +7,8 @@ import { fitSwimlaneWidthsToViewport, reorderSwimlanes } from "@/components/work
 
 export type ReaderWorkspaceConfig = NonNullable<ReaderShellConfigDto["workspace"]>
 export type ReaderWorkspacePatch = NonNullable<ReaderShellControlPatch["shellControl"]["workspace"]>
+export type ReaderSwimlaneOrientation = "landscape" | "portrait"
+export type ReaderSwimlaneWidthField = "landscapeWidth" | "portraitWidth" | "landscapeReaderSoloWidth" | "portraitReaderSoloWidth"
 
 const LANE_ORDER: readonly ReaderSwimlaneId[] = ["left", "reader", "right"]
 export const MIN_READER_WIDTH_RATIO = 0.25
@@ -172,6 +174,14 @@ export function readerLaneWidth(viewportWidth: number, ratio: number): number {
   return Math.max(1, Math.round(viewportWidth * normalizeReaderWidthRatio(ratio)))
 }
 
+export function readerSwimlaneWidthField(
+  orientation: ReaderSwimlaneOrientation,
+  readerSolo: boolean,
+): ReaderSwimlaneWidthField {
+  if (orientation === "portrait") return readerSolo ? "portraitReaderSoloWidth" : "portraitWidth"
+  return readerSolo ? "landscapeReaderSoloWidth" : "landscapeWidth"
+}
+
 export function fitReaderSwimlanesToViewport(
   viewportWidth: number,
   swimlane: ReaderWorkspaceConfig["swimlane"],
@@ -319,6 +329,10 @@ function normalizeLane(
   }
   return {
     width: sanitizeSwimlaneWidth(laneId, Number.isFinite(lane?.width) ? lane!.width : width),
+    ...(Number.isFinite(lane?.landscapeWidth) ? { landscapeWidth: sanitizeSwimlaneWidth(laneId, lane!.landscapeWidth) } : {}),
+    ...(Number.isFinite(lane?.portraitWidth) ? { portraitWidth: sanitizeSwimlaneWidth(laneId, lane!.portraitWidth) } : {}),
+    ...(Number.isFinite(lane?.landscapeReaderSoloWidth) ? { landscapeReaderSoloWidth: sanitizeSwimlaneWidth(laneId, lane!.landscapeReaderSoloWidth) } : {}),
+    ...(Number.isFinite(lane?.portraitReaderSoloWidth) ? { portraitReaderSoloWidth: sanitizeSwimlaneWidth(laneId, lane!.portraitReaderSoloWidth) } : {}),
     collapsed: lane?.collapsed === true,
     ...(lane?.title ? { title: lane.title } : {}),
     ...(lane?.activePanelId || activePanelId ? { activePanelId: lane?.activePanelId ?? activePanelId } : {}),

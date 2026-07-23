@@ -795,6 +795,38 @@ describe("parseNeoviewRuntimeConfig", () => {
         },
       },
     })
+    expect(parseNeoviewRuntimeConfig({
+      panels: {
+        swimlane: {
+          left: {
+            width: 320,
+            landscape_width: 360,
+            portrait_width: 280,
+            landscape_reader_solo_width: 440,
+            portrait_reader_solo_width: 300,
+          },
+        },
+      },
+    }).shellOptions.workspace.swimlane.lanes.left).toMatchObject({
+      width: 320,
+      landscapeWidth: 360,
+      portraitWidth: 280,
+      landscapeReaderSoloWidth: 440,
+      portraitReaderSoloWidth: 300,
+    })
+    expect(parseNeoviewShellControlPatch({
+      expectedRevision: 9,
+      shellControl: {
+        workspace: {
+          lanes: {
+            left: { landscapeReaderSoloWidth: 456 },
+          },
+        },
+      },
+    })).toMatchObject({
+      patch: { shellControl: { workspace: { lanes: { left: { landscapeReaderSoloWidth: 456 } } } } },
+      tomlPatch: { panels: { swimlane: { left: { landscape_reader_solo_width: 456 } } } },
+    })
     expect(() => parseNeoviewShellControlPatch({
       expectedRevision: 0,
       shellControl: { workspace: { lanes: { reader: { width: 80 } } } },

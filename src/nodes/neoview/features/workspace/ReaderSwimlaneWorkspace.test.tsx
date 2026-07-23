@@ -232,6 +232,41 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(onWorkspaceChange).not.toHaveBeenCalled()
   })
 
+  it.each([
+    { edge: "left" as const, label: "调整左侧面板与阅读器泳道宽度", startX: 100, endX: 132 },
+    { edge: "right" as const, label: "调整阅读器与右侧面板泳道宽度", startX: 300, endX: 268 },
+  ])("keeps the $edge preview open on its divider and resizes only that side lane", ({ edge, label, startX, endX }) => {
+    const shell = shellConfig("swimlane", "reader")
+    const onWorkspaceChange = vi.fn()
+    render(
+      <ReaderSwimlaneWorkspace
+        shell={shell}
+        workspace={readerWorkspaceConfig(shell)}
+        reader={<div>reader</div>}
+        left={<div>left</div>}
+        right={<div>right</div>}
+        onWorkspaceChange={onWorkspaceChange}
+      />,
+    )
+
+    fireEvent.pointerEnter(document.querySelector(`[data-reader-swimlane-trigger="${edge}"]`)!)
+    act(() => vi.advanceTimersByTime(180))
+    const preview = document.querySelector<HTMLElement>(`[data-reader-swimlane="${edge}"]`)!
+    const separator = screen.getByRole("separator", { name: label })
+    const initialWidth = Number.parseFloat(preview.style.width)
+
+    fireEvent.pointerLeave(preview)
+    fireEvent.pointerEnter(separator)
+    act(() => vi.advanceTimersByTime(500))
+    expect(document.querySelector(`[data-reader-swimlane-preview="${edge}"]`)).toBeTruthy()
+
+    fireEvent.pointerDown(separator, { pointerId: 61, clientX: startX, button: 0 })
+    fireEvent.pointerMove(window, { pointerId: 61, clientX: endX })
+    fireEvent.pointerUp(window, { pointerId: 61, clientX: endX })
+    expect(Number.parseFloat(preview.style.width)).toBe(initialWidth + 32)
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith({ lanes: { [edge]: { landscapeReaderSoloWidth: initialWidth + 32 } } })
+  })
+
   it("does not cover an active side lane with the reveal trigger while Reader fullscreen stays latent", () => {
     const shell = shellConfig("swimlane", "right")
     render(
@@ -280,7 +315,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     fireEvent.pointerUp(window, { pointerId: 51, clientX: 132 })
     expect(onWorkspaceChange).toHaveBeenCalledWith({
       readerWidthRatio: 0.46875,
-      lanes: { left: { width: 352 }, reader: { width: 480 } },
+      lanes: { left: { landscapeWidth: 352 }, reader: { landscapeWidth: 480 } },
     })
 
     fireEvent.pointerDown(right, { pointerId: 52, clientX: 300, button: 0 })
@@ -288,7 +323,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     fireEvent.pointerUp(window, { pointerId: 52, clientX: 268 })
     expect(onWorkspaceChange).toHaveBeenLastCalledWith({
       readerWidthRatio: 0.4375,
-      lanes: { reader: { width: 448 }, right: { width: 332 } },
+      lanes: { reader: { landscapeWidth: 448 }, right: { landscapeWidth: 332 } },
     })
   })
 
@@ -337,7 +372,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(onWorkspaceChange).toHaveBeenCalledOnce()
     expect(onWorkspaceChange).toHaveBeenCalledWith({
       readerWidthRatio: 0.6,
-      lanes: { reader: { width: 360 }, right: { width: 240 } },
+      lanes: { reader: { portraitWidth: 360 }, right: { portraitWidth: 240 } },
     })
   })
 
@@ -437,7 +472,7 @@ describe("ReaderSwimlaneWorkspace", () => {
     const width = screen.getByRole("spinbutton", { name: "左侧面板宽度" })
     fireEvent.change(width, { target: { value: "420" } })
     fireEvent.blur(width)
-    expect(onWorkspaceChange).toHaveBeenLastCalledWith({ lanes: { left: { width: 420 } } })
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith({ lanes: { left: { landscapeWidth: 420 } } })
   })
 
   it("moves Reader fullscreen to the Reader titlebar and hides that chrome while active", () => {

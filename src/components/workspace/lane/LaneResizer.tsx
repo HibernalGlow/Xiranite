@@ -3,15 +3,18 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 
 interface Props {
+  onResizeStart?: () => void
   onResize?: (deltaRatio: number) => void
   onResizeEnd?: () => void
+  onPointerEnter?: () => void
+  onPointerLeave?: (event: React.PointerEvent<HTMLDivElement>) => void
   className?: string
   label?: string
   onReset?: () => void
   edge?: "start" | "end"
 }
 
-export function LaneResizer({ onResize, onResizeEnd, className, label, onReset, edge }: Props) {
+export function LaneResizer({ onResizeStart, onResize, onResizeEnd, onPointerEnter, onPointerLeave, className, label, onReset, edge }: Props) {
   const { t } = useTranslation()
   const startXRef = useRef(0)
   const pointerIdRef = useRef<number | null>(null)
@@ -43,6 +46,7 @@ export function LaneResizer({ onResize, onResizeEnd, className, label, onReset, 
     event.stopPropagation()
 
     finishResize(false)
+    onResizeStart?.()
 
     startXRef.current = event.clientX
     pointerIdRef.current = event.pointerId
@@ -86,6 +90,8 @@ export function LaneResizer({ onResize, onResizeEnd, className, label, onReset, 
       aria-orientation="vertical"
       aria-label={label ?? t("common:resizeLane")}
       data-lane-resizer-edge={edge}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
       onPointerDown={handlePointerDown}
       onLostPointerCapture={() => finishResize()}
       onDoubleClick={onReset}

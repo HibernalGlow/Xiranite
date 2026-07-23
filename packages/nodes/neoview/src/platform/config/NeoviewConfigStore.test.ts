@@ -132,7 +132,7 @@ describe("commitNeoviewConfig", () => {
           windowControlsOwnerLaneId: "research",
           windowControlsExpanded: true,
           lanes: {
-            left: { width: 420, collapsed: false, activePanelId: "folder" },
+            left: { width: 420, landscapeWidth: 360, portraitWidth: 280, landscapeReaderSoloWidth: 440, portraitReaderSoloWidth: 300, collapsed: false, activePanelId: "folder" },
             reader: { width: 1440 },
             research: { width: 460, collapsed: false, title: "资料" },
             right: { width: 380, collapsed: true, activePanelId: "info" },
@@ -146,7 +146,7 @@ describe("commitNeoviewConfig", () => {
     expect(written).toContain("[nodes.neoview.panels.swimlane]")
     expect(written).toContain("reader_width_ratio = 0.75")
     expect(written).toContain("reader_solo_on_focus = false")
-    expect(written).toContain('solo_lane = "research"')
+    expect(written).not.toContain("solo_lane")
     expect(written).toContain("edge_reveal_delay_ms = 280")
     expect(written).toContain("left_reveal_zone = { x = 4, y = 16, width = 8, height = 68 }")
     expect(written).toContain("right_reveal_zone = { x = 88, y = 16, width = 8, height = 68 }")
@@ -163,7 +163,7 @@ describe("commitNeoviewConfig", () => {
     expect(written).toContain('window_controls_placement = "titlebar"')
     expect(written).toContain('window_controls_owner_lane_id = "research"')
     expect(written).toContain("window_controls_expanded = true")
-    expect(written).toContain('left = { width = 420, collapsed = false, active_panel_id = "folder" }')
+    expect(written).toContain('left = { width = 420, landscape_width = 360, portrait_width = 280, landscape_reader_solo_width = 440, portrait_reader_solo_width = 300, collapsed = false, active_panel_id = "folder" }')
     expect(written).toContain("reader = { width = 1440 }")
     expect(written).toContain('research = { width = 460, collapsed = false, title = "资料" }')
     expect(written).toContain('right = { width = 380, collapsed = true, active_panel_id = "info" }')
@@ -177,7 +177,6 @@ describe("commitNeoviewConfig", () => {
       swimlane: {
         laneOrder: ["left", "reader", "research", "right"],
         readerSoloOnFocus: false,
-        soloLaneId: "research",
         edgeRevealZones: {
           left: { x: 4, y: 16, width: 8, height: 68 },
           right: { x: 88, y: 16, width: 8, height: 68 },
@@ -193,7 +192,10 @@ describe("commitNeoviewConfig", () => {
         windowControlsPlacement: "titlebar",
         windowControlsOwnerLaneId: "research",
         windowControlsExpanded: true,
-        lanes: { research: { width: 460, collapsed: false, title: "资料" } },
+        lanes: {
+          left: { width: 420, landscapeWidth: 360, portraitWidth: 280, landscapeReaderSoloWidth: 440, portraitReaderSoloWidth: 300 },
+          research: { width: 460, collapsed: false, title: "资料" },
+        },
       },
     })
   })
