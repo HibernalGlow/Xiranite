@@ -15,7 +15,7 @@ vi.mock("@/nodes/shared/useNodeSurface", async (importOriginal) => {
   return { ...actual, useNodeSurface: () => { const mode = actual.resolveNodeSurfaceMode(surfaceState); return { ref: { current: null }, ...surfaceState, mode, density: actual.resolveNodeSurfaceDensity(mode) } } }
 })
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); setSurface("regular") })
+afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); setSurface("regular") })
 
 describe("app-owned xlchemy Component", () => {
   test.each(NODE_SURFACE_TEST_MODES)("renders the %s surface", (mode) => {
@@ -35,7 +35,7 @@ describe("app-owned xlchemy Component", () => {
       expect(screen.getByTestId("xlchemy-input-workbench")).toBeTruthy()
       expect(screen.getByRole("button", { name: "添加输入" })).toBeTruthy()
       expect(screen.getByRole("button", { name: "一键转换剪贴板图片" })).toBeTruthy()
-      expect(screen.getByRole("button", { name: "配置剪贴板转换" })).toBeTruthy()
+      expect(screen.getByRole("button", { name: "剪贴板转换选项" })).toBeTruthy()
       expect(screen.getByRole("button", { name: "排序方式" })).toBeTruthy()
       expect(within(screen.getByTestId("xlchemy-header")).getByText("1 项")).toBeTruthy()
       expect(screen.getByRole("radio", { name: "文件树视图" })).toBeTruthy()
@@ -88,6 +88,33 @@ describe("app-owned xlchemy Component", () => {
     await user.click(screen.getByRole("button", { name: "预览计划" }))
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toMatchObject({ nodeId: "xlchemy", input: { action: "plan", paths: ["D:/images/a.png"], quality: 60 } })
+  })
+
+  test("automatically saves changed options through the existing node config", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png", format: "JPEG XL", quality: 60 })
+    const getConfig = vi.fn(async () => ({ config: { format: "JPEG XL", quality: 60 }, path: "D:/config/xiranite.config.toml" }))
+    const saveConfig = vi.fn(async (config: Partial<XlchemyCardState>) => { host.savedConfig = config })
+    host.config!.get = getConfig
+    host.config!.save = saveConfig
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    await waitFor(() => expect(getConfig).toHaveBeenCalledOnce())
+
+    await user.click(screen.getByRole("combobox", { name: "目标格式" }))
+    await user.click(screen.getByRole("option", { name: /WebP/ }))
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+
+    await waitFor(() => expect(saveConfig).toHaveBeenCalled(), { timeout: 2_000 })
+    expect(host.savedConfig).toMatchObject({ format: "WebP", quality: 60 })
+  })
+
+  test("preserves loaded defaults when startup state is only partially populated", async () => {
+    const host = createHost({})
+    host.config!.get = vi.fn(async () => ({ config: { format: "AVIF" as const, quality: 81 }, path: "D:/config/xiranite.config.toml" }))
+    render(<Component compId="xlchemy-card" host={host} />)
+
+    await waitFor(() => expect(host.savedConfig).toBeDefined(), { timeout: 2_000 })
+    expect(host.savedConfig).toMatchObject({ format: "AVIF", quality: 81, excludedFormatsText: "avif,jxl,webp,gif" })
   })
 
   test("opens the filename rule editor and passes default PSD and CLIP rules", async () => {
@@ -253,6 +280,11 @@ describe("app-owned xlchemy Component", () => {
   })
 
   test("keeps imported EFU files as backend-streamed references", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response([
+      "Filename,Size",
+      "D:/Pictures/a.png,100",
+      "D:/Pictures/b.jpg,300",
+    ].join("\r\n"))))
     const host = createHost({})
     host.localFiles = {
       getUrl: (path) => `local://${path}`,
@@ -264,10 +296,13 @@ describe("app-owned xlchemy Component", () => {
     await user.click(screen.getByRole("button", { name: "添加输入" }))
     await user.click(screen.getByRole("menuitem", { name: "导入 EFU 文件列表" }))
     await waitFor(() => expect(host.cardState.efuFiles).toEqual(["D:/Downloads/al.efu"]))
+    await waitFor(() => expect(host.cardState.efuAnalysisByPath?.["D:/Downloads/al.efu"]).toMatchObject({ totalFiles: 2, totalSize: 400 }))
     expect(host.cardState.pathsText).toBeUndefined()
 
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(screen.getByText("al.efu")).toBeTruthy()
+    expect(within(screen.getByTestId("xlchemy-header")).getByText("2 项 · 1 EFU")).toBeTruthy()
+    expect(screen.getByText("200 B")).toBeTruthy()
     const plan = within(screen.getByTestId("xlchemy-header")).getByRole("button", { name: "预览计划" })
     expect(plan.hasAttribute("disabled")).toBe(false)
     fireEvent.click(plan)
@@ -551,10 +586,11 @@ describe("app-owned xlchemy Component", () => {
     render(<Component compId="xlchemy-card" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "配置剪贴板转换" }))
-    expect(screen.getByRole("combobox", { name: "剪贴板目标格式" }).textContent).toContain("WebP")
+    expect(screen.queryByRole("button", { name: "配置剪贴板转换" })).toBeNull()
+    await user.click(screen.getByRole("button", { name: "剪贴板转换选项" }))
+    expect(screen.getByRole("menuitemradio", { name: "WebP (.webp)" }).getAttribute("aria-checked")).toBe("true")
     expect(screen.getByRole("slider", { name: "剪贴板质量" }).getAttribute("aria-valuenow")).toBe("74")
-    await user.click(screen.getByRole("button", { name: "取消" }))
+    await user.keyboard("{Escape}")
     await user.click(screen.getByRole("button", { name: "一键转换剪贴板图片" }))
 
     await waitFor(() => expect(writeImage).toHaveBeenCalledWith({ base64: "d2VicA==", mimeType: "image/webp" }))
