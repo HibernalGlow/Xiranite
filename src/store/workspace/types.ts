@@ -153,6 +153,8 @@ export interface WSState {
   resizableHandleStyle: ResizableHandleStyle
   /** 危险模式（高对比警示色）。 */
   hazardMode: boolean
+  /** 启动时是否从工作区快照恢复节点实例。 */
+  restoreWorkspaceComponents: boolean
   /** 项目级 lane 视图按 workspace 保存的聚焦、独占与操作栏偏好。 */
   laneWorkspacePreferences: Record<string, SwimlaneWorkspacePreferences>
 }
@@ -224,6 +226,7 @@ export interface WorkspaceUiActions {
   setModulePanelStyle(style: ModulePanelStyle): void
   setResizableHandleStyle(style: ResizableHandleStyle): void
   setHazardMode(enabled: boolean): void
+  setRestoreWorkspaceComponents(enabled: boolean): void
   patchLaneWorkspacePreferences(workspaceId: string, patch: Partial<SwimlaneWorkspacePreferences>): void
 }
 
@@ -358,6 +361,7 @@ export type WorkspaceUiPreferences = Pick<
   | "modulePanelStyle"
   | "resizableHandleStyle"
   | "hazardMode"
+  | "restoreWorkspaceComponents"
   | "laneWorkspacePreferences"
 >
 

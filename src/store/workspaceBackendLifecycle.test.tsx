@@ -4,11 +4,11 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import i18next from "i18next"
 import { I18nextProvider, initReactI18next } from "react-i18next"
-import { afterEach, describe, expect, test, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { createXiraniteSystemClient, createXiraniteWorkspaceClient } from "@xiranite/api/client"
 import { BackendStatusBanner } from "@/components/workspace/BackendStatusBanner"
 import { WorkspaceProvider, workspaceSnapshotHydrationKey } from "./workspaceContext"
-import { useWorkspaceActions, useWorkspaceShallowSelector } from "./workspaceStore"
+import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceStore } from "./workspaceStore"
 
 const healthMock = vi.hoisted(() => vi.fn())
 const loadSnapshotMock = vi.hoisted(() => vi.fn())
@@ -22,10 +22,9 @@ vi.mock("@xiranite/api/client", () => ({
   })),
 }))
 
-// Lifecycle tests assert real hydrate/persist behavior; keep restore enabled here.
-vi.mock("@/store/workspace/restorePolicy", () => ({
-  RESTORE_WORKSPACE_COMPONENTS: true,
-}))
+beforeEach(() => {
+  useWorkspaceStore.setState({ restoreWorkspaceComponents: true, components: [] })
+})
 
 afterEach(() => {
   cleanup()
@@ -35,6 +34,7 @@ afterEach(() => {
   persistSnapshotMock.mockReset()
   delete window.__XIRANITE_BACKEND__
   localStorage.clear()
+  useWorkspaceStore.setState({ restoreWorkspaceComponents: false, components: [] })
 })
 
 describe("WorkspaceProvider backend lifecycle", () => {
@@ -48,6 +48,27 @@ describe("WorkspaceProvider backend lifecycle", () => {
 
     expect(workspaceSnapshotHydrationKey(first, false)).toBe(workspaceSnapshotHydrationKey(second, false))
     expect(workspaceSnapshotHydrationKey(first, true)).not.toBe(workspaceSnapshotHydrationKey(second, true))
+  })
+
+  test("restores cached component rows only after automatic restore is enabled", async () => {
+    useWorkspaceStore.setState({ restoreWorkspaceComponents: false, components: [] })
+    window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:39106", token: "workspace-token" }
+    healthMock.mockResolvedValue({ ok: true })
+    loadSnapshotMock.mockResolvedValue({
+      workspaces: [{ id: "ws-restore", label: "Restore", createdAt: 1, updatedAt: 1 }],
+      lanes: [],
+      components: [{ id: "component-restore", moduleId: "neoview", workspaceId: "ws-restore", createdAt: 1, updatedAt: 1 }],
+    })
+
+    renderWithQuery(
+      <WorkspaceProvider>
+        <WorkspaceStateProbe />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId("component-count").textContent).toBe("0"))
+    useWorkspaceStore.getState().setRestoreWorkspaceComponents(true)
+    await waitFor(() => expect(screen.getByTestId("component-count").textContent).toBe("1"))
   })
 
   test("does not load a workspace snapshot when the local backend is not configured", async () => {
@@ -190,6 +211,7 @@ function WorkspaceStateProbe() {
     activeWorkspaceId: workspace.activeWorkspaceId,
     overlay: workspace.overlay,
     componentValue: workspace.components.find((component) => component.id === "component-race")?.data?.value,
+    componentCount: workspace.components.length,
   }))
   const workspaceActions = useWorkspaceActions()
 
@@ -199,6 +221,7 @@ function WorkspaceStateProbe() {
       <output data-testid="active-workspace">{state.activeWorkspaceId}</output>
       <output data-testid="overlay">{state.overlay ?? "none"}</output>
       <output data-testid="component-value">{String(state.componentValue ?? "")}</output>
+      <output data-testid="component-count">{state.componentCount}</output>
       <button type="button" onClick={() => workspaceActions.patchComponentData("component-race", { value: "older" })}>set older component data</button>
       <button type="button" onClick={() => workspaceActions.patchComponentData("component-race", { value: "latest" })}>set latest component data</button>
     </div>
