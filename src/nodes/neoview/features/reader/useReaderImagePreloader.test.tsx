@@ -26,6 +26,26 @@ describe("useReaderImagePreloader", () => {
     expect(instances).toHaveLength(0)
   })
 
+  it("[neoview.preload.disabled-transition] clears an in-flight speculative image when disabled", async () => {
+    const instances: BlockingImage[] = []
+    vi.stubGlobal("Image", class extends BlockingImage {
+      constructor() {
+        super()
+        instances.push(this)
+      }
+    })
+    const first = page(1)
+    const view = render(<Fixture sessionId="reader-transition" pages={[first]} enabled />)
+
+    await waitFor(() => expect(instances[0]?.decode).toHaveBeenCalledOnce())
+    view.rerender(<Fixture sessionId="reader-transition" pages={[first]} enabled={false} />)
+
+    expect(instances[0]!.src).toBe("")
+    instances[0]!.finishDecode()
+    await new Promise((resolve) => setTimeout(resolve, 450))
+    expect(instances).toHaveLength(1)
+  })
+
   it("[neoview.react.predecode] decodes once, bounds retained images and releases them with the session", async () => {
     const instances: FakeImage[] = []
     vi.stubGlobal("Image", class extends FakeImage {

@@ -174,6 +174,13 @@ export function useReaderImagePreloader(
     if (sessionId) readerPreloadStatusStore.clear(sessionId)
   }, [releaseRetained, sessionId])
 
+  // A freeze-triage flag can change during HMR or a host transition. Clear any
+  // retained/queued work immediately when speculative predecode is disabled;
+  // otherwise the old queue can keep running after the new render is safe.
+  useEffect(() => {
+    if (!enabled) cancel()
+  }, [cancel, enabled])
+
   return useMemo(() => ({ preload, cancel, releaseRetained }), [cancel, preload, releaseRetained])
 }
 
