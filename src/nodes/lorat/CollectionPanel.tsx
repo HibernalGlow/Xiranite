@@ -217,12 +217,21 @@ export function LoratCollectionPanel(props: {
     const sourceUrl = capture.source.pageUrl || capture.source.url
     const captureText = capture.content?.text?.trim()
       || (typeof capture.metadata?.description === "string" ? capture.metadata.description.trim() : "")
-    const notes = [selected.notes?.trim(), captureText].filter(Boolean).join("\n")
+    const captureDetails = [
+      typeof capture.metadata?.author === "string" && capture.metadata.author.trim()
+        ? `Author: ${capture.metadata.author.trim()}`
+        : "",
+      typeof capture.metadata?.published === "string" && capture.metadata.published.trim()
+        ? `Published: ${capture.metadata.published.trim()}`
+        : "",
+      captureText,
+    ].filter(Boolean).join("\n")
+    const notes = [selected.notes?.trim(), captureDetails].filter(Boolean).join("\n\n")
     let previewPatch: Partial<LoratCollectionDraft> = {}
 
-    if (capture.kind === "image") {
-      const attachment = capture.attachments?.[0]
-      if (!attachment) throw new Error("The Nexus image capture has no attachment.")
+    const attachment = capture.attachments?.[0]
+    if (capture.kind === "image" && !attachment) throw new Error("The Nexus image capture has no attachment.")
+    if (attachment) {
       if (!props.localFiles?.stageFiles) throw new Error("This host cannot stage the captured image.")
       setImporting(true)
       try {
