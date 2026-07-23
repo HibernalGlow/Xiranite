@@ -4,13 +4,15 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { parseArgs } from "node:util"
 
-import { startBackend, type StartBackendOptions } from "../packages/backend/src/index"
+import type { StartBackendOptions } from "../packages/backend/src/index"
+
+type StartedBackend = Awaited<ReturnType<(typeof import("../packages/backend/src/index"))["startBackend"]>>
 
 export const DEFAULT_TEST_BACKEND_TTL_SECONDS = 10 * 60
 export const MAX_TEST_BACKEND_TTL_SECONDS = 60 * 60
 
 export interface IsolatedTestBackend {
-  backend: Awaited<ReturnType<typeof startBackend>>
+  backend: StartedBackend
   dataDir: string
   close(): Promise<void>
 }
@@ -25,8 +27,12 @@ type IsolatedBackendOptions = Omit<
 >
 
 export async function startIsolatedTestBackend(options: IsolatedBackendOptions = {}): Promise<IsolatedTestBackend> {
+  // The backend runtime reads this flag while its module graph is first loaded.
+  // Keep the dynamic import below so isolated NeoView checks do not silently use stale dist output.
+  process.env.XIRANITE_NODE_SOURCE ??= "1"
+  const { startBackend } = await import("../packages/backend/src/index")
   const dataDir = await mkdtemp(join(tmpdir(), "xiranite-test-backend-"))
-  let backend: Awaited<ReturnType<typeof startBackend>>
+  let backend: StartedBackend
   try {
     backend = await startBackend({
       ...options,
