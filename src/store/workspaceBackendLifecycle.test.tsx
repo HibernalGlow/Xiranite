@@ -104,6 +104,26 @@ describe("WorkspaceProvider backend lifecycle", () => {
     expect(loadSnapshotMock).toHaveBeenCalledTimes(1)
   })
 
+  test("does not persist a snapshot solely because it was hydrated", async () => {
+    window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:39105", token: "workspace-token" }
+    healthMock.mockResolvedValueOnce({ ok: true })
+    loadSnapshotMock.mockResolvedValueOnce({
+      workspaces: [{ id: "ws-hydrated", label: "Hydrated", createdAt: 1, updatedAt: 1 }],
+      lanes: [],
+      components: [{ id: "component-hydrated", moduleId: "neoview", workspaceId: "ws-hydrated", createdAt: 1, updatedAt: 1 }],
+    })
+
+    renderWithQuery(
+      <WorkspaceProvider>
+        <WorkspaceStateProbe />
+      </WorkspaceProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId("backend-ready").textContent).toBe("ready"))
+    await new Promise((resolve) => setTimeout(resolve, 650))
+    expect(persistSnapshotMock).not.toHaveBeenCalled()
+  })
+
   test("does not hydrate an older persisted snapshot over newer component data", async () => {
     window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:39104", token: "workspace-token" }
     healthMock.mockResolvedValueOnce({ ok: true })
@@ -112,8 +132,6 @@ describe("WorkspaceProvider backend lifecycle", () => {
       lanes: [],
       components: [{ id: "component-race", moduleId: "classf", workspaceId: "ws-race", data: { value: "initial" }, createdAt: 1, updatedAt: 1 }],
     })
-    persistSnapshotMock.mockResolvedValue(undefined)
-
     const { queryClient } = renderWithQuery(
       <WorkspaceProvider>
         <WorkspaceStateProbe />
@@ -121,9 +139,6 @@ describe("WorkspaceProvider backend lifecycle", () => {
     )
 
     await waitFor(() => expect(screen.getByTestId("component-value").textContent).toBe("initial"))
-    await waitFor(() => expect(persistSnapshotMock).toHaveBeenCalled(), { timeout: 2_000 })
-    persistSnapshotMock.mockClear()
-
     const deferred = createDeferred<void>()
     persistSnapshotMock.mockImplementationOnce(() => deferred.promise)
     const user = userEvent.setup()

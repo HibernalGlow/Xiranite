@@ -114,6 +114,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const locallyPersistedSnapshotRef = useRef<WorkspaceSnapshot | undefined>(undefined)
   const lastHydratedSnapshotKeyRef = useRef<string>()
+  const skipHydrationPersistRef = useRef(false)
   /** Last SQLite component rows. Kept so skip-restore mode never writes an empty list. */
   const snapshotComponentsRef = useRef<ComponentDTO[]>([])
   const localBackendStatus = useLocalBackendStatus()
@@ -195,6 +196,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         `[workspace] component restore disabled — skipped ${workspaceQuery.data.components.length} instance(s) (SQLite rows kept)`,
       )
     }
+    // Hydration changes the live store, which would otherwise schedule a full
+    // snapshot PUT 500ms later. In skip-restore mode that PUT serializes every
+    // retained component row despite mounting none of them.
+    skipHydrationPersistRef.current = true
     hydrate(workspaceQuery.data.workspaces, workspaceQuery.data.lanes, componentsToHydrate)
     setBackendReady(true)
     startupDebug("workspace:hydrate-store:end")
@@ -215,6 +220,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!backendReady || !localBackendReady) return undefined
+
+    if (skipHydrationPersistRef.current) {
+      skipHydrationPersistRef.current = false
+      startupDebug("workspace:persist:skip-hydration")
+      return undefined
+    }
 
     const timer = setTimeout(() => {
       const now = Date.now()
