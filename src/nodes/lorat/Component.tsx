@@ -803,16 +803,17 @@ type LoratPersistedConfig = Partial<LoratCardState> & {
 
 function normalizeLoratConfig(config?: LoratPersistedConfig): Partial<LoratCardState> {
   if (!config) return {}
-  return {
-    ...config,
+  return Object.fromEntries(Object.entries({
+    action: config.action,
     folderPath: config.folderPath ?? config.lora_folder,
     collectionRoot: config.collectionRoot ?? config.collection_root,
     collectionOverwrite: config.collectionOverwrite ?? config.collection_overwrite,
     collectionCreateModelFolder: config.collectionCreateModelFolder ?? config.collection_create_model_folder,
     triggerDbJson: config.triggerDbJson ?? config.trigger_db_json,
+    search: config.search,
     statusFilter: config.statusFilter ?? config.status_filter,
     scopeFilter: config.scopeFilter ?? config.scope_filter,
-  }
+  }).filter(([, value]) => value !== undefined)) as Partial<LoratCardState>
 }
 
 function serializeLoratConfig(config: Partial<LoratCardState>): LoratPersistedConfig {
