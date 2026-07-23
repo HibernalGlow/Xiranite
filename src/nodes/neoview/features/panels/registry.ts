@@ -115,7 +115,7 @@ export interface ReaderPanelContext {
   voiceControl?: ReaderRuntimeConfigDto["voiceControl"]
   onVoiceControl?(patch: ReaderVoiceControlPatch["voiceControl"]): Promise<NonNullable<ReaderRuntimeConfigDto["voiceControl"]>>
   preload?: ReaderRuntimeConfigDto["preload"]
-  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
+  onPreload?(patch: Partial<ReaderRuntimeConfigDto["preload"]>): Promise<ReaderRuntimeConfigDto["preload"]>
   onMaterial?(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
@@ -177,7 +177,7 @@ export interface ReaderSettingsCardContext {
   imageProcessing?: ReaderImageProcessingConfigDto
   onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
   preload?: ReaderRuntimeConfigDto["preload"]
-  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
+  onPreload?(patch: Partial<ReaderRuntimeConfigDto["preload"]>): Promise<ReaderRuntimeConfigDto["preload"]>
   inputBindings?: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu?: ReaderRuntimeConfigDto["radialMenu"]

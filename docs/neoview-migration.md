@@ -2160,6 +2160,7 @@ default_zoom_mode = "fit"
 [nodes.neoview.performance]
 cache_memory_size_mb = 1024
 preload_pages = 4
+browser_predecode_enabled = true
 
 [nodes.neoview.performance.presentation_disk_cache]
 enabled = true

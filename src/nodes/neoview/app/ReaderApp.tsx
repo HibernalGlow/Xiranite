@@ -85,11 +85,6 @@ import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCl
 import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../features/workspace/ReaderSwimlaneWorkspace"
 import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
 
-// Keep the reader's visible image path intact while freeze diagnosis runs. The
-// recent adaptive predecode implementation is excluded from this baseline.
-const BACKGROUND_READER_PREDECODE_ENABLED = false
-// The server-side nearby/progressive upscale queue is separate from browser
-// predecode. Keep it behind the same freeze-triage firebreak.
 const BACKGROUND_READER_UPSCALE_PRELOAD_ENABLED = false
 
 function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConfigDto): boolean {
@@ -185,7 +180,7 @@ const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
   random: false,
   fadeTransition: true,
 }
-const INITIAL_PRELOAD_CONFIG = { maxCandidatePages: 4 } satisfies ReaderRuntimeConfigDto["preload"]
+const INITIAL_PRELOAD_CONFIG = { maxCandidatePages: 4, browserPredecodeEnabled: true } satisfies ReaderRuntimeConfigDto["preload"]
 const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   homePath: "",
   viewMode: "compact",
@@ -458,9 +453,10 @@ export function ReaderApp({
    * interactive. Mounting frame+decode+adjacent preload on the same turn freezes the WebView.
    */
   const [readerFrameAllowed, setReaderFrameAllowed] = useState(false)
+  const browserPredecodeEnabled = preloadConfig.browserPredecodeEnabled
   const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
-    : undefined, BACKGROUND_READER_PREDECODE_ENABLED)
+    : undefined, browserPredecodeEnabled)
   const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
   shellRef.current = shell
@@ -1802,8 +1798,8 @@ export function ReaderApp({
     return updated
   }
 
-  async function persistPreload(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]> {
-    if (!client.updatePreload) throw new Error("当前 Reader 不支持预读预算配置写入")
+  async function persistPreload(patch: Partial<ReaderRuntimeConfigDto["preload"]>): Promise<ReaderRuntimeConfigDto["preload"]> {
+    if (!client.updatePreload) throw new Error("当前 Reader 不支持预读配置写入")
     const updated = await client.updatePreload({ preload: patch })
     setPreloadConfig(updated)
     return updated
@@ -1975,7 +1971,7 @@ export function ReaderApp({
     plan: session?.preload,
     // Wait until the visible frame is allowed to mount — adjacent preload on the
     // same turn as setSession was part of the full-window freeze after open.
-    enabled: BACKGROUND_READER_PREDECODE_ENABLED && readerFrameAllowed && (
+    enabled: browserPredecodeEnabled && readerFrameAllowed && (
       !session
       || cancelledPreloadFrame?.sessionId !== session.sessionId
       || cancelledPreloadFrame.generation !== session.frame.generation

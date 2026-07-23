@@ -579,7 +579,14 @@ function parsePreloadConfig(
     Models.DEFAULT_NEOVIEW_PRELOAD_CONFIG.maxCandidatePages,
     "[nodes.neoview.performance].preload_pages",
   )
-  return { maxCandidatePages: Math.min(requested, 32) }
+  return {
+    maxCandidatePages: Math.min(requested, 32),
+    browserPredecodeEnabled:
+      optionalBoolean(
+        performance?.browser_predecode_enabled ?? performance?.browserPredecodeEnabled,
+        "[nodes.neoview.performance].browser_predecode_enabled",
+      ) ?? Models.DEFAULT_NEOVIEW_PRELOAD_CONFIG.browserPredecodeEnabled,
+  }
 }
 
 export function parseNeoviewPreloadPatch(value: unknown): {
@@ -591,14 +598,27 @@ export function parseNeoviewPreloadPatch(value: unknown): {
     throw new Error("reader preload patch contains unsupported fields.")
   }
   const source = requireRecord(record.preload, "reader preload patch.preload")
-  if (Object.keys(source).some((key) => key !== "maxCandidatePages")) {
+  if (Object.keys(source).some((key) => key !== "maxCandidatePages" && key !== "browserPredecodeEnabled")) {
     throw new Error("reader preload patch contains unsupported fields.")
   }
-  if (source.maxCandidatePages === undefined) throw new Error("reader preload patch must change maxCandidatePages.")
-  const maxCandidatePages = boundedInteger(source.maxCandidatePages, 0, 32, "reader preload patch.maxCandidatePages")
+  const preload: Partial<Models.NeoviewPreloadConfig> = {}
+  const performance: Record<string, unknown> = {}
+  if (source.maxCandidatePages !== undefined) {
+    const maxCandidatePages = boundedInteger(source.maxCandidatePages, 0, 32, "reader preload patch.maxCandidatePages")
+    preload.maxCandidatePages = maxCandidatePages
+    performance.preload_pages = maxCandidatePages
+  }
+  if (source.browserPredecodeEnabled !== undefined) {
+    preload.browserPredecodeEnabled = optionalBoolean(
+      source.browserPredecodeEnabled,
+      "reader preload patch.browserPredecodeEnabled",
+    )
+    performance.browser_predecode_enabled = preload.browserPredecodeEnabled
+  }
+  if (Object.keys(preload).length === 0) throw new Error("reader preload patch must change at least one field.")
   return {
-    patch: { preload: { maxCandidatePages } },
-    tomlPatch: { performance: { preload_pages: maxCandidatePages } },
+    patch: { preload },
+    tomlPatch: { performance },
   }
 }
 

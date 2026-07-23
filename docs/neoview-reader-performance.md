@@ -33,9 +33,9 @@ The previous containment attempt used `p-queue`, the maintained queue library al
 
 ### Current incident baseline
 
-- Adjacent background predecode is disabled at the ReaderApp entry point. It must not fetch adjacent page metadata, create a background `Image`, or call background `Image.decode()`.
+- Adjacent background predecode is governed only by `[nodes.neoview.performance].browser_predecode_enabled` (default `true`) and the matching Reader setting. It is not a ReaderApp hard-coded flag. When disabled it must not fetch adjacent page metadata, create a background `Image`, or call background `Image.decode()`.
 - The visible Reader page still uses its normal browser decode path. Disabling speculative work must never suppress the page the user is reading.
-- This is an isolation baseline, not a declaration that predecode was the sole root cause. Re-enable it only after a foregrounded multi-minute soak proves the baseline stable and the regression gate below passes.
+- Disabling the setting clears queued speculative work but cannot abort a browser decode already in progress. This is an isolation control, not a declaration that predecode was the sole root cause.
 
 ### Dynamic background safety
 
