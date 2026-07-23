@@ -92,11 +92,52 @@ test("floating component query params still render a popup window", async ({ pag
   }
 })
 
+test("window-owned workspace components restore into popups instead of the main view", async ({ page }) => {
+  const backend = await startBackend({ token: "window-restore-token", repository: createMemoryWorkspaceRepository() })
+  try {
+    const now = Date.now()
+    await seedWorkspaceSnapshot(backend, {
+      workspaces: [{ id: "ws-window-restore", label: "Window Restore", createdAt: now, updatedAt: now }],
+      lanes: [],
+      components: [{
+        id: "comp-window-restore",
+        moduleId: "scratch",
+        workspaceId: "ws-window-restore",
+        placement: "window",
+        createdAt: now,
+        updatedAt: now,
+      }],
+    })
+    await page.addInitScript(() => {
+      localStorage.setItem("xiranite-workspace-ui", JSON.stringify({
+        state: { restoreWorkspaceComponents: true },
+        version: 2,
+      }))
+    })
+
+    const popupPromise = page.waitForEvent("popup")
+    await openApp(page, backend)
+    const popup = await popupPromise
+
+    await expect.poll(() => new URL(popup.url()).searchParams.get("floatingComponent")).toBe("comp-window-restore")
+    await expect(popup.locator(".xiranite-floating-window")).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('[data-component-id="comp-window-restore"]')).toHaveCount(0)
+  } finally {
+    backend.close()
+  }
+})
+
 async function openApp(
   page: Page,
   backend: Awaited<ReturnType<typeof startBackend>>,
   url = "/",
 ): Promise<void> {
+  await page.route(/\/\.well-known\/xiranite\/backend-\d+\.json(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ baseUrl: backend.url, token: backend.token }),
+    })
+  })
   await page.addInitScript((config) => {
     ;(window as typeof window & { __XIRANITE_BACKEND__?: unknown }).__XIRANITE_BACKEND__ = config
   }, { baseUrl: backend.url, token: backend.token })
@@ -124,6 +165,13 @@ async function seedUrlWorkspace(backend: Awaited<ReturnType<typeof startBackend>
       { id: "comp-popup-xlchemy", moduleId: "xlchemy", workspaceId: "ws-url-a", createdAt: now, updatedAt: now },
     ],
   }
+  await seedWorkspaceSnapshot(backend, snapshot)
+}
+
+async function seedWorkspaceSnapshot(
+  backend: Awaited<ReturnType<typeof startBackend>>,
+  snapshot: WorkspaceSnapshotDTO,
+): Promise<void> {
   const response = await fetch(new URL("/workspace/snapshot", backend.url), {
     method: "PUT",
     headers: {

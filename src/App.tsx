@@ -15,6 +15,7 @@ import { ContextMenuProvider } from "@/components/context-menu"
 import { parseAsString, useQueryStates } from "nuqs"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { DesktopTrayBridge } from "@/desktop/tray/DesktopTrayBridge"
+import { WorkspaceWindowRestorer } from "@/components/workspace/WorkspaceWindowRestorer"
 
 const WorkspaceLayout = lazy(() =>
   startupDebugAsync("lazy:workspace-layout", () => import("@/components/workspace/WorkspaceLayout")).then((module) => ({
@@ -62,7 +63,10 @@ export function App() {
               titleFallback={params.title}
             />
           ) : (
-            <WorkspaceLayout />
+            <>
+              <WorkspaceWindowRestorer />
+              <WorkspaceLayout />
+            </>
           )}
         </Suspense>
       </ContextMenuProvider>

@@ -122,6 +122,7 @@ export function AlphabetNodeRail() {
       id: componentId,
       moduleId: module.id,
       state: "floating",
+      placement: "window",
       position: { x: 20, y: 20 },
       size: { w: 460, h: 380 },
       z: appearance.zCounter + 1,
