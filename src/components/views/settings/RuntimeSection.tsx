@@ -17,6 +17,7 @@ import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { cn } from "@/lib/utils"
 import { RuntimeRow, SettingsStepCard } from "./primitives"
 import { NODE_SOURCE_HOT_RELOAD_STORAGE_KEY } from "./themeMeta"
+import { DesktopTraySettings } from "./DesktopTraySettings"
 
 export function RuntimeSection() {
   const { t } = useTranslation()
@@ -224,6 +225,8 @@ export function RuntimeSection() {
           </div>
         </div>
       </SettingsStepCard>
+
+      <DesktopTraySettings />
 
       <SettingsStepCard
         id="webview2"

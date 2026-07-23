@@ -19,6 +19,7 @@ import { packageModuleLoaders } from "./packageModules.generated"
 import { LocalFilesProvider } from "@/nodes/shared/useLocalFileDrop"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { neoviewDebug } from "@/nodes/neoview/neoviewDebug"
+import { registerNodeTrays } from "@/desktop/tray/trayCoordinator"
 
 type PackageModuleEntry = AppNodeEntry | HeadlessNodePackage
 type PackageModuleLoader = () => Promise<{ default: PackageModuleEntry }>
@@ -120,6 +121,7 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
           if (moduleId === "neoview") {
             neoviewDebug("chunk:load:end", { compId, durationMs })
           }
+          registerNodeTrays(moduleId, mod.default)
           setEntry(mod.default)
         }
       })

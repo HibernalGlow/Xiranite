@@ -10,6 +10,9 @@ import type {
   StorageRuntime,
   SubprocessResult,
   SubprocessRuntime,
+  TrayActionEvent,
+  TrayCapabilities,
+  TrayRuntime,
   WindowCapabilities,
   WindowCommandResult,
   WindowFrame,
@@ -241,6 +244,25 @@ class WebWindowRuntime implements WindowRuntime {
   }
 }
 
+class UnsupportedTrayRuntime implements TrayRuntime {
+  async getCapabilities(): Promise<TrayCapabilities> {
+    return {
+      supported: false,
+      mainTray: false,
+      standaloneTrays: false,
+      message: "System trays are not available in the web runtime.",
+    }
+  }
+
+  async setMainEnabled(): Promise<void> {}
+
+  async sync(): Promise<void> {}
+
+  async subscribe(_handler: (event: TrayActionEvent) => void): Promise<() => void> {
+    return () => undefined
+  }
+}
+
 export function createWebRuntime(): RuntimeInterface {
   return {
     kind: "web",
@@ -251,5 +273,6 @@ export function createWebRuntime(): RuntimeInterface {
     events: new MemoryEventBus(),
     nodeRunner: new WebNodeRunner(),
     windows: new WebWindowRuntime(),
+    trays: new UnsupportedTrayRuntime(),
   }
 }

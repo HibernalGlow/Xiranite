@@ -351,6 +351,32 @@ export interface NodeWindowPreferences {
   maximizeBehavior?: "maximize" | "fullscreen"
 }
 
+export type NodeTrayScope = "main" | "standalone"
+
+export interface NodeTrayMenuItem {
+  id: string
+  label: string
+  type?: "action" | "separator"
+  enabled?: boolean
+  checked?: boolean
+  children?: readonly NodeTrayMenuItem[]
+}
+
+/**
+ * Desktop-host-neutral system tray contribution. A node may contribute to the
+ * Xiranite tray, own a standalone tray, or declare one contribution for each.
+ */
+export interface NodeTrayDeclaration {
+  id?: string
+  scope: NodeTrayScope
+  label?: string
+  tooltip?: string
+  /** Browser-resolvable image URL or data URL. The desktop adapter owns decoding. */
+  icon?: string
+  items?: readonly NodeTrayMenuItem[]
+  onAction?: (actionId: string) => void | Promise<void>
+}
+
 export interface NodeHostRequirements {
   contractVersion?: string
   capabilities?: readonly NodeCapabilityId[]
@@ -419,6 +445,7 @@ export interface AppNodeEntry<
   host?: NodeHostRequirements
   schemas?: NodeSchemas<TData, TConfig>
   window?: NodeWindowPreferences
+  tray?: NodeTrayDeclaration | readonly NodeTrayDeclaration[]
 }
 
 export type NodeEntry<TCore extends Record<string, unknown> = Record<string, unknown>> = AppNodeEntry<TCore>

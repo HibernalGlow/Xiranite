@@ -13,6 +13,10 @@ import type {
   StorageRuntime,
   SubprocessResult,
   SubprocessRuntime,
+  NativeTraySpec,
+  TrayActionEvent,
+  TrayCapabilities,
+  TrayRuntime,
   SubprocessSpawnOpts,
   WindowCapabilities,
   WindowCommandResult,
@@ -297,6 +301,49 @@ class WailsWindowRuntime implements WindowRuntime {
   }
 }
 
+class WailsTrayRuntime implements TrayRuntime {
+  async getCapabilities(): Promise<TrayCapabilities> {
+    return await callGo<TrayCapabilities>("TrayCapabilities")
+  }
+
+  async setMainEnabled(enabled: boolean): Promise<void> {
+    await callGo<void>("TraySetMainEnabled", enabled)
+  }
+
+  async sync(specs: NativeTraySpec[]): Promise<void> {
+    const resolved = await Promise.all(specs.map(async (spec) => ({
+      ...spec,
+      icon: undefined,
+      iconDataUrl: spec.icon ? await resolveImageDataUrl(spec.icon) : undefined,
+    })))
+    await callGo<void>("TraySync", JSON.stringify(resolved))
+  }
+
+  async subscribe(handler: (event: TrayActionEvent) => void): Promise<() => void> {
+    const runtime = await loadRuntime()
+    return runtime.Events.On("tray-action", (event: unknown) => {
+      const payload = unwrapEventData(event)
+      if (!payload || typeof payload !== "object") return
+      const trayId = (payload as { trayId?: unknown }).trayId
+      const itemId = (payload as { itemId?: unknown }).itemId
+      if (typeof trayId === "string" && typeof itemId === "string") handler({ trayId, itemId })
+    })
+  }
+}
+
+async function resolveImageDataUrl(source: string): Promise<string> {
+  if (source.startsWith("data:")) return source
+  const response = await fetch(source)
+  if (!response.ok) throw new Error(`Unable to load tray icon: ${response.status}`)
+  const blob = await response.blob()
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error ?? new Error("Unable to decode tray icon."))
+    reader.onload = () => resolve(String(reader.result))
+    reader.readAsDataURL(blob)
+  })
+}
+
 export function createWailsRuntime(): RuntimeInterface {
   return {
     kind: "wails",
@@ -307,6 +354,7 @@ export function createWailsRuntime(): RuntimeInterface {
     events: new WailsEventBus(),
     nodeRunner: new WailsNodeRunner(),
     windows: new WailsWindowRuntime(),
+    trays: new WailsTrayRuntime(),
   }
 }
 

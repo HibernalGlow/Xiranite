@@ -25,6 +25,7 @@ type XiraniteService struct {
 	storageFile   string
 	localBackend  *LocalBackend
 	backendConfig *LocalBackendConfig
+	trayManager   *desktopTrayManager
 }
 
 type FsEntry struct {
