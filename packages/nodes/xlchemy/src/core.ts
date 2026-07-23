@@ -222,6 +222,7 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
       ...input,
       inlineSource: undefined,
       paths: [sourcePath],
+      efuFiles: [],
       action: "convert",
       outputMode: "directory",
       outputDir: runtime.join(runtime.dirname(sourcePath), "output"),

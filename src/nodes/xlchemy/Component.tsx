@@ -306,9 +306,10 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     try {
       const clipboardFormat = dataRef.current.clipboardFormat ?? "PNG"
       const clipboardQuality = dataRef.current.clipboardQuality ?? 85
-      const lossless = clipboardFormat === "PNG" || clipboardFormat === "TIFF"
-      const input = buildInput("convert", { ...dataRef.current, pathsText: "", format: clipboardFormat, quality: clipboardQuality, lossless })
+      const lossless = clipboardFormat === "PNG" || clipboardFormat === "TIFF" || clipboardFormat === "Lossless JPEG Transcoding" || clipboardFormat === "Smallest Lossless" ? true : dataRef.current.clipboardLossless ?? false
+      const input = buildInput("convert", { ...dataRef.current, pathsText: "", selectedPaths: [], efuFiles: [], format: clipboardFormat, quality: clipboardQuality, lossless })
       input.paths = []
+      input.efuFiles = []
       input.inlineSource = image
       input.filenameRules = []
       patch({ phase: "running", progress: 0, progressText: `正在转换剪贴板图片为 ${clipboardFormat}…` })
@@ -355,7 +356,7 @@ type XlchemyNodeConfig = Partial<XlchemyCardState>
 const XL_SAVED_FIELDS = [...XL_CONFIG_FIELDS, ...XL_FILENAME_CONFIG_FIELDS] as const
 
 const XL_FACTORY_DEFAULTS: Partial<XlchemyCardState> = {
-  format: "JPEG XL", lossless: false, quality: 60, clipboardFormat: "PNG", clipboardQuality: 85, effort: 7, maxCompression: false, threads: 4,
+  format: "JPEG XL", lossless: false, quality: 60, clipboardFormat: "PNG", clipboardLossless: true, clipboardQuality: 85, effort: 7, maxCompression: false, threads: 4,
   outputMode: "source", outputDir: "", filenameRules: DEFAULT_FILENAME_RULES, preserveMetadata: true, preserveStructure: true, preserveTimestamps: false,
   overwrite: false, recursive: true, existingPolicy: "skip", deleteOriginal: false, deleteOriginalMode: "trash",
   intelligentEffort: false, jxlModular: false, jxlVerify: false, jxlPngFallback: true, jxlNormalize: false, jxlNormalizeWhen: "on-fail",
@@ -492,7 +493,23 @@ function Header({ props }: { props: ViewProps }) {
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {
-  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog disabled={props.running} format={props.data.clipboardFormat ?? "PNG"} portalContainer={props.portalContainer} quality={props.data.clipboardQuality ?? 85} onChange={props.onPatch} onRead={props.onClipboardRead} onConvert={props.onClipboardConvert} onCopy={props.onClipboardCopy} />} data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
+  const format = props.data.clipboardFormat ?? "PNG"
+  const lossless = format === "PNG" || format === "TIFF" || format === "Lossless JPEG Transcoding" || format === "Smallest Lossless" ? true : props.data.clipboardLossless ?? false
+  const clipboardProps: ViewProps = {
+    ...props,
+    format,
+    data: { ...props.data, format, lossless, quality: props.data.clipboardQuality ?? 85 },
+    onPatch: (patch) => {
+      const { format: nextFormat, lossless: nextLossless, quality: nextQuality, ...shared } = patch
+      props.onPatch({
+        ...shared,
+        ...(nextFormat !== undefined ? { clipboardFormat: nextFormat } : {}),
+        ...(nextLossless !== undefined ? { clipboardLossless: nextLossless } : {}),
+        ...(nextQuality !== undefined ? { clipboardQuality: nextQuality } : {}),
+      })
+    },
+  }
+  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog configuration={<ConfigurationCard props={clipboardProps} />} disabled={props.running} portalContainer={props.portalContainer} onRead={props.onClipboardRead} onConvert={props.onClipboardConvert} onCopy={props.onClipboardCopy} />} data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
 }
 
 function FormatControls({ props }: { props: ViewProps }) {

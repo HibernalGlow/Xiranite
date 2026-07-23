@@ -575,7 +575,7 @@ describe("app-owned xlchemy Component", () => {
   })
 
   test("previews, compares and explicitly copies a clipboard conversion from one workbench", async () => {
-    const host = createHost({ format: "JPEG XL", quality: 41, clipboardFormat: "WebP", clipboardQuality: 74, effort: 9, threads: 3, avifEncoder: "slimg" })
+    const host = createHost({ pathsText: "D:/images/queued.png", selectedPaths: ["D:/images/queued.png"], efuFiles: ["D:/Downloads/al.efu"], format: "JPEG XL", quality: 41, clipboardFormat: "WebP", clipboardLossless: false, clipboardQuality: 74, effort: 9, threads: 3, avifEncoder: "slimg" })
     const writeImage = vi.fn(async () => undefined)
     host.clipboard!.readImage = vi.fn(async () => ({ base64: "cG5n", mimeType: "image/png" }))
     host.clipboard!.writeImage = writeImage
@@ -594,8 +594,12 @@ describe("app-owned xlchemy Component", () => {
     expect(workbench.className).toContain("inset-2")
     expect(workbench.className).not.toContain("fixed")
     await waitFor(() => expect(host.clipboard!.readImage).toHaveBeenCalledOnce())
-    expect(within(workbench).getByRole("combobox", { name: "剪贴板目标格式" }).textContent).toContain("WebP")
-    expect(within(workbench).getByRole("slider", { name: "剪贴板质量" }).getAttribute("aria-valuenow")).toBe("74")
+    expect(within(workbench).getByText("校准矩阵")).toBeTruthy()
+    for (const tab of ["参数", "转换", "文件", "常规"]) expect(within(workbench).getByRole("tab", { name: tab })).toBeTruthy()
+    const configuration = within(workbench).getByTestId("xlchemy-clipboard-configuration")
+    expect(within(configuration).getAllByRole("combobox")[0]?.textContent).toContain("WebP")
+    expect(within(workbench).getByRole("slider", { name: "质量" }).getAttribute("aria-valuenow")).toBe("74")
+    expect(within(workbench).getByText("并行线程")).toBeTruthy()
     expect(within(workbench).getByRole("slider", { name: "图片前后对比" }).hasAttribute("data-disabled")).toBe(true)
     await user.click(within(workbench).getByRole("button", { name: "转换" }))
 
@@ -604,8 +608,9 @@ describe("app-owned xlchemy Component", () => {
     expect(writeImage).not.toHaveBeenCalled()
     await user.click(within(workbench).getByRole("button", { name: "复制结果" }))
     await waitFor(() => expect(writeImage).toHaveBeenCalledWith({ base64: "d2VicA==", mimeType: "image/webp" }))
-    expect(host.runCalls[0]).toMatchObject({ nodeId: "xlchemy", input: { paths: [], format: "WebP", quality: 74, effort: 9, threads: 3, avifEncoder: "slimg", inlineSource: { base64: "cG5n", mimeType: "image/png" } } })
-    expect(host.cardState.pathsText).toBeUndefined()
+    expect(host.runCalls[0]).toMatchObject({ nodeId: "xlchemy", input: { paths: [], efuFiles: [], format: "WebP", lossless: false, quality: 74, effort: 9, threads: 3, avifEncoder: "slimg", inlineSource: { base64: "cG5n", mimeType: "image/png" } } })
+    expect(host.cardState.pathsText).toBe("D:/images/queued.png")
+    expect(host.cardState.efuFiles).toEqual(["D:/Downloads/al.efu"])
     expect(host.cardState.result).toMatchObject({ inputBytes: 1000, outputBytes: 250 })
     expect(host.cardState.progressText).toBe("转换结果已复制到剪贴板。")
   })
