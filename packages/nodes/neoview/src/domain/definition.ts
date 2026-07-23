@@ -6,6 +6,6 @@ export const def = {
   version: "0.1.0",
   category: "image",
   description: "High-performance image and comic reader with shared GUI, CLI, and TUI core.",
-  icon: "BookOpen",
+  icon: "BookImage",
   keywords: ["reader", "comic", "cbz", "archive", "image"],
 } satisfies NodeDef
