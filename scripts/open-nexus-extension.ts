@@ -1,5 +1,7 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
+import { mkdir, rm, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
+import { createHash } from "node:crypto"
 
 const root = resolve(import.meta.dir, "..")
 const nexusRoot = resolve(root, "vendor", "Xiranite-Nexus")
@@ -7,7 +9,9 @@ const packageJson = resolve(nexusRoot, "package.json")
 const webpackBin = resolve(nexusRoot, "node_modules", ".bin", process.platform === "win32" ? "webpack.cmd" : "webpack")
 const outputDirectory = resolve(nexusRoot, "dev")
 const manifest = resolve(outputDirectory, "manifest.json")
-const nexusConfig = resolve(outputDirectory, "nexus-config.json")
+const nativeDirectory = resolve(outputDirectory, "native")
+const nativeHostExecutable = resolve(nativeDirectory, process.platform === "win32" ? "xiranite-native-host.exe" : "xiranite-native-host")
+const noOpen = process.argv.includes("--no-open")
 
 if (!existsSync(packageJson)) {
   await run("git", ["submodule", "update", "--init", "--depth", "1", "vendor/Xiranite-Nexus"], root)
@@ -20,26 +24,28 @@ if (!existsSync(webpackBin)) {
 await run("npm", ["run", "build:nexus:chrome"], nexusRoot)
 if (!existsSync(manifest)) throw new Error(`Nexus build did not produce ${manifest}`)
 
-const connection = await findActiveBackendConnection(root)
-if (connection) {
-  await Bun.write(nexusConfig, `${JSON.stringify(connection, null, 2)}\n`)
-  console.log(`Nexus connected build: ${connection.baseUrl}`)
-} else {
-  await Bun.write(nexusConfig, "{}\n")
-  console.warn("No running Xiranite backend was found. The extension will show a disconnected state.")
+await mkdir(nativeDirectory, { recursive: true })
+await run("go", ["build", "-mod=mod", "-o", nativeHostExecutable, "./cmd/xiranite-native-host"], root)
+const extensionId = extensionIdFromManifest(manifest)
+const mainExecutable = findMainExecutable()
+await rm(resolve(nativeDirectory, "xiranite-native-host.config.json"), { force: true })
+if (mainExecutable) {
+  await writeFile(resolve(nativeDirectory, "xiranite-native-host.config.json"), `${JSON.stringify({ mainExecutable }, null, 2)}\n`)
 }
+await registerNativeHosts(nativeDirectory, nativeHostExecutable, extensionId)
 
-if (process.platform === "win32") {
+if (!noOpen && process.platform === "win32") {
   const edge = findEdge()
   if (!edge) throw new Error("Microsoft Edge was not found.")
   launch(edge, ["edge://extensions"])
   launch("explorer.exe", [outputDirectory])
-} else {
+} else if (!noOpen) {
   console.log(`Open your browser extension page and load: ${outputDirectory}`)
 }
 
 console.log(`Xiranite Nexus unpacked extension: ${outputDirectory}`)
-console.log("Edge and the build directory are open. Enable Developer mode, then click Load unpacked.")
+console.log(`Xiranite Native Bridge registered for extension: ${extensionId}`)
+if (!noOpen) console.log("Edge and the build directory are open. Enable Developer mode, then click Load unpacked.")
 
 async function run(command: string, args: string[], cwd: string): Promise<void> {
   const child = Bun.spawn([command, ...args], {
@@ -51,6 +57,33 @@ async function run(command: string, args: string[], cwd: string): Promise<void> 
   })
   const exitCode = await child.exited
   if (exitCode !== 0) throw new Error(`${command} ${args.join(" ")} exited with code ${exitCode}.`)
+}
+
+function extensionIdFromManifest(path: string): string {
+  const parsed = JSON.parse(readFileSync(path, "utf8")) as { key?: string }
+  if (!parsed.key) throw new Error("Nexus manifest must contain a stable key for Native Messaging registration.")
+  const hash = createHash("sha256").update(Buffer.from(parsed.key, "base64")).digest().subarray(0, 16)
+  return [...hash].map((value) => String.fromCharCode(97 + (value >> 4), 97 + (value & 15))).join("")
+}
+
+async function registerNativeHosts(directory: string, executable: string, extensionId: string): Promise<void> {
+  if (process.platform !== "win32") return
+  const origin = `chrome-extension://${extensionId}/`
+  const browsers = [
+    { name: "Edge", registry: "HKCU\\Software\\Microsoft\\Edge\\NativeMessagingHosts" },
+    { name: "Chrome", registry: "HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts" },
+  ]
+  for (const browser of browsers) {
+    const manifestPath = resolve(directory, `${browser.name.toLowerCase()}-native-host.json`)
+    await writeFile(manifestPath, `${JSON.stringify({
+      name: "com.xiranite.nexus",
+      description: "Xiranite Nexus Native Bridge",
+      path: executable,
+      type: "stdio",
+      allowed_origins: [origin],
+    }, null, 2)}\n`)
+    await run("reg", ["add", `${browser.registry}\\com.xiranite.nexus`, "/ve", "/t", "REG_SZ", "/d", manifestPath, "/f"], root)
+  }
 }
 
 function launch(command: string, args: string[]): void {
@@ -73,70 +106,12 @@ function findEdge(): string | undefined {
   return candidates.find((candidate): candidate is string => Boolean(candidate && existsSync(candidate)))
 }
 
-interface NexusConnection {
-  baseUrl: string
-  token?: string
-}
-
-async function findActiveBackendConnection(projectRoot: string): Promise<NexusConnection | undefined> {
-  const wellKnownDirectory = resolve(projectRoot, "public", ".well-known", "xiranite")
-  const candidates: string[] = []
-  const activeSessionPath = resolve(projectRoot, ".cache", "xiranite-dev-session.json")
-  const override = readConnectionOverride()
-  if (override && await isHealthy(override)) return override
-
-  if (existsSync(activeSessionPath)) {
-    try {
-      const session = JSON.parse(readFileSync(activeSessionPath, "utf8")) as { frontendUrl?: string }
-      if (session.frontendUrl) {
-        const port = new URL(session.frontendUrl).port
-        if (port) candidates.push(resolve(wellKnownDirectory, `backend-${port}.json`))
-      }
-    } catch {
-      // Fall through to the newest healthy manifest.
-    }
-  }
-
-  if (existsSync(wellKnownDirectory)) {
-    const manifests = readdirSync(wellKnownDirectory)
-      .filter(name => /^backend(?:-\d+)?\.json$/.test(name))
-      .map(name => resolve(wellKnownDirectory, name))
-      .sort((left, right) => statSync(right).mtimeMs - statSync(left).mtimeMs)
-    candidates.push(...manifests)
-  }
-
-  for (const path of [...new Set(candidates)]) {
-    const connection = readConnection(path)
-    if (connection && await isHealthy(connection)) return connection
-  }
-  return undefined
-}
-
-function readConnectionOverride(): NexusConnection | undefined {
-  const baseUrl = process.env.XIRANITE_NEXUS_BASE_URL?.trim().replace(/\/+$/, "")
-  if (!baseUrl || !URL.canParse(baseUrl)) return undefined
-  return { baseUrl, token: process.env.XIRANITE_NEXUS_TOKEN?.trim() }
-}
-
-function readConnection(path: string): NexusConnection | undefined {
-  if (!existsSync(path)) return undefined
-  try {
-    const value = JSON.parse(readFileSync(path, "utf8")) as Partial<NexusConnection>
-    if (!value.baseUrl || !URL.canParse(value.baseUrl)) return undefined
-    return { baseUrl: value.baseUrl.replace(/\/+$/, ""), token: value.token }
-  } catch {
-    return undefined
-  }
-}
-
-async function isHealthy(connection: NexusConnection): Promise<boolean> {
-  try {
-    const response = await fetch(`${connection.baseUrl}/health`, {
-      headers: connection.token ? { "x-xiranite-token": connection.token } : {},
-      signal: AbortSignal.timeout(1_500),
-    })
-    return response.ok
-  } catch {
-    return false
-  }
+function findMainExecutable(): string | undefined {
+  const executable = process.platform === "win32" ? "Xiranite.exe" : "Xiranite"
+  const candidates = [
+    process.env.XIRANITE_NEXUS_MAIN_EXE,
+    resolve(root, "build", "wails", executable),
+    process.env.USERPROFILE && resolve(process.env.USERPROFILE, "scoop", "apps", "xiranite", "current", executable),
+  ]
+  return candidates.find((candidate): candidate is string => Boolean(candidate && existsSync(candidate)))
 }
