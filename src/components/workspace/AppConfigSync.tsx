@@ -11,6 +11,9 @@ import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/worksp
 import type { OverlayFloatingMetrics, WorkspaceUiPreferences } from "@/store/workspace/types"
 import type { AppCustomTheme, AppFontPreset, AppTheme, CardLayout } from "@/types/workspace"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("config.sync")
 
 const APP_UI_SECTION = "ui"
 const APP_UI_CONFIG_VERSION = 2
@@ -182,7 +185,7 @@ export function AppConfigSync() {
           applyingRef.current = false
         })
       } catch (error) {
-        console.warn("[config] app.ui sync failed:", error)
+        logger.warn("App UI sync failed", error)
       }
     }
 
@@ -217,7 +220,7 @@ export function AppConfigSync() {
           themesApplyingRef.current = false
         })
       } catch (error) {
-        console.warn("[config] custom themes sync failed:", error)
+        logger.warn("Custom themes sync failed", error)
       }
     }
 
@@ -248,7 +251,7 @@ export function AppConfigSync() {
           lastSavedThemesKeyRef.current = nextKey
         })
         .catch((error) => {
-          console.warn("[config] custom themes save failed:", error)
+          logger.warn("Custom themes save failed", error)
         })
     }, 600)
 
@@ -282,7 +285,7 @@ export function AppConfigSync() {
         bgImageLoadedRef.current = true
         startupDebug("config:bg-image:load:end", { hasImage: Boolean(response.url) })
       } catch (error) {
-        console.warn("[config] bg-image sync failed:", error)
+        logger.warn("Background image sync failed", error)
       }
     }
 
@@ -314,7 +317,7 @@ export function AppConfigSync() {
             lastSavedBgImageKeyRef.current = currentUrl
           })
           .catch((error) => {
-            console.warn("[config] bg-image save failed:", error)
+            logger.warn("Background image save failed", error)
           })
         return
       }
@@ -326,7 +329,7 @@ export function AppConfigSync() {
             lastSavedBgImageKeyRef.current = ""
           })
           .catch((error) => {
-            console.warn("[config] bg-image clear failed:", error)
+            logger.warn("Background image clear failed", error)
           })
       }
     }, 600)
@@ -385,7 +388,7 @@ export function AppConfigSync() {
           lastSavedKeyRef.current = nextKey
         })
         .catch((error) => {
-          console.warn("[config] app.ui save failed:", error)
+          logger.warn("App UI save failed", error)
         })
     }, 600)
 

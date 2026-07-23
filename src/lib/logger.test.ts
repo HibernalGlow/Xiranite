@@ -5,6 +5,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   window.history.replaceState({}, "", "/")
   window.localStorage.clear()
+  window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:41000", token: "test-token" }
   vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })))
 })
 
@@ -20,7 +21,7 @@ describe("logger", () => {
     const first = loggerModule.createLogger("reader")
     const second = loggerModule.createLogger("workspace")
 
-    expect(loggerModule.getLogLevel()).toBe("warn")
+    expect(loggerModule.getLogLevel()).toBe("info")
     expect(loggerModule.isLogLevelEnabled("debug")).toBe(false)
 
     loggerModule.setLogLevel("debug")
@@ -37,7 +38,7 @@ describe("logger", () => {
     expect(loggerModule.getLogLevel()).toBe("trace")
   })
 
-  it("batches enabled scoped logs into the development transport", async () => {
+  it("batches enabled scoped logs into the authenticated structured transport", async () => {
     window.localStorage.setItem("xiranite.log.level", "debug")
     const { createLogger } = await import("./logger")
 
@@ -46,9 +47,18 @@ describe("logger", () => {
 
     expect(fetch).toHaveBeenCalledTimes(1)
     const [url, request] = vi.mocked(fetch).mock.calls[0]!
-    expect(url).toBe("/__xiranite-log")
+    expect(url).toBe("http://127.0.0.1:41000/logs")
+    expect(request?.headers).toMatchObject({ "x-xiranite-token": "test-token" })
     expect(JSON.parse(String(request?.body))).toMatchObject({
-      events: [{ type: "debug", scope: "xiranite:qa", args: ["mounted", { componentId: "reader" }] }],
+      events: [{
+        schemaVersion: 1,
+        severityText: "debug",
+        severityNumber: 5,
+        eventName: "qa.mounted",
+        scope: { name: "qa" },
+        resource: { serviceName: "xiranite", processType: "frontend" },
+        attributes: { args: ["mounted", { componentId: "reader" }] },
+      }],
     })
   })
 

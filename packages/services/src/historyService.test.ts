@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { createMemoryNodeRunHistoryRepository } from "@xiranite/repository"
 import {
   NodeRunnerService,
@@ -59,7 +59,8 @@ describe("NodeRunHistoryService", () => {
         throw new Error("disk full")
       },
     }
-    const history = new NodeRunHistoryService({ repository: failingRepository })
+    const onRecordError = vi.fn()
+    const history = new NodeRunHistoryService({ repository: failingRepository, onRecordError })
 
     await expect(history.recordFromOperation({
       nodeId: "x",
@@ -70,6 +71,7 @@ describe("NodeRunHistoryService", () => {
       startedAt: 0,
       finishedAt: 1,
     })).resolves.toBeUndefined()
+    expect(onRecordError).toHaveBeenCalledWith(expect.objectContaining({ message: "disk full" }))
   })
 
   test("records non-node runtime operations through the generic API", async () => {

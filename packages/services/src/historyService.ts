@@ -17,6 +17,7 @@ export interface NodeRunHistoryServiceOptions {
   repository: NodeRunHistoryRepository
   createId?: () => string
   now?: () => number
+  onRecordError?: (error: unknown) => void
 }
 
 export interface RuntimeHistoryRecordInput {
@@ -61,11 +62,13 @@ export class NodeRunHistoryService {
   private readonly repository: NodeRunHistoryRepository
   private readonly createId: () => string
   private readonly now: () => number
+  private readonly onRecordError?: (error: unknown) => void
 
   constructor(options: NodeRunHistoryServiceOptions) {
     this.repository = options.repository
     this.createId = options.createId ?? (() => `hist-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`)
     this.now = options.now ?? Date.now
+    this.onRecordError = options.onRecordError
   }
 
   async listRuntime(query: RuntimeHistoryQueryDTO): Promise<RuntimeHistoryListDTO> {
@@ -102,7 +105,7 @@ export class NodeRunHistoryService {
 
   /**
    * 从一次节点运行结束状态生成历史记录并持久化。
-   * 失败不抛出（仅 console.warn），避免影响主运行链路。
+   * 失败不抛出，通过注入的结构化日志 sink 报告，避免影响主运行链路。
    */
   async recordFromOperation(params: {
     nodeId: string
@@ -162,7 +165,7 @@ export class NodeRunHistoryService {
       }
       await this.repository.createRuntimeHistory(item)
     } catch (error) {
-      console.warn("[RuntimeHistory] Failed to record history:", error instanceof Error ? error.message : error)
+      this.onRecordError?.(error)
     }
   }
 }

@@ -1,4 +1,7 @@
 import { getDenoDesktopBindings } from "../../desktop/bridge"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("backend.config")
 
 export interface LocalBackendConfig {
   baseUrl: string
@@ -146,7 +149,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
 function warnHydrateFailure(error: unknown): void {
   if (hydrateWarningLogged) return
   hydrateWarningLogged = true
-  console.warn("[backend] local backend config hydrate failed:", error)
+  logger.warn("Local backend config hydrate failed", error)
 }
 
 export function localBackendFileUrl(path: string): string {

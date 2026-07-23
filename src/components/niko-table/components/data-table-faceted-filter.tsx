@@ -1,5 +1,9 @@
 "use client"
 
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("data-table.faceted-filter")
+
 /**
  * niko-table — created by Semir N. (Semkoo, https://github.com/Semkoo) with AI assistance.
  *
@@ -273,7 +277,7 @@ export function DataTableFacetedFilter<TData, TValue = unknown>({
 
   // Early return if column not found
   if (!column) {
-    console.warn(
+    logger.warn(
       `Column with accessorKey "${accessorKey}" not found in table columns`,
     )
     return null

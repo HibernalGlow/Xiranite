@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import { ResourceSchedulerService } from "@xiranite/services"
 import type { NodeRunEventDTO } from "@xiranite/shared"
+import { createLogEnvelope, createLogSession } from "@xiranite/logging"
 import { createDefaultBackend, createDefaultBackendApp, parseBackendCliArgs, resolveBackendDatabaseConfig, resolveBackendDataDir, startBackend } from "./index.js"
 
 const RUN_ROOT = join(process.cwd(), "../../artifacts/test-runs/backend")
@@ -332,6 +333,49 @@ describe("backend", () => {
       backend.close()
       await removeWithWindowsRetry(dataDir)
     }
+  })
+
+  test("validates and appends authenticated structured log batches", async () => {
+    const append = vi.fn(async () => undefined)
+    const close = vi.fn(async () => undefined)
+    const backend = await startBackend({
+      token: "test-token",
+      repository: createMemoryWorkspaceRepository(),
+      logWriter: { append, close },
+    })
+    const event = createLogEnvelope({
+      severityText: "info",
+      eventName: "app.started",
+      resource: { serviceName: "xiranite", processType: "frontend" },
+      scope: { name: "app" },
+      session: createLogSession(),
+    })
+    try {
+      const blocked = await fetch(`${backend.url}/logs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ events: [event] }),
+      })
+      expect(blocked.status).toBe(401)
+
+      const invalid = await fetch(`${backend.url}/logs?token=test-token`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ events: [{ eventName: "incomplete" }] }),
+      })
+      expect(invalid.status).toBe(400)
+
+      const accepted = await fetch(`${backend.url}/logs`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-xiranite-token": "test-token" },
+        body: JSON.stringify({ events: [event] }),
+      })
+      expect(accepted.status).toBe(204)
+      expect(append).toHaveBeenCalledWith([event])
+    } finally {
+      await backend.close()
+    }
+    expect(close).toHaveBeenCalledOnce()
   })
 
   test("rejects invalid native local picker requests before opening a dialog", async () => {

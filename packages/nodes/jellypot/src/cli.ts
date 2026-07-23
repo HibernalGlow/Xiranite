@@ -38,8 +38,9 @@ async function runPipeProgram(args = process.argv.slice(2)): Promise<void> {
     recordRun: args.includes("--record-run") || nodeConfig?.record_run === true,
     dryRun: dryRun || nodeConfig?.dry_run === true,
   }, createNodeJellyPotRuntime())
-  if (json) console.log(JSON.stringify(result, null, 2))
-  else console.log(result.message)
+  const outputHost = createCliHost()
+  if (json) writeLine(outputHost, JSON.stringify(result, null, 2))
+  else writeLine(outputHost, result.message)
   if (!result.success) process.exitCode = 1
 }
 export const cli: CliCommand = { name: "xjellypot", description: "Jellyfin and PotPlayer media bridge.", run: (args, host) => runProgram(args, host) }

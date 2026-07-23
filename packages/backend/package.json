@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@xiranite/api": "workspace:*",
+    "@xiranite/logging": "workspace:*",
     "@xiranite/repository": "workspace:*",
     "@xiranite/runtime": "workspace:*",
     "@xiranite/services": "workspace:*",

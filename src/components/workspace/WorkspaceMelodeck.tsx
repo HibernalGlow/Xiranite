@@ -22,6 +22,9 @@ import { Slider } from "@/components/ui/slider"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { cn } from "@/lib/utils"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("melodeck.config")
 import {
   DEFAULT_MELODECK_CONFIG,
   loadMelodeckConfig,
@@ -125,7 +128,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
       }).catch((error) => {
         applyingConfigRef.current = false
         skipNextSaveRef.current = false
-        console.warn("[melodeck] config load failed:", error)
+        logger.warn("Config load failed", error)
       })
     }
 
@@ -152,7 +155,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
         floating_offset: floatingOffset,
         visualizer_style: visualizerStyle,
       }, { broadcast: false })).catch((error) => {
-        console.warn("[melodeck] config save failed:", error)
+        logger.warn("Config save failed", error)
       })
     }, 400)
     return () => window.clearTimeout(timer)

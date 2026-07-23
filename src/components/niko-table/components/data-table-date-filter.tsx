@@ -1,8 +1,11 @@
+import { createLogger } from "@/lib/logger"
 import { useDataTable } from "../core/data-table-context"
 import type { TableDateFilterProps } from "../filters/table-date-filter"
 import { TableDateFilter } from "../filters/table-date-filter"
 import { useDerivedColumnTitle } from "../hooks/use-derived-column-title"
 import { FILTER_VARIANTS } from "../lib/constants"
+
+const logger = createLogger("data-table.date-filter")
 
 type DataTableDateFilterProps<TData> = Omit<
   TableDateFilterProps<TData>,
@@ -72,7 +75,7 @@ export function DataTableDateFilter<TData>({
 
   // Early return if column not found
   if (!column) {
-    console.warn(
+    logger.warn(
       `Column with accessorKey "${accessorKey}" not found in table columns`,
     )
     return null

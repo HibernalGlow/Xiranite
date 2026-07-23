@@ -546,11 +546,12 @@ export interface CreateXiraniteServicesOptions {
   historyRepository?: NodeRunHistoryRepository
   resourceScheduler?: ResourceSchedulerService
   system?: XiraniteSystemService
+  onHistoryRecordError?: (error: unknown) => void
 }
 
 export function createXiraniteServices(repository: WorkspaceRepository, options: CreateXiraniteServicesOptions = {}): XiraniteServices {
   const history = options.historyRepository
-    ? new NodeRunHistoryService({ repository: options.historyRepository })
+    ? new NodeRunHistoryService({ repository: options.historyRepository, onRecordError: options.onHistoryRecordError })
     : undefined
   return {
     workspace: new WorkspaceService({ repository, history }),

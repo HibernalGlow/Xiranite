@@ -789,7 +789,7 @@ export function TableFilterMenu<TData>({
   // Legacy global join operator - replaced with individual join operators per filter
   const onJoinOperatorChange = React.useCallback(() => {
     // No-op: Individual join operators handle this functionality
-    console.warn(ERROR_MESSAGES.DEPRECATED_GLOBAL_JOIN_OPERATOR)
+    logger.warn(ERROR_MESSAGES.DEPRECATED_GLOBAL_JOIN_OPERATOR)
   }, [])
 
   const columns = React.useMemo(() => {

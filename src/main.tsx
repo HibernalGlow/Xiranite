@@ -18,6 +18,9 @@ import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
 import { hydrateLocalBackendConfig } from "@/backend/localBackendConfig"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("bootstrap")
 
 /**
  * 全局 React Query 客户端。
@@ -49,7 +52,7 @@ async function bootstrap() {
   await startupDebugAsync("bootstrap:i18n", initI18n)
 
   void startupDebugAsync("bootstrap:backend-config", hydrateLocalBackendConfig).catch((error) => {
-    console.error("[backend] initial config hydrate failed:", error)
+    logger.error("Initial backend config hydrate failed", error)
   })
 
   startupDebug("bootstrap:react-render:begin")

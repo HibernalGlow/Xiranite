@@ -1,7 +1,10 @@
+import { createLogger } from "@/lib/logger"
 import React from "react"
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+
+const logger = createLogger("data-table.error-boundary")
 
 export interface DataTableErrorBoundaryProps {
   /**
@@ -68,7 +71,7 @@ interface DataTableErrorBoundaryState {
  * // With error logging
  * <DataTableErrorBoundary
  *   onError={(error, errorInfo) => {
- *     console.error("DataTable Error:", error, errorInfo)
+ *     reportError(error, errorInfo)
  *     // Send to error tracking service
  *     trackError(error)
  *   }}
@@ -94,7 +97,7 @@ export class DataTableErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("DataTable Error Boundary caught an error:", error, errorInfo)
+    logger.error("DataTable error boundary caught an error", { componentStack: errorInfo.componentStack ?? "" }, error)
     this.props.onError?.(error, errorInfo)
   }
 

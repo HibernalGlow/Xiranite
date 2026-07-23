@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef } from "react"
 import { getModule } from "@/components/modules/registry"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("window.restore")
 
 export function WorkspaceWindowRestorer() {
   const { backendReady, components } = useWorkspaceShallowSelector((state) => ({
@@ -32,9 +35,9 @@ export function WorkspaceWindowRestorer() {
             moduleId: component.moduleId,
             title: getModule(component.moduleId)?.name ?? component.moduleId,
           })
-          if (!result.success) console.info(`[window] Unable to restore ${component.id}: ${result.message}`)
+          if (!result.success) logger.info("Unable to restore component window", { componentId: component.id, message: result.message })
         } catch (error) {
-          console.info(`[window] Failed to restore ${component.id}`, error)
+          logger.info("Failed to restore component window", { componentId: component.id }, error)
         }
       }
     })()

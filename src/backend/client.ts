@@ -4,6 +4,9 @@ import { createWebRuntime } from "./adapters/web"
 import type { RuntimeAdapterRegistration, RuntimeInterface } from "./runtime/runtime"
 import { createBackend, type Backend } from "./services"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("backend.runtime")
 
 const RUNTIME_FACTORIES: RuntimeAdapterRegistration[] = [
   { kind: "deno-desktop", detect: detectDenoDesktop, factory: createDenoDesktopRuntime },
@@ -27,11 +30,11 @@ function selectRuntime(): Promise<RuntimeInterface> {
           if (runtime.kind !== "web") {
             await startupDebugAsync(`backend:runtime:${registration.kind}:capabilities`, () => runtime.windows.getCapabilities())
           }
-          console.info(`[backend] runtime = ${runtime.kind}`)
+          logger.info("Runtime selected", { runtime: runtime.kind })
           return runtime
         }
       } catch (error) {
-        console.warn(`[backend] runtime ${registration.kind} detect/init failed:`, error)
+        logger.warn("Runtime detection or initialization failed", { runtime: registration.kind }, error)
       }
     }
 

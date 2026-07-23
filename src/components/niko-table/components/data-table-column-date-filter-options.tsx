@@ -1,5 +1,9 @@
 "use client"
 
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("data-table.date-filter-options")
+
 /**
  * niko-table — created by Semir N. (Semkoo, https://github.com/Semkoo) with AI assistance.
  *
@@ -35,7 +39,7 @@ export function DataTableColumnDateFilterOptions<TData, TValue>(
   const column = props.column || context?.column
 
   if (!column) {
-    console.warn(
+    logger.warn(
       "DataTableColumnDateFilterOptions must be used within DataTableColumnHeaderRoot or provided with a column prop",
     )
     return null
@@ -62,7 +66,7 @@ export function DataTableColumnDateFilterMenu<TData, TValue>(
   const column = props.column || context?.column
 
   if (!column) {
-    console.warn(
+    logger.warn(
       "DataTableColumnDateFilterMenu must be used within DataTableColumnHeaderRoot or provided with a column prop",
     )
     return null

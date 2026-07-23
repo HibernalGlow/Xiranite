@@ -3,6 +3,9 @@ import type { ErrorInfo, ReactNode } from "react"
 import { AlertTriangle, RotateCcw } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("node.render-boundary")
 
 interface NodeRenderBoundaryProps {
   moduleId: string
@@ -28,10 +31,10 @@ export class NodeRenderBoundary extends Component<NodeRenderBoundaryProps, NodeR
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error(
-      `[node-render-boundary] ${this.props.moduleId} threw during render`,
+    logger.error(
+      "Node threw during render",
+      { moduleId: this.props.moduleId, componentStack: info.componentStack ?? "" },
       error,
-      info,
     )
   }
 
