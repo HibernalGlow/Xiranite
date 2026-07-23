@@ -48,26 +48,27 @@ describe("ReaderEntrySurface", () => {
 describe("readerLibraryEntryLayout", () => {
   it("[neoview.shared-entry.layout] keeps virtual-list pitch aligned with surface heights", () => {
     expect(readerLibraryListLayout("compact")).toEqual({ itemSize: 34, columns: 1, gap: 0 })
-    expect(readerLibraryListLayout("content")).toEqual({ itemSize: 76, columns: 1, gap: 0 })
+    expect(readerLibraryListLayout("cover-list")).toEqual({ itemSize: 76, columns: 1, gap: 0 })
 
-    const narrowBanner = readerLibraryListLayout("banner", 300)
+    const narrowBanner = readerLibraryListLayout("mosaic-list", 300)
     expect(narrowBanner.columns).toBe(1)
     expect(narrowBanner.itemSize).toBeGreaterThanOrEqual(136)
 
-    const wideBanner = readerLibraryListLayout("banner", 640)
+    const wideBanner = readerLibraryListLayout("mosaic-list", 640)
     expect(wideBanner.columns).toBeGreaterThanOrEqual(2)
     expect(wideBanner.itemSize).toBeGreaterThan(narrowBanner.itemSize)
 
-    const narrowThumb = readerLibraryListLayout("thumbnail", 280)
+    const narrowThumb = readerLibraryListLayout("cover-grid", 280)
     expect(narrowThumb.columns).toBeGreaterThanOrEqual(1)
     expect(narrowThumb.itemSize).toBeGreaterThanOrEqual(160)
 
-    const wideThumb = readerLibraryListLayout("thumbnail", 480)
+    const wideThumb = readerLibraryListLayout("cover-grid", 480)
     expect(wideThumb.columns).toBeGreaterThanOrEqual(3)
     expect(wideThumb.itemSize).toBeGreaterThanOrEqual(narrowThumb.itemSize)
 
-    expect(readerLibraryMediaClassName("content")).toBe("size-16")
-    expect(readerLibraryMediaClassName("banner")).toContain("size-full")
+    expect(readerLibraryListLayout("cover-grid", 480, { thumbnailWidthPercent: 50, bannerWidthPercent: 50 }).columns).toBe(2)
+    expect(readerLibraryMediaClassName("cover-list")).toBe("size-16")
+    expect(readerLibraryMediaClassName("mosaic-list")).toContain("size-full")
     expect(readerLibraryMediaClassName("compact")).toContain("size-7")
   })
 })

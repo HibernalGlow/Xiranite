@@ -1,4 +1,4 @@
-import { ALargeSmall, ArrowDown, ArrowUp, Calendar, FileType, FolderTree, GalleryHorizontalEnd, Grid2X2, List, Search, Rows3, type LucideIcon } from "lucide-react"
+import { ALargeSmall, ArrowDown, ArrowUp, Calendar, Check, FileType, FolderTree, GalleryHorizontalEnd, Grid2X2, List, Search, Rows3, Undo2, type LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import type { ReaderFilePresentationOverridesDto } from "../../../../adapters/reader-http-client"
+import type { ReaderFilePresentationConfig, ReaderFilePresentationSizeField } from "../../readerFilePresentation"
 import type { ReaderLibraryViewMode } from "./readerLibraryEntryLayout"
+import { ReaderFilePresentationMoreMenu } from "./ReaderFilePresentationMoreMenu"
 
 export type ReaderLibrarySortField = "name" | "path" | "date" | "type"
 export type ReaderLibrarySortOrder = "asc" | "desc"
@@ -36,11 +39,17 @@ const SORT_OPTIONS: ReadonlyArray<{ field: ReaderLibrarySortField; label: string
   { field: "type", label: "类型", icon: FileType },
 ]
 
-export function ReaderLibraryViewToolbar({ label, value, disabled = false, onValueChange, search, onSearchChange, sort, onSortChange, trailing }: {
+export function ReaderLibraryViewToolbar({ label, value, disabled = false, onValueChange, onResetViewMode, presentation, overrides, onSizePreview, onSizeCommit, onSizeReset, search, onSearchChange, sort, onSortChange, trailing }: {
   label: string
   value: ReaderLibraryViewMode
   disabled?: boolean
   onValueChange(value: ReaderLibraryViewMode): void
+  onResetViewMode?(): void
+  presentation?: ReaderFilePresentationConfig
+  overrides?: ReaderFilePresentationOverridesDto
+  onSizePreview?(field: ReaderFilePresentationSizeField, value: number): void
+  onSizeCommit?(field: ReaderFilePresentationSizeField, value: number): void
+  onSizeReset?(field: ReaderFilePresentationSizeField): void
   search: string
   onSearchChange(value: string): void
   sort: ReaderLibrarySort
@@ -85,6 +94,13 @@ export function ReaderLibraryViewToolbar({ label, value, disabled = false, onVal
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
+          {onResetViewMode ? <DropdownMenuSeparator /> : null}
+          {onResetViewMode ? (
+            <DropdownMenuItem disabled={disabled || overrides?.viewMode === undefined} onSelect={onResetViewMode}>
+              {overrides?.viewMode === undefined ? <Check /> : <Undo2 />}
+              跟随 File Card 视图
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       <DropdownMenu>
@@ -114,6 +130,16 @@ export function ReaderLibraryViewToolbar({ label, value, disabled = false, onVal
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {presentation && onSizePreview && onSizeCommit ? (
+        <ReaderFilePresentationMoreMenu
+          presentation={presentation}
+          overrides={overrides}
+          disabled={disabled}
+          onPreview={onSizePreview}
+          onCommit={onSizeCommit}
+          onReset={onSizeReset}
+        />
+      ) : null}
       {trailing}
     </div>
   )

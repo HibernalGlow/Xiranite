@@ -1,9 +1,11 @@
 import { createRoot } from "react-dom/client"
+import { useState } from "react"
 
 import "../../../src/styles/tailwind.css"
 import "../../../src/styles/themes/index.css"
-import type { ReaderHttpClient, ReaderLibraryQueryDto, ReaderRecentDto } from "../../../src/nodes/neoview/adapters/reader-http-client"
+import type { ReaderFolderViewConfig, ReaderHistoryListPreferencesDto, ReaderHistoryListPreferencesPatch, ReaderHttpClient, ReaderLibraryQueryDto, ReaderRecentDto } from "../../../src/nodes/neoview/adapters/reader-http-client"
 import HistoryListCard from "../../../src/nodes/neoview/features/panels/cards/HistoryListCard"
+import { applyReaderFilePresentationOverridePatch } from "../../../src/nodes/neoview/features/panels/readerFilePresentation"
 
 const records: readonly ReaderRecentDto[] = [
   { bookId: "history-1", source: { kind: "archive", path: "D:/library/alpha.cbz" }, displayName: "Alpha", pageIndex: 12, pageCount: 80, updatedAt: Date.now() - 60_000 },
@@ -15,6 +17,39 @@ const client = {
   listRecent: async (offset: number, limit: number, _signal?: AbortSignal, query?: ReaderLibraryQueryDto) => libraryRecords(records, offset, limit, query),
 } as ReaderHttpClient
 
+const folderView = {
+  viewMode: "cover-grid",
+  contentWidthPercent: 35,
+  thumbnailWidthPercent: 28,
+  bannerWidthPercent: 50,
+} as ReaderFolderViewConfig
+
+function HistoryHarness() {
+  const [preferences, setPreferences] = useState<ReaderHistoryListPreferencesDto>({ viewMode: "compact", viewOverrides: {} })
+  async function updatePreferences(patch: ReaderHistoryListPreferencesPatch["historyList"]) {
+    const next = {
+      ...preferences,
+      viewOverrides: patch.viewOverrides
+        ? applyReaderFilePresentationOverridePatch(preferences.viewOverrides, patch.viewOverrides)
+        : preferences.viewOverrides,
+    }
+    setPreferences(next)
+    return next
+  }
+  return <>
+    <output className="sr-only" data-history-view-overrides>{JSON.stringify(preferences.viewOverrides)}</output>
+    <HistoryListCard
+      client={client}
+      disabled={false}
+      onGoTo={() => undefined}
+      onOpen={() => undefined}
+      folderView={folderView}
+      historyListPreferences={preferences}
+      onHistoryListPreferences={updatePreferences}
+    />
+  </>
+}
+
 createRoot(document.getElementById("root")!).render(
   <main className="grid h-screen overflow-hidden bg-neutral-950 text-foreground" style={{ gridTemplateColumns: "minmax(0, 1fr) 320px" }}>
     <section className="grid min-h-0 place-items-center bg-neutral-950 text-sm text-white/45" aria-label="阅读画面">
@@ -25,13 +60,7 @@ createRoot(document.getElementById("root")!).render(
         <p className="text-xs text-muted-foreground">历史</p>
         <h1 className="text-sm font-semibold">历史记录</h1>
       </header>
-      <HistoryListCard
-        client={client}
-        disabled={false}
-        onGoTo={() => undefined}
-        onOpen={() => undefined}
-        historyListPreferences={{ viewMode: "compact" }}
-      />
+      <HistoryHarness />
     </aside>
   </main>,
 )

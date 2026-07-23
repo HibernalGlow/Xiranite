@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import type { ReaderBookmarkDto, ReaderBookmarkListDto } from "../../../adapters/reader-http-client"
+import type { ReaderBookmarkDto, ReaderBookmarkListDto, ReaderFilePresentationOverridesPatch } from "../../../adapters/reader-http-client"
 import { publishReaderLibraryMutation, subscribeReaderLibraryMutations } from "../../library/reader-library-mutations"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import { useReaderLibraryThumbnails, type ReaderLibraryThumbnailItem } from "../../thumbnails/useReaderLibraryThumbnails"
@@ -13,10 +13,12 @@ import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
-import { readerLibraryListLayout, readerLibraryMediaClassName, readerLibrarySurfaceVariant, type ReaderLibraryViewMode } from "./shared/readerLibraryEntryLayout"
+import { readerLibraryListLayout, readerLibraryMediaClassName, readerLibraryMediaStyle, readerLibrarySurfaceVariant, type ReaderLibraryViewMode } from "./shared/readerLibraryEntryLayout"
 import { libraryItemFolderPath } from "./shared/libraryItemFolderPath"
 import { openLibraryEntry } from "./shared/openLibraryEntry"
 import { ReaderLibraryViewToolbar, type ReaderLibrarySort } from "./shared/ReaderLibraryViewToolbar"
+import { useReaderFilePresentationOverrides } from "./shared/useReaderFilePresentationOverrides"
+import { applyReaderFilePresentationOverridePatch, resolveReaderFilePresentation, type ReaderFilePresentationConfig } from "../readerFilePresentation"
 
 type ListEditorState = { mode: "create" } | { mode: "edit"; list: ReaderBookmarkListDto }
 type BookmarkViewMode = ReaderLibraryViewMode
@@ -49,7 +51,6 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
   const [batchListsOpen, setBatchListsOpen] = useState(false)
   const [batchListIds, setBatchListIds] = useState<ReadonlySet<string>>(() => new Set(["default"]))
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<BookmarkViewMode>("compact")
   const [search, setSearch] = useState("")
   const deferredSearch = useDeferredValue(search)
   const [sort, setSort] = useState<ReaderLibrarySort>({ field: "date", order: "desc" })
@@ -57,10 +58,30 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
   const anchorIndexRef = useRef<number>()
   const listTabRefs = useRef(new Map<string, HTMLButtonElement>())
   const newListButtonRef = useRef<HTMLButtonElement>(null)
-  const listLayout = useMemo(() => readerLibraryListLayout(viewMode, viewportWidth), [viewMode, viewportWidth])
+  const configuredViewOverrides = bookmarkListPreferences?.viewOverrides ?? {}
+  const persistViewOverrides = useCallback(async (patch: ReaderFilePresentationOverridesPatch) => {
+    if (!onBookmarkListPreferences) return applyReaderFilePresentationOverridePatch(configuredViewOverrides, patch)
+    const updated = await onBookmarkListPreferences({ viewOverrides: patch })
+    return updated.viewOverrides ?? {}
+  }, [configuredViewOverrides.bannerWidthPercent, configuredViewOverrides.contentWidthPercent, configuredViewOverrides.thumbnailWidthPercent, configuredViewOverrides.viewMode, onBookmarkListPreferences])
+  const presentationState = useReaderFilePresentationOverrides(configuredViewOverrides, persistViewOverrides)
+  const presentation = resolveReaderFilePresentation(folderView, presentationState.overrides)
+  const viewMode: BookmarkViewMode = presentation.viewMode
+  const listLayout = useMemo(
+    () => readerLibraryListLayout(viewMode, viewportWidth, presentation),
+    [presentation.bannerWidthPercent, presentation.thumbnailWidthPercent, viewMode, viewportWidth],
+  )
   const handleViewportWidthChange = useCallback((width: number) => {
     setViewportWidth((current) => current === width ? current : width)
   }, [])
+  async function commitPresentationOverride(patch: ReaderFilePresentationOverridesPatch) {
+    setActionError(undefined)
+    try {
+      await presentationState.commit(patch)
+    } catch (error) {
+      setActionError(errorMessage(error))
+    }
+  }
   function openBookmark(item: ReaderBookmarkDto) {
     return openLibraryEntry({
       client,
@@ -382,8 +403,14 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
           <ReaderLibraryViewToolbar
             label="书签视图"
             value={viewMode}
-            disabled={disabled}
-            onValueChange={setViewMode}
+            disabled={disabled || presentationState.pending}
+            onValueChange={(mode) => void commitPresentationOverride({ viewMode: mode })}
+            onResetViewMode={() => void commitPresentationOverride({ viewMode: null })}
+            presentation={presentation}
+            overrides={presentationState.overrides}
+            onSizePreview={(field, value) => presentationState.preview({ [field]: value })}
+            onSizeCommit={(field, value) => void commitPresentationOverride({ [field]: value })}
+            onSizeReset={(field) => void commitPresentationOverride({ [field]: null })}
             search={search}
             onSearchChange={setSearch}
             sort={sort}
@@ -399,6 +426,7 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
             item={item}
             index={index}
             viewMode={viewMode}
+            presentation={presentation}
             selected={selectedIds.has(item.id)}
             disabled={disabled}
             canOpen={Boolean(onOpen)}
@@ -469,6 +497,7 @@ function BookmarkRow({
   item,
   index,
   viewMode,
+  presentation,
   selected,
   disabled,
   canOpen,
@@ -483,6 +512,7 @@ function BookmarkRow({
   item: ReaderBookmarkDto
   index: number
   viewMode: BookmarkViewMode
+  presentation: ReaderFilePresentationConfig
   selected: boolean
   disabled: boolean
   canOpen: boolean
@@ -534,6 +564,7 @@ function BookmarkRow({
           fit="cover"
           loading={thumbnailLoading}
           className={readerLibraryMediaClassName(viewMode)}
+          style={readerLibraryMediaStyle(viewMode, presentation)}
         />
       )}
       primary={(

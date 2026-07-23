@@ -1,9 +1,11 @@
 import { createRoot } from "react-dom/client"
+import { useState } from "react"
 
 import "../../../src/styles/tailwind.css"
 import "../../../src/styles/themes/index.css"
-import type { ReaderBookmarkDto, ReaderBookmarkListDto, ReaderHttpClient, ReaderLibraryQueryDto } from "../../../src/nodes/neoview/adapters/reader-http-client"
+import type { ReaderBookmarkDto, ReaderBookmarkListDto, ReaderBookmarkListPreferencesDto, ReaderBookmarkListPreferencesPatch, ReaderFolderViewConfig, ReaderHttpClient, ReaderLibraryQueryDto } from "../../../src/nodes/neoview/adapters/reader-http-client"
 import BookmarkListCard from "../../../src/nodes/neoview/features/panels/cards/BookmarkListCard"
+import { applyReaderFilePresentationOverridePatch } from "../../../src/nodes/neoview/features/panels/readerFilePresentation"
 
 const lists: readonly ReaderBookmarkListDto[] = [
   { id: "all", name: "全部", isFavorite: false, createdAt: 0, updatedAt: 0, system: true },
@@ -20,6 +22,40 @@ const client = {
   listBookmarks: async (offset: number, limit: number, _listId?: string, _signal?: AbortSignal, query?: ReaderLibraryQueryDto) => libraryBookmarks(offset, limit, query),
 } as ReaderHttpClient
 
+const folderView = {
+  viewMode: "cover-grid",
+  contentWidthPercent: 35,
+  thumbnailWidthPercent: 28,
+  bannerWidthPercent: 50,
+} as ReaderFolderViewConfig
+
+function BookmarkHarness() {
+  const [preferences, setPreferences] = useState<ReaderBookmarkListPreferencesDto>({ activeListId: "all", viewOverrides: {} })
+  async function updatePreferences(patch: ReaderBookmarkListPreferencesPatch["bookmarkList"]) {
+    const next = {
+      ...preferences,
+      ...patch,
+      viewOverrides: patch.viewOverrides
+        ? applyReaderFilePresentationOverridePatch(preferences.viewOverrides, patch.viewOverrides)
+        : preferences.viewOverrides,
+    }
+    setPreferences(next)
+    return next
+  }
+  return <>
+    <output className="sr-only" data-bookmark-view-overrides>{JSON.stringify(preferences.viewOverrides)}</output>
+    <BookmarkListCard
+      client={client}
+      disabled={false}
+      onGoTo={() => undefined}
+      onOpen={() => undefined}
+      folderView={folderView}
+      bookmarkListPreferences={preferences}
+      onBookmarkListPreferences={updatePreferences}
+    />
+  </>
+}
+
 createRoot(document.getElementById("root")!).render(
   <main className="grid h-screen overflow-hidden bg-neutral-950 text-foreground" style={{ gridTemplateColumns: "minmax(0, 1fr) 320px" }}>
     <section className="grid min-h-0 place-items-center bg-neutral-950 text-sm text-white/45" aria-label="阅读画面">
@@ -30,13 +66,7 @@ createRoot(document.getElementById("root")!).render(
         <p className="text-xs text-muted-foreground">书签</p>
         <h1 className="text-sm font-semibold">书签列表</h1>
       </header>
-      <BookmarkListCard
-        client={client}
-        disabled={false}
-        onGoTo={() => undefined}
-        onOpen={() => undefined}
-        bookmarkListPreferences={{ activeListId: "all" }}
-      />
+      <BookmarkHarness />
     </aside>
   </main>,
 )

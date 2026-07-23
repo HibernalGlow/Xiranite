@@ -187,6 +187,8 @@ describe("loadNeoviewSessionOptions", () => {
       "default_zoom_mode = \"fitHeight\"",
       "[nodes.neoview.book]",
       "future_book = \"keep\"",
+      "[nodes.neoview.history_list]",
+      "view_mode = \"thumbnail\"",
       "[nodes.neoview.panels.sidebar_control]",
       "future_controller = \"keep\"",
       "[nodes.neoview.panels.edges.top]",
@@ -378,6 +380,21 @@ describe("loadNeoviewSessionOptions", () => {
       expect(folderConfig).toContain("[nodes.neoview.folder.tree_view]")
       expect(folderConfig).toContain("layout = \"top\"")
       expect(folderConfig).toContain("size = 240")
+      const historyPresentationPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
+        body: JSON.stringify({ historyList: { viewOverrides: { viewMode: null, thumbnailWidthPercent: 42 } } }),
+      }))
+      expect(await historyPresentationPatched?.json()).toMatchObject({
+        historyList: { viewOverrides: { thumbnailWidthPercent: 42 } },
+      })
+      const historyPresentationConfig = await readFile(configPath, "utf8")
+      expect(historyPresentationConfig).toContain("[nodes.neoview.history_list.view_overrides]")
+      expect(historyPresentationConfig).toContain("thumbnail_width_percent = 42")
+      expect((await loadNeoviewRuntimeConfig({ configPath })).historyList).toEqual({
+        viewMode: "compact",
+        viewOverrides: { thumbnailWidthPercent: 42 },
+      })
       expect(folderConfig).toContain('pinned_paths = [ "D:/Pinned" ]')
       expect(folderConfig).toContain("name = 264")
       expect((await loadNeoviewRuntimeConfig({ configPath })).folderView).toMatchObject({

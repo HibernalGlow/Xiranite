@@ -229,11 +229,17 @@ export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntime
         bookmarkList?.active_list_id === undefined
           ? Models.DEFAULT_NEOVIEW_BOOKMARK_LIST_CONFIG.activeListId
           : normalizedBookmarkListId(bookmarkList.active_list_id, "[nodes.neoview.bookmark_list].active_list_id"),
+      viewOverrides: parseFilePresentationOverrides(bookmarkList, undefined, "[nodes.neoview.bookmark_list]"),
     },
     historyList: {
       viewMode:
         optionalEnum(historyList?.view_mode, "[nodes.neoview.history_list].view_mode", ["compact", "content", "banner", "thumbnail"] as const) ??
         Models.DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG.viewMode,
+      viewOverrides: parseFilePresentationOverrides(
+        historyList,
+        optionalEnum(historyList?.view_mode, "[nodes.neoview.history_list].view_mode", ["compact", "content", "banner", "thumbnail"] as const),
+        "[nodes.neoview.history_list]",
+      ),
     },
     folderView: parseFolderViewConfig(folder),
     fileTree: parseFileTreeConfig(optionalRecord(folder?.tree, "[nodes.neoview.folder.tree]")),
@@ -2077,12 +2083,33 @@ export function parseNeoviewHistoryListPatch(value: unknown): {
   const record = requireRecord(value, "reader history list patch")
   if (Object.keys(record).some((key) => key !== "historyList")) throw new Error("reader history list patch contains unsupported fields.")
   const preferences = requireRecord(record.historyList, "reader history list patch.historyList")
-  if (Object.keys(preferences).some((key) => key !== "viewMode")) throw new Error("reader history list patch contains unsupported fields.")
-  if (preferences.viewMode === undefined) throw new Error("reader history list patch must change viewMode.")
-  const viewMode = optionalEnum(preferences.viewMode, "reader history list patch.viewMode", ["compact", "content", "banner", "thumbnail"] as const)
+  const allowed = new Set(["viewMode", "viewOverrides"])
+  const unknown = Object.keys(preferences).filter((key) => !allowed.has(key))
+  if (unknown.length) throw new Error(`reader history list patch contains unsupported fields: ${unknown.join(", ")}.`)
+  const patch: Models.NeoviewHistoryListPatch = { historyList: {} }
+  const toml: Record<string, unknown> = {}
+  let overrideParsed = false
+  if (preferences.viewOverrides !== undefined) {
+    const parsed = parseFilePresentationOverridePatch(preferences.viewOverrides, "reader history list patch.viewOverrides")
+    patch.historyList.viewOverrides = parsed.patch
+    toml.view_overrides = parsed.tomlPatch
+    overrideParsed = true
+    if (Object.hasOwn(parsed.patch, "viewMode")) toml.view_mode = null
+  }
+  if (preferences.viewMode !== undefined) {
+    const legacyViewMode = optionalEnum(preferences.viewMode, "reader history list patch.viewMode", ["compact", "content", "banner", "thumbnail"] as const)!
+    patch.historyList.viewMode = legacyViewMode
+    if (!Object.hasOwn(patch.historyList.viewOverrides ?? {}, "viewMode")) {
+      const canonical = legacyHistoryViewMode(legacyViewMode)
+      patch.historyList.viewOverrides = { ...patch.historyList.viewOverrides, viewMode: canonical }
+      toml.view_overrides = { ...(toml.view_overrides as Record<string, unknown> | undefined), view_mode: canonical }
+      toml.view_mode = null
+    }
+  }
+  if (preferences.viewMode === undefined && !overrideParsed) throw new Error("reader history list patch must change viewMode or viewOverrides.")
   return {
-    patch: { historyList: { viewMode } },
-    tomlPatch: { history_list: { view_mode: viewMode } },
+    patch,
+    tomlPatch: { history_list: toml },
   }
 }
 
@@ -2093,13 +2120,96 @@ export function parseNeoviewBookmarkListPatch(value: unknown): {
   const record = requireRecord(value, "reader bookmark list patch")
   if (Object.keys(record).some((key) => key !== "bookmarkList")) throw new Error("reader bookmark list patch contains unsupported fields.")
   const preferences = requireRecord(record.bookmarkList, "reader bookmark list patch.bookmarkList")
-  if (Object.keys(preferences).some((key) => key !== "activeListId")) throw new Error("reader bookmark list patch contains unsupported fields.")
-  if (preferences.activeListId === undefined) throw new Error("reader bookmark list patch must change activeListId.")
-  const activeListId = normalizedBookmarkListId(preferences.activeListId, "reader bookmark list patch.activeListId")
-  return {
-    patch: { bookmarkList: { activeListId } },
-    tomlPatch: { bookmark_list: { active_list_id: activeListId } },
+  const allowed = new Set(["activeListId", "viewOverrides"])
+  const unknown = Object.keys(preferences).filter((key) => !allowed.has(key))
+  if (unknown.length) throw new Error(`reader bookmark list patch contains unsupported fields: ${unknown.join(", ")}.`)
+  const patch: Models.NeoviewBookmarkListPatch = { bookmarkList: {} }
+  const toml: Record<string, unknown> = {}
+  if (preferences.activeListId !== undefined) {
+    patch.bookmarkList.activeListId = normalizedBookmarkListId(preferences.activeListId, "reader bookmark list patch.activeListId")
+    toml.active_list_id = patch.bookmarkList.activeListId
   }
+  if (preferences.viewOverrides !== undefined) {
+    const parsed = parseFilePresentationOverridePatch(preferences.viewOverrides, "reader bookmark list patch.viewOverrides")
+    patch.bookmarkList.viewOverrides = parsed.patch
+    toml.view_overrides = parsed.tomlPatch
+  }
+  if (!Object.keys(patch.bookmarkList).length) throw new Error("reader bookmark list patch must change activeListId or viewOverrides.")
+  return {
+    patch,
+    tomlPatch: { bookmark_list: toml },
+  }
+}
+
+function parseFilePresentationOverrides(
+  section: Record<string, unknown> | undefined,
+  legacyViewMode: Models.NeoviewHistoryListConfig["viewMode"] | undefined,
+  label: string,
+): Models.NeoviewFilePresentationOverrides {
+  const record = optionalRecord(section?.view_overrides ?? section?.viewOverrides, `${label}.view_overrides`)
+  const overrides: Models.NeoviewFilePresentationOverrides = {}
+  const configuredViewMode = record?.view_mode ?? record?.viewMode
+  if (configuredViewMode !== undefined) {
+    overrides.viewMode = optionalEnum(
+      configuredViewMode,
+      `${label}.view_overrides.view_mode`,
+      Models.NEOVIEW_FILE_PRESENTATION_VIEW_MODES,
+    )
+  } else if (legacyViewMode !== undefined) {
+    overrides.viewMode = legacyHistoryViewMode(legacyViewMode)
+  }
+  const contentWidth = record?.content_width_percent ?? record?.contentWidthPercent
+  if (contentWidth !== undefined) overrides.contentWidthPercent = boundedInteger(contentWidth, 20, 70, `${label}.view_overrides.content_width_percent`)
+  const thumbnailWidth = record?.thumbnail_width_percent ?? record?.thumbnailWidthPercent
+  if (thumbnailWidth !== undefined) overrides.thumbnailWidthPercent = boundedInteger(thumbnailWidth, 10, 90, `${label}.view_overrides.thumbnail_width_percent`)
+  const bannerWidth = record?.banner_width_percent ?? record?.bannerWidthPercent
+  if (bannerWidth !== undefined) overrides.bannerWidthPercent = boundedInteger(bannerWidth, 20, 100, `${label}.view_overrides.banner_width_percent`)
+  return overrides
+}
+
+function parseFilePresentationOverridePatch(value: unknown, label: string): {
+  patch: Models.NeoviewFilePresentationOverridePatch
+  tomlPatch: Record<string, unknown>
+} {
+  const record = requireRecord(value, label)
+  const allowed = new Set(["viewMode", "contentWidthPercent", "thumbnailWidthPercent", "bannerWidthPercent"])
+  const unknown = Object.keys(record).filter((key) => !allowed.has(key))
+  if (unknown.length) throw new Error(`${label} contains unsupported fields: ${unknown.join(", ")}.`)
+  if (!Object.keys(record).length) throw new Error(`${label} must change at least one field.`)
+  const patch: Models.NeoviewFilePresentationOverridePatch = {}
+  const tomlPatch: Record<string, unknown> = {}
+  if (Object.hasOwn(record, "viewMode")) {
+    patch.viewMode = record.viewMode === null
+      ? null
+      : optionalEnum(record.viewMode, `${label}.viewMode`, Models.NEOVIEW_FILE_PRESENTATION_VIEW_MODES)
+    tomlPatch.view_mode = patch.viewMode
+  }
+  if (Object.hasOwn(record, "contentWidthPercent")) {
+    patch.contentWidthPercent = record.contentWidthPercent === null
+      ? null
+      : boundedInteger(record.contentWidthPercent, 20, 70, `${label}.contentWidthPercent`)
+    tomlPatch.content_width_percent = patch.contentWidthPercent
+  }
+  if (Object.hasOwn(record, "thumbnailWidthPercent")) {
+    patch.thumbnailWidthPercent = record.thumbnailWidthPercent === null
+      ? null
+      : boundedInteger(record.thumbnailWidthPercent, 10, 90, `${label}.thumbnailWidthPercent`)
+    tomlPatch.thumbnail_width_percent = patch.thumbnailWidthPercent
+  }
+  if (Object.hasOwn(record, "bannerWidthPercent")) {
+    patch.bannerWidthPercent = record.bannerWidthPercent === null
+      ? null
+      : boundedInteger(record.bannerWidthPercent, 20, 100, `${label}.bannerWidthPercent`)
+    tomlPatch.banner_width_percent = patch.bannerWidthPercent
+  }
+  return { patch, tomlPatch }
+}
+
+function legacyHistoryViewMode(value: Models.NeoviewHistoryListConfig["viewMode"]): Models.NeoviewFilePresentationViewMode {
+  if (value === "content") return "cover-list"
+  if (value === "banner") return "mosaic-list"
+  if (value === "thumbnail") return "cover-grid"
+  return "compact"
 }
 
 export function parseNeoviewPageListPatch(value: unknown): {

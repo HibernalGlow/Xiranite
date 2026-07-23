@@ -20,8 +20,10 @@ import { Activity, Bell, Bookmark, BookMarked, BookOpen, BookOpenCheck, Bot, Cal
 import type {
   ReaderBoardLayoutPatch,
   ReaderBookmarkListPreferencesDto,
+  ReaderBookmarkListPreferencesPatch,
   ReaderBookSettingsUpdateDto,
   ReaderHistoryListPreferencesDto,
+  ReaderHistoryListPreferencesPatch,
   ReaderRadialMenuPatch,
   ReaderVoiceControlPatch,
   ReaderHttpClient,
@@ -66,9 +68,9 @@ export interface ReaderPanelContext {
   onInputAction?(action: import("@xiranite/node-neoview/ui-core").ReaderInputAction): void
   onBookSettingsUpdated?(sessionId: string, update: ReaderBookSettingsUpdateDto): void
   bookmarkListPreferences?: ReaderBookmarkListPreferencesDto
-  onBookmarkListPreferences?(patch: Partial<ReaderBookmarkListPreferencesDto>): Promise<ReaderBookmarkListPreferencesDto>
+  onBookmarkListPreferences?(patch: ReaderBookmarkListPreferencesPatch["bookmarkList"]): Promise<ReaderBookmarkListPreferencesDto>
   historyListPreferences?: ReaderHistoryListPreferencesDto
-  onHistoryListPreferences?(patch: Partial<ReaderHistoryListPreferencesDto>): Promise<ReaderHistoryListPreferencesDto>
+  onHistoryListPreferences?(patch: ReaderHistoryListPreferencesPatch["historyList"]): Promise<ReaderHistoryListPreferencesDto>
   pageListPreferences?: ReaderPageListPreferencesDto
   onPageListPreferences?(patch: Partial<ReaderPageListPreferencesDto>): Promise<void>
   onPageModeChange?(pageMode: "single" | "double"): void | Promise<void>

@@ -1,5 +1,5 @@
 import { FileIcon, ImageIcon, LoaderCircle } from "lucide-react"
-import { useEffect, useState, type ReactNode, type SyntheticEvent } from "react"
+import { useEffect, useState, type CSSProperties, type ReactNode, type SyntheticEvent } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -12,6 +12,7 @@ export interface ReaderThumbnailSurfaceProps {
   imageLoading?: "eager" | "lazy"
   className?: string
   imageClassName?: string
+  style?: CSSProperties
   fallback?: ReactNode
   onDimensions?(width: number, height: number): void
 }
@@ -25,6 +26,7 @@ export function ReaderThumbnailSurface({
   imageLoading = "lazy",
   className,
   imageClassName,
+  style,
   fallback,
   onDimensions,
 }: ReaderThumbnailSurfaceProps) {
@@ -47,6 +49,7 @@ export function ReaderThumbnailSurface({
   return (
     <span
       className={cn("grid shrink-0 place-items-center overflow-hidden rounded bg-muted/30", className)}
+      style={style}
       data-reader-thumbnail-surface="true"
       data-thumbnail-fit={fit}
       data-thumbnail-state={showImage ? "ready" : loading ? "loading" : candidates.length ? "error" : "empty"}
