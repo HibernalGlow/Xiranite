@@ -85,6 +85,7 @@ function deployComponentState(state: WSState, moduleId: string, options: DeployC
     id: `comp-${instanceCounter}-${now}`,
     moduleId,
     state: "docked",
+    placement: "workspace",
     position: options.position ?? { x: 20 + (instanceCounter % 5) * 20, y: 20 + (instanceCounter % 4) * 20 },
     size: { w: 340, h: 280 },
     z: zCounter,
@@ -191,7 +192,18 @@ function setComponentRuntimeState(state: WSState, id: string, componentState: Co
   return {
     ...state,
     components: state.components.map((item) =>
-      item.id === id ? { ...item, state: componentState, updatedAt: Date.now() } : item,
+      item.id === id
+        ? {
+          ...item,
+          state: componentState,
+          placement: componentState === "floating"
+            ? "window"
+            : componentState === "docked"
+              ? "workspace"
+              : item.placement,
+          updatedAt: Date.now(),
+        }
+        : item,
     ),
     focusedComponentId: componentState === "focused" ? id : wasFullscreen ? null : state.focusedComponentId,
     fullscreenComponentId: componentState === "fullscreen" ? id : wasFullscreen ? null : state.fullscreenComponentId,
@@ -315,7 +327,15 @@ function updateComponentState(state: WSState, id: string, patch: ComponentPatch)
     }
     if (patch.state) {
       const wasFullscreen = next.state === "fullscreen"
-      next = { ...next, state: patch.state }
+      next = {
+        ...next,
+        state: patch.state,
+        placement: patch.state === "floating"
+          ? "window"
+          : patch.state === "docked"
+            ? "workspace"
+            : next.placement,
+      }
       focusedComponentId = patch.state === "focused" ? id : wasFullscreen ? null : focusedComponentId
       fullscreenComponentId = patch.state === "fullscreen" ? id : wasFullscreen ? null : fullscreenComponentId
       changed = true
@@ -473,6 +493,7 @@ function duplicateComponentState(state: WSState, id: string): WSState {
     moduleId: source.moduleId,
     // New components default to docked state, never copy fullscreen state.
     state: "docked",
+    placement: "workspace",
     position: newPosition,
     size: source.size ? { ...source.size } : undefined,
     z: zCounter,

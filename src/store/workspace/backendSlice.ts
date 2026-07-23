@@ -25,8 +25,8 @@ export function createBackendSlice(update: WorkspaceStoreUpdater): WorkspaceBack
  * 将后端 DTO 整体灌入 store，替换当前的工作区/泳道/组件集合。
  *
  * - 工作区为空时回退到 INITIAL_STATE.workspaces，避免首启时无工作区可用
- * - 组件的 state 强制重置为 "docked"，position/size 使用默认值（这两个字段
- *   不持久化到后端，因为它们依赖具体视图模式且每次会话可能不同）
+ * - 独立窗口归属恢复为 "floating"，旧快照和工作区归属恢复为 "docked"
+ * - position/size 使用默认值（这两个字段不持久化到后端）
  * - activeWorkspaceId 自动指向第一个工作区
  * - zCounter 取现有值与所有组件 z 值的最大值，避免新组件 z 值冲突
  */
@@ -46,7 +46,8 @@ function hydrateState(state: WSState, workspaces: WorkspaceDTO[], lanes: LaneDTO
   const nextComponents: ComponentInstance[] = components.map((component) => ({
     id: component.id,
     moduleId: component.moduleId,
-    state: "docked",
+    state: component.placement === "window" ? "floating" : "docked",
+    placement: component.placement ?? "workspace",
     workspaceId: component.workspaceId,
     data: component.data,
     flowPosition: component.flowPosition,

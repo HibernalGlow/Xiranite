@@ -22,10 +22,13 @@ export const laneSchema = z.object({
   updatedAt: z.number().int().nonnegative(),
 })
 
+export const componentPlacementSchema = z.enum(["workspace", "window"])
+
 export const componentSchema = z.object({
   id: z.string().min(1),
   moduleId: z.string().min(1),
   workspaceId: z.string().min(1),
+  placement: componentPlacementSchema.optional(),
   data: z.record(z.string(), z.unknown()).optional(),
   flowPosition: z.object({ x: z.number(), y: z.number() }).optional(),
   flowSize: z.object({ width: z.number().positive(), height: z.number().positive() }).optional(),
@@ -269,6 +272,7 @@ export const runtimeHistoryListSchema = z.object({
 export type WorkspaceDTO = z.infer<typeof workspaceSchema>
 export type LaneDTO = z.infer<typeof laneSchema>
 export type ComponentDTO = z.infer<typeof componentSchema>
+export type ComponentPlacementDTO = z.infer<typeof componentPlacementSchema>
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceInputSchema>
 export type RenameWorkspaceInput = z.infer<typeof renameWorkspaceInputSchema>
 export type WorkspaceSnapshotDTO = z.infer<typeof workspaceSnapshotSchema>

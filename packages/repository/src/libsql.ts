@@ -46,6 +46,7 @@ const components = sqliteTable("components", {
   id: text("id").primaryKey(),
   moduleId: text("module_id").notNull(),
   workspaceId: text("workspace_id").notNull(),
+  placement: text("placement"),
   data: text("data"),
   flowPosition: text("flow_position"),
   flowSize: text("flow_size"),
@@ -218,6 +219,7 @@ async function ensureSchema(client: Client): Promise<void> {
       id TEXT PRIMARY KEY NOT NULL,
       module_id TEXT NOT NULL,
       workspace_id TEXT NOT NULL,
+      placement TEXT,
       data TEXT,
       flow_position TEXT,
       flow_size TEXT,
@@ -262,6 +264,7 @@ async function ensureSchema(client: Client): Promise<void> {
   await addColumnIfMissing(client, "workspaces", "flow_canvas", "TEXT")
   await addColumnIfMissing(client, "workspaces", "flow_camera", "TEXT")
   await addColumnIfMissing(client, "components", "lane_size", "TEXT")
+  await addColumnIfMissing(client, "components", "placement", "TEXT")
 }
 
 async function addColumnIfMissing(client: Client, table: string, column: string, type: string): Promise<void> {
@@ -374,6 +377,7 @@ function fromComponentDTO(component: ComponentDTO): typeof components.$inferInse
     id: component.id,
     moduleId: component.moduleId,
     workspaceId: component.workspaceId,
+    placement: component.placement ?? null,
     data: serialize(component.data),
     flowPosition: serialize(component.flowPosition),
     flowSize: serialize(component.flowSize),
@@ -394,6 +398,7 @@ function toComponentDTO(row: typeof components.$inferSelect): ComponentDTO {
     id: row.id,
     moduleId: row.moduleId,
     workspaceId: row.workspaceId,
+    placement: row.placement === "window" ? "window" : row.placement === "workspace" ? "workspace" : undefined,
     data: deserialize<Record<string, unknown>>(row.data),
     flowPosition: deserialize<{ x: number; y: number }>(row.flowPosition),
     flowSize: deserialize<{ width: number; height: number }>(row.flowSize),

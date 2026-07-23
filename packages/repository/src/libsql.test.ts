@@ -43,6 +43,7 @@ describe("createLibsqlWorkspaceRepository", () => {
           {
             id: "comp-alpha",
             moduleId: "scratch",
+            placement: "window",
             workspaceId: "ws-alpha",
             data: { text: "hello" },
             flowPosition: { x: 1, y: 2 },

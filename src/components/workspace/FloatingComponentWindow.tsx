@@ -61,6 +61,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
       id: compId,
       moduleId,
       state: "floating",
+      placement: "window",
       position: { x: 20, y: 20 },
       size: { w: 460, h: 380 },
       z: zCounter + 1,

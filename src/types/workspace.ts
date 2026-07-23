@@ -33,6 +33,7 @@ export interface FlowCanvasCamera {
 
 /** 组件实例在视图中的展示状态。 */
 export type ComponentState = "docked" | "floating" | "focused" | "fullscreen" | "compact"
+export type ComponentPlacement = "workspace" | "window"
 
 /** 内置主题预设 key（与 styles/themes/*.css 一一对应）。 */
 export type AppTheme = "spatial" | "endfield" | "wuling" | "onlook" | "tori" | "conductor" | "hilden" | "aperture" | "noomo" | "excalidraw" | "astro" | "svelte" | "bun" | "storybook" | "supabase" | "penpot" | "vite"
@@ -95,6 +96,8 @@ export interface ComponentInstance {
   id: string
   moduleId: string
   state: ComponentState
+  /** Durable rendering owner. Runtime focus/fullscreen state is not persisted. */
+  placement?: ComponentPlacement
   createdAt?: number
   updatedAt?: number
   /** Legacy free-layout position retained for persisted data compatibility. */
