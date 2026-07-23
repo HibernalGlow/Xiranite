@@ -19,6 +19,7 @@
     "dev:quick": "bun scripts/dev-with-backend.ts",
     "dev:quick:lean": "bun scripts/dev-with-backend.ts --lean-vite",
     "dev:stop": "bun scripts/stop-dev.ts",
+    "nexus:extension": "bun scripts/open-nexus-extension.ts",
     "dev:reboot": "bun scripts/reboot-dev.ts dev",
     "dev:ui": "bun scripts/dev-tui.tsx dev",
     "dev:clean": "bun scripts/reset-vite-dev.ts && bun run dev -- --force",

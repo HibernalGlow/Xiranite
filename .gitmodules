@@ -1,3 +1,6 @@
 [submodule "vendor/ocean-dataview"]
 	path = vendor/ocean-dataview
 	url = https://github.com/HibernalGlow/ocean-dataview-vite.git
+[submodule "vendor/Xiranite-Nexus"]
+	path = vendor/Xiranite-Nexus
+	url = https://github.com/HibernalGlow/Xiranite-Nexus.git
