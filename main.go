@@ -4,6 +4,7 @@ import (
 	"embed"
 	"log"
 
+	"github.com/hibernalglow/xiranite/internal/nexusbridge"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
@@ -39,6 +40,21 @@ func main() {
 	}
 	service := NewXiraniteService(localBackend, backendConfig)
 	defer service.StopLocalBackend()
+	bridge, err := nexusbridge.StartServer(func() *nexusbridge.BackendConfig {
+		config := service.LocalBackendConfig()
+		if config == nil {
+			return nil
+		}
+		return &nexusbridge.BackendConfig{BaseURL: config.BaseURL, Token: config.Token}
+	})
+	if err != nil {
+		log.Printf("Xiranite Nexus IPC is unavailable: %v", err)
+	} else {
+		defer bridge.Close()
+		if pipe, pipeErr := nexusbridge.PipeName(); pipeErr == nil {
+			log.Printf("Xiranite Nexus IPC ready: %s", pipe)
+		}
+	}
 
 	App = application.New(application.Options{
 		Name:        "Xiranite",

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { readFile, writeFile } from "node:fs/promises"
-import { resolve } from "node:path"
+import { dirname, resolve } from "node:path"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const registryPaths = [
@@ -71,6 +71,9 @@ try {
     outputPath,
     ".",
   ], buildEnv)
+
+  const nativeHostOutput = resolve(repoRoot, dirname(outputPath), process.platform === "win32" ? "xiranite-native-host.exe" : "xiranite-native-host")
+  await run(["go", "build", "-mod=mod", "-o", nativeHostOutput, "./cmd/xiranite-native-host"], buildEnv)
 
   completed = true
   console.log(`[local-build] Created ${resolve(repoRoot, outputPath)}`)
