@@ -25,7 +25,7 @@ describe("Comfygure node projection", () => {
       nodeId: "comfygure",
       input: { action: "preflight", target: { endpoint: "http://127.0.0.1:8000" } },
     })
-    expect(screen.getByText("Ready for the Run Coordinator stage")).toBeTruthy()
+    expect(screen.getByText("Ready to run")).toBeTruthy()
   })
 
   it("persists only local target settings through the node config capability", async () => {
@@ -35,6 +35,16 @@ describe("Comfygure node projection", () => {
     await userEvent.setup().click(await screen.findByRole("button", { name: "Save target" }))
 
     await waitFor(() => expect(host.savedConfig).toEqual({ endpoint: "http://127.0.0.1:8000", libraryPath: "D:/1Repo/Github/ComfyUI/Library" }))
+  })
+
+  it("uses the explicit Run control for prompt submission", async () => {
+    const host = createHost()
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Run" }))
+
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]).toMatchObject({ nodeId: "comfygure", input: { action: "submit" } })
   })
 })
 

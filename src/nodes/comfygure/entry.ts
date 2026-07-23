@@ -10,6 +10,7 @@ const cardStateSchema = z.object({
   program: z.record(z.string(), z.unknown()).optional(),
   preview: z.record(z.string(), z.unknown()).optional(),
   preflight: z.record(z.string(), z.unknown()).optional(),
+  submission: z.record(z.string(), z.unknown()).optional(),
 }).passthrough()
 
 const configSchema = z.object({
