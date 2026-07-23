@@ -2564,6 +2564,10 @@ export function parseNeoviewShellControlPatch(value: unknown): {
         const source = requireRecord(lanes[laneId], `reader shell control patch.workspace.lanes.${laneId}`)
         const unknownLaneFields = Object.keys(source).filter((key) => ![
           "width",
+          "landscapeWidth",
+          "portraitWidth",
+          "landscapeReaderSoloWidth",
+          "portraitReaderSoloWidth",
           "collapsed",
           "title",
           "activePanelId",
@@ -2576,6 +2580,10 @@ export function parseNeoviewShellControlPatch(value: unknown): {
         if (unknownLaneFields.length) throw new Error(`reader shell control patch.workspace.lanes.${laneId} contains unsupported fields: ${unknownLaneFields.join(", ")}.`)
         const lane: Partial<Models.NeoviewSwimlaneLaneConfig> = {}
         if (source.width !== undefined) lane.width = swimlaneWidth(source.width, laneId, `workspace.lanes.${laneId}.width`)
+        if (source.landscapeWidth !== undefined) lane.landscapeWidth = swimlaneWidth(source.landscapeWidth, laneId, `workspace.lanes.${laneId}.landscapeWidth`)
+        if (source.portraitWidth !== undefined) lane.portraitWidth = swimlaneWidth(source.portraitWidth, laneId, `workspace.lanes.${laneId}.portraitWidth`)
+        if (source.landscapeReaderSoloWidth !== undefined) lane.landscapeReaderSoloWidth = swimlaneWidth(source.landscapeReaderSoloWidth, laneId, `workspace.lanes.${laneId}.landscapeReaderSoloWidth`)
+        if (source.portraitReaderSoloWidth !== undefined) lane.portraitReaderSoloWidth = swimlaneWidth(source.portraitReaderSoloWidth, laneId, `workspace.lanes.${laneId}.portraitReaderSoloWidth`)
         if (source.collapsed !== undefined) lane.collapsed = requiredBoolean(source.collapsed, `workspace.lanes.${laneId}.collapsed`)
         if (source.title !== undefined) lane.title = requireLaneTitle(source.title, `workspace.lanes.${laneId}.title`)
         if (source.activePanelId !== undefined) lane.activePanelId = requireLayoutId(source.activePanelId, `workspace.lanes.${laneId}.activePanelId`)
@@ -2749,6 +2757,10 @@ function shellControlTomlPatch(
         if (!source) continue
         const lane: Record<string, unknown> = {}
         if (source.width !== undefined) lane.width = source.width
+        if (source.landscapeWidth !== undefined) lane.landscape_width = source.landscapeWidth
+        if (source.portraitWidth !== undefined) lane.portrait_width = source.portraitWidth
+        if (source.landscapeReaderSoloWidth !== undefined) lane.landscape_reader_solo_width = source.landscapeReaderSoloWidth
+        if (source.portraitReaderSoloWidth !== undefined) lane.portrait_reader_solo_width = source.portraitReaderSoloWidth
         if (source.collapsed !== undefined) lane.collapsed = source.collapsed
         if (source.title !== undefined) lane.title = source.title
         if (source.activePanelId !== undefined) lane.active_panel_id = source.activePanelId
@@ -3090,6 +3102,18 @@ function parseWorkspaceConfig(
     const panelBarConstrained = optionalBoolean(lane?.panel_bar_constrained ?? lane?.panelBarConstrained, `[nodes.neoview.panels.swimlane].${laneId}.panel_bar_constrained`) ?? laneDefaults.panelBarConstrained
     return [laneId, {
       width: swimlaneWidth(lane?.width, laneId, `[nodes.neoview.panels.swimlane].${laneId}.width`, fallbackWidth),
+      ...((lane?.landscape_width ?? lane?.landscapeWidth) === undefined ? {} : {
+        landscapeWidth: swimlaneWidth(lane?.landscape_width ?? lane?.landscapeWidth, laneId, `[nodes.neoview.panels.swimlane].${laneId}.landscape_width`),
+      }),
+      ...((lane?.portrait_width ?? lane?.portraitWidth) === undefined ? {} : {
+        portraitWidth: swimlaneWidth(lane?.portrait_width ?? lane?.portraitWidth, laneId, `[nodes.neoview.panels.swimlane].${laneId}.portrait_width`),
+      }),
+      ...((lane?.landscape_reader_solo_width ?? lane?.landscapeReaderSoloWidth) === undefined ? {} : {
+        landscapeReaderSoloWidth: swimlaneWidth(lane?.landscape_reader_solo_width ?? lane?.landscapeReaderSoloWidth, laneId, `[nodes.neoview.panels.swimlane].${laneId}.landscape_reader_solo_width`),
+      }),
+      ...((lane?.portrait_reader_solo_width ?? lane?.portraitReaderSoloWidth) === undefined ? {} : {
+        portraitReaderSoloWidth: swimlaneWidth(lane?.portrait_reader_solo_width ?? lane?.portraitReaderSoloWidth, laneId, `[nodes.neoview.panels.swimlane].${laneId}.portrait_reader_solo_width`),
+      }),
       collapsed: optionalBoolean(lane?.collapsed, `[nodes.neoview.panels.swimlane].${laneId}.collapsed`) ?? laneDefaults.collapsed,
       ...((lane?.title ?? laneDefaults.title) === undefined ? {} : {
         title: requireLaneTitle(lane?.title ?? laneDefaults.title, `[nodes.neoview.panels.swimlane].${laneId}.title`),
