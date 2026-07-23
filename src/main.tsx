@@ -41,7 +41,8 @@ void bootstrap()
  *  1. 初始化 i18n（加载默认语言资源）；
  *  2. 异步 hydrate 后端配置（失败仅记日志，不阻塞 UI）；
  *  3. 在 #root 上挂载 React 树，层级为：
- *     StrictMode → QueryClientProvider → NuqsAdapter → ThemeProvider → App。
+ *     QueryClientProvider → NuqsAdapter → ThemeProvider → App；开发时可通过
+ *     VITE_XIRANITE_REACT_STRICT_MODE=1 显式启用 StrictMode。
  */
 async function bootstrap() {
   startupDebug("bootstrap:begin")
@@ -52,17 +53,22 @@ async function bootstrap() {
   })
 
   startupDebug("bootstrap:react-render:begin")
-  createRoot(document.getElementById("root")!).render(
-    <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <NuqsAdapter>
-          <ThemeProvider>
-            <App />
-          </ThemeProvider>
-        </NuqsAdapter>
-      </QueryClientProvider>
-    </StrictMode>
+  const app = (
+    <QueryClientProvider client={queryClient}>
+      <NuqsAdapter>
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </NuqsAdapter>
+    </QueryClientProvider>
   )
+  const root = createRoot(document.getElementById("root")!)
+  // StrictMode replays mounts in Vite development. A full NeoView Reader mount
+  // decodes a high-resolution page, so that replay causes a second decode and
+  // can block the entire WebView before its first interactive frame.
+  root.render(import.meta.env.VITE_XIRANITE_REACT_STRICT_MODE === "1"
+    ? <StrictMode>{app}</StrictMode>
+    : app)
   requestAnimationFrame(() => {
     startupDebug("bootstrap:first-animation-frame")
   })
