@@ -16,7 +16,10 @@ process.env.XIRANITE_NODE_SOURCE = "1"
 // Opt-in behaviour at the runtime level; enabled by default for desktop dev
 // while allowing `XIRANITE_NODE_SOURCE_HMR=0` to retain the previous cache.
 process.env.XIRANITE_NODE_SOURCE_HMR ??= "1"
-const { startBackend } = await import("../packages/backend/src/index")
+const [{ startBackend }, { invalidateDevelopmentSourceModules }] = await Promise.all([
+  import("../packages/backend/src/index"),
+  import("../packages/runtime/src/node-runner"),
+])
 const frontendUrl = await resolveManagedFrontendUrl()
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
@@ -37,6 +40,7 @@ async function startManagedBackend(): Promise<DevBackend> {
 
 async function restartBackendFromDevScript() {
   const previous = backend
+  invalidateDevelopmentSourceModules()
   const next = await startManagedBackend()
   backend = next
   await writeBackendDevManifest({ baseUrl: next.url, token: next.token }, frontendUrl)

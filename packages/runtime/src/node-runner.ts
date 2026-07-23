@@ -3,7 +3,11 @@
 import { generatedNodeSpecs } from "./node-runner.generated.js"
 import type { ModuleLoader, NodeModule } from "./node-module-loader.js"
 
-export { getDevelopmentSourceHotReloadEnabled, setDevelopmentSourceHotReloadEnabled } from "./node-module-loader.js"
+export {
+  getDevelopmentSourceHotReloadEnabled,
+  invalidateDevelopmentSourceModules,
+  setDevelopmentSourceHotReloadEnabled,
+} from "./node-module-loader.js"
 
 export interface NodeRunBridgeResponse<TData = unknown> {
   result: NodeRunResult<TData>
