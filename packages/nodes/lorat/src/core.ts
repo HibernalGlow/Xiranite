@@ -31,6 +31,10 @@ export interface LoratCollectionItem {
   previewSourcePath?: string
   /** Optional trigger words written as a .trigger.txt sidecar. */
   triggerText?: string
+  /** Optional source page recorded as TOML-style comments in the trigger sidecar. */
+  sourceUrl?: string
+  /** Optional free-form collection notes recorded in the trigger sidecar. */
+  notes?: string
 }
 
 export interface LoratCollectionResult {
@@ -231,8 +235,12 @@ export async function collectLoratModels(
         await runtime.copyFile(item.previewSourcePath, previewPath)
       }
       let triggerPath: string | undefined
-      if (item.triggerText?.trim()) {
+      if (item.triggerText?.trim() || item.sourceUrl?.trim() || item.notes?.trim()) {
         triggerPath = runtime.joinPath(targetDir, `${stem}.trigger.txt`)
+        const sidecarText = formatTriggerSidecar(item.triggerText, {
+          sourceUrl: item.sourceUrl,
+          notes: item.notes,
+        })
         await runtime.writeTrigger({
           key: rowKey(targetParts.join("/"), stem),
           name: sourceName,
@@ -243,12 +251,12 @@ export async function collectLoratModels(
           pathParts: targetParts,
           status: "missing",
           originalStatus: "missing",
-          trigger: item.triggerText,
-          originalTrigger: item.triggerText,
+          trigger: item.triggerText ?? "",
+          originalTrigger: item.triggerText ?? "",
           source: "collection",
           dbKey: "",
           changed: false,
-        }, item.triggerText)
+        }, sidecarText)
       }
       collection.push({ item, status: "collected", targetPath, previewPath, triggerPath })
     } catch (error) {
@@ -271,7 +279,7 @@ export async function collectLoratModels(
 export function buildLoratRows(models: LoratScannedModel[], db: TriggerDb = {}): LoratRow[] {
   const rows = models.map((model) => {
     const guess = inferTrigger(model.name, model.pathParts)
-    const sidecarTrigger = model.triggerText?.trim() ?? ""
+    const sidecarTrigger = parseTriggerSidecar(model.triggerText)
     const status: LoratStatus = sidecarTrigger ? "trigger" : model.noTriggerText !== null ? "notrigger" : "missing"
     const trigger = sidecarTrigger || guess.trigger
     return {
@@ -293,6 +301,26 @@ export function buildLoratRows(models: LoratScannedModel[], db: TriggerDb = {}):
     } satisfies LoratRow
   })
   return applyTriggerDb(rows, db)
+}
+
+export function formatTriggerSidecar(
+  triggerText = "",
+  metadata: { sourceUrl?: string; notes?: string } = {},
+): string {
+  const lines: string[] = []
+  if (triggerText.trim()) lines.push(triggerText.trim())
+  if (metadata.sourceUrl?.trim()) lines.push(`# source_url = ${JSON.stringify(metadata.sourceUrl.trim())}`)
+  if (metadata.notes?.trim()) lines.push(`# notes = ${JSON.stringify(metadata.notes.trim())}`)
+  return lines.join("\n")
+}
+
+export function parseTriggerSidecar(content?: string | null): string {
+  if (!content) return ""
+  return content
+    .split(/\r?\n/)
+    .filter((line) => !line.trimStart().startsWith("#"))
+    .join("\n")
+    .trim()
 }
 
 export function applyTriggerDb(rows: LoratRow[], db: TriggerDb = {}): LoratRow[] {

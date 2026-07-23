@@ -227,6 +227,88 @@ describe("app-owned lorat Component", () => {
     expect(host.state.collectionItems?.[0]?.sourcePath).toBe("D:/Downloads/native_style.safetensors")
   })
 
+  test("uses the local file picker instead of a pathless browser input", async () => {
+    setSurface("regular")
+    let pickerPattern = ""
+    const host = createHost({ collectionRoot: "D:/ComfyUI/models/loras" })
+    host.localFiles = {
+      getUrl: (path) => `local://${path}`,
+      pickFiles: async (options) => {
+        pickerPattern = options?.filters?.[0]?.pattern ?? ""
+        return ["D:/Downloads/picked_style.safetensors"]
+      },
+    }
+    render(<Component compId="comp-lorat" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("tab", { name: "收集" }))
+
+    await user.click(screen.getByRole("button", { name: "浏览文件" }))
+
+    await waitFor(() => expect(screen.getByText("picked_style.safetensors")).toBeTruthy())
+    expect(pickerPattern).toBe("*.safetensors;*.ckpt;*.pt")
+    expect(host.state.collectionItems?.[0]?.sourcePath).toBe("D:/Downloads/picked_style.safetensors")
+  })
+
+  test("stages a pathless browser-dropped LoRA before queueing it", async () => {
+    setSurface("regular")
+    const stagedFiles: File[] = []
+    const host = createHost({ collectionRoot: "D:/ComfyUI/models/loras" })
+    host.localFiles = {
+      getUrl: (path) => `local://${path}`,
+      stageFiles: async (files) => {
+        stagedFiles.push(...files)
+        return ["C:/Temp/xiranite/neon_browser.safetensors"]
+      },
+    }
+    render(<Component compId="comp-lorat" host={host} />)
+    await userEvent.setup().click(screen.getByRole("tab", { name: "收集" }))
+    const model = new File(["model"], "neon_browser.safetensors", { type: "application/octet-stream" })
+
+    fireEvent.drop(screen.getByTestId("lorat-collection-model-drop"), { dataTransfer: { files: [model] } })
+
+    await waitFor(() => expect(screen.getByText("neon_browser.safetensors")).toBeTruthy())
+    expect(stagedFiles).toEqual([model])
+    expect(host.state.collectionItems?.[0]?.sourcePath).toBe("C:/Temp/xiranite/neon_browser.safetensors")
+  })
+
+  test("pastes a clipboard image and records source metadata for collection", async () => {
+    setSurface("regular")
+    const stagedFiles: File[] = []
+    const host = createHost({
+      collectionRoot: "D:/ComfyUI/models/loras",
+      collectionItems: [{
+        id: "model-1",
+        sourcePath: "D:/Downloads/neon.safetensors",
+        sourceName: "neon.safetensors",
+        targetRelativeDir: "style",
+        triggerText: "neon_style",
+      }],
+    })
+    host.clipboard!.readImage = vi.fn(async () => ({ base64: "cG5n", mimeType: "image/png" }))
+    host.localFiles = {
+      getUrl: (path) => `local://${path}`,
+      stageFiles: async (files) => {
+        stagedFiles.push(...files)
+        return ["C:/Temp/xiranite/clipboard-preview.png"]
+      },
+    }
+    render(<Component compId="comp-lorat" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("tab", { name: "收集" }))
+
+    await user.click(screen.getByRole("button", { name: "粘贴图片" }))
+    await user.type(screen.getByLabelText("来源网址"), "https://civitai.com/models/123")
+    await user.type(screen.getByLabelText("其他信息"), "SDXL v2")
+
+    await waitFor(() => expect(host.state.collectionItems?.[0]).toMatchObject({
+      previewSourcePath: "C:/Temp/xiranite/clipboard-preview.png",
+      previewName: "clipboard-preview.png",
+      sourceUrl: "https://civitai.com/models/123",
+      notes: "SDXL v2",
+    }))
+    expect(stagedFiles[0]).toMatchObject({ name: "clipboard-preview.png", type: "image/png" })
+  })
+
   test("toggles row selection and edits trigger", async () => {
     setSurface("regular")
     const host = createHost({ rows: [SAMPLE_ROW], logs: [] })

@@ -7,6 +7,7 @@ describe("Vite dependency optimization policy", () => {
     expect(VITE_EAGER_DEPENDENCIES).toContain("react")
     expect(VITE_EAGER_DEPENDENCIES).toContain("react-dom/client")
     expect(VITE_EAGER_DEPENDENCIES).toContain("@wailsio/runtime")
+    expect(VITE_EAGER_DEPENDENCIES).toContain("@diceui/shared")
     expect(VITE_EAGER_DEPENDENCIES).toContain("use-sync-external-store/shim/with-selector")
   })
 

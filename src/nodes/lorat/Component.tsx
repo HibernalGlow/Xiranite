@@ -334,6 +334,7 @@ export function Component({ compId, host }: NodeComponentProps) {
               </TabsContent>
               <TabsContent value="collect" className="mt-0 min-h-0 flex-1">
                 <LoratCollectionPanel
+                  clipboard={host.clipboard}
                   compact={compactSurface}
                   data={data}
                   disabled={running}
