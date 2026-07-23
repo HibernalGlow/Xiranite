@@ -57,8 +57,9 @@ func main() {
 	})
 
 	win := App.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:  "main",
-		Title: "Xiranite",
+		Name:            "main",
+		Title:           "Xiranite",
+		DevToolsEnabled: true,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 48,
 			Backdrop:                application.MacBackdropTranslucent,

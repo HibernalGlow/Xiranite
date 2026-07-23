@@ -121,8 +121,8 @@
     "release:major": "bun scripts/release.ts major",
     "wails:dev": "bun run dev:desktop",
     "wails:syso": "go run -mod=mod github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.98 generate syso -arch amd64 -icon build/windows/icon.ico -manifest build/windows/wails.exe.manifest -info build/windows/info.json -out wails_windows_amd64.syso",
-    "wails:build": "bun run build && bun run build:backend:js && bun run build:native-assets && bun run wails:syso && go build -mod=mod -tags production -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe .",
-    "wails:build:incremental": "bun run build:incremental && bun run build:backend:js && bun run build:native-assets && bun run wails:syso && go build -mod=mod -tags production -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe .",
+    "wails:build": "bun run build && bun run build:backend:js && bun run build:native-assets && bun run wails:syso && go build -mod=mod -tags production,devtools -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe .",
+    "wails:build:incremental": "bun run build:incremental && bun run build:backend:js && bun run build:native-assets && bun run wails:syso && go build -mod=mod -tags production,devtools -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe .",
     "wails:build:local": "bun scripts/build-wails-local.ts",
     "wails:start": "go run -mod=mod ."
   },

@@ -606,6 +606,8 @@
       "reset": "恢复推荐默认",
       "openConfig": "打开配置文件",
       "openingConfig": "正在打开",
+      "openDevTools": "打开开发者工具",
+      "openingDevTools": "正在打开开发者工具",
       "saved": "配置已保存",
       "savedDescription": "新的浏览器启动参数将在下次完整启动 Xiranite 时应用。",
       "tier": {
@@ -616,7 +618,7 @@
       "flags": {
         "jxl": {
           "label": "JPEG XL",
-          "description": "尝试启用 Chromium 的 JPEG XL 图片解码；仅在当前 WebView2 Runtime 编译了 JXL 解码器时生效。"
+          "description": "尝试启用 Chromium 的 JPEG XL 图片解码，使 NeoView Reader 的原始 image/jxl 响应保持直通；仅在当前 WebView2 Runtime 编译了 JXL 解码器时生效。"
         },
         "codeCache": {
           "label": "WebView2 Code Cache",

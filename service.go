@@ -486,8 +486,9 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 	query.Set("windowId", id)
 
 	win := App.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:  id,
-		Title: title,
+		Name:            id,
+		Title:           title,
+		DevToolsEnabled: true,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 40,
 			Backdrop:                application.MacBackdropTranslucent,
@@ -539,6 +540,15 @@ func (s *XiraniteService) WindowClose(id string) WindowCommandResult {
 	}
 	window.Close()
 	return WindowCommandResult{Success: true, Supported: true, ID: id, Message: "Window closed.", State: "closed"}
+}
+
+func (s *XiraniteService) WindowOpenDevTools(id string) WindowCommandResult {
+	window, ok := getWindow(id)
+	if !ok {
+		return WindowCommandResult{Success: false, Supported: true, ID: id, Message: "Window is not tracked."}
+	}
+	window.OpenDevTools()
+	return WindowCommandResult{Success: true, Supported: true, ID: id, Message: "Developer tools opened."}
 }
 
 func (s *XiraniteService) WindowGetFrame(id string) (*WindowFrame, error) {

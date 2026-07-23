@@ -60,6 +60,10 @@ class DenoDesktopWindowRuntime implements WindowRuntime {
     return toWindowCommandResult(await requireBindings().xiraniteDesktopWindowClose(id))
   }
 
+  async openDevTools(id?: string): Promise<WindowCommandResult> {
+    return { success: false, supported: false, id, message: "Developer tools are not exposed by Deno Desktop." }
+  }
+
   async getFrame(id?: string): Promise<WindowFrame | null> {
     return await requireBindings().xiraniteDesktopWindowGetFrame(id ?? "")
   }

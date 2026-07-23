@@ -606,6 +606,8 @@
       "reset": "Restore recommended defaults",
       "openConfig": "Open config file",
       "openingConfig": "Opening",
+      "openDevTools": "Open developer tools",
+      "openingDevTools": "Opening developer tools",
       "saved": "Configuration saved",
       "savedDescription": "The browser arguments will be applied the next time Xiranite starts from a fully closed state.",
       "tier": {
@@ -616,7 +618,7 @@
       "flags": {
         "jxl": {
           "label": "JPEG XL",
-          "description": "Attempt to enable Chromium JPEG XL decoding; this only works when the current WebView2 Runtime was built with the JXL decoder."
+          "description": "Attempt to enable Chromium JPEG XL decoding so NeoView Reader can keep original image/jxl responses on the direct path; this only works when the current WebView2 Runtime was built with the JXL decoder."
         },
         "codeCache": {
           "label": "WebView2 Code Cache",
