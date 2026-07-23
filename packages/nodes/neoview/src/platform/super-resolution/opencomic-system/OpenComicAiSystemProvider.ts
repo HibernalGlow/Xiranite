@@ -1,5 +1,5 @@
-import { mkdir, stat } from "node:fs/promises"
-import { resolve } from "node:path"
+import { mkdir, open, stat } from "node:fs/promises"
+import { extname, resolve } from "node:path"
 
 import type {
   SuperResolutionCapabilitySnapshot,
@@ -296,7 +296,7 @@ export async function waitForSuperResolutionOutput(
     signal.throwIfAborted()
     try {
       const output = await stat(path)
-      if (output.isFile() && output.size > 0) return
+      if (output.isFile() && output.size > 0 && await hasCompleteOutputMarker(path, output.size)) return
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== "ENOENT" && code !== "EBUSY") throw error
@@ -308,6 +308,21 @@ export async function waitForSuperResolutionOutput(
     await abortableDelay(pollIntervalMs, signal)
   }
 }
+
+async function hasCompleteOutputMarker(path: string, size: number): Promise<boolean> {
+  if (extname(path).toLowerCase() !== ".png") return true
+  if (size < PNG_END_MARKER.length) return false
+  const file = await open(path, "r")
+  try {
+    const tail = Buffer.allocUnsafe(PNG_END_MARKER.length)
+    const { bytesRead } = await file.read(tail, 0, tail.length, size - tail.length)
+    return bytesRead === tail.length && tail.equals(PNG_END_MARKER)
+  } finally {
+    await file.close()
+  }
+}
+
+const PNG_END_MARKER = Buffer.from("0000000049454e44ae426082", "hex")
 
 export class SuperResolutionOutputUnavailableError extends Error {
   constructor(path: string, options?: ErrorOptions) {

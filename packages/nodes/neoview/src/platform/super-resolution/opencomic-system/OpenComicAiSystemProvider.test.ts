@@ -25,6 +25,7 @@ const request: SuperResolutionRequest = {
   tta: false,
   gpuId: "0",
 }
+const completePng = Buffer.from("89504e470d0a1a0a0000000049454e44ae426082", "hex")
 
 describe("OpenComicAiSystemProvider", () => {
   it("[neoview.super-resolution.provider-lazy] probes capabilities without loading the runtime", async () => {
@@ -101,11 +102,24 @@ describe("OpenComicAiSystemProvider", () => {
     const outputPath = join(root, "delayed.png")
     const controller = new AbortController()
     const delayedWrite = new Promise<void>((resolve, reject) => {
-      setTimeout(() => { void writeFile(outputPath, Buffer.from([1])).then(resolve, reject) }, 25)
+      setTimeout(() => { void writeFile(outputPath, completePng).then(resolve, reject) }, 25)
     })
     try {
       await expect(waitForSuperResolutionOutput(outputPath, controller.signal, { timeoutMs: 1_000, pollIntervalMs: 5 })).resolves.toBeUndefined()
       await delayedWrite
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("[neoview.super-resolution.provider-truncated-output] rejects a PNG without its end marker", async () => {
+    const root = await mkdtemp(join(tmpdir(), "neoview-truncated-output-"))
+    const outputPath = join(root, "truncated.png")
+    const controller = new AbortController()
+    try {
+      await writeFile(outputPath, Buffer.from("89504e470d0a1a0a", "hex"))
+      await expect(waitForSuperResolutionOutput(outputPath, controller.signal, { timeoutMs: 20, pollIntervalMs: 5 }))
+        .rejects.toThrow("completed before its output became available")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
