@@ -76,14 +76,14 @@ export function ClipboardConvertDialog(props: {
         <DialogDescription>读取、转换、对比并在确认后复制结果。</DialogDescription>
       </DialogHeader>
 
-      <div className="grid items-end gap-3 border-b bg-muted/20 px-5 py-3 md:grid-cols-[minmax(11rem,0.7fr)_minmax(14rem,1fr)_auto]">
+      <div className="grid items-end gap-3 border-b bg-muted/20 px-5 py-3 @xl/xlchemy:grid-cols-[minmax(11rem,0.7fr)_minmax(14rem,1fr)_auto]">
         <XlchemyFormatField ariaLabel="剪贴板目标格式" formats={CLIPBOARD_FORMATS} value={props.format} onChange={(clipboardFormat) => { props.onChange({ clipboardFormat }); setResult(undefined); setCopied(false) }} />
         <div className="pb-1"><XlchemySliderField disabled={lossless} displayValue={lossless ? "无损" : undefined} label="剪贴板质量" min={1} max={100} value={props.quality} onChange={(clipboardQuality) => { props.onChange({ clipboardQuality }); setResult(undefined); setCopied(false) }} /></div>
         <div className="flex items-center justify-end gap-1"><Tooltip><TooltipTrigger asChild><Button aria-label="重新读取剪贴板图片" disabled={loading || converting} size="icon" variant="outline" onClick={() => void readClipboard()}>{loading ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}</Button></TooltipTrigger><TooltipContent>重新读取剪贴板</TooltipContent></Tooltip><Button disabled={!source || converting || loading} onClick={() => void convert()}>{converting ? <LoaderCircle className="animate-spin" /> : <Sparkles />}{converting ? "转换中" : "转换"}</Button><Button disabled={!result || converting} variant="default" onClick={() => void copyResult()}>{copied ? <Check /> : <Copy />}{copied ? "已复制" : "复制结果"}</Button></div>
       </div>
 
       <div className="min-h-0 bg-black/90 p-3 sm:p-5">
-        <div className="relative grid h-full min-h-64 place-items-center overflow-hidden rounded-md border border-white/15 bg-[linear-gradient(45deg,#202020_25%,transparent_25%),linear-gradient(-45deg,#202020_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#202020_75%),linear-gradient(-45deg,transparent_75%,#202020_75%)] bg-[length:24px_24px] bg-[position:0_0,0_12px,12px_-12px,-12px_0]" data-testid="xlchemy-clipboard-preview">
+        <div className="relative grid h-full min-h-0 place-items-center overflow-hidden rounded-md border border-white/15 bg-[linear-gradient(45deg,#202020_25%,transparent_25%),linear-gradient(-45deg,#202020_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#202020_75%),linear-gradient(-45deg,transparent_75%,#202020_75%)] bg-[length:24px_24px] bg-[position:0_0,0_12px,12px_-12px,-12px_0]" data-testid="xlchemy-clipboard-preview">
           {loading ? <LoaderCircle className="size-7 animate-spin text-white/70" /> : source ? <>
             <img alt="转换前" className="absolute inset-0 size-full object-contain" src={sourceUrl} />
             {result && !previewError ? <><img alt="转换后" className="absolute inset-0 size-full object-contain" src={outputUrl} style={{ clipPath: `inset(0 ${100 - compare}% 0 0)` }} onError={() => setPreviewError(true)} /><div aria-hidden="true" className="pointer-events-none absolute inset-y-0 w-px bg-white shadow-[0_0_0_1px_rgba(0,0,0,.45)]" style={{ left: `${compare}%` }}><span className="absolute left-1/2 top-1/2 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/60 bg-black/70 text-white"><ArrowLeftRight className="size-4" /></span></div><span className="absolute left-3 top-3 rounded bg-black/70 px-2 py-1 text-[10px] font-medium text-white">转换后</span><span className="absolute right-3 top-3 rounded bg-black/70 px-2 py-1 text-[10px] font-medium text-white">转换前</span></> : null}
@@ -92,10 +92,10 @@ export function ClipboardConvertDialog(props: {
         </div>
       </div>
 
-      <div className="grid gap-3 border-t px-5 py-3 md:grid-cols-[minmax(0,1fr)_minmax(16rem,0.8fr)] md:items-center">
+      <div className="grid gap-3 border-t px-5 py-3 @xl/xlchemy:grid-cols-[minmax(0,1fr)_minmax(16rem,0.8fr)] @xl/xlchemy:items-center">
         <div className="grid grid-cols-3 gap-2" data-testid="xlchemy-clipboard-stats"><Metric label="转换前" value={source ? `${formatBytes(inputBytes)} · ${shortMime(source.mimeType)}` : "—"} /><Metric label="转换后" value={result ? `${formatBytes(outputBytes)} · ${shortMime(result.output.mimeType)}` : "—"} /><Metric accent={savedPercent !== undefined} label={savedPercent !== undefined && savedPercent < 0 ? "体积增加" : "节省空间"} value={savedPercent === undefined ? "—" : `${Math.abs(savedPercent).toFixed(1)}%`} /></div>
         <div className="grid gap-1.5"><div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>转换后</span><span>转换前</span></div><Slider aria-label="图片前后对比" disabled={!result || previewError} min={0} max={100} step={1} value={[compare]} onValueChange={([value]) => value !== undefined && setCompare(value)} /></div>
-        {error && source ? <p className="md:col-span-2 text-xs text-destructive">{error}</p> : null}
+        {error && source ? <p className="text-xs text-destructive @xl/xlchemy:col-span-2">{error}</p> : null}
       </div>
     </DialogContent>
   </Dialog>
