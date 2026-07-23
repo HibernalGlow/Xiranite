@@ -110,11 +110,13 @@ describe("parseNeoviewRuntimeConfig", () => {
   })
 
   it("[neoview.preload.config-runtime] consolidates canonical and legacy candidate budgets with a safety cap", () => {
-    expect(parseNeoviewRuntimeConfig({ performance: { preload_pages: 7, preload_items: 3 } }).preload).toEqual({ maxCandidatePages: 7 })
-    expect(parseNeoviewRuntimeConfig({ performance: { preLoadSize: 5 } }).preload).toEqual({ maxCandidatePages: 5 })
-    expect(parseNeoviewRuntimeConfig({ image: { preloadCount: 6 } }).preload).toEqual({ maxCandidatePages: 6 })
-    expect(parseNeoviewRuntimeConfig({ reader: { book: { preloadPages: 8 } } }).preload).toEqual({ maxCandidatePages: 8 })
-    expect(parseNeoviewRuntimeConfig({ performance: { preload_pages: 999 } }).preload).toEqual({ maxCandidatePages: 32 })
+    expect(parseNeoviewRuntimeConfig({ performance: { preload_pages: 7, preload_items: 3 } }).preload).toEqual({ maxCandidatePages: 7, browserPredecodeEnabled: true })
+    expect(parseNeoviewRuntimeConfig({ performance: { preLoadSize: 5 } }).preload).toEqual({ maxCandidatePages: 5, browserPredecodeEnabled: true })
+    expect(parseNeoviewRuntimeConfig({ image: { preloadCount: 6 } }).preload).toEqual({ maxCandidatePages: 6, browserPredecodeEnabled: true })
+    expect(parseNeoviewRuntimeConfig({ reader: { book: { preloadPages: 8 } } }).preload).toEqual({ maxCandidatePages: 8, browserPredecodeEnabled: true })
+    expect(parseNeoviewRuntimeConfig({ performance: { preload_pages: 999 } }).preload).toEqual({ maxCandidatePages: 32, browserPredecodeEnabled: true })
+    expect(parseNeoviewRuntimeConfig({ performance: { browser_predecode_enabled: false } }).preload).toEqual({ maxCandidatePages: 4, browserPredecodeEnabled: false })
+    expect(parseNeoviewRuntimeConfig({ performance: { browserPredecodeEnabled: false } }).preload).toEqual({ maxCandidatePages: 4, browserPredecodeEnabled: false })
     expect(() => parseNeoviewRuntimeConfig({ performance: { preload_pages: -1 } })).toThrow("preload_pages")
   })
 
@@ -1267,11 +1269,15 @@ describe("ReaderRuntimeConfig system monitor", () => {
 })
 
 describe("ReaderRuntimeConfig preload", () => {
-  it("[neoview.preload.persistence-patch] projects the bounded candidate budget into canonical TOML", async () => {
+  it("[neoview.preload.persistence-patch] projects bounded candidate and browser decode settings into canonical TOML", async () => {
     const { parseNeoviewPreloadPatch } = await import("./ReaderRuntimeConfigParser.js")
     expect(parseNeoviewPreloadPatch({ preload: { maxCandidatePages: 12 } })).toEqual({
       patch: { preload: { maxCandidatePages: 12 } },
       tomlPatch: { performance: { preload_pages: 12 } },
+    })
+    expect(parseNeoviewPreloadPatch({ preload: { browserPredecodeEnabled: false } })).toEqual({
+      patch: { preload: { browserPredecodeEnabled: false } },
+      tomlPatch: { performance: { browser_predecode_enabled: false } },
     })
     expect(() => parseNeoviewPreloadPatch({ preload: { maxCandidatePages: 33 } })).toThrow("between 0 and 32")
     expect(() => parseNeoviewPreloadPatch({ preload: {} })).toThrow("must change")

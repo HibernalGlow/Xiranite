@@ -24,6 +24,17 @@ describe("Reader preload configuration HTTP", () => {
         { preload: { maxCandidatePages: 12 } },
         { performance: { preload_pages: 12 } },
       )
+      const browserPredecode = (await controller.handle(authorized("/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ preload: { browserPredecodeEnabled: false } }),
+      })))!
+      expect(browserPredecode.status).toBe(200)
+      await expect(browserPredecode.json()).resolves.toMatchObject({ preload: { browserPredecodeEnabled: false } })
+      expect(updatePreload).toHaveBeenCalledWith(
+        { preload: { browserPredecodeEnabled: false } },
+        { performance: { browser_predecode_enabled: false } },
+      )
       const invalid = (await controller.handle(authorized("/reader/config", {
         method: "PATCH",
         headers: { "content-type": "application/json" },

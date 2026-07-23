@@ -1169,7 +1169,10 @@ export interface ReaderRuntimeConfigDto {
   switchToast?: ReaderSwitchToastSettings
   infoOverlay?: ReaderInfoOverlaySettings
   systemMonitor: ReaderSystemMonitorConfigDto
-  preload: { maxCandidatePages: number }
+  preload: {
+    maxCandidatePages: number
+    browserPredecodeEnabled: boolean
+  }
   emm?: ReaderEmmConfigDto
   aiTranslation?: ReaderAiTranslationConfigDto
   imageTrim?: ReaderImageTrimSettings

@@ -1,13 +1,14 @@
 import { Gauge } from "lucide-react"
 import { useEffect, useState } from "react"
 
+import { Switch } from "@/components/ui/switch"
 import type { ReaderRuntimeConfigDto } from "../../../adapters/reader-http-client"
 import type { ReaderPanelContext, ReaderSettingsCardContext } from "../../panels/registry"
 import { SettingsCardSection, SettingsCardShell } from "../SettingsCardShell"
 
 export function PreloadSettingsCard({ preload, onChange }: {
   preload: ReaderRuntimeConfigDto["preload"]
-  onChange(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
+  onChange(patch: Partial<ReaderRuntimeConfigDto["preload"]>): Promise<ReaderRuntimeConfigDto["preload"]>
 }) {
   const [draft, setDraft] = useState(() => String(preload.maxCandidatePages))
   const [saving, setSaving] = useState(false)
@@ -37,8 +38,28 @@ export function PreloadSettingsCard({ preload, onChange }: {
     }
   }
 
-  return <SettingsCardShell id="preload-settings" title="预读预算" description="限制新打开书籍的后台候选页数量。此设置不会重建当前阅读会话或中断翻页。" icon={Gauge}>
+  async function setBrowserPredecodeEnabled(browserPredecodeEnabled: boolean) {
+    if (saving || browserPredecodeEnabled === preload.browserPredecodeEnabled) return
+    setSaving(true)
+    setError(undefined)
+    try {
+      await onChange({ browserPredecodeEnabled })
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return <SettingsCardShell id="preload-settings" title="预读预算" description="限制候选页与浏览器相邻页预解码。设置会立即控制后续后台工作，不会重建当前阅读会话。" icon={Gauge}>
     <SettingsCardSection title="后台预读">
+      <div className="flex min-h-8 items-center justify-between gap-3">
+        <div className="grid gap-0.5">
+          <span className="text-sm font-medium">相邻页预解码</span>
+          <span className="text-xs text-muted-foreground">后台仅保留一个邻近页面的浏览器解码，关闭可停止后续预解码。</span>
+        </div>
+        <Switch checked={preload.browserPredecodeEnabled} disabled={saving} onCheckedChange={(enabled) => void setBrowserPredecodeEnabled(enabled)} aria-label="相邻页预解码" />
+      </div>
       <label className="grid max-w-xs gap-2 text-sm">
         <span className="font-medium">候选页上限</span>
         <input type="number" min={0} max={32} step={1} value={draft} disabled={saving} aria-label="预读候选页上限"

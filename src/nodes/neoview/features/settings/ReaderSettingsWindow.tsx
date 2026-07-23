@@ -59,7 +59,7 @@ export function ReaderSettingsWindow({
   onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
   onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
-  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
+  onPreload?(patch: Partial<ReaderRuntimeConfigDto["preload"]>): Promise<ReaderRuntimeConfigDto["preload"]>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
@@ -179,7 +179,7 @@ function SettingsSection({
   onSlideshow?(patch: ReaderSlideshowPatch["slideshow"]): Promise<void>
   onMedia?(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto>
   onImageProcessing?(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto>
-  onPreload?(patch: ReaderRuntimeConfigDto["preload"]): Promise<ReaderRuntimeConfigDto["preload"]>
+  onPreload?(patch: Partial<ReaderRuntimeConfigDto["preload"]>): Promise<ReaderRuntimeConfigDto["preload"]>
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
