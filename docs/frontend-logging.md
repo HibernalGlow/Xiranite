@@ -15,10 +15,6 @@ or `trace` in one of these ways:
 - Reset the persisted setting: run `window.__xiraniteLog.reset()`.
 - Inspect the active value: run `window.__xiraniteLog.getLevel()`.
 
-The old `?debug=1`, `?xiraniteDebug=1`, and `xiranite.startupDebug` switches are
-read for compatibility. New code must use `xiranite.log.level` through the
-controller instead.
-
 In development, enabled logs are printed through Consola and written as JSONL
 to `.tmp/xiranite.log`. Transport is batched and capped at 500 events per page
 load so diagnostics cannot become an unbounded workload.

@@ -2,7 +2,6 @@ import { createConsola, LogLevels, type ConsolaInstance, type ConsolaReporter, t
 
 export const LOG_LEVEL_STORAGE_KEY = "xiranite.log.level"
 
-const LEGACY_DEBUG_STORAGE_KEY = "xiranite.startupDebug"
 const REMOTE_ENDPOINT = "/__xiranite-log"
 const REMOTE_BATCH_SIZE = 20
 const REMOTE_EVENT_LIMIT = 500
@@ -65,7 +64,6 @@ export function setLogLevel(level: XiraniteLogLevel, options: { persist?: boolea
   if (options.persist !== false && typeof window !== "undefined") {
     try {
       window.localStorage.setItem(LOG_LEVEL_STORAGE_KEY, level)
-      window.localStorage.removeItem(LEGACY_DEBUG_STORAGE_KEY)
     } catch {
       // Storage can be unavailable in private or restricted WebViews.
     }
@@ -76,7 +74,6 @@ export function resetLogLevel(): void {
   if (typeof window !== "undefined") {
     try {
       window.localStorage.removeItem(LOG_LEVEL_STORAGE_KEY)
-      window.localStorage.removeItem(LEGACY_DEBUG_STORAGE_KEY)
     } catch {
       // Storage can be unavailable in private or restricted WebViews.
     }
@@ -117,12 +114,10 @@ function resolveInitialLogLevel(): XiraniteLogLevel {
   const params = new URLSearchParams(window.location.search)
   const queryLevel = params.get("log")
   if (isXiraniteLogLevel(queryLevel)) return queryLevel
-  if (params.get("debug") === "1" || params.get("xiraniteDebug") === "1") return "debug"
 
   try {
     const storedLevel = window.localStorage.getItem(LOG_LEVEL_STORAGE_KEY)
     if (isXiraniteLogLevel(storedLevel)) return storedLevel
-    if (window.localStorage.getItem(LEGACY_DEBUG_STORAGE_KEY) === "1") return "debug"
   } catch {
     // Fall through to the environment default.
   }
