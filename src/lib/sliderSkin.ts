@@ -32,9 +32,18 @@ export function resolveRangeDirection(input: HTMLInputElement): "ltr" | "rtl" {
 export function syncNativeRangeProgress(input: HTMLInputElement): void {
   if (input.type !== "range") return
   const direction = resolveRangeDirection(input)
-  input.dataset.sliderDirection = direction
-  input.style.setProperty("--slider-progress", `${rangeProgressPercent(input)}%`)
-  input.style.setProperty("--slider-direction", direction)
+  const progress = `${rangeProgressPercent(input)}%`
+
+  // This function also runs from a MutationObserver that watches
+  // data-slider-direction. Avoid writing identical values, otherwise every
+  // observer delivery schedules another delivery indefinitely.
+  if (input.dataset.sliderDirection !== direction) input.dataset.sliderDirection = direction
+  if (input.style.getPropertyValue("--slider-progress") !== progress) {
+    input.style.setProperty("--slider-progress", progress)
+  }
+  if (input.style.getPropertyValue("--slider-direction") !== direction) {
+    input.style.setProperty("--slider-direction", direction)
+  }
 }
 
 export function syncAllNativeRangeProgress(root: ParentNode = document): void {

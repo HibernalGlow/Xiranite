@@ -37,6 +37,23 @@ describe("native range slider skin progress", () => {
     expect(input.style.getPropertyValue("--slider-direction")).toBe("rtl")
   })
 
+  test("does not create an attribute mutation when the range state is unchanged", async () => {
+    const input = document.createElement("input")
+    input.type = "range"
+    document.body.append(input)
+    syncNativeRangeProgress(input)
+
+    let mutationCount = 0
+    const observer = new MutationObserver((mutations) => { mutationCount += mutations.length })
+    observer.observe(input, { attributes: true, attributeFilter: ["data-slider-direction"] })
+
+    syncNativeRangeProgress(input)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(mutationCount).toBe(0)
+    observer.disconnect()
+  })
+
   test("installs live listeners for input events and new range nodes", () => {
     document.documentElement.dataset.sliderStyle = "solid"
     const dispose = installNativeRangeProgressSync()
