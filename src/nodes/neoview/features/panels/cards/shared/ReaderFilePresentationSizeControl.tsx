@@ -28,6 +28,7 @@ export function ReaderFilePresentationSizeControl({
   onPreview,
   onCommit,
   onReset,
+  resetMode = "inherit",
 }: {
   presentation: SizePresentation
   overrides?: ReaderFilePresentationOverridesDto
@@ -35,6 +36,7 @@ export function ReaderFilePresentationSizeControl({
   onPreview(field: ReaderFilePresentationSizeField, value: number): void
   onCommit(field: ReaderFilePresentationSizeField, value: number): void
   onReset?(field: ReaderFilePresentationSizeField): void
+  resetMode?: "inherit" | "default"
 }) {
   const field = filePresentationSizeField(presentation.viewMode)
   if (!field) return <div className="px-2 py-1 text-xs text-muted-foreground">当前视图没有项目尺寸设置</div>
@@ -42,11 +44,13 @@ export function ReaderFilePresentationSizeControl({
   const Icon = meta.Icon
   const value = presentation[field]
   const inherited = overrides?.[field] === undefined
+  const resetDisabled = resetMode === "default" ? value === meta.fallback : inherited
+  const resetLabel = resetMode === "default" ? "默认" : "继承"
   return (
     <div
       className="grid grid-cols-[1rem_minmax(5rem,1fr)_3rem_auto] items-center gap-2"
       data-file-presentation-size-field={field}
-      data-file-presentation-inherited={inherited || undefined}
+      data-file-presentation-inherited={resetMode === "inherit" && inherited || undefined}
     >
       <Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />
       <Slider
@@ -67,9 +71,9 @@ export function ReaderFilePresentationSizeControl({
           type="button"
           size="icon-sm"
           variant="ghost"
-          aria-label={`恢复继承的${meta.label}`}
-          title={inherited ? "正在继承 File Card" : "恢复继承 File Card"}
-          disabled={disabled || inherited}
+          aria-label={`恢复${resetLabel}的${meta.label}`}
+          title={resetDisabled ? `已是${resetLabel}值` : `恢复${resetLabel}值`}
+          disabled={disabled || resetDisabled}
           onClick={() => onReset(field)}
         >
           <Undo2 />

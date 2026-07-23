@@ -31,6 +31,7 @@ test("[neoview.history.ui-1920x1080] [neoview.history.search-sort-e2e] preserves
   await expect(page.locator("[data-history-view-overrides]")).toHaveText("{}")
   await card.getByRole("button", { name: "更多" }).click()
   await expect(page.getByText("项目尺寸", { exact: true })).toBeVisible()
+  await expect(page.locator("#root")).not.toHaveAttribute("aria-hidden", "true")
   const thumbnailWidth = page.getByRole("slider", { name: "缩略图宽度" })
   await expect(thumbnailWidth).toHaveAttribute("aria-valuenow", "28")
   await thumbnailWidth.press("ArrowRight")

@@ -10,6 +10,7 @@ import {
 import type { ReaderFilePresentationOverridesDto } from "../../../../adapters/reader-http-client"
 import {
   filePresentationSizeField,
+  DEFAULT_READER_FILE_PRESENTATION,
   type ReaderFilePresentationConfig,
   type ReaderFilePresentationSizeField,
 } from "../../readerFilePresentation"
@@ -22,11 +23,12 @@ interface ReaderFilePresentationMenuProps {
   onPreview(field: ReaderFilePresentationSizeField, value: number): void
   onCommit(field: ReaderFilePresentationSizeField, value: number): void
   onReset?(field: ReaderFilePresentationSizeField): void
+  resetMode?: "inherit" | "default"
 }
 
 export function ReaderFilePresentationMoreMenu(props: ReaderFilePresentationMenuProps) {
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button type="button" size="icon-sm" variant="ghost" aria-label="更多" title="更多设置" disabled={props.disabled}>
           <MoreHorizontal />
@@ -46,6 +48,7 @@ export function ReaderFilePresentationMoreMenuItems({
   onPreview,
   onCommit,
   onReset,
+  resetMode = "inherit",
 }: ReaderFilePresentationMenuProps) {
   const field = filePresentationSizeField(presentation.viewMode)
   if (!field) return null
@@ -54,6 +57,13 @@ export function ReaderFilePresentationMoreMenuItems({
     : field === "bannerWidthPercent"
       ? GalleryHorizontalEnd
       : Grid2X2
+  const handleReset = onReset ?? (resetMode === "default"
+    ? (resetField: ReaderFilePresentationSizeField) => {
+        const value = DEFAULT_READER_FILE_PRESENTATION[resetField]
+        onPreview(resetField, value)
+        onCommit(resetField, value)
+      }
+    : undefined)
 
   return (
     <>
@@ -68,7 +78,8 @@ export function ReaderFilePresentationMoreMenuItems({
           disabled={disabled}
           onPreview={onPreview}
           onCommit={onCommit}
-          onReset={onReset}
+          onReset={handleReset}
+          resetMode={resetMode}
         />
       </div>
     </>

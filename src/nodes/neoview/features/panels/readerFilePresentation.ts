@@ -16,7 +16,7 @@ export interface ReaderFilePresentationConfig {
 
 export type ReaderFilePresentationSizeField = Exclude<keyof ReaderFilePresentationConfig, "viewMode">
 
-const DEFAULT_PRESENTATION: ReaderFilePresentationConfig = {
+export const DEFAULT_READER_FILE_PRESENTATION: ReaderFilePresentationConfig = {
   viewMode: "compact",
   contentWidthPercent: 35,
   thumbnailWidthPercent: 20,
@@ -29,9 +29,9 @@ export function resolveReaderFilePresentation(
 ): ReaderFilePresentationConfig {
   return {
     viewMode: overrides?.viewMode ?? inheritedFilePresentationViewMode(folderView?.viewMode),
-    contentWidthPercent: overrides?.contentWidthPercent ?? folderView?.contentWidthPercent ?? DEFAULT_PRESENTATION.contentWidthPercent,
-    thumbnailWidthPercent: overrides?.thumbnailWidthPercent ?? folderView?.thumbnailWidthPercent ?? DEFAULT_PRESENTATION.thumbnailWidthPercent,
-    bannerWidthPercent: overrides?.bannerWidthPercent ?? folderView?.bannerWidthPercent ?? DEFAULT_PRESENTATION.bannerWidthPercent,
+    contentWidthPercent: overrides?.contentWidthPercent ?? folderView?.contentWidthPercent ?? DEFAULT_READER_FILE_PRESENTATION.contentWidthPercent,
+    thumbnailWidthPercent: overrides?.thumbnailWidthPercent ?? folderView?.thumbnailWidthPercent ?? DEFAULT_READER_FILE_PRESENTATION.thumbnailWidthPercent,
+    bannerWidthPercent: overrides?.bannerWidthPercent ?? folderView?.bannerWidthPercent ?? DEFAULT_READER_FILE_PRESENTATION.bannerWidthPercent,
   }
 }
 

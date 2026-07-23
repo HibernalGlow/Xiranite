@@ -483,7 +483,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
         </div>
 
       <div className="flex shrink-0 items-center gap-0.5 border-l pl-0.5" data-folder-toolbar-group="more">
-        <DropdownMenu>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button
               type="button"
@@ -624,6 +624,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
             <ReaderFilePresentationMoreMenuItems
               presentation={{ viewMode, contentWidthPercent, thumbnailWidthPercent, bannerWidthPercent }}
               disabled={disabled}
+              resetMode="default"
               onPreview={(field, value) => {
                 if (field === "contentWidthPercent") onContentWidthChange(value)
                 else if (field === "thumbnailWidthPercent") onThumbnailWidthChange(value)
