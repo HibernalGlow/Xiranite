@@ -3,6 +3,7 @@ import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 export const COMFYGURE_FORMAT = "comfygure/v1" as const
 export const ANIMA_INT8_RECIPE = "anima-int8/v1" as const
 export const DEFAULT_COMFYUI_ENDPOINT = "http://127.0.0.1:8000"
+export const DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS = 10_000
 
 export type PromptLink = readonly [nodeId: string, outputIndex: number]
 export type PromptInput = string | number | boolean | null | PromptLink
@@ -130,7 +131,7 @@ export interface ComfygureFetchResponse {
 }
 
 export interface ComfygureRuntime {
-  fetch(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<ComfygureFetchResponse>
+  fetch(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }): Promise<ComfygureFetchResponse>
 }
 
 export interface ComfyuiSubmission {
@@ -396,7 +397,7 @@ export async function preflightComfyuiTarget(compiled: CompiledProgram, target: 
   const endpoint = normalizeComfyuiEndpoint(target.endpoint)
   let objectInfo: Record<string, unknown>
   try {
-    const response = await runtime.fetch(`${endpoint}/object_info`, { method: "GET", headers: { accept: "application/json" } })
+    const response = await fetchComfyui(runtime, `${endpoint}/object_info`, { method: "GET", headers: { accept: "application/json" } })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const payload = await response.json()
     if (!isRecord(payload)) throw new Error("/object_info did not return a node map.")
@@ -468,7 +469,7 @@ export async function runComfygure(input: ComfygureInput, runtime: ComfygureRunt
 export async function submitComfyuiPrompt(compiled: CompiledProgram, target: ComfygureTarget, runtime: ComfygureRuntime): Promise<ComfyuiSubmission> {
   const endpoint = normalizeComfyuiEndpoint(target.endpoint)
   const clientId = stringValue(target.clientId, "xiranite-comfygure")
-  const response = await runtime.fetch(`${endpoint}/prompt`, {
+  const response = await fetchComfyui(runtime, `${endpoint}/prompt`, {
     method: "POST",
     headers: { accept: "application/json", "content-type": "application/json" },
     body: JSON.stringify({ prompt: compiled.graph, client_id: clientId }),
@@ -592,4 +593,25 @@ function describeComfyuiPromptError(value: unknown): string {
   const nodeErrors = isRecord(value.node_errors) ? Object.keys(value.node_errors) : []
   if (error) return `: ${error}`
   return nodeErrors.length ? `: node validation failed for ${nodeErrors.join(", ")}` : ""
+}
+
+async function fetchComfyui(
+  runtime: ComfygureRuntime,
+  url: string,
+  init: { method?: string; headers?: Record<string, string>; body?: string },
+): Promise<ComfygureFetchResponse> {
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS)
+  try {
+    return await runtime.fetch(url, { ...init, signal: controller.signal })
+  } catch (error) {
+    if (timedOut) throw new Error(`ComfyUI request timed out after ${DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS / 1000} seconds.`)
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
 }
