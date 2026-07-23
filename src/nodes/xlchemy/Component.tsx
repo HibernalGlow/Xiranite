@@ -33,7 +33,7 @@ import { InputFilesWorkbench } from "./InputFilesWorkbench"
 import { ConversionLog, ProgressWorkbench, WorkbenchTelemetry } from "./ProgressAndLogs"
 import { DataAnalysis } from "./DataAnalysis"
 import { FilenameRuleEditor } from "./FilenameRuleEditor"
-import { ClipboardConvertDialog } from "./ClipboardConvertDialog"
+import { ClipboardConvertDialog, type ClipboardConversionResult, type ClipboardImageData } from "./ClipboardConvertDialog"
 import { analyzeEfuUrl } from "./efu"
 import { FloatingWindowCaptionControls, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 
@@ -286,16 +286,20 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     } finally { setCancelling(false) }
   }
 
-  async function convertClipboardImage(): Promise<boolean> {
-    if (running) return false
-    const clipboard = host.clipboard
+  async function readClipboardImage(): Promise<ClipboardImageData> {
+    const readImage = host.clipboard?.readImage
+    if (!readImage) throw new Error("当前宿主不支持读取剪贴板图片。")
+    const image = await readImage()
+    if (!image) throw new Error("剪贴板中没有可读取的图片。")
+    return image
+  }
+
+  async function convertClipboardImage(image: ClipboardImageData): Promise<ClipboardConversionResult> {
+    if (running) throw new Error("Xlchemy 当前正在执行其他任务。")
     const run = host.runner?.run ?? host.actions?.run
-    if (!clipboard?.readImage || !clipboard.writeImage) { patch({ phase: "error", progressText: "当前宿主不支持图片剪贴板读写。" }); return false }
-    if (!run) { patch({ phase: "error", progressText: t("errors.backend", "GUI 已就绪，等待 Xlchemy 后端执行接口接入。") }); return false }
+    if (!run) throw new Error(t("errors.backend", "GUI 已就绪，等待 Xlchemy 后端执行接口接入。"))
     setRunning(true)
     try {
-      const image = await clipboard.readImage()
-      if (!image) throw new Error("剪贴板中没有可读取的图片。")
       const clipboardFormat = dataRef.current.clipboardFormat ?? "PNG"
       const clipboardQuality = dataRef.current.clipboardQuality ?? 85
       const lossless = clipboardFormat === "PNG" || clipboardFormat === "TIFF"
@@ -309,19 +313,26 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
       }) as NodeRunResult<XlchemyData>
       const output = response.data?.clipboardOutput
       if (!response.success || !output) throw new Error(response.message || "剪贴板图片转换失败。")
-      await clipboard.writeImage(output)
-      const message = `剪贴板图片已转换为 ${clipboardFormat}（${lossless ? "无损" : `质量 ${clipboardQuality}`}）并写回剪贴板。`
-      patch({ phase: "completed", progress: 100, progressText: message, logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
-      return true
+      const message = `剪贴板图片已转换为 ${clipboardFormat}（${lossless ? "无损" : `质量 ${clipboardQuality}`}），可预览对比或复制结果。`
+      patch({ phase: "completed", progress: 100, progressText: message, result: response.data, analysisTab: "output", logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
+      return { data: response.data, format: clipboardFormat, output, quality: clipboardQuality }
     } catch (error) {
       patch({ phase: "error", progress: 0, progressText: error instanceof Error ? error.message : String(error) })
-      return false
+      throw error
     } finally { setRunning(false) }
+  }
+
+  async function copyClipboardImage(output: ClipboardImageData) {
+    const writeImage = host.clipboard?.writeImage
+    if (!writeImage) throw new Error("当前宿主不支持写入剪贴板图片。")
+    await writeImage(output)
+    const message = "转换结果已复制到剪贴板。"
+    patch({ progressText: message, logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
   }
 
   const props: ViewProps = {
     cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onListFiles: host.localFiles?.list, onPickFiles: pickInputFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
-    onCancel: cancelCurrentRun, onClipboardConvert: convertClipboardImage, onExecute: execute, onImportEfu: importEfuLists, onPatch: patch, onSelectPreset: selectPreset,
+    onCancel: cancelCurrentRun, onClipboardRead: readClipboardImage, onClipboardConvert: convertClipboardImage, onClipboardCopy: copyClipboardImage, onExecute: execute, onImportEfu: importEfuLists, onPatch: patch, onSelectPreset: selectPreset,
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => patch(defaults ?? XL_FACTORY_DEFAULTS), onSaveDefaults: saveDefaults,
     onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset, onExportPresets: exportCustomPresets, onImportPresets: importCustomPresets,
   }
@@ -401,7 +412,7 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
 
 interface ViewProps {
   cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
-  onCancel: () => void; onClipboardConvert: () => Promise<boolean>; onExecute: (action: XlchemyAction) => void; onImportEfu: () => Promise<void>; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
+  onCancel: () => void; onClipboardRead: () => Promise<ClipboardImageData>; onClipboardConvert: (source: ClipboardImageData) => Promise<ClipboardConversionResult>; onClipboardCopy: (output: ClipboardImageData) => Promise<void>; onExecute: (action: XlchemyAction) => void; onImportEfu: () => Promise<void>; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
 }
 
 function CollapsedView(props: ViewProps) {
@@ -477,7 +488,7 @@ function Header({ props }: { props: ViewProps }) {
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {
-  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog disabled={props.running} format={props.data.clipboardFormat ?? "PNG"} quality={props.data.clipboardQuality ?? 85} onChange={props.onPatch} onConvert={props.onClipboardConvert} />} data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
+  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog disabled={props.running} format={props.data.clipboardFormat ?? "PNG"} quality={props.data.clipboardQuality ?? 85} onChange={props.onPatch} onRead={props.onClipboardRead} onConvert={props.onClipboardConvert} onCopy={props.onClipboardCopy} />} data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
 }
 
 function FormatControls({ props }: { props: ViewProps }) {
