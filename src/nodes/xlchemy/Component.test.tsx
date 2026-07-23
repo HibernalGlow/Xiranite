@@ -34,8 +34,8 @@ describe("app-owned xlchemy Component", () => {
     if (mode !== "collapsed") {
       expect(screen.getByTestId("xlchemy-input-workbench")).toBeTruthy()
       expect(screen.getByRole("button", { name: "添加输入" })).toBeTruthy()
-      expect(screen.getByRole("button", { name: "一键转换剪贴板图片" })).toBeTruthy()
-      expect(screen.getByRole("button", { name: "剪贴板转换选项" })).toBeTruthy()
+      expect(screen.getByRole("button", { name: "打开剪贴板图片工作台" })).toBeTruthy()
+      expect(screen.queryByRole("button", { name: "剪贴板转换选项" })).toBeNull()
       expect(screen.getByRole("button", { name: "排序方式" })).toBeTruthy()
       expect(within(screen.getByTestId("xlchemy-header")).getByText("1 项")).toBeTruthy()
       expect(screen.getByRole("radio", { name: "文件树视图" })).toBeTruthy()
@@ -574,29 +574,36 @@ describe("app-owned xlchemy Component", () => {
     expect(host.cardState.progressText).toContain("2.0 KB → 512 B")
   })
 
-  test("converts a clipboard image with independent format and quality while inheriting node encoders", async () => {
+  test("previews, compares and explicitly copies a clipboard conversion from one workbench", async () => {
     const host = createHost({ format: "JPEG XL", quality: 41, clipboardFormat: "WebP", clipboardQuality: 74, effort: 9, threads: 3, avifEncoder: "slimg" })
     const writeImage = vi.fn(async () => undefined)
     host.clipboard!.readImage = vi.fn(async () => ({ base64: "cG5n", mimeType: "image/png" }))
     host.clipboard!.writeImage = writeImage
     host.runner!.run = async <TInput, TData>(nodeId: string, input: TInput) => {
       host.runCalls.push({ nodeId, input: input as XlchemyInput })
-      return { success: true, message: "Converted clipboard image.", data: { ...result, convertedCount: 1, clipboardOutput: { base64: "d2VicA==", mimeType: "image/webp" } } as TData }
+      return { success: true, message: "Converted clipboard image.", data: { ...result, inputBytes: 1000, outputBytes: 250, convertedCount: 1, clipboardOutput: { base64: "d2VicA==", mimeType: "image/webp" } } as TData }
     }
     render(<Component compId="xlchemy-card" host={host} />)
     const user = userEvent.setup()
 
-    expect(screen.queryByRole("button", { name: "配置剪贴板转换" })).toBeNull()
-    await user.click(screen.getByRole("button", { name: "剪贴板转换选项" }))
-    expect(screen.getByRole("menuitemradio", { name: "WebP (.webp)" }).getAttribute("aria-checked")).toBe("true")
-    expect(screen.getByRole("slider", { name: "剪贴板质量" }).getAttribute("aria-valuenow")).toBe("74")
-    await user.keyboard("{Escape}")
-    await user.click(screen.getByRole("button", { name: "一键转换剪贴板图片" }))
+    expect(screen.queryByRole("button", { name: "剪贴板转换选项" })).toBeNull()
+    await user.click(screen.getByRole("button", { name: "打开剪贴板图片工作台" }))
+    const workbench = await screen.findByTestId("xlchemy-clipboard-workbench")
+    await waitFor(() => expect(host.clipboard!.readImage).toHaveBeenCalledOnce())
+    expect(within(workbench).getByRole("combobox", { name: "剪贴板目标格式" }).textContent).toContain("WebP")
+    expect(within(workbench).getByRole("slider", { name: "剪贴板质量" }).getAttribute("aria-valuenow")).toBe("74")
+    expect(within(workbench).getByRole("slider", { name: "图片前后对比" }).hasAttribute("data-disabled")).toBe(true)
+    await user.click(within(workbench).getByRole("button", { name: "转换" }))
 
+    await waitFor(() => expect(within(workbench).getByText("75.0%")).toBeTruthy())
+    expect(within(workbench).getByRole("slider", { name: "图片前后对比" }).getAttribute("aria-valuenow")).toBe("50")
+    expect(writeImage).not.toHaveBeenCalled()
+    await user.click(within(workbench).getByRole("button", { name: "复制结果" }))
     await waitFor(() => expect(writeImage).toHaveBeenCalledWith({ base64: "d2VicA==", mimeType: "image/webp" }))
     expect(host.runCalls[0]).toMatchObject({ nodeId: "xlchemy", input: { paths: [], format: "WebP", quality: 74, effort: 9, threads: 3, avifEncoder: "slimg", inlineSource: { base64: "cG5n", mimeType: "image/png" } } })
     expect(host.cardState.pathsText).toBeUndefined()
-    expect(host.cardState.progressText).toContain("并写回剪贴板")
+    expect(host.cardState.result).toMatchObject({ inputBytes: 1000, outputBytes: 250 })
+    expect(host.cardState.progressText).toBe("转换结果已复制到剪贴板。")
   })
 })
 
