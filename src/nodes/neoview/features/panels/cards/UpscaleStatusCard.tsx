@@ -1,4 +1,4 @@
-import { Check, ImageOff, Loader2, SkipForward, X } from "lucide-react"
+import { Check, ImageOff, Loader2, ScrollText, SkipForward, X } from "lucide-react"
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
 
 import { Switch } from "@/components/ui/switch"
@@ -28,6 +28,7 @@ export default function UpscaleStatusCard({ client, session, disabled, superReso
   const preloads = useSyncExternalStore(subscribePreloads, getPreloads, getPreloads)
   const [useUpscaled, setUseUpscaled] = useState(true)
   const [zoomOpen, setZoomOpen] = useState(false)
+  const [logOpen, setLogOpen] = useState(false)
   const [size, setSize] = useState({ width: 400, height: 450 })
   const resizeRef = useRef<{ direction: string; x: number; y: number; width: number; height: number }>()
 
@@ -45,7 +46,11 @@ export default function UpscaleStatusCard({ client, session, disabled, superReso
   const pending = preloads.reduce((sum, item) => sum + item.pending, 0)
   const settled = preloads.reduce((sum, item) => sum + item.settled, 0)
   const failed = preloads.reduce((sum, item) => sum + item.failed, 0)
+  const logs = preloads.flatMap((item) => item.events ?? []).toSorted((left, right) => right.at - left.at).slice(0, 32)
+  const hasLogError = logs.some((entry) => entry.level === "error")
   const info = statusInfo(snapshot.state, snapshot.result?.decision?.reason, snapshot.error)
+
+  useEffect(() => { if (hasLogError) setLogOpen(true) }, [hasLogError])
 
   function startResize(event: React.PointerEvent, direction: string) {
     event.preventDefault()
@@ -63,6 +68,7 @@ export default function UpscaleStatusCard({ client, session, disabled, superReso
 
   return <>
     <div className="space-y-3 text-xs" data-neoview-upscale-status="true">
+      {superResolution?.provider !== "disabled" ? <UpscaleRuntimeLog logs={logs} open={logOpen} onOpenChange={setLogOpen} /> : null}
       <div className="flex items-center justify-between"><span className="text-muted-foreground">当前页面</span><span className="font-mono">{page ? page.index + 1 : 0}</span></div>
       <div className="space-y-2 rounded bg-muted/50 p-2"><div className="flex items-center justify-between"><span className="text-muted-foreground">状态</span><span className={info.className}>{info.icon}{info.label}</span></div><p className="text-[10px] text-muted-foreground">{info.description}</p></div>
       {superResolution?.provider !== "disabled" ? <><Row label="模型" value={preferences?.defaultModelId ?? "--"} /><Row label="放大倍率" value={`${scale}x`} /></> : null}
@@ -77,6 +83,8 @@ export default function UpscaleStatusCard({ client, session, disabled, superReso
 }
 
 function Row({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) { return <div className={accent ? "flex items-center justify-between text-emerald-600" : "flex items-center justify-between"}><span className="text-muted-foreground">{label}</span><span className="max-w-40 truncate font-mono text-[10px]" title={value}>{value}</span></div> }
+function UpscaleRuntimeLog({ logs, open, onOpenChange }: { logs: ReadonlyArray<{ id: string; at: number; level: "info" | "success" | "error"; message: string }>; open: boolean; onOpenChange(open: boolean): void }) { return <div className="space-y-1 border-b border-border/60 pb-2"><div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground">{"\u8fd0\u884c\u65e5\u5fd7"}</span><button type="button" className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] hover:bg-muted" aria-expanded={open} aria-label={"\u5207\u6362\u8d85\u5206\u8fd0\u884c\u65e5\u5fd7"} onClick={() => onOpenChange(!open)}><ScrollText className="size-3" />{logs.length}</button></div>{open ? <ol className="max-h-40 space-y-1 overflow-y-auto rounded border border-border/60 bg-muted/30 p-2 font-mono text-[10px]" data-neoview-upscale-log="true">{logs.length ? logs.map((entry) => <li key={entry.id} className={entry.level === "error" ? "text-destructive" : entry.level === "success" ? "text-emerald-600" : "text-muted-foreground"}><span className="mr-1 text-foreground/70">{formatLogTime(entry.at)}</span>{entry.message}</li>) : <li className="text-muted-foreground">No runtime events yet.</li>}</ol> : null}</div> }
+function formatLogTime(value: number): string { return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) }
 function statusInfo(state: "idle" | "processing" | "completed" | "skipped" | "failed", reason?: string, error?: string) {
   if (state === "processing") return { label: "超分中", description: "正在进行超分处理", className: "flex items-center gap-1.5 text-blue-600", icon: <Loader2 className="size-3.5 animate-spin" /> }
   if (state === "completed") return { label: "已完成", description: "超分完成", className: "flex items-center gap-1.5 text-emerald-600", icon: <Check className="size-3.5" /> }

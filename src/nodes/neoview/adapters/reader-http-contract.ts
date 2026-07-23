@@ -1410,6 +1410,15 @@ export interface ReaderUpscalePreloadSnapshotDto {
   startedAt: number
   updatedAt: number
   completedAt?: number
+  events?: readonly ReaderUpscalePreloadLogEntryDto[]
+}
+
+export interface ReaderUpscalePreloadLogEntryDto {
+  id: string
+  at: number
+  level: "info" | "success" | "error"
+  message: string
+  pageIndex?: number
 }
 
 export interface ReaderUpscaleCacheSnapshotDto {

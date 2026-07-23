@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
+import { createLogger } from "@/lib/logger"
 import type {
   ReaderHttpClient,
   ReaderSuperResolutionConfigDto,
@@ -11,6 +12,7 @@ const ACTIVE_POLL_INTERVAL_MS = 750
 const IDLE_POLL_INTERVAL_MS = 2_000
 const SCHEDULE_DEBOUNCE_MS = 200
 const EMPTY_SNAPSHOTS: readonly ReaderUpscalePreloadSnapshotDto[] = Object.freeze([])
+const logger = createLogger("neoview.super-resolution")
 
 export interface ReaderUpscalePreloadRuntime {
   snapshots: readonly ReaderUpscalePreloadSnapshotDto[]
@@ -32,6 +34,7 @@ export function useReaderUpscalePreload({
 }): ReaderUpscalePreloadRuntime {
   const [snapshots, setSnapshots] = useState(EMPTY_SNAPSHOTS)
   const [error, setError] = useState<string>()
+  const loggedEventIds = useRef(new Set<string>())
   const preferences = superResolution?.preferences
   const enabled = superResolution?.provider !== "disabled"
     && preferences?.globalUpscaleEnabled !== false
@@ -51,11 +54,26 @@ export function useReaderUpscalePreload({
   useEffect(() => {
     setSnapshots(EMPTY_SNAPSHOTS)
     setError(undefined)
+    loggedEventIds.current.clear()
     if (sessionId) clearReaderUpscalePreload(sessionId)
     return () => {
       if (sessionId) clearReaderUpscalePreload(sessionId)
     }
   }, [sessionId])
+
+  useEffect(() => {
+    for (const snapshot of snapshots) {
+      for (const event of snapshot.events ?? []) {
+        if (loggedEventIds.current.has(event.id)) continue
+        loggedEventIds.current.add(event.id)
+        const attributes = { eventId: event.id, mode: snapshot.mode, pageIndex: event.pageIndex, generation: snapshot.generation }
+        if (event.level === "error") logger.error(event.message, attributes)
+        else if (event.level === "success") logger.info(event.message, attributes)
+        else logger.info(event.message, attributes)
+      }
+    }
+    if (loggedEventIds.current.size > 512) loggedEventIds.current = new Set([...loggedEventIds.current].slice(-256))
+  }, [snapshots])
 
   useEffect(() => {
     if (enabled) return
