@@ -16,7 +16,7 @@ import { useEffect, useState } from "react"
  *
  *   useEffect(() => {
  *     // This only runs after user stops typing for 500ms
- *     console.log("Searching for:", debouncedSearch)
+ *     searchProducts(debouncedSearch)
  *   }, [debouncedSearch])
  *
  *   return (
