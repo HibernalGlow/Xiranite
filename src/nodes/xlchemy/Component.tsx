@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { XlchemyAction, XlchemyData, XlchemyFormat, XlchemyInput } from "@xiranite/node-xlchemy/core"
 import { DEFAULT_FILENAME_RULES, DEFAULT_RAM_OPTIMIZER_RULES, normalizeXlchemyInput } from "@xiranite/node-xlchemy/core"
@@ -12,10 +12,8 @@ import { Field, FieldContent, FieldLabel, FieldLegend, FieldSet } from "@/compon
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
@@ -34,12 +32,18 @@ import { ConversionLog, ProgressWorkbench, WorkbenchTelemetry } from "./Progress
 import { DataAnalysis } from "./DataAnalysis"
 import { FilenameRuleEditor } from "./FilenameRuleEditor"
 import { ClipboardConvertDialog, type ClipboardConversionResult, type ClipboardImageData } from "./ClipboardConvertDialog"
+import { XlchemyFormatField, XlchemySliderField } from "./ConversionControls"
 import { analyzeEfuUrl } from "./efu"
 import { FloatingWindowCaptionControls, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 
 export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>) {
   "use no memo"
   const surface = useNodeSurface()
+  const [surfaceElement, setSurfaceElement] = useState<HTMLDivElement | null>(null)
+  const bindSurface = useCallback((element: HTMLDivElement | null) => {
+    surface.ref.current = element
+    setSurfaceElement(element)
+  }, [surface.ref])
   const { t } = useNodeI18n("xlchemy")
   const data = getHostData(host, compId)
   const dataRef = useRef(data)
@@ -331,7 +335,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }
 
   const props: ViewProps = {
-    cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onListFiles: host.localFiles?.list, onPickFiles: pickInputFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
+    cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, portalContainer: surfaceElement, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onListFiles: host.localFiles?.list, onPickFiles: pickInputFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
     onCancel: cancelCurrentRun, onClipboardRead: readClipboardImage, onClipboardConvert: convertClipboardImage, onClipboardCopy: copyClipboardImage, onExecute: execute, onImportEfu: importEfuLists, onPatch: patch, onSelectPreset: selectPreset,
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => patch(defaults ?? XL_FACTORY_DEFAULTS), onSaveDefaults: saveDefaults,
     onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset, onExportPresets: exportCustomPresets, onImportPresets: importCustomPresets,
@@ -339,7 +343,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
 
   return (
     <TooltipProvider>
-      <div ref={surface.ref} className="@container/xlchemy flex h-full min-h-0 w-full overflow-hidden">
+      <div ref={bindSurface} className="@container/xlchemy relative flex h-full min-h-0 w-full overflow-hidden">
         {surface.mode === "collapsed" || forceCollapsed ? <CollapsedView {...props} /> : compact ? <CompactView {...props} portrait={surface.mode === "portrait"} /> : <FullView {...props} />}
       </div>
     </TooltipProvider>
@@ -411,7 +415,7 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
 }
 
 interface ViewProps {
-  cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
+  cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; portalContainer?: HTMLElement | null; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
   onCancel: () => void; onClipboardRead: () => Promise<ClipboardImageData>; onClipboardConvert: (source: ClipboardImageData) => Promise<ClipboardConversionResult>; onClipboardCopy: (output: ClipboardImageData) => Promise<void>; onExecute: (action: XlchemyAction) => void; onImportEfu: () => Promise<void>; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
 }
 
@@ -488,7 +492,7 @@ function Header({ props }: { props: ViewProps }) {
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {
-  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog disabled={props.running} format={props.data.clipboardFormat ?? "PNG"} quality={props.data.clipboardQuality ?? 85} onChange={props.onPatch} onRead={props.onClipboardRead} onConvert={props.onClipboardConvert} onCopy={props.onClipboardCopy} />} data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
+  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog disabled={props.running} format={props.data.clipboardFormat ?? "PNG"} portalContainer={props.portalContainer} quality={props.data.clipboardQuality ?? 85} onChange={props.onPatch} onRead={props.onClipboardRead} onConvert={props.onClipboardConvert} onCopy={props.onClipboardCopy} />} data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
 }
 
 function FormatControls({ props }: { props: ViewProps }) {
@@ -496,7 +500,7 @@ function FormatControls({ props }: { props: ViewProps }) {
   const selectFormat = (format: XlchemyFormat) => props.onPatch({ format, ...(format === "PNG" || format === "Lossless JPEG Transcoding" || format === "Smallest Lossless" ? { lossless: true } : format === "JPEG" || format === "JPEG Reconstruction" ? { lossless: false } : {}) })
   return <div className="flex flex-col gap-2">
     <div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-2">
-      <Field className="gap-1"><FieldLabel className="text-[10px]">目标格式</FieldLabel><Select value={props.format} onValueChange={(format) => selectFormat(format as XlchemyFormat)}><SelectTrigger className="w-full" size="sm" aria-label="目标格式"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{FORMATS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label} · {item.extension}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+      <XlchemyFormatField value={props.format} onChange={selectFormat} />
       {supportsLosslessChoice && <ChoiceControlField label="压缩模式"><ToggleGroup type="single" value={lossy ? "lossy" : "lossless"} className="grid w-full grid-cols-2" size="sm" onValueChange={(value) => value && props.onPatch({ lossless: value === "lossless" })}><ToggleGroupItem value="lossless">无损</ToggleGroupItem><ToggleGroupItem value="lossy">有损</ToggleGroupItem></ToggleGroup></ChoiceControlField>}
       <ChoiceControlField label="输出位置"><ToggleGroup type="single" value={outputMode} className="grid w-full grid-cols-2" size="sm" variant="outline" onValueChange={(value) => value && props.onPatch({ outputMode: value as "source" | "directory" })}><ToggleGroupItem value="source">源文件旁</ToggleGroupItem><ToggleGroupItem value="directory">指定目录</ToggleGroupItem></ToggleGroup></ChoiceControlField>
       <Field className="gap-1"><FieldLabel className="text-[10px]">同名输出</FieldLabel><Select value={props.data.existingPolicy ?? (props.data.overwrite ? "replace" : "skip")} onValueChange={(existingPolicy) => props.onPatch({ existingPolicy: existingPolicy as XlchemyCardState["existingPolicy"], overwrite: existingPolicy === "replace" })}><SelectTrigger className="w-full" size="sm"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="replace">覆盖</SelectItem><SelectItem value="skip">跳过</SelectItem><SelectItem value="rename">自动改名</SelectItem></SelectGroup></SelectContent></Select></Field>
@@ -504,7 +508,7 @@ function FormatControls({ props }: { props: ViewProps }) {
     </div>
     {outputMode === "directory" && <InputGroup><InputGroupInput aria-label="xlchemy output directory" placeholder="D:/output" value={props.data.outputDir ?? ""} onChange={(event) => props.onPatch({ outputDir: event.currentTarget.value })} /><InputGroupAddon align="inline-end"><InputGroupButton aria-label="选择输出目录" disabled={props.running || !props.onPickDirectory} size="icon-xs" onClick={async () => { const path = await props.onPickDirectory?.(); if (path) props.onPatch({ outputDir: path }) }}><FolderInput /></InputGroupButton></InputGroupAddon></InputGroup>}
     {props.format === "Smallest Lossless" && <ChoiceControlField label="最小格式池"><ToggleGroup type="multiple" value={[(props.data.smallestPng ?? true) ? "png" : "", (props.data.smallestWebp ?? true) ? "webp" : "", (props.data.smallestJxl ?? true) ? "jxl" : ""].filter(Boolean)} className="grid w-full grid-cols-3" size="sm" onValueChange={(values) => values.length && props.onPatch({ smallestPng: values.includes("png"), smallestWebp: values.includes("webp"), smallestJxl: values.includes("jxl") })}><ToggleGroupItem value="png">PNG</ToggleGroupItem><ToggleGroupItem value="webp">WebP</ToggleGroupItem><ToggleGroupItem value="jxl">JXL</ToggleGroupItem></ToggleGroup></ChoiceControlField>}
-    {showQuality && <SliderField label="质量" value={props.data.quality ?? 60} min={1} max={100} step={props.data.qualityPrecisionSnapping === false ? 1 : 5} onChange={(quality) => props.onPatch({ quality })} />}
+    {showQuality && <XlchemySliderField label="质量" value={props.data.quality ?? 60} min={1} max={100} step={props.data.qualityPrecisionSnapping === false ? 1 : 5} onChange={(quality) => props.onPatch({ quality })} />}
   </div>
 }
 
@@ -546,11 +550,11 @@ function showsChromaSubsampling(props: ViewProps) {
 }
 
 function CoreExecutionOptions({ props }: { props: ViewProps }) {
-  return <div className="grid grid-cols-2 gap-2"><SliderField label="压缩力度" value={props.data.effort ?? 7} min={1} max={10} onChange={(effort) => props.onPatch({ effort })} /><SliderField editable label="并行线程" value={props.data.threads ?? 4} min={1} max={32} onChange={(threads) => props.onPatch({ threads })} /></div>
+  return <div className="grid grid-cols-2 gap-2"><XlchemySliderField label="压缩力度" value={props.data.effort ?? 7} min={1} max={10} onChange={(effort) => props.onPatch({ effort })} /><XlchemySliderField editable label="并行线程" value={props.data.threads ?? 4} min={1} max={32} onChange={(threads) => props.onPatch({ threads })} /></div>
 }
 
 function GeneralSettings({ props }: { props: ViewProps }) {
-  return <div className="flex flex-col gap-2"><div className="grid grid-cols-2 gap-2"><SwitchField label="启动时关闭缩小" checked={props.data.disableDownscalingStartup ?? false} onChange={(disableDownscalingStartup) => props.onPatch({ disableDownscalingStartup })} /><SwitchField label="启动时关闭删除原图" checked={props.data.disableDeleteStartup ?? true} onChange={(disableDeleteStartup) => props.onPatch({ disableDeleteStartup })} /><SwitchField label="禁用自动排序" checked={props.data.disableSorting ?? false} onChange={(disableSorting) => props.onPatch({ disableSorting })} /><SwitchField label="质量按精度吸附" checked={props.data.qualityPrecisionSnapping ?? true} onChange={(qualityPrecisionSnapping) => props.onPatch({ qualityPrecisionSnapping })} /><SwitchField label="完成时提示音" checked={props.data.playSoundOnFinish ?? true} onChange={(playSoundOnFinish) => props.onPatch({ playSoundOnFinish })} /><SwitchField label="自动清除已完成" checked={props.data.autoClearCompleted ?? false} onChange={(autoClearCompleted) => props.onPatch({ autoClearCompleted })} /></div>{props.data.playSoundOnFinish !== false && <SliderField label="提示音音量" value={Math.round((props.data.playSoundVolume ?? 0.5) * 100)} min={0} max={100} onChange={(playSoundVolume) => props.onPatch({ playSoundVolume: playSoundVolume / 100 })} />}</div>
+  return <div className="flex flex-col gap-2"><div className="grid grid-cols-2 gap-2"><SwitchField label="启动时关闭缩小" checked={props.data.disableDownscalingStartup ?? false} onChange={(disableDownscalingStartup) => props.onPatch({ disableDownscalingStartup })} /><SwitchField label="启动时关闭删除原图" checked={props.data.disableDeleteStartup ?? true} onChange={(disableDeleteStartup) => props.onPatch({ disableDeleteStartup })} /><SwitchField label="禁用自动排序" checked={props.data.disableSorting ?? false} onChange={(disableSorting) => props.onPatch({ disableSorting })} /><SwitchField label="质量按精度吸附" checked={props.data.qualityPrecisionSnapping ?? true} onChange={(qualityPrecisionSnapping) => props.onPatch({ qualityPrecisionSnapping })} /><SwitchField label="完成时提示音" checked={props.data.playSoundOnFinish ?? true} onChange={(playSoundOnFinish) => props.onPatch({ playSoundOnFinish })} /><SwitchField label="自动清除已完成" checked={props.data.autoClearCompleted ?? false} onChange={(autoClearCompleted) => props.onPatch({ autoClearCompleted })} /></div>{props.data.playSoundOnFinish !== false && <XlchemySliderField label="提示音音量" value={Math.round((props.data.playSoundVolume ?? 0.5) * 100)} min={0} max={100} onChange={(playSoundVolume) => props.onPatch({ playSoundVolume: playSoundVolume / 100 })} />}</div>
 }
 
 function ExifToolSettings({ props }: { props: ViewProps }) {
@@ -576,26 +580,6 @@ function EnvironmentSettings({ props }: { props: ViewProps }) {
 
 function SettingsGroup({ children, label }: { children: ReactNode; label: string }) {
   return <FieldSet className="min-w-0 gap-1.5 rounded-lg border px-2.5 pb-2.5"><FieldLegend className="mb-0 ml-1 w-fit px-1 text-[10px] text-muted-foreground" variant="label">{label}</FieldLegend><div className="flex min-w-0 flex-col gap-2">{children}</div></FieldSet>
-}
-
-function SliderField({ editable, label, value, min, max, step = 1, onChange }: { editable?: boolean; label: string; value: number; min: number; max: number; step?: number; onChange: (value: number) => void }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(String(value))
-  const update = (next: number) => onChange(Math.min(max, Math.max(min, next)))
-  const commit = () => {
-    const next = Number(draft)
-    if (Number.isFinite(next)) update(next)
-    setEditing(false)
-  }
-  const editableValue = <Popover open={editing} onOpenChange={setEditing}>
-    <PopoverAnchor className="inline-flex">
-      <Badge aria-label={`${label}数值`} aria-valuemax={max} aria-valuemin={min} aria-valuenow={value} className="xiranite-no-drag cursor-text tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring" role="spinbutton" tabIndex={0} variant="outline" onClick={() => { setDraft(String(value)); setEditing(true) }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setDraft(String(value)); setEditing(true) } else if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); update(value + (event.key === "ArrowUp" ? step : -step)) } }} onWheel={(event) => { event.preventDefault(); update(value + (event.deltaY < 0 ? step : -step)) }}>{value}</Badge>
-    </PopoverAnchor>
-    <PopoverContent className="w-28 p-2" onOpenAutoFocus={(event) => event.preventDefault()}>
-      <Input autoFocus aria-label={`编辑${label}`} className="h-8 text-center tabular-nums" min={min} max={max} step={step} type="number" value={draft} onChange={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commit() } }} />
-    </PopoverContent>
-  </Popover>
-  return <Field className="gap-1.5"><div className="flex items-center justify-between gap-2"><FieldLabel className="text-[10px]">{label}</FieldLabel>{editable ? editableValue : <Badge variant="outline">{value}</Badge>}</div><Slider aria-label={label} min={min} max={max} step={step} value={[value]} onValueChange={(values) => onChange(values[0] ?? value)} /></Field>
 }
 
 function activeEncoder(data: XlchemyCardState) { const format = data.format ?? "JPEG XL"; if (format === "AVIF") return data.avifEncoder === "svt" ? "SVT-AV1" : data.avifEncoder === "slimg" ? "slimg" : "AOM AV1"; if (format === "JPEG") return data.jpegEncoder === "libjpeg" ? "libjpeg" : "JPEGli"; if (format === "JPEG XL" || format === "Lossless JPEG Transcoding") return "cjxl"; if (format === "JPEG Reconstruction") return "djxl"; return format }
