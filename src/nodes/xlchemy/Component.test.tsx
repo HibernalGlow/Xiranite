@@ -614,6 +614,19 @@ describe("app-owned xlchemy Component", () => {
     expect(host.cardState.result).toMatchObject({ inputBytes: 1000, outputBytes: 250 })
     expect(host.cardState.progressText).toBe("转换结果已复制到剪贴板。")
   })
+
+  test("keeps the clipboard quality control visible for lossless output", async () => {
+    const host = createHost({ clipboardFormat: "PNG", clipboardLossless: true, clipboardQuality: 82 })
+    host.clipboard!.readImage = vi.fn(async () => ({ base64: "cG5n", mimeType: "image/png" }))
+    render(<Component compId="xlchemy-card" host={host} />)
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "打开剪贴板图片工作台" }))
+    const workbench = await screen.findByTestId("xlchemy-clipboard-workbench")
+    const quality = within(workbench).getByRole("slider", { name: "质量" })
+    expect(quality.getAttribute("aria-valuenow")).toBe("82")
+    expect(quality.hasAttribute("data-disabled")).toBe(true)
+    expect(within(workbench).getByText("无损")).toBeTruthy()
+  })
 })
 
 type TestPreset = { id: string; name: string; values: Record<string, unknown> }
