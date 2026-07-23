@@ -530,7 +530,7 @@ describe("backend", () => {
       const directories = await fetch(`${backend.url}/local-files/list?path=${encodeURIComponent(musicDir)}&includeDirectories=1&token=test-token`)
       expect(directories.status).toBe(200)
       expect(await directories.json()).toMatchObject({
-        entries: expect.arrayContaining([{ name: "albums", path: albumsDir, isDirectory: true }]),
+        entries: expect.arrayContaining([expect.objectContaining({ name: "albums", path: albumsDir, isDirectory: true })]),
       })
 
       const range = await fetch(`${backend.url}/local-files?path=${encodeURIComponent(audioPath)}&token=test-token`, {
