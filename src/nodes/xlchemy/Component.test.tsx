@@ -589,6 +589,10 @@ describe("app-owned xlchemy Component", () => {
     expect(screen.queryByRole("button", { name: "剪贴板转换选项" })).toBeNull()
     await user.click(screen.getByRole("button", { name: "打开剪贴板图片工作台" }))
     const workbench = await screen.findByTestId("xlchemy-clipboard-workbench")
+    const nodeSurface = screen.getByTestId("xlchemy-full-view").parentElement!
+    expect(nodeSurface.contains(workbench)).toBe(true)
+    expect(workbench.className).toContain("inset-2")
+    expect(workbench.className).not.toContain("fixed")
     await waitFor(() => expect(host.clipboard!.readImage).toHaveBeenCalledOnce())
     expect(within(workbench).getByRole("combobox", { name: "剪贴板目标格式" }).textContent).toContain("WebP")
     expect(within(workbench).getByRole("slider", { name: "剪贴板质量" }).getAttribute("aria-valuenow")).toBe("74")
