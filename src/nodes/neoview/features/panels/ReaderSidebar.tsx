@@ -10,7 +10,7 @@
  * @features panels-toolbar-shell,card-windows-tabs
  * @migration-status adapted
  */
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
+import { startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 import { Pin, PinOff } from "lucide-react"
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react"
 import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPatch, ReaderSwimlaneLaneDto } from "../../adapters/reader-http-client"
@@ -32,8 +32,8 @@ import {
   type ReaderPanelSide,
 } from "./registry"
 
-const MIN_CARD_REVEAL_IDLE_BUDGET_MS = 12
-const CARD_REVEAL_RETRY_DELAY_MS = 250
+const CARD_VIEWPORT_ROOT_MARGIN = "480px 0px"
+const CARD_MOUNT_FALLBACK_DELAY_MS = 400
 
 export function ReaderSidebar({
   side,
@@ -119,58 +119,28 @@ export function ReaderSidebar({
     () => (active ? cardsForPanel(active.id, shell, hasSession) : []),
     [active, hasSession, shell],
   )
-  const [visibleCardCount, setVisibleCardCount] = useState(1)
-  useEffect(() => {
-    setVisibleCardCount(1)
-    if (activeCards.length <= 1) return
-    let cancelled = false
-    let revealed = 1
-    let idleHandle: number | undefined
-    let timeoutHandle: number | undefined
-    neoviewDebug("sidebar:cards:progressive-start", {
-      side,
-      panelId: active?.id,
-      total: activeCards.length,
-    })
-    const schedule = () => {
-      if (cancelled) return
-      if (document.visibilityState !== "visible") {
-        timeoutHandle = window.setTimeout(schedule, CARD_REVEAL_RETRY_DELAY_MS)
-        return
-      }
-      if (typeof requestIdleCallback === "function") {
-        idleHandle = requestIdleCallback((deadline) => {
-          idleHandle = undefined
-          if (!deadline.didTimeout && deadline.timeRemaining() < MIN_CARD_REVEAL_IDLE_BUDGET_MS) {
-            timeoutHandle = window.setTimeout(schedule, CARD_REVEAL_RETRY_DELAY_MS)
-            return
-          }
-          revealNext()
-        })
-      } else {
-        timeoutHandle = window.setTimeout(revealNext, CARD_REVEAL_RETRY_DELAY_MS)
-      }
-    }
-    const revealNext = () => {
-      if (cancelled) return
-      revealed = Math.min(activeCards.length, revealed + 1)
-      setVisibleCardCount(revealed)
-      if (revealed < activeCards.length) schedule()
-      else {
-        neoviewDebug("sidebar:cards:progressive-done", {
-          side,
-          panelId: active?.id,
-          total: activeCards.length,
-        })
-      }
-    }
-    schedule()
-    return () => {
-      cancelled = true
-      if (idleHandle !== undefined && typeof cancelIdleCallback === "function") cancelIdleCallback(idleHandle)
-      if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle)
-    }
-  }, [active?.id, activeCards.length, side])
+  const expandedCardIds = useMemo(
+    () => activeCards
+      .filter((card) => shell?.cardLayout[card.id]?.expanded !== false)
+      .map((card) => card.id),
+    [activeCards, shell?.cardLayout],
+  )
+  const activePanelViewportRef = useRef<HTMLDivElement | null>(null)
+  const [activePanelViewport, setActivePanelViewport] = useState<HTMLDivElement | null>(null)
+  const setActivePanelViewportRef = useCallback((node: HTMLDivElement | null) => {
+    if (activePanelViewportRef.current === node) return
+    activePanelViewportRef.current = node
+    setActivePanelViewport(node)
+  }, [])
+  const { mountedCardIds, setCardViewportTarget } = useViewportCardMountScheduler({
+    cardIds: expandedCardIds,
+    enabled: edgeActive && Boolean(active),
+    panelId: active?.id,
+    panelViewport: activePanelViewport,
+    presentation,
+    sessionId: context.session?.sessionId,
+    side,
+  })
 
   return (
     <aside
@@ -226,7 +196,7 @@ export function ReaderSidebar({
       {panels.map((panel) => {
         const panelActive = panel.id === active?.id
         const panelVisible = edgeActive && panelActive
-        const cards = cardsForPanel(panel.id, shell, hasSession)
+        const cards = panelActive ? activeCards : cardsForPanel(panel.id, shell, hasSession)
         const exclusive = cards.length === 1 && cards[0]?.exclusivePanel === true
         const PanelIcon = panel.icon
         // Never keep inactive panels mounted: control/history/etc. each pull many
@@ -235,6 +205,7 @@ export function ReaderSidebar({
         return (
           <div
             key={panel.id}
+            ref={panelActive ? setActivePanelViewportRef : undefined}
             className={cn(
               "min-h-0 min-w-0 flex-1 overscroll-contain",
               exclusive ? "relative flex h-full w-full basis-full flex-col self-stretch overflow-hidden" : "overflow-y-auto",
@@ -244,7 +215,7 @@ export function ReaderSidebar({
             data-reader-panel-cache={panel.id}
             data-reader-panel-active={panelActive ? "true" : "false"}
             data-reader-panel-visible={panelVisible ? "true" : "false"}
-            data-reader-visible-card-count={panelActive ? visibleCardCount : 0}
+            data-reader-visible-card-count={panelActive ? mountedCardIds.size : 0}
             data-context-menu={panelVisible && panel.id === "info" ? "neoview-info" : undefined}
           >
             {exclusive ? null : <div className="sticky top-0 z-10 flex min-h-11 items-center gap-2 border-b border-border/50 bg-transparent px-3 py-2">
@@ -274,13 +245,16 @@ export function ReaderSidebar({
                 onPointerCancel={cancelGesture}
               >↕</button>
             ) : null}
-            <div className={cn(exclusive
-              ? "flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden [&>*]:h-full [&>*]:min-h-0 [&>*]:min-w-0 [&>*]:w-full [&>*]:flex-1"
-              : "grid gap-2 px-3 py-3")}>
-              {cards.slice(0, panelActive ? visibleCardCount : 0).map((card) => {
+            <div
+              className={cn(exclusive
+                ? "flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden [&>*]:h-full [&>*]:min-h-0 [&>*]:min-w-0 [&>*]:w-full [&>*]:flex-1"
+                : "grid gap-2 px-3 py-3")}
+            >
+              {cards.map((card) => {
                 const Card = lazyReaderCard(card.id)
                 const cardLayout = shell?.cardLayout[card.id]
                 const expanded = cardLayout ? cardLayout.expanded : true
+                const cardBodyMounted = expanded && (exclusive || mountedCardIds.has(card.id))
                 return Card ? (
                   <CollapsibleReaderCard
                     key={card.id}
@@ -292,19 +266,25 @@ export function ReaderSidebar({
                     onCollapsedChange={(collapsed) => onCardLayoutCommit?.({ cardId: card.id, expanded: !collapsed })}
                     onHeightChange={(height) => onCardLayoutCommit?.({ cardId: card.id, height: height ?? null })}
                   >
-                    {expanded ? (
-                      <Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted/60" aria-label={`正在加载${card.title}`} data-reader-card-loading={card.id} />}>
-                        <LoggedReaderCard
-                          cardId={card.id}
-                          side={side}
-                          panelId={panel.id}
-                          Card={Card}
-                          context={context}
-                          panelActive={panelActive}
-                          panelVisible={panelVisible}
-                        />
-                      </Suspense>
-                    ) : null}
+                    <div
+                      ref={expanded ? (node) => setCardViewportTarget(card.id, node) : undefined}
+                      data-reader-card-body-state={expanded ? (cardBodyMounted ? "mounted" : "deferred") : "collapsed"}
+                      data-reader-card-viewport-target={expanded ? card.id : undefined}
+                    >
+                      {cardBodyMounted ? (
+                        <Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted/60" aria-label={`正在加载${card.title}`} data-reader-card-loading={card.id} />}>
+                          <LoggedReaderCard
+                            cardId={card.id}
+                            side={side}
+                            panelId={panel.id}
+                            Card={Card}
+                            context={context}
+                            panelActive={panelActive}
+                            panelVisible={panelVisible}
+                          />
+                        </Suspense>
+                      ) : expanded ? <div className="h-16 rounded bg-muted/25" aria-hidden="true" data-reader-card-deferred={card.id} /> : null}
+                    </div>
                   </CollapsibleReaderCard>
                 ) : null
               })}
@@ -416,6 +396,166 @@ export function ReaderSidebar({
     gestureRef.current = undefined
     if (asideRef.current && layout && shell) applySidebarStyle(asideRef.current, sidebarStyle(layout, shell, side))
   }
+}
+
+interface ViewportCardMountSchedulerOptions {
+  cardIds: readonly string[]
+  enabled: boolean
+  panelId: LegacyPanelId | undefined
+  panelViewport: HTMLElement | null
+  presentation: "edge" | "lane"
+  sessionId: string | undefined
+  side: ReaderPanelSide
+}
+
+interface CardMountState {
+  key: string
+  mountedCardIds: ReadonlySet<string>
+}
+
+function useViewportCardMountScheduler({
+  cardIds,
+  enabled,
+  panelId,
+  panelViewport,
+  presentation,
+  sessionId,
+  side,
+}: ViewportCardMountSchedulerOptions) {
+  const cardIdSignature = cardIds.join("|")
+  const orderedCardIds = useMemo(() => [...new Set(cardIds)], [cardIdSignature])
+  const firstCardId = orderedCardIds[0]
+  const schedulerKey = `${side}\u0001${presentation}\u0001${panelId ?? "none"}\u0001${sessionId ?? "none"}\u0001${enabled ? "active" : "inactive"}\u0001${cardIdSignature}`
+  const [mountState, setMountState] = useState<CardMountState>(() => createCardMountState(schedulerKey, firstCardId))
+  const cardTargetsRef = useRef(new Map<string, HTMLElement>())
+  const setCardViewportTarget = useCallback((cardId: string, node: HTMLElement | null) => {
+    if (node) cardTargetsRef.current.set(cardId, node)
+    else cardTargetsRef.current.delete(cardId)
+  }, [])
+
+  useEffect(() => {
+    setMountState((current) => current.key === schedulerKey ? current : createCardMountState(schedulerKey, firstCardId))
+  }, [firstCardId, schedulerKey])
+
+  useEffect(() => {
+    if (!enabled || !panelViewport || !panelId || orderedCardIds.length <= 1) return
+
+    let cancelled = false
+    let animationFrame: number | undefined
+    let mountFallback: number | undefined
+    let viewportProbe: number | undefined
+    const mounted = new Set(firstCardId ? [firstCardId] : [])
+    const queued = new Set<string>()
+    const queue: string[] = []
+    const cardOrder = new Map(orderedCardIds.map((cardId, index) => [cardId, index]))
+    const eligibleCardIds = new Set(orderedCardIds.slice(1))
+
+    neoviewDebug("sidebar:cards:viewport-start", {
+      side,
+      panelId,
+      total: orderedCardIds.length,
+      rootMargin: CARD_VIEWPORT_ROOT_MARGIN,
+    })
+
+    const scheduleNextMount = () => {
+      if (cancelled || !queue.length || animationFrame !== undefined || mountFallback !== undefined) return
+      if (typeof requestAnimationFrame === "function") {
+        animationFrame = requestAnimationFrame(() => {
+          animationFrame = undefined
+          if (mountFallback !== undefined) window.clearTimeout(mountFallback)
+          mountFallback = undefined
+          mountNext("animation-frame")
+        })
+      }
+      mountFallback = window.setTimeout(() => {
+        if (animationFrame !== undefined && typeof cancelAnimationFrame === "function") cancelAnimationFrame(animationFrame)
+        animationFrame = undefined
+        mountFallback = undefined
+        mountNext("fallback")
+      }, CARD_MOUNT_FALLBACK_DELAY_MS)
+    }
+
+    const mountNext = (source: "animation-frame" | "fallback") => {
+      if (cancelled) return
+      const cardId = queue.shift()
+      if (!cardId) return
+      queued.delete(cardId)
+      mounted.add(cardId)
+      startTransition(() => {
+        setMountState((current) => {
+          const nextMounted = current.key === schedulerKey
+            ? new Set(current.mountedCardIds)
+            : new Set(firstCardId ? [firstCardId] : [])
+          if (nextMounted.has(cardId)) return current
+          nextMounted.add(cardId)
+          return { key: schedulerKey, mountedCardIds: nextMounted }
+        })
+      })
+      neoviewDebug("sidebar:cards:viewport-mount", { side, panelId, cardId, source })
+      if (queue.length) scheduleNextMount()
+    }
+
+    const enqueue = (cardId: string | undefined) => {
+      if (!cardId || cancelled || !eligibleCardIds.has(cardId) || mounted.has(cardId) || queued.has(cardId)) return
+      queued.add(cardId)
+      queue.push(cardId)
+      queue.sort((left, right) => (cardOrder.get(left) ?? 0) - (cardOrder.get(right) ?? 0))
+      scheduleNextMount()
+    }
+
+    const enqueueNearViewportCards = () => {
+      const rootRect = panelViewport.getBoundingClientRect()
+      const top = rootRect.top - 480
+      const bottom = rootRect.bottom + 480
+      for (const cardId of orderedCardIds.slice(1)) {
+        const target = cardTargetsRef.current.get(cardId)
+        if (!target) continue
+        const rect = target.getBoundingClientRect()
+        if (rect.bottom >= top && rect.top <= bottom) enqueue(cardId)
+      }
+    }
+
+    let observer: IntersectionObserver | undefined
+    if (typeof IntersectionObserver === "function") {
+      observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          enqueue((entry.target as HTMLElement).dataset.readerCardViewportTarget)
+        }
+      }, {
+        root: panelViewport,
+        rootMargin: CARD_VIEWPORT_ROOT_MARGIN,
+        threshold: 0.01,
+      })
+      for (const cardId of orderedCardIds.slice(1)) {
+        const target = cardTargetsRef.current.get(cardId)
+        if (target) observer.observe(target)
+      }
+      viewportProbe = window.setTimeout(enqueueNearViewportCards, CARD_MOUNT_FALLBACK_DELAY_MS)
+    } else {
+      // Older WebView runtimes cannot report intersections, so retain bounded progress.
+      for (const cardId of orderedCardIds.slice(1)) enqueue(cardId)
+    }
+
+    return () => {
+      cancelled = true
+      observer?.disconnect()
+      if (animationFrame !== undefined && typeof cancelAnimationFrame === "function") cancelAnimationFrame(animationFrame)
+      if (mountFallback !== undefined) window.clearTimeout(mountFallback)
+      if (viewportProbe !== undefined) window.clearTimeout(viewportProbe)
+    }
+  }, [enabled, firstCardId, orderedCardIds, panelId, panelViewport, presentation, schedulerKey, sessionId, side])
+
+  return {
+    mountedCardIds: mountState.key === schedulerKey
+      ? mountState.mountedCardIds
+      : createCardMountState(schedulerKey, firstCardId).mountedCardIds,
+    setCardViewportTarget,
+  }
+}
+
+function createCardMountState(key: string, firstCardId: string | undefined): CardMountState {
+  return { key, mountedCardIds: new Set(firstCardId ? [firstCardId] : []) }
 }
 
 function LoggedReaderCard({
