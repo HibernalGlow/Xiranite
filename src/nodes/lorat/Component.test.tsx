@@ -34,6 +34,8 @@ vi.mock("@/nodes/shared/useNodeSurface", async (importOriginal) => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.unstubAllGlobals()
+  delete window.__XIRANITE_BACKEND__
   setSurface("regular")
 })
 
@@ -307,6 +309,64 @@ describe("app-owned lorat Component", () => {
       notes: "SDXL v2",
     }))
     expect(stagedFiles[0]).toMatchObject({ name: "clipboard-preview.png", type: "image/png" })
+  })
+
+  test("applies a Nexus page capture to the selected collection item", async () => {
+    setSurface("regular")
+    const host = createHost({
+      collectionRoot: "D:/ComfyUI/models/loras",
+      collectionItems: [{
+        id: "model-1",
+        sourcePath: "D:/Downloads/neon.safetensors",
+        sourceName: "neon.safetensors",
+        targetRelativeDir: "style",
+        triggerText: "neon_style",
+      }],
+    })
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === "DELETE") {
+        return { ok: true, status: 200, json: async () => ({ removed: true }) } as Response
+      }
+      if (url.includes("/nexus/captures")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            captures: [{
+              version: 1,
+              id: "capture-1",
+              targetNodeId: "lorat",
+              kind: "page",
+              source: {
+                url: "https://civitai.com/models/123",
+                title: "Neon model",
+                capturedAt: "2026-07-23T12:00:00.000Z",
+              },
+              content: { text: "SDXL v2" },
+              receivedAt: "2026-07-23T12:00:01.000Z",
+            }],
+          }),
+        } as Response
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:3000", token: "test-token" }
+
+    render(<Component compId="comp-lorat" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("tab", { name: "收集" }))
+    await waitFor(() => expect(screen.getByText("Neon model")).toBeTruthy())
+    await user.click(screen.getByRole("button", { name: "Apply" }))
+
+    await waitFor(() => expect(host.state.collectionItems?.[0]).toMatchObject({
+      sourceUrl: "https://civitai.com/models/123",
+      notes: "SDXL v2",
+    }))
+    const deleteRequest = fetchMock.mock.calls.find(([, init]) => init?.method === "DELETE")
+    expect(String(deleteRequest?.[0])).toContain("/nexus/captures/capture-1")
+    expect(deleteRequest?.[1]).toMatchObject({ method: "DELETE" })
   })
 
   test("toggles row selection and edits trigger", async () => {

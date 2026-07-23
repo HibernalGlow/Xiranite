@@ -1,6 +1,7 @@
 import { useId, useMemo, useRef, useState, type ChangeEvent, type HTMLAttributes } from "react"
 import type { NodeClipboardCapability, NodeLocalFilesCapability } from "@xiranite/contract"
 import type { LoratCollectionResult } from "@xiranite/node-lorat/core"
+import type { NexusCaptureDTO } from "@xiranite/shared"
 import { ClipboardPaste, ImagePlus, PackageCheck, Trash2, Upload, X } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -14,6 +15,7 @@ import { TagsInput, TagsInputInput, TagsInputItem, TagsInputList } from "@/compo
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { useLocalFileDrop } from "@/nodes/shared/useLocalFileDrop"
+import { LoratNexusInbox } from "./LoratNexusInbox"
 import type { LoratCardState, LoratCollectionDraft } from "./types"
 
 type Translate = (key: string, fallback: string, vars?: Record<string, unknown>) => string
@@ -176,6 +178,39 @@ export function LoratCollectionPanel(props: {
     replaceItems(items.map((item) => item.id === selected.id ? { ...item, ...patch } : item))
   }
 
+  async function applyNexusCapture(capture: NexusCaptureDTO) {
+    if (!selected) throw new Error("Select a LoRA model before applying a Nexus capture.")
+    const sourceUrl = capture.source.pageUrl || capture.source.url
+    const captureText = capture.content?.text?.trim()
+      || (typeof capture.metadata?.description === "string" ? capture.metadata.description.trim() : "")
+    const notes = [selected.notes?.trim(), captureText].filter(Boolean).join("\n")
+    let previewPatch: Partial<LoratCollectionDraft> = {}
+
+    if (capture.kind === "image") {
+      const attachment = capture.attachments?.[0]
+      if (!attachment) throw new Error("The Nexus image capture has no attachment.")
+      if (!props.localFiles?.stageFiles) throw new Error("This host cannot stage the captured image.")
+      setImporting(true)
+      try {
+        const file = await fileFromNexusAttachment(attachment)
+        const [previewSourcePath] = await props.localFiles.stageFiles([file])
+        if (!previewSourcePath) throw new Error("Staging the Nexus image did not return a path.")
+        previewPatch = { previewSourcePath, previewName: file.name }
+        setPreviewUrls((current) => ({ ...current, [selected.id]: props.localFiles!.getUrl(previewSourcePath) }))
+      } finally {
+        setImporting(false)
+      }
+    }
+
+    replaceItems(items.map((item) => item.id === selected.id ? {
+      ...item,
+      sourceUrl,
+      ...(notes ? { notes } : {}),
+      ...previewPatch,
+    } : item))
+    setDropMessage("")
+  }
+
   async function browseModels() {
     if (!props.localFiles?.pickFiles) {
       modelInputRef.current?.click()
@@ -258,6 +293,8 @@ export function LoratCollectionPanel(props: {
       </div>
 
       {dropMessage && <Alert variant="destructive" className="shrink-0 py-2"><X data-icon="inline-start" /><AlertTitle>{props.t("collection.dropIssue", "无法加入队列")}</AlertTitle><AlertDescription>{dropMessage}</AlertDescription></Alert>}
+
+      <LoratNexusInbox disabled={inputDisabled} hasSelection={Boolean(selected)} onApply={applyNexusCapture} />
 
       <div className={cn("grid min-h-0 flex-1 gap-3", props.compact ? "grid-cols-1" : "@5xl/lorat:grid-cols-[minmax(210px,.7fr)_minmax(260px,1fr)_minmax(240px,.75fr)]")}>
         <section className="flex min-h-0 flex-col rounded-lg border bg-card">
@@ -372,6 +409,15 @@ function fileFromBase64(base64: string, mimeType: string, name: string): File {
   const bytes = new Uint8Array(binary.length)
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
   return new File([bytes], name, { type: mimeType })
+}
+
+async function fileFromNexusAttachment(attachment: NonNullable<NexusCaptureDTO["attachments"]>[number]): Promise<File> {
+  const mimeType = attachment.mimeType || "image/png"
+  const name = attachment.name || `nexus-image.${extensionForMimeType(mimeType)}`
+  if (attachment.dataBase64) return fileFromBase64(attachment.dataBase64, mimeType, name)
+  const response = await fetch(attachment.url)
+  if (!response.ok) throw new Error(`Downloading the Nexus image returned ${response.status}.`)
+  return new File([await response.blob()], name, { type: response.headers.get("content-type") || mimeType })
 }
 
 function suggestRelativeDir(path: string, name: string): string {
