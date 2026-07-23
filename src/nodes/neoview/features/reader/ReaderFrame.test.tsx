@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render } from "@testing-library/react"
+import { act, cleanup, fireEvent, render } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { DEFAULT_READER_PRESENTATION, type FramePage } from "@xiranite/node-neoview/ui-core"
 
@@ -11,6 +11,7 @@ vi.mock("./PageMedia", () => ({ PageMedia: ({ page, scale, imageTrim, imageTrimD
 vi.mock("../page-transition/ReaderPageTransitionLayer", () => ({ ReaderPageTransitionLayer: ({ children }: { children: React.ReactNode }) => <div data-reader-page-transition-layer="true">{children}</div> }))
 
 afterEach(cleanup)
+afterEach(() => vi.useRealTimers())
 
 describe("ReaderFrame", () => {
   it("keeps a vertical double-page frame paired left-to-right while orientation controls browsing", () => {
@@ -81,6 +82,29 @@ describe("ReaderFrame", () => {
       width.mockRestore()
       height.mockRestore()
     }
+  })
+
+  it("[neoview.freeze-triage.upscale-preload] does not submit background upscale work when isolated", async () => {
+    vi.useFakeTimers()
+    const startUpscalePreload = vi.fn()
+    const client = { startUpscalePreload, upscalePreloadSnapshots: vi.fn() } as unknown as ReaderHttpClient
+
+    render(<ReaderFrame
+      pages={[page(0)]}
+      presentation={DEFAULT_READER_PRESENTATION}
+      totalPages={1}
+      anchorPageIndex={0}
+      sessionId="reader"
+      client={client}
+      videoController={{} as ReaderVideoController}
+      superResolution={{ provider: "opencomic-system", preferences: { autoUpscaleEnabled: true, preUpscaleEnabled: true, progressiveEnabled: true } }}
+      backgroundUpscalePreloadEnabled={false}
+      onSubtitleConfigChange={vi.fn()}
+      onVideoListEnded={vi.fn()}
+    />)
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000) })
+    expect(startUpscalePreload).not.toHaveBeenCalled()
   })
 })
 

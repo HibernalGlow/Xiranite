@@ -88,6 +88,9 @@ import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspac
 // Keep the reader's visible image path intact while freeze diagnosis runs. The
 // recent adaptive predecode implementation is excluded from this baseline.
 const BACKGROUND_READER_PREDECODE_ENABLED = false
+// The server-side nearby/progressive upscale queue is separate from browser
+// predecode. Keep it behind the same freeze-triage firebreak.
+const BACKGROUND_READER_UPSCALE_PRELOAD_ENABLED = false
 
 function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConfigDto): boolean {
   // Compare normalized workspace views — shell object identity always changes on patch.
@@ -2273,6 +2276,7 @@ export function ReaderApp({
             client={client}
             media={media}
             superResolution={superResolution}
+            backgroundUpscalePreloadEnabled={BACKGROUND_READER_UPSCALE_PRELOAD_ENABLED}
             viewerToggles={viewerToggles}
             onSubtitleConfigChange={persistSubtitleConfig}
             onVisiblePageChange={syncPanoramaVisiblePage}
