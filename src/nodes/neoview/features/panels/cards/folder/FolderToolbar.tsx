@@ -887,11 +887,7 @@ const PENETRATION_TARGET_OPTIONS: readonly { value: ReaderFolderPenetrationConfi
   { value: "file", label: "其他可读文件" },
 ]
 
-/**
- * 4-way navigation pad (back / forward / up / home).
- * Refresh was removed from the center so each slice can claim more hit area;
- * use right-click on the pad (or F5 / 更多菜单) to refresh.
- */
+/** 5-way navigation pad (back / forward / up / home / refresh). */
 function FolderNavigationPad({
   canGoBack,
   canGoForward,
@@ -925,16 +921,8 @@ function FolderNavigationPad({
       className="relative size-8 shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/30 shadow-xs focus-within:ring-2 focus-within:ring-ring/50"
       role="group"
       aria-label="文件夹导航"
-      title="右键刷新当前目录"
       data-folder-navigation-pad="true"
-      data-folder-navigation-pad-mode="four-way"
-      onContextMenu={(event) => {
-        // Pad-level right-click refreshes; directional buttons stop propagation
-        // when they handle their own context menus (e.g. home → set home).
-        if (!currentPath || busy) return
-        event.preventDefault()
-        onRefresh()
-      }}
+      data-folder-navigation-pad-mode="five-way"
     >
       <NavigationPadButton position="left" label="后退" disabled={!canGoBack || busy} onClick={onNavigateBack} />
       <NavigationPadButton position="right" label="前进" disabled={!canGoForward || busy} onClick={onNavigateForward} />
@@ -952,24 +940,28 @@ function FolderNavigationPad({
           if (currentPath && !busy && currentPath !== homePath) onSetHome()
         }}
       />
+      <NavigationPadButton position="center" label="刷新" disabled={!currentPath || busy} onClick={onRefresh} />
       <div className="pointer-events-none absolute inset-0 z-[3] text-foreground" aria-hidden="true">
-        <ChevronLeft className={`absolute left-0.5 top-1/2 size-2.5 -translate-y-1/2 ${!canGoBack || busy ? "opacity-25" : ""}`} />
-        <ChevronRight className={`absolute right-0.5 top-1/2 size-2.5 -translate-y-1/2 ${!canGoForward || busy ? "opacity-25" : ""}`} />
-        <ChevronUp className={`absolute left-1/2 top-0.5 size-2.5 -translate-x-1/2 ${!canGoUp || busy ? "opacity-25" : ""}`} />
+        <ChevronLeft className={`absolute left-0.5 top-1/2 size-2 -translate-y-1/2 ${!canGoBack || busy ? "opacity-25" : ""}`} />
+        <ChevronRight className={`absolute right-0.5 top-1/2 size-2 -translate-y-1/2 ${!canGoForward || busy ? "opacity-25" : ""}`} />
+        <ChevronUp className={`absolute left-1/2 top-0.5 size-2 -translate-x-1/2 ${!canGoUp || busy ? "opacity-25" : ""}`} />
         <span
-          className={`absolute bottom-1 left-1/2 h-0.5 w-2.5 -translate-x-1/2 rounded-full ${currentPath && homePath && currentPath === homePath ? "bg-primary-foreground" : "bg-current"} ${!currentPath || busy || !homePath ? "opacity-25" : ""} ${loading ? "animate-pulse" : ""}`}
+          className={`absolute bottom-1 left-1/2 h-0.5 w-2 -translate-x-1/2 rounded-full ${currentPath && homePath && currentPath === homePath ? "bg-primary-foreground" : "bg-current"} ${!currentPath || busy || !homePath ? "opacity-25" : ""}`}
+        />
+        <span
+          className={`absolute left-1/2 top-1/2 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current ${loading ? "animate-pulse" : ""} ${!currentPath || busy ? "opacity-25" : ""}`}
         />
       </div>
     </div>
   )
 }
 
-// Full-quadrant slices — no center hole, so each direction gets more target area.
 const NAVIGATION_PAD_POSITION_CLASSES = {
-  left: "z-[1] [clip-path:polygon(0_0,50%_50%,0_100%)]",
-  right: "z-[1] [clip-path:polygon(100%_0,100%_100%,50%_50%)]",
-  up: "z-[1] [clip-path:polygon(0_0,100%_0,50%_50%)]",
-  down: "z-[1] [clip-path:polygon(0_100%,50%_50%,100%_100%)]",
+  left: "z-[1] [clip-path:polygon(0_0,40%_30%,40%_70%,0_100%)]",
+  right: "z-[1] [clip-path:polygon(100%_0,60%_30%,60%_70%,100%_100%)]",
+  up: "z-[1] [clip-path:polygon(0_0,100%_0,70%_40%,30%_40%)]",
+  down: "z-[1] [clip-path:polygon(30%_60%,70%_60%,100%_100%,0_100%)]",
+  center: "z-[2] m-auto size-3.5 rounded-full border border-border/70 bg-background p-0 shadow-sm hover:bg-accent",
 } as const
 
 function NavigationPadButton({
