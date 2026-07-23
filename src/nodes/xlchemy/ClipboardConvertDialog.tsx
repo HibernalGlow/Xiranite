@@ -5,15 +5,18 @@ import { Check, ClipboardPaste, Copy, Image as ImageIcon, LoaderCircle, RefreshC
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 export type ClipboardImageData = { base64: string; mimeType: string }
-export type ClipboardConversionResult = { data: XlchemyData; format: XlchemyFormat; output: ClipboardImageData; quality: number }
+export type ClipboardConversionResult = { copied?: boolean; data: XlchemyData; format: XlchemyFormat; output: ClipboardImageData; quality: number }
 
 export function ClipboardConvertDialog(props: {
   configuration: ReactNode
+  autoCopy: boolean
   disabled?: boolean
+  onAutoCopyChange: (autoCopy: boolean) => void
   onRead: () => Promise<ClipboardImageData>
   onConvert: (source: ClipboardImageData) => Promise<ClipboardConversionResult>
   onCopy: (output: ClipboardImageData) => Promise<void>
@@ -40,7 +43,11 @@ export function ClipboardConvertDialog(props: {
   async function convert() {
     if (!source) return
     setConverting(true); setError(""); setCopied(false); setPreviewError(false)
-    try { setResult(await props.onConvert(source)) }
+    try {
+      const nextResult = await props.onConvert(source)
+      setResult(nextResult)
+      setCopied(nextResult.copied ?? false)
+    }
     catch (reason) { setError(errorMessage(reason)) }
     finally { setConverting(false) }
   }
@@ -66,7 +73,7 @@ export function ClipboardConvertDialog(props: {
     <DialogContent bare contained={Boolean(props.portalContainer)} portalContainer={props.portalContainer} className={cn("grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0", props.portalContainer ? "inset-2 h-auto w-auto sm:inset-3" : "h-[min(820px,calc(100dvh-2rem))] w-[min(1120px,calc(100vw-2rem))]")} data-testid="xlchemy-clipboard-workbench">
       <DialogHeader className="border-b px-5 py-3 pr-12">
         <div className="flex flex-wrap items-center gap-2"><div className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground"><ClipboardPaste className="size-4" /></div><DialogTitle>剪贴板图片工作台</DialogTitle>{result ? <Badge variant="secondary">{result.format}</Badge> : null}<div className="ml-auto flex items-center gap-1"><Tooltip><TooltipTrigger asChild><Button aria-label="重新读取剪贴板图片" disabled={loading || converting} size="icon" variant="outline" onClick={() => void readClipboard()}>{loading ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}</Button></TooltipTrigger><TooltipContent>重新读取剪贴板</TooltipContent></Tooltip><Button disabled={!source || converting || loading} onClick={() => void convert()}>{converting ? <LoaderCircle className="animate-spin" /> : <Sparkles />}{converting ? "转换中" : "转换"}</Button><Button disabled={!result || converting} variant="default" onClick={() => void copyResult()}>{copied ? <Check /> : <Copy />}{copied ? "已复制" : "复制结果"}</Button></div></div>
-        <DialogDescription>读取、转换、对比并在确认后复制结果。</DialogDescription>
+        <div className="flex flex-wrap items-center justify-between gap-2"><DialogDescription>读取、转换、对比并在确认后复制结果。</DialogDescription><label className="flex items-center gap-2 text-xs text-muted-foreground"><span>转换后自动写入剪贴板</span><Switch aria-label="转换后自动写入剪贴板" checked={props.autoCopy} disabled={converting} size="sm" onCheckedChange={props.onAutoCopyChange} /></label></div>
       </DialogHeader>
 
       <div className="grid min-h-0 gap-2 overflow-hidden bg-muted/20 p-2 @3xl/xlchemy:grid-cols-[minmax(17rem,0.85fr)_minmax(0,1.15fr)]">

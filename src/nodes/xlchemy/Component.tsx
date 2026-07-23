@@ -307,7 +307,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
       const clipboardFormat = dataRef.current.clipboardFormat ?? "PNG"
       const clipboardQuality = dataRef.current.clipboardQuality ?? 85
       const lossless = clipboardFormat === "PNG" || clipboardFormat === "TIFF" || clipboardFormat === "Lossless JPEG Transcoding" || clipboardFormat === "Smallest Lossless" ? true : dataRef.current.clipboardLossless ?? false
-      const input = buildInput("convert", { ...dataRef.current, pathsText: "", selectedPaths: [], efuFiles: [], format: clipboardFormat, quality: clipboardQuality, lossless })
+      const input = buildInput("convert", { ...dataRef.current, pathsText: "", selectedPaths: [], efuFiles: [], format: clipboardFormat, quality: clipboardQuality, lossless, outputMode: dataRef.current.clipboardOutputMode ?? "source", outputDir: dataRef.current.clipboardOutputDir ?? "" })
       input.paths = []
       input.efuFiles = []
       input.inlineSource = image
@@ -318,9 +318,15 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
       }) as NodeRunResult<XlchemyData>
       const output = response.data?.clipboardOutput
       if (!response.success || !output) throw new Error(response.message || "剪贴板图片转换失败。")
-      const message = `剪贴板图片已转换为 ${clipboardFormat}（${lossless ? "无损" : `质量 ${clipboardQuality}`}），可预览对比或复制结果。`
+      const autoCopy = dataRef.current.clipboardAutoCopy ?? false
+      if (autoCopy) {
+        const writeImage = host.clipboard?.writeImage
+        if (!writeImage) throw new Error("当前宿主不支持写入剪贴板图片。")
+        await writeImage(output)
+      }
+      const message = autoCopy ? `剪贴板图片已转换为 ${clipboardFormat} 并自动写入剪贴板。` : `剪贴板图片已转换为 ${clipboardFormat}（${lossless ? "无损" : `质量 ${clipboardQuality}`}），可预览对比或复制结果。`
       patch({ phase: "completed", progress: 100, progressText: message, result: response.data, analysisTab: "output", logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
-      return { data: response.data, format: clipboardFormat, output, quality: clipboardQuality }
+      return { copied: autoCopy, data: response.data, format: clipboardFormat, output, quality: clipboardQuality }
     } catch (error) {
       patch({ phase: "error", progress: 0, progressText: error instanceof Error ? error.message : String(error) })
       throw error
@@ -356,7 +362,7 @@ type XlchemyNodeConfig = Partial<XlchemyCardState>
 const XL_SAVED_FIELDS = [...XL_CONFIG_FIELDS, ...XL_FILENAME_CONFIG_FIELDS] as const
 
 const XL_FACTORY_DEFAULTS: Partial<XlchemyCardState> = {
-  format: "JPEG XL", lossless: false, quality: 60, clipboardFormat: "PNG", clipboardLossless: true, clipboardQuality: 85, effort: 7, maxCompression: false, threads: 4,
+  format: "JPEG XL", lossless: false, quality: 60, clipboardFormat: "PNG", clipboardLossless: true, clipboardQuality: 85, clipboardOutputMode: "source", clipboardOutputDir: "", clipboardAutoCopy: false, effort: 7, maxCompression: false, threads: 4,
   outputMode: "source", outputDir: "", filenameRules: DEFAULT_FILENAME_RULES, preserveMetadata: true, preserveStructure: true, preserveTimestamps: false,
   overwrite: false, recursive: true, existingPolicy: "skip", deleteOriginal: false, deleteOriginalMode: "trash",
   intelligentEffort: false, jxlModular: false, jxlVerify: false, jxlPngFallback: true, jxlNormalize: false, jxlNormalizeWhen: "on-fail",
@@ -499,18 +505,20 @@ function InputWorkbench({ props }: { props: ViewProps }) {
     ...props,
     alwaysShowQuality: true,
     format,
-    data: { ...props.data, format, lossless, quality: props.data.clipboardQuality ?? 85 },
+    data: { ...props.data, format, lossless, quality: props.data.clipboardQuality ?? 85, outputMode: props.data.clipboardOutputMode ?? "source", outputDir: props.data.clipboardOutputDir ?? "" },
     onPatch: (patch) => {
-      const { format: nextFormat, lossless: nextLossless, quality: nextQuality, ...shared } = patch
+      const { format: nextFormat, lossless: nextLossless, outputDir: nextOutputDir, outputMode: nextOutputMode, quality: nextQuality, ...shared } = patch
       props.onPatch({
         ...shared,
         ...(nextFormat !== undefined ? { clipboardFormat: nextFormat } : {}),
         ...(nextLossless !== undefined ? { clipboardLossless: nextLossless } : {}),
         ...(nextQuality !== undefined ? { clipboardQuality: nextQuality } : {}),
+        ...(nextOutputMode !== undefined ? { clipboardOutputMode: nextOutputMode } : {}),
+        ...(nextOutputDir !== undefined ? { clipboardOutputDir: nextOutputDir } : {}),
       })
     },
   }
-  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog configuration={<ConfigurationCard props={clipboardProps} />} disabled={props.running} portalContainer={props.portalContainer} onRead={props.onClipboardRead} onConvert={props.onClipboardConvert} onCopy={props.onClipboardCopy} />} data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
+  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog autoCopy={props.data.clipboardAutoCopy ?? false} configuration={<ConfigurationCard props={clipboardProps} />} disabled={props.running} portalContainer={props.portalContainer} onAutoCopyChange={(clipboardAutoCopy) => props.onPatch({ clipboardAutoCopy })} onRead={props.onClipboardRead} onConvert={props.onClipboardConvert} onCopy={props.onClipboardCopy} />} data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
 }
 
 function FormatControls({ props }: { props: ViewProps }) {

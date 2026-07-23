@@ -218,6 +218,7 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
   let sourcePath: string | undefined
   try {
     sourcePath = await runtime.createTemporaryFile(extensionForMime(input.inlineSource.mimeType), input.inlineSource.base64)
+    const persistOutput = input.outputMode === "directory"
     const result = await runXlchemyFiles({
       ...input,
       inlineSource: undefined,
@@ -225,7 +226,7 @@ export async function runXlchemy(input: XlchemyInput, runtime: XlchemyRuntime, o
       efuFiles: [],
       action: "convert",
       outputMode: "directory",
-      outputDir: runtime.join(runtime.dirname(sourcePath), "output"),
+      outputDir: persistOutput ? input.outputDir : runtime.join(runtime.dirname(sourcePath), "output"),
       overwrite: true,
       existingPolicy: "replace",
       preserveStructure: false,
