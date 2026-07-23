@@ -180,7 +180,7 @@ const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
   random: false,
   fadeTransition: true,
 }
-const INITIAL_PRELOAD_CONFIG = { maxCandidatePages: 4, browserPredecodeEnabled: true } satisfies ReaderRuntimeConfigDto["preload"]
+const INITIAL_PRELOAD_CONFIG = { maxCandidatePages: 4, browserPredecodeEnabled: true, browserPredecodePages: 1 } satisfies ReaderRuntimeConfigDto["preload"]
 const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   homePath: "",
   viewMode: "compact",
@@ -456,7 +456,7 @@ export function ReaderApp({
   const browserPredecodeEnabled = preloadConfig.browserPredecodeEnabled
   const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
-    : undefined, browserPredecodeEnabled)
+    : undefined, browserPredecodeEnabled, preloadConfig.browserPredecodePages)
   const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
   shellRef.current = shell

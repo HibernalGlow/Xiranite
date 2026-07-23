@@ -124,6 +124,7 @@ export interface NeoviewAiTranslationPatch {
 export interface NeoviewPreloadConfig {
   maxCandidatePages: number
   browserPredecodeEnabled: boolean
+  browserPredecodePages: number
 }
 
 export interface NeoviewPreloadPatch {
@@ -823,6 +824,7 @@ export const DEFAULT_NEOVIEW_PRESENTATION_DISK_CACHE_CONFIG: NeoviewPresentation
 export const DEFAULT_NEOVIEW_PRELOAD_CONFIG: NeoviewPreloadConfig = {
   maxCandidatePages: 4,
   browserPredecodeEnabled: true,
+  browserPredecodePages: 1,
 }
 
 export const DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG: NeoviewSystemMonitorConfig = {

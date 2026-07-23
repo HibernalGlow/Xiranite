@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef } from "react"
 import type { ReaderPageDto, ReaderPreloadEventDto } from "../../adapters/reader-http-client"
 import { readerPreloadStatusStore } from "./ReaderPreloadStatusStore"
 
-const MAX_PREDECODED_IMAGES = 1
+const MAX_CONFIGURABLE_PREDECODED_IMAGES = 4
+const DEFAULT_PREDECODED_IMAGES = 1
 const MAX_PREDECODED_PIXELS = 60_000_000
 const MAX_CONCURRENT_PREDECODES = 1
 const PREDECODE_START_DELAY_MS = 350
@@ -31,6 +32,7 @@ export function useReaderImagePreloader(
   sessionId?: string,
   reportEvents?: (sessionId: string, generation: number, events: readonly ReaderPreloadEventDto[]) => void,
   enabled = true,
+  maxRetainedImages = DEFAULT_PREDECODED_IMAGES,
 ): ReaderImagePreloader {
   const imagesRef = useRef(new Map<string, PreloadedImage>())
   const queueRef = useRef<string[]>([])
@@ -129,7 +131,7 @@ export function useReaderImagePreloader(
   const preload = useCallback((pages: readonly ReaderPageDto[], generation?: number) => {
     if (!enabled || typeof Image === "undefined" || !sessionId) return
     const images = imagesRef.current
-    const admitted = admitPredecodePages(pages)
+    const admitted = admitPredecodePages(pages, maxRetainedImages)
     const admittedUrls = new Set(admitted.map((page) => page.assetUrl))
     releaseRetained(admittedUrls)
     for (const [pageOffset, page] of admitted.entries()) {
@@ -167,7 +169,7 @@ export function useReaderImagePreloader(
         pump()
       }, PREDECODE_START_DELAY_MS)
     }
-  }, [enabled, pump, releaseRetained, sessionId])
+  }, [enabled, maxRetainedImages, pump, releaseRetained, sessionId])
 
   const cancel = useCallback(() => {
     releaseRetained()
@@ -184,12 +186,16 @@ export function useReaderImagePreloader(
   return useMemo(() => ({ preload, cancel, releaseRetained }), [cancel, preload, releaseRetained])
 }
 
-function admitPredecodePages(pages: readonly ReaderPageDto[]): ReaderPageDto[] {
+function admitPredecodePages(pages: readonly ReaderPageDto[], requestedCount: number): ReaderPageDto[] {
+  const maxRetainedImages = Math.min(
+    MAX_CONFIGURABLE_PREDECODED_IMAGES,
+    Math.max(1, Math.floor(Number.isFinite(requestedCount) ? requestedCount : DEFAULT_PREDECODED_IMAGES)),
+  )
   const admitted: ReaderPageDto[] = []
   let pixels = 0
   for (const page of pages) {
     if (page.mediaKind !== "image") continue
-    if (admitted.length >= MAX_PREDECODED_IMAGES) break
+    if (admitted.length >= maxRetainedImages) break
     const pagePixels = estimatedDecodedPixels(page)
     if (admitted.length > 0 && pagePixels > 0 && pixels + pagePixels > MAX_PREDECODED_PIXELS) break
     admitted.push(page)

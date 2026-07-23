@@ -586,6 +586,13 @@ function parsePreloadConfig(
         performance?.browser_predecode_enabled ?? performance?.browserPredecodeEnabled,
         "[nodes.neoview.performance].browser_predecode_enabled",
       ) ?? Models.DEFAULT_NEOVIEW_PRELOAD_CONFIG.browserPredecodeEnabled,
+    browserPredecodePages: boundedIntegerWithFallback(
+      performance?.browser_predecode_pages ?? performance?.browserPredecodePages,
+      1,
+      4,
+      Models.DEFAULT_NEOVIEW_PRELOAD_CONFIG.browserPredecodePages,
+      "[nodes.neoview.performance].browser_predecode_pages",
+    ),
   }
 }
 
@@ -598,7 +605,7 @@ export function parseNeoviewPreloadPatch(value: unknown): {
     throw new Error("reader preload patch contains unsupported fields.")
   }
   const source = requireRecord(record.preload, "reader preload patch.preload")
-  if (Object.keys(source).some((key) => key !== "maxCandidatePages" && key !== "browserPredecodeEnabled")) {
+  if (Object.keys(source).some((key) => key !== "maxCandidatePages" && key !== "browserPredecodeEnabled" && key !== "browserPredecodePages")) {
     throw new Error("reader preload patch contains unsupported fields.")
   }
   const preload: Partial<Models.NeoviewPreloadConfig> = {}
@@ -614,6 +621,11 @@ export function parseNeoviewPreloadPatch(value: unknown): {
       "reader preload patch.browserPredecodeEnabled",
     )
     performance.browser_predecode_enabled = preload.browserPredecodeEnabled
+  }
+  if (source.browserPredecodePages !== undefined) {
+    const browserPredecodePages = boundedInteger(source.browserPredecodePages, 1, 4, "reader preload patch.browserPredecodePages")
+    preload.browserPredecodePages = browserPredecodePages
+    performance.browser_predecode_pages = browserPredecodePages
   }
   if (Object.keys(preload).length === 0) throw new Error("reader preload patch must change at least one field.")
   return {
