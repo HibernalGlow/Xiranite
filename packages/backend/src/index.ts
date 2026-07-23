@@ -16,13 +16,14 @@ import {
   type XiraniteSystemService,
 } from "@xiranite/services"
 import { randomBytes } from "node:crypto"
-import { createReadStream } from "node:fs"
-import { mkdir, readdir, stat } from "node:fs/promises"
+import { createReadStream, createWriteStream } from "node:fs"
+import { mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
-import { homedir } from "node:os"
+import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 import { Readable } from "node:stream"
+import { pipeline } from "node:stream/promises"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
 import { createBackendNodeRunner } from "./nodeRunner.js"
@@ -156,6 +157,7 @@ export async function startBackend(options: StartBackendOptions = {}) {
   })
   let backendUrl = ""
   let readerController: Promise<BackendRequestController> | undefined
+  let stagingDirectory: Promise<string> | undefined
   const server = createServer(async (incoming, outgoing) => {
     const requestController = new AbortController()
     const abortIncoming = () => requestController.abort(new Error("Client disconnected"))
@@ -206,6 +208,12 @@ export async function startBackend(options: StartBackendOptions = {}) {
           return
         }
         await writeNodeResponse(outgoing, Response.json({ paths: await pickLocalPaths(body.kind) }))
+        return
+      }
+
+      if (url.pathname === "/local-files/stage" && request.method === "POST") {
+        stagingDirectory ??= mkdtemp(path.join(tmpdir(), "xiranite-local-files-"))
+        await writeNodeResponse(outgoing, await stageLocalFile(request, await stagingDirectory))
         return
       }
 
@@ -300,9 +308,31 @@ export async function startBackend(options: StartBackendOptions = {}) {
         ?.then((controller) => controller[Symbol.asyncDispose]())
         .catch(() => undefined) ?? Promise.resolve()
       backend.close()
-      return Promise.all([serverClosed, readerClosed, logWriter.close()]).then(() => undefined)
+      const stagingRemoved = stagingDirectory
+        ?.then((directory) => rm(directory, { force: true, recursive: true }))
+        .catch(() => undefined) ?? Promise.resolve()
+      return Promise.all([serverClosed, readerClosed, logWriter.close(), stagingRemoved]).then(() => undefined)
     },
   }
+}
+
+async function stageLocalFile(request: Request, directory: string): Promise<Response> {
+  if (!request.body) return new Response("Missing file content.", { status: 400 })
+  const encodedName = request.headers.get("x-xiranite-filename")
+  if (!encodedName) return new Response("Missing x-xiranite-filename header.", { status: 400 })
+  let decodedName: string
+  try {
+    decodedName = decodeURIComponent(encodedName)
+  } catch {
+    return new Response("Invalid x-xiranite-filename header.", { status: 400 })
+  }
+  const fileName = path.basename(decodedName.replaceAll("\0", "")).trim()
+  if (!fileName || fileName === "." || fileName === "..") return new Response("Invalid file name.", { status: 400 })
+  const targetDirectory = path.join(directory, randomBytes(8).toString("hex"))
+  await mkdir(targetDirectory)
+  const targetPath = path.join(targetDirectory, fileName)
+  await pipeline(Readable.fromWeb(request.body as never), createWriteStream(targetPath, { flags: "wx" }))
+  return Response.json({ path: targetPath })
 }
 
 function createBackendLogWriter(options: LogWriterOptions): BackendLogWriter {
@@ -729,7 +759,7 @@ function waitForDrain(outgoing: ServerResponse): Promise<void> {
 function writeCorsHeaders(outgoing: ServerResponse): void {
   outgoing.setHeader("access-control-allow-origin", "*")
   outgoing.setHeader("access-control-allow-methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-  outgoing.setHeader("access-control-allow-headers", "content-type,x-xiranite-token")
+  outgoing.setHeader("access-control-allow-headers", "content-type,x-xiranite-token,x-xiranite-filename")
   outgoing.setHeader("access-control-max-age", "86400")
 }
 

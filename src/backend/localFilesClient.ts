@@ -91,6 +91,30 @@ export async function pickLocalPaths(kind: "files" | "directory"): Promise<strin
   return Array.isArray(body.paths) ? body.paths.filter((path): path is string => typeof path === "string" && Boolean(path.trim())) : []
 }
 
+export async function stageLocalFiles(files: File[]): Promise<string[]> {
+  const config = resolveLocalBackendConfig()
+  const paths: string[] = []
+  for (const file of files) {
+    const url = new URL("/local-files/stage", config.baseUrl)
+    if (config.token) url.searchParams.set("token", config.token)
+    const response = await fetch(url.href, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "content-type": file.type || "application/octet-stream",
+        "x-xiranite-filename": encodeURIComponent(file.name),
+        ...(config.token && { "x-xiranite-token": config.token }),
+      },
+      body: file,
+    })
+    if (!response.ok) throw new Error(await response.text().catch(() => `Local file staging returned ${response.status}.`))
+    const body = await response.json() as { path?: unknown }
+    if (typeof body.path !== "string" || !body.path.trim()) throw new Error("Local file staging did not return a path.")
+    paths.push(body.path)
+  }
+  return paths
+}
+
 export async function copyLocalFilesToClipboard(paths: string[]): Promise<void> {
   const config = resolveLocalBackendConfig()
   const url = new URL("/local-files/clipboard", config.baseUrl)

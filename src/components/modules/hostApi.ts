@@ -11,7 +11,7 @@ import type {
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
-import { copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths } from "@/backend/localFilesClient"
+import { copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths, stageLocalFiles } from "@/backend/localFilesClient"
 import { getRuntime } from "@/backend/client"
 import { applyHazardRunPolicy, resolveHazardComponentData } from "@/lib/hazardMode"
 import {
@@ -205,6 +205,7 @@ export function useNodeHostApi(
         window.open(localBackendFileUrl(parent), "_blank", "noopener,noreferrer")
       },
       list: listLocalFiles,
+      stageFiles: stageLocalFiles,
       pickFiles: async (options) => {
         if (typeof window !== "undefined" && window._wails) {
           const { Dialogs } = await import("@wailsio/runtime")
@@ -235,12 +236,14 @@ export function useNodeHostApi(
         }
         return await pickLocalPaths("directory")
       },
-      subscribeDrops: async (targetId: string, handler: (paths: string[]) => void) => {
-        const runtime = await getRuntime()
-        return await runtime.fileDrops.subscribe((event) => {
-          if (event.targetId === targetId) handler(event.files)
-        })
-      },
+      ...(typeof window !== "undefined" && window._wails ? {
+        subscribeDrops: async (targetId: string, handler: (paths: string[]) => void) => {
+          const runtime = await getRuntime()
+          return await runtime.fileDrops.subscribe((event) => {
+            if (event.targetId === targetId) handler(event.files)
+          })
+        },
+      } : {}),
     }
 
     const configCapability = {

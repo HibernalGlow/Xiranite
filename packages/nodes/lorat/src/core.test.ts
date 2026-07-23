@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import type { LoratScannedModel } from "./core.js"
-import { applyTriggerDb, buildLoratRows, collectLoratModels, collectTriggerDb, filterLoratRows, inferTrigger, runLorat, suggestCollectionRelativeDir } from "./core.js"
+import { applyTriggerDb, buildLoratRows, collectLoratModels, collectTriggerDb, filterLoratRows, formatTriggerSidecar, inferTrigger, parseTriggerSidecar, runLorat, suggestCollectionRelativeDir } from "./core.js"
 
 const scanned: LoratScannedModel[] = [
   {
@@ -90,6 +90,8 @@ describe("lorat core", () => {
         previewSourcePath: "D:/Downloads/neon_mecha.png",
         targetRelativeDir: "style/mecha",
         triggerText: "neon_mecha, glowing_joints",
+        sourceUrl: "https://civitai.com/models/123",
+        notes: "SDXL model\nVersion 2",
       }],
     }, {
       scanModels: async () => [],
@@ -107,8 +109,17 @@ describe("lorat core", () => {
       "D:/Downloads/neon_mecha_v2.safetensors->D:/ComfyUI/models/loras/style/mecha/neon_mecha_v2.safetensors",
       "D:/Downloads/neon_mecha.png->D:/ComfyUI/models/loras/style/mecha/neon_mecha_v2.preview.png",
     ])
-    expect(triggers).toEqual(["D:/ComfyUI/models/loras/style/mecha/neon_mecha_v2.safetensors:neon_mecha, glowing_joints"])
+    expect(triggers).toEqual(["D:/ComfyUI/models/loras/style/mecha/neon_mecha_v2.safetensors:neon_mecha, glowing_joints\n# source_url = \"https://civitai.com/models/123\"\n# notes = \"SDXL model\\nVersion 2\""])
     expect(result.data?.collection[0]?.status).toBe("collected")
+  })
+
+  test("formats TOML-style trigger comments without exposing them as trigger words", () => {
+    const sidecar = formatTriggerSidecar("alice, blue hair", {
+      sourceUrl: "https://example.com/model?id=1",
+      notes: "作者 Alice",
+    })
+    expect(sidecar).toBe("alice, blue hair\n# source_url = \"https://example.com/model?id=1\"\n# notes = \"作者 Alice\"")
+    expect(parseTriggerSidecar(sidecar)).toBe("alice, blue hair")
   })
 
   test("suggests a relative library path from the source path", () => {

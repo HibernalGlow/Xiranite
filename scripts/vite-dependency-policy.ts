@@ -1,4 +1,7 @@
 export const VITE_EAGER_DEPENDENCIES = [
+  // @diceui/shared@0.12.0 publishes CommonJS in its `import` entry. Force
+  // esbuild conversion so Dice UI packages can use named ESM imports.
+  "@diceui/shared",
   "@wailsio/runtime",
   "p-map",
   // p-queue imports CommonJS eventemitter3. With noDiscovery enabled it must

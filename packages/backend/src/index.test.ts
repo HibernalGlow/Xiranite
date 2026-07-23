@@ -394,6 +394,29 @@ describe("backend", () => {
     }
   })
 
+  test("streams browser files into temporary local storage and removes them on close", async () => {
+    const backend = await startBackend({ token: "test-token", repository: createMemoryWorkspaceRepository() })
+    let stagedPath = ""
+    try {
+      const response = await fetch(`${backend.url}/local-files/stage?token=test-token`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/octet-stream",
+          "x-xiranite-filename": encodeURIComponent("../neon style.safetensors"),
+        },
+        body: Buffer.from("model-bytes"),
+      })
+
+      expect(response.status).toBe(200)
+      stagedPath = (await response.json() as { path: string }).path
+      expect(stagedPath.endsWith("neon style.safetensors")).toBe(true)
+      expect(await readFile(stagedPath, "utf8")).toBe("model-bytes")
+    } finally {
+      await backend.close()
+    }
+    await expect(readFile(stagedPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
   test("routes validated local paths to the native file clipboard", async () => {
     const writeClipboardFiles = vi.fn(async () => undefined)
     const backend = await startBackend({ token: "test-token", repository: createMemoryWorkspaceRepository(), writeClipboardFiles })

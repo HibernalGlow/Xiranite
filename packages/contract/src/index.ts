@@ -239,6 +239,8 @@ export interface NodeLocalFilesCapability {
   /** Reveal a local path in its parent file manager directory. */
   revealPath?: (path: string) => Promise<void>
   pickFiles?: (options?: NodeFilePickerOptions) => Promise<string[]>
+  /** Stream browser-provided files into backend-owned temporary storage. */
+  stageFiles?: (files: File[]) => Promise<string[]>
   pickDirectory?: () => Promise<string | undefined>
   /** Pick one or more local directories when the desktop host supports multi-selection. */
   pickDirectories?: () => Promise<string[]>
