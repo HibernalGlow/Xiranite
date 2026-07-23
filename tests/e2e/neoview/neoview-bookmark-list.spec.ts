@@ -27,6 +27,7 @@ test("[neoview.bookmark.ui-1920x1080] [neoview.bookmark.search-sort-e2e] preserv
   await page.keyboard.press("Escape")
   await card.getByRole("button", { name: "更多" }).click()
   await expect(page.getByText("项目尺寸", { exact: true })).toBeVisible()
+  await expect(page.locator("#root")).not.toHaveAttribute("aria-hidden", "true")
   await expect(page.getByRole("slider", { name: "缩略图宽度" })).toHaveAttribute("aria-valuenow", "28")
   await expect(page.locator("[data-bookmark-view-overrides]")).toHaveText("{}")
   await page.screenshot({ path: testInfo.outputPath("neoview-bookmark-list-1920x1080.png"), fullPage: false })

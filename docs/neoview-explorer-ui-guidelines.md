@@ -55,6 +55,8 @@ sort/filter state。Tree、封面网格、详情表和预览只替换 renderer�
 - Card 把完整有效 presentation 对象交给共用布局和条目表面，不得重新硬编码行高、列宽或缩略图尺寸。
 - 共用尺寸控件同时服务 File Card 和虚拟 catalog；“恢复继承”删除 override 叶子。
 - File Card、History Card 和 Bookmark Card 均在“更多 -> 项目尺寸”承载共用控件；共享菜单项必须由同一组件提供，Card 不得复制菜单结构。File Card 的文件系统专属项仍留在自身“更多”菜单中。
+- File Card 的恢复按钮写回内建默认值；History/Bookmark 的恢复按钮删除稀疏覆盖并重新继承 File Card。两种语义必须使用不同的可访问名称和提示。
+- 文件条目工具栏的“更多”使用非 modal 菜单，避免在大型虚拟列表 DOM 上打开菜单时遍历并隔离全部外部节点；不得用 modal 焦点隔离换取普通工具菜单行为。
 - 新共享字段只在共享 schema、resolver、renderer/control 中接线一次，Card 不维护字段白名单。
 - 数据源通过 capability 决定 renderer 或动作是否可用；不支持的视图使用文档化映射，不能静默创建另一套布局算法。
 - 文件系统导航、目录树、写操作和业务 Card 动作不进入 presentation，也不能因为展示继承而泄漏能力。
