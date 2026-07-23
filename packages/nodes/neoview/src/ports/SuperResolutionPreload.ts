@@ -36,6 +36,7 @@ export interface SuperResolutionPreloadPlanInput {
   bookPath: string
   destinationFor?: SuperResolutionArtifactDestinationResolver
   artifactFor?: SuperResolutionArtifactDescriptorResolver
+  preparePage?: (page: ReaderPage, signal: AbortSignal) => Promise<void>
   metadataFor?: (page: ReaderPage) => Readonly<Record<string, unknown>> | undefined
   maxMaterializationBytes?: number
   signal?: AbortSignal
@@ -50,6 +51,7 @@ export interface SuperResolutionProgressiveInput {
   bookPath: string
   destinationFor?: SuperResolutionArtifactDestinationResolver
   artifactFor?: SuperResolutionArtifactDescriptorResolver
+  preparePage?: (page: ReaderPage, signal: AbortSignal) => Promise<void>
   metadataFor?: (page: ReaderPage) => Readonly<Record<string, unknown>> | undefined
   maxMaterializationBytes?: number
   signal?: AbortSignal

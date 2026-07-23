@@ -345,6 +345,25 @@ describe("CoreReaderService", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.image.probe-upscale] prepares an unseen page for background processing", async () => {
+    const { sourceBook, dimensions } = bookWithoutDimensions()
+    const probe: ImageMetadataProbe = {
+      probe: vi.fn(async (content) => ({
+        format: "png",
+        dimensions: dimensions.get(content)!,
+        bytesRead: 24,
+      })),
+    }
+    const service = new CoreReaderService(async () => sourceBook, probe)
+    const session = await service.openViewSource({ kind: "directory", path: "C:/book" })
+
+    expect(session.book.pages[2]?.dimensions).toBeUndefined()
+    await session.preparePageMetadata?.(2)
+    expect(session.book.pages[2]?.dimensions).toEqual({ width: 800, height: 1200 })
+    expect(probe.probe).toHaveBeenCalledTimes(2)
+    await service[Symbol.asyncDispose]()
+  })
+
   it("[neoview.progress.restore] restores the last page while an explicit page wins", async () => {
     const store = memoryProgressStore({
       bookId: "book-1",

@@ -110,6 +110,14 @@ export class CoreReaderSession implements ReaderSession {
     return this.#pageIndexById.get(pageId)
   }
 
+  async preparePageMetadata(pageIndex: number, signal?: AbortSignal): Promise<void> {
+    this.#assertOpen()
+    const page = this.#pages[pageIndex]
+    if (!page) throw new RangeError(`Reader page index is out of range: ${pageIndex}`)
+    if (!this.#metadataProbe) return
+    await this.#probePage(page, signal)
+  }
+
   async frameWindow(centerPageIndex: number, radius: number, signal?: AbortSignal): Promise<readonly FrameSnapshot[]> {
     this.#assertOpen()
     const boundedRadius = Math.min(Math.max(Math.trunc(radius), 0), 8)

@@ -299,6 +299,7 @@ export class SuperResolutionArtifactRoute {
               pages: session.book.pages,
               bookPath: session.book.source.path,
               artifactFor,
+              preparePage: async (page, prepareSignal) => session.preparePageMetadata?.(page.index, prepareSignal),
             }, request.signal)
           : undefined
         : await this.preload.startProgressive({
@@ -311,6 +312,7 @@ export class SuperResolutionArtifactRoute {
             pages: session.book.pages,
             bookPath: session.book.source.path,
             artifactFor,
+            preparePage: async (page, prepareSignal) => session.preparePageMetadata?.(page.index, prepareSignal),
           }, request.signal)
       if (!snapshots) return jsonResponse({ error: "Reader preload plan is unavailable" }, 409)
       return jsonResponse({ snapshots: await this.#withCachedBookCoverage(session.book.id, session.book.pages.length, snapshots) }, 202)
