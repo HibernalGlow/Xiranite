@@ -42,6 +42,14 @@ describe("Wails window runtime", () => {
     expect(runtime.ToggleMaximise).not.toHaveBeenCalled()
   })
 
+  it("opens developer tools through the compiled host service", async () => {
+    runtime.callByName.mockResolvedValueOnce({ success: true, supported: true, message: "Developer tools opened." })
+
+    await expect(createWailsRuntime().windows.openDevTools()).resolves.toMatchObject({ success: true })
+
+    expect(runtime.callByName).toHaveBeenCalledWith("main.XiraniteService.WindowOpenDevTools", "")
+  })
+
   it("adapts the generic tray runtime to Wails calls and events", async () => {
     runtime.callByName.mockResolvedValueOnce({
       supported: true,

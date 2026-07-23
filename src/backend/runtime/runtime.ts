@@ -120,6 +120,7 @@ export interface WindowRuntime {
   openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult>
   focus(id: string): Promise<WindowCommandResult>
   close(id: string): Promise<WindowCommandResult>
+  openDevTools(id?: string): Promise<WindowCommandResult>
   getFrame(id?: string): Promise<WindowFrame | null>
   setFrame(frame: WindowFrame, id?: string): Promise<WindowCommandResult>
 }

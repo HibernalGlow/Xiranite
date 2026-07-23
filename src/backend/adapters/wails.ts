@@ -292,6 +292,10 @@ class WailsWindowRuntime implements WindowRuntime {
     return await callGo<WindowCommandResult>("WindowClose", id)
   }
 
+  async openDevTools(id?: string): Promise<WindowCommandResult> {
+    return await callGo<WindowCommandResult>("WindowOpenDevTools", id ?? "")
+  }
+
   async getFrame(id?: string): Promise<WindowFrame | null> {
     return await callGo<WindowFrame | null>("WindowGetFrame", id ?? "")
   }

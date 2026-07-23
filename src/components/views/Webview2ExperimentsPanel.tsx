@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { AlertCircle, CheckCircle2, ExternalLink, RotateCcw, Save, Settings2 } from "lucide-react"
+import { AlertCircle, CheckCircle2, ExternalLink, RotateCcw, Save, Settings2, Wrench } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { Webview2Config } from "@xiranite/api/client"
 import {
@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { getRuntime } from "@/backend/client"
 
 type FlagGroup = keyof Webview2Config
 
@@ -39,6 +40,8 @@ export function Webview2ExperimentsPanel({ available }: { available: boolean }) 
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [opening, setOpening] = useState(false)
+  const [openingDevTools, setOpeningDevTools] = useState(false)
+  const [devToolsAvailable, setDevToolsAvailable] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
@@ -63,6 +66,14 @@ export function Webview2ExperimentsPanel({ available }: { available: boolean }) 
       })
     return () => { cancelled = true }
   }, [available])
+
+  useEffect(() => {
+    let cancelled = false
+    void getRuntime().then((runtime) => {
+      if (!cancelled) setDevToolsAvailable(runtime.kind === "wails")
+    })
+    return () => { cancelled = true }
+  }, [])
 
   const dirty = persistedConfig === null || !configsEqual(config, persistedConfig)
 
@@ -105,6 +116,19 @@ export function Webview2ExperimentsPanel({ available }: { available: boolean }) 
       setError(reason instanceof Error ? reason.message : String(reason))
     } finally {
       setOpening(false)
+    }
+  }
+
+  async function openDevTools() {
+    setOpeningDevTools(true)
+    setError(null)
+    try {
+      const result = await (await getRuntime()).windows.openDevTools()
+      if (!result.success) throw new Error(result.message)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setOpeningDevTools(false)
     }
   }
 
@@ -218,6 +242,10 @@ export function Webview2ExperimentsPanel({ available }: { available: boolean }) 
         <Button variant="outline" size="sm" disabled={!available || opening} onClick={openConfig}>
           <ExternalLink className="h-3.5 w-3.5" />
           {opening ? t("settings:webview2.openingConfig") : t("settings:webview2.openConfig")}
+        </Button>
+        <Button variant="outline" size="sm" disabled={!devToolsAvailable || openingDevTools} onClick={openDevTools}>
+          <Wrench className="h-3.5 w-3.5" />
+          {openingDevTools ? t("settings:webview2.openingDevTools") : t("settings:webview2.openDevTools")}
         </Button>
       </CardFooter>
     </Card>

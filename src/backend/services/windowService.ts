@@ -83,6 +83,19 @@ export class WindowService implements Service<"windows"> {
     }
   }
 
+  async openDevTools(id?: string): Promise<WindowCommandResult> {
+    try {
+      return await this.ctx.runtime.windows.openDevTools(id)
+    } catch (error) {
+      return {
+        success: false,
+        supported: false,
+        id,
+        message: errorMessage(error),
+      }
+    }
+  }
+
   async getFrame(id?: string): Promise<WindowFrame | null> {
     try {
       return await this.ctx.runtime.windows.getFrame(id)

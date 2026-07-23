@@ -65,7 +65,7 @@ try {
     "build",
     "-mod=mod",
     "-tags",
-    "production",
+    "production,devtools",
     "-ldflags=-w -s -H windowsgui",
     "-o",
     outputPath,

@@ -230,6 +230,15 @@ class WebWindowRuntime implements WindowRuntime {
     }
   }
 
+  async openDevTools(id?: string): Promise<WindowCommandResult> {
+    return {
+      success: false,
+      supported: false,
+      id,
+      message: "Developer tools are controlled by the browser in web runtime.",
+    }
+  }
+
   async getFrame(): Promise<WindowFrame | null> {
     return null
   }
