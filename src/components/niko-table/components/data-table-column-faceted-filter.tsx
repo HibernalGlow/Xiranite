@@ -1,5 +1,9 @@
 "use client"
 
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("data-table.faceted-filter-options")
+
 /**
  * niko-table — created by Semir N. (Semkoo, https://github.com/Semkoo) with AI assistance.
  *
@@ -36,7 +40,7 @@ export function DataTableColumnFacetedFilterOptions<TData, TValue>(
   const column = props.column || context?.column
 
   if (!column) {
-    console.warn(
+    logger.warn(
       "DataTableColumnFacetedFilterOptions must be used within DataTableColumnHeaderRoot or provided with a column prop",
     )
     return null
@@ -64,7 +68,7 @@ export function DataTableColumnFacetedFilterMenu<TData, TValue>(
   const { table, generatedOptionsMap } = useDataTable<TData>()
 
   if (!column) {
-    console.warn(
+    logger.warn(
       "DataTableColumnFacetedFilterMenu must be used within DataTableColumnHeaderRoot or provided with a column prop",
     )
     return null

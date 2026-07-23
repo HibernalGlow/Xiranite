@@ -1,4 +1,6 @@
 import { createXiraniteApp } from "@xiranite/api"
+import { LogEnvelopeSchema, createLogEnvelope, createLogSession, type LogEnvelope } from "@xiranite/logging"
+import { RotatingJsonlLogWriter, type LogWriterOptions } from "@xiranite/logging/node"
 import type { NodeRunHistoryRepository, WorkspaceRepository } from "@xiranite/repository"
 import {
   createLibsqlNodeRunHistoryRepository,
@@ -42,6 +44,7 @@ export interface CreateDefaultBackendOptions {
   nodeRunner?: NodeRunner
   resourceScheduler?: ResourceSchedulerService
   system?: XiraniteSystemService
+  onHistoryRecordError?: (error: unknown) => void
 }
 
 export interface StartBackendOptions extends CreateDefaultBackendOptions {
@@ -51,6 +54,13 @@ export interface StartBackendOptions extends CreateDefaultBackendOptions {
   writeClipboardFiles?: (paths: string[]) => Promise<void>
   readClipboardFiles?: () => Promise<string[]>
   clearClipboardFiles?: () => Promise<void>
+  logDirectory?: string
+  logWriter?: BackendLogWriter
+}
+
+export interface BackendLogWriter {
+  append(events: readonly LogEnvelope[]): Promise<void>
+  close(): Promise<void>
 }
 
 export interface BackendCliOptions extends StartBackendOptions {
@@ -96,6 +106,7 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
       getNodeSourceHotReload: getDevelopmentSourceHotReloadEnabled,
       setNodeSourceHotReload: setDevelopmentSourceHotReloadEnabled,
     },
+    onHistoryRecordError: options.onHistoryRecordError,
   })
   await services.config.ensureConfigFile()
 
@@ -114,9 +125,35 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
 }
 
 export async function startBackend(options: StartBackendOptions = {}) {
-  const backend = await createDefaultBackend(options)
   const hostname = options.hostname ?? "127.0.0.1"
   const token = options.token ?? randomToken()
+  const logSession = createLogSession()
+  const logWriter = options.logWriter ?? createBackendLogWriter({
+    directory: options.logDirectory,
+    source: "xiranite",
+    sessionId: logSession.id,
+  })
+  const backend = await createDefaultBackend({
+    ...options,
+    onHistoryRecordError: options.onHistoryRecordError ?? ((error) => {
+      const normalized = error instanceof Error ? error : new Error(String(error))
+      void logWriter.append([createLogEnvelope({
+        severityText: "error",
+        eventName: "runtime.history.record_failed",
+        body: normalized.message,
+        resource: {
+          serviceName: "xiranite",
+          processType: "backend",
+          processId: process.pid,
+          runtimeName: process.versions.bun ? "bun" : "node",
+          runtimeVersion: process.versions.bun ?? process.version,
+        },
+        scope: { name: "services.history" },
+        session: logSession,
+        error: { name: normalized.name, message: normalized.message, ...(normalized.stack ? { stack: normalized.stack } : {}) },
+      })]).catch(() => undefined)
+    }),
+  })
   let backendUrl = ""
   let readerController: Promise<BackendRequestController> | undefined
   const server = createServer(async (incoming, outgoing) => {
@@ -143,6 +180,22 @@ export async function startBackend(options: StartBackendOptions = {}) {
 
       if (url.pathname === "/local-files/list") {
         await writeNodeResponse(outgoing, await listLocalFiles(url))
+        return
+      }
+
+      if (url.pathname === "/logs" && request.method === "POST") {
+        const body = await request.json().catch(() => undefined) as { events?: unknown } | undefined
+        if (!body || !Array.isArray(body.events) || body.events.length === 0 || body.events.length > 200) {
+          await writeNodeResponse(outgoing, Response.json({ error: "events must be an array containing 1 to 200 log envelopes" }, { status: 400 }))
+          return
+        }
+        const parsed = LogEnvelopeSchema.array().safeParse(body.events)
+        if (!parsed.success) {
+          await writeNodeResponse(outgoing, Response.json({ error: "invalid log envelope", details: parsed.error.issues }, { status: 400 }))
+          return
+        }
+        await logWriter.append(parsed.data)
+        await writeNodeResponse(outgoing, new Response(null, { status: 204 }))
         return
       }
 
@@ -247,7 +300,20 @@ export async function startBackend(options: StartBackendOptions = {}) {
         ?.then((controller) => controller[Symbol.asyncDispose]())
         .catch(() => undefined) ?? Promise.resolve()
       backend.close()
-      return Promise.all([serverClosed, readerClosed]).then(() => undefined)
+      return Promise.all([serverClosed, readerClosed, logWriter.close()]).then(() => undefined)
+    },
+  }
+}
+
+function createBackendLogWriter(options: LogWriterOptions): BackendLogWriter {
+  let writer: RotatingJsonlLogWriter | undefined
+  return {
+    append(events) {
+      writer ??= new RotatingJsonlLogWriter(options)
+      return writer.append(events)
+    },
+    async close() {
+      await writer?.close()
     },
   }
 }
@@ -725,19 +791,19 @@ if (import.meta.main) {
   try {
     const options = parseBackendCliArgs()
     if (options.help) {
-      console.log(backendCliHelp)
+      process.stdout.write(backendCliHelp)
       process.exit(0)
     }
 
     const backend = await startBackend(options)
-    console.log(JSON.stringify({
+    process.stdout.write(`${JSON.stringify({
       baseUrl: backend.url,
       url: backend.url,
       token: backend.token,
       database: backend.database,
-    }))
+    })}\n`)
   } catch (error) {
-    console.error(error instanceof Error ? error.message : error)
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
     process.exit(1)
   }
 }

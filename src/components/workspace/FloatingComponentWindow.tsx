@@ -8,6 +8,9 @@ import { FloatingWindowCaptionControls, FloatingWindowFrameProvider } from "./Fl
 import { loadNodeMaximizeAction } from "@/components/modules/nodeWindowPreferences"
 import type { MainWindowAction } from "@/backend/runtime/runtime"
 import type { ComponentInstance } from "@/types/workspace"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("window.floating")
 
 interface Props {
   compId: string
@@ -43,7 +46,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
         if (!cancelled) setMaximizeAction(action)
       })
       .catch((error) => {
-        console.error(`[floating-window] failed to load window preferences for ${moduleId}`, error)
+        logger.error("Failed to load window preferences", { moduleId }, error)
       })
 
     return () => {

@@ -1,4 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("module.renderer")
 import type { ComponentType } from "react"
 import { useTranslation } from "react-i18next"
 import type {
@@ -126,7 +129,7 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
         }
       })
       .catch((error) => {
-        console.error(`[module-renderer] failed to load entry for ${moduleId}`, error)
+        logger.error("Failed to load module entry", { moduleId }, error)
         if (moduleId === "neoview") {
           neoviewDebug("chunk:load:error", {
             compId,

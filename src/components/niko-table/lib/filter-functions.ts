@@ -1,6 +1,9 @@
+import { createLogger } from "@/lib/logger"
 import type { FilterFn, RowData } from "@tanstack/react-table"
 import type { ExtendedColumnFilter, FilterOperator } from "../types"
 import { JOIN_OPERATORS, FILTER_OPERATORS, FILTER_VARIANTS } from "./constants"
+
+const logger = createLogger("data-table.filters")
 
 // ============================================================================
 // Regex Cache for Performance
@@ -469,7 +472,7 @@ function applyFilterOperator(
       }
       if (!hasLoggedRelativeFilterWarning) {
         hasLoggedRelativeFilterWarning = true
-        console.error(
+        logger.error(
           "FILTER_OPERATORS.RELATIVE is not yet implemented — returning no matches in production to avoid silently passing all rows.",
         )
       }

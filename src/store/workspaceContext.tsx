@@ -27,6 +27,9 @@ import { useWorkspaceStore } from "@/store/workspaceStore"
 import type { WSStore } from "@/store/workspace/types"
 import type { ComponentDTO, LaneDTO, WorkspaceDTO, WorkspaceSnapshotDTO } from "@xiranite/shared"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("workspace")
 
 type WorkspaceSnapshot = WorkspaceSnapshotDTO
 
@@ -187,7 +190,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
     },
     onError: (error) => {
-      console.error("[backend] persist failed:", error)
+      logger.error("Workspace persist failed", error)
     },
   })
 
@@ -213,7 +216,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       restoreComponents,
     })
     if (!restoreComponents && workspaceQuery.data.components.length > 0) {
-      console.info(
+      logger.info(
         `[workspace] component restore disabled — skipped ${workspaceQuery.data.components.length} instance(s) (SQLite rows kept)`,
       )
     }
@@ -235,7 +238,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!workspaceQuery.error) return
 
-    console.error("[backend] hydrate failed:", workspaceQuery.error)
+    logger.error("Workspace hydrate failed", workspaceQuery.error)
     if (backendReady) setBackendReady(false)
   }, [backendReady, setBackendReady, workspaceQuery.error])
 
@@ -529,7 +532,7 @@ function installWorkspaceQaController(): () => void {
 
   window.__xiraniteQA = controller
   window.xqa = controller
-  console.info("[xiranite qa] window.__xiraniteQA ready", controller.state())
+  logger.info("QA controller ready", controller.state())
 
   return () => {
     if (window.__xiraniteQA === controller) delete window.__xiraniteQA

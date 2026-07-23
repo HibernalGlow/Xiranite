@@ -1,7 +1,6 @@
 /// <reference types="vitest" />
-import path, { dirname, resolve } from "path"
-import { existsSync, mkdirSync, readFileSync } from "node:fs"
-import { appendFile, readFile, mkdir, writeFile } from "node:fs/promises"
+import path from "path"
+import { readFile, mkdir, writeFile } from "node:fs/promises"
 import tailwindcss from "@tailwindcss/vite"
 import { Scanner } from "@tailwindcss/oxide"
 import react from "@vitejs/plugin-react"
@@ -75,66 +74,6 @@ function developmentCjsShimPlugin() {
   }
 }
 
-function developmentLogPlugin() {
-  return {
-    name: "xiranite:development-log",
-    apply: "serve" as const,
-    configureServer(server: {
-      config: { root: string }
-      middlewares: { use: (path: string, handler: (request: NodeJS.ReadableStream & { method?: string }, response: { statusCode: number; setHeader: (k: string, v: string) => void; end: (body?: string) => void }) => void) => void }
-    }) {
-      const logPath = resolve(server.config.root, ".tmp/xiranite.log")
-      mkdirSync(dirname(logPath), { recursive: true })
-      void appendFile(logPath, `\n---- session ${new Date().toISOString()} ----\n`, "utf8")
-      console.info(`[xiranite-log] writing browser logs to ${logPath}`)
-      let writeQueue = Promise.resolve()
-
-      const appendEvents = (events: readonly Record<string, unknown>[]) => {
-        const lines = events.slice(0, 200).map((event) => JSON.stringify(event))
-        if (!lines.length) return
-        writeQueue = writeQueue
-          .catch(() => undefined)
-          .then(() => appendFile(logPath, `${lines.join("\n")}\n`, "utf8"))
-          .catch(() => undefined)
-      }
-
-      server.middlewares.use("/__xiranite-log", (request, response) => {
-        if (request.method === "GET") {
-          try {
-            const body = existsSync(logPath) ? readFileSync(logPath, "utf8") : ""
-            response.statusCode = 200
-            response.setHeader("content-type", "text/plain; charset=utf-8")
-            response.end(body)
-          } catch (error) {
-            response.statusCode = 500
-            response.end(error instanceof Error ? error.message : String(error))
-          }
-          return
-        }
-
-        let body = ""
-        request.setEncoding("utf8")
-        request.on("data", (chunk) => {
-          if (body.length < 32_768) body += String(chunk)
-        })
-        request.on("end", () => {
-          try {
-            const payload = JSON.parse(body) as { events?: unknown } | Record<string, unknown>
-            const events = "events" in payload && Array.isArray(payload.events)
-              ? payload.events.filter((event): event is Record<string, unknown> => Boolean(event) && typeof event === "object")
-              : [payload]
-            appendEvents(events)
-          } catch {
-            console.warn("[xiranite-log] invalid browser event")
-          }
-          response.statusCode = 204
-          response.end()
-        })
-      })
-    },
-  }
-}
-
 function lucideDeepImportsPlugin() {
   let iconExports: Promise<ReturnType<typeof collectLucideIconExports>> | undefined
   return {
@@ -165,7 +104,6 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [
     developmentCjsShimPlugin(),
-    developmentLogPlugin(),
     lucideDeepImportsPlugin(),
     tailwindCandidateSnapshotPlugin(),
     productionChunkReportPlugin(),

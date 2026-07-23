@@ -21,6 +21,9 @@ import {
   History, ArrowLeft, BookOpen, Database, LogOut, ShieldAlert, ChevronRight,
 } from "lucide-react"
 import { WindowControlIcon } from "./WindowControlIcon"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("window.controls")
 import {
   AlertDialog,
   AlertDialogAction,
@@ -176,7 +179,7 @@ export function TopBar() {
 
   async function controlMainWindow(action: "minimize" | "maximize" | "close") {
     const result = await controlMain(action)
-    if (!result.success) console.info(`[window] ${result.message}`)
+    if (!result.success) logger.info("Window control failed", { action, message: result.message })
     if (result.success && result.state) setIsMaximized(result.state === "maximized")
   }
 

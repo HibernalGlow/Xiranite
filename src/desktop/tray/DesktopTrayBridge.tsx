@@ -1,11 +1,14 @@
 import { useEffect } from "react"
 
 import { initializeDesktopTrays } from "./trayCoordinator"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("desktop.tray")
 
 export function DesktopTrayBridge() {
   useEffect(() => {
     void initializeDesktopTrays().catch((error) => {
-      console.warn("[desktop-tray] initialization failed:", error)
+      logger.warn("Initialization failed", error)
     })
   }, [])
 

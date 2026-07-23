@@ -2,6 +2,9 @@ import type { AppNodeEntry, HeadlessNodePackage, NodeTrayDeclaration, NodeTrayMe
 
 import { getRuntime } from "@/backend/client"
 import type { NativeTraySpec, RuntimeInterface, TrayActionEvent, TrayMenuItemSpec } from "@/backend/runtime/runtime"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("desktop.tray")
 
 export const MAIN_TRAY_STORAGE_KEY = "xiranite:desktop:main-tray-enabled"
 
@@ -73,7 +76,7 @@ export function registerNodeTrays(nodeId: string, entry: PackageModuleEntry): vo
   if (!("tray" in entry) || !entry.tray) return
   declarations.set(nodeId, Array.isArray(entry.tray) ? entry.tray : [entry.tray])
   void syncDesktopTrays().catch((error) => {
-    console.warn(`[desktop-tray] failed to register ${nodeId}:`, error)
+    logger.warn("Failed to register node tray", { nodeId }, error)
   })
 }
 

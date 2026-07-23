@@ -1,3 +1,4 @@
+import { createLogger } from "@/lib/logger"
 import { useMemo } from "react"
 import type {
   HostComponentRef,
@@ -8,6 +9,7 @@ import type {
   NodeSchemas,
 } from "@xiranite/contract"
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
+
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
 import { copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths } from "@/backend/localFilesClient"
 import { getRuntime } from "@/backend/client"
@@ -37,6 +39,8 @@ import { useTheme } from "@/components/use-theme"
 import { useNodeOperations } from "@/store/nodeOperations"
 import { getWorkspaceState, useWorkspaceActions, useWorkspaceComponentData } from "@/store/workspaceStore"
 import type { ComponentInstance, ComponentState, ViewMode } from "@/types/workspace"
+
+const logger = createLogger("node.host")
 
 type ComponentVisibilityMode = Exclude<ViewMode, "dashboard">
 
@@ -430,6 +434,6 @@ function warnOnSchemaMismatch<T>(
   if (!schema) return
   const safeResult = schema.safeParse?.(value)
   if (safeResult && !safeResult.success && import.meta.env.DEV) {
-    console.warn(`[node-host] ${label} produced state that failed schema validation`, safeResult.error)
+    logger.warn("Node produced state that failed schema validation", { label, issues: safeResult.error.issues })
   }
 }

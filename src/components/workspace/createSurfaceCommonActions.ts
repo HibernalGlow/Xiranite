@@ -6,6 +6,9 @@ import type { ComponentViewMode } from "@/store/workspace/constants"
 import type { WorkspaceActions } from "@/store/workspace/types"
 import type { NodeSurfaceChromeAction } from "./NodeSurfaceChrome"
 import { createMoveToViewAction } from "./createMoveToViewAction"
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("window.actions")
 
 type OpenComponent = (input: OpenComponentWindowInput) => Promise<WindowCommandResult>
 
@@ -42,9 +45,9 @@ export function createSurfaceCommonActions(params: {
         void openComponent({ componentId, moduleId, title: moduleName, width, height })
           .then((result) => {
             if (result.success) workspaceActions.setComponentState(componentId, "floating")
-            else console.info(`[window] ${result.message}`)
+            else logger.info("Unable to open component window", { message: result.message, componentId, moduleId })
           })
-          .catch((error: unknown) => console.info("[window] Failed to open component window", error))
+          .catch((error: unknown) => logger.info("Failed to open component window", { componentId, moduleId }, error))
       },
     },
     createMoveToViewAction({ componentId, currentMode, workspaceActions, t }),

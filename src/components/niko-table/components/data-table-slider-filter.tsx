@@ -1,3 +1,4 @@
+import { createLogger } from "@/lib/logger"
 import * as React from "react"
 import { useDataTable } from "../core/data-table-context"
 import {
@@ -6,6 +7,8 @@ import {
 } from "../filters/table-slider-filter"
 import { useDerivedColumnTitle } from "../hooks/use-derived-column-title"
 import { FILTER_VARIANTS } from "../lib/constants"
+
+const logger = createLogger("data-table.slider-filter")
 
 type DataTableSliderFilterProps<TData> = Omit<
   TableSliderFilterProps<TData>,
@@ -77,7 +80,7 @@ export function DataTableSliderFilter<TData>({
 
   // Early return if column not found
   if (!column) {
-    console.warn(
+    logger.warn(
       `Column with accessorKey "${accessorKey}" not found in table columns`,
     )
     return null

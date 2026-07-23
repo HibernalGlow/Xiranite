@@ -49,11 +49,12 @@ export function findNodeCli(value: string): NodeCliRegistration | undefined {
 
 export function formatHelp(): string {
   return [
-    "xiranite [ui | <node> [args]]",
+    "xiranite [ui | logs | <node> [args]]",
     "",
     "Commands:",
     "  ui                   Open the fullscreen Xiranite terminal workspace",
     "  list                 List node commands",
+    "  logs [command]       Analyze structured application logs",
     "  help <node>          Show a node command help",
     "  <node> [args]        Run a node CLI, for example `xiranite cleanf preview --help`",
     "",
@@ -96,6 +97,12 @@ export async function runProgram(args = process.argv.slice(2), host: CliHost = c
     return
   }
 
+  if (command === "logs") {
+    const { runProgram: runLogs } = await import("@xiranite/logging/cli")
+    await runLogs(rest, host)
+    return
+  }
+
   if (command === "help") {
     const plain = rest.includes("--plain") || rest.includes("-p")
     const locale = readLangArg(rest) ?? detectCliLocale(host)
@@ -116,6 +123,7 @@ async function runWorkspaceUi(host: CliHost): Promise<void> {
     await reexecTerminalUiWithBun(host, { entrypoint: process.argv[1]!, args: ["ui"] })
     return
   }
+
   const baseUrl = host.env.XIRANITE_BACKEND_URL?.trim()
   const token = host.env.XIRANITE_BACKEND_TOKEN?.trim()
   const workspace = baseUrl

@@ -1,3 +1,7 @@
+import { createLogger } from "@/lib/logger"
+
+const logger = createLogger("clipboard")
+
 /**
  * Shared helpers for context-menu builders.
  *
@@ -9,9 +13,9 @@ export async function copyToClipboard(text: string, failureLabel: string): Promi
   try {
     await navigator.clipboard.writeText(text)
   } catch (err) {
-    console.error("[clipboard] write failed:", err)
+    logger.error("Clipboard write failed", err)
     // Sonner toast is project-wide; importing it directly here would create a
-    // cycle with the workspace layer. The console error is sufficient — the
+    // cycle with the workspace layer. The structured error is sufficient; the
     // caller can wrap the action with a toast if needed.
     void failureLabel
   }

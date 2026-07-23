@@ -1,11 +1,18 @@
 import { createConsola, LogLevels, type ConsolaInstance, type ConsolaReporter, type LogObject } from "consola"
+import {
+  createLogEnvelope,
+  createLogSession,
+  type LogError,
+  type LogJsonValue,
+  type LogSeverityText,
+} from "@xiranite/logging"
 
 export const LOG_LEVEL_STORAGE_KEY = "xiranite.log.level"
 
-const REMOTE_ENDPOINT = "/__xiranite-log"
 const REMOTE_BATCH_SIZE = 20
-const REMOTE_EVENT_LIMIT = 500
+const REMOTE_QUEUE_LIMIT = 1_000
 const REMOTE_FLUSH_DELAY_MS = 100
+const REMOTE_RETRY_DELAY_MS = 1_000
 
 export const xiraniteLogLevels = ["silent", "error", "warn", "info", "debug", "trace"] as const
 
@@ -126,7 +133,7 @@ function resolveInitialLogLevel(): XiraniteLogLevel {
 }
 
 function defaultLogLevel(): XiraniteLogLevel {
-  return "warn"
+  return "info"
 }
 
 function isXiraniteLogLevel(value: unknown): value is XiraniteLogLevel {
@@ -134,47 +141,100 @@ function isXiraniteLogLevel(value: unknown): value is XiraniteLogLevel {
 }
 
 function createRemoteReporter(): ConsolaReporter | undefined {
-  if (!import.meta.env.DEV || typeof window === "undefined") return undefined
+  if (typeof window === "undefined") return undefined
 
-  let sentEvents = 0
   let flushTimer: number | undefined
-  let pendingEvents: unknown[] = []
+  let droppedEvents = 0
+  const pendingEvents: ReturnType<typeof createLogEnvelope>[] = []
+  const session = createLogSession()
+  const resource = {
+    serviceName: "xiranite",
+    serviceVersion: import.meta.env.VITE_APP_VERSION || undefined,
+    deploymentEnvironment: import.meta.env.DEV ? "development" : "production",
+    processType: "frontend" as const,
+    runtimeName: "browser",
+  }
+
+  const scheduleFlush = (delay: number) => {
+    if (flushTimer === undefined) flushTimer = window.setTimeout(flush, delay)
+  }
 
   const flush = () => {
     flushTimer = undefined
+    const backend = resolveLogBackend()
+    if (!backend) {
+      if (pendingEvents.length || droppedEvents) scheduleFlush(REMOTE_RETRY_DELAY_MS)
+      return
+    }
+    if (droppedEvents) {
+      pendingEvents.unshift(createLogEnvelope({
+        severityText: "warn",
+        eventName: "logging.events_dropped",
+        body: `${droppedEvents} frontend log events were dropped because the transport queue was full.`,
+        attributes: { droppedCount: droppedEvents, queueLimit: REMOTE_QUEUE_LIMIT },
+        resource,
+        scope: { name: "logging.transport" },
+        session,
+      }))
+      droppedEvents = 0
+    }
     const events = pendingEvents.splice(0, REMOTE_BATCH_SIZE)
     if (!events.length) return
-    void fetch(REMOTE_ENDPOINT, {
+    void fetch(`${backend.baseUrl}/logs`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(backend.token ? { "x-xiranite-token": backend.token } : {}),
+      },
       body: JSON.stringify({ events }),
       keepalive: true,
-    }).catch(() => undefined)
-    if (pendingEvents.length) flushTimer = window.setTimeout(flush, 0)
+    }).then((response) => {
+      if (!response.ok) throw new Error(`Log transport failed with HTTP ${response.status}`)
+    }).catch(() => {
+      const available = Math.max(0, REMOTE_QUEUE_LIMIT - pendingEvents.length)
+      pendingEvents.unshift(...events.slice(-available))
+      droppedEvents += events.length - available
+      scheduleFlush(REMOTE_RETRY_DELAY_MS)
+    })
+    if (pendingEvents.length) scheduleFlush(0)
   }
 
   return {
     log(logObject: LogObject) {
-      if (sentEvents >= REMOTE_EVENT_LIMIT) return
-      sentEvents += 1
-      pendingEvents.push(serializeLogObject(logObject))
-      if (flushTimer === undefined) flushTimer = window.setTimeout(flush, REMOTE_FLUSH_DELAY_MS)
+      if (pendingEvents.length >= REMOTE_QUEUE_LIMIT) {
+        droppedEvents += 1
+        return
+      }
+      pendingEvents.push(toLogEnvelope(logObject, resource, session))
+      scheduleFlush(REMOTE_FLUSH_DELAY_MS)
     },
   }
 }
 
-function serializeLogObject(logObject: LogObject): unknown {
-  return {
+function toLogEnvelope(
+  logObject: LogObject,
+  resource: Parameters<typeof createLogEnvelope>[0]["resource"],
+  session: Parameters<typeof createLogEnvelope>[0]["session"],
+) {
+  const severityText = toSeverity(logObject.type)
+  const values = [logObject.message, ...logObject.args].filter((value) => value !== undefined)
+  const error = values.find((value): value is Error => value instanceof Error)
+  const firstText = values.find((value): value is string => typeof value === "string")
+  const scope = (logObject.tag ?? "app").replace(/^xiranite:/, "")
+  return createLogEnvelope({
     timestamp: logObject.date.toISOString(),
-    level: logObject.level,
-    type: logObject.type,
-    scope: logObject.tag,
-    message: logObject.message,
-    args: logObject.args.map(serializeLogValue),
-  }
+    severityText,
+    eventName: inferEventName(scope, firstText, severityText),
+    body: firstText ?? error?.message,
+    attributes: { args: values.map(serializeLogValue) },
+    resource,
+    scope: { name: scope },
+    session,
+    ...(error ? { error: serializeLogError(error) } : {}),
+  })
 }
 
-function serializeLogValue(value: unknown): unknown {
+function serializeLogValue(value: unknown): LogJsonValue {
   if (value instanceof Error) {
     return {
       name: value.name,
@@ -184,10 +244,38 @@ function serializeLogValue(value: unknown): unknown {
     }
   }
   try {
-    return JSON.parse(JSON.stringify(value)) as unknown
+    const json = JSON.stringify(value)
+    return json === undefined ? String(value) : JSON.parse(json) as LogJsonValue
   } catch {
     return String(value)
   }
+}
+
+function serializeLogError(error: Error): LogError {
+  return {
+    name: error.name || "Error",
+    message: error.message,
+    ...(error.stack ? { stack: error.stack } : {}),
+    ...(error.cause === undefined ? {} : { cause: serializeLogValue(error.cause) }),
+  }
+}
+
+function toSeverity(type: string): LogSeverityText {
+  if (type === "trace" || type === "debug" || type === "info" || type === "warn" || type === "error" || type === "fatal") return type
+  return "info"
+}
+
+function inferEventName(scope: string, message: string | undefined, severity: LogSeverityText): string {
+  const normalized = message?.toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "").slice(0, 80)
+  return `${scope}.${normalized || severity}`
+}
+
+function resolveLogBackend(): { baseUrl: string; token?: string } | undefined {
+  const injected = window.__XIRANITE_BACKEND__
+  const baseUrl = injected?.baseUrl ?? import.meta.env.VITE_XIRANITE_BACKEND_URL
+  const token = injected?.token ?? import.meta.env.VITE_XIRANITE_BACKEND_TOKEN
+  if (!baseUrl) return undefined
+  return { baseUrl: baseUrl.replace(/\/$/, ""), ...(token ? { token } : {}) }
 }
 
 installLogController()

@@ -27,6 +27,7 @@
     "@opentui/react": "0.4.5",
     "@xiranite/api": "workspace:*",
     "@xiranite/cli-runtime": "workspace:*",
+    "@xiranite/logging": "workspace:*",
     "@xiranite/shared": "workspace:*",
     "@xiranite/node-bandia": "workspace:*",
     "@xiranite/node-cleanf": "workspace:*",
