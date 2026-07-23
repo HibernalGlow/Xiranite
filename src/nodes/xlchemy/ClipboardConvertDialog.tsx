@@ -1,11 +1,10 @@
 import { useMemo, useState, type ReactNode } from "react"
 import type { XlchemyData, XlchemyFormat } from "@xiranite/node-xlchemy/core"
 import { ReactCompareSlider } from "react-compare-slider"
-import { Check, ClipboardPaste, Copy, Image as ImageIcon, LoaderCircle, RefreshCw, Sparkles } from "lucide-react"
+import { Check, ClipboardCheck, ClipboardPaste, Copy, Image as ImageIcon, LoaderCircle, RefreshCw, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
@@ -72,8 +71,8 @@ export function ClipboardConvertDialog(props: {
     <Tooltip><TooltipTrigger asChild><DialogTrigger asChild><Button aria-label="打开剪贴板图片工作台" disabled={props.disabled} size="icon-sm" variant="ghost"><ClipboardPaste /></Button></DialogTrigger></TooltipTrigger><TooltipContent>剪贴板图片工作台</TooltipContent></Tooltip>
     <DialogContent bare contained={Boolean(props.portalContainer)} portalContainer={props.portalContainer} className={cn("grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0", props.portalContainer ? "inset-2 h-auto w-auto sm:inset-3" : "h-[min(820px,calc(100dvh-2rem))] w-[min(1120px,calc(100vw-2rem))]")} data-testid="xlchemy-clipboard-workbench">
       <DialogHeader className="border-b px-5 py-3 pr-12">
-        <div className="flex flex-wrap items-center gap-2"><div className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground"><ClipboardPaste className="size-4" /></div><DialogTitle>剪贴板图片工作台</DialogTitle>{result ? <Badge variant="secondary">{result.format}</Badge> : null}<div className="ml-auto flex items-center gap-1"><Tooltip><TooltipTrigger asChild><Button aria-label="重新读取剪贴板图片" disabled={loading || converting} size="icon" variant="outline" onClick={() => void readClipboard()}>{loading ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}</Button></TooltipTrigger><TooltipContent>重新读取剪贴板</TooltipContent></Tooltip><Button disabled={!source || converting || loading} onClick={() => void convert()}>{converting ? <LoaderCircle className="animate-spin" /> : <Sparkles />}{converting ? "转换中" : "转换"}</Button><Button disabled={!result || converting} variant="default" onClick={() => void copyResult()}>{copied ? <Check /> : <Copy />}{copied ? "已复制" : "复制结果"}</Button></div></div>
-        <div className="flex flex-wrap items-center justify-between gap-2"><DialogDescription>读取、转换、对比并在确认后复制结果。</DialogDescription><label className="flex items-center gap-2 text-xs text-muted-foreground"><span>转换后自动写入剪贴板</span><Switch aria-label="转换后自动写入剪贴板" checked={props.autoCopy} disabled={converting} size="sm" onCheckedChange={props.onAutoCopyChange} /></label></div>
+        <div className="flex flex-wrap items-center gap-2"><div className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground"><ClipboardPaste className="size-4" /></div><DialogTitle>剪贴板图片工作台</DialogTitle>{result ? <Badge variant="secondary">{result.format}</Badge> : null}<div className="ml-auto flex items-center gap-1"><Tooltip><TooltipTrigger asChild><Button aria-label="转换后自动写入剪贴板" aria-pressed={props.autoCopy} disabled={converting} size="icon" variant={props.autoCopy ? "default" : "outline"} onClick={() => props.onAutoCopyChange(!props.autoCopy)}><ClipboardCheck /></Button></TooltipTrigger><TooltipContent>{props.autoCopy ? "已开启自动写入剪贴板" : "自动写入剪贴板"}</TooltipContent></Tooltip><Tooltip><TooltipTrigger asChild><Button aria-label="重新读取剪贴板图片" disabled={loading || converting} size="icon" variant="outline" onClick={() => void readClipboard()}>{loading ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}</Button></TooltipTrigger><TooltipContent>重新读取剪贴板</TooltipContent></Tooltip><Button disabled={!source || converting || loading} onClick={() => void convert()}>{converting ? <LoaderCircle className="animate-spin" /> : <Sparkles />}{converting ? "转换中" : "转换"}</Button><Button disabled={!result || converting} variant="default" onClick={() => void copyResult()}>{copied ? <Check /> : <Copy />}{copied ? "已复制" : "复制结果"}</Button></div></div>
+        <DialogDescription>读取、转换、对比并在确认后复制结果。</DialogDescription>
       </DialogHeader>
 
       <div className="grid min-h-0 gap-2 overflow-hidden bg-muted/20 p-2 @3xl/xlchemy:grid-cols-[minmax(17rem,0.85fr)_minmax(0,1.15fr)]">
