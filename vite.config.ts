@@ -75,24 +75,22 @@ function developmentCjsShimPlugin() {
   }
 }
 
-function developmentDebugLogPlugin() {
+function developmentLogPlugin() {
   return {
-    name: "xiranite:development-debug-log",
+    name: "xiranite:development-log",
     apply: "serve" as const,
     configureServer(server: {
       config: { root: string }
       middlewares: { use: (path: string, handler: (request: NodeJS.ReadableStream & { method?: string }, response: { statusCode: number; setHeader: (k: string, v: string) => void; end: (body?: string) => void }) => void) => void }
     }) {
-      const logPath = resolve(server.config.root, ".tmp/neoview-debug.log")
+      const logPath = resolve(server.config.root, ".tmp/xiranite.log")
       mkdirSync(dirname(logPath), { recursive: true })
       void appendFile(logPath, `\n---- session ${new Date().toISOString()} ----\n`, "utf8")
-      console.info(`[xiranite-debug] writing browser timeline to ${logPath}`)
+      console.info(`[xiranite-log] writing browser logs to ${logPath}`)
       let writeQueue = Promise.resolve()
 
-      const appendEvents = (events: readonly { sequence?: unknown; elapsedMs?: unknown; label?: unknown; detail?: unknown }[]) => {
-        const lines = events.slice(0, 200).map((event) => (
-          `[xiranite-debug #${String(event.sequence)} +${String(event.elapsedMs)}ms] ${String(event.label)}${event.detail === undefined ? "" : ` ${JSON.stringify(event.detail)}`}`
-        ))
+      const appendEvents = (events: readonly Record<string, unknown>[]) => {
+        const lines = events.slice(0, 200).map((event) => JSON.stringify(event))
         if (!lines.length) return
         writeQueue = writeQueue
           .catch(() => undefined)
@@ -100,7 +98,7 @@ function developmentDebugLogPlugin() {
           .catch(() => undefined)
       }
 
-      server.middlewares.use("/__xiranite-debug-log", (request, response) => {
+      server.middlewares.use("/__xiranite-log", (request, response) => {
         if (request.method === "GET") {
           try {
             const body = existsSync(logPath) ? readFileSync(logPath, "utf8") : ""
@@ -121,13 +119,13 @@ function developmentDebugLogPlugin() {
         })
         request.on("end", () => {
           try {
-            const payload = JSON.parse(body) as { events?: unknown } | { sequence?: unknown; elapsedMs?: unknown; label?: unknown; detail?: unknown }
+            const payload = JSON.parse(body) as { events?: unknown } | Record<string, unknown>
             const events = "events" in payload && Array.isArray(payload.events)
-              ? payload.events as { sequence?: unknown; elapsedMs?: unknown; label?: unknown; detail?: unknown }[]
+              ? payload.events.filter((event): event is Record<string, unknown> => Boolean(event) && typeof event === "object")
               : [payload]
             appendEvents(events)
           } catch {
-            console.warn("[xiranite-debug] invalid browser event")
+            console.warn("[xiranite-log] invalid browser event")
           }
           response.statusCode = 204
           response.end()
@@ -167,7 +165,7 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [
     developmentCjsShimPlugin(),
-    developmentDebugLogPlugin(),
+    developmentLogPlugin(),
     lucideDeepImportsPlugin(),
     tailwindCandidateSnapshotPlugin(),
     productionChunkReportPlugin(),
