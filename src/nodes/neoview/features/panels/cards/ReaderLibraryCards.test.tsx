@@ -66,7 +66,10 @@ describe("Reader library cards", () => {
     expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-history-view-mode")).toBe("mosaic-list")
     expect(screen.getByRole("button", { name: "视图：横幅" })).toBeTruthy()
     selectLibraryView("封面网格")
-    await waitFor(() => expect(onHistoryListPreferences).toHaveBeenCalledWith({ viewMode: "thumbnail" }))
+    await waitFor(() => expect(onHistoryListPreferences).toHaveBeenCalledWith({
+      viewMode: "thumbnail",
+      viewOverrides: { viewMode: "cover-grid" },
+    }))
     await waitFor(() => expect(view.container.querySelector('[data-neoview-history-card="true"]')?.getAttribute("data-history-view-mode")).toBe("cover-grid"))
   })
 

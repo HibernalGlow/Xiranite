@@ -48,6 +48,43 @@ items = [
 
 TOML 1.0 inline table 必须保持单行，因此一个相关对象对应一个 inline table 行；不要把整个相关项集合重新压进同一个超长行。
 
+## File Presentation 继承与覆盖
+
+File Card、History Card 和 Bookmark Card 的文件条目展示使用同一份 File Presentation 契约。`[nodes.neoview.folder]` 是共享展示基线，History/Bookmark 只保存用户明确修改过的稀疏覆盖：
+
+```toml
+[nodes.neoview.folder]
+view_mode = "cover-grid"
+content_width_percent = 35
+thumbnail_width_percent = 24
+banner_width_percent = 50
+
+[nodes.neoview.history_list.view_overrides]
+thumbnail_width_percent = 36
+
+[nodes.neoview.bookmark_list]
+active_list_id = "all"
+
+[nodes.neoview.bookmark_list.view_overrides]
+view_mode = "mosaic-list"
+```
+
+当前共享字段是 `view_mode`、`content_width_percent`、`thumbnail_width_percent` 和 `banner_width_percent`。有效值按以下顺序解析：
+
+1. 当前 Card 的 `view_overrides` 显式字段。
+2. `[nodes.neoview.folder]` 的同名字段。
+3. NeoView 内建默认值。
+
+未写入的字段必须持续继承；不得在 History/Bookmark 初始化时复制一份 File 默认值。GUI 的“恢复继承”通过配置 PATCH 将对应 override 字段写为 `null`，配置事务会删除 TOML 叶子，而不是写入一个伪默认值。删除最后一个字段后允许保留空的 `view_overrides` 分组，读取结果等价于无覆盖。
+
+`view_mode` 的共享虚拟源取值为 `compact`、`cover-list`、`mosaic-list`、`cover-grid`。File Card 的 `details` 在虚拟源中降级为 `compact`，`mosaic-grid` 降级为 `cover-grid`；这是 renderer capability 映射，不是持久化覆盖。
+
+文件夹导航、Home 路径、目录树、删除确认、穿透策略和文件系统写操作不属于 File Presentation，不得被虚拟源盲目继承。History 的清理/恢复、Bookmark 的列表成员关系、各自搜索排序和业务动作继续由 Card 自己拥有。
+
+新增共享展示字段时，必须同时进入共享类型、同一校验器、有效配置 resolver、共用 renderer/control 和跨 Card 测试；禁止在各 Card 建立字段 allowlist 或逐字段复制 props。这样旧 Card 在没有 override 时会自动获得新字段，只有 capability 不支持时才允许显式降级。
+
+读取端继续接受旧 `[nodes.neoview.history_list].view_mode = "content|banner|thumbnail"`。旧值映射为稀疏 `viewOverrides.viewMode`；新 `view_overrides.view_mode` 与旧字段同时存在时新分组优先。下一次修改 History 视图模式时写入新分组并删除旧字段。
+
 ## 验收与测试
 
 ```powershell

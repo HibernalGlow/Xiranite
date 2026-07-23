@@ -248,9 +248,11 @@ describe("ReaderHttpController", () => {
     }))
     const updateHistoryList = vi.fn(async (patch) => ({
       viewMode: patch.historyList.viewMode ?? "compact" as const,
+      viewOverrides: Object.fromEntries(Object.entries(patch.historyList.viewOverrides ?? {}).filter(([, value]) => value !== null)),
     }))
     const updateBookmarkList = vi.fn(async (patch) => ({
       activeListId: patch.bookmarkList.activeListId ?? "all",
+      viewOverrides: Object.fromEntries(Object.entries(patch.bookmarkList.viewOverrides ?? {}).filter(([, value]) => value !== null)),
     }))
     const updatePageList = vi.fn(async (patch) => ({
       viewMode: patch.pageList.viewMode ?? "list" as const,
@@ -339,9 +341,9 @@ describe("ReaderHttpController", () => {
       updateViewDefaults,
       pageList: { viewMode: "list", followProgress: true },
       updatePageList,
-      bookmarkList: { activeListId: "all" },
+      bookmarkList: { activeListId: "all", viewOverrides: {} },
       updateBookmarkList,
-      historyList: { viewMode: "compact" },
+      historyList: { viewMode: "compact", viewOverrides: {} },
       updateHistoryList,
       folderView: {
         viewMode: "compact",
@@ -447,8 +449,8 @@ describe("ReaderHttpController", () => {
       }, true, "PATCH")))!
       expect(await historyListPatched.json()).toMatchObject({ historyList: { viewMode: "thumbnail" } })
       expect(updateHistoryList).toHaveBeenCalledWith(
-        { historyList: { viewMode: "thumbnail" } },
-        { history_list: { view_mode: "thumbnail" } },
+        { historyList: { viewMode: "thumbnail", viewOverrides: { viewMode: "cover-grid" } } },
+        { history_list: { view_mode: null, view_overrides: { view_mode: "cover-grid" } } },
       )
       expect((await controller.handle(jsonRequest("/reader/config", { historyList: { viewMode: "grid" } }, true, "PATCH")))?.status).toBe(400)
       const bookmarkListPatched = (await controller.handle(jsonRequest("/reader/config", {
@@ -458,6 +460,14 @@ describe("ReaderHttpController", () => {
       expect(updateBookmarkList).toHaveBeenCalledWith(
         { bookmarkList: { activeListId: "reading" } },
         { bookmark_list: { active_list_id: "reading" } },
+      )
+      const historySizePatched = (await controller.handle(jsonRequest("/reader/config", {
+        historyList: { viewOverrides: { thumbnailWidthPercent: 46 } },
+      }, true, "PATCH")))!
+      expect(await historySizePatched.json()).toMatchObject({ historyList: { viewOverrides: { thumbnailWidthPercent: 46 } } })
+      expect(updateHistoryList).toHaveBeenLastCalledWith(
+        { historyList: { viewOverrides: { thumbnailWidthPercent: 46 } } },
+        { history_list: { view_overrides: { thumbnail_width_percent: 46 } } },
       )
       expect((await controller.handle(jsonRequest("/reader/config", { bookmarkList: { activeListId: "" } }, true, "PATCH")))?.status).toBe(400)
       const pageListPatched = (await controller.handle(jsonRequest("/reader/config", {

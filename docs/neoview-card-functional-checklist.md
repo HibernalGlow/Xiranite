@@ -5414,14 +5414,15 @@
 - `history-ui.views-thumbnails` 四种视图、密度与可见缩略图
   - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
   - 映射：`history.views`、`history.thumbnails`、`history.lifecycle`、`history.performance`、`history.image-stability`
-  - [ ] list
-  - [ ] content
-  - [ ] banner
-  - [ ] thumbnail
-  - [ ] 活动视图图标
+  - [x] list
+  - [x] content
+  - [x] banner
+  - [x] thumbnail
+  - [x] 活动视图图标
   - [ ] thumbnail 紧凑模式
-  - [ ] 缩略图宽度 10..90
-  - [ ] 响应式列数
+  - [x] 缩略图宽度 10..90
+  - [x] 响应式列数
+  - [x] 与 File Card 共用“更多 -> 项目尺寸”菜单项
   - [ ] 可见范围虚拟化
   - [ ] lazy img
   - [ ] async decode
@@ -5430,7 +5431,7 @@
   - [ ] hover 大图预览
   - [ ] folder 1/4/9/16 多图预览
   - [ ] 切换视图取消旧缩略图
-  - [ ] History 视图独立持久化
+  - [x] History 展示字段默认继承 File Card，并仅持久化显式覆盖
 - `history-ui.selection` 多选、链选与批量移除
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/components/SelectionBar.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`
   - 映射：`history.selection`、`history.actions`、`history.accessibility`、`history.performance`
@@ -5507,7 +5508,7 @@
   - [ ] showMigrationBar=false
   - [ ] penetrateMode=false
   - [ ] inlineTreeMode=false
-  - [ ] thumbnailWidthPercent=20
+  - [x] thumbnailWidthPercent 默认继承 File Card，可稀疏覆盖并恢复继承
   - [ ] folderTreeVisible=false
   - [ ] folderTreeLayout=left
   - [ ] folderTreeSize=200
@@ -5653,11 +5654,11 @@
   - 备注：The current React Card exposes only backend updated-time order and refresh.
 - [ ] `history.views` 切换四种共享文件视图
   - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
-  - 目标：List, content, banner and thumbnail modes retain their legacy icons, active state, compact thumbnail option and History-specific size preference.
+  - 目标：List, content, banner and thumbnail modes retain their legacy icons and active state while shared presentation fields inherit File Card defaults and persist only History overrides.
   - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
   - 测试：`neoview.history.views`、`neoview.history.view-settings-config`、`neoview.settings.shell-http`、`neoview.history.view-settings`、`neoview.history.view-settings-rollback`、`neoview.history.thumbnail-e2e`
   - 计划测试：无
-  - 备注：The four legacy labels and active icon states drive one- and multi-column virtual layouts, while the selected mode now round-trips through bounded [nodes.neoview.history_list], authenticated config PATCH and GUI rollback. Compact-thumbnail control and width sizing remain pending.
+  - 备注：The four legacy labels and active icon states drive one- and multi-column virtual layouts. View mode and content/thumbnail/banner sizing resolve through the shared File Presentation contract, round-trip as sparse [nodes.neoview.history_list.view_overrides], support null reset, and retain old history_list.view_mode read compatibility. Desktop and constrained-card screenshot evidence remains pending.
 - [ ] `history.thumbnails` 显示可见历史缩略图与文件夹预览
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Only the virtual visible history window requests authenticated file or folder thumbnails, including bounded multi-image folder previews, and releases stale contexts on mode, query or mount changes.
@@ -5914,16 +5915,17 @@
 - `bookmark-ui.views` 四种文件视图与尺寸设置
   - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
   - 映射：`bookmark.shared-renderer`、`bookmark.thumbnails`、`bookmark.persistence`、`bookmark.ui-parity`
-  - [ ] list
-  - [ ] content
-  - [ ] banner
-  - [ ] thumbnail
-  - [ ] 活动视图图标
+  - [x] list
+  - [x] content
+  - [x] banner
+  - [x] thumbnail
+  - [x] 活动视图图标
   - [ ] 紧凑网格
-  - [ ] 缩略图宽度 10..90
-  - [ ] 响应式列数
-  - [ ] 列表尺寸 Slider
-  - [ ] 书签视图独立持久化
+  - [x] 缩略图宽度 10..90
+  - [x] 响应式列数
+  - [x] 列表尺寸 Slider
+  - [x] 书签展示字段默认继承 File Card，并仅持久化显式覆盖
+  - [x] 与 File Card 共用“更多 -> 项目尺寸”菜单项
 - `bookmark-ui.thumbnail-detail` 可见缩略图与文件夹多图预览
   - 源码：`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/components/panels/file/components/FolderPreviewGrid.svelte`、`src/lib/components/panels/file/components/folderPreviewLoader.ts`
   - 映射：`bookmark.thumbnails`、`bookmark.lifecycle`、`bookmark.performance`、`bookmark.image-stability`

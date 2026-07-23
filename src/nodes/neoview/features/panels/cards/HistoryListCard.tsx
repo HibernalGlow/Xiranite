@@ -4,17 +4,19 @@ import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useR
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { ReaderRecentDto } from "../../../adapters/reader-http-client"
+import type { ReaderFilePresentationOverridesPatch, ReaderRecentDto } from "../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
 import { useReaderLibraryThumbnails, type ReaderLibraryThumbnailItem } from "../../thumbnails/useReaderLibraryThumbnails"
 import type { ReaderPanelContext } from "../registry"
 import { formatLibraryTime, ReaderLibraryList } from "./ReaderLibraryList"
 import { ReaderEntrySurface } from "./shared/ReaderEntrySurface"
 import { readerEntryClickIntent } from "./shared/ReaderEntryInteraction"
-import { readerLibraryListLayout, readerLibraryMediaClassName, readerLibrarySurfaceVariant, type ReaderLibraryViewMode } from "./shared/readerLibraryEntryLayout"
+import { readerLibraryListLayout, readerLibraryMediaClassName, readerLibraryMediaStyle, readerLibrarySurfaceVariant, type ReaderLibraryViewMode } from "./shared/readerLibraryEntryLayout"
 import { libraryItemFolderPath } from "./shared/libraryItemFolderPath"
 import { openLibraryEntry } from "./shared/openLibraryEntry"
 import { ReaderLibraryViewToolbar, type ReaderLibrarySort } from "./shared/ReaderLibraryViewToolbar"
+import { useReaderFilePresentationOverrides } from "./shared/useReaderFilePresentationOverrides"
+import { applyReaderFilePresentationOverridePatch, legacyHistoryViewMode, legacyHistoryViewOverrides, resolveReaderFilePresentation, type ReaderFilePresentationConfig } from "../readerFilePresentation"
 
 interface PendingDelete {
   ids: readonly string[]
@@ -36,14 +38,11 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   const [revision, setRevision] = useState(0)
   const [actionError, setActionError] = useState<string>()
   const [cleanupMessage, setCleanupMessage] = useState<string>()
-  const [switchingView, setSwitchingView] = useState(false)
   const [loadedRecents, setLoadedRecents] = useState<readonly ReaderRecentDto[]>([])
   const [visibleRecents, setVisibleRecents] = useState<readonly ReaderRecentDto[]>([])
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [pendingDelete, setPendingDelete] = useState<PendingDelete>()
   const [cleanupOpen, setCleanupOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<HistoryViewMode>(() => libraryViewFromPreference(historyListPreferences?.viewMode))
-  const [confirmedViewMode, setConfirmedViewMode] = useState<HistoryViewMode>(() => libraryViewFromPreference(historyListPreferences?.viewMode))
   const [search, setSearch] = useState("")
   const deferredSearch = useDeferredValue(search)
   const [sort, setSort] = useState<ReaderLibrarySort>({ field: "date", order: "desc" })
@@ -58,7 +57,22 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
     previewCount: item.source.kind === "directory" ? 4 : 1,
   })), [thumbnailsVisible, visibleRecents])
   const thumbnails = useReaderLibraryThumbnails(client, "history", thumbnailItems)
-  const listLayout = useMemo(() => readerLibraryListLayout(viewMode, viewportWidth), [viewMode, viewportWidth])
+  const configuredViewOverrides = legacyHistoryViewOverrides(historyListPreferences)
+  const persistViewOverrides = useCallback(async (patch: ReaderFilePresentationOverridesPatch) => {
+    if (!onHistoryListPreferences) return applyReaderFilePresentationOverridePatch(configuredViewOverrides, patch)
+    const updated = await onHistoryListPreferences({
+      ...(patch.viewMode ? { viewMode: legacyHistoryViewMode(patch.viewMode) } : {}),
+      viewOverrides: patch,
+    })
+    return legacyHistoryViewOverrides(updated)
+  }, [configuredViewOverrides.bannerWidthPercent, configuredViewOverrides.contentWidthPercent, configuredViewOverrides.thumbnailWidthPercent, configuredViewOverrides.viewMode, onHistoryListPreferences])
+  const presentationState = useReaderFilePresentationOverrides(configuredViewOverrides, persistViewOverrides)
+  const presentation = resolveReaderFilePresentation(folderView, presentationState.overrides)
+  const viewMode: HistoryViewMode = presentation.viewMode
+  const listLayout = useMemo(
+    () => readerLibraryListLayout(viewMode, viewportWidth, presentation),
+    [presentation.bannerWidthPercent, presentation.thumbnailWidthPercent, viewMode, viewportWidth],
+  )
   const handleViewportWidthChange = useCallback((width: number) => {
     setViewportWidth((current) => current === width ? current : width)
   }, [])
@@ -77,33 +91,22 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
     })
   }
 
-  useEffect(() => {
-    if (switchingView || !historyListPreferences) return
-    const next = libraryViewFromPreference(historyListPreferences.viewMode)
-    setViewMode(next)
-    setConfirmedViewMode(next)
-  }, [historyListPreferences, switchingView])
-
   async function changeViewMode(next: HistoryViewMode) {
-    if (next === viewMode || switchingView) return
-    const previous = confirmedViewMode
-    setViewMode(next)
-    if (!onHistoryListPreferences) {
-      setConfirmedViewMode(next)
-      return
-    }
-    setSwitchingView(true)
+    if (next === viewMode || presentationState.pending) return
     setActionError(undefined)
     try {
-      const updated = await onHistoryListPreferences({ viewMode: libraryViewPreference(next) })
-      const confirmed = libraryViewFromPreference(updated.viewMode)
-      setViewMode(confirmed)
-      setConfirmedViewMode(confirmed)
+      await presentationState.commit({ viewMode: next })
     } catch (error) {
-      setViewMode(previous)
       setActionError(error instanceof Error ? error.message : String(error))
-    } finally {
-      setSwitchingView(false)
+    }
+  }
+
+  async function commitPresentationOverride(patch: ReaderFilePresentationOverridesPatch) {
+    setActionError(undefined)
+    try {
+      await presentationState.commit(patch)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -309,8 +312,14 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
           <ReaderLibraryViewToolbar
             label="历史记录视图"
             value={viewMode}
-            disabled={disabled || switchingView}
+            disabled={disabled || presentationState.pending}
             onValueChange={(mode) => void changeViewMode(mode)}
+            onResetViewMode={() => void commitPresentationOverride({ viewMode: null })}
+            presentation={presentation}
+            overrides={presentationState.overrides}
+            onSizePreview={(field, value) => presentationState.preview({ [field]: value })}
+            onSizeCommit={(field, value) => void commitPresentationOverride({ [field]: value })}
+            onSizeReset={(field) => void commitPresentationOverride({ [field]: null })}
             search={search}
             onSearchChange={setSearch}
             sort={sort}
@@ -341,6 +350,7 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
             item={item}
             index={index}
             viewMode={viewMode}
+            presentation={presentation}
             selected={selectedIds.has(item.bookId)}
             focused={focusedIndex === undefined ? index === 0 : focusedIndex === index}
             columnCount={listLayout.columns}
@@ -391,10 +401,11 @@ export default function HistoryListCard({ client, disabled, panelActive = true, 
   )
 }
 
-function HistoryRow({ item, index, viewMode, selected, focused, columnCount, disabled, canOpen, thumbnailUrl, thumbnailUrls, thumbnailLoading, onSelect, onFocus, onMoveFocus, onOpen, onRemove }: {
+function HistoryRow({ item, index, viewMode, presentation, selected, focused, columnCount, disabled, canOpen, thumbnailUrl, thumbnailUrls, thumbnailLoading, onSelect, onFocus, onMoveFocus, onOpen, onRemove }: {
   item: ReaderRecentDto
   index: number
   viewMode: HistoryViewMode
+  presentation: ReaderFilePresentationConfig
   selected: boolean
   focused: boolean
   columnCount: number
@@ -450,6 +461,7 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
           fit="cover"
           loading={thumbnailLoading}
           className={readerLibraryMediaClassName(viewMode)}
+          style={readerLibraryMediaStyle(viewMode, presentation)}
         />
       )}
       primary={item.displayName}
@@ -484,18 +496,4 @@ function HistoryRow({ item, index, viewMode, selected, focused, columnCount, dis
 
 function sameSet(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
   return left.size === right.size && [...left].every((value) => right.has(value))
-}
-
-function libraryViewFromPreference(value: "compact" | "content" | "banner" | "thumbnail" | undefined): HistoryViewMode {
-  if (value === "content") return "cover-list"
-  if (value === "banner") return "mosaic-list"
-  if (value === "thumbnail") return "cover-grid"
-  return "compact"
-}
-
-function libraryViewPreference(value: HistoryViewMode): "compact" | "content" | "banner" | "thumbnail" {
-  if (value === "cover-list") return "content"
-  if (value === "mosaic-list") return "banner"
-  if (value === "cover-grid") return "thumbnail"
-  return "compact"
 }

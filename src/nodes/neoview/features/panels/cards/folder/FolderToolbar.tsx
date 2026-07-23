@@ -8,7 +8,6 @@ import {
   Eye,
   FileType,
   FolderTree,
-  GalleryHorizontalEnd,
   Grid2X2,
   HardDrive,
   Heart,
@@ -22,7 +21,6 @@ import {
   PanelRight,
   PanelTop,
   RefreshCw,
-  Rows3,
   Search,
   Settings2,
   Shuffle,
@@ -53,7 +51,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Slider } from "@/components/ui/slider"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import type {
@@ -69,15 +66,12 @@ import type {
   ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
 import {
-  thumbnailPixelSize,
-  viewUsesBanner,
-  viewUsesMosaicGrid,
-  viewUsesThumbnailGrid,
   viewUsesThumbnails,
 } from "./DirectoryCatalog"
 import FolderTypeFilterPanel, { folderTypeFilterMeta } from "./FolderTypeFilterBar"
 import FolderTagDisplayMenu from "./FolderTagDisplayMenu"
 import type { FolderDeleteStrategy } from "./FolderDeleteButton"
+import { ReaderFilePresentationMoreMenuItems } from "../shared/ReaderFilePresentationMoreMenu"
 
 export type FolderToolbarViewModeOption = {
   value: ReaderFolderViewMode
@@ -290,7 +284,6 @@ export default function FolderToolbar(props: FolderToolbarProps) {
   const busy = disabled || loading
   const currentView = viewModeOptions.find((option) => option.value === viewMode) ?? viewModeOptions[0]!
   const CurrentViewIcon = currentView.icon
-  const sizeEnabled = viewMode === "cover-list" || viewUsesThumbnailGrid(viewMode) || viewUsesMosaicGrid(viewMode) || viewUsesBanner(viewMode)
   const thumbsEnabled = viewUsesThumbnails(viewMode)
   const sortFieldLabel = sort ? sortLabels[sort.field] : "排序"
   const sortOrderLabel = sort?.order === "asc" ? "升序" : "降序"
@@ -628,70 +621,20 @@ export default function FolderToolbar(props: FolderToolbarProps) {
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 
-            {sizeEnabled ? (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  {viewUsesBanner(viewMode) ? <GalleryHorizontalEnd className="size-4" /> : <Grid2X2 className="size-4" />}
-                  项目尺寸
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-64 p-3" data-folder-toolbar-menu="size">
-                  {viewMode === "cover-list" ? (
-                    <div className="grid grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2" data-folder-size-control="content">
-                      <Rows3 className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                      <Slider
-                        aria-label="内容预览宽度"
-                        min={20}
-                        max={70}
-                        step={1}
-                        value={[contentWidthPercent]}
-                        disabled={disabled}
-                        onValueChange={(value) => onContentWidthChange(value[0] ?? 35)}
-                        onValueCommit={(value) => onCommitContentWidth(value[0] ?? 35)}
-                      />
-                      <span className="text-right text-[10px] tabular-nums text-muted-foreground">
-                        {contentWidthPercent}%
-                      </span>
-                    </div>
-                  ) : null}
-                  {viewUsesThumbnailGrid(viewMode) || viewUsesMosaicGrid(viewMode) ? (
-                    <div className="grid grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2" data-folder-size-control="thumbnail">
-                      <Grid2X2 className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                      <Slider
-                        aria-label="缩略图宽度"
-                        min={10}
-                        max={90}
-                        step={1}
-                        value={[thumbnailWidthPercent]}
-                        disabled={disabled}
-                        onValueChange={(value) => onThumbnailWidthChange(value[0] ?? 20)}
-                        onValueCommit={(value) => onCommitThumbnailWidth(value[0] ?? 20)}
-                      />
-                      <span className="text-right text-[10px] tabular-nums text-muted-foreground">
-                        {thumbnailPixelSize(thumbnailWidthPercent)}px
-                      </span>
-                    </div>
-                  ) : null}
-                  {viewUsesBanner(viewMode) ? (
-                    <div className="grid grid-cols-[1rem_minmax(5rem,1fr)_3rem] items-center gap-2" data-folder-size-control="banner">
-                      <GalleryHorizontalEnd className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                      <Slider
-                        aria-label="横幅宽度"
-                        min={20}
-                        max={100}
-                        step={10}
-                        value={[bannerWidthPercent]}
-                        disabled={disabled}
-                        onValueChange={(value) => onBannerWidthChange(value[0] ?? 50)}
-                        onValueCommit={(value) => onCommitBannerWidth(value[0] ?? 50)}
-                      />
-                      <span className="text-right text-[10px] tabular-nums text-muted-foreground">
-                        {Math.max(1, Math.floor(100 / bannerWidthPercent))} 列
-                      </span>
-                    </div>
-                  ) : null}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            ) : null}
+            <ReaderFilePresentationMoreMenuItems
+              presentation={{ viewMode, contentWidthPercent, thumbnailWidthPercent, bannerWidthPercent }}
+              disabled={disabled}
+              onPreview={(field, value) => {
+                if (field === "contentWidthPercent") onContentWidthChange(value)
+                else if (field === "thumbnailWidthPercent") onThumbnailWidthChange(value)
+                else onBannerWidthChange(value)
+              }}
+              onCommit={(field, value) => {
+                if (field === "contentWidthPercent") onCommitContentWidth(value)
+                else if (field === "thumbnailWidthPercent") onCommitThumbnailWidth(value)
+                else onCommitBannerWidth(value)
+              }}
+            />
 
             <DropdownMenuSeparator />
             <DropdownMenuItem

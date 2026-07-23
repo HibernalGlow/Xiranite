@@ -1083,20 +1083,46 @@ export interface ReaderSwimlaneLaneDto {
 export type ReaderShellEdge = "top" | "right" | "bottom" | "left"
 export type ReaderShellLockMode = "auto" | "locked-open" | "locked-hidden"
 
+export type ReaderFilePresentationViewMode = "compact" | "cover-list" | "mosaic-list" | "cover-grid"
+
+export interface ReaderFilePresentationOverridesDto {
+  viewMode?: ReaderFilePresentationViewMode
+  contentWidthPercent?: number
+  thumbnailWidthPercent?: number
+  bannerWidthPercent?: number
+}
+
+export interface ReaderFilePresentationOverridesPatch {
+  viewMode?: ReaderFilePresentationViewMode | null
+  contentWidthPercent?: number | null
+  thumbnailWidthPercent?: number | null
+  bannerWidthPercent?: number | null
+}
+
 export interface ReaderHistoryListPreferencesDto {
+  /** @deprecated Compatibility projection for older Reader hosts. */
   viewMode: "compact" | "content" | "banner" | "thumbnail"
+  viewOverrides?: ReaderFilePresentationOverridesDto
 }
 
 export interface ReaderHistoryListPreferencesPatch {
-  historyList: Partial<ReaderHistoryListPreferencesDto>
+  historyList: {
+    /** @deprecated Accepted by older Reader hosts. */
+    viewMode?: ReaderHistoryListPreferencesDto["viewMode"]
+    viewOverrides?: ReaderFilePresentationOverridesPatch
+  }
 }
 
 export interface ReaderBookmarkListPreferencesDto {
   activeListId: string
+  viewOverrides?: ReaderFilePresentationOverridesDto
 }
 
 export interface ReaderBookmarkListPreferencesPatch {
-  bookmarkList: Partial<ReaderBookmarkListPreferencesDto>
+  bookmarkList: {
+    activeListId?: string
+    viewOverrides?: ReaderFilePresentationOverridesPatch
+  }
 }
 
 export interface ReaderPageListPreferencesDto {

@@ -140,26 +140,49 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewSlideshowPatch({ slideshow: { autoplay: true } })).toThrow("unsupported fields")
   })
 
-  it("[neoview.history.view-settings-config] persists a bounded History-specific view mode", () => {
-    expect(parseNeoviewRuntimeConfig({ history_list: { view_mode: "thumbnail" } }).historyList).toEqual({ viewMode: "thumbnail" })
-    expect(parseNeoviewRuntimeConfig(undefined).historyList).toEqual({ viewMode: "compact" })
-    expect(parseNeoviewHistoryListPatch({ historyList: { viewMode: "banner" } })).toEqual({
-      patch: { historyList: { viewMode: "banner" } },
-      tomlPatch: { history_list: { view_mode: "banner" } },
+  it("[neoview.history.view-settings-config] inherits File presentation with sparse bounded overrides", () => {
+    expect(parseNeoviewRuntimeConfig({ history_list: { view_mode: "thumbnail" } }).historyList).toEqual({
+      viewMode: "thumbnail",
+      viewOverrides: { viewMode: "cover-grid" },
     })
-    expect(() => parseNeoviewHistoryListPatch({ historyList: {} })).toThrow("viewMode")
+    expect(parseNeoviewRuntimeConfig({ history_list: {
+      view_mode: "content",
+      view_overrides: { view_mode: "mosaic-list", thumbnail_width_percent: 42 },
+    } }).historyList).toEqual({
+      viewMode: "content",
+      viewOverrides: { viewMode: "mosaic-list", thumbnailWidthPercent: 42 },
+    })
+    expect(parseNeoviewRuntimeConfig(undefined).historyList).toEqual({ viewMode: "compact", viewOverrides: {} })
+    expect(parseNeoviewHistoryListPatch({ historyList: { viewMode: "banner" } })).toEqual({
+      patch: { historyList: { viewMode: "banner", viewOverrides: { viewMode: "mosaic-list" } } },
+      tomlPatch: { history_list: { view_mode: null, view_overrides: { view_mode: "mosaic-list" } } },
+    })
+    expect(parseNeoviewHistoryListPatch({ historyList: { viewOverrides: { thumbnailWidthPercent: 36 } } })).toEqual({
+      patch: { historyList: { viewOverrides: { thumbnailWidthPercent: 36 } } },
+      tomlPatch: { history_list: { view_overrides: { thumbnail_width_percent: 36 } } },
+    })
+    expect(parseNeoviewHistoryListPatch({ historyList: { viewOverrides: { viewMode: null } } })).toEqual({
+      patch: { historyList: { viewOverrides: { viewMode: null } } },
+      tomlPatch: { history_list: { view_mode: null, view_overrides: { view_mode: null } } },
+    })
+    expect(() => parseNeoviewHistoryListPatch({ historyList: {} })).toThrow("viewMode or viewOverrides")
     expect(() => parseNeoviewHistoryListPatch({ historyList: { viewMode: "grid" } })).toThrow("viewMode")
+    expect(() => parseNeoviewHistoryListPatch({ historyList: { viewOverrides: { thumbnailWidthPercent: 9 } } })).toThrow("between 10 and 90")
     expect(() => parseNeoviewHistoryListPatch({ historyList: { viewMode: "compact", future: true } })).toThrow("unsupported")
   })
 
   it("[neoview.bookmark.active-list-config] persists a bounded active Bookmark List identity", () => {
-    expect(parseNeoviewRuntimeConfig({ bookmark_list: { active_list_id: "reading" } }).bookmarkList).toEqual({ activeListId: "reading" })
-    expect(parseNeoviewRuntimeConfig(undefined).bookmarkList).toEqual({ activeListId: "all" })
+    expect(parseNeoviewRuntimeConfig({ bookmark_list: { active_list_id: "reading" } }).bookmarkList).toEqual({ activeListId: "reading", viewOverrides: {} })
+    expect(parseNeoviewRuntimeConfig(undefined).bookmarkList).toEqual({ activeListId: "all", viewOverrides: {} })
     expect(parseNeoviewBookmarkListPatch({ bookmarkList: { activeListId: " reading " } })).toEqual({
       patch: { bookmarkList: { activeListId: "reading" } },
       tomlPatch: { bookmark_list: { active_list_id: "reading" } },
     })
-    expect(() => parseNeoviewBookmarkListPatch({ bookmarkList: {} })).toThrow("activeListId")
+    expect(parseNeoviewBookmarkListPatch({ bookmarkList: { viewOverrides: { bannerWidthPercent: 70 } } })).toEqual({
+      patch: { bookmarkList: { viewOverrides: { bannerWidthPercent: 70 } } },
+      tomlPatch: { bookmark_list: { view_overrides: { banner_width_percent: 70 } } },
+    })
+    expect(() => parseNeoviewBookmarkListPatch({ bookmarkList: {} })).toThrow("activeListId or viewOverrides")
     expect(() => parseNeoviewBookmarkListPatch({ bookmarkList: { activeListId: "" } })).toThrow("1 to 256")
     expect(() => parseNeoviewBookmarkListPatch({ bookmarkList: { activeListId: "x".repeat(257) } })).toThrow("1 to 256")
     expect(() => parseNeoviewBookmarkListPatch({ bookmarkList: { activeListId: "all", future: true } })).toThrow("unsupported")

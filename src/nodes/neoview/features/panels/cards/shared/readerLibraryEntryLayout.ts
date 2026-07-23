@@ -3,8 +3,8 @@ export type ReaderLibraryViewMode = "compact" | "cover-list" | "mosaic-list" | "
 export type ReaderLibrarySurfaceVariant = "compact" | "content" | "banner" | "thumbnail"
 
 /** Minimum cell width before another column is added. */
-const BANNER_MIN_CELL = 280
-const THUMBNAIL_MIN_CELL = 132
+const BANNER_MIN_CELL = 160
+const THUMBNAIL_MIN_CELL = 88
 const BANNER_CAPTION_RESERVE = 0
 const THUMBNAIL_CAPTION_RESERVE = 36
 const BANNER_ASPECT = 3 / 4 // media column prefers portrait comic covers
@@ -25,6 +25,7 @@ export interface ReaderLibraryListLayout {
 export function readerLibraryListLayout(
   viewMode: ReaderLibraryViewMode,
   viewportWidth = 320,
+  presentation?: Pick<ReaderFilePresentationConfig, "bannerWidthPercent" | "thumbnailWidthPercent">,
 ): ReaderLibraryListLayout {
   const width = Math.max(0, Math.floor(viewportWidth))
   switch (viewMode) {
@@ -34,7 +35,9 @@ export function readerLibraryListLayout(
       return { itemSize: 76, columns: 1, gap: 0 }
     case "mosaic-list": {
       const gap = 8
-      const columns = Math.max(1, Math.floor((width + gap) / (BANNER_MIN_CELL + gap)))
+      const availableColumns = Math.max(1, Math.floor((width + gap) / (BANNER_MIN_CELL + gap)))
+      const requestedColumns = Math.max(1, Math.floor(100 / (presentation?.bannerWidthPercent ?? 50)))
+      const columns = Math.min(availableColumns, requestedColumns)
       const cellWidth = columns === 1 ? width : Math.floor((width - gap * (columns - 1)) / columns)
       // Banner media is ~42% of card width; height follows portrait cover ratio with a floor.
       const mediaWidth = Math.max(112, Math.round(cellWidth * 0.42))
@@ -43,7 +46,9 @@ export function readerLibraryListLayout(
     }
     case "cover-grid": {
       const gap = 8
-      const columns = Math.max(1, Math.floor((width + gap) / (THUMBNAIL_MIN_CELL + gap)))
+      const availableColumns = Math.max(1, Math.floor((width + gap) / (THUMBNAIL_MIN_CELL + gap)))
+      const requestedColumns = Math.max(1, Math.floor(100 / (presentation?.thumbnailWidthPercent ?? 20)))
+      const columns = Math.min(availableColumns, requestedColumns)
       const cellWidth = columns === 1 ? width : Math.floor((width - gap * (columns - 1)) / columns)
       const surfaceHeight = Math.max(160, Math.round(cellWidth / THUMBNAIL_ASPECT) + THUMBNAIL_CAPTION_RESERVE)
       return { itemSize: surfaceHeight + gap, columns, gap }
@@ -58,9 +63,21 @@ export function readerLibraryMediaClassName(viewMode: ReaderLibraryViewMode): st
   return "size-full min-h-0 rounded-none"
 }
 
+export function readerLibraryMediaStyle(
+  viewMode: ReaderLibraryViewMode,
+  presentation: Pick<ReaderFilePresentationConfig, "contentWidthPercent">,
+): CSSProperties | undefined {
+  return viewMode === "cover-list"
+    ? { width: `${presentation.contentWidthPercent}%`, maxWidth: "70%" }
+    : undefined
+}
+
 export function readerLibrarySurfaceVariant(viewMode: ReaderLibraryViewMode): ReaderLibrarySurfaceVariant {
   if (viewMode === "compact") return "compact"
   if (viewMode === "cover-list") return "content"
   if (viewMode === "mosaic-list") return "banner"
   return "thumbnail"
 }
+import type { CSSProperties } from "react"
+
+import type { ReaderFilePresentationConfig } from "../../readerFilePresentation"

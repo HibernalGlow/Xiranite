@@ -26,7 +26,9 @@ import {
   ReaderHttpError,
   type ReaderHttpClient,
   type ReaderBookmarkListPreferencesDto,
+  type ReaderBookmarkListPreferencesPatch,
   type ReaderHistoryListPreferencesDto,
+  type ReaderHistoryListPreferencesPatch,
   type ReaderNavigationDto,
   type ReaderBookSettingsUpdateDto,
   type ReaderBookDefaultsDto,
@@ -76,6 +78,7 @@ import { ReaderVideoController } from "../features/video/ReaderVideoController"
 import { ReaderViewerToggleStore } from "../features/viewer/ReaderViewerToggleStore"
 import { migrateLegacyReaderPageTransition } from "../features/page-transition/LegacyReaderPageTransitionMigration"
 import { migrateLegacySidebarHeight } from "../features/panels/cards/LegacySidebarHeightMigration"
+import { applyReaderFilePresentationOverridePatch } from "../features/panels/readerFilePresentation"
 import { ReaderPanelDndProvider } from "../features/panels/ReaderPanelDnd"
 import { readerShellMaterialDraft, readerShellMaterialStyle } from "../features/material/ReaderShellMaterial"
 import { createReaderSwitchToastStore } from "../features/switch-toast/ReaderSwitchToastStore"
@@ -161,9 +164,11 @@ const INITIAL_VIEW_DEFAULTS = {
 } satisfies ReaderRuntimeConfigDto["viewDefaults"]
 const INITIAL_HISTORY_LIST_PREFERENCES: ReaderHistoryListPreferencesDto = {
   viewMode: "compact",
+  viewOverrides: {},
 }
 const INITIAL_BOOKMARK_LIST_PREFERENCES: ReaderBookmarkListPreferencesDto = {
   activeListId: "all",
+  viewOverrides: {},
 }
 const INITIAL_PAGE_LIST_PREFERENCES: ReaderPageListPreferencesDto = {
   viewMode: "list",
@@ -1054,9 +1059,15 @@ export function ReaderApp({
     ))
   }
 
-  async function persistHistoryListPreferences(patch: Partial<ReaderHistoryListPreferencesDto>): Promise<ReaderHistoryListPreferencesDto> {
+  async function persistHistoryListPreferences(patch: ReaderHistoryListPreferencesPatch["historyList"]): Promise<ReaderHistoryListPreferencesDto> {
     const generation = ++historyListPreferencesGenerationRef.current
-    const next = { ...historyListPreferences, ...patch }
+    const next = {
+      ...historyListPreferences,
+      ...patch,
+      viewOverrides: patch.viewOverrides
+        ? applyReaderFilePresentationOverridePatch(historyListPreferences.viewOverrides, patch.viewOverrides)
+        : historyListPreferences.viewOverrides,
+    }
     if (!clientRef.current.updateHistoryList) {
       setHistoryListPreferences(next)
       return next
@@ -1066,9 +1077,15 @@ export function ReaderApp({
     return updated
   }
 
-  async function persistBookmarkListPreferences(patch: Partial<ReaderBookmarkListPreferencesDto>): Promise<ReaderBookmarkListPreferencesDto> {
+  async function persistBookmarkListPreferences(patch: ReaderBookmarkListPreferencesPatch["bookmarkList"]): Promise<ReaderBookmarkListPreferencesDto> {
     const generation = ++bookmarkListPreferencesGenerationRef.current
-    const next = { ...bookmarkListPreferences, ...patch }
+    const next = {
+      ...bookmarkListPreferences,
+      ...patch,
+      viewOverrides: patch.viewOverrides
+        ? applyReaderFilePresentationOverridePatch(bookmarkListPreferences.viewOverrides, patch.viewOverrides)
+        : bookmarkListPreferences.viewOverrides,
+    }
     if (!clientRef.current.updateBookmarkList) {
       setBookmarkListPreferences(next)
       return next

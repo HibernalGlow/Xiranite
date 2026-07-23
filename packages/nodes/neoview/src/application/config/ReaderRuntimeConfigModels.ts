@@ -149,12 +149,14 @@ export interface NeoviewFileTreeConfig {
 }
 
 export const NEOVIEW_FOLDER_VIEW_MODES = ["compact", "cover-list", "mosaic-list", "details", "cover-grid", "mosaic-grid"] as const
+export const NEOVIEW_FILE_PRESENTATION_VIEW_MODES = ["compact", "cover-list", "mosaic-list", "cover-grid"] as const
 export const NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS = ["none", "goUp", "goBack"] as const
 export const NEOVIEW_FOLDER_TREE_LAYOUTS = ["left", "right", "top", "bottom"] as const
 export const NEOVIEW_FOLDER_REGION_POSITIONS = ["none", "top", "bottom", "left", "right"] as const
 export const NEOVIEW_FOLDER_DETAIL_COLUMNS = ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"] as const
 export const NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS = [200, 500, 800, 1200] as const
 export type NeoviewFolderViewMode = (typeof NEOVIEW_FOLDER_VIEW_MODES)[number]
+export type NeoviewFilePresentationViewMode = (typeof NEOVIEW_FILE_PRESENTATION_VIEW_MODES)[number]
 export type NeoviewFolderEmptyAreaAction = (typeof NEOVIEW_FOLDER_EMPTY_AREA_ACTIONS)[number]
 export type NeoviewFolderTreeLayout = (typeof NEOVIEW_FOLDER_TREE_LAYOUTS)[number]
 export type NeoviewFolderRegionPosition = (typeof NEOVIEW_FOLDER_REGION_POSITIONS)[number]
@@ -331,20 +333,44 @@ export interface NeoviewSuperResolutionPatch {
   preferences?: NeoviewSuperResolutionPreferencesPatch
 }
 
+export interface NeoviewFilePresentationOverrides {
+  viewMode?: NeoviewFilePresentationViewMode
+  contentWidthPercent?: number
+  thumbnailWidthPercent?: number
+  bannerWidthPercent?: number
+}
+
+export interface NeoviewFilePresentationOverridePatch {
+  viewMode?: NeoviewFilePresentationViewMode | null
+  contentWidthPercent?: number | null
+  thumbnailWidthPercent?: number | null
+  bannerWidthPercent?: number | null
+}
+
 export interface NeoviewHistoryListConfig {
+  /** @deprecated Compatibility projection for pre-view_overrides clients. */
   viewMode: "compact" | "content" | "banner" | "thumbnail"
+  viewOverrides: NeoviewFilePresentationOverrides
 }
 
 export interface NeoviewHistoryListPatch {
-  historyList: Partial<NeoviewHistoryListConfig>
+  historyList: {
+    /** @deprecated Accepted and normalized into viewOverrides.viewMode. */
+    viewMode?: NeoviewHistoryListConfig["viewMode"]
+    viewOverrides?: NeoviewFilePresentationOverridePatch
+  }
 }
 
 export interface NeoviewBookmarkListConfig {
   activeListId: string
+  viewOverrides: NeoviewFilePresentationOverrides
 }
 
 export interface NeoviewBookmarkListPatch {
-  bookmarkList: Partial<NeoviewBookmarkListConfig>
+  bookmarkList: {
+    activeListId?: string
+    viewOverrides?: NeoviewFilePresentationOverridePatch
+  }
 }
 
 export interface NeoviewPageListConfig {
@@ -678,10 +704,12 @@ export type NeoviewShellConfigPatch = NeoviewSidebarLayoutPatch | NeoviewCardLay
 
 export const DEFAULT_NEOVIEW_HISTORY_LIST_CONFIG: NeoviewHistoryListConfig = {
   viewMode: "compact",
+  viewOverrides: {},
 }
 
 export const DEFAULT_NEOVIEW_BOOKMARK_LIST_CONFIG: NeoviewBookmarkListConfig = {
   activeListId: "all",
+  viewOverrides: {},
 }
 
 export const DEFAULT_NEOVIEW_PAGE_LIST_CONFIG: NeoviewPageListConfig = {
