@@ -290,13 +290,13 @@ describe("xlchemy core contract", () => {
       return "/photos/a.png"
     }
     runtime.readFileBase64 = async (path) => {
-      expect(path).toBe("/photos/output/a.png")
+      expect(path).toBe("/exports/a.png")
       return "d2VicA=="
     }
     runtime.cleanupTemporaryFile = cleanup
 
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: [], format: "PNG", quality: 72, outputMode: "source", overwrite: false, preserveMetadata: false }), runtime)
-    const clipboardResult = await runXlchemy({ ...normalizeXlchemyInput({ action: "convert", paths: ["/photos/events/b.jpg"], efuFiles: ["/lists/large.efu"], format: "PNG", quality: 72, outputMode: "source", preserveMetadata: false }), inlineSource: { base64: "cG5n", mimeType: "image/png" } }, runtime)
+    const clipboardResult = await runXlchemy({ ...normalizeXlchemyInput({ action: "convert", paths: ["/photos/events/b.jpg"], efuFiles: ["/lists/large.efu"], format: "PNG", quality: 72, outputMode: "directory", outputDir: "/exports", preserveMetadata: false }), inlineSource: { base64: "cG5n", mimeType: "image/png" } }, runtime)
 
     expect(result.success).toBe(false)
     expect(clipboardResult.success).toBe(true)
