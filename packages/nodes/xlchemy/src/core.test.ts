@@ -94,6 +94,26 @@ describe("xlchemy core contract", () => {
     })
   })
 
+  test("streams large EFU inputs with bounded result and event details", async () => {
+    const runtime = fakeRuntime()
+    const originalPathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => /^\/bulk\/\d+\.png$/.test(path)
+      ? { path, exists: true, isFile: true, isDirectory: false, size: 100, atimeMs: 0, mtimeMs: 0 }
+      : originalPathInfo(path)
+    runtime.streamEfuPaths = async function* () {
+      for (let index = 0; index < 2_500; index += 1) yield `/bulk/${index}.png`
+    }
+    const events: Array<{ data?: unknown }> = []
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "plan", paths: [], efuFiles: ["/lists/large.efu"], format: "WebP" }), runtime, (event) => events.push(event))
+    const snapshots = events.flatMap((event) => (event.data as { kind?: string; result?: { files: unknown[] } } | undefined)?.kind === "xlchemy-live-result" ? [event.data as { result: { files: unknown[] } }] : [])
+    expect(result.success).toBe(true)
+    expect(result.data).toMatchObject({ inputCount: 2_500, detailsTruncated: true })
+    expect(result.data?.files).toHaveLength(1_000)
+    expect(result.data?.files.at(-1)?.sourcePath).toBe("/bulk/2499.png")
+    expect(snapshots.length).toBeLessThan(10)
+    expect(Math.max(...snapshots.map((snapshot) => snapshot.result.files.length))).toBeLessThanOrEqual(20)
+  })
+
   test("diagnoses PATH tools without requiring input files or leaking probe arguments", async () => {
     const runtime = fakeRuntime()
     runtime.resolveCommand = async (candidates) => candidates[0] === "oxipng" ? undefined : `/bin/${candidates[0]}`

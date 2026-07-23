@@ -8,6 +8,7 @@ import type { XlchemyRuntime } from "./core.js"
 import { runXlchemyCommand } from "./command.js"
 import { convertWithSlimg, probeSlimg } from "./slimg.js"
 import { convertClipToPsd } from "./clip-to-psd.js"
+import { streamEfuPaths } from "./efu-stream.js"
 
 export function createNodeXlchemyRuntime(): XlchemyRuntime {
   return {
@@ -38,6 +39,7 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
     },
     readFileBase64: async (path) => (await readFile(path)).toString("base64"),
     cleanupTemporaryFile: async (path) => { await rm(dirname(path), { recursive: true, force: true }) },
+    streamEfuPaths,
   }
 }
 

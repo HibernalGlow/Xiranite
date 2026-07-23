@@ -5,6 +5,8 @@ export type XlchemyPhase = "idle" | "running" | "completed" | "cancelled" | "err
 export interface XlchemyCardState {
   action?: XlchemyAction
   pathsText?: string
+  /** Native EFU paths are streamed by the backend instead of expanded into card state. */
+  efuFiles?: string[]
   format?: XlchemyFormat
   lossless?: boolean
   quality?: number

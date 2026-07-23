@@ -252,6 +252,28 @@ describe("app-owned xlchemy Component", () => {
     expect(host.cardState.selectedPaths).toEqual(["D:/images/alpha.png", "D:/images/beta.jpg", "D:/images/folder/nested.jp2"])
   })
 
+  test("keeps imported EFU files as backend-streamed references", async () => {
+    const host = createHost({})
+    host.localFiles = {
+      getUrl: (path) => `local://${path}`,
+      pickFiles: async (options) => options?.filters?.[0]?.pattern === "*.efu" ? ["D:/Downloads/al.efu"] : [],
+      pickDirectory: async () => undefined,
+    }
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "添加输入" }))
+    await user.click(screen.getByRole("menuitem", { name: "导入 EFU 文件列表" }))
+    await waitFor(() => expect(host.cardState.efuFiles).toEqual(["D:/Downloads/al.efu"]))
+    expect(host.cardState.pathsText).toBeUndefined()
+
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    expect(screen.getByText("al.efu")).toBeTruthy()
+    const plan = within(screen.getByTestId("xlchemy-header")).getByRole("button", { name: "预览计划" })
+    expect(plan.hasAttribute("disabled")).toBe(false)
+    fireEvent.click(plan)
+    await waitFor(() => expect(host.runCalls.at(-1)?.input).toMatchObject({ paths: [], efuFiles: ["D:/Downloads/al.efu"] }))
+  })
+
   test("applies enabled input formats while files are being added", async () => {
     const host = createHost({ excludedFormatsText: "jxl,avif,webp,gif" })
     let pickerPattern = ""
