@@ -60,6 +60,13 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-cleanf/platform"), { nodeId: "cleanf", entry: "platform" }),
     createRuntime: "createNodeCleanfRuntime",
   },
+  comfygure: {
+    packageName: "@xiranite/node-comfygure",
+    loadCore: createNodeModuleLoader(() => import("@xiranite/node-comfygure/core"), { nodeId: "comfygure", entry: "core" }),
+    run: "runComfygure",
+    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-comfygure/platform"), { nodeId: "comfygure", entry: "platform" }),
+    createRuntime: "createNodeComfygureRuntime",
+  },
   coveru: {
     packageName: "@xiranite/node-coveru",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-coveru/core"), { nodeId: "coveru", entry: "core" }),

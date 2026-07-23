@@ -44,6 +44,7 @@
         "@xiranite/node-classf": "workspace:*",
         "@xiranite/node-classq": "workspace:*",
         "@xiranite/node-cleanf": "workspace:*",
+        "@xiranite/node-comfygure": "workspace:*",
         "@xiranite/node-coveru": "workspace:*",
         "@xiranite/node-crashu": "workspace:*",
         "@xiranite/node-czkawka": "workspace:*",
@@ -491,6 +492,18 @@
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "^7.0.2",
+      },
+    },
+    "packages/nodes/comfygure": {
+      "name": "@xiranite/node-comfygure",
+      "version": "0.1.0",
+      "dependencies": {
+        "@xiranite/contract": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10",
       },
     },
     "packages/nodes/coveru": {
@@ -2381,6 +2394,8 @@
     "@xiranite/node-classq": ["@xiranite/node-classq@workspace:packages/nodes/classq"],
 
     "@xiranite/node-cleanf": ["@xiranite/node-cleanf@workspace:packages/nodes/cleanf"],
+
+    "@xiranite/node-comfygure": ["@xiranite/node-comfygure@workspace:packages/nodes/comfygure"],
 
     "@xiranite/node-coveru": ["@xiranite/node-coveru@workspace:packages/nodes/coveru"],
 

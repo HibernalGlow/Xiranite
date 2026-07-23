@@ -1,0 +1,3 @@
+# Preserve Mooshie behavior, not its visual skin
+
+The AST-assisted migration treats Mooshie's control and option inventory, functional grouping, primary operation order, defaults, conditional visibility, interaction states, input methods, and generation-parameter behavior as source contracts. Production React uses Xiranite components, icons, design tokens, information density, and responsive conventions rather than pursuing pixel-level reproduction of Mooshie's visual skin. Characterization screenshots establish hierarchy and geometry evidence, while every removed, merged, or intentionally changed interaction requires a recorded deviation and replacement contract.

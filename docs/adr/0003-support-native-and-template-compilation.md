@@ -1,0 +1,3 @@
+# Support native and template compilation
+
+Comfygure supports Native Compilation as the preferred path for selectively absorbed Mooshie, Anima, and TypeScript builder capabilities, while Template Compilation preserves support for imported ComfyUI API graphs. Template imports create a versioned Binding Manifest after one user confirmation; remapping uses semantic role, node type, title, input field, and structural fingerprint rather than trusting node IDs alone, and ambiguous changes require confirmation. Both backends consume resolved Generation Jobs and emit Prompt Graphs into the same validation, queue, execution, and result pipeline.
