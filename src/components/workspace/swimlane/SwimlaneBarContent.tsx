@@ -48,7 +48,7 @@ export function SwimlaneBarContent({
   return (
     <>
       {handlePosition === "left" ? handle : null}
-      <div data-swimlane-bar-scroll="true" className={cn(
+      <div data-swimlane-bar-scroll="true" data-scrollbar="hidden" className={cn(
         "flex min-h-0 min-w-0 flex-1 gap-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         horizontal ? "flex-row overflow-x-auto overflow-y-hidden" : "flex-col overflow-x-hidden overflow-y-auto",
       )}>
