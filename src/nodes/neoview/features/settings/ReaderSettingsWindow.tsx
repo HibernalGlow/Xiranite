@@ -97,6 +97,7 @@ export function ReaderSettingsWindow({
         <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
           <nav
             className="flex shrink-0 overflow-x-auto border-b bg-muted/15 p-2 sm:w-40 sm:flex-col sm:overflow-y-auto sm:border-b-0 sm:border-r"
+            data-scrollbar="hidden"
             aria-label="NeoView 设置分类"
           >
             {SETTINGS_SECTIONS.map((section) => {

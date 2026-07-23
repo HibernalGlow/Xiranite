@@ -6,6 +6,35 @@ export interface ReaderPanelMove {
   patch: ReaderBoardLayoutPatch
 }
 
+export function moveReaderCard(
+  shell: ReaderShellConfigDto,
+  cardId: string,
+  direction: -1 | 1,
+  orderedCardIds: readonly string[],
+): ReaderPanelMove | undefined {
+  const current = shell.cardLayout[cardId]
+  if (!current?.visible) return undefined
+
+  const panelCardIds = orderedCardIds.filter((id) => {
+    const layout = shell.cardLayout[id]
+    return layout?.visible && layout.panelId === current.panelId
+  })
+  const currentIndex = panelCardIds.indexOf(cardId)
+  const destinationIndex = currentIndex + direction
+  if (currentIndex < 0 || destinationIndex < 0 || destinationIndex >= panelCardIds.length) return undefined
+
+  const nextIds = [...panelCardIds]
+  const destinationId = nextIds[destinationIndex]!
+  nextIds[destinationIndex] = nextIds[currentIndex]!
+  nextIds[currentIndex] = destinationId
+  const nextCardLayout = { ...shell.cardLayout }
+  for (const [order, id] of nextIds.entries()) {
+    nextCardLayout[id] = { ...nextCardLayout[id]!, order }
+  }
+  const nextShell = { ...shell, cardLayout: nextCardLayout }
+  return { shell: nextShell, patch: createReaderPanelBoardPatch(nextShell) }
+}
+
 export function moveReaderPanel(
   shell: ReaderShellConfigDto,
   panelId: string,

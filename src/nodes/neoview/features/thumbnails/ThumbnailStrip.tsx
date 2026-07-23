@@ -170,6 +170,7 @@ export function ThumbnailStrip({
       <div
         ref={viewportRef}
         aria-label="页面缩略图"
+        data-scrollbar="hidden"
         className={cn(
           "relative max-w-full shrink-0 scale-y-[-1] overflow-x-auto overflow-y-hidden overscroll-x-contain bg-muted/15 px-1 py-1.5",
           compact ? "h-[clamp(84px,24vh,124px)]" : "h-[clamp(104px,25vh,176px)]",

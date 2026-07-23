@@ -92,3 +92,19 @@
   --color-badge-teal-subtle: var(--badge-teal-subtle);
   --color-badge-teal-subtle-foreground: var(--badge-teal-subtle-foreground);
 }
+
+/* Shared chrome contract: scrolling remains functional without visible rails. */
+.hide-scrollbar,
+[data-scrollbar="hidden"],
+[role="tablist"].overflow-x-auto {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.hide-scrollbar::-webkit-scrollbar,
+[data-scrollbar="hidden"]::-webkit-scrollbar,
+[role="tablist"].overflow-x-auto::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}

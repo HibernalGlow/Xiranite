@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises"
+import { readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { expect, test, type Locator, type Page } from "@playwright/test"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
@@ -9,12 +9,13 @@ import { createZipFixture, type ZipFixture } from "../../../packages/nodes/neovi
 const ONE_PIXEL_PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==", "base64"))
 let fixture: ZipFixture
 let backend: Awaited<ReturnType<typeof startBackend>>
+let configPath: string
 
 test.setTimeout(90_000)
 
 test.beforeAll(async () => {
   fixture = await createZipFixture({ entries: [{ path: "pages/001.png", bytes: ONE_PIXEL_PNG, level: 0 }] })
-  const configPath = join(fixture.directory, "xiranite.config.toml")
+  configPath = join(fixture.directory, "xiranite.config.toml")
   await writeFile(configPath, [
     "[nodes.neoview]",
     "schema_version = 1",
@@ -93,6 +94,40 @@ test("[neoview.sidebar.panel-drop-zone] drops a held panel onto either sidebar c
   const movedLeft = await moveLeft
   expect((await movedLeft.json() as { shell: { panelLayout: Record<string, { position: string }> } }).shell.panelLayout.history?.position).toBe("left")
   await expect(left.getByRole("button", { name: "历史记录", exact: true })).toBeVisible()
+})
+
+test("[neoview.card.order-e2e] moves a card and keeps the board and TOML order synchronized", async ({ page }, testInfo) => {
+  const runtimeErrors: string[] = []
+  page.on("pageerror", (error) => runtimeErrors.push(error.stack ?? error.message))
+  page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()) })
+  await openReader(page)
+
+  const infoPanel = page.locator('[data-reader-panel="info"]')
+  await expect(infoPanel).toBeVisible()
+  const moveDown = infoPanel.getByRole("button", { name: "下移书籍信息" })
+  await expect(moveDown).toBeVisible()
+
+  const responsePromise = page.waitForResponse(isBoardResponse)
+  await moveDown.click()
+  const response = await responsePromise
+  expect(response.status()).toBe(200)
+
+  const request = response.request().postDataJSON() as { board: { cards: Array<{ cardId: string; order: number }> } }
+  const updated = await response.json() as { shell: { cardLayout: Record<string, { order: number }> } }
+  expect(request.board.cards).toEqual(expect.arrayContaining([
+    expect.objectContaining({ cardId: "image-information", order: 0 }),
+    expect.objectContaining({ cardId: "book-information", order: 1 }),
+  ]))
+  expect(updated.shell.cardLayout["image-information"]?.order).toBe(0)
+  expect(updated.shell.cardLayout["book-information"]?.order).toBe(1)
+  await expect.poll(() => readerCardTitles(infoPanel)).toEqual(expect.arrayContaining(["图像信息", "书籍信息"]))
+  expect((await readerCardTitles(infoPanel)).indexOf("图像信息")).toBeLessThan((await readerCardTitles(infoPanel)).indexOf("书籍信息"))
+
+  const persisted = await readFile(configPath, "utf8")
+  expect(persisted).toMatch(/"image-information"\s*=\s*\{[^\r\n]*order\s*=\s*0/)
+  expect(persisted).toMatch(/"book-information"\s*=\s*\{[^\r\n]*order\s*=\s*1/)
+  expect(runtimeErrors, "NeoView runtime errors after a card order change").toEqual([])
+  await infoPanel.screenshot({ path: testInfo.outputPath(`neoview-card-order-${testInfo.project.name}.png`) })
 })
 
 test("[neoview.sidebar.panel-dnd-e2e] reorders and moves panel icons through one shared board", async ({ page }, testInfo) => {
@@ -223,4 +258,8 @@ async function panelButtonNames(rail: Locator): Promise<string[]> {
 
 async function indexOfPanel(rail: Locator, name: string): Promise<number> {
   return (await panelButtonNames(rail)).indexOf(name)
+}
+
+async function readerCardTitles(panel: Locator): Promise<string[]> {
+  return panel.locator('[data-reader-card] [data-slot="reader-card-title"] h3').evaluateAll((headings) => headings.map((heading) => heading.textContent?.trim() ?? ""))
 }

@@ -1882,11 +1882,8 @@ export function ReaderApp({
   const pathSegments = readerPathSegments(path)
   const workspace = shell ? readerWorkspaceWithSession(shell, swimlaneSession) : undefined
   const workspaceMode = workspace?.mode ?? "edges"
-  const readerSolo = workspace?.swimlane.readerSolo ?? true
-  const readerSoloActive = readerSolo && workspace?.swimlane.activeLane === "reader"
-  useEffect(() => {
-    if (!readerSoloActive && readerViewFullscreen) setReaderViewFullscreen(false)
-  }, [readerSoloActive, readerViewFullscreen])
+  const readerOwnsSoloViewport = workspace?.swimlane.soloLaneId === "reader"
+    || workspace?.swimlane.readerSolo === true
 
   // First paint only the swimlane chrome + reader canvas. Mounting both sidebars
   // (and every docked card inside them) on the same frame as setShell freezes the UI.
@@ -1954,7 +1951,7 @@ export function ReaderApp({
     const next = !readerViewFullscreen
     setReaderViewFullscreen(next)
     commitWorkspace(next
-      ? { activeLane: "reader", readerSolo: true, soloLaneId: null, lanes: { reader: { collapsed: false } } }
+      ? { activeLane: "reader", readerSolo: true, soloLaneId: "reader", lanes: { reader: { collapsed: false } } }
       : { readerSolo: false, soloLaneId: null })
   }
   const readerTopbarLeadingControls = (
@@ -1972,11 +1969,11 @@ export function ReaderApp({
       control={shellControl}
       disabled={!shell}
       mode={workspaceMode}
-      readerViewFullscreen={readerViewFullscreen && readerSoloActive}
+      readerViewFullscreen={readerViewFullscreen}
       onModeChange={(mode) => commitWorkspace({ mode })}
       onReaderViewFullscreenChange={toggleReaderViewFullscreen}
       onOpenSettings={() => setSettingsOpen(true)}
-      windowControls={workspaceMode === "edges" || readerSoloActive ? <FloatingWindowCaptionControls integrated /> : undefined}
+      windowControls={workspaceMode === "edges" || readerOwnsSoloViewport ? <FloatingWindowCaptionControls integrated /> : undefined}
       part="trailing"
     />
   )
@@ -2330,9 +2327,9 @@ export function ReaderApp({
                 shell={shell}
                 workspace={workspace}
                 disabled={!shell}
-                readerViewFullscreen={readerViewFullscreen && readerSoloActive}
+                readerViewFullscreen={readerViewFullscreen}
                 onReaderViewFullscreenChange={toggleReaderViewFullscreen}
-                windowChrome={floatingFrame && !readerSoloActive ? {
+                windowChrome={floatingFrame && !readerOwnsSoloViewport ? {
                   controls: <FloatingWindowCaptionControls integrated density="compact" />,
                   onTitlebarDoubleClick: floatingFrame.handleTitlebarDoubleClick,
                 } : undefined}

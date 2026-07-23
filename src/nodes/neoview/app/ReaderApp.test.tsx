@@ -971,6 +971,15 @@ describe("ReaderApp", () => {
     expect(document.querySelector('[data-reader-view-fullscreen="true"]')).toBeTruthy()
     expect(screen.getByRole("button", { name: "退出 Reader 视图全屏" })).toBeTruthy()
     expect(requestFullscreen).not.toHaveBeenCalled()
+
+    fireEvent.pointerDown(document.querySelector('[data-reader-swimlane="right"]')!, { pointerId: 52, button: 0 })
+    await waitFor(() => expect(useSwimlaneSessionStore.getState().sessions["neoview:reader-view-fullscreen-test"]).toMatchObject({
+      activeLaneId: "right",
+      soloLaneId: "reader",
+    }))
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
+    expect(document.querySelector('[data-reader-view-fullscreen="true"]')).toBeTruthy()
+    expect(screen.getByRole("button", { name: "退出 Reader 视图全屏" })).toBeTruthy()
   })
 
   it("[neoview.settings.sessionless-card] mounts an explicitly docked setting card without opening a book", async () => {

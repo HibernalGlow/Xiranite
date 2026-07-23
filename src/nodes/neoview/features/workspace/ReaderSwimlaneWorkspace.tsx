@@ -1,3 +1,4 @@
+import { createLogger } from "@/lib/logger"
 import {
   Component,
   useEffect,
@@ -11,6 +12,7 @@ import {
   type ReactNode,
   type WheelEvent as ReactWheelEvent,
 } from "react"
+
 import { AlertTriangle, BookOpen, Columns3, Ellipsis, Maximize2, Minimize2, PanelLeft, PanelRight, PanelsTopLeft, PanelTopClose, PanelTopOpen, RotateCcw, Scan, Settings2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -47,6 +49,8 @@ import {
 } from "./ReaderWorkspaceLayout"
 import { neoviewDebug } from "../../neoviewDebug"
 import { ReaderLaneNavigator } from "./ReaderLaneNavigator"
+
+const logger = createLogger("neoview.swimlane")
 
 const DEFAULT_LANE_LABELS: Record<string, string> = {
   left: "左侧面板",
@@ -143,6 +147,7 @@ export function ReaderSwimlaneWorkspace({
   const readerFocusTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const panGestureRef = useRef<PanGesture | undefined>(undefined)
   const readerRestorePointerRef = useRef<number | undefined>(undefined)
+  const pointerPositionRef = useRef<{ x: number; y: number }>()
   const [previewLane, setPreviewLane] = useState<ReaderSwimlaneId>()
   const [draggedLane, setDraggedLane] = useState<ReaderSwimlaneId>()
   const [laneNavigatorTitleHost, setLaneNavigatorTitleHost] = useState<HTMLElement | null>(null)
@@ -184,6 +189,14 @@ export function ReaderSwimlaneWorkspace({
     clearTimer(revealTimerRef)
     clearTimer(restoreTimerRef)
     clearTimer(readerFocusTimerRef)
+  }, [])
+
+  useEffect(() => {
+    const trackPointer = (event: PointerEvent) => {
+      pointerPositionRef.current = { x: event.clientX, y: event.clientY }
+    }
+    window.addEventListener("pointermove", trackPointer, { passive: true })
+    return () => window.removeEventListener("pointermove", trackPointer)
   }, [])
 
   function activateLane(laneId: ReaderSwimlaneId): void {
@@ -247,6 +260,22 @@ export function ReaderSwimlaneWorkspace({
   function cancelReaderFocus(): void {
     clearTimer(readerFocusTimerRef)
   }
+
+  useLayoutEffect(() => {
+    const pointer = pointerPositionRef.current
+    const readerLane = laneRefs.current.reader
+    if (!pointer || !readerLane || swimlane.activeLane === "reader") return
+    const rect = readerLane.getBoundingClientRect()
+    const pointerInsideReader = pointer.x >= rect.left
+      && pointer.x <= rect.right
+      && pointer.y >= rect.top
+      && pointer.y <= rect.bottom
+    if (pointerInsideReader) scheduleReaderFocus()
+    else cancelReaderFocus()
+    // Re-check after geometry-changing state transitions. A stationary pointer
+    // does not emit pointerenter when an expanded lane scrolls Reader beneath it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFitGeometryKey, previewLane, soloLaneId, swimlane.activeLane, viewportWidth])
 
   function scrollLaneIntoView(laneId: ReaderSwimlaneId, reason: "focus" | "preview"): void {
     const viewport = viewportRef.current
@@ -1172,7 +1201,7 @@ export class ReaderSwimlaneErrorBoundary extends Component<{
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error("[neoview-swimlane] workspace render failed", error, info.componentStack)
+    logger.error("Workspace render failed", { componentStack: info.componentStack ?? "" }, error)
   }
 
   componentDidUpdate(previous: Readonly<{ resetKey: string }>): void {

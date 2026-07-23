@@ -440,6 +440,52 @@ describe("ReaderSwimlaneWorkspace", () => {
     expect(onWorkspaceChange).not.toHaveBeenCalled()
   })
 
+  it("restarts Reader hover focus when expanding a collapsed preview moves Reader under a stationary pointer", () => {
+    let shell = shellConfig("swimlane", "reader")
+    shell.workspace!.swimlane.soloLaneId = "reader"
+    shell.workspace!.swimlane.lanes.right.collapsed = true
+    let view: ReturnType<typeof render>
+    const onWorkspaceChange = vi.fn((patch: ReaderWorkspacePatch) => {
+      shell = applyReaderWorkspacePatch(shell, patch)
+      view.rerender(workspace())
+    })
+    const workspace = () => (
+      <ReaderSwimlaneWorkspace
+        shell={shell}
+        workspace={readerWorkspaceConfig(shell)}
+        reader={<div>reader</div>}
+        left={<div>left</div>}
+        right={<div>right</div>}
+        onWorkspaceChange={onWorkspaceChange}
+      />
+    )
+    view = render(workspace())
+
+    const readerLane = document.querySelector<HTMLElement>('[data-reader-swimlane="reader"]')!
+    vi.spyOn(readerLane, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 1_000,
+      bottom: 800,
+      left: 0,
+      width: 1_000,
+      height: 800,
+      toJSON: () => ({}),
+    })
+    fireEvent.pointerMove(window, { clientX: 500, clientY: 300 })
+    fireEvent.pointerEnter(document.querySelector('[data-reader-swimlane-trigger="right"]')!)
+    act(() => vi.advanceTimersByTime(180))
+    expect(document.querySelector('[data-reader-swimlane-preview="right"]')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "展开右侧面板泳道；按住可拖动" }))
+    expect(shell.workspace!.swimlane).toMatchObject({ activeLane: "right", soloLaneId: "reader" })
+    act(() => vi.advanceTimersByTime(649))
+    expect(shell.workspace!.swimlane.activeLane).toBe("right")
+    act(() => vi.advanceTimersByTime(1))
+    expect(shell.workspace!.swimlane).toMatchObject({ activeLane: "reader", soloLaneId: "reader" })
+  })
+
   it("offers shared fullscreen and lane-level numeric settings from every lane header", () => {
     const shell = shellConfig("swimlane", "right")
     shell.workspace!.swimlane.readerSolo = false

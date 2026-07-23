@@ -195,6 +195,7 @@ export function FolderBreadcrumb({ path, disabled = false, loading = false, vert
             ref={breadcrumbNavRef}
             aria-label="当前目录"
             title={busy ? path : `${path}\n单击空白处或当前段可编辑路径`}
+            data-scrollbar={vertical ? undefined : "hidden"}
             className={vertical
               ? "flex min-h-0 flex-1 flex-col items-stretch overflow-y-auto"
               : "flex min-w-0 flex-1 cursor-text items-center gap-0 overflow-x-auto overflow-y-hidden whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}

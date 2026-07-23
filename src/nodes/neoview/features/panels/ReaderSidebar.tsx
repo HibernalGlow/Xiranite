@@ -22,6 +22,7 @@ import { CollapsibleReaderCard } from "./CollapsibleReaderCard"
 import { InfoPanelActions } from "./InfoPanelActions"
 import { ReaderPanelBar } from "./ReaderPanelBar"
 import { useReaderPanelDropZone, useReaderPanelRail, useReaderPanelTab } from "./ReaderPanelDnd"
+import { moveReaderCard } from "./reader-panel-layout"
 import {
   availablePanels,
   cardsForPanel,
@@ -119,6 +120,7 @@ export function ReaderSidebar({
     () => (active ? cardsForPanel(active.id, shell, hasSession) : []),
     [active, hasSession, shell],
   )
+  const activeCardIds = useMemo(() => activeCards.map((card) => card.id), [activeCards])
   const expandedCardIds = useMemo(
     () => activeCards
       .filter((card) => shell?.cardLayout[card.id]?.expanded !== false)
@@ -250,7 +252,7 @@ export function ReaderSidebar({
                 ? "flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden [&>*]:h-full [&>*]:min-h-0 [&>*]:min-w-0 [&>*]:w-full [&>*]:flex-1"
                 : "grid gap-2 px-3 py-3")}
             >
-              {cards.map((card) => {
+              {cards.map((card, cardIndex) => {
                 const Card = lazyReaderCard(card.id)
                 const cardLayout = shell?.cardLayout[card.id]
                 const expanded = cardLayout?.expanded ?? true
@@ -274,6 +276,10 @@ export function ReaderSidebar({
                     frameless={exclusive}
                     collapsed={!expanded}
                     height={cardLayout?.height}
+                    canMoveUp={cardIndex > 0}
+                    canMoveDown={cardIndex < cards.length - 1}
+                    onMoveUp={context.onBoardLayout ? () => commitCardMove(card.id, -1, activeCardIds) : undefined}
+                    onMoveDown={context.onBoardLayout ? () => commitCardMove(card.id, 1, activeCardIds) : undefined}
                     onCollapsedChange={(collapsed) => onCardLayoutCommit?.({ cardId: card.id, expanded: !collapsed })}
                     onHeightChange={(height) => onCardLayoutCommit?.({ cardId: card.id, height: height ?? null })}
                   >
@@ -318,6 +324,12 @@ export function ReaderSidebar({
     setMountedPanels((current) => current.has(panelId) ? current : new Set(current).add(panelId))
     setLocalActivePanel(panelId)
     onSelectedPanelChange?.(panelId)
+  }
+
+  function commitCardMove(cardId: string, direction: -1 | 1, orderedCardIds: readonly string[]): void {
+    if (!shell || !context.onBoardLayout) return
+    const move = moveReaderCard(shell, cardId, direction, orderedCardIds)
+    if (move) void context.onBoardLayout(move.patch).catch(() => undefined)
   }
 
   function handleBlankDoubleClick(event: ReactMouseEvent<HTMLElement>): void {
@@ -590,6 +602,7 @@ function useViewportCardMountScheduler({
       : createCardMountState(schedulerKey, firstCardId).mountedCardIds,
     setCardViewportTarget,
   }
+
 }
 
 function createCardMountState(key: string, firstCardId: string | undefined): CardMountState {

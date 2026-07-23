@@ -357,7 +357,7 @@ export default function BookmarkListCard({ client, disabled, panelActive = true,
         />
       </Suspense>
       <div className="flex items-center gap-1">
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5" aria-label="书签列表">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5" aria-label="书签列表" data-scrollbar="hidden">
           {lists.map((list) => (
             <button
               key={list.id}
