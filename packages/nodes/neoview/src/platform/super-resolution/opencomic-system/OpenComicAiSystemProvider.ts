@@ -119,7 +119,6 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
   #runtime?: Promise<OpenComicSystemRuntime>
   #configuredRuntime?: OpenComicSystemRuntime
   #configuredDaemonCount?: number
-  #upscaylDaemonDisabled = false
   #disposed = false
 
   constructor(options: OpenComicAiSystemProviderOptions) {
@@ -152,7 +151,7 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     const runtime = await this.#runtimeInstance()
     let daemonCount = 0
     if (request.model.engine === "upscayl") {
-      daemonCount = capability.daemonSupported === true && !this.#upscaylDaemonDisabled ? this.#maxDaemons : 0
+      daemonCount = capability.daemonSupported === true ? this.#maxDaemons : 0
       if (this.#configuredDaemonCount !== daemonCount) {
         runtime.setConcurrentDaemons(daemonCount)
         this.#configuredDaemonCount = daemonCount
@@ -189,7 +188,6 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
       await runPipeline()
     } catch (error) {
       if (request.model.engine !== "upscayl" || daemonCount === 0 || !(error instanceof SuperResolutionOutputUnavailableError)) throw error
-      this.#upscaylDaemonDisabled = true
       runtime.closeAllProcesses()
       runtime.setConcurrentDaemons(0)
       this.#configuredDaemonCount = 0
@@ -230,7 +228,6 @@ export class OpenComicAiSystemProvider implements SuperResolutionProvider, Async
     this.#runtime = undefined
     this.#configuredRuntime = undefined
     this.#configuredDaemonCount = undefined
-    this.#upscaylDaemonDisabled = false
   }
 
   async [Symbol.asyncDispose](): Promise<void> {

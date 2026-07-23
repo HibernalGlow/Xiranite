@@ -111,7 +111,7 @@ describe("OpenComicAiSystemProvider", () => {
     }
   })
 
-  it("[neoview.super-resolution.provider-daemon-missing-output] retries once without the daemon", async () => {
+  it("[neoview.super-resolution.provider-daemon-missing-output] retries the failed page without the daemon and restores it next time", async () => {
     const runtime = fakeRuntime()
     const waitForOutput = vi.fn()
       .mockRejectedValueOnce(new SuperResolutionOutputUnavailableError(request.destinationPath))
@@ -127,7 +127,7 @@ describe("OpenComicAiSystemProvider", () => {
 
     await provider.upscale(request)
     expect(runtime.pipeline).toHaveBeenCalledTimes(3)
-    expect(runtime.setConcurrentDaemons).toHaveBeenCalledTimes(3)
+    expect(runtime.setConcurrentDaemons).toHaveBeenNthCalledWith(4, 1)
   })
 
   it("[neoview.super-resolution.provider-abort] closes owned daemons when a task is cancelled", async () => {
