@@ -415,6 +415,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
         pages: session.pages,
         bookPath: session.book.source.path,
         artifactFor,
+        preparePage: async (page, prepareSignal) => session.preparePageMetadata?.(page.index, prepareSignal),
       }, signal)
     }
     return preload.startProgressive({
@@ -424,6 +425,7 @@ export class ReaderHeadlessController implements AsyncDisposable {
       pages: session.pages,
       bookPath: session.book.source.path,
       artifactFor,
+      preparePage: async (page, prepareSignal) => session.preparePageMetadata?.(page.index, prepareSignal),
     }, signal)
   }
 

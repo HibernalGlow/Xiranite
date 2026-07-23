@@ -409,6 +409,8 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
       try {
         signal.throwIfAborted()
         this.#appendEvent(key, { level: "info", pageIndex: page.index, message: `Started page ${page.index + 1}.` })
+        await input.preparePage?.(page, signal)
+        signal.throwIfAborted()
         const destinationContext = {
           contextId: input.contextId,
           generation: input.generation,

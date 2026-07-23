@@ -41,6 +41,32 @@ describe("SuperResolutionPreloadService", () => {
     }
   })
 
+  it("[neoview.super-resolution.preload-metadata] prepares dimensions before planning unseen pages", async () => {
+    const candidates = pages(12).map((page) => ({ ...page, dimensions: undefined }))
+    const preparePage = vi.fn(async (page: ReaderPage) => {
+      page.dimensions = { width: 100, height: 200 }
+    })
+    const run = vi.fn(async (input) => {
+      expect(input.page.dimensions).toEqual({ width: 100, height: 200 })
+      return { decision: { kind: "skip" as const, reason: "test" } }
+    })
+    const service = new SuperResolutionPreloadService({ run }, preferences({ preloadPages: 10 }))
+    try {
+      await expect(service.schedulePlan({
+        contextId: "reader-metadata",
+        plan: plan(1, [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]]),
+        pages: candidates,
+        bookPath: "D:/book",
+        destinationFor: (page) => `D:/cache/${page.index}.png`,
+        preparePage,
+      })).resolves.toMatchObject({ planned: 10, settled: 10, failed: 0 })
+      expect(preparePage.mock.calls.map(([page]) => page.index)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+      expect(run).toHaveBeenCalledTimes(10)
+    } finally {
+      await service.dispose()
+    }
+  })
+
   it("[neoview.super-resolution.preload-generation] supersedes stale session work and keeps the new generation", async () => {
     const run = vi.fn(async (input, context) => {
       if (input.destinationPath.includes("1-")) {
