@@ -200,10 +200,9 @@
       "lossless": "Lossless",
       "lossy": "Lossy",
       "modulePanelTitle": "Module panels",
-      "modulePanelDesc": "Unify node section titles, panel surfaces, card effects, and resize handles. Nodes on shared components update immediately.",
+      "modulePanelDesc": "Unify node section titles, panel surfaces, and resize handles. Nodes on shared components update immediately.",
       "moduleTitleStyle": "Title style",
       "modulePanelStyle": "Panel style",
-      "moduleCardEffect": "Card effect",
       "resizableHandle": "Resize handle",
       "moduleTitle": {
         "legend": "Floating badge",
@@ -216,10 +215,6 @@
         "solid": "Solid",
         "outline": "Outline",
         "flat": "Flat"
-      },
-      "moduleCard": {
-        "magic": "Magic",
-        "plain": "Static"
       },
       "handle": {
         "grip": "Grip",

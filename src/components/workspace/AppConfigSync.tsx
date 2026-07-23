@@ -7,7 +7,6 @@ import { normalizePersistedBackgroundImageUrl, sanitizePersistedBackgroundImageU
 import { useTheme } from "@/components/use-theme"
 import { changeLanguage, getCurrentLanguage, type Language } from "@/i18n"
 import { loadMelodeckConfig } from "@/nodes/melodeck/config"
-import { DEFAULT_MODULE_MAGIC_CARD_APPEARANCE, type ModuleMagicCardAppearance } from "@/components/ui/module-panel-variants"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import type { OverlayFloatingMetrics, WorkspaceUiPreferences } from "@/store/workspace/types"
 import type { AppCustomTheme, AppFontPreset, AppTheme, CardLayout } from "@/types/workspace"
@@ -54,7 +53,6 @@ const CHROME_STYLES = new Set<WorkspaceUiPreferences["chromeStyle"]>(["default",
 const ALPHABET_INDEX_STYLES = new Set<WorkspaceUiPreferences["alphabetIndexStyle"]>(["glass", "solid", "minimal"])
 const MODULE_TITLE_STYLES = new Set<WorkspaceUiPreferences["moduleTitleStyle"]>(["legend", "inline", "bar", "minimal"])
 const MODULE_PANEL_STYLES = new Set<WorkspaceUiPreferences["modulePanelStyle"]>(["soft", "solid", "outline", "flat"])
-const MODULE_CARD_EFFECTS = new Set<WorkspaceUiPreferences["moduleCardEffect"]>(["magic", "plain"])
 const RESIZABLE_HANDLE_STYLES = new Set<WorkspaceUiPreferences["resizableHandleStyle"]>(["grip", "dots", "line", "minimal"])
 const CHOICE_CONTROL_STYLES = new Set<WorkspaceUiPreferences["choiceControlStyle"]>(["segmented", "pills", "tabs", "tiles"])
 const FIELD_TITLE_STYLES = new Set<WorkspaceUiPreferences["fieldTitleStyle"]>(["stacked", "legend", "inline", "hidden"])
@@ -443,8 +441,6 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     sliderDisplayStyle: state.sliderDisplayStyle,
     moduleTitleStyle: state.moduleTitleStyle,
     modulePanelStyle: state.modulePanelStyle,
-    moduleCardEffect: state.moduleCardEffect,
-    moduleMagicCard: state.moduleMagicCard,
     resizableHandleStyle: state.resizableHandleStyle,
     choiceControlStyle: state.choiceControlStyle,
     fieldTitleStyle: state.fieldTitleStyle,
@@ -550,11 +546,6 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (isOneOf(value.sliderDisplayStyle, SLIDER_DISPLAY_STYLES)) next.sliderDisplayStyle = value.sliderDisplayStyle
   if (isOneOf(value.moduleTitleStyle, MODULE_TITLE_STYLES)) next.moduleTitleStyle = value.moduleTitleStyle
   if (isOneOf(value.modulePanelStyle, MODULE_PANEL_STYLES)) next.modulePanelStyle = value.modulePanelStyle
-  if (isOneOf(value.moduleCardEffect, MODULE_CARD_EFFECTS)) next.moduleCardEffect = value.moduleCardEffect
-  {
-    const moduleMagicCard = normalizeModuleMagicCardAppearance(value.moduleMagicCard)
-    if (moduleMagicCard) next.moduleMagicCard = moduleMagicCard
-  }
   if (isOneOf(value.resizableHandleStyle, RESIZABLE_HANDLE_STYLES)) next.resizableHandleStyle = value.resizableHandleStyle
   if (isOneOf(value.choiceControlStyle, CHOICE_CONTROL_STYLES)) next.choiceControlStyle = value.choiceControlStyle
   const fieldTitleStyle = value.fieldTitleStyle ?? value.choiceControlLabelStyle
@@ -754,24 +745,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function finiteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
-}
-
-function normalizeModuleMagicCardAppearance(value: unknown): ModuleMagicCardAppearance | undefined {
-  if (!isRecord(value)) return undefined
-  const defaults = DEFAULT_MODULE_MAGIC_CARD_APPEARANCE
-  return {
-    radius: boundedInteger(value.radius, defaults.radius, 48, 320),
-    opacity: boundedInteger(value.opacity, defaults.opacity, 5, 100),
-    colorStrength: boundedInteger(value.colorStrength, defaults.colorStrength, 5, 100),
-    followThemeColor: typeof value.followThemeColor === "boolean" ? value.followThemeColor : defaults.followThemeColor,
-    color: typeof value.color === "string" && /^#[0-9a-f]{6}$/i.test(value.color) ? value.color : defaults.color,
-  }
-}
-
-function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.min(max, Math.max(min, Math.round(value)))
-    : fallback
 }
 
 function clampRatio(value: number, min = 0): number {

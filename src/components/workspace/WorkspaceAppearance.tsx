@@ -19,7 +19,6 @@ export function WorkspaceAppearance() {
     fieldTitleStyle: state.fieldTitleStyle,
     moduleTitleStyle: state.moduleTitleStyle,
     modulePanelStyle: state.modulePanelStyle,
-    moduleCardEffect: state.moduleCardEffect,
     resizableHandleStyle: state.resizableHandleStyle,
   }))
   const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? document.documentElement.classList.contains("dark"))
@@ -57,9 +56,8 @@ export function WorkspaceAppearance() {
   useEffect(() => {
     document.documentElement.dataset.moduleTitleStyle = appearance.moduleTitleStyle
     document.documentElement.dataset.modulePanelStyle = appearance.modulePanelStyle
-    document.documentElement.dataset.moduleCardEffect = appearance.moduleCardEffect
     document.documentElement.dataset.resizableHandleStyle = appearance.resizableHandleStyle
-  }, [appearance.moduleCardEffect, appearance.moduleTitleStyle, appearance.modulePanelStyle, appearance.resizableHandleStyle])
+  }, [appearance.moduleTitleStyle, appearance.modulePanelStyle, appearance.resizableHandleStyle])
 
   useEffect(() => {
     const root = document.documentElement

@@ -296,6 +296,23 @@ describe("ReaderSidebar layout gestures", () => {
     expect(screen.getByRole("button", { name: "折叠书籍信息" })).toBeTruthy()
   })
 
+  it("[neoview.card.exclusive-content] mounts File and History bodies directly when expanded is omitted", async () => {
+    const config = shell()
+    config.cardLayout["folder-main"] = { panelId: "folder", visible: true, order: 0 }
+    config.cardLayout["history-list"] = { panelId: "history", visible: true, order: 0 }
+    const value = context(false)
+    const view = render(<ReaderSidebar side="left" selectedPanelId="folder" context={value} shell={config} />)
+
+    await waitFor(() => expect(document.querySelector('[data-neoview-folder-card="true"]')).toBeTruthy())
+    expect(document.querySelector('[data-reader-panel="folder"] [data-reader-card-deferred]')).toBeNull()
+    expect(document.querySelector('[data-reader-panel="folder"] [data-slot="magic-card"]')).toBeNull()
+
+    view.rerender(<ReaderSidebar side="left" selectedPanelId="history" context={value} shell={config} />)
+    await waitFor(() => expect(document.querySelector('[data-neoview-history-card="true"]')).toBeTruthy())
+    expect(document.querySelector('[data-reader-panel="history"] [data-reader-card-deferred]')).toBeNull()
+    expect(document.querySelector('[data-reader-panel="history"] [data-slot="magic-card"]')).toBeNull()
+  })
+
   it("[neoview.settings.sessionless-card] docks settings as a multi-card panel without exclusive chrome", () => {
     const config = shell()
     config.panelLayout.settings = { visible: true, order: 99, position: "left" }
@@ -308,74 +325,66 @@ describe("ReaderSidebar layout gestures", () => {
     expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
   })
 
-  it("[neoview.sidebar.viewport-cards] renders every shell but mounts only near-viewport bodies one frame at a time", () => {
+  it("[neoview.sidebar.viewport-cards] keeps deferred shells light and mounts near-viewport cards one idle task at a time", () => {
     vi.useFakeTimers()
     const observer = installIntersectionObserver()
-    const frames: FrameRequestCallback[] = []
-    const idle = vi.fn()
-    vi.stubGlobal("requestIdleCallback", idle)
-    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
-      frames.push(callback)
-      return frames.length
+    const idleCallbacks: Array<{ callback: IdleRequestCallback; options?: IdleRequestOptions }> = []
+    vi.stubGlobal("requestIdleCallback", vi.fn((callback: IdleRequestCallback, options?: IdleRequestOptions) => {
+      idleCallbacks.push({ callback, options })
+      return idleCallbacks.length
     }))
-    vi.stubGlobal("cancelAnimationFrame", vi.fn())
+    vi.stubGlobal("cancelIdleCallback", vi.fn())
     try {
       const config = shell()
       config.panelLayout.settings = { visible: true, order: 99, position: "left" }
       render(<ReaderSidebar side="left" selectedPanelId="settings" context={context(false)} shell={config} />)
 
       const panel = document.querySelector<HTMLElement>('[data-reader-panel="settings"]')!
-      const bodyStates = () => Array.from(panel.querySelectorAll<HTMLElement>("[data-reader-card-body-state]"))
-      expect(panel.querySelectorAll("[data-reader-card]").length).toBeGreaterThan(3)
-      expect(bodyStates().filter((body) => body.dataset.readerCardBodyState === "mounted")).toHaveLength(1)
-      expect(bodyStates().filter((body) => body.dataset.readerCardBodyState === "deferred").length).toBeGreaterThan(2)
+      const mountedCards = () => panel.querySelectorAll("[data-reader-card]").length
+      expect(mountedCards()).toBe(1)
+      expect(panel.querySelectorAll("[data-reader-card-deferred]").length).toBeGreaterThan(2)
+      expect(panel.querySelector('[data-slot="magic-card"]')).toBeNull()
       expect(observer.instances).toHaveLength(1)
       expect(observer.instances[0]!.options.root).toBe(panel)
 
       const targets = observer.instances[0]!.observed
       expect(targets.length).toBeGreaterThan(2)
       act(() => observer.instances[0]!.emit(targets.slice(0, 2), true))
-      expect(frames).toHaveLength(1)
-      expect(idle).not.toHaveBeenCalled()
+      expect(idleCallbacks).toHaveLength(1)
+      expect(idleCallbacks[0]!.options?.timeout).toBe(500)
 
-      act(() => frames[0]!(0))
-      expect(bodyStates().filter((body) => body.dataset.readerCardBodyState === "mounted")).toHaveLength(2)
-      expect(bodyStates().find((body) => body.dataset.readerCardViewportTarget === targets[2]!.getAttribute("data-reader-card-viewport-target"))?.dataset.readerCardBodyState).toBe("deferred")
-      expect(frames).toHaveLength(2)
+      act(() => idleCallbacks[0]!.callback({ didTimeout: false, timeRemaining: () => 20 }))
+      expect(mountedCards()).toBe(2)
+      expect(targets[2]!.getAttribute("data-reader-card-deferred")).toBeTruthy()
+      expect(idleCallbacks).toHaveLength(2)
 
-      act(() => frames[1]!(16))
-      expect(bodyStates().filter((body) => body.dataset.readerCardBodyState === "mounted")).toHaveLength(3)
+      act(() => idleCallbacks[1]!.callback({ didTimeout: false, timeRemaining: () => 20 }))
+      expect(mountedCards()).toBe(3)
     } finally {
       vi.useRealTimers()
       vi.unstubAllGlobals()
     }
   })
 
-  it("[neoview.sidebar.viewport-cards] guarantees an observed card mounts when animation frames are starved", () => {
+  it("[neoview.sidebar.viewport-cards] guarantees progress when the idle callback never runs", () => {
     vi.useFakeTimers()
     const observer = installIntersectionObserver()
-    const frames: FrameRequestCallback[] = []
-    const idle = vi.fn()
+    const idle = vi.fn((_callback: IdleRequestCallback) => 1)
     vi.stubGlobal("requestIdleCallback", idle)
-    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
-      frames.push(callback)
-      return frames.length
-    }))
-    vi.stubGlobal("cancelAnimationFrame", vi.fn())
+    vi.stubGlobal("cancelIdleCallback", vi.fn())
     try {
       const config = shell()
       config.panelLayout.settings = { visible: true, order: 99, position: "left" }
       render(<ReaderSidebar side="left" selectedPanelId="settings" context={context(false)} shell={config} />)
 
       const panel = document.querySelector<HTMLElement>('[data-reader-panel="settings"]')!
-      const mountedBodies = () => panel.querySelectorAll('[data-reader-card-body-state="mounted"]').length
+      const mountedCards = () => panel.querySelectorAll("[data-reader-card]").length
       act(() => observer.instances[0]!.emit([observer.instances[0]!.observed[0]!], true))
-      expect(frames).toHaveLength(1)
-      expect(mountedBodies()).toBe(1)
+      expect(idle).toHaveBeenCalledOnce()
+      expect(mountedCards()).toBe(1)
 
-      act(() => vi.advanceTimersByTime(400))
-      expect(mountedBodies()).toBe(2)
-      expect(idle).not.toHaveBeenCalled()
+      act(() => vi.advanceTimersByTime(600))
+      expect(mountedCards()).toBe(2)
     } finally {
       vi.useRealTimers()
       vi.unstubAllGlobals()
@@ -384,23 +393,23 @@ describe("ReaderSidebar layout gestures", () => {
 
   it("[neoview.sidebar.viewport-cards] cancels queued work when the active panel changes", () => {
     const observer = installIntersectionObserver()
-    const frames: FrameRequestCallback[] = []
-    const cancelAnimationFrame = vi.fn()
-    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
-      frames.push(callback)
-      return frames.length
+    const idleCallbacks: IdleRequestCallback[] = []
+    const cancelIdleCallback = vi.fn()
+    vi.stubGlobal("requestIdleCallback", vi.fn((callback: IdleRequestCallback) => {
+      idleCallbacks.push(callback)
+      return idleCallbacks.length
     }))
-    vi.stubGlobal("cancelAnimationFrame", cancelAnimationFrame)
+    vi.stubGlobal("cancelIdleCallback", cancelIdleCallback)
     try {
       const config = shell()
       config.panelLayout.settings = { visible: true, order: 99, position: "left" }
       const view = render(<ReaderSidebar side="left" selectedPanelId="settings" context={context(false)} shell={config} />)
       act(() => observer.instances[0]!.emit([observer.instances[0]!.observed[0]!], true))
-      expect(frames).toHaveLength(1)
+      expect(idleCallbacks).toHaveLength(1)
 
       view.rerender(<ReaderSidebar side="left" selectedPanelId="pageList" context={context(false)} shell={config} />)
-      expect(cancelAnimationFrame).toHaveBeenCalled()
-      act(() => frames[0]!(0))
+      expect(cancelIdleCallback).toHaveBeenCalled()
+      act(() => idleCallbacks[0]!({ didTimeout: false, timeRemaining: () => 20 }))
       expect(document.querySelector('[data-reader-panel="pageList"]')?.getAttribute("data-reader-visible-card-count")).toBe("1")
     } finally {
       vi.unstubAllGlobals()

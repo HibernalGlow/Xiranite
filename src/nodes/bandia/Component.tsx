@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge"
 import { BorderBeam } from "@/components/ui/border-beam"
 import { Button } from "@/components/ui/button"
 import { GridPattern } from "@/components/ui/grid-pattern"
-import { MagicCard } from "@/components/ui/magic-card"
 import { ModulePanel } from "@/components/ui/module-panel"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -307,7 +306,7 @@ function CollapsedView(props: ViewProps) {
   const isRunning = props.status.tone === "running"
   return (
     <div data-testid="bandia-collapsed-view" className="relative h-full min-h-0 w-full p-1">
-      <MagicCard className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl bg-background/85 px-3 py-2 shadow-sm" gradientColor="color-mix(in oklch, var(--chart-3) 45%, transparent)">
+      <div className="relative flex h-full min-h-0 items-center gap-2 overflow-hidden rounded-xl border bg-background/85 px-3 py-2 shadow-sm">
         <GridPattern width={24} height={24} className="fill-muted-foreground/[0.04] stroke-muted-foreground/[0.08]" />
         <RunningTint tone={props.status.tone} />
         {isRunning && <BorderBeam size={30} duration={5} colorFrom="var(--chart-3)" colorTo="var(--primary)" />}
@@ -326,7 +325,7 @@ function CollapsedView(props: ViewProps) {
         </div>
         <RunActionButton compact props={props} />
         {isRunning && <div className="relative text-xs tabular-nums text-muted-foreground">{props.progress}%</div>}
-      </MagicCard>
+      </div>
     </div>
   )
 }

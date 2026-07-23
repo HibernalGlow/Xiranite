@@ -1,10 +1,7 @@
 import type { LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
-import { MagicCard } from "@/components/ui/magic-card"
-import { moduleMagicCardProps } from "@/components/ui/module-panel-variants"
 import { cn } from "@/lib/utils"
-import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
 
 export interface ModulePanelProps {
   badge?: ReactNode
@@ -20,17 +17,11 @@ export interface ModulePanelProps {
 }
 
 export function ModulePanel({ badge, children, className, contentClassName, fill = false, grow = false, icon: Icon, subtitle, title, titleClassName }: ModulePanelProps) {
-  const magicAppearance = useWorkspaceShallowSelector((state) => state.moduleMagicCard)
-  return <MagicCard
-    {...moduleMagicCardProps(magicAppearance)}
+  return <div
     className={cn(
-      "module-panel-magic-card min-w-0 rounded-xl",
-      "[[data-module-card-effect=plain]_&]:!bg-card [[data-module-card-effect=plain]_&]:!shadow-none",
-      "[[data-module-card-effect=plain]_&_[data-slot=magic-card-gradient]]:hidden",
-      "[[data-module-card-effect=plain]_&_[data-slot=magic-card-orb]]:hidden",
-      "[[data-module-panel-style=solid]_&_[data-slot=magic-card-surface]]:bg-card",
-      "[[data-module-panel-style=outline]_&_[data-slot=magic-card-surface]]:bg-transparent",
-      "[[data-module-panel-style=flat]_&_[data-slot=magic-card-surface]]:bg-transparent",
+      "module-panel-frame min-w-0 rounded-xl bg-card/85",
+      "[[data-module-panel-style=outline]_&]:bg-transparent",
+      "[[data-module-panel-style=flat]_&]:bg-transparent",
       (fill || grow) && "min-h-0",
       fill && "h-full",
     )}
@@ -67,5 +58,5 @@ export function ModulePanel({ badge, children, className, contentClassName, fill
     </header>
     <div data-slot="module-panel-content" className={cn("flex min-h-0 flex-col gap-2.5", fill && "flex-1 overflow-hidden", contentClassName)}>{children}</div>
   </section>
-  </MagicCard>
+  </div>
 }

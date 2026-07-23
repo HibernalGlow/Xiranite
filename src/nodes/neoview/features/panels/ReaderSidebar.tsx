@@ -10,8 +10,8 @@
  * @features panels-toolbar-shell,card-windows-tabs
  * @migration-status adapted
  */
-import { startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
-import { Pin, PinOff } from "lucide-react"
+import { memo, startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
+import { Pin, PinOff, type LucideIcon } from "lucide-react"
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react"
 import type { ReaderCardLayoutPatch, ReaderShellConfigDto, ReaderSidebarLayoutPatch, ReaderSwimlaneLaneDto } from "../../adapters/reader-http-client"
 
@@ -33,7 +33,7 @@ import {
 } from "./registry"
 
 const CARD_VIEWPORT_ROOT_MARGIN = "480px 0px"
-const CARD_MOUNT_FALLBACK_DELAY_MS = 400
+const CARD_MOUNT_GUARANTEE_MS = 500
 
 export function ReaderSidebar({
   side,
@@ -253,9 +253,20 @@ export function ReaderSidebar({
               {cards.map((card) => {
                 const Card = lazyReaderCard(card.id)
                 const cardLayout = shell?.cardLayout[card.id]
-                const expanded = cardLayout ? cardLayout.expanded : true
-                const cardBodyMounted = expanded && (exclusive || mountedCardIds.has(card.id))
-                return Card ? (
+                const expanded = cardLayout?.expanded ?? true
+                if (!Card) return null
+                if (expanded && !exclusive && !mountedCardIds.has(card.id)) {
+                  return (
+                    <DeferredReaderCardShell
+                      key={card.id}
+                      cardId={card.id}
+                      title={card.title}
+                      Icon={card.icon}
+                      onTargetChange={setCardViewportTarget}
+                    />
+                  )
+                }
+                return (
                   <CollapsibleReaderCard
                     key={card.id}
                     title={card.title}
@@ -266,27 +277,21 @@ export function ReaderSidebar({
                     onCollapsedChange={(collapsed) => onCardLayoutCommit?.({ cardId: card.id, expanded: !collapsed })}
                     onHeightChange={(height) => onCardLayoutCommit?.({ cardId: card.id, height: height ?? null })}
                   >
-                    <div
-                      ref={expanded ? (node) => setCardViewportTarget(card.id, node) : undefined}
-                      data-reader-card-body-state={expanded ? (cardBodyMounted ? "mounted" : "deferred") : "collapsed"}
-                      data-reader-card-viewport-target={expanded ? card.id : undefined}
-                    >
-                      {cardBodyMounted ? (
-                        <Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted/60" aria-label={`正在加载${card.title}`} data-reader-card-loading={card.id} />}>
-                          <LoggedReaderCard
-                            cardId={card.id}
-                            side={side}
-                            panelId={panel.id}
-                            Card={Card}
-                            context={context}
-                            panelActive={panelActive}
-                            panelVisible={panelVisible}
-                          />
-                        </Suspense>
-                      ) : expanded ? <div className="h-16 rounded bg-muted/25" aria-hidden="true" data-reader-card-deferred={card.id} /> : null}
-                    </div>
+                    {expanded ? (
+                      <Suspense fallback={<div className="h-16 animate-pulse rounded bg-muted/60" aria-label={`正在加载${card.title}`} data-reader-card-loading={card.id} />}>
+                        <LoggedReaderCard
+                          cardId={card.id}
+                          side={side}
+                          panelId={panel.id}
+                          Card={Card}
+                          context={context}
+                          panelActive={panelActive}
+                          panelVisible={panelVisible}
+                        />
+                      </Suspense>
+                    ) : null}
                   </CollapsibleReaderCard>
-                ) : null
+                )
               })}
             </div>
           </div>
@@ -413,6 +418,34 @@ interface CardMountState {
   mountedCardIds: ReadonlySet<string>
 }
 
+const DeferredReaderCardShell = memo(function DeferredReaderCardShell({
+  cardId,
+  title,
+  Icon,
+  onTargetChange,
+}: {
+  cardId: string
+  title: string
+  Icon?: LucideIcon
+  onTargetChange(cardId: string, node: HTMLElement | null): void
+}) {
+  const setTarget = useCallback((node: HTMLElement | null) => onTargetChange(cardId, node), [cardId, onTargetChange])
+  return (
+    <section
+      ref={setTarget}
+      className="min-h-28 min-w-0 overflow-hidden rounded-xl border bg-card/45"
+      data-reader-card-deferred={cardId}
+      data-reader-card-viewport-target={cardId}
+    >
+      <header className="flex min-h-9 items-center gap-1.5 border-b border-border/35 px-2.5 py-1.5 text-[11px] font-semibold">
+        {Icon ? <Icon className="size-3.5 shrink-0 text-muted-foreground" /> : null}
+        <span className="truncate">{title}</span>
+      </header>
+      <div className="h-16 bg-muted/15" aria-hidden="true" />
+    </section>
+  )
+})
+
 function useViewportCardMountScheduler({
   cardIds,
   enabled,
@@ -441,8 +474,8 @@ function useViewportCardMountScheduler({
     if (!enabled || !panelViewport || !panelId || orderedCardIds.length <= 1) return
 
     let cancelled = false
-    let animationFrame: number | undefined
-    let mountFallback: number | undefined
+    let idleHandle: number | undefined
+    let mountGuarantee: number | undefined
     let viewportProbe: number | undefined
     const mounted = new Set(firstCardId ? [firstCardId] : [])
     const queued = new Set<string>()
@@ -457,25 +490,7 @@ function useViewportCardMountScheduler({
       rootMargin: CARD_VIEWPORT_ROOT_MARGIN,
     })
 
-    const scheduleNextMount = () => {
-      if (cancelled || !queue.length || animationFrame !== undefined || mountFallback !== undefined) return
-      if (typeof requestAnimationFrame === "function") {
-        animationFrame = requestAnimationFrame(() => {
-          animationFrame = undefined
-          if (mountFallback !== undefined) window.clearTimeout(mountFallback)
-          mountFallback = undefined
-          mountNext("animation-frame")
-        })
-      }
-      mountFallback = window.setTimeout(() => {
-        if (animationFrame !== undefined && typeof cancelAnimationFrame === "function") cancelAnimationFrame(animationFrame)
-        animationFrame = undefined
-        mountFallback = undefined
-        mountNext("fallback")
-      }, CARD_MOUNT_FALLBACK_DELAY_MS)
-    }
-
-    const mountNext = (source: "animation-frame" | "fallback") => {
+    function mountNext(source: "idle" | "idle-timeout" | "guarantee") {
       if (cancelled) return
       const cardId = queue.shift()
       if (!cardId) return
@@ -493,6 +508,29 @@ function useViewportCardMountScheduler({
       })
       neoviewDebug("sidebar:cards:viewport-mount", { side, panelId, cardId, source })
       if (queue.length) scheduleNextMount()
+    }
+
+    function scheduleNextMount() {
+      if (cancelled || !queue.length || idleHandle !== undefined || mountGuarantee !== undefined) return
+      let completed = false
+      const run = (source: "idle" | "idle-timeout" | "guarantee") => {
+        if (completed || cancelled) return
+        completed = true
+        if (idleHandle !== undefined && typeof cancelIdleCallback === "function") cancelIdleCallback(idleHandle)
+        if (mountGuarantee !== undefined) window.clearTimeout(mountGuarantee)
+        idleHandle = undefined
+        mountGuarantee = undefined
+        mountNext(source)
+      }
+      if (typeof requestIdleCallback === "function") {
+        idleHandle = requestIdleCallback(
+          (deadline) => run(deadline.didTimeout ? "idle-timeout" : "idle"),
+          { timeout: CARD_MOUNT_GUARANTEE_MS },
+        )
+        mountGuarantee = window.setTimeout(() => run("guarantee"), CARD_MOUNT_GUARANTEE_MS + 100)
+      } else {
+        mountGuarantee = window.setTimeout(() => run("guarantee"), CARD_MOUNT_GUARANTEE_MS)
+      }
     }
 
     const enqueue = (cardId: string | undefined) => {
@@ -531,7 +569,7 @@ function useViewportCardMountScheduler({
         const target = cardTargetsRef.current.get(cardId)
         if (target) observer.observe(target)
       }
-      viewportProbe = window.setTimeout(enqueueNearViewportCards, CARD_MOUNT_FALLBACK_DELAY_MS)
+      viewportProbe = window.setTimeout(enqueueNearViewportCards, CARD_MOUNT_GUARANTEE_MS)
     } else {
       // Older WebView runtimes cannot report intersections, so retain bounded progress.
       for (const cardId of orderedCardIds.slice(1)) enqueue(cardId)
@@ -540,8 +578,8 @@ function useViewportCardMountScheduler({
     return () => {
       cancelled = true
       observer?.disconnect()
-      if (animationFrame !== undefined && typeof cancelAnimationFrame === "function") cancelAnimationFrame(animationFrame)
-      if (mountFallback !== undefined) window.clearTimeout(mountFallback)
+      if (idleHandle !== undefined && typeof cancelIdleCallback === "function") cancelIdleCallback(idleHandle)
+      if (mountGuarantee !== undefined) window.clearTimeout(mountGuarantee)
       if (viewportProbe !== undefined) window.clearTimeout(viewportProbe)
     }
   }, [enabled, firstCardId, orderedCardIds, panelId, panelViewport, presentation, schedulerKey, sessionId, side])
