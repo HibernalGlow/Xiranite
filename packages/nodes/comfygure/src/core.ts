@@ -81,6 +81,7 @@ export interface ComfygureProgramDraft {
 
 export interface ComfygureTarget {
   endpoint?: string
+  clientId?: string
 }
 
 export interface ResourceRequirement {
@@ -113,10 +114,11 @@ export interface PreflightReport {
 export interface ComfygureData {
   compiled: CompiledProgram
   preflight?: PreflightReport
+  submission?: ComfyuiSubmission
 }
 
 export interface ComfygureInput {
-  action?: "compile" | "preflight"
+  action?: "compile" | "preflight" | "submit"
   program?: ComfygureProgramDraft
   target?: ComfygureTarget
 }
@@ -128,7 +130,14 @@ export interface ComfygureFetchResponse {
 }
 
 export interface ComfygureRuntime {
-  fetch(url: string, init?: { method?: string; headers?: Record<string, string> }): Promise<ComfygureFetchResponse>
+  fetch(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<ComfygureFetchResponse>
+}
+
+export interface ComfyuiSubmission {
+  endpoint: string
+  promptId: string
+  queueNumber?: number
+  clientId: string
 }
 
 const REGION_SYNTAX = /\b(?:COUPLE|MASK|FEATHER|FILL|IMASK|AREA|MASK_SIZE|MASKW)\s*\(/i
@@ -426,19 +435,51 @@ export async function preflightComfyuiTarget(compiled: CompiledProgram, target: 
 
 export async function runComfygure(input: ComfygureInput, runtime: ComfygureRuntime, onEvent: (event: NodeRunEvent) => void = () => {}): Promise<NodeRunResult<ComfygureData>> {
   const compiled = compileAnimaInt8Program(input.program)
-  if (input.action !== "preflight") {
+  if (input.action !== "preflight" && input.action !== "submit") {
     return { success: true, message: `Compiled ${Object.keys(compiled.graph).length} fixed ComfyUI node(s).`, data: { compiled } }
   }
   onEvent({ type: "progress", progress: 20, message: "Inspecting the local ComfyUI target." })
   const preflight = await preflightComfyuiTarget(compiled, input.target ?? {}, runtime)
-  onEvent({ type: "progress", progress: 100, message: preflight.online ? "Compatibility preflight complete." : "Local ComfyUI target is unavailable." })
-  const success = preflight.online && preflight.missingClasses.length === 0 && preflight.missingResources.length === 0
-  const message = success
-    ? "Compatibility preflight passed. No generation was submitted."
-    : preflight.online
+  const compatible = preflight.online && preflight.missingClasses.length === 0 && preflight.missingResources.length === 0
+  if (!compatible) {
+    onEvent({ type: "progress", progress: 100, message: preflight.online ? "Compatibility preflight found incompatible requirements." : "Local ComfyUI target is unavailable." })
+    const message = preflight.online
       ? `Compatibility preflight found ${preflight.missingClasses.length} missing class(es) and ${preflight.missingResources.length} missing resource(s).`
       : `ComfyUI target is unavailable at ${preflight.endpoint}.`
-  return { success, message, data: { compiled, preflight } }
+    return { success: false, message, data: { compiled, preflight } }
+  }
+  if (input.action === "preflight") {
+    onEvent({ type: "progress", progress: 100, message: "Compatibility preflight complete." })
+    return { success: true, message: "Compatibility preflight passed. No generation was submitted.", data: { compiled, preflight } }
+  }
+
+  onEvent({ type: "progress", progress: 65, message: "Submitting the fixed prompt graph to ComfyUI." })
+  try {
+    const submission = await submitComfyuiPrompt(compiled, input.target ?? {}, runtime)
+    onEvent({ type: "progress", progress: 100, message: `ComfyUI accepted prompt ${submission.promptId}.` })
+    return { success: true, message: `ComfyUI accepted prompt ${submission.promptId}.`, data: { compiled, preflight, submission } }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    onEvent({ type: "progress", progress: 100, message: "ComfyUI rejected the prompt graph." })
+    return { success: false, message, data: { compiled, preflight } }
+  }
+}
+
+export async function submitComfyuiPrompt(compiled: CompiledProgram, target: ComfygureTarget, runtime: ComfygureRuntime): Promise<ComfyuiSubmission> {
+  const endpoint = normalizeComfyuiEndpoint(target.endpoint)
+  const clientId = stringValue(target.clientId, "xiranite-comfygure")
+  const response = await runtime.fetch(`${endpoint}/prompt`, {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify({ prompt: compiled.graph, client_id: clientId }),
+  })
+  const payload = await response.json().catch(() => undefined)
+  if (!response.ok) throw new Error(`ComfyUI prompt submission failed: HTTP ${response.status}${describeComfyuiPromptError(payload)}`)
+  if (!isRecord(payload)) throw new Error("ComfyUI prompt submission did not return an acknowledgement object.")
+  const promptId = typeof payload.prompt_id === "string" ? payload.prompt_id : ""
+  if (!promptId) throw new Error(`ComfyUI rejected the prompt graph${describeComfyuiPromptError(payload)}.`)
+  const queueNumber = typeof payload.number === "number" && Number.isFinite(payload.number) ? payload.number : undefined
+  return { endpoint, promptId, queueNumber, clientId }
 }
 
 export function normalizeComfyuiEndpoint(value: string | undefined): string {
@@ -543,4 +584,12 @@ function isLocalHost(hostname: string): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function describeComfyuiPromptError(value: unknown): string {
+  if (!isRecord(value)) return ""
+  const error = typeof value.error === "string" ? value.error : undefined
+  const nodeErrors = isRecord(value.node_errors) ? Object.keys(value.node_errors) : []
+  if (error) return `: ${error}`
+  return nodeErrors.length ? `: node validation failed for ${nodeErrors.join(", ")}` : ""
 }

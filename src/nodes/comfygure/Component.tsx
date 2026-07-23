@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Activity, CheckCircle2, CircleAlert, FileCode2, Network, RefreshCw, Save, Settings2, Sparkles } from "lucide-react"
+import { Activity, CheckCircle2, CircleAlert, FileCode2, Network, Play, RefreshCw, Save, Settings2, Sparkles } from "lucide-react"
 import type { NodeComponentProps, NodeRunEvent } from "@xiranite/contract"
 import {
   DEFAULT_COMFYUI_ENDPOINT,
@@ -23,7 +23,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const stateRef = useRef(stored)
   stateRef.current = stored
   const [revision, setRevision] = useState(0)
-  const [running, setRunning] = useState<"compile" | "preflight" | null>(null)
+  const [running, setRunning] = useState<"compile" | "preflight" | "submit" | null>(null)
   const [target, setTarget] = useState<ComfygureTargetConfig>({ endpoint: DEFAULT_COMFYUI_ENDPOINT, libraryPath: "" })
   const [targetLoaded, setTargetLoaded] = useState(false)
   const program = normalizeComfygureProgram(stored.program ?? DEFAULT_COMFYGURE_PROGRAM)
@@ -72,14 +72,14 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ status: "Local ComfyUI target saved." })
   }
 
-  async function execute(action: "compile" | "preflight") {
+  async function execute(action: "compile" | "preflight" | "submit") {
     const run = host.runner?.run ?? host.actions?.run
     if (!run || running) {
       if (!run) patch({ status: "The Xiranite backend runner is unavailable." })
       return
     }
     setRunning(action)
-    patch({ status: action === "compile" ? "Compiling a fixed prompt graph." : "Inspecting the local ComfyUI target.", progress: 0 })
+    patch({ status: action === "compile" ? "Compiling a fixed prompt graph." : action === "preflight" ? "Inspecting the local ComfyUI target." : "Submitting a fixed prompt graph.", progress: 0 })
     try {
       const result = await run<ComfygureInput, ComfygureData>("comfygure", {
         action,
@@ -98,6 +98,7 @@ export function Component({ compId, host }: NodeComponentProps) {
             negativePrompt: data.compiled.negativePrompt,
           },
           preflight: data.preflight,
+          submission: data.submission,
           status: result.message,
           progress: result.success ? 100 : stateRef.current.progress,
         })
@@ -130,8 +131,8 @@ export function Component({ compId, host }: NodeComponentProps) {
         <Field label="ComfyUI Library"><Input value={target.libraryPath ?? ""} disabled={running !== null} placeholder="D:/1Repo/Github/ComfyUI/Library" onChange={(event) => setTarget((current) => ({ ...current, libraryPath: event.currentTarget.value }))} /></Field>
         <Button className="w-full" size="sm" variant="outline" disabled={running !== null || !targetLoaded} onClick={() => void saveTarget()}><Save />Save target</Button>
         <div className="space-y-2 border-t pt-3"><Field label="UNet"><Input value={program.model.unetName} onChange={(event) => updateProgram({ model: { ...program.model, unetName: event.currentTarget.value } })} /></Field><Field label="CLIP"><Input value={program.model.clipName} onChange={(event) => updateProgram({ model: { ...program.model, clipName: event.currentTarget.value } })} /></Field><Field label="VAE"><Input value={program.model.vaeName} onChange={(event) => updateProgram({ model: { ...program.model, vaeName: event.currentTarget.value } })} /></Field></div>
-        <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" disabled={running !== null} onClick={() => void execute("preflight")}><Activity />Preflight</Button></div>
-        <CompilerSummary preview={preview} preflight={preflight} />
+        <div className="grid grid-cols-3 gap-2"><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("preflight")}><Activity />Preflight</Button><Button size="sm" disabled={running !== null} onClick={() => void execute("submit")}><Play />Run</Button></div>
+        <CompilerSummary preview={preview} preflight={preflight} submission={stored.submission} />
       </aside>
     </div>}
   </div>
@@ -145,8 +146,8 @@ function NumberField(props: { label: string; value: number; step?: string; onVal
   return <Field label={props.label}><Input type="number" min={0} step={props.step ?? "1"} value={props.value} onChange={(event) => props.onValueChange(Number(event.currentTarget.value))} /></Field>
 }
 
-function CompilerSummary({ preview, preflight }: Pick<ComfygureCardState, "preview" | "preflight">) {
-  if (!preview && !preflight) return <div className="border-t pt-3 text-xs text-muted-foreground">Compile a fixed graph or inspect the local target. Preflight never submits a prompt.</div>
+function CompilerSummary({ preview, preflight, submission }: Pick<ComfygureCardState, "preview" | "preflight" | "submission">) {
+  if (!preview && !preflight && !submission) return <div className="border-t pt-3 text-xs text-muted-foreground">Compile a fixed graph or inspect the local target. Preflight never submits a prompt.</div>
   const healthy = Boolean(preflight?.online && preflight.missingClasses.length === 0 && preflight.missingResources.length === 0)
-  return <div className="space-y-2 border-t pt-3 text-xs"><div className="flex items-center gap-1 font-medium">{preflight ? healthy ? <CheckCircle2 className="size-3 text-chart-2" /> : <CircleAlert className="size-3 text-destructive" /> : <Settings2 className="size-3" />}<span>{preflight ? healthy ? "Ready for the Run Coordinator stage" : "Preflight needs attention" : "Compiler preview"}</span></div>{preview ? <><p>{preview.graphNodeCount} fixed ComfyUI nodes</p><p className="break-words text-muted-foreground">{preview.activeLoraNames.length ? `LoRAs: ${preview.activeLoraNames.join(", ")}` : "No active LoRAs"}</p></> : null}{preflight ? <div className={cn("space-y-1", healthy ? "text-muted-foreground" : "text-destructive")}><p>{preflight.online ? `${preflight.availableClassCount} classes reported` : `Unavailable: ${preflight.endpoint}`}</p>{preflight.missingClasses.length ? <p>Missing nodes: {preflight.missingClasses.join(", ")}</p> : null}{preflight.missingResources.length ? <p>Missing resources: {preflight.missingResources.map((item) => item.resourceName).join(", ")}</p> : null}{preflight.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}</div>
+  return <div className="space-y-2 border-t pt-3 text-xs"><div className="flex items-center gap-1 font-medium">{preflight ? healthy ? <CheckCircle2 className="size-3 text-chart-2" /> : <CircleAlert className="size-3 text-destructive" /> : <Settings2 className="size-3" />}<span>{submission ? "Submitted to ComfyUI" : preflight ? healthy ? "Ready to run" : "Preflight needs attention" : "Compiler preview"}</span></div>{preview ? <><p>{preview.graphNodeCount} fixed ComfyUI nodes</p><p className="break-words text-muted-foreground">{preview.activeLoraNames.length ? `LoRAs: ${preview.activeLoraNames.join(", ")}` : "No active LoRAs"}</p></> : null}{submission ? <p className="break-all text-muted-foreground">Prompt ID: {submission.promptId}</p> : null}{preflight ? <div className={cn("space-y-1", healthy ? "text-muted-foreground" : "text-destructive")}><p>{preflight.online ? `${preflight.availableClassCount} classes reported` : `Unavailable: ${preflight.endpoint}`}</p>{preflight.missingClasses.length ? <p>Missing nodes: {preflight.missingClasses.join(", ")}</p> : null}{preflight.missingResources.length ? <p>Missing resources: {preflight.missingResources.map((item) => item.resourceName).join(", ")}</p> : null}{preflight.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}</div>
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { compileAnimaInt8Program, normalizeComfyuiEndpoint, preflightComfyuiTarget } from "./core.js"
+import { compileAnimaInt8Program, normalizeComfyuiEndpoint, preflightComfyuiTarget, runComfygure } from "./core.js"
 
 describe("Comfygure ANIMA INT8 compiler", () => {
   it("compiles dynamic LoRA choices into static Comfyroll stack nodes", () => {
@@ -42,6 +42,23 @@ describe("Comfygure ANIMA INT8 compiler", () => {
 
     expect(report.missingClasses).toContain("FLS_SamplerV4")
     expect(() => normalizeComfyuiEndpoint("http://192.168.1.20:8188")).toThrow("only supports")
+  })
+
+  it("submits a fixed graph only through the explicit submit action after preflight", async () => {
+    const requests: Array<{ url: string; init?: { method?: string; body?: string } }> = []
+    const compiled = compileAnimaInt8Program()
+    const result = await runComfygure({ action: "submit" }, {
+      fetch: async (url, init) => {
+        requests.push({ url, init })
+        if (url.endsWith("/object_info")) return { ok: true, status: 200, json: async () => objectInfoFor(compiled) }
+        return { ok: true, status: 200, json: async () => ({ prompt_id: "prompt-123", number: 7 }) }
+      },
+    })
+
+    expect(result).toMatchObject({ success: true, data: { submission: { promptId: "prompt-123", queueNumber: 7 } } })
+    expect(requests.map((request) => request.init?.method)).toEqual(["GET", "POST"])
+    expect(requests[1]?.url).toBe("http://127.0.0.1:8000/prompt")
+    expect(JSON.parse(requests[1]?.init?.body ?? "{}")).toMatchObject({ client_id: "xiranite-comfygure", prompt: compiled.graph })
   })
 })
 
