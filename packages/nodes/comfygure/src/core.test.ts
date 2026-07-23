@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest"
-import { compileAnimaInt8Program, normalizeComfyuiEndpoint, preflightComfyuiTarget, runComfygure } from "./core.js"
+import { describe, expect, it, vi } from "vitest"
+import { compileAnimaInt8Program, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, normalizeComfyuiEndpoint, preflightComfyuiTarget, runComfygure } from "./core.js"
 
 describe("Comfygure ANIMA INT8 compiler", () => {
   it("compiles dynamic LoRA choices into static Comfyroll stack nodes", () => {
@@ -59,6 +59,25 @@ describe("Comfygure ANIMA INT8 compiler", () => {
     expect(requests.map((request) => request.init?.method)).toEqual(["GET", "POST"])
     expect(requests[1]?.url).toBe("http://127.0.0.1:8000/prompt")
     expect(JSON.parse(requests[1]?.init?.body ?? "{}")).toMatchObject({ client_id: "xiranite-comfygure", prompt: compiled.graph })
+  })
+
+  it("aborts an unresponsive target instead of leaving preflight pending", async () => {
+    vi.useFakeTimers()
+    const compiled = compileAnimaInt8Program()
+    try {
+      const reportPromise = preflightComfyuiTarget(compiled, {}, {
+        fetch: async (_url, init) => await new Promise<never>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true })
+        }),
+      })
+      await vi.advanceTimersByTimeAsync(DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS)
+      const report = await reportPromise
+
+      expect(report.online).toBe(false)
+      expect(report.warnings).toEqual([`ComfyUI request timed out after ${DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS / 1000} seconds.`])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
