@@ -1,0 +1,3 @@
+# Compile Comfygure programs to ComfyUI API prompts
+
+Comfygure owns dynamic expansion and compilation outside ComfyUI, then submits a concrete Prompt Graph through `/prompt` instead of invoking ComfyUI's internal Python APIs. A Comfygure Program contains Semantic Nodes rather than raw ComfyUI nodes; adjustable sampler and LoRA settings remain program inputs while the compiler chooses and wires their concrete execution nodes. Any companion Python nodes are invoked only by compiled Prompt Graphs. The Comfygure Program is the authoritative source for both the initial Fixed UI and a later React Flow or tldraw Canvas UI; projections must preserve program structures they cannot edit instead of flattening them.

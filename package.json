@@ -171,6 +171,7 @@
     "@xiranite/node-classq": "workspace:*",
     "@xiranite/node-cleanf": "workspace:*",
     "@xiranite/node-coveru": "workspace:*",
+    "@xiranite/node-comfygure": "workspace:*",
     "@xiranite/node-crashu": "workspace:*",
     "@xiranite/node-czkawka": "workspace:*",
     "@xiranite/node-dissolvef": "workspace:*",
