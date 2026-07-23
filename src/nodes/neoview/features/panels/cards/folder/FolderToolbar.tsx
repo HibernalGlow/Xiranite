@@ -320,7 +320,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden" data-folder-toolbar-group="tools">
-        <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-folder-toolbar-group="primary">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-folder-toolbar-group="primary" data-scrollbar="hidden">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

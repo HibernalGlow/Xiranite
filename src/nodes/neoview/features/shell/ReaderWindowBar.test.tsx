@@ -39,7 +39,9 @@ describe("ReaderWindowBar", () => {
     const bar = document.querySelector('[data-reader-window-bar="true"]')
     expect(bar).toBeTruthy()
     expect(bar?.getAttribute("data-reader-topbar-controls")).toBe("all")
-    expect(bar?.querySelector('[data-reader-topbar-cluster="leading"]')?.querySelectorAll("button")).toHaveLength(5)
+    const leading = bar?.querySelector<HTMLElement>('[data-reader-topbar-cluster="leading"]')
+    expect(leading?.querySelectorAll("button")).toHaveLength(5)
+    expect(leading?.dataset.scrollbar).toBe("hidden")
     const labels = Array.from(bar!.querySelectorAll("button")).map((button) => button.getAttribute("aria-label"))
     expect(labels.slice(-3)).toEqual(["固定顶栏", "打开 NeoView 设置", "关闭窗口"])
 

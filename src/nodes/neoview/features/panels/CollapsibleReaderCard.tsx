@@ -6,7 +6,7 @@
  */
 import { useRef } from "react"
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react"
-import { ChevronDown, ChevronUp, GripHorizontal, RotateCcw } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, GripHorizontal, RotateCcw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -19,6 +19,10 @@ export function CollapsibleReaderCard({
   height,
   frameless = false,
   children,
+  canMoveUp = false,
+  canMoveDown = false,
+  onMoveUp,
+  onMoveDown,
   onCollapsedChange,
   onHeightChange,
 }: {
@@ -28,6 +32,10 @@ export function CollapsibleReaderCard({
   height?: number
   frameless?: boolean
   children: ReactNode
+  canMoveUp?: boolean
+  canMoveDown?: boolean
+  onMoveUp?(): void
+  onMoveDown?(): void
   onCollapsedChange?(collapsed: boolean): void
   onHeightChange?(height?: number): void
 }) {
@@ -61,6 +69,32 @@ export function CollapsibleReaderCard({
           <span className="truncate">{title}</span>
         </h3>
         <div className="flex items-center gap-0.5">
+          {onMoveUp || onMoveDown ? (
+            <>
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="ghost"
+                title={`上移${title}`}
+                aria-label={`上移${title}`}
+                disabled={!canMoveUp}
+                onClick={onMoveUp}
+              >
+                <ArrowUp />
+              </Button>
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="ghost"
+                title={`下移${title}`}
+                aria-label={`下移${title}`}
+                disabled={!canMoveDown}
+                onClick={onMoveDown}
+              >
+                <ArrowDown />
+              </Button>
+            </>
+          ) : null}
           {height === undefined ? null : (
             <Button
               type="button"

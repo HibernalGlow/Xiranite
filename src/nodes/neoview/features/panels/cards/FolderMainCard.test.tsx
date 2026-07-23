@@ -2533,6 +2533,7 @@ describe("FolderMainCard", () => {
     await waitFor(() => expect(onFolderView).toHaveBeenCalledWith({ thumbnailWidthPercent: 21 }))
     fireEvent.keyUp(thumbnailSlider, { key: "ArrowRight" })
     expect(onFolderView).toHaveBeenCalledTimes(1)
+
     fireEvent.keyDown(thumbnailSlider, { key: "Escape" })
 
     onFolderView.mockClear()

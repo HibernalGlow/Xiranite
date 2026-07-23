@@ -217,7 +217,7 @@ export function ReaderViewToolbar({
         ><Search /></Button>
       </div>
       {expanded ? (
-        <div className="flex min-h-12 flex-wrap items-center justify-center gap-1 overflow-x-auto border-t border-border/50 bg-muted/18 px-3 py-2" data-reader-toolbar-row="expanded" data-reader-toolbar-panel={expanded}>
+        <div className="flex min-h-12 flex-wrap items-center justify-center gap-1 overflow-x-auto border-t border-border/50 bg-muted/18 px-3 py-2" data-reader-toolbar-row="expanded" data-reader-toolbar-panel={expanded} data-scrollbar="hidden">
           {expanded === "sort" ? <Suspense fallback={<span className="text-xs text-muted-foreground" role="status">正在加载页面排序…</span>}>
             <ReaderPageOrderToolbar disabled={disabled} order={pageOrder} lockedSortMode={lockedSortMode} lockedMediaPriority={lockedMediaPriority} onChange={onPageOrderChange!} onLockChange={onPageOrderLockChange} />
           </Suspense> : null}

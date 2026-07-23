@@ -296,6 +296,26 @@ describe("ReaderSidebar layout gestures", () => {
     expect(screen.getByRole("button", { name: "折叠书籍信息" })).toBeTruthy()
   })
 
+  it("[neoview.card.order] commits an atomic board move from the card header", () => {
+    const boardCommit = vi.fn()
+    const config = shell()
+    const value = context()
+    value.onBoardLayout = boardCommit.mockResolvedValue(undefined)
+    config.cardLayout["book-information"]!.panelId = "pageList"
+    config.cardLayout["page-navigation"]!.order = 0
+    config.cardLayout["book-information"]!.order = 1
+    render(<ReaderSidebar side="left" context={value} shell={config} />)
+    fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
+    fireEvent.click(screen.getByRole("button", { name: "下移页面导航" }))
+
+    expect(boardCommit).toHaveBeenCalledOnce()
+    const [patch] = boardCommit.mock.calls[0]!
+    expect(patch.board.cards).toEqual(expect.arrayContaining([
+      expect.objectContaining({ cardId: "book-information", order: 0 }),
+      expect.objectContaining({ cardId: "page-navigation", order: 1 }),
+    ]))
+  })
+
   it("[neoview.card.exclusive-content] mounts File and History bodies directly when expanded is omitted", async () => {
     const config = shell()
     config.cardLayout["folder-main"] = { panelId: "folder", visible: true, order: 0 }

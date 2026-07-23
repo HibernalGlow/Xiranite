@@ -32,7 +32,7 @@ export function ReaderWindowBar({ control, disabled, mode, readerViewFullscreen 
   return (
     <div className="xiranite-app-region-no-drag flex min-w-0 items-stretch" data-reader-window-bar="true" data-reader-topbar-controls={part} data-input-context="shell">
       {part !== "trailing" ? (
-        <div className="flex min-w-0 items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-reader-topbar-cluster="leading">
+        <div className="flex min-w-0 items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-reader-topbar-cluster="leading" data-scrollbar="hidden">
           <Button
             type="button"
             size="icon-sm"

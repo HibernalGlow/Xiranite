@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { ReaderShellConfigDto } from "../../adapters/reader-http-client"
-import { moveReaderPanel, readerPanelIdsForSide } from "./reader-panel-layout"
+import { moveReaderCard, moveReaderPanel, readerPanelIdsForSide } from "./reader-panel-layout"
 
 describe("reader panel layout", () => {
   it("[neoview.sidebar.panel-dnd] reorders a panel and normalizes the source rail", () => {
@@ -27,6 +27,33 @@ describe("reader panel layout", () => {
   it("[neoview.sidebar.panel-dnd] rejects fixed and unchanged moves", () => {
     expect(moveReaderPanel(shell(), "cardwindow", "left", 0)).toBeUndefined()
     expect(moveReaderPanel(shell(), "folder", "left", 0)).toBeUndefined()
+  })
+
+  it("[neoview.card.order] moves one card and persists the normalized board order", () => {
+    const current = shell()
+    current.cardLayout["image-information"] = { panelId: "info", visible: true, expanded: true, order: 4 }
+    current.cardLayout["future-card"]!.order = 17
+
+    const result = moveReaderCard(current, "image-information", -1, ["book-information", "image-information"])
+
+    expect(result).toBeTruthy()
+    expect(result!.shell.cardLayout["image-information"]!.order).toBe(0)
+    expect(result!.shell.cardLayout["book-information"]!.order).toBe(1)
+    expect(result!.shell.cardLayout["future-card"]).toEqual(current.cardLayout["future-card"])
+    expect(result!.patch.board.cards).toEqual(expect.arrayContaining([
+      expect.objectContaining({ cardId: "image-information", panelId: "info", order: 0 }),
+      expect.objectContaining({ cardId: "book-information", panelId: "info", order: 1 }),
+    ]))
+  })
+
+  it("[neoview.card.order] rejects moves beyond the visible panel boundaries", () => {
+    const current = shell()
+    current.cardLayout["image-information"] = { panelId: "info", visible: true, expanded: true, order: 1 }
+    const ids = ["book-information", "image-information"]
+
+    expect(moveReaderCard(current, "book-information", -1, ids)).toBeUndefined()
+    expect(moveReaderCard(current, "image-information", 1, ids)).toBeUndefined()
+    expect(moveReaderCard(current, "future-card", -1, ids)).toBeUndefined()
   })
 })
 

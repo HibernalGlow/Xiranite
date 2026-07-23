@@ -793,20 +793,6 @@ samp {
   background: var(--scrollbar-track);
 }
 
-/* Intentional hide — toolbars, swimlanes, and other chrome that must not show bars. */
-.hide-scrollbar,
-[data-scrollbar="hidden"] {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-}
-
-.hide-scrollbar::-webkit-scrollbar,
-[data-scrollbar="hidden"]::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-}
-
 /* Keep dockview scroll chrome on the same token pipeline. */
 .dv-theme-bridge {
   --dv-scrollbar-background-color: var(--scrollbar-thumb);

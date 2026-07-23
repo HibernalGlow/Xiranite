@@ -22,6 +22,19 @@ describe("CollapsibleReaderCard", () => {
     expect(screen.getByText("预加载状态")).toBeTruthy()
   })
 
+  it("[neoview.card.order-controls] exposes separate bounded move commands", () => {
+    const moveUp = vi.fn()
+    const moveDown = vi.fn()
+    render(
+      <CollapsibleReaderCard title="图像信息" canMoveDown onMoveUp={moveUp} onMoveDown={moveDown}>content</CollapsibleReaderCard>,
+    )
+
+    expect(screen.getByRole("button", { name: "上移图像信息" }).hasAttribute("disabled")).toBe(true)
+    fireEvent.click(screen.getByRole("button", { name: "下移图像信息" }))
+    expect(moveUp).not.toHaveBeenCalled()
+    expect(moveDown).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.card.zero-mount] is controlled and does not mount collapsed content", () => {
     const changed = vi.fn()
     const view = render(

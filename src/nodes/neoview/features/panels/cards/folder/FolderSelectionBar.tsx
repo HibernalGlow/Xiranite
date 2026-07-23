@@ -167,7 +167,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
       <span className="min-w-[4.5rem] text-xs font-medium tabular-nums">
         {running && activeOperation ? <><span className="text-primary">{activeOperation.processed}</span> / {activeOperation.total}</> : <><span className="text-primary">{selectedCount}</span> / {total}</>}
       </span>
-      <div className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto">
+      <div className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto" data-scrollbar="hidden">
         <Action label="选择全部项目" disabled={disabled || running || selectedCount === total} onClick={onSelectAll}><CheckSquare /></Action>
         <Action label="反转选择状态" disabled={disabled || running || total === 0} onClick={onInvert}><Square /></Action>
         <Action label="链接选中模式" disabled={disabled || running} pressed={chainSelectMode} onClick={onToggleChain}><Link /></Action>

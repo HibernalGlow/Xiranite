@@ -100,6 +100,15 @@ test("[neoview.swimlane.workspace-e2e] keeps flat reveal, Reader focus and fused
   await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull()
   const exitReaderViewFullscreen = breadcrumb.getByRole("button", { name: "退出 Reader 视图全屏" })
   await expect(exitReaderViewFullscreen.locator("svg.lucide-scan")).toBeVisible()
+
+  await page.locator('[data-reader-swimlane-trigger="right"]').hover()
+  await expect(workspace).toHaveAttribute("data-reader-swimlane-preview", "right")
+  await page.getByRole("button", { name: "书籍信息" }).click()
+  await expect(page.locator('[data-reader-swimlane="right"]')).toHaveAttribute("data-reader-swimlane-active", "true")
+  await expect(readerLane.locator('[data-reader-swimlane-header="reader"]')).toHaveCount(0)
+  await expect(readerLane).toHaveAttribute("data-reader-view-fullscreen", "true")
+  await expect(exitReaderViewFullscreen).toBeVisible()
+
   await exitReaderViewFullscreen.click()
   await expect(readerLane.locator('[data-reader-swimlane-header="reader"]')).toBeVisible()
   await expect(readerLane).not.toHaveAttribute("data-reader-view-fullscreen", "true")

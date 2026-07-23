@@ -124,6 +124,7 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
   return (
     <div
       ref={rootRef}
+      data-scrollbar={vertical ? undefined : "hidden"}
       className={vertical
         ? "relative flex h-full min-h-0 min-w-24 flex-col items-stretch gap-1 overflow-y-auto rounded-md border bg-muted/30 p-0.5"
         : "flex h-8 min-w-0 items-center gap-1 overflow-x-auto rounded-md border bg-muted/30 p-0.5"}
