@@ -83,6 +83,7 @@ export interface ComfygureProgramDraft {
 export interface ComfygureTarget {
   endpoint?: string
   clientId?: string
+  libraryPath?: string
 }
 
 export interface ResourceRequirement {
@@ -132,6 +133,7 @@ export interface ComfygureFetchResponse {
 
 export interface ComfygureRuntime {
   fetch(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }): Promise<ComfygureFetchResponse>
+  readLoraTrigger?(libraryPath: string, loraName: string): Promise<string | undefined>
 }
 
 export interface ComfyuiSubmission {
@@ -256,8 +258,8 @@ export function resolveActiveLoras(program: ComfygureProgram, positiveText: stri
   const comparable = positiveText.toLocaleLowerCase()
   return program.loras.filter((lora) => {
     if (lora.enabled === false) return false
-    const terms = splitPromptTags(lora.activationTerms ?? "").map((term) => term.toLocaleLowerCase())
-    return terms.every((term) => !term || comparable.includes(term))
+    const terms = splitActivationTerms(lora.activationTerms ?? "").map((term) => term.toLocaleLowerCase())
+    return terms.length === 0 || terms.some((term) => comparable.includes(term))
   })
 }
 
@@ -435,7 +437,8 @@ export async function preflightComfyuiTarget(compiled: CompiledProgram, target: 
 }
 
 export async function runComfygure(input: ComfygureInput, runtime: ComfygureRuntime, onEvent: (event: NodeRunEvent) => void = () => {}): Promise<NodeRunResult<ComfygureData>> {
-  const compiled = compileAnimaInt8Program(input.program)
+  const program = await hydrateLoraTriggers(input.program, input.target, runtime)
+  const compiled = compileAnimaInt8Program(program)
   if (input.action !== "preflight" && input.action !== "submit") {
     return { success: true, message: `Compiled ${Object.keys(compiled.graph).length} fixed ComfyUI node(s).`, data: { compiled } }
   }
@@ -536,6 +539,29 @@ function splitPromptTags(value: string): string[] {
   }
   result.push(value.slice(start))
   return result
+}
+
+function splitActivationTerms(value: string): string[] {
+  return value.split(/[\n,，、|;；]+/).map((term) => term.trim()).filter(Boolean)
+}
+
+async function hydrateLoraTriggers(
+  program: ComfygureProgramDraft | undefined,
+  target: ComfygureTarget | undefined,
+  runtime: ComfygureRuntime,
+): Promise<ComfygureProgramDraft | undefined> {
+  const libraryPath = target?.libraryPath?.trim()
+  if (!libraryPath || !runtime.readLoraTrigger || !program?.loras?.length) return program
+  const loras = await Promise.all(program.loras.map(async (lora) => {
+    if (!lora || lora.enabled === false || stringValue(lora.injectionTerms, "")) return lora
+    try {
+      const trigger = await runtime.readLoraTrigger!(libraryPath, lora.name)
+      return trigger?.trim() ? { ...lora, injectionTerms: trigger } : lora
+    } catch {
+      return lora
+    }
+  }))
+  return { ...program, loras }
 }
 
 function normalizePromptTag(value: string): string {

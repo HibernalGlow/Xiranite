@@ -97,7 +97,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       const result = await run<ComfygureInput, ComfygureData>("comfygure", {
         action,
         program: stateRef.current.program ?? program,
-        target: { endpoint: target.endpoint },
+        target: { endpoint: target.endpoint, libraryPath: target.libraryPath },
       }, (event: NodeRunEvent) => {
         if (event.type === "progress") patch({ status: event.message, progress: event.progress })
       })
