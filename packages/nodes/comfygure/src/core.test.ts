@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { compileAnimaInt8Program, compileAnimaInt8RunPlan, compileComfygureTemplate, confirmComfygureTemplateBindings, compressComfygureText, createComfygureProfile, decompressComfygureText, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, exportComfygureCanvas, importComfyuiWorkflow, normalizeComfyuiEndpoint, normalizeComfygureProfile, normalizePromptText, preflightComfyuiTarget, resolveBatchSequence, resolveComfygureProfile, runComfygure } from "./core.js"
+import { compileAnimaInt8Program, compileAnimaInt8RunPlan, compileComfygureTemplate, confirmComfygureTemplateBindings, compressComfygureText, createComfygureProfile, decompressComfygureText, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, exportComfygureCanvas, extractComfygureControlOptions, importComfyuiWorkflow, normalizeComfyuiEndpoint, normalizeComfygureProfile, normalizePromptText, parseComfygureVisualTemplate, preflightComfyuiTarget, resolveBatchSequence, resolveComfygureProfile, runComfygure, serializeComfygureVisualTemplate } from "./core.js"
 
 describe("Comfygure ANIMA INT8 compiler", () => {
   it("compiles dynamic LoRA choices into static Comfyroll stack nodes", () => {
@@ -36,6 +36,24 @@ describe("Comfygure ANIMA INT8 compiler", () => {
     expect(compressed?.data.length).toBeLessThan(source.length)
     expect(decompressComfygureText(compressed)).toBe(source)
     expect(decompressComfygureText({ format: "deflate-base64/v1", data: "not-base64", lineCount: 1, uncompressedLength: 1 })).toBe("")
+  })
+
+  it("round-trips simple Liquid output and literal parts for the sortable template editor", () => {
+    const source = "{{ prompt.prefix }}, {{ batch.text }}, {{ lora.tags | join: ', ' }}"
+    const visual = parseComfygureVisualTemplate(source)
+
+    expect(visual).toEqual({
+      supported: true,
+      parts: [
+        { kind: "variable", value: "prompt.prefix" },
+        { kind: "text", value: ", " },
+        { kind: "variable", value: "batch.text" },
+        { kind: "text", value: ", " },
+        { kind: "variable", value: "lora.tags | join: ', '" },
+      ],
+    })
+    expect(serializeComfygureVisualTemplate([...visual.parts].reverse())).toBe("{{ lora.tags | join: ', ' }}, {{ batch.text }}, {{ prompt.prefix }}")
+    expect(parseComfygureVisualTemplate("{% if seed %}{{ seed }}{% endif %}")).toMatchObject({ supported: false })
   })
 
   it("freezes a versioned generation profile without prompts or batch content", () => {
@@ -231,6 +249,40 @@ prompt", "clip": ["2", 0] }, "_meta": { "title": "Positive prompt" } },
     expect(runPlan.jobs.map((job) => job.compiled.graph["8"]?.inputs.seed)).toEqual([41, 42, 43, 44, 45])
   })
 
+  it("renders typed Liquid variables into fixed prompts and SaveImagePlus prefixes", () => {
+    const runPlan = compileAnimaInt8RunPlan({
+      name: "ANIMA Portrait",
+      prompts: { positivePrefix: "masterpiece", negative: "bad anatomy" },
+      templates: {
+        positive: "{{ prompt.prefix }}, {{ batch.text }}, {{ lora.tags | join: ', ' }}",
+        negative: "{{ prompt.negative }}, seed {{ seed }}",
+        filenamePrefix: "{{ batch.sourceStem | default: project | safe_segment }}/{{ job | pad: 3 }}-{{ seed }}-{{ model }}",
+      },
+      batch: { entries: [{ text: "cat_ears", sourceName: "scene 01.txt", sourcePath: "D:/prompts/scene 01.txt" }] },
+      loras: [{ name: "cat.safetensors", activationTerms: "cat ears", injectionTerms: "cat style" }],
+      parameters: { seed: 42, seedMode: "fixed" },
+    }, { runId: "run-a" })
+
+    expect(runPlan.jobs[0]).toMatchObject({ sourceName: "scene 01.txt", sourcePath: "D:/prompts/scene 01.txt" })
+    expect(runPlan.jobs[0]?.compiled.promptComposition).toMatchObject({
+      sourceText: "cat_ears",
+      activeLoraNames: ["cat.safetensors"],
+      injectedTerms: ["cat style"],
+      positivePrompt: "masterpiece, cat ears, cat style",
+      negativePrompt: "bad anatomy, seed 42",
+      filenamePrefix: "scene 01/001-42-silvermoonmixAnima_v20_INT8",
+    })
+    expect(Object.values(runPlan.jobs[0]!.compiled.graph).find((node) => node.class_type === "LayerUtility: SaveImagePlus")?.inputs.filename_prefix).toBe("scene 01/001-42-silvermoonmixAnima_v20_INT8")
+  })
+
+  it("fails closed on unknown Liquid variables and removes traversal from rendered prefixes", () => {
+    expect(() => compileAnimaInt8Program({ templates: { positive: "{{ missing.value }}" } })).toThrow("Invalid Comfygure positive template")
+    const compiled = compileAnimaInt8Program({
+      templates: { filenamePrefix: "{{ batch.sourcePath }}/{{ sourceName }}" },
+    }, { batchEntry: { text: "cat", sourceName: "result?.png", sourcePath: "../../unsafe/../folder" } })
+    expect(compiled.filenamePrefix).toBe("unsafe/folder/result_.png")
+  })
+
   it("uses a deterministic shuffle while preserving no-duplicate rounds", () => {
     const batch = { prompts: ["a", "b", "c"], maxPrompts: 0, queueCount: 8, shuffle: true, allowDuplicates: false, selectionSeed: 42 } as const
     const first = resolveBatchSequence(batch.prompts.length, batch)
@@ -254,6 +306,28 @@ prompt", "clip": ["2", 0] }, "_meta": { "title": "Positive prompt" } },
     expect(report.missingResources).toEqual([])
   })
 
+  it("extracts sampler and scheduler choices from ComfyUI node definitions", async () => {
+    const compiled = compileAnimaInt8Program()
+    const info = objectInfoFor(compiled)
+    expect(extractComfygureControlOptions(info)).toMatchObject({
+      samplerNames: ["euler", "euler_ancestral"],
+      schedulers: ["normal", "beta57"],
+    })
+    expect(extractComfygureControlOptions(info).sourceNodeTypes).toEqual(expect.arrayContaining(["FLS_SamplerV4", "KSampler"]))
+
+    const optionalInfo = {
+      OptionalSampler: { input: { optional: { sampler_name: [["dpmpp_2m"]], scheduler: [["karras"]] } } },
+    }
+    expect(extractComfygureControlOptions(optionalInfo)).toEqual({
+      samplerNames: ["dpmpp_2m"],
+      schedulers: ["karras"],
+      sourceNodeTypes: ["OptionalSampler"],
+    })
+
+    const result = await runComfygure({ action: "options" }, { fetch: async () => ({ ok: true, status: 200, json: async () => info }) })
+    expect(result).toMatchObject({ success: true, data: { controlOptions: { samplerNames: ["euler", "euler_ancestral"], schedulers: ["normal", "beta57"] } } })
+  })
+
   it("fails closed for unavailable custom execution nodes and remote endpoints", async () => {
     const compiled = compileAnimaInt8Program()
     const report = await preflightComfyuiTarget(compiled, {}, {
@@ -266,8 +340,8 @@ prompt", "clip": ["2", 0] }, "_meta": { "title": "Positive prompt" } },
 
   it("submits a fixed graph only through the explicit submit action after preflight", async () => {
     const requests: Array<{ url: string; init?: { method?: string; body?: string } }> = []
-    const compiled = compileAnimaInt8Program()
-    const result = await runComfygure({ action: "submit" }, {
+    const compiled = compileAnimaInt8Program({}, { runId: "test-run" })
+    const result = await runComfygure({ action: "submit", runId: "test-run" }, {
       fetch: async (url, init) => {
         requests.push({ url, init })
         if (url.endsWith("/object_info")) return { ok: true, status: 200, json: async () => objectInfoFor(compiled) }
@@ -453,13 +527,13 @@ prompt", "clip": ["2", 0] }, "_meta": { "title": "Positive prompt" } },
   })
 
   it("delegates local preflight and submission through the target adapter contract", async () => {
-    const compiled = compileAnimaInt8Program()
+    const compiled = compileAnimaInt8Program({}, { runId: "adapter-run" })
     const targetAdapter = {
       readObjectInfo: vi.fn(async () => objectInfoFor(compiled)),
       submitPrompt: vi.fn(async () => ({ endpoint: "http://127.0.0.1:8000", promptId: "adapter-prompt", clientId: "xiranite-comfygure" })),
       readPromptHistory: vi.fn(async () => ({ endpoint: "http://127.0.0.1:8000", promptId: "adapter-prompt", state: "complete" as const, images: [] })),
     }
-    const result = await runComfygure({ action: "submit" }, {
+    const result = await runComfygure({ action: "submit", runId: "adapter-run" }, {
       fetch: async () => { throw new Error("raw transport must not be used when an adapter is present") },
       targetAdapter,
     })
@@ -472,6 +546,8 @@ prompt", "clip": ["2", 0] }, "_meta": { "title": "Positive prompt" } },
 
 function objectInfoFor(compiled: ReturnType<typeof compileAnimaInt8Program>) {
   const info: Record<string, unknown> = Object.fromEntries(compiled.requiredClasses.map((classType) => [classType, { input: { required: {} } }]))
+  info.FLS_SamplerV4 = { input: { required: { sampler_name: [["euler", "euler_ancestral"]], scheduler: [["normal", "beta57"]] } } }
+  info.KSampler = { input: { required: { sampler_name: [["euler"]], scheduler: [["normal"]] } } }
   ;(info.OTUNetLoaderW8A8 as { input: { required: Record<string, unknown> } }).input.required.unet_name = [[compiled.program.model.unetName]]
   ;(info.CLIPLoader as { input: { required: Record<string, unknown> } }).input.required.clip_name = [[compiled.program.model.clipName]]
   ;(info.VAELoader as { input: { required: Record<string, unknown> } }).input.required.vae_name = [[compiled.program.model.vaeName]]

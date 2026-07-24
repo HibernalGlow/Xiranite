@@ -3133,17 +3133,25 @@
         "program": "程序", "outputPrefix": "输出前缀", "positivePrompt": "正向提示词", "positivePrefix": "正向前缀", "negativePrompt": "负向提示词", "positiveTemplate": "正向模板", "negativeTemplate": "负向模板", "filenameTemplate": "文件名模板",
         "batchPrompts": "批量正向提示词", "batchPlaceholder": "每个非空行对应一个固定生成任务", "batchJobs": "批处理任务数（0 = 全部）", "batchSelectionSeed": "批处理选择种子", "shuffleBatch": "打乱批处理任务", "allowDuplicates": "允许重复批处理提示词",
         "loraRows": "LoRA 列表", "loraPlaceholder": "folder/style.safetensors | 1 | 1 | 触发词 | 注入词", "width": "宽度", "height": "高度", "seed": "种子", "batch": "批次", "steps": "步数", "cfg": "CFG", "denoise": "去噪", "sampler": "采样器", "scheduler": "调度器", "seedPolicy": "种子策略", "unet": "UNet", "clip": "CLIP", "vae": "VAE",
-        "endpoint": "端点", "library": "ComfyUI 库", "libraryPlaceholder": "D:/1Repo/Github/ComfyUI/Library", "profileLibrary": "配置库", "profileLibraryPlaceholder": "默认 Xiranite 数据目录", "generationProfile": "生成配置"
+        "endpoint": "端点", "library": "ComfyUI 库", "libraryPlaceholder": "D:/1Repo/Github/ComfyUI/Library", "profileLibrary": "配置库", "profileLibraryPlaceholder": "默认 Xiranite 数据目录", "generationProfile": "生成配置", "fixedTemplateText": "固定模板文本"
       },
-      "values": { "increment": "每个任务递增", "fixed": "固定", "currentSnapshot": "当前项目快照" },
-      "actions": { "importText": "导入文本", "importWorkflow": "导入工作流", "confirmBindings": "确认绑定", "compile": "编译", "exportCanvas": "导出画布", "saveTarget": "保存目标", "profiles": "配置列表", "saveProfile": "保存配置", "preflight": "预检", "refreshResults": "刷新结果", "run": "运行", "insertVariable": "插入变量" },
+      "values": { "increment": "每个任务递增", "fixed": "固定", "currentSnapshot": "当前项目快照", "visual": "排列", "source": "源码" },
+      "actions": { "importText": "导入文本", "importWorkflow": "导入工作流", "confirmBindings": "确认绑定", "compile": "编译", "exportCanvas": "导出画布", "saveTarget": "保存目标", "profiles": "配置列表", "saveProfile": "保存配置", "preflight": "预检", "refreshResults": "刷新结果", "run": "运行", "insertVariable": "插入变量", "loadOptions": "读取选项", "addVariable": "变量", "addTextPart": "文本", "dragTemplatePart": "拖拽调整顺序", "removeTemplatePart": "移除模板片段" },
+      "templates": { "empty": "添加变量或固定文本。" },
+      "variables": {
+        "project": "项目名称", "run": "运行名称", "job": "任务序号", "seed": "种子", "model": "模型名称", "sourceName": "源文件名",
+        "prompt_prefix": "正向前缀", "prompt_positive": "正向提示词", "prompt_negative": "负向提示词",
+        "batch_text": "批次文本", "batch_sourceName": "源文件名", "batch_sourceStem": "源名称", "batch_sourcePath": "源路径", "batch_sourceIndex": "源序号", "batch_loopIndex": "循环序号",
+        "lora_names": "LoRA 名称", "lora_tags": "LoRA 提示标签", "models_unet": "UNet 模型", "models_clip": "CLIP 模型", "models_vae": "VAE 模型",
+        "image_width": "图像宽度", "image_height": "图像高度", "image_batchSize": "图像批次数", "sampler_name": "采样器", "sampler_scheduler": "调度器", "sampler_steps": "步数", "sampler_cfg": "CFG", "output_prefix": "输出前缀"
+      },
       "filePicker": { "promptTitle": "导入 Comfygure 提示词文本", "textFiles": "文本文件", "workflowTitle": "导入 ComfyUI 工作流", "workflow": "ComfyUI 工作流" },
       "status": {
         "fixedCompiler": "固定 ComfyUI 编译器", "targetSaved": "本地 ComfyUI 目标已保存。", "targetSaveError": "无法保存本地目标：{{message}}", "targetSaveFailed": "无法保存本地目标。", "promptFilesUnsupported": "当前宿主不支持选择本地提示词文本文件。", "readFileError": "无法读取 {{path}}：HTTP {{status}}", "promptFilesImported": "已导入 {{count}} 个提示词文本文件。", "promptFilesImportFailed": "无法导入提示词文本文件。", "workflowFilesUnsupported": "当前宿主不支持选择本地工作流文件。", "workflowImportFailed": "无法导入 ComfyUI 工作流。", "templateConfirmed": "模板绑定已确认，固定控件现在会编译到此模板。", "runnerUnavailable": "Xiranite 后端运行器不可用。", "refreshRequiresPrompt": "请先运行 ComfyUI 提示词，再刷新结果。", "noCompilerResult": "后端没有返回编译结果。",
-        "running": { "import": "正在规范化 ComfyUI 工作流。", "profiles": "正在读取本地生成配置。", "saveProfile": "正在保存生成配置。", "loadProfile": "正在加载生成配置。", "compile": "正在编译固定提示图。", "canvas": "正在导出可检查的 ComfyUI 画布。", "preflight": "正在检查本地 ComfyUI 目标。", "refresh": "正在刷新 ComfyUI 结果。", "submit": "正在提交固定提示图。" }
+      "running": { "import": "正在规范化 ComfyUI 工作流。", "profiles": "正在读取本地生成配置。", "saveProfile": "正在保存生成配置。", "loadProfile": "正在加载生成配置。", "compile": "正在编译固定提示图。", "canvas": "正在导出可检查的 ComfyUI 画布。", "options": "正在从本地 ComfyUI 目标读取采样选项。", "preflight": "正在检查本地 ComfyUI 目标。", "refresh": "正在刷新 ComfyUI 结果。", "submit": "正在提交固定提示图。" }
       },
       "summary": {
-        "empty": "编译固定图或检查本地目标。预检不会提交提示词。", "templateAttention": "模板需要处理", "templateConfirmed": "模板绑定已确认", "templateNeedsConfirmation": "模板绑定需要确认", "importedNodes": "{{name}}：导入 {{count}} 个节点", "inferredBindings": "推断出 {{count}} 个绑定", "resultsAttention": "ComfyUI 结果需要处理", "resultsRefreshed": "ComfyUI 结果已刷新", "submitted": "已提交到 ComfyUI", "ready": "可以运行", "preflightAttention": "预检需要处理", "compilerPreview": "编译器预览", "fixedNodes": "{{count}} 个固定 ComfyUI 节点", "jobs": " / 每个任务 · {{count}} 个任务", "loras": "LoRA：{{names}}", "noLoras": "没有启用的 LoRA", "promptIds": "提示 ID（{{count}}）：{{ids}}", "promptId": "提示 ID：{{id}}", "completed": "{{complete}} / {{total}} 已完成 · {{images}} 张图像", "resultAlt": "ComfyUI 结果 {{index}}", "classesReported": "已报告 {{count}} 个节点类", "unavailable": "不可用：{{endpoint}}", "missingNodes": "缺少节点：{{nodes}}", "missingResources": "缺少资源：{{resources}}"
+        "empty": "编译固定图或检查本地目标。预检不会提交提示词。", "templateAttention": "模板需要处理", "templateConfirmed": "模板绑定已确认", "templateNeedsConfirmation": "模板绑定需要确认", "importedNodes": "{{name}}：导入 {{count}} 个节点", "inferredBindings": "推断出 {{count}} 个绑定", "resultsAttention": "ComfyUI 结果需要处理", "resultsRefreshed": "ComfyUI 结果已刷新", "submitted": "已提交到 ComfyUI", "ready": "可以运行", "preflightAttention": "预检需要处理", "compilerPreview": "编译器预览", "fixedNodes": "{{count}} 个固定 ComfyUI 节点", "jobs": " / 每个任务 · {{count}} 个任务", "loras": "LoRA：{{names}}", "noLoras": "没有启用的 LoRA", "filenamePrefix": "输出：{{prefix}}", "promptIds": "提示 ID（{{count}}）：{{ids}}", "promptId": "提示 ID：{{id}}", "completed": "{{complete}} / {{total}} 已完成 · {{images}} 张图像", "resultAlt": "ComfyUI 结果 {{index}}", "classesReported": "已报告 {{count}} 个节点类", "unavailable": "不可用：{{endpoint}}", "missingNodes": "缺少节点：{{nodes}}", "missingResources": "缺少资源：{{resources}}"
       }
     },
     "recycleu": {

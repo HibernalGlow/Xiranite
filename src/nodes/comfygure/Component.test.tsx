@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { createRef } from "react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { NodeLocalFilesCapability, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import { compileAnimaInt8Program, compileAnimaInt8RunPlan, createComfygureProfile, importComfyuiWorkflow, type ComfygureData, type ComfygureInput } from "@xiranite/node-comfygure/core"
+import { compileAnimaInt8Program, compileAnimaInt8RunPlan, createComfygureProfile, decompressComfygureText, importComfyuiWorkflow, type ComfygureData, type ComfygureInput } from "@xiranite/node-comfygure/core"
+import { changeLanguage } from "@/i18n"
 import { Component } from "./Component"
 import type { ComfygureCardState, ComfygureTargetConfig } from "./types"
 
@@ -13,10 +14,26 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
 
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
 
+beforeEach(async () => {
+  await changeLanguage("en")
+})
+
 describe("Comfygure node projection", () => {
+  it("updates visible controls when the application language changes", async () => {
+    const host = createHost()
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    expect(screen.getByRole("button", { name: "Preflight" })).toBeTruthy()
+    await changeLanguage("zh")
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "预检" })).toBeTruthy())
+    expect(screen.getByRole("button", { name: "运行" })).toBeTruthy()
+  })
+
   it("uses the shared resizable-panel system for the project, inspection, and execution swimlanes", () => {
     const host = createHost()
     render(<Component compId="comfygure-1" host={host as never} />)
@@ -28,6 +45,28 @@ describe("Comfygure node projection", () => {
     expect(screen.getByTestId("comfygure-execution-lane").getAttribute("aria-labelledby")).toBe("comfygure-execution-heading")
     expect(workbench.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(3)
     expect(workbench.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(2)
+  })
+
+  it("builds Liquid templates from shared sortable variable tags", async () => {
+    const host = createHost()
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    const composer = screen.getByTestId("positive-template-composer")
+    expect(composer.querySelector('[data-slot="sortable-content"]')).toBeTruthy()
+    expect(composer.querySelectorAll('[data-slot="sortable-item"]')).toHaveLength(2)
+
+    const field = composer.closest('[data-slot="tabs"]')?.parentElement
+    expect(field).toBeTruthy()
+    const user = userEvent.setup()
+    await user.click(within(field as HTMLElement).getByRole("button", { name: "Variable" }))
+    await user.click(screen.getByRole("menuitem", { name: /Batch text.*batch\.text/ }))
+
+    expect(composer.querySelectorAll('[data-slot="sortable-item"]')).toHaveLength(3)
+    expect(within(composer).getByText("Batch text")).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: "Compile" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input.program?.templates?.positive).toBe("{{ prompt.prefix }}, {{ prompt.positive }}, {{ batch.text }}")
   })
 
   it("sends preflight through the host runner without submitting a prompt", async () => {
@@ -42,6 +81,33 @@ describe("Comfygure node projection", () => {
       input: { action: "preflight", target: { endpoint: "http://127.0.0.1:8000", libraryPath: "D:/1Repo/Github/ComfyUI/Library" } },
     })
     expect(screen.getByText("Ready to run")).toBeTruthy()
+  })
+
+  it("renders sampler and scheduler choices returned by the ComfyUI target", async () => {
+    const host = createHost()
+    host.runner.run = async <TInput, TData>(nodeId: string, input: TInput) => {
+      host.runCalls.push({ nodeId, input: input as ComfygureInput })
+      return {
+        success: true,
+        message: "Loaded sampler options.",
+        data: {
+          compiled: compileAnimaInt8Program(),
+          runPlan: compileAnimaInt8RunPlan(),
+          controlOptions: { samplerNames: ["euler", "euler_ancestral"], schedulers: ["normal", "beta57"], sourceNodeTypes: ["FLS_SamplerV4"] },
+        },
+      } as NodeRunResult<TData>
+    }
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Load options" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]).toMatchObject({ input: { action: "options" } })
+    const sampler = screen.getByRole("combobox", { name: "Sampler" })
+    expect(sampler).toBeTruthy()
+    expect(screen.getByRole("combobox", { name: "Scheduler" })).toBeTruthy()
+    await user.click(sampler)
+    expect(screen.getByRole("option", { name: "euler_ancestral" })).toBeTruthy()
   })
 
   it("persists only local target settings through the node config capability", async () => {
@@ -123,10 +189,21 @@ describe("Comfygure node projection", () => {
     await waitFor(() => expect(host.state.batchText?.lineCount).toBe(3))
     expect(host.state.batchText?.data).not.toContain("cat")
     expect(host.state.program?.batch.prompts).toEqual([])
+    expect(host.state.program?.batch.entries).toEqual([])
+    expect(JSON.parse(decompressComfygureText(host.state.batchEntryMetadata))).toEqual([
+      { sourceName: "prompt-a.txt", sourcePath: "D:/prompt-a.txt" },
+      { sourceName: "prompt-a.txt", sourcePath: "D:/prompt-a.txt" },
+      { sourceName: "prompt-b.txt", sourcePath: "D:/prompt-b.txt" },
+    ])
 
     await user.click(screen.getByRole("button", { name: "Compile" }))
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.program?.batch?.prompts).toEqual(["cat", "dog", "fox"])
+    expect(host.runCalls[0]?.input.program?.batch?.entries).toEqual([
+      { text: "cat", sourceName: "prompt-a.txt", sourcePath: "D:/prompt-a.txt" },
+      { text: "dog", sourceName: "prompt-a.txt", sourcePath: "D:/prompt-a.txt" },
+      { text: "fox", sourceName: "prompt-b.txt", sourcePath: "D:/prompt-b.txt" },
+    ])
   })
 
   it("imports a workflow through the backend runner and requires an explicit binding confirmation", async () => {

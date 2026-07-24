@@ -1,6 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { deflateSync, inflateSync, strFromU8, strToU8 } from "fflate"
 import { jsonrepair } from "jsonrepair"
+import { Liquid, TokenKind } from "liquidjs"
 
 export const COMFYGURE_FORMAT = "comfygure/v1" as const
 export const COMFYGURE_RUN_PLAN_FORMAT = "comfygure-run-plan/v1" as const
@@ -10,6 +11,9 @@ export const COMFYGURE_PROFILE_FORMAT = "comfygure-profile/v1" as const
 export const ANIMA_INT8_RECIPE = "anima-int8/v1" as const
 export const DEFAULT_COMFYUI_ENDPOINT = "http://127.0.0.1:8000"
 export const DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS = 10_000
+export const DEFAULT_POSITIVE_TEMPLATE = "{{ prompt.prefix }}, {{ prompt.positive }}"
+export const DEFAULT_NEGATIVE_TEMPLATE = "{{ prompt.negative }}"
+export const DEFAULT_OUTPUT_PREFIX_TEMPLATE = "comfygure/{{ project | safe_segment }}/{{ run | safe_segment }}/{{ job }}-{{ seed }}"
 
 export type PromptPrimitive = string | number | boolean | null
 export type PromptLink = readonly [nodeId: string, outputIndex: number]
@@ -142,8 +146,15 @@ export interface ComfygureLora {
   enabled?: boolean
 }
 
+export interface ComfygureBatchEntry {
+  text: string
+  sourceName?: string
+  sourcePath?: string
+}
+
 export interface ComfygureBatch {
   prompts: readonly string[]
+  entries: readonly ComfygureBatchEntry[]
   maxPrompts: number
   queueCount: number
   shuffle: boolean
@@ -171,6 +182,11 @@ export interface ComfygureProgram {
     positive: string
     negative: string
     positivePrefix: string
+  }
+  templates: {
+    positive: string
+    negative: string
+    filenamePrefix: string
   }
   batch: ComfygureBatch
   loras: readonly ComfygureLora[]
@@ -230,6 +246,7 @@ export interface ComfygureProgramDraft {
   name?: string
   model?: Partial<ComfygureProgram["model"]>
   prompts?: Partial<ComfygureProgram["prompts"]>
+  templates?: Partial<ComfygureProgram["templates"]>
   batch?: Partial<ComfygureBatch>
   loras?: readonly ComfygureLora[]
   parameters?: Partial<ComfygureProgram["parameters"]>
@@ -257,6 +274,8 @@ export interface CompiledProgram {
   activeLoras: readonly ComfygureLora[]
   positivePrompt: string
   negativePrompt: string
+  filenamePrefix: string
+  promptComposition: ComfygurePromptComposition
   requiredClasses: readonly string[]
   requiredResources: readonly ResourceRequirement[]
 }
@@ -266,6 +285,8 @@ export interface CompiledGenerationJob {
   sourceIndex: number
   loopIndex: number
   sourceText: string
+  sourceName?: string
+  sourcePath?: string
   seed: number
   compiled: CompiledProgram
 }
@@ -277,6 +298,75 @@ export interface CompiledRunPlan {
   jobs: readonly CompiledGenerationJob[]
 }
 
+export interface ComfygurePromptComposition {
+  sourceText: string
+  activeLoraNames: readonly string[]
+  injectedTerms: readonly string[]
+  renderedPositive: string
+  positivePrompt: string
+  negativePrompt: string
+  filenamePrefix: string
+}
+
+export interface ComfygureRunPlanOptions {
+  runId?: string
+}
+
+export interface ComfygureCompileOptions extends ComfygureRunPlanOptions {
+  jobIndex?: number
+  sourceIndex?: number
+  loopIndex?: number
+  batchEntry?: ComfygureBatchEntry
+}
+
+export interface ComfygureTemplateVariable {
+  path: string
+  type: "string" | "number" | "string[]"
+  scopes: readonly ("positive" | "negative" | "filenamePrefix")[]
+}
+
+export interface ComfygureTemplatePart {
+  kind: "variable" | "text"
+  value: string
+}
+
+export interface ComfygureVisualTemplate {
+  supported: boolean
+  parts: readonly ComfygureTemplatePart[]
+  error?: string
+}
+
+export const COMFYGURE_TEMPLATE_VARIABLES: readonly ComfygureTemplateVariable[] = [
+  { path: "project", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "run", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "job", type: "number", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "seed", type: "number", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "model", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "sourceName", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "prompt.prefix", type: "string", scopes: ["positive", "negative"] },
+  { path: "prompt.positive", type: "string", scopes: ["positive", "negative"] },
+  { path: "prompt.negative", type: "string", scopes: ["positive", "negative"] },
+  { path: "batch.text", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "batch.sourceName", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "batch.sourceStem", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "batch.sourcePath", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "batch.sourceIndex", type: "number", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "batch.loopIndex", type: "number", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "lora.names", type: "string[]", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "lora.tags", type: "string[]", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "models.unet", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "models.clip", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "models.vae", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "image.width", type: "number", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "image.height", type: "number", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "image.batchSize", type: "number", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "sampler.name", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "sampler.scheduler", type: "string", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "sampler.steps", type: "number", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "sampler.cfg", type: "number", scopes: ["positive", "negative", "filenamePrefix"] },
+  { path: "output.prefix", type: "string", scopes: ["filenamePrefix"] },
+] as const
+
 export interface PreflightReport {
   endpoint: string
   online: boolean
@@ -285,6 +375,13 @@ export interface PreflightReport {
   missingResources: readonly ResourceRequirement[]
   uncheckedResources: readonly ResourceRequirement[]
   warnings: readonly string[]
+  controlOptions?: ComfygureControlOptions
+}
+
+export interface ComfygureControlOptions {
+  samplerNames: readonly string[]
+  schedulers: readonly string[]
+  sourceNodeTypes: readonly string[]
 }
 
 export interface ComfygureData {
@@ -295,18 +392,20 @@ export interface ComfygureData {
   profiles?: readonly ComfygureProfileSummary[]
   profile?: ComfygureProfile
   preflight?: PreflightReport
+  controlOptions?: ComfygureControlOptions
   submission?: ComfyuiSubmission
   submissions?: readonly ComfyuiSubmission[]
   history?: readonly ComfyuiPromptHistory[]
 }
 
 export interface ComfygureInput {
-  action?: "compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "canvas" | "preflight" | "submit" | "refresh"
+  action?: "compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "canvas" | "options" | "preflight" | "submit" | "refresh"
   program?: ComfygureProgramDraft
   template?: ComfygureTemplate
   workflowSource?: string
   profileId?: string
   profileName?: string
+  runId?: string
   target?: ComfygureTarget
   promptIds?: readonly string[]
 }
@@ -367,6 +466,49 @@ export interface ComfyuiPromptHistory {
 const REGION_SYNTAX = /\b(?:COUPLE|MASK|FEATHER|FILL|IMASK|AREA|MASK_SIZE|MASKW)\s*\(/i
 const WEIGHTED_TAG = /^(.+?):\s*(-?(?:\d+(?:\.\d+)?|\.\d+))$/
 const INLINE_LORA_TAG = /<lora:[^>]+>/gi
+const COMFYGURE_LIQUID = new Liquid({
+  strictFilters: true,
+  strictVariables: true,
+  lenientIf: true,
+  ownPropertyOnly: true,
+  templates: {},
+  parseLimit: 32_768,
+  renderLimit: 250,
+  memoryLimit: 1_000_000,
+})
+
+COMFYGURE_LIQUID.registerFilter("pad", (value: unknown, width: unknown = 2) => String(value ?? "").padStart(Math.max(0, Math.min(32, Number(width) || 0)), "0"))
+COMFYGURE_LIQUID.registerFilter("stem", (value: unknown) => pathStem(String(value ?? "")))
+COMFYGURE_LIQUID.registerFilter("safe_segment", (value: unknown) => safeOutputSegment(String(value ?? "")))
+
+export function parseComfygureVisualTemplate(source: string): ComfygureVisualTemplate {
+  try {
+    const templates = COMFYGURE_LIQUID.parse(source)
+    const parts: ComfygureTemplatePart[] = []
+    for (const template of templates) {
+      const token = template.token
+      if (token.kind === TokenKind.HTML) {
+        const value = token.input.slice(token.begin, token.end)
+        if (value) parts.push({ kind: "text", value })
+        continue
+      }
+      if (token.kind === TokenKind.Output) {
+        const content = (token as typeof token & { content?: string }).content?.trim()
+        if (!content) return { supported: false, parts: [], error: "Liquid output is empty." }
+        parts.push({ kind: "variable", value: content })
+        continue
+      }
+      return { supported: false, parts: [], error: "Liquid control-flow tags are available in source mode only." }
+    }
+    return { supported: true, parts }
+  } catch (error) {
+    return { supported: false, parts: [], error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export function serializeComfygureVisualTemplate(parts: readonly ComfygureTemplatePart[]): string {
+  return parts.map((part) => part.kind === "variable" ? `{{ ${part.value.trim()} }}` : part.value).join("")
+}
 
 export const DEFAULT_COMFYGURE_PROGRAM: ComfygureProgram = {
   format: COMFYGURE_FORMAT,
@@ -382,8 +524,14 @@ export const DEFAULT_COMFYGURE_PROGRAM: ComfygureProgram = {
     negative: "",
     positivePrefix: "",
   },
+  templates: {
+    positive: DEFAULT_POSITIVE_TEMPLATE,
+    negative: DEFAULT_NEGATIVE_TEMPLATE,
+    filenamePrefix: DEFAULT_OUTPUT_PREFIX_TEMPLATE,
+  },
   batch: {
     prompts: [],
+    entries: [],
     maxPrompts: 0,
     queueCount: 0,
     shuffle: false,
@@ -536,7 +684,12 @@ export function normalizeComfygureProgram(input: ComfygureProgramDraft = {}): Co
   const output = source.output ?? {}
   const model = source.model ?? {}
   const prompts = source.prompts ?? {}
+  const templates = source.templates ?? {}
   const batch = source.batch ?? {}
+  const batchEntries = normalizeBatchEntries(batch.entries, batch.prompts)
+  const filenameTemplateFallback = typeof output.filenamePrefix === "string"
+    ? "{{ output.prefix }}"
+    : DEFAULT_OUTPUT_PREFIX_TEMPLATE
   return {
     format: COMFYGURE_FORMAT,
     recipe: ANIMA_INT8_RECIPE,
@@ -551,8 +704,14 @@ export function normalizeComfygureProgram(input: ComfygureProgramDraft = {}): Co
       negative: stringValue(prompts.negative, ""),
       positivePrefix: stringValue(prompts.positivePrefix, ""),
     },
+    templates: {
+      positive: stringValue(templates.positive, DEFAULT_POSITIVE_TEMPLATE),
+      negative: stringValue(templates.negative, DEFAULT_NEGATIVE_TEMPLATE),
+      filenamePrefix: stringValue(templates.filenamePrefix, filenameTemplateFallback),
+    },
     batch: {
-      prompts: normalizeBatchPrompts(batch.prompts),
+      prompts: batchEntries.map((entry) => entry.text),
+      entries: batchEntries,
       maxPrompts: rounded(batch.maxPrompts, DEFAULT_COMFYGURE_PROGRAM.batch.maxPrompts, 0, 100_000),
       queueCount: rounded(batch.queueCount, DEFAULT_COMFYGURE_PROGRAM.batch.queueCount, 0, 100_000),
       shuffle: batch.shuffle === true,
@@ -630,12 +789,102 @@ export function resolveActiveLoras(program: ComfygureProgram, positiveText: stri
   })
 }
 
-export function compileAnimaInt8Program(input: ComfygureProgramDraft = {}): CompiledProgram {
+function resolvePromptComposition(program: ComfygureProgram, options: ComfygureCompileOptions = {}): { activeLoras: readonly ComfygureLora[]; composition: ComfygurePromptComposition } {
+  const batchEntry = options.batchEntry ?? { text: program.prompts.positive }
+  const sourceText = batchEntry.text || program.prompts.positive
+  const activationText = normalizePromptText([program.prompts.positivePrefix, sourceText].filter(Boolean).join(", "))
+  const activeLoras = resolveActiveLoras(program, activationText)
+  const injectedTerms = activeLoras.flatMap((lora) => splitPromptTags(lora.injectionTerms ?? "").map(normalizePromptTag).filter(Boolean))
+  const context = createLiquidContext(program, activeLoras, options, batchEntry, injectedTerms)
+  const renderedPositive = renderComfygureLiquid("positive", program.templates.positive, context)
+  const positivePrompt = ensurePromptTerms(normalizePromptText(renderedPositive), injectedTerms)
+  const negativePrompt = normalizePromptText(renderComfygureLiquid("negative", program.templates.negative, context))
+  const filenamePrefix = safeOutputPrefix(renderComfygureLiquid("filename prefix", program.templates.filenamePrefix, context))
+  return {
+    activeLoras,
+    composition: {
+      sourceText,
+      activeLoraNames: activeLoras.map((lora) => lora.name),
+      injectedTerms,
+      renderedPositive,
+      positivePrompt,
+      negativePrompt,
+      filenamePrefix,
+    },
+  }
+}
+
+function createLiquidContext(
+  program: ComfygureProgram,
+  activeLoras: readonly ComfygureLora[],
+  options: ComfygureCompileOptions,
+  batchEntry: ComfygureBatchEntry,
+  injectedTerms: readonly string[],
+): Record<string, unknown> {
+  const sourceName = batchEntry.sourceName || pathBasename(batchEntry.sourcePath ?? "")
+  const sourcePath = batchEntry.sourcePath ?? ""
+  const jobIndex = Math.max(0, Math.trunc(options.jobIndex ?? 0))
+  const sourceIndex = Math.max(0, Math.trunc(options.sourceIndex ?? 0))
+  const loopIndex = Math.max(0, Math.trunc(options.loopIndex ?? 0))
+  return {
+    project: program.name,
+    run: optionalString(options.runId) ?? "preview",
+    job: jobIndex + 1,
+    seed: program.parameters.seed,
+    model: pathStem(program.model.unetName),
+    sourceName,
+    prompt: {
+      prefix: program.prompts.positivePrefix,
+      positive: program.prompts.positive,
+      negative: program.prompts.negative,
+    },
+    batch: {
+      text: batchEntry.text,
+      sourceName,
+      sourceStem: pathStem(sourceName),
+      sourcePath,
+      sourceIndex,
+      loopIndex,
+    },
+    lora: {
+      names: activeLoras.map((lora) => lora.name),
+      tags: [...injectedTerms],
+    },
+    models: {
+      unet: program.model.unetName,
+      clip: program.model.clipName,
+      vae: program.model.vaeName,
+    },
+    image: {
+      width: program.parameters.width,
+      height: program.parameters.height,
+      batchSize: program.parameters.batchSize,
+    },
+    sampler: {
+      name: program.parameters.samplerName,
+      scheduler: program.parameters.scheduler,
+      steps: program.parameters.steps,
+      cfg: program.parameters.cfg,
+    },
+    output: {
+      prefix: program.output.filenamePrefix,
+      format: program.output.format,
+    },
+  }
+}
+
+function renderComfygureLiquid(scope: string, template: string, context: Record<string, unknown>): string {
+  try {
+    return String(COMFYGURE_LIQUID.parseAndRenderSync(template, context)).trim()
+  } catch (error) {
+    throw new Error(`Invalid Comfygure ${scope} template: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+export function compileAnimaInt8Program(input: ComfygureProgramDraft = {}, options: ComfygureCompileOptions = {}): CompiledProgram {
   const program = normalizeComfygureProgram(input)
-  const composedPositive = normalizePromptText([program.prompts.positivePrefix, program.prompts.positive].filter(Boolean).join(", "))
-  const activeLoras = resolveActiveLoras(program, composedPositive)
-  const positivePrompt = ensurePromptTerms(composedPositive, activeLoras.flatMap((lora) => splitPromptTags(lora.injectionTerms ?? "")))
-  const negativePrompt = normalizePromptText(program.prompts.negative)
+  const { activeLoras, composition } = resolvePromptComposition(program, options)
+  const { positivePrompt, negativePrompt, filenamePrefix } = composition
   const graph: PromptGraph = {
     "1": {
       class_type: "OTUNetLoaderW8A8",
@@ -733,7 +982,7 @@ export function compileAnimaInt8Program(input: ComfygureProgramDraft = {}): Comp
     class_type: "LayerUtility: SaveImagePlus",
     inputs: {
       custom_path: "",
-      filename_prefix: program.output.filenamePrefix,
+      filename_prefix: filenamePrefix,
       timestamp: "None",
       format: program.output.format,
       quality: program.output.quality,
@@ -757,6 +1006,8 @@ export function compileAnimaInt8Program(input: ComfygureProgramDraft = {}): Comp
     activeLoras,
     positivePrompt,
     negativePrompt,
+    filenamePrefix,
+    promptComposition: composition,
     requiredClasses: [...new Set(Object.values(graph).map((node) => node.class_type))].sort(),
     requiredResources,
   }
@@ -821,19 +1072,17 @@ export function summarizeComfygureProfile(profile: ComfygureProfile): ComfygureP
   return { id: profile.id, name: profile.name, revision: profile.revision, updatedAt: profile.updatedAt }
 }
 
-export function compileComfygureTemplate(template: ComfygureTemplate, input: ComfygureProgramDraft = {}): CompiledProgram {
+export function compileComfygureTemplate(template: ComfygureTemplate, input: ComfygureProgramDraft = {}, options: ComfygureCompileOptions = {}): CompiledProgram {
   if (template.format !== COMFYGURE_TEMPLATE_FORMAT) throw new Error("Unsupported Comfygure template format.")
   if (!template.bindingManifest.confirmed) throw new Error("Confirm the imported template bindings before compiling it.")
   const normalizedProgram = normalizeComfygureProgram(input)
   const program = normalizedProgram.loras.length ? normalizedProgram : { ...normalizedProgram, loras: template.defaultLoras }
-  const composedPositive = normalizePromptText([program.prompts.positivePrefix, program.prompts.positive].filter(Boolean).join(", "))
-  const activeLoras = resolveActiveLoras(program, composedPositive)
-  const positivePrompt = ensurePromptTerms(composedPositive, activeLoras.flatMap((lora) => splitPromptTags(lora.injectionTerms ?? "")))
-  const negativePrompt = normalizePromptText(program.prompts.negative)
+  const { activeLoras, composition } = resolvePromptComposition(program, options)
+  const { positivePrompt, negativePrompt, filenamePrefix } = composition
   const graph = clonePromptGraph(template.graph)
   materializeGlowTriggerLoraStacks(graph, activeLoras)
   for (const binding of template.bindingManifest.bindings) {
-    const value = templateBindingValue(binding.key, program, positivePrompt, negativePrompt)
+    const value = templateBindingValue(binding.key, program, positivePrompt, negativePrompt, filenamePrefix)
     for (const target of binding.targets) {
       const node = graph[target.nodeId]
       if (!node) throw new Error(`Template binding ${binding.key} references missing node ${target.nodeId}.`)
@@ -851,16 +1100,19 @@ export function compileComfygureTemplate(template: ComfygureTemplate, input: Com
     activeLoras,
     positivePrompt,
     negativePrompt,
+    filenamePrefix,
+    promptComposition: composition,
     requiredClasses: [...new Set(Object.values(graph).map((node) => node.class_type))].sort(),
     requiredResources: inferGraphResourceRequirements(graph),
   }
 }
 
-export function compileAnimaInt8RunPlan(input: ComfygureProgramDraft = {}): CompiledRunPlan {
+export function compileAnimaInt8RunPlan(input: ComfygureProgramDraft = {}, options: ComfygureRunPlanOptions = {}): CompiledRunPlan {
   const program = normalizeComfygureProgram(input)
-  const batchPrompts = program.batch.prompts.slice(0, program.batch.maxPrompts || undefined)
-  if (batchPrompts.length === 0) {
-    const compiled = compileAnimaInt8Program(program)
+  const batchEntries = program.batch.entries.slice(0, program.batch.maxPrompts || undefined)
+  if (batchEntries.length === 0) {
+    const entry = { text: program.prompts.positive }
+    const compiled = compileAnimaInt8Program(program, { ...options, batchEntry: entry })
     return {
       format: COMFYGURE_RUN_PLAN_FORMAT,
       recipe: ANIMA_INT8_RECIPE,
@@ -869,31 +1121,36 @@ export function compileAnimaInt8RunPlan(input: ComfygureProgramDraft = {}): Comp
     }
   }
 
-  const sequence = resolveBatchSequence(batchPrompts.length, program.batch)
+  const sequence = resolveBatchSequence(batchEntries.length, program.batch)
   const jobs = sequence.map((sourceIndex, index) => {
     const seed = resolveJobSeed(program.parameters.seed, program.parameters.seedMode, index)
+    const entry = batchEntries[sourceIndex] ?? { text: "" }
+    const loopIndex = Math.floor(index / batchEntries.length)
     const jobProgram: ComfygureProgramDraft = {
       ...program,
-      prompts: { ...program.prompts, positive: batchPrompts[sourceIndex] ?? "" },
+      prompts: { ...program.prompts, positive: entry.text },
       parameters: { ...program.parameters, seed },
     }
     return {
       index,
       sourceIndex,
-      loopIndex: Math.floor(index / batchPrompts.length),
-      sourceText: batchPrompts[sourceIndex] ?? "",
+      loopIndex,
+      sourceText: entry.text,
+      ...(entry.sourceName ? { sourceName: entry.sourceName } : {}),
+      ...(entry.sourcePath ? { sourcePath: entry.sourcePath } : {}),
       seed,
-      compiled: compileAnimaInt8Program(jobProgram),
+      compiled: compileAnimaInt8Program(jobProgram, { ...options, jobIndex: index, sourceIndex, loopIndex, batchEntry: entry }),
     }
   })
   return { format: COMFYGURE_RUN_PLAN_FORMAT, recipe: ANIMA_INT8_RECIPE, program, jobs }
 }
 
-export function compileComfygureTemplateRunPlan(template: ComfygureTemplate, input: ComfygureProgramDraft = {}): CompiledRunPlan {
+export function compileComfygureTemplateRunPlan(template: ComfygureTemplate, input: ComfygureProgramDraft = {}, options: ComfygureRunPlanOptions = {}): CompiledRunPlan {
   const program = normalizeComfygureProgram(input)
-  const batchPrompts = program.batch.prompts.slice(0, program.batch.maxPrompts || undefined)
-  if (batchPrompts.length === 0) {
-    const compiled = compileComfygureTemplate(template, program)
+  const batchEntries = program.batch.entries.slice(0, program.batch.maxPrompts || undefined)
+  if (batchEntries.length === 0) {
+    const entry = { text: program.prompts.positive }
+    const compiled = compileComfygureTemplate(template, program, { ...options, batchEntry: entry })
     return {
       format: COMFYGURE_RUN_PLAN_FORMAT,
       recipe: ANIMA_INT8_RECIPE,
@@ -901,21 +1158,25 @@ export function compileComfygureTemplateRunPlan(template: ComfygureTemplate, inp
       jobs: [{ index: 0, sourceIndex: 0, loopIndex: 0, sourceText: program.prompts.positive, seed: program.parameters.seed, compiled }],
     }
   }
-  const sequence = resolveBatchSequence(batchPrompts.length, program.batch)
+  const sequence = resolveBatchSequence(batchEntries.length, program.batch)
   const jobs = sequence.map((sourceIndex, index) => {
     const seed = resolveJobSeed(program.parameters.seed, program.parameters.seedMode, index)
+    const entry = batchEntries[sourceIndex] ?? { text: "" }
+    const loopIndex = Math.floor(index / batchEntries.length)
     const jobProgram: ComfygureProgramDraft = {
       ...program,
-      prompts: { ...program.prompts, positive: batchPrompts[sourceIndex] ?? "" },
+      prompts: { ...program.prompts, positive: entry.text },
       parameters: { ...program.parameters, seed },
     }
     return {
       index,
       sourceIndex,
-      loopIndex: Math.floor(index / batchPrompts.length),
-      sourceText: batchPrompts[sourceIndex] ?? "",
+      loopIndex,
+      sourceText: entry.text,
+      ...(entry.sourceName ? { sourceName: entry.sourceName } : {}),
+      ...(entry.sourcePath ? { sourcePath: entry.sourcePath } : {}),
       seed,
-      compiled: compileComfygureTemplate(template, jobProgram),
+      compiled: compileComfygureTemplate(template, jobProgram, { ...options, jobIndex: index, sourceIndex, loopIndex, batchEntry: entry }),
     }
   })
   return { format: COMFYGURE_RUN_PLAN_FORMAT, recipe: ANIMA_INT8_RECIPE, program, jobs }
@@ -1054,6 +1315,7 @@ export async function preflightComfyuiTarget(compiled: Pick<CompiledProgram, "re
   }
 
   const missingClasses = compiled.requiredClasses.filter((classType) => !isRecord(objectInfo[classType]))
+  const controlOptions = extractComfygureControlOptions(objectInfo)
   const missingResources: ResourceRequirement[] = []
   const uncheckedResources: ResourceRequirement[] = []
   for (const requirement of compiled.requiredResources) {
@@ -1070,14 +1332,16 @@ export async function preflightComfyuiTarget(compiled: Pick<CompiledProgram, "re
     missingResources,
     uncheckedResources,
     warnings: uncheckedResources.length ? ["Some resource widgets are not enumerable in /object_info and need /prompt validation before a run."] : [],
+    controlOptions,
   }
 }
 
 export async function runComfygure(input: ComfygureInput, runtime: ComfygureRuntime, onEvent: (event: NodeRunEvent) => void = () => {}): Promise<NodeRunResult<ComfygureData>> {
   const program = await hydrateLoraTriggers(input.program, input.target, runtime)
+  const runId = optionalString(input.runId) ?? (input.action === "submit" ? formatComfygureRunId(runtime.now?.() ?? new Date()) : "preview")
   let runPlan: CompiledRunPlan
   try {
-    runPlan = input.template ? compileComfygureTemplateRunPlan(input.template, program) : compileAnimaInt8RunPlan(program)
+    runPlan = input.template ? compileComfygureTemplateRunPlan(input.template, program, { runId }) : compileAnimaInt8RunPlan(program, { runId })
   } catch (error) {
     return { success: false, message: error instanceof Error ? error.message : String(error) }
   }
@@ -1105,6 +1369,19 @@ export async function runComfygure(input: ComfygureInput, runtime: ComfygureRunt
       return { success: true, message: `Saved profile ${saved.name} (revision ${saved.revision}).`, data: { compiled, runPlan, profile: saved } }
     } catch (error) {
       return { success: false, message: error instanceof Error ? error.message : String(error), data: { compiled, runPlan } }
+    }
+  }
+  if (input.action === "options") {
+    onEvent({ type: "progress", progress: 20, message: "Reading sampler options from the local ComfyUI target." })
+    try {
+      const objectInfo = await readComfyuiObjectInfo(input.target ?? {}, runtime)
+      const controlOptions = extractComfygureControlOptions(objectInfo)
+      onEvent({ type: "progress", progress: 100, message: "ComfyUI sampler options loaded." })
+      return { success: true, message: `Loaded ${controlOptions.samplerNames.length} sampler(s) and ${controlOptions.schedulers.length} scheduler(s).`, data: { compiled, runPlan, controlOptions } }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      onEvent({ type: "progress", progress: 100, message: "Could not load ComfyUI sampler options." })
+      return { success: false, message, data: { compiled, runPlan } }
     }
   }
   if (input.action === "import") {
@@ -1189,11 +1466,11 @@ export async function runComfygure(input: ComfygureInput, runtime: ComfygureRunt
     const message = preflight.online
       ? `Compatibility preflight found ${preflight.missingClasses.length} missing class(es) and ${preflight.missingResources.length} missing resource(s).`
       : `ComfyUI target is unavailable at ${preflight.endpoint}.`
-    return { success: false, message, data: { compiled, runPlan, preflight } }
+    return { success: false, message, data: { compiled, runPlan, preflight, controlOptions: preflight.controlOptions } }
   }
   if (input.action === "preflight") {
     onEvent({ type: "progress", progress: 100, message: "Compatibility preflight complete." })
-    return { success: true, message: "Compatibility preflight passed. No generation was submitted.", data: { compiled, runPlan, preflight } }
+    return { success: true, message: "Compatibility preflight passed. No generation was submitted.", data: { compiled, runPlan, preflight, controlOptions: preflight.controlOptions } }
   }
 
   onEvent({ type: "progress", progress: 65, message: "Submitting the fixed prompt graph to ComfyUI." })
@@ -1208,11 +1485,11 @@ export async function runComfygure(input: ComfygureInput, runtime: ComfygureRunt
     const message = submissions.length === 1
       ? `ComfyUI accepted prompt ${submissions[0]!.promptId}.`
       : `ComfyUI accepted ${submissions.length} fixed prompt graph(s).`
-    return { success: true, message, data: { compiled, runPlan, preflight, submission: submissions[0], submissions } }
+    return { success: true, message, data: { compiled, runPlan, preflight, controlOptions: preflight.controlOptions, submission: submissions[0], submissions } }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     onEvent({ type: "progress", progress: 100, message: "ComfyUI rejected the prompt graph." })
-    return { success: false, message, data: { compiled, runPlan, preflight, submission: submissions[0], submissions } }
+    return { success: false, message, data: { compiled, runPlan, preflight, controlOptions: preflight.controlOptions, submission: submissions[0], submissions } }
   }
 }
 
@@ -1739,7 +2016,7 @@ function clonePromptGraph(graph: PromptGraph): PromptGraph {
   return JSON.parse(JSON.stringify(graph)) as PromptGraph
 }
 
-function templateBindingValue(key: ComfygureBindingKey, program: ComfygureProgram, positivePrompt: string, negativePrompt: string): PromptInput {
+function templateBindingValue(key: ComfygureBindingKey, program: ComfygureProgram, positivePrompt: string, negativePrompt: string, filenamePrefix: string): PromptInput {
   switch (key) {
     case "positivePrompt": return positivePrompt
     case "negativePrompt": return negativePrompt
@@ -1755,7 +2032,7 @@ function templateBindingValue(key: ComfygureBindingKey, program: ComfygureProgra
     case "samplerName": return program.parameters.samplerName
     case "scheduler": return program.parameters.scheduler
     case "denoise": return program.parameters.denoise
-    case "filenamePrefix": return program.output.filenamePrefix
+    case "filenamePrefix": return filenamePrefix
     case "outputFormat": return program.output.format
     case "outputQuality": return program.output.quality
     case "outputPreview": return program.output.preview
@@ -2029,11 +2306,15 @@ function normalizeLoras(value: readonly ComfygureLora[] | undefined): readonly C
   })
 }
 
-function normalizeBatchPrompts(value: readonly string[] | undefined): readonly string[] {
-  if (!Array.isArray(value)) return []
-  return value.flatMap((prompt) => {
-    const normalized = typeof prompt === "string" ? prompt.trim() : ""
-    return normalized ? [normalized] : []
+function normalizeBatchEntries(entries: readonly ComfygureBatchEntry[] | undefined, prompts: readonly string[] | undefined): readonly ComfygureBatchEntry[] {
+  const source: readonly (ComfygureBatchEntry | string)[] = Array.isArray(entries) && entries.length ? entries : Array.isArray(prompts) ? prompts : []
+  return source.flatMap((entry) => {
+    const text = typeof entry === "string" ? entry.trim() : typeof entry?.text === "string" ? entry.text.trim() : ""
+    if (!text) return []
+    if (typeof entry === "string") return [{ text }]
+    const sourceName = optionalString(entry.sourceName)
+    const sourcePath = optionalString(entry.sourcePath)
+    return [{ text, ...(sourceName ? { sourceName } : {}), ...(sourcePath ? { sourcePath } : {}) }]
   })
 }
 
@@ -2224,6 +2505,31 @@ function resourceChoices(nodeInfo: Record<string, unknown>, inputName: string): 
   return widget[0].filter((value): value is string => typeof value === "string")
 }
 
+export function extractComfygureControlOptions(objectInfo: Record<string, unknown>): ComfygureControlOptions {
+  const samplerNames = new Set<string>()
+  const schedulers = new Set<string>()
+  const sourceNodeTypes = new Set<string>()
+  for (const [classType, definitionValue] of Object.entries(objectInfo)) {
+    if (!isRecord(definitionValue) || !isRecord(definitionValue.input)) continue
+    const input = definitionValue.input
+    for (const sectionName of ["required", "optional"] as const) {
+      const section = isRecord(input[sectionName]) ? input[sectionName] : undefined
+      if (!section) continue
+      const samplerValues = comboChoices(section.sampler_name)
+      const schedulerValues = comboChoices(section.scheduler)
+      if (samplerValues.length) samplerValues.forEach((value) => samplerNames.add(value))
+      if (schedulerValues.length) schedulerValues.forEach((value) => schedulers.add(value))
+      if (samplerValues.length || schedulerValues.length) sourceNodeTypes.add(classType)
+    }
+  }
+  return { samplerNames: [...samplerNames], schedulers: [...schedulers], sourceNodeTypes: [...sourceNodeTypes] }
+}
+
+function comboChoices(value: unknown): readonly string[] {
+  if (!Array.isArray(value) || !Array.isArray(value[0])) return []
+  return value[0].filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+}
+
 function chunk<T>(values: readonly T[], size: number): T[][] {
   const result: T[][] = []
   for (let index = 0; index < values.length; index += size) result.push(values.slice(index, index + size))
@@ -2232,6 +2538,10 @@ function chunk<T>(values: readonly T[], size: number): T[][] {
 
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() ? value.trim() : fallback
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined
 }
 
 function bounded(value: unknown, fallback: number, min: number, max: number): number {
@@ -2245,7 +2555,35 @@ function rounded(value: unknown, fallback: number, min: number, max: number, ste
 }
 
 function safeOutputPrefix(value: string): string {
-  return value.replace(/[<>:"|?*\u0000-\u001f]/g, "_").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "") || "comfygure"
+  const segments = value.replace(/\\/g, "/").split("/")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment && segment !== "." && segment !== "..")
+    .map(sanitizeOutputSegment)
+    .filter(Boolean)
+  return segments.join("/").slice(0, 512) || "comfygure"
+}
+
+function safeOutputSegment(value: string): string {
+  return sanitizeOutputSegment(value.trim()) || "untitled"
+}
+
+function sanitizeOutputSegment(value: string): string {
+  return value.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").replace(/[. ]+$/g, "").slice(0, 120)
+}
+
+function pathBasename(value: string): string {
+  return value.replace(/\\/g, "/").split("/").filter(Boolean).at(-1) ?? ""
+}
+
+function pathStem(value: string): string {
+  const name = pathBasename(value)
+  const dot = name.lastIndexOf(".")
+  return dot > 0 ? name.slice(0, dot) : name
+}
+
+function formatComfygureRunId(value: Date): string {
+  const date = Number.isNaN(value.getTime()) ? new Date(0) : value
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")
 }
 
 function profileProgramFrom(program: ComfygureProgram): ComfygureProfileProgram {
