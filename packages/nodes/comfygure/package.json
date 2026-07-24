@@ -34,6 +34,7 @@
     "@stable-canvas/comfyui-client": "1.5.9",
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
+    "@xiranite/shared": "workspace:*",
     "fflate": "^0.8.3",
     "json-canonicalize": "2.0.0",
     "json-rules-engine": "7.3.1",
