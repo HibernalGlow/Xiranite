@@ -22,4 +22,10 @@ describe("Xlchemy pipe CLI", () => {
     const input = buildPipeInput(["convert", "D:/a.png", "--format", "jpeg", "--overwrite", "--strip-metadata", "--jpeg-encoder", "libjpeg"])
     expect(input).toMatchObject({ paths: ["D:/a.png"], format: "JPEG", existingPolicy: "replace", overwrite: true, preserveMetadata: false, metadataMode: "encoder-wipe", jpegEncoder: "libjpeg" })
   })
+
+  test("maps animated-image detection flags", () => {
+    expect(buildPipeInput(["plan", "D:/a.webp", "--detect-animated-png", "--detect-animated-avif", "--detect-animated-jxl"]).animationDetectionFormats).toEqual(["png", "webp", "avif", "jxl"])
+    expect(buildPipeInput(["plan", "D:/a.webp", "--no-skip-animated"]).animationDetectionFormats).toEqual([])
+    expect(buildPipeInput(["plan", "D:/a.webp", "--no-detect-animated-webp"]).animationDetectionFormats).toEqual([])
+  })
 })
