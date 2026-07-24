@@ -8,6 +8,7 @@ export interface NeoViewCardState extends Record<string, unknown> {
   path?: string
   browserOriginPath?: string | null
   swimlaneSoloLaneId?: string | null
+  readerViewFullscreen?: boolean
 }
 
 export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>) {
@@ -16,6 +17,7 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
   const initialPath = initialState?.path
   const initialBrowserOriginPath = initialState?.browserOriginPath ?? undefined
   const initialSwimlaneSoloLaneId = initialState?.swimlaneSoloLaneId
+  const initialReaderViewFullscreen = initialState?.readerViewFullscreen
 
   // Track true instance lifetime only. Do NOT depend on initialPath: openPath
   // commits path into host state and would fake unmount/remount mid-read.
@@ -47,6 +49,7 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
       initialPath={initialPath}
       initialBrowserOriginPath={initialBrowserOriginPath}
       initialSwimlaneSoloLaneId={initialSwimlaneSoloLaneId}
+      initialReaderViewFullscreen={initialReaderViewFullscreen}
       pickFile={host.localFiles?.pickFiles
         ? async () => (await host.localFiles!.pickFiles!({
           title: "打开漫画或图片",
@@ -58,6 +61,7 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
       copyFiles={host.clipboard?.writeFiles}
       onPathCommitted={(path, browserOriginPath) => host.state.patchData({ path, browserOriginPath: browserOriginPath ?? null })}
       onSwimlaneSoloLaneIdCommitted={(swimlaneSoloLaneId) => host.state.patchData({ swimlaneSoloLaneId })}
+      onReaderViewFullscreenCommitted={(readerViewFullscreen) => host.state.patchData({ readerViewFullscreen })}
     />
   )
 }

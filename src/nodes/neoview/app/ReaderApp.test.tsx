@@ -9,9 +9,11 @@ import { ContextMenuProvider } from "@/components/context-menu"
 import { useSwimlaneSessionStore } from "@/store/swimlaneSessionStore"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderPreloadPlanDto, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
+import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
 
 beforeEach(() => {
   useSwimlaneSessionStore.getState().clearSessions()
+  useReaderWorkspaceRestoreStore.getState().resetRestore()
   vi.stubGlobal("IntersectionObserver", class {
     readonly root = null
     readonly rootMargin = "0px"
@@ -26,6 +28,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   useSwimlaneSessionStore.getState().clearSessions()
+  useReaderWorkspaceRestoreStore.getState().resetRestore()
   vi.unstubAllGlobals()
 })
 
@@ -1027,6 +1030,60 @@ describe("ReaderApp", () => {
     expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
     expect(document.querySelector('[data-reader-view-fullscreen="true"]')).toBeTruthy()
     expect(screen.getByRole("button", { name: "退出 Reader 视图全屏" })).toBeTruthy()
+  })
+
+  it("restores Reader view fullscreen across newly created node scopes and remembers exit", async () => {
+    const config = shellConfig()
+    config.workspace!.mode = "swimlane"
+    const client = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
+    } as ReaderHttpClient
+
+    const first = render(<ReaderApp sessionScopeId="reader-node-a" client={client} />)
+    fireEvent.click(await screen.findByRole("button", { name: "Reader 视图全屏" }))
+    await waitFor(() => expect(useReaderWorkspaceRestoreStore.getState()).toMatchObject({
+      lastSoloLaneId: "reader",
+      readerViewFullscreen: true,
+    }))
+    first.unmount()
+
+    const second = render(<ReaderApp sessionScopeId="reader-node-b" client={client} />)
+    await waitFor(() => expect(document.querySelector('[data-reader-view-fullscreen="true"]')).toBeTruthy())
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "退出 Reader 视图全屏" }))
+    await waitFor(() => expect(useReaderWorkspaceRestoreStore.getState()).toMatchObject({
+      lastSoloLaneId: null,
+      readerViewFullscreen: false,
+    }))
+    second.unmount()
+
+    render(<ReaderApp sessionScopeId="reader-node-c" client={client} />)
+    await screen.findByRole("button", { name: "Reader 视图全屏" })
+    expect(document.querySelector('[data-reader-view-fullscreen="true"]')).toBeNull()
+    expect(document.querySelector('[data-reader-swimlane="reader"][data-reader-swimlane-solo="true"]')).toBeNull()
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+  })
+
+  it("restores swimlane fullscreen across new node scopes without entering Reader view fullscreen", async () => {
+    const config = shellConfig()
+    config.workspace!.mode = "swimlane"
+    const client = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
+    } as ReaderHttpClient
+
+    const first = render(<ReaderApp sessionScopeId="swimlane-node-a" client={client} />)
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "阅读器更多设置" }), { button: 0, ctrlKey: false })
+    fireEvent.click(screen.getByRole("menuitem", { name: "当前泳道全屏" }))
+    await waitFor(() => expect(useReaderWorkspaceRestoreStore.getState()).toMatchObject({
+      lastSoloLaneId: "reader",
+      readerViewFullscreen: false,
+    }))
+    first.unmount()
+
+    render(<ReaderApp sessionScopeId="swimlane-node-b" client={client} />)
+    await waitFor(() => expect(document.querySelector('[data-reader-swimlane="reader"][data-reader-swimlane-solo="true"]')).toBeTruthy())
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-view-fullscreen="true"]')).toBeNull()
   })
 
   it("[neoview.settings.sessionless-card] mounts an explicitly docked setting card without opening a book", async () => {
