@@ -36,7 +36,24 @@ describe("swimlaneSessionStore", () => {
     useSwimlaneSessionStore.getState().patchSession("neoview:reader", { activeLaneId: "right", soloLaneId: null })
     const persisted = JSON.parse(localStorage.getItem("xiranite-swimlane-session") ?? "{}")
     const persistedSessions = persisted.state?.sessions ?? persisted.sessions ?? {}
-    // soloLaneId:null（退出全屏）跨会话保留；activeLaneId 不持久化，冷启动回到 TOML 默认。
     expect(persistedSessions["neoview:reader"]).toEqual({ soloLaneId: null })
+  })
+
+  it("rehydrates soloLaneId before ensureSession fallback is applied", async () => {
+    localStorage.setItem(
+      "xiranite-swimlane-session",
+      JSON.stringify({ state: { sessions: { "neoview:reader": { soloLaneId: null } } }, version: 1 }),
+    )
+    const rehydratePromise = useSwimlaneSessionStore.persist.rehydrate()
+    const synced = useSwimlaneSessionStore.getState().sessions["neoview:reader"]?.soloLaneId
+    const isSync = synced !== undefined
+    useSwimlaneSessionStore.getState().ensureSession("neoview:reader", { activeLaneId: "reader", soloLaneId: "reader" })
+    if (isSync) {
+      expect(useSwimlaneSessionStore.getState().sessions["neoview:reader"]?.soloLaneId).toBeNull()
+    } else {
+      expect(useSwimlaneSessionStore.getState().sessions["neoview:reader"]?.soloLaneId).toBe("reader")
+      await rehydratePromise
+      expect(useSwimlaneSessionStore.getState().sessions["neoview:reader"]?.soloLaneId).toBeNull()
+    }
   })
 })

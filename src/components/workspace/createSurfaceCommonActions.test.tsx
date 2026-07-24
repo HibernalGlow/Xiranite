@@ -5,6 +5,7 @@ const translate = (key: string) => key
 
 function createActions(currentMode: "cards" | "dockview" | "bento" | "flow" | "lane") {
   const workspaceActions = {
+    patchComponentData: vi.fn(),
     setComponentState: vi.fn(),
     setComponentVisibility: vi.fn(),
     setViewMode: vi.fn(),
@@ -52,5 +53,40 @@ describe("createSurfaceCommonActions", () => {
     actions[2].onClick?.({} as never)
 
     expect(workspaceActions.setComponentVisibility).toHaveBeenCalledWith("component-1", "lane", false)
+  })
+
+  test("adds an independent NeoView memory toggle and defaults it on", () => {
+    const { workspaceActions } = createActions("cards")
+    const actions = createSurfaceCommonActions({
+      componentId: "neo-1",
+      componentData: {},
+      currentMode: "cards",
+      moduleId: "neoview",
+      moduleName: "NeoView",
+      openComponent: vi.fn(),
+      t: translate as never,
+      workspaceActions: workspaceActions as never,
+    })
+
+    expect(actions.map((action) => action.key)).toEqual(["float", "moveToView", "keepAliveOnViewSwitch", "hide"])
+    actions[2]!.onClick?.({} as never)
+    expect(workspaceActions.patchComponentData).toHaveBeenCalledWith("neo-1", { keepAliveOnViewSwitch: false })
+  })
+
+  test("reflects a disabled NeoView memory toggle", () => {
+    const { workspaceActions } = createActions("cards")
+    const actions = createSurfaceCommonActions({
+      componentId: "neo-1",
+      componentData: { keepAliveOnViewSwitch: false },
+      currentMode: "cards",
+      moduleId: "neoview",
+      moduleName: "NeoView",
+      openComponent: vi.fn(),
+      t: translate as never,
+      workspaceActions: workspaceActions as never,
+    })
+
+    actions[2]!.onClick?.({} as never)
+    expect(workspaceActions.patchComponentData).toHaveBeenCalledWith("neo-1", { keepAliveOnViewSwitch: true })
   })
 })

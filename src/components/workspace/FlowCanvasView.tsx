@@ -28,7 +28,7 @@ import { createSurfaceCommonActions } from "@/components/workspace/createSurface
 import { useTheme } from "@/components/use-theme"
 import { useWindowControls } from "@/hooks/useWindowControls"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
-import { useWorkspaceActions, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceStore"
+import { useWorkspaceActions, useWorkspaceComponent, useWorkspaceShallowSelector, useWorkspaceVisibleComponents } from "@/store/workspaceStore"
 import type { ComponentInstance, FlowCanvasCamera, FlowCanvasSnapshot } from "@/types/workspace"
 // Patched zh-cn translation including the 4 keys missing from tldraw's official CDN
 // (action.copy-hovered-styles, action.frame-selection, page-menu.max-pages-reached,
@@ -347,11 +347,13 @@ function ModuleShapeComponent({ shape }: { shape: ModuleShape }) {
   const { openComponent } = useWindowControls()
   const { t, i18n } = useTranslation()
   const { moduleId, compId, w, h } = shape.props
+  const component = useWorkspaceComponent(compId)
   const mod = getModule(moduleId)
   const moduleName = i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? moduleId)
 
   const actions: NodeSurfaceChromeAction[] = createSurfaceCommonActions({
     componentId: compId,
+    componentData: component?.data,
     currentMode: "flow",
     height: Math.round(h),
     moduleId,

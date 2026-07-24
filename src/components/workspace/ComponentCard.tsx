@@ -159,6 +159,7 @@ function ComponentCardInner({ comp, layout, cardLayout: _cardLayout, isLayoutRes
     },
     ...createSurfaceCommonActions({
       componentId: comp.id,
+      componentData: comp.data,
       currentMode: "cards",
       height: Math.round(layout.h),
       moduleId: comp.moduleId,
