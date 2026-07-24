@@ -482,8 +482,7 @@ export async function createReaderHttpController(
   let superResolutionRuntimeConfig = runtimeConfig.superResolution
   let reconfigureSuperResolution: ((config: NeoviewSuperResolutionConfig) => Promise<void>) | undefined
   if (!superResolutionArtifactPages || !superResolutionArtifactStore) {
-    const { join, resolve } = await import("node:path")
-    const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
+    const { resolve } = await import("node:path")
     const { CacacheSuperResolutionArtifactStore } = await import(
       "./platform/super-resolution/CacacheSuperResolutionArtifactStore.js"
     )
@@ -492,7 +491,7 @@ export async function createReaderHttpController(
       ?? (superResolutionRuntimeConfig.artifactCache.directory
         ? resolve(options.cwd ?? process.cwd(), superResolutionRuntimeConfig.artifactCache.directory)
         : undefined)
-      ?? join(new LegacyNeoViewDataLocator().locate().appDataDirectory, "upscale-artifacts")
+      ?? (await import("./platform/super-resolution/SuperResolutionArtifactCacheRoot.js")).resolveSuperResolutionArtifactCacheRoot(options)
     const ownedStore = new CacacheSuperResolutionArtifactStore({
       root,
       ...superResolutionArtifactCleanupPolicy(superResolutionRuntimeConfig),
@@ -1083,8 +1082,7 @@ export async function createReaderHeadlessController(
     if (options.superResolution) {
       superResolution = options.superResolution
     } else {
-      const { join, resolve } = await import("node:path")
-      const { LegacyNeoViewDataLocator } = await import("./application/data/LegacyNeoViewDataLocator.js")
+      const { resolve } = await import("node:path")
       const { CacacheSuperResolutionArtifactStore } = await import(
         "./platform/super-resolution/CacacheSuperResolutionArtifactStore.js"
       )
@@ -1094,7 +1092,7 @@ export async function createReaderHeadlessController(
           ?? (runtimeConfig.superResolution.artifactCache.directory
             ? resolve(options.cwd ?? process.cwd(), runtimeConfig.superResolution.artifactCache.directory)
             : undefined)
-          ?? join(new LegacyNeoViewDataLocator().locate().appDataDirectory, "upscale-artifacts"),
+          ?? (await import("./platform/super-resolution/SuperResolutionArtifactCacheRoot.js")).resolveSuperResolutionArtifactCacheRoot(options),
         ...superResolutionArtifactCleanupPolicy(runtimeConfig.superResolution),
       })
       const artifactFor: ReaderHeadlessSuperResolutionArtifactFactory = (bookPath, page, context) => ({

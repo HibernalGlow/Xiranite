@@ -67,37 +67,35 @@ describe("SuperResolutionPreloadService", () => {
     }
   })
 
-  it("[neoview.super-resolution.preload-generation] supersedes stale session work and keeps the new generation", async () => {
-    const run = vi.fn(async (input, context) => {
-      if (input.destinationPath.includes("1-")) {
-        await new Promise<never>((_resolve, reject) => {
-          const abort = () => reject(context?.signal?.reason)
-          context?.signal?.addEventListener("abort", abort, { once: true })
-        })
-      }
+  it("[neoview.super-resolution.preload-generation] lets running work settle and retargets pending work to the latest direction", async () => {
+    const gate = deferred()
+    const run = vi.fn(async (input) => {
+      if (input.page.index === 1) await gate.promise
       return { decision: { kind: "skip" as const, reason: "test" } }
     })
-    const service = new SuperResolutionPreloadService({ run }, preferences({ preloadPages: 1 }))
+    const service = new SuperResolutionPreloadService({ run }, preferences({ preloadPages: 3, backgroundConcurrency: 1 }))
     const destinationFor = (page: ReaderPage, context: { generation: number }) => `D:/cache/${context.generation}-${page.index}.png`
     try {
       const first = service.schedulePlan({
         contextId: "reader-1",
-        plan: plan(1, [[1]]),
-        pages: pages(3),
+        plan: plan(1, [[1, 2, 3]], [0]),
+        pages: pages(6),
         bookPath: "D:/book.cbz",
         destinationFor,
       })
       await vi.waitFor(() => expect(run).toHaveBeenCalledOnce())
       const second = service.schedulePlan({
         contextId: "reader-1",
-        plan: plan(2, [[2]]),
-        pages: pages(3),
+        plan: plan(2, [[3, 2, 1]], [4], "backward"),
+        pages: pages(6),
         bookPath: "D:/book.cbz",
         destinationFor,
       })
-      await expect(first).resolves.toMatchObject({ generation: 1, cancelled: 1 })
-      await expect(second).resolves.toMatchObject({ generation: 2, settled: 1, cancelled: 0 })
-      expect(run).toHaveBeenCalledTimes(2)
+      expect(run).toHaveBeenCalledOnce()
+      gate.resolve()
+      await expect(first).resolves.toMatchObject({ generation: 2, settled: 3, cancelled: 0 })
+      await expect(second).resolves.toMatchObject({ generation: 2, settled: 3, cancelled: 0 })
+      expect(run.mock.calls.map(([input]) => input.page.index)).toEqual([1, 3, 2])
     } finally {
       await service.dispose()
     }
@@ -440,11 +438,16 @@ function pages(count: number): ReaderPage[] {
   }))
 }
 
-function plan(generation: number, groups: readonly (readonly number[])[], currentPageIndexes: readonly number[] = [0]): ReaderPreloadPlan {
+function plan(
+  generation: number,
+  groups: readonly (readonly number[])[],
+  currentPageIndexes: readonly number[] = [0],
+  direction: ReaderPreloadPlan["direction"] = "forward",
+): ReaderPreloadPlan {
   return {
     generation,
     frameGeneration: generation,
-    direction: "forward",
+    direction,
     directionConfidence: 1,
     mode: "paged",
     admission: "normal",

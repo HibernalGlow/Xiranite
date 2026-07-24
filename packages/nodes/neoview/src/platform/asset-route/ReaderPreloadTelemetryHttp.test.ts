@@ -12,7 +12,7 @@ afterEach(async () => {
 })
 
 describe("Reader preload telemetry HTTP", () => {
-  it("[neoview.preload.telemetry-http] accepts current outcomes, rejects stale generations and aggregates sanitized diagnostics", async () => {
+  it("[neoview.preload.telemetry-http] accepts current outcomes, acknowledges stale generations and aggregates sanitized diagnostics", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-neoview-preload-http-"))
     cleanup.push(directory)
     await Promise.all([0, 1, 2, 3].map((index) => writeFile(join(directory, `${index}.jpg`), Uint8Array.of(index))))
@@ -63,7 +63,8 @@ describe("Reader preload telemetry HTTP", () => {
         generation,
         events: [{ pageId, outcome: "cancelled" }],
       })))!
-      expect(stale.status).toBe(409)
+      expect(stale.status).toBe(202)
+      await expect(stale.json()).resolves.toEqual({ generation, accepted: 0, rejected: 1, stale: 1 })
 
       const diagnostics = (await controller.handle(authorizedRequest("/reader/diagnostics")))!
       const snapshot = await diagnostics.json() as Record<string, unknown>

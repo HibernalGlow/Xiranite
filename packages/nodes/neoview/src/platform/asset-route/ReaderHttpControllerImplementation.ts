@@ -1812,7 +1812,9 @@ export class ReaderHttpController implements AsyncDisposable {
     const accepted = results.filter((result) => result.accepted).length
     const stale = results.filter((result) => result.reason === "stale-generation").length
     const rejected = results.length - accepted
-    const status = accepted > 0 ? 202 : stale > 0 ? 409 : 400
+    // Late browser decode telemetry is expected during rapid navigation. It is
+    // acknowledged as stale instead of surfacing a noisy HTTP conflict.
+    const status = accepted > 0 || stale > 0 ? 202 : 400
     const demandedPageIds = new Set(
       session
         .preloadTelemetry()

@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderSessionDto } from "../../../adapters/reader-http-client"
+import { setReaderUpscaleArtifact } from "../../reader/ReaderUpscaleArtifactStore"
 import PageNavigationCard, { PageRow, PageThumbnail, ThumbnailRow } from "./PageNavigationCard"
 import { buildPageListContextMenuItems, commitPageClipboardCopy } from "./page-list/PageListContextActions"
 
@@ -240,6 +241,36 @@ describe("PageNavigationCard", () => {
     expect(tile.className).toContain("h-auto")
     expect(tile.querySelector('[data-reader-thumbnail-surface="true"]')?.className).toContain("aspect-[3/4]")
     expect(tile.querySelector('[data-reader-thumbnail-surface="true"]')?.getAttribute("data-thumbnail-fit")).toBe("contain")
+  })
+
+  it("[neoview.page-list.upscale-mark] shows queue state in list and thumbnail renderers", () => {
+    const client = {} as ReaderHttpClient
+    setReaderUpscaleArtifact("reader-list-mark", "page-0", { state: "queued" })
+    const view = render(<PageRow
+      start={0}
+      size={34}
+      position={0}
+      page={page(0)}
+      activePageIndex={0}
+      details={false}
+      disabled={false}
+      sessionId="reader-list-mark"
+      client={client}
+      onGoTo={vi.fn()}
+    />)
+    expect(screen.getByLabelText("已进入超分队列").getAttribute("data-reader-upscale-mark")).toBe("queued")
+
+    view.rerender(<ThumbnailRow
+      start={0}
+      rowIndex={0}
+      pages={new Map([[0, page(0)]])}
+      activePageIndex={0}
+      disabled={false}
+      sessionId="reader-list-mark"
+      client={client}
+      onGoTo={vi.fn()}
+    />)
+    expect(screen.getByLabelText("已进入超分队列").getAttribute("data-reader-upscale-mark")).toBe("queued")
   })
 
   it("[neoview.page-list.context-actions] reuses one opaque page menu across all three renderers", async () => {

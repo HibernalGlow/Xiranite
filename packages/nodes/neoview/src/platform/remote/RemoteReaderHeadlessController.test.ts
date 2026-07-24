@@ -399,7 +399,12 @@ describe("RemoteReaderHeadlessController", () => {
     try {
       await remote.open({ path: "D:/book.cbz" })
       await expect(remote.generateUpscaleArtifact(0)).resolves.toMatchObject({ status: "generated", bytes: 123 })
-      await expect(remote.getUpscalePreload()).resolves.toMatchObject([{ mode: "nearby" }])
+      await expect(remote.getUpscalePreload()).resolves.toMatchObject([{
+        mode: "nearby",
+        queuedPageIndexes: [4, 5],
+        processingPageIndexes: [2],
+        upscaledPageIndexes: [1],
+      }])
       await expect(remote.startUpscalePreload("progressive")).resolves.toMatchObject([{ mode: "progressive" }])
       await expect(remote.pauseUpscalePreload()).resolves.toMatchObject([{ mode: "nearby" }])
       await expect(remote.retryUpscalePreload("nearby")).resolves.toMatchObject([{ mode: "nearby" }])
@@ -830,6 +835,9 @@ function preloadSnapshot(mode: string) {
     cancelled: 0,
     pending: 3,
     progress: 0.25,
+    queuedPageIndexes: [4, 5],
+    processingPageIndexes: [2],
+    upscaledPageIndexes: [1],
     startedAt: 10,
     updatedAt: 20,
   }

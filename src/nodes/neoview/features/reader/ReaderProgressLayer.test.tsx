@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
 
-import type { ReaderUpscalePreloadSnapshotDto } from "../../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderUpscalePreloadSnapshotDto } from "../../adapters/reader-http-client"
 import { ReaderViewerToggleStore } from "../viewer/ReaderViewerToggleStore"
 import { setReaderUpscaleArtifact } from "./ReaderUpscaleArtifactStore"
 import { ReaderProgressLayer } from "./ReaderProgressLayer"
@@ -9,6 +9,30 @@ import { ReaderProgressLayer } from "./ReaderProgressLayer"
 afterEach(cleanup)
 
 describe("ReaderProgressLayer", () => {
+  it("[neoview.reader.upscale-mark] shows queued, processing and completed state in the bottom bar", () => {
+    const client = {} as ReaderHttpClient
+    setReaderUpscaleArtifact("reader-mark", "page-2", { state: "queued" })
+    render(<ReaderProgressLayer
+      sessionId="reader-mark"
+      currentPageId="page-2"
+      currentPageIndex={1}
+      totalPages={4}
+      direction="left-to-right"
+      superResolutionEnabled
+      snapshots={[]}
+      client={client}
+    />)
+
+    expect(screen.getByLabelText("已进入超分队列").getAttribute("data-reader-upscale-mark")).toBe("queued")
+    act(() => setReaderUpscaleArtifact("reader-mark", "page-2", { state: "processing" }))
+    expect(screen.getByLabelText("超分中").getAttribute("data-reader-upscale-mark")).toBe("processing")
+    act(() => setReaderUpscaleArtifact("reader-mark", "page-2", {
+      state: "completed",
+      result: { status: "generated", artifactUrl: "/artifact.png", version: "v1" },
+    }))
+    expect(screen.getByLabelText("已超分").getAttribute("data-reader-upscale-mark")).toBe("completed")
+  })
+
   it("[neoview.reader.progress-layer] renders reading and real upscale progress at the viewport bottom", () => {
     const viewerToggles = new ReaderViewerToggleStore()
     setReaderUpscaleArtifact("reader-progress", "page-4", { state: "processing" })

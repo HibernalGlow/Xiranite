@@ -1,7 +1,8 @@
 import type { ReaderPageDto, ReaderUpscaleArtifactResultDto } from "../../adapters/reader-http-client"
 
 export interface ReaderUpscaleArtifactSnapshot {
-  state: "idle" | "processing" | "completed" | "skipped" | "failed"
+  state: "idle" | "queued" | "processing" | "completed" | "skipped" | "failed"
+  owner?: string
   result?: ReaderUpscaleArtifactResultDto
   error?: string
 }

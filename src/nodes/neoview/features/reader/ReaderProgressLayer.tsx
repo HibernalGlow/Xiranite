@@ -1,13 +1,14 @@
 import { useCallback, useSyncExternalStore } from "react"
 
 import { cn } from "@/lib/utils"
-import type { ReaderUpscalePreloadSnapshotDto } from "../../adapters/reader-http-client"
+import type { ReaderHttpClient, ReaderUpscalePreloadSnapshotDto } from "../../adapters/reader-http-client"
 import type { ReaderViewerTogglePort } from "../viewer/ReaderViewerToggleStore"
 import {
   EMPTY_READER_UPSCALE_ARTIFACT_SNAPSHOT,
   readerUpscaleArtifactSnapshot,
   subscribeReaderUpscaleArtifact,
 } from "./ReaderUpscaleArtifactStore"
+import { ReaderUpscaleMark } from "./ReaderUpscaleMark"
 
 const DEFAULT_VIEWER_TOGGLES = {
   progressBarVisible: true,
@@ -27,6 +28,7 @@ export function ReaderProgressLayer({
   snapshots,
   error,
   viewerToggles,
+  client,
 }: {
   sessionId: string
   currentPageId?: string
@@ -37,6 +39,7 @@ export function ReaderProgressLayer({
   snapshots: readonly ReaderUpscalePreloadSnapshotDto[]
   error?: string
   viewerToggles?: ReaderViewerTogglePort
+  client?: ReaderHttpClient
 }) {
   const toggles = useSyncExternalStore(
     viewerToggles?.subscribe ?? NOOP_SUBSCRIBE,
@@ -66,9 +69,11 @@ export function ReaderProgressLayer({
   const nearbyProgress = coverageTotal > 0
     ? clampPercent((scheduledPages / coverageTotal) * 100)
     : clampPercent((nearby?.progress ?? 0) * 100)
-  const active = artifact.state === "processing" || snapshots.some((snapshot) => snapshot.state === "queued" || snapshot.state === "countdown" || snapshot.state === "running")
+  const active = artifact.state === "queued" || artifact.state === "processing" || snapshots.some((snapshot) => snapshot.state === "queued" || snapshot.state === "countdown" || snapshot.state === "running")
   const readingColor = artifact.state === "processing"
     ? "#ffffff"
+    : artifact.state === "queued"
+      ? "#bae6fd"
     : artifact.state === "completed"
       ? "#bbf7d0"
       : artifact.state === "failed"
@@ -81,6 +86,15 @@ export function ReaderProgressLayer({
       data-reader-progress-layer="true"
       data-upscale-preload-error={error || undefined}
     >
+      {superResolutionEnabled && currentPageId && client ? (
+        <ReaderUpscaleMark
+          sessionId={sessionId}
+          pageId={currentPageId}
+          pageIndex={currentPageIndex}
+          client={client}
+          className={cn("pointer-events-auto absolute bottom-2 size-5", rtl ? "left-2" : "right-2")}
+        />
+      ) : null}
       {superResolutionEnabled ? (
         <div
           role="progressbar"

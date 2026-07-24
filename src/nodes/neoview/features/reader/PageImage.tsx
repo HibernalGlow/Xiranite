@@ -9,14 +9,20 @@ import {
   type ReaderColorFilterSettings,
 } from "@xiranite/node-neoview/ui-core"
 import { DEFAULT_READER_IMAGE_TRIM, readerImageCropTranslation, readerImageTrimClipPath, readerImageTrimEffectiveDimensions, type ReaderImageCropInsets } from "@xiranite/node-neoview/ui-core"
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 import { neoviewDebug } from "../../neoviewDebug"
 import { createLogger } from "@/lib/logger"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
 import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
-import { readerUpscaleArtifactPage, readerUpscaleArtifactSnapshot, setReaderUpscaleArtifact } from "./ReaderUpscaleArtifactStore"
+import {
+  EMPTY_READER_UPSCALE_ARTIFACT_SNAPSHOT,
+  readerUpscaleArtifactPage,
+  readerUpscaleArtifactSnapshot,
+  setReaderUpscaleArtifact,
+  subscribeReaderUpscaleArtifact,
+} from "./ReaderUpscaleArtifactStore"
 
 export interface PageImageProps {
   page: ReaderPageDto
@@ -41,6 +47,8 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
   const imageRef = useRef<HTMLImageElement>(null)
   const visible = useReaderImageVisibility(imageRef)
   const sourceIdentity = imageIdentity(page)
+  const generatedId = useId()
+  const upscaleOwner = `page-image:${generatedId}`
   const sourceIdentityRef = useRef(sourceIdentity)
   sourceIdentityRef.current = sourceIdentity
   const [decodedSourceIdentity, setDecodedSourceIdentity] = useState<string>()
@@ -52,6 +60,7 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
     superResolution,
     decodedSourceIdentity === sourceIdentity,
     visible,
+    upscaleOwner,
   )
   const targetIdentity = imageIdentity(upscaleTarget)
   const targetIdentityRef = useRef(targetIdentity)
@@ -59,7 +68,6 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
   const [committedPage, setCommittedPage] = useState(page)
   const committedIdentity = imageIdentity(committedPage)
   const pendingPage = committedIdentity === targetIdentity ? undefined : upscaleTarget
-  const generatedId = useId()
   const filterId = `neoview-color-filter-${generatedId.replaceAll(":", "")}`
   const settings = useSyncExternalStore(
     colorFilter?.subscribe ?? NOOP_SUBSCRIBE,
@@ -221,6 +229,7 @@ function useUpscaleTarget(
   config: ReaderSuperResolutionConfigDto | undefined,
   sourceReady: boolean,
   visible: boolean,
+  owner: string,
 ): { page: ReaderPageDto; probing: boolean } {
   const enabled = config?.provider !== "disabled" && config?.preferences.autoUpscaleEnabled === true
   const sourceIdentity = imageIdentity(page)
@@ -230,14 +239,22 @@ function useUpscaleTarget(
   const [probe, setProbe] = useState<{ sourceIdentity: string; state: "pending" | "scheduled" | "miss" | "terminal" }>()
   const configRevision = JSON.stringify(config?.preferences ?? {})
   const probeSupported = Boolean(client?.probeUpscalePage)
-  const storedResult = sessionId ? readerUpscaleArtifactSnapshot(sessionId, page.id).result : undefined
+  const subscribeStored = useCallback((listener: () => void) => sessionId
+    ? subscribeReaderUpscaleArtifact(sessionId, page.id, listener)
+    : NOOP_SUBSCRIBE(), [page.id, sessionId])
+  const getStored = useCallback(() => sessionId
+    ? readerUpscaleArtifactSnapshot(sessionId, page.id)
+    : EMPTY_READER_UPSCALE_ARTIFACT_SNAPSHOT, [page.id, sessionId])
+  const stored = useSyncExternalStore(subscribeStored, getStored, getStored)
+  const externallyBusy = (stored.state === "queued" || stored.state === "processing") && stored.owner !== owner
+  const storedResult = stored.result
   const storedArtifact = probeSupported && storedResult?.artifactUrl && storedResult.version
     ? artifactTarget(page, sourceIdentity, storedResult)
     : undefined
   const activeArtifact = artifact?.sourceIdentity === sourceIdentity ? artifact : storedArtifact
 
   useEffect(() => {
-    if (!enabled || !sessionId || !client?.probeUpscalePage || activeArtifact) return
+    if (!enabled || !sessionId || !client?.probeUpscalePage || activeArtifact || externallyBusy) return
     const controller = new AbortController()
     const sourcePage = pageRef.current
     setProbe({ sourceIdentity, state: "pending" })
@@ -276,12 +293,12 @@ function useUpscaleTarget(
       })
     })
     return () => controller.abort()
-  }, [activeArtifact, client, configRevision, enabled, sessionId, sourceIdentity])
+  }, [activeArtifact, client, configRevision, enabled, externallyBusy, sessionId, sourceIdentity])
 
   const scheduled = probeSupported && probe?.sourceIdentity === sourceIdentity && probe.state === "scheduled"
   const generationReady = scheduled || sourceReady
   useEffect(() => {
-    if (!enabled || !visible || !generationReady || !sessionId || !client?.upscalePage) return
+    if (!enabled || !visible || !generationReady || !sessionId || !client?.upscalePage || externallyBusy) return
     if (activeArtifact) return
     if (probeSupported && !scheduled && (probe?.sourceIdentity !== sourceIdentity || probe.state !== "miss")) return
     const controller = new AbortController()
@@ -292,7 +309,7 @@ function useUpscaleTarget(
       pageIndex: sourcePage.index,
       scheduled,
     })
-    setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: "processing" })
+    setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: "processing", owner })
     void client.upscalePage(sessionId, sourcePage.id, "automatic-current", controller.signal).then((result) => {
       if (controller.signal.aborted) return
       logger.info("Finished current-page super-resolution", {
@@ -326,8 +343,14 @@ function useUpscaleTarget(
         })
       }
     })
-    return () => controller.abort()
-  }, [activeArtifact, client, configRevision, enabled, generationReady, probe?.sourceIdentity, probe?.state, probeSupported, scheduled, sessionId, sourceIdentity, visible])
+    return () => {
+      controller.abort()
+      const current = readerUpscaleArtifactSnapshot(sessionId, sourcePage.id)
+      if (current.state === "processing" && current.owner === owner) {
+        setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: "idle" })
+      }
+    }
+  }, [activeArtifact, client, configRevision, enabled, externallyBusy, generationReady, owner, probe?.sourceIdentity, probe?.state, probeSupported, scheduled, sessionId, sourceIdentity, visible])
 
   const probing = enabled && probeSupported && !activeArtifact
     && (probe?.sourceIdentity !== sourceIdentity || probe.state === "pending" || probe.state === "scheduled")

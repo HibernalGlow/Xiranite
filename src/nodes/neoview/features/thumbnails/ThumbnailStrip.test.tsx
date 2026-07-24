@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
+import { setReaderUpscaleArtifact } from "../reader/ReaderUpscaleArtifactStore"
 import { ReaderViewerToggleStore } from "../viewer/ReaderViewerToggleStore"
 import { ThumbnailStrip } from "./ThumbnailStrip"
 
@@ -39,7 +40,7 @@ describe("ThumbnailStrip", () => {
     fireEvent.click(screen.getByRole("button", { name: "钉住底栏" }))
     expect(onPinnedChange).toHaveBeenCalledWith(true)
     fireEvent.click(screen.getByRole("button", { name: "显示页码" }))
-    expect(view.container.querySelectorAll("button span.absolute")).toHaveLength(0)
+    expect(view.container.querySelectorAll("[data-reader-thumbnail-page-number]")).toHaveLength(0)
     fireEvent.click(screen.getByRole("button", { name: "显示区域参考线" }))
     expect(view.container.querySelector('[data-reader-area-guide="true"]')).not.toBeNull()
     const viewport = view.container.querySelector('[data-testid="neoview-thumbnail-viewport"]')!
@@ -127,11 +128,27 @@ describe("ThumbnailStrip", () => {
     )
 
     await waitFor(() => expect(view.container.querySelector("button[aria-label='转到第 1 页：001.jpg']")).not.toBeNull())
-    expect(view.container.querySelectorAll("button span.absolute")).toHaveLength(1)
+    expect(view.container.querySelectorAll("[data-reader-thumbnail-page-number]")).toHaveLength(1)
     viewerToggles.togglePageInfo()
-    await waitFor(() => expect(view.container.querySelectorAll("button span.absolute")).toHaveLength(0))
+    await waitFor(() => expect(view.container.querySelectorAll("[data-reader-thumbnail-page-number]")).toHaveLength(0))
     viewerToggles.togglePageInfo()
-    await waitFor(() => expect(view.container.querySelectorAll("button span.absolute")).toHaveLength(1))
+    await waitFor(() => expect(view.container.querySelectorAll("[data-reader-thumbnail-page-number]")).toHaveLength(1))
+  })
+
+  it("[neoview.thumbnail.upscale-mark] shows queued state on the bottom thumbnail strip", async () => {
+    const first = page(0)
+    setReaderUpscaleArtifact("reader-thumbnail-mark", first.id, { state: "queued" })
+    render(<ThumbnailStrip
+      sessionId="reader-thumbnail-mark"
+      totalPages={1}
+      activePageIndex={0}
+      currentPages={[first]}
+      client={clientWith({ listPages: vi.fn(async () => ({ pages: [first], total: 1 })) })}
+      compact
+      onSelect={() => undefined}
+    />)
+
+    expect((await screen.findByLabelText("已进入超分队列")).getAttribute("data-reader-upscale-mark")).toBe("queued")
   })
 })
 

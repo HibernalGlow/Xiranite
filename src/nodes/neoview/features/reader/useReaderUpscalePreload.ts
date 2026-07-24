@@ -7,6 +7,7 @@ import type {
   ReaderUpscalePreloadSnapshotDto,
 } from "../../adapters/reader-http-client"
 import { clearReaderUpscalePreload, readerUpscalePreloadSnapshot, setReaderUpscalePreload } from "./ReaderUpscalePreloadStore"
+import { clearReaderUpscaleCoverage, updateReaderUpscaleCoverage } from "./ReaderUpscaleCoverageStore"
 
 const ACTIVE_POLL_INTERVAL_MS = 750
 const IDLE_POLL_INTERVAL_MS = 2_000
@@ -49,15 +50,20 @@ export function useReaderUpscalePreload({
     progressiveDwellTimeMs: preferences?.progressiveDwellTimeMs,
     progressiveMaxPages: preferences?.progressiveMaxPages,
   })
-  const navigationRevision = preloadGeneration ?? currentPageIndex
+  // Browser image preloading advances its generation for decode and retention
+  // bookkeeping even when the visible page is unchanged. Treating that value
+  // as navigation repeatedly cancels the nearby super-resolution batch.
+  const navigationRevision = currentPageIndex
 
   useEffect(() => {
     setSnapshots(EMPTY_SNAPSHOTS)
     setError(undefined)
     loggedEventIds.current.clear()
     if (sessionId) clearReaderUpscalePreload(sessionId)
+    if (sessionId) clearReaderUpscaleCoverage(sessionId)
     return () => {
       if (sessionId) clearReaderUpscalePreload(sessionId)
+      if (sessionId) clearReaderUpscaleCoverage(sessionId)
     }
   }, [sessionId])
 
@@ -110,6 +116,7 @@ export function useReaderUpscalePreload({
           })),
         })
         const merged = mergeSnapshots(readerUpscalePreloadSnapshot(sessionId), next)
+        updateReaderUpscaleCoverage(sessionId, merged)
         setReaderUpscalePreload(sessionId, merged)
         setSnapshots(merged)
       }
@@ -145,6 +152,7 @@ export function useReaderUpscalePreload({
       try {
         const next = await client.upscalePreloadSnapshots!(sessionId, controller.signal)
         if (controller.signal.aborted) return
+        updateReaderUpscaleCoverage(sessionId, next)
         setSnapshots(next)
         setReaderUpscalePreload(sessionId, next)
         setError(undefined)

@@ -111,7 +111,7 @@ describe("SuperResolutionArtifactRoute", () => {
     await store.close()
   })
 
-  it("[neoview.super-resolution.preload-http-session] cancels generation and invalidates assets with the Reader session", async () => {
+  it("[neoview.super-resolution.preload-http-session] cancels active work and invalidates assets with the Reader session", async () => {
     const store = createStore()
     const page = readerPage()
     let active = true
@@ -140,6 +140,39 @@ describe("SuperResolutionArtifactRoute", () => {
     expect((await route.handle(authorized(`/reader/s/session-1/upscale-artifact/${digest}?version=none`)))?.status).toBe(404)
     route.close()
     expect((await route.handle(authorized("/reader/s/session-1/pages/page-1/upscale-artifact", { method: "POST" })))?.status).toBe(410)
+    await store.close()
+  })
+
+  it("[neoview.super-resolution.current-page-generation] keeps current-page work alive across speculative generation changes", async () => {
+    const store = createStore()
+    const started = deferred()
+    const finish = deferred()
+    let operationSignal: AbortSignal | undefined
+    const acquireOrGenerate = vi.fn(async (_input, context) => {
+      operationSignal = context?.signal
+      started.resolve()
+      await finish.promise
+      return { status: "skipped" as const, decision: { kind: "skip" as const, reason: "test" } }
+    })
+    const advanceGeneration = vi.fn(async () => undefined)
+    const releaseContext = vi.fn(async () => undefined)
+    const route = new SuperResolutionArtifactRoute(
+      readerService(readerPage()),
+      port(acquireOrGenerate),
+      store,
+      { baseUrl: BASE_URL, token: TOKEN },
+      { advanceGeneration, releaseContext } as unknown as SuperResolutionPreloadControlPort,
+    )
+
+    const request = route.handle(authorized("/reader/s/session-1/pages/page-1/upscale-artifact?trigger=automatic-current", { method: "POST" }))
+    await started.promise
+    await route.advanceGeneration("session-1", 9)
+    expect(operationSignal?.aborted).toBe(false)
+    expect(advanceGeneration).toHaveBeenCalledWith("reader:session-1:super-resolution", 9)
+
+    finish.resolve()
+    expect((await request)?.status).toBe(200)
+    await route.releaseSession("session-1")
     await store.close()
   })
 

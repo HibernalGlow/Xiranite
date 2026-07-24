@@ -117,6 +117,9 @@ export interface SuperResolutionPreloadLiveSnapshot {
   totalPages?: number
   scheduledPages?: number
   upscaledPages?: number
+  queuedPageIndexes?: readonly number[]
+  processingPageIndexes?: readonly number[]
+  upscaledPageIndexes?: readonly number[]
   startedAt: number
   updatedAt: number
   completedAt?: number
