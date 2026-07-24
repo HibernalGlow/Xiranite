@@ -21,6 +21,8 @@ const cardStateSchema = z.object({
 const configSchema = z.object({
   endpoint: z.string().optional(),
   libraryPath: z.string().optional(),
+  profileLibraryPath: z.string().optional(),
+  lastProfileId: z.string().optional(),
 }).passthrough()
 
 export default {

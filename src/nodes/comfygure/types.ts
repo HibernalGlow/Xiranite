@@ -1,8 +1,10 @@
-import type { ComfygureCompressedText, ComfygureLora, ComfygureProgram, ComfygureTemplate, ComfygureWorkflowDiagnostic, ComfyuiPromptHistory, ComfyuiSubmission, PreflightReport } from "@xiranite/node-comfygure/core"
+import type { ComfygureCompressedText, ComfygureLora, ComfygureProfile, ComfygureProfileSummary, ComfygureProgram, ComfygureTemplate, ComfygureWorkflowDiagnostic, ComfyuiPromptHistory, ComfyuiSubmission, PreflightReport } from "@xiranite/node-comfygure/core"
 
 export interface ComfygureTargetConfig {
   endpoint?: string
   libraryPath?: string
+  profileLibraryPath?: string
+  lastProfileId?: string
 }
 
 export interface ComfygureCardPreview {
@@ -18,6 +20,8 @@ export interface ComfygureCardState {
   batchText?: ComfygureCompressedText
   template?: ComfygureTemplate
   templateDiagnostics?: readonly ComfygureWorkflowDiagnostic[]
+  profiles?: readonly ComfygureProfileSummary[]
+  profile?: ComfygureProfile
   preview?: ComfygureCardPreview
   preflight?: PreflightReport
   submission?: ComfyuiSubmission

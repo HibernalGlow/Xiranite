@@ -28,7 +28,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const stateRef = useRef(stored)
   stateRef.current = stored
   const [revision, setRevision] = useState(0)
-  const [running, setRunning] = useState<"compile" | "import" | "preflight" | "submit" | "refresh" | null>(null)
+  const [running, setRunning] = useState<"compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "preflight" | "submit" | "refresh" | null>(null)
   const [target, setTarget] = useState<ComfygureTargetConfig>({ endpoint: DEFAULT_COMFYUI_ENDPOINT, libraryPath: "" })
   const targetDirtyRef = useRef<Set<keyof ComfygureTargetConfig>>(new Set())
   const [targetDirty, setTargetDirty] = useState(false)
@@ -43,6 +43,8 @@ export function Component({ compId, host }: NodeComponentProps) {
       setTarget((current) => ({
         endpoint: targetDirtyRef.current.has("endpoint") ? current.endpoint : response.config.endpoint || DEFAULT_COMFYUI_ENDPOINT,
         libraryPath: targetDirtyRef.current.has("libraryPath") ? current.libraryPath : response.config.libraryPath ?? "",
+        profileLibraryPath: targetDirtyRef.current.has("profileLibraryPath") ? current.profileLibraryPath : response.config.profileLibraryPath ?? "",
+        lastProfileId: targetDirtyRef.current.has("lastProfileId") ? current.lastProfileId : response.config.lastProfileId,
       }))
     }).catch(() => undefined)
     return () => { active = false }
@@ -84,6 +86,8 @@ export function Component({ compId, host }: NodeComponentProps) {
     const next: ComfygureTargetConfig = {}
     if (targetDirtyRef.current.has("endpoint")) next.endpoint = target.endpoint?.trim() || DEFAULT_COMFYUI_ENDPOINT
     if (targetDirtyRef.current.has("libraryPath")) next.libraryPath = target.libraryPath?.trim() || undefined
+    if (targetDirtyRef.current.has("profileLibraryPath")) next.profileLibraryPath = target.profileLibraryPath?.trim() || undefined
+    if (targetDirtyRef.current.has("lastProfileId")) next.lastProfileId = target.lastProfileId || undefined
     try {
       await host.saveNodeConfig(next)
       targetDirtyRef.current.clear()
@@ -140,7 +144,12 @@ export function Component({ compId, host }: NodeComponentProps) {
     patch({ template: confirmComfygureTemplateBindings(template), status: "Template bindings confirmed. The fixed controls now compile into this template." })
   }
 
-  async function execute(action: "compile" | "import" | "preflight" | "submit" | "refresh", workflowSource?: string) {
+  async function loadProfile(profileId: string) {
+    updateTarget("lastProfileId", profileId)
+    await execute("loadProfile", undefined, profileId)
+  }
+
+  async function execute(action: "compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "preflight" | "submit" | "refresh", workflowSource?: string, selectedProfileId?: string) {
     const run = host.runner?.run ?? host.actions?.run
     if (!run || running) {
       if (!run) patch({ status: "The Xiranite backend runner is unavailable." })
@@ -152,14 +161,16 @@ export function Component({ compId, host }: NodeComponentProps) {
       return
     }
     setRunning(action)
-    patch({ status: action === "import" ? "Normalizing the ComfyUI workflow." : action === "compile" ? "Compiling a fixed prompt graph." : action === "preflight" ? "Inspecting the local ComfyUI target." : action === "refresh" ? "Refreshing ComfyUI results." : "Submitting a fixed prompt graph.", progress: 0 })
+    patch({ status: action === "import" ? "Normalizing the ComfyUI workflow." : action === "profiles" ? "Reading local generation profiles." : action === "saveProfile" ? "Saving the generation profile." : action === "loadProfile" ? "Loading the generation profile." : action === "compile" ? "Compiling a fixed prompt graph." : action === "preflight" ? "Inspecting the local ComfyUI target." : action === "refresh" ? "Refreshing ComfyUI results." : "Submitting a fixed prompt graph.", progress: 0 })
     try {
       const result = await run<ComfygureInput, ComfygureData>("comfygure", {
         action,
         program: programFromStored(stateRef.current),
         template: action === "import" ? undefined : stateRef.current.template,
         workflowSource,
-        target: { endpoint: target.endpoint, libraryPath: target.libraryPath },
+        profileId: selectedProfileId ?? (action === "saveProfile" ? stateRef.current.profile?.id : undefined),
+        profileName: action === "saveProfile" ? programFromStored(stateRef.current).name : undefined,
+        target: { endpoint: target.endpoint, libraryPath: target.libraryPath, profileLibraryPath: target.profileLibraryPath },
         promptIds: promptIds.length ? promptIds : undefined,
       }, (event: NodeRunEvent) => {
         if (event.type === "progress") patch({ status: event.message, progress: event.progress })
@@ -184,6 +195,20 @@ export function Component({ compId, host }: NodeComponentProps) {
           next.history = undefined
         }
         if (data.history) next.history = data.history
+        if (data.profiles) next.profiles = data.profiles
+        if (data.profile) {
+          next.profile = data.profile
+          const current = programFromStored(stateRef.current)
+          const profiled = normalizeComfygureProgram({
+            ...current,
+            ...data.profile.program,
+            prompts: current.prompts,
+            batch: current.batch,
+          })
+          next.program = { ...profiled, batch: { ...profiled.batch, prompts: [] } }
+          next.batchText = compressComfygureText(profiled.batch.prompts.join("\n"))
+          updateTarget("lastProfileId", data.profile.id)
+        }
         if (data.workflowImport) {
           next.templateDiagnostics = data.workflowImport.diagnostics
           if (data.workflowImport.template) {
@@ -229,8 +254,11 @@ export function Component({ compId, host }: NodeComponentProps) {
         <div className="flex items-center gap-2"><Network className="size-4" /><h3 className="text-sm font-semibold">Local target</h3></div>
         <Field label="Endpoint"><Input value={target.endpoint ?? DEFAULT_COMFYUI_ENDPOINT} disabled={running !== null} onChange={(event) => updateTarget("endpoint", event.currentTarget.value)} /></Field>
         <Field label="ComfyUI Library"><Input value={target.libraryPath ?? ""} disabled={running !== null} placeholder="D:/1Repo/Github/ComfyUI/Library" onChange={(event) => updateTarget("libraryPath", event.currentTarget.value)} /></Field>
+        <Field label="Profile library"><Input value={target.profileLibraryPath ?? ""} disabled={running !== null} placeholder="Default Xiranite data directory" onChange={(event) => updateTarget("profileLibraryPath", event.currentTarget.value)} /></Field>
         <Button className="w-full" size="sm" variant="outline" disabled={running !== null || !targetDirty} onClick={() => void saveTarget()}><Save />Save target</Button>
         <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !host.localFiles?.pickFiles} onClick={() => void importWorkflowFile()}><FileUp />Import workflow</Button>{template ? <Button size="sm" variant={templateReady ? "outline" : "default"} disabled={running !== null || templateReady} onClick={confirmTemplateBindings}><CheckCircle2 />Confirm bindings</Button> : null}</div>
+        <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("profiles")}><RefreshCw />Profiles</Button><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("saveProfile")}><Save />Save profile</Button></div>
+        {(stored.profiles?.length || stored.profile) ? <Field label="Generation profile"><Select value={stored.profile?.id ?? "__current"} disabled={running !== null} onValueChange={(value) => { if (value !== "__current") void loadProfile(value) }}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__current">Current project snapshot</SelectItem>{stored.profiles?.map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.name} · r{profile.revision}</SelectItem>)}</SelectContent></Select></Field> : null}
         <div className="space-y-2 border-t pt-3"><Field label="UNet"><Input value={program.model.unetName} onChange={(event) => updateProgram({ model: { ...program.model, unetName: event.currentTarget.value } })} /></Field><Field label="CLIP"><Input value={program.model.clipName} onChange={(event) => updateProgram({ model: { ...program.model, clipName: event.currentTarget.value } })} /></Field><Field label="VAE"><Input value={program.model.vaeName} onChange={(event) => updateProgram({ model: { ...program.model, vaeName: event.currentTarget.value } })} /></Field></div>
         <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("preflight")}><Activity />Preflight</Button><Button size="sm" variant="outline" disabled={running !== null || promptIds.length === 0} onClick={() => void execute("refresh")}><RefreshCw />Refresh results</Button><Button size="sm" disabled={running !== null || !templateReady} onClick={() => void execute("submit")}><Play />Run</Button></div>
         <CompilerSummary preview={preview} preflight={preflight} submission={stored.submission} submissions={stored.submissions} history={stored.history} template={template} templateDiagnostics={stored.templateDiagnostics} />

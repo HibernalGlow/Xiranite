@@ -6,6 +6,7 @@ export const COMFYGURE_FORMAT = "comfygure/v1" as const
 export const COMFYGURE_RUN_PLAN_FORMAT = "comfygure-run-plan/v1" as const
 export const COMFYGURE_TEMPLATE_FORMAT = "comfygure-template/v1" as const
 export const COMFYGURE_BINDING_MANIFEST_FORMAT = "comfygure-binding-manifest/v1" as const
+export const COMFYGURE_PROFILE_FORMAT = "comfygure-profile/v1" as const
 export const ANIMA_INT8_RECIPE = "anima-int8/v1" as const
 export const DEFAULT_COMFYUI_ENDPOINT = "http://127.0.0.1:8000"
 export const DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS = 10_000
@@ -164,6 +165,26 @@ export interface ComfygureProgram {
   }
 }
 
+export type ComfygureProfileProgram = Pick<ComfygureProgram, "model" | "loras" | "parameters" | "teaCache" | "output">
+
+export interface ComfygureProfile {
+  format: typeof COMFYGURE_PROFILE_FORMAT
+  schemaVersion: 1
+  id: string
+  name: string
+  revision: number
+  createdAt: string
+  updatedAt: string
+  program: ComfygureProfileProgram
+}
+
+export interface ComfygureProfileSummary {
+  id: string
+  name: string
+  revision: number
+  updatedAt: string
+}
+
 export interface ComfygureProgramDraft {
   name?: string
   model?: Partial<ComfygureProgram["model"]>
@@ -179,6 +200,7 @@ export interface ComfygureTarget {
   endpoint?: string
   clientId?: string
   libraryPath?: string
+  profileLibraryPath?: string
 }
 
 export interface ResourceRequirement {
@@ -228,6 +250,8 @@ export interface ComfygureData {
   compiled: CompiledProgram
   runPlan: CompiledRunPlan
   workflowImport?: ComfygureWorkflowImport
+  profiles?: readonly ComfygureProfileSummary[]
+  profile?: ComfygureProfile
   preflight?: PreflightReport
   submission?: ComfyuiSubmission
   submissions?: readonly ComfyuiSubmission[]
@@ -235,10 +259,12 @@ export interface ComfygureData {
 }
 
 export interface ComfygureInput {
-  action?: "compile" | "import" | "preflight" | "submit" | "refresh"
+  action?: "compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "preflight" | "submit" | "refresh"
   program?: ComfygureProgramDraft
   template?: ComfygureTemplate
   workflowSource?: string
+  profileId?: string
+  profileName?: string
   target?: ComfygureTarget
   promptIds?: readonly string[]
 }
@@ -252,6 +278,14 @@ export interface ComfygureFetchResponse {
 export interface ComfygureRuntime {
   fetch(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }): Promise<ComfygureFetchResponse>
   readLoraTrigger?(libraryPath: string, loraName: string): Promise<string | undefined>
+  profileStore?: ComfygureProfileStore
+  now?: () => Date
+}
+
+export interface ComfygureProfileStore {
+  list(profileLibraryPath?: string): Promise<readonly ComfygureProfileSummary[]>
+  read(id: string, profileLibraryPath?: string): Promise<ComfygureProfile | undefined>
+  save(profile: ComfygureProfile, profileLibraryPath?: string): Promise<ComfygureProfile>
 }
 
 export interface ComfyuiSubmission {
@@ -674,6 +708,65 @@ export function compileAnimaInt8Program(input: ComfygureProgramDraft = {}): Comp
   }
 }
 
+export function createComfygureProfile(
+  input: ComfygureProgramDraft | ComfygureProgram,
+  name: string,
+  options: { id?: string; previous?: ComfygureProfile; now?: Date } = {},
+): ComfygureProfile {
+  const now = (options.now ?? new Date()).toISOString()
+  const previous = options.previous
+  const normalizedName = stringValue(name, previous?.name || "Comfygure profile")
+  const id = normalizeProfileId(options.id ?? previous?.id ?? normalizedName)
+  const program = normalizeComfygureProgram(input)
+  return {
+    format: COMFYGURE_PROFILE_FORMAT,
+    schemaVersion: 1,
+    id,
+    name: normalizedName,
+    revision: previous ? previous.revision + 1 : 1,
+    createdAt: previous?.createdAt ?? now,
+    updatedAt: now,
+    program: profileProgramFrom(program),
+  }
+}
+
+export function normalizeComfygureProfile(value: unknown): ComfygureProfile | undefined {
+  if (!isRecord(value)) return undefined
+  const id = normalizeProfileId(stringValue(value.id, ""))
+  const name = stringValue(value.name, "")
+  const rawProgram = isRecord(value.program) ? value.program as ComfygureProgramDraft : undefined
+  if (!id || !name || !rawProgram) return undefined
+  const revision = rounded(value.revision, 1, 1, Number.MAX_SAFE_INTEGER)
+  const createdAt = isoTimestamp(value.createdAt) ?? new Date(0).toISOString()
+  const updatedAt = isoTimestamp(value.updatedAt) ?? createdAt
+  return {
+    format: COMFYGURE_PROFILE_FORMAT,
+    schemaVersion: 1,
+    id,
+    name,
+    revision,
+    createdAt,
+    updatedAt,
+    program: profileProgramFrom(normalizeComfygureProgram(rawProgram)),
+  }
+}
+
+export function resolveComfygureProfile(profile: ComfygureProfile, overrides: ComfygureProgramDraft = {}): ComfygureProgram {
+  return normalizeComfygureProgram({
+    ...profile.program,
+    ...overrides,
+    model: { ...profile.program.model, ...overrides.model },
+    loras: overrides.loras ?? profile.program.loras,
+    parameters: { ...profile.program.parameters, ...overrides.parameters },
+    teaCache: { ...profile.program.teaCache, ...overrides.teaCache },
+    output: { ...profile.program.output, ...overrides.output },
+  })
+}
+
+export function summarizeComfygureProfile(profile: ComfygureProfile): ComfygureProfileSummary {
+  return { id: profile.id, name: profile.name, revision: profile.revision, updatedAt: profile.updatedAt }
+}
+
 export function compileComfygureTemplate(template: ComfygureTemplate, input: ComfygureProgramDraft = {}): CompiledProgram {
   if (template.format !== COMFYGURE_TEMPLATE_FORMAT) throw new Error("Unsupported Comfygure template format.")
   if (!template.bindingManifest.confirmed) throw new Error("Confirm the imported template bindings before compiling it.")
@@ -844,6 +937,31 @@ export async function runComfygure(input: ComfygureInput, runtime: ComfygureRunt
     return { success: false, message: error instanceof Error ? error.message : String(error) }
   }
   const compiled = runPlan.jobs[0]!.compiled
+  if (input.action === "profiles" || input.action === "saveProfile" || input.action === "loadProfile") {
+    const store = runtime.profileStore
+    if (!store) return { success: false, message: "The local Comfygure profile store is unavailable.", data: { compiled, runPlan } }
+    const profileLibraryPath = input.target?.profileLibraryPath
+    try {
+      if (input.action === "profiles") {
+        const profiles = await store.list(profileLibraryPath)
+        return { success: true, message: `Loaded ${profiles.length} Comfygure profile(s).`, data: { compiled, runPlan, profiles } }
+      }
+      const profileId = normalizeProfileId(input.profileId ?? "")
+      if (input.action === "loadProfile") {
+        if (!profileId) return { success: false, message: "Select a Comfygure profile to load.", data: { compiled, runPlan } }
+        const profile = await store.read(profileId, profileLibraryPath)
+        return profile
+          ? { success: true, message: `Loaded profile ${profile.name}.`, data: { compiled, runPlan, profile } }
+          : { success: false, message: `Comfygure profile ${profileId} was not found.`, data: { compiled, runPlan } }
+      }
+      const previous = profileId ? await store.read(profileId, profileLibraryPath) : undefined
+      const profile = createComfygureProfile(runPlan.program, input.profileName ?? runPlan.program.name, { id: profileId || undefined, previous, now: runtime.now?.() })
+      const saved = await store.save(profile, profileLibraryPath)
+      return { success: true, message: `Saved profile ${saved.name} (revision ${saved.revision}).`, data: { compiled, runPlan, profile: saved } }
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : String(error), data: { compiled, runPlan } }
+    }
+  }
   if (input.action === "import") {
     const workflowSource = stringValue(input.workflowSource, "")
     if (!workflowSource) return { success: false, message: "No ComfyUI workflow file was supplied.", data: { compiled, runPlan } }
@@ -1755,6 +1873,32 @@ function rounded(value: unknown, fallback: number, min: number, max: number, ste
 
 function safeOutputPrefix(value: string): string {
   return value.replace(/[<>:"|?*\u0000-\u001f]/g, "_").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/+|\/+$/g, "") || "comfygure"
+}
+
+function profileProgramFrom(program: ComfygureProgram): ComfygureProfileProgram {
+  return {
+    model: { ...program.model },
+    loras: program.loras.map((lora) => ({ ...lora })),
+    parameters: { ...program.parameters },
+    teaCache: { ...program.teaCache },
+    output: { ...program.output },
+  }
+}
+
+function normalizeProfileId(value: unknown): string {
+  if (typeof value !== "string") return ""
+  const normalized = value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  return normalized.slice(0, 96)
+}
+
+function isoTimestamp(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const timestamp = new Date(value)
+  return Number.isNaN(timestamp.getTime()) ? undefined : timestamp.toISOString()
 }
 
 function isLocalHost(hostname: string): boolean {
