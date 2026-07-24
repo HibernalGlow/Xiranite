@@ -87,6 +87,7 @@ import { createReaderImageTrimStore } from "../features/image-trim/ReaderImageTr
 import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCleanup"
 import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../features/workspace/ReaderSwimlaneWorkspace"
 import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
+import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
 
 function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConfigDto): boolean {
   // Compare normalized workspace views — shell object identity always changes on patch.
@@ -284,6 +285,7 @@ export interface ReaderAppProps {
   initialPath?: string
   initialBrowserOriginPath?: string
   initialSwimlaneSoloLaneId?: string | null
+  initialReaderViewFullscreen?: boolean
   client?: ReaderHttpClient
   pickFile?: () => Promise<string | undefined>
   pickDirectory?: () => Promise<string | undefined>
@@ -291,6 +293,7 @@ export interface ReaderAppProps {
   copyFiles?: (paths: string[]) => Promise<void>
   onPathCommitted?: (path: string, browserOriginPath?: string) => void
   onSwimlaneSoloLaneIdCommitted?: (laneId: string | null) => void
+  onReaderViewFullscreenCommitted?: (fullscreen: boolean) => void
 }
 
 export function ReaderApp({
@@ -298,6 +301,7 @@ export function ReaderApp({
   initialPath = "",
   initialBrowserOriginPath,
   initialSwimlaneSoloLaneId,
+  initialReaderViewFullscreen,
   client: injectedClient,
   pickFile,
   pickDirectory,
@@ -305,13 +309,13 @@ export function ReaderApp({
   copyFiles,
   onPathCommitted,
   onSwimlaneSoloLaneIdCommitted,
+  onReaderViewFullscreenCommitted,
 }: ReaderAppProps) {
   const surface = useNodeSurface()
   const floatingFrame = useFloatingWindowFrame()
   const contextMenu = useContextMenu()
   const swimlaneSessionScopeId = `neoview:${sessionScopeId}`
   const swimlaneSession = useSwimlaneSessionStore((state) => state.sessions[swimlaneSessionScopeId])
-  const ensureSwimlaneSession = useSwimlaneSessionStore((state) => state.ensureSession)
   const patchSwimlaneSession = useSwimlaneSessionStore((state) => state.patchSession)
   const readerBootedAtRef = useRef(performance.now())
   const [client] = useState<ReaderHttpClient>(() => {
@@ -450,7 +454,9 @@ export function ReaderApp({
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [presentation, setPresentation] = useState<ReaderPresentation>(() => ({ ...DEFAULT_READER_PRESENTATION }))
   const [magnifierEnabled, setMagnifierEnabled] = useState(false)
-  const [readerViewFullscreen, setReaderViewFullscreen] = useState(false)
+  const [readerViewFullscreen, setReaderViewFullscreen] = useState(
+    () => initialReaderViewFullscreen ?? useReaderWorkspaceRestoreStore.getState().readerViewFullscreen,
+  )
   /** Swimlane left/right sidebars are deferred until after the first shell paint. */
   const [swimlaneSidebarsReady, setSwimlaneSidebarsReady] = useState(false)
   /** Right rail mounts a beat after left so control-panel cards do not compete with history. */
@@ -598,22 +604,32 @@ export function ReaderApp({
       if (config.switchToast) switchToast.hydrate(config.switchToast)
       if (config.infoOverlay) infoOverlay.hydrate(config.infoOverlay)
       if (config.imageTrim) imageTrim.hydrate(config.imageTrim)
-      if (initialSwimlaneSoloLaneId !== undefined) {
-        const laneOrder = readerWorkspaceConfig(config.shell).swimlane.laneOrder
-        patchSwimlaneSession(swimlaneSessionScopeId, {
-          activeLaneId: "reader",
-          soloLaneId: initialSwimlaneSoloLaneId !== null && laneOrder.includes(initialSwimlaneSoloLaneId)
-            ? initialSwimlaneSoloLaneId
-            : null,
-        })
-      } else {
-        ensureSwimlaneSession(swimlaneSessionScopeId, {
-          activeLaneId: "reader",
-          soloLaneId: null,
-        })
-        const restoredSoloLaneId = useSwimlaneSessionStore.getState().sessions[swimlaneSessionScopeId]?.soloLaneId ?? null
-        onSwimlaneSoloLaneIdCommitted?.(restoredSoloLaneId)
-      }
+      const laneOrder = readerWorkspaceConfig(config.shell).swimlane.laneOrder
+      const restore = useReaderWorkspaceRestoreStore.getState()
+      const cachedSession = useSwimlaneSessionStore.getState().sessions[swimlaneSessionScopeId]
+      const cachedSoloLaneId = cachedSession && Object.hasOwn(cachedSession, "soloLaneId")
+        ? cachedSession.soloLaneId
+        : restore.lastSoloLaneId
+      const restoredReaderViewFullscreen = initialReaderViewFullscreen ?? restore.readerViewFullscreen
+      const requestedSoloLaneId = restoredReaderViewFullscreen
+        ? "reader"
+        : initialSwimlaneSoloLaneId !== undefined
+          ? initialSwimlaneSoloLaneId
+          : cachedSoloLaneId ?? null
+      const restoredSoloLaneId = requestedSoloLaneId !== null && laneOrder.includes(requestedSoloLaneId)
+        ? requestedSoloLaneId
+        : null
+      setReaderViewFullscreen(restoredReaderViewFullscreen)
+      patchSwimlaneSession(swimlaneSessionScopeId, {
+        activeLaneId: "reader",
+        soloLaneId: restoredSoloLaneId,
+      })
+      restore.patchRestore({
+        lastSoloLaneId: restoredSoloLaneId,
+        readerViewFullscreen: restoredReaderViewFullscreen,
+      })
+      if (initialSwimlaneSoloLaneId === undefined) onSwimlaneSoloLaneIdCommitted?.(restoredSoloLaneId)
+      if (initialReaderViewFullscreen === undefined) onReaderViewFullscreenCommitted?.(restoredReaderViewFullscreen)
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
       if (typeof localStorage !== "undefined") {
@@ -1619,7 +1635,7 @@ export function ReaderApp({
   function resetShellControl() {
     const previous = shellControlStore.getSnapshot()
     shellControlStore.replace(defaultShellControlSnapshot())
-    patchSwimlaneSession(swimlaneSessionScopeId, { activeLaneId: "reader", soloLaneId: "reader" })
+    commitSwimlaneSessionPatch({ activeLaneId: "reader", soloLaneId: "reader" })
     enqueueShellControl({ reset: "known-defaults" }, previous)
   }
 
@@ -1668,12 +1684,7 @@ export function ReaderApp({
     const current = shellRef.current
     if (!current) return
     const { sessionPatch, persistentPatch } = splitReaderWorkspacePatch(patch, currentReaderWorkspace(current))
-    if (sessionPatch) {
-      patchSwimlaneSession(swimlaneSessionScopeId, sessionPatch)
-      if (Object.hasOwn(sessionPatch, "soloLaneId")) {
-        onSwimlaneSoloLaneIdCommitted?.(sessionPatch.soloLaneId ?? null)
-      }
-    }
+    if (sessionPatch) commitSwimlaneSessionPatch(sessionPatch)
     if (!persistentPatch) return
     const optimistic = applyReaderWorkspacePatch(current, persistentPatch)
     // Skip pure no-ops (e.g. auto-fit re-emitting the same widths). Otherwise
@@ -1686,6 +1697,14 @@ export function ReaderApp({
 
   function currentReaderWorkspace(current: ReaderShellConfigDto): ReaderWorkspaceConfig {
     return readerWorkspaceWithSession(current, useSwimlaneSessionStore.getState().sessions[swimlaneSessionScopeId])
+  }
+
+  function commitSwimlaneSessionPatch(patch: SwimlaneWorkspaceSessionState): void {
+    patchSwimlaneSession(swimlaneSessionScopeId, patch)
+    if (!Object.hasOwn(patch, "soloLaneId")) return
+    const soloLaneId = patch.soloLaneId ?? null
+    useReaderWorkspaceRestoreStore.getState().patchRestore({ lastSoloLaneId: soloLaneId })
+    onSwimlaneSoloLaneIdCommitted?.(soloLaneId)
   }
 
   function enqueueShellControl(
@@ -1969,6 +1988,8 @@ export function ReaderApp({
   const toggleReaderViewFullscreen = () => {
     const next = !readerViewFullscreen
     setReaderViewFullscreen(next)
+    useReaderWorkspaceRestoreStore.getState().patchRestore({ readerViewFullscreen: next })
+    onReaderViewFullscreenCommitted?.(next)
     commitWorkspace(next
       ? { activeLane: "reader", readerSolo: true, soloLaneId: "reader", lanes: { reader: { collapsed: false } } }
       : { readerSolo: false, soloLaneId: null })
