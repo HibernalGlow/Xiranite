@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Activity, CheckCircle2, CircleAlert, Download, FileCode2, FileUp, Network, Play, RefreshCw, Save, Settings2, Sparkles } from "lucide-react"
 import type { NodeComponentProps, NodeRunEvent } from "@xiranite/contract"
 import {
@@ -23,9 +23,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
+import { createCapabilityAdapters, NodeConfigPopover } from "@/nodes/shared/NodeConfigPopover"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { TemplateComposer } from "./TemplateComposer"
 import { formatLoraRows, parseLoraRows, type ComfygureCardState, type ComfygureTargetConfig } from "./types"
+
+type ComfygureT = ReturnType<typeof useNodeI18n>["t"]
+
+interface ComfygureTargetEditorContextValue {
+  target: ComfygureTargetConfig
+  disabled: boolean
+  t: ComfygureT
+  updateTarget<Key extends keyof ComfygureTargetConfig>(key: Key, value: ComfygureTargetConfig[Key]): void
+}
+
+const ComfygureTargetEditorContext = createContext<ComfygureTargetEditorContextValue | null>(null)
+const COMFYGURE_TARGET_PRESENTATION = { current: ComfygureTargetCurrentView }
 
 export function Component({ compId, host }: NodeComponentProps) {
   const { t } = useNodeI18n("comfygure")
@@ -36,25 +49,37 @@ export function Component({ compId, host }: NodeComponentProps) {
   const [revision, setRevision] = useState(0)
   const [running, setRunning] = useState<"compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "canvas" | "options" | "preflight" | "submit" | "refresh" | null>(null)
   const [target, setTarget] = useState<ComfygureTargetConfig>({ endpoint: DEFAULT_COMFYUI_ENDPOINT, libraryPath: "" })
+  const [targetDefaults, setTargetDefaults] = useState<ComfygureTargetConfig>()
+  const [targetConfigPath, setTargetConfigPath] = useState<string>()
+  const [targetTomlSource, setTargetTomlSource] = useState<string>()
   const targetDirtyRef = useRef<Set<keyof ComfygureTargetConfig>>(new Set())
   const [targetDirty, setTargetDirty] = useState(false)
   const program = programFromStored(stored)
   void revision
 
+  const loadTarget = useCallback(async (preserveDirty = true) => {
+    const getConfig = host.config?.get ?? host.getNodeConfig
+    if (!getConfig) return
+    const [response, exported] = await Promise.all([
+      getConfig<ComfygureTargetConfig>(),
+      host.config?.exportConfig?.("toml").catch(() => undefined),
+    ])
+    const persisted = normalizedTarget(response.config)
+    setTargetDefaults(persisted)
+    setTargetConfigPath(response.path)
+    if (exported) setTargetTomlSource(exported.content)
+    setTarget((current) => preserveDirty ? mergeTargetDraft(current, persisted, targetDirtyRef.current) : persisted)
+    if (!preserveDirty) {
+      targetDirtyRef.current.clear()
+      setTargetDirty(false)
+    }
+  }, [host.config, host.getNodeConfig])
+
   useEffect(() => {
-    if (!host.getNodeConfig) return
-    let active = true
-    void host.getNodeConfig<ComfygureTargetConfig>().then((response) => {
-      if (!active || !response?.config) return
-      setTarget((current) => ({
-        endpoint: targetDirtyRef.current.has("endpoint") ? current.endpoint : response.config.endpoint || DEFAULT_COMFYUI_ENDPOINT,
-        libraryPath: targetDirtyRef.current.has("libraryPath") ? current.libraryPath : response.config.libraryPath ?? "",
-        profileLibraryPath: targetDirtyRef.current.has("profileLibraryPath") ? current.profileLibraryPath : response.config.profileLibraryPath ?? "",
-        lastProfileId: targetDirtyRef.current.has("lastProfileId") ? current.lastProfileId : response.config.lastProfileId,
-      }))
-    }).catch(() => undefined)
-    return () => { active = false }
-  }, [host])
+    void loadTarget().catch(() => undefined)
+  }, [loadTarget])
+
+  const targetConfigAdapters = useMemo(() => createCapabilityAdapters(host.config, () => loadTarget(false)), [host.config, loadTarget])
 
   function patch(next: Partial<ComfygureCardState>) {
     stateRef.current = { ...stateRef.current, ...next }
@@ -88,14 +113,18 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   async function saveTarget() {
-    if (!host.saveNodeConfig || targetDirtyRef.current.size === 0) return
+    const saveConfig = host.config?.save ?? host.saveNodeConfig
+    if (!saveConfig || targetDirtyRef.current.size === 0) return
     const next: ComfygureTargetConfig = {}
     if (targetDirtyRef.current.has("endpoint")) next.endpoint = target.endpoint?.trim() || DEFAULT_COMFYUI_ENDPOINT
     if (targetDirtyRef.current.has("libraryPath")) next.libraryPath = target.libraryPath?.trim() || undefined
     if (targetDirtyRef.current.has("profileLibraryPath")) next.profileLibraryPath = target.profileLibraryPath?.trim() || undefined
     if (targetDirtyRef.current.has("lastProfileId")) next.lastProfileId = target.lastProfileId || undefined
     try {
-      await host.saveNodeConfig(next)
+      await saveConfig(next)
+      setTargetDefaults((current) => ({ ...current, ...next }))
+      const exported = await host.config?.exportConfig?.("toml").catch(() => undefined)
+      if (exported) setTargetTomlSource(exported.content)
       targetDirtyRef.current.clear()
       setTargetDirty(false)
       patch({ status: t("status.targetSaved", "Local ComfyUI target saved.") })
@@ -245,10 +274,11 @@ export function Component({ compId, host }: NodeComponentProps) {
   const templateReady = !template || template.bindingManifest.confirmed
   const isCollapsed = surface.mode === "collapsed"
   const wideWorkbench = surface.mode === "workspace" || surface.mode === "expanded"
-  return <div ref={surface.ref} className="@container/comfygure flex h-full min-h-0 w-full flex-col overflow-hidden p-3" data-testid="comfygure-workbench">
+  const targetEditor = useMemo<ComfygureTargetEditorContextValue>(() => ({ target, disabled: running !== null, t, updateTarget }), [running, t, target])
+  return <ComfygureTargetEditorContext.Provider value={targetEditor}><div ref={surface.ref} className="@container/comfygure flex h-full min-h-0 w-full flex-col overflow-hidden p-3" data-testid="comfygure-workbench">
     <header className="flex min-w-0 items-center justify-between gap-2 border-b pb-2">
       <div className="flex min-w-0 items-center gap-2"><Sparkles className="size-4 shrink-0" /><div className="min-w-0"><h2 className="truncate text-sm font-semibold">{t("title", "Comfygure")}</h2><p className="truncate text-xs text-muted-foreground">{stored.status ?? t("status.fixedCompiler", "Fixed ComfyUI compiler")}</p></div></div>
-      <div className="flex shrink-0 items-center gap-1"><Badge variant={preflight?.online ? "secondary" : "outline"}>{preflight?.online ? t("targetOnline", "Target online") : t("localTarget", "Local target")}</Badge>{running ? <RefreshCw className="size-4 animate-spin motion-reduce:animate-none" /> : null}</div>
+      <div className="flex shrink-0 items-center gap-1"><NodeConfigPopover autoRestoreKey="comfygure" configPath={targetConfigPath} defaults={targetDefaults as Record<string, unknown> | undefined} fallbackDefaults={{ endpoint: DEFAULT_COMFYUI_ENDPOINT }} tomlSource={targetTomlSource} dirty={targetDirty} triggerLabel={t("config.targetTrigger", "Comfygure configuration")} disabled={running !== null} t={t} onOpenFile={host.config?.openFile ?? host.openConfigFile} onOpenChange={(open) => { if (open) return loadTarget(true) }} onReload={() => loadTarget(false)} onRestore={() => loadTarget(false)} onSave={saveTarget} history={targetConfigAdapters.history} transfer={targetConfigAdapters.transfer} backup={targetConfigAdapters.backup} presentation={COMFYGURE_TARGET_PRESENTATION} /><Badge variant={preflight?.online ? "secondary" : "outline"}>{preflight?.online ? t("targetOnline", "Target online") : t("localTarget", "Local target")}</Badge>{running ? <RefreshCw className="size-4 animate-spin motion-reduce:animate-none" /> : null}</div>
     </header>
     {isCollapsed ? <p className="mt-2 truncate text-xs text-muted-foreground">{preview ? t("collapsed.fixedNodes", "{{count}} fixed nodes", { count: preview.graphNodeCount }) : t("collapsed.expandHint", "Expand to edit and preflight.")}</p> : <div className="min-h-0 flex-1 pt-3" data-testid="comfygure-swimlane-workbench"><ResizablePanelGroup orientation={wideWorkbench ? "horizontal" : "vertical"} className="h-full min-h-0">
       <ResizablePanel id="comfygure-project" defaultSize={wideWorkbench ? "42%" : "45%"} minSize={wideWorkbench ? "30%" : "32%"} maxSize={wideWorkbench ? "56%" : "60%"}>
@@ -285,10 +315,7 @@ export function Component({ compId, host }: NodeComponentProps) {
         <section className="flex h-full min-h-0 flex-col overflow-y-auto pl-2" aria-labelledby="comfygure-execution-heading" data-testid="comfygure-execution-lane">
           <LaneHeading icon={<Network className="size-4" />} id="comfygure-execution-heading" title={t("lanes.execution.title", "Execution")} description={t("lanes.execution.description", "Local target, generation profiles, preflight, and result refresh.")} />
           <div className="min-w-0 space-y-3 pt-3">
-        <Field label={t("fields.endpoint", "Endpoint")}><Input value={target.endpoint ?? DEFAULT_COMFYUI_ENDPOINT} disabled={running !== null} onChange={(event) => updateTarget("endpoint", event.currentTarget.value)} /></Field>
-        <Field label={t("fields.library", "ComfyUI Library")}><Input value={target.libraryPath ?? ""} disabled={running !== null} placeholder={t("fields.libraryPlaceholder", "D:/1Repo/Github/ComfyUI/Library")} onChange={(event) => updateTarget("libraryPath", event.currentTarget.value)} /></Field>
-        <Field label={t("fields.profileLibrary", "Profile library")}><Input value={target.profileLibraryPath ?? ""} disabled={running !== null} placeholder={t("fields.profileLibraryPlaceholder", "Default Xiranite data directory")} onChange={(event) => updateTarget("profileLibraryPath", event.currentTarget.value)} /></Field>
-        <Button className="w-full" size="sm" variant="outline" disabled={running !== null || !targetDirty} onClick={() => void saveTarget()}><Save />{t("actions.saveTarget", "Save target")}</Button>
+        <TargetSummary target={target} t={t} dirty={targetDirty} online={preflight?.online === true} />
         <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("profiles")}><RefreshCw />{t("actions.profiles", "Profiles")}</Button><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("saveProfile")}><Save />{t("actions.saveProfile", "Save profile")}</Button></div>
         {(stored.profiles?.length || stored.profile) ? <Field label={t("fields.generationProfile", "Generation profile")}><Select value={stored.profile?.id ?? "__current"} disabled={running !== null} onValueChange={(value) => { if (value !== "__current") void loadProfile(value) }}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__current">{t("values.currentSnapshot", "Current project snapshot")}</SelectItem>{stored.profiles?.map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.name} · r{profile.revision}</SelectItem>)}</SelectContent></Select></Field> : null}
             <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("preflight")}><Activity />{t("actions.preflight", "Preflight")}</Button><Button size="sm" variant="outline" disabled={running !== null || promptIds.length === 0} onClick={() => void execute("refresh")}><RefreshCw />{t("actions.refreshResults", "Refresh results")}</Button><Button className="col-span-2" size="sm" disabled={running !== null || !templateReady} onClick={() => void execute("submit")}><Play />{t("actions.run", "Run")}</Button></div>
@@ -296,11 +323,46 @@ export function Component({ compId, host }: NodeComponentProps) {
         </section>
       </ResizablePanel>
     </ResizablePanelGroup></div>}
-  </div>
+  </div></ComfygureTargetEditorContext.Provider>
 }
 
 function LaneHeading(props: { icon: ReactNode; id: string; title: string; description: string }) {
   return <div className="border-b pb-2"><div className="flex items-center gap-2"><span className="text-muted-foreground">{props.icon}</span><h3 id={props.id} className="text-sm font-semibold">{props.title}</h3></div><p className="mt-1 text-xs text-muted-foreground">{props.description}</p></div>
+}
+
+function ComfygureTargetCurrentView() {
+  const editor = useContext(ComfygureTargetEditorContext)
+  if (!editor) return null
+  return <div className="grid gap-3" data-testid="comfygure-target-editor">
+    <Field label={editor.t("fields.endpoint", "Endpoint")}><Input value={editor.target.endpoint ?? DEFAULT_COMFYUI_ENDPOINT} disabled={editor.disabled} onChange={(event) => editor.updateTarget("endpoint", event.currentTarget.value)} /></Field>
+    <Field label={editor.t("fields.library", "ComfyUI Library")}><Input value={editor.target.libraryPath ?? ""} disabled={editor.disabled} placeholder={editor.t("fields.libraryPlaceholder", "D:/1Repo/Github/ComfyUI/Library")} onChange={(event) => editor.updateTarget("libraryPath", event.currentTarget.value)} /></Field>
+    <Field label={editor.t("fields.profileLibrary", "Profile library")}><Input value={editor.target.profileLibraryPath ?? ""} disabled={editor.disabled} placeholder={editor.t("fields.profileLibraryPlaceholder", "Default Xiranite data directory")} onChange={(event) => editor.updateTarget("profileLibraryPath", event.currentTarget.value)} /></Field>
+  </div>
+}
+
+function TargetSummary({ target, t, dirty, online }: { target: ComfygureTargetConfig; t: ComfygureT; dirty: boolean; online: boolean }) {
+  return <div className="min-w-0 space-y-2 border bg-muted/20 p-3" data-testid="comfygure-target-summary">
+    <div className="flex min-w-0 items-center justify-between gap-2"><span className="truncate text-xs font-medium" title={target.endpoint}>{target.endpoint || DEFAULT_COMFYUI_ENDPOINT}</span><Badge variant={online ? "secondary" : dirty ? "outline" : "secondary"}>{dirty ? t("config.unsaved", "Unsaved") : online ? t("targetOnline", "Online") : t("localTarget", "Local")}</Badge></div>
+    <p className="truncate font-mono text-[10px] text-muted-foreground" title={target.libraryPath}>{target.libraryPath || t("config.libraryUnset", "ComfyUI library not set")}</p>
+  </div>
+}
+
+function normalizedTarget(config: ComfygureTargetConfig | undefined): ComfygureTargetConfig {
+  return {
+    endpoint: config?.endpoint?.trim() || DEFAULT_COMFYUI_ENDPOINT,
+    libraryPath: config?.libraryPath?.trim() ?? "",
+    profileLibraryPath: config?.profileLibraryPath?.trim() ?? "",
+    lastProfileId: config?.lastProfileId,
+  }
+}
+
+function mergeTargetDraft(current: ComfygureTargetConfig, persisted: ComfygureTargetConfig, dirty: ReadonlySet<keyof ComfygureTargetConfig>): ComfygureTargetConfig {
+  return {
+    endpoint: dirty.has("endpoint") ? current.endpoint : persisted.endpoint,
+    libraryPath: dirty.has("libraryPath") ? current.libraryPath : persisted.libraryPath,
+    profileLibraryPath: dirty.has("profileLibraryPath") ? current.profileLibraryPath : persisted.profileLibraryPath,
+    lastProfileId: dirty.has("lastProfileId") ? current.lastProfileId : persisted.lastProfileId,
+  }
 }
 
 function downloadCanvas(canvas: ComfygureCanvasExport, programName: string) {

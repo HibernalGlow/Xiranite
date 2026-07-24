@@ -115,12 +115,16 @@ describe("Comfygure node projection", () => {
     render(<Component compId="comfygure-1" host={host as never} />)
 
     const user = userEvent.setup()
-    const library = await screen.findByDisplayValue("D:/1Repo/Github/ComfyUI/Library")
+    await user.click(screen.getByRole("button", { name: "Comfygure configuration" }))
+    const editor = await screen.findByTestId("comfygure-target-editor")
+    const library = within(editor).getByDisplayValue("D:/1Repo/Github/ComfyUI/Library")
     await user.clear(library)
     await user.type(library, "D:/1Repo/Github/ComfyUI/Library-next")
-    await user.click(await screen.findByRole("button", { name: "Save target" }))
+    await user.click(screen.getByRole("button", { name: "Save as default" }))
 
     await waitFor(() => expect(host.savedConfig).toEqual({ libraryPath: "D:/1Repo/Github/ComfyUI/Library-next" }))
+    expect(await screen.findByText("TOML source")).toBeTruthy()
+    expect(within(screen.getByTestId("comfygure-execution-lane")).queryByLabelText("Endpoint")).toBeNull()
   })
 
   it("allows an explicit target edit to be saved while config hydration is still pending", async () => {
@@ -128,9 +132,9 @@ describe("Comfygure node projection", () => {
     render(<Component compId="comfygure-1" host={host as never} />)
 
     const user = userEvent.setup()
-    const endpoint = screen.getByDisplayValue("http://127.0.0.1:8000")
-    const save = screen.getByRole("button", { name: "Save target" })
-    expect(save).toHaveProperty("disabled", true)
+    await user.click(screen.getByRole("button", { name: "Comfygure configuration" }))
+    const endpoint = within(await screen.findByTestId("comfygure-target-editor")).getByDisplayValue("http://127.0.0.1:8000")
+    const save = screen.getByRole("button", { name: "Save as default" })
 
     await user.clear(endpoint)
     await user.type(endpoint, "http://localhost:8000")
@@ -302,6 +306,11 @@ function createHost(options: { pendingConfig?: boolean } = {}) {
       },
     },
   }
+  const persistedTarget: ComfygureTargetConfig = { endpoint: "http://127.0.0.1:8000", libraryPath: "D:/1Repo/Github/ComfyUI/Library" }
+  const getConfig = async <T,>() => {
+    if (options.pendingConfig) return await new Promise<{ config: T | undefined; path: string }>(() => undefined)
+    return { config: persistedTarget as T, path: "D:/config/xiranite.config.toml" }
+  }
   const host = {
     state: {} as ComfygureCardState,
     runCalls: [] as Array<{ nodeId: string; input: ComfygureInput }>,
@@ -309,11 +318,14 @@ function createHost(options: { pendingConfig?: boolean } = {}) {
     localFiles: undefined as NodeLocalFilesCapability | undefined,
     getData<T>() { return this.state as T },
     patchData(_compId: string, patch: Partial<ComfygureCardState>) { this.state = { ...this.state, ...patch } },
-    getNodeConfig: async <T,>() => {
-      if (options.pendingConfig) return await new Promise<{ config: T | undefined; path: string }>(() => undefined)
-      return { config: { endpoint: "http://127.0.0.1:8000", libraryPath: "D:/1Repo/Github/ComfyUI/Library" } as T, path: "D:/config/xiranite.config.toml" }
+    getNodeConfig: getConfig,
+    saveNodeConfig: async (config: ComfygureTargetConfig) => { host.savedConfig = config; Object.assign(persistedTarget, config) },
+    config: {
+      get: getConfig,
+      save: async (config: ComfygureTargetConfig) => { host.savedConfig = config; Object.assign(persistedTarget, config) },
+      exportConfig: async () => ({ content: `[nodes.comfygure]\nendpoint = "${persistedTarget.endpoint}"\nlibraryPath = "${persistedTarget.libraryPath}"\n`, filename: "comfygure.toml", mimeType: "application/toml" }),
+      openFile: async () => undefined,
     },
-    saveNodeConfig: async (config: ComfygureTargetConfig) => { host.savedConfig = config },
     runner: {
       run: async <TInput, TData>(nodeId: string, input: TInput, _onEvent?: (event: NodeRunEvent) => void) => {
         host.runCalls.push({ nodeId, input: input as ComfygureInput })

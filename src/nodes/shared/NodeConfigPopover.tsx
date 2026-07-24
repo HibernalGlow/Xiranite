@@ -30,6 +30,7 @@ import {
   Upload,
 } from "lucide-react"
 import type {
+  NodeConfigCapability,
   NodeConfigExport,
   NodeConfigHistoryRepositoryStatus,
   NodeConfigVersion,
@@ -85,6 +86,12 @@ export interface NodeConfigBackupAdapter {
   create: (label?: string) => Promise<{ version: NodeConfigVersion }>
   setRemote: (url: string | null) => Promise<NodeConfigHistoryRepositoryStatus>
   sync: (direction: "pull" | "push") => Promise<NodeConfigHistoryRepositoryStatus>
+}
+
+export interface NodeConfigCenterAdapters {
+  history?: NodeConfigHistoryAdapter
+  transfer?: NodeConfigTransferAdapter
+  backup?: NodeConfigBackupAdapter
 }
 
 export interface NodeConfigPopoverProps {
@@ -334,7 +341,7 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
           <TabsContent value="current" className="min-h-0 overflow-auto">
             <div className="grid min-h-full gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
               <section className="min-w-0 rounded-md border bg-muted/20">
-                {CurrentView ? <CurrentView config={effectiveDefaults} tomlSource={props.tomlSource} /> : props.tomlSource && effectiveDefaults ? <Suspense fallback={<PanelMessage>{props.t("config.source.loading", "Loading TOML view...")}</PanelMessage>}><LazyNodeConfigSourceView config={effectiveDefaults} source={props.tomlSource} labels={sourceLabels(props.t)} /></Suspense> : <StructuredConfigView config={effectiveDefaults} emptyLabel={props.t("config.empty", "No configuration data.")} />}
+                {CurrentView ? <div className="min-w-0"><div className="p-4"><CurrentView config={effectiveDefaults} tomlSource={props.tomlSource} /></div>{props.tomlSource && effectiveDefaults ? <div className="border-t"><Suspense fallback={<PanelMessage>{props.t("config.source.loading", "Loading TOML view...")}</PanelMessage>}><LazyNodeConfigSourceView config={effectiveDefaults} source={props.tomlSource} labels={sourceLabels(props.t)} /></Suspense></div> : null}</div> : props.tomlSource && effectiveDefaults ? <Suspense fallback={<PanelMessage>{props.t("config.source.loading", "Loading TOML view...")}</PanelMessage>}><LazyNodeConfigSourceView config={effectiveDefaults} source={props.tomlSource} labels={sourceLabels(props.t)} /></Suspense> : <StructuredConfigView config={effectiveDefaults} emptyLabel={props.t("config.empty", "No configuration data.")} />}
               </section>
               <aside className="flex flex-col gap-2">
                 {autoRestoreKey ? <Field orientation="horizontal" className="items-center justify-between rounded-md border px-3 py-2"><FieldLabel className="text-xs">{props.t("config.autoRestore", "Restore on startup")}</FieldLabel><Switch checked={autoRestore} onCheckedChange={setAutoRestoreDefaults} /></Field> : null}
@@ -544,6 +551,39 @@ export function createBackendAdapters(nodeId: string, onReload: () => Promise<vo
       sync: syncConfigHistoryOnBackend,
     } satisfies NodeConfigBackupAdapter,
   }
+}
+
+/** Builds the shared configuration-center features from an injected node host capability. */
+export function createCapabilityAdapters<TConfig>(
+  capability: NodeConfigCapability<TConfig> | undefined,
+  onReload: () => Promise<void> | void,
+): NodeConfigCenterAdapters {
+  const history = capability?.getVersions && capability.inspectVersion && capability.restoreVersion
+    ? {
+        list: (options?: { limit?: number }) => capability.getVersions!(options),
+        inspect: (revision: string) => capability.inspectVersion!(revision),
+        restore: async (revision: string) => {
+          const restored = await capability.restoreVersion!(revision)
+          await onReload()
+          return restored
+        },
+      } satisfies NodeConfigHistoryAdapter
+    : undefined
+  const transfer = capability?.exportConfig && capability.importConfig
+    ? {
+        export: (format: "json" | "toml") => capability.exportConfig!(format),
+        import: (content: string, format?: "auto" | "json" | "toml") => capability.importConfig!(content, format),
+      } satisfies NodeConfigTransferAdapter
+    : undefined
+  const backup = capability?.getHistoryRepository && capability.createBackup && capability.setHistoryRemote && capability.syncHistory
+    ? {
+        status: () => capability.getHistoryRepository!(),
+        create: (label?: string) => capability.createBackup!(label),
+        setRemote: (url: string | null) => capability.setHistoryRemote!(url),
+        sync: (direction: "pull" | "push") => capability.syncHistory!(direction),
+      } satisfies NodeConfigBackupAdapter
+    : undefined
+  return { history, transfer, backup }
 }
 
 function downloadText(filename: string, content: string, mimeType: string) {
