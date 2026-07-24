@@ -1,9 +1,9 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { createRef } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import { compileAnimaInt8Program, type ComfygureData, type ComfygureInput } from "@xiranite/node-comfygure/core"
+import { compileAnimaInt8Program, compileAnimaInt8RunPlan, type ComfygureData, type ComfygureInput } from "@xiranite/node-comfygure/core"
 import { Component } from "./Component"
 import type { ComfygureCardState, ComfygureTargetConfig } from "./types"
 
@@ -66,6 +66,18 @@ describe("Comfygure node projection", () => {
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toMatchObject({ nodeId: "comfygure", input: { action: "submit" } })
   })
+
+  it("serializes direct batch prompts into the Comfygure program before compile", async () => {
+    const host = createHost()
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    const user = userEvent.setup()
+    fireEvent.change(screen.getByLabelText("Batch positive prompts"), { target: { value: "cat\ndog" } })
+    await user.click(screen.getByRole("button", { name: "Compile" }))
+
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input.program?.batch?.prompts).toEqual(["cat", "dog"])
+  })
 })
 
 function createHost(options: { pendingConfig?: boolean } = {}) {
@@ -75,6 +87,7 @@ function createHost(options: { pendingConfig?: boolean } = {}) {
     message: "Compatibility preflight passed. No generation was submitted.",
     data: {
       compiled,
+      runPlan: compileAnimaInt8RunPlan(),
       preflight: {
         endpoint: "http://127.0.0.1:8000",
         online: true,

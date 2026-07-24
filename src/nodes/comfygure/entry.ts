@@ -11,6 +11,7 @@ const cardStateSchema = z.object({
   preview: z.record(z.string(), z.unknown()).optional(),
   preflight: z.record(z.string(), z.unknown()).optional(),
   submission: z.record(z.string(), z.unknown()).optional(),
+  submissions: z.array(z.record(z.string(), z.unknown())).optional(),
 }).passthrough()
 
 const configSchema = z.object({

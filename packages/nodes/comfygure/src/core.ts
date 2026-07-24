@@ -1,6 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
 export const COMFYGURE_FORMAT = "comfygure/v1" as const
+export const COMFYGURE_RUN_PLAN_FORMAT = "comfygure-run-plan/v1" as const
 export const ANIMA_INT8_RECIPE = "anima-int8/v1" as const
 export const DEFAULT_COMFYUI_ENDPOINT = "http://127.0.0.1:8000"
 export const DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS = 10_000
@@ -24,6 +25,15 @@ export interface ComfygureLora {
   enabled?: boolean
 }
 
+export interface ComfygureBatch {
+  prompts: readonly string[]
+  maxPrompts: number
+  queueCount: number
+  shuffle: boolean
+  allowDuplicates: boolean
+  selectionSeed: number
+}
+
 export interface ComfygureProgram {
   format: typeof COMFYGURE_FORMAT
   recipe: typeof ANIMA_INT8_RECIPE
@@ -38,12 +48,14 @@ export interface ComfygureProgram {
     negative: string
     positivePrefix: string
   }
+  batch: ComfygureBatch
   loras: readonly ComfygureLora[]
   parameters: {
     width: number
     height: number
     batchSize: number
     seed: number
+    seedMode: "fixed" | "increment"
     steps: number
     cfg: number
     samplerName: string
@@ -74,6 +86,7 @@ export interface ComfygureProgramDraft {
   name?: string
   model?: Partial<ComfygureProgram["model"]>
   prompts?: Partial<ComfygureProgram["prompts"]>
+  batch?: Partial<ComfygureBatch>
   loras?: readonly ComfygureLora[]
   parameters?: Partial<ComfygureProgram["parameters"]>
   teaCache?: Partial<ComfygureProgram["teaCache"]>
@@ -103,6 +116,22 @@ export interface CompiledProgram {
   requiredResources: readonly ResourceRequirement[]
 }
 
+export interface CompiledGenerationJob {
+  index: number
+  sourceIndex: number
+  loopIndex: number
+  sourceText: string
+  seed: number
+  compiled: CompiledProgram
+}
+
+export interface CompiledRunPlan {
+  format: typeof COMFYGURE_RUN_PLAN_FORMAT
+  recipe: typeof ANIMA_INT8_RECIPE
+  program: ComfygureProgram
+  jobs: readonly CompiledGenerationJob[]
+}
+
 export interface PreflightReport {
   endpoint: string
   online: boolean
@@ -115,8 +144,10 @@ export interface PreflightReport {
 
 export interface ComfygureData {
   compiled: CompiledProgram
+  runPlan: CompiledRunPlan
   preflight?: PreflightReport
   submission?: ComfyuiSubmission
+  submissions?: readonly ComfyuiSubmission[]
 }
 
 export interface ComfygureInput {
@@ -160,12 +191,21 @@ export const DEFAULT_COMFYGURE_PROGRAM: ComfygureProgram = {
     negative: "",
     positivePrefix: "",
   },
+  batch: {
+    prompts: [],
+    maxPrompts: 0,
+    queueCount: 0,
+    shuffle: false,
+    allowDuplicates: true,
+    selectionSeed: 0,
+  },
   loras: [],
   parameters: {
     width: 1024,
     height: 1024,
     batchSize: 1,
     seed: 0,
+    seedMode: "increment",
     steps: 26,
     cfg: 4.5,
     samplerName: "euler_ancestral",
@@ -199,6 +239,7 @@ export function normalizeComfygureProgram(input: ComfygureProgramDraft = {}): Co
   const output = source.output ?? {}
   const model = source.model ?? {}
   const prompts = source.prompts ?? {}
+  const batch = source.batch ?? {}
   return {
     format: COMFYGURE_FORMAT,
     recipe: ANIMA_INT8_RECIPE,
@@ -213,12 +254,21 @@ export function normalizeComfygureProgram(input: ComfygureProgramDraft = {}): Co
       negative: stringValue(prompts.negative, ""),
       positivePrefix: stringValue(prompts.positivePrefix, ""),
     },
+    batch: {
+      prompts: normalizeBatchPrompts(batch.prompts),
+      maxPrompts: rounded(batch.maxPrompts, DEFAULT_COMFYGURE_PROGRAM.batch.maxPrompts, 0, 100_000),
+      queueCount: rounded(batch.queueCount, DEFAULT_COMFYGURE_PROGRAM.batch.queueCount, 0, 100_000),
+      shuffle: batch.shuffle === true,
+      allowDuplicates: batch.allowDuplicates !== false,
+      selectionSeed: rounded(batch.selectionSeed, DEFAULT_COMFYGURE_PROGRAM.batch.selectionSeed, 0, Number.MAX_SAFE_INTEGER),
+    },
     loras: normalizeLoras(source.loras),
     parameters: {
       width: rounded(parameters.width, DEFAULT_COMFYGURE_PROGRAM.parameters.width, 64, 4096, 64),
       height: rounded(parameters.height, DEFAULT_COMFYGURE_PROGRAM.parameters.height, 64, 4096, 64),
       batchSize: rounded(parameters.batchSize, 1, 1, 64),
       seed: rounded(parameters.seed, 0, 0, Number.MAX_SAFE_INTEGER),
+      seedMode: parameters.seedMode === "fixed" ? "fixed" : "increment",
       steps: rounded(parameters.steps, DEFAULT_COMFYGURE_PROGRAM.parameters.steps, 1, 200),
       cfg: bounded(parameters.cfg, DEFAULT_COMFYGURE_PROGRAM.parameters.cfg, 0, 100),
       samplerName: stringValue(parameters.samplerName, DEFAULT_COMFYGURE_PROGRAM.parameters.samplerName),
@@ -395,7 +445,60 @@ export function compileAnimaInt8Program(input: ComfygureProgramDraft = {}): Comp
   }
 }
 
-export async function preflightComfyuiTarget(compiled: CompiledProgram, target: ComfygureTarget, runtime: ComfygureRuntime): Promise<PreflightReport> {
+export function compileAnimaInt8RunPlan(input: ComfygureProgramDraft = {}): CompiledRunPlan {
+  const program = normalizeComfygureProgram(input)
+  const batchPrompts = program.batch.prompts.slice(0, program.batch.maxPrompts || undefined)
+  if (batchPrompts.length === 0) {
+    const compiled = compileAnimaInt8Program(program)
+    return {
+      format: COMFYGURE_RUN_PLAN_FORMAT,
+      recipe: ANIMA_INT8_RECIPE,
+      program,
+      jobs: [{ index: 0, sourceIndex: 0, loopIndex: 0, sourceText: program.prompts.positive, seed: program.parameters.seed, compiled }],
+    }
+  }
+
+  const sequence = resolveBatchSequence(batchPrompts.length, program.batch)
+  const jobs = sequence.map((sourceIndex, index) => {
+    const seed = resolveJobSeed(program.parameters.seed, program.parameters.seedMode, index)
+    const jobProgram: ComfygureProgramDraft = {
+      ...program,
+      prompts: { ...program.prompts, positive: batchPrompts[sourceIndex] ?? "" },
+      parameters: { ...program.parameters, seed },
+    }
+    return {
+      index,
+      sourceIndex,
+      loopIndex: Math.floor(index / batchPrompts.length),
+      sourceText: batchPrompts[sourceIndex] ?? "",
+      seed,
+      compiled: compileAnimaInt8Program(jobProgram),
+    }
+  })
+  return { format: COMFYGURE_RUN_PLAN_FORMAT, recipe: ANIMA_INT8_RECIPE, program, jobs }
+}
+
+export function resolveBatchSequence(entryCount: number, batch: ComfygureBatch): readonly number[] {
+  if (entryCount <= 0) return []
+  const count = batch.queueCount > 0 ? batch.queueCount : entryCount
+  const indices = Array.from({ length: entryCount }, (_, index) => index)
+  if (!batch.shuffle) {
+    if (!batch.allowDuplicates) return indices.slice(0, Math.min(count, indices.length))
+    return Array.from({ length: count }, (_, index) => indices[index % indices.length]!)
+  }
+
+  const random = createSeededRandom(batch.selectionSeed)
+  if (batch.allowDuplicates) return Array.from({ length: count }, () => indices[Math.floor(random() * indices.length)]!)
+
+  const sequence: number[] = []
+  while (sequence.length < count) {
+    const round = shuffleIndices(indices, random)
+    sequence.push(...round.slice(0, count - sequence.length))
+  }
+  return sequence
+}
+
+export async function preflightComfyuiTarget(compiled: Pick<CompiledProgram, "requiredClasses" | "requiredResources">, target: ComfygureTarget, runtime: ComfygureRuntime): Promise<PreflightReport> {
   const endpoint = normalizeComfyuiEndpoint(target.endpoint)
   let objectInfo: Record<string, unknown>
   try {
@@ -438,34 +541,46 @@ export async function preflightComfyuiTarget(compiled: CompiledProgram, target: 
 
 export async function runComfygure(input: ComfygureInput, runtime: ComfygureRuntime, onEvent: (event: NodeRunEvent) => void = () => {}): Promise<NodeRunResult<ComfygureData>> {
   const program = await hydrateLoraTriggers(input.program, input.target, runtime)
-  const compiled = compileAnimaInt8Program(program)
+  const runPlan = compileAnimaInt8RunPlan(program)
+  const compiled = runPlan.jobs[0]!.compiled
   if (input.action !== "preflight" && input.action !== "submit") {
-    return { success: true, message: `Compiled ${Object.keys(compiled.graph).length} fixed ComfyUI node(s).`, data: { compiled } }
+    const message = runPlan.jobs.length === 1
+      ? `Compiled ${Object.keys(compiled.graph).length} fixed ComfyUI node(s).`
+      : `Compiled ${runPlan.jobs.length} fixed ComfyUI prompt graph(s).`
+    return { success: true, message, data: { compiled, runPlan } }
   }
   onEvent({ type: "progress", progress: 20, message: "Inspecting the local ComfyUI target." })
-  const preflight = await preflightComfyuiTarget(compiled, input.target ?? {}, runtime)
+  const preflight = await preflightComfyuiTarget(compiledRequirementsFor(runPlan), input.target ?? {}, runtime)
   const compatible = preflight.online && preflight.missingClasses.length === 0 && preflight.missingResources.length === 0
   if (!compatible) {
     onEvent({ type: "progress", progress: 100, message: preflight.online ? "Compatibility preflight found incompatible requirements." : "Local ComfyUI target is unavailable." })
     const message = preflight.online
       ? `Compatibility preflight found ${preflight.missingClasses.length} missing class(es) and ${preflight.missingResources.length} missing resource(s).`
       : `ComfyUI target is unavailable at ${preflight.endpoint}.`
-    return { success: false, message, data: { compiled, preflight } }
+    return { success: false, message, data: { compiled, runPlan, preflight } }
   }
   if (input.action === "preflight") {
     onEvent({ type: "progress", progress: 100, message: "Compatibility preflight complete." })
-    return { success: true, message: "Compatibility preflight passed. No generation was submitted.", data: { compiled, preflight } }
+    return { success: true, message: "Compatibility preflight passed. No generation was submitted.", data: { compiled, runPlan, preflight } }
   }
 
   onEvent({ type: "progress", progress: 65, message: "Submitting the fixed prompt graph to ComfyUI." })
+  const submissions: ComfyuiSubmission[] = []
   try {
-    const submission = await submitComfyuiPrompt(compiled, input.target ?? {}, runtime)
-    onEvent({ type: "progress", progress: 100, message: `ComfyUI accepted prompt ${submission.promptId}.` })
-    return { success: true, message: `ComfyUI accepted prompt ${submission.promptId}.`, data: { compiled, preflight, submission } }
+    for (const [index, job] of runPlan.jobs.entries()) {
+      const submission = await submitComfyuiPrompt(job.compiled, input.target ?? {}, runtime)
+      submissions.push(submission)
+      const progress = 65 + Math.round(((index + 1) / runPlan.jobs.length) * 35)
+      onEvent({ type: "progress", progress, message: `ComfyUI accepted prompt ${submission.promptId}.` })
+    }
+    const message = submissions.length === 1
+      ? `ComfyUI accepted prompt ${submissions[0]!.promptId}.`
+      : `ComfyUI accepted ${submissions.length} fixed prompt graph(s).`
+    return { success: true, message, data: { compiled, runPlan, preflight, submission: submissions[0], submissions } }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     onEvent({ type: "progress", progress: 100, message: "ComfyUI rejected the prompt graph." })
-    return { success: false, message, data: { compiled, preflight } }
+    return { success: false, message, data: { compiled, runPlan, preflight, submission: submissions[0], submissions } }
   }
 }
 
@@ -509,6 +624,51 @@ function normalizeLoras(value: readonly ComfygureLora[] | undefined): readonly C
       enabled: item.enabled !== false,
     }]
   })
+}
+
+function normalizeBatchPrompts(value: readonly string[] | undefined): readonly string[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((prompt) => {
+    const normalized = typeof prompt === "string" ? prompt.trim() : ""
+    return normalized ? [normalized] : []
+  })
+}
+
+function resolveJobSeed(baseSeed: number, mode: "fixed" | "increment", jobIndex: number): number {
+  if (mode === "fixed") return baseSeed
+  return Math.min(Number.MAX_SAFE_INTEGER, baseSeed + jobIndex)
+}
+
+function createSeededRandom(seed: number): () => number {
+  let state = (Math.trunc(seed) >>> 0) || 0x6d2b79f5
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0
+    let value = state
+    value = Math.imul(value ^ (value >>> 15), value | 1)
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
+    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296
+  }
+}
+
+function shuffleIndices(indices: readonly number[], random: () => number): number[] {
+  const shuffled = [...indices]
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(random() * (index + 1))
+    ;[shuffled[index], shuffled[other]] = [shuffled[other]!, shuffled[index]!]
+  }
+  return shuffled
+}
+
+function compiledRequirementsFor(runPlan: CompiledRunPlan): Pick<CompiledProgram, "requiredClasses" | "requiredResources"> {
+  const classes = new Set<string>()
+  const resources = new Map<string, ResourceRequirement>()
+  for (const job of runPlan.jobs) {
+    for (const classType of job.compiled.requiredClasses) classes.add(classType)
+    for (const resource of job.compiled.requiredResources) {
+      resources.set(`${resource.classType}\u0000${resource.inputName}\u0000${resource.resourceName}`, resource)
+    }
+  }
+  return { requiredClasses: [...classes].sort(), requiredResources: [...resources.values()] }
 }
 
 function ensurePromptTerms(value: string, terms: readonly string[]): string {
