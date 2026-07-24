@@ -1,4 +1,4 @@
-import type { ComfygureCompressedText, ComfygureLora, ComfygureProgram, ComfyuiPromptHistory, ComfyuiSubmission, PreflightReport } from "@xiranite/node-comfygure/core"
+import type { ComfygureCompressedText, ComfygureLora, ComfygureProgram, ComfygureTemplate, ComfygureWorkflowDiagnostic, ComfyuiPromptHistory, ComfyuiSubmission, PreflightReport } from "@xiranite/node-comfygure/core"
 
 export interface ComfygureTargetConfig {
   endpoint?: string
@@ -16,6 +16,8 @@ export interface ComfygureCardPreview {
 export interface ComfygureCardState {
   program?: ComfygureProgram
   batchText?: ComfygureCompressedText
+  template?: ComfygureTemplate
+  templateDiagnostics?: readonly ComfygureWorkflowDiagnostic[]
   preview?: ComfygureCardPreview
   preflight?: PreflightReport
   submission?: ComfyuiSubmission

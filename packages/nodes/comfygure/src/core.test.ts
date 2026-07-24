@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { compileAnimaInt8Program, compileAnimaInt8RunPlan, compressComfygureText, decompressComfygureText, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, normalizeComfyuiEndpoint, normalizePromptText, preflightComfyuiTarget, resolveBatchSequence, runComfygure } from "./core.js"
+import { compileAnimaInt8Program, compileAnimaInt8RunPlan, compileComfygureTemplate, confirmComfygureTemplateBindings, compressComfygureText, decompressComfygureText, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, importComfyuiWorkflow, normalizeComfyuiEndpoint, normalizePromptText, preflightComfyuiTarget, resolveBatchSequence, runComfygure } from "./core.js"
 
 describe("Comfygure ANIMA INT8 compiler", () => {
   it("compiles dynamic LoRA choices into static Comfyroll stack nodes", () => {
@@ -36,6 +36,96 @@ describe("Comfygure ANIMA INT8 compiler", () => {
     expect(compressed?.data.length).toBeLessThan(source.length)
     expect(decompressComfygureText(compressed)).toBe(source)
     expect(decompressComfygureText({ format: "deflate-base64/v1", data: "not-base64", lineCount: 1, uncompressedLength: 1 })).toBe("")
+  })
+
+  it("repairs malformed multiline API JSON, preserves its source, and applies confirmed template bindings", () => {
+    const imported = importComfyuiWorkflow(`{
+      "1": { "class_type": "CLIPTextEncode", "inputs": { "text": "old
+prompt", "clip": ["2", 0] }, "_meta": { "title": "Positive prompt" } },
+      "2": { "class_type": "CLIPLoader", "inputs": { "clip_name": "old-clip.safetensors" } },
+      "3": { "class_type": "CLIPTextEncode", "inputs": { "text": "old negative", "clip": ["2", 0] }, "_meta": { "title": "Negative prompt" } },
+      "4": { "class_type": "AnimaLatentImage", "inputs": { "width": 512, "height": 512, "batch_size": 1 } },
+      "5": { "class_type": "FLS_SamplerV4", "inputs": { "seed": 1, "steps": 20, "cfg": 4, "sampler_name": "euler", "scheduler": "normal", "denoise": 1, "positive": ["1", 0], "negative": ["3", 0], "latent_image": ["4", 0] } },
+      "6": { "class_type": "LayerUtility: SaveImagePlus", "inputs": { "filename_prefix": "old", "format": "png", "quality": 90, "preview": false, "images": ["7", 0] } },
+      "7": { "class_type": "VAEDecode", "inputs": { "samples": ["5", 0] } }
+    }`)
+
+    expect(imported.repairedSource).toBe(true)
+    expect(imported.template?.originalSource.uncompressedLength).toBeGreaterThan(100)
+    expect(imported.template?.bindingManifest.confirmed).toBe(false)
+    const compiled = compileComfygureTemplate(confirmComfygureTemplateBindings(imported.template!), {
+      prompts: { positivePrefix: "masterpiece", positive: "cat_ears", negative: "bad anatomy" },
+      model: { clipName: "new-clip.safetensors" },
+      parameters: { width: 1280, height: 768, batchSize: 2, seed: 42, steps: 30, cfg: 5, samplerName: "euler_ancestral", scheduler: "beta57" },
+      output: { filenamePrefix: "run/demo", quality: 100, preview: true },
+    })
+
+    expect(compiled.graph["1"]?.inputs.text).toBe("masterpiece, cat ears")
+    expect(compiled.graph["3"]?.inputs.text).toBe("bad anatomy")
+    expect(compiled.graph["2"]?.inputs.clip_name).toBe("new-clip.safetensors")
+    expect(compiled.graph["4"]?.inputs).toMatchObject({ width: 1280, height: 768, batch_size: 2 })
+    expect(compiled.graph["5"]?.inputs).toMatchObject({ seed: 42, steps: 30, cfg: 5, sampler_name: "euler_ancestral", scheduler: "beta57" })
+    expect(compiled.graph["6"]?.inputs).toMatchObject({ filename_prefix: "run/demo", quality: 100, preview: true })
+    expect(compiled.requiredResources).toContainEqual({ classType: "CLIPLoader", inputName: "clip_name", resourceName: "new-clip.safetensors", kind: "clip" })
+  })
+
+  it("uses object_info widget order and resolves reroutes when importing a UI workflow", () => {
+    const imported = importComfyuiWorkflow(JSON.stringify({
+      nodes: [
+        { id: 10, type: "CLIPLoader", widgets_values: ["clip.safetensors"], inputs: [] },
+        { id: 11, type: "Reroute", inputs: [{ name: "", link: 1 }] },
+        { id: 12, type: "CLIPTextEncode", title: "Positive", widgets_values: ["a cat"], inputs: [{ name: "clip", link: 2 }] },
+      ],
+      links: [[1, 10, 0, 11, 0, "CLIP"], [2, 11, 0, 12, 0, "CLIP"]],
+    }), {
+      objectInfo: {
+        CLIPLoader: { input: { required: { clip_name: [["clip.safetensors"]] } } },
+        CLIPTextEncode: { input: { required: { text: ["STRING"], clip: ["CLIP"] } } },
+      },
+    })
+
+    expect(imported.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([])
+    expect(imported.template?.sourceFormat).toBe("ui")
+    expect(imported.template?.graph["10"]).toMatchObject({ class_type: "CLIPLoader", inputs: { clip_name: "clip.safetensors" } })
+    expect(imported.template?.graph["12"]).toMatchObject({ class_type: "CLIPTextEncode", inputs: { text: "a cat", clip: ["10", 0] } })
+  })
+
+  it("materializes Glow dynamic outputs and Trigger LoRA stacks before retaining a saved template graph", () => {
+    const imported = importComfyuiWorkflow(JSON.stringify({
+      "1": { class_type: "CLIPLoader", inputs: { clip_name: "clip.safetensors" } },
+      "2": { class_type: "CLIPTextEncode", inputs: { text: "old", clip: ["1", 0] }, _meta: { title: "Positive" } },
+      "3": { class_type: "CLIPTextEncode", inputs: { text: "old", clip: ["1", 0] }, _meta: { title: "Negative" } },
+      "4": { class_type: "AnimaLatentImage", inputs: { width: 1024, height: 1024, batch_size: 1 } },
+      "5": { class_type: "OTUNetLoaderW8A8", inputs: { unet_name: "model.safetensors" } },
+      "6": { class_type: "GlowTriggerLoRAStack", inputs: { lora_count: 1, enable_1: true, lora_name_1: "cat.safetensors", model_weight_1: 1.2, clip_weight_1: 0.8, trigger_1: "cat", output_trigger_1: "cat style" } },
+      "7": { class_type: "CR Apply LoRA Stack", inputs: { model: ["5", 0], clip: ["1", 0], lora_stack: ["6", 0] } },
+      "8": { class_type: "FLS_SamplerV4", inputs: { model: ["7", 0], positive: ["2", 0], negative: ["3", 0], latent_image: ["4", 0], sharpness: ["11", 1] } },
+      "9": { class_type: "VAEDecode", inputs: { samples: ["8", 0] } },
+      "10": { class_type: "SaveImage", inputs: { images: ["9", 0], filename_prefix: "old" } },
+      "11": { class_type: "GlowDynamicTypedOutputs", inputs: { output_count: 1, index: 1, type_1: "FLOAT", default_value_1: "1.5", bypass_1: false } },
+    }))
+
+    const compiled = compileComfygureTemplate(confirmComfygureTemplateBindings(imported.template!), {
+      prompts: { positive: "cat", negative: "bad" },
+      loras: [{ name: "cat.safetensors", activationTerms: "cat", injectionTerms: "cat style", modelStrength: 1.2, clipStrength: 0.8 }],
+    })
+
+    expect(Object.values(compiled.graph).some((node) => node.class_type === "GlowDynamicTypedOutputs" || node.class_type === "GlowTriggerLoRAStack")).toBe(false)
+    expect(Object.values(compiled.graph).find((node) => node.class_type === "FLS_SamplerV4")?.inputs.sharpness).toBe(1.5)
+    expect(Object.values(compiled.graph).find((node) => node.class_type === "CR LoRA Stack")?.inputs).toMatchObject({ switch_1: "On", lora_name_1: "cat.safetensors", model_weight_1: 1.2, clip_weight_1: 0.8 })
+    expect(compiled.positivePrompt).toBe("cat, cat style")
+  })
+
+  it("keeps unresolved dynamic editor nodes out of prompt submission", async () => {
+    const imported = importComfyuiWorkflow(JSON.stringify({
+      "1": { class_type: "BatchLoadTexts", inputs: { text_list: "cat" } },
+    }))
+    expect(imported.diagnostics).toContainEqual(expect.objectContaining({ severity: "warning", code: "compile-time-node", nodeId: "1" }))
+    const result = await runComfygure({ action: "submit", template: confirmComfygureTemplateBindings(imported.template!) }, {
+      fetch: async () => ({ ok: true, status: 200, json: async () => ({}) }),
+    })
+    expect(result.success).toBe(false)
+    expect(result.message).toContain("dynamic editor")
   })
 
   it("keeps the retained ANIMA execution-node contract aligned with the exported API graph", () => {

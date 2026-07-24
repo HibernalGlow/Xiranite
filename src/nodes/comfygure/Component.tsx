@@ -4,6 +4,7 @@ import type { NodeComponentProps, NodeRunEvent } from "@xiranite/contract"
 import {
   DEFAULT_COMFYUI_ENDPOINT,
   DEFAULT_COMFYGURE_PROGRAM,
+  confirmComfygureTemplateBindings,
   compressComfygureText,
   decompressComfygureText,
   normalizeComfygureProgram,
@@ -27,7 +28,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const stateRef = useRef(stored)
   stateRef.current = stored
   const [revision, setRevision] = useState(0)
-  const [running, setRunning] = useState<"compile" | "preflight" | "submit" | "refresh" | null>(null)
+  const [running, setRunning] = useState<"compile" | "import" | "preflight" | "submit" | "refresh" | null>(null)
   const [target, setTarget] = useState<ComfygureTargetConfig>({ endpoint: DEFAULT_COMFYUI_ENDPOINT, libraryPath: "" })
   const targetDirtyRef = useRef<Set<keyof ComfygureTargetConfig>>(new Set())
   const [targetDirty, setTargetDirty] = useState(false)
@@ -115,7 +116,31 @@ export function Component({ compId, host }: NodeComponentProps) {
     }
   }
 
-  async function execute(action: "compile" | "preflight" | "submit" | "refresh") {
+  async function importWorkflowFile() {
+    const localFiles = host.localFiles
+    if (!localFiles?.pickFiles) {
+      patch({ status: "This host cannot select local workflow files." })
+      return
+    }
+    try {
+      const paths = await localFiles.pickFiles({ title: "Import ComfyUI workflow", filters: [{ displayName: "ComfyUI workflow", pattern: "*.json" }] })
+      const path = paths[0]
+      if (!path) return
+      const response = await fetch(localFiles.getUrl(path), { cache: "no-store" })
+      if (!response.ok) throw new Error(`Could not read ${path}: HTTP ${response.status}`)
+      await execute("import", await response.text())
+    } catch (error) {
+      patch({ status: error instanceof Error ? error.message : "Could not import the ComfyUI workflow." })
+    }
+  }
+
+  function confirmTemplateBindings() {
+    const template = stateRef.current.template
+    if (!template || template.bindingManifest.confirmed) return
+    patch({ template: confirmComfygureTemplateBindings(template), status: "Template bindings confirmed. The fixed controls now compile into this template." })
+  }
+
+  async function execute(action: "compile" | "import" | "preflight" | "submit" | "refresh", workflowSource?: string) {
     const run = host.runner?.run ?? host.actions?.run
     if (!run || running) {
       if (!run) patch({ status: "The Xiranite backend runner is unavailable." })
@@ -127,11 +152,13 @@ export function Component({ compId, host }: NodeComponentProps) {
       return
     }
     setRunning(action)
-    patch({ status: action === "compile" ? "Compiling a fixed prompt graph." : action === "preflight" ? "Inspecting the local ComfyUI target." : action === "refresh" ? "Refreshing ComfyUI results." : "Submitting a fixed prompt graph.", progress: 0 })
+    patch({ status: action === "import" ? "Normalizing the ComfyUI workflow." : action === "compile" ? "Compiling a fixed prompt graph." : action === "preflight" ? "Inspecting the local ComfyUI target." : action === "refresh" ? "Refreshing ComfyUI results." : "Submitting a fixed prompt graph.", progress: 0 })
     try {
       const result = await run<ComfygureInput, ComfygureData>("comfygure", {
         action,
         program: programFromStored(stateRef.current),
+        template: action === "import" ? undefined : stateRef.current.template,
+        workflowSource,
         target: { endpoint: target.endpoint, libraryPath: target.libraryPath },
         promptIds: promptIds.length ? promptIds : undefined,
       }, (event: NodeRunEvent) => {
@@ -157,6 +184,18 @@ export function Component({ compId, host }: NodeComponentProps) {
           next.history = undefined
         }
         if (data.history) next.history = data.history
+        if (data.workflowImport) {
+          next.templateDiagnostics = data.workflowImport.diagnostics
+          if (data.workflowImport.template) {
+            next.template = data.workflowImport.template
+            const current = programFromStored(stateRef.current)
+            if (current.loras.length === 0 && data.workflowImport.template.defaultLoras.length) {
+              const importedProgram = normalizeComfygureProgram({ ...current, loras: data.workflowImport.template.defaultLoras })
+              next.program = { ...importedProgram, batch: { ...importedProgram.batch, prompts: [] } }
+              next.batchText = compressComfygureText(importedProgram.batch.prompts.join("\n"))
+            }
+          }
+        }
         patch(next)
       } else patch({ status: result?.message ?? "The backend did not return a compiler result." })
     } finally {
@@ -167,6 +206,8 @@ export function Component({ compId, host }: NodeComponentProps) {
   const preflight = stored.preflight
   const preview = stored.preview
   const promptIds = storedPromptIds(stored)
+  const template = stored.template
+  const templateReady = !template || template.bindingManifest.confirmed
   const isCollapsed = surface.mode === "collapsed"
   return <div ref={surface.ref} className="@container/comfygure flex h-full min-h-0 w-full flex-col overflow-auto p-3" data-testid="comfygure-workbench">
     <header className="flex min-w-0 items-center justify-between gap-2 border-b pb-2">
@@ -189,9 +230,10 @@ export function Component({ compId, host }: NodeComponentProps) {
         <Field label="Endpoint"><Input value={target.endpoint ?? DEFAULT_COMFYUI_ENDPOINT} disabled={running !== null} onChange={(event) => updateTarget("endpoint", event.currentTarget.value)} /></Field>
         <Field label="ComfyUI Library"><Input value={target.libraryPath ?? ""} disabled={running !== null} placeholder="D:/1Repo/Github/ComfyUI/Library" onChange={(event) => updateTarget("libraryPath", event.currentTarget.value)} /></Field>
         <Button className="w-full" size="sm" variant="outline" disabled={running !== null || !targetDirty} onClick={() => void saveTarget()}><Save />Save target</Button>
+        <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !host.localFiles?.pickFiles} onClick={() => void importWorkflowFile()}><FileUp />Import workflow</Button>{template ? <Button size="sm" variant={templateReady ? "outline" : "default"} disabled={running !== null || templateReady} onClick={confirmTemplateBindings}><CheckCircle2 />Confirm bindings</Button> : null}</div>
         <div className="space-y-2 border-t pt-3"><Field label="UNet"><Input value={program.model.unetName} onChange={(event) => updateProgram({ model: { ...program.model, unetName: event.currentTarget.value } })} /></Field><Field label="CLIP"><Input value={program.model.clipName} onChange={(event) => updateProgram({ model: { ...program.model, clipName: event.currentTarget.value } })} /></Field><Field label="VAE"><Input value={program.model.vaeName} onChange={(event) => updateProgram({ model: { ...program.model, vaeName: event.currentTarget.value } })} /></Field></div>
-        <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("preflight")}><Activity />Preflight</Button><Button size="sm" variant="outline" disabled={running !== null || promptIds.length === 0} onClick={() => void execute("refresh")}><RefreshCw />Refresh results</Button><Button size="sm" disabled={running !== null} onClick={() => void execute("submit")}><Play />Run</Button></div>
-        <CompilerSummary preview={preview} preflight={preflight} submission={stored.submission} submissions={stored.submissions} history={stored.history} />
+        <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("preflight")}><Activity />Preflight</Button><Button size="sm" variant="outline" disabled={running !== null || promptIds.length === 0} onClick={() => void execute("refresh")}><RefreshCw />Refresh results</Button><Button size="sm" disabled={running !== null || !templateReady} onClick={() => void execute("submit")}><Play />Run</Button></div>
+        <CompilerSummary preview={preview} preflight={preflight} submission={stored.submission} submissions={stored.submissions} history={stored.history} template={template} templateDiagnostics={stored.templateDiagnostics} />
       </aside>
     </div>}
   </div>
@@ -209,12 +251,14 @@ function CheckField(props: { label: string; checked: boolean; onCheckedChange: (
   return <label className="flex min-h-9 items-center gap-2 border px-2 text-xs font-medium"><Checkbox checked={props.checked} onCheckedChange={(checked) => props.onCheckedChange(checked === true)} /><span>{props.label}</span></label>
 }
 
-function CompilerSummary({ preview, preflight, submission, submissions, history }: Pick<ComfygureCardState, "preview" | "preflight" | "submission" | "submissions" | "history">) {
-  if (!preview && !preflight && !submission && !history?.length) return <div className="border-t pt-3 text-xs text-muted-foreground">Compile a fixed graph or inspect the local target. Preflight never submits a prompt.</div>
+function CompilerSummary({ preview, preflight, submission, submissions, history, template, templateDiagnostics }: Pick<ComfygureCardState, "preview" | "preflight" | "submission" | "submissions" | "history" | "template" | "templateDiagnostics">) {
+  if (!preview && !preflight && !submission && !history?.length && !template) return <div className="border-t pt-3 text-xs text-muted-foreground">Compile a fixed graph or inspect the local target. Preflight never submits a prompt.</div>
   const healthy = Boolean(preflight?.online && preflight.missingClasses.length === 0 && preflight.missingResources.length === 0)
   const complete = history?.filter((item) => item.state === "complete").length ?? 0
   const failed = history?.filter((item) => item.state === "error").length ?? 0
   const images = history?.flatMap((item) => item.images) ?? []
+  const templateErrors = templateDiagnostics?.filter((diagnostic) => diagnostic.severity === "error") ?? []
+  if (template) return <div className={cn("space-y-1 border-t pt-3 text-xs", templateErrors.length ? "text-destructive" : "text-muted-foreground")}><div className="flex items-center gap-1 font-medium">{templateErrors.length ? <CircleAlert className="size-3" /> : <CheckCircle2 className="size-3 text-chart-2" />}<span>{templateErrors.length ? "Template needs attention" : template.bindingManifest.confirmed ? "Template bindings confirmed" : "Template bindings need confirmation"}</span></div><p>{template.name}: {Object.keys(template.graph).length} imported nodes</p><p>{template.bindingManifest.bindings.length} inferred bindings</p>{templateErrors.slice(0, 4).map((diagnostic) => <p key={`${diagnostic.code}-${diagnostic.nodeId ?? ""}-${diagnostic.inputName ?? ""}`}>{diagnostic.nodeId ? `${diagnostic.nodeId}: ` : ""}{diagnostic.message}</p>)}</div>
   return <div className="space-y-2 border-t pt-3 text-xs"><div className="flex items-center gap-1 font-medium">{failed ? <CircleAlert className="size-3 text-destructive" /> : preflight ? healthy ? <CheckCircle2 className="size-3 text-chart-2" /> : <CircleAlert className="size-3 text-destructive" /> : <Settings2 className="size-3" />}<span>{history?.length ? failed ? "ComfyUI results need attention" : "ComfyUI results refreshed" : submission ? "Submitted to ComfyUI" : preflight ? healthy ? "Ready to run" : "Preflight needs attention" : "Compiler preview"}</span></div>{preview ? <><p>{preview.graphNodeCount} fixed ComfyUI nodes{preview.generationJobCount > 1 ? ` per job · ${preview.generationJobCount} jobs` : ""}</p><p className="break-words text-muted-foreground">{preview.activeLoraNames.length ? `LoRAs: ${preview.activeLoraNames.join(", ")}` : "No active LoRAs"}</p></> : null}{submission ? <p className="break-all text-muted-foreground">{submissions && submissions.length > 1 ? `Prompt IDs (${submissions.length}): ${submissions.map((item) => item.promptId).join(", ")}` : `Prompt ID: ${submission.promptId}`}</p> : null}{history?.length ? <div className={cn("space-y-2", failed ? "text-destructive" : "text-muted-foreground")}><p>{complete} of {history.length} complete · {images.length} image(s)</p>{history.filter((item) => item.error).map((item) => <p key={item.promptId}>{item.promptId}: {item.error}</p>)}{images.length ? <div className="grid grid-cols-3 gap-1">{images.map((image, index) => <a key={`${image.url}-${index}`} href={image.url} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden border"><img src={image.url} alt={`ComfyUI result ${index + 1}`} className="size-full object-cover" loading="lazy" /></a>)}</div> : null}</div> : null}{preflight ? <div className={cn("space-y-1", healthy ? "text-muted-foreground" : "text-destructive")}><p>{preflight.online ? `${preflight.availableClassCount} classes reported` : `Unavailable: ${preflight.endpoint}`}</p>{preflight.missingClasses.length ? <p>Missing nodes: {preflight.missingClasses.join(", ")}</p> : null}{preflight.missingResources.length ? <p>Missing resources: {preflight.missingResources.map((item) => item.resourceName).join(", ")}</p> : null}{preflight.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}</div>
 }
 
