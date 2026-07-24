@@ -142,7 +142,7 @@ function folderViewConfig(): ReaderFolderViewConfig {
     bannerWidthPercent: 50,
     hoverPreviewEnabled: true,
     hoverPreviewDelayMs: 500,
-    confirmDelete: true,
+    confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
     tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
     penetration: { enabled: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
     emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: true },

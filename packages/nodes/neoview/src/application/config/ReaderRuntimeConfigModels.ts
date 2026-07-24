@@ -225,6 +225,14 @@ export interface NeoviewFolderTagDisplayConfig {
   showTooltips: boolean
 }
 
+/** Confirmation gates for destructive File Card operations. */
+export interface NeoviewFolderConfirmationConfig {
+  trash: boolean
+  permanentDelete: boolean
+  batchTrash: boolean
+  batchPermanentDelete: boolean
+}
+
 export interface NeoviewFolderViewConfig {
   homePath: string
   viewMode: NeoviewFolderViewMode
@@ -239,8 +247,7 @@ export interface NeoviewFolderViewConfig {
   typeFilter: NeoviewFolderTypeFilter
   /** Keep development/configuration directories out of normal media browsing. */
   showHiddenFolders: boolean
-  /** Require an explicit confirmation before trash or permanent-delete operations. */
-  confirmDelete: boolean
+  confirmations: NeoviewFolderConfirmationConfig
   tagDisplay: NeoviewFolderTagDisplayConfig
   penetration: NeoviewFolderPenetrationConfig
   emptyArea: NeoviewFolderEmptyAreaConfig
@@ -271,7 +278,7 @@ export interface NeoviewFolderViewPatch {
     hoverPreviewDelayMs?: NeoviewFolderHoverPreviewDelay
     typeFilter?: NeoviewFolderTypeFilter
     showHiddenFolders?: boolean
-    confirmDelete?: boolean
+    confirmations?: Partial<NeoviewFolderConfirmationConfig>
     tagDisplay?: Partial<NeoviewFolderTagDisplayConfig>
     penetration?: Partial<NeoviewFolderPenetrationConfig>
     emptyArea?: Partial<NeoviewFolderEmptyAreaConfig>
@@ -756,7 +763,12 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
-  confirmDelete: true,
+  confirmations: {
+    trash: false,
+    permanentDelete: true,
+    batchTrash: false,
+    batchPermanentDelete: true,
+  },
   tagDisplay: {
     tagMode: "collect",
     showRating: true,

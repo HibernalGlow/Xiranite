@@ -8,7 +8,7 @@ import { DEFAULT_READER_INPUT_BINDINGS, DEFAULT_READER_RADIAL_MENU_CONFIG } from
 import { ContextMenuProvider } from "@/components/context-menu"
 import { useSwimlaneSessionStore } from "@/store/swimlaneSessionStore"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderPreloadPlanDto, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
-import { ReaderApp } from "./ReaderApp"
+import { fileMutationContainsSource, ReaderApp } from "./ReaderApp"
 import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
 
 beforeEach(() => {
@@ -33,6 +33,13 @@ afterEach(() => {
 })
 
 describe("ReaderApp", () => {
+  it("[neoview.file-mutation.reader-source-match] matches the active source itself and descendants without prefix collisions", () => {
+    expect(fileMutationContainsSource("E:/BaiduNetdiskDownload/dd/0508/wait/[BigShine]", "E:/BaiduNetdiskDownload/dd/0508/wait/[BigShine]/001.jpg")).toBe(true)
+    expect(fileMutationContainsSource("E:/BaiduNetdiskDownload/dd/0508/wait/[BigShine]/001.jpg", "e:/baidunetdiskdownload/dd/0508/wait/[bigshine]/001.jpg")).toBe(true)
+    expect(fileMutationContainsSource("E:/BaiduNetdiskDownload/dd/0508/wait/[BigShine]", "E:/BaiduNetdiskDownload/dd/0508/wait/[BigShine2]/001.jpg")).toBe(false)
+    expect(fileMutationContainsSource("/books/BigShine", "/books/bigshine/001.jpg")).toBe(false)
+  })
+
   it("[neoview.react.smoke] opens and navigates with DOM img elements over asset URLs", async () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const client: ReaderHttpClient = {
@@ -919,6 +926,33 @@ describe("ReaderApp", () => {
     expect(document.querySelector('[data-reader-frame-viewport="true"]')?.getAttribute("data-reader-fit-mode")).toBe("original")
   })
 
+  it("[neoview.workspace.startup-mode] waits for the persisted swimlane mode instead of painting edge controls", async () => {
+    let resolveConfig!: (value: ReaderRuntimeConfigDto) => void
+    const config = runtimeConfig()
+    config.shell.workspace!.mode = "swimlane"
+    const client = {
+      config: vi.fn(() => new Promise<ReaderRuntimeConfigDto>((resolve) => { resolveConfig = resolve })),
+    } as ReaderHttpClient
+
+    render(<ReaderApp sessionScopeId="persisted-swimlane-startup-test" client={client} />)
+
+    expect(screen.queryByRole("button", { name: "泳道模式" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "四边栏模式" })).toBeNull()
+    expect(document.querySelector('[data-reader-edge="left"]')).toBeNull()
+    expect(document.querySelector('[data-reader-edge="right"]')).toBeNull()
+    expect(document.querySelector('[data-reader-breadcrumb-bar="true"]')).toBeNull()
+    expect(document.querySelector('[data-neoview-workspace-mode="pending"]')).toBeTruthy()
+    expect(screen.getByLabelText("正在恢复阅读器布局")).toBeTruthy()
+
+    await act(async () => resolveConfig(config))
+
+    await waitFor(() => expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).toBeTruthy())
+    expect(screen.getByRole("button", { name: "四边栏模式" })).toBeTruthy()
+    expect(document.querySelector('[data-reader-edge="left"]')).toBeNull()
+    expect(document.querySelector('[data-reader-edge="right"]')).toBeNull()
+    expect(screen.queryByLabelText("正在恢复阅读器布局")).toBeNull()
+  })
+
   it("[neoview.card.persist-react] optimistically unmounts card content before persistence finishes", async () => {
     let finishUpdate!: (value: ReaderShellConfigDto) => void
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
@@ -1349,6 +1383,7 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
       viewMode: "compact",
       previewCount: 4,
       showHiddenFolders: false,
+      confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
       penetration: { enabled: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
       details: {
         columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],

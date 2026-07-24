@@ -5,6 +5,8 @@ import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "
 import { publishReaderLibraryMutation } from "../../../library/reader-library-mutations"
 import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import type { ReaderDirectorySelectionDescriptorDto } from "../../../../adapters/reader-http-client"
+import type { ReaderFolderConfirmationConfig } from "../../../../adapters/reader-http-client"
+import type { ReaderFileMutationPreparation } from "../../registry"
 import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
 import { useFolderClipboard } from "./FolderClipboard"
 import type { FolderCatalogUpdater } from "./FolderEmmEditor"
@@ -33,11 +35,12 @@ export default function FolderContextActions({
   onEnterRawDirectory,
   onOpenInNewTab,
   onOpenAsBook,
+  onPrepareFileMutation,
   switchToast,
   onRenamed,
   onTrashed,
   onUndoDelete,
-  confirmDelete = true,
+  confirmations = { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
   onCatalogUpdate = () => undefined,
   onRefreshEmm = () => undefined,
   onRefreshDirectory,
@@ -59,11 +62,12 @@ export default function FolderContextActions({
   onEnterRawDirectory?(entry: FolderContextEntry): void | Promise<void>
   onOpenInNewTab(path: string): void
   onOpenAsBook?: (path: string) => void | Promise<void>
+  onPrepareFileMutation?(sourcePath: string, signal?: AbortSignal): Promise<ReaderFileMutationPreparation | undefined>
   switchToast?: ReaderSwitchToastPort
   onRenamed?(destinationPath: string): void | Promise<void>
   onTrashed?(entry: FolderContextEntry): void | Promise<void>
   onUndoDelete?(): void | Promise<void>
-  confirmDelete?: boolean
+  confirmations?: ReaderFolderConfirmationConfig
   onCatalogUpdate?(update: FolderCatalogUpdater): void
   onRefreshEmm?(focusPath: string): Promise<void> | void
   /** Refresh the current directory listing (F5 / toolbar 刷新). */
@@ -165,18 +169,23 @@ export default function FolderContextActions({
       setFeedback(undefined)
       let movedToTrash = false
       let completed = false
+      let preparation: ReaderFileMutationPreparation | undefined
       try {
+        preparation = await onPrepareFileMutation?.(entry.path, operation.signal)
+        operation.signal.throwIfAborted()
         const result = await execute([{ kind: action, sourcePath: entry.path }], true, operation.signal)
         const failed = result.results.find((item) => item.status !== "succeeded")
         if (failed || result.succeeded !== 1) throw new Error(fileOperationError(action, failed?.errorCode, failed?.error))
         movedToTrash = action === "trash"
         completed = true
+        preparation?.commit()
         await onTrashed?.(entry)
         operation.signal.throwIfAborted()
         const message = action === "trash" ? `已将 ${entry.name} 移到回收站` : `已永久删除 ${entry.name}`
         setFeedback({ kind: "status", text: message })
         switchToast?.show({ title: message })
       } catch (error) {
+        if (!completed) await preparation?.restore().catch(() => undefined)
         if (!operation.signal.aborted) {
           const message = movedToTrash
             ? `已将 ${entry.name} 移到回收站，但列表刷新失败，请手动刷新。${errorMessage(error)}`
@@ -288,7 +297,10 @@ export default function FolderContextActions({
       if (!entry) return
       const returnFocus = event.target instanceof HTMLElement ? event.target : undefined
       const strategy = folderDeleteStrategy(event.detail)
-      const shouldConfirm = folderDeleteConfirmation(event.detail, confirmDelete)
+      const defaultConfirmation = strategy === "permanent"
+        ? confirmations.permanentDelete
+        : confirmations.trash
+      const shouldConfirm = folderDeleteConfirmation(event.detail, defaultConfirmation)
       const unavailable = disabled || pending || !client.executeFileOperations
       if (unavailable) return
       const item = strategy === "permanent"
@@ -303,7 +315,7 @@ export default function FolderContextActions({
       window.removeEventListener("neoview-folder-trash-request", requestTrash)
       window.removeEventListener("neoview-folder-delete-request", requestTrash)
     }
-  }, [client.executeFileOperations, confirmDelete, contextMenu, disabled, pending])
+  }, [client.executeFileOperations, confirmations, contextMenu, disabled, pending])
 
   useEffect(() => {
     if (!renameRequest || disabled || pending || !client.executeFileOperations) return
@@ -328,7 +340,7 @@ export default function FolderContextActions({
       canTrash: Boolean(client.executeFileOperations),
       canDelete: Boolean(client.executeFileOperations),
       canUndoDelete: Boolean(client.undoLatestFileOperations),
-      confirmDelete,
+      confirmations,
       canEditMetadata: Boolean(sessionId && generation !== undefined && selection && client.resolveDirectorySelection && client.readDirectoryEmm && client.editDirectoryEmm),
       canRefresh: Boolean(onRefreshDirectory),
       canReloadThumbnail: Boolean(onReloadThumbnail),
@@ -348,7 +360,7 @@ export default function FolderContextActions({
 
   return (
     <>
-      {feedback ? <div role={feedback.kind} className={feedback.kind === "alert" ? "rounded bg-destructive/10 px-2 py-1 text-xs text-destructive" : "sr-only"}>{feedback.text}</div> : null}
+      {feedback ? <div role={feedback.kind} className={feedback.kind === "alert" ? "absolute bottom-2 right-2 z-50 max-w-[min(30rem,calc(100%-1rem))] rounded bg-destructive/10 px-2 py-1 text-xs text-destructive shadow-sm" : "sr-only"}>{feedback.text}</div> : null}
       {renameEntry ? (
         <Suspense fallback={null}>
           <FolderRenameDialog
@@ -421,7 +433,7 @@ export function buildFolderContextMenuItems(
     canTrash: boolean
     canDelete?: boolean
     canUndoDelete?: boolean
-    confirmDelete?: boolean
+    confirmations?: ReaderFolderConfirmationConfig
     canEditMetadata?: boolean
     canRefresh?: boolean
     canReloadThumbnail?: boolean
@@ -436,12 +448,12 @@ export function buildFolderContextMenuItems(
   const primaryAction: FolderContextAction = entry.kind === "file" && !entry.readerSupported ? "system-open" : "activate"
   const trashItem = buildTrashContextMenuItem(entry, {
     disabled: unavailable || !options.canTrash,
-    confirm: options.confirmDelete !== false,
+    confirm: options.confirmations?.trash ?? false,
     onTrash: () => options.onAction("trash", entry),
   })
   const deleteItem = buildDeleteContextMenuItem(entry, {
     disabled: unavailable || !options.canDelete,
-    confirm: options.confirmDelete !== false,
+    confirm: options.confirmations?.permanentDelete ?? true,
     onDelete: () => options.onAction("delete", entry),
   })
 

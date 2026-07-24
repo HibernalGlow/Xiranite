@@ -870,11 +870,54 @@ describe("FolderMainCard", () => {
     expect(registerLibraryThumbnails).toHaveBeenCalledTimes(1)
   })
 
+  it("[neoview.folder.delete-mode-missing-item-feedback] keeps an ENOENT delete error out of the card flex layout", async () => {
+    const opened = page({
+      path: "C:/books",
+      entries: [{ name: "old.cbz", path: "C:/books/old.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "C:/books/old.cbz" }, status: "failed" as const, errorCode: "ENOENT" }],
+      succeeded: 0, failed: 1, cancelled: 0, undoable: 0,
+    }))
+    const view = render(
+      <ContextMenuProvider>
+        <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+          <FolderMainCard
+            client={{ openDirectoryBrowser: vi.fn(async () => opened), executeFileOperations, closeDirectoryBrowser: vi.fn(async () => undefined) } as unknown as ReaderHttpClient}
+            disabled={false}
+            sourcePath="C:/books/old.cbz"
+            browserOriginPath="C:/books"
+            onOpen={vi.fn()}
+            onGoTo={vi.fn()}
+            folderView={folderViewConfig()}
+          />
+        </VirtuosoMockContext.Provider>
+      </ContextMenuProvider>,
+    )
+    const ui = within(view.container)
+    fireEvent.click(await ui.findByRole("button", { name: /删除模式（回收站/ }))
+    const deleteButton = await ui.findByRole("button", { name: "移到回收站：old.cbz" })
+    fireEvent(
+      deleteButton,
+      new CustomEvent("neoview-folder-delete-request", {
+        bubbles: true,
+        detail: { index: 0, path: "C:/books/old.cbz", name: "old.cbz", kind: "file", readerSupported: true, strategy: "trash", confirm: false },
+      }),
+    )
+
+    const alert = await ui.findByRole("alert")
+    expect(alert.textContent).toContain("项目已经不存在，请刷新文件夹。")
+    expect(alert.className).toContain("absolute")
+    expect(view.container.querySelector('[data-neoview-folder-card="true"]')?.className).toContain("relative")
+  })
+
   it("[neoview.folder.delete-mode-ui] toggles per-tab delete controls and switches strategy on right click", async () => {
     const opened = page({
       entries: [{ name: "old.cbz", path: "C:/books/old.cbz", kind: "file", readerSupported: true }],
       total: 1,
     })
+    const user = userEvent.setup()
     const onFolderView = vi.fn(async () => undefined)
     const view = render(
       <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
@@ -899,10 +942,11 @@ describe("FolderMainCard", () => {
 
     expect(view.container.querySelector('[data-folder-delete-strategy="permanent"]')).toBeTruthy()
     expect(await ui.findByRole("button", { name: "永久删除：old.cbz" })).toBeTruthy()
-    openFolderMoreMenu(ui)
-    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "删除前确认" }))
-    expect(view.container.querySelector('[data-folder-delete-confirm="false"]')).toBeTruthy()
-    expect(onFolderView).toHaveBeenCalledWith({ confirmDelete: false })
+    await user.click(ui.getByRole("button", { name: "更多" }))
+    fireEvent.pointerMove(await screen.findByText("二次确认"), { pointerType: "mouse" })
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "已删除到回收站" }))
+    expect(view.container.querySelector('[data-folder-delete-confirm="true"]')).toBeTruthy()
+    expect(onFolderView).toHaveBeenCalledWith({ confirmations: { trash: true } })
   })
 
   it("[neoview.folder.tabs-lifecycle] [neoview.folder.tabs-navigation-history] creates, switches and closes isolated Explorer-style folder tabs", async () => {
@@ -2869,7 +2913,7 @@ function folderViewConfig(overrides: Partial<ReaderFolderViewConfig> = {}): Read
     previewCount: 4,
     thumbnailWidthPercent: 20,
     bannerWidthPercent: 50,
-    confirmDelete: true,
+    confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
     tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
     penetration: { enabled: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
     emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },

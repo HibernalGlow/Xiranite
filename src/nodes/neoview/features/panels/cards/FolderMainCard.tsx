@@ -17,6 +17,10 @@ export default function FolderMainCard(context: ReaderPanelContext) {
         },
         hoverPreviewEnabled: context.folderView.hoverPreviewEnabled ?? DEFAULT_FOLDER_VIEW.hoverPreviewEnabled,
         hoverPreviewDelayMs: context.folderView.hoverPreviewDelayMs ?? DEFAULT_FOLDER_VIEW.hoverPreviewDelayMs,
+        confirmations: {
+          ...DEFAULT_FOLDER_VIEW.confirmations,
+          ...context.folderView.confirmations,
+        },
         penetration: {
           ...DEFAULT_FOLDER_VIEW.penetration,
           ...context.folderView.penetration,

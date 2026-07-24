@@ -61,6 +61,80 @@ describe("FolderSelectionBar", () => {
     await waitFor(() => expect(screen.getByRole("status").textContent).toContain("已将 100000 项移到回收站"))
   })
 
+  it("[neoview.folder.delete-batch-confirmation] only asks for confirmation when the matching batch setting is enabled", async () => {
+    const running = operation({ status: "running", processed: 0 })
+    const confirmed = vi.fn()
+    const contextMenu: ContextMenuAPI = {
+      register: () => () => undefined,
+      show: () => undefined,
+      confirm: confirmed,
+    }
+    const client = {
+      startDirectorySelectionOperation: vi.fn(async () => running),
+      directorySelectionOperation: vi.fn(async () => running),
+    } as unknown as ReaderHttpClient
+    const props = {
+      client,
+      sessionId: "browser-1",
+      selection: { generation: 7, allSelected: true, ranges: [], explicit: [] },
+      selectedCount: 2,
+      total: 2,
+      currentPath: "D:/library",
+      disabled: false,
+      chainSelectMode: false,
+      clickBehavior: "select" as const,
+      onSelectAll: vi.fn(),
+      onInvert: vi.fn(),
+      onToggleChain: vi.fn(),
+      onToggleClickBehavior: vi.fn(),
+      onClear: vi.fn(),
+      onClose: vi.fn(),
+      onTrashCompleted: vi.fn(),
+    }
+
+    const view = render(
+      <ContextMenuBuilderContext.Provider value={contextMenu}>
+        <FolderSelectionBar {...props} confirmations={{ trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true }} />
+      </ContextMenuBuilderContext.Provider>,
+    )
+    fireEvent.click(screen.getByLabelText("将所选项目移到回收站"))
+    await waitFor(() => expect((client.startDirectorySelectionOperation as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+      "browser-1", props.selection, "trash",
+    ))
+    expect(confirmed).not.toHaveBeenCalled()
+
+    view.unmount()
+    const confirmedTrashView = render(
+      <ContextMenuBuilderContext.Provider value={contextMenu}>
+        <FolderSelectionBar {...props} confirmations={{ trash: false, permanentDelete: true, batchTrash: true, batchPermanentDelete: false }} />
+      </ContextMenuBuilderContext.Provider>,
+    )
+    fireEvent.click(screen.getByLabelText("将所选项目移到回收站"))
+    expect(confirmed).toHaveBeenCalledWith(expect.objectContaining({ id: "neoview-folder-trash-selection" }))
+
+    confirmed.mockClear()
+    confirmedTrashView.unmount()
+    const directDeleteView = render(
+      <ContextMenuBuilderContext.Provider value={contextMenu}>
+        <FolderSelectionBar {...props} confirmations={{ trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: false }} />
+      </ContextMenuBuilderContext.Provider>,
+    )
+    fireEvent.click(screen.getByLabelText("永久删除所选项目"))
+    await waitFor(() => expect((client.startDirectorySelectionOperation as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+      "browser-1", props.selection, "delete",
+    ))
+    expect(confirmed).not.toHaveBeenCalled()
+
+    directDeleteView.unmount()
+    render(
+      <ContextMenuBuilderContext.Provider value={contextMenu}>
+        <FolderSelectionBar {...props} confirmations={{ trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true }} />
+      </ContextMenuBuilderContext.Provider>,
+    )
+    fireEvent.click(screen.getByLabelText("永久删除所选项目"))
+    expect(confirmed).toHaveBeenCalledWith(expect.objectContaining({ id: "neoview-folder-delete-selection" }))
+  })
+
   it("[neoview.folder.undo-delete] exposes the persisted undo journal after trash and refreshes after undo", async () => {
     const running = operation({ status: "running", processed: 0 })
     const completed = operation({ status: "completed", processed: 2, succeeded: 2 })
