@@ -165,7 +165,6 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
       {[committedPage, ...(pendingPage ? [pendingPage] : [])].map((candidate) => {
         const identity = imageIdentity(candidate)
         const pending = identity !== committedIdentity
-        const concealedForProbe = !pending && probingUpscale && identity === sourceIdentity
         return (
           <img
             key={identity}
@@ -181,7 +180,10 @@ export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, i
             data-reader-page-image={pending ? undefined : candidate.id}
             data-reader-page-image-pending={pending ? candidate.id : undefined}
             data-reader-page-image-decoded={!pending && decodedCommittedIdentity === identity ? candidate.id : undefined}
-            style={pending || concealedForProbe ? { ...imageStyle, visibility: "hidden", pointerEvents: "none" } : imageStyle}
+            // A pending cache probe or a failed background job must never blank
+            // the reader. Keep the committed source visible until its decoded
+            // replacement is ready to commit.
+            style={pending ? { ...imageStyle, visibility: "hidden", pointerEvents: "none" } : imageStyle}
             onLoad={(event) => {
               if (pending) {
                 void decodeTargetImage(event.currentTarget, identity, targetIdentityRef).then((decoded) => {

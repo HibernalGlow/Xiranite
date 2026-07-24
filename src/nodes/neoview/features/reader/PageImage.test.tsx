@@ -203,7 +203,7 @@ describe("PageImage", () => {
     await waitFor(() => expect(view.container.querySelector<HTMLImageElement>('[data-reader-page-image="page-1"]')?.getAttribute("src")).toBe(source.assetUrl))
   })
 
-  it("[neoview.viewer.cached-upscale-first-frame] probes and commits a cached artifact without showing the original", async () => {
+  it("[neoview.viewer.cached-upscale-first-frame] keeps the original visible until a cached artifact decodes", async () => {
     let resolveProbe!: (result: { status: "hit"; artifactUrl: string; contentType: string; bytes: number; version: string }) => void
     const probeUpscalePage = vi.fn(() => new Promise<{ status: "hit"; artifactUrl: string; contentType: string; bytes: number; version: string }>((resolve) => { resolveProbe = resolve }))
     const upscalePage = vi.fn()
@@ -212,7 +212,7 @@ describe("PageImage", () => {
     const view = render(<PageImage page={source} sessionId="reader-probe" client={{ probeUpscalePage, upscalePage } as never} superResolution={enabled} />)
 
     const original = view.container.querySelector<HTMLImageElement>(`[src="${source.assetUrl}"]`)!
-    expect(original.style.visibility).toBe("hidden")
+    expect(original.style.visibility).not.toBe("hidden")
     await waitFor(() => expect(probeUpscalePage).toHaveBeenCalledWith("reader-probe", "page-1", expect.any(AbortSignal)))
     expect(upscalePage).not.toHaveBeenCalled()
 
@@ -227,7 +227,7 @@ describe("PageImage", () => {
     expect(upscalePage).not.toHaveBeenCalled()
   })
 
-  it("[neoview.viewer.scheduled-upscale-first-frame] joins scheduled preload work without revealing the original", async () => {
+  it("[neoview.viewer.scheduled-upscale-first-frame] keeps the original visible while joining scheduled preload work", async () => {
     let resolveUpscale!: (result: { status: "shared"; artifactUrl: string; contentType: string; bytes: number; version: string }) => void
     const probeUpscalePage = vi.fn(async () => ({ status: "pending" as const }))
     const upscalePage = vi.fn(() => new Promise<{ status: "shared"; artifactUrl: string; contentType: string; bytes: number; version: string }>((resolve) => { resolveUpscale = resolve }))
@@ -236,9 +236,9 @@ describe("PageImage", () => {
     const view = render(<PageImage page={source} sessionId="reader-scheduled" client={{ probeUpscalePage, upscalePage } as never} superResolution={enabled} />)
 
     const original = view.container.querySelector<HTMLImageElement>(`[src="${source.assetUrl}"]`)!
-    expect(original.style.visibility).toBe("hidden")
+    expect(original.style.visibility).not.toBe("hidden")
     await waitFor(() => expect(upscalePage).toHaveBeenCalledWith("reader-scheduled", "page-1", "automatic-current", expect.any(AbortSignal)))
-    expect(original.style.visibility).toBe("hidden")
+    expect(original.style.visibility).not.toBe("hidden")
 
     await act(async () => resolveUpscale({ status: "shared", artifactUrl: "/reader/page-1-scheduled-upscale", contentType: "image/png", bytes: 42, version: "scheduled-v1" }))
     await waitFor(() => expect(view.container.querySelector('[src="/reader/page-1-scheduled-upscale"]')).toBeTruthy())
