@@ -49,6 +49,25 @@ describe("Comfygure ANIMA INT8 compiler", () => {
     })
   })
 
+  it("matches any Glow trigger alias and injects a same-name local trigger file before compilation", async () => {
+    const readLoraTrigger = vi.fn(async () => "cat ears\nwhiskers")
+    const result = await runComfygure({
+      action: "compile",
+      target: { libraryPath: "D:/ComfyUI" },
+      program: {
+        prompts: { positive: "portrait with animal ears" },
+        loras: [{ name: "anima/cat_ears.safetensors", activationTerms: "cat ears, animal ears" }],
+      },
+    }, {
+      fetch: async () => ({ ok: true, status: 200, json: async () => ({}) }),
+      readLoraTrigger,
+    })
+
+    expect(readLoraTrigger).toHaveBeenCalledWith("D:/ComfyUI", "anima/cat_ears.safetensors")
+    expect(result.data?.compiled.activeLoras.map((lora) => lora.name)).toEqual(["anima/cat_ears.safetensors"])
+    expect(result.data?.compiled.positivePrompt).toBe("portrait with animal ears, cat ears, whiskers")
+  })
+
   it("preflights exact node classes and resources from object_info without submitting a prompt", async () => {
     const compiled = compileAnimaInt8Program({ loras: [{ name: "folder/style-a.safetensors" }] })
     const info = objectInfoFor(compiled)

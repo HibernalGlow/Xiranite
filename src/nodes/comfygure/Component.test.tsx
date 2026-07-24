@@ -23,7 +23,7 @@ describe("Comfygure node projection", () => {
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]).toMatchObject({
       nodeId: "comfygure",
-      input: { action: "preflight", target: { endpoint: "http://127.0.0.1:8000" } },
+      input: { action: "preflight", target: { endpoint: "http://127.0.0.1:8000", libraryPath: "D:/1Repo/Github/ComfyUI/Library" } },
     })
     expect(screen.getByText("Ready to run")).toBeTruthy()
   })
