@@ -3,7 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { NodeConfigPopover } from "./NodeConfigPopover"
+import { createCapabilityAdapters, NodeConfigPopover } from "./NodeConfigPopover"
 
 afterEach(() => {
   cleanup()
@@ -64,6 +64,7 @@ describe("NodeConfigPopover configuration center", () => {
     renderWithProviders(<NodeConfigPopover
       dirty={false}
       defaults={{ reader: { columns: 2 } }}
+      tomlSource={'[nodes.neoview]\ncolumns = 2\n'}
       triggerLabel="Configuration center"
       presentation={{ current: () => <div>NeoView configuration summary</div> }}
       t={translate}
@@ -73,6 +74,38 @@ describe("NodeConfigPopover configuration center", () => {
     />)
     await user.click(screen.getByRole("button", { name: "Configuration center" }))
     expect(await screen.findByText("NeoView configuration summary")).toBeTruthy()
+    expect(await screen.findByText("TOML source")).toBeTruthy()
+  })
+
+  test("adapts injected node config capabilities for any configuration center", async () => {
+    const reload = vi.fn()
+    const getVersions = vi.fn().mockResolvedValue({ versions: [] })
+    const restoreVersion = vi.fn().mockResolvedValue({ config: {}, path: "xiranite.config.toml" })
+    const exportConfig = vi.fn().mockResolvedValue({ content: "", filename: "demo.toml", mimeType: "application/toml" })
+    const importConfig = vi.fn().mockResolvedValue({ config: {}, path: "xiranite.config.toml" })
+    const adapters = createCapabilityAdapters({
+      getVersions,
+      inspectVersion: vi.fn(),
+      restoreVersion,
+      exportConfig,
+      importConfig,
+      getHistoryRepository: vi.fn(),
+      createBackup: vi.fn(),
+      setHistoryRemote: vi.fn(),
+      syncHistory: vi.fn(),
+    } as never, reload)
+
+    await adapters.history?.list({ limit: 5 })
+    await adapters.history?.restore("revision-1")
+    await adapters.transfer?.export("toml")
+    await adapters.transfer?.import("[nodes.demo]", "toml")
+
+    expect(getVersions).toHaveBeenCalledWith({ limit: 5 })
+    expect(restoreVersion).toHaveBeenCalledWith("revision-1")
+    expect(reload).toHaveBeenCalledTimes(1)
+    expect(exportConfig).toHaveBeenCalledWith("toml")
+    expect(importConfig).toHaveBeenCalledWith("[nodes.demo]", "toml")
+    expect(adapters.backup).toBeTruthy()
   })
 
   test("renders canonical TOML with lazily loaded Shiki highlighting", async () => {
