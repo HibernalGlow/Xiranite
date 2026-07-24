@@ -84,7 +84,7 @@ describe("ReaderFrame", () => {
     }
   })
 
-  it("[neoview.freeze-triage.upscale-preload] does not submit background upscale work when isolated", async () => {
+  it("[neoview.super-resolution.background-preload-disabled] does not submit background work when automatic upscale is off", async () => {
     vi.useFakeTimers()
     const startUpscalePreload = vi.fn()
     const client = { startUpscalePreload, upscalePreloadSnapshots: vi.fn() } as unknown as ReaderHttpClient
@@ -97,14 +97,37 @@ describe("ReaderFrame", () => {
       sessionId="reader"
       client={client}
       videoController={{} as ReaderVideoController}
-      superResolution={{ provider: "opencomic-system", preferences: { autoUpscaleEnabled: true, preUpscaleEnabled: true, progressiveEnabled: true } }}
-      backgroundUpscalePreloadEnabled={false}
+      superResolution={{ provider: "opencomic-system", preferences: { autoUpscaleEnabled: false, preUpscaleEnabled: true, progressiveEnabled: true } }}
       onSubtitleConfigChange={vi.fn()}
       onVideoListEnded={vi.fn()}
     />)
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(1_000) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(800) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(200) })
     expect(startUpscalePreload).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.super-resolution.background-preload] submits nearby work after the first frame", async () => {
+    vi.useFakeTimers()
+    const startUpscalePreload = vi.fn(async () => [])
+    const client = { startUpscalePreload, upscalePreloadSnapshots: vi.fn(async () => []) } as unknown as ReaderHttpClient
+
+    render(<ReaderFrame
+      pages={[page(0)]}
+      presentation={DEFAULT_READER_PRESENTATION}
+      totalPages={1}
+      anchorPageIndex={0}
+      sessionId="reader"
+      client={client}
+      videoController={{} as ReaderVideoController}
+      superResolution={{ provider: "opencomic-system", preferences: { autoUpscaleEnabled: true, preUpscaleEnabled: true } }}
+      onSubtitleConfigChange={vi.fn()}
+      onVideoListEnded={vi.fn()}
+    />)
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(800) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+    expect(startUpscalePreload).toHaveBeenCalledWith("reader", "nearby", expect.any(AbortSignal))
   })
 })
 

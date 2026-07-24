@@ -88,8 +88,6 @@ import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCl
 import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../features/workspace/ReaderSwimlaneWorkspace"
 import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
 
-const BACKGROUND_READER_UPSCALE_PRELOAD_ENABLED = false
-
 function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConfigDto): boolean {
   // Compare normalized workspace views — shell object identity always changes on patch.
   try {
@@ -2286,7 +2284,6 @@ export function ReaderApp({
             client={client}
             media={media}
             superResolution={superResolution}
-            backgroundUpscalePreloadEnabled={BACKGROUND_READER_UPSCALE_PRELOAD_ENABLED}
             viewerToggles={viewerToggles}
             onSubtitleConfigChange={persistSubtitleConfig}
             onVisiblePageChange={syncPanoramaVisiblePage}

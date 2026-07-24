@@ -96,6 +96,19 @@ export function useReaderUpscalePreload({
         // after the nearby/pre-upscale batch has been accepted by the backend.
         const next = await client.startUpscalePreload(sessionId, mode, controller.signal)
         if (!current) return
+        logger.info("Accepted reader super-resolution preload", {
+          sessionId,
+          mode,
+          currentPageIndex,
+          generation: preloadGeneration,
+          preloadPages: preferences?.preloadPages,
+          snapshots: next.map((snapshot) => ({
+            state: snapshot.state,
+            planned: snapshot.planned,
+            pending: snapshot.pending,
+            failed: snapshot.failed,
+          })),
+        })
         const merged = mergeSnapshots(readerUpscalePreloadSnapshot(sessionId), next)
         setReaderUpscalePreload(sessionId, merged)
         setSnapshots(merged)
@@ -103,7 +116,18 @@ export function useReaderUpscalePreload({
     }
     const timer = setTimeout(() => {
       void start().catch((cause: unknown) => {
-        if (current && !controller.signal.aborted) setError(errorMessage(cause))
+        if (current && !controller.signal.aborted) {
+          const message = errorMessage(cause)
+          logger.error("Reader super-resolution preload request failed", cause, {
+            sessionId,
+            currentPageIndex,
+            generation: preloadGeneration,
+            nearbyEnabled,
+            progressiveEnabled,
+            preloadPages: preferences?.preloadPages,
+          })
+          setError(message)
+        }
       })
     }, SCHEDULE_DEBOUNCE_MS)
     return () => {
