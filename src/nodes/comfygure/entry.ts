@@ -1,5 +1,6 @@
 import type { AppNodeEntry, NodeSchema } from "@xiranite/contract"
-import { core, def } from "@xiranite/node-comfygure"
+import * as core from "@xiranite/node-comfygure/core"
+import { def } from "@xiranite/node-comfygure/definition"
 import { z } from "zod"
 import { Component } from "./Component"
 import type { ComfygureCardState, ComfygureTargetConfig } from "./types"

@@ -2,7 +2,6 @@ import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import {
   RULE_TREE_FORMAT,
   createRuleId,
-  evaluateRulePolicies,
   rulePolicySchema,
   type RuleEffect,
   type RulePolicy,
@@ -885,6 +884,7 @@ export async function resolveComfygureRules(
 ): Promise<ComfygureRuleResolution> {
   const batchEntry = options.batchEntry ?? { text: program.prompts.positive }
   const facts = createComfygureRuleFacts(program, options, batchEntry)
+  const { evaluateRulePolicies } = await import("@xiranite/shared/rules-engine")
   const matches = await evaluateRulePolicies(program.rules, facts)
   const controlledLoras = new Set(program.rules.flatMap((policy) => policy.effects.map((effect) => effect.payload.loraName)))
   const matchedLoras = new Set(matches.flatMap((match) => match.effects.map((effect) => effect.payload.loraName)))

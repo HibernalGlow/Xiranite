@@ -8,6 +8,13 @@ export const VITE_EAGER_DEPENDENCIES = [
   // be prebundled, otherwise the browser sees eventemitter3 without a default
   // ESM export and NeoView's lazy module fails to load.
   "p-queue",
+  // react-querybuilder depends on CommonJS helpers such as fast-deep-equal.
+  // noDiscovery leaves those helpers unconverted unless every browser entry
+  // used by the shared rule editor is explicitly prebundled.
+  "react-querybuilder",
+  "@react-querybuilder/dnd",
+  "@react-querybuilder/dnd/dnd-kit",
+  "react-tag-input",
   "react",
   "react-dom",
   "react-dom/client",

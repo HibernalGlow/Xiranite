@@ -7,6 +7,7 @@ import {
   type Operator,
   type RuleGroupType,
   type RuleType,
+  type ValueSelectorProps,
 } from "react-querybuilder"
 import {
   RULE_TREE_FORMAT,
@@ -18,6 +19,11 @@ import {
   type RuleTree,
   type RuleValue,
 } from "@xiranite/shared/rules"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
 
 export type RuleTreeFieldType = "text" | "number" | "boolean" | "select" | "multiselect"
 
@@ -111,6 +117,12 @@ export function RuleTreeEditor(props: RuleTreeEditorProps) {
         listsAsArrays
         parseNumbers
         controlClassnames={RULE_EDITOR_CLASSES}
+        controlElements={{
+          combinatorSelector: ThemedRuleSelector,
+          fieldSelector: ThemedRuleSelector,
+          operatorSelector: ThemedRuleSelector,
+          valueSelector: ThemedRuleSelector,
+        }}
         translations={{
           addRule: { label: translate("rules.addCondition", "+ Condition"), title: translate("rules.addConditionTitle", "Add condition") },
           addGroup: { label: translate("rules.addGroup", "+ Group"), title: translate("rules.addGroupTitle", "Add condition group") },
@@ -129,6 +141,67 @@ export function RuleTreeEditor(props: RuleTreeEditorProps) {
       />
     </QueryBuilderDnD>
   </div>
+}
+
+function ThemedRuleSelector(props: ValueSelectorProps) {
+  const options = flattenOptions(props.options)
+  if (props.multiple) {
+    const selected = Array.isArray(props.value)
+      ? props.value.map(String)
+      : String(props.value ?? "").split(",").filter(Boolean)
+    const selectedSet = new Set(selected)
+    return <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={cn("min-w-28 justify-between bg-background text-xs font-normal", props.className)}
+          disabled={props.disabled}
+          title={props.title}
+          data-testid={props.testID}
+        >
+          <span className="max-w-48 truncate">{selected.length ? selected.map((value) => options.find((option) => option.value === value)?.label ?? value).join(", ") : "Select"}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 space-y-1 p-1">
+        {options.map((option) => <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground">
+          <Checkbox
+            checked={selectedSet.has(option.value)}
+            disabled={props.disabled || option.disabled}
+            onCheckedChange={(checked) => {
+              const next = checked === true
+                ? [...selected, option.value]
+                : selected.filter((value) => value !== option.value)
+              props.handleOnChange(props.listsAsArrays ? next : next.join(","))
+            }}
+          />
+          <span>{option.label}</span>
+        </label>)}
+      </PopoverContent>
+    </Popover>
+  }
+
+  const selected = String(props.value ?? "")
+  return <Select value={selected || undefined} disabled={props.disabled} onValueChange={props.handleOnChange}>
+    <SelectTrigger
+      size="sm"
+      className={cn("min-w-28 bg-background text-xs", props.className)}
+      title={props.title}
+      data-testid={props.testID}
+    >
+      <SelectValue placeholder="Select" />
+    </SelectTrigger>
+    <SelectContent align="start">
+      {options.map((option) => <SelectItem key={option.value} value={option.value} disabled={option.disabled}>{option.label}</SelectItem>)}
+    </SelectContent>
+  </Select>
+}
+
+function flattenOptions(options: ValueSelectorProps["options"]): { value: string; label: React.ReactNode; disabled?: boolean }[] {
+  return options.flatMap((option) => "options" in option
+    ? option.options.map((child) => ({ value: String(child.value), label: child.label, disabled: child.disabled === true }))
+    : [{ value: String(option.value), label: option.label, disabled: option.disabled === true }])
 }
 
 export function ruleTreeToQueryBuilder(tree: RuleTree): RuleGroupType {
@@ -192,7 +265,7 @@ function queryBuilderField(field: RuleTreeField): Field {
   if (field.type === "number") return { ...common, inputType: "number" }
   if (field.type === "boolean") return { ...common, valueEditorType: "select", values: [{ name: "true", label: "True" }, { name: "false", label: "False" }] }
   if (field.type === "select") return { ...common, valueEditorType: (operator) => operator === "in" || operator === "notIn" ? "multiselect" : "select", values: field.options ?? [] }
-  if (field.type === "multiselect") return { ...common, valueEditorType: "multiselect", values: field.options ?? [] }
+  if (field.type === "multiselect") return { ...common, valueEditorType: "select", values: field.options ?? [] }
   return common
 }
 
@@ -206,7 +279,7 @@ function normalizeQueryValue(value: unknown, type: RuleTreeFieldType): RuleValue
     return Number.isFinite(number) ? number : 0
   }
   if (type === "boolean") return value === true || value === "true"
-  if (type === "multiselect") return Array.isArray(value) ? value.map(String) : String(value ?? "").split(",").map((item) => item.trim()).filter(Boolean)
+  if (type === "multiselect") return Array.isArray(value) ? String(value[0] ?? "") : String(value ?? "")
   if (Array.isArray(value)) return value.map((item) => typeof item === "number" || typeof item === "boolean" || item === null ? item : String(item))
   if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value
   return String(value ?? "")

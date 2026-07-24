@@ -17,6 +17,10 @@
     "./rules": {
       "types": "./dist/rules.d.ts",
       "default": "./dist/rules.js"
+    },
+    "./rules-engine": {
+      "types": "./dist/rules-engine.d.ts",
+      "default": "./dist/rules-engine.js"
     }
   },
   "files": [
