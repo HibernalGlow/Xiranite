@@ -47,21 +47,21 @@ describe("Comfygure node projection", () => {
     expect(workbench.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(2)
   })
 
-  it("builds Liquid templates from shared sortable variable tags", async () => {
+  it("builds Liquid templates from react-tag-input parts", async () => {
     const host = createHost()
     render(<Component compId="comfygure-1" host={host as never} />)
 
     const composer = screen.getByTestId("positive-template-composer")
-    expect(composer.querySelector('[data-slot="sortable-content"]')).toBeTruthy()
-    expect(composer.querySelectorAll('[data-slot="sortable-item"]')).toHaveLength(2)
+    expect(composer.querySelector(".react-tags-wrapper")).toBeTruthy()
+    expect(composer.querySelectorAll('[data-testid="tag"]')).toHaveLength(3)
 
-    const field = composer.closest('[data-slot="tabs"]')?.parentElement
-    expect(field).toBeTruthy()
     const user = userEvent.setup()
-    await user.click(within(field as HTMLElement).getByRole("button", { name: "Variable" }))
-    await user.click(screen.getByRole("menuitem", { name: /Batch text.*batch\.text/ }))
+    const input = within(composer).getByRole("textbox", { name: "Add text or choose a variable" })
+    await user.click(input)
+    await user.type(input, "Batch")
+    await user.click(within(composer).getByText("Batch text"))
 
-    expect(composer.querySelectorAll('[data-slot="sortable-item"]')).toHaveLength(3)
+    expect(composer.querySelectorAll('[data-testid="tag"]')).toHaveLength(5)
     expect(within(composer).getByText("Batch text")).toBeTruthy()
 
     await user.click(screen.getByRole("button", { name: "Compile" }))
