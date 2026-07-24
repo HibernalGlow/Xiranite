@@ -36,6 +36,7 @@ import type { SliderDisplayStyle } from "@/components/ui/slider-variants"
 import type { ChoiceControlStyle, FieldTitleStyle } from "@/components/ui/choice-control-variants"
 import type { ModulePanelStyle, ModuleTitleStyle, ResizableHandleStyle } from "@/components/ui/module-panel-variants"
 import type { SwimlaneWorkspacePreferences } from "@/components/workspace/swimlane/model"
+import type { ChromeActionPreferenceKey } from "@/components/workspace/chromeActionPreferences"
 
 /** 工作区 Store 完整状态：UI 偏好 + 业务数据 + 运行时标志。 */
 export interface WSState {
@@ -121,6 +122,12 @@ export interface WSState {
   chromeIslandDelay: number
   /** island 模式下空闲状态的偏移量。 */
   chromeIslandIdleOffset: number
+  chromeActionOrder: ChromeActionPreferenceKey[]
+  chromeHiddenActions: ChromeActionPreferenceKey[]
+  /** 普通节点桌面独立窗口的控制组位置；NeoView 使用自己的窗口栏配置。 */
+  floatingWindowCaptionPosition: "left" | "island" | "right"
+  /** 普通节点桌面独立窗口的控制组样式。 */
+  floatingWindowCaptionStyle: "capsule" | "traffic-light"
   /** 字母索引可见性。 */
   alphabetIndexVisible: boolean
   /** 字母索引不透明度。 */
@@ -210,6 +217,11 @@ export interface WorkspaceUiActions {
   setChromeIslandMotion(motion: number): void
   setChromeIslandDelay(delay: number): void
   setChromeIslandIdleOffset(offset: number): void
+  setChromeActionOrder(order: ChromeActionPreferenceKey[]): void
+  setChromeHiddenActions(actions: ChromeActionPreferenceKey[]): void
+  setChromeActionPreferences(order: ChromeActionPreferenceKey[], hiddenActions: ChromeActionPreferenceKey[]): void
+  setFloatingWindowCaptionPosition(position: WSState["floatingWindowCaptionPosition"]): void
+  setFloatingWindowCaptionStyle(style: WSState["floatingWindowCaptionStyle"]): void
   setAlphabetIndexVisible(visible: boolean): void
   setAlphabetIndexOpacity(opacity: number): void
   setAlphabetIndexStyle(style: WSState["alphabetIndexStyle"]): void
@@ -345,6 +357,10 @@ export type WorkspaceUiPreferences = Pick<
   | "chromeIslandMotion"
   | "chromeIslandDelay"
   | "chromeIslandIdleOffset"
+  | "chromeActionOrder"
+  | "chromeHiddenActions"
+  | "floatingWindowCaptionPosition"
+  | "floatingWindowCaptionStyle"
   | "alphabetIndexVisible"
   | "alphabetIndexOpacity"
   | "alphabetIndexStyle"

@@ -8,6 +8,7 @@
  */
 import type { ViewMode } from "@/types/workspace"
 import type { WSState } from "./types"
+import { DEFAULT_CHROME_ACTION_ORDER } from "@/components/workspace/chromeActionPreferences"
 
 /** 组件可参与的视图模式（排除 dashboard，因为 dashboard 不承载组件实例）。 */
 export type ComponentViewMode = Exclude<ViewMode, "dashboard">
@@ -72,6 +73,10 @@ export const INITIAL_STATE: WSState = {
   chromeIslandMotion: 110,
   chromeIslandDelay: 45,
   chromeIslandIdleOffset: -3,
+  chromeActionOrder: [...DEFAULT_CHROME_ACTION_ORDER],
+  chromeHiddenActions: [],
+  floatingWindowCaptionPosition: "right",
+  floatingWindowCaptionStyle: "capsule",
   alphabetIndexVisible: true,
   alphabetIndexOpacity: 92,
   alphabetIndexStyle: "glass",

@@ -19,6 +19,8 @@ const chromeAppearance = vi.hoisted(() => ({
   islandMotion: 100,
   islandDelay: 0,
   islandIdleOffset: 0,
+  actionOrder: ["node-help", "collapse", "focus", "fullscreen", "float", "moveToView", "keepAliveOnViewSwitch", "hide"],
+  hiddenActions: [] as string[],
 }))
 
 vi.mock("@/components/workspace/useChromeAppearance", () => ({
@@ -37,6 +39,8 @@ vi.mock("@/components/help/NodeHelpSheet", () => ({
 afterEach(() => {
   cleanup()
   chromeAppearance.position = "right"
+  chromeAppearance.actionOrder = ["node-help", "collapse", "focus", "fullscreen", "float", "moveToView", "keepAliveOnViewSwitch", "hide"]
+  chromeAppearance.hiddenActions = []
 })
 
 describe("NodeSurfaceChrome help action", () => {
@@ -74,5 +78,25 @@ describe("NodeSurfaceChrome help action", () => {
     fireEvent.pointerEnter(toolbar.parentElement!)
 
     expect(toolbar.classList.contains("border")).toBe(true)
+  })
+
+  test("applies shared action order and visibility preferences", () => {
+    chromeAppearance.actionOrder = ["hide", "collapse"]
+    chromeAppearance.hiddenActions = ["collapse"]
+    render(
+      <div className="group">
+        <NodeSurfaceChrome
+          actions={[
+            { key: "collapse", label: "Collapse", icon: <span /> },
+            { key: "hide", label: "Hide", icon: <span /> },
+            { key: "custom", label: "Custom", icon: <span /> },
+          ]}
+          moduleName="Unknown"
+        />
+      </div>,
+    )
+
+    expect(screen.queryByRole("button", { name: "Collapse" })).toBeNull()
+    expect(screen.getAllByRole("button").map((button) => button.getAttribute("data-action-key"))).toEqual(["hide", "custom"])
   })
 })

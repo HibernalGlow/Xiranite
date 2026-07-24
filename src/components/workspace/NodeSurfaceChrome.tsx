@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { hasNodeHelp } from "@/components/help/nodeHelpRegistry"
 import { useChromeAppearance } from "@/components/workspace/useChromeAppearance"
 import { cn } from "@/lib/utils"
+import { applyChromeActionPreferences, type ChromeActionPreferenceKey } from "./chromeActionPreferences"
 
 const LazyNodeHelpSheet = lazy(async () => {
   const module = await import("@/components/help/NodeHelpSheet")
@@ -23,6 +24,8 @@ export type ChromeActionTone = "close" | "minimize" | "maximize" | "neutral"
 
 export interface NodeSurfaceChromeAction {
   key: string
+  /** Stable key used by the toolbar customization preferences. */
+  preferenceKey?: ChromeActionPreferenceKey
   label: string
   icon: ReactNode
   danger?: boolean
@@ -71,12 +74,11 @@ export function NodeSurfaceChrome({
   version?: string
 }) {
   const { t } = useTranslation()
-  const { visible, position, style, islandScale, islandMotion, islandDelay, islandIdleOffset } = useChromeAppearance()
+  const { visible, position, style, islandScale, islandMotion, islandDelay, islandIdleOffset, actionOrder, hiddenActions } = useChromeAppearance()
   const [helpOpen, setHelpOpen] = useState(false)
   const helpAvailable = hasNodeHelp(moduleId)
   const chromeActions = useMemo<NodeSurfaceChromeAction[]>(() => {
-    if (!helpAvailable) return actions
-    return [
+    const actionsWithHelp = !helpAvailable ? actions : [
       {
         key: "node-help",
         label: t("registry:help.open", { name: moduleName }),
@@ -88,7 +90,8 @@ export function NodeSurfaceChrome({
       },
       ...actions,
     ]
-  }, [actions, helpAvailable, moduleName, t])
+    return applyChromeActionPreferences(actionsWithHelp, actionOrder, hiddenActions)
+  }, [actionOrder, actions, helpAvailable, hiddenActions, moduleName, t])
   const helpSheet = helpAvailable ? (
     <Suspense fallback={null}>
       <LazyNodeHelpSheet

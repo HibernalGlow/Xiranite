@@ -139,6 +139,24 @@ describe("app-owned enginev Component", () => {
     expect(screen.getByRole("tab", { name: "日志" })).toBeTruthy()
   })
 
+  test.each(["compact", "portrait", "regular", "expanded"] as NodeSurfaceMode[])(
+    "does not reserve content space for the separate window titlebar in %s mode",
+    (mode) => {
+      surfaceState.mode = mode
+      render(<Component compId="comp-enginev" host={createHost({ workshopPath: "D:/workshop" })} />)
+
+      expect(screen.getByTestId("enginev-window-caption-row").className).not.toContain("[.xiranite-floating-window_&]:pr-36")
+      expect(screen.getByTestId("enginev-window-caption-row").dataset.floatingWindowDragRow).toBe("true")
+    },
+  )
+
+  test("does not reserve caption width inside the workspace side column", () => {
+    surfaceState.mode = "workspace"
+    render(<Component compId="comp-enginev" host={createHost({ workshopPath: "D:/workshop" })} />)
+
+    expect(screen.getByTestId("enginev-window-caption-row").className).not.toContain("[.xiranite-floating-window_&]:pr-36")
+  })
+
   test("runs scan through host.runner.run and renders local preview images", async () => {
     surfaceState.mode = "regular"
     const host = createHost({

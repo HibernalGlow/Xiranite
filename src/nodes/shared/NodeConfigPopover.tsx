@@ -42,15 +42,18 @@ import {
   getConfigHistoryRepositoryFromBackend,
   getNodeConfigVersionsFromBackend,
   getNodeConfigFromBackend,
+  getNodeUiConfigFromBackend,
   importNodeConfigOnBackend,
   inspectNodeConfigVersionFromBackend,
   restoreNodeConfigVersionOnBackend,
   openConfigFileWithBackend,
+  saveNodeUiConfigToBackend,
   setConfigHistoryRemoteOnBackend,
   syncConfigHistoryOnBackend,
 } from "@/backend/configRpcClient"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -61,11 +64,14 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { createLogger } from "@/lib/logger"
 import { cn } from "@/lib/utils"
+import { useNodeRuntimeId } from "./NodeRuntimeContext"
 import { useNodeI18n } from "./useNodeI18n"
 
 const LazyNodeConfigHistoryPanel = lazy(() => import("./NodeConfigHistoryPanel"))
 const LazyNodeConfigSourceView = lazy(() => import("./NodeConfigSourceView"))
+const logger = createLogger("node.config-popover")
 
 type NodeT = ReturnType<typeof useNodeI18n>["t"]
 type BusyOperation = "backup" | "export" | "import" | "open" | "preset" | "reload" | "restore" | "save" | "sync"
@@ -243,6 +249,7 @@ export function NodeConfigCenterButton({ nodeKey, presentation, onConfigChange }
 }
 
 export function NodeConfigPopover(props: NodeConfigPopoverProps) {
+  const runtimeNodeId = useNodeRuntimeId()
   const presetId = useId()
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("current")
@@ -252,9 +259,12 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
   const [presetConfirmation, setPresetConfirmation] = useState<"delete" | "overwrite" | null>(null)
   const [presetImportText, setPresetImportText] = useState("")
   const [configImportText, setConfigImportText] = useState("")
-  const autoRestoreKey = props.autoRestoreKey ?? (props.configPath ? `config:${props.configPath}` : undefined)
-  const [autoRestore, setAutoRestore] = useState(() => autoRestoreKey ? window.localStorage.getItem(`xiranite:auto-restore:${autoRestoreKey}`) === "1" : false)
+  const autoRestoreNodeId = props.autoRestoreKey ?? runtimeNodeId
+  const [autoRestore, setAutoRestore] = useState(false)
+  const [autoRestoreLoaded, setAutoRestoreLoaded] = useState(false)
+  const [autoRestoreSaving, setAutoRestoreSaving] = useState(false)
   const autoRestoredRef = useRef(false)
+  const autoRestoreNodeIdRef = useRef<string | undefined>(undefined)
   const effectiveDefaults = props.defaults && Object.keys(props.defaults).length ? props.defaults : props.fallbackDefaults
   const selectedPreset = props.preset?.options.find((option) => option.value === props.preset?.value)
   const selectedPresetEditable = selectedPreset?.editable === true
@@ -264,14 +274,72 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
   const showCurrentActions = props.showCurrentActions !== false
 
   useEffect(() => {
-    if (!autoRestore || !effectiveDefaults || autoRestoredRef.current) return
+    if (!autoRestoreNodeId) {
+      setAutoRestore(false)
+      setAutoRestoreLoaded(false)
+      return
+    }
+
+    let cancelled = false
+    if (autoRestoreNodeIdRef.current !== autoRestoreNodeId) {
+      autoRestoreNodeIdRef.current = autoRestoreNodeId
+      autoRestoredRef.current = false
+    }
+    setAutoRestoreLoaded(false)
+
+    async function loadAutoRestorePreference() {
+      try {
+        const response = await getNodeUiConfigFromBackend<NodeConfigUiPreferences>(autoRestoreNodeId!)
+        if (cancelled) return
+        const persisted = resolveAutoRestorePreference(response.config)
+        const legacy = persisted === undefined
+          ? readLegacyAutoRestorePreference(autoRestoreNodeId!, props.configPath)
+          : undefined
+        setAutoRestore(persisted ?? legacy ?? false)
+
+        if (persisted === undefined && legacy !== undefined) {
+          try {
+            await saveNodeUiConfigToBackend(autoRestoreNodeId!, { restoreOnStartup: legacy })
+            removeLegacyAutoRestorePreferences(autoRestoreNodeId!, props.configPath)
+          } catch (error) {
+            logger.warn("Failed to migrate restore-on-startup preference", { nodeId: autoRestoreNodeId }, error)
+          }
+        }
+      } catch (error) {
+        if (cancelled) return
+        setAutoRestore(readLegacyAutoRestorePreference(autoRestoreNodeId!, props.configPath) ?? false)
+        logger.warn("Failed to load restore-on-startup preference", { nodeId: autoRestoreNodeId }, error)
+      } finally {
+        if (!cancelled) setAutoRestoreLoaded(true)
+      }
+    }
+
+    void loadAutoRestorePreference()
+    return () => {
+      cancelled = true
+    }
+  }, [autoRestoreNodeId, props.configPath])
+
+  useEffect(() => {
+    if (!autoRestoreLoaded || autoRestoreSaving || !autoRestore || !effectiveDefaults || autoRestoredRef.current) return
     autoRestoredRef.current = true
     void props.onRestore()
-  }, [autoRestore, effectiveDefaults, props.onRestore])
+  }, [autoRestore, autoRestoreLoaded, autoRestoreSaving, effectiveDefaults, props.onRestore])
 
-  function setAutoRestoreDefaults(enabled: boolean) {
+  async function setAutoRestoreDefaults(enabled: boolean) {
+    if (!autoRestoreNodeId || autoRestoreSaving) return
+    const previous = autoRestore
     setAutoRestore(enabled)
-    if (autoRestoreKey) window.localStorage.setItem(`xiranite:auto-restore:${autoRestoreKey}`, enabled ? "1" : "0")
+    setAutoRestoreSaving(true)
+    try {
+      await saveNodeUiConfigToBackend(autoRestoreNodeId, { restoreOnStartup: enabled })
+      removeLegacyAutoRestorePreferences(autoRestoreNodeId, props.configPath)
+    } catch (error) {
+      setAutoRestore(previous)
+      logger.warn("Failed to save restore-on-startup preference", { nodeId: autoRestoreNodeId }, error)
+    } finally {
+      setAutoRestoreSaving(false)
+    }
   }
 
   async function perform<T>(kind: BusyOperation, action: () => Promise<T> | T): Promise<T> {
@@ -311,18 +379,21 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => { setOpen(nextOpen); void props.onOpenChange?.(nextOpen) }}>
-      <TooltipProvider><Tooltip>
-        <TooltipTrigger asChild>
-          <DialogTrigger asChild>
-            <Button aria-label={triggerLabel} disabled={disabled} size="icon-sm" variant={props.dirty ? "secondary" : "outline"}>
-              <DatabaseZap />
-            </Button>
-          </DialogTrigger>
-        </TooltipTrigger>
-        <TooltipContent>{triggerLabel}</TooltipContent>
-      </Tooltip></TooltipProvider>
-      <DialogContent className="h-[min(760px,calc(100vh-2rem))] max-w-[min(1040px,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden p-0 sm:max-w-[min(1040px,calc(100vw-2rem))]">
+    <ContextMenu>
+      <Dialog open={open} onOpenChange={(nextOpen) => { setOpen(nextOpen); void props.onOpenChange?.(nextOpen) }}>
+        <TooltipProvider><Tooltip>
+          <TooltipTrigger asChild>
+            <ContextMenuTrigger asChild>
+              <DialogTrigger asChild>
+                <Button aria-label={triggerLabel} disabled={disabled} size="icon-sm" variant={props.dirty ? "secondary" : "outline"}>
+                  <DatabaseZap />
+                </Button>
+              </DialogTrigger>
+            </ContextMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{triggerLabel}</TooltipContent>
+        </Tooltip></TooltipProvider>
+        <DialogContent className="h-[min(760px,calc(100vh-2rem))] max-w-[min(1040px,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden p-0 sm:max-w-[min(1040px,calc(100vw-2rem))]">
         <DialogHeader className="border-b px-5 py-4 pr-12">
           <DialogTitle>{triggerLabel}</DialogTitle>
           <DialogDescription>{props.configPath ?? props.t("config.description", "Manage this node's settings, history, backups, and portable configuration.")}</DialogDescription>
@@ -344,7 +415,7 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
                 {CurrentView ? <div className="min-w-0"><div className="p-4"><CurrentView config={effectiveDefaults} tomlSource={props.tomlSource} /></div>{props.tomlSource && effectiveDefaults ? <div className="border-t"><Suspense fallback={<PanelMessage>{props.t("config.source.loading", "Loading TOML view...")}</PanelMessage>}><LazyNodeConfigSourceView config={effectiveDefaults} source={props.tomlSource} labels={sourceLabels(props.t)} /></Suspense></div> : null}</div> : props.tomlSource && effectiveDefaults ? <Suspense fallback={<PanelMessage>{props.t("config.source.loading", "Loading TOML view...")}</PanelMessage>}><LazyNodeConfigSourceView config={effectiveDefaults} source={props.tomlSource} labels={sourceLabels(props.t)} /></Suspense> : <StructuredConfigView config={effectiveDefaults} emptyLabel={props.t("config.empty", "No configuration data.")} />}
               </section>
               <aside className="flex flex-col gap-2">
-                {autoRestoreKey ? <Field orientation="horizontal" className="items-center justify-between rounded-md border px-3 py-2"><FieldLabel className="text-xs">{props.t("config.autoRestore", "Restore on startup")}</FieldLabel><Switch checked={autoRestore} onCheckedChange={setAutoRestoreDefaults} /></Field> : null}
+                {autoRestoreNodeId ? <Field orientation="horizontal" className="items-center justify-between rounded-md border px-3 py-2"><FieldLabel className="text-xs">{props.t("config.autoRestore", "Restore on startup")}</FieldLabel><Switch checked={autoRestore} disabled={!autoRestoreLoaded || autoRestoreSaving} onCheckedChange={(enabled) => void setAutoRestoreDefaults(enabled)} /></Field> : null}
                 {showCurrentActions ? <Button disabled={disabled} size="sm" onClick={() => void perform("save", props.onSave)}><Save data-icon="inline-start" />{props.t("config.save", "Save as default")}</Button> : null}
                 {showCurrentActions ? <Button disabled={disabled || !effectiveDefaults} size="sm" variant="outline" onClick={() => void perform("restore", props.onRestore)}><RotateCcw data-icon="inline-start" />{props.t("config.restore", "Restore saved configuration")}</Button> : null}
                 <Button disabled={disabled} size="sm" variant="outline" onClick={() => void perform("reload", props.onReload)}><RefreshCw data-icon="inline-start" />{props.t("config.reload", "Reload from TOML")}</Button>
@@ -408,21 +479,30 @@ export function NodeConfigPopover(props: NodeConfigPopoverProps) {
             {activeTab === "backup" && props.backup ? <BackupPanel adapter={props.backup} disabled={disabled} t={props.t} perform={perform} /> : <PanelMessage>{props.t("config.backup.unavailable", "Git backup is unavailable for this node.")}</PanelMessage>}
           </TabsContent>
         </Tabs>
-      </DialogContent>
+        </DialogContent>
 
-      <AlertDialog open={presetConfirmation !== null} onOpenChange={(nextOpen) => { if (!nextOpen) setPresetConfirmation(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{presetConfirmation === "delete" ? props.t("config.presetDeleteTitle", "Delete this preset?") : props.t("config.presetOverwriteTitle", "Overwrite this preset?")}</AlertDialogTitle>
-            <AlertDialogDescription>{presetConfirmation === "delete" ? props.t("config.presetDeleteDescription", "This action cannot be undone.") : props.t("config.presetOverwriteDescription", "The preset values will be replaced by the current configuration.")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={disabled}>{props.t("common:cancel", "Cancel")}</AlertDialogCancel>
-            <AlertDialogAction disabled={disabled} variant={presetConfirmation === "delete" ? "destructive" : "default"} onClick={() => { if (presetConfirmation) void confirmPresetMutation(presetConfirmation) }}>{presetConfirmation === "delete" ? props.t("config.presetDelete", "Delete preset") : props.t("config.presetOverwrite", "Overwrite preset")}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Dialog>
+        <AlertDialog open={presetConfirmation !== null} onOpenChange={(nextOpen) => { if (!nextOpen) setPresetConfirmation(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{presetConfirmation === "delete" ? props.t("config.presetDeleteTitle", "Delete this preset?") : props.t("config.presetOverwriteTitle", "Overwrite this preset?")}</AlertDialogTitle>
+              <AlertDialogDescription>{presetConfirmation === "delete" ? props.t("config.presetDeleteDescription", "This action cannot be undone.") : props.t("config.presetOverwriteDescription", "The preset values will be replaced by the current configuration.")}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={disabled}>{props.t("common:cancel", "Cancel")}</AlertDialogCancel>
+              <AlertDialogAction disabled={disabled} variant={presetConfirmation === "delete" ? "destructive" : "default"} onClick={() => { if (presetConfirmation) void confirmPresetMutation(presetConfirmation) }}>{presetConfirmation === "delete" ? props.t("config.presetDelete", "Delete preset") : props.t("config.presetOverwrite", "Overwrite preset")}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </Dialog>
+      <ContextMenuContent aria-label={props.t("config.quickActions", "Configuration quick actions")} className="w-56">
+        {showCurrentActions ? <ContextMenuItem disabled={disabled} onSelect={() => void perform("save", props.onSave)}><Save />{props.t("config.save", "Save as default")}</ContextMenuItem> : null}
+        {showCurrentActions ? <ContextMenuItem disabled={disabled || !effectiveDefaults} onSelect={() => void perform("restore", props.onRestore)}><RotateCcw />{props.t("config.restore", "Restore saved configuration")}</ContextMenuItem> : null}
+        {showCurrentActions && props.onClearOverride ? <ContextMenuItem disabled={disabled} onSelect={() => void perform("restore", props.onClearOverride!)}><Eraser />{props.t("config.clear", "Clear override")}</ContextMenuItem> : null}
+        {showCurrentActions ? <ContextMenuSeparator /> : null}
+        <ContextMenuItem disabled={disabled} onSelect={() => void perform("reload", props.onReload)}><RefreshCw />{props.t("config.reload", "Reload from TOML")}</ContextMenuItem>
+        {props.onOpenFile ? <ContextMenuItem disabled={disabled} onSelect={() => void perform("open", () => props.onOpenFile?.())}><ExternalLink />{props.t("config.openFile", "Open TOML file")}</ContextMenuItem> : null}
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 
@@ -584,6 +664,46 @@ export function createCapabilityAdapters<TConfig>(
       } satisfies NodeConfigBackupAdapter
     : undefined
   return { history, transfer, backup }
+}
+
+interface NodeConfigUiPreferences {
+  restoreOnStartup?: boolean
+  restore_on_startup?: boolean
+}
+
+function resolveAutoRestorePreference(config: NodeConfigUiPreferences | undefined): boolean | undefined {
+  if (typeof config?.restoreOnStartup === "boolean") return config.restoreOnStartup
+  if (typeof config?.restore_on_startup === "boolean") return config.restore_on_startup
+  return undefined
+}
+
+function legacyAutoRestoreStorageKeys(nodeId: string, configPath?: string): string[] {
+  const keys = [`xiranite:auto-restore:${nodeId}`]
+  if (configPath) keys.push(`xiranite:auto-restore:config:${configPath}`)
+  return keys
+}
+
+function readLegacyAutoRestorePreference(nodeId: string, configPath?: string): boolean | undefined {
+  try {
+    for (const key of legacyAutoRestoreStorageKeys(nodeId, configPath)) {
+      const value = window.localStorage.getItem(key)
+      if (value === "1") return true
+      if (value === "0") return false
+    }
+  } catch {
+    return undefined
+  }
+  return undefined
+}
+
+function removeLegacyAutoRestorePreferences(nodeId: string, configPath?: string): void {
+  try {
+    for (const key of legacyAutoRestoreStorageKeys(nodeId, configPath)) {
+      window.localStorage.removeItem(key)
+    }
+  } catch {
+    // Restricted WebViews can disable browser storage after migration.
+  }
 }
 
 function downloadText(filename: string, content: string, mimeType: string) {

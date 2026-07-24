@@ -432,7 +432,7 @@ function CollapsedView(props: ViewProps) {
 function CompactView(props: ViewProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-start justify-between gap-2 p-3 pb-2">
+      <div data-floating-window-drag-row="true" data-testid="enginev-window-caption-row" className="flex shrink-0 select-none items-start justify-between gap-2 p-3 pb-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || props.actionMeta.description} />
         <div className="flex shrink-0 items-center gap-1">
           <FilterPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
@@ -475,7 +475,7 @@ function CompactView(props: ViewProps) {
 function PortraitCompactView(props: ViewProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 p-2">
-      <div className="flex shrink-0 items-start justify-between gap-2">
+      <div data-floating-window-drag-row="true" data-testid="enginev-window-caption-row" className="flex shrink-0 select-none items-start justify-between gap-2">
         <HeaderLine status={props.status} subtitle={props.data.progressText || props.actionMeta.description} />
         <div className="flex shrink-0 items-center gap-1">
           <FilterPopover data={props.data} disabled={props.running} onPatch={props.onPatch} />
@@ -537,7 +537,7 @@ function WorkspaceView(props: ViewProps) {
   return (
     <div data-testid="enginev-workspace-view" className="grid h-full min-h-0 grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)] gap-4 p-5">
       <aside data-testid="enginev-workspace-controls" className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto rounded-xl border bg-card/70 p-3 shadow-sm">
-        <div className="flex min-w-0 flex-col gap-2">
+        <div data-floating-window-drag-row="true" data-testid="enginev-window-caption-row" className="flex min-w-0 select-none flex-col gap-2">
           <HeaderLine status={props.status} subtitle={props.data.progressText || props.status.description} />
           <div data-testid="enginev-header-toolbar" className="flex min-w-0 flex-wrap items-center gap-2">
             <ToolbarActions {...props} />
@@ -760,7 +760,7 @@ function FullView(props: ViewProps) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 @5xl/enginev:p-5 @6xl/enginev:grid @6xl/enginev:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)] @6xl/enginev:grid-rows-[auto_minmax(0,1fr)] @6xl/enginev:gap-4">
-      <div className="flex shrink-0 flex-col gap-3 @4xl/enginev:flex-row @4xl/enginev:items-center @4xl/enginev:justify-between @6xl/enginev:flex-col @6xl/enginev:items-stretch">
+      <div data-floating-window-drag-row="true" data-testid="enginev-window-caption-row" className="flex shrink-0 select-none flex-col gap-3 @4xl/enginev:flex-row @4xl/enginev:items-center @4xl/enginev:justify-between @6xl/enginev:flex-col @6xl/enginev:items-stretch">
         <div className="flex min-w-0 flex-col gap-2 @4xl/enginev:flex-row @4xl/enginev:items-center">
           <HeaderLine
             status={props.status}
