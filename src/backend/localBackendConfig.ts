@@ -6,6 +6,7 @@ const logger = createLogger("backend.config")
 export interface LocalBackendConfig {
   baseUrl: string
   token?: string
+  instanceId?: string
 }
 
 declare global {
@@ -24,12 +25,13 @@ export function resolveLocalBackendConfig(): LocalBackendConfig {
   const injected = typeof window !== "undefined" ? window.__XIRANITE_BACKEND__ : undefined
   const baseUrl = injected?.baseUrl ?? import.meta.env.VITE_XIRANITE_BACKEND_URL
   const token = injected?.token ?? import.meta.env.VITE_XIRANITE_BACKEND_TOKEN
+  const instanceId = injected?.instanceId
 
   if (!baseUrl) {
     throw new Error("Xiranite local backend is not configured. Set window.__XIRANITE_BACKEND__ or VITE_XIRANITE_BACKEND_URL.")
   }
 
-  return { baseUrl, token }
+  return { baseUrl, token, instanceId }
 }
 
 export function setLocalBackendConfig(config: Partial<LocalBackendConfig> | null | undefined): LocalBackendConfig | undefined {
@@ -47,18 +49,18 @@ export async function hydrateLocalBackendConfig(options: { refresh?: boolean } =
   if (typeof window === "undefined") return undefined
 
   const existingConfig = normalizeLocalBackendConfig(window.__XIRANITE_BACKEND__)
-  // Status polling must not reread a manifest while a known endpoint is
-  // healthy. A transient Vite file read used to replace this endpoint with a
-  // stale manifest from another development session.
   if (existingConfig && !options.refresh) return existingConfig
 
-  const manifestConfig = await loadDevBackendManifest()
-  if (manifestConfig) {
-    window.__XIRANITE_BACKEND__ = manifestConfig
-    return manifestConfig
-  }
-
   if (existingConfig) return existingConfig
+
+  const environmentConfig = normalizeLocalBackendConfig({
+    baseUrl: import.meta.env.VITE_XIRANITE_BACKEND_URL,
+    token: import.meta.env.VITE_XIRANITE_BACKEND_TOKEN,
+  })
+  if (environmentConfig) {
+    window.__XIRANITE_BACKEND__ = environmentConfig
+    return environmentConfig
+  }
 
   return await hydrateLocalBackendConfigFromDenoDesktop()
     ?? await hydrateLocalBackendConfigFromWails()
@@ -104,30 +106,12 @@ export async function hydrateLocalBackendConfigFromWails(): Promise<LocalBackend
   }
 }
 
-async function loadDevBackendManifest(): Promise<LocalBackendConfig | undefined> {
-  if (!import.meta.env.DEV) return undefined
-
-  const port = window.location.port || (window.location.protocol === "https:" ? "443" : "80")
-  const url = `/.well-known/xiranite/backend-${port}.json`
-  try {
-    const response = await withTimeout(
-      fetch(`${url}?t=${Date.now()}`, { cache: "no-store" }),
-      CONFIG_HYDRATE_TIMEOUT_MS,
-      `Timed out reading dev backend manifest after ${CONFIG_HYDRATE_TIMEOUT_MS}ms`,
-    )
-    if (!response.ok) return undefined
-    return normalizeLocalBackendConfig(await response.json() as Partial<LocalBackendConfig>)
-  } catch (error) {
-    warnHydrateFailure(error)
-  }
-  return undefined
-}
-
 function normalizeLocalBackendConfig(config: Partial<LocalBackendConfig> | null | undefined): LocalBackendConfig | undefined {
   if (!config?.baseUrl) return undefined
   return {
     baseUrl: config.baseUrl,
     token: config.token,
+    instanceId: config.instanceId,
   }
 }
 

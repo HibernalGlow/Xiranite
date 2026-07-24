@@ -21,11 +21,11 @@ import (
 type XiraniteService struct {
 	storageMu         sync.Mutex
 	backendMu         sync.Mutex
+	backendRestartMu  sync.Mutex
 	componentWindowMu sync.Mutex
 	userDataDir       string
 	storageFile       string
 	localBackend      *LocalBackend
-	backendConfig     *LocalBackendConfig
 	trayManager       *desktopTrayManager
 }
 
@@ -96,21 +96,16 @@ type LocalBackendRestartResult struct {
 	Config    *LocalBackendConfig `json:"config,omitempty"`
 }
 
-func NewXiraniteService(localBackend *LocalBackend, backendConfig *LocalBackendConfig) *XiraniteService {
+func NewXiraniteService(localBackend *LocalBackend) *XiraniteService {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		home = "."
 	}
-	if backendConfig == nil {
-		backendConfig = &LocalBackendConfig{}
-	}
-
 	userDataDir := filepath.Join(home, ".xiranite")
 	return &XiraniteService{
-		userDataDir:   userDataDir,
-		storageFile:   filepath.Join(userDataDir, "storage.json"),
-		localBackend:  localBackend,
-		backendConfig: backendConfig,
+		userDataDir:  userDataDir,
+		storageFile:  filepath.Join(userDataDir, "storage.json"),
+		localBackend: localBackend,
 	}
 }
 
@@ -118,14 +113,34 @@ func (s *XiraniteService) LocalBackendConfig() *LocalBackendConfig {
 	s.backendMu.Lock()
 	defer s.backendMu.Unlock()
 
-	if s.backendConfig == nil || s.backendConfig.BaseURL == "" {
+	if s.localBackend == nil || s.localBackend.Config.BaseURL == "" {
 		return nil
 	}
-	config := *s.backendConfig
+	if s.localBackend.external {
+		config := s.localBackend.Config
+		return &config
+	}
+	return &LocalBackendConfig{
+		BaseURL: wailsBackendPublicURL,
+		Token:   s.localBackend.Config.Token,
+	}
+}
+
+func (s *XiraniteService) InternalBackendConfig() *LocalBackendConfig {
+	s.backendMu.Lock()
+	defer s.backendMu.Unlock()
+
+	if s.localBackend == nil || s.localBackend.Config.BaseURL == "" {
+		return nil
+	}
+	config := s.localBackend.Config
 	return &config
 }
 
 func (s *XiraniteService) RestartLocalBackend() (LocalBackendRestartResult, error) {
+	s.backendRestartMu.Lock()
+	defer s.backendRestartMu.Unlock()
+
 	s.backendMu.Lock()
 	current := s.localBackend
 	if current == nil {
@@ -146,7 +161,9 @@ func (s *XiraniteService) RestartLocalBackend() (LocalBackendRestartResult, erro
 	}
 	s.backendMu.Unlock()
 
-	next, err := StartLocalBackend()
+	token := current.Config.Token
+	current.Stop()
+	next, err := startLocalBackend(token)
 	if err != nil {
 		return LocalBackendRestartResult{}, err
 	}
@@ -162,15 +179,9 @@ func (s *XiraniteService) RestartLocalBackend() (LocalBackendRestartResult, erro
 	}
 
 	s.backendMu.Lock()
-	previous := s.localBackend
 	s.localBackend = next
-	*s.backendConfig = next.Config
-	config := next.Config
+	config := LocalBackendConfig{BaseURL: wailsBackendPublicURL, Token: next.Config.Token}
 	s.backendMu.Unlock()
-
-	if previous != nil {
-		previous.Stop()
-	}
 	return LocalBackendRestartResult{
 		Restarted: true,
 		Supported: true,
@@ -180,12 +191,12 @@ func (s *XiraniteService) RestartLocalBackend() (LocalBackendRestartResult, erro
 }
 
 func (s *XiraniteService) StopLocalBackend() {
+	s.backendRestartMu.Lock()
+	defer s.backendRestartMu.Unlock()
+
 	s.backendMu.Lock()
 	backend := s.localBackend
 	s.localBackend = nil
-	if s.backendConfig != nil {
-		*s.backendConfig = LocalBackendConfig{}
-	}
 	s.backendMu.Unlock()
 
 	if backend != nil {

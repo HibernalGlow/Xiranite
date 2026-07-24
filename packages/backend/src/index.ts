@@ -52,6 +52,7 @@ export interface StartBackendOptions extends CreateDefaultBackendOptions {
   hostname?: string
   port?: number
   token?: string
+  publicBaseUrl?: string
   writeClipboardFiles?: (paths: string[]) => Promise<void>
   readClipboardFiles?: () => Promise<string[]>
   clearClipboardFiles?: () => Promise<void>
@@ -128,6 +129,7 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
 export async function startBackend(options: StartBackendOptions = {}) {
   const hostname = options.hostname ?? "127.0.0.1"
   const token = options.token ?? randomToken()
+  const instanceId = randomBytes(12).toString("hex")
   const logSession = createLogSession()
   const logWriter = options.logWriter ?? createBackendLogWriter({
     directory: options.logDirectory,
@@ -171,6 +173,11 @@ export async function startBackend(options: StartBackendOptions = {}) {
       const url = new URL(request.url)
       if (request.method === "OPTIONS") {
         await writeNodeResponse(outgoing, new Response(null, { status: 204 }))
+        return
+      }
+
+      if (url.pathname === "/health") {
+        await writeNodeResponse(outgoing, Response.json({ ok: true, instanceId }))
         return
       }
 
@@ -263,7 +270,7 @@ export async function startBackend(options: StartBackendOptions = {}) {
       }
 
       if (url.pathname.startsWith("/reader/")) {
-        readerController ??= createReaderController(backendUrl, token, backend.resources, {
+        readerController ??= createReaderController(options.publicBaseUrl ?? backendUrl, token, backend.resources, {
           configPath: options.configPath,
           databasePath: options.databasePath ?? backend.database?.path,
           dataDir: options.dataDir,
@@ -294,6 +301,7 @@ export async function startBackend(options: StartBackendOptions = {}) {
   await new Promise<void>((resolveListen) => server.listen(options.port ?? 0, hostname, resolveListen))
   const address = server.address() as AddressInfo
   backendUrl = `http://${hostname}:${address.port}`
+  let closePromise: Promise<void> | undefined
 
   return {
     server,
@@ -303,15 +311,22 @@ export async function startBackend(options: StartBackendOptions = {}) {
     token,
     database: backend.database,
     close(): Promise<void> {
-      const serverClosed = new Promise<void>((resolveClose) => server.close(() => resolveClose()))
-      const readerClosed = readerController
-        ?.then((controller) => controller[Symbol.asyncDispose]())
-        .catch(() => undefined) ?? Promise.resolve()
-      backend.close()
-      const stagingRemoved = stagingDirectory
-        ?.then((directory) => rm(directory, { force: true, recursive: true }))
-        .catch(() => undefined) ?? Promise.resolve()
-      return Promise.all([serverClosed, readerClosed, logWriter.close(), stagingRemoved]).then(() => undefined)
+      closePromise ??= (async () => {
+        const serverClosed = new Promise<void>((resolveClose, rejectClose) => {
+          server.close((error) => error ? rejectClose(error) : resolveClose())
+          server.closeIdleConnections?.()
+          server.closeAllConnections?.()
+        })
+        const readerClosed = readerController
+          ?.then((controller) => controller[Symbol.asyncDispose]())
+          .catch(() => undefined) ?? Promise.resolve()
+        backend.close()
+        const stagingRemoved = stagingDirectory
+          ?.then((directory) => rm(directory, { force: true, recursive: true }))
+          .catch(() => undefined) ?? Promise.resolve()
+        await Promise.all([serverClosed, readerClosed, logWriter.close(), stagingRemoved])
+      })()
+      return closePromise
     },
   }
 }
@@ -790,6 +805,7 @@ export function parseBackendCliArgs(argv: string[] = process.argv.slice(2)): Bac
       hostname: { type: "string" },
       port: { type: "string" },
       token: { type: "string" },
+      "public-base-url": { type: "string" },
       config: { type: "string" },
       "database-url": { type: "string" },
       "database-path": { type: "string" },
@@ -808,6 +824,7 @@ export function parseBackendCliArgs(argv: string[] = process.argv.slice(2)): Bac
     hostname: values.hostname ?? values.host,
     port,
     token: values.token,
+    publicBaseUrl: values["public-base-url"],
     configPath: values.config,
     databaseUrl: values["database-url"],
     databasePath: values["database-path"],
@@ -822,6 +839,7 @@ Options:
   --host, --hostname <host>              Bind host. Default: 127.0.0.1
   --port <port>                          Bind port. Default: random free port
   --token <token>                        Local service auth token
+  --public-base-url <url>                Stable browser-visible gateway origin
   --config <path>                        xiranite.config.toml path override
   --database-url <url>                   libSQL URL. Supports file: and remote libSQL URLs
   --database-path <path>                 Local database file path

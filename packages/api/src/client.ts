@@ -45,7 +45,7 @@ export interface LocalBackendRestartResult {
 }
 
 export interface XiraniteSystemClient {
-  health(): Promise<{ ok: boolean }>
+  health(): Promise<{ ok: boolean; instanceId?: string }>
   restartBackend(): Promise<LocalBackendRestartResult>
   getNodeSourceHotReload(): Promise<{ supported: boolean; enabled: boolean }>
   setNodeSourceHotReload(enabled: boolean): Promise<{ supported: boolean; enabled: boolean }>

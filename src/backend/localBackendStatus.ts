@@ -28,40 +28,21 @@ export async function checkLocalBackendStatus(timeoutMs = DEFAULT_HEALTH_TIMEOUT
     }
   }
 
-  // The dev supervisor replaces the in-process backend and updates the
-  // port-scoped manifest while the desktop host keeps its startup config.
-  // Prefer the manifest before probing so a still-draining old endpoint does
-  // not keep the UI attached to sessions that no longer exist.
-  const refreshedConfig = await hydrateLocalBackendConfig({ refresh: true })
-  if (refreshedConfig) config = refreshedConfig
-
   try {
-    await checkHealth(config, timeoutMs)
+    const health = await checkHealth(config, timeoutMs)
+    if (health.instanceId) config = { ...config, instanceId: health.instanceId }
     return { status: "ready", runtime, config }
   } catch (error) {
-    const recoveryConfig = await hydrateLocalBackendConfig({ refresh: true })
-    if (recoveryConfig && !sameConfig(config, recoveryConfig)) {
-      try {
-        await checkHealth(recoveryConfig, timeoutMs)
-        return { status: "ready", runtime, config: recoveryConfig }
-      } catch (refreshError) {
-        return unreachable(runtime, recoveryConfig, refreshError)
-      }
-    }
     return unreachable(runtime, config, error)
   }
 }
 
-async function checkHealth(config: LocalBackendConfig, timeoutMs: number): Promise<void> {
-  await withTimeout(
+async function checkHealth(config: LocalBackendConfig, timeoutMs: number): Promise<{ ok: boolean; instanceId?: string }> {
+  return await withTimeout(
     createXiraniteSystemClient(config.baseUrl, { token: config.token }).health(),
     timeoutMs,
     `Local backend health check timed out after ${timeoutMs}ms`,
   )
-}
-
-function sameConfig(left: LocalBackendConfig, right: LocalBackendConfig): boolean {
-  return left.baseUrl === right.baseUrl && left.token === right.token
 }
 
 function unreachable(runtime: RuntimeConnectionInfo, config: LocalBackendConfig, error: unknown): LocalBackendStatus {

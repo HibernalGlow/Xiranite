@@ -34,14 +34,10 @@ func main() {
 		log.Printf("Xiranite frontend dev proxy active; local backend startup is delegated to the Vite dev server")
 	}
 
-	backendConfig := &LocalBackendConfig{}
-	if localBackend != nil {
-		*backendConfig = localBackend.Config
-	}
-	service := NewXiraniteService(localBackend, backendConfig)
+	service := NewXiraniteService(localBackend)
 	defer service.StopLocalBackend()
 	bridge, err := nexusbridge.StartServer(func() *nexusbridge.BackendConfig {
-		config := service.LocalBackendConfig()
+		config := service.InternalBackendConfig()
 		if config == nil {
 			return nil
 		}
@@ -64,7 +60,7 @@ func main() {
 		},
 		Assets: application.AssetOptions{
 			Handler:    application.AssetFileServerFS(assets),
-			Middleware: backendConfigMiddleware(backendConfig),
+			Middleware: backendGatewayMiddleware(service.InternalBackendConfig, service.LocalBackendConfig),
 		},
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,

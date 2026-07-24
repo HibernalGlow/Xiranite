@@ -3,7 +3,6 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const DEFAULT_FRONTEND_PORT = 5173
-const MAX_PORT_ATTEMPTS = 100
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
 export interface DevFrontendEnvironment {
@@ -20,20 +19,19 @@ export async function resolveManagedFrontendUrl(
     const port = Number(url.port || (url.protocol === "https:" ? "443" : "80"))
     if (!(await canListen(url.hostname === "localhost" ? "127.0.0.1" : url.hostname, port))) {
       throw new Error(
-        `FRONTEND_DEVSERVER_URL port ${port} is already in use. Stop the occupying process or unset FRONTEND_DEVSERVER_URL so XR can pick a free port.`,
+        `FRONTEND_DEVSERVER_URL port ${port} is already in use. Stop the occupying process or choose another explicit URL.`,
       )
     }
     return url.href.replace(/\/$/, "")
   }
 
   const preferredPort = parsePreferredPort(environment.XIRANITE_FRONTEND_PORT)
-  for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset += 1) {
-    const port = preferredPort + offset
-    if (port > 65_535) break
-    if (await canListen("127.0.0.1", port)) return `http://127.0.0.1:${port}`
+  if (!(await canListen("127.0.0.1", preferredPort))) {
+    throw new Error(
+      `Xiranite frontend port ${preferredPort} is already in use. Stop the occupying process or set XIRANITE_FRONTEND_PORT explicitly.`,
+    )
   }
-
-  throw new Error(`No available frontend port found from ${preferredPort}.`)
+  return `http://127.0.0.1:${preferredPort}`
 }
 
 /**

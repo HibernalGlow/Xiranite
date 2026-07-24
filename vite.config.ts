@@ -1,13 +1,17 @@
 /// <reference types="vitest" />
 import path from "path"
 import { readFile, mkdir, writeFile } from "node:fs/promises"
+import { request as httpRequest } from "node:http"
+import { request as httpsRequest } from "node:https"
 import tailwindcss from "@tailwindcss/vite"
 import { Scanner } from "@tailwindcss/oxide"
 import react from "@vitejs/plugin-react"
+import type { ViteDevServer } from "vite"
 import { defineConfig } from "vitest/config"
 import { collectLucideIconExports, rewriteLucideDeepImports } from "./scripts/lucide-deep-imports"
 import { reactCompilerModeForCommand } from "./scripts/react-compiler-mode"
 import { VITE_EAGER_DEPENDENCIES, VITE_EXCLUDED_DEPENDENCIES } from "./scripts/vite-dependency-policy"
+import { isBackendGatewayPath, readBackendGatewayTarget } from "./scripts/backend-gateway"
 
 const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
@@ -88,6 +92,66 @@ function lucideDeepImportsPlugin() {
   }
 }
 
+export function backendGatewayPlugin(
+  targetPath = process.env.XIRANITE_BACKEND_GATEWAY_TARGET?.trim(),
+) {
+  return {
+    name: "xiranite:backend-gateway",
+    apply: "serve" as const,
+    configureServer(server: ViteDevServer) {
+      if (!targetPath) return
+      server.middlewares.use((request, response, next) => {
+        const requestUrl = new URL(request.url ?? "/", "http://xiranite.local")
+        if (!isBackendGatewayPath(requestUrl.pathname)) {
+          next()
+          return
+        }
+
+        void readBackendGatewayTarget(targetPath).then((target) => {
+          const destination = new URL(request.url ?? "/", target.baseUrl)
+          const send = destination.protocol === "https:" ? httpsRequest : httpRequest
+          const proxyRequest = send(destination, {
+            method: request.method,
+            headers: { ...request.headers, connection: "close" },
+            agent: false,
+          }, (proxyResponse) => {
+            response.writeHead(proxyResponse.statusCode ?? 502, backendGatewayResponseHeaders(proxyResponse.headers))
+            proxyResponse.pipe(response)
+          })
+          proxyRequest.on("error", (error) => {
+            if (response.headersSent || response.writableEnded) return
+            response.writeHead(502, { "content-type": "text/plain; charset=utf-8" })
+            response.end(`Xiranite backend gateway failed: ${error.message}`)
+          })
+          request.on("aborted", () => proxyRequest.destroy())
+          request.pipe(proxyRequest)
+        }).catch((error: unknown) => {
+          if (response.headersSent || response.writableEnded) return
+          response.writeHead(503, { "content-type": "text/plain; charset=utf-8", "retry-after": "1" })
+          response.end(`Xiranite backend gateway is unavailable: ${error instanceof Error ? error.message : String(error)}`)
+        })
+      })
+    },
+  }
+}
+
+function backendGatewayResponseHeaders(
+  headers: import("node:http").IncomingHttpHeaders,
+): import("node:http").OutgoingHttpHeaders {
+  const forwarded = { ...headers }
+  for (const name of [
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+  ]) delete forwarded[name]
+  return forwarded
+}
+
 function reactCompilerBabelOptions(command: "build" | "serve") {
   const mode = reactCompilerModeForCommand(command)
   return mode === "off" ? undefined : { plugins: [["babel-plugin-react-compiler", { compilationMode: mode }]] }
@@ -104,6 +168,7 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [
     developmentCjsShimPlugin(),
+    backendGatewayPlugin(),
     lucideDeepImportsPlugin(),
     tailwindCandidateSnapshotPlugin(),
     productionChunkReportPlugin(),

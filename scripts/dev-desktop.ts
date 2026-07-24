@@ -1,4 +1,5 @@
-import { removeBackendDevManifest, writeBackendDevManifest } from "./backend-dev-manifest"
+import { randomBytes } from "node:crypto"
+import { backendGatewayTargetPath, removeBackendGatewayTarget, writeBackendGatewayTarget } from "./backend-gateway"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
 import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness"
@@ -24,38 +25,67 @@ const frontendUrl = await resolveManagedFrontendUrl()
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
 const viteCacheDir = managedViteCacheDir(frontendUrl)
+const gatewayTargetPath = backendGatewayTargetPath(frontendUrl)
+const backendToken = randomBytes(24).toString("base64url")
 
 type DevBackend = Awaited<ReturnType<typeof startBackend>>
 
 let backend: DevBackend | null = null
 let neoviewWatcher: NeoviewBackendWatcher | null = null
+let restartQueue = Promise.resolve()
+let scheduledRestart: ReturnType<typeof setTimeout> | undefined
 
 async function startManagedBackend(): Promise<DevBackend> {
   return await startBackend({
+    token: backendToken,
+    publicBaseUrl: frontendUrl,
     system: {
-      restartBackend: restartBackendFromDevScript,
+      restartBackend: scheduleBackendRestartFromHttp,
     },
   })
 }
 
 async function restartBackendFromDevScript() {
-  const previous = backend
-  invalidateDevelopmentSourceModules()
-  const next = await startManagedBackend()
-  backend = next
-  await writeBackendDevManifest({ baseUrl: next.url, token: next.token }, frontendUrl)
-  console.log(`[xiranite-backend:restart] ${next.url}`)
-  if (previous) setTimeout(() => previous.close(), 250)
+  const restart = restartQueue.then(async () => {
+    const previous = backend
+    backend = null
+    await removeBackendGatewayTarget(frontendUrl)
+    await previous?.close()
+    invalidateDevelopmentSourceModules()
+    const next = await startManagedBackend()
+    backend = next
+    await writeBackendGatewayTarget({ baseUrl: next.url, token: next.token }, frontendUrl)
+    console.log(`[xiranite-backend:restart] ${next.url}`)
+    return {
+      restarted: true,
+      supported: true,
+      message: "Local backend restarted by the desktop dev supervisor.",
+      config: { baseUrl: frontendUrl, token: backendToken },
+    }
+  })
+  restartQueue = restart.then(() => undefined, () => undefined)
+  return await restart
+}
+
+async function scheduleBackendRestartFromHttp() {
+  if (!scheduledRestart) {
+    scheduledRestart = setTimeout(() => {
+      scheduledRestart = undefined
+      void restartBackendFromDevScript().catch((error) => {
+        console.error("[xiranite-backend:restart] scheduled restart failed", error)
+      })
+    }, 250)
+  }
   return {
-    restarted: true,
+    restarted: false,
     supported: true,
-    message: "Local backend restarted by the desktop dev supervisor.",
-    config: { baseUrl: next.url, token: next.token },
+    message: "Local backend restart scheduled by the desktop dev supervisor.",
+    config: { baseUrl: frontendUrl, token: backendToken },
   }
 }
 
 backend = await startManagedBackend()
-await writeBackendDevManifest({ baseUrl: backend.url, token: backend.token }, frontendUrl)
+await writeBackendGatewayTarget({ baseUrl: backend.url, token: backend.token }, frontendUrl)
 neoviewWatcher = watchNeoviewBackendSource(restartBackendFromDevScript)
 console.log(`[xiranite-backend] ${backend.url}`)
 console.log(`[xiranite-frontend] ${frontendUrl}`)
@@ -76,8 +106,9 @@ const vite = spawnManagedVite([
   stderr: "inherit",
   env: {
     ...viteDevelopmentEnvironment(viteMode),
-    VITE_XIRANITE_BACKEND_URL: backend.url,
-    VITE_XIRANITE_BACKEND_TOKEN: backend.token,
+    VITE_XIRANITE_BACKEND_URL: frontendUrl,
+    VITE_XIRANITE_BACKEND_TOKEN: backendToken,
+    XIRANITE_BACKEND_GATEWAY_TARGET: gatewayTargetPath,
     VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,
     XIRANITE_VITE_CACHE_DIR: viteCacheDir,
   },
@@ -90,9 +121,11 @@ async function stop() {
   if (stopping) return
   stopping = true
   neoviewWatcher?.close()
-  backend?.close()
+  if (scheduledRestart) clearTimeout(scheduledRestart)
+  await restartQueue
+  await backend?.close()
   await Promise.all([stopProcessTree(vite), ...(go ? [stopProcessTree(go)] : [])])
-  await Promise.all([removeBackendDevManifest(frontendUrl), removeDevSession()])
+  await Promise.all([removeBackendGatewayTarget(frontendUrl), removeDevSession()])
 }
 
 await writeDevSession({
@@ -130,8 +163,8 @@ try {
     env: {
       ...Bun.env,
       FRONTEND_DEVSERVER_URL: frontendUrl,
-      XIRANITE_BACKEND_URL: backend.url,
-      XIRANITE_BACKEND_TOKEN: backend.token,
+      XIRANITE_BACKEND_URL: frontendUrl,
+      XIRANITE_BACKEND_TOKEN: backendToken,
     },
   })
   await writeDevSession({
