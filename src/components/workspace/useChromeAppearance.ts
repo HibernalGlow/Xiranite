@@ -1,4 +1,5 @@
 import { useWorkspaceShallowSelector } from "@/store/workspaceStore"
+import type { ChromeActionPreferenceKey } from "./chromeActionPreferences"
 
 export interface ChromeAppearance {
   visible: boolean
@@ -8,6 +9,8 @@ export interface ChromeAppearance {
   islandMotion: number
   islandDelay: number
   islandIdleOffset: number
+  actionOrder: ChromeActionPreferenceKey[]
+  hiddenActions: ChromeActionPreferenceKey[]
 }
 
 export function useChromeAppearance(): ChromeAppearance {
@@ -19,5 +22,7 @@ export function useChromeAppearance(): ChromeAppearance {
     islandMotion: store.chromeIslandMotion,
     islandDelay: store.chromeIslandDelay,
     islandIdleOffset: store.chromeIslandIdleOffset,
+    actionOrder: store.chromeActionOrder,
+    hiddenActions: store.chromeHiddenActions,
   }))
 }

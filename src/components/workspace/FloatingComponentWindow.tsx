@@ -22,9 +22,11 @@ interface Props {
 export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: Props) {
   const { t } = useTranslation()
   const comp = useWorkspaceComponent(compId)
-  const { activeCustomThemeName, activeWorkspaceId, theme, zCounter } = useWorkspaceShallowSelector((state) => ({
+  const { activeCustomThemeName, activeWorkspaceId, floatingWindowCaptionPosition, floatingWindowCaptionStyle, theme, zCounter } = useWorkspaceShallowSelector((state) => ({
     activeCustomThemeName: state.activeCustomThemeName,
     activeWorkspaceId: state.activeWorkspaceId,
+    floatingWindowCaptionPosition: state.floatingWindowCaptionPosition,
+    floatingWindowCaptionStyle: state.floatingWindowCaptionStyle,
     theme: state.theme,
     zCounter: state.zCounter,
   }))
@@ -113,15 +115,23 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
   }, [])
 
   const frame = useMemo(() => ({
+    captionAppearance: moduleId === "neoview" ? undefined : {
+      position: floatingWindowCaptionPosition,
+      style: floatingWindowCaptionStyle,
+    },
     isMaximized,
     pending: controlMainPending,
     control: (action: MainWindowAction) => void controlWindow(action === "maximize" ? maximizeAction : action),
     handleTitlebarDoubleClick: handleTitleBarDoubleClick,
     registerIntegratedTitlebar,
-  }), [controlMainPending, controlWindow, handleTitleBarDoubleClick, isMaximized, maximizeAction, registerIntegratedTitlebar])
+  }), [controlMainPending, controlWindow, floatingWindowCaptionPosition, floatingWindowCaptionStyle, handleTitleBarDoubleClick, isMaximized, maximizeAction, moduleId, registerIntegratedTitlebar])
 
   const content = (
-    <div className={cn("xiranite-floating-window relative flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}>
+    <div
+      data-floating-window-caption-position={moduleId === "neoview" ? undefined : floatingWindowCaptionPosition}
+      data-floating-window-caption-style={moduleId === "neoview" ? undefined : floatingWindowCaptionStyle}
+      className={cn("xiranite-floating-window relative flex h-screen flex-col overflow-hidden bg-background text-foreground", themeClass)}
+    >
       <main className="min-h-0 flex-1 overflow-hidden">
         {moduleId ? (
           <ModuleRenderer moduleId={moduleId} compId={compId} />
@@ -132,15 +142,19 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
         )}
       </main>
       {showNativeWindowChrome && integratedTitlebars === 0 ? (
-        <>
-          <div
-            aria-hidden="true"
-            data-testid="floating-window-fallback-drag-region"
-            onDoubleClick={handleTitleBarDoubleClick}
-            className="xiranite-app-region-drag absolute inset-x-0 top-0 z-40 h-10 select-none"
-          />
-          <FloatingWindowCaptionControls className="absolute right-0 top-0 z-50 h-10 bg-background/90 backdrop-blur-sm" />
-        </>
+        moduleId === "neoview" ? (
+          <>
+            <div
+              aria-hidden="true"
+              data-testid="floating-window-fallback-drag-region"
+              onDoubleClick={handleTitleBarDoubleClick}
+              className="xiranite-app-region-drag absolute inset-x-0 top-0 z-40 h-10 select-none"
+            />
+            <FloatingWindowCaptionControls className="absolute right-0 top-0 z-50 h-10 bg-background/90 backdrop-blur-sm" />
+          </>
+        ) : (
+          <FloatingWindowCaptionControls />
+        )
       ) : null}
     </div>
   )

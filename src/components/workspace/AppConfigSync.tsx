@@ -12,6 +12,7 @@ import type { OverlayFloatingMetrics, WorkspaceUiPreferences } from "@/store/wor
 import type { AppCustomTheme, AppFontPreset, AppTheme, CardLayout } from "@/types/workspace"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { createLogger } from "@/lib/logger"
+import { normalizeChromeActionOrder, normalizeChromeHiddenActions } from "./chromeActionPreferences"
 
 const logger = createLogger("config.sync")
 
@@ -53,6 +54,8 @@ const CARD_LAYOUTS = new Set<CardLayout>(["grid", "stack", "split", "focus"])
 const BG_MODES = new Set<WorkspaceUiPreferences["bgMode"]>(["grid", "dot-grid", "image", "none"])
 const CHROME_POSITIONS = new Set<WorkspaceUiPreferences["chromePosition"]>(["left", "right", "island"])
 const CHROME_STYLES = new Set<WorkspaceUiPreferences["chromeStyle"]>(["default", "traffic-light"])
+const FLOATING_WINDOW_CAPTION_POSITIONS = new Set<WorkspaceUiPreferences["floatingWindowCaptionPosition"]>(["left", "island", "right"])
+const FLOATING_WINDOW_CAPTION_STYLES = new Set<WorkspaceUiPreferences["floatingWindowCaptionStyle"]>(["capsule", "traffic-light"])
 const ALPHABET_INDEX_STYLES = new Set<WorkspaceUiPreferences["alphabetIndexStyle"]>(["glass", "solid", "minimal"])
 const MODULE_TITLE_STYLES = new Set<WorkspaceUiPreferences["moduleTitleStyle"]>(["legend", "inline", "bar", "minimal"])
 const MODULE_PANEL_STYLES = new Set<WorkspaceUiPreferences["modulePanelStyle"]>(["soft", "solid", "outline", "flat"])
@@ -432,6 +435,10 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     chromeIslandMotion: state.chromeIslandMotion,
     chromeIslandDelay: state.chromeIslandDelay,
     chromeIslandIdleOffset: state.chromeIslandIdleOffset,
+    chromeActionOrder: state.chromeActionOrder,
+    chromeHiddenActions: state.chromeHiddenActions,
+    floatingWindowCaptionPosition: state.floatingWindowCaptionPosition,
+    floatingWindowCaptionStyle: state.floatingWindowCaptionStyle,
     alphabetIndexVisible: state.alphabetIndexVisible,
     alphabetIndexOpacity: state.alphabetIndexOpacity,
     alphabetIndexStyle: state.alphabetIndexStyle,
@@ -538,6 +545,10 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (typeof value.chromeIslandMotion === "number") next.chromeIslandMotion = value.chromeIslandMotion
   if (typeof value.chromeIslandDelay === "number") next.chromeIslandDelay = value.chromeIslandDelay
   if (typeof value.chromeIslandIdleOffset === "number") next.chromeIslandIdleOffset = value.chromeIslandIdleOffset
+  if (Array.isArray(value.chromeActionOrder)) next.chromeActionOrder = normalizeChromeActionOrder(value.chromeActionOrder)
+  if (Array.isArray(value.chromeHiddenActions)) next.chromeHiddenActions = normalizeChromeHiddenActions(value.chromeHiddenActions)
+  if (isOneOf(value.floatingWindowCaptionPosition, FLOATING_WINDOW_CAPTION_POSITIONS)) next.floatingWindowCaptionPosition = value.floatingWindowCaptionPosition
+  if (isOneOf(value.floatingWindowCaptionStyle, FLOATING_WINDOW_CAPTION_STYLES)) next.floatingWindowCaptionStyle = value.floatingWindowCaptionStyle
   if (typeof value.alphabetIndexVisible === "boolean") next.alphabetIndexVisible = value.alphabetIndexVisible
   if (typeof value.alphabetIndexOpacity === "number") next.alphabetIndexOpacity = value.alphabetIndexOpacity
   if (isOneOf(value.alphabetIndexStyle, ALPHABET_INDEX_STYLES)) next.alphabetIndexStyle = value.alphabetIndexStyle

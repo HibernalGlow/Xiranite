@@ -11,6 +11,10 @@ import { cn } from "@/lib/utils"
 import { WindowControlIcon } from "./WindowControlIcon"
 
 interface FloatingWindowFrameValue {
+  captionAppearance?: {
+    position: "left" | "right" | "island"
+    style: "capsule" | "traffic-light"
+  }
   isMaximized: boolean
   pending: boolean
   control: (action: MainWindowAction) => void
@@ -66,9 +70,9 @@ export function FloatingWindowNodeHeader({ children, className }: {
     <div
       data-floating-window-titlebar="true"
       onDoubleClick={frame.handleTitlebarDoubleClick}
-      className={cn("flex min-w-0 items-stretch justify-between gap-3", className)}
+      className={cn("xiranite-app-region-drag flex min-w-0 flex-1 self-stretch select-none items-stretch", className)}
     >
-      <div className="xiranite-app-region-drag flex min-w-0 flex-1 select-none items-center">
+      <div className="flex min-w-0 flex-1 items-center">
         {children}
       </div>
       <FloatingWindowCaptionControls integrated />
@@ -76,7 +80,16 @@ export function FloatingWindowNodeHeader({ children, className }: {
   )
 }
 
-export function FloatingWindowCaptionControls({ className, integrated = false, density = "default" }: {
+export function FloatingWindowCaptionControls({
+  appearance,
+  className,
+  integrated = false,
+  density = "default",
+}: {
+  appearance?: {
+    position: "left" | "right" | "island"
+    style: "capsule" | "traffic-light"
+  }
   className?: string
   integrated?: boolean
   density?: "default" | "compact"
@@ -91,26 +104,93 @@ export function FloatingWindowCaptionControls({ className, integrated = false, d
 
   if (!frame) return null
 
-  const buttonClass = cn(
-    "grid place-items-center text-foreground/70 transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45",
-    density === "compact" ? "min-h-7 w-8" : "min-h-9 w-11",
-  )
+  const resolvedAppearance = appearance ?? frame.captionAppearance
+  if (!resolvedAppearance) {
+    const buttonClass = cn(
+      "grid place-items-center text-foreground/70 transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45",
+      density === "compact" ? "min-h-7 w-8" : "min-h-9 w-11",
+    )
+
+    return (
+      <div
+        data-testid={integrated ? "floating-window-integrated-controls" : "floating-window-fallback-controls"}
+        data-window-caption-density={density}
+        className={cn("xiranite-app-region-no-drag flex shrink-0 self-stretch items-stretch", className)}
+      >
+        <button data-window-caption-button data-window-control-action="minimize" type="button" title={t("common:minimize")} aria-label={t("common:minimize")} disabled={frame.pending} onClick={() => frame.control("minimize")} className={buttonClass}>
+          <WindowControlIcon action="minimize" />
+        </button>
+        <button data-window-caption-button data-window-control-action="maximize" type="button" title={t("common:maximize")} aria-label={t("common:maximize")} aria-pressed={frame.isMaximized} disabled={frame.pending} onClick={() => frame.control("maximize")} className={buttonClass}>
+          <WindowControlIcon action="maximize" maximized={frame.isMaximized} />
+        </button>
+        <button data-window-caption-button data-window-control-action="close" data-window-caption-tone="close" type="button" title={t("common:closeWindow")} aria-label={t("common:closeWindow")} disabled={frame.pending} onClick={() => frame.control("close")} className={cn(buttonClass, "hover:bg-[#c42b1c] hover:text-white")}>
+          <WindowControlIcon action="close" />
+        </button>
+      </div>
+    )
+  }
+
+  const trafficLight = resolvedAppearance?.style === "traffic-light"
+  const positionClass = resolvedAppearance?.position === "left"
+    ? "left-1.5"
+    : resolvedAppearance?.position === "island"
+      ? "left-1/2 -translate-x-1/2"
+      : resolvedAppearance
+        ? "right-1.5"
+        : undefined
+  const actions: Array<{ action: "minimize" | "maximize" | "close"; label: string; maximized?: boolean }> = [
+    { action: "minimize", label: t("common:minimize") },
+    { action: "maximize", label: t("common:maximize"), maximized: frame.isMaximized },
+    { action: "close", label: t("common:closeWindow") },
+  ]
+  if (trafficLight) actions.unshift(actions.pop()!)
 
   return (
     <div
       data-testid={integrated ? "floating-window-integrated-controls" : "floating-window-fallback-controls"}
       data-window-caption-density={density}
-      className={cn("xiranite-app-region-no-drag flex shrink-0 self-stretch items-stretch", className)}
+      data-window-caption-position={resolvedAppearance?.position ?? "inline"}
+      data-window-caption-style={resolvedAppearance?.style ?? "native"}
+      className={cn(
+        "xiranite-app-region-no-drag group/caption flex shrink-0 items-center bg-transparent",
+        resolvedAppearance && "fixed top-1.5 z-50 h-7",
+        trafficLight ? "gap-1.5 rounded-full px-1.5" : resolvedAppearance ? "gap-0.5 rounded-full p-0.5" : "self-stretch items-stretch",
+        positionClass,
+        className,
+      )}
     >
-      <button data-window-caption-button data-window-control-action="minimize" type="button" title={t("common:minimize")} aria-label={t("common:minimize")} disabled={frame.pending} onClick={() => frame.control("minimize")} className={buttonClass}>
-        <WindowControlIcon action="minimize" />
-      </button>
-      <button data-window-caption-button data-window-control-action="maximize" type="button" title={t("common:maximize")} aria-label={t("common:maximize")} aria-pressed={frame.isMaximized} disabled={frame.pending} onClick={() => frame.control("maximize")} className={buttonClass}>
-        <WindowControlIcon action="maximize" maximized={frame.isMaximized} />
-      </button>
-      <button data-window-caption-button data-window-control-action="close" data-window-caption-tone="close" type="button" title={t("common:closeWindow")} aria-label={t("common:closeWindow")} disabled={frame.pending} onClick={() => frame.control("close")} className={cn(buttonClass, "hover:bg-[#c42b1c] hover:text-white")}>
-        <WindowControlIcon action="close" />
-      </button>
+      {actions.map(({ action, label, maximized }) => (
+        <button
+          key={action}
+          data-window-caption-button
+          data-window-control-action={action}
+          data-window-caption-tone={action === "close" ? "close" : undefined}
+          type="button"
+          title={label}
+          aria-label={label}
+          aria-pressed={action === "maximize" ? frame.isMaximized : undefined}
+          disabled={frame.pending}
+          onClick={() => frame.control(action)}
+          className={cn(
+            "grid place-items-center transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45",
+            trafficLight
+              ? "size-3.5 rounded-full [&_svg]:size-2.5"
+              : resolvedAppearance
+                ? "h-7 w-8 rounded-full text-foreground/70 hover:bg-muted/70 hover:text-foreground"
+                : density === "compact"
+                  ? "min-h-7 w-8 text-foreground/70 hover:bg-muted/70 hover:text-foreground"
+                  : "min-h-9 w-11 text-foreground/70 hover:bg-muted/70 hover:text-foreground",
+            trafficLight && action === "close" && "bg-red-500/80 text-white hover:bg-red-500",
+            trafficLight && action === "minimize" && "bg-yellow-500/80 text-black hover:bg-yellow-500",
+            trafficLight && action === "maximize" && "bg-emerald-500/80 text-black hover:bg-emerald-500",
+            !trafficLight && action === "close" && "hover:bg-[#c42b1c] hover:text-white",
+          )}
+        >
+          <span className={cn(trafficLight && "opacity-0 transition-opacity group-hover/caption:opacity-100 group-focus-within/caption:opacity-100")}>
+            <WindowControlIcon action={action} maximized={maximized} />
+          </span>
+        </button>
+      ))}
     </div>
   )
 }

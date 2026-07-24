@@ -145,6 +145,7 @@ function ComponentCardInner({ comp, layout, cardLayout: _cardLayout, isLayoutRes
     }] : []),
     ...(isFocusedState ? [{
       key: "exitFocus",
+      preferenceKey: "focus" as const,
       label: t("common:exitFocus"),
       icon: <Minimize2 className="h-3 w-3" />,
       tone: "neutral" as const,

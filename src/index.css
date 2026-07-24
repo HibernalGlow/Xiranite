@@ -91,7 +91,9 @@ samp {
 }
 
 .xiranite-floating-window .xiranite-app-region-drag,
-.xiranite-floating-window .xiranite-app-region-drag * {
+.xiranite-floating-window .xiranite-app-region-drag *,
+.xiranite-floating-window [data-floating-window-drag-row="true"],
+.xiranite-floating-window [data-floating-window-drag-row="true"] * {
   --wails-draggable: drag;
   -webkit-app-region: drag;
 }
@@ -100,6 +102,34 @@ samp {
 .xiranite-floating-window .xiranite-app-region-no-drag * {
   --wails-draggable: no-drag;
   -webkit-app-region: no-drag;
+}
+
+.xiranite-floating-window :is([data-floating-window-titlebar="true"], [data-floating-window-drag-row="true"]) :is(button, a, input, textarea, select, [role="button"], [draggable="true"]),
+.xiranite-floating-window :is([data-floating-window-titlebar="true"], [data-floating-window-drag-row="true"]) :is(button, a, input, textarea, select, [role="button"], [draggable="true"]) * {
+  --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+.xiranite-floating-window[data-floating-window-caption-style="capsule"] {
+  --xiranite-window-caption-inline-size: 6.75rem;
+}
+
+.xiranite-floating-window[data-floating-window-caption-style="traffic-light"] {
+  --xiranite-window-caption-inline-size: 4.75rem;
+}
+
+.xiranite-floating-window[data-floating-window-caption-position="right"] :is(
+  [data-floating-window-drag-row="true"],
+  [data-floating-window-titlebar="true"]:not([data-floating-window-drag-row="true"] [data-floating-window-titlebar="true"])
+) {
+  padding-right: var(--xiranite-window-caption-inline-size);
+}
+
+.xiranite-floating-window[data-floating-window-caption-position="left"] :is(
+  [data-floating-window-drag-row="true"],
+  [data-floating-window-titlebar="true"]:not([data-floating-window-drag-row="true"] [data-floating-window-titlebar="true"])
+) {
+  padding-left: var(--xiranite-window-caption-inline-size);
 }
 
 .xiranite-floating-window [data-reader-window-drag-region="true"] :is(button, a, input, textarea, select, [role="button"], [draggable="true"]),

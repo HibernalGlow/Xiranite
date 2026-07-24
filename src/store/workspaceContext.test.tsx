@@ -45,6 +45,10 @@ describe("workspace UI preference persistence", () => {
     expect(persisted.state?.tabDisplayStyle).toBe("boxed")
     expect(persisted.state?.switchDisplayStyle).toBe("filled")
     expect(persisted.state?.scrollbarDisplayStyle).toBe("solid")
+    expect(persisted.state?.chromeActionOrder).toEqual(["hide", "focus", "collapse", "node-help", "fullscreen", "float", "moveToView", "keepAliveOnViewSwitch"])
+    expect(persisted.state?.chromeHiddenActions).toEqual(["collapse"])
+    expect(persisted.state?.floatingWindowCaptionPosition).toBe("island")
+    expect(persisted.state?.floatingWindowCaptionStyle).toBe("traffic-light")
     expect(persisted.state?.workspaces).toBeUndefined()
     expect(persisted.state?.components).toBeUndefined()
     expect(localStorage.getItem("xiranite-bg-mode")).toBeNull()
@@ -175,6 +179,9 @@ function WorkspacePreferenceProbe() {
           workspaceActions.setTabDisplayStyle("boxed")
           workspaceActions.setSwitchDisplayStyle("filled")
           workspaceActions.setScrollbarDisplayStyle("solid")
+          workspaceActions.setChromeActionPreferences(["hide", "focus", "collapse"], ["collapse"])
+          workspaceActions.setFloatingWindowCaptionPosition("island")
+          workspaceActions.setFloatingWindowCaptionStyle("traffic-light")
         }}
       >
         set persisted prefs

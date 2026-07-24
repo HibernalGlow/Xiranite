@@ -1,9 +1,26 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { createCapabilityAdapters, NodeConfigPopover } from "./NodeConfigPopover"
+import { NodeRuntimeProvider } from "./NodeRuntimeContext"
+
+const configRpc = vi.hoisted(() => ({
+  getNodeUiConfigFromBackend: vi.fn(),
+  saveNodeUiConfigToBackend: vi.fn(),
+}))
+
+vi.mock("@/backend/configRpcClient", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/backend/configRpcClient")>(),
+  ...configRpc,
+}))
+
+beforeEach(() => {
+  window.localStorage.clear()
+  configRpc.getNodeUiConfigFromBackend.mockResolvedValue({ config: undefined, path: "D:/config/xiranite.config.toml" })
+  configRpc.saveNodeUiConfigToBackend.mockResolvedValue(undefined)
+})
 
 afterEach(() => {
   cleanup()
@@ -11,6 +28,126 @@ afterEach(() => {
 })
 
 describe("NodeConfigPopover configuration center", () => {
+  test("keeps the dialog on left click and exposes common configuration actions on right click", async () => {
+    const onClearOverride = vi.fn()
+    const onOpenFile = vi.fn()
+    const onReload = vi.fn()
+    const onRestore = vi.fn()
+    const onSave = vi.fn()
+    const user = userEvent.setup()
+
+    renderWithProviders(<NodeConfigPopover
+      configPath="D:/config/xiranite.config.toml"
+      dirty={true}
+      defaults={{ format: "AVIF" }}
+      triggerLabel="Xlchemy configuration"
+      t={translate}
+      onClearOverride={onClearOverride}
+      onOpenFile={onOpenFile}
+      onReload={onReload}
+      onRestore={onRestore}
+      onSave={onSave}
+    />)
+
+    const trigger = screen.getByRole("button", { name: "Xlchemy configuration" })
+    fireEvent.contextMenu(trigger, { clientX: 48, clientY: 64 })
+
+    expect(screen.queryByRole("dialog", { name: "Xlchemy configuration" })).toBeNull()
+    expect(await screen.findByRole("menuitem", { name: "Save as default" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "Restore saved configuration" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "Clear override" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "Reload from TOML" })).toBeTruthy()
+    expect(screen.getByRole("menuitem", { name: "Open TOML file" })).toBeTruthy()
+
+    await user.click(screen.getByRole("menuitem", { name: "Save as default" }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+
+    fireEvent.contextMenu(trigger, { clientX: 48, clientY: 64 })
+    await user.click(await screen.findByRole("menuitem", { name: "Restore saved configuration" }))
+    await waitFor(() => expect(onRestore).toHaveBeenCalledTimes(1))
+
+    fireEvent.contextMenu(trigger, { clientX: 48, clientY: 64 })
+    await user.click(await screen.findByRole("menuitem", { name: "Clear override" }))
+    await waitFor(() => expect(onClearOverride).toHaveBeenCalledTimes(1))
+
+    fireEvent.contextMenu(trigger, { clientX: 48, clientY: 64 })
+    await user.click(await screen.findByRole("menuitem", { name: "Reload from TOML" }))
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1))
+
+    fireEvent.contextMenu(trigger, { clientX: 48, clientY: 64 })
+    await user.click(await screen.findByRole("menuitem", { name: "Open TOML file" }))
+    await waitFor(() => expect(onOpenFile).toHaveBeenCalledTimes(1))
+
+    await user.click(trigger)
+    expect(await screen.findByRole("dialog", { name: "Xlchemy configuration" })).toBeTruthy()
+  })
+
+  test("persists restore-on-startup in node UI config and restores after remount", async () => {
+    let persisted = false
+    configRpc.getNodeUiConfigFromBackend.mockImplementation(async () => ({
+      config: { restoreOnStartup: persisted },
+      path: "D:/config/xiranite.config.toml",
+    }))
+    configRpc.saveNodeUiConfigToBackend.mockImplementation(async (_nodeId, config) => {
+      persisted = config.restoreOnStartup
+    })
+    const onRestore = vi.fn()
+    const user = userEvent.setup()
+
+    const first = renderWithProviders(<NodeConfigPopover
+      dirty={false}
+      defaults={{ format: "AVIF" }}
+      triggerLabel="Xlchemy configuration"
+      t={translate}
+      onReload={vi.fn()}
+      onRestore={onRestore}
+      onSave={vi.fn()}
+    />, "xlchemy")
+
+    await user.click(screen.getByRole("button", { name: "Xlchemy configuration" }))
+    const restoreSwitch = await screen.findByRole("switch")
+    await waitFor(() => expect(restoreSwitch.hasAttribute("disabled")).toBe(false))
+    await user.click(restoreSwitch)
+    await waitFor(() => expect(configRpc.saveNodeUiConfigToBackend).toHaveBeenCalledWith("xlchemy", { restoreOnStartup: true }))
+    first.unmount()
+    onRestore.mockClear()
+
+    renderWithProviders(<NodeConfigPopover
+      dirty={false}
+      defaults={{ format: "AVIF" }}
+      triggerLabel="Xlchemy configuration"
+      t={translate}
+      onReload={vi.fn()}
+      onRestore={onRestore}
+      onSave={vi.fn()}
+    />, "xlchemy")
+
+    await waitFor(() => expect(onRestore).toHaveBeenCalledTimes(1))
+    expect(configRpc.getNodeUiConfigFromBackend).toHaveBeenLastCalledWith("xlchemy")
+  })
+
+  test("migrates the config-path localStorage preference into node UI config", async () => {
+    const configPath = "D:/config/xiranite.config.toml"
+    const legacyKey = `xiranite:auto-restore:config:${configPath}`
+    window.localStorage.setItem(legacyKey, "1")
+    const onRestore = vi.fn()
+
+    renderWithProviders(<NodeConfigPopover
+      configPath={configPath}
+      dirty={false}
+      defaults={{ format: "AVIF" }}
+      triggerLabel="Xlchemy configuration"
+      t={translate}
+      onReload={vi.fn()}
+      onRestore={onRestore}
+      onSave={vi.fn()}
+    />, "xlchemy")
+
+    await waitFor(() => expect(configRpc.saveNodeUiConfigToBackend).toHaveBeenCalledWith("xlchemy", { restoreOnStartup: true }))
+    await waitFor(() => expect(onRestore).toHaveBeenCalledTimes(1))
+    expect(window.localStorage.getItem(legacyKey)).toBeNull()
+  })
+
   test("keeps history off the hot path and loads it only when its tab opens", async () => {
     const list = vi.fn().mockResolvedValue({ versions: [] })
     const user = userEvent.setup()
@@ -136,6 +273,7 @@ describe("NodeConfigPopover configuration center", () => {
 
 const translate = (_key: string, fallback?: string) => fallback ?? _key
 
-function renderWithProviders(element: React.ReactElement) {
-  return render(<TooltipProvider>{element}</TooltipProvider>)
+function renderWithProviders(element: React.ReactElement, nodeId?: string) {
+  const content = nodeId ? <NodeRuntimeProvider nodeId={nodeId}>{element}</NodeRuntimeProvider> : element
+  return render(<TooltipProvider>{content}</TooltipProvider>)
 }

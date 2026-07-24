@@ -14,6 +14,27 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { getBackend } from "@/backend/client"
 import type { MainWindowAction, OpenComponentWindowInput, WindowCommandResult } from "@/backend/runtime/runtime"
 
+const componentOpenRequests = new Map<string, Promise<WindowCommandResult>>()
+
+/** Shares concurrent opens from the explicit launcher and window restorer. */
+export function openComponentOnce(
+  input: OpenComponentWindowInput,
+  open: (input: OpenComponentWindowInput) => Promise<WindowCommandResult>,
+): Promise<WindowCommandResult> {
+  const pending = componentOpenRequests.get(input.componentId)
+  if (pending) return pending
+
+  const request = open(input)
+  componentOpenRequests.set(input.componentId, request)
+  const clearRequest = () => {
+    if (componentOpenRequests.get(input.componentId) === request) {
+      componentOpenRequests.delete(input.componentId)
+    }
+  }
+  void request.then(clearRequest, clearRequest)
+  return request
+}
+
 export function useWindowControls() {
   const capabilitiesQuery = useQuery({
     queryKey: ["window-capabilities"],
@@ -32,8 +53,10 @@ export function useWindowControls() {
 
   const openComponentMutation = useMutation({
     mutationFn: async (input: OpenComponentWindowInput): Promise<WindowCommandResult> => {
-      const backend = await getBackend()
-      return backend.windows.openComponent(input)
+      return openComponentOnce(input, async (request) => {
+        const backend = await getBackend()
+        return backend.windows.openComponent(request)
+      })
     },
   })
 

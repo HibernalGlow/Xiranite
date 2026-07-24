@@ -418,7 +418,36 @@
       "islandScale": "Overall Size",
       "islandMotion": "Motion Speed",
       "islandDelay": "Button Delay",
-      "islandIdleOffset": "Idle Offset"
+      "islandIdleOffset": "Idle Offset",
+      "actions": "Buttons",
+      "actionsDesc": "Set the shared node toolbar order and hide actions you do not use.",
+      "visibleActions": "Visible",
+      "hiddenActions": "Hidden",
+      "dragAction": "Drag {{action}}",
+      "resetActions": "Restore default buttons",
+      "actionLabels": {
+        "node-help": "Node help",
+        "collapse": "Collapse",
+        "focus": "Focus",
+        "fullscreen": "Fullscreen",
+        "float": "Open floating window",
+        "moveToView": "Move to view",
+        "keepAliveOnViewSwitch": "Keep NeoView in memory",
+        "hide": "Hide in current view"
+      }
+    },
+    "floatingWindowCaption": {
+      "title": "Standalone Window Controls",
+      "description": "Position and style the desktop controls for ordinary node windows. NeoView keeps its own window chrome.",
+      "position": "Position",
+      "positionLeft": "Top left",
+      "positionCenter": "Top center",
+      "positionRight": "Top right",
+      "style": "Style",
+      "styleCapsule": "Capsule",
+      "styleCapsuleDesc": "Compact toolbar-like minimize, maximize, and close buttons.",
+      "styleTrafficLight": "Traffic Light",
+      "styleTrafficLightDesc": "Colored window dots with icons revealed on hover."
     },
     "alphabetIndex": {
       "title": "Alphabet Index",

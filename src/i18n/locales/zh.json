@@ -418,7 +418,36 @@
       "islandScale": "整体尺寸",
       "islandMotion": "动画速度",
       "islandDelay": "按钮延迟",
-      "islandIdleOffset": "横条上移"
+      "islandIdleOffset": "横条上移",
+      "actions": "按钮",
+      "actionsDesc": "设置所有节点操作栏的按钮顺序，并隐藏不常用的动作。",
+      "visibleActions": "显示",
+      "hiddenActions": "隐藏",
+      "dragAction": "拖动 {{action}}",
+      "resetActions": "恢复默认按钮",
+      "actionLabels": {
+        "node-help": "节点帮助",
+        "collapse": "折叠",
+        "focus": "聚焦",
+        "fullscreen": "全屏",
+        "float": "打开浮动窗口",
+        "moveToView": "移动到视图",
+        "keepAliveOnViewSwitch": "保持 NeoView 在内存中",
+        "hide": "在当前视图隐藏"
+      }
+    },
+    "floatingWindowCaption": {
+      "title": "独立窗口控制",
+      "description": "设置普通节点桌面独立窗口的控制按钮位置与样式；NeoView 保持自己的窗口栏。",
+      "position": "位置",
+      "positionLeft": "左上",
+      "positionCenter": "顶部居中",
+      "positionRight": "右上",
+      "style": "样式",
+      "styleCapsule": "胶囊",
+      "styleCapsuleDesc": "类似视图工具栏的紧凑最小化、最大化与关闭按钮。",
+      "styleTrafficLight": "红绿灯",
+      "styleTrafficLightDesc": "彩色窗口圆点，悬停时显示操作图标。"
     },
     "alphabetIndex": {
       "title": "字母索引",

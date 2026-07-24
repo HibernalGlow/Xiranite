@@ -7,6 +7,7 @@
 import { THEME_DESIGN_RECIPES } from "@/lib/appearance"
 import type { SetWorkspaceStore, WorkspaceUiActions, WorkspaceUiPreferences } from "./types"
 import { normalizeSwimlanePreferences } from "@/components/workspace/swimlane/model"
+import { normalizeChromeActionOrder, normalizeChromeHiddenActions } from "@/components/workspace/chromeActionPreferences"
 
 export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
   return {
@@ -101,6 +102,14 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     setChromeIslandMotion: (chromeIslandMotion) => set({ chromeIslandMotion }, false, "SET_CHROME_ISLAND_MOTION"),
     setChromeIslandDelay: (chromeIslandDelay) => set({ chromeIslandDelay }, false, "SET_CHROME_ISLAND_DELAY"),
     setChromeIslandIdleOffset: (chromeIslandIdleOffset) => set({ chromeIslandIdleOffset }, false, "SET_CHROME_ISLAND_IDLE_OFFSET"),
+    setChromeActionOrder: (chromeActionOrder) => set({ chromeActionOrder: normalizeChromeActionOrder(chromeActionOrder) }, false, "SET_CHROME_ACTION_ORDER"),
+    setChromeHiddenActions: (chromeHiddenActions) => set({ chromeHiddenActions: normalizeChromeHiddenActions(chromeHiddenActions) }, false, "SET_CHROME_HIDDEN_ACTIONS"),
+    setChromeActionPreferences: (chromeActionOrder, chromeHiddenActions) => set({
+      chromeActionOrder: normalizeChromeActionOrder(chromeActionOrder),
+      chromeHiddenActions: normalizeChromeHiddenActions(chromeHiddenActions),
+    }, false, "SET_CHROME_ACTION_PREFERENCES"),
+    setFloatingWindowCaptionPosition: (floatingWindowCaptionPosition) => set({ floatingWindowCaptionPosition }, false, "SET_FLOATING_WINDOW_CAPTION_POSITION"),
+    setFloatingWindowCaptionStyle: (floatingWindowCaptionStyle) => set({ floatingWindowCaptionStyle }, false, "SET_FLOATING_WINDOW_CAPTION_STYLE"),
     setAlphabetIndexVisible: (alphabetIndexVisible) => set({ alphabetIndexVisible }, false, "SET_ALPHABET_INDEX_VISIBLE"),
     setAlphabetIndexOpacity: (alphabetIndexOpacity) => set({ alphabetIndexOpacity }, false, "SET_ALPHABET_INDEX_OPACITY"),
     setAlphabetIndexStyle: (alphabetIndexStyle) => set({ alphabetIndexStyle }, false, "SET_ALPHABET_INDEX_STYLE"),

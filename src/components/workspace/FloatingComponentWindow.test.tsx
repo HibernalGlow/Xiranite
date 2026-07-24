@@ -3,6 +3,8 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { FloatingComponentWindow } from "./FloatingComponentWindow"
 
 const mocks = vi.hoisted(() => ({
+  floatingWindowCaptionPosition: "right" as "left" | "right" | "island",
+  floatingWindowCaptionStyle: "capsule" as "capsule" | "traffic-light",
   nativeWindowControls: false,
   ensureComponent: vi.fn(),
   controlMain: vi.fn().mockResolvedValue({ success: true, supported: true }),
@@ -37,6 +39,8 @@ vi.mock("@/store/workspaceStore", () => ({
   useWorkspaceShallowSelector: (selector: (state: Record<string, unknown>) => unknown) => selector({
     activeCustomThemeName: null,
     activeWorkspaceId: "workspace-1",
+    floatingWindowCaptionPosition: mocks.floatingWindowCaptionPosition,
+    floatingWindowCaptionStyle: mocks.floatingWindowCaptionStyle,
     theme: "spatial",
     zCounter: 1,
   }),
@@ -47,11 +51,11 @@ vi.mock("@/components/modules/nodeWindowPreferences", () => ({
 }))
 
 vi.mock("@/components/modules/ModuleRenderer", async () => {
-  const { FloatingWindowCaptionControls } = await import("./FloatingWindowFrame")
+  const { FloatingWindowNodeHeader } = await import("./FloatingWindowFrame")
   return {
     ModuleRenderer: () => (
       <div data-testid="module-renderer">
-        <FloatingWindowCaptionControls integrated />
+        <FloatingWindowNodeHeader>Module title</FloatingWindowNodeHeader>
       </div>
     ),
   }
@@ -60,6 +64,8 @@ vi.mock("@/components/modules/ModuleRenderer", async () => {
 afterEach(() => {
   cleanup()
   mocks.nativeWindowControls = false
+  mocks.floatingWindowCaptionPosition = "right"
+  mocks.floatingWindowCaptionStyle = "capsule"
 })
 
 describe("FloatingComponentWindow", () => {
@@ -72,12 +78,41 @@ describe("FloatingComponentWindow", () => {
     expect(screen.queryByTestId("floating-window-fallback-drag-region")).toBeNull()
   })
 
-  test("provides integrated window controls to native frameless windows", async () => {
+  test("overlays right-aligned capsule controls without adding a titlebar row", async () => {
     mocks.nativeWindowControls = true
 
     render(<FloatingComponentWindow compId="component-1" />)
 
-    expect(await screen.findByTestId("floating-window-integrated-controls")).toBeTruthy()
+    const controls = await screen.findByTestId("floating-window-integrated-controls")
+    expect(controls.dataset.windowCaptionPosition).toBe("right")
+    expect(controls.dataset.windowCaptionStyle).toBe("capsule")
+    expect(controls.className).toContain("fixed")
+    expect(controls.className).toContain("right-1.5")
+    expect(controls.className).toContain("bg-transparent")
+    expect(controls.className).not.toContain("border")
+    expect(controls.className).not.toContain("shadow")
+    expect(screen.queryByTestId("floating-window-fallback-drag-region")).toBeNull()
+    const titlebar = document.querySelector('[data-floating-window-titlebar="true"]')
+    expect(titlebar?.className).toContain("xiranite-app-region-drag")
+    expect(screen.getByTestId("module-renderer").parentElement?.previousElementSibling).toBeNull()
     await waitFor(() => expect(screen.queryByTestId("floating-window-fallback-controls")).toBeNull())
+  })
+
+  test("centers traffic-light controls and uses close-minimize-maximize order", async () => {
+    mocks.nativeWindowControls = true
+    mocks.floatingWindowCaptionPosition = "island"
+    mocks.floatingWindowCaptionStyle = "traffic-light"
+
+    render(<FloatingComponentWindow compId="component-1" />)
+
+    const controls = await screen.findByTestId("floating-window-integrated-controls")
+    expect(controls.dataset.windowCaptionPosition).toBe("island")
+    expect(controls.dataset.windowCaptionStyle).toBe("traffic-light")
+    expect(controls.className).toContain("left-1/2")
+    expect([...controls.querySelectorAll("button")].map((button) => button.dataset.windowControlAction)).toEqual([
+      "close",
+      "minimize",
+      "maximize",
+    ])
   })
 })

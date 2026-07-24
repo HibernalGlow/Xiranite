@@ -20,6 +20,7 @@ import { useNodeHostApi } from "./hostApi"
 import { NodeRenderBoundary } from "./NodeRenderBoundary"
 import { packageModuleLoaders } from "./packageModules.generated"
 import { LocalFilesProvider } from "@/nodes/shared/useLocalFileDrop"
+import { NodeRuntimeProvider } from "@/nodes/shared/NodeRuntimeContext"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { neoviewDebug } from "@/nodes/neoview/neoviewDebug"
 import { registerNodeTrays } from "@/desktop/tray/trayCoordinator"
@@ -185,10 +186,12 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
   return (
     <div className="xiranite-node-surface h-full min-h-0 w-full overflow-hidden" data-module-id={moduleId} data-component-id={compId}>
       <NodeRenderBoundary moduleId={moduleId}>
-        <LocalFilesProvider value={host.localFiles}>
-          <PackageNodeMountProbe moduleId={moduleId} compId={compId} />
-          <Component compId={compId} host={host} />
-        </LocalFilesProvider>
+        <NodeRuntimeProvider nodeId={moduleId}>
+          <LocalFilesProvider value={host.localFiles}>
+            <PackageNodeMountProbe moduleId={moduleId} compId={compId} />
+            <Component compId={compId} host={host} />
+          </LocalFilesProvider>
+        </NodeRuntimeProvider>
       </NodeRenderBoundary>
     </div>
   )

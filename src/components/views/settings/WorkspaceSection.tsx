@@ -1,15 +1,25 @@
 import {
   Circle,
   CircleDot,
+  BookOpen,
+  ChevronDown,
+  Expand,
+  ExternalLink,
   Grid,
   Image,
+  Maximize2,
   PanelBottom,
   PanelRight,
+  Power,
+  Share2,
+  GripVertical,
   ToggleLeft,
   RotateCcw,
   Upload,
   X,
 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { useTranslation } from "react-i18next"
 
 import { Badge } from "@/components/ui/badge"
@@ -18,8 +28,18 @@ import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Kanban, KanbanBoard, KanbanColumn, KanbanItem, KanbanItemHandle, KanbanOverlay } from "@/components/ui/kanban"
 import { cn } from "@/lib/utils"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
+import {
+  CHROME_ACTION_HIDDEN_COLUMN,
+  CHROME_ACTION_PREFERENCE_KEYS,
+  CHROME_ACTION_VISIBLE_COLUMN,
+  mergeChromeActionKanbanColumns,
+  splitChromeActionKanbanColumns,
+  type ChromeActionKanbanColumns,
+  type ChromeActionPreferenceKey,
+} from "@/components/workspace/chromeActionPreferences"
 import { AlphabetIndexSlider, SettingsStepCard } from "./primitives"
 
 export function WorkspaceSection() {
@@ -39,6 +59,10 @@ export function WorkspaceSection() {
     chromeIslandMotion: workspace.chromeIslandMotion,
     chromeIslandDelay: workspace.chromeIslandDelay,
     chromeIslandIdleOffset: workspace.chromeIslandIdleOffset,
+    chromeActionOrder: workspace.chromeActionOrder,
+    chromeHiddenActions: workspace.chromeHiddenActions,
+    floatingWindowCaptionPosition: workspace.floatingWindowCaptionPosition,
+    floatingWindowCaptionStyle: workspace.floatingWindowCaptionStyle,
     alphabetIndexVisible: workspace.alphabetIndexVisible,
     alphabetIndexOpacity: workspace.alphabetIndexOpacity,
     alphabetIndexStyle: workspace.alphabetIndexStyle,
@@ -376,6 +400,120 @@ export function WorkspaceSection() {
               </div>
             </>
           )}
+
+          <Separator className="opacity-50" />
+
+          <div className={cn("space-y-3 transition-opacity", !state.chromeVisible && "pointer-events-none opacity-40")}>
+            <div>
+              <p className="text-xs font-mono tracking-widest text-muted-foreground">{t("settings:chrome.actions")}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{t("settings:chrome.actionsDesc")}</p>
+            </div>
+            <ChromeActionKanban
+              order={state.chromeActionOrder}
+              hiddenActions={state.chromeHiddenActions}
+              onPreferencesChange={workspaceActions.setChromeActionPreferences}
+              labelFor={(key) => t(`settings:chrome.actionLabels.${key}`)}
+              dragActionLabel={(action) => t("settings:chrome.dragAction", { action })}
+              visibleLabel={t("settings:chrome.visibleActions")}
+              hiddenLabel={t("settings:chrome.hiddenActions")}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full font-mono text-xs"
+              onClick={() => {
+                workspaceActions.setChromeActionPreferences([...CHROME_ACTION_PREFERENCE_KEYS], [])
+              }}
+            >
+              <RotateCcw className="mr-1.5 size-3.5" />
+              {t("settings:chrome.resetActions")}
+            </Button>
+          </div>
+        </div>
+      </SettingsStepCard>
+
+      <SettingsStepCard
+        id="floating-window-caption"
+        title={t("settings:floatingWindowCaption.title")}
+        description={t("settings:floatingWindowCaption.description")}
+        icon={Maximize2}
+        delay={0.08}
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-xs font-mono tracking-widest text-muted-foreground">{t("settings:floatingWindowCaption.position")}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { key: "left", label: t("settings:floatingWindowCaption.positionLeft"), icon: PanelRight },
+                { key: "island", label: t("settings:floatingWindowCaption.positionCenter"), icon: CircleDot },
+                { key: "right", label: t("settings:floatingWindowCaption.positionRight"), icon: PanelRight },
+              ] as const).map(({ key, label, icon: Icon }) => {
+                const isActive = state.floatingWindowCaptionPosition === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => workspaceActions.setFloatingWindowCaptionPosition(key)}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 rounded-sm border p-2.5 transition-all",
+                      isActive
+                        ? "border-primary/50 bg-primary/8 text-primary"
+                        : "border-border/40 text-muted-foreground hover:border-border hover:bg-muted/30 hover:text-foreground",
+                      key === "left" && "[&>svg]:scale-x-[-1]",
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    <span className="text-[11px] font-medium">{label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <Separator className="opacity-50" />
+
+          <div className="space-y-2">
+            <p className="text-xs font-mono tracking-widest text-muted-foreground">{t("settings:floatingWindowCaption.style")}</p>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { key: "capsule", label: t("settings:floatingWindowCaption.styleCapsule"), desc: t("settings:floatingWindowCaption.styleCapsuleDesc"), icon: PanelRight },
+                { key: "traffic-light", label: t("settings:floatingWindowCaption.styleTrafficLight"), desc: t("settings:floatingWindowCaption.styleTrafficLightDesc"), icon: Circle },
+              ] as const).map(({ key, label, desc, icon: Icon }) => {
+                const isActive = state.floatingWindowCaptionStyle === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => workspaceActions.setFloatingWindowCaptionStyle(key)}
+                    className={cn(
+                      "flex min-w-0 items-start gap-2.5 rounded-sm border p-3 text-left transition-all",
+                      isActive ? "border-primary/50 bg-primary/8" : "border-border/40 hover:border-border hover:bg-muted/30",
+                    )}
+                  >
+                    <div className={cn(
+                      "grid size-7 shrink-0 place-items-center rounded-sm border",
+                      isActive ? "border-primary/40 bg-primary/15 text-primary" : "border-border/40 bg-muted/40 text-muted-foreground",
+                    )}>
+                      {key === "traffic-light" ? (
+                        <span className="flex items-center gap-0.5">
+                          <span className="size-1.5 rounded-full bg-red-500/80" />
+                          <span className="size-1.5 rounded-full bg-yellow-500/80" />
+                          <span className="size-1.5 rounded-full bg-emerald-500/80" />
+                        </span>
+                      ) : (
+                        <Icon className="size-3.5" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn("truncate text-xs font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{label}</p>
+                      <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground/75">{desc}</p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
       </SettingsStepCard>
 
@@ -433,5 +571,103 @@ export function WorkspaceSection() {
         </div>
       </SettingsStepCard>
     </div>
+  )
+}
+
+function ChromeActionKanban({
+  order,
+  hiddenActions,
+  onPreferencesChange,
+  labelFor,
+  dragActionLabel,
+  visibleLabel,
+  hiddenLabel,
+}: {
+  order: ChromeActionPreferenceKey[]
+  hiddenActions: ChromeActionPreferenceKey[]
+  onPreferencesChange: (order: ChromeActionPreferenceKey[], hiddenActions: ChromeActionPreferenceKey[]) => void
+  labelFor: (key: ChromeActionPreferenceKey) => string
+  dragActionLabel: (action: string) => string
+  visibleLabel: string
+  hiddenLabel: string
+}) {
+  const columns = splitChromeActionKanbanColumns(order, hiddenActions)
+
+  function commitColumns(next: Record<string, ChromeActionPreferenceKey[]>) {
+    const preferences = mergeChromeActionKanbanColumns({
+      [CHROME_ACTION_VISIBLE_COLUMN]: next[CHROME_ACTION_VISIBLE_COLUMN] ?? columns[CHROME_ACTION_VISIBLE_COLUMN],
+      [CHROME_ACTION_HIDDEN_COLUMN]: next[CHROME_ACTION_HIDDEN_COLUMN] ?? columns[CHROME_ACTION_HIDDEN_COLUMN],
+    })
+    onPreferencesChange(preferences.order, preferences.hiddenActions)
+  }
+
+  return (
+    <Kanban
+      value={columns}
+      getItemValue={(key) => key}
+      onValueChange={commitColumns}
+      strategy={horizontalListSortingStrategy}
+      orientation="vertical"
+    >
+      <KanbanBoard className="flex h-auto flex-col gap-2">
+        <ChromeActionKanbanColumn columnId={CHROME_ACTION_VISIBLE_COLUMN} label={visibleLabel} actions={columns[CHROME_ACTION_VISIBLE_COLUMN]} labelFor={labelFor} dragActionLabel={dragActionLabel} />
+        <ChromeActionKanbanColumn columnId={CHROME_ACTION_HIDDEN_COLUMN} label={hiddenLabel} actions={columns[CHROME_ACTION_HIDDEN_COLUMN]} labelFor={labelFor} dragActionLabel={dragActionLabel} />
+      </KanbanBoard>
+      <KanbanOverlay>
+        {({ value }) => <ChromeActionCard action={value as ChromeActionPreferenceKey} label={labelFor(value as ChromeActionPreferenceKey)} />}
+      </KanbanOverlay>
+    </Kanban>
+  )
+}
+
+function ChromeActionKanbanColumn({
+  columnId,
+  label,
+  actions,
+  labelFor,
+  dragActionLabel,
+}: {
+  columnId: keyof ChromeActionKanbanColumns
+  label: string
+  actions: ChromeActionPreferenceKey[]
+  labelFor: (key: ChromeActionPreferenceKey) => string
+  dragActionLabel: (action: string) => string
+}) {
+  return (
+    <KanbanColumn value={columnId} asHandle={false} className="h-auto min-h-20 w-full flex-row flex-wrap content-start gap-1.5 rounded-sm border-border/40 bg-muted/10 p-1.5">
+      <div className="flex basis-full items-center justify-between px-1 py-0.5 text-[10px] font-mono tracking-widest text-muted-foreground">
+        <span>{label}</span>
+        <span className="tabular-nums">{actions.length}</span>
+      </div>
+      {actions.map((action) => (
+        <KanbanItem key={action} value={action} className="flex max-w-full items-center rounded-sm border border-border/40 bg-background/80 p-1.5 shadow-sm data-dragging:z-20 data-dragging:bg-card data-dragging:shadow-md">
+          <KanbanItemHandle className="touch-none w-full" aria-label={dragActionLabel(labelFor(action))}>
+            <ChromeActionCard action={action} label={labelFor(action)} />
+          </KanbanItemHandle>
+        </KanbanItem>
+      ))}
+    </KanbanColumn>
+  )
+}
+
+const CHROME_ACTION_ICONS: Record<ChromeActionPreferenceKey, LucideIcon> = {
+  "node-help": BookOpen,
+  collapse: ChevronDown,
+  focus: Expand,
+  fullscreen: Maximize2,
+  float: ExternalLink,
+  moveToView: Share2,
+  keepAliveOnViewSwitch: Power,
+  hide: X,
+}
+
+function ChromeActionCard({ action, label }: { action: ChromeActionPreferenceKey; label: string }) {
+  const Icon = CHROME_ACTION_ICONS[action]
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 text-left text-xs text-foreground">
+      <GripVertical aria-hidden className="size-3 shrink-0 text-muted-foreground/60" />
+      <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 truncate">{label}</span>
+    </span>
   )
 }
