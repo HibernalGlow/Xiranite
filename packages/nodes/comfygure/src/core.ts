@@ -193,6 +193,7 @@ export interface ComfyuiPromptHistory {
 
 const REGION_SYNTAX = /\b(?:COUPLE|MASK|FEATHER|FILL|IMASK|AREA|MASK_SIZE|MASKW)\s*\(/i
 const WEIGHTED_TAG = /^(.+?):\s*(-?(?:\d+(?:\.\d+)?|\.\d+))$/
+const INLINE_LORA_TAG = /<lora:[^>]+>/gi
 
 export const DEFAULT_COMFYGURE_PROGRAM: ComfygureProgram = {
   format: COMFYGURE_FORMAT,
@@ -314,11 +315,11 @@ export function normalizeComfygureProgram(input: ComfygureProgramDraft = {}): Co
 }
 
 export function normalizePromptText(value: string): string {
-  const text = value.trim()
+  const text = value.replace(INLINE_LORA_TAG, "").trim()
   if (!text) return ""
-  if (REGION_SYNTAX.test(text)) return text.replace(/\bCOUPLE\s+MASK\s*\(/gi, "COUPLE(").replace(/[\t ]{2,}/g, " ").trim()
+  if (REGION_SYNTAX.test(text)) return normalizeRegionPrompt(text)
   const tags = splitPromptTags(text)
-  return tags.map(normalizePromptTag).filter(Boolean).join(", ")
+  return tags.map((tag) => normalizePromptTag(removeUnmatchedBrackets(tag))).filter(Boolean).join(", ")
 }
 
 export function resolveActiveLoras(program: ComfygureProgram, positiveText: string): readonly ComfygureLora[] {
@@ -784,6 +785,36 @@ function historyError(status: Record<string, unknown> | undefined): string {
     return exception || summary || "ComfyUI reported an execution error."
   }
   return ""
+}
+
+function normalizeRegionPrompt(value: string): string {
+  const protectedMaskSize = "COMFYGUREMASKSIZE"
+  return value
+    .replace(/\bCOUPLE\s+MASK\s*\(/gi, "COUPLE(")
+    .replace(/\bMASK_SIZE\b/gi, protectedMaskSize)
+    .replace(/_/g, " ")
+    .replaceAll(protectedMaskSize, "MASK_SIZE")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[\t ]{2,}/g, " ")
+    .trim()
+}
+
+function removeUnmatchedBrackets(value: string): string {
+  return removeUnmatchedBracketType(removeUnmatchedBracketType(value, "(", ")"), "[", "]")
+}
+
+function removeUnmatchedBracketType(value: string, open: string, close: string): string {
+  const openings: number[] = []
+  const rejected = new Set<number>()
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] === open) openings.push(index)
+    else if (value[index] === close) {
+      if (openings.length) openings.pop()
+      else rejected.add(index)
+    }
+  }
+  for (const index of openings) rejected.add(index)
+  return [...value].filter((_, index) => !rejected.has(index)).join("")
 }
 
 function ensurePromptTerms(value: string, terms: readonly string[]): string {

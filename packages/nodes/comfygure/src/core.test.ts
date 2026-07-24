@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { compileAnimaInt8Program, compileAnimaInt8RunPlan, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, normalizeComfyuiEndpoint, preflightComfyuiTarget, resolveBatchSequence, runComfygure } from "./core.js"
+import { compileAnimaInt8Program, compileAnimaInt8RunPlan, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, normalizeComfyuiEndpoint, normalizePromptText, preflightComfyuiTarget, resolveBatchSequence, runComfygure } from "./core.js"
 
 describe("Comfygure ANIMA INT8 compiler", () => {
   it("compiles dynamic LoRA choices into static Comfyroll stack nodes", () => {
@@ -20,6 +20,11 @@ describe("Comfygure ANIMA INT8 compiler", () => {
     expect(stacks[0]?.inputs).toMatchObject({ switch_1: "On", lora_name_1: "style-a.safetensors", switch_3: "On", lora_name_3: "style-d.safetensors" })
     expect(Object.values(compiled.graph).some((node) => node.class_type === "GlowTriggerLoRAStack")).toBe(false)
     expect(Object.values(compiled.graph).some((node) => node.class_type === "LayerUtility: SaveImagePlus")).toBe(true)
+  })
+
+  it("combines the retained prompt cleaners before compiling a fixed graph", () => {
+    expect(normalizePromptText("<lora:legacy-style:0.8>, cat_ears:1.2,,\n[portrait] )")).toBe("(cat ears:1.2), [portrait]")
+    expect(normalizePromptText("COUPLE MASK(cat_ears, MASK_SIZE(512, 512))\nAND dog_ears")).toBe("COUPLE(cat ears, MASK_SIZE(512, 512)) AND dog ears")
   })
 
   it("keeps the retained ANIMA execution-node contract aligned with the exported API graph", () => {
