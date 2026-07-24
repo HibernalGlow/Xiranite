@@ -7,12 +7,15 @@ import { neoviewDebug, noteNeoviewMount, noteNeoviewUnmount } from "./neoviewDeb
 export interface NeoViewCardState extends Record<string, unknown> {
   path?: string
   browserOriginPath?: string | null
+  swimlaneSoloLaneId?: string | null
 }
 
 export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>) {
   "use no memo"
-  const initialPath = host.state.getData()?.path
-  const initialBrowserOriginPath = host.state.getData()?.browserOriginPath ?? undefined
+  const initialState = host.state.getData()
+  const initialPath = initialState?.path
+  const initialBrowserOriginPath = initialState?.browserOriginPath ?? undefined
+  const initialSwimlaneSoloLaneId = initialState?.swimlaneSoloLaneId
 
   // Track true instance lifetime only. Do NOT depend on initialPath: openPath
   // commits path into host state and would fake unmount/remount mid-read.
@@ -43,6 +46,7 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
       sessionScopeId={compId}
       initialPath={initialPath}
       initialBrowserOriginPath={initialBrowserOriginPath}
+      initialSwimlaneSoloLaneId={initialSwimlaneSoloLaneId}
       pickFile={host.localFiles?.pickFiles
         ? async () => (await host.localFiles!.pickFiles!({
           title: "打开漫画或图片",
@@ -53,6 +57,7 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
       copyText={host.clipboard?.writeText}
       copyFiles={host.clipboard?.writeFiles}
       onPathCommitted={(path, browserOriginPath) => host.state.patchData({ path, browserOriginPath: browserOriginPath ?? null })}
+      onSwimlaneSoloLaneIdCommitted={(swimlaneSoloLaneId) => host.state.patchData({ swimlaneSoloLaneId })}
     />
   )
 }

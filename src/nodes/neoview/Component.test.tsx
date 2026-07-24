@@ -41,3 +41,22 @@ it("[neoview.folder.penetration-browser-origin-state] restores and persists the 
   onPathCommitted("D:/books/series/volume-2", "D:/books")
   expect(patchData).toHaveBeenCalledWith({ path: "D:/books/series/volume-2", browserOriginPath: "D:/books" })
 })
+
+it("persists the last swimlane fullscreen choice in the NeoView Card state", () => {
+  const patchData = vi.fn()
+  const host = {
+    state: {
+      getData: () => ({ swimlaneSoloLaneId: "reader" }),
+      patchData,
+    },
+    clipboard: {},
+    localFiles: {},
+  } as unknown as NodeComponentProps<NeoViewCardState>["host"]
+
+  render(<Component compId="neoview-1" host={host} />)
+  expect(readerProps.current).toMatchObject({ initialSwimlaneSoloLaneId: "reader" })
+
+  const onSwimlaneSoloLaneIdCommitted = readerProps.current?.onSwimlaneSoloLaneIdCommitted as (laneId: string | null) => void
+  onSwimlaneSoloLaneIdCommitted(null)
+  expect(patchData).toHaveBeenCalledWith({ swimlaneSoloLaneId: null })
+})
