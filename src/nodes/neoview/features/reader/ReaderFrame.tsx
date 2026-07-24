@@ -33,7 +33,7 @@ import { ReaderMagnifierLayer } from "./ReaderMagnifierLayer"
 
 const LazyReaderPanoramaFrame = lazy(async () => ({ default: (await import("./ReaderPanoramaFrame")).ReaderPanoramaFrame }))
 
-export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, doublePageGap = 0, totalPages, anchorPageIndex, preloadGeneration, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, slideshowFade = false, videoController, sessionId, client, media, superResolution, backgroundUpscalePreloadEnabled = true, viewerToggles, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
+export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, doublePageGap = 0, totalPages, anchorPageIndex, preloadGeneration, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, slideshowFade = false, videoController, sessionId, client, media, superResolution, viewerToggles, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   framePages?: readonly FramePage[]
   presentation: ReaderPresentation
@@ -58,7 +58,6 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
   client: ReaderHttpClient
   media?: ReaderMediaConfigDto
   superResolution?: ReaderSuperResolutionConfigDto
-  backgroundUpscalePreloadEnabled?: boolean
   viewerToggles?: ReaderViewerTogglePort
   onSubtitleConfigChange(patch: Partial<ReaderSubtitleConfigDto>): Promise<void>
   onVideoListEnded: () => void
@@ -91,20 +90,18 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
       })
     })
     // Keep background auto-upscale off the first paint; start after the current
-    // page can settle. The caller may isolate this independent queue during
-    // freeze triage without disabling current-page rendering or manual upscale.
-    const upscaleTimer = backgroundUpscalePreloadEnabled
-      ? window.setTimeout(() => setUpscalePreloadEnabled(true), 800)
-      : undefined
+    // page can settle. The super-resolution preferences decide whether work is
+    // admitted once this delay elapses.
+    const upscaleTimer = window.setTimeout(() => setUpscalePreloadEnabled(true), 800)
     return () => {
       cancelAnimationFrame(raf)
-      if (upscaleTimer !== undefined) window.clearTimeout(upscaleTimer)
+      window.clearTimeout(upscaleTimer)
       neoviewDebug("reader-frame:unmount", {
         sessionId,
         livedMs: Math.round(performance.now() - mountedAt),
       })
     }
-  }, [backgroundUpscalePreloadEnabled, sessionId])
+  }, [sessionId])
   useEffect(() => {
     setCommittedSlots((current) => current.sessionId === sessionId ? current : { sessionId, pages })
   }, [pages, sessionId])
@@ -127,7 +124,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
     sessionId,
     preloadGeneration,
     currentPageIndex: anchorPageIndex,
-    superResolution: backgroundUpscalePreloadEnabled && upscalePreloadEnabled ? superResolution : undefined,
+    superResolution: upscalePreloadEnabled ? superResolution : undefined,
   })
   const currentPageId = pages.find((page) => page.index === anchorPageIndex)?.id ?? pages[0]?.id
   const progressLayer = <ReaderProgressLayer

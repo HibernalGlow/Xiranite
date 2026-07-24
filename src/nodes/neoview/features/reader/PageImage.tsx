@@ -11,6 +11,7 @@ import {
 import { DEFAULT_READER_IMAGE_TRIM, readerImageCropTranslation, readerImageTrimClipPath, readerImageTrimEffectiveDimensions, type ReaderImageCropInsets } from "@xiranite/node-neoview/ui-core"
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 import { neoviewDebug } from "../../neoviewDebug"
+import { createLogger } from "@/lib/logger"
 
 import type { ReaderHttpClient, ReaderPageDto, ReaderSuperResolutionConfigDto } from "../../adapters/reader-http-client"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
@@ -34,6 +35,7 @@ export interface PageImageProps {
 const NOOP_SUBSCRIBE = () => () => undefined
 const DEFAULT_COLOR_FILTER_SNAPSHOT = () => DEFAULT_READER_COLOR_FILTER
 const DEFAULT_IMAGE_TRIM_SNAPSHOT = () => undefined
+const logger = createLogger("neoview.super-resolution")
 
 export function PageImage({ page, rotation = 0, scale, colorFilter, imageTrim, imageTrimDetectionActive = true, presentationCropInsets, sessionId, client, superResolution, onCommittedPage }: PageImageProps) {
   const imageRef = useRef<HTMLImageElement>(null)
@@ -239,6 +241,12 @@ function useUpscaleTarget(
     setProbe({ sourceIdentity, state: "pending" })
     void client.probeUpscalePage(sessionId, sourcePage.id, controller.signal).then((result) => {
       if (controller.signal.aborted) return
+      logger.info("Probed current-page super-resolution", {
+        sessionId,
+        pageId: sourcePage.id,
+        pageIndex: sourcePage.index,
+        status: result.status,
+      })
       if (result.status === "pending") {
         setProbe({ sourceIdentity, state: "scheduled" })
         return
@@ -254,6 +262,11 @@ function useUpscaleTarget(
       setProbe({ sourceIdentity, state: "terminal" })
     }).catch((error: unknown) => {
       if (controller.signal.aborted) return
+      logger.error("Current-page super-resolution probe failed", error, {
+        sessionId,
+        pageId: sourcePage.id,
+        pageIndex: sourcePage.index,
+      })
       setProbe({ sourceIdentity, state: "miss" })
       setReaderUpscaleArtifact(sessionId, sourcePage.id, {
         state: "failed",
@@ -271,9 +284,25 @@ function useUpscaleTarget(
     if (probeSupported && !scheduled && (probe?.sourceIdentity !== sourceIdentity || probe.state !== "miss")) return
     const controller = new AbortController()
     const sourcePage = pageRef.current
+    logger.info("Started current-page super-resolution", {
+      sessionId,
+      pageId: sourcePage.id,
+      pageIndex: sourcePage.index,
+      scheduled,
+    })
     setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: "processing" })
     void client.upscalePage(sessionId, sourcePage.id, "automatic-current", controller.signal).then((result) => {
       if (controller.signal.aborted) return
+      logger.info("Finished current-page super-resolution", {
+        sessionId,
+        pageId: sourcePage.id,
+        pageIndex: sourcePage.index,
+        status: result.status,
+        bytes: result.bytes,
+        width: result.execution?.width,
+        height: result.execution?.height,
+        elapsedMs: result.execution?.elapsedMs,
+      })
       setReaderUpscaleArtifact(sessionId, sourcePage.id, { state: result.status === "skipped" || result.status === "bypassed" || result.status === "rejected" ? "skipped" : "completed", result })
       if (!result.artifactUrl || !result.version) {
         setProbe({ sourceIdentity, state: "terminal" })
@@ -282,6 +311,12 @@ function useUpscaleTarget(
       setArtifact(artifactTarget(sourcePage, sourceIdentity, result))
     }).catch((error: unknown) => {
       if (!controller.signal.aborted) {
+        logger.error("Current-page super-resolution failed", error, {
+          sessionId,
+          pageId: sourcePage.id,
+          pageIndex: sourcePage.index,
+          scheduled,
+        })
         setProbe({ sourceIdentity, state: "terminal" })
         setReaderUpscaleArtifact(sessionId, sourcePage.id, {
           state: "failed",
