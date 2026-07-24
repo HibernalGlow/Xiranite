@@ -19,13 +19,14 @@ import (
 )
 
 type XiraniteService struct {
-	storageMu     sync.Mutex
-	backendMu     sync.Mutex
-	userDataDir   string
-	storageFile   string
-	localBackend  *LocalBackend
-	backendConfig *LocalBackendConfig
-	trayManager   *desktopTrayManager
+	storageMu         sync.Mutex
+	backendMu         sync.Mutex
+	componentWindowMu sync.Mutex
+	userDataDir       string
+	storageFile       string
+	localBackend      *LocalBackend
+	backendConfig     *LocalBackendConfig
+	trayManager       *desktopTrayManager
 }
 
 type FsEntry struct {
@@ -465,7 +466,19 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 		return WindowCommandResult{Success: false, Supported: true, Message: "componentId and moduleId are required."}, nil
 	}
 
-	id := fmt.Sprintf("component-%d", time.Now().UnixMilli())
+	s.componentWindowMu.Lock()
+	defer s.componentWindowMu.Unlock()
+
+	id := componentWindowID(input.ComponentID)
+	if existing, ok := getWindow(id); ok {
+		existing.Focus()
+		return WindowCommandResult{
+			Success:   true,
+			Supported: true,
+			ID:        id,
+			Message:   "Focused existing component window.",
+		}, nil
+	}
 	title := input.Title
 	if title == "" {
 		title = input.ModuleID
@@ -522,6 +535,10 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 		ID:        id,
 		Message:   "Opened component in a Wails native window.",
 	}, nil
+}
+
+func componentWindowID(componentID string) string {
+	return "component-" + componentID
 }
 
 func (s *XiraniteService) WindowFocus(id string) WindowCommandResult {
