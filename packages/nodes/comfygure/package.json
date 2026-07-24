@@ -18,10 +18,12 @@
     "audit:workflow": "bun src/workflow-audit.ts"
   },
   "dependencies": {
+    "@stable-canvas/comfyui-client": "1.5.9",
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
     "fflate": "^0.8.3",
     "jsonrepair": "3.15.0",
+    "p-queue": "9.3.1",
     "write-file-atomic": "7.0.0"
   },
   "devDependencies": {

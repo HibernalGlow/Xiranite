@@ -320,8 +320,20 @@ export interface ComfygureFetchResponse {
 export interface ComfygureRuntime {
   fetch(url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }): Promise<ComfygureFetchResponse>
   readLoraTrigger?(libraryPath: string, loraName: string): Promise<string | undefined>
+  targetAdapter?: ComfygureTargetAdapter
   profileStore?: ComfygureProfileStore
   now?: () => Date
+}
+
+/**
+ * Host-neutral boundary around the local ComfyUI transport. The Node platform
+ * provides the pinned client implementation; compiler code only sees this
+ * contract so protocol changes stay out of the compiler and UI projections.
+ */
+export interface ComfygureTargetAdapter {
+  readObjectInfo(target: ComfygureTarget): Promise<Record<string, unknown>>
+  submitPrompt(compiled: CompiledProgram, target: ComfygureTarget): Promise<ComfyuiSubmission>
+  readPromptHistory(promptId: string, target: ComfygureTarget): Promise<ComfyuiPromptHistory>
 }
 
 export interface ComfygureProfileStore {
@@ -1028,11 +1040,7 @@ export async function preflightComfyuiTarget(compiled: Pick<CompiledProgram, "re
   const endpoint = normalizeComfyuiEndpoint(target.endpoint)
   let objectInfo: Record<string, unknown>
   try {
-    const response = await fetchComfyui(runtime, `${endpoint}/object_info`, { method: "GET", headers: { accept: "application/json" } })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const payload = await response.json()
-    if (!isRecord(payload)) throw new Error("/object_info did not return a node map.")
-    objectInfo = payload
+    objectInfo = await readComfyuiObjectInfo(target, runtime)
   } catch (error) {
     return {
       endpoint,
@@ -1209,6 +1217,7 @@ export async function runComfygure(input: ComfygureInput, runtime: ComfygureRunt
 }
 
 export async function submitComfyuiPrompt(compiled: CompiledProgram, target: ComfygureTarget, runtime: ComfygureRuntime): Promise<ComfyuiSubmission> {
+  if (runtime.targetAdapter) return await runtime.targetAdapter.submitPrompt(compiled, target)
   const endpoint = normalizeComfyuiEndpoint(target.endpoint)
   const clientId = stringValue(target.clientId, "xiranite-comfygure")
   const response = await fetchComfyui(runtime, `${endpoint}/prompt`, {
@@ -1226,6 +1235,7 @@ export async function submitComfyuiPrompt(compiled: CompiledProgram, target: Com
 }
 
 export async function readComfyuiPromptHistory(promptId: string, target: ComfygureTarget, runtime: ComfygureRuntime): Promise<ComfyuiPromptHistory> {
+  if (runtime.targetAdapter) return await runtime.targetAdapter.readPromptHistory(promptId, target)
   const endpoint = normalizeComfyuiEndpoint(target.endpoint)
   const response = await fetchComfyui(runtime, `${endpoint}/history/${encodeURIComponent(promptId)}`, { method: "GET", headers: { accept: "application/json" } })
   if (!response.ok) throw new Error(`ComfyUI history lookup failed: HTTP ${response.status}`)
@@ -2302,6 +2312,7 @@ async function fetchComfyui(
 }
 
 async function readComfyuiObjectInfo(target: ComfygureTarget, runtime: ComfygureRuntime): Promise<Record<string, unknown>> {
+  if (runtime.targetAdapter) return await runtime.targetAdapter.readObjectInfo(target)
   const endpoint = normalizeComfyuiEndpoint(target.endpoint)
   const response = await fetchComfyui(runtime, `${endpoint}/object_info`, { method: "GET", headers: { accept: "application/json" } })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)

@@ -451,6 +451,23 @@ prompt", "clip": ["2", 0] }, "_meta": { "title": "Positive prompt" } },
     expect(requests).toEqual([{ url: "http://127.0.0.1:8000/object_info", method: "GET" }])
     expect(result.data?.canvas?.links.every(([linkId, originId, originSlot, targetId, targetSlot]) => result.data?.canvas?.nodes.find((node) => node.id === originId)?.outputs[originSlot]?.links?.includes(linkId) && result.data?.canvas?.nodes.find((node) => node.id === targetId)?.inputs[targetSlot]?.link === linkId)).toBe(true)
   })
+
+  it("delegates local preflight and submission through the target adapter contract", async () => {
+    const compiled = compileAnimaInt8Program()
+    const targetAdapter = {
+      readObjectInfo: vi.fn(async () => objectInfoFor(compiled)),
+      submitPrompt: vi.fn(async () => ({ endpoint: "http://127.0.0.1:8000", promptId: "adapter-prompt", clientId: "xiranite-comfygure" })),
+      readPromptHistory: vi.fn(async () => ({ endpoint: "http://127.0.0.1:8000", promptId: "adapter-prompt", state: "complete" as const, images: [] })),
+    }
+    const result = await runComfygure({ action: "submit" }, {
+      fetch: async () => { throw new Error("raw transport must not be used when an adapter is present") },
+      targetAdapter,
+    })
+
+    expect(result).toMatchObject({ success: true, data: { submission: { promptId: "adapter-prompt" } } })
+    expect(targetAdapter.readObjectInfo).toHaveBeenCalledTimes(1)
+    expect(targetAdapter.submitPrompt).toHaveBeenCalledWith(expect.objectContaining({ graph: compiled.graph }), {})
+  })
 })
 
 function objectInfoFor(compiled: ReturnType<typeof compileAnimaInt8Program>) {

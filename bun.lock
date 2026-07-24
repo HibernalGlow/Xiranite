@@ -498,10 +498,12 @@
       "name": "@xiranite/node-comfygure",
       "version": "0.1.0",
       "dependencies": {
+        "@stable-canvas/comfyui-client": "1.5.9",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "fflate": "^0.8.3",
         "jsonrepair": "3.15.0",
+        "p-queue": "9.3.1",
         "write-file-atomic": "7.0.0",
       },
       "devDependencies": {
@@ -2038,6 +2040,8 @@
     "@sindresorhus/df": ["@sindresorhus/df@3.1.1", "https://registry.npmmirror.com/@sindresorhus/df/-/df-3.1.1.tgz", { "dependencies": { "execa": "^2.0.1" } }, "sha512-SME/vtXaJcnQ/HpeV6P82Egy+jThn11IKfwW8+/XVoRD0rmPHVTeKMtww1oWdVnMykzVPjmrDN9S8NBndPEHCQ=="],
 
     "@sindresorhus/merge-streams": ["@sindresorhus/merge-streams@2.3.0", "https://registry.npmmirror.com/@sindresorhus/merge-streams/-/merge-streams-2.3.0.tgz", {}, "sha512-LtoMMhxAlorcGhmFYI+LhPgbPZCkgP6ra1YL604EeF6U98pLlQ3iWIGMdWSC+vWmPBWBNgmDBAhnAobLROJmwg=="],
+
+    "@stable-canvas/comfyui-client": ["@stable-canvas/comfyui-client@1.5.9", "https://registry.npmmirror.com/@stable-canvas/comfyui-client/-/comfyui-client-1.5.9.tgz", {}, "sha512-20SaRj8CfBms5ucfUHPwX5uhSuWaSjNCNSVFgTQ/cBq0A8myZiyFmP3k9IF1uisshVwOwdFEsdNLIbr3DnszUA=="],
 
     "@standard-schema/spec": ["@standard-schema/spec@1.0.0", "https://registry.npmmirror.com/@standard-schema/spec/-/spec-1.0.0.tgz", {}, "sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA=="],
 
