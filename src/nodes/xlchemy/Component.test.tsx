@@ -114,7 +114,7 @@ describe("app-owned xlchemy Component", () => {
     render(<Component compId="xlchemy-card" host={host} />)
 
     await waitFor(() => expect(host.savedConfig).toBeDefined(), { timeout: 2_000 })
-    expect(host.savedConfig).toMatchObject({ format: "AVIF", quality: 81, excludedFormatsText: "avif,jxl,webp,gif" })
+    expect(host.savedConfig).toMatchObject({ format: "AVIF", quality: 81, excludedFormatsText: "avif,jxl,webp,gif", skipAnimatedImages: true, detectAnimatedPng: false, detectAnimatedWebp: true, detectAnimatedAvif: false, detectAnimatedJxl: false })
   })
 
   test("opens the filename rule editor and passes default PSD and CLIP rules", async () => {
@@ -463,6 +463,26 @@ describe("app-owned xlchemy Component", () => {
     expect(within(settingsTabs).getByText("元数据")).toBeTruthy()
     const operationsTabs = screen.getByTestId("xlchemy-operations-tabs")
     expect(within(operationsTabs).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["进度", "ExifTool", "高级", "环境"])
+  })
+
+  test("configures animated-image detection globally and per format", async () => {
+    const host = createHost({ pathsText: "D:/images/a.png", format: "JPEG XL" })
+    const view = render(<Component compId="xlchemy-card" host={host} />)
+    const user = userEvent.setup()
+    const settingsTabs = screen.getByTestId("xlchemy-settings-tabs")
+    await user.click(within(settingsTabs).getByRole("tab", { name: "转换" }))
+
+    expect(within(settingsTabs).getByRole("switch", { name: "自动检测并跳过动图" }).getAttribute("data-state")).toBe("checked")
+    expect(within(settingsTabs).getByRole("switch", { name: "WebP" }).getAttribute("data-state")).toBe("checked")
+    for (const name of ["PNG / APNG", "AVIF", "JPEG XL"]) await user.click(within(settingsTabs).getByRole("switch", { name }))
+    await user.click(screen.getByRole("button", { name: "预览计划" }))
+    expect(host.runCalls.at(-1)?.input.animationDetectionFormats).toEqual(["png", "webp", "avif", "jxl"])
+
+    await user.click(within(settingsTabs).getByRole("switch", { name: "自动检测并跳过动图" }))
+    view.rerender(<Component compId="xlchemy-card" host={host} />)
+    expect(within(settingsTabs).queryByRole("switch", { name: "WebP" })).toBeNull()
+    await user.click(screen.getByRole("button", { name: "预览计划" }))
+    expect(host.runCalls.at(-1)?.input.animationDetectionFormats).toEqual([])
   })
 
   test("hides invalid compression and quality controls for fixed-mode formats", () => {
