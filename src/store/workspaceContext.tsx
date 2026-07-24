@@ -43,11 +43,12 @@ function workspaceSnapshotQueryKey(config: LocalBackendConfig | undefined) {
     ...WORKSPACE_SNAPSHOT_QUERY_KEY,
     config.baseUrl,
     config.token ? "token:set" : "token:none",
+    config.instanceId ?? "instance:unknown",
   ] as const
 }
 
 export function BackendConnectionBoundary({ config, children }: { config?: LocalBackendConfig, children: ReactNode }) {
-  const connectionKey = config ? `${config.baseUrl}\0${config.token ?? ""}` : undefined
+  const connectionKey = config ? `${config.baseUrl}\0${config.token ?? ""}\0${config.instanceId ?? ""}` : undefined
   const previousConnectionKeyRef = useRef<string>()
   const [generation, setGeneration] = useState(0)
 

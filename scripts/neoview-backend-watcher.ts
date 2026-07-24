@@ -1,4 +1,4 @@
-import { watch, type FSWatcher } from "node:fs"
+import { stat, watch, type FSWatcher } from "node:fs"
 import { resolve } from "node:path"
 
 export interface NeoviewBackendWatcher {
@@ -9,10 +9,15 @@ export function isNeoviewBackendSourceFile(filename: string): boolean {
   const normalized = filename.replaceAll("\\", "/")
   return (/\.(?:ts|tsx)$/).test(normalized)
     && !(/\.(?:test|spec)\.(?:ts|tsx)$/).test(normalized)
+    && !normalized.startsWith("cli/")
+    && !normalized.startsWith("testing/")
+    && !normalized.startsWith("types/")
+    && !["Tui.tsx", "cli.ts", "help.ts", "interaction.ts", "ui-core.ts"].includes(normalized)
 }
 
 export function watchNeoviewBackendSource(restart: () => Promise<unknown>): NeoviewBackendWatcher {
   const sourceDirectory = resolve(import.meta.dirname, "../packages/nodes/neoview/src")
+  const fingerprints = new Map<string, string>()
   let timer: ReturnType<typeof setTimeout> | undefined
   let restarting = false
   let pending = false
@@ -48,7 +53,17 @@ export function watchNeoviewBackendSource(restart: () => Promise<unknown>): Neov
   try {
     watcher = watch(sourceDirectory, { recursive: process.platform === "win32" || process.platform === "darwin" }, (_event, filename) => {
       if (filename && !isNeoviewBackendSourceFile(String(filename))) return
-      scheduleRestart()
+      if (!filename) {
+        scheduleRestart()
+        return
+      }
+      const normalized = String(filename).replaceAll("\\", "/")
+      stat(resolve(sourceDirectory, normalized), (error, file) => {
+        const fingerprint = error ? "missing" : `${file.mtimeMs}:${file.size}`
+        if (fingerprints.get(normalized) === fingerprint) return
+        fingerprints.set(normalized, fingerprint)
+        scheduleRestart()
+      })
     })
     watcher.on("error", (error) => console.error("[xiranite-backend:watch] watcher failed", error))
   } catch (error) {

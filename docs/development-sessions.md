@@ -1,6 +1,6 @@
 # Managed Development Sessions
 
-`bun run dev`, `bun run dev:desktop`, and `bun run dev:desktop:deno` are managed development sessions. Multiple agents may run them in the same checkout at the same time.
+`bun run dev`, `bun run dev:desktop`, and `bun run dev:desktop:deno` are managed development sessions. The default session owns the fixed application URL `http://127.0.0.1:5173`; additional sessions must explicitly set another `XIRANITE_FRONTEND_PORT` or `FRONTEND_DEVSERVER_URL`.
 
 ## Startup path and speed
 
@@ -28,13 +28,21 @@ Vite must keep the configured non-runtime watcher ignores: `ref`, generated cach
 ## Addressing
 
 - `FRONTEND_DEVSERVER_URL` selects an explicit frontend URL when a caller needs a known endpoint. The port must be free; XR refuses to start rather than binding elsewhere while HMR still points at the busy URL.
-- Otherwise the launcher starts at `127.0.0.1:5173` and selects the next available port. The selected URL is printed as `[xiranite-frontend]` and is the only browser URL for that session.
+- Otherwise the launcher uses `127.0.0.1:5173` with strict port ownership. If it is occupied, startup fails instead of silently changing the application URL. Parallel sessions opt into another explicit port.
 - Vite HMR stays on the same HTTP port as the document server. A mismatched HMR port opens a websocket-only listener that answers normal page GETs with `426`/`404`.
-- A session writes its backend configuration to `public/.well-known/xiranite/backend-<frontend-port>.json`, and records `frontendUrl` in `.cache/xiranite-dev-session.json` so `dev:stop` / `dev:reboot` can free that port.
-- The browser reads the manifest matching `window.location.port`, so concurrent sessions do not share backend URLs or tokens.
+- Vite is the session gateway: the browser uses the frontend origin for API, Reader images, media ranges, and local files. It never receives the Bun listener URL.
+- The supervisor writes the current internal Bun target to `.cache/backend-gateway/target-<frontend-port>.json`. Only Vite reads this file; it is not served from `public` and is atomically replaced after a backend restart.
+- A managed session keeps one token and one public origin across backend restarts. `/health` returns a backend `instanceId`, so the frontend can recreate backend-owned sessions without treating a port as instance identity.
+- The selected `frontendUrl` remains recorded in `.cache/xiranite-dev-session.json` so `dev:stop` / `dev:reboot` can free the explicitly owned port.
 - When the document entry is openable the supervisor also prints `[xiranite-frontend:ready]`.
 
-Ports are transport addresses, not cache or session identities. Do not infer another session's backend from a frontend port; use the URL printed by that session or set `FRONTEND_DEVSERVER_URL` explicitly.
+Ports are transport addresses, not backend instance identities. Use the fixed gateway URL printed by the session; backend replacement is identified by `/health.instanceId`.
+
+## Backend source reloads
+
+The development supervisor watches `packages/nodes/neoview/src` because backend source modules are loaded directly in development. It ignores tests and frontend-only entries, fingerprints file metadata to collapse duplicate Windows `fs.watch` events, and restarts only after a short debounce. Restarts are serialized: the old listener and repository close before the next backend starts, so two instances do not contend for the same SQLite/config files. The fixed Vite gateway URL and token do not change when this internal backend is replaced.
+
+Packaged Wails builds do not run this watcher. Wails starts the Bun child once per application launch and exposes the stable `https://wails.localhost` gateway; the only in-process restart path is the explicit runtime setting/API command.
 
 ## Vite Dependency Cache
 

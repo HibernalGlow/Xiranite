@@ -45,23 +45,23 @@ describe("checkLocalBackendStatus", () => {
     expect(status.status).toBe("ready")
     expect(status.config?.baseUrl).toBe("http://127.0.0.1:3000")
     expect(createXiraniteSystemClient).toHaveBeenCalledWith("http://127.0.0.1:3000", { token: "test-token" })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  test("prefers a replacement backend from the port-scoped dev manifest before probing health", async () => {
-    window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:3000", token: "stale-token" }
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
-      baseUrl: "http://127.0.0.1:41000",
-      token: "manifest-token",
-    }))))
-    healthMock.mockResolvedValueOnce({ ok: true })
+  test("uses a backend instance id instead of changing the public endpoint", async () => {
+    window.__XIRANITE_BACKEND__ = { baseUrl: "http://127.0.0.1:5173", token: "stable-token" }
+    healthMock.mockResolvedValueOnce({ ok: true, instanceId: "backend-instance-2" })
 
     const status = await checkLocalBackendStatus()
 
     expect(status.status).toBe("ready")
-    expect(status.config?.baseUrl).toBe("http://127.0.0.1:41000")
+    expect(status.config).toEqual({
+      baseUrl: "http://127.0.0.1:5173",
+      token: "stable-token",
+      instanceId: "backend-instance-2",
+    })
     expect(createXiraniteSystemClient).toHaveBeenCalledTimes(1)
-    expect(createXiraniteSystemClient).toHaveBeenCalledWith("http://127.0.0.1:41000", { token: "manifest-token" })
+    expect(createXiraniteSystemClient).toHaveBeenCalledWith("http://127.0.0.1:5173", { token: "stable-token" })
   })
 
   test("reports unreachable when /health fails", async () => {
@@ -124,30 +124,25 @@ describe("hydrateLocalBackendConfigFromDenoDesktop", () => {
 })
 
 describe("hydrateLocalBackendConfig", () => {
-  test("loads the framework-agnostic dev backend manifest before app startup", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
-      baseUrl: "http://127.0.0.1:41000",
-      token: "manifest-token",
-    }))))
+  test("keeps the injected stable endpoint even when explicitly refreshed", async () => {
+    window.__XIRANITE_BACKEND__ = {
+      baseUrl: "http://127.0.0.1:5173",
+      token: "gateway-token",
+      instanceId: "instance-1",
+    }
 
-    const config = await hydrateLocalBackendConfig()
+    const config = await hydrateLocalBackendConfig({ refresh: true })
 
-    expect(config).toEqual({ baseUrl: "http://127.0.0.1:41000", token: "manifest-token" })
+    expect(config).toEqual({ baseUrl: "http://127.0.0.1:5173", token: "gateway-token", instanceId: "instance-1" })
     expect(window.__XIRANITE_BACKEND__).toEqual(config)
-    expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/\.well-known\/xiranite\/backend-\d+\.json\?/), {
-      cache: "no-store",
-    })
   })
 
-  test("does not fall back to a shared dev manifest when this frontend port has no manifest", async () => {
+  test("does not perform browser-side backend discovery", async () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 404 }))
     vi.stubGlobal("fetch", fetchMock)
 
     await expect(hydrateLocalBackendConfig()).resolves.toBeUndefined()
 
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/\.well-known\/xiranite\/backend-\d+\.json\?/), {
-      cache: "no-store",
-    })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

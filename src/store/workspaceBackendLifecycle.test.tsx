@@ -62,6 +62,14 @@ describe("WorkspaceProvider backend lifecycle", () => {
     )
 
     await waitFor(() => expect(screen.getByTestId("backend-instance").textContent).toBe("2"))
+
+    view.rerender(
+      <BackendConnectionBoundary config={{ baseUrl: "http://127.0.0.1:39111", token: "new-token", instanceId: "replacement" }}>
+        <BackendOwnedProbe />
+      </BackendConnectionBoundary>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId("backend-instance").textContent).toBe("3"))
   })
 
   test("does not rehydrate for component-only snapshots while component restore is disabled", () => {
@@ -196,7 +204,7 @@ describe("WorkspaceProvider backend lifecycle", () => {
 
     deferred.resolve()
     await waitFor(() => {
-      const cached = queryClient.getQueryData<{ components: Array<{ data?: Record<string, unknown> }> }>(["workspace", "snapshot", "http://127.0.0.1:39104", "token:set"])
+      const cached = queryClient.getQueryData<{ components: Array<{ data?: Record<string, unknown> }> }>(["workspace", "snapshot", "http://127.0.0.1:39104", "token:set", "instance:unknown"])
       expect(cached?.components[0]?.data?.value).toBe("older")
     })
     expect(screen.getByTestId("component-value").textContent).toBe("latest")

@@ -132,12 +132,6 @@ async function openApp(
   backend: Awaited<ReturnType<typeof startBackend>>,
   url = "/",
 ): Promise<void> {
-  await page.route(/\/\.well-known\/xiranite\/backend-\d+\.json(?:\?.*)?$/, async (route) => {
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ baseUrl: backend.url, token: backend.token }),
-    })
-  })
   await page.addInitScript((config) => {
     ;(window as typeof window & { __XIRANITE_BACKEND__?: unknown }).__XIRANITE_BACKEND__ = config
   }, { baseUrl: backend.url, token: backend.token })

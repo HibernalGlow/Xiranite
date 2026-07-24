@@ -2,13 +2,17 @@ package main
 
 import (
 	"bufio"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,6 +23,8 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
+
+const wailsBackendPublicURL = "https://wails.localhost"
 
 type LocalBackendConfig struct {
 	BaseURL string `json:"baseUrl"`
@@ -33,6 +39,10 @@ type LocalBackend struct {
 }
 
 func StartLocalBackend() (*LocalBackend, error) {
+	return startLocalBackend("")
+}
+
+func startLocalBackend(restartToken string) (*LocalBackend, error) {
 	if baseURL := strings.TrimSpace(os.Getenv("XIRANITE_BACKEND_URL")); baseURL != "" {
 		return &LocalBackend{
 			Config: LocalBackendConfig{
@@ -55,6 +65,17 @@ func StartLocalBackend() (*LocalBackend, error) {
 	if err != nil {
 		return nil, err
 	}
+	token := strings.TrimSpace(restartToken)
+	if token == "" {
+		token = strings.TrimSpace(os.Getenv("XIRANITE_BACKEND_TOKEN"))
+	}
+	if token == "" {
+		token, err = randomLocalBackendToken()
+		if err != nil {
+			return nil, err
+		}
+	}
+	args = append(args, "--token", token, "--public-base-url", wailsBackendPublicURL)
 
 	cmd := exec.Command(command, args...)
 	configureHiddenSubprocess(cmd)
@@ -95,6 +116,14 @@ func StartLocalBackend() (*LocalBackend, error) {
 	}
 }
 
+func randomLocalBackendToken() (string, error) {
+	bytes := make([]byte, 24)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", fmt.Errorf("generate Xiranite local backend token: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
 func (b *LocalBackend) Stop() {
 	if b == nil || b.external || b.cmd == nil || b.cmd.Process == nil {
 		return
@@ -105,13 +134,21 @@ func (b *LocalBackend) Stop() {
 	})
 }
 
-func backendConfigMiddleware(config *LocalBackendConfig) application.Middleware {
+func backendGatewayMiddleware(
+	internalConfig func() *LocalBackendConfig,
+	publicConfig func() *LocalBackendConfig,
+) application.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			if strings.TrimSpace(os.Getenv("FRONTEND_DEVSERVER_URL")) != "" {
 				next.ServeHTTP(rw, req)
 				return
 			}
+			if isBackendGatewayPath(req.URL.Path) {
+				proxyBackendRequest(rw, req, internalConfig())
+				return
+			}
+			config := publicConfig()
 			if req.Method == http.MethodGet && (req.URL.Path == "/" || req.URL.Path == "/index.html") && config != nil && config.BaseURL != "" {
 				data, err := assets.ReadFile("dist/index.html")
 				if err == nil {
@@ -124,6 +161,48 @@ func backendConfigMiddleware(config *LocalBackendConfig) application.Middleware 
 			next.ServeHTTP(rw, req)
 		})
 	}
+}
+
+func proxyBackendRequest(rw http.ResponseWriter, req *http.Request, config *LocalBackendConfig) {
+	if config == nil || config.BaseURL == "" {
+		http.Error(rw, "Xiranite local backend is unavailable.", http.StatusServiceUnavailable)
+		return
+	}
+	target, err := url.Parse(config.BaseURL)
+	if err != nil {
+		http.Error(rw, "Xiranite local backend target is invalid.", http.StatusBadGateway)
+		return
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.ErrorHandler = func(rw http.ResponseWriter, _ *http.Request, err error) {
+		log.Printf("Xiranite backend gateway failed: %v", err)
+		http.Error(rw, "Xiranite local backend gateway failed.", http.StatusBadGateway)
+	}
+	proxy.ServeHTTP(rw, req)
+}
+
+func isBackendGatewayPath(path string) bool {
+	for _, prefix := range backendRoutePrefixes {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+var backendRoutePrefixes = [...]string{
+	"/config",
+	"/health",
+	"/local-files",
+	"/logs",
+	"/nexus",
+	"/node-operations",
+	"/node-run-history",
+	"/nodes",
+	"/reader",
+	"/runtime-history",
+	"/system",
+	"/workspace",
 }
 
 func injectBackendConfig(html string, config *LocalBackendConfig) string {

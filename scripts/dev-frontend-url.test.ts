@@ -25,13 +25,11 @@ describe("resolveManagedFrontendUrl", () => {
     })).rejects.toThrow(`FRONTEND_DEVSERVER_URL port ${port} is already in use`)
   })
 
-  it("advances past consecutive occupied ports", async () => {
-    const occupiedPort = await occupyConsecutivePorts(2)
-    const resolved = new URL(await resolveManagedFrontendUrl({
+  it("rejects an occupied managed port instead of silently changing the application URL", async () => {
+    const occupiedPort = await occupyPort()
+    await expect(resolveManagedFrontendUrl({
       XIRANITE_FRONTEND_PORT: String(occupiedPort),
-    }))
-
-    expect(Number(resolved.port)).toBeGreaterThan(occupiedPort + 1)
+    })).rejects.toThrow(`Xiranite frontend port ${occupiedPort} is already in use`)
   })
 
   it("rejects an invalid preferred port", async () => {
@@ -51,24 +49,6 @@ describe("managedViteCacheDir", () => {
     expect(first).not.toBe(second)
   })
 })
-
-async function occupyConsecutivePorts(count: number): Promise<number> {
-  for (let basePort = 61_000; basePort <= 65_535 - count; basePort += count) {
-    const attempt: ReturnType<typeof createServer>[] = []
-    try {
-      for (let offset = 0; offset < count; offset += 1) {
-        const server = createServer()
-        attempt.push(server)
-        await listen(server, basePort + offset)
-      }
-      servers.push(...attempt)
-      return basePort
-    } catch {
-      await Promise.all(attempt.map(close))
-    }
-  }
-  throw new Error(`Could not reserve ${count} consecutive test ports.`)
-}
 
 async function occupyPort(): Promise<number> {
   for (let port = 61_000; port <= 65_535; port += 1) {

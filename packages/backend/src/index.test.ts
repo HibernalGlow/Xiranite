@@ -281,6 +281,8 @@ describe("backend", () => {
       "8123",
       "--token",
       "dev-token",
+      "--public-base-url",
+      "http://127.0.0.1:5173",
       "--data-dir",
       "portable-data",
       "--database-auth-token",
@@ -292,6 +294,7 @@ describe("backend", () => {
       hostname: "0.0.0.0",
       port: 8123,
       token: "dev-token",
+      publicBaseUrl: "http://127.0.0.1:5173",
       configPath: undefined,
       databaseUrl: undefined,
       databasePath: undefined,
@@ -566,6 +569,34 @@ describe("backend", () => {
       expect(preflight.headers.get("access-control-allow-headers")).toContain("x-xiranite-token")
     } finally {
       backend.close()
+    }
+  })
+
+  test("publishes reader assets through a stable gateway origin", async () => {
+    const dataDir = await createTempDataDir()
+    const bookDir = await mkdtemp(join(RUN_ROOT, "neoview-gateway-book-"))
+    await writeFile(join(bookDir, "001.jpg"), ONE_PIXEL_PNG)
+    const publicBaseUrl = "http://127.0.0.1:5173"
+    const backend = await startBackend({
+      token: "stable-token",
+      publicBaseUrl,
+      repository: createMemoryWorkspaceRepository(),
+      dataDir,
+      legacyThumbnailDatabasePath: false,
+    })
+    try {
+      const opened = await fetch(`${backend.url}/reader/sessions`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-xiranite-token": "stable-token" },
+        body: JSON.stringify({ path: bookDir }),
+      })
+      const session = await opened.json() as { visiblePages: Array<{ assetUrl: string }> }
+      const publicAssetUrl = new URL(session.visiblePages[0]!.assetUrl)
+      expect(publicAssetUrl.origin).toBe(publicBaseUrl)
+      expect(publicAssetUrl.searchParams.get("token")).toBe("stable-token")
+    } finally {
+      await backend.close()
+      await Promise.all([removeWithWindowsRetry(dataDir), removeWithWindowsRetry(bookDir)])
     }
   })
 
