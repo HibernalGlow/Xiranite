@@ -8,7 +8,7 @@ export default function FolderDeleteButton({
   disabled = false,
   overlay = false,
   placement = "corner",
-  confirm = true,
+  confirm = false,
 }: {
   entry: { index: number; path: string; name: string; kind: "file" | "directory"; readerSupported: boolean }
   strategy: FolderDeleteStrategy

@@ -58,6 +58,11 @@ import type { ReaderWorkspacePatch } from "../workspace/ReaderWorkspaceLayout"
 export type ReaderPanelSide = "left" | "right"
 export type LegacyPanelId = ReaderPanelId
 
+export interface ReaderFileMutationPreparation {
+  commit(): void
+  restore(): Promise<void>
+}
+
 export interface ReaderPanelContext {
   session?: ReaderSessionDto
   client: ReaderHttpClient
@@ -80,6 +85,8 @@ export interface ReaderPanelContext {
   browserOriginPath?: string
   onOpen?(path: string, provenance?: import("../../adapters/reader-http-client").ReaderActivationProvenanceDto): void | Promise<void>
   onBrowsePath?(path: string): void
+  /** Releases an active Reader source before a File Card mutation moves or removes it. */
+  onPrepareFileMutation?(sourcePath: string, signal?: AbortSignal): Promise<ReaderFileMutationPreparation | undefined>
   /** Activate a folder entry through the live File Card (reuse session + penetration). Returns true if handled. */
   onActivateInFolderCard?(path: string): boolean | void
   onOpenInNewTab?(path: string): void

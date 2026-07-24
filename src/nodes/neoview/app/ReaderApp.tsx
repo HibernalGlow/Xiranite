@@ -195,6 +195,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
+  confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
   penetration: { enabled: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
@@ -1468,6 +1469,10 @@ export function ReaderApp({
         ...folderViewRef.current.emptyArea,
         ...patch.emptyArea,
       },
+      confirmations: {
+        ...folderViewRef.current.confirmations,
+        ...patch.confirmations,
+      },
       tree: {
         ...folderViewRef.current.tree,
         ...patch.tree,
@@ -1518,12 +1523,53 @@ export function ReaderApp({
     if (sessionId) await clientRef.current.close(sessionId).catch(() => undefined)
   }
 
+  async function prepareFileMutation(targetPath: string, signal?: AbortSignal): Promise<import("../features/panels/registry").ReaderFileMutationPreparation | undefined> {
+    signal?.throwIfAborted()
+    const sessionId = sessionRef.current
+    const sourcePath = activeSourcePathRef.current.trim()
+    if (!sessionId || !sourcePath || !fileMutationContainsSource(targetPath, sourcePath)) return undefined
+
+    slideshow.stop()
+    await clientRef.current.close(sessionId)
+    if (sessionRef.current !== sessionId) return undefined
+
+    sessionRef.current = undefined
+    setSession(undefined)
+    setSlideshowFadeFrame(undefined)
+    setMagnifierEnabled(false)
+    let settled = false
+    return {
+      commit: () => {
+        if (settled || sessionRef.current) return
+        settled = true
+        activeSourcePathRef.current = ""
+        setPath("")
+        onPathCommitted?.("", browserOriginPath)
+      },
+      restore: async () => {
+        if (settled || sessionRef.current) return
+        settled = true
+        const reopened = await clientRef.current.open(sourcePath)
+        if (sessionRef.current) {
+          void clientRef.current.close(reopened.sessionId).catch(() => undefined)
+          return
+        }
+        sessionRef.current = reopened.sessionId
+        activeSourcePathRef.current = sourcePath
+        setPath(sourcePath)
+        setSession(reopened)
+        onPathCommitted?.(sourcePath, browserOriginPath)
+      },
+    }
+  }
+
   function requestDeleteCurrentFile() {
     const sessionId = sessionRef.current
     const sourcePath = path.trim()
     if (!sessionId || !sourcePath || operationRef.current || !clientRef.current.executeFileOperations) return
     const run = () => deleteCurrentFile(sessionId, sourcePath)
-    if (folderViewRef.current.confirmDelete === false) {
+    const confirmTrash = folderViewRef.current.confirmations.trash
+    if (!confirmTrash) {
       void run()
       return
     }
@@ -1919,7 +1965,11 @@ export function ReaderApp({
   const frame = session?.frame
   const pathSegments = readerPathSegments(path)
   const workspace = shell ? readerWorkspaceWithSession(shell, swimlaneSession) : undefined
-  const workspaceMode = workspace?.mode ?? "edges"
+  // The shell configuration is the source of truth for the workspace mode.
+  // Do not assume edges while it is in flight: doing so paints the four-edge
+  // chrome before a persisted swimlane configuration can be applied.
+  const workspaceMode = workspace?.mode
+  const workspaceLayoutPending = workspaceMode === undefined
   const readerOwnsSoloViewport = workspace?.swimlane.soloLaneId === "reader"
     || workspace?.swimlane.readerSolo === true
 
@@ -2199,6 +2249,7 @@ export function ReaderApp({
     },
     onOpen: openPath,
     onBrowsePath: browsePath,
+    onPrepareFileMutation: prepareFileMutation,
     onActivateInFolderCard: activateInFolderCard,
     onOpenInNewTab: openFolderPathInNewTab,
     folderNavigationEvents,
@@ -2358,7 +2409,12 @@ export function ReaderApp({
         <LazyReaderInfoOverlayRuntime port={infoOverlay} session={session} sourcePath={path} />
       </Suspense>
       <FloatingWindowTitlebarReservation />
-      <div className="min-h-0 flex-1 overflow-hidden">
+      {workspaceLayoutPending ? (
+        <div className="grid min-h-0 flex-1 place-items-center bg-background" data-neoview-workspace-mode="pending" data-reader-workspace-loading="true">
+          <LoaderCircle className="size-5 animate-spin text-muted-foreground" aria-label="正在恢复阅读器布局" />
+        </div>
+      ) : (
+      <div className="min-h-0 flex-1 overflow-hidden" data-neoview-workspace-mode={workspaceMode}>
         <ReaderPanelDndProvider shell={shell} onMove={commitDraggedPanelLayout}>
           {workspaceMode === "swimlane" && shell && workspace ? (
             <ReaderSwimlaneErrorBoundary resetKey={`${workspaceMode}:${shell.revision ?? 0}`} onReturnToEdges={() => commitWorkspace({ mode: "edges" })}>
@@ -2420,6 +2476,7 @@ export function ReaderApp({
           )}
         </ReaderPanelDndProvider>
       </div>
+      )}
       {settingsOpen && shell ? (
         <Suspense fallback={null}>
           <LazyReaderSettingsWindow
@@ -2500,6 +2557,19 @@ function edgeSurfaceStyle(shell: ReaderShellConfigDto | undefined, edge: "top" |
 function readerPathSegments(path: string): string[] {
   const segments = path.split(/[\\/]+/).filter(Boolean)
   return segments.length ? segments : ["未选择"]
+}
+
+export function fileMutationContainsSource(targetPath: string, sourcePath: string): boolean {
+  const target = normalizeFileMutationPath(targetPath)
+  const source = normalizeFileMutationPath(sourcePath)
+  return Boolean(target && source && (target === source || source.startsWith(`${target}/`)))
+}
+
+function normalizeFileMutationPath(path: string): string {
+  const normalized = path.trim().replaceAll("\\", "/").replace(/\/+$/u, "")
+  return /^[a-z]:\//iu.test(normalized) || normalized.startsWith("//")
+    ? normalized.toLocaleLowerCase()
+    : normalized
 }
 
 function applyNavigation(session: ReaderSessionDto, navigation: ReaderNavigationDto): ReaderSessionDto {

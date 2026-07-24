@@ -166,7 +166,12 @@ export const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
-  confirmDelete: true,
+  confirmations: {
+    trash: false,
+    permanentDelete: true,
+    batchTrash: false,
+    batchPermanentDelete: true,
+  },
   tagDisplay: DEFAULT_FOLDER_TAG_DISPLAY,
   penetration: {
     enabled: false,
@@ -251,6 +256,7 @@ export function FolderBrowserPane({
   disabled,
   sourcePath,
   onOpen,
+  onPrepareFileMutation,
   systemActions,
   switchToast,
   folderView = DEFAULT_FOLDER_VIEW,
@@ -366,7 +372,8 @@ export function FolderBrowserPane({
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [deleteMode, setDeleteMode] = useState(false)
   const [deleteStrategy, setDeleteStrategy] = useState<FolderDeleteStrategy>("trash")
-  const [confirmDelete, setConfirmDelete] = useState(folderView.confirmDelete ?? true)
+  const confirmations = folderView.confirmations
+  const activeDeleteConfirmation = deleteStrategy === "trash" ? confirmations.trash : confirmations.permanentDelete
   const [chainSelectMode, setChainSelectMode] = useState(false)
   const [checkModeClickBehavior, setCheckModeClickBehavior] = useState<"open" | "select">("open")
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
@@ -453,7 +460,6 @@ export function FolderBrowserPane({
   useEffect(() => setBannerWidthPercent(folderView.bannerWidthPercent), [folderView.bannerWidthPercent])
   useEffect(() => setHoverPreviewEnabled(folderView.hoverPreviewEnabled ?? true), [folderView.hoverPreviewEnabled])
   useEffect(() => setHoverPreviewDelayMs(folderView.hoverPreviewDelayMs ?? 500), [folderView.hoverPreviewDelayMs])
-  useEffect(() => setConfirmDelete(folderView.confirmDelete ?? true), [folderView.confirmDelete])
   // Parent cards rebuild `folderView.penetration` every render; only write when values change.
   const penetrationSyncKey = [
     folderView.penetration.enabled,
@@ -1892,7 +1898,7 @@ export function FolderBrowserPane({
   return (
     <FolderEntryDisplayProvider value={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}>
       <div
-        className="flex h-full min-h-0 min-w-0 w-full flex-1 gap-2"
+        className="relative flex h-full min-h-0 min-w-0 w-full flex-1 gap-2"
         data-neoview-folder-card={active || null}
         data-neoview-folder-pane={true}
         data-folder-breadcrumb-position={tabLayout.breadcrumbPosition}
@@ -1907,7 +1913,7 @@ export function FolderBrowserPane({
         data-selection-all={selection.allSelected || null}
         data-folder-delete-mode={deleteMode || null}
         data-folder-delete-strategy={deleteStrategy}
-        data-folder-delete-confirm={confirmDelete}
+        data-folder-delete-confirm={activeDeleteConfirmation}
         onContextMenuCapture={(event) => {
           const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-context-menu="neoview-folder-entry"]') : null
           const index = Number(target?.dataset.folderIndex)
@@ -1969,6 +1975,7 @@ export function FolderBrowserPane({
               onEnterRawDirectory={enterRawDirectory}
               onOpenInNewTab={onOpenInNewTab}
               onOpenAsBook={onOpen}
+              onPrepareFileMutation={onPrepareFileMutation}
               switchToast={switchToast}
               onRenamed={(destinationPath) =>
                 navigate(
@@ -2000,7 +2007,7 @@ export function FolderBrowserPane({
                   },
                 )
               }
-              confirmDelete={confirmDelete}
+              confirmations={confirmations}
               onCatalogUpdate={(update) => commitCatalog(update(catalog!))}
               onRefreshEmm={() => updateSort(catalog!.sort)}
               onRefreshDirectory={() =>
@@ -2054,7 +2061,7 @@ export function FolderBrowserPane({
                   multiSelectMode={multiSelectMode}
                   deleteMode={deleteMode}
                   deleteStrategy={deleteStrategy}
-                  confirmDelete={confirmDelete}
+                  confirmations={confirmations}
                   sort={catalog?.sort}
                   sortFields={catalog?.sortFields}
                   sortSource={catalog?.sortSource}
@@ -2122,9 +2129,8 @@ export function FolderBrowserPane({
                   onToggleMultiSelect={toggleMultiSelectMode}
                   onToggleDeleteMode={() => setDeleteMode((current) => !current)}
                   onToggleDeleteStrategy={() => setDeleteStrategy((current) => (current === "trash" ? "permanent" : "trash"))}
-                  onConfirmDeleteChange={(value) => {
-                    setConfirmDelete(value)
-                    void onFolderView?.({ confirmDelete: value })
+                  onConfirmationChange={(patch) => {
+                    void onFolderView?.({ confirmations: patch })
                   }}
                   onUpdateSort={(sort) => {
                     void updateSort(sort)
@@ -2157,6 +2163,7 @@ export function FolderBrowserPane({
                     currentPath={catalog.path}
                     disabled={disabled || loading}
                     switchToast={switchToast}
+                    confirmations={confirmations}
                     chainSelectMode={chainSelectMode}
                     clickBehavior={checkModeClickBehavior}
                     onSelectAll={() => setSelection(selectAllDirectoryEntries(catalog.generation))}
@@ -2376,7 +2383,7 @@ export function FolderBrowserPane({
                             penetrationFiles={entry ? penetrationDescriptions.get(entry.path) : undefined}
                             deleteMode={deleteMode}
                             deleteStrategy={deleteStrategy}
-                            confirmDelete={confirmDelete}
+                            confirmDelete={activeDeleteConfirmation}
                             onSelect={selectEntry}
                           />
                         )
@@ -2397,7 +2404,7 @@ export function FolderBrowserPane({
                         layout={folderView.details}
                         deleteMode={deleteMode}
                         deleteStrategy={deleteStrategy}
-                        confirmDelete={confirmDelete}
+                        confirmDelete={activeDeleteConfirmation}
                         onRangeChange={requestRange}
                         onScrollTopChange={(scrollTop) => {
                           detailsScrollTopRef.current = scrollTop
@@ -2429,7 +2436,7 @@ export function FolderBrowserPane({
                         penetrationFiles={penetrationDescriptions}
                         deleteMode={deleteMode}
                         deleteStrategy={deleteStrategy}
-                        confirmDelete={confirmDelete}
+                        confirmDelete={activeDeleteConfirmation}
                         showReturnFooter={showReturnFooter}
                         returnFooterContext={returnFooterContext}
                         restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.gridSnapshot : undefined}
@@ -2465,7 +2472,7 @@ export function FolderBrowserPane({
                         penetrationFiles={penetrationDescriptions}
                         deleteMode={deleteMode}
                         deleteStrategy={deleteStrategy}
-                        confirmDelete={confirmDelete}
+                        confirmDelete={activeDeleteConfirmation}
                         showReturnFooter={showReturnFooter}
                         returnFooterContext={returnFooterContext}
                         restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.mosaicSnapshot : undefined}

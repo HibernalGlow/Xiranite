@@ -1458,7 +1458,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     "hoverPreviewDelayMs",
     "typeFilter",
     "showHiddenFolders",
-    "confirmDelete",
+    "confirmations",
     "tagDisplay",
     "penetration",
     "emptyArea",
@@ -1519,9 +1519,30 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     patch.folderView.showHiddenFolders = optionalBoolean(folder.showHiddenFolders, "reader folder view patch.showHiddenFolders")
     toml.show_hidden_folders = patch.folderView.showHiddenFolders
   }
-  if (folder.confirmDelete !== undefined) {
-    patch.folderView.confirmDelete = optionalBoolean(folder.confirmDelete, "reader folder view patch.confirmDelete")
-    toml.confirm_delete = patch.folderView.confirmDelete
+  if (folder.confirmations !== undefined) {
+    const confirmations = requireRecord(folder.confirmations, "reader folder view patch.confirmations")
+    const allowedConfirmations = new Set(["trash", "permanentDelete", "batchTrash", "batchPermanentDelete"])
+    const unknownConfirmations = Object.keys(confirmations).filter((key) => !allowedConfirmations.has(key))
+    if (unknownConfirmations.length) {
+      throw new Error(`reader folder view patch.confirmations contains unsupported fields: ${unknownConfirmations.join(", ")}.`)
+    }
+    const confirmationPatch: Partial<Models.NeoviewFolderConfirmationConfig> = {}
+    const confirmationToml: Record<string, unknown> = {}
+    for (const [key, tomlKey] of [
+      ["trash", "trash"],
+      ["permanentDelete", "permanent_delete"],
+      ["batchTrash", "batch_trash"],
+      ["batchPermanentDelete", "batch_permanent_delete"],
+    ] as const) {
+      if (confirmations[key] === undefined) continue
+      confirmationPatch[key] = optionalBoolean(confirmations[key], `reader folder view patch.confirmations.${key}`)
+      confirmationToml[tomlKey] = confirmationPatch[key]
+    }
+    if (!Object.keys(confirmationPatch).length) {
+      throw new Error("reader folder view patch.confirmations must change at least one field.")
+    }
+    patch.folderView.confirmations = confirmationPatch
+    toml.confirmations = confirmationToml
   }
   if (folder.tagDisplay !== undefined) {
     const display = requireRecord(folder.tagDisplay, "reader folder view patch.tagDisplay")
@@ -1747,6 +1768,7 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Mode
   const tabs = optionalRecord(value.tabs, "[nodes.neoview.folder.tabs]")
   const penetration = optionalRecord(value.penetration, "[nodes.neoview.folder.penetration]")
   const tagDisplay = optionalRecord(value.tag_display, "[nodes.neoview.folder.tag_display]")
+  const confirmations = optionalRecord(value.confirmations, "[nodes.neoview.folder.confirmations]")
   const hiddenColumns = normalizedDetailColumns(details?.hidden_columns ?? [], "[nodes.neoview.folder.details].hidden_columns", false, false).filter(
     (id) => id !== "name",
   )
@@ -1795,7 +1817,20 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Mode
       Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.typeFilter,
     showHiddenFolders:
       optionalBoolean(value.show_hidden_folders, "[nodes.neoview.folder].show_hidden_folders") ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.showHiddenFolders,
-    confirmDelete: optionalBoolean(value.confirm_delete, "[nodes.neoview.folder].confirm_delete") ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.confirmDelete,
+    confirmations: {
+      trash:
+        optionalBoolean(confirmations?.trash, "[nodes.neoview.folder.confirmations].trash")
+        ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.confirmations.trash,
+      permanentDelete:
+        optionalBoolean(confirmations?.permanent_delete ?? confirmations?.permanentDelete, "[nodes.neoview.folder.confirmations].permanent_delete")
+        ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.confirmations.permanentDelete,
+      batchTrash:
+        optionalBoolean(confirmations?.batch_trash ?? confirmations?.batchTrash, "[nodes.neoview.folder.confirmations].batch_trash")
+        ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.confirmations.batchTrash,
+      batchPermanentDelete:
+        optionalBoolean(confirmations?.batch_permanent_delete ?? confirmations?.batchPermanentDelete, "[nodes.neoview.folder.confirmations].batch_permanent_delete")
+        ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.confirmations.batchPermanentDelete,
+    },
     tagDisplay: {
       tagMode:
         optionalEnum(tagDisplay?.tag_mode ?? tagDisplay?.tagMode, "[nodes.neoview.folder.tag_display].tag_mode", ["all", "collect", "none"]) ??

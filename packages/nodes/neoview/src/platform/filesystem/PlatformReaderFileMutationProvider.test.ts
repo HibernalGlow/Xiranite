@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -90,6 +90,23 @@ describe("PlatformReaderFileMutationProvider", () => {
     })
     await provider.undo(receipt!)
     expect(await readFile(source, "utf8")).toBe("reader")
+  })
+
+  it.runIf(process.platform === "win32")("[neoview.file-operations.windows-trash-literal-brackets] moves and restores a literal bracket directory", async () => {
+    const root = await temporaryRoot()
+    const source = join(root, "[BigShine]")
+    await mkdir(source)
+    await writeFile(join(source, "reader.txt"), "reader")
+    const provider = new PlatformReaderFileMutationProvider()
+
+    const receipt = await provider.execute({ kind: "trash", sourcePath: source })
+
+    expect(receipt).toMatchObject({
+      original: { kind: "trash", sourcePath: source },
+      providerData: { kind: "windows-recycle-bin", itemPath: expect.any(String) },
+    })
+    await provider.undo(receipt!)
+    expect(await readFile(join(source, "reader.txt"), "utf8")).toBe("reader")
   })
 
   it("[neoview.file-operations.trash-restore-stale] refuses to restore over a replacement path", async () => {

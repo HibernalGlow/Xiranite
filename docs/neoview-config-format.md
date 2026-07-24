@@ -81,6 +81,8 @@ view_mode = "mosaic-list"
 
 文件夹导航、Home 路径、目录树、删除确认、穿透策略和文件系统写操作不属于 File Presentation，不得被虚拟源盲目继承。History 的清理/恢复、Bookmark 的列表成员关系、各自搜索排序和业务动作继续由 Card 自己拥有。
 
+文件 Card 的确认开关位于同一根表的二级分组 `[nodes.neoview.folder.confirmations]`。`trash` 和 `batch_trash` 默认关闭，分别控制单项与批量“已删除到回收站”；`permanent_delete` 和 `batch_permanent_delete` 默认开启。根字段 `confirm_delete` 不再支持。
+
 新增共享展示字段时，必须同时进入共享类型、同一校验器、有效配置 resolver、共用 renderer/control 和跨 Card 测试；禁止在各 Card 建立字段 allowlist 或逐字段复制 props。这样旧 Card 在没有 override 时会自动获得新字段，只有 capability 不支持时才允许显式降级。
 
 读取端继续接受旧 `[nodes.neoview.history_list].view_mode = "content|banner|thumbnail"`。旧值映射为稀疏 `viewOverrides.viewMode`；新 `view_overrides.view_mode` 与旧字段同时存在时新分组优先。下一次修改 History 视图模式时写入新分组并删除旧字段。

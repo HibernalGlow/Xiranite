@@ -1644,6 +1644,13 @@ export interface ReaderFolderTagDisplayConfig {
   showTooltips: boolean
 }
 
+export interface ReaderFolderConfirmationConfig {
+  trash: boolean
+  permanentDelete: boolean
+  batchTrash: boolean
+  batchPermanentDelete: boolean
+}
+
 export interface ReaderFolderViewConfig {
   homePath: string
   viewMode: ReaderFolderViewMode
@@ -1657,7 +1664,7 @@ export interface ReaderFolderViewConfig {
   /** Preferred directory listing type filter; applied when a browser session opens. */
   typeFilter?: ReaderDirectoryFilterDto
   showHiddenFolders?: boolean
-  confirmDelete?: boolean
+  confirmations: ReaderFolderConfirmationConfig
   tagDisplay: ReaderFolderTagDisplayConfig
   penetration: ReaderFolderPenetrationConfig
   emptyArea: ReaderFolderEmptyAreaConfig
@@ -1688,7 +1695,7 @@ export interface ReaderFolderViewPatch {
     hoverPreviewDelayMs?: 200 | 500 | 800 | 1200
     typeFilter?: ReaderDirectoryFilterDto
     showHiddenFolders?: boolean
-    confirmDelete?: boolean
+    confirmations?: Partial<ReaderFolderConfirmationConfig>
     tagDisplay?: Partial<ReaderFolderTagDisplayConfig>
     penetration?: Partial<ReaderFolderPenetrationConfig>
     emptyArea?: Partial<ReaderFolderEmptyAreaConfig>

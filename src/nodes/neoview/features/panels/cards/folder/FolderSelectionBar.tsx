@@ -10,9 +10,10 @@ import type {
   ReaderHttpClient,
 } from "../../../../adapters/reader-http-client"
 import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
+import type { ReaderFolderConfirmationConfig } from "../../../../adapters/reader-http-client"
 import { useFolderClipboard } from "./FolderClipboard"
 
-export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, currentPath, disabled, chainSelectMode, clickBehavior, switchToast, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted, onDeleteCompleted }: {
+export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, currentPath, disabled, chainSelectMode, clickBehavior, switchToast, confirmations = { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true }, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted, onDeleteCompleted }: {
   client: ReaderHttpClient
   sessionId: string
   selection: ReaderDirectorySelectionDescriptorDto
@@ -23,6 +24,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
   chainSelectMode: boolean
   clickBehavior: "open" | "select"
   switchToast?: ReaderSwitchToastPort
+  confirmations?: ReaderFolderConfirmationConfig
   onSelectAll(): void
   onInvert(): void
   onToggleChain(): void
@@ -210,7 +212,8 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
           <Action
             label="将所选项目移到回收站"
             disabled={disabled || selectedCount === 0 || !contextMenu || !client.startDirectorySelectionOperation || !client.directorySelectionOperation}
-            onClick={() => contextMenu?.confirm({
+            onClick={() => {
+              const item = {
               id: "neoview-folder-trash-selection",
               label: `将 ${selectedCount} 个项目移到回收站`,
               icon: <Trash2 />,
@@ -222,7 +225,10 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
                 destructive: true,
               },
               onSelect: () => { void startDestructiveOperation("trash") },
-            })}
+              }
+              if (confirmations.batchTrash) contextMenu?.confirm(item)
+              else void item.onSelect()
+            }}
           >
             <Trash2 />
           </Action>
@@ -230,7 +236,8 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
             label="永久删除所选项目"
             className="text-destructive hover:text-destructive"
             disabled={disabled || selectedCount === 0 || !contextMenu || !client.startDirectorySelectionOperation || !client.directorySelectionOperation}
-            onClick={() => contextMenu?.confirm({
+            onClick={() => {
+              const item = {
               id: "neoview-folder-delete-selection",
               label: `永久删除 ${selectedCount} 个项目`,
               icon: <Trash />,
@@ -242,7 +249,10 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
                 cancelLabel: "取消",
               },
               onSelect: () => { void startDestructiveOperation("delete") },
-            })}
+              }
+              if (confirmations.batchPermanentDelete) contextMenu?.confirm(item)
+              else void item.onSelect()
+            }}
           ><Trash /></Action>
           {undoState?.available && client.undoLatestFileOperations ? (
             <Action

@@ -39,7 +39,7 @@ describe("Folder Card penetration file names", () => {
       penetrationFiles={penetrationFiles}
       deleteMode={false}
       deleteStrategy="trash"
-      confirmDelete
+      confirmDelete={false}
       onSelect={vi.fn()}
     />)
 
@@ -68,7 +68,7 @@ describe("Folder Card penetration file names", () => {
     }
     if (visualMode === "mosaic-list") render(<DirectoryBannerItem {...common} visualMode={visualMode} />)
     else if (visualMode === "cover-grid") render(<DirectoryGridItem {...common} visualMode={visualMode} />)
-    else render(<DirectoryMosaicItem {...common} span="square" previewReady={false} columnCount={4} deleteMode={false} deleteStrategy="trash" confirmDelete onDimensions={vi.fn()} />)
+    else render(<DirectoryMosaicItem {...common} span="square" previewReady={false} columnCount={4} deleteMode={false} deleteStrategy="trash" confirmDelete={false} onDimensions={vi.fn()} />)
 
     expect(screen.getByText("First Book")).toBeTruthy()
     expect(screen.getByText("chapters")).toBeTruthy()

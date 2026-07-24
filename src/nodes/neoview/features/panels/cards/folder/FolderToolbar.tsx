@@ -60,6 +60,7 @@ import type {
   ReaderDirectorySortPreferenceCommandDto,
   ReaderDirectorySortSourceDto,
   ReaderFolderEmptyAreaConfig,
+  ReaderFolderConfirmationConfig,
   ReaderFolderPenetrationConfig,
   ReaderFolderTagDisplayConfig,
   ReaderFolderTreeLayout,
@@ -123,7 +124,7 @@ export type FolderToolbarProps = {
   multiSelectMode: boolean
   deleteMode?: boolean
   deleteStrategy?: FolderDeleteStrategy
-  confirmDelete?: boolean
+  confirmations?: ReaderFolderConfirmationConfig
   sort?: ReaderDirectorySortDto
   sortFields?: readonly ReaderDirectorySortFieldDto[]
   sortSource?: ReaderDirectorySortSourceDto
@@ -165,7 +166,7 @@ export type FolderToolbarProps = {
   onToggleMultiSelect(): void
   onToggleDeleteMode?(): void
   onToggleDeleteStrategy?(): void
-  onConfirmDeleteChange?(confirm: boolean): void
+  onConfirmationChange?(patch: Partial<ReaderFolderConfirmationConfig>): void
   onUpdateSort(sort: ReaderDirectorySortDto): void
   onUpdateSortPreference(command: ReaderDirectorySortPreferenceCommandDto): void
   onEmptyAreaChange(patch: Partial<ReaderFolderEmptyAreaConfig>): void
@@ -230,7 +231,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     multiSelectMode,
     deleteMode = false,
     deleteStrategy = "trash",
-    confirmDelete = true,
+    confirmations = { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
     sort,
     sortFields,
     sortSource,
@@ -272,7 +273,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     onToggleMultiSelect,
     onToggleDeleteMode = () => undefined,
     onToggleDeleteStrategy = () => undefined,
-    onConfirmDeleteChange = () => undefined,
+    onConfirmationChange = () => undefined,
     onUpdateSort,
     onUpdateSortPreference,
     onEmptyAreaChange,
@@ -532,13 +533,48 @@ export default function FolderToolbar(props: FolderToolbarProps) {
 
             <FolderTagDisplayMenu value={tagDisplay} onChange={onTagDisplayChange} />
 
-            <DropdownMenuCheckboxItem
-              checked={confirmDelete}
-              onCheckedChange={(checked) => onConfirmDeleteChange(checked === true)}
-            >
-              <Trash2 className="size-4" />
-              删除前确认
-            </DropdownMenuCheckboxItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Trash2 className="size-4" />
+                <span className="flex min-w-0 flex-1 flex-col text-left">
+                  <span>二次确认</span>
+                  <span className="truncate text-[10px] font-normal text-muted-foreground">
+                    {Object.values(confirmations).filter(Boolean).length} / 4 已开启
+                  </span>
+                </span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-56" data-folder-toolbar-menu="confirmations">
+                <DropdownMenuCheckboxItem
+                  checked={confirmations.trash}
+                  onCheckedChange={(checked) => onConfirmationChange({ trash: checked === true })}
+                >
+                  <Trash2 className="size-4" />
+                  已删除到回收站
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={confirmations.permanentDelete}
+                  onCheckedChange={(checked) => onConfirmationChange({ permanentDelete: checked === true })}
+                >
+                  <Trash2 className="size-4" />
+                  永久删除
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={confirmations.batchTrash}
+                  onCheckedChange={(checked) => onConfirmationChange({ batchTrash: checked === true })}
+                >
+                  <Trash2 className="size-4" />
+                  批量移到回收站
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={confirmations.batchPermanentDelete}
+                  onCheckedChange={(checked) => onConfirmationChange({ batchPermanentDelete: checked === true })}
+                >
+                  <Trash2 className="size-4" />
+                  批量永久删除
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
 
             <DropdownMenuItem onSelect={() => setPenetrationSettingsOpen(true)}>
               <Layers3 className="size-4" />

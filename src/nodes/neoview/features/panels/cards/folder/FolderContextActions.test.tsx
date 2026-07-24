@@ -33,6 +33,7 @@ describe("FolderContextActions", () => {
         <FolderDeleteButton
           entry={{ index: 0, path: "D:/library/old.cbz", name: "old.cbz", kind: "file", readerSupported: true }}
           strategy="trash"
+          confirm
         />
       </ContextMenuProvider>,
     )
@@ -59,7 +60,6 @@ describe("FolderContextActions", () => {
         <FolderContextActions
           client={clientWith({ executeFileOperations })}
           disabled={false}
-          confirmDelete={false}
           onActivate={vi.fn()}
           onOpenInNewTab={vi.fn()}
         />
@@ -395,6 +395,7 @@ describe("FolderContextActions", () => {
           onActivate={vi.fn()}
           onOpenInNewTab={vi.fn()}
           onTrashed={onTrashed}
+          confirmations={{ trash: true, permanentDelete: true, batchTrash: false, batchPermanentDelete: true }}
         />
         <button
           data-context-menu="neoview-folder-entry"
@@ -423,6 +424,108 @@ describe("FolderContextActions", () => {
     fireEvent.contextMenu(screen.getByRole("button", { name: "old.cbz" }), { clientX: 20, clientY: 30 })
     expect((await screen.findByRole("menuitem", { name: "撤销上次删除" })).hasAttribute("data-disabled")).toBe(false)
     expect((await screen.findByRole("status")).textContent).toContain("已将 old.cbz 移到回收站")
+  })
+
+  it("[neoview.folder.trash-release-reader] releases an active reader source before trash and commits it after success", async () => {
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/library/[BigShine]" }, status: "succeeded" as const }],
+      succeeded: 1, failed: 0, cancelled: 0, undoable: 1,
+    }))
+    const commit = vi.fn()
+    const restore = vi.fn(async () => undefined)
+    const onPrepareFileMutation = vi.fn(async () => ({ commit, restore }))
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <FolderContextActions
+          client={clientWith({ executeFileOperations })}
+          disabled={false}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+          onPrepareFileMutation={onPrepareFileMutation}
+        />
+        <FolderDeleteButton
+          entry={{ index: 0, path: "D:/library/[BigShine]", name: "[BigShine]", kind: "directory", readerSupported: true }}
+          strategy="trash"
+          confirm={false}
+        />
+      </ContextMenuProvider>,
+    )
+
+    await user.click(screen.getByRole("button", { name: "移到回收站：[BigShine]" }))
+    await waitFor(() => expect(executeFileOperations).toHaveBeenCalledOnce())
+
+    expect(onPrepareFileMutation).toHaveBeenCalledWith("D:/library/[BigShine]", expect.any(AbortSignal))
+    expect(onPrepareFileMutation.mock.invocationCallOrder[0]).toBeLessThan(executeFileOperations.mock.invocationCallOrder[0]!)
+    expect(commit).toHaveBeenCalledOnce()
+    expect(restore).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.folder.trash-release-reader-failure] restores the reader when trash fails after release", async () => {
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/library/[BigShine]" }, status: "failed" as const, errorCode: "EPERM" }],
+      succeeded: 0, failed: 1, cancelled: 0, undoable: 0,
+    }))
+    const commit = vi.fn()
+    const restore = vi.fn(async () => undefined)
+    const onPrepareFileMutation = vi.fn(async () => ({ commit, restore }))
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <FolderContextActions
+          client={clientWith({ executeFileOperations })}
+          disabled={false}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+          onPrepareFileMutation={onPrepareFileMutation}
+        />
+        <FolderDeleteButton
+          entry={{ index: 0, path: "D:/library/[BigShine]", name: "[BigShine]", kind: "directory", readerSupported: true }}
+          strategy="trash"
+          confirm={false}
+        />
+      </ContextMenuProvider>,
+    )
+
+    await user.click(screen.getByRole("button", { name: "移到回收站：[BigShine]" }))
+    await waitFor(() => expect(restore).toHaveBeenCalledOnce())
+
+    expect(commit).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.folder.trash-release-reader-abort] restores the reader when an in-flight trash is cancelled after release", async () => {
+    const executeFileOperations = vi.fn(async (_operations, _recordUndo, signal?: AbortSignal) => {
+      await new Promise<never>((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(signal.reason), { once: true })
+      })
+    })
+    const commit = vi.fn()
+    const restore = vi.fn(async () => undefined)
+    const onPrepareFileMutation = vi.fn(async () => ({ commit, restore }))
+    const user = userEvent.setup()
+    const view = render(
+      <ContextMenuProvider>
+        <FolderContextActions
+          client={clientWith({ executeFileOperations })}
+          disabled={false}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+          onPrepareFileMutation={onPrepareFileMutation}
+        />
+        <FolderDeleteButton
+          entry={{ index: 0, path: "D:/library/[BigShine]", name: "[BigShine]", kind: "directory", readerSupported: true }}
+          strategy="trash"
+          confirm={false}
+        />
+      </ContextMenuProvider>,
+    )
+
+    await user.click(screen.getByRole("button", { name: "移到回收站：[BigShine]" }))
+    await waitFor(() => expect(executeFileOperations).toHaveBeenCalledOnce())
+    view.unmount()
+    await waitFor(() => expect(restore).toHaveBeenCalledOnce())
+
+    expect(commit).not.toHaveBeenCalled()
   })
 
   it("[neoview.folder.trash-failure] keeps the item and reports platform failures", async () => {
@@ -454,7 +557,6 @@ describe("FolderContextActions", () => {
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "locked.cbz" }), { clientX: 20, clientY: 30 })
     await user.click(await screen.findByRole("menuitem", { name: "移到回收站" }))
-    await user.click(screen.getByRole("button", { name: "移到回收站" }))
     expect((await screen.findByRole("alert")).textContent).toContain("没有权限")
     expect(onTrashed).not.toHaveBeenCalled()
   })
@@ -505,6 +607,39 @@ describe("FolderContextActions", () => {
     expect(switchToast.show).toHaveBeenCalledWith({ title: "已永久删除 old.cbz" })
   })
 
+  it("[neoview.folder.delete-confirmation-off] permanently deletes directly when that confirmation is disabled", async () => {
+    const executeFileOperations = vi.fn(async () => ({
+      results: [{ index: 0, operation: { kind: "delete" as const, sourcePath: "D:/library/old.cbz" }, status: "succeeded" as const }],
+      succeeded: 1, failed: 0, cancelled: 0, undoable: 0,
+    }))
+    const user = userEvent.setup()
+    render(
+      <ContextMenuProvider>
+        <FolderContextActions
+          client={clientWith({ executeFileOperations })}
+          disabled={false}
+          confirmations={{ trash: false, permanentDelete: false, batchTrash: false, batchPermanentDelete: true }}
+          onActivate={vi.fn()}
+          onOpenInNewTab={vi.fn()}
+        />
+        <button
+          data-context-menu="neoview-folder-entry"
+          data-folder-index="0"
+          data-folder-path="D:/library/old.cbz"
+          data-folder-name="old.cbz"
+          data-folder-kind="file"
+          data-folder-reader-supported="true"
+        >old.cbz</button>
+      </ContextMenuProvider>,
+    )
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "old.cbz" }), { clientX: 20, clientY: 30 })
+    await user.click(await screen.findByRole("menuitem", { name: "永久删除" }))
+
+    expect(screen.queryByRole("alertdialog")).toBeNull()
+    await waitFor(() => expect(executeFileOperations).toHaveBeenCalledOnce())
+  })
+
   it("[neoview.folder.trash-refresh-failure] reports that trash succeeded when only refresh fails", async () => {
     const executeFileOperations = vi.fn(async () => ({
       results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/library/old.cbz" }, status: "succeeded" as const }],
@@ -533,7 +668,6 @@ describe("FolderContextActions", () => {
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "old.cbz" }), { clientX: 20, clientY: 30 })
     await user.click(await screen.findByRole("menuitem", { name: "移到回收站" }))
-    await user.click(screen.getByRole("button", { name: "移到回收站" }))
 
     const alert = await screen.findByRole("alert")
     expect(alert.textContent).toContain("已将 old.cbz 移到回收站，但列表刷新失败")

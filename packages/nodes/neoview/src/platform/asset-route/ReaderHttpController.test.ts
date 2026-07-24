@@ -267,7 +267,10 @@ describe("ReaderHttpController", () => {
     const updateFolderView = vi.fn(async (patch) => ({
       viewMode: patch.folderView.viewMode ?? "compact" as const,
       previewCount: patch.folderView.previewCount ?? 4 as const,
-      confirmDelete: patch.folderView.confirmDelete ?? true,
+      confirmations: {
+        ...DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.confirmations,
+        ...patch.folderView.confirmations,
+      },
       details: {
         columnOrder: patch.folderView.details?.columnOrder ?? ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
         hiddenColumns: patch.folderView.details?.hiddenColumns ?? [],
@@ -483,7 +486,7 @@ describe("ReaderHttpController", () => {
         folderView: {
           viewMode: "details",
           previewCount: 9,
-          confirmDelete: false,
+          confirmations: { trash: true, permanentDelete: false, batchTrash: true, batchPermanentDelete: false },
           tagDisplay: { tagMode: "all", showRating: false, showCollectTagCount: true, showTags: true, maxTags: 5, showTooltips: false },
           details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
@@ -493,7 +496,7 @@ describe("ReaderHttpController", () => {
       expect(await folderPatched.json()).toMatchObject({ folderView: {
         viewMode: "details",
         previewCount: 9,
-        confirmDelete: false,
+        confirmations: { trash: true, permanentDelete: false, batchTrash: true, batchPermanentDelete: false },
         tagDisplay: { tagMode: "all", showRating: false, showCollectTagCount: true, showTags: true, maxTags: 5, showTooltips: false },
         details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
         search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
@@ -503,7 +506,7 @@ describe("ReaderHttpController", () => {
         { folderView: {
           viewMode: "details",
           previewCount: 9,
-          confirmDelete: false,
+          confirmations: { trash: true, permanentDelete: false, batchTrash: true, batchPermanentDelete: false },
           tagDisplay: { tagMode: "all", showRating: false, showCollectTagCount: true, showTags: true, maxTags: 5, showTooltips: false },
           details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
           search: { includeSubfolders: false, showHistoryOnFocus: false, searchInPath: true },
@@ -512,7 +515,7 @@ describe("ReaderHttpController", () => {
         { folder: {
           view_mode: "details",
           preview_count: 9,
-          confirm_delete: false,
+          confirmations: { trash: true, permanent_delete: false, batch_trash: true, batch_permanent_delete: false },
           tag_display: { tag_mode: "all", show_rating: false, show_collect_tag_count: true, show_tags: true, max_tags: 5, show_tooltips: false },
           details: { hidden_columns: ["tags"], column_widths: { name: 310 } },
           search: { include_subfolders: false, show_history_on_focus: false, search_in_path: true },
