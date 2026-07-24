@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { createRef } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { NodeLocalFilesCapability, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import { compileAnimaInt8Program, compileAnimaInt8RunPlan, importComfyuiWorkflow, type ComfygureData, type ComfygureInput } from "@xiranite/node-comfygure/core"
+import { compileAnimaInt8Program, compileAnimaInt8RunPlan, createComfygureProfile, importComfyuiWorkflow, type ComfygureData, type ComfygureInput } from "@xiranite/node-comfygure/core"
 import { Component } from "./Component"
 import type { ComfygureCardState, ComfygureTargetConfig } from "./types"
 
@@ -135,6 +135,34 @@ describe("Comfygure node projection", () => {
 
     await user.click(screen.getByRole("button", { name: "Confirm bindings" }))
     expect(host.state.template?.bindingManifest.confirmed).toBe(true)
+  })
+
+  it("loads and saves versioned generation profiles only through the backend runner", async () => {
+    const host = createHost()
+    const profile = createComfygureProfile({ parameters: { width: 1536, height: 896 } }, "Portrait", { now: new Date("2026-07-24T00:00:00.000Z") })
+    host.runner.run = async <TInput, TData>(nodeId: string, input: TInput) => {
+      host.runCalls.push({ nodeId, input: input as ComfygureInput })
+      const action = (input as ComfygureInput).action
+      const data: ComfygureData = {
+        compiled: compileAnimaInt8Program(),
+        runPlan: compileAnimaInt8RunPlan(),
+        ...(action === "profiles" ? { profiles: [{ id: profile.id, name: profile.name, revision: profile.revision, updatedAt: profile.updatedAt }] } : {}),
+        ...(action === "saveProfile" ? { profile } : {}),
+      }
+      return { success: true, message: "Profile action complete.", data } as NodeRunResult<TData>
+    }
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Profiles" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]).toMatchObject({ input: { action: "profiles" } })
+    expect(host.state.profiles).toEqual([{ id: "portrait", name: "Portrait", revision: 1, updatedAt: "2026-07-24T00:00:00.000Z" }])
+
+    await user.click(screen.getByRole("button", { name: "Save profile" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(2))
+    expect(host.runCalls[1]).toMatchObject({ input: { action: "saveProfile", profileName: "ANIMA INT8" } })
+    expect(host.state.profile?.id).toBe("portrait")
   })
 
   it("refreshes only previously submitted prompt IDs", async () => {

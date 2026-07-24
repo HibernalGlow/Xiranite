@@ -498,9 +498,11 @@
       "name": "@xiranite/node-comfygure",
       "version": "0.1.0",
       "dependencies": {
+        "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "fflate": "^0.8.3",
         "jsonrepair": "3.15.0",
+        "write-file-atomic": "7.0.0",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",

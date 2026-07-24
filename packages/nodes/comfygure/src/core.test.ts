@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { compileAnimaInt8Program, compileAnimaInt8RunPlan, compileComfygureTemplate, confirmComfygureTemplateBindings, compressComfygureText, decompressComfygureText, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, importComfyuiWorkflow, normalizeComfyuiEndpoint, normalizePromptText, preflightComfyuiTarget, resolveBatchSequence, runComfygure } from "./core.js"
+import { compileAnimaInt8Program, compileAnimaInt8RunPlan, compileComfygureTemplate, confirmComfygureTemplateBindings, compressComfygureText, createComfygureProfile, decompressComfygureText, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, importComfyuiWorkflow, normalizeComfyuiEndpoint, normalizeComfygureProfile, normalizePromptText, preflightComfyuiTarget, resolveBatchSequence, resolveComfygureProfile, runComfygure } from "./core.js"
 
 describe("Comfygure ANIMA INT8 compiler", () => {
   it("compiles dynamic LoRA choices into static Comfyroll stack nodes", () => {
@@ -36,6 +36,46 @@ describe("Comfygure ANIMA INT8 compiler", () => {
     expect(compressed?.data.length).toBeLessThan(source.length)
     expect(decompressComfygureText(compressed)).toBe(source)
     expect(decompressComfygureText({ format: "deflate-base64/v1", data: "not-base64", lineCount: 1, uncompressedLength: 1 })).toBe("")
+  })
+
+  it("freezes a versioned generation profile without prompts or batch content", () => {
+    const first = createComfygureProfile({
+      prompts: { positive: "project-only" },
+      batch: { prompts: ["project batch"] },
+      model: { unetName: "profile-model.safetensors" },
+      parameters: { width: 1536, height: 896, steps: 33 },
+      output: { filenamePrefix: "profile-output" },
+    }, "ANIMA Portrait", { now: new Date("2026-07-24T00:00:00.000Z") })
+    const revised = createComfygureProfile(first.program, "ANIMA Portrait v2", { previous: first, now: new Date("2026-07-24T01:00:00.000Z") })
+    const resolved = resolveComfygureProfile(first, { prompts: { positive: "project prompt" }, parameters: { steps: 40 } })
+
+    expect(first).toMatchObject({ id: "anima-portrait", revision: 1, createdAt: "2026-07-24T00:00:00.000Z", program: { model: { unetName: "profile-model.safetensors" }, parameters: { width: 1536, height: 896, steps: 33 } } })
+    expect(first.program).not.toHaveProperty("prompts")
+    expect(first.program).not.toHaveProperty("batch")
+    expect(revised).toMatchObject({ id: "anima-portrait", revision: 2, createdAt: first.createdAt, updatedAt: "2026-07-24T01:00:00.000Z" })
+    expect(resolved).toMatchObject({ prompts: { positive: "project prompt" }, parameters: { width: 1536, height: 896, steps: 40 }, output: { filenamePrefix: "profile-output" } })
+    expect(normalizeComfygureProfile(JSON.parse(JSON.stringify(first)))).toEqual(first)
+  })
+
+  it("uses the profile store only for explicit profile actions", async () => {
+    const saved: unknown[] = []
+    const profiles = [{ id: "anima-portrait", name: "ANIMA Portrait", revision: 1, updatedAt: "2026-07-24T00:00:00.000Z" }]
+    const runtime = {
+      fetch: async () => ({ ok: true, status: 200, json: async () => ({}) }),
+      now: () => new Date("2026-07-24T00:00:00.000Z"),
+      profileStore: {
+        list: vi.fn(async () => profiles),
+        read: vi.fn(async () => undefined),
+        save: vi.fn(async (profile) => { saved.push(profile); return profile }),
+      },
+    }
+
+    const listed = await runComfygure({ action: "profiles" }, runtime)
+    const created = await runComfygure({ action: "saveProfile", profileName: "ANIMA Portrait" }, runtime)
+
+    expect(listed).toMatchObject({ success: true, data: { profiles } })
+    expect(created).toMatchObject({ success: true, data: { profile: { id: "anima-portrait", revision: 1 } } })
+    expect(saved).toHaveLength(1)
   })
 
   it("repairs malformed multiline API JSON, preserves its source, and applies confirmed template bindings", () => {
