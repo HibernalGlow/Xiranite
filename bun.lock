@@ -499,6 +499,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@xiranite/contract": "workspace:*",
+        "fflate": "^0.8.3",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
