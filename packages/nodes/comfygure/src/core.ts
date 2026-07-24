@@ -1,4 +1,13 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import {
+  RULE_TREE_FORMAT,
+  createRuleId,
+  evaluateRulePolicies,
+  rulePolicySchema,
+  type RuleEffect,
+  type RulePolicy,
+  type RuleTree,
+} from "@xiranite/shared/rules"
 import { deflateSync, inflateSync, strFromU8, strToU8 } from "fflate"
 import { jsonrepair } from "jsonrepair"
 import { Liquid, TokenKind } from "liquidjs"
@@ -9,6 +18,7 @@ export const COMFYGURE_TEMPLATE_FORMAT = "comfygure-template/v1" as const
 export const COMFYGURE_BINDING_MANIFEST_FORMAT = "comfygure-binding-manifest/v1" as const
 export const COMFYGURE_PROFILE_FORMAT = "comfygure-profile/v1" as const
 export const ANIMA_INT8_RECIPE = "anima-int8/v1" as const
+export const COMFYGURE_ENABLE_LORA_EFFECT = "comfygure.enable-lora/v1" as const
 export const DEFAULT_COMFYUI_ENDPOINT = "http://127.0.0.1:8000"
 export const DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS = 10_000
 export const DEFAULT_POSITIVE_TEMPLATE = "{{ prompt.prefix }}, {{ prompt.positive }}"
@@ -146,6 +156,51 @@ export interface ComfygureLora {
   enabled?: boolean
 }
 
+export interface ComfygureEnableLoraEffect extends RuleEffect {
+  type: typeof COMFYGURE_ENABLE_LORA_EFFECT
+  payload: { loraName: string }
+}
+
+export type ComfygureRuleEffect = ComfygureEnableLoraEffect
+export type ComfygureRulePolicy = RulePolicy<ComfygureRuleEffect>
+
+export interface ComfygureRuleResolution {
+  facts: Readonly<Record<string, unknown>>
+  matchedPolicyIds: readonly string[]
+  enabledLoraNames: readonly string[]
+}
+
+export interface ComfygureRuleFactDefinition {
+  name: string
+  label: string
+  type: "string" | "number" | "boolean" | "string[]"
+}
+
+export const COMFYGURE_RULE_FACTS: readonly ComfygureRuleFactDefinition[] = [
+  { name: "prompt.activationText", label: "Prompt text", type: "string" },
+  { name: "batch.text", label: "Batch text", type: "string" },
+  { name: "batch.sourceName", label: "Source filename", type: "string" },
+  { name: "batch.sourcePath", label: "Source path", type: "string" },
+  { name: "batch.sourceIndex", label: "Source index", type: "number" },
+  { name: "batch.loopIndex", label: "Loop index", type: "number" },
+  { name: "model.unet", label: "UNet model", type: "string" },
+  { name: "model.clip", label: "CLIP model", type: "string" },
+  { name: "model.vae", label: "VAE model", type: "string" },
+  { name: "image.width", label: "Image width", type: "number" },
+  { name: "image.height", label: "Image height", type: "number" },
+  { name: "image.batchSize", label: "Image batch size", type: "number" },
+  { name: "sampler.seed", label: "Seed", type: "number" },
+  { name: "sampler.name", label: "Sampler", type: "string" },
+  { name: "sampler.scheduler", label: "Scheduler", type: "string" },
+  { name: "sampler.steps", label: "Steps", type: "number" },
+  { name: "sampler.cfg", label: "CFG", type: "number" },
+  { name: "sampler.denoise", label: "Denoise", type: "number" },
+  { name: "output.prefix", label: "Output prefix", type: "string" },
+  { name: "output.format", label: "Output format", type: "string" },
+  { name: "lora.names", label: "Configured LoRA names", type: "string[]" },
+  { name: "lora.tags", label: "Configured LoRA tags", type: "string[]" },
+] as const
+
 export interface ComfygureBatchEntry {
   text: string
   sourceName?: string
@@ -190,6 +245,7 @@ export interface ComfygureProgram {
   }
   batch: ComfygureBatch
   loras: readonly ComfygureLora[]
+  rules: readonly ComfygureRulePolicy[]
   parameters: {
     width: number
     height: number
@@ -222,7 +278,7 @@ export interface ComfygureProgram {
   }
 }
 
-export type ComfygureProfileProgram = Pick<ComfygureProgram, "model" | "loras" | "parameters" | "teaCache" | "output">
+export type ComfygureProfileProgram = Pick<ComfygureProgram, "model" | "loras" | "rules" | "parameters" | "teaCache" | "output">
 
 export interface ComfygureProfile {
   format: typeof COMFYGURE_PROFILE_FORMAT
@@ -249,6 +305,7 @@ export interface ComfygureProgramDraft {
   templates?: Partial<ComfygureProgram["templates"]>
   batch?: Partial<ComfygureBatch>
   loras?: readonly ComfygureLora[]
+  rules?: readonly ComfygureRulePolicy[]
   parameters?: Partial<ComfygureProgram["parameters"]>
   teaCache?: Partial<ComfygureProgram["teaCache"]>
   output?: Partial<ComfygureProgram["output"]>
@@ -276,6 +333,7 @@ export interface CompiledProgram {
   negativePrompt: string
   filenamePrefix: string
   promptComposition: ComfygurePromptComposition
+  ruleResolution?: ComfygureRuleResolution
   requiredClasses: readonly string[]
   requiredResources: readonly ResourceRequirement[]
 }
@@ -317,6 +375,7 @@ export interface ComfygureCompileOptions extends ComfygureRunPlanOptions {
   sourceIndex?: number
   loopIndex?: number
   batchEntry?: ComfygureBatchEntry
+  ruleResolution?: ComfygureRuleResolution
 }
 
 export interface ComfygureTemplateVariable {
@@ -539,6 +598,7 @@ export const DEFAULT_COMFYGURE_PROGRAM: ComfygureProgram = {
     selectionSeed: 0,
   },
   loras: [],
+  rules: [],
   parameters: {
     width: 1024,
     height: 1024,
@@ -719,6 +779,7 @@ export function normalizeComfygureProgram(input: ComfygureProgramDraft = {}): Co
       selectionSeed: rounded(batch.selectionSeed, DEFAULT_COMFYGURE_PROGRAM.batch.selectionSeed, 0, Number.MAX_SAFE_INTEGER),
     },
     loras: normalizeLoras(source.loras),
+    rules: normalizeComfygureRules(source.rules),
     parameters: {
       width: rounded(parameters.width, DEFAULT_COMFYGURE_PROGRAM.parameters.width, 64, 4096, 64),
       height: rounded(parameters.height, DEFAULT_COMFYGURE_PROGRAM.parameters.height, 64, 4096, 64),
@@ -789,11 +850,63 @@ export function resolveActiveLoras(program: ComfygureProgram, positiveText: stri
   })
 }
 
+export function createComfygureLoraRule(loraName: string, activationTerms = ""): ComfygureRulePolicy {
+  const terms = splitActivationTerms(activationTerms)
+  const id = createRuleId("lora-policy")
+  return {
+    id,
+    name: `Enable ${loraName}`,
+    enabled: true,
+    priority: 0,
+    when: {
+      format: RULE_TREE_FORMAT,
+      version: 1,
+      root: {
+        id: createRuleId("group"),
+        kind: "group",
+        combinator: terms.length > 1 ? "any" : "all",
+        not: false,
+        children: terms.map((term) => ({
+          id: createRuleId("condition"),
+          kind: "condition" as const,
+          field: "prompt.activationText",
+          operator: "contains" as const,
+          value: term,
+        })),
+      },
+    },
+    effects: [{ type: COMFYGURE_ENABLE_LORA_EFFECT, payload: { loraName } }],
+  }
+}
+
+export async function resolveComfygureRules(
+  program: ComfygureProgram,
+  options: ComfygureCompileOptions = {},
+): Promise<ComfygureRuleResolution> {
+  const batchEntry = options.batchEntry ?? { text: program.prompts.positive }
+  const facts = createComfygureRuleFacts(program, options, batchEntry)
+  const matches = await evaluateRulePolicies(program.rules, facts)
+  const controlledLoras = new Set(program.rules.flatMap((policy) => policy.effects.map((effect) => effect.payload.loraName)))
+  const matchedLoras = new Set(matches.flatMap((match) => match.effects.map((effect) => effect.payload.loraName)))
+  const activationText = String(facts["prompt.activationText"] ?? "")
+  const enabledLoraNames = program.loras
+    .filter((lora) => lora.enabled !== false)
+    .filter((lora) => controlledLoras.has(lora.name) ? matchedLoras.has(lora.name) : legacyLoraMatches(lora, activationText))
+    .map((lora) => lora.name)
+  return Object.freeze({
+    facts,
+    matchedPolicyIds: Object.freeze(matches.map((match) => match.policyId)),
+    enabledLoraNames: Object.freeze(enabledLoraNames),
+  })
+}
+
 function resolvePromptComposition(program: ComfygureProgram, options: ComfygureCompileOptions = {}): { activeLoras: readonly ComfygureLora[]; composition: ComfygurePromptComposition } {
   const batchEntry = options.batchEntry ?? { text: program.prompts.positive }
   const sourceText = batchEntry.text || program.prompts.positive
   const activationText = normalizePromptText([program.prompts.positivePrefix, sourceText].filter(Boolean).join(", "))
-  const activeLoras = resolveActiveLoras(program, activationText)
+  if (program.rules.length > 0 && !options.ruleResolution) throw new Error("Comfygure rule policies require the async rule-aware compiler entry point.")
+  const enabledLoras = options.ruleResolution ? new Set(options.ruleResolution.enabledLoraNames) : undefined
+  const activeLoras = enabledLoras ? program.loras.filter((lora) => enabledLoras.has(lora.name)) : resolveActiveLoras(program, activationText)
   const injectedTerms = activeLoras.flatMap((lora) => splitPromptTags(lora.injectionTerms ?? "").map(normalizePromptTag).filter(Boolean))
   const context = createLiquidContext(program, activeLoras, options, batchEntry, injectedTerms)
   const renderedPositive = renderComfygureLiquid("positive", program.templates.positive, context)
@@ -871,6 +984,50 @@ function createLiquidContext(
       format: program.output.format,
     },
   }
+}
+
+function createComfygureRuleFacts(
+  program: ComfygureProgram,
+  options: ComfygureCompileOptions,
+  batchEntry: ComfygureBatchEntry,
+): Readonly<Record<string, unknown>> {
+  const sourceName = batchEntry.sourceName || pathBasename(batchEntry.sourcePath ?? "")
+  const activationText = normalizePromptText([program.prompts.positivePrefix, batchEntry.text || program.prompts.positive].filter(Boolean).join(", "))
+  const loraTags = program.loras.flatMap((lora) => [
+    ...splitActivationTerms(lora.activationTerms ?? ""),
+    ...splitPromptTags(lora.injectionTerms ?? "").map(normalizePromptTag).filter(Boolean),
+  ])
+  const facts: Record<string, unknown> = {
+    "prompt.activationText": activationText,
+    "batch.text": batchEntry.text,
+    "batch.sourceName": sourceName,
+    "batch.sourcePath": batchEntry.sourcePath ?? "",
+    "batch.sourceIndex": Math.max(0, Math.trunc(options.sourceIndex ?? 0)),
+    "batch.loopIndex": Math.max(0, Math.trunc(options.loopIndex ?? 0)),
+    "model.unet": program.model.unetName,
+    "model.clip": program.model.clipName,
+    "model.vae": program.model.vaeName,
+    "image.width": program.parameters.width,
+    "image.height": program.parameters.height,
+    "image.batchSize": program.parameters.batchSize,
+    "sampler.seed": program.parameters.seed,
+    "sampler.name": program.parameters.samplerName,
+    "sampler.scheduler": program.parameters.scheduler,
+    "sampler.steps": program.parameters.steps,
+    "sampler.cfg": program.parameters.cfg,
+    "sampler.denoise": program.parameters.denoise,
+    "output.prefix": program.output.filenamePrefix,
+    "output.format": program.output.format,
+    "lora.names": Object.freeze(program.loras.map((lora) => lora.name)),
+    "lora.tags": Object.freeze([...new Set(loraTags)]),
+  }
+  return Object.freeze(facts)
+}
+
+function legacyLoraMatches(lora: ComfygureLora, activationText: string): boolean {
+  const comparable = activationText.toLocaleLowerCase()
+  const terms = splitActivationTerms(lora.activationTerms ?? "").map((term) => term.toLocaleLowerCase())
+  return terms.length === 0 || terms.some((term) => comparable.includes(term))
 }
 
 function renderComfygureLiquid(scope: string, template: string, context: Record<string, unknown>): string {
@@ -1008,6 +1165,7 @@ export function compileAnimaInt8Program(input: ComfygureProgramDraft = {}, optio
     negativePrompt,
     filenamePrefix,
     promptComposition: composition,
+    ...(options.ruleResolution ? { ruleResolution: options.ruleResolution } : {}),
     requiredClasses: [...new Set(Object.values(graph).map((node) => node.class_type))].sort(),
     requiredResources,
   }
@@ -1062,6 +1220,7 @@ export function resolveComfygureProfile(profile: ComfygureProfile, overrides: Co
     ...overrides,
     model: { ...profile.program.model, ...overrides.model },
     loras: overrides.loras ?? profile.program.loras,
+    rules: overrides.rules ?? profile.program.rules,
     parameters: { ...profile.program.parameters, ...overrides.parameters },
     teaCache: { ...profile.program.teaCache, ...overrides.teaCache },
     output: { ...profile.program.output, ...overrides.output },
@@ -1102,6 +1261,7 @@ export function compileComfygureTemplate(template: ComfygureTemplate, input: Com
     negativePrompt,
     filenamePrefix,
     promptComposition: composition,
+    ...(options.ruleResolution ? { ruleResolution: options.ruleResolution } : {}),
     requiredClasses: [...new Set(Object.values(graph).map((node) => node.class_type))].sort(),
     requiredResources: inferGraphResourceRequirements(graph),
   }
@@ -1179,6 +1339,69 @@ export function compileComfygureTemplateRunPlan(template: ComfygureTemplate, inp
       compiled: compileComfygureTemplate(template, jobProgram, { ...options, jobIndex: index, sourceIndex, loopIndex, batchEntry: entry }),
     }
   })
+  return { format: COMFYGURE_RUN_PLAN_FORMAT, recipe: ANIMA_INT8_RECIPE, program, jobs }
+}
+
+export async function compileAnimaInt8RunPlanWithRules(
+  input: ComfygureProgramDraft = {},
+  options: ComfygureRunPlanOptions = {},
+): Promise<CompiledRunPlan> {
+  return await compileRunPlanWithRules(normalizeComfygureProgram(input), options, (program, compileOptions) => compileAnimaInt8Program(program, compileOptions))
+}
+
+export async function compileComfygureTemplateRunPlanWithRules(
+  template: ComfygureTemplate,
+  input: ComfygureProgramDraft = {},
+  options: ComfygureRunPlanOptions = {},
+): Promise<CompiledRunPlan> {
+  const normalized = normalizeComfygureProgram(input)
+  const program = normalized.loras.length ? normalized : { ...normalized, loras: template.defaultLoras }
+  return await compileRunPlanWithRules(program, options, (jobProgram, compileOptions) => compileComfygureTemplate(template, jobProgram, compileOptions))
+}
+
+async function compileRunPlanWithRules(
+  program: ComfygureProgram,
+  options: ComfygureRunPlanOptions,
+  compile: (program: ComfygureProgram, options: ComfygureCompileOptions) => CompiledProgram,
+): Promise<CompiledRunPlan> {
+  const batchEntries = program.batch.entries.slice(0, program.batch.maxPrompts || undefined)
+  if (batchEntries.length === 0) {
+    const entry = { text: program.prompts.positive }
+    const compileOptions = { ...options, batchEntry: entry }
+    const ruleResolution = await resolveComfygureRules(program, compileOptions)
+    const compiled = compile(program, { ...compileOptions, ruleResolution })
+    return {
+      format: COMFYGURE_RUN_PLAN_FORMAT,
+      recipe: ANIMA_INT8_RECIPE,
+      program,
+      jobs: [{ index: 0, sourceIndex: 0, loopIndex: 0, sourceText: program.prompts.positive, seed: program.parameters.seed, compiled }],
+    }
+  }
+
+  const sequence = resolveBatchSequence(batchEntries.length, program.batch)
+  const jobs: CompiledGenerationJob[] = []
+  for (const [index, sourceIndex] of sequence.entries()) {
+    const seed = resolveJobSeed(program.parameters.seed, program.parameters.seedMode, index)
+    const entry = batchEntries[sourceIndex] ?? { text: "" }
+    const loopIndex = Math.floor(index / batchEntries.length)
+    const jobProgram = normalizeComfygureProgram({
+      ...program,
+      prompts: { ...program.prompts, positive: entry.text },
+      parameters: { ...program.parameters, seed },
+    })
+    const compileOptions = { ...options, jobIndex: index, sourceIndex, loopIndex, batchEntry: entry }
+    const ruleResolution = await resolveComfygureRules(jobProgram, compileOptions)
+    jobs.push({
+      index,
+      sourceIndex,
+      loopIndex,
+      sourceText: entry.text,
+      ...(entry.sourceName ? { sourceName: entry.sourceName } : {}),
+      ...(entry.sourcePath ? { sourcePath: entry.sourcePath } : {}),
+      seed,
+      compiled: compile(jobProgram, { ...compileOptions, ruleResolution }),
+    })
+  }
   return { format: COMFYGURE_RUN_PLAN_FORMAT, recipe: ANIMA_INT8_RECIPE, program, jobs }
 }
 
@@ -1341,7 +1564,9 @@ export async function runComfygure(input: ComfygureInput, runtime: ComfygureRunt
   const runId = optionalString(input.runId) ?? (input.action === "submit" ? formatComfygureRunId(runtime.now?.() ?? new Date()) : "preview")
   let runPlan: CompiledRunPlan
   try {
-    runPlan = input.template ? compileComfygureTemplateRunPlan(input.template, program, { runId }) : compileAnimaInt8RunPlan(program, { runId })
+    runPlan = input.template
+      ? await compileComfygureTemplateRunPlanWithRules(input.template, program, { runId })
+      : await compileAnimaInt8RunPlanWithRules(program, { runId })
   } catch (error) {
     return { success: false, message: error instanceof Error ? error.message : String(error) }
   }
@@ -2318,6 +2543,28 @@ function normalizeBatchEntries(entries: readonly ComfygureBatchEntry[] | undefin
   })
 }
 
+function normalizeComfygureRules(value: readonly ComfygureRulePolicy[] | undefined): readonly ComfygureRulePolicy[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((candidate) => {
+    const parsed = rulePolicySchema.safeParse(candidate)
+    if (!parsed.success) return []
+    const effects = parsed.data.effects.flatMap((effect) => {
+      if (effect.type !== COMFYGURE_ENABLE_LORA_EFFECT) return []
+      const loraName = stringValue(effect.payload.loraName, "")
+      return loraName ? [{ type: COMFYGURE_ENABLE_LORA_EFFECT, payload: { loraName } } satisfies ComfygureEnableLoraEffect] : []
+    })
+    if (effects.length === 0) return []
+    return [{
+      id: parsed.data.id,
+      name: parsed.data.name,
+      enabled: parsed.data.enabled,
+      priority: parsed.data.priority,
+      when: parsed.data.when as RuleTree,
+      effects,
+    }]
+  })
+}
+
 function resolveJobSeed(baseSeed: number, mode: "fixed" | "increment", jobIndex: number): number {
   if (mode === "fixed") return baseSeed
   return Math.min(Number.MAX_SAFE_INTEGER, baseSeed + jobIndex)
@@ -2590,6 +2837,11 @@ function profileProgramFrom(program: ComfygureProgram): ComfygureProfileProgram 
   return {
     model: { ...program.model },
     loras: program.loras.map((lora) => ({ ...lora })),
+    rules: program.rules.map((rule) => ({
+      ...rule,
+      when: structuredClone(rule.when),
+      effects: rule.effects.map((effect) => ({ ...effect, payload: { ...effect.payload } })),
+    })),
     parameters: { ...program.parameters },
     teaCache: { ...program.teaCache },
     output: { ...program.output },
