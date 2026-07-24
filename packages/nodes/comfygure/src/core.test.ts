@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { compileAnimaInt8Program, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, normalizeComfyuiEndpoint, preflightComfyuiTarget, runComfygure } from "./core.js"
+import { compileAnimaInt8Program, compileAnimaInt8RunPlan, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, normalizeComfyuiEndpoint, preflightComfyuiTarget, resolveBatchSequence, runComfygure } from "./core.js"
 
 describe("Comfygure ANIMA INT8 compiler", () => {
   it("compiles dynamic LoRA choices into static Comfyroll stack nodes", () => {
@@ -68,6 +68,34 @@ describe("Comfygure ANIMA INT8 compiler", () => {
     expect(result.data?.compiled.positivePrompt).toBe("portrait with animal ears, cat ears, whiskers")
   })
 
+  it("compiles BatchLoadTexts-style source entries into fixed jobs and frozen incrementing seeds", () => {
+    const runPlan = compileAnimaInt8RunPlan({
+      prompts: { positivePrefix: "masterpiece" },
+      batch: { prompts: ["cat", "dog"], queueCount: 5, allowDuplicates: true },
+      parameters: { seed: 41, seedMode: "increment" },
+    })
+
+    expect(runPlan.jobs.map((job) => ({ sourceIndex: job.sourceIndex, loopIndex: job.loopIndex, seed: job.seed, prompt: job.compiled.positivePrompt }))).toEqual([
+      { sourceIndex: 0, loopIndex: 0, seed: 41, prompt: "masterpiece, cat" },
+      { sourceIndex: 1, loopIndex: 0, seed: 42, prompt: "masterpiece, dog" },
+      { sourceIndex: 0, loopIndex: 1, seed: 43, prompt: "masterpiece, cat" },
+      { sourceIndex: 1, loopIndex: 1, seed: 44, prompt: "masterpiece, dog" },
+      { sourceIndex: 0, loopIndex: 2, seed: 45, prompt: "masterpiece, cat" },
+    ])
+    expect(runPlan.jobs.map((job) => job.compiled.graph["8"]?.inputs.seed)).toEqual([41, 42, 43, 44, 45])
+  })
+
+  it("uses a deterministic shuffle while preserving no-duplicate rounds", () => {
+    const batch = { prompts: ["a", "b", "c"], maxPrompts: 0, queueCount: 8, shuffle: true, allowDuplicates: false, selectionSeed: 42 } as const
+    const first = resolveBatchSequence(batch.prompts.length, batch)
+    const second = resolveBatchSequence(batch.prompts.length, batch)
+
+    expect(first).toEqual(second)
+    expect(first).toHaveLength(8)
+    expect([...first.slice(0, 3)].sort()).toEqual([0, 1, 2])
+    expect([...first.slice(3, 6)].sort()).toEqual([0, 1, 2])
+  })
+
   it("preflights exact node classes and resources from object_info without submitting a prompt", async () => {
     const compiled = compileAnimaInt8Program({ loras: [{ name: "folder/style-a.safetensors" }] })
     const info = objectInfoFor(compiled)
@@ -118,6 +146,47 @@ describe("Comfygure ANIMA INT8 compiler", () => {
 
     expect(result.success).toBe(false)
     expect(requests).toEqual(["http://127.0.0.1:8000/object_info"])
+  })
+
+  it("preflights the union of LoRAs that are activated by different batch jobs", async () => {
+    const catPlan = compileAnimaInt8Program({ loras: [{ name: "cat.safetensors", activationTerms: "cat" }], prompts: { positive: "cat" } })
+    const requests: string[] = []
+    const result = await runComfygure({
+      action: "preflight",
+      program: {
+        batch: { prompts: ["cat", "dog"] },
+        loras: [
+          { name: "cat.safetensors", activationTerms: "cat" },
+          { name: "dog.safetensors", activationTerms: "dog" },
+        ],
+      },
+    }, {
+      fetch: async (url) => {
+        requests.push(url)
+        return { ok: true, status: 200, json: async () => objectInfoFor(catPlan) }
+      },
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.data?.preflight?.missingResources.map((item) => item.resourceName)).toEqual(["dog.safetensors"])
+    expect(requests).toEqual(["http://127.0.0.1:8000/object_info"])
+  })
+
+  it("submits one immutable graph for each batch job after a single compatibility preflight", async () => {
+    const compiled = compileAnimaInt8Program()
+    const requests: Array<{ url: string; init?: { method?: string; body?: string } }> = []
+    const result = await runComfygure({ action: "submit", program: { batch: { prompts: ["cat", "dog"] } } }, {
+      fetch: async (url, init) => {
+        requests.push({ url, init })
+        if (url.endsWith("/object_info")) return { ok: true, status: 200, json: async () => objectInfoFor(compiled) }
+        return { ok: true, status: 200, json: async () => ({ prompt_id: `prompt-${requests.length}`, number: requests.length }) }
+      },
+    })
+
+    expect(result).toMatchObject({ success: true, data: { submissions: [{ promptId: "prompt-2" }, { promptId: "prompt-3" }] } })
+    expect(requests.map((request) => request.init?.method)).toEqual(["GET", "POST", "POST"])
+    expect(JSON.parse(requests[1]?.init?.body ?? "{}").prompt["5"].inputs.text).toBe("cat")
+    expect(JSON.parse(requests[2]?.init?.body ?? "{}").prompt["5"].inputs.text).toBe("dog")
   })
 
   it("aborts an unresponsive target instead of leaving preflight pending", async () => {

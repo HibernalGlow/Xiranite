@@ -11,7 +11,9 @@ import {
 } from "@xiranite/node-comfygure/core"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
@@ -57,6 +59,7 @@ export function Component({ compId, host }: NodeComponentProps) {
         ...next,
         model: { ...current.model, ...next.model },
         prompts: { ...current.prompts, ...next.prompts },
+        batch: { ...current.batch, ...next.batch },
         parameters: { ...current.parameters, ...next.parameters },
         teaCache: { ...current.teaCache, ...next.teaCache },
         output: { ...current.output, ...next.output },
@@ -106,12 +109,14 @@ export function Component({ compId, host }: NodeComponentProps) {
         patch({
           preview: {
             graphNodeCount: Object.keys(data.compiled.graph).length,
+            generationJobCount: data.runPlan.jobs.length,
             activeLoraNames: data.compiled.activeLoras.map((lora) => lora.name),
             positivePrompt: data.compiled.positivePrompt,
             negativePrompt: data.compiled.negativePrompt,
           },
           preflight: data.preflight,
           submission: data.submission,
+          submissions: data.submissions,
           status: result.message,
           progress: result.success ? 100 : stateRef.current.progress,
         })
@@ -134,9 +139,11 @@ export function Component({ compId, host }: NodeComponentProps) {
         <div className="grid gap-2 @xl/comfygure:grid-cols-2"><Field label="Program"><Input value={program.name} onChange={(event) => updateProgram({ name: event.currentTarget.value })} /></Field><Field label="Output prefix"><Input value={program.output.filenamePrefix} onChange={(event) => updateProgram({ output: { ...program.output, filenamePrefix: event.currentTarget.value } })} /></Field></div>
         <Field label="Positive prompt"><Textarea className="min-h-24" value={program.prompts.positive} onChange={(event) => updateProgram({ prompts: { ...program.prompts, positive: event.currentTarget.value } })} /></Field>
         <div className="grid gap-2 @xl/comfygure:grid-cols-2"><Field label="Positive prefix"><Textarea className="min-h-18" value={program.prompts.positivePrefix} onChange={(event) => updateProgram({ prompts: { ...program.prompts, positivePrefix: event.currentTarget.value } })} /></Field><Field label="Negative prompt"><Textarea className="min-h-18" value={program.prompts.negative} onChange={(event) => updateProgram({ prompts: { ...program.prompts, negative: event.currentTarget.value } })} /></Field></div>
+        <Field label="Batch positive prompts"><Textarea className="min-h-24" placeholder="One fixed generation job per non-empty line" value={program.batch.prompts.join("\n")} onChange={(event) => updateProgram({ batch: { ...program.batch, prompts: batchPrompts(event.currentTarget.value) } })} /></Field>
+        <div className="grid gap-2 @xl/comfygure:grid-cols-2"><NumberField label="Batch jobs (0 = all)" value={program.batch.queueCount} onValueChange={(queueCount) => updateProgram({ batch: { ...program.batch, queueCount } })} /><NumberField label="Batch selection seed" value={program.batch.selectionSeed} onValueChange={(selectionSeed) => updateProgram({ batch: { ...program.batch, selectionSeed } })} /><CheckField label="Shuffle batch jobs" checked={program.batch.shuffle} onCheckedChange={(shuffle) => updateProgram({ batch: { ...program.batch, shuffle } })} /><CheckField label="Allow repeated batch prompts" checked={program.batch.allowDuplicates} onCheckedChange={(allowDuplicates) => updateProgram({ batch: { ...program.batch, allowDuplicates } })} /></div>
         <Field label="LoRA rows"><Textarea className="min-h-24 font-mono text-xs" value={formatLoraRows(program.loras)} placeholder="folder/style.safetensors | 1 | 1 | activation terms | injected terms" onChange={(event) => updateProgram({ loras: parseLoraRows(event.currentTarget.value) })} /></Field>
         <div className="grid gap-2 grid-cols-2 @2xl/comfygure:grid-cols-4"><NumberField label="Width" value={program.parameters.width} onValueChange={(width) => updateProgram({ parameters: { ...program.parameters, width } })} /><NumberField label="Height" value={program.parameters.height} onValueChange={(height) => updateProgram({ parameters: { ...program.parameters, height } })} /><NumberField label="Seed" value={program.parameters.seed} onValueChange={(seed) => updateProgram({ parameters: { ...program.parameters, seed } })} /><NumberField label="Batch" value={program.parameters.batchSize} onValueChange={(batchSize) => updateProgram({ parameters: { ...program.parameters, batchSize } })} /><NumberField label="Steps" value={program.parameters.steps} onValueChange={(steps) => updateProgram({ parameters: { ...program.parameters, steps } })} /><NumberField label="CFG" value={program.parameters.cfg} step="0.1" onValueChange={(cfg) => updateProgram({ parameters: { ...program.parameters, cfg } })} /><NumberField label="Denoise" value={program.parameters.denoise} step="0.01" onValueChange={(denoise) => updateProgram({ parameters: { ...program.parameters, denoise } })} /></div>
-        <div className="grid gap-2 @xl/comfygure:grid-cols-2"><Field label="Sampler"><Input value={program.parameters.samplerName} onChange={(event) => updateProgram({ parameters: { ...program.parameters, samplerName: event.currentTarget.value } })} /></Field><Field label="Scheduler"><Input value={program.parameters.scheduler} onChange={(event) => updateProgram({ parameters: { ...program.parameters, scheduler: event.currentTarget.value } })} /></Field></div>
+        <div className="grid gap-2 @xl/comfygure:grid-cols-3"><Field label="Sampler"><Input value={program.parameters.samplerName} onChange={(event) => updateProgram({ parameters: { ...program.parameters, samplerName: event.currentTarget.value } })} /></Field><Field label="Scheduler"><Input value={program.parameters.scheduler} onChange={(event) => updateProgram({ parameters: { ...program.parameters, scheduler: event.currentTarget.value } })} /></Field><Field label="Seed policy"><Select value={program.parameters.seedMode} onValueChange={(seedMode) => updateProgram({ parameters: { ...program.parameters, seedMode: seedMode === "fixed" ? "fixed" : "increment" } })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="increment">Increment per job</SelectItem><SelectItem value="fixed">Fixed</SelectItem></SelectContent></Select></Field></div>
       </section>
       <aside className="min-w-0 space-y-3 border-t pt-3 @4xl/comfygure:border-l @4xl/comfygure:border-t-0 @4xl/comfygure:pl-3 @4xl/comfygure:pt-0">
         <div className="flex items-center gap-2"><Network className="size-4" /><h3 className="text-sm font-semibold">Local target</h3></div>
@@ -145,7 +152,7 @@ export function Component({ compId, host }: NodeComponentProps) {
         <Button className="w-full" size="sm" variant="outline" disabled={running !== null || !targetDirty} onClick={() => void saveTarget()}><Save />Save target</Button>
         <div className="space-y-2 border-t pt-3"><Field label="UNet"><Input value={program.model.unetName} onChange={(event) => updateProgram({ model: { ...program.model, unetName: event.currentTarget.value } })} /></Field><Field label="CLIP"><Input value={program.model.clipName} onChange={(event) => updateProgram({ model: { ...program.model, clipName: event.currentTarget.value } })} /></Field><Field label="VAE"><Input value={program.model.vaeName} onChange={(event) => updateProgram({ model: { ...program.model, vaeName: event.currentTarget.value } })} /></Field></div>
         <div className="grid grid-cols-3 gap-2"><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("preflight")}><Activity />Preflight</Button><Button size="sm" disabled={running !== null} onClick={() => void execute("submit")}><Play />Run</Button></div>
-        <CompilerSummary preview={preview} preflight={preflight} submission={stored.submission} />
+        <CompilerSummary preview={preview} preflight={preflight} submission={stored.submission} submissions={stored.submissions} />
       </aside>
     </div>}
   </div>
@@ -159,8 +166,16 @@ function NumberField(props: { label: string; value: number; step?: string; onVal
   return <Field label={props.label}><Input type="number" min={0} step={props.step ?? "1"} value={props.value} onChange={(event) => props.onValueChange(Number(event.currentTarget.value))} /></Field>
 }
 
-function CompilerSummary({ preview, preflight, submission }: Pick<ComfygureCardState, "preview" | "preflight" | "submission">) {
+function CheckField(props: { label: string; checked: boolean; onCheckedChange: (checked: boolean) => void }) {
+  return <label className="flex min-h-9 items-center gap-2 border px-2 text-xs font-medium"><Checkbox checked={props.checked} onCheckedChange={(checked) => props.onCheckedChange(checked === true)} /><span>{props.label}</span></label>
+}
+
+function CompilerSummary({ preview, preflight, submission, submissions }: Pick<ComfygureCardState, "preview" | "preflight" | "submission" | "submissions">) {
   if (!preview && !preflight && !submission) return <div className="border-t pt-3 text-xs text-muted-foreground">Compile a fixed graph or inspect the local target. Preflight never submits a prompt.</div>
   const healthy = Boolean(preflight?.online && preflight.missingClasses.length === 0 && preflight.missingResources.length === 0)
-  return <div className="space-y-2 border-t pt-3 text-xs"><div className="flex items-center gap-1 font-medium">{preflight ? healthy ? <CheckCircle2 className="size-3 text-chart-2" /> : <CircleAlert className="size-3 text-destructive" /> : <Settings2 className="size-3" />}<span>{submission ? "Submitted to ComfyUI" : preflight ? healthy ? "Ready to run" : "Preflight needs attention" : "Compiler preview"}</span></div>{preview ? <><p>{preview.graphNodeCount} fixed ComfyUI nodes</p><p className="break-words text-muted-foreground">{preview.activeLoraNames.length ? `LoRAs: ${preview.activeLoraNames.join(", ")}` : "No active LoRAs"}</p></> : null}{submission ? <p className="break-all text-muted-foreground">Prompt ID: {submission.promptId}</p> : null}{preflight ? <div className={cn("space-y-1", healthy ? "text-muted-foreground" : "text-destructive")}><p>{preflight.online ? `${preflight.availableClassCount} classes reported` : `Unavailable: ${preflight.endpoint}`}</p>{preflight.missingClasses.length ? <p>Missing nodes: {preflight.missingClasses.join(", ")}</p> : null}{preflight.missingResources.length ? <p>Missing resources: {preflight.missingResources.map((item) => item.resourceName).join(", ")}</p> : null}{preflight.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}</div>
+  return <div className="space-y-2 border-t pt-3 text-xs"><div className="flex items-center gap-1 font-medium">{preflight ? healthy ? <CheckCircle2 className="size-3 text-chart-2" /> : <CircleAlert className="size-3 text-destructive" /> : <Settings2 className="size-3" />}<span>{submission ? "Submitted to ComfyUI" : preflight ? healthy ? "Ready to run" : "Preflight needs attention" : "Compiler preview"}</span></div>{preview ? <><p>{preview.graphNodeCount} fixed ComfyUI nodes{preview.generationJobCount > 1 ? ` per job · ${preview.generationJobCount} jobs` : ""}</p><p className="break-words text-muted-foreground">{preview.activeLoraNames.length ? `LoRAs: ${preview.activeLoraNames.join(", ")}` : "No active LoRAs"}</p></> : null}{submission ? <p className="break-all text-muted-foreground">{submissions && submissions.length > 1 ? `Prompt IDs (${submissions.length}): ${submissions.map((item) => item.promptId).join(", ")}` : `Prompt ID: ${submission.promptId}`}</p> : null}{preflight ? <div className={cn("space-y-1", healthy ? "text-muted-foreground" : "text-destructive")}><p>{preflight.online ? `${preflight.availableClassCount} classes reported` : `Unavailable: ${preflight.endpoint}`}</p>{preflight.missingClasses.length ? <p>Missing nodes: {preflight.missingClasses.join(", ")}</p> : null}{preflight.missingResources.length ? <p>Missing resources: {preflight.missingResources.map((item) => item.resourceName).join(", ")}</p> : null}{preflight.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}</div>
+}
+
+function batchPrompts(value: string): string[] {
+  return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
 }

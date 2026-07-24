@@ -7,6 +7,7 @@ export interface ComfygureTargetConfig {
 
 export interface ComfygureCardPreview {
   graphNodeCount: number
+  generationJobCount: number
   activeLoraNames: readonly string[]
   positivePrompt: string
   negativePrompt: string
@@ -17,6 +18,7 @@ export interface ComfygureCardState {
   preview?: ComfygureCardPreview
   preflight?: PreflightReport
   submission?: ComfyuiSubmission
+  submissions?: readonly ComfyuiSubmission[]
   status?: string
   progress?: number
 }
