@@ -27,11 +27,22 @@ describe("RuleTreeEditor", () => {
     expect(queryBuilderToRuleTree(ruleTreeToQueryBuilder(tree), fields)).toEqual(tree)
   })
 
+  it("keeps array-fact contains values scalar", () => {
+    const arrayTree = queryBuilderToRuleTree({
+      id: "root",
+      combinator: "and",
+      rules: [{ id: "tag", field: "lora.names", operator: "contains", value: ["style.safetensors"] }],
+    }, [{ name: "lora.names", label: "LoRA names", type: "multiselect", options: [{ name: "style.safetensors", label: "Style" }] }])
+    expect(arrayTree.root.children[0]).toMatchObject({ value: "style.safetensors" })
+  })
+
   it("renders semantic theme classes and mature query-builder controls", () => {
     const { container } = render(<RuleTreeEditor value={tree} fields={fields} onValueChange={() => {}} />)
     expect(screen.getByTestId("rule-tree-editor").getAttribute("data-theme-surface")).toBe("semantic")
     expect(container.querySelector(".ruleGroup")?.classList.contains("bg-muted/20")).toBe(true)
-    expect(container.querySelector(".rule-fields")?.classList.contains("bg-background")).toBe(true)
+    expect(container.querySelector("select")).toBeNull()
+    expect(container.querySelectorAll('[data-slot="select-trigger"]')).toHaveLength(4)
+    expect(container.querySelector(".rule-fields")?.getAttribute("data-slot")).toBe("select-trigger")
     expect(screen.getByTitle("Drag to reorder")).toBeTruthy()
   })
 

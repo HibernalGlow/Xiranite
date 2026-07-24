@@ -13,6 +13,10 @@
       "types": "./dist/core.d.ts",
       "default": "./dist/core.js"
     },
+    "./definition": {
+      "types": "./dist/definition.d.ts",
+      "default": "./dist/definition.js"
+    },
     "./project": {
       "types": "./dist/project.d.ts",
       "default": "./dist/project.js"
