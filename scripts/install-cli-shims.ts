@@ -56,12 +56,14 @@ async function main() {
   printPathGuidance(targetDir, options)
 }
 
-function parseArgs(args: string[]): Options {
+export function parseArgs(args: string[]): Options {
   const options: Options = {
     dryRun: false,
     force: false,
     legacyAliases: false,
-    posix: platform() !== "win32",
+    // Git Bash is a supported Windows shell. Its extensionless shim preserves
+    // argv through "$@" rather than sending regular expressions through cmd.exe.
+    posix: true,
     target: defaultTarget,
   }
 
@@ -231,7 +233,7 @@ function renderCmdShim(shim: ShimSpec): string {
   return header.join("\r\n") + "\r\n"
 }
 
-function renderPosixShim(shim: ShimSpec): string {
+export function renderPosixShim(shim: ShimSpec): string {
   const args = shim.args?.map(shellQuote).join(" ") ?? ""
   const lines: string[] = [
     "#!/usr/bin/env sh",
@@ -320,9 +322,11 @@ function printHelp(): void {
   ].join("\n"))
 }
 
-try {
-  await main()
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exitCode = 1
+if (import.meta.main) {
+  try {
+    await main()
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
 }

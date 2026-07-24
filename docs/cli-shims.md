@@ -4,7 +4,7 @@
 
 该脚本将受管理的 shim 文件写入目标目录：
 
-- `xiranite.cmd`
+- `xiranite.cmd`，以及供 Git Bash 等 POSIX shell 使用的无扩展名 `xiranite`；后者以 `"$@"` 原样转发参数，不会经过 Windows `.cmd` 层重解析正则引号。
 - `xr.cmd`：在仓库根目录运行 `bun run dev`，一键启动后端 + 前端开发服务器
 - `xrd.cmd`：在仓库根目录运行 `bun run dev:desktop`，启动 Wails 桌面开发模式
 - 根据当前 CLI 命名策略，每个已迁移节点包对应一个 `x<node>.cmd`
