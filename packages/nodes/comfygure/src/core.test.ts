@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import { RULE_TREE_FORMAT } from "@xiranite/shared/rules"
 import { compileAnimaInt8Program, compileAnimaInt8RunPlan, compileComfygureTemplate, confirmComfygureTemplateBindings, compressComfygureText, createComfygureProfile, decompressComfygureText, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, exportComfygureCanvas, extractComfygureControlOptions, importComfyuiWorkflow, normalizeComfyuiEndpoint, normalizeComfygureProfile, normalizePromptText, parseComfygureVisualTemplate, preflightComfyuiTarget, resolveBatchSequence, resolveComfygureProfile, runComfygure, serializeComfygureVisualTemplate } from "./core.js"
 
 describe("Comfygure ANIMA INT8 compiler", () => {
@@ -36,6 +37,52 @@ describe("Comfygure ANIMA INT8 compiler", () => {
     expect(compressed?.data.length).toBeLessThan(source.length)
     expect(decompressComfygureText(compressed)).toBe(source)
     expect(decompressComfygureText({ format: "deflate-base64/v1", data: "not-base64", lineCount: 1, uncompressedLength: 1 })).toBe("")
+  })
+
+  it("freezes complex rule matches and final LoRAs independently for each generation job", async () => {
+    const program = {
+      batch: { prompts: ["school uniform, outdoors", "evening dress"] },
+      parameters: { width: 1536 },
+      loras: [
+        { name: "base-style.safetensors" },
+        { name: "uniform-style.safetensors", injectionTerms: "uniform style" },
+      ],
+      rules: [{
+        id: "uniform-rule",
+        name: "Uniform at large sizes",
+        enabled: true,
+        priority: 10,
+        when: {
+          format: RULE_TREE_FORMAT,
+          version: 1 as const,
+          root: {
+            id: "uniform-root",
+            kind: "group" as const,
+            combinator: "all" as const,
+            not: false,
+            children: [
+              { id: "uniform-text", kind: "condition" as const, field: "batch.text", operator: "contains" as const, value: "uniform" },
+              { id: "uniform-width", kind: "condition" as const, field: "image.width", operator: "greaterThanInclusive" as const, value: 1024 },
+            ],
+          },
+        },
+        effects: [{ type: "comfygure.enable-lora/v1" as const, payload: { loraName: "uniform-style.safetensors" } }],
+      }],
+    }
+
+    expect(() => compileAnimaInt8Program(program)).toThrow("async rule-aware compiler")
+    const result = await runComfygure({ action: "compile", program }, { fetch: vi.fn() })
+
+    expect(result.success).toBe(true)
+    expect(result.data?.runPlan.jobs.map((job) => ({
+      text: job.sourceText,
+      loras: job.compiled.activeLoras.map((lora) => lora.name),
+      matches: job.compiled.ruleResolution?.matchedPolicyIds,
+      fact: job.compiled.ruleResolution?.facts["batch.text"],
+    }))).toEqual([
+      { text: "school uniform, outdoors", loras: ["base-style.safetensors", "uniform-style.safetensors"], matches: ["uniform-rule"], fact: "school uniform, outdoors" },
+      { text: "evening dress", loras: ["base-style.safetensors"], matches: [], fact: "evening dress" },
+    ])
   })
 
   it("round-trips simple Liquid output and literal parts for the sortable template editor", () => {

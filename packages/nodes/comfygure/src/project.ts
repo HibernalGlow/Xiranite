@@ -4,6 +4,7 @@ import { brotliCompress, brotliDecompress, constants as zlibConstants } from "no
 
 import { canonicalizeEx } from "json-canonicalize"
 import { z } from "zod"
+import { ruleTreeSchema } from "@xiranite/shared/rules"
 
 import {
   ANIMA_INT8_RECIPE,
@@ -124,6 +125,17 @@ const loraSchema = z.object({
   injectionTerms: z.string().optional(),
   enabled: z.boolean().optional(),
 }).strict()
+const comfygureRuleSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  enabled: z.boolean(),
+  priority: z.number().int(),
+  when: ruleTreeSchema,
+  effects: z.array(z.object({
+    type: z.literal("comfygure.enable-lora/v1"),
+    payload: z.object({ loraName: z.string().min(1) }).strict(),
+  }).strict()),
+}).strict()
 const modelSchema = z.object({ unetName: z.string().min(1), clipName: z.string().min(1), vaeName: z.string().min(1) }).strict()
 const parametersSchema = z.object({
   width: z.number().int().positive(),
@@ -174,11 +186,12 @@ const programSchema = z.object({
   templates: z.object({ positive: z.string(), negative: z.string(), filenamePrefix: z.string() }).strict(),
   batch: batchSchema,
   loras: z.array(loraSchema),
+  rules: z.array(comfygureRuleSchema),
   parameters: parametersSchema,
   teaCache: teaCacheSchema,
   output: outputSchema,
 }).strict()
-const profileProgramSchema = programSchema.pick({ model: true, loras: true, parameters: true, teaCache: true, output: true })
+const profileProgramSchema = programSchema.pick({ model: true, loras: true, rules: true, parameters: true, teaCache: true, output: true })
 const programDraftSchema = z.object({
   name: z.string().optional(),
   model: modelSchema.partial().optional(),
@@ -186,6 +199,7 @@ const programDraftSchema = z.object({
   templates: z.object({ positive: z.string(), negative: z.string(), filenamePrefix: z.string() }).partial().strict().optional(),
   batch: batchSchema.partial().optional(),
   loras: z.array(loraSchema).optional(),
+  rules: z.array(comfygureRuleSchema).optional(),
   parameters: parametersSchema.partial().optional(),
   teaCache: teaCacheSchema.partial().optional(),
   output: outputSchema.partial().optional(),
