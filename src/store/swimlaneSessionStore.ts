@@ -31,10 +31,9 @@ export const useSwimlaneSessionStore = create<SwimlaneSessionStore>()(
         name: "xiranite-swimlane-session",
         version: 1,
         storage: createJSONStorage(() => localStorage),
-        // 仅持久化 soloLaneId：Reader 全屏（solo）状态需跨会话保留，否则冷启动
-        // sessionStorage 为空，ensureSwimlaneSession 的 fallback 会重新把 Reader 置
-        // 为 solo，覆盖用户上一轮"退出全屏"的意图。activeLaneId 是临时焦点，冷启
-        // 动应回到 TOML 默认 (reader)，不跨会话保留。
+        // 仅持久化 soloLaneId，保留用户上次进入或退出泳道全屏的选择。
+        // 无已保存状态的 scope 以普通泳道启动。activeLaneId 是临时焦点，
+        // 冷启动应回到 Reader，不跨会话保留。
         partialize: ({ sessions }) => ({
           sessions: Object.fromEntries(
             Object.entries(sessions).map(([scopeId, session]) => [

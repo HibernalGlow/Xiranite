@@ -283,24 +283,28 @@ export interface ReaderAppProps {
   sessionScopeId?: string
   initialPath?: string
   initialBrowserOriginPath?: string
+  initialSwimlaneSoloLaneId?: string | null
   client?: ReaderHttpClient
   pickFile?: () => Promise<string | undefined>
   pickDirectory?: () => Promise<string | undefined>
   copyText?: (text: string) => Promise<void>
   copyFiles?: (paths: string[]) => Promise<void>
   onPathCommitted?: (path: string, browserOriginPath?: string) => void
+  onSwimlaneSoloLaneIdCommitted?: (laneId: string | null) => void
 }
 
 export function ReaderApp({
   sessionScopeId = "standalone",
   initialPath = "",
   initialBrowserOriginPath,
+  initialSwimlaneSoloLaneId,
   client: injectedClient,
   pickFile,
   pickDirectory,
   copyText,
   copyFiles,
   onPathCommitted,
+  onSwimlaneSoloLaneIdCommitted,
 }: ReaderAppProps) {
   const surface = useNodeSurface()
   const floatingFrame = useFloatingWindowFrame()
@@ -594,10 +598,22 @@ export function ReaderApp({
       if (config.switchToast) switchToast.hydrate(config.switchToast)
       if (config.infoOverlay) infoOverlay.hydrate(config.infoOverlay)
       if (config.imageTrim) imageTrim.hydrate(config.imageTrim)
-      ensureSwimlaneSession(swimlaneSessionScopeId, {
-        activeLaneId: "reader",
-        soloLaneId: "reader",
-      })
+      if (initialSwimlaneSoloLaneId !== undefined) {
+        const laneOrder = readerWorkspaceConfig(config.shell).swimlane.laneOrder
+        patchSwimlaneSession(swimlaneSessionScopeId, {
+          activeLaneId: "reader",
+          soloLaneId: initialSwimlaneSoloLaneId !== null && laneOrder.includes(initialSwimlaneSoloLaneId)
+            ? initialSwimlaneSoloLaneId
+            : null,
+        })
+      } else {
+        ensureSwimlaneSession(swimlaneSessionScopeId, {
+          activeLaneId: "reader",
+          soloLaneId: null,
+        })
+        const restoredSoloLaneId = useSwimlaneSessionStore.getState().sessions[swimlaneSessionScopeId]?.soloLaneId ?? null
+        onSwimlaneSoloLaneIdCommitted?.(restoredSoloLaneId)
+      }
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
       if (typeof localStorage !== "undefined") {
@@ -1652,7 +1668,12 @@ export function ReaderApp({
     const current = shellRef.current
     if (!current) return
     const { sessionPatch, persistentPatch } = splitReaderWorkspacePatch(patch, currentReaderWorkspace(current))
-    if (sessionPatch) patchSwimlaneSession(swimlaneSessionScopeId, sessionPatch)
+    if (sessionPatch) {
+      patchSwimlaneSession(swimlaneSessionScopeId, sessionPatch)
+      if (Object.hasOwn(sessionPatch, "soloLaneId")) {
+        onSwimlaneSoloLaneIdCommitted?.(sessionPatch.soloLaneId ?? null)
+      }
+    }
     if (!persistentPatch) return
     const optimistic = applyReaderWorkspacePatch(current, persistentPatch)
     // Skip pure no-ops (e.g. auto-fit re-emitting the same widths). Otherwise

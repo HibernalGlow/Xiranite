@@ -123,9 +123,7 @@ describe("ReaderApp", () => {
       shellControl: { workspace: { mode: "swimlane" } },
     }))
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "阅读器更多设置" }), { button: 0, ctrlKey: false })
-    fireEvent.click(screen.getByRole("menuitem", { name: "退出全屏" }))
-    await waitFor(() => expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy())
+    expect(document.querySelector('[data-reader-swimlane="reader"][data-reader-swimlane-solo="true"]')).toBeNull()
     expect(screen.getByRole("button", { name: "Reader 视图全屏" }).closest('[data-reader-swimlane-header="reader"]')).toBeTruthy()
 
     fireEvent.pointerDown(document.querySelector('[data-reader-swimlane="right"]')!, { pointerId: 41, button: 0 })
@@ -182,7 +180,15 @@ describe("ReaderApp", () => {
       updateSessionOptions: vi.fn(),
       close: vi.fn(async () => undefined),
     }
-    render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
+    const onSwimlaneSoloLaneIdCommitted = vi.fn()
+    render(
+      <ReaderApp
+        initialPath="D:/books/demo.cbz"
+        initialSwimlaneSoloLaneId="reader"
+        client={client}
+        onSwimlaneSoloLaneIdCommitted={onSwimlaneSoloLaneIdCommitted}
+      />,
+    )
     fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
 
@@ -190,6 +196,7 @@ describe("ReaderApp", () => {
     fireEvent.pointerDown(await screen.findByRole("button", { name: "阅读器更多设置" }), { button: 0, ctrlKey: false })
     fireEvent.click(screen.getByRole("menuitem", { name: "退出全屏" }))
     expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+    expect(onSwimlaneSoloLaneIdCommitted).toHaveBeenCalledWith(null)
 
     persistedShell = {
       ...persistedShell,
@@ -953,6 +960,46 @@ describe("ReaderApp", () => {
     expect(sessionlessBottom.querySelector('[data-reader-bottom-empty="true"]')).toBeTruthy()
     expect(screen.getByText("未打开书籍")).toBeTruthy()
     expect(client.config).toHaveBeenCalledOnce()
+  })
+
+  it("starts a new swimlane session without implicitly fullscreening the Reader lane", async () => {
+    const config = shellConfig()
+    config.workspace!.mode = "swimlane"
+    const client = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
+    } as ReaderHttpClient
+
+    render(<ReaderApp sessionScopeId="swimlane-cold-start-test" initialSwimlaneSoloLaneId={null} client={client} />)
+
+    await screen.findByRole("button", { name: "Reader 视图全屏" })
+    await waitFor(() => expect(useSwimlaneSessionStore.getState().sessions["neoview:swimlane-cold-start-test"]).toEqual({
+      activeLaneId: "reader",
+      soloLaneId: null,
+    }))
+    expect(document.querySelector('[data-reader-swimlane="reader"][data-reader-swimlane-solo="true"]')).toBeNull()
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
+  })
+
+  it("migrates a cached swimlane fullscreen choice into durable Card state", async () => {
+    const config = shellConfig()
+    config.workspace!.mode = "swimlane"
+    const client = {
+      config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
+    } as ReaderHttpClient
+    const onSwimlaneSoloLaneIdCommitted = vi.fn()
+    useSwimlaneSessionStore.getState().patchSession("neoview:swimlane-cache-migration-test", { soloLaneId: "reader" })
+
+    render(
+      <ReaderApp
+        sessionScopeId="swimlane-cache-migration-test"
+        client={client}
+        onSwimlaneSoloLaneIdCommitted={onSwimlaneSoloLaneIdCommitted}
+      />,
+    )
+
+    await waitFor(() => expect(onSwimlaneSoloLaneIdCommitted).toHaveBeenCalledWith("reader"))
+    expect(document.querySelector('[data-reader-swimlane="reader"][data-reader-swimlane-solo="true"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-swimlane-header="reader"]')).toBeTruthy()
   })
 
   it("moves Reader fullscreen to the Reader lane titlebar without invoking browser fullscreen", async () => {
