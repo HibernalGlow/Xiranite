@@ -246,6 +246,7 @@ function BentoWidget({ component, isSelected }: { component: ComponentInstance; 
     },
     ...createSurfaceCommonActions({
       componentId: component.id,
+      componentData: component.data,
       currentMode: "bento",
       height: 480,
       moduleId: component.moduleId,

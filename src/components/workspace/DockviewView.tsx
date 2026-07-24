@@ -2,7 +2,7 @@ import { useMemo, useCallback, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent, type IDockviewPanelHeaderProps } from "dockview-react"
 import "dockview-react/dist/styles/dockview.css"
-import { useWorkspaceActions, useWorkspaceVisibleComponents, useWorkspaceShallowSelector } from "@/store/workspaceStore"
+import { useWorkspaceActions, useWorkspaceComponent, useWorkspaceVisibleComponents, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
 import { getModule } from "@/components/modules/registry"
 import { isComponentVisibleInView } from "@/lib/componentVisibility"
@@ -32,6 +32,7 @@ function DockviewModulePanel({ params }: DockviewModulePanelProps) {
   const workspaceActions = useWorkspaceActions()
   const { openComponent } = useWindowControls()
   const { t, i18n } = useTranslation()
+  const component = useWorkspaceComponent(compId ?? "")
 
   if (!moduleId || !compId) return null
 
@@ -39,6 +40,7 @@ function DockviewModulePanel({ params }: DockviewModulePanelProps) {
   const moduleName = i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (module?.name ?? moduleId)
   const actions: NodeSurfaceChromeAction[] = createSurfaceCommonActions({
     componentId: compId,
+    componentData: component?.data,
     currentMode: "dockview",
     height: 480,
     moduleId,

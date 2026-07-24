@@ -3,8 +3,14 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { useWorkspaceVisibleComponents } from "@/store/workspaceStore"
 
 type RenderPersistentNode = (compId: string) => ReactNode
+export const NEO_VIEW_KEEP_ALIVE_DATA_KEY = "keepAliveOnViewSwitch"
+
+export function isNeoViewKeepAliveEnabled(data: Record<string, unknown> | undefined): boolean {
+  return data?.[NEO_VIEW_KEEP_ALIVE_DATA_KEY] !== false
+}
 
 interface NeoViewKeepAliveContextValue {
+  isEnabled(compId: string): boolean
   registerSlot(compId: string, target: HTMLElement | null): void
   unregisterSlot(compId: string, target: HTMLElement): void
 }
@@ -28,6 +34,12 @@ interface KeepAliveEntry {
  */
 export function NeoViewKeepAliveProvider({ children, renderNode }: NeoViewKeepAliveProviderProps) {
   const visibleComponents = useWorkspaceVisibleComponents()
+  const enabledIds = useMemo(
+    () => new Set(visibleComponents
+      .filter((component) => component.moduleId === "neoview" && isNeoViewKeepAliveEnabled(component.data))
+      .map((component) => component.id)),
+    [visibleComponents],
+  )
   const [retainedIds, setRetainedIds] = useState<ReadonlySet<string>>(() => new Set())
   const entriesRef = useRef(new Map<string, KeepAliveEntry>())
   const fallbackRootRef = useRef<HTMLDivElement | null>(null)
@@ -62,10 +74,16 @@ export function NeoViewKeepAliveProvider({ children, renderNode }: NeoViewKeepAl
     if (fallbackRoot && entry.host.parentElement !== fallbackRoot) fallbackRoot.appendChild(entry.host)
   }, [])
 
-  const contextValue = useMemo(() => ({ registerSlot, unregisterSlot }), [registerSlot, unregisterSlot])
+  const contextValue = useMemo(() => ({
+    isEnabled: (compId: string) => enabledIds.has(compId),
+    registerSlot,
+    unregisterSlot,
+  }), [enabledIds, registerSlot, unregisterSlot])
 
   useEffect(() => {
-    const liveIds = new Set(visibleComponents.filter((component) => component.moduleId === "neoview").map((component) => component.id))
+    const liveIds = new Set(visibleComponents
+      .filter((component) => component.moduleId === "neoview" && isNeoViewKeepAliveEnabled(component.data))
+      .map((component) => component.id))
     const staleIds = [...entriesRef.current.keys()].filter((compId) => !liveIds.has(compId))
     if (staleIds.length === 0) return
 
@@ -88,7 +106,7 @@ export function NeoViewKeepAliveProvider({ children, renderNode }: NeoViewKeepAl
     <NeoViewKeepAliveContext.Provider value={contextValue}>
       {children}
       <div ref={fallbackRootRef} hidden data-neoview-keepalive-root="true" />
-      {[...retainedIds].map((compId) => {
+      {[...retainedIds].filter((compId) => enabledIds.has(compId)).map((compId) => {
         const entry = getEntry(compId)
         return entry ? <NeoViewKeepAliveNode key={compId} host={entry.host} renderNode={renderNode} compId={compId} /> : null
       })}

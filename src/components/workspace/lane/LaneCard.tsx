@@ -38,6 +38,7 @@ export function LaneCard({ compId, moduleId }: Props) {
   const moduleName = mod && i18n.exists(`module:${moduleId}.name`) ? t(`module:${moduleId}.name`) : (mod?.name ?? moduleId)
   const actions: NodeSurfaceChromeAction[] = createSurfaceCommonActions({
     componentId: compId,
+    componentData: component?.data,
     currentMode: "lane",
     height: Math.round(laneHeight),
     moduleId,

@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { useWorkspaceStore } from "@/store/workspaceStore"
-import { NeoViewKeepAliveProvider, NeoViewKeepAliveSlot } from "./NeoViewKeepAlive"
+import { NeoViewKeepAliveProvider, NeoViewKeepAliveSlot, NEO_VIEW_KEEP_ALIVE_DATA_KEY } from "./NeoViewKeepAlive"
 
 const mountCounts = vi.hoisted(() => ({ mounted: 0, unmounted: 0 }))
 
@@ -81,6 +81,36 @@ describe("NeoViewKeepAliveProvider", () => {
 
     await screen.findByTestId("reader-node")
     useWorkspaceStore.setState({ components: [] })
+    await waitFor(() => expect(mountCounts.unmounted).toBe(1))
+    expect(document.querySelector('[data-neoview-keepalive-host="neo-1"]')).toBeNull()
+  })
+
+  test("releases the retained Reader when its switch-memory toggle is disabled", async () => {
+    useWorkspaceStore.setState({
+      activeWorkspaceId: "keep-alive-test",
+      components: [{ id: "neo-1", moduleId: "neoview", state: "docked", workspaceId: "keep-alive-test" }],
+    })
+
+    function StatefulNode() {
+      useEffect(() => {
+        mountCounts.mounted += 1
+        return () => {
+          mountCounts.unmounted += 1
+        }
+      }, [])
+      return <div data-testid="reader-node" />
+    }
+
+    render(
+      <NeoViewKeepAliveProvider renderNode={() => <StatefulNode />}>
+        <NeoViewKeepAliveSlot compId="neo-1" />
+      </NeoViewKeepAliveProvider>,
+    )
+    await screen.findByTestId("reader-node")
+
+    useWorkspaceStore.setState({
+      components: [{ id: "neo-1", moduleId: "neoview", state: "docked", workspaceId: "keep-alive-test", data: { [NEO_VIEW_KEEP_ALIVE_DATA_KEY]: false } }],
+    })
     await waitFor(() => expect(mountCounts.unmounted).toBe(1))
     expect(document.querySelector('[data-neoview-keepalive-host="neo-1"]')).toBeNull()
   })

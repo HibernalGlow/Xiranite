@@ -9,6 +9,7 @@ export interface NeoViewCardState extends Record<string, unknown> {
   browserOriginPath?: string | null
   swimlaneSoloLaneId?: string | null
   readerViewFullscreen?: boolean
+  keepAliveOnViewSwitch?: boolean
 }
 
 export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>) {

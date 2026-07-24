@@ -71,7 +71,7 @@ export function ModuleRenderer({ moduleId, compId, keepAlive = false }: { module
   const resolvedModuleId = moduleId === "music-player" ? "melodeck" : moduleId
   const neoViewKeepAlive = useNeoViewKeepAliveContext()
 
-  if (resolvedModuleId === "neoview" && neoViewKeepAlive && !keepAlive) {
+  if (resolvedModuleId === "neoview" && neoViewKeepAlive && !keepAlive && neoViewKeepAlive.isEnabled(compId)) {
     return <NeoViewKeepAliveSlot compId={compId} />
   }
 
