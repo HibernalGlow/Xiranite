@@ -3130,13 +3130,13 @@
         "execution": { "title": "执行", "description": "本地目标、生成配置、预检与结果刷新。" }
       },
       "fields": {
-        "program": "程序", "outputPrefix": "输出前缀", "positivePrompt": "正向提示词", "positivePrefix": "正向前缀", "negativePrompt": "负向提示词",
+        "program": "程序", "outputPrefix": "输出前缀", "positivePrompt": "正向提示词", "positivePrefix": "正向前缀", "negativePrompt": "负向提示词", "positiveTemplate": "正向模板", "negativeTemplate": "负向模板", "filenameTemplate": "文件名模板",
         "batchPrompts": "批量正向提示词", "batchPlaceholder": "每个非空行对应一个固定生成任务", "batchJobs": "批处理任务数（0 = 全部）", "batchSelectionSeed": "批处理选择种子", "shuffleBatch": "打乱批处理任务", "allowDuplicates": "允许重复批处理提示词",
         "loraRows": "LoRA 列表", "loraPlaceholder": "folder/style.safetensors | 1 | 1 | 触发词 | 注入词", "width": "宽度", "height": "高度", "seed": "种子", "batch": "批次", "steps": "步数", "cfg": "CFG", "denoise": "去噪", "sampler": "采样器", "scheduler": "调度器", "seedPolicy": "种子策略", "unet": "UNet", "clip": "CLIP", "vae": "VAE",
         "endpoint": "端点", "library": "ComfyUI 库", "libraryPlaceholder": "D:/1Repo/Github/ComfyUI/Library", "profileLibrary": "配置库", "profileLibraryPlaceholder": "默认 Xiranite 数据目录", "generationProfile": "生成配置"
       },
       "values": { "increment": "每个任务递增", "fixed": "固定", "currentSnapshot": "当前项目快照" },
-      "actions": { "importText": "导入文本", "importWorkflow": "导入工作流", "confirmBindings": "确认绑定", "compile": "编译", "exportCanvas": "导出画布", "saveTarget": "保存目标", "profiles": "配置列表", "saveProfile": "保存配置", "preflight": "预检", "refreshResults": "刷新结果", "run": "运行" },
+      "actions": { "importText": "导入文本", "importWorkflow": "导入工作流", "confirmBindings": "确认绑定", "compile": "编译", "exportCanvas": "导出画布", "saveTarget": "保存目标", "profiles": "配置列表", "saveProfile": "保存配置", "preflight": "预检", "refreshResults": "刷新结果", "run": "运行", "insertVariable": "插入变量" },
       "filePicker": { "promptTitle": "导入 Comfygure 提示词文本", "textFiles": "文本文件", "workflowTitle": "导入 ComfyUI 工作流", "workflow": "ComfyUI 工作流" },
       "status": {
         "fixedCompiler": "固定 ComfyUI 编译器", "targetSaved": "本地 ComfyUI 目标已保存。", "targetSaveError": "无法保存本地目标：{{message}}", "targetSaveFailed": "无法保存本地目标。", "promptFilesUnsupported": "当前宿主不支持选择本地提示词文本文件。", "readFileError": "无法读取 {{path}}：HTTP {{status}}", "promptFilesImported": "已导入 {{count}} 个提示词文本文件。", "promptFilesImportFailed": "无法导入提示词文本文件。", "workflowFilesUnsupported": "当前宿主不支持选择本地工作流文件。", "workflowImportFailed": "无法导入 ComfyUI 工作流。", "templateConfirmed": "模板绑定已确认，固定控件现在会编译到此模板。", "runnerUnavailable": "Xiranite 后端运行器不可用。", "refreshRequiresPrompt": "请先运行 ComfyUI 提示词，再刷新结果。", "noCompilerResult": "后端没有返回编译结果。",
