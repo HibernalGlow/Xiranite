@@ -1,21 +1,95 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { deflateSync, inflateSync, strFromU8, strToU8 } from "fflate"
+import { jsonrepair } from "jsonrepair"
 
 export const COMFYGURE_FORMAT = "comfygure/v1" as const
 export const COMFYGURE_RUN_PLAN_FORMAT = "comfygure-run-plan/v1" as const
+export const COMFYGURE_TEMPLATE_FORMAT = "comfygure-template/v1" as const
+export const COMFYGURE_BINDING_MANIFEST_FORMAT = "comfygure-binding-manifest/v1" as const
 export const ANIMA_INT8_RECIPE = "anima-int8/v1" as const
 export const DEFAULT_COMFYUI_ENDPOINT = "http://127.0.0.1:8000"
 export const DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS = 10_000
 
+export type PromptPrimitive = string | number | boolean | null
 export type PromptLink = readonly [nodeId: string, outputIndex: number]
-export type PromptInput = string | number | boolean | null | PromptLink
+export type PromptInput = PromptPrimitive | PromptLink | readonly PromptInput[] | { readonly [key: string]: PromptInput }
 
 export interface PromptNode {
   class_type: string
   inputs: Record<string, PromptInput>
+  _meta?: Record<string, PromptInput>
 }
 
 export type PromptGraph = Record<string, PromptNode>
+
+export type ComfyuiWorkflowSourceFormat = "api" | "ui"
+export type ComfygureBindingKey =
+  | "positivePrompt"
+  | "negativePrompt"
+  | "unetName"
+  | "clipName"
+  | "vaeName"
+  | "width"
+  | "height"
+  | "batchSize"
+  | "seed"
+  | "steps"
+  | "cfg"
+  | "samplerName"
+  | "scheduler"
+  | "denoise"
+  | "filenamePrefix"
+  | "outputFormat"
+  | "outputQuality"
+  | "outputPreview"
+
+export interface ComfygureBindingTarget {
+  nodeId: string
+  inputName: string
+}
+
+export interface ComfygureBinding {
+  key: ComfygureBindingKey
+  targets: readonly ComfygureBindingTarget[]
+  confidence: "explicit" | "inferred"
+}
+
+export interface ComfygureBindingManifest {
+  format: typeof COMFYGURE_BINDING_MANIFEST_FORMAT
+  confirmed: boolean
+  bindings: readonly ComfygureBinding[]
+}
+
+export interface ComfygureWorkflowDiagnostic {
+  severity: "error" | "warning"
+  code: string
+  message: string
+  nodeId?: string
+  inputName?: string
+}
+
+export interface ComfygureTemplate {
+  format: typeof COMFYGURE_TEMPLATE_FORMAT
+  name: string
+  sourceFormat: ComfyuiWorkflowSourceFormat
+  originalSource: ComfygureCompressedText
+  repairedSource: boolean
+  graph: PromptGraph
+  defaultLoras: readonly ComfygureLora[]
+  bindingManifest: ComfygureBindingManifest
+}
+
+export interface ComfygureWorkflowImport {
+  sourceFormat?: ComfyuiWorkflowSourceFormat
+  repairedSource: boolean
+  template?: ComfygureTemplate
+  diagnostics: readonly ComfygureWorkflowDiagnostic[]
+}
+
+export interface ComfygureWorkflowImportOptions {
+  objectInfo?: Record<string, unknown>
+  name?: string
+}
 
 export interface ComfygureLora {
   name: string
@@ -153,6 +227,7 @@ export interface PreflightReport {
 export interface ComfygureData {
   compiled: CompiledProgram
   runPlan: CompiledRunPlan
+  workflowImport?: ComfygureWorkflowImport
   preflight?: PreflightReport
   submission?: ComfyuiSubmission
   submissions?: readonly ComfyuiSubmission[]
@@ -160,8 +235,10 @@ export interface ComfygureData {
 }
 
 export interface ComfygureInput {
-  action?: "compile" | "preflight" | "submit" | "refresh"
+  action?: "compile" | "import" | "preflight" | "submit" | "refresh"
   program?: ComfygureProgramDraft
+  template?: ComfygureTemplate
+  workflowSource?: string
   target?: ComfygureTarget
   promptIds?: readonly string[]
 }
@@ -256,6 +333,112 @@ export const DEFAULT_COMFYGURE_PROGRAM: ComfygureProgram = {
     quality: 100,
     preview: true,
   },
+}
+
+/**
+ * Parses both native API Prompt Graph exports and editor workflow exports. UI
+ * workflows require object_info because widget order is not part of the API
+ * contract and must not be guessed from a rendered editor.
+ */
+export function importComfyuiWorkflow(source: string, options: ComfygureWorkflowImportOptions = {}): ComfygureWorkflowImport {
+  const diagnostics: ComfygureWorkflowDiagnostic[] = []
+  const original = source.replace(/^\uFEFF/, "").trim()
+  if (!original) return { repairedSource: false, diagnostics: [workflowError("empty-source", "The imported workflow is empty.")] }
+
+  let value: unknown
+  let repairedSource = false
+  try {
+    value = JSON.parse(original) as unknown
+  } catch {
+    try {
+      value = JSON.parse(jsonrepair(original)) as unknown
+      repairedSource = true
+      diagnostics.push({ severity: "warning", code: "repaired-json", message: "The imported file was not strict JSON and was repaired before normalization." })
+    } catch (error) {
+      return {
+        repairedSource: false,
+        diagnostics: [workflowError("invalid-json", `The imported workflow could not be parsed: ${error instanceof Error ? error.message : String(error)}`)],
+      }
+    }
+  }
+
+  const sourceFormat = isRecord(value) && Array.isArray(value.nodes) ? "ui" : "api"
+  const graph = sourceFormat === "ui"
+    ? normalizeComfyuiUiWorkflow(value, options.objectInfo, diagnostics)
+    : normalizeComfyuiApiGraph(value, diagnostics)
+  if (!graph) return { sourceFormat, repairedSource, diagnostics }
+
+  for (const [nodeId, node] of Object.entries(graph)) {
+    if (COMPILE_TIME_NODE_TYPES.has(node.class_type)) {
+      diagnostics.push({
+        severity: "warning",
+        code: "compile-time-node",
+        message: `${node.class_type} is marked for compile-time resolution and will not be sent to ComfyUI.`,
+        nodeId,
+      })
+    }
+  }
+
+  const compressed = compressComfygureText(original)
+  if (!compressed) return { sourceFormat, repairedSource, diagnostics: [...diagnostics, workflowError("empty-source", "The imported workflow is empty.")] }
+  return {
+    sourceFormat,
+    repairedSource,
+    diagnostics,
+    template: {
+      format: COMFYGURE_TEMPLATE_FORMAT,
+      name: stringValue(options.name, "Imported ComfyUI template"),
+      sourceFormat,
+      originalSource: compressed,
+      repairedSource,
+      graph,
+      defaultLoras: extractGlowLoraCandidates(graph),
+      bindingManifest: inferComfygureBindingManifest(graph),
+    },
+  }
+}
+
+export function confirmComfygureTemplateBindings(template: ComfygureTemplate): ComfygureTemplate {
+  return {
+    ...template,
+    graph: clonePromptGraph(template.graph),
+    bindingManifest: { ...template.bindingManifest, confirmed: true, bindings: template.bindingManifest.bindings.map((binding) => ({ ...binding, targets: [...binding.targets] })) },
+  }
+}
+
+export function inferComfygureBindingManifest(graph: PromptGraph): ComfygureBindingManifest {
+  const bindings = new Map<ComfygureBindingKey, ComfygureBindingTarget[]>()
+  const unclassifiedPromptTargets: ComfygureBindingTarget[] = []
+  const add = (key: ComfygureBindingKey, nodeId: string, inputName: string) => {
+    const targets = bindings.get(key) ?? []
+    targets.push({ nodeId, inputName })
+    bindings.set(key, targets)
+  }
+
+  for (const [nodeId, node] of orderedPromptNodes(graph)) {
+    const title = stringValue(node._meta?.title, "").toLocaleLowerCase()
+    const classType = node.class_type.toLocaleLowerCase()
+    if (classType.includes("cliptextencode") && "text" in node.inputs) {
+      if (/(?:negative|\bneg\b|负)/iu.test(title)) add("negativePrompt", nodeId, "text")
+      else if (/(?:positive|\bpos\b|正)/iu.test(title)) add("positivePrompt", nodeId, "text")
+      else unclassifiedPromptTargets.push({ nodeId, inputName: "text" })
+    }
+    for (const [inputName] of Object.entries(node.inputs)) {
+      const key = bindingKeyForInput(node.class_type, inputName)
+      if (key) add(key, nodeId, inputName)
+    }
+  }
+
+  if (!bindings.has("positivePrompt") && unclassifiedPromptTargets.length) bindings.set("positivePrompt", [unclassifiedPromptTargets.shift()!])
+  if (!bindings.has("negativePrompt") && unclassifiedPromptTargets.length) bindings.set("negativePrompt", [unclassifiedPromptTargets.shift()!])
+
+  return {
+    format: COMFYGURE_BINDING_MANIFEST_FORMAT,
+    confirmed: false,
+    bindings: [...bindings.entries()]
+      .map(([key, targets]) => ({ key, targets, confidence: "inferred" as const }))
+      .sort((left, right) => left.key.localeCompare(right.key)),
+  }
 }
 
 export function normalizeComfygureProgram(input: ComfygureProgramDraft = {}): ComfygureProgram {
@@ -491,6 +674,41 @@ export function compileAnimaInt8Program(input: ComfygureProgramDraft = {}): Comp
   }
 }
 
+export function compileComfygureTemplate(template: ComfygureTemplate, input: ComfygureProgramDraft = {}): CompiledProgram {
+  if (template.format !== COMFYGURE_TEMPLATE_FORMAT) throw new Error("Unsupported Comfygure template format.")
+  if (!template.bindingManifest.confirmed) throw new Error("Confirm the imported template bindings before compiling it.")
+  const normalizedProgram = normalizeComfygureProgram(input)
+  const program = normalizedProgram.loras.length ? normalizedProgram : { ...normalizedProgram, loras: template.defaultLoras }
+  const composedPositive = normalizePromptText([program.prompts.positivePrefix, program.prompts.positive].filter(Boolean).join(", "))
+  const activeLoras = resolveActiveLoras(program, composedPositive)
+  const positivePrompt = ensurePromptTerms(composedPositive, activeLoras.flatMap((lora) => splitPromptTags(lora.injectionTerms ?? "")))
+  const negativePrompt = normalizePromptText(program.prompts.negative)
+  const graph = clonePromptGraph(template.graph)
+  materializeGlowTriggerLoraStacks(graph, activeLoras)
+  for (const binding of template.bindingManifest.bindings) {
+    const value = templateBindingValue(binding.key, program, positivePrompt, negativePrompt)
+    for (const target of binding.targets) {
+      const node = graph[target.nodeId]
+      if (!node) throw new Error(`Template binding ${binding.key} references missing node ${target.nodeId}.`)
+      node.inputs[target.inputName] = value
+    }
+  }
+  materializeStaticCompileTimeNodes(graph)
+  applyTemplateLoras(graph, activeLoras)
+  prunePromptGraphToOutputNodes(graph)
+  const dynamicNodes = orderedPromptNodes(graph).filter(([, node]) => COMPILE_TIME_NODE_TYPES.has(node.class_type))
+  if (dynamicNodes.length) throw new Error(`The template still contains dynamic editor node(s) required by its output: ${dynamicNodes.map(([, node]) => node.class_type).join(", ")}.`)
+  return {
+    program,
+    graph,
+    activeLoras,
+    positivePrompt,
+    negativePrompt,
+    requiredClasses: [...new Set(Object.values(graph).map((node) => node.class_type))].sort(),
+    requiredResources: inferGraphResourceRequirements(graph),
+  }
+}
+
 export function compileAnimaInt8RunPlan(input: ComfygureProgramDraft = {}): CompiledRunPlan {
   const program = normalizeComfygureProgram(input)
   const batchPrompts = program.batch.prompts.slice(0, program.batch.maxPrompts || undefined)
@@ -519,6 +737,38 @@ export function compileAnimaInt8RunPlan(input: ComfygureProgramDraft = {}): Comp
       sourceText: batchPrompts[sourceIndex] ?? "",
       seed,
       compiled: compileAnimaInt8Program(jobProgram),
+    }
+  })
+  return { format: COMFYGURE_RUN_PLAN_FORMAT, recipe: ANIMA_INT8_RECIPE, program, jobs }
+}
+
+export function compileComfygureTemplateRunPlan(template: ComfygureTemplate, input: ComfygureProgramDraft = {}): CompiledRunPlan {
+  const program = normalizeComfygureProgram(input)
+  const batchPrompts = program.batch.prompts.slice(0, program.batch.maxPrompts || undefined)
+  if (batchPrompts.length === 0) {
+    const compiled = compileComfygureTemplate(template, program)
+    return {
+      format: COMFYGURE_RUN_PLAN_FORMAT,
+      recipe: ANIMA_INT8_RECIPE,
+      program,
+      jobs: [{ index: 0, sourceIndex: 0, loopIndex: 0, sourceText: program.prompts.positive, seed: program.parameters.seed, compiled }],
+    }
+  }
+  const sequence = resolveBatchSequence(batchPrompts.length, program.batch)
+  const jobs = sequence.map((sourceIndex, index) => {
+    const seed = resolveJobSeed(program.parameters.seed, program.parameters.seedMode, index)
+    const jobProgram: ComfygureProgramDraft = {
+      ...program,
+      prompts: { ...program.prompts, positive: batchPrompts[sourceIndex] ?? "" },
+      parameters: { ...program.parameters, seed },
+    }
+    return {
+      index,
+      sourceIndex,
+      loopIndex: Math.floor(index / batchPrompts.length),
+      sourceText: batchPrompts[sourceIndex] ?? "",
+      seed,
+      compiled: compileComfygureTemplate(template, jobProgram),
     }
   })
   return { format: COMFYGURE_RUN_PLAN_FORMAT, recipe: ANIMA_INT8_RECIPE, program, jobs }
@@ -587,8 +837,36 @@ export async function preflightComfyuiTarget(compiled: Pick<CompiledProgram, "re
 
 export async function runComfygure(input: ComfygureInput, runtime: ComfygureRuntime, onEvent: (event: NodeRunEvent) => void = () => {}): Promise<NodeRunResult<ComfygureData>> {
   const program = await hydrateLoraTriggers(input.program, input.target, runtime)
-  const runPlan = compileAnimaInt8RunPlan(program)
+  let runPlan: CompiledRunPlan
+  try {
+    runPlan = input.template ? compileComfygureTemplateRunPlan(input.template, program) : compileAnimaInt8RunPlan(program)
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : String(error) }
+  }
   const compiled = runPlan.jobs[0]!.compiled
+  if (input.action === "import") {
+    const workflowSource = stringValue(input.workflowSource, "")
+    if (!workflowSource) return { success: false, message: "No ComfyUI workflow file was supplied.", data: { compiled, runPlan } }
+    let workflowImport = importComfyuiWorkflow(workflowSource)
+    if (workflowImport.sourceFormat === "ui") {
+      try {
+        const objectInfo = await readComfyuiObjectInfo(input.target ?? {}, runtime)
+        workflowImport = importComfyuiWorkflow(workflowSource, { objectInfo })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        workflowImport = {
+          ...workflowImport,
+          diagnostics: [...workflowImport.diagnostics, workflowError("object-info-unavailable", `Could not read local /object_info: ${message}`)],
+        }
+      }
+    }
+    const errors = workflowImport.diagnostics.filter((diagnostic) => diagnostic.severity === "error")
+    return {
+      success: errors.length === 0,
+      message: errors.length ? `Imported workflow needs ${errors.length} correction(s) before it can run.` : "Imported a ComfyUI template. Confirm the inferred bindings before compiling it.",
+      data: { compiled, runPlan, workflowImport },
+    }
+  }
   if (input.action === "refresh") {
     const promptIds = normalizePromptIds(input.promptIds)
     if (promptIds.length === 0) return { success: false, message: "No ComfyUI prompt IDs are available to refresh.", data: { compiled, runPlan } }
@@ -714,6 +992,534 @@ export function normalizeComfyuiEndpoint(value: string | undefined): string {
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("ComfyUI endpoint must use HTTP or HTTPS.")
   if (!isLocalHost(url.hostname)) throw new Error("Comfygure only supports a manually started local ComfyUI endpoint.")
   return url.toString().replace(/\/$/, "")
+}
+
+const COMPILE_TIME_NODE_TYPES = new Set([
+  "BatchLoadTexts",
+  "GlowDynamicTypedOutputs",
+  "GlowTriggerLoRAStack",
+  "GlowQueueControl",
+  "PromptCleaningMaid",
+  "AnimaPromptFormatter",
+])
+
+interface UiWorkflowNode {
+  id: string | number
+  type: string
+  mode?: number
+  title?: string
+  inputs?: readonly unknown[]
+  widgets_values?: readonly unknown[]
+}
+
+interface UiWorkflowLink {
+  id: string
+  originId: string
+  originSlot: number
+  targetId: string
+  targetSlot: number
+}
+
+function normalizeComfyuiApiGraph(value: unknown, diagnostics: ComfygureWorkflowDiagnostic[]): PromptGraph | undefined {
+  if (!isRecord(value) || Array.isArray(value.nodes)) {
+    diagnostics.push(workflowError("invalid-api-graph", "Expected a ComfyUI API Prompt Graph object keyed by node ID."))
+    return undefined
+  }
+  const graph: PromptGraph = {}
+  for (const [nodeId, rawNode] of Object.entries(value)) {
+    if (!isRecord(rawNode)) {
+      diagnostics.push(workflowError("invalid-node", "Every API graph node must be an object.", nodeId))
+      continue
+    }
+    const classType = stringValue(rawNode.class_type, "")
+    if (!classType) {
+      diagnostics.push(workflowError("missing-class-type", "The API graph node has no class_type.", nodeId))
+      continue
+    }
+    if (!isRecord(rawNode.inputs)) {
+      diagnostics.push(workflowError("missing-inputs", "The API graph node has no inputs object.", nodeId))
+      continue
+    }
+    const inputs = normalizePromptInputs(rawNode.inputs, diagnostics, nodeId)
+    const meta = isRecord(rawNode._meta) ? normalizePromptInputs(rawNode._meta, diagnostics, nodeId) : undefined
+    graph[nodeId] = { class_type: classType, inputs, ...(meta && Object.keys(meta).length ? { _meta: meta } : {}) }
+  }
+  if (Object.keys(graph).length === 0) diagnostics.push(workflowError("empty-api-graph", "The API Prompt Graph contains no valid nodes."))
+  return Object.keys(graph).length ? graph : undefined
+}
+
+function normalizeComfyuiUiWorkflow(value: unknown, objectInfo: Record<string, unknown> | undefined, diagnostics: ComfygureWorkflowDiagnostic[]): PromptGraph | undefined {
+  if (!isRecord(value) || !Array.isArray(value.nodes)) {
+    diagnostics.push(workflowError("invalid-ui-workflow", "Expected a ComfyUI UI workflow with a nodes array."))
+    return undefined
+  }
+  if (!objectInfo) {
+    diagnostics.push(workflowError("object-info-required", "UI workflow conversion requires live /object_info evidence for widget ordering and node definitions."))
+    return undefined
+  }
+
+  const nodes = new Map<string, UiWorkflowNode>()
+  for (const rawNode of value.nodes) {
+    if (!isRecord(rawNode) || (typeof rawNode.id !== "string" && typeof rawNode.id !== "number") || typeof rawNode.type !== "string") {
+      diagnostics.push(workflowError("invalid-ui-node", "A UI workflow node is missing its ID or type."))
+      continue
+    }
+    const nodeId = String(rawNode.id)
+    if (nodes.has(nodeId)) {
+      diagnostics.push(workflowError("duplicate-ui-node-id", "The UI workflow contains duplicate node IDs.", nodeId))
+      continue
+    }
+    nodes.set(nodeId, rawNode as unknown as UiWorkflowNode)
+  }
+  const links = normalizeUiWorkflowLinks(value.links, diagnostics)
+  const graph: PromptGraph = {}
+  for (const [nodeId, node] of nodes) {
+    if (node.type === "Reroute") continue
+    if (node.type.toLocaleLowerCase().includes("subgraph")) {
+      diagnostics.push(workflowError("unsupported-subgraph", "Subgraphs must be expanded in the ComfyUI editor before importing a template.", nodeId))
+      continue
+    }
+    if (node.mode === 4) {
+      diagnostics.push(workflowError("unsupported-bypass", "Bypassed UI nodes must be removed or baked into a pure template before importing.", nodeId))
+      continue
+    }
+    const definition = objectInfo[node.type]
+    if (!isRecord(definition)) {
+      diagnostics.push(workflowError("unknown-node-definition", `The local target did not report ${node.type} in /object_info.`, nodeId))
+      continue
+    }
+    const widgetValues = widgetValuesByInputName(node, definition, diagnostics, nodeId)
+    const inputs: Record<string, PromptInput> = {}
+    const uiInputs = Array.isArray(node.inputs) ? node.inputs : []
+    const linkedInputNames = new Set<string>()
+    for (const rawInput of uiInputs) {
+      if (!isRecord(rawInput) || typeof rawInput.name !== "string") continue
+      const inputName = rawInput.name
+      if (rawInput.link === null || rawInput.link === undefined) continue
+      linkedInputNames.add(inputName)
+      const link = links.get(String(rawInput.link))
+      if (!link) {
+        diagnostics.push(workflowError("missing-ui-link", `Input ${inputName} references a missing link.`, nodeId, inputName))
+        continue
+      }
+      const origin = resolveUiLinkOrigin(link, links, nodes, new Set())
+      if (!origin) {
+        diagnostics.push(workflowError("unresolvable-ui-link", `Input ${inputName} cannot be traced through a reroute.`, nodeId, inputName))
+        continue
+      }
+      if (!nodes.has(origin[0]) || nodes.get(origin[0])?.mode === 4) {
+        diagnostics.push(workflowError("unsupported-bypassed-link", `Input ${inputName} depends on a bypassed or missing node.`, nodeId, inputName))
+        continue
+      }
+      inputs[inputName] = origin
+    }
+    for (const [inputName, inputValue] of widgetValues) {
+      if (!linkedInputNames.has(inputName)) inputs[inputName] = inputValue
+    }
+    graph[nodeId] = {
+      class_type: node.type,
+      inputs,
+      ...(node.title?.trim() ? { _meta: { title: node.title.trim() } } : {}),
+    }
+  }
+  if (Object.keys(graph).length === 0) diagnostics.push(workflowError("empty-ui-graph", "The UI workflow contains no convertible execution nodes."))
+  return Object.keys(graph).length ? graph : undefined
+}
+
+function normalizePromptInputs(value: Record<string, unknown>, diagnostics: ComfygureWorkflowDiagnostic[], nodeId: string): Record<string, PromptInput> {
+  const result: Record<string, PromptInput> = {}
+  for (const [inputName, inputValue] of Object.entries(value)) {
+    const normalized = normalizePromptInput(inputValue)
+    if (normalized === undefined) {
+      diagnostics.push(workflowError("unsupported-input-value", `Input ${inputName} has an unsupported non-JSON value.`, nodeId, inputName))
+      continue
+    }
+    result[inputName] = normalized
+  }
+  return result
+}
+
+function normalizePromptInput(value: unknown, depth = 0): PromptInput | undefined {
+  if (depth > 32) return undefined
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined
+  if (Array.isArray(value)) {
+    if (value.length === 2 && (typeof value[0] === "string" || typeof value[0] === "number") && typeof value[1] === "number" && Number.isFinite(value[1])) return [String(value[0]), value[1]]
+    const array: PromptInput[] = []
+    for (const item of value) {
+      const normalized = normalizePromptInput(item, depth + 1)
+      if (normalized === undefined) return undefined
+      array.push(normalized)
+    }
+    return array
+  }
+  if (isRecord(value)) {
+    const record: Record<string, PromptInput> = {}
+    for (const [key, item] of Object.entries(value)) {
+      const normalized = normalizePromptInput(item, depth + 1)
+      if (normalized === undefined) return undefined
+      record[key] = normalized
+    }
+    return record
+  }
+  return undefined
+}
+
+function normalizeUiWorkflowLinks(value: unknown, diagnostics: ComfygureWorkflowDiagnostic[]): Map<string, UiWorkflowLink> {
+  const links = new Map<string, UiWorkflowLink>()
+  if (!Array.isArray(value)) return links
+  for (const rawLink of value) {
+    if (!Array.isArray(rawLink) || rawLink.length < 5 || (typeof rawLink[0] !== "number" && typeof rawLink[0] !== "string") || (typeof rawLink[1] !== "number" && typeof rawLink[1] !== "string") || typeof rawLink[2] !== "number" || (typeof rawLink[3] !== "number" && typeof rawLink[3] !== "string") || typeof rawLink[4] !== "number") {
+      diagnostics.push(workflowError("invalid-ui-link", "The UI workflow contains a malformed link."))
+      continue
+    }
+    links.set(String(rawLink[0]), { id: String(rawLink[0]), originId: String(rawLink[1]), originSlot: rawLink[2], targetId: String(rawLink[3]), targetSlot: rawLink[4] })
+  }
+  return links
+}
+
+function resolveUiLinkOrigin(link: UiWorkflowLink, links: Map<string, UiWorkflowLink>, nodes: Map<string, UiWorkflowNode>, visited: Set<string>): PromptLink | undefined {
+  if (!visited.add(link.id)) return undefined
+  const origin = nodes.get(link.originId)
+  if (!origin) return undefined
+  if (origin.type !== "Reroute") return [link.originId, link.originSlot]
+  const rerouteInput = Array.isArray(origin.inputs) ? origin.inputs.find((value) => isRecord(value) && value.link !== null && value.link !== undefined) : undefined
+  if (!isRecord(rerouteInput)) return undefined
+  const rerouteLink = links.get(String(rerouteInput.link))
+  return rerouteLink ? resolveUiLinkOrigin(rerouteLink, links, nodes, visited) : undefined
+}
+
+function widgetValuesByInputName(node: UiWorkflowNode, definition: Record<string, unknown>, diagnostics: ComfygureWorkflowDiagnostic[], nodeId: string): Map<string, PromptInput> {
+  const result = new Map<string, PromptInput>()
+  const widgetNames = objectInfoInputNames(definition)
+  const values = Array.isArray(node.widgets_values) ? node.widgets_values : []
+  for (let index = 0; index < widgetNames.length; index += 1) {
+    const inputName = widgetNames[index]!
+    const value = values[index]
+    if (value === undefined) continue
+    const normalized = normalizePromptInput(value)
+    if (normalized === undefined) {
+      diagnostics.push(workflowError("unsupported-widget-value", `Widget ${inputName} has an unsupported value.`, nodeId, inputName))
+      continue
+    }
+    result.set(inputName, normalized)
+  }
+  return result
+}
+
+function objectInfoInputNames(definition: Record<string, unknown>): readonly string[] {
+  const input = isRecord(definition.input) ? definition.input : undefined
+  const required = input && isRecord(input.required) ? input.required : undefined
+  const optional = input && isRecord(input.optional) ? input.optional : undefined
+  return [...Object.keys(required ?? {}), ...Object.keys(optional ?? {})]
+}
+
+function workflowError(code: string, message: string, nodeId?: string, inputName?: string): ComfygureWorkflowDiagnostic {
+  return { severity: "error", code, message, ...(nodeId ? { nodeId } : {}), ...(inputName ? { inputName } : {}) }
+}
+
+function bindingKeyForInput(classType: string, inputName: string): ComfygureBindingKey | undefined {
+  switch (inputName) {
+    case "unet_name": return "unetName"
+    case "clip_name": return "clipName"
+    case "vae_name": return "vaeName"
+    case "width": return "width"
+    case "height": return "height"
+    case "batch_size": return "batchSize"
+    case "seed": return "seed"
+    case "steps": return "steps"
+    case "cfg": return "cfg"
+    case "sampler_name": return "samplerName"
+    case "scheduler": return "scheduler"
+    case "denoise": return "denoise"
+    case "filename_prefix": return "filenamePrefix"
+    case "quality": return classType.toLocaleLowerCase().includes("save") ? "outputQuality" : undefined
+    case "format": return classType.toLocaleLowerCase().includes("save") ? "outputFormat" : undefined
+    case "preview": return classType.toLocaleLowerCase().includes("save") ? "outputPreview" : undefined
+    default: return undefined
+  }
+}
+
+function orderedPromptNodes(graph: PromptGraph): Array<[string, PromptNode]> {
+  return Object.entries(graph).sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
+}
+
+function clonePromptGraph(graph: PromptGraph): PromptGraph {
+  return JSON.parse(JSON.stringify(graph)) as PromptGraph
+}
+
+function templateBindingValue(key: ComfygureBindingKey, program: ComfygureProgram, positivePrompt: string, negativePrompt: string): PromptInput {
+  switch (key) {
+    case "positivePrompt": return positivePrompt
+    case "negativePrompt": return negativePrompt
+    case "unetName": return program.model.unetName
+    case "clipName": return program.model.clipName
+    case "vaeName": return program.model.vaeName
+    case "width": return program.parameters.width
+    case "height": return program.parameters.height
+    case "batchSize": return program.parameters.batchSize
+    case "seed": return program.parameters.seed
+    case "steps": return program.parameters.steps
+    case "cfg": return program.parameters.cfg
+    case "samplerName": return program.parameters.samplerName
+    case "scheduler": return program.parameters.scheduler
+    case "denoise": return program.parameters.denoise
+    case "filenamePrefix": return program.output.filenamePrefix
+    case "outputFormat": return program.output.format
+    case "outputQuality": return program.output.quality
+    case "outputPreview": return program.output.preview
+  }
+}
+
+function applyTemplateLoras(graph: PromptGraph, activeLoras: readonly ComfygureLora[]): void {
+  if (activeLoras.length === 0) return
+  const slots: Array<{ node: PromptNode; slot: number }> = []
+  for (const [, node] of orderedPromptNodes(graph)) {
+    if (node.class_type !== "CR LoRA Stack") continue
+    for (const inputName of Object.keys(node.inputs)) {
+      const match = /^lora_name_(\d+)$/.exec(inputName)
+      if (match) slots.push({ node, slot: Number(match[1]) })
+    }
+  }
+  if (slots.length < activeLoras.length) throw new Error("The template does not expose enough CR LoRA Stack slots for the active LoRAs.")
+  for (const [index, slot] of slots.entries()) {
+    const lora = activeLoras[index]
+    slot.node.inputs[`switch_${slot.slot}`] = lora ? "On" : "Off"
+    slot.node.inputs[`lora_name_${slot.slot}`] = lora?.name ?? "None"
+    slot.node.inputs[`model_weight_${slot.slot}`] = lora?.modelStrength ?? 1
+    slot.node.inputs[`clip_weight_${slot.slot}`] = lora?.clipStrength ?? 1
+  }
+}
+
+function inferGraphResourceRequirements(graph: PromptGraph): readonly ResourceRequirement[] {
+  const resources = new Map<string, ResourceRequirement>()
+  for (const [, node] of orderedPromptNodes(graph)) {
+    for (const [inputName, value] of Object.entries(node.inputs)) {
+      if (typeof value !== "string" || !value || value === "None") continue
+      const kind = inputName === "unet_name"
+        ? "unet"
+        : inputName === "clip_name"
+          ? "clip"
+          : inputName === "vae_name"
+            ? "vae"
+            : /^lora_name(?:_\d+)?$/.test(inputName)
+              ? "lora"
+              : undefined
+      if (!kind) continue
+      const resource: ResourceRequirement = { classType: node.class_type, inputName, resourceName: value, kind }
+      resources.set(`${resource.classType}\u0000${resource.inputName}\u0000${resource.resourceName}`, resource)
+    }
+  }
+  return [...resources.values()]
+}
+
+function extractGlowLoraCandidates(graph: PromptGraph): readonly ComfygureLora[] {
+  const loras: ComfygureLora[] = []
+  for (const [, node] of orderedPromptNodes(graph)) {
+    if (node.class_type !== "GlowTriggerLoRAStack") continue
+    const count = integerPromptInput(node.inputs.lora_count, 0, 0, 30)
+    for (let index = 1; index <= count; index += 1) {
+      const name = promptInputString(node.inputs[`lora_name_${index}`])
+      if (!name || name === "None") continue
+      const outputTrigger = promptInputString(node.inputs[`output_trigger_${index}`])
+      const loraTrigger = promptInputString(node.inputs[`lora_trigger_${index}`])
+      loras.push({
+        name,
+        modelStrength: numberPromptInput(node.inputs[`model_weight_${index}`], 1),
+        clipStrength: numberPromptInput(node.inputs[`clip_weight_${index}`], 1),
+        activationTerms: promptInputString(node.inputs[`trigger_${index}`]),
+        injectionTerms: outputTrigger || loraTrigger,
+        enabled: node.inputs[`enable_${index}`] !== false,
+      })
+    }
+  }
+  return loras
+}
+
+function materializeGlowTriggerLoraStacks(graph: PromptGraph, activeLoras: readonly ComfygureLora[]): void {
+  const glowNodes = orderedPromptNodes(graph).filter(([, node]) => node.class_type === "GlowTriggerLoRAStack")
+  if (!glowNodes.length) return
+  const redirects = new Map<string, PromptInput>()
+  let nextId = nextPromptGraphNodeId(graph)
+  for (const [nodeId, node] of glowNodes) {
+    const count = Math.max(integerPromptInput(node.inputs.lora_count, 0, 0, 30), activeLoras.length)
+    let loraStack = node.inputs.lora_stack
+    if (count === 0) {
+      redirects.set(promptOutputKey(nodeId, 0), loraStack ?? null)
+      delete graph[nodeId]
+      continue
+    }
+    for (let start = 0; start < count; start += 3) {
+      const inputs: Record<string, PromptInput> = {}
+      for (let slot = 1; slot <= 3; slot += 1) {
+        inputs[`switch_${slot}`] = "Off"
+        inputs[`lora_name_${slot}`] = "None"
+        inputs[`model_weight_${slot}`] = 1
+        inputs[`clip_weight_${slot}`] = 1
+      }
+      if (loraStack !== undefined) inputs.lora_stack = loraStack
+      const stackId = String(nextId++)
+      graph[stackId] = { class_type: "CR LoRA Stack", inputs, _meta: { title: `Comfygure resolved LoRA stack ${start / 3 + 1}` } }
+      loraStack = [stackId, 0]
+    }
+    redirects.set(promptOutputKey(nodeId, 0), loraStack ?? null)
+    delete graph[nodeId]
+  }
+  rewritePromptGraphLinks(graph, redirects)
+}
+
+function materializeStaticCompileTimeNodes(graph: PromptGraph): void {
+  for (let iteration = 0; iteration < 32; iteration += 1) {
+    const redirects = new Map<string, PromptInput>()
+    const removable = new Set<string>()
+    for (const [nodeId, node] of orderedPromptNodes(graph)) {
+      if (node.class_type === "GlowDynamicTypedOutputs") {
+        const referencedOutputs = referencedOutputIndexes(graph, nodeId)
+        for (const outputIndex of referencedOutputs) {
+          const value = resolveGlowDynamicOutput(node, outputIndex, graph, new Set())
+          if (value !== undefined) redirects.set(promptOutputKey(nodeId, outputIndex), value)
+        }
+        if ([...referencedOutputs].every((outputIndex) => redirects.has(promptOutputKey(nodeId, outputIndex)))) removable.add(nodeId)
+        continue
+      }
+      if (node.class_type === "PromptCleaningMaid" || node.class_type === "AnimaPromptFormatter") {
+        const passthrough = node.inputs.string ?? node.inputs.text
+        if (passthrough !== undefined) {
+          redirects.set(promptOutputKey(nodeId, 0), passthrough)
+          removable.add(nodeId)
+        }
+      }
+    }
+    if (!redirects.size && !removable.size) return
+    rewritePromptGraphLinks(graph, redirects)
+    for (const nodeId of removable) delete graph[nodeId]
+  }
+}
+
+function resolveGlowDynamicOutput(node: PromptNode, outputIndex: number, graph: PromptGraph, visited: Set<string>): PromptInput | undefined {
+  const count = integerPromptInput(resolveStaticPromptInput(node.inputs.output_count, graph, visited), 1, 1, 30)
+  const selected = integerPromptInput(resolveStaticPromptInput(node.inputs.index, graph, visited), 1, 1, count)
+  const slot = outputIndex === count || outputIndex === 30 ? selected : outputIndex + 1
+  if (slot < 1 || slot > count) return null
+  const bypass = booleanPromptInput(resolveStaticPromptInput(node.inputs[`bypass_input_${slot}`] ?? node.inputs[`bypass_${slot}`], graph, visited), false)
+  const input = node.inputs[`input_${slot}`]
+  if (bypass) return input ?? null
+  if (input !== undefined) return input
+  const type = promptInputString(node.inputs[`type_${slot}`]).toLocaleUpperCase()
+  return coerceGlowDefaultValue(type, node.inputs[`default_value_${slot}`])
+}
+
+function resolveStaticPromptInput(value: PromptInput | undefined, graph: PromptGraph, visited: Set<string>): PromptInput | undefined {
+  if (value === undefined || !isPromptLink(value)) return value
+  const key = promptOutputKey(value[0], value[1])
+  if (!visited.add(key)) return undefined
+  const node = graph[value[0]]
+  if (!node) return undefined
+  const type = node.class_type.toLocaleLowerCase()
+  if (node.class_type === "GlowDynamicTypedOutputs") return resolveGlowDynamicOutput(node, value[1], graph, visited)
+  if (type === "primitiveint" || type === "primitivefloat" || type === "primitivestring" || type === "primitiveboolean") return resolveStaticPromptInput(node.inputs.value, graph, visited)
+  return undefined
+}
+
+function coerceGlowDefaultValue(type: string, raw: PromptInput | undefined): PromptInput {
+  const value = raw === null || raw === undefined ? "" : raw
+  if (type === "STRING" || type === "COMBO") return String(value)
+  if (type === "INT") return integerPromptInput(value, 0, -Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER)
+  if (type === "FLOAT") return numberPromptInput(value, 0)
+  if (type === "BOOLEAN") return booleanPromptInput(value, false)
+  return null
+}
+
+function prunePromptGraphToOutputNodes(graph: PromptGraph): void {
+  const roots = orderedPromptNodes(graph)
+    .filter(([, node]) => /(?:save|preview).*image|saveimageplus/i.test(node.class_type))
+    .map(([nodeId]) => nodeId)
+  if (!roots.length) return
+  const required = new Set<string>()
+  const visit = (nodeId: string) => {
+    if (required.has(nodeId)) return
+    required.add(nodeId)
+    const node = graph[nodeId]
+    if (!node) return
+    for (const input of Object.values(node.inputs)) {
+      for (const link of promptLinksIn(input)) visit(link[0])
+    }
+  }
+  for (const nodeId of roots) visit(nodeId)
+  for (const nodeId of Object.keys(graph)) if (!required.has(nodeId)) delete graph[nodeId]
+}
+
+function rewritePromptGraphLinks(graph: PromptGraph, redirects: ReadonlyMap<string, PromptInput>): void {
+  for (const node of Object.values(graph)) {
+    for (const [inputName, input] of Object.entries(node.inputs)) node.inputs[inputName] = replacePromptInputLinks(input, redirects, new Set())
+  }
+}
+
+function replacePromptInputLinks(value: PromptInput, redirects: ReadonlyMap<string, PromptInput>, visited: Set<string>): PromptInput {
+  if (isPromptLink(value)) {
+    const key = promptOutputKey(value[0], value[1])
+    const replacement = redirects.get(key)
+    if (replacement === undefined || !visited.add(key)) return value
+    return replacePromptInputLinks(replacement, redirects, visited)
+  }
+  if (Array.isArray(value)) return value.map((item) => replacePromptInputLinks(item, redirects, new Set()))
+  if (isRecord(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replacePromptInputLinks(item, redirects, new Set())]))
+  return value
+}
+
+function referencedOutputIndexes(graph: PromptGraph, nodeId: string): Set<number> {
+  const indexes = new Set<number>()
+  for (const node of Object.values(graph)) {
+    for (const input of Object.values(node.inputs)) {
+      for (const link of promptLinksIn(input)) if (link[0] === nodeId) indexes.add(link[1])
+    }
+  }
+  return indexes
+}
+
+function* promptLinksIn(value: PromptInput): Generator<PromptLink> {
+  if (isPromptLink(value)) {
+    yield value
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) yield* promptLinksIn(item)
+    return
+  }
+  if (isRecord(value)) for (const item of Object.values(value)) yield* promptLinksIn(item)
+}
+
+function isPromptLink(value: PromptInput): value is PromptLink {
+  return Array.isArray(value) && value.length === 2 && typeof value[0] === "string" && typeof value[1] === "number"
+}
+
+function promptOutputKey(nodeId: string, outputIndex: number): string {
+  return `${nodeId}\u0000${outputIndex}`
+}
+
+function nextPromptGraphNodeId(graph: PromptGraph): number {
+  const largest = Object.keys(graph).reduce((value, nodeId) => /^\d+$/.test(nodeId) ? Math.max(value, Number(nodeId)) : value, 0)
+  return largest + 1
+}
+
+function promptInputString(value: PromptInput | undefined): string {
+  return typeof value === "string" ? value.trim() : ""
+}
+
+function numberPromptInput(value: PromptInput | undefined, fallback: number): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function integerPromptInput(value: PromptInput | undefined, fallback: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.trunc(numberPromptInput(value, fallback))))
+}
+
+function booleanPromptInput(value: PromptInput | undefined, fallback: boolean): boolean {
+  if (typeof value === "boolean") return value
+  if (typeof value === "number") return value !== 0
+  if (typeof value === "string") return ["true", "1", "yes", "y", "on", "enable", "enabled"].includes(value.trim().toLocaleLowerCase())
+  return fallback
 }
 
 function normalizeLoras(value: readonly ComfygureLora[] | undefined): readonly ComfygureLora[] {
@@ -986,4 +1792,13 @@ async function fetchComfyui(
   } finally {
     clearTimeout(timer)
   }
+}
+
+async function readComfyuiObjectInfo(target: ComfygureTarget, runtime: ComfygureRuntime): Promise<Record<string, unknown>> {
+  const endpoint = normalizeComfyuiEndpoint(target.endpoint)
+  const response = await fetchComfyui(runtime, `${endpoint}/object_info`, { method: "GET", headers: { accept: "application/json" } })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  const payload = await response.json()
+  if (!isRecord(payload)) throw new Error("/object_info did not return a node map.")
+  return payload
 }

@@ -14,11 +14,13 @@
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "test": "vitest run src --passWithNoTests",
-    "preflight:local": "bun src/live-preflight.ts"
+    "preflight:local": "bun src/live-preflight.ts",
+    "audit:workflow": "bun src/workflow-audit.ts"
   },
   "dependencies": {
     "@xiranite/contract": "workspace:*",
-    "fflate": "^0.8.3"
+    "fflate": "^0.8.3",
+    "jsonrepair": "3.15.0"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

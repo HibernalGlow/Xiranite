@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { createRef } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { NodeLocalFilesCapability, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
-import { compileAnimaInt8Program, compileAnimaInt8RunPlan, type ComfygureData, type ComfygureInput } from "@xiranite/node-comfygure/core"
+import { compileAnimaInt8Program, compileAnimaInt8RunPlan, importComfyuiWorkflow, type ComfygureData, type ComfygureInput } from "@xiranite/node-comfygure/core"
 import { Component } from "./Component"
 import type { ComfygureCardState, ComfygureTargetConfig } from "./types"
 
@@ -104,6 +104,37 @@ describe("Comfygure node projection", () => {
     await user.click(screen.getByRole("button", { name: "Compile" }))
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.program?.batch?.prompts).toEqual(["cat", "dog", "fox"])
+  })
+
+  it("imports a workflow through the backend runner and requires an explicit binding confirmation", async () => {
+    const host = createHost()
+    const workflow = JSON.stringify({
+      "1": { class_type: "CLIPTextEncode", inputs: { text: "cat" }, _meta: { title: "Positive" } },
+    })
+    const imported = importComfyuiWorkflow(workflow)
+    host.localFiles = {
+      getUrl: (path) => `local://${path}`,
+      pickFiles: async () => ["D:/template.json"],
+    }
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, text: async () => workflow })))
+    host.runner.run = async <TInput, TData>(nodeId: string, input: TInput) => {
+      host.runCalls.push({ nodeId, input: input as ComfygureInput })
+      return {
+        success: true,
+        message: "Imported a ComfyUI template. Confirm the inferred bindings before compiling it.",
+        data: { compiled: compileAnimaInt8Program(), runPlan: compileAnimaInt8RunPlan(), workflowImport: imported },
+      } as NodeRunResult<TData>
+    }
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Import workflow" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]).toMatchObject({ nodeId: "comfygure", input: { action: "import", workflowSource: workflow, template: undefined } })
+    expect(screen.getByRole("button", { name: "Confirm bindings" })).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: "Confirm bindings" }))
+    expect(host.state.template?.bindingManifest.confirmed).toBe(true)
   })
 
   it("refreshes only previously submitted prompt IDs", async () => {

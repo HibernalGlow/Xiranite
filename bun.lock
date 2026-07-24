@@ -500,6 +500,7 @@
       "dependencies": {
         "@xiranite/contract": "workspace:*",
         "fflate": "^0.8.3",
+        "jsonrepair": "3.15.0",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
@@ -2885,6 +2886,8 @@
     "json5": ["json5@2.2.3", "https://registry.npmmirror.com/json5/-/json5-2.2.3.tgz", { "bin": "lib/cli.js" }, "sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg=="],
 
     "jsondiffpatch": ["jsondiffpatch@0.7.6", "https://registry.npmmirror.com/jsondiffpatch/-/jsondiffpatch-0.7.6.tgz", { "dependencies": { "@dmsnell/diff-match-patch": "^1.1.0" }, "bin": { "jsondiffpatch": "bin/jsondiffpatch.js" } }, "sha512-zE9+AXFq+MkTolDor2Cw1nJzLC0aleqPkYf52Kb4Kn4mJcka/gFHpGI2JBVEJCfWOvBl0OoxZS+wuLdislQcqg=="],
+
+    "jsonrepair": ["jsonrepair@3.15.0", "https://registry.npmmirror.com/jsonrepair/-/jsonrepair-3.15.0.tgz", { "bin": { "jsonrepair": "bin/cli.js" } }, "sha512-wy8OTjwsJwQRnQJkKnMJJ9vcytRdBPAgIF/Hy6+s1dAj42BHMKiyL8JzEieIl3JY7idt8eyHwBWTO8mh/+mtwA=="],
 
     "ldrs": ["ldrs@1.1.9", "https://registry.npmmirror.com/ldrs/-/ldrs-1.1.9.tgz", {}, "sha512-JKVdzboxeZrKecA8ovi5iIDgs59wUrtJ+LDrHCgZecNrR0AJi2cJ3ZANJ+UCNS/sHRol73/jlypNCAMCXS+Ung=="],
 

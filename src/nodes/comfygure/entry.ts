@@ -9,6 +9,8 @@ const cardStateSchema = z.object({
   progress: z.number().min(0).max(100).optional(),
   program: z.record(z.string(), z.unknown()).optional(),
   batchText: z.object({ format: z.literal("deflate-base64/v1"), data: z.string(), lineCount: z.number().int().nonnegative(), uncompressedLength: z.number().int().nonnegative() }).optional(),
+  template: z.record(z.string(), z.unknown()).optional(),
+  templateDiagnostics: z.array(z.record(z.string(), z.unknown())).optional(),
   preview: z.record(z.string(), z.unknown()).optional(),
   preflight: z.record(z.string(), z.unknown()).optional(),
   submission: z.record(z.string(), z.unknown()).optional(),
