@@ -5,6 +5,11 @@ export interface NeoviewBackendWatcher {
   close(): void
 }
 
+export interface NeoviewRestartScheduler {
+  schedule(): void
+  close(): void
+}
+
 export function isNeoviewBackendSourceFile(filename: string): boolean {
   const normalized = filename.replaceAll("\\", "/")
   return (/\.(?:ts|tsx)$/).test(normalized)
@@ -15,14 +20,17 @@ export function isNeoviewBackendSourceFile(filename: string): boolean {
     && !["Tui.tsx", "cli.ts", "help.ts", "interaction.ts", "ui-core.ts"].includes(normalized)
 }
 
-export function watchNeoviewBackendSource(restart: () => Promise<unknown>): NeoviewBackendWatcher {
-  const sourceDirectory = resolve(import.meta.dirname, "../packages/nodes/neoview/src")
-  const fingerprints = new Map<string, string>()
+export function createNeoviewRestartScheduler(
+  restart: () => Promise<unknown>,
+  debounceMs = 180,
+): NeoviewRestartScheduler {
   let timer: ReturnType<typeof setTimeout> | undefined
   let restarting = false
   let pending = false
+  let closed = false
 
   const runRestart = async () => {
+    if (closed) return
     if (restarting) {
       pending = true
       return
@@ -34,19 +42,43 @@ export function watchNeoviewBackendSource(restart: () => Promise<unknown>): Neov
       console.error("[xiranite-backend:watch] restart failed", error)
     } finally {
       restarting = false
-      if (pending) {
+      if (pending && !closed) {
         pending = false
         void runRestart()
+      } else {
+        pending = false
       }
     }
   }
 
   const scheduleRestart = () => {
+    if (closed) return
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => {
       timer = undefined
       void runRestart()
-    }, 180)
+    }, debounceMs)
+  }
+
+  return {
+    schedule: scheduleRestart,
+    close() {
+      if (closed) return
+      closed = true
+      pending = false
+      if (timer) clearTimeout(timer)
+      timer = undefined
+    },
+  }
+}
+
+export function watchNeoviewBackendSource(restart: () => Promise<unknown>): NeoviewBackendWatcher {
+  const sourceDirectory = resolve(import.meta.dirname, "../packages/nodes/neoview/src")
+  const fingerprints = new Map<string, string>()
+  const scheduler = createNeoviewRestartScheduler(restart)
+
+  const scheduleRestart = () => {
+    scheduler.schedule()
   }
 
   let watcher: FSWatcher
@@ -74,7 +106,7 @@ export function watchNeoviewBackendSource(restart: () => Promise<unknown>): Neov
   console.log(`[xiranite-backend:watch] ${sourceDirectory}`)
   return {
     close() {
-      if (timer) clearTimeout(timer)
+      scheduler.close()
       watcher.close()
     },
   }

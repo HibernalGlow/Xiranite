@@ -32,10 +32,11 @@ type LocalBackendConfig struct {
 }
 
 type LocalBackend struct {
-	Config   LocalBackendConfig
-	cmd      *exec.Cmd
-	external bool
-	stopOnce sync.Once
+	Config      LocalBackendConfig
+	cmd         *exec.Cmd
+	containment *localBackendProcessContainment
+	external    bool
+	stopOnce    sync.Once
 }
 
 func StartLocalBackend() (*LocalBackend, error) {
@@ -82,18 +83,32 @@ func startLocalBackend(restartToken string) (*LocalBackend, error) {
 	if cwd != "" {
 		cmd.Dir = cwd
 	}
+	containment, err := newLocalBackendProcessContainment()
+	if err != nil {
+		return nil, fmt.Errorf("prepare Xiranite local backend process containment: %w", err)
+	}
+	containment.Prepare(cmd)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		_ = containment.Close()
 		return nil, err
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		_ = containment.Close()
 		return nil, err
 	}
 
 	if err := cmd.Start(); err != nil {
+		_ = containment.Close()
 		return nil, err
+	}
+	if err := containment.AssignAndResume(cmd.Process); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		_ = containment.Close()
+		return nil, fmt.Errorf("contain Xiranite local backend process: %w", err)
 	}
 
 	go logPipe("[xiranite-backend:stderr] ", stderr)
@@ -106,12 +121,14 @@ func startLocalBackend(restartToken string) (*LocalBackend, error) {
 		if result.err != nil {
 			_ = cmd.Process.Kill()
 			_ = cmd.Wait()
+			_ = containment.Close()
 			return nil, result.err
 		}
-		return &LocalBackend{Config: result.config, cmd: cmd}, nil
+		return &LocalBackend{Config: result.config, cmd: cmd, containment: containment}, nil
 	case <-time.After(10 * time.Second):
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
+		_ = containment.Close()
 		return nil, errors.New("timed out waiting for Xiranite local backend")
 	}
 }
@@ -130,6 +147,9 @@ func (b *LocalBackend) Stop() {
 	}
 	b.stopOnce.Do(func() {
 		_ = b.cmd.Process.Kill()
+		if b.containment != nil {
+			_ = b.containment.Close()
+		}
 		_ = b.cmd.Wait()
 	})
 }
