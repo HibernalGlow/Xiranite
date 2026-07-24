@@ -558,8 +558,8 @@ function OriginalConversionSettings({ props }: { props: ViewProps }) {
     <div className="grid grid-cols-2 gap-2">
       {props.format === "JPEG" && props.data.jpegEncoder !== "libjpeg" && <SwitchField label="禁用渐进式 JPEGli" checked={props.data.disableProgressiveJpegli ?? false} onChange={(disableProgressiveJpegli) => props.onPatch({ disableProgressiveJpegli })} />}
       {props.format === "AVIF" && (props.data.avifEncoder ?? "aom") === "aom" && <SwitchField label="AOM IQ 调优" checked={props.data.avifAomIqTune ?? false} onChange={(avifAomIqTune) => props.onPatch({ avifAomIqTune })} />}
-      <SwitchField label="保留较大的原图" checked={props.data.keepIfLarger ?? false} onChange={(keepIfLarger) => props.onPatch({ keepIfLarger })} />
-      <SwitchField label="较大时复制原图" checked={props.data.copyIfLarger ?? false} onChange={(copyIfLarger) => props.onPatch({ copyIfLarger })} />
+      <SwitchField label="转换后未变小时保留原图" description="转换结果大于或等于原图时，删除转换结果并保留原图。" checked={props.data.keepIfLarger ?? false} onChange={(keepIfLarger) => props.onPatch(keepIfLarger ? { keepIfLarger } : { keepIfLarger, copyIfLarger: false })} />
+      <SwitchField label="未变小时复制原图到输出目录" description="转换结果未变小时，用原图替代输出目录中的转换结果；开启时会同时启用保留原图。" checked={props.data.copyIfLarger ?? false} onChange={(copyIfLarger) => props.onPatch(copyIfLarger ? { keepIfLarger: true, copyIfLarger } : { copyIfLarger })} />
       {props.format === "JPEG XL" && <><SwitchField label="JXL 有损 Modular" checked={props.data.jxlModular ?? false} onChange={(jxlModular) => props.onPatch({ jxlModular })} /><SwitchField label="自动无损 JPEG" checked={props.data.autoLosslessJpeg ?? true} onChange={(autoLosslessJpeg) => props.onPatch({ autoLosslessJpeg })} /></>}
     </div>
   </div>
@@ -625,9 +625,9 @@ function MetadataCard({ props, embedded = false }: { props: ViewProps; embedded?
   return embedded ? content : <WorkbenchCard title="元数据与时间">{content}</WorkbenchCard>
 }
 
-function SwitchField({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+function SwitchField({ label, description, checked, onChange }: { label: string; description?: string; checked: boolean; onChange: (value: boolean) => void }) {
   const id = `xlchemy-${label}`
-  return <Field orientation="horizontal" className="rounded-md border px-2 py-1.5"><FieldContent><FieldLabel htmlFor={id} className="text-xs">{label}</FieldLabel></FieldContent><Switch id={id} size="sm" checked={checked} onCheckedChange={onChange} /></Field>
+  return <Field orientation="horizontal" className="rounded-md border px-2 py-1.5" title={description}><FieldContent><FieldLabel htmlFor={id} className="text-xs">{label}</FieldLabel></FieldContent><Switch id={id} size="sm" checked={checked} onCheckedChange={onChange} /></Field>
 }
 
 function SelectField({ label, onChange, options, value }: { label: string; onChange: (value: string) => void; options: Array<[string, string]>; value: string }) { return <Field><FieldLabel>{label}</FieldLabel><Select value={value} onValueChange={onChange}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{options.map(([optionValue, optionLabel]) => <SelectItem key={optionValue} value={optionValue}>{optionLabel}</SelectItem>)}</SelectGroup></SelectContent></Select></Field> }
