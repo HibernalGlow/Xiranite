@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Activity, CheckCircle2, CircleAlert, FileCode2, FileUp, Network, Play, RefreshCw, Save, Settings2, Sparkles } from "lucide-react"
+import { Activity, CheckCircle2, CircleAlert, Download, FileCode2, FileUp, Network, Play, RefreshCw, Save, Settings2, Sparkles } from "lucide-react"
 import type { NodeComponentProps, NodeRunEvent } from "@xiranite/contract"
 import {
   DEFAULT_COMFYUI_ENDPOINT,
@@ -8,6 +8,7 @@ import {
   compressComfygureText,
   decompressComfygureText,
   normalizeComfygureProgram,
+  type ComfygureCanvasExport,
   type ComfygureData,
   type ComfygureInput,
   type ComfygureProgram,
@@ -28,7 +29,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const stateRef = useRef(stored)
   stateRef.current = stored
   const [revision, setRevision] = useState(0)
-  const [running, setRunning] = useState<"compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "preflight" | "submit" | "refresh" | null>(null)
+  const [running, setRunning] = useState<"compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "canvas" | "preflight" | "submit" | "refresh" | null>(null)
   const [target, setTarget] = useState<ComfygureTargetConfig>({ endpoint: DEFAULT_COMFYUI_ENDPOINT, libraryPath: "" })
   const targetDirtyRef = useRef<Set<keyof ComfygureTargetConfig>>(new Set())
   const [targetDirty, setTargetDirty] = useState(false)
@@ -149,7 +150,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     await execute("loadProfile", undefined, profileId)
   }
 
-  async function execute(action: "compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "preflight" | "submit" | "refresh", workflowSource?: string, selectedProfileId?: string) {
+  async function execute(action: "compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "canvas" | "preflight" | "submit" | "refresh", workflowSource?: string, selectedProfileId?: string) {
     const run = host.runner?.run ?? host.actions?.run
     if (!run || running) {
       if (!run) patch({ status: "The Xiranite backend runner is unavailable." })
@@ -161,7 +162,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       return
     }
     setRunning(action)
-    patch({ status: action === "import" ? "Normalizing the ComfyUI workflow." : action === "profiles" ? "Reading local generation profiles." : action === "saveProfile" ? "Saving the generation profile." : action === "loadProfile" ? "Loading the generation profile." : action === "compile" ? "Compiling a fixed prompt graph." : action === "preflight" ? "Inspecting the local ComfyUI target." : action === "refresh" ? "Refreshing ComfyUI results." : "Submitting a fixed prompt graph.", progress: 0 })
+    patch({ status: action === "import" ? "Normalizing the ComfyUI workflow." : action === "profiles" ? "Reading local generation profiles." : action === "saveProfile" ? "Saving the generation profile." : action === "loadProfile" ? "Loading the generation profile." : action === "compile" ? "Compiling a fixed prompt graph." : action === "canvas" ? "Exporting an inspectable ComfyUI canvas." : action === "preflight" ? "Inspecting the local ComfyUI target." : action === "refresh" ? "Refreshing ComfyUI results." : "Submitting a fixed prompt graph.", progress: 0 })
     try {
       const result = await run<ComfygureInput, ComfygureData>("comfygure", {
         action,
@@ -196,6 +197,7 @@ export function Component({ compId, host }: NodeComponentProps) {
         }
         if (data.history) next.history = data.history
         if (data.profiles) next.profiles = data.profiles
+        if (data.canvas) downloadCanvas(data.canvas, programFromStored(stateRef.current).name)
         if (data.profile) {
           next.profile = data.profile
           const current = programFromStored(stateRef.current)
@@ -260,11 +262,22 @@ export function Component({ compId, host }: NodeComponentProps) {
         <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("profiles")}><RefreshCw />Profiles</Button><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("saveProfile")}><Save />Save profile</Button></div>
         {(stored.profiles?.length || stored.profile) ? <Field label="Generation profile"><Select value={stored.profile?.id ?? "__current"} disabled={running !== null} onValueChange={(value) => { if (value !== "__current") void loadProfile(value) }}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__current">Current project snapshot</SelectItem>{stored.profiles?.map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.name} · r{profile.revision}</SelectItem>)}</SelectContent></Select></Field> : null}
         <div className="space-y-2 border-t pt-3"><Field label="UNet"><Input value={program.model.unetName} onChange={(event) => updateProgram({ model: { ...program.model, unetName: event.currentTarget.value } })} /></Field><Field label="CLIP"><Input value={program.model.clipName} onChange={(event) => updateProgram({ model: { ...program.model, clipName: event.currentTarget.value } })} /></Field><Field label="VAE"><Input value={program.model.vaeName} onChange={(event) => updateProgram({ model: { ...program.model, vaeName: event.currentTarget.value } })} /></Field></div>
-        <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("preflight")}><Activity />Preflight</Button><Button size="sm" variant="outline" disabled={running !== null || promptIds.length === 0} onClick={() => void execute("refresh")}><RefreshCw />Refresh results</Button><Button size="sm" disabled={running !== null || !templateReady} onClick={() => void execute("submit")}><Play />Run</Button></div>
+        <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("canvas")}><Download />Export canvas</Button><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("preflight")}><Activity />Preflight</Button><Button size="sm" variant="outline" disabled={running !== null || promptIds.length === 0} onClick={() => void execute("refresh")}><RefreshCw />Refresh results</Button><Button size="sm" disabled={running !== null || !templateReady} onClick={() => void execute("submit")}><Play />Run</Button></div>
         <CompilerSummary preview={preview} preflight={preflight} submission={stored.submission} submissions={stored.submissions} history={stored.history} template={template} templateDiagnostics={stored.templateDiagnostics} />
       </aside>
     </div>}
   </div>
+}
+
+function downloadCanvas(canvas: ComfygureCanvasExport, programName: string) {
+  const fileName = `${programName.trim().replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "-").replace(/^-+|-+$/g, "") || "comfygure"}.workflow.json`
+  const blob = new Blob([JSON.stringify(canvas, null, 2)], { type: "application/json" })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = fileName
+  anchor.click()
+  URL.revokeObjectURL(url)
 }
 
 function Field(props: { label: string; children: ReactNode }) {

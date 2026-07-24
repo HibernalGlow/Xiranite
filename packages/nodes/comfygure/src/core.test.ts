@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { compileAnimaInt8Program, compileAnimaInt8RunPlan, compileComfygureTemplate, confirmComfygureTemplateBindings, compressComfygureText, createComfygureProfile, decompressComfygureText, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, importComfyuiWorkflow, normalizeComfyuiEndpoint, normalizeComfygureProfile, normalizePromptText, preflightComfyuiTarget, resolveBatchSequence, resolveComfygureProfile, runComfygure } from "./core.js"
+import { compileAnimaInt8Program, compileAnimaInt8RunPlan, compileComfygureTemplate, confirmComfygureTemplateBindings, compressComfygureText, createComfygureProfile, decompressComfygureText, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, exportComfygureCanvas, importComfyuiWorkflow, normalizeComfyuiEndpoint, normalizeComfygureProfile, normalizePromptText, preflightComfyuiTarget, resolveBatchSequence, resolveComfygureProfile, runComfygure } from "./core.js"
 
 describe("Comfygure ANIMA INT8 compiler", () => {
   it("compiles dynamic LoRA choices into static Comfyroll stack nodes", () => {
@@ -385,6 +385,72 @@ prompt", "clip": ["2", 0] }, "_meta": { "title": "Positive prompt" } },
       vi.useRealTimers()
     }
   })
+
+  it("exports a deterministic typed canvas with stable links and widgets", () => {
+    const graph = canvasGraph()
+    const first = exportComfygureCanvas(graph, { objectInfo: canvasObjectInfo() })
+    const second = exportComfygureCanvas(graph, { objectInfo: canvasObjectInfo() })
+
+    expect(first).toEqual(second)
+    expect(first.nodes.map((node) => node.id)).toEqual([1, 2, 3])
+    expect(first.links).toEqual([
+      [1, 1, 0, 2, 0, "MODEL"],
+      [2, 2, 0, 3, 0, "IMAGE"],
+    ])
+    expect(first.nodes[0]).toMatchObject({ type: "ModelLoader", outputs: [{ name: "MODEL", type: "MODEL", links: [1] }], widgets_values: ["model.safetensors"] })
+    expect(first.nodes[1]).toMatchObject({ type: "PromptImage", inputs: [{ name: "model", type: "MODEL", link: 1 }, { name: "text", type: "STRING", link: null }], widgets_values: ["cat"] })
+    expect(first.extra.comfygure).toEqual(expect.objectContaining({ objectInfoUsed: true, diagnostics: [] }))
+  })
+
+  it("lays out canvas nodes and groups without overlap", () => {
+    const canvas = exportComfygureCanvas(canvasGraph(), { objectInfo: canvasObjectInfo() })
+
+    for (const [index, node] of canvas.nodes.entries()) {
+      for (const other of canvas.nodes.slice(index + 1)) expect(canvasRectanglesOverlap(node.pos, node.size, other.pos, other.size)).toBe(false)
+    }
+    for (const [index, group] of canvas.groups.entries()) {
+      for (const other of canvas.groups.slice(index + 1)) expect(canvasRectanglesOverlap([group.bounding[0], group.bounding[1]], [group.bounding[2], group.bounding[3]], [other.bounding[0], other.bounding[1]], [other.bounding[2], other.bounding[3]])).toBe(false)
+      const contained = canvas.nodes.filter((node) => node.pos[0] >= group.bounding[0] && node.pos[0] + node.size[0] <= group.bounding[0] + group.bounding[2] && node.pos[1] >= group.bounding[1] && node.pos[1] + node.size[1] <= group.bounding[1] + group.bounding[3])
+      expect(contained.length).toBeGreaterThan(0)
+    }
+  })
+
+  it("keeps exported canvas links internally consistent", () => {
+    const canvas = exportComfygureCanvas(canvasGraph(), { objectInfo: canvasObjectInfo() })
+    const nodes = new Map(canvas.nodes.map((node) => [node.id, node]))
+
+    for (const [linkId, originId, originSlot, targetId, targetSlot] of canvas.links) {
+      expect(nodes.get(originId)?.outputs[originSlot]?.links).toContain(linkId)
+      expect(nodes.get(targetId)?.inputs[targetSlot]?.link).toBe(linkId)
+    }
+  })
+
+  it("records explicit fallbacks instead of emitting dangling canvas links", () => {
+    const graph = {
+      "1": { class_type: "UnknownNode", inputs: { source: ["missing", 0], value: 1 } },
+    }
+    const canvas = exportComfygureCanvas(graph)
+
+    expect(canvas.links).toEqual([])
+    expect(canvas.nodes[0]?.inputs.find((input) => input.name === "source")?.link).toBeNull()
+    expect(canvas.extra.comfygure.objectInfoUsed).toBe(false)
+    expect(canvas.extra.comfygure.diagnostics.join(" ")).toContain("missing node")
+  })
+
+  it("exports a canvas through the runner using object_info only", async () => {
+    const requests: Array<{ url: string; method?: string }> = []
+    const compiled = compileAnimaInt8Program()
+    const result = await runComfygure({ action: "canvas" }, {
+      fetch: async (url, init) => {
+        requests.push({ url, method: init?.method })
+        return { ok: true, status: 200, json: async () => objectInfoFor(compiled) }
+      },
+    })
+
+    expect(result).toMatchObject({ success: true, data: { canvas: { version: 0.4, nodes: expect.any(Array) } } })
+    expect(requests).toEqual([{ url: "http://127.0.0.1:8000/object_info", method: "GET" }])
+    expect(result.data?.canvas?.links.every(([linkId, originId, originSlot, targetId, targetSlot]) => result.data?.canvas?.nodes.find((node) => node.id === originId)?.outputs[originSlot]?.links?.includes(linkId) && result.data?.canvas?.nodes.find((node) => node.id === targetId)?.inputs[targetSlot]?.link === linkId)).toBe(true)
+  })
 })
 
 function objectInfoFor(compiled: ReturnType<typeof compileAnimaInt8Program>) {
@@ -394,4 +460,24 @@ function objectInfoFor(compiled: ReturnType<typeof compileAnimaInt8Program>) {
   ;(info.VAELoader as { input: { required: Record<string, unknown> } }).input.required.vae_name = [[compiled.program.model.vaeName]]
   if (compiled.activeLoras.length) (info["CR LoRA Stack"] as { input: { required: Record<string, unknown> } }).input.required.lora_name_1 = [compiled.activeLoras.map((lora) => lora.name)]
   return info
+}
+
+function canvasGraph() {
+  return {
+    "10": { class_type: "ModelLoader", inputs: { model_name: "model.safetensors" } },
+    "20": { class_type: "PromptImage", inputs: { model: ["10", 0], text: "cat" }, _meta: { title: "Positive prompt" } },
+    "30": { class_type: "SaveImage", inputs: { images: ["20", 0], filename_prefix: "canvas/check" } },
+  }
+}
+
+function canvasObjectInfo() {
+  return {
+    ModelLoader: { input: { required: { model_name: [["model.safetensors"]] } }, output: ["MODEL"], output_name: ["MODEL"] },
+    PromptImage: { input: { required: { model: ["MODEL"], text: ["STRING", { default: "" }] } }, output: ["IMAGE"], output_name: ["IMAGE"] },
+    SaveImage: { input: { required: { images: ["IMAGE"], filename_prefix: ["STRING", { default: "ComfyUI" }] } }, output: [] },
+  }
+}
+
+function canvasRectanglesOverlap(left: readonly [number, number], leftSize: readonly [number, number], right: readonly [number, number], rightSize: readonly [number, number]): boolean {
+  return left[0] < right[0] + rightSize[0] && left[0] + leftSize[0] > right[0] && left[1] < right[1] + rightSize[1] && left[1] + leftSize[1] > right[1]
 }
