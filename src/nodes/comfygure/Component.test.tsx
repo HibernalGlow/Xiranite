@@ -17,6 +17,19 @@ afterEach(() => {
 })
 
 describe("Comfygure node projection", () => {
+  it("uses the shared resizable-panel system for the project, inspection, and execution swimlanes", () => {
+    const host = createHost()
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    const workbench = screen.getByTestId("comfygure-swimlane-workbench")
+    expect(workbench.querySelector('[data-slot="resizable-panel-group"]')).toBeTruthy()
+    expect(screen.getByTestId("comfygure-project-lane").getAttribute("aria-labelledby")).toBe("comfygure-project-heading")
+    expect(screen.getByTestId("comfygure-inspection-lane").getAttribute("aria-labelledby")).toBe("comfygure-inspection-heading")
+    expect(screen.getByTestId("comfygure-execution-lane").getAttribute("aria-labelledby")).toBe("comfygure-execution-heading")
+    expect(workbench.querySelectorAll('[data-slot="resizable-panel"]')).toHaveLength(3)
+    expect(workbench.querySelectorAll('[data-slot="resizable-handle"]')).toHaveLength(2)
+  })
+
   it("sends preflight through the host runner without submitting a prompt", async () => {
     const host = createHost()
     render(<Component compId="comfygure-1" host={host as never} />)
