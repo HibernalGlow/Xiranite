@@ -32,9 +32,29 @@ describe("Comfygure node projection", () => {
     const host = createHost()
     render(<Component compId="comfygure-1" host={host as never} />)
 
-    await userEvent.setup().click(await screen.findByRole("button", { name: "Save target" }))
+    const user = userEvent.setup()
+    const library = await screen.findByDisplayValue("D:/1Repo/Github/ComfyUI/Library")
+    await user.clear(library)
+    await user.type(library, "D:/1Repo/Github/ComfyUI/Library-next")
+    await user.click(await screen.findByRole("button", { name: "Save target" }))
 
-    await waitFor(() => expect(host.savedConfig).toEqual({ endpoint: "http://127.0.0.1:8000", libraryPath: "D:/1Repo/Github/ComfyUI/Library" }))
+    await waitFor(() => expect(host.savedConfig).toEqual({ libraryPath: "D:/1Repo/Github/ComfyUI/Library-next" }))
+  })
+
+  it("allows an explicit target edit to be saved while config hydration is still pending", async () => {
+    const host = createHost({ pendingConfig: true })
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    const user = userEvent.setup()
+    const endpoint = screen.getByDisplayValue("http://127.0.0.1:8000")
+    const save = screen.getByRole("button", { name: "Save target" })
+    expect(save).toHaveProperty("disabled", true)
+
+    await user.clear(endpoint)
+    await user.type(endpoint, "http://localhost:8000")
+    await user.click(save)
+
+    await waitFor(() => expect(host.savedConfig).toEqual({ endpoint: "http://localhost:8000" }))
   })
 
   it("uses the explicit Run control for prompt submission", async () => {
@@ -48,7 +68,7 @@ describe("Comfygure node projection", () => {
   })
 })
 
-function createHost() {
+function createHost(options: { pendingConfig?: boolean } = {}) {
   const compiled = compileAnimaInt8Program()
   const result: NodeRunResult<ComfygureData> = {
     success: true,
@@ -72,7 +92,10 @@ function createHost() {
     savedConfig: undefined as ComfygureTargetConfig | undefined,
     getData<T>() { return this.state as T },
     patchData(_compId: string, patch: Partial<ComfygureCardState>) { this.state = { ...this.state, ...patch } },
-    getNodeConfig: async <T,>() => ({ config: { endpoint: "http://127.0.0.1:8000", libraryPath: "D:/1Repo/Github/ComfyUI/Library" } as T, path: "D:/config/xiranite.config.toml" }),
+    getNodeConfig: async <T,>() => {
+      if (options.pendingConfig) return await new Promise<{ config: T | undefined; path: string }>(() => undefined)
+      return { config: { endpoint: "http://127.0.0.1:8000", libraryPath: "D:/1Repo/Github/ComfyUI/Library" } as T, path: "D:/config/xiranite.config.toml" }
+    },
     saveNodeConfig: async (config: ComfygureTargetConfig) => { host.savedConfig = config },
     runner: {
       run: async <TInput, TData>(nodeId: string, input: TInput, _onEvent?: (event: NodeRunEvent) => void) => {

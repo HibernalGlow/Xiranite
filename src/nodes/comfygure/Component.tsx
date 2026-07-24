@@ -25,24 +25,21 @@ export function Component({ compId, host }: NodeComponentProps) {
   const [revision, setRevision] = useState(0)
   const [running, setRunning] = useState<"compile" | "preflight" | "submit" | null>(null)
   const [target, setTarget] = useState<ComfygureTargetConfig>({ endpoint: DEFAULT_COMFYUI_ENDPOINT, libraryPath: "" })
-  const [targetLoaded, setTargetLoaded] = useState(false)
+  const targetDirtyRef = useRef<Set<keyof ComfygureTargetConfig>>(new Set())
+  const [targetDirty, setTargetDirty] = useState(false)
   const program = normalizeComfygureProgram(stored.program ?? DEFAULT_COMFYGURE_PROGRAM)
   void revision
 
   useEffect(() => {
-    if (!host.getNodeConfig) {
-      setTargetLoaded(true)
-      return
-    }
+    if (!host.getNodeConfig) return
     let active = true
     void host.getNodeConfig<ComfygureTargetConfig>().then((response) => {
       if (!active || !response?.config) return
-      setTarget({
-        endpoint: response.config.endpoint || DEFAULT_COMFYUI_ENDPOINT,
-        libraryPath: response.config.libraryPath ?? "",
-      })
-      setTargetLoaded(true)
-    }).catch(() => { if (active) setTargetLoaded(true) })
+      setTarget((current) => ({
+        endpoint: targetDirtyRef.current.has("endpoint") ? current.endpoint : response.config.endpoint || DEFAULT_COMFYUI_ENDPOINT,
+        libraryPath: targetDirtyRef.current.has("libraryPath") ? current.libraryPath : response.config.libraryPath ?? "",
+      }))
+    }).catch(() => undefined)
     return () => { active = false }
   }, [host])
 
@@ -67,9 +64,25 @@ export function Component({ compId, host }: NodeComponentProps) {
     })
   }
 
+  function updateTarget<Key extends keyof ComfygureTargetConfig>(key: Key, value: ComfygureTargetConfig[Key]) {
+    targetDirtyRef.current.add(key)
+    setTargetDirty(true)
+    setTarget((current) => ({ ...current, [key]: value }))
+  }
+
   async function saveTarget() {
-    await host.saveNodeConfig?.({ endpoint: target.endpoint?.trim() || DEFAULT_COMFYUI_ENDPOINT, libraryPath: target.libraryPath?.trim() || undefined })
-    patch({ status: "Local ComfyUI target saved." })
+    if (!host.saveNodeConfig || targetDirtyRef.current.size === 0) return
+    const next: ComfygureTargetConfig = {}
+    if (targetDirtyRef.current.has("endpoint")) next.endpoint = target.endpoint?.trim() || DEFAULT_COMFYUI_ENDPOINT
+    if (targetDirtyRef.current.has("libraryPath")) next.libraryPath = target.libraryPath?.trim() || undefined
+    try {
+      await host.saveNodeConfig(next)
+      targetDirtyRef.current.clear()
+      setTargetDirty(false)
+      patch({ status: "Local ComfyUI target saved." })
+    } catch (error) {
+      patch({ status: error instanceof Error ? `Could not save the local target: ${error.message}` : "Could not save the local target." })
+    }
   }
 
   async function execute(action: "compile" | "preflight" | "submit") {
@@ -127,9 +140,9 @@ export function Component({ compId, host }: NodeComponentProps) {
       </section>
       <aside className="min-w-0 space-y-3 border-t pt-3 @4xl/comfygure:border-l @4xl/comfygure:border-t-0 @4xl/comfygure:pl-3 @4xl/comfygure:pt-0">
         <div className="flex items-center gap-2"><Network className="size-4" /><h3 className="text-sm font-semibold">Local target</h3></div>
-        <Field label="Endpoint"><Input value={target.endpoint ?? DEFAULT_COMFYUI_ENDPOINT} disabled={running !== null} onChange={(event) => setTarget((current) => ({ ...current, endpoint: event.currentTarget.value }))} /></Field>
-        <Field label="ComfyUI Library"><Input value={target.libraryPath ?? ""} disabled={running !== null} placeholder="D:/1Repo/Github/ComfyUI/Library" onChange={(event) => setTarget((current) => ({ ...current, libraryPath: event.currentTarget.value }))} /></Field>
-        <Button className="w-full" size="sm" variant="outline" disabled={running !== null || !targetLoaded} onClick={() => void saveTarget()}><Save />Save target</Button>
+        <Field label="Endpoint"><Input value={target.endpoint ?? DEFAULT_COMFYUI_ENDPOINT} disabled={running !== null} onChange={(event) => updateTarget("endpoint", event.currentTarget.value)} /></Field>
+        <Field label="ComfyUI Library"><Input value={target.libraryPath ?? ""} disabled={running !== null} placeholder="D:/1Repo/Github/ComfyUI/Library" onChange={(event) => updateTarget("libraryPath", event.currentTarget.value)} /></Field>
+        <Button className="w-full" size="sm" variant="outline" disabled={running !== null || !targetDirty} onClick={() => void saveTarget()}><Save />Save target</Button>
         <div className="space-y-2 border-t pt-3"><Field label="UNet"><Input value={program.model.unetName} onChange={(event) => updateProgram({ model: { ...program.model, unetName: event.currentTarget.value } })} /></Field><Field label="CLIP"><Input value={program.model.clipName} onChange={(event) => updateProgram({ model: { ...program.model, clipName: event.currentTarget.value } })} /></Field><Field label="VAE"><Input value={program.model.vaeName} onChange={(event) => updateProgram({ model: { ...program.model, vaeName: event.currentTarget.value } })} /></Field></div>
         <div className="grid grid-cols-3 gap-2"><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("preflight")}><Activity />Preflight</Button><Button size="sm" disabled={running !== null} onClick={() => void execute("submit")}><Play />Run</Button></div>
         <CompilerSummary preview={preview} preflight={preflight} submission={stored.submission} />
