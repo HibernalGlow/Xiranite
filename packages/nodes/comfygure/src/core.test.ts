@@ -189,6 +189,38 @@ describe("Comfygure ANIMA INT8 compiler", () => {
     expect(JSON.parse(requests[2]?.init?.body ?? "{}").prompt["5"].inputs.text).toBe("dog")
   })
 
+  it("reads persisted prompt history without re-preflighting or resubmitting", async () => {
+    const requests: Array<{ url: string; method?: string }> = []
+    const result = await runComfygure({ action: "refresh", promptIds: ["pending", "finished", "failed", "finished"] }, {
+      fetch: async (url, init) => {
+        requests.push({ url, method: init?.method })
+        if (url.endsWith("/pending")) return { ok: true, status: 200, json: async () => ({}) }
+        if (url.endsWith("/failed")) return {
+          ok: true,
+          status: 200,
+          json: async () => ({ failed: { status: { status_str: "error", messages: [["execution_error", { exception_message: "out of memory" }]] }, outputs: {} } }),
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ finished: { status: { status_str: "success", completed: true }, outputs: { "9": { images: [{ filename: "ComfyUI_00001_.png", subfolder: "batch/run", type: "output" }] } } } }),
+        }
+      },
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.data?.history).toMatchObject([
+      { promptId: "pending", state: "pending", images: [] },
+      { promptId: "finished", state: "complete", images: [{ url: "http://127.0.0.1:8000/view?filename=ComfyUI_00001_.png&subfolder=batch%2Frun&type=output" }] },
+      { promptId: "failed", state: "error", error: "out of memory" },
+    ])
+    expect(requests).toEqual([
+      { url: "http://127.0.0.1:8000/history/pending", method: "GET" },
+      { url: "http://127.0.0.1:8000/history/finished", method: "GET" },
+      { url: "http://127.0.0.1:8000/history/failed", method: "GET" },
+    ])
+  })
+
   it("aborts an unresponsive target instead of leaving preflight pending", async () => {
     vi.useFakeTimers()
     const compiled = compileAnimaInt8Program()

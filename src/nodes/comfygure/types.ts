@@ -1,4 +1,4 @@
-import type { ComfygureLora, ComfygureProgram, ComfyuiSubmission, PreflightReport } from "@xiranite/node-comfygure/core"
+import type { ComfygureLora, ComfygureProgram, ComfyuiPromptHistory, ComfyuiSubmission, PreflightReport } from "@xiranite/node-comfygure/core"
 
 export interface ComfygureTargetConfig {
   endpoint?: string
@@ -19,6 +19,7 @@ export interface ComfygureCardState {
   preflight?: PreflightReport
   submission?: ComfyuiSubmission
   submissions?: readonly ComfyuiSubmission[]
+  history?: readonly ComfyuiPromptHistory[]
   status?: string
   progress?: number
 }

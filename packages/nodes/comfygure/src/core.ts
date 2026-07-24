@@ -148,12 +148,14 @@ export interface ComfygureData {
   preflight?: PreflightReport
   submission?: ComfyuiSubmission
   submissions?: readonly ComfyuiSubmission[]
+  history?: readonly ComfyuiPromptHistory[]
 }
 
 export interface ComfygureInput {
-  action?: "compile" | "preflight" | "submit"
+  action?: "compile" | "preflight" | "submit" | "refresh"
   program?: ComfygureProgramDraft
   target?: ComfygureTarget
+  promptIds?: readonly string[]
 }
 
 export interface ComfygureFetchResponse {
@@ -172,6 +174,21 @@ export interface ComfyuiSubmission {
   promptId: string
   queueNumber?: number
   clientId: string
+}
+
+export interface ComfyuiOutputImage {
+  filename: string
+  subfolder: string
+  type: string
+  url: string
+}
+
+export interface ComfyuiPromptHistory {
+  endpoint: string
+  promptId: string
+  state: "pending" | "running" | "complete" | "error"
+  images: readonly ComfyuiOutputImage[]
+  error?: string
 }
 
 const REGION_SYNTAX = /\b(?:COUPLE|MASK|FEATHER|FILL|IMASK|AREA|MASK_SIZE|MASKW)\s*\(/i
@@ -543,6 +560,32 @@ export async function runComfygure(input: ComfygureInput, runtime: ComfygureRunt
   const program = await hydrateLoraTriggers(input.program, input.target, runtime)
   const runPlan = compileAnimaInt8RunPlan(program)
   const compiled = runPlan.jobs[0]!.compiled
+  if (input.action === "refresh") {
+    const promptIds = normalizePromptIds(input.promptIds)
+    if (promptIds.length === 0) return { success: false, message: "No ComfyUI prompt IDs are available to refresh.", data: { compiled, runPlan } }
+    const histories: ComfyuiPromptHistory[] = []
+    try {
+      for (const [index, promptId] of promptIds.entries()) {
+        onEvent({ type: "progress", progress: Math.round((index / promptIds.length) * 100), message: `Refreshing ComfyUI prompt ${index + 1} of ${promptIds.length}.` })
+        histories.push(await readComfyuiPromptHistory(promptId, input.target ?? {}, runtime))
+      }
+      const completed = histories.filter((history) => history.state === "complete").length
+      const failed = histories.filter((history) => history.state === "error").length
+      const imageCount = histories.reduce((count, history) => count + history.images.length, 0)
+      onEvent({ type: "progress", progress: 100, message: "ComfyUI result refresh complete." })
+      return {
+        success: failed === 0,
+        message: failed > 0
+          ? `${failed} ComfyUI prompt(s) reported an error.`
+          : `${completed} of ${histories.length} ComfyUI prompt(s) complete with ${imageCount} image(s).`,
+        data: { compiled, runPlan, history: histories },
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      onEvent({ type: "progress", progress: 100, message: "ComfyUI result refresh failed." })
+      return { success: false, message, data: { compiled, runPlan, history: histories } }
+    }
+  }
   if (input.action !== "preflight" && input.action !== "submit") {
     const message = runPlan.jobs.length === 1
       ? `Compiled ${Object.keys(compiled.graph).length} fixed ComfyUI node(s).`
@@ -599,6 +642,40 @@ export async function submitComfyuiPrompt(compiled: CompiledProgram, target: Com
   if (!promptId) throw new Error(`ComfyUI rejected the prompt graph${describeComfyuiPromptError(payload)}.`)
   const queueNumber = typeof payload.number === "number" && Number.isFinite(payload.number) ? payload.number : undefined
   return { endpoint, promptId, queueNumber, clientId }
+}
+
+export async function readComfyuiPromptHistory(promptId: string, target: ComfygureTarget, runtime: ComfygureRuntime): Promise<ComfyuiPromptHistory> {
+  const endpoint = normalizeComfyuiEndpoint(target.endpoint)
+  const response = await fetchComfyui(runtime, `${endpoint}/history/${encodeURIComponent(promptId)}`, { method: "GET", headers: { accept: "application/json" } })
+  if (!response.ok) throw new Error(`ComfyUI history lookup failed: HTTP ${response.status}`)
+  const payload = await response.json()
+  const entry = isRecord(payload) && isRecord(payload[promptId]) ? payload[promptId] : undefined
+  if (!entry) return { endpoint, promptId, state: "pending", images: [] }
+  const status = isRecord(entry.status) ? entry.status : undefined
+  const statusValue = stringValue(status?.status_str, stringValue(status?.status, "")).toLocaleLowerCase()
+  const error = historyError(status)
+  const state = error || statusValue === "error" || statusValue === "failed"
+    ? "error"
+    : statusValue === "success" || statusValue === "completed" || status?.completed === true
+      ? "complete"
+      : statusValue === "running" || statusValue === "executing"
+        ? "running"
+        : "pending"
+  return {
+    endpoint,
+    promptId,
+    state,
+    images: extractHistoryImages(entry, endpoint),
+    error: error || undefined,
+  }
+}
+
+export function createComfyuiImageUrl(endpoint: string, image: Pick<ComfyuiOutputImage, "filename" | "subfolder" | "type">): string {
+  const url = new URL("view", `${normalizeComfyuiEndpoint(endpoint)}/`)
+  url.searchParams.set("filename", image.filename)
+  if (image.subfolder) url.searchParams.set("subfolder", image.subfolder)
+  if (image.type) url.searchParams.set("type", image.type)
+  return url.toString()
 }
 
 export function normalizeComfyuiEndpoint(value: string | undefined): string {
@@ -669,6 +746,44 @@ function compiledRequirementsFor(runPlan: CompiledRunPlan): Pick<CompiledProgram
     }
   }
   return { requiredClasses: [...classes].sort(), requiredResources: [...resources.values()] }
+}
+
+function normalizePromptIds(value: readonly string[] | undefined): readonly string[] {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.flatMap((promptId) => {
+    const normalized = stringValue(promptId, "").trim()
+    return normalized ? [normalized] : []
+  }))]
+}
+
+function extractHistoryImages(entry: Record<string, unknown>, endpoint: string): readonly ComfyuiOutputImage[] {
+  const outputs = isRecord(entry.outputs) ? entry.outputs : {}
+  const images: ComfyuiOutputImage[] = []
+  for (const output of Object.values(outputs)) {
+    if (!isRecord(output) || !Array.isArray(output.images)) continue
+    for (const image of output.images) {
+      if (!isRecord(image)) continue
+      const filename = stringValue(image.filename, "").trim()
+      if (!filename) continue
+      const subfolder = stringValue(image.subfolder, "").trim()
+      const type = stringValue(image.type, "output").trim() || "output"
+      images.push({ filename, subfolder, type, url: createComfyuiImageUrl(endpoint, { filename, subfolder, type }) })
+    }
+  }
+  return images
+}
+
+function historyError(status: Record<string, unknown> | undefined): string {
+  if (!status) return ""
+  const messages = Array.isArray(status.messages) ? status.messages : []
+  for (const message of messages) {
+    if (!Array.isArray(message) || message[0] !== "execution_error") continue
+    const details = isRecord(message[1]) ? message[1] : undefined
+    const exception = stringValue(details?.exception_message, "").trim()
+    const summary = stringValue(details?.node_type, "").trim()
+    return exception || summary || "ComfyUI reported an execution error."
+  }
+  return ""
 }
 
 function ensurePromptTerms(value: string, terms: readonly string[]): string {

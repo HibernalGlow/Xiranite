@@ -78,6 +78,23 @@ describe("Comfygure node projection", () => {
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input.program?.batch?.prompts).toEqual(["cat", "dog"])
   })
+
+  it("refreshes only previously submitted prompt IDs", async () => {
+    const host = createHost()
+    host.state = {
+      submission: { endpoint: "http://127.0.0.1:8000", promptId: "prompt-1", clientId: "xiranite-comfygure" },
+      submissions: [
+        { endpoint: "http://127.0.0.1:8000", promptId: "prompt-1", clientId: "xiranite-comfygure" },
+        { endpoint: "http://127.0.0.1:8000", promptId: "prompt-2", clientId: "xiranite-comfygure" },
+      ],
+    }
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Refresh results" }))
+
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]).toMatchObject({ nodeId: "comfygure", input: { action: "refresh", promptIds: ["prompt-1", "prompt-2"] } })
+  })
 })
 
 function createHost(options: { pendingConfig?: boolean } = {}) {
