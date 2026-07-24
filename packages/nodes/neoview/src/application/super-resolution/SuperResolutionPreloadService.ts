@@ -52,6 +52,12 @@ interface ActiveBatch {
   promise: Promise<SuperResolutionPreloadBatchResult>
 }
 
+interface NearbyTarget {
+  version: number
+  input: Omit<SuperResolutionPreloadPlanInput, "signal">
+  selected: readonly ScheduledPage[]
+}
+
 interface ContextCoverage {
   totalPages: number
   scheduled: Set<number>
@@ -84,10 +90,12 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
   readonly #automaticEnabled: boolean
   readonly #preloadEnabled: boolean
   readonly #active = new Map<string, ActiveBatch>()
+  readonly #nearbyTargets = new Map<string, NearbyTarget>()
   readonly #tracked = new LRUCache<string, TrackedBatch>({ max: 128 })
   readonly #coverage = new Map<string, ContextCoverage>()
   readonly #progressiveUnlocked = new Set<string>()
   #eventSequence = 0
+  #nearbyTargetVersion = 0
   #disposed = false
 
   constructor(
@@ -127,14 +135,50 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
       ? nearbyPages(input.plan, input.pages, this.#preloadPages)
       : []
     const key = `${input.contextId}:nearby`
+    const previousTarget = this.#nearbyTargets.get(key)
+    const current = this.#active.get(key)
+    if (current && input.plan.generation < current.generation) {
+      throw abortError(`Super-resolution generation ${input.plan.generation} is stale.`)
+    }
     this.#registerScheduled(input.contextId, input.pages.length, selected)
-    this.#track(key, { mode: "nearby", input: { ...input, signal: undefined } }, "queued", input.plan.generation)
-    return this.#observe(key, this.#schedule(key, input.plan.generation, input.signal, async (signal) => {
-      if (!this.#automaticEnabled || !this.#preloadEnabled) {
-        return emptyResult(input.contextId, input.plan.generation, "nearby", "disabled")
-      }
-      return this.#runPages({ ...input, generation: input.plan.generation }, "nearby", selected, signal)
-    }))
+    const storedInput = { ...input, signal: undefined }
+    this.#nearbyTargets.set(key, { version: ++this.#nearbyTargetVersion, input: storedInput, selected })
+    if (current) {
+      current.generation = input.plan.generation
+      const tracked = this.#tracked.peek(key)
+      if (tracked) tracked.request = { mode: "nearby", input: storedInput }
+      const completed = tracked
+        ? tracked.snapshot.settled + tracked.snapshot.failed + tracked.snapshot.cancelled
+        : 0
+      const coverage = this.#coverageFor(input.contextId, input.pages.length)
+      const running = new Set(
+        previousTarget?.selected
+          .map(({ page }) => page.index)
+          .filter((pageIndex) => coverage.reserved.has(pageIndex)) ?? [],
+      )
+      const queued = selected.filter(({ page }) => !coverage.processed.has(page.index) && !coverage.reserved.has(page.index)).length
+      this.#update(key, {
+        generation: input.plan.generation,
+        state: "running",
+        planned: completed + running.size + queued,
+        pending: running.size + queued,
+      })
+      this.#syncCoverage(input.contextId)
+      this.#appendEvent(key, { level: "info", message: `Preload batch retargeted ${input.plan.direction}.` })
+      return waitForSharedPromise(current.promise, input.signal)
+    }
+    this.#track(key, { mode: "nearby", input: storedInput }, "queued", input.plan.generation)
+    const planned = this.#availableCount(input.contextId, input.pages.length, selected)
+    this.#update(key, { planned, pending: planned })
+    this.#syncCoverage(input.contextId)
+    const controller = new AbortController()
+    const operation = this.#drainNearby(key, controller.signal).finally(() => {
+      if (this.#active.get(key)?.promise === operation) this.#active.delete(key)
+      this.#nearbyTargets.delete(key)
+    })
+    this.#active.set(key, { generation: input.plan.generation, controller, promise: operation })
+    const observed = this.#observe(key, operation)
+    return waitForSharedPromise(observed, input.signal)
   }
 
   scheduleProgressive(input: SuperResolutionProgressiveInput): Promise<SuperResolutionPreloadBatchResult> {
@@ -200,6 +244,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
       const key = `${contextId}:${mode}`
       const batch = this.#active.get(key)
       if (batch) {
+        if (mode === "nearby") this.#nearbyTargets.delete(key)
         batch.controller.abort(abortError(`Super-resolution ${mode} paused.`))
         active.push(batch.promise)
         this.#update(key, { state: "paused", completedAt: Date.now() })
@@ -226,7 +271,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
       const batch = this.#active.get(key)
       if (!batch || batch.generation >= generation) continue
       const state = this.#tracked.peek(key)?.snapshot.state
-      if (mode === "progressive" && state === "running") continue
+      if ((mode === "nearby" || mode === "progressive") && state === "running") continue
       batch.controller.abort(abortError(`Super-resolution ${mode} generation ${batch.generation} was superseded by ${generation}.`))
       pending.push(batch.promise)
     }
@@ -234,7 +279,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
     for (const mode of ["nearby", "progressive"] as const) {
       const key = `${contextId}:${mode}`
       const tracked = this.#tracked.peek(key)
-      if (tracked && tracked.snapshot.generation < generation && !(mode === "progressive" && tracked.snapshot.state === "running")) {
+      if (tracked && tracked.snapshot.generation < generation && !((mode === "nearby" || mode === "progressive") && tracked.snapshot.state === "running")) {
         this.#tracked.delete(key)
       }
     }
@@ -249,6 +294,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
     }
     this.#tracked.delete(`${contextId}:nearby`)
     this.#tracked.delete(`${contextId}:progressive`)
+    this.#nearbyTargets.delete(`${contextId}:nearby`)
     this.#coverage.delete(contextId)
     this.#progressiveUnlocked.delete(contextId)
   }
@@ -259,6 +305,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
     const active = [...this.#active.values()]
     this.#active.clear()
     this.#tracked.clear()
+    this.#nearbyTargets.clear()
     this.#coverage.clear()
     this.#progressiveUnlocked.clear()
     for (const batch of active) batch.controller.abort(abortError("Super-resolution preload service disposed."))
@@ -350,6 +397,45 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
     return pages.filter(({ page }) => !coverage.processed.has(page.index) && !coverage.reserved.has(page.index)).length
   }
 
+  async #drainNearby(key: string, signal: AbortSignal): Promise<SuperResolutionPreloadBatchResult> {
+    let combined: SuperResolutionPreloadBatchResult | undefined
+    let attemptedVersion = -1
+    const attempted = new Set<number>()
+    while (true) {
+      signal.throwIfAborted()
+      const target = this.#nearbyTargets.get(key)
+      if (!target) break
+      if (target.version !== attemptedVersion) {
+        attemptedVersion = target.version
+        attempted.clear()
+      }
+      const generation = target.input.plan.generation
+      if (!this.#automaticEnabled || !this.#preloadEnabled) {
+        return emptyResult(target.input.contextId, generation, "nearby", "disabled")
+      }
+      const coverage = this.#coverageFor(target.input.contextId, target.input.pages.length)
+      const wave = target.selected
+        .filter(({ page }) => !attempted.has(page.index) && !coverage.processed.has(page.index) && !coverage.reserved.has(page.index))
+        .slice(0, this.#concurrency)
+      if (!wave.length) {
+        if (this.#nearbyTargets.get(key)?.version === target.version) break
+        continue
+      }
+      for (const { page } of wave) attempted.add(page.index)
+      const result = await this.#runPages(
+        { ...target.input, generation },
+        "nearby",
+        wave,
+        signal,
+        combined !== undefined,
+      )
+      combined = combined ? mergeBatchResults(combined, result, generation, "nearby") : result
+      if (signal.aborted) return combined
+    }
+    const latest = this.#nearbyTargets.get(key)
+    return combined ?? emptyResult(latest?.input.contextId ?? key.slice(0, -":nearby".length), latest?.input.plan.generation ?? 0, "nearby", "empty")
+  }
+
   #registerScheduled(contextId: string, totalPages: number, pages: readonly ScheduledPage[]): void {
     const coverage = this.#coverageFor(contextId, totalPages)
     for (const { page, priority } of pages) {
@@ -368,6 +454,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
       coverage.reserved.add(candidate.page.index)
       selected.push(candidate)
     }
+    this.#syncCoverage(contextId)
     return selected
   }
 
@@ -377,10 +464,18 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
     for (const mode of ["nearby", "progressive"] as const) {
       const key = `${contextId}:${mode}`
       if (!this.#tracked.peek(key)) continue
+      const targetIndexes = mode === "nearby"
+        ? new Set(this.#nearbyTargets.get(key)?.selected.map(({ page }) => page.index) ?? [])
+        : new Set<number>()
       this.#update(key, {
         totalPages: coverage.totalPages,
         scheduledPages: coverage.scheduled.size,
         upscaledPages: coverage.upscaled.size,
+        queuedPageIndexes: [...targetIndexes]
+          .filter((pageIndex) => !coverage.processed.has(pageIndex) && !coverage.reserved.has(pageIndex))
+          .sort((left, right) => left - right),
+        processingPageIndexes: [...coverage.reserved].sort((left, right) => left - right),
+        upscaledPageIndexes: [...coverage.upscaled].sort((left, right) => left - right),
       })
     }
   }
@@ -396,7 +491,9 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
     if (!runnable.length) return emptyResult(input.contextId, input.generation, mode, "empty")
     const key = `${input.contextId}:${mode}`
     const snapshot = this.#tracked.peek(key)?.snapshot
-    this.#update(key, {
+    this.#update(key, mode === "nearby" ? {
+      state: "running",
+    } : {
       state: "running",
       planned: (append ? snapshot?.planned ?? 0 : 0) + runnable.length,
       settled: append ? snapshot?.settled ?? 0 : 0,
@@ -503,6 +600,7 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
         totalPages: coverage.totalPages,
         scheduledPages: coverage.scheduled.size,
         upscaledPages: coverage.upscaled.size,
+        upscaledPageIndexes: [...coverage.upscaled].sort((left, right) => left - right),
         startedAt: now,
         updatedAt: now,
         events: [this.#createEvent(key, { at: now, level: "info", message: batchStateMessage(state) })],
@@ -595,8 +693,18 @@ export class SuperResolutionPreloadService implements AsyncDisposable {
 
 function nearbyPages(plan: ReaderPreloadPlan, pages: readonly ReaderPage[], maximum: number): ScheduledPage[] {
   if (plan.admission === "paused") return []
-  const currentPageIndex = Math.max(...plan.currentPageIndexes)
-  return forwardPages(pages, currentPageIndex, 0, maximum, "ahead")
+  const current = new Set(plan.currentPageIndexes)
+  const first = Math.min(...plan.currentPageIndexes)
+  const last = Math.max(...plan.currentPageIndexes)
+  const preferred = pages
+    .filter((page) => !current.has(page.index) && (plan.direction === "forward" ? page.index > last : page.index < first))
+    .sort((left, right) => plan.direction === "forward" ? left.index - right.index : right.index - left.index)
+    .map((page) => ({ page, priority: "ahead" as const }))
+  const reverse = pages
+    .filter((page) => !current.has(page.index) && (plan.direction === "forward" ? page.index < first : page.index > last))
+    .sort((left, right) => plan.direction === "forward" ? right.index - left.index : left.index - right.index)
+    .map((page) => ({ page, priority: "background" as const }))
+  return [...preferred, ...reverse].slice(0, maximum)
 }
 
 function forwardPages(
@@ -626,11 +734,12 @@ function mergeBatchResults(
   previous: SuperResolutionPreloadBatchResult,
   extension: SuperResolutionPreloadBatchResult,
   generation: number,
+  mode: SuperResolutionPreloadBatchResult["mode"] = "progressive",
 ): SuperResolutionPreloadBatchResult {
   return {
     contextId: previous.contextId,
     generation,
-    mode: "progressive",
+    mode,
     reason: previous.reason === "completed" || extension.reason === "completed" ? "completed" : extension.reason,
     planned: previous.planned + extension.planned,
     settled: previous.settled + extension.settled,

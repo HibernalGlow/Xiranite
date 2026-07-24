@@ -114,6 +114,20 @@ describe("NeoView upscale Cards", () => {
     await waitFor(() => expect(onChange).toHaveBeenCalledWith({ artifactCache: { cleanupIntervalMinutes: 720 } }))
   })
 
+  it("[neoview.super-resolution.cache-directory-reset] clears an explicit directory override", async () => {
+    const onChange = vi.fn(async () => CONFIG)
+    render(<UpscaleCacheCard
+      {...context()}
+      superResolution={{ ...CONFIG, artifactCache: { ...CONFIG.artifactCache, directory: "C:/legacy/upscale-artifacts" } }}
+      onSuperResolutionConfigChange={onChange}
+    />)
+
+    fireEvent.click(screen.getByRole("button", { name: "恢复默认超分缓存目录" }))
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith({ artifactCache: { directory: "" } }))
+    expect((screen.getByLabelText("超分缓存目录") as HTMLInputElement).value).toBe("")
+  })
+
   it("[neoview.super-resolution.conditions-card] edits and persists the complete condition list", async () => {
     const onChange = vi.fn(async () => CONFIG)
     const user = userEvent.setup()

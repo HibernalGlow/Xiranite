@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs"
 import { createHash, randomUUID } from "node:crypto"
 import { createRequire } from "node:module"
-import { mkdir, open, rename, rm, stat, statfs } from "node:fs/promises"
+import { copyFile, link, mkdir, open, rename, rm, stat, statfs } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import type { Readable } from "node:stream"
 
@@ -88,8 +88,11 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
   readonly #loadCacache: () => Promise<CacacheApi>
   readonly #availableBytes: (path: string) => Promise<number | undefined>
   readonly #stagingDirectory: string
+  readonly #imagesDirectory: string
   readonly #leases = new Map<string, LeaseState>()
   readonly #publishFlights = new Map<string, PublishFlight>()
+  readonly #visibleFlights = new Map<string, Promise<void>>()
+  readonly #visibleReady = new Set<string>()
   readonly #pendingRemovals = new Set<Promise<void>>()
   #apiPromise?: Promise<CacacheApi>
   #stagingReady?: Promise<void>
@@ -110,6 +113,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     if (!options.root) throw new TypeError("root must be a non-empty path")
     this.#root = options.root
     this.#stagingDirectory = join(options.root, "staging-v1")
+    this.#imagesDirectory = join(options.root, "images-v1")
     this.#maxBytes = positiveInteger(options.maxBytes ?? DEFAULT_MAX_BYTES, "maxBytes")
     this.#maxEntryBytes = positiveInteger(options.maxEntryBytes ?? DEFAULT_MAX_ENTRY_BYTES, "maxEntryBytes")
     if (this.#maxEntryBytes > this.#maxBytes) throw new RangeError("maxEntryBytes must not exceed maxBytes")
@@ -134,11 +138,12 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     const info = await api.get.info(this.#root, key, { memoize: false }).catch(() => null)
     const metadata = parseMetadata(info?.metadata)
     const size = info?.size
-    if (!info || !metadata || typeof size !== "number" || !Number.isSafeInteger(size) || size <= 0 || size > this.#maxEntryBytes) {
+    if (!info || !metadata || typeof info.integrity !== "string" || typeof size !== "number" || !Number.isSafeInteger(size) || size <= 0 || size > this.#maxEntryBytes) {
       this.#misses += 1
       if (info) this.#integrityFailures += 1
       return undefined
     }
+    await this.#ensureVisibleImage(key, metadata, info.integrity, size)
     const state = this.#leases.get(key) ?? { count: 0, invalidated: false }
     if (state.invalidated) {
       this.#misses += 1
@@ -246,6 +251,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     if (this.#cleanupTimer) clearInterval(this.#cleanupTimer)
     await Promise.allSettled([
       ...[...this.#publishFlights.values()].map((flight) => flight.promise),
+      ...this.#visibleFlights.values(),
       ...this.#pendingRemovals,
       ...(this.#maintenance ? [this.#maintenance] : []),
       ...(this.#vacuum ? [this.#vacuum] : []),
@@ -274,6 +280,8 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     this.#activeStaging += 1
     let producerCompleted = false
     let stagingPath: string | undefined
+    let visiblePath: string | undefined
+    let indexed = false
     try {
       stagingPath = await this.#stagingPath(key, metadata.extension)
       await producer(stagingPath, signal)
@@ -295,7 +303,11 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
       await moveIntoCache(stagingPath, contentPath)
       stagingPath = undefined
       const storedMetadata: StoredMetadata = { ...metadata, schemaVersion: 1, createdAt: this.#now() }
+      visiblePath = this.#visiblePath(key, metadata.extension)
+      await publishVisibleImage(contentPath, visiblePath)
       await cacacheIndexInsert(this.#root, key, integrity, { size: file.size, metadata: storedMetadata })
+      indexed = true
+      this.#visibleReady.add(key)
       this.#writes += 1
       return true
     } catch (error) {
@@ -304,6 +316,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
       return false
     } finally {
       if (stagingPath) await rm(stagingPath, { force: true }).catch(() => undefined)
+      if (visiblePath && !indexed) await rm(visiblePath, { force: true }).catch(() => undefined)
       this.#activeStaging = Math.max(0, this.#activeStaging - 1)
       if (this.#activeStaging === 0 && this.#vacuumPending) {
         this.#vacuumPending = false
@@ -383,7 +396,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
         continue
       }
       if (!forceAll && reason !== "book" && now - entry.metadata.createdAt < this.#minimumRetentionMs) continue
-      if (await this.#remove(entry.key)) {
+      if (await this.#remove(entry.key, entry.metadata)) {
         const reference = contentRefs.get(entry.integrity)
         if (reference && --reference.count === 0) retained = Math.max(0, retained - reference.size)
         removedEntries += 1
@@ -437,11 +450,14 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     }
   }
 
-  async #remove(key: string): Promise<boolean> {
+  async #remove(key: string, knownMetadata?: StoredMetadata): Promise<boolean> {
     try {
       const api = await this.#api()
+      const metadata = knownMetadata ?? parseMetadata((await api.get.info(this.#root, key, { memoize: false }).catch(() => null))?.metadata)
       await api.rm.entry(this.#root, key)
       this.#leases.delete(key)
+      this.#visibleReady.delete(key)
+      if (metadata) await this.#removeVisibleImages(key)
       return true
     } catch {
       const state = this.#leases.get(key)
@@ -482,6 +498,34 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
   #api(): Promise<CacacheApi> {
     this.#apiPromise ??= this.#loadCacache()
     return this.#apiPromise
+  }
+
+  #visiblePath(key: string, extension: SuperResolutionArtifactMetadata["extension"]): string {
+    return join(this.#imagesDirectory, `${key.slice(key.lastIndexOf(":") + 1)}.${extension}`)
+  }
+
+  async #ensureVisibleImage(key: string, metadata: StoredMetadata, integrity: string, size: number): Promise<void> {
+    if (this.#visibleReady.has(key)) return
+    const existing = this.#visibleFlights.get(key)
+    if (existing) return existing
+    const visiblePath = this.#visiblePath(key, metadata.extension)
+    const operation = (async () => {
+      const visible = await stat(visiblePath).catch(() => undefined)
+      if (!visible?.isFile() || visible.size !== size) {
+        await publishVisibleImage(cacacheContentPath(this.#root, integrity), visiblePath)
+      }
+      this.#visibleReady.add(key)
+    })().finally(() => {
+      if (this.#visibleFlights.get(key) === operation) this.#visibleFlights.delete(key)
+    })
+    this.#visibleFlights.set(key, operation)
+    return operation
+  }
+
+  async #removeVisibleImages(key: string): Promise<void> {
+    await Promise.all((["jpg", "png", "webp"] as const).map((extension) =>
+      rm(this.#visiblePath(key, extension), { force: true }).catch(() => undefined),
+    ))
   }
 }
 
@@ -536,6 +580,22 @@ async function moveIntoCache(sourcePath: string, destinationPath: string): Promi
     const destination = await stat(destinationPath).catch(() => undefined)
     if (!destination?.isFile()) throw error
     await rm(sourcePath, { force: true })
+  }
+}
+
+async function publishVisibleImage(contentPath: string, destinationPath: string): Promise<void> {
+  await mkdir(dirname(destinationPath), { recursive: true })
+  const temporaryPath = `${destinationPath}.${randomUUID()}.tmp`
+  try {
+    try {
+      await link(contentPath, temporaryPath)
+    } catch {
+      await copyFile(contentPath, temporaryPath)
+    }
+    await rm(destinationPath, { force: true })
+    await rename(temporaryPath, destinationPath)
+  } finally {
+    await rm(temporaryPath, { force: true }).catch(() => undefined)
   }
 }
 

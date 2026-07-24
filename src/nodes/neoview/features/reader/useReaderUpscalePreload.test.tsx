@@ -1,13 +1,15 @@
-import { cleanup, renderHook, waitFor } from "@testing-library/react"
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { ReaderHttpClient, ReaderSuperResolutionConfigDto, ReaderUpscalePreloadSnapshotDto } from "../../adapters/reader-http-client"
 import { useReaderUpscalePreload } from "./useReaderUpscalePreload"
 
 afterEach(cleanup)
+afterEach(() => vi.useRealTimers())
 
 describe("useReaderUpscalePreload", () => {
-  it("[neoview.super-resolution.gui-preload-coalescing] coalesces layout generations before submitting work", async () => {
+  it("[neoview.super-resolution.browser-preload-generation-isolation] does not restart upscale work when only browser preload generation advances", async () => {
+    vi.useFakeTimers()
     const startUpscalePreload = vi.fn(async (_sessionId: string, mode: "nearby" | "progressive") => [snapshot(mode)])
     const client = { startUpscalePreload, upscalePreloadSnapshots: vi.fn(async () => []) } as unknown as ReaderHttpClient
     const { rerender } = renderHook(({ generation }) => useReaderUpscalePreload({
@@ -18,8 +20,12 @@ describe("useReaderUpscalePreload", () => {
       superResolution: enabledConfig(),
     }), { initialProps: { generation: 1 } })
 
+    await act(async () => { await vi.advanceTimersByTimeAsync(250) })
+    expect(startUpscalePreload).toHaveBeenCalledTimes(2)
+
     rerender({ generation: 2 })
-    await waitFor(() => expect(startUpscalePreload).toHaveBeenCalledTimes(2))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+    expect(startUpscalePreload).toHaveBeenCalledTimes(2)
     expect(startUpscalePreload.mock.calls.map((call) => call.slice(0, 2))).toEqual([
       ["reader-1", "nearby"],
       ["reader-1", "progressive"],

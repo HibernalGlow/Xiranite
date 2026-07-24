@@ -1,5 +1,5 @@
 import { createWriteStream } from "node:fs"
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { once } from "node:events"
@@ -115,6 +115,27 @@ describe("CacacheSuperResolutionArtifactStore", () => {
     expect(lease).toMatchObject({ size: PNG_HEADER.length })
     lease!.release()
     await store.close()
+  })
+
+  it("[neoview.super-resolution.artifact-visible-image] keeps a searchable image with its real extension and rebuilds it from cacache", async () => {
+    const cacheKey = key("visible")
+    const fileName = `${cacheKey.slice(cacheKey.lastIndexOf(":") + 1)}.png`
+    const imagePath = join(root, "images-v1", fileName)
+    const first = createStore()
+    expect(await first.publish(cacheKey, metadata, (path) => writeFile(path, PNG_HEADER))).toBe(true)
+    expect(await readdir(join(root, "images-v1"))).toEqual([fileName])
+    expect(await readFile(imagePath)).toEqual(PNG_HEADER)
+    await first.close()
+
+    await rm(imagePath)
+    const reopened = createStore()
+    const lease = await reopened.acquire(cacheKey)
+    expect(lease).toBeDefined()
+    expect(await readFile(imagePath)).toEqual(PNG_HEADER)
+    lease!.release()
+    expect(await reopened.clearBook("book:one")).toMatchObject({ removedEntries: 1, entries: 0 })
+    expect(await readdir(join(root, "images-v1"))).toEqual([])
+    await reopened.close()
   })
 
   it("[neoview.super-resolution.artifact-maintenance] clears one book, expires old entries, and trims to budget", async () => {

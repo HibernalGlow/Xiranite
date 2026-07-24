@@ -29,6 +29,7 @@ import { PageMedia } from "./PageMedia"
 import { ReaderProgressLayer } from "./ReaderProgressLayer"
 import { useReaderHoverScroll } from "./useReaderHoverScroll"
 import { useReaderUpscalePreload } from "./useReaderUpscalePreload"
+import { useReaderCurrentPageUpscale } from "./useReaderCurrentPageUpscale"
 import { ReaderMagnifierLayer } from "./ReaderMagnifierLayer"
 
 const LazyReaderPanoramaFrame = lazy(async () => ({ default: (await import("./ReaderPanoramaFrame")).ReaderPanoramaFrame }))
@@ -119,6 +120,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
     ? pages.filter((page) => page.mediaKind !== "video").map((page) => page.id).join("\0") || undefined
     : undefined
   useReaderHoverScroll(viewportRef, { enabled: hoverScrollEnabled && !panorama, speed: hoverScrollSpeed, pageKey: hoverScrollPageKey })
+  useReaderCurrentPageUpscale({ client, sessionId, pages, superResolution })
   const upscalePreload = useReaderUpscalePreload({
     client,
     sessionId,
@@ -137,6 +139,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
     snapshots={upscalePreload.snapshots}
     error={upscalePreload.error}
     viewerToggles={viewerToggles}
+    client={client}
   />
   if (panorama) return <div className="relative h-full min-h-0 w-full"><ReaderPageTransitionLayer pageIndex={anchorPageIndex} slideshowFade={slideshowFade} slideshowTarget={slideshowTarget} fill><Suspense fallback={null}><LazyReaderPanoramaFrame key={`${sessionId}:${pageMode}:${direction}`} sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} doublePageGap={doublePageGap} hoverScrollEnabled={hoverScrollEnabled} hoverScrollSpeed={hoverScrollSpeed} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense></ReaderPageTransitionLayer>{progressLayer}</div>
   const frameOrientation = pages.length > 1 ? "horizontal" : presentation.orientation

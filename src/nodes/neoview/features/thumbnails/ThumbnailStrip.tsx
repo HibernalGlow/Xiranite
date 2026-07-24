@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import type { ReaderHttpClient, ReaderPageDto } from "../../adapters/reader-http-client"
 import { ReaderViewerToggleStore, type ReaderViewerTogglePort } from "../viewer/ReaderViewerToggleStore"
 import { ReaderThumbnailSurface } from "./ReaderThumbnailSurface"
+import { ReaderUpscaleMark } from "../reader/ReaderUpscaleMark"
 
 const BATCH_SIZE = 64
 const ITEM_SIZE = 92
@@ -151,6 +152,8 @@ export function ThumbnailStrip({
         visualPosition={visualPagePosition(index, totalPages, direction)}
         showPageNumber={pageInfoVisible}
         disabled={disabled}
+        sessionId={sessionId}
+        client={client}
         onSelect={onSelect}
       />,
     )
@@ -213,6 +216,8 @@ function ThumbnailTile({
   visualPosition,
   showPageNumber,
   disabled,
+  sessionId,
+  client,
   onSelect,
 }: {
   index: number
@@ -221,6 +226,8 @@ function ThumbnailTile({
   visualPosition: number
   showPageNumber: boolean
   disabled: boolean
+  sessionId: string
+  client: ReaderHttpClient
   onSelect(pageIndex: number): void | Promise<void>
 }) {
   const thumbnailUrl = page?.thumbnailUrl
@@ -238,7 +245,8 @@ function ThumbnailTile({
       style={{ transform: `translateX(${visualPosition * ITEM_SIZE + 2}px)` }}
     >
       <ReaderThumbnailSurface url={thumbnailUrl} kind="page" fit="contain" className="size-full rounded-none bg-black/90" />
-      {showPageNumber ? <span className="absolute inset-x-0 bottom-0 bg-primary/85 px-1 py-0.5 text-center text-[10px] tabular-nums text-primary-foreground">{index + 1}</span> : null}
+      {page ? <ReaderUpscaleMark sessionId={sessionId} pageId={page.id} pageIndex={page.index} client={client} className="absolute right-1 top-1" /> : null}
+      {showPageNumber ? <span data-reader-thumbnail-page-number="true" className="absolute inset-x-0 bottom-0 bg-primary/85 px-1 py-0.5 text-center text-[10px] tabular-nums text-primary-foreground">{index + 1}</span> : null}
     </button>
   )
 }

@@ -13,6 +13,7 @@ import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import type { ReaderHttpClient, ReaderPageDto } from "../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../thumbnails/ReaderThumbnailSurface"
+import { ReaderUpscaleMark } from "../../reader/ReaderUpscaleMark"
 import type { ReaderPanelContext } from "../registry"
 import {
   createSparsePageCatalog,
@@ -456,6 +457,8 @@ function PageListCard({
                 previewIndex={previewIndex}
                 focusedPosition={focusedPosition}
                 disabled={disabled}
+                sessionId={sessionId}
+                client={client}
                 onFocusPosition={(position) => setFocusedPosition(position)}
                 onGoTo={(index) => void navigateTo(index)}
               />
@@ -471,6 +474,8 @@ function PageListCard({
                 focused={virtualItem.index === focusedPosition}
                 details={viewMode === "details"}
                 disabled={disabled}
+                sessionId={sessionId}
+                client={client}
                 onFocus={() => setFocusedPosition(virtualItem.index)}
                 onGoTo={(index) => void navigateTo(index)}
               />
@@ -515,7 +520,7 @@ function PageListCard({
   )
 }
 
-export function PageRow({ start, size, position, page, activePageIndex, previewed = false, focused = false, details, disabled, onFocus, onGoTo }: {
+export function PageRow({ start, size, position, page, activePageIndex, previewed = false, focused = false, details, disabled, sessionId, client, onFocus, onGoTo }: {
   start: number
   size: number
   position: number
@@ -525,6 +530,8 @@ export function PageRow({ start, size, position, page, activePageIndex, previewe
   focused?: boolean
   details: boolean
   disabled: boolean
+  sessionId?: string
+  client?: ReaderHttpClient
   onFocus?(): void
   onGoTo(pageIndex: number): void | Promise<void>
 }) {
@@ -543,7 +550,9 @@ export function PageRow({ start, size, position, page, activePageIndex, previewe
       className={cn("absolute left-0", active && "text-primary")}
       style={{ height: size, transform: `translateY(${start}px)` }}
       media={details ? <PageThumbnail page={page} className="h-16 w-12" /> : undefined}
-      primary={<PageIdentity page={page} position={position} active={active} />}
+      primary={<PageIdentity page={page} position={position} active={active} upscaleMark={page && sessionId && client
+        ? <ReaderUpscaleMark sessionId={sessionId} pageId={page.id} pageIndex={page.index} client={client} />
+        : undefined} />}
       buttonProps={{
         "aria-current": active ? "page" : undefined,
         "aria-selected": previewed,
@@ -558,7 +567,7 @@ export function PageRow({ start, size, position, page, activePageIndex, previewe
   )
 }
 
-export function ThumbnailRow({ start, rowIndex, measureElement, pages, activePageIndex, previewIndex, focusedPosition, disabled, onFocusPosition, onGoTo }: {
+export function ThumbnailRow({ start, rowIndex, measureElement, pages, activePageIndex, previewIndex, focusedPosition, disabled, sessionId, client, onFocusPosition, onGoTo }: {
   start: number
   rowIndex: number
   measureElement?: (element: HTMLDivElement | null) => void
@@ -567,6 +576,8 @@ export function ThumbnailRow({ start, rowIndex, measureElement, pages, activePag
   previewIndex?: number
   focusedPosition?: number
   disabled: boolean
+  sessionId?: string
+  client?: ReaderHttpClient
   onFocusPosition?(position: number): void
   onGoTo(pageIndex: number): void | Promise<void>
 }) {
@@ -604,6 +615,7 @@ export function ThumbnailRow({ start, rowIndex, measureElement, pages, activePag
               <span className="flex min-w-0 items-center gap-1">
                 <span className="shrink-0 font-mono text-[10px] font-semibold text-primary">#{page.index + 1}</span>
                 <span className="min-w-0 flex-1 truncate">{page.name}</span>
+                {sessionId && client ? <ReaderUpscaleMark sessionId={sessionId} pageId={page.id} pageIndex={page.index} client={client} /> : null}
                 {active ? <span className="shrink-0 rounded bg-primary/15 px-1 text-[9px] text-primary">当前</span> : null}
               </span>
             )}
@@ -628,11 +640,12 @@ export function PageThumbnail({ page, className }: { page?: ReaderPageDto; class
   return <ReaderThumbnailSurface url={page?.thumbnailUrl} kind="page" fit="contain" loading={!page} className={className} />
 }
 
-function PageIdentity({ page, position, active }: { page?: ReaderPageDto; position: number; active: boolean }) {
+function PageIdentity({ page, position, active, upscaleMark }: { page?: ReaderPageDto; position: number; active: boolean; upscaleMark?: ReactNode }) {
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
       <span className="w-9 shrink-0 font-mono text-[10px] font-semibold text-primary">#{page ? page.index + 1 : position + 1}</span>
       <span className="min-w-0 flex-1 truncate">{page?.name ?? "加载中"}</span>
+      {upscaleMark}
       {active ? <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[9px] text-primary">当前</span> : null}
     </span>
   )

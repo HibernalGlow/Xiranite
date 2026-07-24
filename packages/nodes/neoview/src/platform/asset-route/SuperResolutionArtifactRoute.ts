@@ -70,11 +70,9 @@ export class SuperResolutionArtifactRoute {
   }
 
   async advanceGeneration(sessionId: ReaderSessionId, generation: number): Promise<void> {
-    const active = this.#active.get(sessionId)
-    this.#active.delete(sessionId)
-    for (const controller of active ?? []) {
-      controller.abort(abortError(`Reader super-resolution page generation advanced: ${sessionId}:${generation}`))
-    }
+    // A Reader preload generation also changes for decode/retention bookkeeping.
+    // Current-page artifact requests are durable user demand and must survive
+    // those speculative generation changes; session release still cancels them.
     await this.preload?.advanceGeneration(preloadContextId(sessionId), generation)
   }
 
