@@ -23,6 +23,7 @@ import { LocalFilesProvider } from "@/nodes/shared/useLocalFileDrop"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { neoviewDebug } from "@/nodes/neoview/neoviewDebug"
 import { registerNodeTrays } from "@/desktop/tray/trayCoordinator"
+import { NeoViewKeepAliveSlot, useNeoViewKeepAliveContext } from "@/components/workspace/NeoViewKeepAlive"
 
 type PackageModuleEntry = AppNodeEntry | HeadlessNodePackage
 type PackageModuleLoader = () => Promise<{ default: PackageModuleEntry }>
@@ -64,10 +65,15 @@ export interface ModuleProps {
   compId: string
 }
 
-export function ModuleRenderer({ moduleId, compId }: { moduleId: string; compId: string }) {
+export function ModuleRenderer({ moduleId, compId, keepAlive = false }: { moduleId: string; compId: string; keepAlive?: boolean }) {
   "use memo"
   const { t } = useTranslation()
   const resolvedModuleId = moduleId === "music-player" ? "melodeck" : moduleId
+  const neoViewKeepAlive = useNeoViewKeepAliveContext()
+
+  if (resolvedModuleId === "neoview" && neoViewKeepAlive && !keepAlive) {
+    return <NeoViewKeepAliveSlot compId={compId} />
+  }
 
   if (packageNodeLoaders[resolvedModuleId]) {
     return <PackageNodeRenderer moduleId={resolvedModuleId} compId={compId} />
