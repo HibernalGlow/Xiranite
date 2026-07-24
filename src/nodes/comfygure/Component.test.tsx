@@ -70,6 +70,16 @@ describe("Comfygure node projection", () => {
     expect(host.runCalls[0]).toMatchObject({ nodeId: "comfygure", input: { action: "submit" } })
   })
 
+  it("uses the explicit Export canvas control without submitting a prompt", async () => {
+    const host = createHost()
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Export canvas" }))
+
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]).toMatchObject({ nodeId: "comfygure", input: { action: "canvas" } })
+  })
+
   it("serializes direct batch prompts into the Comfygure program before compile", async () => {
     const host = createHost()
     render(<Component compId="comfygure-1" host={host as never} />)
