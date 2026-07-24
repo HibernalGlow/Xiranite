@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { compileAnimaInt8Program, compileAnimaInt8RunPlan, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, normalizeComfyuiEndpoint, normalizePromptText, preflightComfyuiTarget, resolveBatchSequence, runComfygure } from "./core.js"
+import { compileAnimaInt8Program, compileAnimaInt8RunPlan, compressComfygureText, decompressComfygureText, DEFAULT_COMFYUI_REQUEST_TIMEOUT_MS, normalizeComfyuiEndpoint, normalizePromptText, preflightComfyuiTarget, resolveBatchSequence, runComfygure } from "./core.js"
 
 describe("Comfygure ANIMA INT8 compiler", () => {
   it("compiles dynamic LoRA choices into static Comfyroll stack nodes", () => {
@@ -25,6 +25,17 @@ describe("Comfygure ANIMA INT8 compiler", () => {
   it("combines the retained prompt cleaners before compiling a fixed graph", () => {
     expect(normalizePromptText("<lora:legacy-style:0.8>, cat_ears:1.2,,\n[portrait] )")).toBe("(cat ears:1.2), [portrait]")
     expect(normalizePromptText("COUPLE MASK(cat_ears, MASK_SIZE(512, 512))\nAND dog_ears")).toBe("COUPLE(cat ears, MASK_SIZE(512, 512)) AND dog ears")
+  })
+
+  it("round-trips large batch source text through compact node state", () => {
+    const source = Array.from({ length: 1_000 }, (_, index) => `masterpiece, portrait ${index}, studio lighting, detailed eyes`).join("\n")
+    const compressed = compressComfygureText(source)
+
+    expect(compressed?.format).toBe("deflate-base64/v1")
+    expect(compressed?.lineCount).toBe(1_000)
+    expect(compressed?.data.length).toBeLessThan(source.length)
+    expect(decompressComfygureText(compressed)).toBe(source)
+    expect(decompressComfygureText({ format: "deflate-base64/v1", data: "not-base64", lineCount: 1, uncompressedLength: 1 })).toBe("")
   })
 
   it("keeps the retained ANIMA execution-node contract aligned with the exported API graph", () => {

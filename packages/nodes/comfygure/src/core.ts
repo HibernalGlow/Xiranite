@@ -1,4 +1,5 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { deflateSync, inflateSync, strFromU8, strToU8 } from "fflate"
 
 export const COMFYGURE_FORMAT = "comfygure/v1" as const
 export const COMFYGURE_RUN_PLAN_FORMAT = "comfygure-run-plan/v1" as const
@@ -32,6 +33,13 @@ export interface ComfygureBatch {
   shuffle: boolean
   allowDuplicates: boolean
   selectionSeed: number
+}
+
+export interface ComfygureCompressedText {
+  format: "deflate-base64/v1"
+  data: string
+  lineCount: number
+  uncompressedLength: number
 }
 
 export interface ComfygureProgram {
@@ -320,6 +328,26 @@ export function normalizePromptText(value: string): string {
   if (REGION_SYNTAX.test(text)) return normalizeRegionPrompt(text)
   const tags = splitPromptTags(text)
   return tags.map((tag) => normalizePromptTag(removeUnmatchedBrackets(tag))).filter(Boolean).join(", ")
+}
+
+export function compressComfygureText(value: string): ComfygureCompressedText | undefined {
+  const normalized = value.replace(/\r\n?/g, "\n")
+  if (!normalized) return undefined
+  return {
+    format: "deflate-base64/v1",
+    data: bytesToBase64(deflateSync(strToU8(normalized), { level: 6 })),
+    lineCount: normalized.split("\n").length,
+    uncompressedLength: normalized.length,
+  }
+}
+
+export function decompressComfygureText(value: ComfygureCompressedText | undefined): string {
+  if (!value || value.format !== "deflate-base64/v1" || !value.data) return ""
+  try {
+    return strFromU8(inflateSync(base64ToBytes(value.data)))
+  } catch {
+    return ""
+  }
 }
 
 export function resolveActiveLoras(program: ComfygureProgram, positiveText: string): readonly ComfygureLora[] {
@@ -815,6 +843,18 @@ function removeUnmatchedBracketType(value: string, open: string, close: string):
   }
   for (const index of openings) rejected.add(index)
   return [...value].filter((_, index) => !rejected.has(index)).join("")
+}
+
+function bytesToBase64(value: Uint8Array): string {
+  const chunkSize = 0x8000
+  let binary = ""
+  for (let index = 0; index < value.length; index += chunkSize) binary += String.fromCharCode(...value.subarray(index, index + chunkSize))
+  return btoa(binary)
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value)
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0))
 }
 
 function ensurePromptTerms(value: string, terms: readonly string[]): string {

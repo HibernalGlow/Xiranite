@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import userEvent from "@testing-library/user-event"
 import { createRef } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import type { NodeLocalFilesCapability, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { compileAnimaInt8Program, compileAnimaInt8RunPlan, type ComfygureData, type ComfygureInput } from "@xiranite/node-comfygure/core"
 import { Component } from "./Component"
 import type { ComfygureCardState, ComfygureTargetConfig } from "./types"
@@ -11,7 +11,10 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
   useNodeSurface: () => ({ ref: createRef<HTMLDivElement>(), width: 920, height: 640, mode: "expanded", density: "roomy" }),
 }))
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe("Comfygure node projection", () => {
   it("sends preflight through the host runner without submitting a prompt", async () => {
@@ -79,6 +82,30 @@ describe("Comfygure node projection", () => {
     expect(host.runCalls[0]?.input.program?.batch?.prompts).toEqual(["cat", "dog"])
   })
 
+  it("imports local prompt text and persists it in compressed node state", async () => {
+    const host = createHost()
+    host.localFiles = {
+      getUrl: (path) => `local://${path}`,
+      pickFiles: async () => ["D:/prompt-a.txt", "D:/prompt-b.txt"],
+    }
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({
+      ok: true,
+      status: 200,
+      text: async () => url.endsWith("prompt-a.txt") ? "cat\ndog" : "fox",
+    })))
+    render(<Component compId="comfygure-1" host={host as never} />)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Import text" }))
+    await waitFor(() => expect(host.state.batchText?.lineCount).toBe(3))
+    expect(host.state.batchText?.data).not.toContain("cat")
+    expect(host.state.program?.batch.prompts).toEqual([])
+
+    await user.click(screen.getByRole("button", { name: "Compile" }))
+    await waitFor(() => expect(host.runCalls).toHaveLength(1))
+    expect(host.runCalls[0]?.input.program?.batch?.prompts).toEqual(["cat", "dog", "fox"])
+  })
+
   it("refreshes only previously submitted prompt IDs", async () => {
     const host = createHost()
     host.state = {
@@ -120,6 +147,7 @@ function createHost(options: { pendingConfig?: boolean } = {}) {
     state: {} as ComfygureCardState,
     runCalls: [] as Array<{ nodeId: string; input: ComfygureInput }>,
     savedConfig: undefined as ComfygureTargetConfig | undefined,
+    localFiles: undefined as NodeLocalFilesCapability | undefined,
     getData<T>() { return this.state as T },
     patchData(_compId: string, patch: Partial<ComfygureCardState>) { this.state = { ...this.state, ...patch } },
     getNodeConfig: async <T,>() => {

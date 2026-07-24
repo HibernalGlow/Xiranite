@@ -8,6 +8,7 @@ const cardStateSchema = z.object({
   status: z.string().optional(),
   progress: z.number().min(0).max(100).optional(),
   program: z.record(z.string(), z.unknown()).optional(),
+  batchText: z.object({ format: z.literal("deflate-base64/v1"), data: z.string(), lineCount: z.number().int().nonnegative(), uncompressedLength: z.number().int().nonnegative() }).optional(),
   preview: z.record(z.string(), z.unknown()).optional(),
   preflight: z.record(z.string(), z.unknown()).optional(),
   submission: z.record(z.string(), z.unknown()).optional(),
@@ -24,7 +25,7 @@ export default {
   def,
   core,
   Component,
-  host: { contractVersion: "^1.0.0", capabilities: ["state", "runner", "config", "env"] },
+  host: { contractVersion: "^1.0.0", capabilities: ["state", "runner", "localFiles", "config", "env"] },
   window: { maximizeBehavior: "fullscreen" },
   schemas: {
     data: cardStateSchema as unknown as NodeSchema<ComfygureCardState>,

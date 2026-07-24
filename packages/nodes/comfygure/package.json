@@ -17,7 +17,8 @@
     "preflight:local": "bun src/live-preflight.ts"
   },
   "dependencies": {
-    "@xiranite/contract": "workspace:*"
+    "@xiranite/contract": "workspace:*",
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

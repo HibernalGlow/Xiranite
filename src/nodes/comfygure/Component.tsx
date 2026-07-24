@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Activity, CheckCircle2, CircleAlert, FileCode2, Network, Play, RefreshCw, Save, Settings2, Sparkles } from "lucide-react"
+import { Activity, CheckCircle2, CircleAlert, FileCode2, FileUp, Network, Play, RefreshCw, Save, Settings2, Sparkles } from "lucide-react"
 import type { NodeComponentProps, NodeRunEvent } from "@xiranite/contract"
 import {
   DEFAULT_COMFYUI_ENDPOINT,
   DEFAULT_COMFYGURE_PROGRAM,
+  compressComfygureText,
+  decompressComfygureText,
   normalizeComfygureProgram,
   type ComfygureData,
   type ComfygureInput,
@@ -29,7 +31,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   const [target, setTarget] = useState<ComfygureTargetConfig>({ endpoint: DEFAULT_COMFYUI_ENDPOINT, libraryPath: "" })
   const targetDirtyRef = useRef<Set<keyof ComfygureTargetConfig>>(new Set())
   const [targetDirty, setTargetDirty] = useState(false)
-  const program = normalizeComfygureProgram(stored.program ?? DEFAULT_COMFYGURE_PROGRAM)
+  const program = programFromStored(stored)
   void revision
 
   useEffect(() => {
@@ -52,19 +54,22 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   function updateProgram(next: Partial<ComfygureProgram>) {
-    const current = normalizeComfygureProgram(stateRef.current.program ?? DEFAULT_COMFYGURE_PROGRAM)
-    patch({
-      program: normalizeComfygureProgram({
-        ...current,
-        ...next,
-        model: { ...current.model, ...next.model },
-        prompts: { ...current.prompts, ...next.prompts },
-        batch: { ...current.batch, ...next.batch },
-        parameters: { ...current.parameters, ...next.parameters },
-        teaCache: { ...current.teaCache, ...next.teaCache },
-        output: { ...current.output, ...next.output },
-      }),
-    })
+    const current = programFromStored(stateRef.current)
+    storeProgram(normalizeComfygureProgram({
+      ...current,
+      ...next,
+      model: { ...current.model, ...next.model },
+      prompts: { ...current.prompts, ...next.prompts },
+      batch: { ...current.batch, ...next.batch },
+      parameters: { ...current.parameters, ...next.parameters },
+      teaCache: { ...current.teaCache, ...next.teaCache },
+      output: { ...current.output, ...next.output },
+    }))
+  }
+
+  function storeProgram(next: ComfygureProgram) {
+    const batchSource = next.batch.prompts.join("\n")
+    patch({ program: { ...next, batch: { ...next.batch, prompts: [] } }, batchText: compressComfygureText(batchSource) })
   }
 
   function updateTarget<Key extends keyof ComfygureTargetConfig>(key: Key, value: ComfygureTargetConfig[Key]) {
@@ -88,6 +93,28 @@ export function Component({ compId, host }: NodeComponentProps) {
     }
   }
 
+  async function importBatchTextFiles() {
+    const localFiles = host.localFiles
+    if (!localFiles?.pickFiles) {
+      patch({ status: "This host cannot select local prompt text files." })
+      return
+    }
+    try {
+      const paths = await localFiles.pickFiles({ title: "Import Comfygure prompt text", filters: [{ displayName: "Text files", pattern: "*.txt" }] })
+      if (!paths.length) return
+      const files = await Promise.all(paths.map(async (path) => {
+        const response = await fetch(localFiles.getUrl(path), { cache: "no-store" })
+        if (!response.ok) throw new Error(`Could not read ${path}: HTTP ${response.status}`)
+        return await response.text()
+      }))
+      const current = programFromStored(stateRef.current)
+      updateProgram({ batch: { ...current.batch, prompts: [...current.batch.prompts, ...batchPrompts(files.join("\n"))] } })
+      patch({ status: `Imported ${paths.length} prompt text file(s).` })
+    } catch (error) {
+      patch({ status: error instanceof Error ? error.message : "Could not import prompt text files." })
+    }
+  }
+
   async function execute(action: "compile" | "preflight" | "submit" | "refresh") {
     const run = host.runner?.run ?? host.actions?.run
     if (!run || running) {
@@ -104,7 +131,7 @@ export function Component({ compId, host }: NodeComponentProps) {
     try {
       const result = await run<ComfygureInput, ComfygureData>("comfygure", {
         action,
-        program: stateRef.current.program ?? program,
+        program: programFromStored(stateRef.current),
         target: { endpoint: target.endpoint, libraryPath: target.libraryPath },
         promptIds: promptIds.length ? promptIds : undefined,
       }, (event: NodeRunEvent) => {
@@ -151,7 +178,7 @@ export function Component({ compId, host }: NodeComponentProps) {
         <div className="grid gap-2 @xl/comfygure:grid-cols-2"><Field label="Program"><Input value={program.name} onChange={(event) => updateProgram({ name: event.currentTarget.value })} /></Field><Field label="Output prefix"><Input value={program.output.filenamePrefix} onChange={(event) => updateProgram({ output: { ...program.output, filenamePrefix: event.currentTarget.value } })} /></Field></div>
         <Field label="Positive prompt"><Textarea className="min-h-24" value={program.prompts.positive} onChange={(event) => updateProgram({ prompts: { ...program.prompts, positive: event.currentTarget.value } })} /></Field>
         <div className="grid gap-2 @xl/comfygure:grid-cols-2"><Field label="Positive prefix"><Textarea className="min-h-18" value={program.prompts.positivePrefix} onChange={(event) => updateProgram({ prompts: { ...program.prompts, positivePrefix: event.currentTarget.value } })} /></Field><Field label="Negative prompt"><Textarea className="min-h-18" value={program.prompts.negative} onChange={(event) => updateProgram({ prompts: { ...program.prompts, negative: event.currentTarget.value } })} /></Field></div>
-        <Field label="Batch positive prompts"><Textarea className="min-h-24" placeholder="One fixed generation job per non-empty line" value={program.batch.prompts.join("\n")} onChange={(event) => updateProgram({ batch: { ...program.batch, prompts: batchPrompts(event.currentTarget.value) } })} /></Field>
+        <div className="min-w-0 space-y-1"><div className="flex items-center justify-between gap-2"><span className="text-xs font-medium">Batch positive prompts</span><Button size="sm" variant="ghost" disabled={running !== null || !host.localFiles?.pickFiles} onClick={() => void importBatchTextFiles()}><FileUp />Import text</Button></div><Textarea aria-label="Batch positive prompts" className="min-h-24" placeholder="One fixed generation job per non-empty line" value={program.batch.prompts.join("\n")} onChange={(event) => updateProgram({ batch: { ...program.batch, prompts: batchPrompts(event.currentTarget.value) } })} /></div>
         <div className="grid gap-2 @xl/comfygure:grid-cols-2"><NumberField label="Batch jobs (0 = all)" value={program.batch.queueCount} onValueChange={(queueCount) => updateProgram({ batch: { ...program.batch, queueCount } })} /><NumberField label="Batch selection seed" value={program.batch.selectionSeed} onValueChange={(selectionSeed) => updateProgram({ batch: { ...program.batch, selectionSeed } })} /><CheckField label="Shuffle batch jobs" checked={program.batch.shuffle} onCheckedChange={(shuffle) => updateProgram({ batch: { ...program.batch, shuffle } })} /><CheckField label="Allow repeated batch prompts" checked={program.batch.allowDuplicates} onCheckedChange={(allowDuplicates) => updateProgram({ batch: { ...program.batch, allowDuplicates } })} /></div>
         <Field label="LoRA rows"><Textarea className="min-h-24 font-mono text-xs" value={formatLoraRows(program.loras)} placeholder="folder/style.safetensors | 1 | 1 | activation terms | injected terms" onChange={(event) => updateProgram({ loras: parseLoraRows(event.currentTarget.value) })} /></Field>
         <div className="grid gap-2 grid-cols-2 @2xl/comfygure:grid-cols-4"><NumberField label="Width" value={program.parameters.width} onValueChange={(width) => updateProgram({ parameters: { ...program.parameters, width } })} /><NumberField label="Height" value={program.parameters.height} onValueChange={(height) => updateProgram({ parameters: { ...program.parameters, height } })} /><NumberField label="Seed" value={program.parameters.seed} onValueChange={(seed) => updateProgram({ parameters: { ...program.parameters, seed } })} /><NumberField label="Batch" value={program.parameters.batchSize} onValueChange={(batchSize) => updateProgram({ parameters: { ...program.parameters, batchSize } })} /><NumberField label="Steps" value={program.parameters.steps} onValueChange={(steps) => updateProgram({ parameters: { ...program.parameters, steps } })} /><NumberField label="CFG" value={program.parameters.cfg} step="0.1" onValueChange={(cfg) => updateProgram({ parameters: { ...program.parameters, cfg } })} /><NumberField label="Denoise" value={program.parameters.denoise} step="0.01" onValueChange={(denoise) => updateProgram({ parameters: { ...program.parameters, denoise } })} /></div>
@@ -193,6 +220,12 @@ function CompilerSummary({ preview, preflight, submission, submissions, history 
 
 function batchPrompts(value: string): string[] {
   return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+}
+
+function programFromStored(state: ComfygureCardState): ComfygureProgram {
+  const stored = normalizeComfygureProgram(state.program ?? DEFAULT_COMFYGURE_PROGRAM)
+  const source = decompressComfygureText(state.batchText) || stored.batch.prompts.join("\n")
+  return normalizeComfygureProgram({ ...stored, batch: { ...stored.batch, prompts: batchPrompts(source) } })
 }
 
 function storedPromptIds(state: ComfygureCardState): readonly string[] {
