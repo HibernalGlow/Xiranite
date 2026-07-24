@@ -6,6 +6,7 @@ export type XlchemyAction = "plan" | "convert" | "diagnose"
 export type XlchemyFormat = "JPEG XL" | "AVIF" | "WebP" | "PNG" | "TIFF" | "JPEG" | "Lossless JPEG Transcoding" | "JPEG Reconstruction" | "Smallest Lossless"
 export type XlchemyOutputMode = "source" | "directory"
 export type XlchemyExistingPolicy = "replace" | "skip" | "rename"
+export type XlchemyAnimationFormat = "png" | "webp" | "avif" | "jxl"
 export type XlchemyFilenameMatchTarget = "filename" | "path"
 export type XlchemyFilenameMatcher = "contains" | "glob" | "regex"
 export interface XlchemyFilenameRule {
@@ -79,6 +80,7 @@ export interface XlchemyInput {
   exiftoolCustomArgs?: string
   processingOrder?: "original" | "path-asc" | "path-desc" | "size-asc" | "size-desc" | "random" | "sequential"
   excludedFormats?: string[]
+  animationDetectionFormats?: XlchemyAnimationFormat[]
   downscale?: XlchemyDownscaleSettings
   /** Browser clipboard image materialized by the Node runtime for one conversion. */
   inlineSource?: { base64: string; mimeType: string }
@@ -149,6 +151,7 @@ export interface XlchemyRuntime {
   readFileBase64?: (path: string) => Promise<string>
   cleanupTemporaryFile?: (path: string) => Promise<void>
   streamEfuPaths?: (path: string) => AsyncIterable<string>
+  isAnimatedImage: (path: string) => Promise<boolean>
 }
 
 export type XlchemyResult = NodeRunResult<XlchemyData>
@@ -207,6 +210,7 @@ export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInpu
     exiftoolCustomArgs: input.exiftoolCustomArgs?.trim() ?? "",
     processingOrder: input.processingOrder ?? "original",
     excludedFormats: input.excludedFormats ?? ["avif", "jxl", "webp", "gif"],
+    animationDetectionFormats: [...new Set<XlchemyAnimationFormat>(input.animationDetectionFormats ?? ["webp"])],
     downscale: { enabled: input.downscale?.enabled ?? false, mode: input.downscale?.mode ?? "resolution", width: input.downscale?.width ?? 1920, height: input.downscale?.height ?? 1080, percent: input.downscale?.percent ?? 50, fileSizeKb: input.downscale?.fileSizeKb ?? 500, shortestSide: input.downscale?.shortestSide ?? 1080, longestSide: input.downscale?.longestSide ?? 1920, megapixels: input.downscale?.megapixels ?? 2.1, resample: input.downscale?.resample ?? "default" },
     inlineSource: input.inlineSource,
   }
@@ -275,12 +279,22 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       ? await orderSources(await collectAsync(sourceStream), options.processingOrder, runtime)
       : sourceStream
     const roots = await sourceRoots(options.paths, runtime)
+    const animationDetectionFormats = new Set(options.animationDetectionFormats)
     const summary = createSummary()
     let lastLiveResultAt = 0
     for await (const source of orderedSources) {
       await runtime.waitWhilePaused?.()
       if (runtime.isCancelled?.()) return cancelledSummary(summary, started)
-      const item = await planFile(source, roots, options, runtime)
+      let item: XlchemyFileResult
+      if (animationDetectionFormats.has(animationFormat(runtime.extname(source)))) {
+        try {
+          item = await runtime.isAnimatedImage(source)
+            ? { sourcePath: source, outputPath: source, status: "skipped", error: "animated_image" }
+            : await planFile(source, roots, options, runtime)
+        } catch (error) {
+          item = { sourcePath: source, outputPath: source, status: "error", error: `animation_probe_failed: ${error instanceof Error ? error.message : String(error)}` }
+        }
+      } else item = await planFile(source, roots, options, runtime)
       const result = options.action !== "convert" || item.status !== "planned"
         ? item
         : await convertFileWithProgress(item, options, runtime, onEvent, summary.inputCount, totalInputCount)
@@ -304,6 +318,11 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error))
   }
+}
+
+function animationFormat(extension: string): XlchemyAnimationFormat {
+  const normalized = extension.replace(/^\./, "").toLowerCase()
+  return normalized === "apng" ? "png" : normalized as XlchemyAnimationFormat
 }
 
 async function convertFileWithProgress(item: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void, completed: number, total: number) {

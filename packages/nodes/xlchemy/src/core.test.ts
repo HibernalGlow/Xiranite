@@ -71,6 +71,52 @@ describe("xlchemy core contract", () => {
     expect(result.data?.files.map((file) => file.outputPath)).toEqual(["/output/a.avif", "/output/events/b.avif"])
   })
 
+  test("skips animated WebP while keeping static WebP in the same plan", async () => {
+    const runtime = fakeRuntime()
+    const inputs = new Set(["/photos/still.webp", "/photos/motion.webp", "/photos/still.png"])
+    runtime.listDir = async () => [...inputs].map((path) => ({ path, name: path.split("/").at(-1)!, isFile: true, isDirectory: false }))
+    runtime.pathInfo = async (path) => ({ path, exists: path === "/photos" || inputs.has(path), isFile: inputs.has(path), isDirectory: path === "/photos", size: 100, atimeMs: 10, mtimeMs: 20 })
+    runtime.isAnimatedImage = async (path) => path.endsWith("motion.webp")
+
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "plan", paths: ["/photos"], format: "PNG", outputMode: "directory", outputDir: "/output", excludedFormats: [] }), runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data).toMatchObject({ inputCount: 3, skippedCount: 1, errorCount: 0 })
+    expect(result.data?.files).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourcePath: "/photos/still.webp", status: "planned" }),
+      expect.objectContaining({ sourcePath: "/photos/motion.webp", status: "skipped", error: "animated_image" }),
+      expect.objectContaining({ sourcePath: "/photos/still.png", status: "planned" }),
+    ]))
+  })
+
+  test("does not probe animated APNG, AVIF, or JXL inputs by default", async () => {
+    const runtime = fakeRuntime()
+    const inputs = new Set(["/photos/animated.apng", "/photos/animated.avif", "/photos/animated.jxl"])
+    runtime.listDir = async () => [...inputs].map((path) => ({ path, name: path.split("/").at(-1)!, isFile: true, isDirectory: false }))
+    runtime.pathInfo = async (path) => ({ path, exists: path === "/photos" || inputs.has(path), isFile: inputs.has(path), isDirectory: path === "/photos", size: 100, atimeMs: 10, mtimeMs: 20 })
+    runtime.isAnimatedImage = vi.fn(async () => false)
+
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "plan", paths: ["/photos"], format: "TIFF", excludedFormats: [] }), runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data?.inputCount).toBe(3)
+    expect(runtime.isAnimatedImage).not.toHaveBeenCalled()
+  })
+
+  test("can explicitly enable APNG, AVIF, and JXL animation detection", async () => {
+    const runtime = fakeRuntime()
+    const inputs = new Set(["/photos/animated.apng", "/photos/animated.avif", "/photos/animated.jxl"])
+    runtime.listDir = async () => [...inputs].map((path) => ({ path, name: path.split("/").at(-1)!, isFile: true, isDirectory: false }))
+    runtime.pathInfo = async (path) => ({ path, exists: path === "/photos" || inputs.has(path), isFile: inputs.has(path), isDirectory: path === "/photos", size: 100, atimeMs: 10, mtimeMs: 20 })
+    runtime.isAnimatedImage = vi.fn(async () => true)
+
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "plan", paths: ["/photos"], format: "TIFF", excludedFormats: [], animationDetectionFormats: ["png", "avif", "jxl"] }), runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data).toMatchObject({ inputCount: 3, skippedCount: 3, errorCount: 0 })
+    expect(runtime.isAnimatedImage).toHaveBeenCalledTimes(3)
+  })
+
   test("runs a native encoder and records the output size", async () => {
     const runtime = fakeRuntime()
     const result = await runXlchemy({
@@ -316,6 +362,7 @@ function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; ar
     ensureDir: async () => undefined, copyFile: async () => undefined, removeFile: async (path) => { files.delete(path) }, trashFile: async (path) => { runtime.commands.push({ command: "trash", args: [path] }) }, renameFile: async (source, target) => { const item = files.get(source); if (item) { files.set(target, item); files.delete(source) } }, setTimes: async () => undefined, hashFile: async () => "matching-checksum",
     runCommand: async (command, args) => { runtime.commands.push({ command, args }); if (command.endsWith("jxlinfo")) return { exitCode: 0, stdout: "JPEG bitstream reconstruction data available", stderr: "" }; const output = args.includes("-outfile") ? args[args.indexOf("-outfile") + 1]! : args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!; const size = output.includes(".effort-9.jxl") ? 150 : output.includes(".smallest.jxl") ? 200 : output.includes(".smallest.webp") ? 300 : 400; files.set(output, { size }); return { exitCode: 0, stdout: "", stderr: "" } },
     resolveCommand: async (candidates) => `/bin/${candidates[0]}`,
+    isAnimatedImage: async () => false,
     probeSlimg: async () => ({ id: "slimg-cffi", label: "slimg CFFI", purpose: "slimg DLL AVIF 编码", path: "/lib/slimg_cffi.dll", available: true, runnable: true }),
     convertWithSlimg: async (source, target, quality) => { runtime.commands.push({ command: "slimg-cffi", args: [source, target, String(quality)] }); files.set(target, { size: 350 }) },
     convertClipToPsd: async (source, target) => { runtime.commands.push({ command: "clip-to-psd-native", args: [source, target] }); files.set(target, { size: 1200 }) },
