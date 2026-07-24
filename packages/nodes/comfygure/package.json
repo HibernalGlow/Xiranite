@@ -13,6 +13,10 @@
       "types": "./dist/core.d.ts",
       "default": "./dist/core.js"
     },
+    "./project": {
+      "types": "./dist/project.d.ts",
+      "default": "./dist/project.js"
+    },
     "./platform": {
       "types": "./dist/platform.d.ts",
       "default": "./dist/platform.js"
@@ -31,10 +35,14 @@
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
     "fflate": "^0.8.3",
+    "json-canonicalize": "2.0.0",
+    "json-rules-engine": "7.3.1",
     "jsonrepair": "3.15.0",
     "liquidjs": "10.27.2",
     "p-queue": "9.3.1",
-    "write-file-atomic": "7.0.0"
+    "ts-pattern": "5.9.0",
+    "write-file-atomic": "7.0.0",
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

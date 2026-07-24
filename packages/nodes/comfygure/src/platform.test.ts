@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { compileAnimaInt8Program, createComfygureProfile } from "./core.js"
-import { createNodeComfygureRuntime, createStableCanvasComfygureTargetAdapter } from "./platform.js"
+import { createNodeComfygureProjectStore, createNodeComfygureRuntime, createStableCanvasComfygureTargetAdapter } from "./platform.js"
+import { createComfygureProjectDocument } from "./project.js"
 
 const tempDirectories: string[] = []
 
@@ -44,6 +45,26 @@ describe("Comfygure local profile store", () => {
 
     expect(list).toEqual([{ id: "anima-portrait", name: "ANIMA Portrait", revision: 1, updatedAt: "2026-07-24T00:00:00.000Z" }])
     await expect(store.read(first.id)).resolves.toMatchObject({ revision: 2, createdAt: first.createdAt, updatedAt: "2026-07-24T01:00:00.000Z", program: { parameters: { width: 1536, height: 896 } } })
+  })
+})
+
+describe("Comfygure Project Document store", () => {
+  it("atomically saves and integrity-checks explicit .comfygure.json files", async () => {
+    const directory = await temporaryLibrary()
+    const path = join(directory, "projects", "storyboard.comfygure.json")
+    const profile = createComfygureProfile({}, "ANIMA INT8", { now: new Date("2026-07-24T00:00:00.000Z") })
+    const project = await createComfygureProjectDocument({ prompts: { positive: "cat ears" } }, {
+      id: "storyboard",
+      profile,
+      now: new Date("2026-07-24T01:00:00.000Z"),
+    })
+    const store = createNodeComfygureProjectStore()
+
+    await store.save(path, project)
+
+    await expect(store.read(path)).resolves.toEqual(project)
+    expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({ format: "comfygure-project/v1", id: "storyboard" })
+    await expect(store.save(join(directory, "project.json"), project)).rejects.toThrow(".comfygure.json")
   })
 })
 

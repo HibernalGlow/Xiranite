@@ -1,5 +1,5 @@
 import { mkdir, readFile, readdir } from "node:fs/promises"
-import { join, relative, resolve, sep } from "node:path"
+import { dirname, join, relative, resolve, sep } from "node:path"
 
 import { Client as StableCanvasClient } from "@stable-canvas/comfyui-client"
 import { resolveXiraniteDataDir } from "@xiranite/config"
@@ -21,6 +21,7 @@ import {
   type ComfyuiSubmission,
   type CompiledProgram,
 } from "./core.js"
+import { parseComfygureProjectDocument, type ComfygureProjectStore } from "./project.js"
 
 export interface NodeComfygureRuntimeOptions {
   cwd?: string
@@ -235,6 +236,29 @@ export function resolveNodeComfygureProfileDirectory(options: NodeComfygureProfi
   return resolveProfileDirectory(options.dataDir ?? resolveXiraniteDataDir({ cwd, env }), profileLibraryPath)
 }
 
+export function createNodeComfygureProjectStore(): ComfygureProjectStore {
+  return {
+    async read(path) {
+      const projectPath = resolveProjectPath(path)
+      const source = await readFile(projectPath, "utf8")
+      let value: unknown
+      try {
+        value = JSON.parse(source) as unknown
+      } catch (error) {
+        throw new Error(`The Comfygure Project Document is not valid JSON: ${error instanceof Error ? error.message : String(error)}`)
+      }
+      return await parseComfygureProjectDocument(value)
+    },
+    async save(path, project) {
+      const projectPath = resolveProjectPath(path)
+      const validated = await parseComfygureProjectDocument(project)
+      await mkdir(dirname(projectPath), { recursive: true })
+      await writeFileAtomic(projectPath, `${JSON.stringify(validated, null, 2)}\n`, { encoding: "utf8" })
+      return validated
+    },
+  }
+}
+
 function resolveProfileDirectory(dataDir: string, profileLibraryPath: string | undefined): string {
   return profileLibraryPath?.trim() ? resolve(profileLibraryPath.trim()) : join(resolve(dataDir), "comfygure", "profiles")
 }
@@ -242,6 +266,12 @@ function resolveProfileDirectory(dataDir: string, profileLibraryPath: string | u
 function profilePath(directory: string, id: string): string {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) throw new Error("The Comfygure profile ID is invalid.")
   return join(directory, `${id}.json`)
+}
+
+function resolveProjectPath(path: string): string {
+  const projectPath = resolve(path.trim())
+  if (!projectPath.toLowerCase().endsWith(".comfygure.json")) throw new Error("Comfygure projects must use the .comfygure.json extension.")
+  return projectPath
 }
 
 async function readProfileFile(path: string): Promise<ComfygureProfile | undefined> {
