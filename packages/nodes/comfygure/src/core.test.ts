@@ -22,6 +22,33 @@ describe("Comfygure ANIMA INT8 compiler", () => {
     expect(Object.values(compiled.graph).some((node) => node.class_type === "LayerUtility: SaveImagePlus")).toBe(true)
   })
 
+  it("keeps the retained ANIMA execution-node contract aligned with the exported API graph", () => {
+    const compiled = compileAnimaInt8Program()
+
+    expect(compiled.graph["1"]).toMatchObject({
+      class_type: "OTUNetLoaderW8A8",
+      inputs: { weight_dtype: "default", model_type: "anima", on_the_fly_quantization: false, enable_convrot: true, lora_mode: "None" },
+    })
+    expect(compiled.graph["2"]).toMatchObject({
+      class_type: "AnimaTeaCache",
+      inputs: { threshold: 0.01, adaptive_mode: true, early_steps_factor: 0.4, late_steps_factor: 1.8, start_percent: 0, end_percent: 1, cache_device: "cuda", model: ["1", 0] },
+    })
+    expect(Object.values(compiled.graph).find((node) => node.class_type === "FLS_SamplerV4")?.inputs).toMatchObject({
+      denoise: 1,
+      fovea_strength: 3,
+      sharpness: 0.5,
+      mask_inertia: 0.85,
+    })
+    expect(Object.values(compiled.graph).find((node) => node.class_type === "LayerUtility: SaveImagePlus")?.inputs).toMatchObject({
+      custom_path: "",
+      timestamp: "None",
+      meta_data: false,
+      blind_watermark: "",
+      save_workflow_as_json: true,
+      preview: true,
+    })
+  })
+
   it("preflights exact node classes and resources from object_info without submitting a prompt", async () => {
     const compiled = compileAnimaInt8Program({ loras: [{ name: "folder/style-a.safetensors" }] })
     const info = objectInfoFor(compiled)
@@ -59,6 +86,19 @@ describe("Comfygure ANIMA INT8 compiler", () => {
     expect(requests.map((request) => request.init?.method)).toEqual(["GET", "POST"])
     expect(requests[1]?.url).toBe("http://127.0.0.1:8000/prompt")
     expect(JSON.parse(requests[1]?.init?.body ?? "{}")).toMatchObject({ client_id: "xiranite-comfygure", prompt: compiled.graph })
+  })
+
+  it("does not submit when live preflight finds an incompatible execution target", async () => {
+    const requests: string[] = []
+    const result = await runComfygure({ action: "submit" }, {
+      fetch: async (url) => {
+        requests.push(url)
+        return { ok: true, status: 200, json: async () => ({}) }
+      },
+    })
+
+    expect(result.success).toBe(false)
+    expect(requests).toEqual(["http://127.0.0.1:8000/object_info"])
   })
 
   it("aborts an unresponsive target instead of leaving preflight pending", async () => {
