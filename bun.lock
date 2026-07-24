@@ -1261,6 +1261,7 @@
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "ag-psd": "^31.0.2",
+        "sharp": "0.35.3",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
