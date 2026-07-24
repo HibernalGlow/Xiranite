@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -236,13 +237,17 @@ export function Component({ compId, host }: NodeComponentProps) {
   const template = stored.template
   const templateReady = !template || template.bindingManifest.confirmed
   const isCollapsed = surface.mode === "collapsed"
-  return <div ref={surface.ref} className="@container/comfygure flex h-full min-h-0 w-full flex-col overflow-auto p-3" data-testid="comfygure-workbench">
+  const wideWorkbench = surface.mode === "workspace" || surface.mode === "expanded"
+  return <div ref={surface.ref} className="@container/comfygure flex h-full min-h-0 w-full flex-col overflow-hidden p-3" data-testid="comfygure-workbench">
     <header className="flex min-w-0 items-center justify-between gap-2 border-b pb-2">
       <div className="flex min-w-0 items-center gap-2"><Sparkles className="size-4 shrink-0" /><div className="min-w-0"><h2 className="truncate text-sm font-semibold">Comfygure</h2><p className="truncate text-xs text-muted-foreground">{stored.status ?? "Fixed ComfyUI compiler"}</p></div></div>
       <div className="flex shrink-0 items-center gap-1"><Badge variant={preflight?.online ? "secondary" : "outline"}>{preflight?.online ? "Target online" : "Local target"}</Badge>{running ? <RefreshCw className="size-4 animate-spin motion-reduce:animate-none" /> : null}</div>
     </header>
-    {isCollapsed ? <p className="mt-2 truncate text-xs text-muted-foreground">{preview ? `${preview.graphNodeCount} fixed nodes` : "Expand to edit and preflight."}</p> : <div className="grid min-h-0 flex-1 gap-3 pt-3 @4xl/comfygure:grid-cols-[minmax(0,1fr)_minmax(248px,0.72fr)]">
-      <section className="min-w-0 space-y-3">
+    {isCollapsed ? <p className="mt-2 truncate text-xs text-muted-foreground">{preview ? `${preview.graphNodeCount} fixed nodes` : "Expand to edit and preflight."}</p> : <div className="min-h-0 flex-1 pt-3" data-testid="comfygure-swimlane-workbench"><ResizablePanelGroup orientation={wideWorkbench ? "horizontal" : "vertical"} className="h-full min-h-0">
+      <ResizablePanel id="comfygure-project" defaultSize={wideWorkbench ? "42%" : "45%"} minSize={wideWorkbench ? "30%" : "32%"} maxSize={wideWorkbench ? "56%" : "60%"}>
+        <section className="flex h-full min-h-0 flex-col overflow-y-auto pr-2" aria-labelledby="comfygure-project-heading" data-testid="comfygure-project-lane">
+          <LaneHeading icon={<Sparkles className="size-4" />} id="comfygure-project-heading" title="Project compiler" description="Prompts, batch jobs, LoRAs, models, and sampler settings." />
+          <div className="min-w-0 space-y-3 pt-3">
         <div className="grid gap-2 @xl/comfygure:grid-cols-2"><Field label="Program"><Input value={program.name} onChange={(event) => updateProgram({ name: event.currentTarget.value })} /></Field><Field label="Output prefix"><Input value={program.output.filenamePrefix} onChange={(event) => updateProgram({ output: { ...program.output, filenamePrefix: event.currentTarget.value } })} /></Field></div>
         <Field label="Positive prompt"><Textarea className="min-h-24" value={program.prompts.positive} onChange={(event) => updateProgram({ prompts: { ...program.prompts, positive: event.currentTarget.value } })} /></Field>
         <div className="grid gap-2 @xl/comfygure:grid-cols-2"><Field label="Positive prefix"><Textarea className="min-h-18" value={program.prompts.positivePrefix} onChange={(event) => updateProgram({ prompts: { ...program.prompts, positivePrefix: event.currentTarget.value } })} /></Field><Field label="Negative prompt"><Textarea className="min-h-18" value={program.prompts.negative} onChange={(event) => updateProgram({ prompts: { ...program.prompts, negative: event.currentTarget.value } })} /></Field></div>
@@ -251,22 +256,42 @@ export function Component({ compId, host }: NodeComponentProps) {
         <Field label="LoRA rows"><Textarea className="min-h-24 font-mono text-xs" value={formatLoraRows(program.loras)} placeholder="folder/style.safetensors | 1 | 1 | activation terms | injected terms" onChange={(event) => updateProgram({ loras: parseLoraRows(event.currentTarget.value) })} /></Field>
         <div className="grid gap-2 grid-cols-2 @2xl/comfygure:grid-cols-4"><NumberField label="Width" value={program.parameters.width} onValueChange={(width) => updateProgram({ parameters: { ...program.parameters, width } })} /><NumberField label="Height" value={program.parameters.height} onValueChange={(height) => updateProgram({ parameters: { ...program.parameters, height } })} /><NumberField label="Seed" value={program.parameters.seed} onValueChange={(seed) => updateProgram({ parameters: { ...program.parameters, seed } })} /><NumberField label="Batch" value={program.parameters.batchSize} onValueChange={(batchSize) => updateProgram({ parameters: { ...program.parameters, batchSize } })} /><NumberField label="Steps" value={program.parameters.steps} onValueChange={(steps) => updateProgram({ parameters: { ...program.parameters, steps } })} /><NumberField label="CFG" value={program.parameters.cfg} step="0.1" onValueChange={(cfg) => updateProgram({ parameters: { ...program.parameters, cfg } })} /><NumberField label="Denoise" value={program.parameters.denoise} step="0.01" onValueChange={(denoise) => updateProgram({ parameters: { ...program.parameters, denoise } })} /></div>
         <div className="grid gap-2 @xl/comfygure:grid-cols-3"><Field label="Sampler"><Input value={program.parameters.samplerName} onChange={(event) => updateProgram({ parameters: { ...program.parameters, samplerName: event.currentTarget.value } })} /></Field><Field label="Scheduler"><Input value={program.parameters.scheduler} onChange={(event) => updateProgram({ parameters: { ...program.parameters, scheduler: event.currentTarget.value } })} /></Field><Field label="Seed policy"><Select value={program.parameters.seedMode} onValueChange={(seedMode) => updateProgram({ parameters: { ...program.parameters, seedMode: seedMode === "fixed" ? "fixed" : "increment" } })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="increment">Increment per job</SelectItem><SelectItem value="fixed">Fixed</SelectItem></SelectContent></Select></Field></div>
-      </section>
-      <aside className="min-w-0 space-y-3 border-t pt-3 @4xl/comfygure:border-l @4xl/comfygure:border-t-0 @4xl/comfygure:pl-3 @4xl/comfygure:pt-0">
-        <div className="flex items-center gap-2"><Network className="size-4" /><h3 className="text-sm font-semibold">Local target</h3></div>
+          <div className="space-y-2 border-t pt-3"><Field label="UNet"><Input value={program.model.unetName} onChange={(event) => updateProgram({ model: { ...program.model, unetName: event.currentTarget.value } })} /></Field><Field label="CLIP"><Input value={program.model.clipName} onChange={(event) => updateProgram({ model: { ...program.model, clipName: event.currentTarget.value } })} /></Field><Field label="VAE"><Input value={program.model.vaeName} onChange={(event) => updateProgram({ model: { ...program.model, vaeName: event.currentTarget.value } })} /></Field></div>
+          </div>
+        </section>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel id="comfygure-inspection" defaultSize={wideWorkbench ? "28%" : "28%"} minSize={wideWorkbench ? "21%" : "22%"} maxSize={wideWorkbench ? "38%" : "36%"}>
+        <section className="flex h-full min-h-0 flex-col overflow-y-auto px-2" aria-labelledby="comfygure-inspection-heading" data-testid="comfygure-inspection-lane">
+          <LaneHeading icon={<FileCode2 className="size-4" />} id="comfygure-inspection-heading" title="Inspection" description="Template bindings, fixed graph preview, and canvas export." />
+          <div className="min-w-0 space-y-3 pt-3">
+            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !host.localFiles?.pickFiles} onClick={() => void importWorkflowFile()}><FileUp />Import workflow</Button>{template ? <Button size="sm" variant={templateReady ? "outline" : "default"} disabled={running !== null || templateReady} onClick={confirmTemplateBindings}><CheckCircle2 />Confirm bindings</Button> : null}</div>
+            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("canvas")}><Download />Export canvas</Button></div>
+            <CompilerSummary preview={preview} preflight={preflight} submission={stored.submission} submissions={stored.submissions} history={stored.history} template={template} templateDiagnostics={stored.templateDiagnostics} />
+          </div>
+        </section>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel id="comfygure-execution" defaultSize={wideWorkbench ? "30%" : "27%"} minSize={wideWorkbench ? "23%" : "22%"} maxSize={wideWorkbench ? "42%" : "38%"}>
+        <section className="flex h-full min-h-0 flex-col overflow-y-auto pl-2" aria-labelledby="comfygure-execution-heading" data-testid="comfygure-execution-lane">
+          <LaneHeading icon={<Network className="size-4" />} id="comfygure-execution-heading" title="Execution" description="Local target, generation profiles, preflight, and result refresh." />
+          <div className="min-w-0 space-y-3 pt-3">
         <Field label="Endpoint"><Input value={target.endpoint ?? DEFAULT_COMFYUI_ENDPOINT} disabled={running !== null} onChange={(event) => updateTarget("endpoint", event.currentTarget.value)} /></Field>
         <Field label="ComfyUI Library"><Input value={target.libraryPath ?? ""} disabled={running !== null} placeholder="D:/1Repo/Github/ComfyUI/Library" onChange={(event) => updateTarget("libraryPath", event.currentTarget.value)} /></Field>
         <Field label="Profile library"><Input value={target.profileLibraryPath ?? ""} disabled={running !== null} placeholder="Default Xiranite data directory" onChange={(event) => updateTarget("profileLibraryPath", event.currentTarget.value)} /></Field>
         <Button className="w-full" size="sm" variant="outline" disabled={running !== null || !targetDirty} onClick={() => void saveTarget()}><Save />Save target</Button>
-        <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !host.localFiles?.pickFiles} onClick={() => void importWorkflowFile()}><FileUp />Import workflow</Button>{template ? <Button size="sm" variant={templateReady ? "outline" : "default"} disabled={running !== null || templateReady} onClick={confirmTemplateBindings}><CheckCircle2 />Confirm bindings</Button> : null}</div>
         <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("profiles")}><RefreshCw />Profiles</Button><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("saveProfile")}><Save />Save profile</Button></div>
         {(stored.profiles?.length || stored.profile) ? <Field label="Generation profile"><Select value={stored.profile?.id ?? "__current"} disabled={running !== null} onValueChange={(value) => { if (value !== "__current") void loadProfile(value) }}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__current">Current project snapshot</SelectItem>{stored.profiles?.map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.name} · r{profile.revision}</SelectItem>)}</SelectContent></Select></Field> : null}
-        <div className="space-y-2 border-t pt-3"><Field label="UNet"><Input value={program.model.unetName} onChange={(event) => updateProgram({ model: { ...program.model, unetName: event.currentTarget.value } })} /></Field><Field label="CLIP"><Input value={program.model.clipName} onChange={(event) => updateProgram({ model: { ...program.model, clipName: event.currentTarget.value } })} /></Field><Field label="VAE"><Input value={program.model.vaeName} onChange={(event) => updateProgram({ model: { ...program.model, vaeName: event.currentTarget.value } })} /></Field></div>
-        <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("canvas")}><Download />Export canvas</Button><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("preflight")}><Activity />Preflight</Button><Button size="sm" variant="outline" disabled={running !== null || promptIds.length === 0} onClick={() => void execute("refresh")}><RefreshCw />Refresh results</Button><Button size="sm" disabled={running !== null || !templateReady} onClick={() => void execute("submit")}><Play />Run</Button></div>
-        <CompilerSummary preview={preview} preflight={preflight} submission={stored.submission} submissions={stored.submissions} history={stored.history} template={template} templateDiagnostics={stored.templateDiagnostics} />
-      </aside>
-    </div>}
+            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("preflight")}><Activity />Preflight</Button><Button size="sm" variant="outline" disabled={running !== null || promptIds.length === 0} onClick={() => void execute("refresh")}><RefreshCw />Refresh results</Button><Button className="col-span-2" size="sm" disabled={running !== null || !templateReady} onClick={() => void execute("submit")}><Play />Run</Button></div>
+          </div>
+        </section>
+      </ResizablePanel>
+    </ResizablePanelGroup></div>}
   </div>
+}
+
+function LaneHeading(props: { icon: ReactNode; id: string; title: string; description: string }) {
+  return <div className="border-b pb-2"><div className="flex items-center gap-2"><span className="text-muted-foreground">{props.icon}</span><h3 id={props.id} className="text-sm font-semibold">{props.title}</h3></div><p className="mt-1 text-xs text-muted-foreground">{props.description}</p></div>
 }
 
 function downloadCanvas(canvas: ComfygureCanvasExport, programName: string) {
