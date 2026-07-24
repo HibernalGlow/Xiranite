@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { afterEach, describe, expect, it } from "vitest"
-import { createComfygureProfile } from "./core.js"
-import { createNodeComfygureRuntime } from "./platform.js"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { compileAnimaInt8Program, createComfygureProfile } from "./core.js"
+import { createNodeComfygureRuntime, createStableCanvasComfygureTargetAdapter } from "./platform.js"
 
 const tempDirectories: string[] = []
 
@@ -44,6 +44,57 @@ describe("Comfygure local profile store", () => {
 
     expect(list).toEqual([{ id: "anima-portrait", name: "ANIMA Portrait", revision: 1, updatedAt: "2026-07-24T00:00:00.000Z" }])
     await expect(store.read(first.id)).resolves.toMatchObject({ revision: 2, createdAt: first.createdAt, updatedAt: "2026-07-24T01:00:00.000Z", program: { parameters: { width: 1536, height: 896 } } })
+  })
+})
+
+describe("Comfygure StableCanvas target adapter", () => {
+  it("maps the host-neutral contract onto the pinned client without raw transport calls", async () => {
+    const created: Array<{ api_host: string; api_base: string; clientId: string; ssl: boolean }> = []
+    const client = {
+      getNodeDefs: vi.fn(async () => ({ Loader: { input: { required: {} } } })),
+      queuePrompt: vi.fn(async () => ({ prompt_id: "prompt-123", number: 7 })),
+      getPromptStatus: vi.fn(async () => ({ running: false, pending: false, done: true })),
+      getPromptOutputs: vi.fn(async () => ({ "9": { images: [{ filename: "image.png", subfolder: "batch", type: "output" }] } })),
+    }
+    const adapter = createStableCanvasComfygureTargetAdapter({
+      createClient: (options) => {
+        created.push(options)
+        return client
+      },
+    })
+    const target = { endpoint: "http://127.0.0.1:8000", clientId: "local-client" }
+
+    await expect(adapter.readObjectInfo(target)).resolves.toEqual({ Loader: { input: { required: {} } } })
+    await expect(adapter.submitPrompt(compileAnimaInt8Program(), target)).resolves.toMatchObject({ endpoint: "http://127.0.0.1:8000", promptId: "prompt-123", queueNumber: 7, clientId: "local-client" })
+    await expect(adapter.readPromptHistory("prompt-123", target)).resolves.toMatchObject({ state: "complete", images: [{ url: "http://127.0.0.1:8000/view?filename=image.png&subfolder=batch&type=output" }] })
+
+    expect(created).toEqual(expect.arrayContaining([expect.objectContaining({ api_host: "127.0.0.1:8000", api_base: "", clientId: "local-client", ssl: false })]))
+    expect(client.queuePrompt).toHaveBeenCalledWith(0, expect.objectContaining({ prompt: expect.any(Object), workflow: undefined }))
+  })
+
+  it("serializes concurrent requests for the same local endpoint", async () => {
+    let started = 0
+    let releaseFirst!: () => void
+    const first = new Promise<void>((resolve) => { releaseFirst = resolve })
+    const adapter = createStableCanvasComfygureTargetAdapter({
+      createClient: () => ({
+        getNodeDefs: async () => {
+          started += 1
+          if (started === 1) await first
+          return {}
+        },
+        queuePrompt: async () => ({ prompt_id: "unused" }),
+        getPromptStatus: async () => ({ running: false, pending: false, done: true }),
+        getPromptOutputs: async () => ({}),
+      }),
+    })
+
+    const firstRead = adapter.readObjectInfo({ endpoint: "http://127.0.0.1:8000" })
+    const secondRead = adapter.readObjectInfo({ endpoint: "http://127.0.0.1:8000" })
+    await vi.waitFor(() => expect(started).toBe(1))
+    releaseFirst()
+    await Promise.all([firstRead, secondRead])
+    expect(started).toBe(2)
   })
 })
 
