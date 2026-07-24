@@ -3119,6 +3119,35 @@
       "errors": "errors",
       "noPlanYet": "No plan yet"
     },
+    "comfygure": {
+      "name": "Comfygure",
+      "description": "Compile fixed generation programs into validated local ComfyUI prompt graphs.",
+      "title": "Comfygure",
+      "targetOnline": "Target online",
+      "localTarget": "Local target",
+      "collapsed": { "fixedNodes": "{{count}} fixed nodes", "expandHint": "Expand to edit and preflight." },
+      "lanes": {
+        "project": { "title": "Project compiler", "description": "Prompts, batch jobs, LoRAs, models, and sampler settings." },
+        "inspection": { "title": "Inspection", "description": "Template bindings, fixed graph preview, and canvas export." },
+        "execution": { "title": "Execution", "description": "Local target, generation profiles, preflight, and result refresh." }
+      },
+      "fields": {
+        "program": "Program", "outputPrefix": "Output prefix", "positivePrompt": "Positive prompt", "positivePrefix": "Positive prefix", "negativePrompt": "Negative prompt",
+        "batchPrompts": "Batch positive prompts", "batchPlaceholder": "One fixed generation job per non-empty line", "batchJobs": "Batch jobs (0 = all)", "batchSelectionSeed": "Batch selection seed", "shuffleBatch": "Shuffle batch jobs", "allowDuplicates": "Allow repeated batch prompts",
+        "loraRows": "LoRA rows", "loraPlaceholder": "folder/style.safetensors | 1 | 1 | activation terms | injected terms", "width": "Width", "height": "Height", "seed": "Seed", "batch": "Batch", "steps": "Steps", "cfg": "CFG", "denoise": "Denoise", "sampler": "Sampler", "scheduler": "Scheduler", "seedPolicy": "Seed policy", "unet": "UNet", "clip": "CLIP", "vae": "VAE",
+        "endpoint": "Endpoint", "library": "ComfyUI Library", "libraryPlaceholder": "D:/1Repo/Github/ComfyUI/Library", "profileLibrary": "Profile library", "profileLibraryPlaceholder": "Default Xiranite data directory", "generationProfile": "Generation profile"
+      },
+      "values": { "increment": "Increment per job", "fixed": "Fixed", "currentSnapshot": "Current project snapshot" },
+      "actions": { "importText": "Import text", "importWorkflow": "Import workflow", "confirmBindings": "Confirm bindings", "compile": "Compile", "exportCanvas": "Export canvas", "saveTarget": "Save target", "profiles": "Profiles", "saveProfile": "Save profile", "preflight": "Preflight", "refreshResults": "Refresh results", "run": "Run" },
+      "filePicker": { "promptTitle": "Import Comfygure prompt text", "textFiles": "Text files", "workflowTitle": "Import ComfyUI workflow", "workflow": "ComfyUI workflow" },
+      "status": {
+        "fixedCompiler": "Fixed ComfyUI compiler", "targetSaved": "Local ComfyUI target saved.", "targetSaveError": "Could not save the local target: {{message}}", "targetSaveFailed": "Could not save the local target.", "promptFilesUnsupported": "This host cannot select local prompt text files.", "readFileError": "Could not read {{path}}: HTTP {{status}}", "promptFilesImported": "Imported {{count}} prompt text file(s).", "promptFilesImportFailed": "Could not import prompt text files.", "workflowFilesUnsupported": "This host cannot select local workflow files.", "workflowImportFailed": "Could not import the ComfyUI workflow.", "templateConfirmed": "Template bindings confirmed. The fixed controls now compile into this template.", "runnerUnavailable": "The Xiranite backend runner is unavailable.", "refreshRequiresPrompt": "Run a ComfyUI prompt before refreshing results.", "noCompilerResult": "The backend did not return a compiler result.",
+        "running": { "import": "Normalizing the ComfyUI workflow.", "profiles": "Reading local generation profiles.", "saveProfile": "Saving the generation profile.", "loadProfile": "Loading the generation profile.", "compile": "Compiling a fixed prompt graph.", "canvas": "Exporting an inspectable ComfyUI canvas.", "preflight": "Inspecting the local ComfyUI target.", "refresh": "Refreshing ComfyUI results.", "submit": "Submitting a fixed prompt graph." }
+      },
+      "summary": {
+        "empty": "Compile a fixed graph or inspect the local target. Preflight never submits a prompt.", "templateAttention": "Template needs attention", "templateConfirmed": "Template bindings confirmed", "templateNeedsConfirmation": "Template bindings need confirmation", "importedNodes": "{{name}}: {{count}} imported nodes", "inferredBindings": "{{count}} inferred bindings", "resultsAttention": "ComfyUI results need attention", "resultsRefreshed": "ComfyUI results refreshed", "submitted": "Submitted to ComfyUI", "ready": "Ready to run", "preflightAttention": "Preflight needs attention", "compilerPreview": "Compiler preview", "fixedNodes": "{{count}} fixed ComfyUI nodes", "jobs": " per job · {{count}} jobs", "loras": "LoRAs: {{names}}", "noLoras": "No active LoRAs", "promptIds": "Prompt IDs ({{count}}): {{ids}}", "promptId": "Prompt ID: {{id}}", "completed": "{{complete}} of {{total}} complete · {{images}} image(s)", "resultAlt": "ComfyUI result {{index}}", "classesReported": "{{count}} classes reported", "unavailable": "Unavailable: {{endpoint}}", "missingNodes": "Missing nodes: {{nodes}}", "missingResources": "Missing resources: {{resources}}"
+      }
+    },
     "recycleu": {
       "name": "Recycleu",
       "description": "Empty the Windows recycle bin immediately or on a finite/unlimited timer.",
