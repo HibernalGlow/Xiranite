@@ -8,6 +8,7 @@ import {
   compressComfygureText,
   decompressComfygureText,
   normalizeComfygureProgram,
+  type ComfygureBatchEntry,
   type ComfygureCanvasExport,
   type ComfygureData,
   type ComfygureInput,
@@ -21,16 +22,19 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
+import { TemplateComposer } from "./TemplateComposer"
 import { formatLoraRows, parseLoraRows, type ComfygureCardState, type ComfygureTargetConfig } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  const { t } = useNodeI18n("comfygure")
   const surface = useNodeSurface()
   const stored = host.getData<ComfygureCardState>(compId) ?? {}
   const stateRef = useRef(stored)
   stateRef.current = stored
   const [revision, setRevision] = useState(0)
-  const [running, setRunning] = useState<"compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "canvas" | "preflight" | "submit" | "refresh" | null>(null)
+  const [running, setRunning] = useState<"compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "canvas" | "options" | "preflight" | "submit" | "refresh" | null>(null)
   const [target, setTarget] = useState<ComfygureTargetConfig>({ endpoint: DEFAULT_COMFYUI_ENDPOINT, libraryPath: "" })
   const targetDirtyRef = useRef<Set<keyof ComfygureTargetConfig>>(new Set())
   const [targetDirty, setTargetDirty] = useState(false)
@@ -65,6 +69,7 @@ export function Component({ compId, host }: NodeComponentProps) {
       ...next,
       model: { ...current.model, ...next.model },
       prompts: { ...current.prompts, ...next.prompts },
+      templates: { ...current.templates, ...next.templates },
       batch: { ...current.batch, ...next.batch },
       parameters: { ...current.parameters, ...next.parameters },
       teaCache: { ...current.teaCache, ...next.teaCache },
@@ -73,8 +78,7 @@ export function Component({ compId, host }: NodeComponentProps) {
   }
 
   function storeProgram(next: ComfygureProgram) {
-    const batchSource = next.batch.prompts.join("\n")
-    patch({ program: { ...next, batch: { ...next.batch, prompts: [] } }, batchText: compressComfygureText(batchSource) })
+    patch(storedProgramPatch(next))
   }
 
   function updateTarget<Key extends keyof ComfygureTargetConfig>(key: Key, value: ComfygureTargetConfig[Key]) {
@@ -94,56 +98,58 @@ export function Component({ compId, host }: NodeComponentProps) {
       await host.saveNodeConfig(next)
       targetDirtyRef.current.clear()
       setTargetDirty(false)
-      patch({ status: "Local ComfyUI target saved." })
+      patch({ status: t("status.targetSaved", "Local ComfyUI target saved.") })
     } catch (error) {
-      patch({ status: error instanceof Error ? `Could not save the local target: ${error.message}` : "Could not save the local target." })
+      patch({ status: error instanceof Error ? t("status.targetSaveError", "Could not save the local target: {{message}}", { message: error.message }) : t("status.targetSaveFailed", "Could not save the local target.") })
     }
   }
 
   async function importBatchTextFiles() {
     const localFiles = host.localFiles
     if (!localFiles?.pickFiles) {
-      patch({ status: "This host cannot select local prompt text files." })
+      patch({ status: t("status.promptFilesUnsupported", "This host cannot select local prompt text files.") })
       return
     }
     try {
-      const paths = await localFiles.pickFiles({ title: "Import Comfygure prompt text", filters: [{ displayName: "Text files", pattern: "*.txt" }] })
+      const paths = await localFiles.pickFiles({ title: t("filePicker.promptTitle", "Import Comfygure prompt text"), filters: [{ displayName: t("filePicker.textFiles", "Text files"), pattern: "*.txt" }] })
       if (!paths.length) return
       const files = await Promise.all(paths.map(async (path) => {
         const response = await fetch(localFiles.getUrl(path), { cache: "no-store" })
-        if (!response.ok) throw new Error(`Could not read ${path}: HTTP ${response.status}`)
+        if (!response.ok) throw new Error(t("status.readFileError", "Could not read {{path}}: HTTP {{status}}", { path, status: response.status }))
         return await response.text()
       }))
       const current = programFromStored(stateRef.current)
-      updateProgram({ batch: { ...current.batch, prompts: [...current.batch.prompts, ...batchPrompts(files.join("\n"))] } })
-      patch({ status: `Imported ${paths.length} prompt text file(s).` })
+      const importedEntries = paths.flatMap((path, fileIndex) => batchPrompts(files[fileIndex] ?? "").map((text) => ({ text, sourceName: localFileName(path), sourcePath: path })))
+      const entries = [...current.batch.entries, ...importedEntries]
+      updateProgram({ batch: { ...current.batch, prompts: entries.map((entry) => entry.text), entries } })
+      patch({ status: t("status.promptFilesImported", "Imported {{count}} prompt text file(s).", { count: paths.length }) })
     } catch (error) {
-      patch({ status: error instanceof Error ? error.message : "Could not import prompt text files." })
+      patch({ status: error instanceof Error ? error.message : t("status.promptFilesImportFailed", "Could not import prompt text files.") })
     }
   }
 
   async function importWorkflowFile() {
     const localFiles = host.localFiles
     if (!localFiles?.pickFiles) {
-      patch({ status: "This host cannot select local workflow files." })
+      patch({ status: t("status.workflowFilesUnsupported", "This host cannot select local workflow files.") })
       return
     }
     try {
-      const paths = await localFiles.pickFiles({ title: "Import ComfyUI workflow", filters: [{ displayName: "ComfyUI workflow", pattern: "*.json" }] })
+      const paths = await localFiles.pickFiles({ title: t("filePicker.workflowTitle", "Import ComfyUI workflow"), filters: [{ displayName: t("filePicker.workflow", "ComfyUI workflow"), pattern: "*.json" }] })
       const path = paths[0]
       if (!path) return
       const response = await fetch(localFiles.getUrl(path), { cache: "no-store" })
-      if (!response.ok) throw new Error(`Could not read ${path}: HTTP ${response.status}`)
+      if (!response.ok) throw new Error(t("status.readFileError", "Could not read {{path}}: HTTP {{status}}", { path, status: response.status }))
       await execute("import", await response.text())
     } catch (error) {
-      patch({ status: error instanceof Error ? error.message : "Could not import the ComfyUI workflow." })
+      patch({ status: error instanceof Error ? error.message : t("status.workflowImportFailed", "Could not import the ComfyUI workflow.") })
     }
   }
 
   function confirmTemplateBindings() {
     const template = stateRef.current.template
     if (!template || template.bindingManifest.confirmed) return
-    patch({ template: confirmComfygureTemplateBindings(template), status: "Template bindings confirmed. The fixed controls now compile into this template." })
+    patch({ template: confirmComfygureTemplateBindings(template), status: t("status.templateConfirmed", "Template bindings confirmed. The fixed controls now compile into this template.") })
   }
 
   async function loadProfile(profileId: string) {
@@ -151,19 +157,19 @@ export function Component({ compId, host }: NodeComponentProps) {
     await execute("loadProfile", undefined, profileId)
   }
 
-  async function execute(action: "compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "canvas" | "preflight" | "submit" | "refresh", workflowSource?: string, selectedProfileId?: string) {
+  async function execute(action: "compile" | "import" | "profiles" | "saveProfile" | "loadProfile" | "canvas" | "options" | "preflight" | "submit" | "refresh", workflowSource?: string, selectedProfileId?: string) {
     const run = host.runner?.run ?? host.actions?.run
     if (!run || running) {
-      if (!run) patch({ status: "The Xiranite backend runner is unavailable." })
+      if (!run) patch({ status: t("status.runnerUnavailable", "The Xiranite backend runner is unavailable.") })
       return
     }
     const promptIds = action === "refresh" ? storedPromptIds(stateRef.current) : []
     if (action === "refresh" && promptIds.length === 0) {
-      patch({ status: "Run a ComfyUI prompt before refreshing results." })
+      patch({ status: t("status.refreshRequiresPrompt", "Run a ComfyUI prompt before refreshing results.") })
       return
     }
     setRunning(action)
-    patch({ status: action === "import" ? "Normalizing the ComfyUI workflow." : action === "profiles" ? "Reading local generation profiles." : action === "saveProfile" ? "Saving the generation profile." : action === "loadProfile" ? "Loading the generation profile." : action === "compile" ? "Compiling a fixed prompt graph." : action === "canvas" ? "Exporting an inspectable ComfyUI canvas." : action === "preflight" ? "Inspecting the local ComfyUI target." : action === "refresh" ? "Refreshing ComfyUI results." : "Submitting a fixed prompt graph.", progress: 0 })
+    patch({ status: action === "import" ? t("status.running.import", "Normalizing the ComfyUI workflow.") : action === "profiles" ? t("status.running.profiles", "Reading local generation profiles.") : action === "saveProfile" ? t("status.running.saveProfile", "Saving the generation profile.") : action === "loadProfile" ? t("status.running.loadProfile", "Loading the generation profile.") : action === "compile" ? t("status.running.compile", "Compiling a fixed prompt graph.") : action === "canvas" ? t("status.running.canvas", "Exporting an inspectable ComfyUI canvas.") : action === "options" ? t("status.running.options", "Reading sampler options from the local ComfyUI target.") : action === "preflight" ? t("status.running.preflight", "Inspecting the local ComfyUI target.") : action === "refresh" ? t("status.running.refresh", "Refreshing ComfyUI results.") : t("status.running.submit", "Submitting a fixed prompt graph."), progress: 0 })
     try {
       const result = await run<ComfygureInput, ComfygureData>("comfygure", {
         action,
@@ -186,11 +192,13 @@ export function Component({ compId, host }: NodeComponentProps) {
             activeLoraNames: data.compiled.activeLoras.map((lora) => lora.name),
             positivePrompt: data.compiled.positivePrompt,
             negativePrompt: data.compiled.negativePrompt,
+            filenamePrefix: data.compiled.filenamePrefix,
           },
           status: result.message,
           progress: result.success ? 100 : stateRef.current.progress,
         }
         if (data.preflight) next.preflight = data.preflight
+        if (data.controlOptions) next.controlOptions = data.controlOptions
         if (data.submission) next.submission = data.submission
         if (data.submissions) {
           next.submissions = data.submissions
@@ -208,8 +216,7 @@ export function Component({ compId, host }: NodeComponentProps) {
             prompts: current.prompts,
             batch: current.batch,
           })
-          next.program = { ...profiled, batch: { ...profiled.batch, prompts: [] } }
-          next.batchText = compressComfygureText(profiled.batch.prompts.join("\n"))
+          Object.assign(next, storedProgramPatch(profiled))
           updateTarget("lastProfileId", data.profile.id)
         }
         if (data.workflowImport) {
@@ -219,19 +226,19 @@ export function Component({ compId, host }: NodeComponentProps) {
             const current = programFromStored(stateRef.current)
             if (current.loras.length === 0 && data.workflowImport.template.defaultLoras.length) {
               const importedProgram = normalizeComfygureProgram({ ...current, loras: data.workflowImport.template.defaultLoras })
-              next.program = { ...importedProgram, batch: { ...importedProgram.batch, prompts: [] } }
-              next.batchText = compressComfygureText(importedProgram.batch.prompts.join("\n"))
+              Object.assign(next, storedProgramPatch(importedProgram))
             }
           }
         }
         patch(next)
-      } else patch({ status: result?.message ?? "The backend did not return a compiler result." })
+      } else patch({ status: result?.message ?? t("status.noCompilerResult", "The backend did not return a compiler result.") })
     } finally {
       setRunning(null)
     }
   }
 
   const preflight = stored.preflight
+  const controlOptions = stored.controlOptions
   const preview = stored.preview
   const promptIds = storedPromptIds(stored)
   const template = stored.template
@@ -240,49 +247,51 @@ export function Component({ compId, host }: NodeComponentProps) {
   const wideWorkbench = surface.mode === "workspace" || surface.mode === "expanded"
   return <div ref={surface.ref} className="@container/comfygure flex h-full min-h-0 w-full flex-col overflow-hidden p-3" data-testid="comfygure-workbench">
     <header className="flex min-w-0 items-center justify-between gap-2 border-b pb-2">
-      <div className="flex min-w-0 items-center gap-2"><Sparkles className="size-4 shrink-0" /><div className="min-w-0"><h2 className="truncate text-sm font-semibold">Comfygure</h2><p className="truncate text-xs text-muted-foreground">{stored.status ?? "Fixed ComfyUI compiler"}</p></div></div>
-      <div className="flex shrink-0 items-center gap-1"><Badge variant={preflight?.online ? "secondary" : "outline"}>{preflight?.online ? "Target online" : "Local target"}</Badge>{running ? <RefreshCw className="size-4 animate-spin motion-reduce:animate-none" /> : null}</div>
+      <div className="flex min-w-0 items-center gap-2"><Sparkles className="size-4 shrink-0" /><div className="min-w-0"><h2 className="truncate text-sm font-semibold">{t("title", "Comfygure")}</h2><p className="truncate text-xs text-muted-foreground">{stored.status ?? t("status.fixedCompiler", "Fixed ComfyUI compiler")}</p></div></div>
+      <div className="flex shrink-0 items-center gap-1"><Badge variant={preflight?.online ? "secondary" : "outline"}>{preflight?.online ? t("targetOnline", "Target online") : t("localTarget", "Local target")}</Badge>{running ? <RefreshCw className="size-4 animate-spin motion-reduce:animate-none" /> : null}</div>
     </header>
-    {isCollapsed ? <p className="mt-2 truncate text-xs text-muted-foreground">{preview ? `${preview.graphNodeCount} fixed nodes` : "Expand to edit and preflight."}</p> : <div className="min-h-0 flex-1 pt-3" data-testid="comfygure-swimlane-workbench"><ResizablePanelGroup orientation={wideWorkbench ? "horizontal" : "vertical"} className="h-full min-h-0">
+    {isCollapsed ? <p className="mt-2 truncate text-xs text-muted-foreground">{preview ? t("collapsed.fixedNodes", "{{count}} fixed nodes", { count: preview.graphNodeCount }) : t("collapsed.expandHint", "Expand to edit and preflight.")}</p> : <div className="min-h-0 flex-1 pt-3" data-testid="comfygure-swimlane-workbench"><ResizablePanelGroup orientation={wideWorkbench ? "horizontal" : "vertical"} className="h-full min-h-0">
       <ResizablePanel id="comfygure-project" defaultSize={wideWorkbench ? "42%" : "45%"} minSize={wideWorkbench ? "30%" : "32%"} maxSize={wideWorkbench ? "56%" : "60%"}>
         <section className="flex h-full min-h-0 flex-col overflow-y-auto pr-2" aria-labelledby="comfygure-project-heading" data-testid="comfygure-project-lane">
-          <LaneHeading icon={<Sparkles className="size-4" />} id="comfygure-project-heading" title="Project compiler" description="Prompts, batch jobs, LoRAs, models, and sampler settings." />
+          <LaneHeading icon={<Sparkles className="size-4" />} id="comfygure-project-heading" title={t("lanes.project.title", "Project compiler")} description={t("lanes.project.description", "Prompts, batch jobs, LoRAs, models, and sampler settings.")} />
           <div className="min-w-0 space-y-3 pt-3">
-        <div className="grid gap-2 @xl/comfygure:grid-cols-2"><Field label="Program"><Input value={program.name} onChange={(event) => updateProgram({ name: event.currentTarget.value })} /></Field><Field label="Output prefix"><Input value={program.output.filenamePrefix} onChange={(event) => updateProgram({ output: { ...program.output, filenamePrefix: event.currentTarget.value } })} /></Field></div>
-        <Field label="Positive prompt"><Textarea className="min-h-24" value={program.prompts.positive} onChange={(event) => updateProgram({ prompts: { ...program.prompts, positive: event.currentTarget.value } })} /></Field>
-        <div className="grid gap-2 @xl/comfygure:grid-cols-2"><Field label="Positive prefix"><Textarea className="min-h-18" value={program.prompts.positivePrefix} onChange={(event) => updateProgram({ prompts: { ...program.prompts, positivePrefix: event.currentTarget.value } })} /></Field><Field label="Negative prompt"><Textarea className="min-h-18" value={program.prompts.negative} onChange={(event) => updateProgram({ prompts: { ...program.prompts, negative: event.currentTarget.value } })} /></Field></div>
-        <div className="min-w-0 space-y-1"><div className="flex items-center justify-between gap-2"><span className="text-xs font-medium">Batch positive prompts</span><Button size="sm" variant="ghost" disabled={running !== null || !host.localFiles?.pickFiles} onClick={() => void importBatchTextFiles()}><FileUp />Import text</Button></div><Textarea aria-label="Batch positive prompts" className="min-h-24" placeholder="One fixed generation job per non-empty line" value={program.batch.prompts.join("\n")} onChange={(event) => updateProgram({ batch: { ...program.batch, prompts: batchPrompts(event.currentTarget.value) } })} /></div>
-        <div className="grid gap-2 @xl/comfygure:grid-cols-2"><NumberField label="Batch jobs (0 = all)" value={program.batch.queueCount} onValueChange={(queueCount) => updateProgram({ batch: { ...program.batch, queueCount } })} /><NumberField label="Batch selection seed" value={program.batch.selectionSeed} onValueChange={(selectionSeed) => updateProgram({ batch: { ...program.batch, selectionSeed } })} /><CheckField label="Shuffle batch jobs" checked={program.batch.shuffle} onCheckedChange={(shuffle) => updateProgram({ batch: { ...program.batch, shuffle } })} /><CheckField label="Allow repeated batch prompts" checked={program.batch.allowDuplicates} onCheckedChange={(allowDuplicates) => updateProgram({ batch: { ...program.batch, allowDuplicates } })} /></div>
-        <Field label="LoRA rows"><Textarea className="min-h-24 font-mono text-xs" value={formatLoraRows(program.loras)} placeholder="folder/style.safetensors | 1 | 1 | activation terms | injected terms" onChange={(event) => updateProgram({ loras: parseLoraRows(event.currentTarget.value) })} /></Field>
-        <div className="grid gap-2 grid-cols-2 @2xl/comfygure:grid-cols-4"><NumberField label="Width" value={program.parameters.width} onValueChange={(width) => updateProgram({ parameters: { ...program.parameters, width } })} /><NumberField label="Height" value={program.parameters.height} onValueChange={(height) => updateProgram({ parameters: { ...program.parameters, height } })} /><NumberField label="Seed" value={program.parameters.seed} onValueChange={(seed) => updateProgram({ parameters: { ...program.parameters, seed } })} /><NumberField label="Batch" value={program.parameters.batchSize} onValueChange={(batchSize) => updateProgram({ parameters: { ...program.parameters, batchSize } })} /><NumberField label="Steps" value={program.parameters.steps} onValueChange={(steps) => updateProgram({ parameters: { ...program.parameters, steps } })} /><NumberField label="CFG" value={program.parameters.cfg} step="0.1" onValueChange={(cfg) => updateProgram({ parameters: { ...program.parameters, cfg } })} /><NumberField label="Denoise" value={program.parameters.denoise} step="0.01" onValueChange={(denoise) => updateProgram({ parameters: { ...program.parameters, denoise } })} /></div>
-        <div className="grid gap-2 @xl/comfygure:grid-cols-3"><Field label="Sampler"><Input value={program.parameters.samplerName} onChange={(event) => updateProgram({ parameters: { ...program.parameters, samplerName: event.currentTarget.value } })} /></Field><Field label="Scheduler"><Input value={program.parameters.scheduler} onChange={(event) => updateProgram({ parameters: { ...program.parameters, scheduler: event.currentTarget.value } })} /></Field><Field label="Seed policy"><Select value={program.parameters.seedMode} onValueChange={(seedMode) => updateProgram({ parameters: { ...program.parameters, seedMode: seedMode === "fixed" ? "fixed" : "increment" } })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="increment">Increment per job</SelectItem><SelectItem value="fixed">Fixed</SelectItem></SelectContent></Select></Field></div>
-          <div className="space-y-2 border-t pt-3"><Field label="UNet"><Input value={program.model.unetName} onChange={(event) => updateProgram({ model: { ...program.model, unetName: event.currentTarget.value } })} /></Field><Field label="CLIP"><Input value={program.model.clipName} onChange={(event) => updateProgram({ model: { ...program.model, clipName: event.currentTarget.value } })} /></Field><Field label="VAE"><Input value={program.model.vaeName} onChange={(event) => updateProgram({ model: { ...program.model, vaeName: event.currentTarget.value } })} /></Field></div>
+        <div className="grid gap-2 @xl/comfygure:grid-cols-2"><Field label={t("fields.program", "Program")}><Input value={program.name} onChange={(event) => updateProgram({ name: event.currentTarget.value })} /></Field><Field label={t("fields.outputPrefix", "Output prefix")}><Input value={program.output.filenamePrefix} onChange={(event) => updateProgram({ output: { ...program.output, filenamePrefix: event.currentTarget.value } })} /></Field></div>
+        <Field label={t("fields.positivePrompt", "Positive prompt")}><Textarea className="min-h-24" value={program.prompts.positive} onChange={(event) => updateProgram({ prompts: { ...program.prompts, positive: event.currentTarget.value } })} /></Field>
+        <div className="grid gap-2 @xl/comfygure:grid-cols-2"><Field label={t("fields.positivePrefix", "Positive prefix")}><Textarea className="min-h-18" value={program.prompts.positivePrefix} onChange={(event) => updateProgram({ prompts: { ...program.prompts, positivePrefix: event.currentTarget.value } })} /></Field><Field label={t("fields.negativePrompt", "Negative prompt")}><Textarea className="min-h-18" value={program.prompts.negative} onChange={(event) => updateProgram({ prompts: { ...program.prompts, negative: event.currentTarget.value } })} /></Field></div>
+        <div className="grid gap-2 @xl/comfygure:grid-cols-2"><TemplateComposer label={t("fields.positiveTemplate", "Positive template")} t={t} scope="positive" value={program.templates.positive} onValueChange={(positive) => updateProgram({ templates: { ...program.templates, positive } })} /><TemplateComposer label={t("fields.negativeTemplate", "Negative template")} t={t} scope="negative" value={program.templates.negative} onValueChange={(negative) => updateProgram({ templates: { ...program.templates, negative } })} /></div>
+        <TemplateComposer label={t("fields.filenameTemplate", "Filename template")} t={t} scope="filenamePrefix" value={program.templates.filenamePrefix} onValueChange={(filenamePrefix) => updateProgram({ templates: { ...program.templates, filenamePrefix } })} />
+        <div className="min-w-0 space-y-1"><div className="flex items-center justify-between gap-2"><span className="text-xs font-medium">{t("fields.batchPrompts", "Batch positive prompts")}</span><Button size="sm" variant="ghost" disabled={running !== null || !host.localFiles?.pickFiles} onClick={() => void importBatchTextFiles()}><FileUp />{t("actions.importText", "Import text")}</Button></div><Textarea aria-label={t("fields.batchPrompts", "Batch positive prompts")} className="min-h-24" placeholder={t("fields.batchPlaceholder", "One fixed generation job per non-empty line")} value={program.batch.prompts.join("\n")} onChange={(event) => { const prompts = batchPrompts(event.currentTarget.value); updateProgram({ batch: { ...program.batch, prompts, entries: prompts.map((text) => ({ text })) } }) }} /></div>
+        <div className="grid gap-2 @xl/comfygure:grid-cols-2"><NumberField label={t("fields.batchJobs", "Batch jobs (0 = all)")} value={program.batch.queueCount} onValueChange={(queueCount) => updateProgram({ batch: { ...program.batch, queueCount } })} /><NumberField label={t("fields.batchSelectionSeed", "Batch selection seed")} value={program.batch.selectionSeed} onValueChange={(selectionSeed) => updateProgram({ batch: { ...program.batch, selectionSeed } })} /><CheckField label={t("fields.shuffleBatch", "Shuffle batch jobs")} checked={program.batch.shuffle} onCheckedChange={(shuffle) => updateProgram({ batch: { ...program.batch, shuffle } })} /><CheckField label={t("fields.allowDuplicates", "Allow repeated batch prompts")} checked={program.batch.allowDuplicates} onCheckedChange={(allowDuplicates) => updateProgram({ batch: { ...program.batch, allowDuplicates } })} /></div>
+        <Field label={t("fields.loraRows", "LoRA rows")}><Textarea className="min-h-24 font-mono text-xs" value={formatLoraRows(program.loras)} placeholder={t("fields.loraPlaceholder", "folder/style.safetensors | 1 | 1 | activation terms | injected terms")} onChange={(event) => updateProgram({ loras: parseLoraRows(event.currentTarget.value) })} /></Field>
+        <div className="grid gap-2 grid-cols-2 @2xl/comfygure:grid-cols-4"><NumberField label={t("fields.width", "Width")} value={program.parameters.width} onValueChange={(width) => updateProgram({ parameters: { ...program.parameters, width } })} /><NumberField label={t("fields.height", "Height")} value={program.parameters.height} onValueChange={(height) => updateProgram({ parameters: { ...program.parameters, height } })} /><NumberField label={t("fields.seed", "Seed")} value={program.parameters.seed} onValueChange={(seed) => updateProgram({ parameters: { ...program.parameters, seed } })} /><NumberField label={t("fields.batch", "Batch")} value={program.parameters.batchSize} onValueChange={(batchSize) => updateProgram({ parameters: { ...program.parameters, batchSize } })} /><NumberField label={t("fields.steps", "Steps")} value={program.parameters.steps} onValueChange={(steps) => updateProgram({ parameters: { ...program.parameters, steps } })} /><NumberField label={t("fields.cfg", "CFG")} value={program.parameters.cfg} step="0.1" onValueChange={(cfg) => updateProgram({ parameters: { ...program.parameters, cfg } })} /><NumberField label={t("fields.denoise", "Denoise")} value={program.parameters.denoise} step="0.01" onValueChange={(denoise) => updateProgram({ parameters: { ...program.parameters, denoise } })} /></div>
+        <div className="flex min-w-0 items-end gap-2"><div className="grid min-w-0 flex-1 gap-2 @xl/comfygure:grid-cols-3"><OptionField label={t("fields.sampler", "Sampler")} value={program.parameters.samplerName} options={controlOptions?.samplerNames ?? []} onValueChange={(samplerName) => updateProgram({ parameters: { ...program.parameters, samplerName } })} /><OptionField label={t("fields.scheduler", "Scheduler")} value={program.parameters.scheduler} options={controlOptions?.schedulers ?? []} onValueChange={(scheduler) => updateProgram({ parameters: { ...program.parameters, scheduler } })} /><Field label={t("fields.seedPolicy", "Seed policy")}><Select value={program.parameters.seedMode} onValueChange={(seedMode) => updateProgram({ parameters: { ...program.parameters, seedMode: seedMode === "fixed" ? "fixed" : "increment" } })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="increment">{t("values.increment", "Increment per job")}</SelectItem><SelectItem value="fixed">{t("values.fixed", "Fixed")}</SelectItem></SelectContent></Select></Field></div><Button className="shrink-0" size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("options")}><RefreshCw />{t("actions.loadOptions", "Load options")}</Button></div>
+          <div className="space-y-2 border-t pt-3"><Field label={t("fields.unet", "UNet")}><Input value={program.model.unetName} onChange={(event) => updateProgram({ model: { ...program.model, unetName: event.currentTarget.value } })} /></Field><Field label={t("fields.clip", "CLIP")}><Input value={program.model.clipName} onChange={(event) => updateProgram({ model: { ...program.model, clipName: event.currentTarget.value } })} /></Field><Field label={t("fields.vae", "VAE")}><Input value={program.model.vaeName} onChange={(event) => updateProgram({ model: { ...program.model, vaeName: event.currentTarget.value } })} /></Field></div>
           </div>
         </section>
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel id="comfygure-inspection" defaultSize={wideWorkbench ? "28%" : "28%"} minSize={wideWorkbench ? "21%" : "22%"} maxSize={wideWorkbench ? "38%" : "36%"}>
         <section className="flex h-full min-h-0 flex-col overflow-y-auto px-2" aria-labelledby="comfygure-inspection-heading" data-testid="comfygure-inspection-lane">
-          <LaneHeading icon={<FileCode2 className="size-4" />} id="comfygure-inspection-heading" title="Inspection" description="Template bindings, fixed graph preview, and canvas export." />
+          <LaneHeading icon={<FileCode2 className="size-4" />} id="comfygure-inspection-heading" title={t("lanes.inspection.title", "Inspection")} description={t("lanes.inspection.description", "Template bindings, fixed graph preview, and canvas export.")} />
           <div className="min-w-0 space-y-3 pt-3">
-            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !host.localFiles?.pickFiles} onClick={() => void importWorkflowFile()}><FileUp />Import workflow</Button>{template ? <Button size="sm" variant={templateReady ? "outline" : "default"} disabled={running !== null || templateReady} onClick={confirmTemplateBindings}><CheckCircle2 />Confirm bindings</Button> : null}</div>
-            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("compile")}><FileCode2 />Compile</Button><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("canvas")}><Download />Export canvas</Button></div>
-            <CompilerSummary preview={preview} preflight={preflight} submission={stored.submission} submissions={stored.submissions} history={stored.history} template={template} templateDiagnostics={stored.templateDiagnostics} />
+            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !host.localFiles?.pickFiles} onClick={() => void importWorkflowFile()}><FileUp />{t("actions.importWorkflow", "Import workflow")}</Button>{template ? <Button size="sm" variant={templateReady ? "outline" : "default"} disabled={running !== null || templateReady} onClick={confirmTemplateBindings}><CheckCircle2 />{t("actions.confirmBindings", "Confirm bindings")}</Button> : null}</div>
+            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("compile")}><FileCode2 />{t("actions.compile", "Compile")}</Button><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("canvas")}><Download />{t("actions.exportCanvas", "Export canvas")}</Button></div>
+            <CompilerSummary t={t} preview={preview} preflight={preflight} submission={stored.submission} submissions={stored.submissions} history={stored.history} template={template} templateDiagnostics={stored.templateDiagnostics} />
           </div>
         </section>
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel id="comfygure-execution" defaultSize={wideWorkbench ? "30%" : "27%"} minSize={wideWorkbench ? "23%" : "22%"} maxSize={wideWorkbench ? "42%" : "38%"}>
         <section className="flex h-full min-h-0 flex-col overflow-y-auto pl-2" aria-labelledby="comfygure-execution-heading" data-testid="comfygure-execution-lane">
-          <LaneHeading icon={<Network className="size-4" />} id="comfygure-execution-heading" title="Execution" description="Local target, generation profiles, preflight, and result refresh." />
+          <LaneHeading icon={<Network className="size-4" />} id="comfygure-execution-heading" title={t("lanes.execution.title", "Execution")} description={t("lanes.execution.description", "Local target, generation profiles, preflight, and result refresh.")} />
           <div className="min-w-0 space-y-3 pt-3">
-        <Field label="Endpoint"><Input value={target.endpoint ?? DEFAULT_COMFYUI_ENDPOINT} disabled={running !== null} onChange={(event) => updateTarget("endpoint", event.currentTarget.value)} /></Field>
-        <Field label="ComfyUI Library"><Input value={target.libraryPath ?? ""} disabled={running !== null} placeholder="D:/1Repo/Github/ComfyUI/Library" onChange={(event) => updateTarget("libraryPath", event.currentTarget.value)} /></Field>
-        <Field label="Profile library"><Input value={target.profileLibraryPath ?? ""} disabled={running !== null} placeholder="Default Xiranite data directory" onChange={(event) => updateTarget("profileLibraryPath", event.currentTarget.value)} /></Field>
-        <Button className="w-full" size="sm" variant="outline" disabled={running !== null || !targetDirty} onClick={() => void saveTarget()}><Save />Save target</Button>
-        <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("profiles")}><RefreshCw />Profiles</Button><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("saveProfile")}><Save />Save profile</Button></div>
-        {(stored.profiles?.length || stored.profile) ? <Field label="Generation profile"><Select value={stored.profile?.id ?? "__current"} disabled={running !== null} onValueChange={(value) => { if (value !== "__current") void loadProfile(value) }}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__current">Current project snapshot</SelectItem>{stored.profiles?.map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.name} · r{profile.revision}</SelectItem>)}</SelectContent></Select></Field> : null}
-            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("preflight")}><Activity />Preflight</Button><Button size="sm" variant="outline" disabled={running !== null || promptIds.length === 0} onClick={() => void execute("refresh")}><RefreshCw />Refresh results</Button><Button className="col-span-2" size="sm" disabled={running !== null || !templateReady} onClick={() => void execute("submit")}><Play />Run</Button></div>
+        <Field label={t("fields.endpoint", "Endpoint")}><Input value={target.endpoint ?? DEFAULT_COMFYUI_ENDPOINT} disabled={running !== null} onChange={(event) => updateTarget("endpoint", event.currentTarget.value)} /></Field>
+        <Field label={t("fields.library", "ComfyUI Library")}><Input value={target.libraryPath ?? ""} disabled={running !== null} placeholder={t("fields.libraryPlaceholder", "D:/1Repo/Github/ComfyUI/Library")} onChange={(event) => updateTarget("libraryPath", event.currentTarget.value)} /></Field>
+        <Field label={t("fields.profileLibrary", "Profile library")}><Input value={target.profileLibraryPath ?? ""} disabled={running !== null} placeholder={t("fields.profileLibraryPlaceholder", "Default Xiranite data directory")} onChange={(event) => updateTarget("profileLibraryPath", event.currentTarget.value)} /></Field>
+        <Button className="w-full" size="sm" variant="outline" disabled={running !== null || !targetDirty} onClick={() => void saveTarget()}><Save />{t("actions.saveTarget", "Save target")}</Button>
+        <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("profiles")}><RefreshCw />{t("actions.profiles", "Profiles")}</Button><Button size="sm" variant="outline" disabled={running !== null} onClick={() => void execute("saveProfile")}><Save />{t("actions.saveProfile", "Save profile")}</Button></div>
+        {(stored.profiles?.length || stored.profile) ? <Field label={t("fields.generationProfile", "Generation profile")}><Select value={stored.profile?.id ?? "__current"} disabled={running !== null} onValueChange={(value) => { if (value !== "__current") void loadProfile(value) }}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__current">{t("values.currentSnapshot", "Current project snapshot")}</SelectItem>{stored.profiles?.map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.name} · r{profile.revision}</SelectItem>)}</SelectContent></Select></Field> : null}
+            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="outline" disabled={running !== null || !templateReady} onClick={() => void execute("preflight")}><Activity />{t("actions.preflight", "Preflight")}</Button><Button size="sm" variant="outline" disabled={running !== null || promptIds.length === 0} onClick={() => void execute("refresh")}><RefreshCw />{t("actions.refreshResults", "Refresh results")}</Button><Button className="col-span-2" size="sm" disabled={running !== null || !templateReady} onClick={() => void execute("submit")}><Play />{t("actions.run", "Run")}</Button></div>
           </div>
         </section>
       </ResizablePanel>
@@ -309,6 +318,12 @@ function Field(props: { label: string; children: ReactNode }) {
   return <label className="block min-w-0 space-y-1"><span className="block text-xs font-medium">{props.label}</span>{props.children}</label>
 }
 
+function OptionField(props: { label: string; value: string; options: readonly string[]; onValueChange: (value: string) => void }) {
+  if (props.options.length === 0) return <Field label={props.label}><Input value={props.value} onChange={(event) => props.onValueChange(event.currentTarget.value)} /></Field>
+  const options = props.options.includes(props.value) ? props.options : [props.value, ...props.options]
+  return <Field label={props.label}><Select value={props.value} onValueChange={props.onValueChange}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select></Field>
+}
+
 function NumberField(props: { label: string; value: number; step?: string; onValueChange: (value: number) => void }) {
   return <Field label={props.label}><Input type="number" min={0} step={props.step ?? "1"} value={props.value} onChange={(event) => props.onValueChange(Number(event.currentTarget.value))} /></Field>
 }
@@ -317,25 +332,59 @@ function CheckField(props: { label: string; checked: boolean; onCheckedChange: (
   return <label className="flex min-h-9 items-center gap-2 border px-2 text-xs font-medium"><Checkbox checked={props.checked} onCheckedChange={(checked) => props.onCheckedChange(checked === true)} /><span>{props.label}</span></label>
 }
 
-function CompilerSummary({ preview, preflight, submission, submissions, history, template, templateDiagnostics }: Pick<ComfygureCardState, "preview" | "preflight" | "submission" | "submissions" | "history" | "template" | "templateDiagnostics">) {
-  if (!preview && !preflight && !submission && !history?.length && !template) return <div className="border-t pt-3 text-xs text-muted-foreground">Compile a fixed graph or inspect the local target. Preflight never submits a prompt.</div>
+function CompilerSummary({ t, preview, preflight, submission, submissions, history, template, templateDiagnostics }: Pick<ComfygureCardState, "preview" | "preflight" | "submission" | "submissions" | "history" | "template" | "templateDiagnostics"> & { t: ReturnType<typeof useNodeI18n>["t"] }) {
+  if (!preview && !preflight && !submission && !history?.length && !template) return <div className="border-t pt-3 text-xs text-muted-foreground">{t("summary.empty", "Compile a fixed graph or inspect the local target. Preflight never submits a prompt.")}</div>
   const healthy = Boolean(preflight?.online && preflight.missingClasses.length === 0 && preflight.missingResources.length === 0)
   const complete = history?.filter((item) => item.state === "complete").length ?? 0
   const failed = history?.filter((item) => item.state === "error").length ?? 0
   const images = history?.flatMap((item) => item.images) ?? []
   const templateErrors = templateDiagnostics?.filter((diagnostic) => diagnostic.severity === "error") ?? []
-  if (template) return <div className={cn("space-y-1 border-t pt-3 text-xs", templateErrors.length ? "text-destructive" : "text-muted-foreground")}><div className="flex items-center gap-1 font-medium">{templateErrors.length ? <CircleAlert className="size-3" /> : <CheckCircle2 className="size-3 text-chart-2" />}<span>{templateErrors.length ? "Template needs attention" : template.bindingManifest.confirmed ? "Template bindings confirmed" : "Template bindings need confirmation"}</span></div><p>{template.name}: {Object.keys(template.graph).length} imported nodes</p><p>{template.bindingManifest.bindings.length} inferred bindings</p>{templateErrors.slice(0, 4).map((diagnostic) => <p key={`${diagnostic.code}-${diagnostic.nodeId ?? ""}-${diagnostic.inputName ?? ""}`}>{diagnostic.nodeId ? `${diagnostic.nodeId}: ` : ""}{diagnostic.message}</p>)}</div>
-  return <div className="space-y-2 border-t pt-3 text-xs"><div className="flex items-center gap-1 font-medium">{failed ? <CircleAlert className="size-3 text-destructive" /> : preflight ? healthy ? <CheckCircle2 className="size-3 text-chart-2" /> : <CircleAlert className="size-3 text-destructive" /> : <Settings2 className="size-3" />}<span>{history?.length ? failed ? "ComfyUI results need attention" : "ComfyUI results refreshed" : submission ? "Submitted to ComfyUI" : preflight ? healthy ? "Ready to run" : "Preflight needs attention" : "Compiler preview"}</span></div>{preview ? <><p>{preview.graphNodeCount} fixed ComfyUI nodes{preview.generationJobCount > 1 ? ` per job · ${preview.generationJobCount} jobs` : ""}</p><p className="break-words text-muted-foreground">{preview.activeLoraNames.length ? `LoRAs: ${preview.activeLoraNames.join(", ")}` : "No active LoRAs"}</p></> : null}{submission ? <p className="break-all text-muted-foreground">{submissions && submissions.length > 1 ? `Prompt IDs (${submissions.length}): ${submissions.map((item) => item.promptId).join(", ")}` : `Prompt ID: ${submission.promptId}`}</p> : null}{history?.length ? <div className={cn("space-y-2", failed ? "text-destructive" : "text-muted-foreground")}><p>{complete} of {history.length} complete · {images.length} image(s)</p>{history.filter((item) => item.error).map((item) => <p key={item.promptId}>{item.promptId}: {item.error}</p>)}{images.length ? <div className="grid grid-cols-3 gap-1">{images.map((image, index) => <a key={`${image.url}-${index}`} href={image.url} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden border"><img src={image.url} alt={`ComfyUI result ${index + 1}`} className="size-full object-cover" loading="lazy" /></a>)}</div> : null}</div> : null}{preflight ? <div className={cn("space-y-1", healthy ? "text-muted-foreground" : "text-destructive")}><p>{preflight.online ? `${preflight.availableClassCount} classes reported` : `Unavailable: ${preflight.endpoint}`}</p>{preflight.missingClasses.length ? <p>Missing nodes: {preflight.missingClasses.join(", ")}</p> : null}{preflight.missingResources.length ? <p>Missing resources: {preflight.missingResources.map((item) => item.resourceName).join(", ")}</p> : null}{preflight.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}</div>
+  if (template) return <div className={cn("space-y-1 border-t pt-3 text-xs", templateErrors.length ? "text-destructive" : "text-muted-foreground")}><div className="flex items-center gap-1 font-medium">{templateErrors.length ? <CircleAlert className="size-3" /> : <CheckCircle2 className="size-3 text-chart-2" />}<span>{templateErrors.length ? t("summary.templateAttention", "Template needs attention") : template.bindingManifest.confirmed ? t("summary.templateConfirmed", "Template bindings confirmed") : t("summary.templateNeedsConfirmation", "Template bindings need confirmation")}</span></div><p>{t("summary.importedNodes", "{{name}}: {{count}} imported nodes", { name: template.name, count: Object.keys(template.graph).length })}</p><p>{t("summary.inferredBindings", "{{count}} inferred bindings", { count: template.bindingManifest.bindings.length })}</p>{templateErrors.slice(0, 4).map((diagnostic) => <p key={`${diagnostic.code}-${diagnostic.nodeId ?? ""}-${diagnostic.inputName ?? ""}`}>{diagnostic.nodeId ? `${diagnostic.nodeId}: ` : ""}{diagnostic.message}</p>)}</div>
+  return <div className="space-y-2 border-t pt-3 text-xs"><div className="flex items-center gap-1 font-medium">{failed ? <CircleAlert className="size-3 text-destructive" /> : preflight ? healthy ? <CheckCircle2 className="size-3 text-chart-2" /> : <CircleAlert className="size-3 text-destructive" /> : <Settings2 className="size-3" />}<span>{history?.length ? failed ? t("summary.resultsAttention", "ComfyUI results need attention") : t("summary.resultsRefreshed", "ComfyUI results refreshed") : submission ? t("summary.submitted", "Submitted to ComfyUI") : preflight ? healthy ? t("summary.ready", "Ready to run") : t("summary.preflightAttention", "Preflight needs attention") : t("summary.compilerPreview", "Compiler preview")}</span></div>{preview ? <><p>{t("summary.fixedNodes", "{{count}} fixed ComfyUI nodes", { count: preview.graphNodeCount })}{preview.generationJobCount > 1 ? t("summary.jobs", " per job · {{count}} jobs", { count: preview.generationJobCount }) : ""}</p><p className="break-words text-muted-foreground">{preview.activeLoraNames.length ? t("summary.loras", "LoRAs: {{names}}", { names: preview.activeLoraNames.join(", ") }) : t("summary.noLoras", "No active LoRAs")}</p><p className="break-all text-muted-foreground">{t("summary.filenamePrefix", "Output: {{prefix}}", { prefix: preview.filenamePrefix })}</p></> : null}{submission ? <p className="break-all text-muted-foreground">{submissions && submissions.length > 1 ? t("summary.promptIds", "Prompt IDs ({{count}}): {{ids}}", { count: submissions.length, ids: submissions.map((item) => item.promptId).join(", ") }) : t("summary.promptId", "Prompt ID: {{id}}", { id: submission.promptId })}</p> : null}{history?.length ? <div className={cn("space-y-2", failed ? "text-destructive" : "text-muted-foreground")}><p>{t("summary.completed", "{{complete}} of {{total}} complete · {{images}} image(s)", { complete, total: history.length, images: images.length })}</p>{history.filter((item) => item.error).map((item) => <p key={item.promptId}>{item.promptId}: {item.error}</p>)}{images.length ? <div className="grid grid-cols-3 gap-1">{images.map((image, index) => <a key={`${image.url}-${index}`} href={image.url} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden border"><img src={image.url} alt={t("summary.resultAlt", "ComfyUI result {{index}}", { index: index + 1 })} className="size-full object-cover" loading="lazy" /></a>)}</div> : null}</div> : null}{preflight ? <div className={cn("space-y-1", healthy ? "text-muted-foreground" : "text-destructive")}><p>{preflight.online ? t("summary.classesReported", "{{count}} classes reported", { count: preflight.availableClassCount }) : t("summary.unavailable", "Unavailable: {{endpoint}}", { endpoint: preflight.endpoint })}</p>{preflight.missingClasses.length ? <p>{t("summary.missingNodes", "Missing nodes: {{nodes}}", { nodes: preflight.missingClasses.join(", ") })}</p> : null}{preflight.missingResources.length ? <p>{t("summary.missingResources", "Missing resources: {{resources}}", { resources: preflight.missingResources.map((item) => item.resourceName).join(", ") })}</p> : null}{preflight.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}</div>
 }
 
 function batchPrompts(value: string): string[] {
   return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
 }
 
+function storedProgramPatch(program: ComfygureProgram): Pick<ComfygureCardState, "program" | "batchText" | "batchEntryMetadata"> {
+  const entries = program.batch.entries.length ? program.batch.entries : program.batch.prompts.map((text) => ({ text }))
+  const metadata = entries.map(({ sourceName, sourcePath }) => ({ ...(sourceName ? { sourceName } : {}), ...(sourcePath ? { sourcePath } : {}) }))
+  const hasMetadata = metadata.some((entry) => entry.sourceName || entry.sourcePath)
+  return {
+    program: { ...program, batch: { ...program.batch, prompts: [], entries: [] } },
+    batchText: compressComfygureText(entries.map((entry) => entry.text).join("\n")),
+    batchEntryMetadata: hasMetadata ? compressComfygureText(JSON.stringify(metadata)) : undefined,
+  }
+}
+
 function programFromStored(state: ComfygureCardState): ComfygureProgram {
   const stored = normalizeComfygureProgram(state.program ?? DEFAULT_COMFYGURE_PROGRAM)
-  const source = decompressComfygureText(state.batchText) || stored.batch.prompts.join("\n")
-  return normalizeComfygureProgram({ ...stored, batch: { ...stored.batch, prompts: batchPrompts(source) } })
+  const storedEntries = stored.batch.entries.length ? stored.batch.entries : stored.batch.prompts.map((text) => ({ text }))
+  const source = decompressComfygureText(state.batchText) || storedEntries.map((entry) => entry.text).join("\n")
+  const prompts = batchPrompts(source)
+  const metadata = batchEntryMetadata(state.batchEntryMetadata)
+  const entries: ComfygureBatchEntry[] = prompts.map((text, index) => ({ text, ...(metadata[index] ?? storedEntries[index] ?? {}) }))
+  return normalizeComfygureProgram({ ...stored, batch: { ...stored.batch, prompts, entries } })
+}
+
+function batchEntryMetadata(value: ComfygureCardState["batchEntryMetadata"]): Array<Pick<ComfygureBatchEntry, "sourceName" | "sourcePath">> {
+  const source = decompressComfygureText(value)
+  if (!source) return []
+  try {
+    const parsed = JSON.parse(source)
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((entry) => ({
+      ...(entry && typeof entry.sourceName === "string" && entry.sourceName.trim() ? { sourceName: entry.sourceName.trim() } : {}),
+      ...(entry && typeof entry.sourcePath === "string" && entry.sourcePath.trim() ? { sourcePath: entry.sourcePath.trim() } : {}),
+    }))
+  } catch {
+    return []
+  }
+}
+
+function localFileName(path: string): string {
+  return path.replace(/\\/g, "/").split("/").filter(Boolean).at(-1) ?? path
 }
 
 function storedPromptIds(state: ComfygureCardState): readonly string[] {
