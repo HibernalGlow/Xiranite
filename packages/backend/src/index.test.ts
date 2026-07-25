@@ -141,10 +141,12 @@ describe("backend", () => {
     }
 
     expect(response.status).toBe(200)
-    expect(body).toEqual({
-      result: { success: true, message: "done", data: { value: 42 } },
-      events: [{ type: "log", message: "running example" }],
-    })
+    expect(body.result).toEqual({ success: true, message: "done", data: { value: 42 } })
+    expect(body.events).toEqual([
+      { type: "progress", progress: 0, message: "Backend accepted example; loading the node runtime." },
+      { type: "log", message: expect.stringMatching(/^Memory guard: RSS growth 8192\.0 MiB, heap growth 4096\.0 MiB, retained events 1000;/) },
+      { type: "log", message: "running example" },
+    ])
   })
 
   test("streams node operation events and final results", async () => {
@@ -187,8 +189,40 @@ describe("backend", () => {
     const result = messages.find((message): message is { type: "result"; result: { success: boolean; message: string; data?: unknown } } => message.type === "result")
 
     expect(stream.status).toBe(200)
-    expect(eventMessages).toEqual(["started example", "finished example"])
+    expect(eventMessages).toEqual([
+      "Backend accepted example; loading the node runtime.",
+      expect.stringMatching(/^Memory guard: RSS growth 8192\.0 MiB, heap growth 4096\.0 MiB, retained events 1000;/),
+      "started example",
+      "finished example",
+    ])
     expect(result?.result).toEqual({ success: true, message: "streamed", data: { value: 7 } })
+  })
+
+  test("bounds replay buffering for a slow node-operation stream consumer", async () => {
+    const app = await createDefaultBackendApp({
+      now: 100,
+      repository: createMemoryWorkspaceRepository(),
+      nodeMemoryProtection: { defaultPolicy: { maxRetainedEvents: 6_000 } },
+      nodeRunner: {
+        async runNode(_nodeId, _input, onEvent) {
+          for (let index = 0; index < 5_000; index += 1) onEvent?.({ type: "log", message: `event-${index}` })
+          return { success: true, message: "bounded" }
+        },
+      },
+    })
+
+    const start = await app.handle(new Request("http://localhost/nodes/example/operations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ input: {} }),
+    }))
+    const started = await start.json() as { operation: { operationId: string } }
+    const stream = await app.handle(new Request(`http://localhost/node-operations/${started.operation.operationId}/stream`))
+    const messages = parseNdjson(await stream.text())
+
+    expect(messages.length).toBeLessThanOrEqual(257)
+    expect(messages.some((message) => message.type === "event" && message.event?.message === "event-4999")).toBe(true)
+    expect(messages.find((message) => message.type === "result")?.result).toEqual({ success: true, message: "bounded" })
   })
 
   test("supports operation event pagination, cancellation, and cleanup routes", async () => {
@@ -218,7 +252,7 @@ describe("backend", () => {
     const started = await start.json() as { operation: { operationId: string } }
     await sleep(5)
 
-    const events = await app.handle(new Request(`http://localhost/node-operations/${started.operation.operationId}/events?from=1&limit=1`))
+    const events = await app.handle(new Request(`http://localhost/node-operations/${started.operation.operationId}/events?from=3&limit=1`))
     const eventPage = await events.json() as {
       events: Array<{ index: number; event: { message: string } }>
       next?: number
@@ -240,8 +274,8 @@ describe("backend", () => {
 
     expect(events.status).toBe(200)
     expect(eventPage).toMatchObject({
-      events: [{ index: 1, event: { message: "waiting example" } }],
-      total: 2,
+      events: [{ index: 3, event: { message: "waiting example" } }],
+      total: 4,
     })
     expect(eventPage.next).toBeUndefined()
     expect(cancel.status).toBe(200)

@@ -24,7 +24,7 @@ use image_hasher::{FilterType, HashAlg};
 use thiserror::Error;
 use vid_dup_finder_lib::Cropdetect;
 
-pub const API_VERSION: u32 = 4;
+pub const API_VERSION: u32 = 5;
 
 #[derive(Debug, Clone)]
 pub struct ScanProgress {

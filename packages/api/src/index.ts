@@ -78,6 +78,7 @@ export function createXiraniteApp(services: XiraniteServices) {
       const events: NodeRunEventDTO[] = []
       const result = await services.nodes.runNode(params.id, body.input, (event) => {
         events.push(event)
+        if (events.length > 1_000) events.splice(0, events.length - 1_000)
       }, body.context)
       return { result, events }
     }, {
