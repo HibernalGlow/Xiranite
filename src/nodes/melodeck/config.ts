@@ -65,6 +65,8 @@ const LEGACY_STORAGE_KEYS = {
   visualizerStyle: "xiranite.musicDock.visualizerStyle",
 } as const
 
+const AUDIO_FILE_PATH_PATTERN = /\.(?:flac|mp3|wav|ogg|oga|m4a|aac|opus|webm)$/i
+
 let migrationInFlight: Promise<MelodeckConfig> | null = null
 
 export function loadMelodeckConfig(): Promise<MelodeckConfig> {
@@ -92,7 +94,7 @@ async function loadAndMigrateMelodeckConfig(): Promise<MelodeckConfig> {
   const appUi = isRecord(rawAppUi) ? rawAppUi : undefined
   const legacy = readLegacyConfig(appUi?.musicDock)
   const migrated = mergeMissingLegacyConfig(node, legacy)
-  const changed = JSON.stringify(migrated) !== JSON.stringify(node)
+  const changed = JSON.stringify(migrated) !== JSON.stringify(rawNode ?? {})
 
   if (changed) await saveNodeConfigToBackend("melodeck", migrated)
 
@@ -114,7 +116,12 @@ function mergeMissingLegacyConfig(node: MelodeckConfig, legacy: LegacyMusicDockC
     config_version: 1,
     player_engine: node.player_engine ?? "folia",
     playback: { ...node.playback, volume },
-    library: { ...node.library, roots: node.library?.roots?.length ? node.library.roots : sourcePath ? [sourcePath] : [] },
+    library: {
+      ...node.library,
+      roots: node.library?.roots?.length
+        ? node.library.roots
+        : sourcePath && !isAudioFilePath(sourcePath) ? [sourcePath] : [],
+    },
     surfaces: { ...node.surfaces, mode: node.surfaces?.mode ?? node.mode ?? legacy.mode },
     source_path: sourcePath,
     saved_tracks: node.saved_tracks ?? legacy.savedTracks,
@@ -161,7 +168,15 @@ function normalizePlayback(value: unknown): MelodeckConfig["playback"] {
 
 function normalizeLibrary(value: unknown): MelodeckConfig["library"] {
   if (!isRecord(value)) return undefined
-  return { roots: Array.isArray(value.roots) ? value.roots.filter((root): root is string => typeof root === "string" && Boolean(root.trim())) : undefined }
+  return {
+    roots: Array.isArray(value.roots)
+      ? value.roots.filter((root): root is string => typeof root === "string" && Boolean(root.trim()) && !isAudioFilePath(root))
+      : undefined,
+  }
+}
+
+function isAudioFilePath(path: string): boolean {
+  return AUDIO_FILE_PATH_PATTERN.test(path.trim())
 }
 
 function normalizeSurfaces(value: unknown): MelodeckConfig["surfaces"] {

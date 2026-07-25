@@ -2,17 +2,28 @@ import type { FoliaPlayerHostAdapter, FoliaResolvedTrack, FoliaTrack } from "@hi
 import { parseLyricsByFormat, type LyricData, type LyricParseFormat } from "@hibernalglow/folia-player/parser"
 import { parseWebStream, type IAudioMetadata } from "music-metadata"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
-import { pickLocalPaths, resolveLocalAudioTracks } from "@/backend/localFilesClient"
+import { listLocalFiles, pickLocalPaths, resolveLocalAudioTracks, type LocalFileEntry } from "@/backend/localFilesClient"
 
 const LYRIC_FORMATS = ["lrc", "vtt", "ttml", "yrc", "qrc", "krc"] as const
+const OPTIONAL_FILE_EXTENSIONS = [...LYRIC_FORMATS.map((format) => `.${format}`), ".jpg", ".jpeg", ".png"]
+const optionalFilesByDirectory = new Map<string, Map<string, LocalFileEntry>>()
+const optionalFilesInFlight = new Map<string, Promise<Map<string, LocalFileEntry>>>()
 
 export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
   async scanLibraryRoots(roots, signal) {
-    const groups = await Promise.all(roots.map(async (root) => {
-      if (signal.aborted) return []
+    optionalFilesByDirectory.clear()
+    optionalFilesInFlight.clear()
+    const results = await Promise.allSettled(roots.map(async (root) => {
+      if (signal.aborted) throw new DOMException("Aborted", "AbortError")
       return resolveLocalAudioTracks(root)
     }))
     if (signal.aborted) throw new DOMException("Aborted", "AbortError")
+
+    const groups = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : [])
+    if (!groups.length) {
+      const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected")
+      if (failure) throw failure.reason
+    }
 
     const seen = new Set<string>()
     return groups.flatMap((tracks) => tracks.flatMap<FoliaTrack>((track) => {
@@ -42,12 +53,6 @@ export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
       return selected || null
     }
     return (await pickLocalPaths("directory"))[0] ?? null
-  },
-
-  async hydrateTrackPreview(track, signal) {
-    if (!track.path) return {}
-    const metadata = await readMetadata(track, signal)
-    return resolveMetadata(track.path, metadata, signal)
   },
 
   async hydrateTrack(track, signal) {
@@ -93,14 +98,15 @@ async function resolveMetadata(
 }
 
 async function readLyrics(path: string, signal: AbortSignal): Promise<LyricData | null> {
-  const base = path.replace(/\.[^./\\]+$/, "")
+  const { directory, stem } = splitLocalTrackPath(path)
+  const files = await listOptionalFiles(directory, signal)
   for (const format of LYRIC_FORMATS) {
-    const response = await fetch(localBackendFileUrl(`${base}.${format}`), { cache: "no-store", signal })
-    if (!response.ok) continue
+    const lyricPath = findOptionalFile(files, `${stem}.${format}`)
+    if (!lyricPath) continue
     const [content, translation, romanization] = await Promise.all([
-      response.text(),
-      readFirstText([`${base}.translation.${format}`, `${base}.trans.${format}`], signal),
-      readFirstText([`${base}.romanization.${format}`, `${base}.roma.${format}`], signal),
+      readText(lyricPath, signal),
+      readFirstText(files, [`${stem}.translation.${format}`, `${stem}.trans.${format}`], signal),
+      readFirstText(files, [`${stem}.romanization.${format}`, `${stem}.roma.${format}`], signal),
     ])
     const parsed = parseLyricsByFormat(format as LyricParseFormat, content, translation ?? "", {}, romanization ?? "")
     if (parsed.lines.length) return parsed
@@ -108,22 +114,67 @@ async function readLyrics(path: string, signal: AbortSignal): Promise<LyricData 
   return null
 }
 
-async function readFirstText(paths: string[], signal: AbortSignal): Promise<string | null> {
-  for (const path of paths) {
-    const response = await fetch(localBackendFileUrl(path), { cache: "no-store", signal })
-    if (response.ok) return response.text()
+async function readFirstText(
+  files: Map<string, LocalFileEntry>,
+  names: string[],
+  signal: AbortSignal,
+): Promise<string | null> {
+  for (const name of names) {
+    const path = findOptionalFile(files, name)
+    if (path) return readText(path, signal)
   }
   return null
 }
 
 async function readFolderCover(trackPath: string, signal: AbortSignal): Promise<Blob | null> {
-  const separator = Math.max(trackPath.lastIndexOf("/"), trackPath.lastIndexOf("\\"))
-  const folder = separator >= 0 ? trackPath.slice(0, separator + 1) : ""
+  const { directory } = splitLocalTrackPath(trackPath)
+  const files = await listOptionalFiles(directory, signal)
   for (const name of ["cover.jpg", "cover.png", "folder.jpg", "folder.png"]) {
-    const response = await fetch(localBackendFileUrl(`${folder}${name}`), { cache: "no-store", signal })
+    const path = findOptionalFile(files, name)
+    if (!path) continue
+    const response = await fetch(localBackendFileUrl(path), { cache: "no-store", signal })
     if (response.ok) return response.blob()
   }
   return null
+}
+
+async function listOptionalFiles(directory: string, signal: AbortSignal): Promise<Map<string, LocalFileEntry>> {
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError")
+  const cached = optionalFilesByDirectory.get(directory)
+  if (cached) return cached
+
+  let pending = optionalFilesInFlight.get(directory)
+  if (!pending) {
+    pending = listLocalFiles(directory, { extensions: OPTIONAL_FILE_EXTENSIONS, limit: 2000 }).then((entries) => {
+      const files = new Map(entries.filter((entry) => !entry.isDirectory).map((entry) => [entry.name.toLocaleLowerCase(), entry]))
+      optionalFilesByDirectory.set(directory, files)
+      return files
+    }).finally(() => {
+      optionalFilesInFlight.delete(directory)
+    })
+    optionalFilesInFlight.set(directory, pending)
+  }
+
+  const files = await pending
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError")
+  return files
+}
+
+function findOptionalFile(files: Map<string, LocalFileEntry>, name: string): string | undefined {
+  return files.get(name.toLocaleLowerCase())?.path
+}
+
+async function readText(path: string, signal: AbortSignal): Promise<string> {
+  const response = await fetch(localBackendFileUrl(path), { cache: "no-store", signal })
+  if (!response.ok) throw new Error(`Unable to read local text file: ${response.status}`)
+  return response.text()
+}
+
+function splitLocalTrackPath(trackPath: string): { directory: string; stem: string } {
+  const separator = Math.max(trackPath.lastIndexOf("/"), trackPath.lastIndexOf("\\"))
+  const directory = separator >= 0 ? trackPath.slice(0, separator) : "."
+  const filename = separator >= 0 ? trackPath.slice(separator + 1) : trackPath
+  return { directory, stem: filename.replace(/\.[^.]+$/, "") }
 }
 
 function embeddedLyrics(metadata: IAudioMetadata | null): LyricData | null {
