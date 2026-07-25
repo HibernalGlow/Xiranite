@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea"
 import type { ArcThumbCardState } from "./types"
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use no memo"
+
   const state = host.getData<ArcThumbCardState>() ?? {}
   const [busy, setBusy] = useState(false)
   const patch = (next: Partial<ArcThumbCardState>) => host.patchData(compId, next)

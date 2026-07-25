@@ -42,6 +42,8 @@ const ComfygureTargetEditorContext = createContext<ComfygureTargetEditorContextV
 const COMFYGURE_TARGET_PRESENTATION = { current: ComfygureTargetCurrentView }
 
 export function Component({ compId, host }: NodeComponentProps) {
+  "use no memo"
+
   const { t } = useNodeI18n("comfygure")
   const surface = useNodeSurface()
   const stored = host.getData<ComfygureCardState>(compId) ?? {}
