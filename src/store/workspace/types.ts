@@ -128,6 +128,8 @@ export interface WSState {
   floatingWindowCaptionPosition: "left" | "island" | "right"
   /** 普通节点桌面独立窗口的控制组样式。 */
   floatingWindowCaptionStyle: "windows" | "capsule" | "traffic-light"
+  /** 胶囊窗口控制是否在空闲时自动收起。 */
+  floatingWindowCaptionAutoCollapse: boolean
   /** 字母索引可见性。 */
   alphabetIndexVisible: boolean
   /** 字母索引不透明度。 */
@@ -222,6 +224,7 @@ export interface WorkspaceUiActions {
   setChromeActionPreferences(order: ChromeActionPreferenceKey[], hiddenActions: ChromeActionPreferenceKey[]): void
   setFloatingWindowCaptionPosition(position: WSState["floatingWindowCaptionPosition"]): void
   setFloatingWindowCaptionStyle(style: WSState["floatingWindowCaptionStyle"]): void
+  setFloatingWindowCaptionAutoCollapse(autoCollapse: boolean): void
   setAlphabetIndexVisible(visible: boolean): void
   setAlphabetIndexOpacity(opacity: number): void
   setAlphabetIndexStyle(style: WSState["alphabetIndexStyle"]): void
@@ -264,6 +267,7 @@ export interface WorkspaceComponentActions {
   moveComponent(id: string, x: number, y: number): void
   setComponentFlowPos(id: string, x: number, y: number): void
   setComponentFlowSize(id: string, width: number, height: number): void
+  setComponentWindowSize(id: string, size: { width: number; height: number }): void
   setComponentBentoLayout(id: string, layout: { x: number; y: number; w: number; h: number }): void
   setComponentLaneSize(id: string, size: { height: number }): void
   setComponentData(id: string, data: Record<string, unknown>): void
@@ -361,6 +365,7 @@ export type WorkspaceUiPreferences = Pick<
   | "chromeHiddenActions"
   | "floatingWindowCaptionPosition"
   | "floatingWindowCaptionStyle"
+  | "floatingWindowCaptionAutoCollapse"
   | "alphabetIndexVisible"
   | "alphabetIndexOpacity"
   | "alphabetIndexStyle"

@@ -9,14 +9,19 @@ export function NodeChromePill({ className, ...props }: ComponentProps<"div">) {
   return <div className={cn(NODE_CHROME_PILL_CLASS_NAME, className)} {...props} />
 }
 
-export function NodeChromeExpandablePill({ children, className, ...props }: ComponentProps<"div">) {
+export function NodeChromeExpandablePill({
+  autoCollapse = true,
+  children,
+  className,
+  ...props
+}: ComponentProps<"div"> & { autoCollapse?: boolean }) {
   return (
     <div
       {...props}
-      data-window-caption-visibility="expand-on-hover"
+      data-window-caption-visibility={autoCollapse ? "expand-on-hover" : "always-expanded"}
       className={cn("relative h-6 overflow-hidden", className)}
     >
-      <NodeChromeIdleIndicator />
+      {autoCollapse ? <NodeChromeIdleIndicator /> : null}
       <NodeChromePill
         data-node-chrome-expanded-surface
         className="h-6 w-full rounded-full px-0.5 py-px"

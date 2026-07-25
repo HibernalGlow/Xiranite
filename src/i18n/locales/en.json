@@ -449,7 +449,9 @@
       "styleCapsule": "Capsule",
       "styleCapsuleDesc": "A unified toolbar-like capsule with compact window actions.",
       "styleTrafficLight": "Traffic Light",
-      "styleTrafficLightDesc": "Colored window dots with icons revealed on hover."
+      "styleTrafficLightDesc": "Colored window dots with icons revealed on hover.",
+      "autoCollapse": "Auto-collapse capsule",
+      "autoCollapseDesc": "Collapse to a locator mark when idle; turn off to keep all window actions visible."
     },
     "alphabetIndex": {
       "title": "Alphabet Index",

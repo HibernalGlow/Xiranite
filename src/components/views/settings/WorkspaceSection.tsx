@@ -64,6 +64,7 @@ export function WorkspaceSection() {
     chromeIslandIdleOffset: workspace.chromeIslandIdleOffset,
     chromeActionOrder: workspace.chromeActionOrder,
     chromeHiddenActions: workspace.chromeHiddenActions,
+    floatingWindowCaptionAutoCollapse: workspace.floatingWindowCaptionAutoCollapse,
     floatingWindowCaptionPosition: workspace.floatingWindowCaptionPosition,
     floatingWindowCaptionStyle: workspace.floatingWindowCaptionStyle,
     alphabetIndexVisible: workspace.alphabetIndexVisible,
@@ -513,7 +514,7 @@ export function WorkspaceSection() {
                           <span className="grid h-6 w-7 place-items-center hover:bg-destructive hover:text-white"><X className="size-2.5" /></span>
                         </span>
                       ) : key === "capsule" ? (
-                        <NodeChromeExpandablePill>
+                        <NodeChromeExpandablePill autoCollapse={state.floatingWindowCaptionAutoCollapse}>
                           <NodeChromeActionPreview className="size-5 rounded-full"><Minus /></NodeChromeActionPreview>
                           <NodeChromeActionPreview className="size-5 rounded-full"><Square /></NodeChromeActionPreview>
                           <NodeChromeActionPreview className="size-5 rounded-full" danger><X /></NodeChromeActionPreview>
@@ -535,6 +536,21 @@ export function WorkspaceSection() {
               })}
             </div>
           </div>
+
+          {state.floatingWindowCaptionStyle === "capsule" ? (
+            <div className="flex items-center gap-3 rounded-sm border border-border/40 bg-muted/15 px-3 py-2">
+              <ToggleLeft className="size-3.5 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground">{t("settings:floatingWindowCaption.autoCollapse")}</p>
+                <p className="text-xs text-muted-foreground">{t("settings:floatingWindowCaption.autoCollapseDesc")}</p>
+              </div>
+              <Switch
+                checked={state.floatingWindowCaptionAutoCollapse}
+                onCheckedChange={workspaceActions.setFloatingWindowCaptionAutoCollapse}
+                aria-label={t("settings:floatingWindowCaption.autoCollapse")}
+              />
+            </div>
+          ) : null}
         </div>
       </SettingsStepCard>
 

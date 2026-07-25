@@ -22,9 +22,10 @@ interface Props {
 export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: Props) {
   const { t } = useTranslation()
   const comp = useWorkspaceComponent(compId)
-  const { activeCustomThemeName, activeWorkspaceId, floatingWindowCaptionPosition, floatingWindowCaptionStyle, theme, zCounter } = useWorkspaceShallowSelector((state) => ({
+  const { activeCustomThemeName, activeWorkspaceId, floatingWindowCaptionAutoCollapse, floatingWindowCaptionPosition, floatingWindowCaptionStyle, theme, zCounter } = useWorkspaceShallowSelector((state) => ({
     activeCustomThemeName: state.activeCustomThemeName,
     activeWorkspaceId: state.activeWorkspaceId,
+    floatingWindowCaptionAutoCollapse: state.floatingWindowCaptionAutoCollapse,
     floatingWindowCaptionPosition: state.floatingWindowCaptionPosition,
     floatingWindowCaptionStyle: state.floatingWindowCaptionStyle,
     theme: state.theme,
@@ -118,13 +119,14 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
     captionAppearance: moduleId === "neoview" ? undefined : {
       position: floatingWindowCaptionPosition,
       style: floatingWindowCaptionStyle,
+      autoCollapse: floatingWindowCaptionAutoCollapse,
     },
     isMaximized,
     pending: controlMainPending,
     control: (action: MainWindowAction) => void controlWindow(action === "maximize" ? maximizeAction : action),
     handleTitlebarDoubleClick: handleTitleBarDoubleClick,
     registerIntegratedTitlebar,
-  }), [controlMainPending, controlWindow, floatingWindowCaptionPosition, floatingWindowCaptionStyle, handleTitleBarDoubleClick, isMaximized, maximizeAction, moduleId, registerIntegratedTitlebar])
+  }), [controlMainPending, controlWindow, floatingWindowCaptionAutoCollapse, floatingWindowCaptionPosition, floatingWindowCaptionStyle, handleTitleBarDoubleClick, isMaximized, maximizeAction, moduleId, registerIntegratedTitlebar])
 
   const content = (
     <div

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import { FloatingComponentWindow } from "./FloatingComponentWindow"
 
 const mocks = vi.hoisted(() => ({
+  floatingWindowCaptionAutoCollapse: true,
   floatingWindowCaptionPosition: "right" as "left" | "right" | "island",
   floatingWindowCaptionStyle: "windows" as "windows" | "capsule" | "traffic-light",
   nativeWindowControls: false,
@@ -39,6 +40,7 @@ vi.mock("@/store/workspaceStore", () => ({
   useWorkspaceShallowSelector: (selector: (state: Record<string, unknown>) => unknown) => selector({
     activeCustomThemeName: null,
     activeWorkspaceId: "workspace-1",
+    floatingWindowCaptionAutoCollapse: mocks.floatingWindowCaptionAutoCollapse,
     floatingWindowCaptionPosition: mocks.floatingWindowCaptionPosition,
     floatingWindowCaptionStyle: mocks.floatingWindowCaptionStyle,
     theme: "spatial",
@@ -64,6 +66,7 @@ vi.mock("@/components/modules/ModuleRenderer", async () => {
 afterEach(() => {
   cleanup()
   mocks.nativeWindowControls = false
+  mocks.floatingWindowCaptionAutoCollapse = true
   mocks.floatingWindowCaptionPosition = "right"
   mocks.floatingWindowCaptionStyle = "windows"
 })
@@ -120,6 +123,19 @@ describe("FloatingComponentWindow", () => {
     expect([...controls.querySelectorAll("button")].every((button) => button.dataset.slot === "button" && button.dataset.variant === "ghost" && button.dataset.size === "icon-xs")).toBe(true)
     expect([...controls.querySelectorAll("button")].every((button) => button.hasAttribute("data-node-chrome-action"))).toBe(true)
     expect([...controls.querySelectorAll("button")].every((button) => button.className.includes("size-5") && button.className.includes("rounded-full"))).toBe(true)
+  })
+
+  test("keeps the capsule expanded when auto-collapse is disabled", async () => {
+    mocks.nativeWindowControls = true
+    mocks.floatingWindowCaptionStyle = "capsule"
+    mocks.floatingWindowCaptionAutoCollapse = false
+
+    render(<FloatingComponentWindow compId="component-1" />)
+
+    const controls = await screen.findByTestId("floating-window-integrated-controls")
+    expect(controls.dataset.windowCaptionVisibility).toBe("always-expanded")
+    expect(controls.querySelector("[data-node-chrome-idle-indicator]")).toBeNull()
+    expect(controls.querySelectorAll("[data-node-chrome-action]")).toHaveLength(3)
   })
 
   test("centers traffic-light controls and uses close-minimize-maximize order", async () => {

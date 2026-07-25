@@ -439,6 +439,7 @@ function selectWorkspaceUiPreferences(state: WorkspaceUiPreferences): WorkspaceU
     chromeHiddenActions: state.chromeHiddenActions,
     floatingWindowCaptionPosition: state.floatingWindowCaptionPosition,
     floatingWindowCaptionStyle: state.floatingWindowCaptionStyle,
+    floatingWindowCaptionAutoCollapse: state.floatingWindowCaptionAutoCollapse,
     alphabetIndexVisible: state.alphabetIndexVisible,
     alphabetIndexOpacity: state.alphabetIndexOpacity,
     alphabetIndexStyle: state.alphabetIndexStyle,
@@ -549,6 +550,7 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
   if (Array.isArray(value.chromeHiddenActions)) next.chromeHiddenActions = normalizeChromeHiddenActions(value.chromeHiddenActions)
   if (isOneOf(value.floatingWindowCaptionPosition, FLOATING_WINDOW_CAPTION_POSITIONS)) next.floatingWindowCaptionPosition = value.floatingWindowCaptionPosition
   if (isOneOf(value.floatingWindowCaptionStyle, FLOATING_WINDOW_CAPTION_STYLES)) next.floatingWindowCaptionStyle = value.floatingWindowCaptionStyle
+  if (typeof value.floatingWindowCaptionAutoCollapse === "boolean") next.floatingWindowCaptionAutoCollapse = value.floatingWindowCaptionAutoCollapse
   if (typeof value.alphabetIndexVisible === "boolean") next.alphabetIndexVisible = value.alphabetIndexVisible
   if (typeof value.alphabetIndexOpacity === "number") next.alphabetIndexOpacity = value.alphabetIndexOpacity
   if (isOneOf(value.alphabetIndexStyle, ALPHABET_INDEX_STYLES)) next.alphabetIndexStyle = value.alphabetIndexStyle

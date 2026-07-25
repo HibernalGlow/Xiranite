@@ -449,7 +449,9 @@
       "styleCapsule": "胶囊",
       "styleCapsuleDesc": "复用视图工具栏的整体胶囊容器与紧凑窗口按钮。",
       "styleTrafficLight": "红绿灯",
-      "styleTrafficLightDesc": "彩色窗口圆点，悬停时显示操作图标。"
+      "styleTrafficLightDesc": "彩色窗口圆点，悬停时显示操作图标。",
+      "autoCollapse": "自动收起胶囊",
+      "autoCollapseDesc": "空闲时收为定位短横；关闭后始终显示完整窗口按钮。"
     },
     "alphabetIndex": {
       "title": "字母索引",

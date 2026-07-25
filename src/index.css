@@ -222,6 +222,10 @@ samp {
   width: 4.25rem;
 }
 
+[data-window-caption-visibility="always-expanded"] {
+  width: 4.25rem;
+}
+
 [data-window-caption-visibility="expand-on-hover"] [data-node-chrome-action] {
   opacity: 0;
   pointer-events: none;

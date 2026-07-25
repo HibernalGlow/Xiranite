@@ -15,6 +15,7 @@ interface FloatingWindowFrameValue {
   captionAppearance?: {
     position: "left" | "right" | "island"
     style: "windows" | "capsule" | "traffic-light"
+    autoCollapse: boolean
   }
   isMaximized: boolean
   pending: boolean
@@ -90,6 +91,7 @@ export function FloatingWindowCaptionControls({
   appearance?: {
     position: "left" | "right" | "island"
     style: "windows" | "capsule" | "traffic-light"
+    autoCollapse: boolean
   }
   className?: string
   integrated?: boolean
@@ -152,6 +154,7 @@ export function FloatingWindowCaptionControls({
   if (capsule) {
     return (
       <NodeChromeExpandablePill
+        autoCollapse={resolvedAppearance.autoCollapse}
         data-testid={integrated ? "floating-window-integrated-controls" : "floating-window-fallback-controls"}
         data-window-caption-density={density}
         data-window-caption-position={resolvedAppearance.position}
