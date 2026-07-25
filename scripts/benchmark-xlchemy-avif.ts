@@ -7,11 +7,13 @@ import { createNodeXlchemyRuntime } from "../packages/nodes/xlchemy/src/platform
 
 interface CpuSnapshot { idle: number; total: number }
 interface CpuSample { percent: number; activeEncoders: number; weight: number }
+type AvifEncoder = "aom" | "slimg"
 
 const threads = numberArgument("--threads", Math.max(1, availableParallelism() - 1))
 const fileCount = numberArgument("--files", 32)
 const width = numberArgument("--width", 2560)
 const height = numberArgument("--height", 1440)
+const encoder = encoderArgument("--encoder", "aom")
 const parallelOnly = process.argv.includes("--parallel-only")
 const workspace = await mkdtemp(join(tmpdir(), "xiranite-xlchemy-avif-benchmark-"))
 const inputDirectory = join(workspace, "input")
@@ -21,6 +23,10 @@ try {
   await baseRuntime.ensureDir(inputDirectory)
   const magick = await baseRuntime.resolveCommand(["magick"])
   if (!magick) throw new Error("ImageMagick is required to generate benchmark inputs.")
+  if (encoder === "slimg") {
+    const status = await baseRuntime.probeSlimg?.()
+    if (!status?.runnable) throw new Error(status?.detail || "slimg CFFI is unavailable.")
+  }
 
   const firstInput = join(inputDirectory, "001.png")
   const generated = await baseRuntime.runCommand(magick, [
@@ -38,7 +44,7 @@ try {
   const baseline = parallelOnly ? undefined : await benchmark("sequential")
   const parallel = await benchmark("original")
   process.stdout.write(`${JSON.stringify({
-    parameters: { format: "AVIF", encoder: "aom", quality: 60, effort: 6, threads, fileCount, width, height },
+    parameters: { format: "AVIF", encoder, quality: 60, effort: 6, effortApplied: encoder === "aom", threads, fileCount, width, height },
     baseline,
     parallel,
     improvement: baseline ? {
@@ -54,28 +60,32 @@ try {
 
 async function benchmark(processingOrder: "sequential" | "original") {
   const benchmarkRuntime = createNodeXlchemyRuntime()
-  const outputDirectory = join(workspace, processingOrder)
+  const outputDirectory = join(workspace, `${encoder}-${processingOrder}`)
   await benchmarkRuntime.ensureDir(outputDirectory)
   let activeEncoders = 0
   let peakActiveEncoders = 0
   let encoderSeconds = 0
-  const commandDurations: number[] = []
+  const encoderDurations: number[] = []
   const schedulerLogs: string[] = []
+  const measureEncoder = async <T>(task: () => Promise<T>): Promise<T> => {
+    const started = performance.now()
+    activeEncoders += 1
+    peakActiveEncoders = Math.max(peakActiveEncoders, activeEncoders)
+    try {
+      return await task()
+    } finally {
+      const duration = performance.now() - started
+      encoderDurations.push(duration)
+      encoderSeconds += duration / 1_000
+      activeEncoders -= 1
+    }
+  }
   const runtime: XlchemyRuntime = {
     ...benchmarkRuntime,
-    runCommand: async (command, args, isCancelled) => {
-      const started = performance.now()
-      activeEncoders += 1
-      peakActiveEncoders = Math.max(peakActiveEncoders, activeEncoders)
-      try {
-        return await benchmarkRuntime.runCommand(command, args, isCancelled)
-      } finally {
-        const duration = performance.now() - started
-        commandDurations.push(duration)
-        encoderSeconds += duration / 1_000
-        activeEncoders -= 1
-      }
-    },
+    runCommand: async (command, args, isCancelled) => measureEncoder(() => benchmarkRuntime.runCommand(command, args, isCancelled)),
+    convertWithSlimg: benchmarkRuntime.convertWithSlimg
+      ? async (source, target, quality) => measureEncoder(() => benchmarkRuntime.convertWithSlimg!(source, target, quality))
+      : undefined,
   }
 
   const cpuSamples: CpuSample[] = []
@@ -95,7 +105,7 @@ async function benchmark(processingOrder: "sequential" | "original") {
       action: "convert",
       paths: [inputDirectory],
       format: "AVIF",
-      avifEncoder: "aom",
+      avifEncoder: encoder,
       quality: 60,
       effort: 6,
       threads,
@@ -122,10 +132,16 @@ async function benchmark(processingOrder: "sequential" | "original") {
 
   const expectedEncoders = processingOrder === "sequential" ? 1 : Math.min(threads, fileCount)
   const saturatedSamples = cpuSamples.filter((sample) => sample.activeEncoders >= expectedEncoders)
-  const commandDurationsSorted = [...commandDurations].sort((left, right) => left - right)
+  const encoderDurationsSorted = [...encoderDurations].sort((left, right) => left - right)
   return {
     elapsedSeconds: rounded(elapsedSeconds),
     throughputFilesPerSecond: rounded(fileCount / elapsedSeconds),
+    output: {
+      inputBytes: result.data?.inputBytes ?? 0,
+      outputBytes: result.data?.outputBytes ?? 0,
+      averageOutputBytes: Math.round((result.data?.outputBytes ?? 0) / fileCount),
+      sizeReductionPercent: rounded((1 - (result.data?.outputBytes ?? 0) / Math.max(result.data?.inputBytes ?? 0, 1)) * 100),
+    },
     cpu: {
       averagePercent: rounded(weightedAverage(cpuSamples)),
       p10Percent: rounded(weightedPercentile(cpuSamples, 0.1)),
@@ -146,9 +162,9 @@ async function benchmark(processingOrder: "sequential" | "original") {
       peakActive: peakActiveEncoders,
       averageActiveWhileRunning: rounded(encoderSeconds / elapsedSeconds),
       aggregateSeconds: rounded(encoderSeconds),
-      averageCommandSeconds: rounded(average(commandDurations) / 1_000),
-      p10CommandSeconds: rounded(percentile(commandDurationsSorted, 0.1) / 1_000),
-      p90CommandSeconds: rounded(percentile(commandDurationsSorted, 0.9) / 1_000),
+      averageInvocationSeconds: rounded(average(encoderDurations) / 1_000),
+      p10InvocationSeconds: rounded(percentile(encoderDurationsSorted, 0.1) / 1_000),
+      p90InvocationSeconds: rounded(percentile(encoderDurationsSorted, 0.9) / 1_000),
     },
     schedulerLogs,
   }
@@ -158,6 +174,13 @@ function numberArgument(name: string, fallback: number): number {
   const index = process.argv.indexOf(name)
   const value = index >= 0 ? Number(process.argv[index + 1]) : fallback
   if (!Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer.`)
+  return value
+}
+
+function encoderArgument(name: string, fallback: AvifEncoder): AvifEncoder {
+  const index = process.argv.indexOf(name)
+  const value = index >= 0 ? process.argv[index + 1] : fallback
+  if (value !== "aom" && value !== "slimg") throw new Error(`${name} must be aom or slimg.`)
   return value
 }
 
