@@ -82,10 +82,11 @@ export function ViewSection() {
               focusDelayMs: lanePreferences.focusDelayMs,
             }}
             labels={{
-              soloOnFocus: "主泳道聚焦时自动独占",
-              showNavigatorInSolo: "独占时显示泳道切换栏",
-              focusOnHover: "启用主泳道悬停重新聚焦",
-              focusDelay: "主泳道悬停重新聚焦延迟",
+              soloOnFocus: t("settings:view.swimlane.soloOnFocus"),
+              showNavigatorInSolo: t("settings:view.swimlane.showNavigatorInSolo"),
+              edgeRevealDelay: t("settings:view.swimlane.edgeRevealDelay"),
+              focusOnHover: t("settings:view.swimlane.focusOnHover"),
+              focusDelay: t("settings:view.swimlane.focusDelay"),
             }}
             onChange={(patch) => workspaceActions.patchLaneWorkspacePreferences(state.activeWorkspaceId, patch)}
           />

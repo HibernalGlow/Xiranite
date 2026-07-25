@@ -4,11 +4,13 @@ import { describe, expect, it, vi } from "vitest"
 import {
   filterSettingsMatches,
   parseSettingsSectionId,
+  SETTINGS_SEARCH_FIELDS,
   scrollToSettingsMatch,
   scrollToSettingsStage,
   scrollToSettingsStep,
 } from "./settingsNavigation"
 import { SETTINGS_STAGES } from "./types"
+import { WEBVIEW2_FLAG_CATALOG } from "@/config/webview2"
 
 const zhLabels: Record<string, string> = {
   "settings:sections.appearance": "外观",
@@ -71,6 +73,18 @@ describe("settingsNavigation", () => {
       for (const step of stage.steps) {
         const stepHits = filterSettingsMatches(step.id, t)
         expect(stepHits.some((m) => m.kind === "step" && m.stepId === step.id)).toBe(true)
+      }
+    }
+  })
+
+  it("[settings.search.fields] indexes settings fields and derives every WebView2 flag from its source catalog", () => {
+    const startup = filterSettingsMatches("restore reopen", t)
+    expect(startup.some((match) => match.kind === "field" && match.fieldId === "startup-restore")).toBe(true)
+
+    for (const group of [WEBVIEW2_FLAG_CATALOG.features, WEBVIEW2_FLAG_CATALOG.switches]) {
+      for (const flag of group) {
+        expect(SETTINGS_SEARCH_FIELDS.some((field) => field.id === `webview2-${flag.key}`)).toBe(true)
+        expect(filterSettingsMatches(flag.id, t).some((match) => match.kind === "field" && match.fieldId === `webview2-${flag.key}`)).toBe(true)
       }
     }
   })

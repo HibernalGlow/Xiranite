@@ -137,7 +137,8 @@
       "results": "搜索结果",
       "empty": "未找到匹配的设置项",
       "stage": "阶段",
-      "stepInStage": "位于「{{stage}}」"
+      "stepInStage": "位于「{{stage}}」",
+      "fieldInStep": "{{step}} · {{stage}}"
     },
     "sections": {
       "appearance": "外观",
@@ -146,6 +147,19 @@
       "runtime": "运行时",
       "data": "数据",
       "view": "视图"
+    },
+    "workspace": {
+      "startupRestore": "启动时恢复节点",
+      "startupRestoreDesc": "应用启动时恢复上次工作区中已保存的节点实例。"
+    },
+    "view": {
+      "swimlane": {
+        "soloOnFocus": "聚焦时独占泳道",
+        "showNavigatorInSolo": "独占模式显示泳道导航栏",
+        "edgeRevealDelay": "边缘泳道展开延迟",
+        "focusOnHover": "悬停时重新聚焦泳道",
+        "focusDelay": "悬停重新聚焦延迟"
+      }
     },
     "timeline": {
       "navLabel": "设置时间线",

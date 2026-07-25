@@ -33,6 +33,9 @@ export function SettingsSearch({
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t("settings:search.placeholder")}
           aria-label={t("settings:search.placeholder")}
+          role="combobox"
+          aria-expanded={query.trim().length > 0}
+          aria-controls="settings-search-results"
           className="h-8 bg-background/70 pl-8 pr-8 text-xs"
         />
         {query ? (
@@ -51,6 +54,7 @@ export function SettingsSearch({
 
       {query.trim() ? (
         <div
+          id="settings-search-results"
           role="listbox"
           aria-label={t("settings:search.results")}
           className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-border/70 bg-popover p-1 shadow-md"
@@ -59,7 +63,9 @@ export function SettingsSearch({
             <p className="px-2 py-2 text-[11px] text-muted-foreground">{t("settings:search.empty")}</p>
           ) : (
             matches.map((match) => {
-              const key = match.kind === "step" ? `step:${match.stepId}` : `stage:${match.sectionId}`
+              const key = match.kind === "field"
+                ? `field:${match.fieldId}`
+                : match.kind === "step" ? `step:${match.stepId}` : `stage:${match.sectionId}`
               return (
                 <button
                   key={key}
@@ -75,6 +81,8 @@ export function SettingsSearch({
                   <span className="truncate text-[10px] text-muted-foreground">
                     {match.kind === "step"
                       ? t("settings:search.stepInStage", { stage: match.stageLabel })
+                      : match.kind === "field"
+                        ? t("settings:search.fieldInStep", { step: match.stepLabel, stage: match.stageLabel })
                       : t("settings:search.stage")}
                   </span>
                 </button>

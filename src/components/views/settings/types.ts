@@ -13,6 +13,7 @@ export type SettingsSectionId = "appearance" | "workspace" | "view" | "runtime" 
 
 /** In-section step anchors — scroll targets within the active stage. */
 export type SettingsStepId =
+  | "startup-restore"
   | "theme"
   | "color"
   | "typography"
@@ -20,11 +21,13 @@ export type SettingsStepId =
   | "theme-import"
   | "background"
   | "chrome"
+  | "floating-window-caption"
   | "alphabet"
   | "swimlane"
   | "components"
   | "card-interaction"
   | "connection"
+  | "desktop-tray"
   | "webview2"
   | "storage"
 
