@@ -34,6 +34,7 @@ export interface EngineVCardState {
 }
 
 export interface EngineVUiConfig {
+  actionTrayPinned?: boolean
   galleryColumns?: number
   galleryCompact?: boolean
   galleryShowMeta?: boolean

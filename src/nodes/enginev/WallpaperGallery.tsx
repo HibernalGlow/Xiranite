@@ -114,7 +114,16 @@ function WallpaperTile(props: {
           )}
           <div className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-black/65 to-transparent" />
           <div className="absolute left-2 top-2 flex gap-1">
-            <Badge variant={props.selected ? "default" : "secondary"} className="gap-1">
+            <Badge
+              data-enginev-wallpaper-selection={props.item.workshopId}
+              variant={props.selected ? "default" : "outline"}
+              className={cn(
+                "gap-1 shadow-sm backdrop-blur-sm",
+                props.selected
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-white/30 bg-black/55 text-white",
+              )}
+            >
               {props.selected ? <Check className="size-3" /> : <MousePointer2 className="size-3" />}
               {props.item.workshopId}
             </Badge>
