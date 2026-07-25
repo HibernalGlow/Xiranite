@@ -345,6 +345,12 @@ test("keeps the original Folia app across node container sizes without recreatin
   await page.elementLocator(importFolder!).click()
   const queueProbe = document.querySelector<HTMLElement>("[data-folia-responsive-queue]")!
   await expect.poll(() => queueProbe.getAttribute("data-library-roots")).toBe("D:/Music")
+  await expect.poll(() => responsiveScanLibraryRoots).toHaveBeenCalledTimes(1)
+
+  await page.elementLocator(importFolder!).click()
+  await expect.poll(() => responsiveScanLibraryRoots).toHaveBeenCalledTimes(2)
+  expect(responsiveScanLibraryRoots).toHaveBeenLastCalledWith(["D:/Music"], expect.any(AbortSignal))
+  expect(queueProbe.getAttribute("data-track-order")).toBe("track-1,track-2")
 
   const sharedAudio = document.querySelector("audio.folia-player-audio")
   expect(sharedAudio).not.toBeNull()
@@ -721,9 +727,10 @@ const tracksWithoutCovers = tracks.map(({ coverUrl: _coverUrl, lyrics: _lyrics, 
 const onTracksChange = vi.fn()
 const libraryRoots: string[] = []
 const foliaHost = {}
+const responsiveScanLibraryRoots = vi.fn(async () => tracks)
 const responsiveFoliaHost: FoliaPlayerHostAdapter = {
   pickLibraryRoot: async () => "D:/Music",
-  scanLibraryRoots: async () => tracks,
+  scanLibraryRoots: responsiveScanLibraryRoots,
 }
 
 const theme = buildFoliaDualTheme(

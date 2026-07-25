@@ -70,6 +70,35 @@ describe("Melodeck config migration", () => {
     expect(window.localStorage.getItem("xiranite.musicDock.visualizerStyle")).toBeNull()
   })
 
+  it("removes legacy audio files from library roots and persists the repaired config", async () => {
+    backend.getNodeConfigFromBackend.mockResolvedValue({
+      config: {
+        config_version: 1,
+        source_path: "E:/Music/current.flac",
+        library: { roots: ["E:/Music/current.flac", "E:/Music", "E:/Music/Albums"] },
+      },
+      path: "config.toml",
+    })
+
+    const config = await loadMelodeckConfig()
+
+    expect(config.library?.roots).toEqual(["E:/Music", "E:/Music/Albums"])
+    expect(backend.saveNodeConfigToBackend).toHaveBeenCalledWith("melodeck", expect.objectContaining({
+      library: { roots: ["E:/Music", "E:/Music/Albums"] },
+    }))
+  })
+
+  it("does not migrate a legacy single-track source into library roots", async () => {
+    backend.getNodeConfigFromBackend.mockResolvedValue({
+      config: { source_path: "E:/Music/current.flac" },
+      path: "config.toml",
+    })
+
+    const config = await loadMelodeckConfig()
+
+    expect(config.library?.roots).toEqual([])
+  })
+
   it("broadcasts direct config saves so other Melodeck surfaces refresh", async () => {
     const listener = vi.fn()
     window.addEventListener(MELODECK_CONFIG_CHANGED_EVENT, listener)

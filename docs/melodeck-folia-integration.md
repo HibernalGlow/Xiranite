@@ -75,7 +75,8 @@ Melo deck 仍是 Xiranite 标准节点。Folia 提供新的 GUI 播放内核、�
 
 - 多个本地音乐根目录、扫描与元数据
 - 编译版目录导入复用 Xiranite Card host 与 XLchemy 相同的 Wails `Dialogs.OpenFile` 目录选择器；非 Wails 开发环境继续通过隔离 local backend 的 `/local-files/pick` fallback，不直接依赖 `showDirectoryPicker`
-- 曲库封面后台预取；非活动曲目只读取元数据与封面，活动曲目再完整加载歌词
+- 文件夹导入只执行一次递归音频文件扫描并一次性替换受控队列；封面、音频元数据和歌词仅在歌曲成为当前曲目时解析，不得在导入阶段逐首预加载
+- 当前曲目按需读取元数据、封面与歌词；非活动曲目保持扫描阶段得到的文件信息，不触发逐首网络读取
 - 队列、随机排序、循环、随机播放、音量、ReplayGain 和输出设备；队列面板的随机按钮执行一次性 Fisher-Yates 排序并通过受控 `onTracksChange` 写回 `saved_tracks`，底栏循环按钮按 `off → all → one → random → off` 切换并把 `random` 写入 `playback.loop_mode`；两者均不得重建当前 `<audio>`
 - 封面、歌词匹配、逐字歌词、翻译与和声
 - Folia 全部歌词 renderer、背景模式及其设置
