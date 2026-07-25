@@ -33,7 +33,6 @@ export async function* streamEfuRecords(
   signal?: AbortSignal,
 ): AsyncGenerator<EfuRecord> {
   const parser = parse(EFU_PARSE_OPTIONS)
-  const rows: unknown[][] = []
   let parseError: unknown
   let ended = false
   let wake: (() => void) | undefined
@@ -41,11 +40,7 @@ export async function* streamEfuRecords(
     wake?.()
     wake = undefined
   }
-  parser.on("readable", () => {
-    let row: unknown
-    while ((row = parser.read()) !== null) rows.push(row as unknown[])
-    notify()
-  })
+  parser.on("readable", notify)
   parser.on("error", (error) => {
     parseError = error
     notify()
@@ -54,12 +49,18 @@ export async function* streamEfuRecords(
     ended = true
     notify()
   })
-  const pump = pumpDecodedEfu(source, parser, signal)
+  const stop = new AbortController()
+  let pumpError: unknown
+  const pump = pumpDecodedEfu(source, parser, signal, stop.signal).catch((error) => {
+    pumpError = error
+    parser.end()
+    notify()
+  })
   let header: EfuHeader | undefined
   try {
     while (true) {
       signal?.throwIfAborted()
-      const row = rows.shift()
+      const row = parser.read() as unknown[] | null
       if (!row) {
         if (parseError) throw parseError
         if (ended) break
@@ -74,9 +75,11 @@ export async function* streamEfuRecords(
       if (record) yield record
     }
     await pump
+    if (pumpError) throw pumpError
     if (!header) throw new Error("EFU file is empty.")
   } finally {
-    await pump.catch(() => undefined)
+    stop.abort()
+    await pump
   }
 }
 
@@ -140,17 +143,36 @@ async function pumpDecodedEfu(
   source: AsyncIterable<Uint8Array>,
   parser: ReturnType<typeof parse>,
   signal?: AbortSignal,
+  stopSignal?: AbortSignal,
 ): Promise<void> {
   try {
     for await (const text of decodeEfuChunks(source, signal)) {
       signal?.throwIfAborted()
-      parser.write(text)
+      if (stopSignal?.aborted) return
+      if (!parser.write(text)) await waitForParserDrain(parser, stopSignal)
     }
-  } catch (error) {
-    throw error
   } finally {
     parser.end()
   }
+}
+
+async function waitForParserDrain(parser: ReturnType<typeof parse>, stopSignal?: AbortSignal): Promise<void> {
+  if (stopSignal?.aborted) return
+  await new Promise<void>((resolve, reject) => {
+    let settled = false
+    const cleanup = () => {
+      parser.removeListener("drain", resume)
+      parser.removeListener("end", resume)
+      parser.removeListener("error", fail)
+      stopSignal?.removeEventListener("abort", resume)
+    }
+    const resume = () => { if (settled) return; settled = true; cleanup(); resolve() }
+    const fail = (error: Error) => { if (settled) return; settled = true; cleanup(); reject(error) }
+    parser.once("drain", resume)
+    parser.once("end", resume)
+    parser.once("error", fail)
+    stopSignal?.addEventListener("abort", resume, { once: true })
+  })
 }
 
 async function* decodeEfuChunks(

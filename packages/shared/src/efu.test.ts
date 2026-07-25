@@ -28,6 +28,33 @@ describe("shared Everything EFU parser", () => {
     expect(records).toEqual([{ filename: "D:/images/a.png", size: "42" }])
   })
 
+  test("applies backpressure when the record consumer pauses", async () => {
+    const totalRows = 10_000
+    let chunksRead = 0
+    let sourceClosed = false
+    async function* chunks() {
+      try {
+        yield new TextEncoder().encode("Filename,Size\r\n")
+        for (let index = 0; index < totalRows; index += 1) {
+          chunksRead += 1
+          yield new TextEncoder().encode(`D:/images/${index}.png,1\r\n`)
+        }
+      } finally {
+        sourceClosed = true
+      }
+    }
+
+    const records = streamEfuRecords(chunks())
+    const first = await records.next()
+    expect(first.value).toEqual({ filename: "D:/images/0.png", size: "1" })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(chunksRead).toBeLessThan(1_000)
+    expect(sourceClosed).toBe(false)
+
+    await records.return(undefined)
+    expect(sourceClosed).toBe(true)
+  })
+
   test("rejects CSV without the required Filename column", () => {
     expect(() => parseEfuRecords("Path,Size\r\nD:/images/a.png,1")).toThrow("Filename")
   })

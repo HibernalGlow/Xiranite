@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from "node:fs/promises"
+import { access, copyFile, mkdir, mkdtemp, opendir, readFile, readdir, rm, stat, utimes, writeFile } from "node:fs/promises"
 import { createReadStream } from "node:fs"
 import { createHash } from "node:crypto"
 import { basename, dirname, extname, join, relative, resolve } from "node:path"
@@ -24,6 +24,7 @@ export function createNodeXlchemyRuntime(context: XlchemyRuntimeContext = {}): X
   return {
     pathInfo,
     listDir,
+    streamDir,
     ensureDir,
     copyFile,
     removeFile: async (path) => { await rm(path, { force: true }) },
@@ -86,6 +87,11 @@ async function pathInfo(path: string) {
 }
 
 async function listDir(path: string) { const entries = await readdir(path, { withFileTypes: true }); return entries.map((entry) => ({ path: join(path, entry.name), name: entry.name, isFile: entry.isFile(), isDirectory: entry.isDirectory() })) }
+
+async function* streamDir(path: string) {
+  const directory = await opendir(path)
+  for await (const entry of directory) yield { path: join(path, entry.name), name: entry.name, isFile: entry.isFile(), isDirectory: entry.isDirectory() }
+}
 
 /**
  * Bun on Windows can report EEXIST for `mkdir(path, { recursive: true })`
