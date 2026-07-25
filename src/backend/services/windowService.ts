@@ -1,4 +1,5 @@
 import type {
+  ComponentWindowFrameEvent,
   MainWindowAction,
   OpenComponentWindowInput,
   WindowCapabilities,
@@ -114,6 +115,14 @@ export class WindowService implements Service<"windows"> {
         id,
         message: errorMessage(error),
       }
+    }
+  }
+
+  async subscribeFrameChanges(handler: (event: ComponentWindowFrameEvent) => void): Promise<() => void> {
+    try {
+      return await this.ctx.runtime.windows.subscribeFrameChanges(handler)
+    } catch {
+      return () => undefined
     }
   }
 }

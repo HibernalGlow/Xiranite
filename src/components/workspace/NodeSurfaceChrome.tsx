@@ -63,6 +63,7 @@ export function NodeSurfaceChrome({
   moduleId,
   moduleName,
   stateLabel,
+  hideIdleIndicator = false,
   version,
 }: {
   actions: NodeSurfaceChromeAction[]
@@ -71,6 +72,8 @@ export function NodeSurfaceChrome({
   moduleId?: string
   moduleName: string
   stateLabel?: string
+  /** Hides the idle island mark while preserving the expanded toolbar surface. */
+  hideIdleIndicator?: boolean
   version?: string
 }) {
   const { t } = useTranslation()
@@ -156,6 +159,7 @@ export function NodeSurfaceChrome({
           idleOffset={islandIdleOffset}
           motionPercent={islandMotion}
           scale={islandScale}
+          hideIdleIndicator={hideIdleIndicator}
         />
         {helpSheet}
       </>
@@ -225,6 +229,7 @@ function DynamicIslandChrome({
   idleOffset,
   motionPercent,
   scale,
+  hideIdleIndicator = false,
 }: {
   actions: NodeSurfaceChromeAction[]
   delay: number
@@ -232,6 +237,7 @@ function DynamicIslandChrome({
   idleOffset: number
   motionPercent: number
   scale: number
+  hideIdleIndicator?: boolean
 }) {
   const islandId = useId()
   const [expanded, setExpanded] = useState(false)
@@ -285,7 +291,13 @@ function DynamicIslandChrome({
           transition={{ duration: 0.11 / motionRatio, ease: [0.16, 1, 0.3, 1] }}
           className="pointer-events-none absolute inset-0 flex items-center justify-center"
         >
-          <span className="xiranite-node-chrome-dot h-1.5 w-5 rounded-full bg-primary/70 shadow-[0_0_10px_var(--ws-accent-glow)]" />
+          <span
+            data-node-chrome-idle-indicator
+            className={cn(
+              "xiranite-node-chrome-dot h-1.5 w-5 rounded-full bg-primary/70 shadow-[0_0_10px_var(--ws-accent-glow)]",
+              hideIdleIndicator && "bg-transparent shadow-none",
+            )}
+          />
         </motion.div>
         <motion.div
           aria-hidden={!expanded}

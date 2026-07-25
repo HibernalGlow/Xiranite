@@ -4,6 +4,7 @@ import {
   type DesktopWindowCommandResult,
 } from "../../../desktop/bridge"
 import type {
+  ComponentWindowFrameEvent,
   MainWindowAction,
   OpenComponentWindowInput,
   RuntimeInterface,
@@ -12,7 +13,7 @@ import type {
   WindowFrame,
   WindowRuntime,
 } from "../runtime/runtime"
-import { createWebRuntime } from "./web"
+import { createWebRuntime, subscribeBrowserWindowFrames } from "./web"
 
 function requireBindings() {
   const bindings = getDenoDesktopBindings()
@@ -41,6 +42,7 @@ class DenoDesktopWindowRuntime implements WindowRuntime {
     url.searchParams.set("floatingComponent", input.componentId)
     url.searchParams.set("moduleId", input.moduleId)
     url.searchParams.set("windowId", input.componentId)
+    if (input.workspaceId) url.searchParams.set("workspaceId", input.workspaceId)
     if (input.title) url.searchParams.set("title", input.title)
     const popup = window.open(
       url.toString(),
@@ -70,6 +72,10 @@ class DenoDesktopWindowRuntime implements WindowRuntime {
 
   async setFrame(frame: WindowFrame, id?: string): Promise<WindowCommandResult> {
     return toWindowCommandResult(await requireBindings().xiraniteDesktopWindowSetFrame(id ?? "", JSON.stringify(frame)))
+  }
+
+  async subscribeFrameChanges(handler: (event: ComponentWindowFrameEvent) => void): Promise<() => void> {
+    return subscribeBrowserWindowFrames(handler)
   }
 }
 

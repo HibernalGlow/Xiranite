@@ -4,6 +4,7 @@ import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql"
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import type {
   ComponentDTO,
+  ComponentWindowSizeDTO,
   LaneDTO,
   NodeRunHistoryClearQueryDTO,
   NodeRunHistoryClearResultDTO,
@@ -47,6 +48,7 @@ const components = sqliteTable("components", {
   moduleId: text("module_id").notNull(),
   workspaceId: text("workspace_id").notNull(),
   placement: text("placement"),
+  windowSize: text("window_size"),
   data: text("data"),
   flowPosition: text("flow_position"),
   flowSize: text("flow_size"),
@@ -169,6 +171,17 @@ export async function createLibsqlWorkspaceRepository(options: LibsqlWorkspaceRe
       const rows = await db.select().from(components).orderBy(asc(components.createdAt), asc(components.id))
       return rows.map(toComponentDTO)
     },
+    async saveComponentWindowSize(id, fallbackKey, size, updatedAt) {
+      await db.transaction(async (tx) => {
+        await tx.update(components)
+          .set({ windowSize: serialize(size), updatedAt })
+          .where(eq(components.id, id))
+        await tx.insert(kvStore).values({ key: fallbackKey, value: JSON.stringify({ size, updatedAt }), updatedAt }).onConflictDoUpdate({
+          target: kvStore.key,
+          set: { value: JSON.stringify({ size, updatedAt }), updatedAt },
+        })
+      })
+    },
     async saveSnapshot(snapshot) {
       await db.transaction(async (tx) => {
         await replaceRows(tx, snapshot)
@@ -220,6 +233,7 @@ async function ensureSchema(client: Client): Promise<void> {
       module_id TEXT NOT NULL,
       workspace_id TEXT NOT NULL,
       placement TEXT,
+      window_size TEXT,
       data TEXT,
       flow_position TEXT,
       flow_size TEXT,
@@ -265,6 +279,7 @@ async function ensureSchema(client: Client): Promise<void> {
   await addColumnIfMissing(client, "workspaces", "flow_camera", "TEXT")
   await addColumnIfMissing(client, "components", "lane_size", "TEXT")
   await addColumnIfMissing(client, "components", "placement", "TEXT")
+  await addColumnIfMissing(client, "components", "window_size", "TEXT")
 }
 
 async function addColumnIfMissing(client: Client, table: string, column: string, type: string): Promise<void> {
@@ -378,6 +393,7 @@ function fromComponentDTO(component: ComponentDTO): typeof components.$inferInse
     moduleId: component.moduleId,
     workspaceId: component.workspaceId,
     placement: component.placement ?? null,
+    windowSize: serialize(component.windowSize),
     data: serialize(component.data),
     flowPosition: serialize(component.flowPosition),
     flowSize: serialize(component.flowSize),
@@ -399,6 +415,7 @@ function toComponentDTO(row: typeof components.$inferSelect): ComponentDTO {
     moduleId: row.moduleId,
     workspaceId: row.workspaceId,
     placement: row.placement === "window" ? "window" : row.placement === "workspace" ? "workspace" : undefined,
+    windowSize: deserialize<ComponentWindowSizeDTO>(row.windowSize),
     data: deserialize<Record<string, unknown>>(row.data),
     flowPosition: deserialize<{ x: number; y: number }>(row.flowPosition),
     flowSize: deserialize<{ width: number; height: number }>(row.flowSize),

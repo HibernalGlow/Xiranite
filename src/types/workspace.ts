@@ -98,6 +98,8 @@ export interface ComponentInstance {
   state: ComponentState
   /** Durable rendering owner. Runtime focus/fullscreen state is not persisted. */
   placement?: ComponentPlacement
+  /** Last normal native-window size for this workspace component. */
+  windowSize?: { width: number; height: number }
   createdAt?: number
   updatedAt?: number
   /** Legacy free-layout position retained for persisted data compatibility. */

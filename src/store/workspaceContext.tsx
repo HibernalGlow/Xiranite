@@ -107,6 +107,7 @@ function toComponentDTO(component: ComponentInstance, now: number): ComponentDTO
     moduleId: component.moduleId,
     workspaceId: component.workspaceId,
     placement: component.placement ?? (component.state === "floating" ? "window" : "workspace"),
+    windowSize: component.windowSize,
     data: component.data,
     flowPosition: component.flowPosition,
     flowSize: component.flowSize,

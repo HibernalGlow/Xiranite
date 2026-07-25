@@ -1,6 +1,9 @@
 import { treaty, type Treaty } from "@elysiajs/eden"
 import type { ConfigHistoryRepositoryStatus, ConfigVersion, ConfigVersionDetail, NodeConfigExportResult } from "@xiranite/services"
 import type {
+  ComponentWindowSizeDTO,
+  ComponentWindowSizeLookupDTO,
+  ComponentWindowSizeUpdateDTO,
   NodeOperationCleanupResponseDTO,
   NodeOperationDTO,
   NodeOperationEventsResponseDTO,
@@ -54,6 +57,8 @@ export interface XiraniteSystemClient {
 export interface XiraniteWorkspaceClient {
   loadSnapshot(): Promise<WorkspaceSnapshotDTO>
   persistSnapshot(snapshot: WorkspaceSnapshotDTO): Promise<WorkspaceSnapshotDTO>
+  resolveComponentWindowSize(input: ComponentWindowSizeLookupDTO): Promise<ComponentWindowSizeDTO | null>
+  persistComponentWindowSize(input: ComponentWindowSizeUpdateDTO): Promise<ComponentWindowSizeDTO>
 }
 
 export interface XiraniteNodeClient {
@@ -373,6 +378,7 @@ export function createXiraniteSystemClient(baseUrl: string, options: XiraniteCli
 
 export function createXiraniteWorkspaceClient(baseUrl: string, options: XiraniteClientOptions = {}): XiraniteWorkspaceClient {
   const client = createXiraniteClient(baseUrl, options)
+  const headers = requestHeaders(options)
 
   return {
     async loadSnapshot() {
@@ -384,6 +390,26 @@ export function createXiraniteWorkspaceClient(baseUrl: string, options: Xiranite
       const result = await client.workspace.snapshot.put(snapshot)
       if (result.error) throw new Error(`Workspace snapshot persist failed: ${result.status}`)
       return result.data.snapshot
+    },
+    async resolveComponentWindowSize(input) {
+      const url = apiUrl(baseUrl, "/workspace/window-size")
+      url.searchParams.set("componentId", input.componentId)
+      url.searchParams.set("moduleId", input.moduleId)
+      url.searchParams.set("workspaceId", input.workspaceId)
+      const response = await fetch(url, { headers })
+      if (!response.ok) throw new Error(`Component window size load failed: ${response.status}`)
+      const result = await response.json() as { size: ComponentWindowSizeDTO | null }
+      return result.size
+    },
+    async persistComponentWindowSize(input) {
+      const response = await fetch(apiUrl(baseUrl, "/workspace/window-size"), {
+        method: "PUT",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify(input),
+      })
+      if (!response.ok) throw new Error(`Component window size persist failed: ${response.status}`)
+      const result = await response.json() as { size: ComponentWindowSizeDTO }
+      return result.size
     },
   }
 }

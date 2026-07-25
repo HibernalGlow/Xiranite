@@ -1,5 +1,6 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type {
+  ComponentWindowFrameEvent,
   EventBusRuntime,
   FileSystemRuntime,
   FsEntry,
@@ -302,6 +303,24 @@ class WailsWindowRuntime implements WindowRuntime {
 
   async setFrame(frame: WindowFrame, id?: string): Promise<WindowCommandResult> {
     return await callGo<WindowCommandResult>("WindowSetFrame", id ?? "", JSON.stringify(frame))
+  }
+
+  async subscribeFrameChanges(handler: (event: ComponentWindowFrameEvent) => void): Promise<() => void> {
+    const runtime = await loadRuntime()
+    return runtime.Events.On("component-window-frame", (event: unknown) => {
+      const payload = unwrapEventData(event)
+      if (!payload || typeof payload !== "object") return
+      const value = payload as Record<string, unknown>
+      if (typeof value.componentId !== "string" || typeof value.moduleId !== "string") return
+      if (typeof value.width !== "number" || typeof value.height !== "number") return
+      handler({
+        componentId: value.componentId,
+        moduleId: value.moduleId,
+        workspaceId: typeof value.workspaceId === "string" ? value.workspaceId : undefined,
+        width: value.width,
+        height: value.height,
+      })
+    })
   }
 }
 

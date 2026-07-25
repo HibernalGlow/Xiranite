@@ -92,6 +92,32 @@ describe("backend", () => {
     expect(saved.snapshot.workspaces).toHaveLength(0)
   })
 
+  test("persists and resolves component window sizes through the workspace database", async () => {
+    const repository = createMemoryWorkspaceRepository({
+      workspaces: [{ id: "ws-alpha", label: "Alpha", createdAt: 1, updatedAt: 1 }],
+      components: [{ id: "comp-alpha", moduleId: "enginev", workspaceId: "ws-alpha", createdAt: 1, updatedAt: 1 }],
+    })
+    const app = await createDefaultBackendApp({ now: 200, repository })
+    const input = {
+      componentId: "comp-alpha",
+      moduleId: "enginev",
+      workspaceId: "ws-alpha",
+      size: { width: 1120, height: 740 },
+    }
+
+    const save = await app.handle(new Request("http://localhost/workspace/window-size", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }))
+    const load = await app.handle(new Request("http://localhost/workspace/window-size?componentId=comp-alpha&moduleId=enginev&workspaceId=ws-alpha"))
+
+    expect(save.status).toBe(200)
+    await expect(save.json()).resolves.toEqual({ size: input.size })
+    expect(load.status).toBe(200)
+    await expect(load.json()).resolves.toEqual({ size: input.size })
+  })
+
   test("runs nodes through the injected local runner service", async () => {
     const app = await createDefaultBackendApp({
       now: 100,

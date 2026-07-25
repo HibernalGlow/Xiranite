@@ -16,6 +16,7 @@ import { parseAsString, useQueryStates } from "nuqs"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { DesktopTrayBridge } from "@/desktop/tray/DesktopTrayBridge"
 import { WorkspaceWindowRestorer } from "@/components/workspace/WorkspaceWindowRestorer"
+import { WorkspaceWindowFrameSync } from "@/components/workspace/WorkspaceWindowFrameSync"
 
 const WorkspaceLayout = lazy(() =>
   startupDebugAsync("lazy:workspace-layout", () => import("@/components/workspace/WorkspaceLayout")).then((module) => ({
@@ -54,6 +55,7 @@ export function App() {
         <AppConfigSync />
         <WorkspaceAppearance />
         {!params.floatingComponent && <DesktopTrayBridge />}
+        {!params.floatingComponent && <WorkspaceWindowFrameSync />}
         <Suspense fallback={<div className="h-screen bg-background" />}>
           {params.floatingComponent ? (
             <FloatingComponentWindow

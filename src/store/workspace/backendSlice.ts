@@ -48,6 +48,7 @@ function hydrateState(state: WSState, workspaces: WorkspaceDTO[], lanes: LaneDTO
     moduleId: component.moduleId,
     state: component.placement === "window" ? "floating" : "docked",
     placement: component.placement ?? "workspace",
+    windowSize: component.windowSize,
     workspaceId: component.workspaceId,
     data: component.data,
     flowPosition: component.flowPosition,

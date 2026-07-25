@@ -1,5 +1,6 @@
 import type {
   ComponentDTO,
+  ComponentWindowSizeDTO,
   LaneDTO,
   NodeRunHistoryClearQueryDTO,
   NodeRunHistoryClearResultDTO,
@@ -22,6 +23,7 @@ export interface WorkspaceRepository {
   deleteWorkspace(id: string): Promise<void>
   listLanes(): Promise<LaneDTO[]>
   listComponents(): Promise<ComponentDTO[]>
+  saveComponentWindowSize(id: string, fallbackKey: string, size: ComponentWindowSizeDTO, updatedAt: number): Promise<void>
   saveSnapshot(snapshot: WorkspaceSnapshotDTO): Promise<WorkspaceSnapshotDTO>
   getKvValue(key: string): Promise<string | null>
   setKvValue(key: string, value: string): Promise<void>
@@ -82,6 +84,15 @@ export function createMemoryWorkspaceRepository(options: MemoryWorkspaceReposito
     },
     async listComponents() {
       return clone(components)
+    },
+    async saveComponentWindowSize(id, fallbackKey, size, updatedAt) {
+      const index = components.findIndex((component) => component.id === id)
+      if (index >= 0) {
+        components = components.map((component, componentIndex) => componentIndex === index
+          ? { ...component, windowSize: clone(size), updatedAt }
+          : component)
+      }
+      kvStore.set(fallbackKey, JSON.stringify({ size, updatedAt }))
     },
     async saveSnapshot(snapshot) {
       workspaces = clone(snapshot.workspaces)
