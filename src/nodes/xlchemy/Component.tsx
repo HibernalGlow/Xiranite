@@ -254,6 +254,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
           const progressCount = readProgressCount(event.data)
           patch({ progress: event.progress ?? dataRef.current.progress ?? 0, progressText: event.message, ...(progressCount ? { processedCount: progressCount.completed, runInputCount: progressCount.total } : liveResult ? { processedCount: liveResult.inputCount } : {}), ...(currentFile ? { currentFile } : {}), ...(liveResult ? { result: liveResult } : {}), logs: [...(dataRef.current.logs ?? []), `${new Date().toTimeString().slice(0, 8)} ${event.message ?? "Progress"}`].slice(-120) })
         }
+        if (event.type === "log") patch({ logs: [...(dataRef.current.logs ?? []), `${new Date().toTimeString().slice(0, 8)} ${event.message}`].slice(-120) })
       }) as NodeRunResult<XlchemyData>
       if (nextAction === "diagnose") patch({ environment: response.data?.environment?.length ? response.data.environment : unavailableEnvironment("运行端待刷新，请重新检测"), environmentCheckedAt: response.data?.environment?.length ? new Date().toISOString() : undefined, progressText: response.data?.environment?.length ? response.message : "运行端尚未加载新版工具检测，请刷新后重试。" })
       else {

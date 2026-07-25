@@ -12,6 +12,7 @@ import { streamEfuPaths } from "./efu-stream.js"
 import { isAnimatedImage } from "./animation-probe.js"
 
 export function createNodeXlchemyRuntime(): XlchemyRuntime {
+  const resolveCachedCommand = createCachedCommandResolver(resolveCommand)
   return {
     pathInfo,
     listDir,
@@ -23,7 +24,7 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
     setTimes: async (path, atimeMs, mtimeMs) => { await utimes(path, new Date(atimeMs), new Date(mtimeMs)) },
     hashFile: sha256File,
     runCommand: runXlchemyCommand,
-    resolveCommand,
+    resolveCommand: resolveCachedCommand,
     probeSlimg,
     convertWithSlimg,
     convertClipToPsd,
@@ -42,6 +43,25 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
     cleanupTemporaryFile: async (path) => { await rm(dirname(path), { recursive: true, force: true }) },
     streamEfuPaths,
     isAnimatedImage,
+  }
+}
+
+export function createCachedCommandResolver(resolveUncached: (candidates: string[]) => Promise<string | undefined>) {
+  const cache = new Map<string, Promise<string | undefined>>()
+  return async (candidates: string[]): Promise<string | undefined> => {
+    const key = candidates.join("\0")
+    const cached = cache.get(key)
+    if (cached) return cached
+    const pending = resolveUncached(candidates)
+    cache.set(key, pending)
+    try {
+      const resolved = await pending
+      if (!resolved && cache.get(key) === pending) cache.delete(key)
+      return resolved
+    } catch (error) {
+      if (cache.get(key) === pending) cache.delete(key)
+      throw error
+    }
   }
 }
 

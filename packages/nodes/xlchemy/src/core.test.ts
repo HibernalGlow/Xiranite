@@ -187,6 +187,76 @@ describe("xlchemy core contract", () => {
     expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 350 })
   })
 
+  test("distributes the original thread budget across concurrent AOM workers", async () => {
+    const runtime = fakeRuntime()
+    const originalPathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => /^\/batch\/[abc]\.png$/.test(path)
+      ? { path, exists: true, isFile: true, isDirectory: false, size: 1_000, atimeMs: 0, mtimeMs: 0 }
+      : originalPathInfo(path)
+    const originalRunCommand = runtime.runCommand
+    let activeEncoders = 0
+    let peakActiveEncoders = 0
+    runtime.runCommand = async (command, args, isCancelled) => {
+      activeEncoders += 1
+      peakActiveEncoders = Math.max(peakActiveEncoders, activeEncoders)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      try { return await originalRunCommand(command, args, isCancelled) }
+      finally { activeEncoders -= 1 }
+    }
+    const events: Array<{ type: string; message: string }> = []
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert",
+      paths: ["/batch/a.png", "/batch/b.png", "/batch/c.png"],
+      format: "AVIF",
+      avifEncoder: "aom",
+      quality: 60,
+      effort: 6,
+      threads: 6,
+      outputMode: "source",
+      overwrite: true,
+      preserveMetadata: false,
+      excludedFormats: [],
+    }), runtime, (event) => events.push(event))
+    expect(result.success).toBe(true)
+    expect(peakActiveEncoders).toBe(3)
+    expect(runtime.commands.filter((item) => item.command.endsWith("avifenc"))).toHaveLength(3)
+    expect(runtime.commands.filter((item) => item.command.endsWith("avifenc")).every((item) => item.args.includes("2"))).toBe(true)
+    expect(events.find((event) => event.message.startsWith("Batch scheduler:"))?.message).toContain("3 worker(s); CPU thread budget 6; encoder threads 2 each")
+    expect(events.find((event) => event.message.startsWith("Batch completed"))?.message).toContain("peak active workers 3")
+  })
+
+  test("serializes colliding outputs and preserves rename and skip policies", async () => {
+    for (const existingPolicy of ["rename", "skip"] as const) {
+      const runtime = fakeRuntime()
+      const inputs = new Set(["/batch/same.png", "/batch/same.jpg"])
+      const originalPathInfo = runtime.pathInfo
+      runtime.pathInfo = async (path) => inputs.has(path)
+        ? { path, exists: true, isFile: true, isDirectory: false, size: 1_000, atimeMs: 0, mtimeMs: 0 }
+        : originalPathInfo(path)
+      const originalRunCommand = runtime.runCommand
+      runtime.runCommand = async (command, args, isCancelled) => {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        return originalRunCommand(command, args, isCancelled)
+      }
+      const result = await runXlchemy(normalizeXlchemyInput({
+        action: "convert",
+        paths: [...inputs],
+        format: "AVIF",
+        avifEncoder: "aom",
+        threads: 2,
+        outputMode: "source",
+        existingPolicy,
+        preserveMetadata: false,
+        excludedFormats: [],
+      }), runtime)
+      expect(result.success).toBe(true)
+      if (existingPolicy === "rename") {
+        expect(result.data?.files.map((file) => file.outputPath).sort()).toEqual(["/batch/same.avif", "/batch/same_1.avif"])
+        expect(result.data).toMatchObject({ convertedCount: 2, skippedCount: 0 })
+      } else expect(result.data).toMatchObject({ convertedCount: 1, skippedCount: 1 })
+    }
+  })
+
   test("uses FFmpeg SVT-AV1 for SVT AVIF encoding", async () => {
     const runtime = fakeRuntime()
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "svt", quality: 60, effort: 7, threads: 4, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
