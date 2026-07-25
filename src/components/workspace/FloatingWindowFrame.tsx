@@ -8,12 +8,13 @@ import {
 import { useTranslation } from "react-i18next"
 import type { MainWindowAction } from "@/backend/runtime/runtime"
 import { cn } from "@/lib/utils"
+import { NODE_CHROME_PILL_CLASS_NAME, NodeChromeActionButton } from "./NodeChromePrimitives"
 import { WindowControlIcon } from "./WindowControlIcon"
 
 interface FloatingWindowFrameValue {
   captionAppearance?: {
     position: "left" | "right" | "island"
-    style: "capsule" | "traffic-light"
+    style: "windows" | "capsule" | "traffic-light"
   }
   isMaximized: boolean
   pending: boolean
@@ -88,7 +89,7 @@ export function FloatingWindowCaptionControls({
 }: {
   appearance?: {
     position: "left" | "right" | "island"
-    style: "capsule" | "traffic-light"
+    style: "windows" | "capsule" | "traffic-light"
   }
   className?: string
   integrated?: boolean
@@ -115,6 +116,7 @@ export function FloatingWindowCaptionControls({
       <div
         data-testid={integrated ? "floating-window-integrated-controls" : "floating-window-fallback-controls"}
         data-window-caption-density={density}
+        data-window-caption-style="native"
         className={cn("xiranite-app-region-no-drag flex shrink-0 self-stretch items-stretch", className)}
       >
         <button data-window-caption-button data-window-control-action="minimize" type="button" title={t("common:minimize")} aria-label={t("common:minimize")} disabled={frame.pending} onClick={() => frame.control("minimize")} className={buttonClass}>
@@ -130,7 +132,9 @@ export function FloatingWindowCaptionControls({
     )
   }
 
-  const trafficLight = resolvedAppearance?.style === "traffic-light"
+  const captionStyle = resolvedAppearance.style
+  const trafficLight = captionStyle === "traffic-light"
+  const capsule = captionStyle === "capsule"
   const positionClass = resolvedAppearance?.position === "left"
     ? "left-1.5"
     : resolvedAppearance?.position === "island"
@@ -150,16 +154,33 @@ export function FloatingWindowCaptionControls({
       data-testid={integrated ? "floating-window-integrated-controls" : "floating-window-fallback-controls"}
       data-window-caption-density={density}
       data-window-caption-position={resolvedAppearance?.position ?? "inline"}
-      data-window-caption-style={resolvedAppearance?.style ?? "native"}
+      data-window-caption-style={captionStyle}
       className={cn(
-        "xiranite-app-region-no-drag group/caption flex shrink-0 items-center bg-transparent",
-        resolvedAppearance && "fixed top-1.5 z-50 h-7",
-        trafficLight ? "gap-1.5 rounded-full px-1.5" : resolvedAppearance ? "gap-0.5 rounded-full p-0.5" : "self-stretch items-stretch",
+        "xiranite-app-region-no-drag group/caption flex shrink-0 items-center",
+        "fixed top-1.5 z-50 h-7",
+        !capsule && "bg-transparent",
+        trafficLight && "gap-1.5 px-1.5",
+        capsule && NODE_CHROME_PILL_CLASS_NAME,
         positionClass,
         className,
       )}
     >
-      {actions.map(({ action, label, maximized }) => (
+      {actions.map(({ action, label, maximized }) => capsule ? (
+        <NodeChromeActionButton
+          key={action}
+          data-window-caption-button
+          data-window-control-action={action}
+          data-window-caption-tone={action === "close" ? "close" : undefined}
+          title={label}
+          aria-label={label}
+          aria-pressed={action === "maximize" ? frame.isMaximized : undefined}
+          disabled={frame.pending}
+          onClick={() => frame.control(action)}
+          danger={action === "close"}
+        >
+          <WindowControlIcon action={action} maximized={maximized} />
+        </NodeChromeActionButton>
+      ) : (
         <button
           key={action}
           data-window-caption-button
@@ -175,15 +196,11 @@ export function FloatingWindowCaptionControls({
             "grid place-items-center transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45",
             trafficLight
               ? "size-3.5 rounded-full [&_svg]:size-2.5"
-              : resolvedAppearance
-                ? "h-7 w-8 rounded-full text-foreground/70 hover:bg-muted/70 hover:text-foreground"
-                : density === "compact"
-                  ? "min-h-7 w-8 text-foreground/70 hover:bg-muted/70 hover:text-foreground"
-                  : "min-h-9 w-11 text-foreground/70 hover:bg-muted/70 hover:text-foreground",
+              : "h-7 w-8 rounded-none text-foreground/70 hover:bg-muted/70 hover:text-foreground",
             trafficLight && action === "close" && "bg-red-500/80 text-white hover:bg-red-500",
             trafficLight && action === "minimize" && "bg-yellow-500/80 text-black hover:bg-yellow-500",
             trafficLight && action === "maximize" && "bg-emerald-500/80 text-black hover:bg-emerald-500",
-            !trafficLight && action === "close" && "hover:bg-[#c42b1c] hover:text-white",
+            captionStyle === "windows" && action === "close" && "hover:bg-[#c42b1c] hover:text-white",
           )}
         >
           <span className={cn(trafficLight && "opacity-0 transition-opacity group-hover/caption:opacity-100 group-focus-within/caption:opacity-100")}>

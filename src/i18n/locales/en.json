@@ -444,8 +444,10 @@
       "positionCenter": "Top center",
       "positionRight": "Top right",
       "style": "Style",
+      "styleWindows": "Windows",
+      "styleWindowsDesc": "Three separate transparent Windows caption buttons.",
       "styleCapsule": "Capsule",
-      "styleCapsuleDesc": "Compact toolbar-like minimize, maximize, and close buttons.",
+      "styleCapsuleDesc": "A unified toolbar-like capsule with compact window actions.",
       "styleTrafficLight": "Traffic Light",
       "styleTrafficLightDesc": "Colored window dots with icons revealed on hover."
     },

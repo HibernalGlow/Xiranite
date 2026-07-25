@@ -17,7 +17,7 @@ import { normalizeChromeActionOrder, normalizeChromeHiddenActions } from "./chro
 const logger = createLogger("config.sync")
 
 const APP_UI_SECTION = "ui"
-const APP_UI_CONFIG_VERSION = 2
+const APP_UI_CONFIG_VERSION = 3
 const WORKSPACE_UI_STORAGE_KEY = "xiranite-workspace-ui"
 const THEME_STORAGE_KEY = "theme"
 const AESTIVUS_THEME_NAME_STORAGE_KEY = "theme-name"
@@ -55,7 +55,7 @@ const BG_MODES = new Set<WorkspaceUiPreferences["bgMode"]>(["grid", "dot-grid", 
 const CHROME_POSITIONS = new Set<WorkspaceUiPreferences["chromePosition"]>(["left", "right", "island"])
 const CHROME_STYLES = new Set<WorkspaceUiPreferences["chromeStyle"]>(["default", "traffic-light"])
 const FLOATING_WINDOW_CAPTION_POSITIONS = new Set<WorkspaceUiPreferences["floatingWindowCaptionPosition"]>(["left", "island", "right"])
-const FLOATING_WINDOW_CAPTION_STYLES = new Set<WorkspaceUiPreferences["floatingWindowCaptionStyle"]>(["capsule", "traffic-light"])
+const FLOATING_WINDOW_CAPTION_STYLES = new Set<WorkspaceUiPreferences["floatingWindowCaptionStyle"]>(["windows", "capsule", "traffic-light"])
 const ALPHABET_INDEX_STYLES = new Set<WorkspaceUiPreferences["alphabetIndexStyle"]>(["glass", "solid", "minimal"])
 const MODULE_TITLE_STYLES = new Set<WorkspaceUiPreferences["moduleTitleStyle"]>(["legend", "inline", "bar", "minimal"])
 const MODULE_PANEL_STYLES = new Set<WorkspaceUiPreferences["modulePanelStyle"]>(["soft", "solid", "outline", "flat"])
@@ -571,7 +571,10 @@ function normalizeWorkspacePreferences(value: unknown): Partial<WorkspaceUiPrefe
 
 function mergeMissingWorkspacePreferences(config: AppUiConfig, fallback: WorkspaceUiPreferences): AppUiConfig {
   const normalized = normalizeAppUiConfig(config)
-  const existing = normalized.workspace ?? {}
+  const existing = (normalized.version ?? 0) < APP_UI_CONFIG_VERSION
+    && normalized.workspace?.floatingWindowCaptionStyle === "capsule"
+    ? { ...normalized.workspace, floatingWindowCaptionStyle: "windows" as const }
+    : normalized.workspace ?? {}
   const missing = Object.fromEntries(
     Object.entries(sanitizeWorkspaceConfig(fallback))
       .filter(([key]) => existing[key as keyof WorkspaceUiPreferences] === undefined),

@@ -8,6 +8,7 @@ import {
   Grid,
   Image,
   Maximize2,
+  Minus,
   PanelBottom,
   PanelRight,
   Power,
@@ -15,6 +16,7 @@ import {
   GripVertical,
   ToggleLeft,
   RotateCcw,
+  Square,
   Upload,
   X,
 } from "lucide-react"
@@ -30,6 +32,7 @@ import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Kanban, KanbanBoard, KanbanColumn, KanbanItem, KanbanItemHandle, KanbanOverlay } from "@/components/ui/kanban"
 import { cn } from "@/lib/utils"
+import { NodeChromeActionButton, NodeChromePill } from "@/components/workspace/NodeChromePrimitives"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import {
   CHROME_ACTION_HIDDEN_COLUMN,
@@ -443,7 +446,7 @@ export function WorkspaceSection() {
         <div className="space-y-4">
           <div className="space-y-2">
             <p className="text-xs font-mono tracking-widest text-muted-foreground">{t("settings:floatingWindowCaption.position")}</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div role="radiogroup" aria-label={t("settings:floatingWindowCaption.style")} className="grid grid-cols-3 gap-2">
               {([
                 { key: "left", label: t("settings:floatingWindowCaption.positionLeft"), icon: PanelRight },
                 { key: "island", label: t("settings:floatingWindowCaption.positionCenter"), icon: CircleDot },
@@ -475,41 +478,59 @@ export function WorkspaceSection() {
 
           <div className="space-y-2">
             <p className="text-xs font-mono tracking-widest text-muted-foreground">{t("settings:floatingWindowCaption.style")}</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {([
-                { key: "capsule", label: t("settings:floatingWindowCaption.styleCapsule"), desc: t("settings:floatingWindowCaption.styleCapsuleDesc"), icon: PanelRight },
-                { key: "traffic-light", label: t("settings:floatingWindowCaption.styleTrafficLight"), desc: t("settings:floatingWindowCaption.styleTrafficLightDesc"), icon: Circle },
-              ] as const).map(({ key, label, desc, icon: Icon }) => {
+                { key: "windows", label: t("settings:floatingWindowCaption.styleWindows"), desc: t("settings:floatingWindowCaption.styleWindowsDesc") },
+                { key: "capsule", label: t("settings:floatingWindowCaption.styleCapsule"), desc: t("settings:floatingWindowCaption.styleCapsuleDesc") },
+                { key: "traffic-light", label: t("settings:floatingWindowCaption.styleTrafficLight"), desc: t("settings:floatingWindowCaption.styleTrafficLightDesc") },
+              ] as const).map(({ key, label, desc }) => {
                 const isActive = state.floatingWindowCaptionStyle === key
                 return (
-                  <button
+                  <div
                     key={key}
-                    type="button"
+                    role="radio"
+                    tabIndex={0}
+                    aria-checked={isActive}
                     onClick={() => workspaceActions.setFloatingWindowCaptionStyle(key)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return
+                      event.preventDefault()
+                      workspaceActions.setFloatingWindowCaptionStyle(key)
+                    }}
                     className={cn(
-                      "flex min-w-0 items-start gap-2.5 rounded-sm border p-3 text-left transition-all",
+                      "flex min-w-0 cursor-pointer flex-col items-stretch gap-2.5 rounded-sm border p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       isActive ? "border-primary/50 bg-primary/8" : "border-border/40 hover:border-border hover:bg-muted/30",
                     )}
                   >
                     <div className={cn(
-                      "grid size-7 shrink-0 place-items-center rounded-sm border",
-                      isActive ? "border-primary/40 bg-primary/15 text-primary" : "border-border/40 bg-muted/40 text-muted-foreground",
+                      "grid h-9 shrink-0 place-items-center rounded-sm bg-muted/15",
+                      isActive ? "text-primary" : "text-muted-foreground",
                     )}>
-                      {key === "traffic-light" ? (
-                        <span className="flex items-center gap-0.5">
-                          <span className="size-1.5 rounded-full bg-red-500/80" />
-                          <span className="size-1.5 rounded-full bg-yellow-500/80" />
-                          <span className="size-1.5 rounded-full bg-emerald-500/80" />
+                      {key === "windows" ? (
+                        <span className="flex items-stretch">
+                          <span className="grid h-6 w-7 place-items-center hover:bg-muted/70"><Minus className="size-2.5" /></span>
+                          <span className="grid h-6 w-7 place-items-center hover:bg-muted/70"><Square className="size-2" /></span>
+                          <span className="grid h-6 w-7 place-items-center hover:bg-destructive hover:text-white"><X className="size-2.5" /></span>
                         </span>
+                      ) : key === "capsule" ? (
+                        <NodeChromePill>
+                          <NodeChromeActionButton tabIndex={-1}><Minus /></NodeChromeActionButton>
+                          <NodeChromeActionButton tabIndex={-1}><Square /></NodeChromeActionButton>
+                          <NodeChromeActionButton tabIndex={-1} danger><X /></NodeChromeActionButton>
+                        </NodeChromePill>
                       ) : (
-                        <Icon className="size-3.5" />
+                        <span className="flex items-center gap-0.5">
+                          <span className="size-3 rounded-full bg-red-500/80" />
+                          <span className="size-3 rounded-full bg-yellow-500/80" />
+                          <span className="size-3 rounded-full bg-emerald-500/80" />
+                        </span>
                       )}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className={cn("truncate text-xs font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{label}</p>
+                    <div className="min-w-0">
+                      <p className={cn("text-xs font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{label}</p>
                       <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground/75">{desc}</p>
                     </div>
-                  </button>
+                  </div>
                 )
               })}
             </div>

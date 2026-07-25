@@ -111,17 +111,23 @@ export const useWorkspaceStore = create<WSStore>()(
       }),
       {
         name: "xiranite-workspace-ui",
-        version: 2,
+        version: 3,
         storage: createJSONStorage(() => localStorage),
         partialize: selectWorkspaceUiPreferences,
         // v1 → v2 迁移：把单一主题选择升级为 light/dark 双方案
         migrate: (persisted, version) => {
           const state = persisted as Partial<WSStore>
-          if (version >= 2 || state.themeSelections) return state
-          const selection = state.activeCustomThemeName
-            ? { kind: "custom" as const, name: state.activeCustomThemeName }
-            : { kind: "preset" as const, name: state.theme ?? "spatial" }
-          return { ...state, themeSelections: { light: selection, dark: selection } }
+          const migrated = { ...state }
+          if (version < 2 && !state.themeSelections) {
+            const selection = state.activeCustomThemeName
+              ? { kind: "custom" as const, name: state.activeCustomThemeName }
+              : { kind: "preset" as const, name: state.theme ?? "spatial" }
+            migrated.themeSelections = { light: selection, dark: selection }
+          }
+          if (version < 3 && state.floatingWindowCaptionStyle === "capsule") {
+            migrated.floatingWindowCaptionStyle = "windows"
+          }
+          return migrated
         },
       },
     ),

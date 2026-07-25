@@ -110,8 +110,12 @@ samp {
   -webkit-app-region: no-drag;
 }
 
-.xiranite-floating-window[data-floating-window-caption-style="capsule"] {
+.xiranite-floating-window[data-floating-window-caption-style="windows"] {
   --xiranite-window-caption-inline-size: 6.75rem;
+}
+
+.xiranite-floating-window[data-floating-window-caption-style="capsule"] {
+  --xiranite-window-caption-inline-size: 5.75rem;
 }
 
 .xiranite-floating-window[data-floating-window-caption-style="traffic-light"] {
@@ -140,31 +144,54 @@ samp {
 
 /* Window caption controls are host chrome, not node controls. Keep them out
    of per-theme button treatments so they remain flush with the titlebar. */
-.xiranite-node-surface [data-window-caption-button] {
-  min-height: 2.25rem !important;
+.xiranite-node-surface [data-window-caption-style="native"] [data-window-caption-button],
+.xiranite-node-surface [data-window-caption-style="windows"] [data-window-caption-button] {
   padding: 0 !important;
   border: 0 !important;
-  border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
   transform: none !important;
 }
 
-.xiranite-node-surface [data-window-caption-button]:hover {
-  background: color-mix(in oklch, var(--foreground) 9%, transparent) !important;
-  color: var(--foreground) !important;
-  box-shadow: none !important;
-  transform: none !important;
+.xiranite-node-surface [data-window-caption-style="native"] [data-window-caption-button],
+.xiranite-node-surface [data-window-caption-style="windows"] [data-window-caption-button] {
+  border-radius: 0 !important;
 }
 
-.xiranite-node-surface [data-window-caption-button][data-window-caption-tone="close"]:hover {
+.xiranite-node-surface [data-window-caption-style="native"] [data-window-caption-button]:hover,
+.xiranite-node-surface [data-window-caption-style="windows"] [data-window-caption-button]:hover {
+  background: color-mix(in oklch, var(--foreground) 9%, transparent) !important;
+  color: var(--foreground) !important;
+}
+
+.xiranite-node-surface [data-window-caption-style="native"] [data-window-caption-button][data-window-caption-tone="close"]:hover,
+.xiranite-node-surface [data-window-caption-style="windows"] [data-window-caption-button][data-window-caption-tone="close"]:hover {
   background: #c42b1c !important;
   color: white !important;
 }
 
-.xiranite-node-surface [data-window-caption-density="compact"] [data-window-caption-button] {
+.xiranite-node-surface [data-window-caption-style="native"][data-window-caption-density="compact"] [data-window-caption-button],
+.xiranite-node-surface [data-window-caption-style="windows"] [data-window-caption-button] {
   min-height: 1.75rem !important;
   width: 2rem !important;
+}
+
+.xiranite-node-surface [data-window-caption-style="traffic-light"] [data-window-caption-button] {
+  min-height: 0.875rem !important;
+  width: 0.875rem !important;
+  border-radius: 9999px !important;
+}
+
+.xiranite-node-surface [data-window-caption-style="traffic-light"] [data-window-control-action="close"] {
+  background: color-mix(in oklch, #ef4444 80%, transparent) !important;
+}
+
+.xiranite-node-surface [data-window-caption-style="traffic-light"] [data-window-control-action="minimize"] {
+  background: color-mix(in oklch, #eab308 80%, transparent) !important;
+}
+
+.xiranite-node-surface [data-window-caption-style="traffic-light"] [data-window-control-action="maximize"] {
+  background: color-mix(in oklch, #10b981 80%, transparent) !important;
 }
 
 /* ── Workspace canvas dot/grid background ── */
