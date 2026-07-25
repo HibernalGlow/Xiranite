@@ -20,9 +20,20 @@ export const VITE_EAGER_DEPENDENCIES = [
   "react-dom/client",
   "react/jsx-dev-runtime",
   "react/jsx-runtime",
+  "scheduler",
+  "scheduler/index.js",
+  "@xmldom/xmldom",
+  "blueimp-md5",
+  "blueimp-md5/js/md5.js",
+  "debug",
+  "debug/src/browser.js",
+  "content-type",
+  "ieee754",
+  "dexie",
   "use-sync-external-store",
   "use-sync-external-store/shim",
   "use-sync-external-store/shim/with-selector",
+  "use-sync-external-store/shim/with-selector.js",
 ] as const
 
 export const VITE_EXCLUDED_DEPENDENCIES = [
