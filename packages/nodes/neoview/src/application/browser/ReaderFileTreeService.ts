@@ -1,4 +1,5 @@
 import { posix, win32 } from "node:path"
+import type { ReaderFileMutation } from "../../ports/ReaderFileMutationProvider.js"
 
 import type {
   ReaderDirectoryEntry,
@@ -80,6 +81,7 @@ export interface ReaderDirectoryPage {
   navigationEntryId: number
   path: string
   parentPath?: string
+  sourceKind?: ReaderDirectoryListing["sourceKind"]
   entries: readonly ReaderDirectoryEntry[]
   cursor: number
   nextCursor?: number
@@ -178,6 +180,7 @@ interface BrowserSession {
   directorySizeOperations: Set<AbortController>
   directorySizeWaiters: Set<Promise<void>>
   directorySizeCache: Map<string, number>
+  efuMutations: ReaderEfuMutation[]
 }
 
 interface BrowserNavigationEntry {
@@ -201,6 +204,17 @@ interface ClosedBrowserSession {
   temporarySort?: ReaderDirectoryTemporarySortRule
   randomSeeds: Map<string, string>
   watchEnabled: boolean
+  efuMutations: ReaderEfuMutation[]
+}
+
+export interface ReaderFileTreeMutationResult {
+  operation: ReaderFileMutation
+  status: "succeeded" | "failed" | "cancelled"
+}
+
+interface ReaderEfuMutation {
+  operation: ReaderFileMutation
+  undo: boolean
 }
 
 export class ReaderFileTreeService implements AsyncDisposable {
@@ -262,6 +276,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       directorySizeOperations: new Set(),
       directorySizeWaiters: new Set(),
       directorySizeCache: new Map(),
+      efuMutations: [],
     }
     if (this.#sessions.size >= 8) await this.close(this.#sessions.keys().next().value as string)
     this.#sessions.set(session.id, session)
@@ -364,6 +379,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       directorySizeOperations: new Set(),
       directorySizeWaiters: new Set(),
       directorySizeCache: new Map(),
+      efuMutations: source.efuMutations.map(cloneEfuMutation),
     }
     if (this.#sessions.size >= 8) {
       const evictionId = [...this.#sessions.keys()].find((id) => id !== sessionId)
@@ -390,7 +406,10 @@ export class ReaderFileTreeService implements AsyncDisposable {
     if (this.#sessions.has(closedSessionId)) return this.clone(closedSessionId, signal, displayFields)
     const closed = this.#closedSessions.get(closedSessionId)
     if (!closed) return undefined
-    const rawListing = await this.provider.read(closed.currentNavigation.path, signal)
+    const rawListing = projectEfuListing(
+      await this.provider.read(closed.currentNavigation.path, signal),
+      closed.efuMutations,
+    )
     const entries = await this.#hydrate(rawListing.entries, closed.sort, signal)
     signal?.throwIfAborted()
     const session: BrowserSession = {
@@ -422,6 +441,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       directorySizeOperations: new Set(),
       directorySizeWaiters: new Set(),
       directorySizeCache: new Map(),
+      efuMutations: closed.efuMutations.map(cloneEfuMutation),
     }
     if (this.#sessions.size >= 8) await this.close(this.#sessions.keys().next().value as string)
     this.#sessions.set(session.id, session)
@@ -513,7 +533,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const combinedSignal = controller.signal
     const generation = session.generation + 1
     try {
-      const rawListing = await this.provider.read(target, combinedSignal)
+      const rawListing = projectEfuListing(await this.provider.read(target, combinedSignal), session.efuMutations)
       const targetTemporarySort = navigation.action === "back" || navigation.action === "forward"
         ? targetEntry?.temporarySort
         : navigation.action === "refresh" || directoryWatchPathKey(target) === directoryWatchPathKey(session.listing.path)
@@ -659,7 +679,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
   ): ReaderFileTreeSearchHandle {
     const session = this.#sessions.get(sessionId)
     if (!session) throw new Error(`Reader file tree session not found: ${sessionId}`)
-    let scanner = options?.maximumDepth === 0
+    let scanner = session.listing.sourceKind === "efu" || options?.maximumDepth === 0
       ? new ReaderDirectoryListingScanner(session.listing.entries)
       : this.options.scanner
     if (!scanner) throw new Error("Reader file tree scanning is unavailable.")
@@ -947,6 +967,40 @@ export class ReaderFileTreeService implements AsyncDisposable {
     return true
   }
 
+  async reconcileFileOperations(
+    results: readonly ReaderFileTreeMutationResult[],
+    undo = false,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const mutations = results
+      .filter((result) => result.status === "succeeded" && affectsEfuProjection(result.operation))
+      .map((result) => ({ operation: { ...result.operation }, undo }))
+    if (!mutations.length) return
+    for (const session of this.#sessions.values()) {
+      if (session.listing.sourceKind !== "efu") continue
+      session.efuMutations.push(...mutations.map(cloneEfuMutation))
+      abortDirectorySizeOperations(session)
+      if (undo) {
+        const rawListing = await this.provider.read(session.listing.path, signal)
+        signal?.throwIfAborted()
+        if (this.#sessions.get(session.id) !== session) continue
+        session.listing = sortListing(
+          projectEfuListing(rawListing, session.efuMutations),
+          session.sort,
+          randomSeedForPath(session, rawListing.path),
+        )
+      } else {
+        session.listing = sortListing(
+          projectEfuListing(session.listing, mutations),
+          session.sort,
+          randomSeedForPath(session, session.listing.path),
+        )
+      }
+      session.listingReleased = false
+      session.generation += 1
+    }
+  }
+
   async [Symbol.asyncDispose](): Promise<void> {
     if (this.#closed) return
     this.#closed = true
@@ -986,6 +1040,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       temporarySort: session.temporarySort ? cloneTemporarySort(session.temporarySort) : undefined,
       randomSeeds: new Map(session.randomSeeds),
       watchEnabled: session.watchEnabled,
+      efuMutations: session.efuMutations.map(cloneEfuMutation),
     })
     while (this.#closedSessions.size > MAXIMUM_RECENTLY_CLOSED_SESSIONS) {
       this.#closedSessions.delete(this.#closedSessions.keys().next().value as string)
@@ -1018,7 +1073,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
   }
 
   async #startWatcher(session: BrowserSession): Promise<void> {
-    if (!session.watchEnabled || !this.options.watcher) return
+    if (session.listing.sourceKind === "efu" || !session.watchEnabled || !this.options.watcher) return
     try {
       const subscription = await this.options.watcher.subscribe(
         session.listing.path,
@@ -1102,7 +1157,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
   async #reloadWatchedSession(session: BrowserSession, revision: number, signal: AbortSignal): Promise<void> {
     abortDirectorySizeOperations(session)
     abortListingReload(session)
-    const rawListing = await this.provider.read(session.listing.path, signal)
+    const rawListing = projectEfuListing(await this.provider.read(session.listing.path, signal), session.efuMutations)
     const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, session.temporarySort)
     this.#assertSortAvailable(sortPreference.sort)
     const entries = applyCachedDirectorySizes(session, await this.#hydrate(rawListing.entries, sortPreference.sort, signal))
@@ -1135,7 +1190,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
   }
 
   async #reloadReleasedListing(session: BrowserSession, signal: AbortSignal): Promise<void> {
-    const rawListing = await this.provider.read(session.listing.path, signal)
+    const rawListing = projectEfuListing(await this.provider.read(session.listing.path, signal), session.efuMutations)
     const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, session.temporarySort)
     this.#assertSortAvailable(sortPreference.sort)
     const entries = applyCachedDirectorySizes(session, await this.#hydrate(rawListing.entries, sortPreference.sort, signal))
@@ -1365,6 +1420,7 @@ function pageOf(
     navigationEntryId: session.currentNavigation.id,
     path: session.listing.path,
     parentPath: session.listing.parentPath,
+    sourceKind: session.listing.sourceKind,
     entries,
     cursor,
     nextCursor: cursor + entries.length < catalog.length ? cursor + entries.length : undefined,
@@ -1407,6 +1463,85 @@ function sortListing(
   randomSeed: string,
 ): ReaderDirectoryListing {
   return { ...listing, entries: sortReaderDirectoryEntries(listing.entries, sort, randomSeed) }
+}
+
+function projectEfuListing(
+  listing: ReaderDirectoryListing,
+  mutations: readonly ReaderEfuMutation[],
+): ReaderDirectoryListing {
+  if (listing.sourceKind !== "efu" || !mutations.length) return listing
+  const baseEntries = listing.entries
+  let entries = [...baseEntries]
+  for (const mutation of mutations) {
+    const operation = mutation.operation
+    if (operation.kind === "delete") {
+      if (!mutation.undo) entries = entries.filter((entry) => !pathIsWithin(entry.path, operation.sourcePath))
+      continue
+    }
+    if (operation.kind === "trash") {
+      if (mutation.undo) {
+        entries = mergeEntries(entries, baseEntries.filter((entry) => pathIsWithin(entry.path, operation.sourcePath)))
+      } else {
+        entries = entries.filter((entry) => !pathIsWithin(entry.path, operation.sourcePath))
+      }
+      continue
+    }
+    if (operation.kind !== "move" && operation.kind !== "rename") continue
+    const sourcePath = mutation.undo ? operation.destinationPath : operation.sourcePath
+    const destinationPath = mutation.undo ? operation.sourcePath : operation.destinationPath
+    entries = entries.map((entry) => pathIsWithin(entry.path, sourcePath)
+      ? relocateEfuEntry(entry, sourcePath, destinationPath)
+      : entry)
+  }
+  return { ...listing, entries: deduplicateEntries(entries) }
+}
+
+function affectsEfuProjection(operation: ReaderFileMutation): boolean {
+  return operation.kind === "delete" || operation.kind === "trash" || operation.kind === "move" || operation.kind === "rename"
+}
+
+function cloneEfuMutation(mutation: ReaderEfuMutation): ReaderEfuMutation {
+  return { operation: { ...mutation.operation }, undo: mutation.undo }
+}
+
+function relocateEfuEntry(entry: ReaderDirectoryEntry, sourcePath: string, destinationPath: string): ReaderDirectoryEntry {
+  const source = sourcePath.replaceAll("\\", "/").replace(/\/+$/u, "")
+  const suffix = entry.path.replaceAll("\\", "/").slice(source.length)
+  const separator = destinationPath.includes("\\") ? "\\" : "/"
+  const path = `${destinationPath.replace(/[\\/]$/u, "")}${suffix.replaceAll("/", separator)}`
+  return { ...entry, path, name: platformPathName(path) }
+}
+
+function pathIsWithin(path: string, parentPath: string): boolean {
+  const pathKey = normalizedPath(path)
+  const parentKey = normalizedPath(parentPath).replace(/\/$/u, "")
+  return pathKey === parentKey || pathKey.startsWith(`${parentKey}/`)
+}
+
+function normalizedPath(path: string): string {
+  const normalized = path.replaceAll("\\", "/").replace(/\/+$/u, "")
+  return /^(?:[A-Za-z]:|\/\/)/u.test(normalized) ? normalized.toLowerCase() : normalized
+}
+
+function platformPathName(path: string): string {
+  return path.includes("\\") || /^[A-Za-z]:/u.test(path) ? win32.basename(path) : posix.basename(path)
+}
+
+function mergeEntries(
+  entries: readonly ReaderDirectoryEntry[],
+  additions: readonly ReaderDirectoryEntry[],
+): ReaderDirectoryEntry[] {
+  return deduplicateEntries([...entries, ...additions])
+}
+
+function deduplicateEntries(entries: readonly ReaderDirectoryEntry[]): ReaderDirectoryEntry[] {
+  const seen = new Set<string>()
+  return entries.filter((entry) => {
+    const key = normalizedPath(entry.path)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 function applyCachedDirectorySizes(

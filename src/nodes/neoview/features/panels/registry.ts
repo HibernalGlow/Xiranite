@@ -92,6 +92,7 @@ export interface ReaderPanelContext {
   onOpenInNewTab?(path: string): void
   folderNavigationEvents?: EventTarget
   pickDirectory?: () => Promise<string | undefined>
+  pickEfuFile?: () => Promise<string | undefined>
   systemActions?: {
     copyText?(text: string): Promise<void>
     copyFiles?(paths: string[]): Promise<void>

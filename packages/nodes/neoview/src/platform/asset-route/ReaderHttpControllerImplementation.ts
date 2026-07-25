@@ -601,6 +601,7 @@ export class ReaderHttpController implements AsyncDisposable {
         )
       },
       (sessionId, descriptor, signal) => this.#directoryBrowser.resolveSelection(sessionId, descriptor, signal),
+      (results, undo, signal) => this.#directoryBrowser.reconcileFileOperations(results, undo, signal),
     )
     this.#systemIntegration = new ReaderSystemIntegrationHttpController(async () => {
       const { ReaderSystemIntegrationService } = await import("../../application/files/ReaderSystemIntegrationService.js")

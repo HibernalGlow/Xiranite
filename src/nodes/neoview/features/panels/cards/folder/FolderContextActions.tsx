@@ -29,6 +29,7 @@ export default function FolderContextActions({
   sessionId,
   generation,
   currentPath,
+  currentSourceKind,
   selection,
   selectedCount = 0,
   onActivate,
@@ -56,6 +57,7 @@ export default function FolderContextActions({
   sessionId?: string
   generation?: number
   currentPath?: string
+  currentSourceKind?: "directory" | "efu"
   selection?: ReaderDirectorySelectionDescriptorDto
   selectedCount?: number
   onActivate(entry: FolderContextEntry): void | Promise<void>
@@ -330,7 +332,9 @@ export default function FolderContextActions({
       pending,
       canCopyText: Boolean(copyText),
       canClipboard: Boolean(sessionId && generation !== undefined && client.prepareDirectoryClipboard),
-      canPaste: clipboard.clipboard.available && Boolean(client.pasteDirectoryClipboard),
+      canPaste: clipboard.clipboard.available
+        && Boolean(client.pasteDirectoryClipboard)
+        && (entry.kind === "directory" || currentSourceKind !== "efu"),
       canOpenSystem: Boolean(client.openSystemPath),
       canReveal: Boolean(client.revealSystemPath),
       canOpenAsBook: Boolean(onOpenAsBook),

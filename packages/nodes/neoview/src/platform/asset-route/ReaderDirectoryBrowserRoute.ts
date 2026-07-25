@@ -15,6 +15,7 @@ import {
   type ReaderDirectorySortPreferenceStore,
 } from "../../application/browser/ReaderDirectorySortPreferences.js"
 import { PlatformDirectoryListingProvider } from "../filesystem/PlatformDirectoryListingProvider.js"
+import { PlatformEfuDirectoryListingProvider } from "../filesystem/PlatformEfuDirectoryListingProvider.js"
 import { canonicalizePlatformDirectoryPath, normalizePlatformDirectoryPath } from "../filesystem/PlatformDirectoryPath.js"
 import { PlatformDirectoryMetadataProvider } from "../filesystem/PlatformDirectoryMetadataProvider.js"
 import { PlatformFileTreeScanner } from "../filesystem/PlatformFileTreeScanner.js"
@@ -130,7 +131,10 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     this.#manualTagCatalog = manualTagCatalog
     this.#emmTranslations = emmTranslations
     this.#searchHistory = searchHistory
-    const listingProvider = new PlatformDirectoryListingProvider(mediaFormats)
+    const listingProvider = new PlatformEfuDirectoryListingProvider(
+      new PlatformDirectoryListingProvider(mediaFormats),
+      mediaFormats,
+    )
     this.#browser = new ReaderFileTreeService(
       listingProvider,
       new PlatformDirectoryMetadataProvider(emmRecordStore, collectTagSource, undefined, mediaMetadataProvider),
@@ -316,6 +320,14 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     return this.#browser.resolveSelection(sessionId, descriptor, signal)
   }
 
+  reconcileFileOperations(
+    results: Parameters<ReaderFileTreeService["reconcileFileOperations"]>[0],
+    undo = false,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    return this.#browser.reconcileFileOperations(results, undo, signal)
+  }
+
   async #open(request: Request): Promise<Response> {
     const body = await request.json().catch(() => undefined) as { path?: unknown; scopeId?: unknown; watch?: unknown } | undefined
     if (typeof body?.path !== "string" || !body.path.trim()) return errorResponse("path must be a non-empty string", 400)
@@ -324,8 +336,9 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     try {
       const resolvedPath = await canonicalizePlatformDirectoryPath(body.path)
       const pathStats = await stat(resolvedPath)
-      const directoryPath = pathStats.isDirectory() ? resolvedPath : dirname(resolvedPath)
-      const focusPath = pathStats.isDirectory() ? undefined : resolvedPath
+      const efuPath = pathStats.isFile() && /\.efu$/iu.test(resolvedPath)
+      const directoryPath = pathStats.isDirectory() || efuPath ? resolvedPath : dirname(resolvedPath)
+      const focusPath = pathStats.isDirectory() || efuPath ? undefined : resolvedPath
       return Response.json(await this.#browser.open(
         directoryPath,
         request.signal,

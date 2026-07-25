@@ -52,6 +52,7 @@ import {
   isEditableKeyboardEvent,
   isVerticalFolderRegion,
   mergeDirectoryPage,
+  sortDirectoryCatalogEntries,
   normalizeFolderNavigationPath,
   rememberDirectoryVisitState,
   restoreDirectoryVisitState,
@@ -257,6 +258,7 @@ export function FolderBrowserPane({
   sourcePath,
   onOpen,
   onPrepareFileMutation,
+  pickEfuFile,
   systemActions,
   switchToast,
   folderView = DEFAULT_FOLDER_VIEW,
@@ -493,7 +495,9 @@ export function FolderBrowserPane({
     if (!completed || clipboardCompletionRef.current === completed.id) return
     clipboardCompletionRef.current = completed.id
     const current = catalogRef.current
-    if (completed.destinationPath && current && sameFolderPath(completed.destinationPath, current.path)) {
+    if (current?.sourceKind === "efu" && completed.kind === "move") {
+      void navigate({ action: "refresh" }, { keepTree: true })
+    } else if (completed.destinationPath && current && sameFolderPath(completed.destinationPath, current.path)) {
       void navigate({ action: "refresh" }, { keepTree: true })
     }
   }, [clipboard.lastCompleted?.id])
@@ -942,6 +946,18 @@ export function FolderBrowserPane({
   }
 
   async function updateSort(sort: ReaderDirectorySortDto) {
+    const current = catalogRef.current
+    if (current && isVirtualSearchPath(current.path)) {
+      const next = sortDirectoryCatalogEntries(current, sort)
+      commitCatalog(next)
+      setSelection(createDirectorySelection(next.generation))
+      const nextFocusedIndex = focusedPath
+        ? [...next.pages.values()].flat().findIndex((entry) => entry.path === focusedPath)
+        : -1
+      focusedIndexRef.current = nextFocusedIndex < 0 ? undefined : nextFocusedIndex
+      setFocusedIndex(nextFocusedIndex < 0 ? undefined : nextFocusedIndex)
+      return
+    }
     const applySort = client.sortDirectoryBrowser
     if (!applySort) return
     const sorted = await updateCatalogProjection((sessionId, focusPath, signal) => applySort(sessionId, sort, focusPath, signal))
@@ -1845,6 +1861,9 @@ export function FolderBrowserPane({
   const virtualKey = catalog ? `${catalog.sessionId}:${catalog.navigationEntryId}:${viewMode}:${previewCount}` : `${viewMode}:${previewCount}`
   const tabLayout = folderView.tabs ?? DEFAULT_FOLDER_VIEW.tabs!
   const searchListingActive = isVirtualSearchPath(catalog?.path)
+  const efuListingActive = catalog?.sourceKind === "efu"
+  const treeVisible = treeOpen && !efuListingActive
+  const inlineTreeVisible = inlineTreeOpen && !efuListingActive
   const showReturnFooter = folderView.emptyArea.showBackButton && !searchListingActive
   const returnFooterContext = {
     disabled: disabled || loading || !catalog || (!catalog.canGoBack && !catalog.parentPath),
@@ -1905,7 +1924,8 @@ export function FolderBrowserPane({
         data-folder-toolbar-position={tabLayout.toolbarPosition}
         data-folder-tab-position={tabLayout.layout}
         data-folder-view-mode={viewMode}
-        data-folder-inline-tree={inlineTreeOpen || null}
+        data-folder-inline-tree={inlineTreeVisible || null}
+        data-folder-source-kind={catalog?.sourceKind}
         data-selection-count={selectedCount}
         data-selection-total={catalog?.total ?? 0}
         data-thumbnail-cache-size={thumbnailUrls.size}
@@ -1956,6 +1976,7 @@ export function FolderBrowserPane({
               sessionId={catalog?.sessionId}
               generation={catalog?.generation}
               currentPath={catalog?.path}
+              currentSourceKind={catalog?.sourceKind}
               selection={directorySelectionDescriptor(selection)}
               selectedCount={selectedCount}
               treePinnedPaths={folderView.tree.pinnedPaths}
@@ -2035,7 +2056,7 @@ export function FolderBrowserPane({
                   loading={loading}
                   canGoBack={Boolean(catalog?.canGoBack)}
                   canGoForward={Boolean(catalog?.canGoForward)}
-                  canGoUp={Boolean(catalog?.parentPath)}
+                  canGoUp={!efuListingActive && Boolean(catalog?.parentPath)}
                   homePath={folderView.homePath || undefined}
                   currentPath={catalog?.path}
                   viewMode={viewMode}
@@ -2054,10 +2075,10 @@ export function FolderBrowserPane({
                   showHiddenFolders={catalog?.showHiddenFolders ?? folderView.showHiddenFolders ?? false}
                   tagDisplay={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}
                   penetration={penetration}
-                  treeOpen={treeOpen}
+                  treeOpen={treeVisible}
                   treeLayout={treeLayout}
-                  canTree={Boolean(client.treeDirectoryBrowser)}
-                  inlineTreeOpen={inlineTreeOpen}
+                  canTree={!efuListingActive && Boolean(client.treeDirectoryBrowser)}
+                  inlineTreeOpen={inlineTreeVisible}
                   multiSelectMode={multiSelectMode}
                   deleteMode={deleteMode}
                   deleteStrategy={deleteStrategy}
@@ -2072,6 +2093,7 @@ export function FolderBrowserPane({
                   thumbnailRefreshPending={thumbnailRefreshPending}
                   canRefreshThumbnails={Boolean(client.registerLibraryThumbnails)}
                   canRefreshSelectedThumbnails={Boolean(client.registerLibraryThumbnails && selectedPaths.size)}
+                  canImportEfu={Boolean(pickEfuFile)}
                   sortLabels={SORT_LABELS}
                   sortSourceLabels={SORT_SOURCE_LABELS}
                   onNavigateBack={() => {
@@ -2148,6 +2170,11 @@ export function FolderBrowserPane({
                     void refreshSelectedThumbnails()
                   }}
                   onCancelThumbnailRefresh={cancelThumbnailRefresh}
+                  onImportEfu={() => {
+                    void pickEfuFile?.().then((path) => {
+                      if (path) void navigate({ action: "path", path })
+                    })
+                  }}
                 />
               </Suspense>
             </div>
@@ -2161,6 +2188,7 @@ export function FolderBrowserPane({
                     selectedCount={selectedCount}
                     total={catalog.total}
                     currentPath={catalog.path}
+                    canPasteToCurrentDirectory={!efuListingActive}
                     disabled={disabled || loading}
                     switchToast={switchToast}
                     confirmations={confirmations}
@@ -2227,14 +2255,14 @@ export function FolderBrowserPane({
                 style={
                   {
                     "--folder-tree-size": `${treeSize}px`,
-                    gridTemplateColumns: !treeOpen
+                    gridTemplateColumns: !treeVisible
                       ? "1fr"
                       : treeLayout === "left"
                         ? "min(var(--folder-tree-size), 50%) 1fr"
                         : treeLayout === "right"
                           ? "1fr min(var(--folder-tree-size), 50%)"
                           : "1fr",
-                    gridTemplateRows: !treeOpen
+                    gridTemplateRows: !treeVisible
                       ? undefined
                       : treeLayout === "top"
                         ? "var(--folder-tree-size) minmax(0, 1fr)"
@@ -2243,9 +2271,9 @@ export function FolderBrowserPane({
                           : "minmax(0, 1fr)",
                   } as CSSProperties
                 }
-                data-tree-layout={treeOpen ? treeLayout : undefined}
+                data-tree-layout={treeVisible ? treeLayout : undefined}
               >
-                {treeOpen && sessionIdRef.current && catalog ? (
+                {treeVisible && sessionIdRef.current && catalog ? (
                   <Suspense
                     fallback={
                       <div
@@ -2281,7 +2309,7 @@ export function FolderBrowserPane({
                   className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded border bg-background/60"
                   style={
                     {
-                      order: treeOpen && (treeLayout === "right" || treeLayout === "bottom") ? 0 : 1,
+                      order: treeVisible && (treeLayout === "right" || treeLayout === "bottom") ? 0 : 1,
                       "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%`,
                     } as CSSProperties
                   }
@@ -2316,14 +2344,14 @@ export function FolderBrowserPane({
                     className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     data-neoview-folder-list="true"
                     data-focused-index={focusedIndex}
-                    role={inlineTreeOpen ? undefined : "listbox"}
+                    role={inlineTreeVisible ? undefined : "listbox"}
                     aria-label={searchListingActive ? "搜索结果" : "文件项目"}
-                    aria-activedescendant={inlineTreeOpen ? undefined : focusedItemId}
-                    tabIndex={inlineTreeOpen ? -1 : 0}
-                    onKeyDown={inlineTreeOpen ? undefined : handleDirectoryKeyDown}
-                    {...(inlineTreeOpen ? {} : emptyAreaHandlers)}
+                    aria-activedescendant={inlineTreeVisible ? undefined : focusedItemId}
+                    tabIndex={inlineTreeVisible ? -1 : 0}
+                    onKeyDown={inlineTreeVisible ? undefined : handleDirectoryKeyDown}
+                    {...(inlineTreeVisible ? {} : emptyAreaHandlers)}
                   >
-                  {inlineTreeOpen && sessionIdRef.current && catalog ? (
+                  {inlineTreeVisible && sessionIdRef.current && catalog ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载内联文件树" />}>
                       <FolderTreePanel
                         client={client}
@@ -2341,7 +2369,7 @@ export function FolderBrowserPane({
                       />
                     </Suspense>
                   ) : null}
-                  {!inlineTreeOpen && catalog && catalog.total > 0 && viewUsesVirtuosoList(viewMode) ? (
+                  {!inlineTreeVisible && catalog && catalog.total > 0 && viewUsesVirtuosoList(viewMode) ? (
                     <Virtuoso
                       key={virtualKey}
                       ref={listRef}
@@ -2390,7 +2418,7 @@ export function FolderBrowserPane({
                       }}
                     />
                   ) : null}
-                  {!inlineTreeOpen && catalog && viewMode === "details" ? (
+                  {!inlineTreeVisible && catalog && viewMode === "details" ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载详细信息视图" />}>
                       <FolderDetailsView
                         key={virtualKey}
@@ -2418,7 +2446,7 @@ export function FolderBrowserPane({
                       />
                     </Suspense>
                   ) : null}
-                  {!inlineTreeOpen && catalog && catalog.total > 0 && viewUsesFixedGrid(viewMode) ? (
+                  {!inlineTreeVisible && catalog && catalog.total > 0 && viewUsesFixedGrid(viewMode) ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载网格视图" />}>
                       <FolderGridWorkspace
                         virtualKey={virtualKey}
@@ -2453,7 +2481,7 @@ export function FolderBrowserPane({
                       />
                     </Suspense>
                   ) : null}
-                  {!inlineTreeOpen && catalog && catalog.total > 0 && viewUsesMosaicGrid(viewMode) ? (
+                  {!inlineTreeVisible && catalog && catalog.total > 0 && viewUsesMosaicGrid(viewMode) ? (
                     <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载自由缩略图视图" />}>
                       <FolderMosaicWorkspace
                         key={virtualKey}
@@ -2486,7 +2514,7 @@ export function FolderBrowserPane({
                       />
                     </Suspense>
                   ) : null}
-                  {!inlineTreeOpen && catalog && catalog.total === 0 ? (
+                  {!inlineTreeVisible && catalog && catalog.total === 0 ? (
                     <div className="grid h-72 place-items-center px-4 text-center text-xs text-muted-foreground" data-folder-empty-state="true" role="status">
                       {isVirtualSearchPath(catalog.path)
                         ? "未找到匹配的搜索结果"

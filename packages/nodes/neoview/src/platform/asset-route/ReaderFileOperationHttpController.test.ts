@@ -8,7 +8,8 @@ describe("ReaderFileOperationHttpController", () => {
   it("[neoview.file-operations.http] lazily executes a validated batch", async () => {
     const execute = vi.fn(async () => undefined)
     const load = vi.fn(async () => new ReaderFileOperationService({ execute }))
-    const controller = new ReaderFileOperationHttpController(load)
+    const onResults = vi.fn()
+    const controller = new ReaderFileOperationHttpController(load, undefined, onResults)
     const path = absolute("source.jpg")
     const response = await controller.handle(jsonRequest({ operations: [{ kind: "trash", sourcePath: path }], confirmed: true }))
 
@@ -16,6 +17,9 @@ describe("ReaderFileOperationHttpController", () => {
     expect(await response?.json()).toMatchObject({ succeeded: 1, failed: 0, cancelled: 0 })
     expect(load).toHaveBeenCalledOnce()
     expect(execute).toHaveBeenCalledWith({ kind: "trash", sourcePath: path }, expect.any(AbortSignal))
+    expect(onResults).toHaveBeenCalledWith([
+      expect.objectContaining({ status: "succeeded", operation: { kind: "trash", sourcePath: path } }),
+    ], false, expect.any(AbortSignal))
   })
 
   it("[neoview.file-operations.confirmation] rejects destructive work before loading the platform adapter", async () => {
@@ -48,7 +52,8 @@ describe("ReaderFileOperationHttpController", () => {
       },
       undo: vi.fn(async () => undefined),
     })
-    const controller = new ReaderFileOperationHttpController(async () => service)
+    const onResults = vi.fn()
+    const controller = new ReaderFileOperationHttpController(async () => service, undefined, onResults)
     await controller.handle(jsonRequest({ operations: [{ kind: "copy", sourcePath: absolute("source"), destinationPath: absolute("target") }] }))
 
     const state = await controller.handle(new Request("http://127.0.0.1/reader/files/operations"))
@@ -57,6 +62,9 @@ describe("ReaderFileOperationHttpController", () => {
     expect(rejected?.status).toBe(409)
     const undone = await controller.handle(jsonRequest({ confirmed: true }, "/reader/files/undo"))
     expect(await undone?.json()).toMatchObject({ succeeded: 1, failed: 0, remaining: 0 })
+    expect(onResults).toHaveBeenLastCalledWith([
+      expect.objectContaining({ status: "succeeded", operation: expect.objectContaining({ kind: "copy" }) }),
+    ], true, expect.any(AbortSignal))
 
     await controller.handle(jsonRequest({ operations: [{ kind: "copy", sourcePath: absolute("source-2"), destinationPath: absolute("target-2") }] }))
     const rejectedDiscard = await controller.handle(jsonRequest({}, "/reader/files/undo/discard"))
@@ -74,9 +82,11 @@ describe("ReaderFileOperationHttpController", () => {
       explicit: [],
     })
     const resolveSelection = vi.fn(async () => source)
+    const onResults = vi.fn()
     const controller = new ReaderFileOperationHttpController(
       async () => new ReaderFileOperationService({ execute }),
       resolveSelection,
+      onResults,
     )
     const started = (await controller.handle(jsonRequest({
       sessionId: "browser-1",
@@ -97,6 +107,8 @@ describe("ReaderFileOperationHttpController", () => {
     })
     expect(completed).toMatchObject({ processed: 600, succeeded: 600, failed: 0 })
     expect(execute).toHaveBeenCalledTimes(600)
+    expect(onResults).toHaveBeenCalledTimes(3)
+    expect(onResults.mock.calls.flatMap(([results]) => results)).toHaveLength(600)
     await controller.close()
   })
 

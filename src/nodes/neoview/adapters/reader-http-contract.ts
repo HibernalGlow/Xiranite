@@ -867,6 +867,7 @@ export interface ReaderDirectoryPageDto {
   navigationEntryId: number
   path: string
   parentPath?: string
+  sourceKind?: "directory" | "efu"
   entries: ReaderDirectoryEntryDto[]
   cursor: number
   nextCursor?: number

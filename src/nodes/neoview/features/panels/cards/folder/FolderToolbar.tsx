@@ -7,6 +7,7 @@ import {
   Calendar,
   Eye,
   FileType,
+  FileSpreadsheet,
   FolderTree,
   Grid2X2,
   HardDrive,
@@ -135,6 +136,7 @@ export type FolderToolbarProps = {
   thumbnailRefreshPending: boolean
   canRefreshThumbnails: boolean
   canRefreshSelectedThumbnails: boolean
+  canImportEfu?: boolean
   sortLabels: Readonly<Record<ReaderDirectorySortFieldDto, string>>
   sortSourceLabels: Readonly<Record<ReaderDirectorySortSourceDto, string>>
   onNavigateBack(): void
@@ -173,6 +175,7 @@ export type FolderToolbarProps = {
   onRefreshVisibleThumbnails(): void
   onRefreshSelectedThumbnails(): void
   onCancelThumbnailRefresh(): void
+  onImportEfu?(): void
 }
 
 const TREE_LAYOUT_OPTIONS: readonly {
@@ -242,6 +245,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     thumbnailRefreshPending,
     canRefreshThumbnails,
     canRefreshSelectedThumbnails,
+    canImportEfu = false,
     sortLabels,
     sortSourceLabels,
     onNavigateBack,
@@ -280,6 +284,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     onRefreshVisibleThumbnails,
     onRefreshSelectedThumbnails,
     onCancelThumbnailRefresh,
+    onImportEfu,
   } = props
 
   const busy = disabled || loading
@@ -492,13 +497,18 @@ export default function FolderToolbar(props: FolderToolbarProps) {
               variant={typeFilterActive || hoverPreviewEnabled === false || penetration.enabled ? "secondary" : "ghost"}
               aria-label="更多"
               title="更多设置"
-              disabled={!currentPath || busy}
+              disabled={busy || (!currentPath && !canImportEfu)}
               data-folder-toolbar-control="more"
             >
               <MoreHorizontal />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72" data-folder-toolbar-menu="more">
+            <DropdownMenuItem disabled={!canImportEfu || busy} onSelect={() => onImportEfu?.()}>
+              <FileSpreadsheet className="size-4" />
+              导入 EFU 文件列表
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuLabel className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
               <Settings2 className="size-3.5" />
               显示与筛选

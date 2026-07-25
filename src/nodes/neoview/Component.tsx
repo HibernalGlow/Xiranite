@@ -58,6 +58,12 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
         }))[0]
         : undefined}
       pickDirectory={host.localFiles?.pickDirectory}
+      pickEfuFile={host.localFiles?.pickFiles
+        ? async () => (await host.localFiles!.pickFiles!({
+          title: "导入 Everything 文件列表",
+          filters: [{ displayName: "Everything 文件列表", pattern: "*.efu" }],
+        }))[0]
+        : undefined}
       copyText={host.clipboard?.writeText}
       copyFiles={host.clipboard?.writeFiles}
       onPathCommitted={(path, browserOriginPath) => host.state.patchData({ path, browserOriginPath: browserOriginPath ?? null })}

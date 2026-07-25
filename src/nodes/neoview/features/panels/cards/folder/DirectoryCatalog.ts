@@ -24,6 +24,7 @@ export interface DirectoryCatalog {
   navigationEntryId: number
   path: string
   parentPath?: string
+  sourceKind?: ReaderDirectoryPageDto["sourceKind"]
   total: number
   generation: number
   canGoBack: boolean
@@ -92,6 +93,7 @@ export function createDirectoryCatalog(page: ReaderDirectoryPageDto): DirectoryC
     navigationEntryId: page.navigationEntryId,
     path: page.path,
     parentPath: page.parentPath,
+    sourceKind: page.sourceKind,
     total: page.total,
     generation: page.generation,
     canGoBack: page.canGoBack,
@@ -133,6 +135,58 @@ export function mergeDirectoryPage(catalog: DirectoryCatalog, page: ReaderDirect
     pages,
     pageMetadataFields,
   }
+}
+
+export function sortDirectoryCatalogEntries(
+  catalog: DirectoryCatalog,
+  sort: ReaderDirectorySortDto,
+): DirectoryCatalog {
+  const entries = [...catalog.pages.values()].flat()
+  const direction = sort.order === "desc" ? -1 : 1
+  const sorted = entries.toSorted((left, right) => {
+    if (sort.directoriesFirst && left.kind !== right.kind) return entryKindRank(left.kind) - entryKindRank(right.kind)
+    const comparison = compareDirectoryField(left, right, sort.field)
+    return comparison ? comparison * direction : naturalCompare(left.name, right.name) || naturalCompare(left.path, right.path)
+  })
+  return { ...catalog, sort, pages: new Map([[0, sorted]]) }
+}
+
+function compareDirectoryField(
+  left: ReaderDirectoryEntryDto,
+  right: ReaderDirectoryEntryDto,
+  field: ReaderDirectorySortFieldDto,
+): number {
+  if (field === "name") return naturalCompare(left.name, right.name)
+  if (field === "date") return numberValue(left.modifiedAt) - numberValue(right.modifiedAt)
+  if (field === "size") return numberValue(left.size) - numberValue(right.size)
+  if (field === "type") return naturalCompare(fileExtension(left.name), fileExtension(right.name))
+  if (field === "rating") return numberValue(left.rating) - numberValue(right.rating)
+  if (field === "path") return naturalCompare(left.path, right.path)
+  if (field === "collectTagCount") return numberValue(left.collectTagCount) - numberValue(right.collectTagCount)
+  return stablePathRank(left.path) - stablePathRank(right.path)
+}
+
+function entryKindRank(kind: ReaderDirectoryEntryDto["kind"]): number {
+  return kind === "directory" ? 0 : kind === "file" ? 1 : 2
+}
+
+function numberValue(value: number | undefined): number {
+  return Number.isFinite(value) ? value! : 0
+}
+
+function fileExtension(name: string): string {
+  const dot = name.lastIndexOf(".")
+  return dot < 0 ? "" : name.slice(dot + 1)
+}
+
+function naturalCompare(left: string, right: string): number {
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" })
+}
+
+function stablePathRank(path: string): number {
+  let hash = 2_166_136_261
+  for (let index = 0; index < path.length; index += 1) hash = Math.imul(hash ^ path.charCodeAt(index), 16_777_619)
+  return hash >>> 0
 }
 
 export function trimDirectoryPages(catalog: DirectoryCatalog, anchorIndex: number, maximumPages: number): DirectoryCatalog {
