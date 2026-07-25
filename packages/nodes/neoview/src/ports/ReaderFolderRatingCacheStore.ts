@@ -1,4 +1,9 @@
-import type { ReaderFolderRatingEntry } from "../application/metadata/ReaderFolderRatingCache.js"
+export interface ReaderFolderRatingEntry {
+  path: string
+  averageRating: number
+  count: number
+  direct: boolean
+}
 
 export interface ReaderFolderRatingCacheSnapshot {
   entries: readonly ReaderFolderRatingEntry[]
