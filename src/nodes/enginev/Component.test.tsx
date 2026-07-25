@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, test, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { NodeCapabilityId, NodeHostApi, NodeRunResult } from "@xiranite/contract"
@@ -14,6 +14,12 @@ const surfaceState = vi.hoisted(() => ({
   height: undefined as number | undefined,
 }))
 
+const configRpc = vi.hoisted(() => ({
+  exportNodeConfigFromBackend: vi.fn(),
+  getNodeConfigFromBackend: vi.fn(),
+  getNodeUiConfigFromBackend: vi.fn(),
+}))
+
 vi.mock("@/nodes/shared/useNodeSurface", () => ({
   useNodeSurface: () => ({
     ref: { current: null },
@@ -23,6 +29,17 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
     density: surfaceState.mode === "collapsed" || surfaceState.mode === "compact" || surfaceState.mode === "portrait" ? "tight" : "roomy",
   }),
 }))
+
+vi.mock("@/backend/configRpcClient", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/backend/configRpcClient")>(),
+  ...configRpc,
+}))
+
+beforeEach(() => {
+  configRpc.getNodeConfigFromBackend.mockResolvedValue({ config: undefined, path: "D:/config/xiranite.config.toml" })
+  configRpc.exportNodeConfigFromBackend.mockResolvedValue({ content: "", filename: "enginev.toml", mimeType: "application/toml" })
+  configRpc.getNodeUiConfigFromBackend.mockResolvedValue({ config: undefined, path: "D:/config/xiranite.config.toml" })
+})
 
 afterEach(() => {
   cleanup()
@@ -307,7 +324,7 @@ describe("app-owned enginev Component", () => {
     const user = userEvent.setup()
 
     await user.click(screen.getByRole("button", { name: "enginev 配置中心" }))
-    await user.click(screen.getByRole("button", { name: "保存为默认" }))
+    await user.click(screen.getByRole("button", { name: "保存为默认配置" }))
 
     await waitFor(() => expect(host.savedConfig).toEqual({
       workshopPath: "D:/workshop",
@@ -320,7 +337,8 @@ describe("app-owned enginev Component", () => {
 
   test("uses the theme highlight for only selected gallery pills", async () => {
     surfaceState.mode = "expanded"
-    render(<Component compId="comp-enginev" host={createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })} />)
+    const host = createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })
+    const view = render(<Component compId="comp-enginev" host={host} />)
     const user = userEvent.setup()
     const pill = screen.getByText("111").closest("[data-enginev-wallpaper-selection]")
 
@@ -329,6 +347,7 @@ describe("app-owned enginev Component", () => {
 
     await user.click(screen.getByRole("button", { name: "选择 Ocean Loop" }))
 
+    view.rerender(<Component compId="comp-enginev" host={host} />)
     const selectedPill = screen.getByText("111").closest("[data-enginev-wallpaper-selection]")
     expect(selectedPill?.getAttribute("data-variant")).toBe("default")
     expect(selectedPill?.className).toContain("bg-primary")
