@@ -313,6 +313,32 @@ describe("NodeRunnerService", () => {
     expect(service.getOperation(operation.operationId)?.phase).toBe("error")
     expect(events?.events.some((entry) => entry.event.message.includes("Memory protection stopped xlchemy"))).toBe(true)
   })
+
+  test("periodically enforces memory protection when a node does not sample memory itself", async () => {
+    const mib = 1024 * 1024
+    let usage = { rssBytes: 100 * mib, heapUsedBytes: 40 * mib }
+    const service = new NodeRunnerService({
+      createOperationId: () => "op-periodic-memory-limit",
+      memoryProtection: {
+        defaultPolicy: { maxRssGrowthBytes: 32 * mib, sampleIntervalMs: 25 },
+        readMemoryUsage: () => usage,
+      },
+      runner: {
+        async runNode() {
+          usage = { rssBytes: 140 * mib, heapUsedBytes: 45 * mib }
+          await new Promise((resolve) => setTimeout(resolve, 80))
+          return { success: true, message: "unexpected" }
+        },
+      },
+    })
+
+    const operation = service.startOperation("legacy-node", {})
+    const result = await service.waitForOperation(operation.operationId)
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain("Memory protection stopped legacy-node: RSS growth 40.0 MiB exceeded 32.0 MiB")
+    expect(service.getOperation(operation.operationId)?.phase).toBe("error")
+  })
 })
 
 describe("ConfigService", () => {
