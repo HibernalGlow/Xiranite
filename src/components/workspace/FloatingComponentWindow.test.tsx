@@ -108,10 +108,15 @@ describe("FloatingComponentWindow", () => {
 
     const controls = await screen.findByTestId("floating-window-integrated-controls")
     expect(controls.dataset.windowCaptionStyle).toBe("capsule")
+    expect(controls.dataset.windowCaptionVisibility).toBe("titlebar-hover")
     expect(controls.className).toContain("xiranite-node-chrome-pill")
     expect(controls.className).toContain("bg-background/45")
     expect(controls.className).toContain("ring-1")
+    expect(controls.className).toContain("rounded-full")
+    expect(controls.className).toContain("h-6")
     expect([...controls.querySelectorAll("button")].every((button) => button.dataset.slot === "button" && button.dataset.variant === "ghost" && button.dataset.size === "icon-xs")).toBe(true)
+    expect([...controls.querySelectorAll("button")].every((button) => button.hasAttribute("data-node-chrome-action"))).toBe(true)
+    expect([...controls.querySelectorAll("button")].every((button) => button.className.includes("size-5") && button.className.includes("rounded-full"))).toBe(true)
   })
 
   test("centers traffic-light controls and uses close-minimize-maximize order", async () => {

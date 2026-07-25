@@ -155,12 +155,14 @@ export function FloatingWindowCaptionControls({
       data-window-caption-density={density}
       data-window-caption-position={resolvedAppearance?.position ?? "inline"}
       data-window-caption-style={captionStyle}
+      data-window-caption-visibility={capsule ? "titlebar-hover" : "always"}
       className={cn(
         "xiranite-app-region-no-drag group/caption flex shrink-0 items-center",
-        "fixed top-1.5 z-50 h-7",
+        "fixed z-50",
         !capsule && "bg-transparent",
+        !capsule && "top-1.5 h-7",
         trafficLight && "gap-1.5 px-1.5",
-        capsule && NODE_CHROME_PILL_CLASS_NAME,
+        capsule && cn(NODE_CHROME_PILL_CLASS_NAME, "top-1 h-6 rounded-full px-0.5 py-px"),
         positionClass,
         className,
       )}
@@ -177,6 +179,7 @@ export function FloatingWindowCaptionControls({
           disabled={frame.pending}
           onClick={() => frame.control(action)}
           danger={action === "close"}
+          className="size-5 rounded-full [&_svg]:size-3"
         >
           <WindowControlIcon action={action} maximized={maximized} />
         </NodeChromeActionButton>

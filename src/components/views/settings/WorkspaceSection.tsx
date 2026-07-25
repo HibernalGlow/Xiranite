@@ -32,7 +32,7 @@ import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Kanban, KanbanBoard, KanbanColumn, KanbanItem, KanbanItemHandle, KanbanOverlay } from "@/components/ui/kanban"
 import { cn } from "@/lib/utils"
-import { NodeChromeActionButton, NodeChromePill } from "@/components/workspace/NodeChromePrimitives"
+import { NodeChromeActionPreview, NodeChromePill } from "@/components/workspace/NodeChromePrimitives"
 import { useWorkspaceActions, useWorkspaceShallowSelector } from "@/store/workspaceStore"
 import {
   CHROME_ACTION_HIDDEN_COLUMN,
@@ -513,10 +513,10 @@ export function WorkspaceSection() {
                           <span className="grid h-6 w-7 place-items-center hover:bg-destructive hover:text-white"><X className="size-2.5" /></span>
                         </span>
                       ) : key === "capsule" ? (
-                        <NodeChromePill>
-                          <NodeChromeActionButton tabIndex={-1}><Minus /></NodeChromeActionButton>
-                          <NodeChromeActionButton tabIndex={-1}><Square /></NodeChromeActionButton>
-                          <NodeChromeActionButton tabIndex={-1} danger><X /></NodeChromeActionButton>
+                        <NodeChromePill className="rounded-full px-0.5 py-px">
+                          <NodeChromeActionPreview className="size-5 rounded-full"><Minus /></NodeChromeActionPreview>
+                          <NodeChromeActionPreview className="size-5 rounded-full"><Square /></NodeChromeActionPreview>
+                          <NodeChromeActionPreview className="size-5 rounded-full" danger><X /></NodeChromeActionPreview>
                         </NodeChromePill>
                       ) : (
                         <span className="flex items-center gap-0.5">

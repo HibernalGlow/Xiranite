@@ -194,6 +194,40 @@ samp {
   background: color-mix(in oklch, #10b981 80%, transparent) !important;
 }
 
+/* Operation-chrome buttons share one continuous pill surface. Theme-level
+   node control treatments must not turn each ghost action into its own tile. */
+.xiranite-node-chrome-action {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.xiranite-node-chrome-action:hover {
+  background: color-mix(in oklch, var(--foreground) 9%, transparent) !important;
+  color: var(--primary) !important;
+}
+
+.xiranite-node-chrome-action[data-node-chrome-danger="true"]:hover {
+  background: color-mix(in oklch, var(--destructive) 10%, transparent) !important;
+  color: var(--destructive) !important;
+}
+
+.xiranite-floating-window [data-window-caption-visibility="titlebar-hover"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.xiranite-floating-window:has(:is(
+  [data-floating-window-titlebar="true"],
+  [data-floating-window-drag-row="true"]
+):is(:hover, :focus-within)) [data-window-caption-visibility="titlebar-hover"],
+.xiranite-floating-window [data-window-caption-visibility="titlebar-hover"]:is(:hover, :focus-within) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* ── Workspace canvas dot/grid background ── */
 .ws-canvas-bg {
   position: relative;
