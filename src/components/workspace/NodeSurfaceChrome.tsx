@@ -297,6 +297,7 @@ function DynamicIslandChrome({
               "xiranite-node-chrome-dot h-1.5 w-5 rounded-full bg-primary/70 shadow-[0_0_10px_var(--ws-accent-glow)]",
               hideIdleIndicator && "bg-transparent shadow-none",
             )}
+            style={hideIdleIndicator ? { backgroundColor: "transparent", boxShadow: "none" } : undefined}
           />
         </motion.div>
         <motion.div

@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vitest"
+import { afterEach, expect, test, vi } from "vitest"
 import { page } from "vitest/browser"
 import { render } from "vitest-browser-react"
 import { useEffect, useState } from "react"
@@ -16,6 +16,7 @@ import {
 import { MelodeckFoliaNodeSurface } from "./Component"
 import { foliaMelodeckHost } from "./foliaHost"
 import { resolveFoliaCssColor } from "./foliaTheme"
+import { useWorkspaceStore } from "@/store/workspaceStore"
 import {
   WorkspaceMelodeckPanel,
   WorkspaceMelodeckProvider,
@@ -24,6 +25,10 @@ import {
 } from "@/components/workspace/WorkspaceMelodeck"
 import hostI18n from "@/i18n"
 import "@hibernalglow/folia-player/styles.css"
+
+afterEach(() => {
+  useWorkspaceStore.getState().setChromePosition("right")
+})
 
 test("keeps Xiranite translations intact after loading Folia surfaces", () => {
   expect(hostI18n.t("common:appName")).toBe("XIRANITE")
@@ -198,6 +203,7 @@ test("renders populated Folia projections around one shared audio element", asyn
 })
 
 test("uses the Folia card and bar as direct draggable workspace projections", async () => {
+  useWorkspaceStore.getState().setChromePosition("island")
   await render(<WorkspaceMelodeckProjectionHarness />)
 
   await expect.poll(() => document.querySelector('[data-melodeck="panel"]')?.getAttribute("data-melodeck-projection")).toBe("direct")
@@ -256,8 +262,10 @@ test("uses the Folia card and bar as direct draggable workspace projections", as
   expect(getComputedStyle(idleIndicator!).boxShadow).toBe("none")
   const bottomToolbar = bottomChrome!.querySelector<HTMLElement>('[role="toolbar"]')
   expect(bottomToolbar).not.toBeNull()
-  await page.elementLocator(bottomToolbar!).hover()
-  await expect.poll(() => getComputedStyle(bottomToolbar!).backgroundColor).not.toBe("rgba(0, 0, 0, 0)")
+  bottomToolbar!.parentElement!.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }))
+  await expect.poll(() => getComputedStyle(
+    panel.querySelector<HTMLElement>('[role="toolbar"]')!,
+  ).backgroundColor).not.toBe("rgba(0, 0, 0, 0)")
   await expect.poll(() => panel.getBoundingClientRect().height).toBe(96)
   await expect.poll(() => panel.getBoundingClientRect().width).toBeLessThanOrEqual(576)
   expect(getComputedStyle(panel).backgroundColor).toBe("rgba(0, 0, 0, 0)")
