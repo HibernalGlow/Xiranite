@@ -281,16 +281,49 @@ export function Component({ host }: EngineVProps) {
 
     setRunning(true)
     patch({ action: nextAction, phase: "running", progress: 0, progressText: tNode("actionStart", "正在{{action}}。", { action: labelForAction(nextAction) }) })
+    let pendingProgress: { progress: number; message: string } | undefined
+    let pendingLogs: string[] = []
+    let eventFlushTimer: number | undefined
+    const flushEvents = () => {
+      if (eventFlushTimer !== undefined) {
+        window.clearTimeout(eventFlushTimer)
+        eventFlushTimer = undefined
+      }
+      const nextProgress = pendingProgress
+      const nextLogs = pendingLogs
+      pendingProgress = undefined
+      pendingLogs = []
+      if (!nextProgress && !nextLogs.length) return
+      patch({
+        ...(nextProgress ? {
+          progress: nextProgress.progress,
+          progressText: nextProgress.message,
+        } : {}),
+        logs: [
+          ...(dataRef.current.logs ?? []),
+          ...(nextProgress ? [`[${nextProgress.progress}%] ${nextProgress.message}`] : []),
+          ...nextLogs,
+        ].slice(-100),
+      })
+    }
+    const queueProgress = (progress: number, message: string) => {
+      pendingProgress = { progress, message }
+      if (eventFlushTimer === undefined) eventFlushTimer = window.setTimeout(flushEvents, 120)
+    }
+    const queueLog = (message: string) => {
+      pendingLogs.push(message)
+      if (eventFlushTimer === undefined) eventFlushTimer = window.setTimeout(flushEvents, 120)
+    }
     try {
       const response = await runAction<EngineVInput, EngineVData>("enginev", input, (event) => {
         if (event.type === "progress") {
-          patch({ progress: event.progress ?? 0, progressText: event.message })
-          pushLog(`[${event.progress ?? 0}%] ${event.message}`)
+          queueProgress(event.progress ?? 0, event.message)
           return
         }
-        pushLog(event.message)
+        queueLog(event.message)
       }) as EngineVResult
 
+      flushEvents()
       const next = response.data ?? null
       patch({
         phase: response.success ? "completed" : "error",
@@ -302,10 +335,12 @@ export function Component({ host }: EngineVProps) {
       })
       pushLog(response.message)
     } catch (error) {
+      flushEvents()
       const message = error instanceof Error ? error.message : String(error)
       patch({ phase: "error", progress: 0, progressText: message })
       pushLog(message)
     } finally {
+      flushEvents()
       setRunning(false)
     }
   }
