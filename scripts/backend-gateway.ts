@@ -41,8 +41,13 @@ export async function removeBackendGatewayTarget(frontendUrl: string): Promise<v
 }
 
 export function isBackendGatewayPath(pathname: string): boolean {
+  if (FRONTEND_CONFIG_ASSET_PATHS.has(pathname)) return false
   return BACKEND_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 }
+
+const FRONTEND_CONFIG_ASSET_PATHS = new Set([
+  "/config/webview2-flags.json",
+])
 
 const BACKEND_ROUTE_PREFIXES = [
   "/config",
