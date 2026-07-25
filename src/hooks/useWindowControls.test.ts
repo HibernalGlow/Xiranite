@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import { openComponentOnce } from "./useWindowControls"
+import { openComponentOnce, withRememberedComponentWindowSize } from "./useWindowControls"
 
 const input = { componentId: "component-1", moduleId: "enginev" }
 
@@ -21,5 +21,18 @@ describe("openComponentOnce", () => {
     settle?.({ success: true, supported: true, message: "Opened again" })
     await third
     expect(open).toHaveBeenCalledTimes(2)
+  })
+
+  test("uses the database size and carries workspace identity into the native request", () => {
+    expect(withRememberedComponentWindowSize(
+      { ...input, width: 460, height: 380 },
+      "ws-alpha",
+      { width: 1180, height: 760 },
+    )).toEqual({
+      ...input,
+      workspaceId: "ws-alpha",
+      width: 1180,
+      height: 760,
+    })
   })
 })

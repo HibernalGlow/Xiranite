@@ -24,11 +24,27 @@ export const laneSchema = z.object({
 
 export const componentPlacementSchema = z.enum(["workspace", "window"])
 
+export const componentWindowSizeSchema = z.object({
+  width: z.number().int().min(360),
+  height: z.number().int().min(260),
+})
+
+export const componentWindowSizeLookupSchema = z.object({
+  componentId: z.string().min(1),
+  moduleId: z.string().min(1),
+  workspaceId: z.string().min(1),
+})
+
+export const componentWindowSizeUpdateSchema = componentWindowSizeLookupSchema.extend({
+  size: componentWindowSizeSchema,
+})
+
 export const componentSchema = z.object({
   id: z.string().min(1),
   moduleId: z.string().min(1),
   workspaceId: z.string().min(1),
   placement: componentPlacementSchema.optional(),
+  windowSize: componentWindowSizeSchema.optional(),
   data: z.record(z.string(), z.unknown()).optional(),
   flowPosition: z.object({ x: z.number(), y: z.number() }).optional(),
   flowSize: z.object({ width: z.number().positive(), height: z.number().positive() }).optional(),
@@ -305,6 +321,9 @@ export type WorkspaceDTO = z.infer<typeof workspaceSchema>
 export type LaneDTO = z.infer<typeof laneSchema>
 export type ComponentDTO = z.infer<typeof componentSchema>
 export type ComponentPlacementDTO = z.infer<typeof componentPlacementSchema>
+export type ComponentWindowSizeDTO = z.infer<typeof componentWindowSizeSchema>
+export type ComponentWindowSizeLookupDTO = z.infer<typeof componentWindowSizeLookupSchema>
+export type ComponentWindowSizeUpdateDTO = z.infer<typeof componentWindowSizeUpdateSchema>
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceInputSchema>
 export type RenameWorkspaceInput = z.infer<typeof renameWorkspaceInputSchema>
 export type WorkspaceSnapshotDTO = z.infer<typeof workspaceSnapshotSchema>

@@ -2,6 +2,8 @@ import { Elysia, t } from "elysia"
 import type { XiraniteServices } from "@xiranite/services"
 import {
   createWorkspaceInputSchema,
+  componentWindowSizeLookupSchema,
+  componentWindowSizeUpdateSchema,
   nexusCaptureRequestSchema,
   nodeRunHistoryClearQuerySchema,
   nodeRunHistoryQuerySchema,
@@ -153,6 +155,18 @@ export function createXiraniteApp(services: XiraniteServices) {
       return { snapshot }
     }, {
       body: workspaceSnapshotSchema,
+    })
+    .get("/workspace/window-size", async ({ query }) => {
+      const size = await services.workspace.resolveComponentWindowSize(query)
+      return { size: size ?? null }
+    }, {
+      query: componentWindowSizeLookupSchema,
+    })
+    .put("/workspace/window-size", async ({ body }) => {
+      const size = await services.workspace.saveComponentWindowSize(body)
+      return { size }
+    }, {
+      body: componentWindowSizeUpdateSchema,
     })
     .post("/workspace", async ({ body, set }) => {
       const workspace = await services.workspace.createWorkspace(body)

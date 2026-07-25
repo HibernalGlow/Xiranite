@@ -494,6 +494,7 @@ function duplicateComponentState(state: WSState, id: string): WSState {
     // New components default to docked state, never copy fullscreen state.
     state: "docked",
     placement: "workspace",
+    windowSize: source.windowSize ? { ...source.windowSize } : undefined,
     position: newPosition,
     size: source.size ? { ...source.size } : undefined,
     z: zCounter,
@@ -655,6 +656,7 @@ function duplicateComponentsState(state: WSState, ids: string[]): Partial<WSStor
       id: newId,
       moduleId: source.moduleId,
       state: "docked",
+      windowSize: source.windowSize ? { ...source.windowSize } : undefined,
       position: newPosition,
       size: source.size ? { ...source.size } : undefined,
       z: zCounter,

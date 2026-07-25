@@ -45,6 +45,7 @@ describe("createLibsqlWorkspaceRepository", () => {
             moduleId: "scratch",
             placement: "window",
             workspaceId: "ws-alpha",
+            windowSize: { width: 920, height: 680 },
             data: { text: "hello" },
             flowPosition: { x: 1, y: 2 },
             flowSize: { width: 384, height: 320 },
@@ -68,6 +69,16 @@ describe("createLibsqlWorkspaceRepository", () => {
       await expect(reopened.listWorkspaces()).resolves.toEqual(snapshot.workspaces)
       await expect(reopened.listLanes()).resolves.toEqual(snapshot.lanes)
       await expect(reopened.listComponents()).resolves.toEqual(snapshot.components)
+
+      await reopened.saveComponentWindowSize("comp-alpha", "window-size:ws-alpha:scratch", { width: 1180, height: 760 }, 200)
+      await reopened.saveComponentWindowSize("missing", "window-size:ws-alpha:missing", { width: 800, height: 600 }, 200)
+      await expect(reopened.listComponents()).resolves.toEqual([
+        { ...snapshot.components[0], windowSize: { width: 1180, height: 760 }, updatedAt: 200 },
+      ])
+      await expect(reopened.getKvValue("window-size:ws-alpha:scratch")).resolves.toBe(JSON.stringify({
+        size: { width: 1180, height: 760 },
+        updatedAt: 200,
+      }))
     } finally {
       for (const repository of clients) {
         repository.client.close()

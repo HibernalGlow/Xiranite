@@ -4,6 +4,12 @@ import { NodeRunHistoryService } from "./historyService.js"
 import { ResourceSchedulerService } from "./resourceScheduler.js"
 import {
   createWorkspaceInputSchema,
+  componentWindowSizeLookupSchema,
+  componentWindowSizeSchema,
+  componentWindowSizeUpdateSchema,
+  type ComponentWindowSizeDTO,
+  type ComponentWindowSizeLookupDTO,
+  type ComponentWindowSizeUpdateDTO,
   type NodeOperationCleanupResponseDTO,
   type NodeOperationDTO,
   type NodeOperationEventsResponseDTO,
@@ -145,6 +151,50 @@ export class WorkspaceService {
     const parsed = workspaceSnapshotSchema.parse(snapshot)
     const saved = await this.repository.saveSnapshot(parsed)
     return saved
+  }
+
+  async resolveComponentWindowSize(input: ComponentWindowSizeLookupDTO): Promise<ComponentWindowSizeDTO | undefined> {
+    const parsed = componentWindowSizeLookupSchema.parse(input)
+    const [components, moduleRecord] = await Promise.all([
+      this.repository.listComponents(),
+      this.repository.getKvValue(componentWindowSizeKey(parsed.workspaceId, parsed.moduleId)).then(parseComponentWindowSizeRecord),
+    ])
+    const component = components.find((item) => item.id === parsed.componentId && item.workspaceId === parsed.workspaceId)
+    const componentRecord = component?.windowSize
+      ? { size: component.windowSize, updatedAt: component.updatedAt }
+      : undefined
+
+    if (!componentRecord) return moduleRecord?.size
+    if (!moduleRecord) return componentRecord.size
+    return moduleRecord.updatedAt > componentRecord.updatedAt ? moduleRecord.size : componentRecord.size
+  }
+
+  async saveComponentWindowSize(input: ComponentWindowSizeUpdateDTO): Promise<ComponentWindowSizeDTO> {
+    const parsed = componentWindowSizeUpdateSchema.parse(input)
+    const updatedAt = this.now()
+    await this.repository.saveComponentWindowSize(
+      parsed.componentId,
+      componentWindowSizeKey(parsed.workspaceId, parsed.moduleId),
+      parsed.size,
+      updatedAt,
+    )
+    return parsed.size
+  }
+}
+
+function componentWindowSizeKey(workspaceId: string, moduleId: string): string {
+  return `workspace.component-window-size.v1:${encodeURIComponent(workspaceId)}:${encodeURIComponent(moduleId)}`
+}
+
+function parseComponentWindowSizeRecord(raw: string | null): { size: ComponentWindowSizeDTO; updatedAt: number } | undefined {
+  if (!raw) return undefined
+  try {
+    const value = JSON.parse(raw) as { size?: unknown; updatedAt?: unknown }
+    const size = componentWindowSizeSchema.safeParse(value.size)
+    if (!size.success || typeof value.updatedAt !== "number" || !Number.isFinite(value.updatedAt)) return undefined
+    return { size: size.data, updatedAt: value.updatedAt }
+  } catch {
+    return undefined
   }
 }
 

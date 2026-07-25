@@ -73,6 +73,56 @@ describe("WorkspaceService", () => {
     expect(await service.getSnapshot()).toEqual(nextSnapshot)
   })
 
+  test("stores component window sizes and falls back to the latest workspace module size", async () => {
+    const repository = createMemoryWorkspaceRepository({
+      workspaces: [{ id: "ws-alpha", label: "Alpha", createdAt: 1, updatedAt: 1 }],
+      components: [{
+        id: "comp-alpha",
+        moduleId: "enginev",
+        workspaceId: "ws-alpha",
+        windowSize: { width: 920, height: 680 },
+        createdAt: 1,
+        updatedAt: 100,
+      }],
+    })
+    const service = new WorkspaceService({ repository, now: fixedClock([200, 300]) })
+
+    await expect(service.resolveComponentWindowSize({
+      componentId: "comp-alpha",
+      moduleId: "enginev",
+      workspaceId: "ws-alpha",
+    })).resolves.toEqual({ width: 920, height: 680 })
+
+    await service.saveComponentWindowSize({
+      componentId: "comp-alpha",
+      moduleId: "enginev",
+      workspaceId: "ws-alpha",
+      size: { width: 1080, height: 720 },
+    })
+    await expect(repository.listComponents()).resolves.toContainEqual(expect.objectContaining({
+      id: "comp-alpha",
+      windowSize: { width: 1080, height: 720 },
+      updatedAt: 200,
+    }))
+
+    await service.saveComponentWindowSize({
+      componentId: "new-component",
+      moduleId: "enginev",
+      workspaceId: "ws-alpha",
+      size: { width: 1280, height: 800 },
+    })
+    await expect(service.resolveComponentWindowSize({
+      componentId: "comp-alpha",
+      moduleId: "enginev",
+      workspaceId: "ws-alpha",
+    })).resolves.toEqual({ width: 1280, height: 800 })
+    await expect(service.resolveComponentWindowSize({
+      componentId: "another-component",
+      moduleId: "enginev",
+      workspaceId: "ws-alpha",
+    })).resolves.toEqual({ width: 1280, height: 800 })
+  })
+
   test("records explicit workspace operations but not snapshot autosaves", async () => {
     const repository = createMemoryWorkspaceRepository()
     const historyRepository = createMemoryNodeRunHistoryRepository()

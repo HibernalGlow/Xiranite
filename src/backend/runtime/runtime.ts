@@ -106,9 +106,18 @@ export interface WindowFrame {
   height: number
 }
 
+export interface ComponentWindowFrameEvent {
+  componentId: string
+  moduleId: string
+  workspaceId?: string
+  width: number
+  height: number
+}
+
 export interface OpenComponentWindowInput {
   componentId: string
   moduleId: string
+  workspaceId?: string
   title?: string
   width?: number
   height?: number
@@ -123,6 +132,7 @@ export interface WindowRuntime {
   openDevTools(id?: string): Promise<WindowCommandResult>
   getFrame(id?: string): Promise<WindowFrame | null>
   setFrame(frame: WindowFrame, id?: string): Promise<WindowCommandResult>
+  subscribeFrameChanges(handler: (event: ComponentWindowFrameEvent) => void): Promise<() => void>
 }
 
 export interface TrayCapabilities {

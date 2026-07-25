@@ -12,9 +12,25 @@
  */
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { getBackend } from "@/backend/client"
+import { resolveComponentWindowSize } from "@/backend/workspaceRpcClient"
+import { createLogger } from "@/lib/logger"
+import { useWorkspaceStore } from "@/store/workspaceStore"
 import type { MainWindowAction, OpenComponentWindowInput, WindowCommandResult } from "@/backend/runtime/runtime"
 
 const componentOpenRequests = new Map<string, Promise<WindowCommandResult>>()
+const logger = createLogger("window.controls")
+
+export function withRememberedComponentWindowSize(
+  input: OpenComponentWindowInput,
+  workspaceId: string,
+  rememberedSize: { width: number; height: number } | null,
+): OpenComponentWindowInput {
+  return {
+    ...input,
+    workspaceId,
+    ...(rememberedSize ? { width: rememberedSize.width, height: rememberedSize.height } : {}),
+  }
+}
 
 /** Shares concurrent opens from the explicit launcher and window restorer. */
 export function openComponentOnce(
@@ -54,8 +70,22 @@ export function useWindowControls() {
   const openComponentMutation = useMutation({
     mutationFn: async (input: OpenComponentWindowInput): Promise<WindowCommandResult> => {
       return openComponentOnce(input, async (request) => {
-        const backend = await getBackend()
-        return backend.windows.openComponent(request)
+        const state = useWorkspaceStore.getState()
+        const component = state.components.find((item) => item.id === request.componentId)
+        const workspaceId = request.workspaceId ?? component?.workspaceId ?? state.activeWorkspaceId
+        const backendPromise = getBackend()
+        let rememberedSize: { width: number; height: number } | null = null
+        try {
+          rememberedSize = await resolveComponentWindowSize({
+            componentId: request.componentId,
+            moduleId: request.moduleId,
+            workspaceId,
+          })
+        } catch (error) {
+          logger.info("Unable to restore component window size", { componentId: request.componentId, workspaceId }, error)
+        }
+        const backend = await backendPromise
+        return backend.windows.openComponent(withRememberedComponentWindowSize(request, workspaceId, rememberedSize))
       })
     },
   })

@@ -82,15 +82,19 @@ type WindowFrame struct {
 	Height int `json:"height"`
 }
 
-type ComponentWindowSize struct {
-	Width  int `json:"width"`
-	Height int `json:"height"`
-}
-
 type OpenComponentWindowInput struct {
 	ComponentID string `json:"componentId"`
 	ModuleID    string `json:"moduleId"`
+	WorkspaceID string `json:"workspaceId"`
 	Title       string `json:"title"`
+	Width       int    `json:"width"`
+	Height      int    `json:"height"`
+}
+
+type ComponentWindowFrameEvent struct {
+	ComponentID string `json:"componentId"`
+	ModuleID    string `json:"moduleId"`
+	WorkspaceID string `json:"workspaceId,omitempty"`
 	Width       int    `json:"width"`
 	Height      int    `json:"height"`
 }
@@ -508,18 +512,14 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 	if height <= 0 {
 		height = 380
 	}
-	if remembered, ok, err := s.loadComponentWindowSize(input.ComponentID, input.ModuleID); err != nil {
-		log.Printf("Unable to restore component window %q size: %v", id, err)
-	} else if ok {
-		width = remembered.Width
-		height = remembered.Height
-	}
-
 	query := url.Values{}
 	query.Set("floatingComponent", input.ComponentID)
 	query.Set("moduleId", input.ModuleID)
 	query.Set("title", title)
 	query.Set("windowId", id)
+	if input.WorkspaceID != "" {
+		query.Set("workspaceId", input.WorkspaceID)
+	}
 
 	win := App.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:            id,
@@ -550,7 +550,7 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 		log.Printf("Unable to set component window %q taskbar icon: %v", id, err)
 	}
 	wireFileDrop(win)
-	s.trackComponentWindowSize(win, input.ComponentID, input.ModuleID)
+	trackComponentWindowFrame(win, input)
 	primeWindowFrame(win)
 
 	return WindowCommandResult{
@@ -565,77 +565,38 @@ func componentWindowID(componentID string) string {
 	return "component-" + componentID
 }
 
-const componentWindowSizeStoragePrefix = "desktop.component-window-size.v1:"
+const componentWindowFrameEventName = "component-window-frame"
 
-func componentWindowSizeStorageKeys(componentID string, moduleID string) []string {
-	return []string{
-		componentWindowSizeStoragePrefix + "component:" + componentID,
-		componentWindowSizeStoragePrefix + "module:" + moduleID,
-	}
-}
-
-func validComponentWindowSize(size ComponentWindowSize) bool {
-	return size.Width >= 360 && size.Height >= 260
-}
-
-func (s *XiraniteService) loadComponentWindowSize(componentID string, moduleID string) (ComponentWindowSize, bool, error) {
-	s.storageMu.Lock()
-	defer s.storageMu.Unlock()
-
-	storage, err := s.loadStorage()
-	if err != nil {
-		return ComponentWindowSize{}, false, err
-	}
-	for _, key := range componentWindowSizeStorageKeys(componentID, moduleID) {
-		encoded, ok := storage[key]
-		if !ok {
-			continue
-		}
-		var size ComponentWindowSize
-		if err := json.Unmarshal([]byte(encoded), &size); err == nil && validComponentWindowSize(size) {
-			return size, true, nil
-		}
-	}
-	return ComponentWindowSize{}, false, nil
-}
-
-func (s *XiraniteService) saveComponentWindowSize(componentID string, moduleID string, size ComponentWindowSize) error {
-	if !validComponentWindowSize(size) {
-		return nil
-	}
-	encoded, err := json.Marshal(size)
-	if err != nil {
-		return err
-	}
-
-	s.storageMu.Lock()
-	defer s.storageMu.Unlock()
-
-	storage, err := s.loadStorage()
-	if err != nil {
-		return err
-	}
-	for _, key := range componentWindowSizeStorageKeys(componentID, moduleID) {
-		storage[key] = string(encoded)
-	}
-	return s.saveStorage(storage)
-}
-
-func (s *XiraniteService) trackComponentWindowSize(window application.Window, componentID string, moduleID string) {
-	persistCurrentSize := func(_ *application.WindowEvent) {
+func trackComponentWindowFrame(window application.Window, input OpenComponentWindowInput) {
+	publishCurrentFrame := func(_ *application.WindowEvent) {
 		if window.IsMaximised() || window.IsFullscreen() || window.IsMinimised() {
 			return
 		}
 		width, height := window.Size()
-		if err := s.saveComponentWindowSize(componentID, moduleID, ComponentWindowSize{Width: width, Height: height}); err != nil {
-			log.Printf("Unable to remember component window %q size: %v", componentWindowID(componentID), err)
+		event, ok := newComponentWindowFrameEvent(input, width, height)
+		if !ok || App == nil {
+			return
 		}
+		App.Event.Emit(componentWindowFrameEventName, event)
 	}
 
 	if runtime.GOOS == "windows" {
-		window.OnWindowEvent(events.Windows.WindowEndResize, persistCurrentSize)
+		window.OnWindowEvent(events.Windows.WindowEndResize, publishCurrentFrame)
 	}
-	window.RegisterHook(events.Common.WindowClosing, persistCurrentSize)
+	window.RegisterHook(events.Common.WindowClosing, publishCurrentFrame)
+}
+
+func newComponentWindowFrameEvent(input OpenComponentWindowInput, width int, height int) (ComponentWindowFrameEvent, bool) {
+	if input.ComponentID == "" || input.ModuleID == "" || width < 360 || height < 260 {
+		return ComponentWindowFrameEvent{}, false
+	}
+	return ComponentWindowFrameEvent{
+		ComponentID: input.ComponentID,
+		ModuleID:    input.ModuleID,
+		WorkspaceID: input.WorkspaceID,
+		Width:       width,
+		Height:      height,
+	}, true
 }
 
 func (s *XiraniteService) WindowFocus(id string) WindowCommandResult {

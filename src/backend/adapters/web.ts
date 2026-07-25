@@ -1,4 +1,5 @@
 import type {
+  ComponentWindowFrameEvent,
   EventBusRuntime,
   FileSystemRuntime,
   NativeFileDropRuntime,
@@ -190,6 +191,7 @@ class WebWindowRuntime implements WindowRuntime {
     url.searchParams.set("floatingComponent", input.componentId)
     url.searchParams.set("moduleId", input.moduleId)
     url.searchParams.set("windowId", input.componentId)
+    if (input.workspaceId) url.searchParams.set("workspaceId", input.workspaceId)
     if (input.title) url.searchParams.set("title", input.title)
 
     const popup = window.open(
@@ -250,6 +252,38 @@ class WebWindowRuntime implements WindowRuntime {
       id,
       message: "Browser runtime cannot resize native windows.",
     }
+  }
+
+  async subscribeFrameChanges(handler: (event: ComponentWindowFrameEvent) => void): Promise<() => void> {
+    return subscribeBrowserWindowFrames(handler)
+  }
+}
+
+export function subscribeBrowserWindowFrames(handler: (event: ComponentWindowFrameEvent) => void): () => void {
+  const params = new URLSearchParams(window.location.search)
+  const componentId = params.get("floatingComponent")
+  const moduleId = params.get("moduleId")
+  const workspaceId = params.get("workspaceId") ?? undefined
+  if (!componentId || !moduleId) return () => undefined
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const publish = () => {
+    const width = Math.round(window.innerWidth)
+    const height = Math.round(window.innerHeight)
+    if (width < 360 || height < 260) return
+    handler({ componentId, moduleId, workspaceId, width, height })
+  }
+  const schedule = () => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(publish, 200)
+  }
+  window.addEventListener("resize", schedule)
+  window.addEventListener("beforeunload", publish)
+
+  return () => {
+    if (timer) clearTimeout(timer)
+    window.removeEventListener("resize", schedule)
+    window.removeEventListener("beforeunload", publish)
   }
 }
 

@@ -1,5 +1,10 @@
 import { createXiraniteWorkspaceClient } from "@xiranite/api/client"
-import type { WorkspaceSnapshotDTO } from "@xiranite/shared"
+import type {
+  ComponentWindowSizeDTO,
+  ComponentWindowSizeLookupDTO,
+  ComponentWindowSizeUpdateDTO,
+  WorkspaceSnapshotDTO,
+} from "@xiranite/shared"
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "./localBackendConfig"
 
 let workspaceClient: ReturnType<typeof createXiraniteWorkspaceClient> | null = null
@@ -11,6 +16,14 @@ export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshotDTO> {
 
 export async function persistWorkspaceSnapshot(snapshot: WorkspaceSnapshotDTO): Promise<void> {
   await getWorkspaceClient().persistSnapshot(snapshot)
+}
+
+export async function resolveComponentWindowSize(input: ComponentWindowSizeLookupDTO): Promise<ComponentWindowSizeDTO | null> {
+  return getWorkspaceClient().resolveComponentWindowSize(input)
+}
+
+export async function persistComponentWindowSize(input: ComponentWindowSizeUpdateDTO): Promise<ComponentWindowSizeDTO> {
+  return getWorkspaceClient().persistComponentWindowSize(input)
 }
 
 function getWorkspaceClient() {
