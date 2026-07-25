@@ -1,7 +1,7 @@
 /* @jsxImportSource @opentui/react */
 import { TextAttributes } from "@opentui/core"
 import { useKeyboard } from "@opentui/react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 import { useTerminalTheme } from "../theme.js"
 
@@ -20,7 +20,7 @@ export function TextInput({
   error?: string
   onChange: (value: string) => void
   onSubmit: (value: string) => void
-}) {
+}): ReactNode {
   const theme = useTerminalTheme()
   const [cursorOffset, setCursorOffset] = useState(value.length)
 

@@ -7,7 +7,7 @@ import {
   type SliderOptions,
 } from "@opentui/core"
 import { extend } from "@opentui/react"
-import { useRef } from "react"
+import { useRef, type ReactNode } from "react"
 
 interface TerminalSliderRenderableOptions extends SliderOptions {
   step?: number
@@ -131,7 +131,7 @@ export function TerminalSlider({
   viewPortSize = Math.max(step, (max - min) / 100),
   onChange,
   ...props
-}: TerminalSliderProps) {
+}: TerminalSliderProps): ReactNode {
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
 

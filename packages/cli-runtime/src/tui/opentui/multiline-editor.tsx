@@ -1,6 +1,6 @@
 /* @jsxImportSource @opentui/react */
 import type { TextareaRenderable } from "@opentui/core"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, type ReactNode } from "react"
 
 import { useTerminalTheme } from "../theme.js"
 
@@ -22,7 +22,7 @@ export function MultilineEditor({
   height?: number
   onFocus: () => void
   onChange: (value: string) => void
-}) {
+}): ReactNode {
   const theme = useTerminalTheme()
   const editorRef = useRef<TextareaRenderable | null>(null)
 
@@ -67,6 +67,6 @@ export function MultilineEditor({
   )
 }
 
-export function PathListInput(props: Parameters<typeof MultilineEditor>[0]) {
+export function PathListInput(props: Parameters<typeof MultilineEditor>[0]): ReactNode {
   return <MultilineEditor {...props} height={props.height ?? 6} />
 }

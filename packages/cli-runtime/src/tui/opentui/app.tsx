@@ -1,6 +1,6 @@
 /* @jsxImportSource @opentui/react */
 import { useKeyboard } from "@opentui/react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 
 import type { InteractionField, InteractionValue, TerminalInteractionDefinition, TerminalViewSection } from "../../interaction.js"
 import type { TerminalPreferenceController, TerminalPreferenceValues } from "../index.js"
@@ -28,7 +28,7 @@ export function OpenTuiTerminalApp<Input, Result>({
   preferences?: TerminalPreferenceController
   help?: import("@xiranite/contract").NodeHelp
   onExit: () => void
-}) {
+}): ReactNode {
   const t = createTerminalTranslator(language)
   const [previewTheme, setPreviewTheme] = useState(theme ?? preferences?.current.theme ?? "nord")
   return (
@@ -50,7 +50,7 @@ function OpenTuiTerminalScreen<Input, Result>({
   onThemePreview: (theme: string) => void
   onExit: () => void
   t: TerminalTranslator
-}) {
+}): ReactNode {
   const theme = useTerminalTheme()
   const session = useTerminalUiSession(definition)
   useTerminalChromeActions({ onReset: session.reset, onExit })

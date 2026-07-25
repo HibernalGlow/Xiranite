@@ -55,7 +55,7 @@ export function TerminalRoot({ taskQueue, help, language, preferences, theme: re
   preferences?: RunTerminalUiOptions["preferences"]
   theme?: string
   content: ReactNode
-}) {
+}): ReactNode {
   const [showQueue, setShowQueue] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showPreferences, setShowPreferences] = useState(false)

@@ -1,9 +1,10 @@
 /* @jsxImportSource @opentui/react */
+import type { ReactNode } from "react"
 import { localizeNodeHelp, type NodeHelp } from "@xiranite/contract"
 import { useTerminalTheme } from "../theme.js"
 import { ClickTarget, WorkbenchPanel } from "./workbench-controls.js"
 
-export function TerminalHelpScreen({ help, language, onBack }: { help: NodeHelp; language: "zh" | "en"; onBack: () => void }) {
+export function TerminalHelpScreen({ help, language, onBack }: { help: NodeHelp; language: "zh" | "en"; onBack: () => void }): ReactNode {
   const theme = useTerminalTheme()
   const value = localizeNodeHelp(help, language)
   return <box width="100%" height="100%" flexDirection="column" paddingLeft={1} paddingRight={1}>

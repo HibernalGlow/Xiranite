@@ -20,6 +20,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
   type RefObject,
 } from "react";
 
@@ -71,7 +72,7 @@ export function TerminalImagePreview({
   drawingGenerationRef,
   deferUntilVisible = false,
   decodeService = defaultTerminalImageDecodeService,
-}: TerminalImagePreviewProps) {
+}: TerminalImagePreviewProps): ReactNode {
   const renderer = useRenderer();
   const boxRef = useRef<BoxRenderable | null>(null);
   const resolvedBackend = resolveTerminalImageBackend(

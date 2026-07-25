@@ -1,6 +1,6 @@
 /* @jsxImportSource @opentui/react */
 import { useKeyboard } from "@opentui/react"
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 
 import type { InteractionOption, InteractionValue } from "../../interaction.js"
 import { useTerminalTheme } from "../theme.js"
@@ -16,7 +16,7 @@ export function Select<Value extends InteractionValue>({
   value?: Value
   label?: string
   onSubmit: (value: Value) => void
-}) {
+}): ReactNode {
   const theme = useTerminalTheme()
   const [activeIndex, setActiveIndex] = useState(() => {
     const selectedIndex = options.findIndex((option) => option.value === value && !option.disabled)

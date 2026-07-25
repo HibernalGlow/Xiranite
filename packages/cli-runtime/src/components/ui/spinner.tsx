@@ -1,6 +1,7 @@
 /* @jsxImportSource @opentui/react */
 import cliSpinners from "cli-spinners"
 import type { SpinnerName } from "cli-spinners"
+import type { ReactNode } from "react"
 
 import { useAnimation } from "../../hooks/use-animation.js"
 import { useTheme } from "./theme-provider.js"
@@ -26,7 +27,7 @@ export const Spinner = ({
   fps = 12,
   frames: customFrames,
   ...props
-}: SpinnerProps) => {
+}: SpinnerProps): ReactNode => {
   const theme = useTheme();
   const builtin = cliSpinners[type] ?? cliSpinners.dots;
   const useCustomFrames = customFrames !== undefined;
