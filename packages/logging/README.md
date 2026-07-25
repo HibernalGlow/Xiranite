@@ -12,10 +12,12 @@ Production and development logs use the same directory:
 - Override: `XIRANITE_LOG_DIR`
 
 The Node transport uses `rotating-file-stream`. Active files end in
-`.current.jsonl`; rotated files are gzip-compressed. Defaults are 10 MiB per
-file, daily rotation, 100 retained files, and 200 MiB total history. Override
-these with `XIRANITE_LOG_FILE_SIZE`, `XIRANITE_LOG_MAX_FILES`, and
-`XIRANITE_LOG_MAX_SIZE`.
+`.current.jsonl`; size-rotated files end in `.jsonl.gz`. Defaults are 10 MiB
+per file, 100 retained files, and 200 MiB total history. Override these with
+`XIRANITE_LOG_FILE_SIZE`, `XIRANITE_LOG_MAX_FILES`, and
+`XIRANITE_LOG_MAX_SIZE`. The reader also recognizes gzip by its file header so
+logs created by older releases with a misleading `.jsonl` suffix remain
+readable.
 
 ## Levels
 

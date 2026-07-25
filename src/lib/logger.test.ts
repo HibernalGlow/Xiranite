@@ -62,6 +62,32 @@ describe("logger", () => {
     })
   })
 
+  it("reports the backend response and stops retrying a broken remote transport", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({
+      error: "log append failed",
+      detail: { code: "EACCES", message: "permission denied" },
+    }, { status: 500 })))
+    const { createLogger } = await import("./logger")
+
+    createLogger("qa").error("first failure")
+    await vi.runAllTimersAsync()
+
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(consoleError).toHaveBeenCalledTimes(1)
+    const transportError = consoleError.mock.calls[0]?.[1]
+    expect(transportError).toBeInstanceOf(Error)
+    expect((transportError as Error).message).toContain("POST http://127.0.0.1:41000/logs")
+    expect((transportError as Error).message).toContain("HTTP 500")
+    expect((transportError as Error).message).toContain("content-type=application/json")
+    expect((transportError as Error).message).toContain('"code":"EACCES"')
+    expect((transportError as Error).message).toContain('"message":"permission denied"')
+
+    createLogger("qa").error("must stay local")
+    await vi.runAllTimersAsync()
+    expect(fetch).toHaveBeenCalledTimes(3)
+  })
+
   it("exposes a runtime controller for temporary diagnostics", async () => {
     await import("./logger")
 
