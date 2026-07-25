@@ -34,7 +34,7 @@ import type { SleeptInteractionAction } from "./interaction.js";
  * timer console, telemetry/status, logs and a guarded power-action rail. */
 export function SleeptTui(
   props: TerminalUiScreenProps<SleeptInput, SleeptResult>,
-) {
+): import('react').ReactNode {
   const [previewTheme, setPreviewTheme] = useState(
     props.theme ?? props.preferences?.current.theme ?? "inherit",
   );

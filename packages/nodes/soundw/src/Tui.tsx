@@ -7,7 +7,7 @@ import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { NodeRunResult } from "@xiranite/contract"
 import type { SoundwData, SoundwInput } from "./core.js"
 
-export function SoundwTui(props: TerminalUiScreenProps<SoundwInput, NodeRunResult<SoundwData>>) {
+export function SoundwTui(props: TerminalUiScreenProps<SoundwInput, NodeRunResult<SoundwData>>): import('react').ReactNode {
   const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit")
   return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><SoundwWorkbench {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider>
 }

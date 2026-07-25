@@ -6,7 +6,7 @@ import { ActionLauncher, ExecutionActions, ProgressBar, TerminalThemeProvider, W
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { LogxInput, LogxResult } from "./core.js"
 
-export function LogxTui(props: TerminalUiScreenProps<LogxInput, LogxResult>) {
+export function LogxTui(props: TerminalUiScreenProps<LogxInput, LogxResult>): import('react').ReactNode {
   const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "nord")
   return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><Workbench {...props} /></TerminalThemeProvider>
 }

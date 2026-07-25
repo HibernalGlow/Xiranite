@@ -19,7 +19,7 @@ import {
 } from "@xiranite/cli-runtime/terminal/opentui";
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n";
 import type { FindzInput, FindzResult } from "./core.js";
-export function FindzTui(p: TerminalUiScreenProps<FindzInput, FindzResult>) {
+export function FindzTui(p: TerminalUiScreenProps<FindzInput, FindzResult>): import('react').ReactNode {
   const [x] = useState(p.theme ?? p.preferences?.current.theme ?? "nord");
   return (
     <TerminalThemeProvider

@@ -5,7 +5,7 @@ import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { BitvInput, BitvResult } from "./core.js"
 
-export function BitvTui(props: TerminalUiScreenProps<BitvInput, BitvResult>) {
+export function BitvTui(props: TerminalUiScreenProps<BitvInput, BitvResult>): import('react').ReactNode {
   const [name] = useState(props.theme ?? "inherit")
   return <TerminalThemeProvider theme={resolveTerminalTheme(name === "inherit" ? "nord" : name)}><BitvWorkbench {...props} /></TerminalThemeProvider>
 }

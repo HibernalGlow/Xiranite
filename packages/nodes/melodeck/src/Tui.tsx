@@ -22,7 +22,7 @@ interface MelodeckTuiProps extends TerminalUiScreenProps<MelodeckInput, Melodeck
   observe?: typeof observeMelodeck
 }
 
-export function MelodeckTui(props: MelodeckTuiProps) {
+export function MelodeckTui(props: MelodeckTuiProps): import('react').ReactNode {
   const theme = props.theme ?? props.preferences?.current.theme ?? "nord"
   return (
     <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}>

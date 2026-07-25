@@ -6,7 +6,7 @@ import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { GifuInput, GifuResult } from "./core.js"
 
-export function GifuTui(props: TerminalUiScreenProps<GifuInput, GifuResult>) { const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><GifuSequenceLab {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider> }
+export function GifuTui(props: TerminalUiScreenProps<GifuInput, GifuResult>): import('react').ReactNode { const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><GifuSequenceLab {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider> }
 
 function GifuSequenceLab({ definition, language, preferences, onExit, onThemePreview }: TerminalUiScreenProps<GifuInput, GifuResult> & { onThemePreview: (theme: string) => void }) {
   const theme = useTerminalTheme(), t = createTerminalTranslator(language), session = useTerminalUiSession(definition)

@@ -31,7 +31,7 @@ import type { EngineVInput, EngineVResult, EngineVWallpaper } from "./core.js";
 
 export function EngineVTui(
   props: TerminalUiScreenProps<EngineVInput, EngineVResult>,
-) {
+): import('react').ReactNode {
   const [previewTheme, setPreviewTheme] = useState(
     props.theme ?? props.preferences?.current.theme ?? "inherit",
   );

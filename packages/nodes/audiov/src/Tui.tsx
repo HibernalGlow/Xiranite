@@ -5,7 +5,7 @@ import { ActionTabs, ExecutionActions, ProgressBar, TerminalThemeProvider, Workb
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { AudiovInput, AudiovResult } from "./core.js"
 
-export function AudiovTui(props: TerminalUiScreenProps<AudiovInput, AudiovResult>) {
+export function AudiovTui(props: TerminalUiScreenProps<AudiovInput, AudiovResult>): import('react').ReactNode {
   const theme = props.theme ?? props.preferences?.current.theme ?? "nord"
   return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><AudiovScreen {...props} /></TerminalThemeProvider>
 }

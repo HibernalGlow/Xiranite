@@ -6,7 +6,7 @@ import { ActionTabs, ClickTarget, ExecutionActions, ProgressBar, TerminalThemePr
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { KavvkaInput, KavvkaMoveRecord, KavvkaProcessResult, KavvkaResult } from "./core.js"
 
-export function KavvkaTui(props: TerminalUiScreenProps<KavvkaInput, KavvkaResult>) { const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><KavvkaWorkbench {...props}/></TerminalThemeProvider> }
+export function KavvkaTui(props: TerminalUiScreenProps<KavvkaInput, KavvkaResult>): import('react').ReactNode { const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><KavvkaWorkbench {...props}/></TerminalThemeProvider> }
 
 function KavvkaWorkbench({ definition, language, onExit }: TerminalUiScreenProps<KavvkaInput, KavvkaResult>) {
   const theme = useTerminalTheme(), t = createTerminalTranslator(language), session = useTerminalUiSession(definition), frame = useAnimation({ intervalMs: session.phase === "running" ? 110 : 560 })

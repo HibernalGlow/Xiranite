@@ -6,7 +6,7 @@ import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { XlchemyInput, XlchemyResult } from "./core.js"
 
-export function XlchemyTui(props: TerminalUiScreenProps<XlchemyInput, XlchemyResult>) {
+export function XlchemyTui(props: TerminalUiScreenProps<XlchemyInput, XlchemyResult>): import('react').ReactNode {
   const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit")
   return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><Workbench {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider>
 }

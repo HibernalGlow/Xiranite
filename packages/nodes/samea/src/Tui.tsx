@@ -6,7 +6,7 @@ import { ActionLauncher, ActionTabs, ExecutionActions, ProgressBar, TerminalThem
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { SameaInput, SameaResult } from "./core.js"
 
-export function SameaTui(props: TerminalUiScreenProps<SameaInput, SameaResult>) {
+export function SameaTui(props: TerminalUiScreenProps<SameaInput, SameaResult>): import('react').ReactNode {
   const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "nord")
   return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><Extractor {...props} /></TerminalThemeProvider>
 }

@@ -26,7 +26,7 @@ import type { RecycleuInput, RecycleuResult } from "./core.js";
 
 export function RecycleuTui(
   props: TerminalUiScreenProps<RecycleuInput, RecycleuResult>,
-) {
+): import('react').ReactNode {
   const [theme, setTheme] = useState(
     props.theme ?? props.preferences?.current.theme ?? "inherit",
   );

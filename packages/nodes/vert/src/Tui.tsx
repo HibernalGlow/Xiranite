@@ -6,7 +6,7 @@ import { ActionTabs, ExecutionActions, ProgressBar, TerminalThemeProvider, Workb
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { VertInput, VertResult } from "./core.js"
 
-export function VertTui(props: TerminalUiScreenProps<VertInput, VertResult>) {
+export function VertTui(props: TerminalUiScreenProps<VertInput, VertResult>): import('react').ReactNode {
   const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit")
   return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><VertWorkbench {...props} /></TerminalThemeProvider>
 }

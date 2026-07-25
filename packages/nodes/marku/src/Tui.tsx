@@ -19,7 +19,7 @@ import {
 } from "@xiranite/cli-runtime/terminal/opentui";
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n";
 import type { MarkuInput, MarkuResult } from "./core.js";
-export function MarkuTui(p: TerminalUiScreenProps<MarkuInput, MarkuResult>) {
+export function MarkuTui(p: TerminalUiScreenProps<MarkuInput, MarkuResult>): import('react').ReactNode {
   const [x] = useState(p.theme ?? p.preferences?.current.theme ?? "nord");
   return (
     <TerminalThemeProvider

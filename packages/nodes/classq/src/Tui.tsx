@@ -6,7 +6,7 @@ import { ActionTabs, ClickTarget, ExecutionActions, ProgressBar, TerminalThemePr
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { ClassqInput, ClassqPlanItem, ClassqResult } from "./core.js"
 
-export function ClassqTui(props: TerminalUiScreenProps<ClassqInput, ClassqResult>) { const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><ClassqWorkbench {...props}/></TerminalThemeProvider> }
+export function ClassqTui(props: TerminalUiScreenProps<ClassqInput, ClassqResult>): import('react').ReactNode { const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><ClassqWorkbench {...props}/></TerminalThemeProvider> }
 function ClassqWorkbench({ definition, language, onExit }: TerminalUiScreenProps<ClassqInput, ClassqResult>) {
   const theme = useTerminalTheme(), t = createTerminalTranslator(language), session = useTerminalUiSession(definition), pulse = useAnimation({ intervalMs: session.phase === "running" ? 100 : 500 })
   const [selected, setSelected] = useState(0), data = session.result?.data, items = data?.items ?? [], action = String(session.values.action ?? "plan")

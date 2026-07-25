@@ -6,7 +6,7 @@ import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { TimeuInput, TimeuResult } from "./core.js"
 
-export function TimeuTui(props: TerminalUiScreenProps<TimeuInput, TimeuResult>) {
+export function TimeuTui(props: TerminalUiScreenProps<TimeuInput, TimeuResult>): import('react').ReactNode {
   const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit")
   return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><TimeuWorkbench {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider>
 }
