@@ -4,3 +4,6 @@
 [submodule "vendor/Xiranite-Nexus"]
 	path = vendor/Xiranite-Nexus
 	url = https://github.com/HibernalGlow/Xiranite-Nexus.git
+[submodule "vendor/folia-major"]
+	path = vendor/folia-major
+	url = https://github.com/HibernalGlow/folia-major.git
