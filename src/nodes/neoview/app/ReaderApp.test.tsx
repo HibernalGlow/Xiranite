@@ -14,6 +14,10 @@ import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
 beforeEach(() => {
   useSwimlaneSessionStore.getState().clearSessions()
   useReaderWorkspaceRestoreStore.getState().resetRestore()
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 0))
+  vi.stubGlobal("cancelAnimationFrame", (handle: number) => window.clearTimeout(handle))
+  vi.stubGlobal("requestIdleCallback", (callback: IdleRequestCallback) => window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 50 } as IdleDeadline), 0))
+  vi.stubGlobal("cancelIdleCallback", (handle: number) => window.clearTimeout(handle))
   vi.stubGlobal("IntersectionObserver", class {
     readonly root = null
     readonly rootMargin = "0px"
@@ -31,6 +35,14 @@ afterEach(() => {
   useReaderWorkspaceRestoreStore.getState().resetRestore()
   vi.unstubAllGlobals()
 })
+
+async function commitPendingReaderImage(pageId: string): Promise<void> {
+  await waitFor(() => expect(document.querySelector(`[data-reader-page-image-pending="${pageId}"]`)).toBeTruthy())
+  const pending = document.querySelector<HTMLImageElement>(`[data-reader-page-image-pending="${pageId}"]`)!
+  pending.decode = vi.fn(async () => undefined)
+  fireEvent.load(pending)
+  await waitFor(() => expect(document.querySelector(`[data-reader-page-image="${pageId}"]`)).toBe(pending))
+}
 
 describe("ReaderApp", () => {
   it("[neoview.file-mutation.reader-source-match] matches the active source itself and descendants without prefix collisions", () => {
@@ -62,7 +74,7 @@ describe("ReaderApp", () => {
     const committed = vi.fn()
     const view = render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} onPathCommitted={committed} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     const firstImage = await screen.findByRole("img", { name: "001.jpg" })
     expect(firstImage.tagName).toBe("IMG")
     expect(firstImage.getAttribute("src")).toContain("page-1")
@@ -74,6 +86,7 @@ describe("ReaderApp", () => {
     const reader = document.querySelector("[data-reader-app]")!
     fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
     await waitFor(() => expect(client.navigate).toHaveBeenCalledOnce())
+    await commitPendingReaderImage("page-2")
     const secondImage = await screen.findByRole("img", { name: "002.jpg" })
     expect(secondImage.getAttribute("src")).toContain("page-2")
     expect(screen.getByText("2 / 2")).toBeTruthy()
@@ -118,7 +131,7 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     const image = await screen.findByRole("img", { name: "001.jpg" })
     expect(screen.getByRole("button", { name: "泳道模式" }).closest('[data-reader-breadcrumb-bar="true"]')).toBeTruthy()
 
@@ -199,7 +212,7 @@ describe("ReaderApp", () => {
         onSwimlaneSoloLaneIdCommitted={onSwimlaneSoloLaneIdCommitted}
       />,
     )
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
 
     fireEvent.click(screen.getByRole("button", { name: "泳道模式" }))
@@ -241,7 +254,7 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
     const disabledBefore = new Map(
       [...document.querySelectorAll<HTMLButtonElement>("[data-reader-app] button")]
@@ -263,6 +276,7 @@ describe("ReaderApp", () => {
       frame: { ...opened.frame, anchorPageIndex: 1, pages: [{ pageId: "page-2", pageIndex: 1, side: "single" }], atStart: false, atEnd: true },
       visiblePages: [{ ...opened.visiblePages[0]!, id: "page-2", index: 1, name: "002.jpg", assetUrl: "http://127.0.0.1:41000/reader/page-2" }],
     }))
+    await commitPendingReaderImage("page-2")
     await screen.findByRole("img", { name: "002.jpg" })
   })
 
@@ -317,7 +331,7 @@ describe("ReaderApp", () => {
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" initialBrowserOriginPath="D:/books" client={client} onPathCommitted={committed} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
     const reader = document.querySelector("[data-reader-app]")!
     const progress = screen.getByRole("slider", { name: "阅读进度" })
@@ -349,6 +363,10 @@ describe("ReaderApp", () => {
     const client: ReaderHttpClient = {
       config: vi.fn(async () => ({
         ...runtimeConfig(),
+        folderView: {
+          ...runtimeConfig().folderView,
+          confirmations: { ...runtimeConfig().folderView.confirmations, trash: true },
+        },
         inputBindings: { bindings: [{
           id: "delete-current-file",
           action: "file.delete-current",
@@ -372,7 +390,7 @@ describe("ReaderApp", () => {
     }
     render(<ContextMenuProvider><ReaderApp initialPath="D:/books/demo.cbz" client={client} /></ContextMenuProvider>)
 
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
     fireEvent.keyDown(document.querySelector("[data-reader-app]")!, { key: "Delete", code: "Delete" })
     expect(executeFileOperations).not.toHaveBeenCalled()
@@ -432,7 +450,7 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
     // Config is loaded on mount and hydrates tailOverflow before page-turn input is meaningful.
     await waitFor(() => expect(client.config).toHaveBeenCalled())
@@ -490,7 +508,7 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
     await waitFor(() => expect(client.config).toHaveBeenCalled())
     await act(async () => { await Promise.resolve() })
@@ -527,7 +545,7 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
     await waitFor(() => expect(client.config).toHaveBeenCalled())
     await act(async () => { await Promise.resolve() })
@@ -535,6 +553,7 @@ describe("ReaderApp", () => {
     fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
     await waitFor(() => expect(navigate).toHaveBeenCalledOnce())
     expect(openAdjacentBook).not.toHaveBeenCalled()
+    await commitPendingReaderImage("page-2")
     await screen.findByRole("img", { name: "002.jpg" })
   })
 
@@ -594,7 +613,7 @@ describe("ReaderApp", () => {
     }
     render(<ReaderApp initialPath="D:/books/video.cbz" client={client} />)
 
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     const video = await waitFor(() => {
       const element = document.querySelector<HTMLVideoElement>("[data-reader-page-video='video-1']")
       expect(element).toBeTruthy()
@@ -637,7 +656,7 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     const view = render(<ReaderApp initialPath="D:/books/missing.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     view.unmount()
     await act(async () => rejectOpen(new Error("missing")))
     expect(screen.queryByRole("alert")).toBeNull()
@@ -673,19 +692,21 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
-    expect((await screen.findByRole("combobox", { name: "缩放模式" }) as HTMLSelectElement).value).toBe("fit-height")
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("img", { name: "001.jpg" }, { timeout: 5_000 })
+    fireEvent.click(await screen.findByRole("button", { name: "展开缩放设置" }))
+    expect(screen.getByRole("button", { name: "适应高度" }).getAttribute("aria-pressed")).toBe("true")
 
-    fireEvent.change(screen.getByRole("combobox", { name: "缩放模式" }), { target: { value: "original" } })
+    fireEvent.click(screen.getByRole("button", { name: "原始大小" }))
     await waitFor(() => expect(updateViewDefaults).toHaveBeenCalledWith({ viewDefaults: { fitMode: "original" } }))
-    fireEvent.click(screen.getByRole("button", { name: "双页模式" }))
+    fireEvent.click(screen.getByRole("button", { name: "单页模式" }))
     await waitFor(() => expect(updateSessionOptions).toHaveBeenCalledWith(
       "reader-1",
       { layout: { pageMode: "double" } },
       expect.any(AbortSignal),
     ))
     await waitFor(() => expect(updateViewDefaults).toHaveBeenCalledWith({ viewDefaults: { pageMode: "double" } }))
-    expect(document.querySelectorAll("[data-reader-page-image]")).toHaveLength(2)
+    await waitFor(() => expect(document.querySelectorAll("[data-reader-page-image]")).toHaveLength(2), { timeout: 5_000 })
   })
 
   it("[neoview.viewer.defaults-write-queue] serializes defaults written from independent controls", async () => {
@@ -713,10 +734,11 @@ describe("ReaderApp", () => {
     }
 
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
-    fireEvent.change(await screen.findByRole("combobox", { name: "缩放模式" }), { target: { value: "original" } })
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "展开缩放设置" }))
+    fireEvent.click(screen.getByRole("button", { name: "原始大小" }))
     await waitFor(() => expect(updateViewDefaults).toHaveBeenCalledTimes(1))
-    fireEvent.click(screen.getByRole("button", { name: "双页模式" }))
+    fireEvent.click(screen.getByRole("button", { name: "单页模式" }))
     await waitFor(() => expect(client.updateSessionOptions).toHaveBeenCalledTimes(1))
     expect(updateViewDefaults).toHaveBeenCalledTimes(1)
 
@@ -747,8 +769,9 @@ describe("ReaderApp", () => {
     }
 
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
-    const interval = await screen.findByRole("spinbutton", { name: "幻灯片间隔" }) as HTMLInputElement
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "展开幻灯片设置" }))
+    const interval = await screen.findByRole("slider", { name: "幻灯片间隔" }) as HTMLInputElement
     await waitFor(() => expect(interval.value).toBe("9"))
     fireEvent.change(interval, { target: { value: "10" } })
     await waitFor(() => expect(updateSlideshow).toHaveBeenCalledTimes(1))
@@ -759,7 +782,7 @@ describe("ReaderApp", () => {
     await waitFor(() => expect(updateSlideshow).toHaveBeenCalledTimes(2))
     expect(updateSlideshow.mock.calls[1]?.[0]).toEqual({ slideshow: { loop: true } })
     await waitFor(() => expect(screen.getByRole("button", { name: "循环播放" }).getAttribute("aria-pressed")).toBe("true"))
-    fireEvent.change(interval, { target: { value: "" } })
+    fireEvent.change(interval, { target: { value: "1" } })
     await waitFor(() => expect(updateSlideshow).toHaveBeenCalledTimes(3))
     expect(updateSlideshow.mock.calls[2]?.[0]).toEqual({ slideshow: { intervalSeconds: 1 } })
   })
@@ -804,7 +827,7 @@ describe("ReaderApp", () => {
     }
 
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
     fireEvent.click(screen.getByRole("button", { name: "展开幻灯片设置" }))
     const interval = await screen.findByRole("slider", { name: "幻灯片间隔" }) as HTMLInputElement
@@ -812,8 +835,7 @@ describe("ReaderApp", () => {
     await waitFor(() => expect(interval.value).toBe("1"))
     fireEvent.click(await screen.findByRole("button", { name: "播放幻灯片" }))
     await waitFor(() => expect(navigate).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal)), { timeout: 2_500 })
-    const pendingImage = await screen.findByRole("img", { name: "002.jpg" })
-    fireEvent.load(pendingImage)
+    await commitPendingReaderImage("page-2")
     await waitFor(() => expect(document.querySelector("[data-reader-page-transition-source=\"slideshow\"]")).toBeTruthy())
     fireEvent.click(screen.getByRole("button", { name: "暂停幻灯片" }))
 
@@ -840,7 +862,7 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     const view = render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     view.unmount()
     await act(async () => resolveOpen(opened))
     await waitFor(() => expect(client.close).toHaveBeenCalledWith("reader-1"))
@@ -877,13 +899,13 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     fireEvent.click(await screen.findByRole("button", { name: "转到第 2 页：002.jpg" }))
     await screen.findByRole("img", { name: "002.jpg" })
     expect(client.goTo).toHaveBeenCalledWith("reader-1", 1, expect.any(AbortSignal))
   })
 
-  it("[neoview.settings.shell-react] applies late shell config without remounting the active image", async () => {
+  it("[neoview.settings.shell-react] hydrates shell configuration before opening the Reader", async () => {
     let resolveConfig!: (value: ReaderRuntimeConfigDto) => void
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const client: ReaderHttpClient = {
@@ -901,9 +923,6 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
-    const imageBeforeConfig = await screen.findByRole("img", { name: "001.jpg" })
-    fireEvent.change(screen.getByRole("combobox", { name: "缩放模式" }), { target: { value: "original" } })
     await act(async () => resolveConfig({
       ...runtimeConfig(),
       shell: {
@@ -911,7 +930,7 @@ describe("ReaderApp", () => {
       showDelayMs: 125,
       edges: {
         ...shellConfig().edges,
-        top: { enabled: true, initialVisible: false, pinned: false, triggerSize: 5 },
+        top: { enabled: true, initialVisible: true, pinned: false, triggerSize: 5 },
         left: { enabled: true, initialVisible: false, pinned: false, triggerSize: 9 },
       },
         sidebars: {
@@ -920,10 +939,12 @@ describe("ReaderApp", () => {
         },
       },
     }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
+    const image = await screen.findByRole("img", { name: "001.jpg" })
     expect(screen.queryByRole("textbox", { name: "漫画、图片或目录路径" })).toBeNull()
-    expect(document.querySelector<HTMLElement>('[data-reader-edge-trigger="top"]')?.style.height).toBe("5px")
-    expect(screen.getByRole("img", { name: "001.jpg" })).toBe(imageBeforeConfig)
-    expect(document.querySelector('[data-reader-frame-viewport="true"]')?.getAttribute("data-reader-fit-mode")).toBe("original")
+    expect(document.querySelector<HTMLElement>('[data-reader-edge-trigger="top"]')?.style.height).toBe("1%")
+    expect(screen.getByRole("img", { name: "001.jpg" })).toBe(image)
+    expect(document.querySelector('[data-reader-frame-viewport="true"]')?.getAttribute("data-reader-fit-mode")).toBe("fit")
   })
 
   it("[neoview.workspace.startup-mode] waits for the persisted swimlane mode instead of painting edge controls", async () => {
@@ -957,7 +978,7 @@ describe("ReaderApp", () => {
     let finishUpdate!: (value: ReaderShellConfigDto) => void
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const config = shellConfig()
-    config.edges.left = { enabled: true, initialVisible: true, pinned: true, triggerSize: 32 }
+    config.edges.right = { enabled: true, initialVisible: true, pinned: true, triggerSize: 32 }
     const client: ReaderHttpClient = {
       config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
       updateSidebarLayout: vi.fn(async () => config),
@@ -973,16 +994,15 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
-    fireEvent.click(await screen.findByRole("button", { name: "页面列表" }))
-    await screen.findByRole("button", { name: "折叠页面导航" })
-    expect(await screen.findByRole("spinbutton", { name: "跳转页码" })).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: "折叠页面导航" }))
-    expect(screen.queryByRole("spinbutton", { name: "跳转页码" })).toBeNull()
-    expect(client.updateCardLayout).toHaveBeenCalledWith({ cardId: "page-navigation", expanded: false })
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
+    await screen.findByRole("button", { name: "折叠书籍信息" })
+    expect(document.querySelector('[data-reader-card-content="书籍信息"]')).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "折叠书籍信息" }))
+    expect(document.querySelector('[data-reader-card-content="书籍信息"]')).toBeNull()
+    await waitFor(() => expect(client.updateCardLayout).toHaveBeenCalledWith({ cardId: "book-information", expanded: false }))
     await act(async () => finishUpdate({
       ...config,
-      cardLayout: { ...config.cardLayout, "page-navigation": { ...config.cardLayout["page-navigation"]!, expanded: false } },
+      cardLayout: { ...config.cardLayout, "book-information": { ...config.cardLayout["book-information"]!, expanded: false } },
     }))
   })
 
@@ -1124,7 +1144,7 @@ describe("ReaderApp", () => {
     const config = shellConfig()
     config.edges.left = { enabled: true, initialVisible: true, pinned: true, triggerSize: 32 }
     config.panelLayout.settings = { visible: true, order: 99, position: "left" }
-    config.cardLayout["panel-layout-settings"] = { panelId: "settings", visible: true, expanded: false, order: 0 }
+    config.cardLayout["board-layout-settings"] = { panelId: "settings", visible: true, expanded: false, order: 0 }
     const client: ReaderHttpClient = {
       config: vi.fn(async () => ({ ...runtimeConfig(), shell: config })),
       updateSidebarLayout: vi.fn(),
@@ -1143,7 +1163,7 @@ describe("ReaderApp", () => {
     render(<ReaderApp client={client} />)
     fireEvent.click(await screen.findByRole("button", { name: "设置" }))
     expect(await screen.findByRole("heading", { name: "设置" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "展开面板布局设置" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "展开布局看板" })).toBeTruthy()
     expect(client.open).not.toHaveBeenCalled()
   })
 
@@ -1179,7 +1199,7 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     const view = render(<ReaderApp initialPath="D:/private/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
     await waitFor(() => expect(waitForSourceChanges).toHaveBeenCalledWith("reader-1", 0, expect.any(AbortSignal)))
 
@@ -1223,7 +1243,7 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
 
     await waitFor(() => expect(client.updatePreloadContext).toHaveBeenCalledWith(
@@ -1264,7 +1284,7 @@ describe("ReaderApp", () => {
     }
 
     render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} />)
-    fireEvent.click(screen.getByRole("button", { name: "打开书籍" }))
+    fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
 
     await waitFor(() => expect(client.updatePreloadContext).toHaveBeenCalledWith(
       "reader-1",
