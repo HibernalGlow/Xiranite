@@ -9,6 +9,34 @@ export function NodeChromePill({ className, ...props }: ComponentProps<"div">) {
   return <div className={cn(NODE_CHROME_PILL_CLASS_NAME, className)} {...props} />
 }
 
+export function NodeChromeExpandablePill({ children, className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      {...props}
+      data-window-caption-visibility="expand-on-hover"
+      className={cn("relative h-6 overflow-hidden", className)}
+    >
+      <NodeChromeIdleIndicator />
+      <NodeChromePill
+        data-node-chrome-expanded-surface
+        className="h-6 w-full rounded-full px-0.5 py-px"
+      >
+        {children}
+      </NodeChromePill>
+    </div>
+  )
+}
+
+export function NodeChromeIdleIndicator({ className, ...props }: ComponentProps<"span">) {
+  return (
+    <span
+      data-node-chrome-idle-indicator
+      className={cn("pointer-events-none absolute left-1/2 top-1/2 h-1 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/70 shadow-[0_0_8px_var(--ws-accent-glow)]", className)}
+      {...props}
+    />
+  )
+}
+
 export function NodeChromeActionButton({
   className,
   danger = false,

@@ -8,7 +8,7 @@ import {
 import { useTranslation } from "react-i18next"
 import type { MainWindowAction } from "@/backend/runtime/runtime"
 import { cn } from "@/lib/utils"
-import { NODE_CHROME_PILL_CLASS_NAME, NodeChromeActionButton } from "./NodeChromePrimitives"
+import { NodeChromeActionButton, NodeChromeExpandablePill } from "./NodeChromePrimitives"
 import { WindowControlIcon } from "./WindowControlIcon"
 
 interface FloatingWindowFrameValue {
@@ -149,41 +149,56 @@ export function FloatingWindowCaptionControls({
   ]
   if (trafficLight) actions.unshift(actions.pop()!)
 
+  if (capsule) {
+    return (
+      <NodeChromeExpandablePill
+        data-testid={integrated ? "floating-window-integrated-controls" : "floating-window-fallback-controls"}
+        data-window-caption-density={density}
+        data-window-caption-position={resolvedAppearance.position}
+        data-window-caption-style={captionStyle}
+        className={cn(
+          "xiranite-app-region-no-drag fixed top-1 z-50",
+          positionClass,
+          className,
+        )}
+      >
+        {actions.map(({ action, label, maximized }) => (
+          <NodeChromeActionButton
+            key={action}
+            data-window-caption-button
+            data-window-control-action={action}
+            data-window-caption-tone={action === "close" ? "close" : undefined}
+            title={label}
+            aria-label={label}
+            aria-pressed={action === "maximize" ? frame.isMaximized : undefined}
+            disabled={frame.pending}
+            onClick={() => frame.control(action)}
+            danger={action === "close"}
+            className="size-5 rounded-full [&_svg]:size-3"
+          >
+            <WindowControlIcon action={action} maximized={maximized} />
+          </NodeChromeActionButton>
+        ))}
+      </NodeChromeExpandablePill>
+    )
+  }
+
   return (
     <div
       data-testid={integrated ? "floating-window-integrated-controls" : "floating-window-fallback-controls"}
       data-window-caption-density={density}
       data-window-caption-position={resolvedAppearance?.position ?? "inline"}
       data-window-caption-style={captionStyle}
-      data-window-caption-visibility={capsule ? "titlebar-hover" : "always"}
+      data-window-caption-visibility="always"
       className={cn(
         "xiranite-app-region-no-drag group/caption flex shrink-0 items-center",
-        "fixed z-50",
-        !capsule && "bg-transparent",
-        !capsule && "top-1.5 h-7",
+        "fixed top-1.5 z-50 h-7 bg-transparent",
         trafficLight && "gap-1.5 px-1.5",
-        capsule && cn(NODE_CHROME_PILL_CLASS_NAME, "top-1 h-6 rounded-full px-0.5 py-px"),
         positionClass,
         className,
       )}
     >
-      {actions.map(({ action, label, maximized }) => capsule ? (
-        <NodeChromeActionButton
-          key={action}
-          data-window-caption-button
-          data-window-control-action={action}
-          data-window-caption-tone={action === "close" ? "close" : undefined}
-          title={label}
-          aria-label={label}
-          aria-pressed={action === "maximize" ? frame.isMaximized : undefined}
-          disabled={frame.pending}
-          onClick={() => frame.control(action)}
-          danger={action === "close"}
-          className="size-5 rounded-full [&_svg]:size-3"
-        >
-          <WindowControlIcon action={action} maximized={maximized} />
-        </NodeChromeActionButton>
-      ) : (
+      {actions.map(({ action, label, maximized }) => (
         <button
           key={action}
           data-window-caption-button
