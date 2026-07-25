@@ -89,7 +89,6 @@
         "@xiranite/node-trename": "workspace:*",
         "@xiranite/node-vert": "workspace:*",
         "@xiranite/node-xlchemy": "workspace:*",
-        "@xiranite/packu-node-runtime": "workspace:*",
         "@xiranite/runtime": "workspace:*",
         "@xiranite/shared": "workspace:*",
         "@xyflow/react": "^12.11.2",
@@ -1268,18 +1267,6 @@
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "^7.0.2",
-      },
-    },
-    "packages/packu-node-runtime": {
-      "name": "@xiranite/packu-node-runtime",
-      "version": "0.1.0",
-      "dependencies": {
-        "@xiranite/contract": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/node": "^24.12.0",
-        "typescript": "^7.0.2",
-        "vitest": "^4.1.10",
       },
     },
     "packages/repository": {
@@ -2537,8 +2524,6 @@
     "@xiranite/node-vert": ["@xiranite/node-vert@workspace:packages/nodes/vert"],
 
     "@xiranite/node-xlchemy": ["@xiranite/node-xlchemy@workspace:packages/nodes/xlchemy"],
-
-    "@xiranite/packu-node-runtime": ["@xiranite/packu-node-runtime@workspace:packages/packu-node-runtime"],
 
     "@xiranite/repository": ["@xiranite/repository@workspace:packages/repository"],
 
