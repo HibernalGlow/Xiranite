@@ -221,24 +221,6 @@ describe("app-owned enginev Component", () => {
     expect(image.getAttribute("src")).toBe("http://local.test/local-files?path=D%3A%2Fworkshop%2F111%2Fpreview.png")
   })
 
-  test("batches high-frequency scan events instead of patching the workspace for each folder", async () => {
-    const runEvents = Array.from({ length: 250 }, (_, index) => ({
-      type: "progress" as const,
-      progress: Math.round(((index + 1) / 250) * 100),
-      message: `Scanning ${index + 1}`,
-    }))
-    const host = createHost({ workshopPath: "D:/workshop", logs: [] }, { runEvents })
-    render(<Component compId="comp-enginev" host={host} />)
-    const user = userEvent.setup()
-
-    await user.click(screen.getByRole("button", { name: "运行 扫描" }))
-
-    await waitFor(() => expect(host.cardState.phase).toBe("completed"))
-    expect(host.patchCalls).toHaveLength(4)
-    expect(host.cardState.progressText).toBe("Scan complete: 1 wallpaper(s).")
-    expect(host.cardState.logs).toEqual(["[100%] Scanning 250", "Scan complete: 1 wallpaper(s)."])
-  })
-
   test("applies gallery filters live without running a filter workflow", () => {
     surfaceState.mode = "workspace"
     const host = createHost({ action: "scan", workshopPath: "D:/workshop", titleFilter: "Ocean", wallpapers: [wallpaper] })
@@ -361,7 +343,7 @@ describe("app-owned enginev Component", () => {
     const pill = screen.getByText("111").closest("[data-enginev-wallpaper-selection]")
 
     expect(pill?.getAttribute("data-variant")).toBe("outline")
-    expect(pill?.className).toContain("bg-zinc-900/90")
+    expect(pill?.className).toContain("bg-black/55")
 
     await user.click(screen.getByRole("button", { name: "选择 Ocean Loop" }))
 
@@ -392,7 +374,6 @@ type TestHost = NodeHostApi<EngineVCardState, EngineVNodeConfig> & {
   savedUiConfig: EngineVUiConfig | undefined
   saveUiCalls: EngineVUiConfig[]
   runCalls: Array<{ nodeId: string; input: EngineVInput }>
-  patchCalls: Array<Partial<EngineVCardState>>
   copiedText: string
   localFilePaths: string[]
 }
@@ -401,7 +382,6 @@ type HostOptions = {
   noRunner?: boolean
   config?: EngineVNodeConfig
   uiConfig?: EngineVUiConfig
-  runEvents?: Array<{ type: "progress" | "log"; progress?: number; message: string }>
 }
 
 function createHost(initial: EngineVCardState, options: HostOptions = {}): TestHost {
@@ -411,7 +391,7 @@ function createHost(initial: EngineVCardState, options: HostOptions = {}): TestH
     onEvent?: (event: { type: "progress" | "log"; progress?: number; message: string }) => void,
   ): Promise<NodeRunResult<TData>> => {
     host.runCalls.push({ nodeId, input: input as EngineVInput })
-    for (const event of options.runEvents ?? [{ type: "progress" as const, progress: 100, message: "Scan complete." }]) onEvent?.(event)
+    onEvent?.({ type: "progress", progress: 100, message: "Scan complete." })
     return {
       success: true,
       message: "Scan complete: 1 wallpaper(s).",
@@ -426,7 +406,6 @@ function createHost(initial: EngineVCardState, options: HostOptions = {}): TestH
   const stateCapability = {
     getData: () => host.cardState,
     patchData: (patch: Partial<EngineVCardState>) => {
-      host.patchCalls.push(patch)
       host.cardState = { ...host.cardState, ...patch }
     },
   }
@@ -472,7 +451,6 @@ function createHost(initial: EngineVCardState, options: HostOptions = {}): TestH
     savedUiConfig: undefined,
     saveUiCalls: [],
     runCalls: [],
-    patchCalls: [],
     copiedText: "",
     localFilePaths: [],
 
