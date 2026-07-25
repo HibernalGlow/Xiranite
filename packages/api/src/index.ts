@@ -416,10 +416,22 @@ function parseOptionalInteger(value: unknown): number | undefined {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined
 }
 
+const NODE_STREAM_MAX_PENDING_MESSAGES = 256
+const NODE_STREAM_MAX_PENDING_BYTES = 2 * 1024 * 1024
+
+interface PendingNodeStreamMessage {
+  message: NodeOperationStreamMessageDTO
+  bytes: Uint8Array
+}
+
 function createNodeOperationStream(services: XiraniteServices, operationId: string, fromEventIndex: number): Response {
   const encoder = new TextEncoder()
   let unsubscribe = () => {}
   let closed = false
+  let terminalQueued = false
+  let pendingBytes = 0
+  const pending: PendingNodeStreamMessage[] = []
+  let flushPending = () => {}
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -430,10 +442,24 @@ function createNodeOperationStream(services: XiraniteServices, operationId: stri
         controller.close()
       }
 
+      const flush = () => {
+        while (!closed && pending.length && (controller.desiredSize ?? 0) > 0) {
+          const next = pending.shift()!
+          pendingBytes -= next.bytes.byteLength
+          controller.enqueue(next.bytes)
+        }
+        if (terminalQueued && pending.length === 0) close()
+      }
+      flushPending = flush
+
       const write = (message: NodeOperationStreamMessageDTO) => {
-        if (closed) return
-        controller.enqueue(encoder.encode(`${JSON.stringify(message)}\n`))
-        if (message.type === "result") queueMicrotask(close)
+        if (closed || terminalQueued) return
+        const item = { message, bytes: encoder.encode(`${JSON.stringify(message)}\n`) }
+        if (message.type === "result") terminalQueued = true
+        pending.push(item)
+        pendingBytes += item.bytes.byteLength
+        trimNodeStreamQueue(pending, () => pendingBytes, (removedBytes) => { pendingBytes -= removedBytes })
+        flush()
       }
 
       unsubscribe = services.nodes.subscribeOperation(operationId, write, {
@@ -441,8 +467,13 @@ function createNodeOperationStream(services: XiraniteServices, operationId: stri
         includeSnapshot: true,
       })
     },
+    pull() {
+      flushPending()
+    },
     cancel() {
       closed = true
+      pending.length = 0
+      pendingBytes = 0
       unsubscribe()
     },
   })
@@ -453,4 +484,17 @@ function createNodeOperationStream(services: XiraniteServices, operationId: stri
       "cache-control": "no-store",
     },
   })
+}
+
+function trimNodeStreamQueue(
+  pending: PendingNodeStreamMessage[],
+  currentBytes: () => number,
+  removeBytes: (bytes: number) => void,
+): void {
+  while (pending.length > NODE_STREAM_MAX_PENDING_MESSAGES || currentBytes() > NODE_STREAM_MAX_PENDING_BYTES) {
+    const removable = pending.findIndex((item) => item.message.type !== "result")
+    if (removable < 0) return
+    const [removed] = pending.splice(removable, 1)
+    if (removed) removeBytes(removed.bytes.byteLength)
+  }
 }

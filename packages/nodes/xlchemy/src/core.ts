@@ -140,6 +140,7 @@ export interface XlchemyRuntime {
   runCommand: (command: string, args: string[], isCancelled?: () => boolean) => Promise<XlchemyCommandResult>
   isCancelled?: () => boolean
   waitWhilePaused?: () => Promise<void>
+  checkMemory?: () => void
   resolveCommand: (candidates: string[]) => Promise<string | undefined>
   probeSlimg?: () => Promise<XlchemyToolStatus>
   convertWithSlimg?: (source: string, target: string, quality: number, jobs?: number) => Promise<void>
@@ -258,6 +259,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
   const started = Date.now()
   try {
     if (options.action === "diagnose") return await diagnoseXlchemyEnvironment(runtime, onEvent)
+    runtime.checkMemory?.()
     if (runtime.isCancelled?.()) return cancelled([], started)
     if (!options.paths.length && !options.efuFiles?.length) return failure("At least one image, folder, or EFU file is required.")
     if (options.efuFiles?.length && !runtime.streamEfuPaths) return failure("The current runtime does not support streaming EFU inputs.")
@@ -285,8 +287,10 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     const targetLocks = new Map<string, Promise<void>>()
     const planningLocks = new Map<string, Promise<void>>()
     let lastDiagnosticLogAt = 0
+    let lastFileProgressAt = 0
     const processSource = async (source: string, workerIndex: number, workerInput: XlchemyInput, announceWorker: boolean): Promise<void> => {
       await runtime.waitWhilePaused?.()
+      runtime.checkMemory?.()
       if (runtime.isCancelled?.()) return
       const itemStarted = Date.now()
       activeWorkers += 1
@@ -309,7 +313,10 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
           ? plannedItem
           : await withTargetLock(plannedItem.outputPath, targetLocks, async () => {
               if (workerInput.existingPolicy === "skip" && (await runtime.pathInfo(plannedItem.outputPath)).exists) return { ...plannedItem, status: "skipped" as const, error: "target_exists" }
-              return convertFileWithProgress(plannedItem, workerInput, runtime, onEvent, summary.inputCount, totalInputCount)
+              const now = Date.now()
+              const emitFileProgress = lastFileProgressAt === 0 || now - lastFileProgressAt >= FILE_PROGRESS_INTERVAL_MS
+              if (emitFileProgress) lastFileProgressAt = now
+              return convertFileWithProgress(plannedItem, workerInput, runtime, onEvent, summary.inputCount, totalInputCount, emitFileProgress)
             })
         appendSummary(summary, result)
         const now = Date.now()
@@ -372,8 +379,8 @@ function animationFormat(extension: string): XlchemyAnimationFormat {
   return normalized === "apng" ? "png" : normalized as XlchemyAnimationFormat
 }
 
-async function convertFileWithProgress(item: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void, completed: number, total?: number) {
-  onEvent({ type: "progress", progress: progressPercent(completed, total), message: `Converting ${runtime.basename(item.sourcePath)}.`, data: progressCount(completed, total) })
+async function convertFileWithProgress(item: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void, completed: number, total?: number, emitProgress = true) {
+  if (emitProgress) onEvent({ type: "progress", progress: progressPercent(completed, total), message: `Converting ${runtime.basename(item.sourcePath)}.`, data: progressCount(completed, total) })
   return await convertFile(item, input, runtime, onEvent)
 }
 
@@ -381,6 +388,7 @@ async function* streamInputSources(paths: string[], recursive: boolean, efuFiles
   for await (const source of streamDiscoveredImages(paths, recursive, runtime)) if (accepts(source)) yield source
   for (const efuFile of efuFiles) {
     for await (const source of runtime.streamEfuPaths!(efuFile)) {
+      runtime.checkMemory?.()
       if (runtime.isCancelled?.()) return
       if (accepts(source)) yield source
     }
@@ -434,6 +442,7 @@ const RESULT_DETAIL_LIMIT = 1_000
 const LIVE_DETAIL_LIMIT = 20
 const ERROR_DETAIL_LIMIT = 200
 const LIVE_RESULT_INTERVAL_MS = 250
+const FILE_PROGRESS_INTERVAL_MS = 100
 
 interface XlchemySummary {
   files: XlchemyFileResult[]
@@ -506,8 +515,8 @@ function batchWorkerThreads(total: number | undefined, input: XlchemyInput): num
   if ((total !== undefined && total <= 1) || input.processingOrder === "sequential") return [threadBudget]
   const context = { format: input.format, avifEncoder: input.avifEncoder, jpegXlEffort: input.maxCompression ? 10 : input.effort, jpegXlLossyModular: input.jxlModular ?? false, jpegXlLossless: input.lossless, jpegXlIntelligentEffort: input.intelligentEffort ?? false }
   if (input.ramOptimizer !== "disabled" && isRamOptimizerNecessary(context)) return [threadBudget]
-  const workerCount = total === undefined ? threadBudget : Math.min(total, threadBudget)
-  if (total === undefined || total >= threadBudget) return Array.from({ length: workerCount }, () => 1)
+  const workerCount = total === undefined ? Math.min(threadBudget, XLCHEMY_MAX_CONCURRENT_FILES) : Math.min(total, threadBudget, XLCHEMY_MAX_CONCURRENT_FILES)
+  if (workerCount === threadBudget) return Array.from({ length: workerCount }, () => 1)
   const baseThreads = Math.floor(threadBudget / workerCount)
   const extraThreads = threadBudget % workerCount
   return Array.from({ length: workerCount }, (_, index) => baseThreads + (index < extraThreads ? 1 : 0))
@@ -592,8 +601,11 @@ export async function discoverImages(paths: string[], recursive: boolean, runtim
   return [...new Set(output)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))
 }
 
+const XLCHEMY_MAX_CONCURRENT_FILES = 16
+
 async function* streamDiscoveredImages(paths: string[], recursive: boolean, runtime: XlchemyRuntime): AsyncGenerator<string> {
   for (const path of paths) {
+    runtime.checkMemory?.()
     if (runtime.isCancelled?.()) return
     const info = await runtime.pathInfo(path)
     if (!info.exists) continue
@@ -603,6 +615,7 @@ async function* streamDiscoveredImages(paths: string[], recursive: boolean, runt
     }
     if (info.isDirectory) {
       for await (const entry of streamDirectoryEntries(info.path, runtime)) {
+        runtime.checkMemory?.()
         if (runtime.isCancelled?.()) return
         if (entry.isFile && XL_IMAGE_EXTENSIONS.has(runtime.extname(entry.path).toLowerCase())) yield entry.path
         else if (recursive && entry.isDirectory) yield* streamDiscoveredImages([entry.path], true, runtime)

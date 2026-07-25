@@ -39,6 +39,7 @@ type RuntimeFactory = (context?: unknown) => unknown
 export interface NodeRunControl {
   isCancelled: () => boolean
   waitWhilePaused: () => Promise<void>
+  checkMemory?: () => void
 }
 type PureRunFunction = (input: unknown) => unknown
 
@@ -94,7 +95,7 @@ async function runSpec(
   const createRuntime = getFunction<RuntimeFactory>(platform, spec.createRuntime)
   const runtime = createRuntime(runtimeContext)
   const controlledRuntime = control && runtime && typeof runtime === "object"
-    ? { ...runtime, isCancelled: control.isCancelled, waitWhilePaused: control.waitWhilePaused }
+    ? { ...runtime, isCancelled: control.isCancelled, waitWhilePaused: control.waitWhilePaused, checkMemory: control.checkMemory }
     : runtime
   return run(input, controlledRuntime, onEvent)
 }
