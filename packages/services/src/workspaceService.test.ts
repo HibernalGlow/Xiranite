@@ -260,6 +260,59 @@ describe("NodeRunnerService", () => {
     expect(cleanup).toEqual({ removedCount: 1, remainingCount: 0 })
     expect(service.getOperation(operation.operationId)).toBeUndefined()
   })
+
+  test("retains a bounded event tail while preserving absolute event indexes", async () => {
+    const service = new NodeRunnerService({
+      createOperationId: () => "op-bounded-events",
+      memoryProtection: { defaultPolicy: { maxRetainedEvents: 3 } },
+      runner: {
+        async runNode(_nodeId, _input, onEvent) {
+          for (const message of ["one", "two", "three", "four", "five"]) onEvent?.({ type: "log", message })
+          return { success: true, message: "done" }
+        },
+      },
+    })
+
+    const operation = service.startOperation("logs", {})
+    await service.waitForOperation(operation.operationId)
+    const page = service.getOperationEvents(operation.operationId, { fromEventIndex: 0, limit: 100 })
+
+    expect(page).toMatchObject({ from: 4, total: 7, next: undefined })
+    expect(page?.events.map((entry) => [entry.index, entry.event.message])).toEqual([
+      [4, "three"],
+      [5, "four"],
+      [6, "five"],
+    ])
+    expect(service.getOperation(operation.operationId)?.eventCount).toBe(7)
+  })
+
+  test("cooperatively cancels a node when its memory growth budget is exceeded", async () => {
+    const mib = 1024 * 1024
+    let usage = { rssBytes: 100 * mib, heapUsedBytes: 40 * mib }
+    const service = new NodeRunnerService({
+      createOperationId: () => "op-memory-limit",
+      memoryProtection: {
+        defaultPolicy: { maxRssGrowthBytes: 32 * mib, maxHeapGrowthBytes: 32 * mib, sampleIntervalMs: 25 },
+        readMemoryUsage: () => usage,
+      },
+      runner: {
+        async runNode(_nodeId, _input, _onEvent, control) {
+          usage = { rssBytes: 140 * mib, heapUsedBytes: 45 * mib }
+          control?.checkMemory?.()
+          return { success: true, message: "unexpected" }
+        },
+      },
+    })
+
+    const operation = service.startOperation("xlchemy", {})
+    const result = await service.waitForOperation(operation.operationId)
+    const events = service.getOperationEvents(operation.operationId, { limit: 100 })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain("Memory protection stopped xlchemy: RSS growth 40.0 MiB exceeded 32.0 MiB")
+    expect(service.getOperation(operation.operationId)?.phase).toBe("error")
+    expect(events?.events.some((entry) => entry.event.message.includes("Memory protection stopped xlchemy"))).toBe(true)
+  })
 })
 
 describe("ConfigService", () => {

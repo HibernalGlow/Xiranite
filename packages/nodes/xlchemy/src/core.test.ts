@@ -314,6 +314,51 @@ describe("xlchemy core contract", () => {
     expect(events.find((event) => event.message.startsWith("Batch completed"))?.message).toContain("peak active workers 3")
   })
 
+  test("caps in-flight files while preserving a large encoder thread budget", async () => {
+    const runtime = fakeRuntime()
+    const originalPathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => /^\/guarded\/\d+\.png$/.test(path)
+      ? { path, exists: true, isFile: true, isDirectory: false, size: 1_000, atimeMs: 0, mtimeMs: 0 }
+      : originalPathInfo(path)
+    runtime.streamEfuPaths = async function* () {
+      for (let index = 0; index < 32; index += 1) yield `/guarded/${index}.png`
+    }
+    const checkMemory = vi.fn()
+    runtime.checkMemory = checkMemory
+    const originalRunCommand = runtime.runCommand
+    let activeEncoders = 0
+    let peakActiveEncoders = 0
+    runtime.runCommand = async (command, args, isCancelled) => {
+      activeEncoders += 1
+      peakActiveEncoders = Math.max(peakActiveEncoders, activeEncoders)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      try { return await originalRunCommand(command, args, isCancelled) }
+      finally { activeEncoders -= 1 }
+    }
+
+    const events: Array<{ message: string }> = []
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert",
+      paths: [],
+      efuFiles: ["/lists/guarded.efu"],
+      format: "AVIF",
+      avifEncoder: "aom",
+      threads: 60,
+      outputMode: "source",
+      overwrite: true,
+      preserveMetadata: false,
+      excludedFormats: [],
+    }), runtime, (event) => events.push(event))
+
+    const commands = runtime.commands.filter((item) => item.command.endsWith("avifenc"))
+    const firstWaveJobs = commands.slice(0, 16).map((item) => Number(item.args[item.args.indexOf("-j") + 1]))
+    expect(result.success).toBe(true)
+    expect(peakActiveEncoders).toBe(16)
+    expect(firstWaveJobs.reduce((sum, jobs) => sum + jobs, 0)).toBe(60)
+    expect(events.find((event) => event.message.startsWith("Batch scheduler:"))?.message).toContain("16 worker(s); CPU thread budget 60")
+    expect(checkMemory).toHaveBeenCalled()
+  })
+
   test("serializes colliding outputs and preserves rename and skip policies", async () => {
     for (const existingPolicy of ["rename", "skip"] as const) {
       const runtime = fakeRuntime()

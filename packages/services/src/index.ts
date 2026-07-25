@@ -3,6 +3,11 @@ import { ConfigService } from "./configService.js"
 import { NodeRunHistoryService } from "./historyService.js"
 import { ResourceSchedulerService } from "./resourceScheduler.js"
 import {
+  NodeOperationMemoryGuard,
+  resolveNodeMemoryProtectionPolicy,
+  type NodeMemoryProtectionOptions,
+} from "./nodeMemoryProtection.js"
+import {
   createWorkspaceInputSchema,
   componentWindowSizeLookupSchema,
   componentWindowSizeSchema,
@@ -46,6 +51,7 @@ export interface NodeRunner {
 export interface NodeOperationControl {
   isCancelled: () => boolean
   waitWhilePaused: () => Promise<void>
+  checkMemory?: () => void
 }
 
 export interface NodeRunnerServiceOptions {
@@ -54,6 +60,7 @@ export interface NodeRunnerServiceOptions {
   createOperationId?: () => string
   operationRetentionMs?: number
   history?: NodeRunHistoryService
+  memoryProtection?: NodeMemoryProtectionOptions
 }
 
 export interface NodeOperationContext {
@@ -219,6 +226,7 @@ export class NodeRunnerService {
   private readonly createOperationId: () => string
   private readonly operationRetentionMs: number
   private readonly history?: NodeRunHistoryService
+  private readonly memoryProtection?: NodeMemoryProtectionOptions
   private readonly operations = new Map<string, NodeOperationState>()
 
   constructor(options: NodeRunnerServiceOptions = {}) {
@@ -227,6 +235,7 @@ export class NodeRunnerService {
     this.createOperationId = options.createOperationId ?? (() => `op-${Math.random().toString(36).slice(2)}`)
     this.operationRetentionMs = options.operationRetentionMs ?? defaultOperationRetentionMs
     this.history = options.history
+    this.memoryProtection = options.memoryProtection
   }
 
   startOperation<TInput = unknown>(nodeId: string, input: TInput, context?: NodeOperationContext): NodeOperationDTO {
@@ -237,6 +246,7 @@ export class NodeRunnerService {
     const completion = new Promise<NodeRunResultDTO>((resolve) => {
       resolveCompletion = resolve
     })
+    const memoryPolicy = resolveNodeMemoryProtectionPolicy(this.memoryProtection, nodeId)
     const state: NodeOperationState = {
       operationId,
       nodeId,
@@ -247,6 +257,9 @@ export class NodeRunnerService {
       createdAt: now,
       updatedAt: now,
       events: [],
+      eventCount: 0,
+      maxRetainedEvents: memoryPolicy.maxRetainedEvents,
+      memory: new NodeOperationMemoryGuard(nodeId, memoryPolicy, this.memoryProtection),
       listeners: new Set(),
       completion,
       resolveCompletion,
@@ -283,20 +296,24 @@ export class NodeRunnerService {
 
     const from = normalizeEventIndex(options.fromEventIndex)
     const limit = normalizeEventLimit(options.limit)
-    const end = Math.min(state.events.length, from + limit)
-    const events = state.events.slice(from, end).map((event, offset) => ({
-      index: from + offset,
+    const firstRetainedIndex = state.eventCount - state.events.length
+    const retainedFrom = Math.min(state.eventCount, Math.max(from, firstRetainedIndex))
+    const offset = retainedFrom - firstRetainedIndex
+    const end = Math.min(state.events.length, offset + limit)
+    const events = state.events.slice(offset, end).map((event, retainedOffset) => ({
+      index: retainedFrom + retainedOffset,
       event,
     }))
-    const next = end < state.events.length ? end : undefined
+    const nextIndex = retainedFrom + events.length
+    const next = nextIndex < state.eventCount ? nextIndex : undefined
 
     return {
       operation: toOperationDTO<TData>(state),
       events,
-      from,
+      from: retainedFrom,
       limit,
       next,
-      total: state.events.length,
+      total: state.eventCount,
     }
   }
 
@@ -368,9 +385,10 @@ export class NodeRunnerService {
       listener({ type: "operation", operation: toOperationDTO<TData>(state) })
     }
 
-    const fromEventIndex = Math.max(0, options.fromEventIndex ?? 0)
-    for (let index = fromEventIndex; index < state.events.length; index += 1) {
-      listener({ type: "event", index, event: state.events[index]! })
+    const firstRetainedIndex = state.eventCount - state.events.length
+    const fromEventIndex = Math.min(state.eventCount, Math.max(firstRetainedIndex, normalizeEventIndex(options.fromEventIndex)))
+    for (let index = fromEventIndex; index < state.eventCount; index += 1) {
+      listener({ type: "event", index, event: state.events[index - firstRetainedIndex]! })
     }
 
     if (isTerminalPhase(state.phase) && state.result) {
@@ -425,13 +443,22 @@ export class NodeRunnerService {
     state.startedAt = this.now()
     state.updatedAt = state.startedAt
     this.emitOperation(state)
+    if (this.memoryProtection) {
+      this.pushEvent(state, { type: "progress", progress: 0, message: `Backend accepted ${state.nodeId}; loading the node runtime.` })
+      this.pushEvent(state, { type: "log", message: state.memory.describe() })
+    }
+    const monitor = this.startMemoryMonitor(state)
 
     try {
       const result = await this.runner.runNode(state.nodeId, state.input, (event) => {
         if (isTerminalPhase(state.phase)) return
         this.pushEvent(state, event)
       }, {
-        isCancelled: () => state.cancelRequested === true,
+        isCancelled: () => state.cancelRequested === true || Boolean(this.checkMemory(state)),
+        checkMemory: () => {
+          const violation = this.checkMemory(state)
+          if (violation) throw new Error(violation)
+        },
         waitWhilePaused: async () => {
           while (state.phase === "paused" && !state.cancelRequested) {
             await new Promise<void>((resolve) => { state.resumePaused = resolve })
@@ -442,18 +469,24 @@ export class NodeRunnerService {
         workspaceId: state.workspaceId,
       })
       if (isTerminalPhase(state.phase)) return
-      this.finishOperation(state, result, result.success ? "completed" : "error")
+      const memoryViolation = state.memory.violation
+      this.finishOperation(state, memoryViolation ? { success: false, message: memoryViolation } : result, memoryViolation ? "error" : result.success ? "completed" : "error")
     } catch (error) {
       if (isTerminalPhase(state.phase)) return
-      const message = `Node runner failed: ${errorMessage(error)}`
-      this.pushEvent(state, { type: "log", message })
+      const message = state.memory.violation ?? `Node runner failed: ${errorMessage(error)}`
+      if (!state.memory.violation) this.pushEvent(state, { type: "log", message })
       this.finishOperation(state, { success: false, message }, "error")
+    } finally {
+      if (monitor !== undefined) clearInterval(monitor)
     }
   }
 
   private pushEvent(state: NodeOperationState, event: NodeRunEventDTO): void {
     if (isTerminalPhase(state.phase)) return
-    const index = state.events.push(event) - 1
+    const index = state.eventCount
+    state.eventCount += 1
+    state.events.push(event)
+    if (state.events.length > state.maxRetainedEvents) state.events.splice(0, state.events.length - state.maxRetainedEvents)
     state.updatedAt = this.now()
     this.emit(state, { type: "event", index, event })
   }
@@ -491,7 +524,7 @@ export class NodeRunnerService {
       input: state.input,
       status,
       result,
-      eventCount: state.events.length,
+      eventCount: state.eventCount,
       startedAt,
       finishedAt: state.finishedAt ?? this.now(),
     })
@@ -503,6 +536,24 @@ export class NodeRunnerService {
 
   private emit(state: NodeOperationState, message: NodeOperationStreamMessageDTO): void {
     for (const listener of state.listeners) listener(message)
+  }
+
+  private startMemoryMonitor(state: NodeOperationState): ReturnType<typeof setInterval> | undefined {
+    if (!state.memory.baseline || (state.memory.policy.maxRssGrowthBytes === undefined && state.memory.policy.maxHeapGrowthBytes === undefined)) return undefined
+    const monitor = setInterval(() => { this.checkMemory(state, true) }, state.memory.policy.sampleIntervalMs)
+    ;(monitor as ReturnType<typeof setInterval> & { unref?: () => void }).unref?.()
+    return monitor
+  }
+
+  private checkMemory(state: NodeOperationState, force = false): string | undefined {
+    const existing = state.memory.violation
+    const violation = state.memory.sample(force)
+    if (!violation || existing) return violation
+    state.cancelRequested = true
+    state.resumePaused?.()
+    state.resumePaused = undefined
+    this.pushEvent(state, { type: "log", message: violation })
+    return violation
   }
 }
 
@@ -519,6 +570,9 @@ interface NodeOperationState {
   cancelledAt?: number
   finishedAt?: number
   events: NodeRunEventDTO[]
+  eventCount: number
+  maxRetainedEvents: number
+  memory: NodeOperationMemoryGuard
   result?: NodeRunResultDTO
   listeners: Set<OperationListener>
   completion: Promise<NodeRunResultDTO>
@@ -541,7 +595,7 @@ function toOperationDTO<TData = unknown>(state: NodeOperationState): NodeOperati
     startedAt: state.startedAt,
     cancelledAt: state.cancelledAt,
     finishedAt: state.finishedAt,
-    eventCount: state.events.length,
+    eventCount: state.eventCount,
     result: state.result as NodeRunResultDTO<TData> | undefined,
   }
 }
@@ -601,6 +655,7 @@ export interface CreateXiraniteServicesOptions {
   resourceScheduler?: ResourceSchedulerService
   system?: XiraniteSystemService
   onHistoryRecordError?: (error: unknown) => void
+  nodeMemoryProtection?: NodeMemoryProtectionOptions
 }
 
 export function createXiraniteServices(repository: WorkspaceRepository, options: CreateXiraniteServicesOptions = {}): XiraniteServices {
@@ -609,7 +664,7 @@ export function createXiraniteServices(repository: WorkspaceRepository, options:
     : undefined
   return {
     workspace: new WorkspaceService({ repository, history }),
-    nodes: new NodeRunnerService({ runner: options.nodeRunner, history }),
+    nodes: new NodeRunnerService({ runner: options.nodeRunner, history, memoryProtection: options.nodeMemoryProtection }),
     config: new ConfigService({
       configPath: options.configPath,
       databasePath: options.databasePath,
@@ -629,6 +684,8 @@ export { GitConfigVersionStore, mergeRedactedValues } from "./configVersionStore
 export type { ConfigHistoryRepositoryStatus, ConfigVersion, ConfigVersionDetail, ConfigVersionRecordInput, ConfigVersionStore } from "./configVersionStore.js"
 export { NodeRunHistoryService, sanitizeInput, summarizeInput } from "./historyService.js"
 export { ResourceSchedulerService } from "./resourceScheduler.js"
+export { NodeOperationMemoryGuard, resolveNodeMemoryProtectionPolicy } from "./nodeMemoryProtection.js"
+export type { NodeMemoryProtectionOptions, NodeMemoryProtectionPolicy, NodeProcessMemoryUsage, ResolvedNodeMemoryProtectionPolicy } from "./nodeMemoryProtection.js"
 export { ThumbnailCoordinatorService, thumbnailLanePriority, thumbnailQueuePriority } from "./thumbnailCoordinator.js"
 export type {
   ThumbnailAsset,

@@ -18,6 +18,7 @@ import {
 import {
   createXiraniteServices,
   type NodeRunner,
+  type NodeMemoryProtectionOptions,
   type ResourceScheduler,
   type ResourceSchedulerService,
   type XiraniteSystemService,
@@ -33,7 +34,7 @@ import { Readable } from "node:stream"
 import { pipeline } from "node:stream/promises"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
-import { createBackendNodeRunner } from "./nodeRunner.js"
+import { createBackendNodeMemoryProtection, createBackendNodeRunner } from "./nodeRunner.js"
 import { BackendFileOperationManager, handleFileOperationRequest } from "./fileOperations.js"
 import { pickLocalPaths } from "./localFilePicker.js"
 import { clearFileClipboard, NativeFileClipboardUnavailableError, readFilesFromClipboard, writeFilesToClipboard } from "./fileClipboard.js"
@@ -52,6 +53,7 @@ export interface CreateDefaultBackendOptions {
   legacyThumbnailDatabasePath?: string | false
   legacyEmmDatabasePaths?: readonly string[] | false
   nodeRunner?: NodeRunner
+  nodeMemoryProtection?: NodeMemoryProtectionOptions
   resourceScheduler?: ResourceSchedulerService
   system?: XiraniteSystemService
   onHistoryRecordError?: (error: unknown) => void
@@ -123,6 +125,7 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
       setNodeSourceHotReload: setDevelopmentSourceHotReloadEnabled,
     },
     onHistoryRecordError: options.onHistoryRecordError,
+    nodeMemoryProtection: options.nodeMemoryProtection ?? createBackendNodeMemoryProtection(),
   })
   await services.config.ensureConfigFile()
   fileOperations.setScheduler(services.resources)
