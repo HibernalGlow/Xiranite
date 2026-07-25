@@ -137,7 +137,8 @@
       "results": "Search results",
       "empty": "No matching settings",
       "stage": "Stage",
-      "stepInStage": "In “{{stage}}”"
+      "stepInStage": "In “{{stage}}”",
+      "fieldInStep": "{{step}} · {{stage}}"
     },
     "sections": {
       "appearance": "Appearance",
@@ -146,6 +147,19 @@
       "runtime": "Runtime",
       "data": "Data",
       "view": "View"
+    },
+    "workspace": {
+      "startupRestore": "Restore nodes on startup",
+      "startupRestoreDesc": "Restore the previous workspace's saved node instances when the app starts."
+    },
+    "view": {
+      "swimlane": {
+        "soloOnFocus": "Solo lane on focus",
+        "showNavigatorInSolo": "Show the lane navigator in solo mode",
+        "edgeRevealDelay": "Edge lane reveal delay",
+        "focusOnHover": "Refocus lane on hover",
+        "focusDelay": "Hover refocus delay"
+      }
     },
     "timeline": {
       "navLabel": "Settings timeline",
