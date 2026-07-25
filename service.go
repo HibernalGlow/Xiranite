@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 type XiraniteService struct {
@@ -77,6 +78,11 @@ type WindowCommandResult struct {
 type WindowFrame struct {
 	X      int `json:"x"`
 	Y      int `json:"y"`
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
+type ComponentWindowSize struct {
 	Width  int `json:"width"`
 	Height int `json:"height"`
 }
@@ -502,6 +508,12 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 	if height <= 0 {
 		height = 380
 	}
+	if remembered, ok, err := s.loadComponentWindowSize(input.ComponentID, input.ModuleID); err != nil {
+		log.Printf("Unable to restore component window %q size: %v", id, err)
+	} else if ok {
+		width = remembered.Width
+		height = remembered.Height
+	}
 
 	query := url.Values{}
 	query.Set("floatingComponent", input.ComponentID)
@@ -538,6 +550,7 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 		log.Printf("Unable to set component window %q taskbar icon: %v", id, err)
 	}
 	wireFileDrop(win)
+	s.trackComponentWindowSize(win, input.ComponentID, input.ModuleID)
 	primeWindowFrame(win)
 
 	return WindowCommandResult{
@@ -550,6 +563,79 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 
 func componentWindowID(componentID string) string {
 	return "component-" + componentID
+}
+
+const componentWindowSizeStoragePrefix = "desktop.component-window-size.v1:"
+
+func componentWindowSizeStorageKeys(componentID string, moduleID string) []string {
+	return []string{
+		componentWindowSizeStoragePrefix + "component:" + componentID,
+		componentWindowSizeStoragePrefix + "module:" + moduleID,
+	}
+}
+
+func validComponentWindowSize(size ComponentWindowSize) bool {
+	return size.Width >= 360 && size.Height >= 260
+}
+
+func (s *XiraniteService) loadComponentWindowSize(componentID string, moduleID string) (ComponentWindowSize, bool, error) {
+	s.storageMu.Lock()
+	defer s.storageMu.Unlock()
+
+	storage, err := s.loadStorage()
+	if err != nil {
+		return ComponentWindowSize{}, false, err
+	}
+	for _, key := range componentWindowSizeStorageKeys(componentID, moduleID) {
+		encoded, ok := storage[key]
+		if !ok {
+			continue
+		}
+		var size ComponentWindowSize
+		if err := json.Unmarshal([]byte(encoded), &size); err == nil && validComponentWindowSize(size) {
+			return size, true, nil
+		}
+	}
+	return ComponentWindowSize{}, false, nil
+}
+
+func (s *XiraniteService) saveComponentWindowSize(componentID string, moduleID string, size ComponentWindowSize) error {
+	if !validComponentWindowSize(size) {
+		return nil
+	}
+	encoded, err := json.Marshal(size)
+	if err != nil {
+		return err
+	}
+
+	s.storageMu.Lock()
+	defer s.storageMu.Unlock()
+
+	storage, err := s.loadStorage()
+	if err != nil {
+		return err
+	}
+	for _, key := range componentWindowSizeStorageKeys(componentID, moduleID) {
+		storage[key] = string(encoded)
+	}
+	return s.saveStorage(storage)
+}
+
+func (s *XiraniteService) trackComponentWindowSize(window application.Window, componentID string, moduleID string) {
+	persistCurrentSize := func(_ *application.WindowEvent) {
+		if window.IsMaximised() || window.IsFullscreen() || window.IsMinimised() {
+			return
+		}
+		width, height := window.Size()
+		if err := s.saveComponentWindowSize(componentID, moduleID, ComponentWindowSize{Width: width, Height: height}); err != nil {
+			log.Printf("Unable to remember component window %q size: %v", componentWindowID(componentID), err)
+		}
+	}
+
+	if runtime.GOOS == "windows" {
+		window.OnWindowEvent(events.Windows.WindowEndResize, persistCurrentSize)
+	}
+	window.RegisterHook(events.Common.WindowClosing, persistCurrentSize)
 }
 
 func (s *XiraniteService) WindowFocus(id string) WindowCommandResult {
