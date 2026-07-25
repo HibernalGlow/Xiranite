@@ -51,3 +51,4 @@ migration/czkawka/image.png
 output/neoview-card-rewrite-prototype/*
 output/*
 migration/neoview/
+packages/nodes/*/.dist.local-build-backup-*/
