@@ -1,6 +1,5 @@
 [workspace]
-members = ["arcthumb-core", "arcthumb-node", "czkawka-core", "czkawka-node"]
-exclude = ["vendor/czkawka_core"]
+members = ["arcthumb-core", "arcthumb-node", "czkawka-core", "czkawka-node", "slimg-node"]
 resolver = "3"
 
 [workspace.package]
