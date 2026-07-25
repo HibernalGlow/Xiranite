@@ -80,6 +80,7 @@ Melo deck 仍是 Xiranite 标准节点。Folia 提供新的 GUI 播放内核、�
 - 队列、随机排序、循环、随机播放、音量、ReplayGain 和输出设备；队列面板的随机按钮执行一次性 Fisher-Yates 排序并通过受控 `onTracksChange` 写回 Folia 曲库数据库，底栏循环按钮按 `off → all → one → random → off` 切换并把 `random` 写入 `playback.loop_mode`；两者均不得重建当前 `<audio>`
 - 封面、歌词匹配、逐字歌词、翻译与和声
 - Folia 全部歌词 renderer、背景模式及其设置
+- 播放器设置中心的播放、歌词与 visualizer 设置，以及适用于嵌入节点的实验室设置：静态模式、主页动态背景、60/90/120 FPS 限制、播放页控件显隐、面板关闭按钮和常驻返回按钮
 - Remote Control、底部播放条和 UnifiedPanel
 
 暂不接入：
@@ -89,6 +90,7 @@ Melo deck 仍是 Xiranite 标准节点。Folia 提供新的 GUI 播放内核、�
 - 视频导出
 - Discord、OBS 与 Stage
 - Electron 专属窗口能力
+- Folia 主应用专属的标题栏、原生模糊、托盘/任务栏、启动页面、语音输入暂停和全局歌词正则管理
 
 这些能力可以继续存在于 Folia 原应用，但必须位于独立入口，不进入 Melo deck 首次 bundle。
 
@@ -112,6 +114,9 @@ Melo deck 仍是 Xiranite 标准节点。Folia 提供新的 GUI 播放内核、�
 - 新配置使用版本化的 `playback`、`visualizer`、`surfaces` 与 `library` 分区。
 - `surfaces.follow_fullscreen_with_floating` 保存全屏与浮窗联动偏好，缺省值为 `false`。
 - `playback.active_track_id` 保存最后活动曲目；曲目队列写入 Folia Dexie 数据库的独立命名记录，不写入 TOML。找不到旧曲目时回退到队列首曲，且不自动播放。
+- `visualizer` 保存完整 `FoliaPlayerPreferences` 视觉与实验字段，包括 `staticMode`、`disableHomeDynamicBackground`、`visualizerFrameRate`、`hidePlayerProgressBar`、`hidePlayerTranslationSubtitle`、`hidePlayerRightPanelButton`、`showOpenPanelCloseButton` 与 `alwaysShowPlayerBackButton`；切换到 legacy 引擎时保留这些值，切回 Folia 后继续生效。
+- Melo deck 不复用 Folia 主应用的 Zustand/localStorage 设置存储，也不挂载包含 Electron 专属开关的原版 `LabSettingsModal`；player 包复用同一设置语义和上游组件 props，Xiranite TOML 是唯一事实源。
+- `visualizerFrameRate` 只在 `FoliaFullscreenSurface` 处于歌词播放页时安装作用域 RAF limiter；返回 Home、关闭限制或卸载表面后必须恢复宿主原本的 `requestAnimationFrame` / `cancelAnimationFrame`。多个歌词表面同时活动时采用最低请求帧率，最后一个离开后恢复。
 - 旧 TOML `saved_tracks` 仅作为一次性迁移输入：必须先成功写入数据库，再删除旧字段；数据库写入失败时保留原字段，禁止丢失曲库。
 - 现有 `source_path`、`mode`、`floating_offset`、`visualizer_style`、`volume`、`mpv_path` 和 `ipc_path` 非破坏迁移。
 - 现有单路径迁移为 `library_roots = [source_path]`，读取端继续兼容旧字段。
@@ -154,6 +159,7 @@ Melo deck 仍是 Xiranite 标准节点。Folia 提供新的 GUI 播放内核、�
 - 验证 Xiranite 主题与字体切换后所有 Folia 表面和 renderer 实时更新。
 - 验证 Home 下原版 Visualizer 背景仍在渲染、歌词正文已隐藏，且 Folia 内部控件未被 Xiranite 节点通用样式覆盖。
 - Browser Mode 主流程必须覆盖：紧凑节点默认进入 Home → 验证嵌入品牌与控制/卡片不重叠 → 放大节点 → 地图选歌 → GridView 聚焦并点击原版播放按钮 → 原版播放条进入歌词 → 返回 Home → 再次进入歌词 → 同时缩窄并降低节点；全程保持原版应用、当前页面、当前曲目和唯一一个 `<audio>`。
+- Browser Mode 实验室流程必须覆盖：打开设置 → 进入实验室 → 切换静态模式、主页静态背景和 FPS 档位 → 验证播放页显隐设置进入 Provider → 进入歌词页后 RAF 被替换 → 返回 Home 后 RAF 与 cancel 函数引用恢复 → 面板打开后显示可用关闭按钮。
 - Browser Mode 必须用至少两首初始无 `coverUrl` 的曲目验证：恢复的活动曲目走完整 hydration、其他曲目在未选择和未播放时走受限并发 preview hydration、所有封面最终可见、播放器保持暂停且仍只有一个 `<audio>`。
 - 验证切换到 legacy 引擎后原播放器仍可用，CLI/TUI 测试不受影响。
 - 重任务严格串行：focused Vitest、类型检查、构建、Vitest Browser Mode；仅真正的 Wails 跨进程行为使用宿主集成测试。
