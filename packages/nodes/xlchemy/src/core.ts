@@ -128,6 +128,7 @@ export interface XlchemyCommandResult { exitCode: number; stdout: string; stderr
 export interface XlchemyRuntime {
   pathInfo: (path: string) => Promise<XlchemyPathInfo>
   listDir: (path: string) => Promise<XlchemyDirEntry[]>
+  streamDir?: (path: string) => AsyncIterable<XlchemyDirEntry>
   ensureDir: (path: string) => Promise<void>
   copyFile: (source: string, target: string) => Promise<void>
   removeFile: (path: string) => Promise<void>
@@ -261,8 +262,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     if (!options.paths.length && !options.efuFiles?.length) return failure("At least one image, folder, or EFU file is required.")
     if (options.efuFiles?.length && !runtime.streamEfuPaths) return failure("The current runtime does not support streaming EFU inputs.")
     if (options.outputMode === "directory" && !options.outputDir) return failure("An output directory is required in directory mode.")
-    onEvent({ type: "progress", progress: 0, message: "Discovering image inputs." })
-    const directSources = await discoverImages(options.paths, options.recursive, runtime)
+    onEvent({ type: "progress", progress: 0, message: "Streaming image inputs; conversion starts as files are discovered." })
     const excluded = new Set(options.excludedFormats?.map((value) => value.replace(/^\./, "").toLowerCase()) ?? [])
     const accepts = (path: string) => {
       const extension = runtime.extname(path).slice(1).toLowerCase()
@@ -270,16 +270,12 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       if (options.format === "Lossless JPEG Transcoding") return ["jpg", "jpeg", "jfif", "jif", "jpe"].includes(extension)
       return XL_IMAGE_EXTENSIONS.has(runtime.extname(path).toLowerCase()) && !excluded.has(extension)
     }
-    const acceptedDirectSources = directSources.filter(accepts)
-    const efuInputCount = await countEfuSources(options.efuFiles ?? [], runtime, accepts)
-    if (runtime.isCancelled?.()) return cancelled([], started)
-    const totalInputCount = acceptedDirectSources.length + efuInputCount
-    onEvent({ type: "progress", progress: 0, message: `Discovered ${totalInputCount} image(s).`, data: progressCount(0, totalInputCount) })
-    const sourceStream = streamInputSources(acceptedDirectSources, options.efuFiles ?? [], runtime, accepts)
-    const orderedSources = requiresMaterializedOrder(options.processingOrder)
-      ? await orderSources(await collectAsync(sourceStream), options.processingOrder, runtime)
-      : sourceStream
     const roots = await sourceRoots(options.paths, runtime)
+    const totalInputCount = await knownDirectInputCount(options, runtime, accepts)
+    const sourceStream = streamInputSources(options.paths, options.recursive, options.efuFiles ?? [], runtime, accepts)
+    const orderedSources = orderSourceStream(sourceStream, options.processingOrder, runtime)
+    onEvent({ type: "log", message: `Input scheduler: single-pass streaming with bounded backpressure; ${totalInputCount === undefined ? "total finalized at EOF" : `${totalInputCount} direct input(s)`}.` })
+    if (requiresWindowedOrder(options.processingOrder)) onEvent({ type: "log", message: `Processing order ${options.processingOrder} is applied in bounded windows of ${STREAM_ORDER_WINDOW_SIZE} files to preserve streaming.` })
     const animationDetectionFormats = new Set(options.animationDetectionFormats)
     const summary = createSummary()
     let lastLiveResultAt = 0
@@ -296,7 +292,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       activeWorkers += 1
       peakActiveWorkers = Math.max(peakActiveWorkers, activeWorkers)
       if (options.action === "convert" && announceWorker) onEvent({ type: "log", message: `Worker #${workerIndex + 1} online with ${workerInput.threads} encoder thread(s); first input ${runtime.basename(source)}.` })
-      let item: XlchemyFileResult
+      let item: XlchemyFileResult | undefined
       try {
         if (animationDetectionFormats.has(animationFormat(runtime.extname(source)))) {
           try {
@@ -307,11 +303,13 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
             item = { sourcePath: source, outputPath: source, status: "error", error: `animation_probe_failed: ${error instanceof Error ? error.message : String(error)}` }
           }
         } else item = await withTargetLock("batch-planning", planningLocks, () => planFile(source, roots, options, runtime, targetReservations))
-        const result = options.action !== "convert" || item.status !== "planned"
-          ? item
-          : await withTargetLock(item.outputPath, targetLocks, async () => {
-              if (workerInput.existingPolicy === "skip" && (await runtime.pathInfo(item.outputPath)).exists) return { ...item, status: "skipped" as const, error: "target_exists" }
-              return convertFileWithProgress(item, workerInput, runtime, onEvent, summary.inputCount, totalInputCount)
+        if (!item) throw new Error(`Failed to plan ${source}.`)
+        const plannedItem = item
+        const result = options.action !== "convert" || plannedItem.status !== "planned"
+          ? plannedItem
+          : await withTargetLock(plannedItem.outputPath, targetLocks, async () => {
+              if (workerInput.existingPolicy === "skip" && (await runtime.pathInfo(plannedItem.outputPath)).exists) return { ...plannedItem, status: "skipped" as const, error: "target_exists" }
+              return convertFileWithProgress(plannedItem, workerInput, runtime, onEvent, summary.inputCount, totalInputCount)
             })
         appendSummary(summary, result)
         const now = Date.now()
@@ -323,10 +321,11 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
           const elapsedSeconds = (Date.now() - itemStarted) / 1_000
           const completed = summary.inputCount
           const throughput = completed / Math.max((Date.now() - started) / 1_000, 0.001)
-          onEvent({ type: "log", message: `Worker #${workerIndex + 1} ${result.status} ${runtime.basename(source)} in ${elapsedSeconds.toFixed(2)}s; active workers ${activeWorkers - 1}; completed ${completed}/${totalInputCount}; ${throughput.toFixed(2)} images/s.` })
+          onEvent({ type: "log", message: `Worker #${workerIndex + 1} ${result.status} ${runtime.basename(source)} in ${elapsedSeconds.toFixed(2)}s; active workers ${activeWorkers - 1}; completed ${totalInputCount === undefined ? completed : `${completed}/${totalInputCount}`}; ${throughput.toFixed(2)} images/s.` })
           lastDiagnosticLogAt = now
         }
       } finally {
+        if (options.action === "convert" && options.existingPolicy === "rename" && item?.status === "planned") targetReservations.delete(item.outputPath.toLocaleLowerCase("en-US"))
         activeWorkers -= 1
       }
     }
@@ -354,7 +353,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     }
     if (runtime.isCancelled?.()) return cancelledSummary(summary, started)
     if (!summary.inputCount) return failure("No supported images were found.")
-    emitLiveResult(onEvent, summary, started, totalInputCount)
+    emitLiveResult(onEvent, summary, started, summary.inputCount)
     const data = summaryData(summary, Date.now() - started)
     if (options.action !== "convert") {
       onEvent({ type: "progress", progress: 100, message: `Planned ${data.inputCount} image(s).` })
@@ -373,24 +372,13 @@ function animationFormat(extension: string): XlchemyAnimationFormat {
   return normalized === "apng" ? "png" : normalized as XlchemyAnimationFormat
 }
 
-async function convertFileWithProgress(item: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void, completed: number, total: number) {
+async function convertFileWithProgress(item: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void, completed: number, total?: number) {
   onEvent({ type: "progress", progress: progressPercent(completed, total), message: `Converting ${runtime.basename(item.sourcePath)}.`, data: progressCount(completed, total) })
   return await convertFile(item, input, runtime, onEvent)
 }
 
-async function countEfuSources(efuFiles: string[], runtime: XlchemyRuntime, accepts: (path: string) => boolean): Promise<number> {
-  let count = 0
-  for (const efuFile of efuFiles) {
-    for await (const source of runtime.streamEfuPaths!(efuFile)) {
-      if (runtime.isCancelled?.()) return count
-      if (accepts(source)) count += 1
-    }
-  }
-  return count
-}
-
-async function* streamInputSources(directSources: string[], efuFiles: string[], runtime: XlchemyRuntime, accepts: (path: string) => boolean): AsyncGenerator<string> {
-  for (const source of directSources) yield source
+async function* streamInputSources(paths: string[], recursive: boolean, efuFiles: string[], runtime: XlchemyRuntime, accepts: (path: string) => boolean): AsyncGenerator<string> {
+  for await (const source of streamDiscoveredImages(paths, recursive, runtime)) if (accepts(source)) yield source
   for (const efuFile of efuFiles) {
     for await (const source of runtime.streamEfuPaths!(efuFile)) {
       if (runtime.isCancelled?.()) return
@@ -399,17 +387,28 @@ async function* streamInputSources(directSources: string[], efuFiles: string[], 
   }
 }
 
-function requiresMaterializedOrder(order: XlchemyInput["processingOrder"]): boolean {
+function requiresWindowedOrder(order: XlchemyInput["processingOrder"]): boolean {
   return order === "path-asc" || order === "path-desc" || order === "size-asc" || order === "size-desc" || order === "random"
 }
 
-async function collectAsync(values: AsyncIterable<string>): Promise<string[]> {
-  const output: string[] = []
-  for await (const value of values) output.push(value)
-  return output
+const STREAM_ORDER_WINDOW_SIZE = 64
+
+async function* orderSourceStream(sources: AsyncIterable<string>, order: XlchemyInput["processingOrder"], runtime: XlchemyRuntime): AsyncGenerator<string> {
+  if (!requiresWindowedOrder(order)) {
+    yield* sources
+    return
+  }
+  let window: string[] = []
+  for await (const source of sources) {
+    window.push(source)
+    if (window.length < STREAM_ORDER_WINDOW_SIZE) continue
+    for (const ordered of await orderSourceWindow(window, order, runtime)) yield ordered
+    window = []
+  }
+  for (const ordered of await orderSourceWindow(window, order, runtime)) yield ordered
 }
 
-async function orderSources(sources: string[], order: XlchemyInput["processingOrder"], runtime: XlchemyRuntime): Promise<string[]> {
+async function orderSourceWindow(sources: string[], order: XlchemyInput["processingOrder"], runtime: XlchemyRuntime): Promise<string[]> {
   if (order === "size-asc" || order === "size-desc") {
     const sizes: Array<{ path: string; size: number }> = []
     for (const path of sources) sizes.push({ path, size: (await runtime.pathInfo(path)).size })
@@ -489,26 +488,26 @@ function summaryData(summary: XlchemySummary, elapsedMs: number, live = false): 
   }
 }
 
-function emitLiveResult(onEvent: (event: NodeRunEvent) => void, summary: XlchemySummary, started: number, total: number) {
+function emitLiveResult(onEvent: (event: NodeRunEvent) => void, summary: XlchemySummary, started: number, total?: number) {
   const snapshot = summaryData(summary, Date.now() - started, true)
   onEvent({
     type: "progress",
     progress: progressPercent(summary.inputCount, total),
     message: `Processed ${summary.inputCount} image(s).`,
-    data: { kind: "xlchemy-live-result", completed: summary.inputCount, total, result: snapshot },
+    data: { kind: "xlchemy-live-result", completed: summary.inputCount, ...(total === undefined ? {} : { total }), result: snapshot },
   })
 }
 
-function progressCount(completed: number, total: number) { return { kind: "xlchemy-progress-count", completed, total } }
-function progressPercent(completed: number, total: number) { return total > 0 ? Math.min(99.99, Math.round(completed / total * 10_000) / 100) : 0 }
+function progressCount(completed: number, total?: number) { return { kind: "xlchemy-progress-count", completed, ...(total === undefined ? {} : { total }) } }
+function progressPercent(completed: number, total?: number) { return total && total > 0 ? Math.min(99.99, Math.round(completed / total * 10_000) / 100) : 0 }
 
-function batchWorkerThreads(total: number, input: XlchemyInput): number[] {
+function batchWorkerThreads(total: number | undefined, input: XlchemyInput): number[] {
   const threadBudget = Math.max(1, input.threads)
-  if (total <= 1 || input.processingOrder === "sequential") return [threadBudget]
+  if ((total !== undefined && total <= 1) || input.processingOrder === "sequential") return [threadBudget]
   const context = { format: input.format, avifEncoder: input.avifEncoder, jpegXlEffort: input.maxCompression ? 10 : input.effort, jpegXlLossyModular: input.jxlModular ?? false, jpegXlLossless: input.lossless, jpegXlIntelligentEffort: input.intelligentEffort ?? false }
   if (input.ramOptimizer !== "disabled" && isRamOptimizerNecessary(context)) return [threadBudget]
-  const workerCount = Math.min(total, threadBudget)
-  if (total >= threadBudget) return Array.from({ length: workerCount }, () => 1)
+  const workerCount = total === undefined ? threadBudget : Math.min(total, threadBudget)
+  if (total === undefined || total >= threadBudget) return Array.from({ length: workerCount }, () => 1)
   const baseThreads = Math.floor(threadBudget / workerCount)
   const extraThreads = threadBudget % workerCount
   return Array.from({ length: workerCount }, (_, index) => baseThreads + (index < extraThreads ? 1 : 0))
@@ -589,25 +588,54 @@ export async function diagnoseXlchemyEnvironment(runtime: XlchemyRuntime, onEven
 
 export async function discoverImages(paths: string[], recursive: boolean, runtime: XlchemyRuntime): Promise<string[]> {
   const output: string[] = []
+  for await (const path of streamDiscoveredImages(paths, recursive, runtime)) output.push(path)
+  return [...new Set(output)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))
+}
+
+async function* streamDiscoveredImages(paths: string[], recursive: boolean, runtime: XlchemyRuntime): AsyncGenerator<string> {
   for (const path of paths) {
+    if (runtime.isCancelled?.()) return
     const info = await runtime.pathInfo(path)
     if (!info.exists) continue
-    if (info.isFile && XL_IMAGE_EXTENSIONS.has(runtime.extname(info.path).toLowerCase())) output.push(info.path)
+    if (info.isFile && XL_IMAGE_EXTENSIONS.has(runtime.extname(info.path).toLowerCase())) {
+      yield info.path
+      continue
+    }
     if (info.isDirectory) {
-      const entries = await runtime.listDir(info.path)
-      for (const entry of entries) {
-        if (entry.isFile && XL_IMAGE_EXTENSIONS.has(runtime.extname(entry.path).toLowerCase())) output.push(entry.path)
-        else if (recursive && entry.isDirectory) output.push(...await discoverImages([entry.path], true, runtime))
+      for await (const entry of streamDirectoryEntries(info.path, runtime)) {
+        if (runtime.isCancelled?.()) return
+        if (entry.isFile && XL_IMAGE_EXTENSIONS.has(runtime.extname(entry.path).toLowerCase())) yield entry.path
+        else if (recursive && entry.isDirectory) yield* streamDiscoveredImages([entry.path], true, runtime)
       }
     }
   }
-  return [...new Set(output)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))
+}
+
+async function* streamDirectoryEntries(path: string, runtime: XlchemyRuntime): AsyncGenerator<XlchemyDirEntry> {
+  if (runtime.streamDir) {
+    yield* runtime.streamDir(path)
+    return
+  }
+  for (const entry of await runtime.listDir(path)) yield entry
 }
 
 async function sourceRoots(paths: string[], runtime: XlchemyRuntime): Promise<string[]> {
   const roots: string[] = []
   for (const path of paths) { const info = await runtime.pathInfo(path); if (info.isDirectory) roots.push(info.path) }
   return roots
+}
+
+const KNOWN_DIRECT_INPUT_LIMIT = 1_024
+
+async function knownDirectInputCount(input: XlchemyInput, runtime: XlchemyRuntime, accepts: (path: string) => boolean): Promise<number | undefined> {
+  if (input.efuFiles?.length || input.paths.length > KNOWN_DIRECT_INPUT_LIMIT) return undefined
+  let count = 0
+  for (const path of input.paths) {
+    const info = await runtime.pathInfo(path)
+    if (info.isDirectory) return undefined
+    if (info.isFile && accepts(info.path)) count += 1
+  }
+  return count
 }
 
 async function planFile(sourcePath: string, roots: string[], input: XlchemyInput, runtime: XlchemyRuntime, reservations?: Set<string>): Promise<XlchemyFileResult> {
@@ -626,8 +654,18 @@ async function planFile(sourcePath: string, roots: string[], input: XlchemyInput
   const reserved = reservations?.has(outputPath.toLocaleLowerCase("en-US")) ?? false
   if (existing.exists && input.existingPolicy === "skip") return { sourcePath: source.path, outputPath, sourceBytes: source.size, status: "skipped", error: "target_exists" }
   if ((existing.exists || reserved) && input.existingPolicy === "rename") outputPath = await uniqueTarget(outputPath, runtime, reservations)
-  if (input.existingPolicy === "rename") reservations?.add(outputPath.toLocaleLowerCase("en-US"))
+  if (input.existingPolicy === "rename" && reservations) addBoundedReservation(reservations, outputPath.toLocaleLowerCase("en-US"))
   return { sourcePath: source.path, outputPath, sourceBytes: source.size, status: "planned" }
+}
+
+const TARGET_RESERVATION_LIMIT = 1_024
+
+function addBoundedReservation(reservations: Set<string>, target: string): void {
+  if (reservations.size >= TARGET_RESERVATION_LIMIT) {
+    const oldest = reservations.values().next().value
+    if (oldest !== undefined) reservations.delete(oldest)
+  }
+  reservations.add(target)
 }
 
 async function uniqueTarget(path: string, runtime: XlchemyRuntime, reservations?: Set<string>): Promise<string> {

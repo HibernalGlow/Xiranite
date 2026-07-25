@@ -150,7 +150,9 @@ describe("xlchemy core contract", () => {
     runtime.pathInfo = async (path) => /^\/bulk\/\d+\.png$/.test(path)
       ? { path, exists: true, isFile: true, isDirectory: false, size: 100, atimeMs: 0, mtimeMs: 0 }
       : originalPathInfo(path)
+    let efuPasses = 0
     runtime.streamEfuPaths = async function* () {
+      efuPasses += 1
       for (let index = 0; index < 2_500; index += 1) yield `/bulk/${index}.png`
     }
     const events: Array<{ data?: unknown }> = []
@@ -160,10 +162,93 @@ describe("xlchemy core contract", () => {
     expect(result.data).toMatchObject({ inputCount: 2_500, detailsTruncated: true })
     expect(result.data?.files).toHaveLength(1_000)
     expect(result.data?.files.at(-1)?.sourcePath).toBe("/bulk/2499.png")
+    expect(efuPasses).toBe(1)
     expect(snapshots.length).toBeLessThan(10)
     expect(Math.max(...snapshots.map((snapshot) => snapshot.result.files.length))).toBeLessThanOrEqual(20)
-    expect(events.find((event) => (event.data as { kind?: string } | undefined)?.kind === "xlchemy-progress-count")?.data).toMatchObject({ completed: 0, total: 2_500 })
     expect(events.some((event) => typeof event.progress === "number" && event.progress > 0 && event.progress < 100)).toBe(true)
+  })
+
+  test("starts ordered EFU conversion before EOF without a counting pass", async () => {
+    const runtime = fakeRuntime()
+    const originalPathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => /^\/stream\/\d+\.png$/.test(path)
+      ? { path, exists: true, isFile: true, isDirectory: false, size: 100, atimeMs: 0, mtimeMs: 0 }
+      : originalPathInfo(path)
+    const originalRunCommand = runtime.runCommand
+    let efuPasses = 0
+    let firstEncodeAtYield = 0
+    let yielded = 0
+    runtime.streamEfuPaths = async function* () {
+      efuPasses += 1
+      for (let index = 0; index < 256; index += 1) {
+        if (index === 128 && firstEncodeAtYield === 0) throw new Error("EFU reached the second ordering window before conversion started")
+        yielded += 1
+        yield `/stream/${index}.png`
+      }
+    }
+    runtime.runCommand = async (command, args, isCancelled) => {
+      if (firstEncodeAtYield === 0) firstEncodeAtYield = yielded
+      return originalRunCommand(command, args, isCancelled)
+    }
+
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert",
+      paths: [],
+      efuFiles: ["/lists/large.efu"],
+      format: "WebP",
+      threads: 4,
+      processingOrder: "size-desc",
+      excludedFormats: [],
+      overwrite: true,
+      preserveMetadata: false,
+    }), runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data).toMatchObject({ inputCount: 256, convertedCount: 256 })
+    expect(efuPasses).toBe(1)
+    expect(firstEncodeAtYield).toBeGreaterThan(0)
+    expect(firstEncodeAtYield).toBeLessThan(256)
+  })
+
+  test("streams directory entries into conversion before enumeration completes", async () => {
+    const runtime = fakeRuntime()
+    const originalPathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => path === "/stream-folder"
+      ? { path, exists: true, isFile: false, isDirectory: true, size: 0, atimeMs: 0, mtimeMs: 0 }
+      : /^\/stream-folder\/\d+\.png$/.test(path)
+        ? { path, exists: true, isFile: true, isDirectory: false, size: 100, atimeMs: 0, mtimeMs: 0 }
+        : originalPathInfo(path)
+    const originalRunCommand = runtime.runCommand
+    let firstEncodeAtYield = 0
+    let yielded = 0
+    runtime.listDir = vi.fn(async () => { throw new Error("materialized directory listing used") })
+    runtime.streamDir = async function* () {
+      for (let index = 0; index < 128; index += 1) {
+        if (index === 64 && firstEncodeAtYield === 0) throw new Error("directory enumeration outran conversion")
+        yielded += 1
+        yield { path: `/stream-folder/${index}.png`, name: `${index}.png`, isFile: true, isDirectory: false }
+      }
+    }
+    runtime.runCommand = async (command, args, isCancelled) => {
+      if (firstEncodeAtYield === 0) firstEncodeAtYield = yielded
+      return originalRunCommand(command, args, isCancelled)
+    }
+
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert",
+      paths: ["/stream-folder"],
+      format: "WebP",
+      threads: 4,
+      excludedFormats: [],
+      overwrite: true,
+      preserveMetadata: false,
+    }), runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data).toMatchObject({ inputCount: 128, convertedCount: 128 })
+    expect(runtime.listDir).not.toHaveBeenCalled()
+    expect(firstEncodeAtYield).toBeGreaterThan(0)
+    expect(firstEncodeAtYield).toBeLessThan(128)
   })
 
   test("diagnoses PATH tools without requiring input files or leaking probe arguments", async () => {
