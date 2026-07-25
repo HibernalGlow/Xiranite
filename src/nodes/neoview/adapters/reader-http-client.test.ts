@@ -108,6 +108,20 @@ describe("reader-http-client", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ pageTransition: { type: "slide", duration: 240 } })
   })
 
+  it("[neoview.input-bindings.client] sends its config mutation as JSON", async () => {
+    const inputBindings = { bindings: [] }
+    const fetchMock = vi.fn(async () => Response.json({ inputBindings }))
+    vi.stubGlobal("fetch", fetchMock)
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+
+    await expect(client.updateInputBindings!({ inputBindings })).resolves.toEqual(inputBindings)
+
+    const init = fetchMock.mock.calls[0]?.[1]
+    expect(init).toMatchObject({ method: "PATCH" })
+    expect(new Headers(init?.headers).get("content-type")).toBe("application/json")
+    expect(JSON.parse(String(init?.body))).toEqual({ inputBindings })
+  })
+
   it("[neoview.page-order.client] updates session ordering and canonical book locks through authenticated routes", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/reader/config")
       ? Response.json({ book: { lockedSortMode: "fileSizeDescending", lockedMediaPriority: null, lockedReadingDirection: "left-to-right" } })
