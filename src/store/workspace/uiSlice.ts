@@ -110,6 +110,7 @@ export function createUiSlice(set: SetWorkspaceStore): WorkspaceUiActions {
     }, false, "SET_CHROME_ACTION_PREFERENCES"),
     setFloatingWindowCaptionPosition: (floatingWindowCaptionPosition) => set({ floatingWindowCaptionPosition }, false, "SET_FLOATING_WINDOW_CAPTION_POSITION"),
     setFloatingWindowCaptionStyle: (floatingWindowCaptionStyle) => set({ floatingWindowCaptionStyle }, false, "SET_FLOATING_WINDOW_CAPTION_STYLE"),
+    setFloatingWindowCaptionAutoCollapse: (floatingWindowCaptionAutoCollapse) => set({ floatingWindowCaptionAutoCollapse }, false, "SET_FLOATING_WINDOW_CAPTION_AUTO_COLLAPSE"),
     setAlphabetIndexVisible: (alphabetIndexVisible) => set({ alphabetIndexVisible }, false, "SET_ALPHABET_INDEX_VISIBLE"),
     setAlphabetIndexOpacity: (alphabetIndexOpacity) => set({ alphabetIndexOpacity }, false, "SET_ALPHABET_INDEX_OPACITY"),
     setAlphabetIndexStyle: (alphabetIndexStyle) => set({ alphabetIndexStyle }, false, "SET_ALPHABET_INDEX_STYLE"),

@@ -49,6 +49,7 @@ describe("workspace UI preference persistence", () => {
     expect(persisted.state?.chromeHiddenActions).toEqual(["collapse"])
     expect(persisted.state?.floatingWindowCaptionPosition).toBe("island")
     expect(persisted.state?.floatingWindowCaptionStyle).toBe("traffic-light")
+    expect(persisted.state?.floatingWindowCaptionAutoCollapse).toBe(false)
     expect(persisted.state?.workspaces).toBeUndefined()
     expect(persisted.state?.components).toBeUndefined()
     expect(localStorage.getItem("xiranite-bg-mode")).toBeNull()
@@ -193,6 +194,7 @@ function WorkspacePreferenceProbe() {
           workspaceActions.setChromeActionPreferences(["hide", "focus", "collapse"], ["collapse"])
           workspaceActions.setFloatingWindowCaptionPosition("island")
           workspaceActions.setFloatingWindowCaptionStyle("traffic-light")
+          workspaceActions.setFloatingWindowCaptionAutoCollapse(false)
         }}
       >
         set persisted prefs
