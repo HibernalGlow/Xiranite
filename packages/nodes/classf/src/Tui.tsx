@@ -6,7 +6,7 @@ import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { ClassfInput, ClassfResult } from "./core.js"
 
-export function ClassfTui(props: TerminalUiScreenProps<ClassfInput, ClassfResult>) { const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><ClassfWorkbench {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider> }
+export function ClassfTui(props: TerminalUiScreenProps<ClassfInput, ClassfResult>): import('react').ReactNode { const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><ClassfWorkbench {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider> }
 
 function ClassfWorkbench({ definition, language, preferences, onExit, onThemePreview }: TerminalUiScreenProps<ClassfInput, ClassfResult> & { onThemePreview: (theme: string) => void }) {
   const theme = useTerminalTheme(), t = createTerminalTranslator(language), session = useTerminalUiSession(definition), [settings, setSettings] = useState(false), frame = useAnimation({ intervalMs: session.phase === "running" ? 110 : 620 })

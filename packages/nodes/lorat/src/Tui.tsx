@@ -6,7 +6,7 @@ import { ActionLauncher, ActionTabs, ExecutionActions, ProgressBar, TerminalThem
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { LoratInput, LoratResult, LoratRow } from "./core.js"
 
-export function LoratTui(props: TerminalUiScreenProps<LoratInput, LoratResult>) {
+export function LoratTui(props: TerminalUiScreenProps<LoratInput, LoratResult>): import('react').ReactNode {
   const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "nord")
   return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><LoratWorkbench {...props} /></TerminalThemeProvider>
 }

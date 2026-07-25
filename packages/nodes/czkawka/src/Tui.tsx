@@ -34,7 +34,7 @@ import { getCzkawkaToolOptions } from "./tool-options.js"
 import { buildCzkawkaAnalysis } from "./analysis.js"
 import { formatCzkawkaActivityMessage } from "./activity-log.js"
 
-export function CzkawkaTui(props: TerminalUiScreenProps<CzkawkaInput, CzkawkaResult>) {
+export function CzkawkaTui(props: TerminalUiScreenProps<CzkawkaInput, CzkawkaResult>): import('react').ReactNode {
   const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "nord")
   return (
     <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}>

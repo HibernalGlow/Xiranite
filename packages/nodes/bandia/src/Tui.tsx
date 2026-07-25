@@ -6,7 +6,7 @@ import { ActionTabs, ClickTarget, ExecutionActions, ProgressBar, TerminalThemePr
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { BandiaInput, BandiaItemResult, BandiaResult } from "./core.js"
 
-export function BandiaTui(props: TerminalUiScreenProps<BandiaInput, BandiaResult>) { const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><BandiaWorkbench {...props}/></TerminalThemeProvider> }
+export function BandiaTui(props: TerminalUiScreenProps<BandiaInput, BandiaResult>): import('react').ReactNode { const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><BandiaWorkbench {...props}/></TerminalThemeProvider> }
 function BandiaWorkbench({ definition, language, onExit }: TerminalUiScreenProps<BandiaInput, BandiaResult>) {
   const theme = useTerminalTheme(), t = createTerminalTranslator(language), session = useTerminalUiSession(definition), frame = useAnimation({ intervalMs: session.phase === "running" ? 90 : 500 })
   const data = session.result?.data, action = String(session.values.action ?? "extract"), results = data?.results ?? [], mappings = data?.pathMappings ?? []

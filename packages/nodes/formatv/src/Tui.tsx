@@ -6,7 +6,7 @@ import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { FormatvInput, FormatvResult } from "./core.js"
 
-export function FormatvTui(props: TerminalUiScreenProps<FormatvInput, FormatvResult>) { const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><FormatvWorkbench {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider> }
+export function FormatvTui(props: TerminalUiScreenProps<FormatvInput, FormatvResult>): import('react').ReactNode { const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit"); return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><FormatvWorkbench {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider> }
 
 function FormatvWorkbench({ definition, language, preferences, onExit, onThemePreview }: TerminalUiScreenProps<FormatvInput, FormatvResult> & { onThemePreview: (theme: string) => void }) {
   const theme = useTerminalTheme(), t = createTerminalTranslator(language), session = useTerminalUiSession(definition), [settings, setSettings] = useState(false), frame = useAnimation({ intervalMs: session.phase === "running" ? 105 : 620 })

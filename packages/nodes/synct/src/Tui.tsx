@@ -6,7 +6,7 @@ import { ActionLauncher, ExecutionActions, ProgressBar, TerminalThemeProvider, W
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { SynctInput, SynctPlanItem, SynctResult } from "./core.js"
 
-export function SynctTui(props: TerminalUiScreenProps<SynctInput, SynctResult>) {
+export function SynctTui(props: TerminalUiScreenProps<SynctInput, SynctResult>): import('react').ReactNode {
   const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "nord")
   return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><SynctWorkbench {...props} /></TerminalThemeProvider>
 }

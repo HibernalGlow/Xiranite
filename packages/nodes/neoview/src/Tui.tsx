@@ -78,7 +78,7 @@ export function createNeoviewTuiScreen(
   }
 }
 
-export function NeoviewTui(props: NeoviewTuiProps) {
+export function NeoviewTui(props: NeoviewTuiProps): import('react').ReactNode {
   const [themeName] = useState(props.theme ?? props.preferences?.current.theme ?? "nord")
   return (
     <TerminalThemeProvider theme={resolveTerminalTheme(themeName === "inherit" ? "nord" : themeName)}>

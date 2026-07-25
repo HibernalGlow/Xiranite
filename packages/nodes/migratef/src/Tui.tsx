@@ -20,7 +20,7 @@ import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n";
 import type { MigratefInput, MigratefResult } from "./core.js";
 export function MigratefTui(
   p: TerminalUiScreenProps<MigratefInput, MigratefResult>,
-) {
+): import('react').ReactNode {
   const [x] = useState(p.theme ?? p.preferences?.current.theme ?? "nord");
   return (
     <TerminalThemeProvider

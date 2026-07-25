@@ -6,7 +6,7 @@ import { ActionTabs, ClickTarget, ExecutionActions, ProgressBar, TerminalThemePr
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n";
 import { formatSize, type CachePackage, type ScoolpInput, type ScoolpResult } from "./core.js";
 
-export function ScoolpTui(props: TerminalUiScreenProps<ScoolpInput, ScoolpResult>) {
+export function ScoolpTui(props: TerminalUiScreenProps<ScoolpInput, ScoolpResult>): import('react').ReactNode {
   const [theme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit");
   return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}><ScoolpWorkbench {...props} /></TerminalThemeProvider>;
 }

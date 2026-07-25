@@ -22,7 +22,7 @@ import type { TerminalUiScreenProps } from "@xiranite/cli-runtime/terminal"
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { RepackuInput, RepackuResult } from "./core.js"
 
-export function RepackuTui(props: TerminalUiScreenProps<RepackuInput, RepackuResult>) {
+export function RepackuTui(props: TerminalUiScreenProps<RepackuInput, RepackuResult>): import('react').ReactNode {
   const [previewTheme, setPreviewTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit")
   return <TerminalThemeProvider theme={resolveTerminalTheme(previewTheme === "inherit" ? "nord" : previewTheme)}><RepackuWorkbench {...props} onThemePreview={setPreviewTheme} /></TerminalThemeProvider>
 }

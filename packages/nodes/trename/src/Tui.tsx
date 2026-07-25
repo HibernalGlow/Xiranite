@@ -12,7 +12,7 @@ import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n";
 import type { TrenameInput, TrenameNode, TrenameResult } from "./core.js";
 import { parseRenameJson } from "./core.js";
 
-export function TrenameTui(props: TerminalUiScreenProps<TrenameInput, TrenameResult>) {
+export function TrenameTui(props: TerminalUiScreenProps<TrenameInput, TrenameResult>): import('react').ReactNode {
   const [theme, setTheme] = useState(props.theme ?? props.preferences?.current.theme ?? "inherit");
   return <TerminalThemeProvider theme={resolveTerminalTheme(theme === "inherit" ? "nord" : theme)}>
     <TrenameWorkbench {...props} onThemePreview={setTheme} />
