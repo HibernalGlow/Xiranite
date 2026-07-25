@@ -10,7 +10,7 @@ import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 
 const DEFAULT_SUBTITLE_CONFIG: ReaderSubtitleConfigDto = { fontSize: 1, color: "#ffffff", backgroundOpacity: 0.7, bottomPercent: 5 }
 
-export function PageVideo({ page, controller, sessionId, client, media, imageTrim, presentationCropInsets, onSubtitleConfigChange, onListEnded, rotation = 0, scale, fallbackSize }: {
+export function PageVideo({ page, controller, sessionId, client, media, imageTrim, presentationCropInsets, onSubtitleConfigChange, onVideoControlsPinnedChange, onListEnded, rotation = 0, scale, fallbackSize }: {
   page: ReaderPageDto
   controller: ReaderVideoController
   sessionId?: string
@@ -19,6 +19,7 @@ export function PageVideo({ page, controller, sessionId, client, media, imageTri
   imageTrim?: ReaderImageTrimPort
   presentationCropInsets?: ReaderImageCropInsets
   onSubtitleConfigChange?: (patch: Partial<ReaderSubtitleConfigDto>) => Promise<void>
+  onVideoControlsPinnedChange?: (pinned: boolean) => Promise<void>
   onListEnded: () => void
   rotation?: ReaderRotation
   scale?: number
@@ -26,7 +27,7 @@ export function PageVideo({ page, controller, sessionId, client, media, imageTri
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [controlsVisible, setControlsVisible] = useState(true)
-  const [controlsPinned, setControlsPinned] = useState(false)
+  const [controlsPinned, setControlsPinned] = useState(media?.videoControlsPinned ?? false)
   const [overlayOpen, setOverlayOpen] = useState(false)
   const [videoReady, setVideoReady] = useState(false)
   const [subtitleTracks, setSubtitleTracks] = useState<readonly ReaderSubtitleTrackDto[]>([])
@@ -46,6 +47,17 @@ export function PageVideo({ page, controller, sessionId, client, media, imageTri
   const rotated = presentationDimensions ? rotatePresentationSize(presentationDimensions, rotation) : undefined
   const fallbackMeasured = !measured && fallbackSize !== undefined
   const subtitleConfig = media?.subtitle ?? DEFAULT_SUBTITLE_CONFIG
+
+  useEffect(() => {
+    setControlsPinned(media?.videoControlsPinned ?? false)
+  }, [media?.videoControlsPinned])
+
+  function changeControlsPinned(pinned: boolean) {
+    const previous = controlsPinned
+    setControlsPinned(pinned)
+    const persist = onVideoControlsPinnedChange?.(pinned)
+    void persist?.catch(() => setControlsPinned(previous))
+  }
 
   useEffect(() => {
     if (!videoReady) return
@@ -225,7 +237,7 @@ export function PageVideo({ page, controller, sessionId, client, media, imageTri
           onSubtitleConfigChange={onSubtitleConfigChange}
           visible={controlsVisible || controlsPinned || overlayOpen || !snapshot.playing}
           pinned={controlsPinned}
-          onPinnedChange={setControlsPinned}
+          onPinnedChange={changeControlsPinned}
           onOpenChange={setOverlayOpen}
         />
       </MediaController>

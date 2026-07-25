@@ -8,7 +8,7 @@ import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { PageImage } from "./PageImage"
 import { PageVideo } from "./PageVideo"
 
-export function PageMedia({ page, rotation, scale, fallbackSize, colorFilter, imageTrim, imageTrimDetectionActive, presentationCropInsets, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVideoListEnded, onCommittedPage }: {
+export function PageMedia({ page, rotation, scale, fallbackSize, colorFilter, imageTrim, imageTrimDetectionActive, presentationCropInsets, videoController, sessionId, client, media, superResolution, onSubtitleConfigChange, onVideoControlsPinnedChange, onVideoListEnded, onCommittedPage }: {
   page: ReaderPageDto
   rotation?: ReaderRotation
   scale?: number
@@ -23,11 +23,12 @@ export function PageMedia({ page, rotation, scale, fallbackSize, colorFilter, im
   media?: ReaderMediaConfigDto
   superResolution?: ReaderSuperResolutionConfigDto
   onSubtitleConfigChange?: (patch: Partial<ReaderSubtitleConfigDto>) => Promise<void>
+  onVideoControlsPinnedChange?: (pinned: boolean) => Promise<void>
   onVideoListEnded: () => void
   onCommittedPage?: (page: ReaderPageDto) => void
 }) {
   return page.mediaKind === "video" ? (
-    <PageVideo page={page} rotation={rotation} scale={scale} fallbackSize={fallbackSize} controller={videoController} sessionId={sessionId} client={client} media={media} imageTrim={imageTrim} presentationCropInsets={presentationCropInsets} onSubtitleConfigChange={onSubtitleConfigChange} onListEnded={onVideoListEnded} />
+    <PageVideo page={page} rotation={rotation} scale={scale} fallbackSize={fallbackSize} controller={videoController} sessionId={sessionId} client={client} media={media} imageTrim={imageTrim} presentationCropInsets={presentationCropInsets} onSubtitleConfigChange={onSubtitleConfigChange} onVideoControlsPinnedChange={onVideoControlsPinnedChange} onListEnded={onVideoListEnded} />
   ) : (
     <PageImage page={page} rotation={rotation} scale={scale} colorFilter={colorFilter} imageTrim={imageTrim} imageTrimDetectionActive={imageTrimDetectionActive} presentationCropInsets={presentationCropInsets} sessionId={sessionId} client={client} superResolution={superResolution} onCommittedPage={onCommittedPage} />
   )

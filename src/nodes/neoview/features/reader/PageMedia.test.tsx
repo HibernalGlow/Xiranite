@@ -33,6 +33,22 @@ describe("PageMedia", () => {
     expect(controller.hasActiveVideo()).toBe(false)
   })
 
+  it("persists the video control pin preference through the reader media contract", () => {
+    const onVideoControlsPinnedChange = vi.fn(async () => undefined)
+    const view = render(<PageMedia
+      page={page("video")}
+      videoController={new ReaderVideoController()}
+      media={mediaConfig()}
+      onVideoControlsPinnedChange={onVideoControlsPinnedChange}
+      onVideoListEnded={() => undefined}
+    />)
+
+    fireEvent.click(view.getByRole("button", { name: "固定控件" }))
+
+    expect(onVideoControlsPinnedChange).toHaveBeenCalledWith(true)
+    expect(view.getByRole("button", { name: "取消固定控件" })).toBeTruthy()
+  })
+
   it("[neoview.video.lifecycle-react] restores progress, mounts discovered subtitles and flushes on unmount", async () => {
     const updateMediaProgress = vi.fn(async (_sessionId, progress) => ({ ...progress, updatedAt: 2 }))
     const client = {
@@ -132,6 +148,9 @@ function mediaConfig(): ReaderMediaConfigDto {
     videoFormats: ["mp4"],
     mediaMimeTypes: {},
     autoPlayAnimatedImages: true,
+    animatedVideoEnabled: false,
+    animatedVideoKeywords: ["[#dyna]"],
+    videoControlsPinned: false,
     videoMinPlaybackRate: 0.25,
     videoMaxPlaybackRate: 16,
     videoPlaybackRateStep: 0.25,
