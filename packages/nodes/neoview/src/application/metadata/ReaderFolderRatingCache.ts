@@ -1,13 +1,8 @@
+import type { ReaderFolderRatingEntry } from "../../ports/ReaderFolderRatingCacheStore.js"
+
 export interface ReaderEmmRatingRecord {
   path: string
   rating: number
-}
-
-export interface ReaderFolderRatingEntry {
-  path: string
-  averageRating: number
-  count: number
-  direct: boolean
 }
 
 const MAX_PARENT_LEVELS = 3

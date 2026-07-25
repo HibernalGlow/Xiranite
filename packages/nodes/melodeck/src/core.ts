@@ -104,10 +104,10 @@ async function playQueue(runtime: MelodeckRuntime, mpvPath: string, ipc: string,
         `--input-ipc-server=${ipc}`,
         ...paths,
       ]
-      const process = await runtime.launch(mpvPath, launchArgs)
-      launchedProcess = process
+      const launchedProcessHandle = await runtime.launch(mpvPath, launchArgs)
+      launchedProcess = launchedProcessHandle
       if (!await runtime.waitForIpc(ipc, 4_000)) {
-        process.stop()
+        launchedProcessHandle.stop()
         return fail("mpv started but its IPC endpoint did not become ready.", emptyStatus(volume), launchArgs)
       }
     }

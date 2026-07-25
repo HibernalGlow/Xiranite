@@ -1,6 +1,6 @@
-import { buildReaderFolderRatingCache, normalizeReaderFolderRatingPath, type ReaderFolderRatingEntry } from "./ReaderFolderRatingCache.js"
+import { buildReaderFolderRatingCache, normalizeReaderFolderRatingPath } from "./ReaderFolderRatingCache.js"
 import type { ReaderEmmRatingCatalogStore } from "../../ports/ReaderEmmRatingCatalogStore.js"
-import type { ReaderFolderRatingCacheSnapshot, ReaderFolderRatingCacheStore } from "../../ports/ReaderFolderRatingCacheStore.js"
+import type { ReaderFolderRatingCacheSnapshot, ReaderFolderRatingCacheStore, ReaderFolderRatingEntry } from "../../ports/ReaderFolderRatingCacheStore.js"
 
 export class ReaderFolderRatingService {
   constructor(
