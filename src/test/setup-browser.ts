@@ -1,0 +1,5 @@
+import "vitest-browser-react"
+import "@/styles/tailwind.css"
+import "@/index.css"
+import "@/styles/themes/index.css"
+import "@/test/setup-i18n"

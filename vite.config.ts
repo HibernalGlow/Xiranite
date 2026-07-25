@@ -1,13 +1,13 @@
-/// <reference types="vitest" />
+/// <reference types="vitest/config" />
 import path from "path"
 import { readFile, mkdir, writeFile } from "node:fs/promises"
 import { request as httpRequest } from "node:http"
 import { request as httpsRequest } from "node:https"
 import tailwindcss from "@tailwindcss/vite"
 import { Scanner } from "@tailwindcss/oxide"
-import react from "@vitejs/plugin-react"
-import type { ViteDevServer } from "vite"
-import { defineConfig } from "vitest/config"
+import babel from "@rolldown/plugin-babel"
+import react, { reactCompilerPreset } from "@vitejs/plugin-react"
+import { defineConfig, type ViteDevServer } from "vite"
 import { collectLucideIconExports, rewriteLucideDeepImports } from "./scripts/lucide-deep-imports"
 import { reactCompilerModeForCommand } from "./scripts/react-compiler-mode"
 import { VITE_EAGER_DEPENDENCIES, VITE_EXCLUDED_DEPENDENCIES } from "./scripts/vite-dependency-policy"
@@ -152,9 +152,11 @@ function backendGatewayResponseHeaders(
   return forwarded
 }
 
-function reactCompilerBabelOptions(command: "build" | "serve") {
+function reactCompilerPlugins(command: "build" | "serve") {
   const mode = reactCompilerModeForCommand(command)
-  return mode === "off" ? undefined : { plugins: [["babel-plugin-react-compiler", { compilationMode: mode }]] }
+  return mode === "off"
+    ? []
+    : [babel({ presets: [reactCompilerPreset({ compilationMode: mode })] })]
 }
 
 // https://vite.dev/config/
@@ -172,7 +174,8 @@ export default defineConfig(({ command }) => ({
     lucideDeepImportsPlugin(),
     tailwindCandidateSnapshotPlugin(),
     productionChunkReportPlugin(),
-    react({ babel: reactCompilerBabelOptions(command) }),
+    react(),
+    ...reactCompilerPlugins(command),
     tailwindcss(),
   ],
   resolve: {
@@ -278,7 +281,7 @@ export default defineConfig(({ command }) => ({
     environment: "happy-dom",
     setupFiles: [path.resolve(__dirname, "./src/test/setup-i18n.ts")],
     include: ["src/**/*.test.{ts,tsx}"],
-    exclude: ["**/dist/**", "**/artifacts/**", "**/build/**", "**/vendor/**", "**/ref/**", "**/tests/e2e/**"],
+    exclude: ["src/**/*.browser.test.{ts,tsx}", "**/dist/**", "**/artifacts/**", "**/build/**", "**/vendor/**", "**/ref/**", "**/tests/e2e/**"],
   },
   build: {
     rolldownOptions: {

@@ -30,8 +30,8 @@ async function validateViteConfig() {
   if (!/reactCompilerModeForCommand\(command\)/.test(source)) {
     findings.push({ file, message: "React Compiler mode must be selected from the Vite build command." })
   }
-  if (!/babel-plugin-react-compiler/.test(source)) {
-    findings.push({ file, message: "React Compiler Babel plugin is missing." })
+  if (!/reactCompilerPreset/.test(source) && !/babel-plugin-react-compiler/.test(source)) {
+    findings.push({ file, message: "React Compiler preset is missing." })
   }
 }
 
