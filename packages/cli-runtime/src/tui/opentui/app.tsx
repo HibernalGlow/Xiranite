@@ -252,7 +252,7 @@ export function TerminalPreferencesScreen({ controller, focusedId, onFocus, onPr
   onFocus: (id: string) => void
   onPreviewTheme: (theme: string) => void
   onBack: () => void
-}) {
+}): ReactNode {
   const theme = useTerminalTheme()
   const [values, setValues] = useState<TerminalPreferenceValues>(controller.current)
   const [message, setMessage] = useState("配置仅写入 nodes.<id>.cli，不影响桌面 UI。")
