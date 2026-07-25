@@ -73,6 +73,19 @@ describe("ReaderFileOperationHttpController", () => {
     expect(await discarded?.json()).toMatchObject({ discarded: true, remaining: 0 })
   })
 
+  it("does not close a shared file-operation service owned by the backend", async () => {
+    const service = new ReaderFileOperationService({ execute: vi.fn(async () => undefined) })
+    const close = vi.spyOn(service, "close")
+    const controller = new ReaderFileOperationHttpController(async () => service, undefined, undefined, false)
+    await controller.handle(new Request("http://127.0.0.1/reader/files/operations"))
+
+    await controller.close()
+
+    expect(close).not.toHaveBeenCalled()
+    await expect(service.execute({ operations: [] })).resolves.toMatchObject({ succeeded: 0, failed: 0 })
+    await service.close()
+  })
+
   it("[neoview.folder.delete-batch-http] starts and polls a bounded selection operation", async () => {
     const execute = vi.fn(async () => undefined)
     const source = createReaderDirectorySelectionBatchSource(directoryEntries(600), 4, {

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -182,6 +182,29 @@ describe("Czkawka native DTO mapping", () => {
       await expect(runtime.removePath(changedFolder, { trash: false, emptyFoldersOnly: true })).rejects.toThrow("no longer empty")
       expect(await runtime.pathExists(changedFolder)).toBe(true)
     } finally { await rm(root, { recursive: true, force: true }) }
+  })
+
+  test("delegates trash and permanent deletion to the scoped project file-operation service", async () => {
+    const execute = vi.fn(async (request) => ({
+      results: request.operations.map((operation, index) => ({ index, operation, status: "succeeded" as const })),
+      succeeded: request.operations.length,
+      failed: 0,
+      cancelled: 0,
+      undoable: 0,
+    }))
+    const runtime = createNodeCzkawkaRuntime({ fileOperations: { execute } })
+
+    await runtime.removePath("D:/library/duplicate.jpg", { trash: true })
+    await runtime.removePath("D:/library/permanent.tmp", { trash: false })
+
+    expect(execute).toHaveBeenNthCalledWith(1, {
+      operations: [{ kind: "trash", sourcePath: "D:/library/duplicate.jpg" }],
+      concurrency: 1,
+    })
+    expect(execute).toHaveBeenNthCalledWith(2, {
+      operations: [{ kind: "delete", sourcePath: "D:/library/permanent.tmp" }],
+      concurrency: 1,
+    })
   })
 })
 

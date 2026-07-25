@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
@@ -405,6 +405,110 @@ describe("backend", () => {
       await backend.close()
     }
     expect(close).toHaveBeenCalledOnce()
+  })
+
+  test("returns structured details when the log writer rejects a batch", async () => {
+    const systemCause = Object.assign(new Error("permission denied"), {
+      code: "EACCES",
+      errno: -4092,
+      syscall: "open",
+      path: "C:\\Users\\tester\\AppData\\Local\\Xiranite\\logs\\xiranite-session.current.jsonl",
+    })
+    const appendError = new Error("permission denied while opening the log file", { cause: systemCause })
+    const backend = await startBackend({
+      token: "test-token",
+      repository: createMemoryWorkspaceRepository(),
+      logWriter: {
+        append: vi.fn(async () => { throw appendError }),
+        close: vi.fn(async () => undefined),
+      },
+    })
+    const event = createLogEnvelope({
+      severityText: "error",
+      eventName: "logging.write_failed",
+      resource: { serviceName: "xiranite", processType: "frontend" },
+      scope: { name: "logging.transport" },
+      session: createLogSession(),
+    })
+    try {
+      const response = await fetch(`${backend.url}/logs`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-xiranite-token": "test-token" },
+        body: JSON.stringify({ events: [event] }),
+      })
+
+      expect(response.status).toBe(500)
+      expect(await response.json()).toMatchObject({
+        error: "log append failed",
+        context: {
+          operation: "logWriter.append",
+          request: { method: "POST", path: "/logs" },
+          target: { kind: "custom-writer" },
+          eventCount: 1,
+        },
+        detail: {
+          name: "Error",
+          message: "permission denied while opening the log file",
+          cause: {
+            name: "Error",
+            code: "EACCES",
+            errno: -4092,
+            syscall: "open",
+            path: "C:\\Users\\tester\\AppData\\Local\\Xiranite\\logs\\xiranite-session.current.jsonl",
+            message: "permission denied",
+          },
+        },
+      })
+    } finally {
+      await backend.close()
+    }
+  })
+
+  test("accepts repeated log batches without creating empty time rotations", async () => {
+    const dataDir = await createTempDataDir()
+    const logDirectory = join(dataDir, "logs")
+    const backend = await startBackend({
+      token: "test-token",
+      repository: createMemoryWorkspaceRepository(),
+      logDirectory,
+    })
+    const session = createLogSession()
+    try {
+      const initialHealth = await fetch(`${backend.url}/health`)
+      const initialInstanceId = (await initialHealth.json() as { instanceId: string }).instanceId
+      for (let index = 0; index < 12; index += 1) {
+        const event = createLogEnvelope({
+          severityText: "info",
+          eventName: "logging.integration_batch",
+          attributes: { index },
+          resource: { serviceName: "xiranite", processType: "frontend" },
+          scope: { name: "logging.integration" },
+          session,
+        })
+        const response = await fetch(`${backend.url}/logs`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-xiranite-token": "test-token" },
+          body: JSON.stringify({ events: [event] }),
+        })
+        expect(response.status).toBe(204)
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      const finalHealth = await fetch(`${backend.url}/health`)
+      expect((await finalHealth.json() as { instanceId: string }).instanceId).toBe(initialInstanceId)
+    } finally {
+      await backend.close()
+    }
+
+    try {
+      const files = (await readdir(logDirectory)).sort()
+      expect(files).toHaveLength(1)
+      expect(files[0]).toMatch(/^xiranite-[a-z0-9-]+\.current\.jsonl$/)
+      const lines = (await readFile(join(logDirectory, files[0]!), "utf8")).trim().split("\n")
+      expect(lines).toHaveLength(12)
+      expect(lines.map((line) => JSON.parse(line).eventName)).toEqual(Array(12).fill("logging.integration_batch"))
+    } finally {
+      await removeWithWindowsRetry(dataDir)
+    }
   })
 
   test("rejects invalid native local picker requests before opening a dialog", async () => {

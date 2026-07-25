@@ -2,6 +2,7 @@
 
 - Native Rust build, test, and Clippy tasks must run serially with one Cargo job. Use `RUSTC_WRAPPER=sccache` whenever `sccache` is available, but do not make it a required Cargo configuration. Limit task-scoped Clippy to `cargo clippy -p <crate> --all-targets --no-deps -j 1 -- -D warnings`. Native package build scripts must auto-detect `sccache` and fall back cleanly when it is unavailable.
 - Keep Xiranite's Node-API wrappers in the shared `native/` Cargo workspace. Prefer versioned crates.io dependencies for upstream Rust cores; import core source locally only when Xiranite must maintain real core changes. Do not add Git crate or fork dependencies unless the user explicitly reauthorizes them. Preserve upstream attribution and licenses when importing source.
+- 添加新功能或审查现有手写实现时，先检查成熟且维护活跃的包或框架是否已经覆盖通用能力。若 API、许可证、平台兼容性、运行时/包体成本和维护状态可接受，且性能无损或只有经过基准证明的轻微下降，优先复用该依赖，减少重复基础设施代码；不得用依赖替代 Xiranite 的领域语义、平台 adapter 或已证明的性能热路径。引入前记录关键取舍和验证结果，后续相同能力不得重新手写；不要仅因流行或代码行数更少而增加依赖。
 
 - 提交当前任务的修改时优先使用 `bun run commit "<message>" <path>...`，仅列出本任务拥有的文件；脚本使用 `git commit --only`，不得混入或清空其他任务已经暂存的内容。
 

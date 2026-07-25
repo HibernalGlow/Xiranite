@@ -167,3 +167,11 @@ _Avoid_: Primary workflow, execution graph
 **Heavy Node Projection**:
 A node-bounded Comfygure UI projection that opens at ordinary node dimensions and may use denser interaction, virtualized lists, and explicit host-supported fullscreen maximize behavior while remaining subject to the Xiranite workspace node lifecycle, geometry limits, and ownership model. It has no independent routing, browser-window, or application-shell authority.
 _Avoid_: Standalone application, unrestricted full-page surface, separate workspace
+
+**Mature Replacement**:
+A maintained ecosystem capability selected to replace general-purpose project code when its behavior, compatibility, cost, and performance fit Xiranite's constraints. It reduces duplicated infrastructure while leaving Xiranite-specific meaning and policy under project ownership.
+_Avoid_: Dependency chosen only for popularity, line-count reduction, or convenience
+
+**Hand-Rolled Infrastructure**:
+Project-owned general-purpose behavior that duplicates a stable ecosystem capability and does not carry Xiranite-specific semantic authority. It is a candidate for replacement, subject to compatibility, performance, and maintenance evidence.
+_Avoid_: Domain semantics, platform adapter, persistence contract, proven hot path

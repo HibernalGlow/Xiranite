@@ -1,5 +1,6 @@
-import { describe, expect, test } from "vitest"
-import { detectZipFilenameEncoding } from "./platform.js"
+import type { FileOperationBatchResult, FileOperationRequest } from "@xiranite/file-operations"
+import { describe, expect, test, vi } from "vitest"
+import { detectZipFilenameEncoding, recyclePath } from "./platform.js"
 
 describe("SmartZip ZIP filename encoding inspection", () => {
   test("trusts explicit ZIP UTF-8 filename metadata", () => {
@@ -26,7 +27,28 @@ describe("SmartZip ZIP filename encoding inspection", () => {
     expect(result.candidates).toEqual([])
     expect(result.confidence).toBe("certain")
   })
+
+  test("delegates archive cleanup to the scoped project file-operation service", async () => {
+    const execute = vi.fn(async (request: FileOperationRequest): Promise<FileOperationBatchResult> => success(request))
+
+    await recyclePath("D:/archives/book.zip", { execute })
+
+    expect(execute).toHaveBeenCalledWith({
+      operations: [{ kind: "trash", sourcePath: "D:/archives/book.zip" }],
+      concurrency: 1,
+    })
+  })
 })
+
+function success(request: FileOperationRequest): FileOperationBatchResult {
+  return {
+    results: request.operations.map((operation, index) => ({ index, operation, status: "succeeded" })),
+    succeeded: request.operations.length,
+    failed: 0,
+    cancelled: 0,
+    undoable: 0,
+  }
+}
 
 function zipWithCentralName(name: Uint8Array, flags = 0): Uint8Array {
   const central = Buffer.alloc(46 + name.length)

@@ -34,10 +34,48 @@ export interface ReadLogDirectoryResult {
   files: string[]
 }
 
+export class LogWriteError extends Error {
+  override readonly name = "LogWriteError"
+  override readonly cause: unknown
+  readonly operation = "logWriter.append"
+  readonly logFile: string
+  readonly eventCount: number
+  readonly code: string | undefined
+  readonly errno: string | number | undefined
+  readonly syscall: string | undefined
+  readonly path: string | undefined
+  readonly dest: string | undefined
+
+  constructor(logFile: string, eventCount: number, cause: unknown) {
+    const detail = systemErrorDetail(cause)
+    const causeMessage = cause instanceof Error ? cause.message : String(cause)
+    const systemContext = [
+      detail.code === undefined ? undefined : `code=${detail.code}`,
+      detail.errno === undefined ? undefined : `errno=${detail.errno}`,
+      detail.syscall === undefined ? undefined : `syscall=${detail.syscall}`,
+      detail.path === undefined ? undefined : `path=${JSON.stringify(detail.path)}`,
+      detail.dest === undefined ? undefined : `dest=${JSON.stringify(detail.dest)}`,
+    ].filter((value): value is string => value !== undefined).join(", ")
+    super(
+      `Failed to append ${eventCount} JSONL log event${eventCount === 1 ? "" : "s"} to ${JSON.stringify(logFile)}: ${causeMessage}${systemContext ? ` (${systemContext})` : ""}`,
+      { cause },
+    )
+    this.cause = cause
+    this.logFile = logFile
+    this.eventCount = eventCount
+    this.code = detail.code
+    this.errno = detail.errno
+    this.syscall = detail.syscall
+    this.path = detail.path
+    this.dest = detail.dest
+  }
+}
+
 export class RotatingJsonlLogWriter {
   readonly directory: string
   readonly source: string
   readonly sessionId: string
+  readonly currentFile: string
   private readonly stream: RotatingFileStream
   private streamError: Error | undefined
   private writeQueue = Promise.resolve()
@@ -47,6 +85,7 @@ export class RotatingJsonlLogWriter {
     this.source = sanitizeFilePart(options.source)
     this.sessionId = sanitizeFilePart(options.sessionId).slice(0, 48)
     const baseName = `${this.source}-${this.sessionId}`
+    this.currentFile = path.join(this.directory, `${baseName}.current.jsonl`)
     const rotatedExtension = options.compress === false ? ".jsonl" : ".jsonl.gz"
     // Size-only rotation avoids rotating-file-stream's UTC boundary loop in positive-offset time zones.
     this.stream = createStream((time, index) => {
@@ -70,14 +109,18 @@ export class RotatingJsonlLogWriter {
     const validated = events.map((event) => LogEnvelopeSchema.parse(event))
     const write = async () => {
       if (this.streamError) throw this.streamError
-      for (const event of validated) {
-        if (!this.stream.write(`${serializeLogEnvelope(event)}\n`, "utf8")) await once(this.stream, "drain")
-        if (this.streamError) throw this.streamError
-      }
+      const batch = validated.map((event) => `${serializeLogEnvelope(event)}\n`).join("")
+      await writeStreamChunk(this.stream, batch)
+      if (this.streamError) throw this.streamError
     }
     const result = this.writeQueue.then(write)
     this.writeQueue = result.catch(() => undefined)
-    await result
+    try {
+      await result
+    } catch (error) {
+      if (error instanceof LogWriteError) throw error
+      throw new LogWriteError(this.currentFile, validated.length, error)
+    }
   }
 
   async close(): Promise<void> {
@@ -155,6 +198,36 @@ export async function ensureLogDirectory(directory = resolveLogDirectory()): Pro
 function sanitizeFilePart(value: string): string {
   const normalized = value.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "")
   return normalized || "unknown"
+}
+
+async function writeStreamChunk(stream: RotatingFileStream, content: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    stream.write(content, "utf8", (error) => error ? reject(error) : resolve())
+  })
+}
+
+function systemErrorDetail(error: unknown): {
+  code: string | undefined
+  errno: string | number | undefined
+  syscall: string | undefined
+  path: string | undefined
+  dest: string | undefined
+} {
+  if (!error || typeof error !== "object") {
+    return { code: undefined, errno: undefined, syscall: undefined, path: undefined, dest: undefined }
+  }
+  const code = Reflect.get(error, "code")
+  const errno = Reflect.get(error, "errno")
+  const syscall = Reflect.get(error, "syscall")
+  const errorPath = Reflect.get(error, "path")
+  const dest = Reflect.get(error, "dest")
+  return {
+    code: typeof code === "string" ? code : undefined,
+    errno: typeof errno === "string" || typeof errno === "number" ? errno : undefined,
+    syscall: typeof syscall === "string" ? syscall : undefined,
+    path: typeof errorPath === "string" ? errorPath : undefined,
+    dest: typeof dest === "string" ? dest : undefined,
+  }
 }
 
 function formatUtcDate(date: Date): string {

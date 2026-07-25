@@ -257,6 +257,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     emmTranslationSource?: PlatformEmmTranslationSource
     searchHistoryStore?: ReaderSearchHistoryStore
     fileUndoJournalStore?: ReaderFileUndoJournalStore
+    fileOperationService?: import("../../application/files/ReaderFileOperationService.js").ReaderFileOperationService
     folderRatingService?: ReaderFolderRatingService
     disposeLibraryService?: boolean
     presentationDiskCache?: ReaderPresentationDiskCache

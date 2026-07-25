@@ -4,6 +4,7 @@ import { cp, lstat, mkdir, readdir, rename, rm, writeFile } from "node:fs/promis
 import { basename, dirname, join, parse, relative } from "node:path"
 import { promisify } from "node:util"
 import { cancelCzkawkaScan, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
+import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import type { CzkawkaInput, CzkawkaNativeProgress, CzkawkaRuntime } from "./core.js"
 
 type NormalizedInput = Required<CzkawkaInput>
@@ -97,13 +98,17 @@ export function toMediaScanOptions(input: NormalizedInput): MediaScanOptions {
   }
 }
 
-export function createNodeCzkawkaRuntime(): CzkawkaRuntime {
+export interface CzkawkaRuntimeContext {
+  fileOperations?: FileOperationExecutor
+}
+
+export function createNodeCzkawkaRuntime(context: CzkawkaRuntimeContext = {}): CzkawkaRuntime {
   const runtime: CzkawkaRuntime = {
     scanDuplicates: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toDuplicateScanOptions(input), input.threadCount, runtime, onProgress, scanDuplicateFiles) },
     scanBasic: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toBasicScanOptions(input), input.threadCount, runtime, onProgress, scanBasicFiles) },
     scanMedia: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toMediaScanOptions(input), input.threadCount, runtime, onProgress, scanMediaFiles) },
     pathExists,
-    removePath,
+    removePath: (path, options) => removePath(path, options, context.fileOperations),
     copyPath,
     movePath,
     writeText: async (path, content) => { await writeFile(path, content, "utf8") },
@@ -158,8 +163,16 @@ async function pathExists(path: string): Promise<boolean> {
   try { await lstat(path); return true } catch (error) { if (errorCode(error) === "ENOENT") return false; throw error }
 }
 
-async function removePath(path: string, options?: { trash?: boolean; emptyFoldersOnly?: boolean }): Promise<void> {
+async function removePath(
+  path: string,
+  options?: { trash?: boolean; emptyFoldersOnly?: boolean },
+  fileOperations?: CzkawkaRuntimeContext["fileOperations"],
+): Promise<void> {
   if (options?.emptyFoldersOnly && !await containsOnlyDirectories(path)) throw new Error("Folder contains files and is no longer empty.")
+  if (fileOperations) {
+    await executeSingleFileMutation(fileOperations, { kind: options?.trash ? "trash" : "delete", sourcePath: path })
+    return
+  }
   if (options?.trash) {
     await trashPath(path)
     return

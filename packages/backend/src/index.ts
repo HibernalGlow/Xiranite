@@ -1,10 +1,17 @@
 import { createXiraniteApp } from "@xiranite/api"
 import { LogEnvelopeSchema, createLogEnvelope, createLogSession, type LogEnvelope } from "@xiranite/logging"
-import { RotatingJsonlLogWriter, type LogWriterOptions } from "@xiranite/logging/node"
-import type { NodeRunHistoryRepository, WorkspaceRepository } from "@xiranite/repository"
+import { resolveLogDirectory, RotatingJsonlLogWriter, type LogWriterOptions } from "@xiranite/logging/node"
 import {
+  createMemoryFileDeletionRepository,
+  type FileDeletionRepository,
+  type NodeRunHistoryRepository,
+  type WorkspaceRepository,
+} from "@xiranite/repository"
+import {
+  createLibsqlFileDeletionRepository,
   createLibsqlNodeRunHistoryRepository,
   createLibsqlWorkspaceRepository,
+  type LibsqlFileDeletionRepository,
   type LibsqlNodeRunHistoryRepository,
   type LibsqlWorkspaceRepository,
 } from "@xiranite/repository/libsql"
@@ -27,6 +34,7 @@ import { pipeline } from "node:stream/promises"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
 import { createBackendNodeRunner } from "./nodeRunner.js"
+import { BackendFileOperationManager, handleFileOperationRequest } from "./fileOperations.js"
 import { pickLocalPaths } from "./localFilePicker.js"
 import { clearFileClipboard, NativeFileClipboardUnavailableError, readFilesFromClipboard, writeFilesToClipboard } from "./fileClipboard.js"
 import { getDevelopmentSourceHotReloadEnabled, loadNodePlatformModule, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
@@ -35,6 +43,7 @@ export interface CreateDefaultBackendOptions {
   now?: number
   repository?: WorkspaceRepository
   historyRepository?: NodeRunHistoryRepository
+  fileDeletionRepository?: FileDeletionRepository
   configPath?: string
   databaseUrl?: string
   databasePath?: string
@@ -79,6 +88,8 @@ export interface XiraniteBackendApp {
   app: ReturnType<typeof createXiraniteApp>
   repository: WorkspaceRepository
   historyRepository?: NodeRunHistoryRepository
+  fileDeletionRepository: FileDeletionRepository
+  fileOperations: BackendFileOperationManager
   database?: BackendDatabaseConfig
   resources: ResourceSchedulerService
   close(): void
@@ -94,10 +105,13 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
   const ownsResourceScheduler = options.resourceScheduler === undefined
   const repository = options.repository ?? await createDefaultRepository(options)
   const historyRepository = options.historyRepository ?? (options.repository ? undefined : await createDefaultHistoryRepository(options))
+  const fileDeletionRepository = options.fileDeletionRepository
+    ?? (database ? await createDefaultFileDeletionRepository(options) : createMemoryFileDeletionRepository())
+  const fileOperations = new BackendFileOperationManager(fileDeletionRepository, options.resourceScheduler)
   await ensureDefaultWorkspace(repository, options.now ?? Date.now())
 
   const services = createXiraniteServices(repository, {
-    nodeRunner: options.nodeRunner ?? createBackendNodeRunner(),
+    nodeRunner: options.nodeRunner ?? createBackendNodeRunner({ fileOperations }),
     configPath: options.configPath,
     databasePath: database?.path,
     dataDir: options.dataDir,
@@ -111,16 +125,20 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
     onHistoryRecordError: options.onHistoryRecordError,
   })
   await services.config.ensureConfigFile()
+  fileOperations.setScheduler(services.resources)
 
   return {
     app: createXiraniteApp(services),
     repository,
     historyRepository,
+    fileDeletionRepository,
+    fileOperations,
     database,
     resources: services.resources,
     close() {
       closeRepository(repository)
       closeHistoryRepository(historyRepository)
+      closeFileDeletionRepository(fileDeletionRepository)
       if (ownsResourceScheduler) services.resources.close()
     },
   }
@@ -136,6 +154,9 @@ export async function startBackend(options: StartBackendOptions = {}) {
     source: "xiranite",
     sessionId: logSession.id,
   })
+  const logTarget = options.logWriter
+    ? { kind: "custom-writer" as const }
+    : { kind: "rotating-jsonl" as const, directory: resolveLogDirectory(options.logDirectory) }
   const backend = await createDefaultBackend({
     ...options,
     onHistoryRecordError: options.onHistoryRecordError ?? ((error) => {
@@ -192,6 +213,14 @@ export async function startBackend(options: StartBackendOptions = {}) {
         return
       }
 
+      if (url.pathname === "/file-operations" || url.pathname.startsWith("/file-deletions")) {
+        const response = await handleFileOperationRequest(request, url, backend.fileOperations)
+        if (response) {
+          await writeNodeResponse(outgoing, response)
+          return
+        }
+      }
+
       if (url.pathname === "/logs" && request.method === "POST") {
         const body = await request.json().catch(() => undefined) as { events?: unknown } | undefined
         if (!body || !Array.isArray(body.events) || body.events.length === 0 || body.events.length > 200) {
@@ -203,7 +232,21 @@ export async function startBackend(options: StartBackendOptions = {}) {
           await writeNodeResponse(outgoing, Response.json({ error: "invalid log envelope", details: parsed.error.issues }, { status: 400 }))
           return
         }
-        await logWriter.append(parsed.data)
+        try {
+          await logWriter.append(parsed.data)
+        } catch (error) {
+          await writeNodeResponse(outgoing, Response.json({
+            error: "log append failed",
+            context: {
+              operation: "logWriter.append",
+              request: { method: request.method, path: url.pathname },
+              target: logTarget,
+              eventCount: parsed.data.length,
+            },
+            detail: serializeBackendError(error),
+          }, { status: 500 }))
+          return
+        }
         await writeNodeResponse(outgoing, new Response(null, { status: 204 }))
         return
       }
@@ -270,7 +313,7 @@ export async function startBackend(options: StartBackendOptions = {}) {
       }
 
       if (url.pathname.startsWith("/reader/")) {
-        readerController ??= createReaderController(options.publicBaseUrl ?? backendUrl, token, backend.resources, {
+        readerController ??= createReaderController(options.publicBaseUrl ?? backendUrl, token, backend.resources, backend.fileOperations, {
           configPath: options.configPath,
           databasePath: options.databasePath ?? backend.database?.path,
           dataDir: options.dataDir,
@@ -291,7 +334,7 @@ export async function startBackend(options: StartBackendOptions = {}) {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (!requestController.signal.aborted && !outgoing.destroyed) {
-        await writeNodeResponse(outgoing, new Response(message, { status: 500 }))
+        await writeNodeResponse(outgoing, new Response(message, { status: errorStatus(error) }))
       }
     } finally {
       incoming.removeListener("aborted", abortIncoming)
@@ -371,6 +414,7 @@ async function createReaderController(
   baseUrl: string,
   token: string,
   resourceScheduler: ResourceScheduler,
+  fileOperations: BackendFileOperationManager,
   config: Pick<StartBackendOptions, "configPath" | "databasePath" | "dataDir" | "legacyThumbnailDatabasePath" | "legacyEmmDatabasePaths">,
 ): Promise<BackendRequestController> {
   const platform = await loadNodePlatformModule("neoview")
@@ -386,10 +430,12 @@ async function createReaderController(
     legacyThumbnailDatabasePath?: string | false
     legacyEmmDatabasePaths?: readonly string[] | false
     useDefaultLegacyProgressStore?: boolean
+    fileOperationService?: unknown
   }) => Promise<BackendRequestController>)({
     baseUrl,
     token,
     resourceScheduler,
+    fileOperationService: fileOperations.scoped({ nodeId: "neoview" }).asService(),
     useDefaultLegacyProgressStore: true,
     ...config,
   })
@@ -627,6 +673,51 @@ async function createDefaultHistoryRepository(options: CreateDefaultBackendOptio
   })
 }
 
+function serializeBackendError(error: unknown, seen = new Set<unknown>()): Record<string, unknown> {
+  if (!(error instanceof Error)) return { name: "Error", message: String(error) }
+  if (seen.has(error)) return { name: error.name || "Error", message: "Circular error cause" }
+  seen.add(error)
+  const diagnosticFields = [
+    "code",
+    "errno",
+    "syscall",
+    "path",
+    "dest",
+    "operation",
+    "logFile",
+    "eventCount",
+  ] as const
+  const diagnostics: Record<string, string | number | boolean> = {}
+  for (const field of diagnosticFields) {
+    const value = Reflect.get(error, field)
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") diagnostics[field] = value
+  }
+  return {
+    name: error.name || "Error",
+    message: error.message,
+    ...diagnostics,
+    ...(error.stack ? { stack: error.stack } : {}),
+    ...(error.cause === undefined ? {} : { cause: serializeBackendError(error.cause, seen) }),
+  }
+}
+
+function errorStatus(error: unknown): number {
+  if (typeof error === "object" && error !== null && "status" in error && typeof error.status === "number") {
+    return Math.max(400, Math.min(599, Math.trunc(error.status)))
+  }
+  if (typeof error === "object" && error !== null && "code" in error) {
+    if (error.code === "ENOENT") return 404
+    if (error.code === "ENOTSUP") return 409
+  }
+  return 500
+}
+
+async function createDefaultFileDeletionRepository(options: CreateDefaultBackendOptions): Promise<FileDeletionRepository> {
+  const config = resolveBackendDatabaseConfig(options)
+  if (config.path) await mkdir(path.dirname(config.path), { recursive: true })
+  return createLibsqlFileDeletionRepository({ url: config.url, authToken: config.authToken })
+}
+
 export function resolveBackendDatabaseConfig(options: CreateDefaultBackendOptions = {}): BackendDatabaseConfig {
   const databaseUrl = options.databaseUrl ?? process.env.XIRANITE_DATABASE_URL
   if (databaseUrl) {
@@ -685,6 +776,11 @@ function closeRepository(repository: WorkspaceRepository): void {
 function closeHistoryRepository(repository: NodeRunHistoryRepository | undefined): void {
   if (!repository) return
   const maybeLibsql = repository as Partial<LibsqlNodeRunHistoryRepository>
+  maybeLibsql.client?.close()
+}
+
+function closeFileDeletionRepository(repository: FileDeletionRepository): void {
+  const maybeLibsql = repository as Partial<LibsqlFileDeletionRepository>
   maybeLibsql.client?.close()
 }
 

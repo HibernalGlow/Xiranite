@@ -454,8 +454,14 @@ describe("SqliteReaderDataStore", () => {
   it("[neoview.file-operations.undo-sqlite] persists and bounds guarded receipts without changing legacy metadata", async () => {
     const { path } = await fixture()
     const store = await SqliteReaderDataStore.open(path)
-    await store.saveFileUndoTransaction(undoTransaction("older", 1, "D:/older"), 1)
-    const newer = undoTransaction("newer", 2, "D:/newer", { kind: "windows-recycle-bin", itemPath: "C:/\u0024Recycle.Bin/test/\u0024R-newer.txt" })
+    await store.saveFileUndoTransaction(undoTransaction("older", 1, "D:/older", {
+      kind: "windows-recycle-bin",
+      itemPath: "C:/\u0024Recycle.Bin/test/\u0024R-older.txt",
+    }), 1)
+    const newer = undoTransaction("newer", 2, "D:/newer", {
+      kind: "trash-rs",
+      item: { id: "\u0024R-newer.txt", name: "newer.txt", originalParent: "D:/", timeDeleted: 2 },
+    }, "deletion-newer")
     await store.saveFileUndoTransaction(newer, 1)
     await expect(store.loadFileUndoTransactions(50)).resolves.toEqual([newer])
     await expect(store.removeFileUndoTransaction("newer")).resolves.toBe(true)
@@ -867,13 +873,23 @@ interface FixtureDatabase {
   close(): void
 }
 
-function undoTransaction(id: string, createdAt: number, path: string, providerData?: { kind: "windows-recycle-bin"; itemPath: string }) {
+function undoTransaction(
+  id: string,
+  createdAt: number,
+  path: string,
+  providerData?: { kind: "windows-recycle-bin"; itemPath: string } | {
+    kind: "trash-rs"
+    item: { id: string; name: string; originalParent: string; timeDeleted: number }
+  },
+  deletionId?: string,
+) {
   const original = { kind: "copy" as const, sourcePath: `${path}-source`, destinationPath: path, overwrite: false }
   return {
     id,
     createdAt,
     entries: [{
       index: 0,
+      ...(deletionId ? { deletionId } : {}),
       receipt: {
         original,
         inverse: { kind: "delete" as const, sourcePath: path },

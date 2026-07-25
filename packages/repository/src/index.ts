@@ -15,6 +15,26 @@ import type {
   WorkspaceDTO,
   WorkspaceSnapshotDTO,
 } from "@xiranite/shared"
+import type {
+  FileDeletionRecord,
+  FileDeletionStore,
+  FileUndoJournalRecord,
+  FileUndoJournalStore,
+} from "@xiranite/file-operations"
+import { createMemoryFileOperationStore } from "@xiranite/file-operations"
+
+export interface FileDeletionRepository extends FileDeletionStore, FileUndoJournalStore {}
+
+export interface MemoryFileDeletionRepositoryOptions {
+  deletions?: FileDeletionRecord[]
+  undoTransactions?: FileUndoJournalRecord[]
+}
+
+export function createMemoryFileDeletionRepository(
+  options: MemoryFileDeletionRepositoryOptions = {},
+): FileDeletionRepository {
+  return createMemoryFileOperationStore(options)
+}
 
 export interface WorkspaceRepository {
   listWorkspaces(): Promise<WorkspaceDTO[]>

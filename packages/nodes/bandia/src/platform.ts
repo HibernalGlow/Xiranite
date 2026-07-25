@@ -1,20 +1,28 @@
 import { execFile, spawn } from "node:child_process"
-import { access, mkdir, rm, stat, writeFile } from "node:fs/promises"
+import { access, mkdir, stat, writeFile } from "node:fs/promises"
 import { constants } from "node:fs"
 import { basename, dirname, extname, join, resolve } from "node:path"
 import { tmpdir } from "node:os"
+import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
+import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
 import type { BandiaCommandResult, BandiaFileStat, BandiaRuntime } from "./core.js"
 
 const BZ_EXECUTABLE_NAMES = ["bz.exe", "bandizip", "Bandizip", "BZ.exe"]
 
-export function createNodeBandiaRuntime(): BandiaRuntime {
+export interface BandiaRuntimeContext {
+  fileOperations?: FileOperationExecutor
+}
+
+let standaloneFileMutations: PlatformFileMutationProvider | undefined
+
+export function createNodeBandiaRuntime(context: BandiaRuntimeContext = {}): BandiaRuntime {
   return {
     findBandizip,
     runCommand,
     exists,
     stat: readStat,
     ensureDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
-    removePath,
+    removePath: (path, options) => removePath(path, options, context.fileOperations),
     writeText: (path, content) => writeFile(path, content, "utf8"),
     openEverything,
     tempDir: tmpdir,
@@ -106,14 +114,16 @@ async function readStat(path: string): Promise<BandiaFileStat | null> {
   }
 }
 
-async function removePath(path: string, options?: { trash?: boolean }): Promise<void> {
+async function removePath(path: string, options?: { trash?: boolean }, executor?: FileOperationExecutor): Promise<void> {
   const item = await readStat(path)
   if (!item?.exists) return
-  if ((options?.trash ?? false) && process.platform === "win32") {
-    const moved = await recycleOnWindows(path, item.isDirectory)
-    if (moved) return
+  const operation = { kind: options?.trash ? "trash" as const : "delete" as const, sourcePath: path }
+  if (executor) {
+    await executeSingleFileMutation(executor, operation)
+    return
   }
-  await rm(path, { recursive: true, force: true })
+  standaloneFileMutations ??= new PlatformFileMutationProvider()
+  await standaloneFileMutations.execute(operation)
 }
 
 async function runCommand(command: string, args: string[], options?: { cwd?: string }): Promise<BandiaCommandResult> {
@@ -165,19 +175,4 @@ async function isFile(path: string): Promise<boolean> {
   } catch {
     return false
   }
-}
-
-async function recycleOnWindows(path: string, isDirectory: boolean): Promise<boolean> {
-  const method = isDirectory ? "DeleteDirectory" : "DeleteFile"
-  const script = [
-    "$ProgressPreference = 'SilentlyContinue'",
-    "Add-Type -AssemblyName Microsoft.VisualBasic",
-    `[Microsoft.VisualBasic.FileIO.FileSystem]::${method}(${quotePowerShell(path)}, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)`,
-  ].join("; ")
-  const shell = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
-  return shell.code === 0
-}
-
-function quotePowerShell(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`
 }

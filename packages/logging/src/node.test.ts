@@ -5,7 +5,7 @@ import { gzipSync } from "node:zlib"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { createLogEnvelope, type LogResource, type LogSession } from "./schema.js"
-import { discoverLogFiles, readLogDirectory, resolveLogDirectory, RotatingJsonlLogWriter } from "./node.js"
+import { discoverLogFiles, LogWriteError, readLogDirectory, resolveLogDirectory, RotatingJsonlLogWriter } from "./node.js"
 
 const tempDirectories: string[] = []
 const resource: LogResource = { serviceName: "xiranite", processType: "test" }
@@ -87,6 +87,41 @@ describe("RotatingJsonlLogWriter", () => {
     } finally {
       if (previousTimezone === undefined) delete process.env.TZ
       else process.env.TZ = previousTimezone
+    }
+  })
+
+  it("identifies the exact log target and system cause when an append fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-logs-error-"))
+    tempDirectories.push(root)
+    const blockingFile = join(root, "not-a-directory")
+    const directory = join(blockingFile, "logs")
+    await writeFile(blockingFile, "blocks directory creation")
+    const writer = new RotatingJsonlLogWriter({ directory, source: "frontend", sessionId: session.id, size: "1M" })
+    const event = createLogEnvelope({
+      id: "event-write-error",
+      timestamp: "2026-07-23T00:00:01.000Z",
+      severityText: "error",
+      eventName: "logging.write_failed",
+      resource,
+      scope: { name: "logging" },
+      session,
+    })
+
+    try {
+      const failure = await writer.append([event]).catch((error: unknown) => error)
+      expect(failure).toMatchObject({
+        name: "LogWriteError",
+        operation: "logWriter.append",
+        logFile: join(directory, "frontend-session-writer.current.jsonl"),
+        eventCount: 1,
+      } satisfies Partial<LogWriteError>)
+      expect((failure as Error).message).toContain(JSON.stringify(join(directory, "frontend-session-writer.current.jsonl")))
+      await expect(writer.append([event])).rejects.toMatchObject({
+        name: "LogWriteError",
+        logFile: join(directory, "frontend-session-writer.current.jsonl"),
+      })
+    } finally {
+      await writer.close().catch(() => undefined)
     }
   })
 

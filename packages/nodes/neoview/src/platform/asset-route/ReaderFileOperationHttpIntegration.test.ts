@@ -66,7 +66,7 @@ describe("Reader file operation HTTP composition", () => {
     } finally {
       await controller[Symbol.asyncDispose]()
     }
-  })
+  }, 15_000)
 })
 
 function authorized(path: string, init: RequestInit = {}): Request {

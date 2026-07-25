@@ -10,8 +10,16 @@ import { convertWithSlimg, probeSlimg } from "./slimg.js"
 import { convertClipToPsd } from "./clip-to-psd.js"
 import { streamEfuPaths } from "./efu-stream.js"
 import { isAnimatedImage } from "./animation-probe.js"
+import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
+import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
 
-export function createNodeXlchemyRuntime(): XlchemyRuntime {
+export interface XlchemyRuntimeContext {
+  fileOperations?: FileOperationExecutor
+}
+
+let standaloneFileMutations: PlatformFileMutationProvider | undefined
+
+export function createNodeXlchemyRuntime(context: XlchemyRuntimeContext = {}): XlchemyRuntime {
   const resolveCachedCommand = createCachedCommandResolver(resolveCommand)
   return {
     pathInfo,
@@ -19,7 +27,8 @@ export function createNodeXlchemyRuntime(): XlchemyRuntime {
     ensureDir,
     copyFile,
     removeFile: async (path) => { await rm(path, { force: true }) },
-    trashFile: moveFileToRecycleBin,
+    trashFile: (path) => deleteUserFile(path, "trash", context.fileOperations),
+    deleteFile: (path, mode) => deleteUserFile(path, mode, context.fileOperations),
     renameFile: async (source, target) => { const { rename } = await import("node:fs/promises"); await rename(source, target) },
     setTimes: async (path, atimeMs, mtimeMs) => { await utimes(path, new Date(atimeMs), new Date(mtimeMs)) },
     hashFile: sha256File,
@@ -109,10 +118,15 @@ async function resolveCommand(candidates: string[]): Promise<string | undefined>
 async function exists(path: string) { try { await access(path); return true } catch { return false } }
 
 export async function moveFileToRecycleBin(path: string) {
-  if (process.platform !== "win32") throw new Error("Recycle-bin deletion is currently available on Windows only.")
-  const escapedPath = resolve(path).replaceAll("'", "''")
-  const script = `Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('${escapedPath}', [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)`
-  const encoded = Buffer.from(script, "utf16le").toString("base64")
-  const result = await runXlchemyCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-STA", "-EncodedCommand", encoded])
-  if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `Failed to move ${path} to the recycle bin.`)
+  return deleteUserFile(path, "trash")
+}
+
+async function deleteUserFile(path: string, mode: "trash" | "permanent", executor?: FileOperationExecutor): Promise<void> {
+  const operation = { kind: mode === "trash" ? "trash" as const : "delete" as const, sourcePath: path }
+  if (executor) {
+    await executeSingleFileMutation(executor, operation)
+    return
+  }
+  standaloneFileMutations ??= new PlatformFileMutationProvider()
+  await standaloneFileMutations.execute(operation)
 }

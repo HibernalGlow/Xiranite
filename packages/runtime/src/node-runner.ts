@@ -35,7 +35,7 @@ type PlatformRunFunction = (
   runtime: unknown,
   onEvent: (event: NodeRunEvent) => void,
 ) => Promise<NodeRunResult>
-type RuntimeFactory = () => unknown
+type RuntimeFactory = (context?: unknown) => unknown
 export interface NodeRunControl {
   isCancelled: () => boolean
   waitWhilePaused: () => Promise<void>
@@ -81,6 +81,7 @@ async function runSpec(
   input: unknown,
   onEvent: (event: NodeRunEvent) => void,
   control?: NodeRunControl,
+  runtimeContext?: unknown,
 ): Promise<NodeRunResult> {
   const core = await loadModule(spec.loadCore)
   if (!isPlatformNode(spec)) {
@@ -91,7 +92,7 @@ async function runSpec(
   const platform = await loadModule(spec.loadPlatform)
   const run = getFunction<PlatformRunFunction>(core, spec.run)
   const createRuntime = getFunction<RuntimeFactory>(platform, spec.createRuntime)
-  const runtime = createRuntime()
+  const runtime = createRuntime(runtimeContext)
   const controlledRuntime = control && runtime && typeof runtime === "object"
     ? { ...runtime, isCancelled: control.isCancelled, waitWhilePaused: control.waitWhilePaused }
     : runtime
@@ -119,6 +120,7 @@ export async function runNodeWithEvents(
   input: unknown,
   onEvent: (event: NodeRunEvent) => void = () => {},
   control?: NodeRunControl,
+  runtimeContext?: unknown,
 ): Promise<NodeRunResult> {
   if (typeof nodeId !== "string" || !nodeId) {
     return { success: false, message: "node.run requires a nodeId string." }
@@ -133,7 +135,7 @@ export async function runNodeWithEvents(
   }
 
   try {
-    return await runSpec(spec, input, onEvent, control)
+    return await runSpec(spec, input, onEvent, control, runtimeContext)
   } catch (error) {
     const message = `Node "${nodeId}" failed: ${errorMessage(error)}`
     onEvent({ type: "log", message })
