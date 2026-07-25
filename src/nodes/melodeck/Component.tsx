@@ -1,5 +1,3 @@
-"use no memo"
-
 import { lazy, Suspense } from "react"
 import { Pause, Play, SkipBack, SkipForward } from "lucide-react"
 import type { NodeComponentProps } from "@xiranite/contract"
@@ -11,6 +9,8 @@ const FoliaFullscreenSurface = lazy(() => import("@hibernalglow/folia-player/ful
 })))
 
 export function Component(_props: NodeComponentProps) {
+  "use no memo"
+
   const deck = useWorkspaceMelodeck()
 
   if (deck.playerEngine === "legacy") {
