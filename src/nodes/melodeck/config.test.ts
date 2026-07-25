@@ -96,7 +96,7 @@ describe("Melodeck config migration", () => {
     backend.getNodeConfigFromBackend.mockResolvedValue({
       config: {
         player_engine: "legacy",
-        playback: { volume: 0.4, active_track_id: "D:/Music/last.flac" },
+        playback: { volume: 0.4, loop_mode: "random", active_track_id: "D:/Music/last.flac" },
         library: { roots: ["D:/Music", "E:/Music"] },
       },
       path: "config.toml",
@@ -106,6 +106,7 @@ describe("Melodeck config migration", () => {
 
     expect(config.player_engine).toBe("legacy")
     expect(config.playback?.volume).toBe(0.4)
+    expect(config.playback?.loop_mode).toBe("random")
     expect(config.playback?.active_track_id).toBe("D:/Music/last.flac")
     expect(config.library?.roots).toEqual(["D:/Music", "E:/Music"])
   })

@@ -31,6 +31,16 @@ export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
   },
 
   async pickLibraryRoot() {
+    if (typeof window !== "undefined" && window._wails) {
+      const { Dialogs } = await import("@wailsio/runtime")
+      const selected = await Dialogs.OpenFile({
+        CanChooseFiles: false,
+        CanChooseDirectories: true,
+        AllowsMultipleSelection: false,
+        Title: "选择音乐文件夹",
+      })
+      return selected || null
+    }
     return (await pickLocalPaths("directory"))[0] ?? null
   },
 
