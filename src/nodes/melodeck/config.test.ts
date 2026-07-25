@@ -9,7 +9,7 @@ const backend = vi.hoisted(() => ({
 
 vi.mock("@/backend/configRpcClient", () => backend)
 
-import { loadMelodeckConfig, MELODECK_CONFIG_CHANGED_EVENT, saveMelodeckConfig } from "./config"
+import { DEFAULT_MELODECK_CONFIG, loadMelodeckConfig, MELODECK_CONFIG_CHANGED_EVENT, saveMelodeckConfig } from "./config"
 
 describe("Melodeck config migration", () => {
   beforeEach(() => {
@@ -58,6 +58,12 @@ describe("Melodeck config migration", () => {
     const config = await loadMelodeckConfig()
 
     expect(config.source_path).toBe("D:/Canonical")
+    expect(config).toMatchObject({
+      config_version: 1,
+      player_engine: "folia",
+      playback: { volume: 0.65 },
+      library: { roots: ["D:/Canonical"] },
+    })
     expect(config.visualizer_style).toBe("Grid")
     expect(config.volume).toBe(65)
     expect(window.localStorage.getItem("xiranite.musicDock.sourcePath")).toBeNull()
@@ -84,5 +90,35 @@ describe("Melodeck config migration", () => {
     expect(backend.saveNodeConfigToBackend).toHaveBeenCalledWith("melodeck", { mode: "bottom" })
     expect(listener).not.toHaveBeenCalled()
     window.removeEventListener(MELODECK_CONFIG_CHANGED_EVENT, listener)
+  })
+
+  it("preserves the legacy engine escape hatch in the versioned config", async () => {
+    backend.getNodeConfigFromBackend.mockResolvedValue({
+      config: {
+        player_engine: "legacy",
+        playback: { volume: 0.4, active_track_id: "D:/Music/last.flac" },
+        library: { roots: ["D:/Music", "E:/Music"] },
+      },
+      path: "config.toml",
+    })
+
+    const config = await loadMelodeckConfig()
+
+    expect(config.player_engine).toBe("legacy")
+    expect(config.playback?.volume).toBe(0.4)
+    expect(config.playback?.active_track_id).toBe("D:/Music/last.flac")
+    expect(config.library?.roots).toEqual(["D:/Music", "E:/Music"])
+  })
+
+  it("defaults fullscreen floating follow to off and preserves an explicit opt-in", async () => {
+    expect(DEFAULT_MELODECK_CONFIG.surfaces.follow_fullscreen_with_floating).toBe(false)
+    backend.getNodeConfigFromBackend.mockResolvedValue({
+      config: { surfaces: { follow_fullscreen_with_floating: true } },
+      path: "config.toml",
+    })
+
+    const config = await loadMelodeckConfig()
+
+    expect(config.surfaces?.follow_fullscreen_with_floating).toBe(true)
   })
 })

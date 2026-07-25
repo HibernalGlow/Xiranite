@@ -1,5 +1,6 @@
 import { getAppConfigFromBackend, getNodeConfigFromBackend, saveAppConfigToBackend, saveNodeConfigToBackend } from "@/backend/configRpcClient"
 import type { PersistedTrack } from "@/components/modules/musicPlayer/MusicPlayerSurface"
+import type { FoliaLoopMode, FoliaReplayGainMode } from "@hibernalglow/folia-player"
 import { DEFAULT_MUSIC_VISUALIZER_STYLE, normalizeMusicVisualizerStyle, type MusicVisualizerStyle } from "@/components/modules/musicPlayer/visualizerStyles"
 
 export type MelodeckMode = "bottom" | "floating" | "fullscreen"
@@ -10,6 +11,22 @@ export interface MelodeckFloatingOffset {
 }
 
 export interface MelodeckConfig {
+  config_version?: 1
+  player_engine?: "folia" | "legacy"
+  playback?: {
+    volume?: number
+    loop_mode?: FoliaLoopMode
+    replay_gain_mode?: FoliaReplayGainMode
+    output_device_id?: string
+    active_track_id?: string
+  }
+  library?: { roots?: string[] }
+  surfaces?: {
+    mode?: MelodeckMode
+    collapsed?: boolean
+    follow_fullscreen_with_floating?: boolean
+  }
+  visualizer?: Record<string, unknown>
   source_path?: string
   saved_tracks?: PersistedTrack[]
   mode?: MelodeckMode
@@ -90,9 +107,16 @@ async function loadAndMigrateMelodeckConfig(): Promise<MelodeckConfig> {
 }
 
 function mergeMissingLegacyConfig(node: MelodeckConfig, legacy: LegacyMusicDockConfig): MelodeckConfig {
+  const sourcePath = node.source_path ?? legacy.sourcePath
+  const volume = normalizeVolume(node.playback?.volume ?? node.volume)
   return {
     ...node,
-    source_path: node.source_path ?? legacy.sourcePath,
+    config_version: 1,
+    player_engine: node.player_engine ?? "folia",
+    playback: { ...node.playback, volume },
+    library: { ...node.library, roots: node.library?.roots?.length ? node.library.roots : sourcePath ? [sourcePath] : [] },
+    surfaces: { ...node.surfaces, mode: node.surfaces?.mode ?? node.mode ?? legacy.mode },
+    source_path: sourcePath,
     saved_tracks: node.saved_tracks ?? legacy.savedTracks,
     mode: node.mode ?? legacy.mode,
     floating_offset: node.floating_offset ?? legacy.floatingOffset,
@@ -115,7 +139,45 @@ function normalizeMelodeckConfig(value: unknown): MelodeckConfig {
     mode,
     floating_offset: floatingOffset,
     visualizer_style: visualizerStyle,
+    config_version: value.config_version === 1 ? 1 : undefined,
+    player_engine: value.player_engine === "legacy" ? "legacy" : value.player_engine === "folia" ? "folia" : undefined,
+    playback: normalizePlayback(value.playback),
+    library: normalizeLibrary(value.library),
+    surfaces: normalizeSurfaces(value.surfaces),
+    visualizer: isRecord(value.visualizer) ? value.visualizer : undefined,
   }
+}
+
+function normalizePlayback(value: unknown): MelodeckConfig["playback"] {
+  if (!isRecord(value)) return undefined
+  return {
+    volume: normalizeVolume(value.volume),
+    loop_mode: value.loop_mode === "off" || value.loop_mode === "all" || value.loop_mode === "one" ? value.loop_mode : undefined,
+    replay_gain_mode: value.replay_gain_mode === "off" || value.replay_gain_mode === "track" || value.replay_gain_mode === "album" ? value.replay_gain_mode : undefined,
+    output_device_id: typeof value.output_device_id === "string" ? value.output_device_id : undefined,
+    active_track_id: typeof value.active_track_id === "string" && value.active_track_id.trim() ? value.active_track_id : undefined,
+  }
+}
+
+function normalizeLibrary(value: unknown): MelodeckConfig["library"] {
+  if (!isRecord(value)) return undefined
+  return { roots: Array.isArray(value.roots) ? value.roots.filter((root): root is string => typeof root === "string" && Boolean(root.trim())) : undefined }
+}
+
+function normalizeSurfaces(value: unknown): MelodeckConfig["surfaces"] {
+  if (!isRecord(value)) return undefined
+  return {
+    mode: isMelodeckMode(value.mode) ? value.mode : undefined,
+    collapsed: typeof value.collapsed === "boolean" ? value.collapsed : undefined,
+    follow_fullscreen_with_floating: typeof value.follow_fullscreen_with_floating === "boolean"
+      ? value.follow_fullscreen_with_floating
+      : undefined,
+  }
+}
+
+function normalizeVolume(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined
+  return Math.min(1, Math.max(0, value > 1 ? value / 100 : value))
 }
 
 function readLegacyConfig(appConfig: LegacyMusicDockConfig | undefined): LegacyMusicDockConfig {
@@ -180,9 +242,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export const DEFAULT_MELODECK_CONFIG = {
+  config_version: 1,
+  player_engine: "folia",
+  playback: { volume: 0.8, loop_mode: "all", replay_gain_mode: "off" },
+  library: { roots: [] },
+  surfaces: { mode: "bottom", collapsed: true, follow_fullscreen_with_floating: false },
   mode: "bottom",
   saved_tracks: [],
   source_path: "",
   floating_offset: { x: 0, y: 0 },
   visualizer_style: DEFAULT_MUSIC_VISUALIZER_STYLE,
+  volume: 80,
 } as const satisfies MelodeckConfig

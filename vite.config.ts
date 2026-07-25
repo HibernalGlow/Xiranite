@@ -15,6 +15,7 @@ import { isBackendGatewayPath, readBackendGatewayTarget } from "./scripts/backen
 
 const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
+const foliaPlayerSrc = path.resolve(__dirname, "./vendor/folia-major/packages/player/src")
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
 const lucideReactEntry = path.resolve(__dirname, "./node_modules/lucide-react/dist/esm/lucide-react.js")
 const propTypesDevShim = path.resolve(__dirname, "./src/vendor/prop-types-dev.ts")
@@ -85,6 +86,7 @@ function lucideDeepImportsPlugin() {
     enforce: "pre" as const,
     async transform(source: string, id: string) {
       if (!source.includes("lucide-react") || !/\.[cm]?[jt]sx?(?:\?|$)/.test(id)) return null
+      if (id.replaceAll("\\", "/").includes("/vendor/folia-major/")) return null
       iconExports ??= readFile(lucideReactEntry, "utf8").then(collectLucideIconExports)
       const code = rewriteLucideDeepImports(source, id, await iconExports)
       return code === null ? null : { code, map: null }
@@ -186,6 +188,11 @@ export default defineConfig(({ command }) => ({
       // dependency can otherwise retain the Node-only core module graph.
       { find: "@xiranite/node-neoview/ui-core", replacement: path.resolve(__dirname, "packages/nodes/neoview/src/ui-core.ts") },
       { find: "@hibernalglow/ocean-dataview/styles.css", replacement: path.resolve(oceanSrc, "styles.css") },
+      { find: "@hibernalglow/folia-player/styles.css", replacement: path.resolve(foliaPlayerSrc, "player.css") },
+      { find: "@hibernalglow/folia-player/locales", replacement: path.resolve(foliaPlayerSrc, "locales.ts") },
+      { find: "@hibernalglow/folia-player/parser", replacement: path.resolve(foliaPlayerSrc, "parser.ts") },
+      { find: "@hibernalglow/folia-player/fullscreen", replacement: path.resolve(foliaPlayerSrc, "fullscreen.ts") },
+      { find: /^@hibernalglow\/folia-player$/, replacement: path.resolve(foliaPlayerSrc, "index.ts") },
       { find: "@hibernalglow/ocean-dataview/validators", replacement: path.resolve(oceanSrc, "validators/index.ts") },
       { find: "@hibernalglow/ocean-dataview/parsers", replacement: path.resolve(oceanSrc, "parsers/index.ts") },
       { find: "@hibernalglow/ocean-dataview/providers", replacement: path.resolve(oceanSrc, "lib/providers/index.ts") },
@@ -212,6 +219,19 @@ export default defineConfig(({ command }) => ({
       "@tanstack/react-query",
       "@tanstack/react-table",
       "@tanstack/table-core",
+      "lucide-react",
+      "scheduler",
+      "@xmldom/xmldom",
+      "blueimp-md5",
+      "blueimp-md5/js/md5.js",
+      "debug",
+      "content-type",
+      "ieee754",
+      "dexie",
+      "use-sync-external-store",
+      "use-sync-external-store/shim",
+      "use-sync-external-store/shim/with-selector",
+      "use-sync-external-store/shim/with-selector.js",
     ],
   },
   server: {

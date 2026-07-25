@@ -105,7 +105,7 @@ interface MusicVisualizerIconProps {
   style: MusicVisualizerStyle
 }
 
-const MUSIC_VISUALIZER_COMPONENTS: Record<MusicVisualizerStyle, ComponentType<LdrsCommonProps>> = {
+const MUSIC_VISUALIZER_COMPONENTS: Record<Exclude<MusicVisualizerStyle, "None">, ComponentType<LdrsCommonProps>> = {
   Bouncy,
   BouncyArc,
   Cardio,
@@ -172,7 +172,8 @@ export function MusicVisualizerIcon({
   isPlaying,
   style,
 }: MusicVisualizerIconProps) {
-  const Visualizer = MUSIC_VISUALIZER_COMPONENTS[style] ?? Waveform
+  if (style === "None") return null
+  const Visualizer = MUSIC_VISUALIZER_COMPONENTS[style]
 
   return (
     <Visualizer

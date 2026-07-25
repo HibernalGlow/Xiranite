@@ -11,6 +11,18 @@ import type { EngineVCardState } from "./types"
 
 type EngineVHost = NodeHostApi<EngineVCardState, Partial<EngineVCardState>>
 
+const SELECTED_ID_PILL_STYLE = {
+  background: "var(--primary)",
+  borderColor: "var(--primary)",
+  color: "var(--primary-foreground)",
+} as const
+
+const UNSELECTED_ID_PILL_STYLE = {
+  background: "var(--muted-foreground)",
+  borderColor: "var(--muted-foreground)",
+  color: "var(--background)",
+} as const
+
 export function WallpaperGallery(props: {
   columns?: number
   compact?: boolean
@@ -116,13 +128,9 @@ function WallpaperTile(props: {
           <div className="absolute left-2 top-2 flex gap-1">
             <Badge
               data-enginev-wallpaper-selection={props.item.workshopId}
-              variant={props.selected ? "default" : "outline"}
-              className={cn(
-                "gap-1",
-                props.selected
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-zinc-500 bg-zinc-600 text-white",
-              )}
+              variant={props.selected ? "default" : "secondary"}
+              className="gap-1"
+              style={props.selected ? SELECTED_ID_PILL_STYLE : UNSELECTED_ID_PILL_STYLE}
             >
               {props.selected ? <Check className="size-3" /> : <MousePointer2 className="size-3" />}
               {props.item.workshopId}
