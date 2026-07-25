@@ -8,6 +8,9 @@ use napi::{Env, Status};
 use napi_derive::napi;
 use xiranite_czkawka_core as core;
 
+mod trash_api;
+pub use trash_api::*;
+
 #[derive(Clone)]
 struct ScanSession { id: String, stop: Arc<AtomicBool>, progress: Arc<Mutex<Option<core::ScanProgress>>> }
 fn scan_sessions() -> &'static Mutex<HashMap<String, ScanSession>> { static SESSIONS: OnceLock<Mutex<HashMap<String, ScanSession>>> = OnceLock::new(); SESSIONS.get_or_init(|| Mutex::new(HashMap::new())) }

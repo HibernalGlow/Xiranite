@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "3", features = ["napi8", "async"] }
 napi-derive = "3"
+trash = "=5.2.6"
 xiranite-czkawka-core = { path = "../czkawka-core" }
 
 [build-dependencies]

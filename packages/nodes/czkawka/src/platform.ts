@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { cp, lstat, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, join, parse, relative } from "node:path"
 import { promisify } from "node:util"
-import { cancelCzkawkaScan, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
+import { cancelCzkawkaScan, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
 import type { CzkawkaInput, CzkawkaNativeProgress, CzkawkaRuntime } from "./core.js"
 
 type NormalizedInput = Required<CzkawkaInput>
@@ -161,9 +161,7 @@ async function pathExists(path: string): Promise<boolean> {
 async function removePath(path: string, options?: { trash?: boolean; emptyFoldersOnly?: boolean }): Promise<void> {
   if (options?.emptyFoldersOnly && !await containsOnlyDirectories(path)) throw new Error("Folder contains files and is no longer empty.")
   if (options?.trash) {
-    if (process.platform !== "win32") throw new Error("Moving files to trash is currently supported only on Windows.")
-    const item = await lstat(path)
-    await recycleOnWindows(path, item.isDirectory())
+    await trashPath(path)
     return
   }
   await rm(path, { force: true, recursive: true })
@@ -192,15 +190,4 @@ async function movePath(source: string, target: string): Promise<void> {
   }
 }
 
-async function recycleOnWindows(path: string, isDirectory: boolean): Promise<void> {
-  const method = isDirectory ? "DeleteDirectory" : "DeleteFile"
-  const script = [
-    "$ProgressPreference = 'SilentlyContinue'",
-    "Add-Type -AssemblyName Microsoft.VisualBasic",
-    `[Microsoft.VisualBasic.FileIO.FileSystem]::${method}(${quotePowerShell(path)}, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)`,
-  ].join("; ")
-  await execFileAsync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], { windowsHide: true })
-}
-
-function quotePowerShell(value: string): string { return `'${value.replaceAll("'", "''")}'` }
 function errorCode(error: unknown): string | undefined { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : undefined }
