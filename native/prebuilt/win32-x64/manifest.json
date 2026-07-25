@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "id": "arcthumb",
+      "version": "0.10.1-api2",
+      "platform": "win32",
+      "arch": "x64",
+      "archive": "arcthumb.win32-x64.zip",
+      "binding": "xiranite-arcthumb.win32-x64.node",
+      "sha256": "435591d6fae3c61151f5ceb63639341b9735e1191307c3a78a98c4024f07bddd",
+      "files": [
+        {
+          "name": "xiranite-arcthumb.win32-x64.node",
+          "sha256": "fbf2871963c06a41f4eed1c3e31486a96fb117cf669f66e97c3f44d205d03984"
+        }
+      ]
+    },
+    {
+      "id": "czkawka",
+      "version": "10.0.0-api4",
+      "platform": "win32",
+      "arch": "x64",
+      "archive": "czkawka.win32-x64.zip",
+      "binding": "xiranite-czkawka.win32-x64.node",
+      "sha256": "963ebd2b2747d69bb8648b27bf1e64db796fd92eb36f1e6b57133597dff8de2f",
+      "files": [
+        {
+          "name": "xiranite-czkawka.win32-x64.node",
+          "sha256": "787f6360b3a13f3c2f6fb58a1142559a26a870a8e551ee9fb0f5f344a75b8b1e"
+        },
+        {
+          "name": "dav1d.dll",
+          "sha256": "786b7e348adc4e84594e5c4abac3f7320d5f5c82d4a76dcbb639c42071e872fd"
+        }
+      ]
+    },
+    {
+      "id": "slimg",
+      "version": "0.1.0-api1",
+      "platform": "win32",
+      "arch": "x64",
+      "archive": "slimg.win32-x64.zip",
+      "binding": "xiranite-slimg.win32-x64.node",
+      "sha256": "9eb86465fe89f517fdd99a6e048ec097a185cd64dacc8ea69c054d914699627f",
+      "files": [
+        {
+          "name": "xiranite-slimg.win32-x64.node",
+          "sha256": "b6f26a030842a9001d3705d3077a7d39a438713f7e1e0f1606ece25b32fc3901"
+        },
+        {
+          "name": "dav1d.dll",
+          "sha256": "786b7e348adc4e84594e5c4abac3f7320d5f5c82d4a76dcbb639c42071e872fd"
+        }
+      ]
+    }
+  ]
+}
