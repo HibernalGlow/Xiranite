@@ -110,6 +110,7 @@
     "test:neoview-compatibility": "bun test scripts/lib/neoview-capability-status.test.ts",
     "test:neoview-config": "bun test scripts/lib/neoview-config-format.test.ts && bun run --cwd packages/config build && bunx vitest --root packages/nodes/neoview run src/platform/config/NeoviewConfigStore.test.ts --maxWorkers=1",
     "test:unit": "vitest run --dir . --exclude \"**/dist/**\" --exclude \"**/artifacts/**\" --exclude \"**/build/**\" --exclude \"**/vendor/**\" --exclude \"**/ref/**\" --exclude \"**/tests/e2e/**\"",
+    "test:browser": "vitest run --config vitest.browser.config.ts --maxWorkers=1",
     "test:e2e": "bun ./node_modules/@playwright/test/cli.js test --pass-with-no-tests",
     "test:packages": "bun run generate:node-registries && bun scripts/run-turbo.ts build --filter=\"./packages/*\" --filter=\"./packages/nodes/*\" && bun run audit:node-architecture && bun scripts/run-turbo.ts test --filter=\"./packages/*\" --filter=\"./packages/nodes/*\"",
     "comfygure:preflight": "bun run --cwd packages/nodes/comfygure preflight:local",
@@ -289,6 +290,7 @@
     "@types/three": "^0.185.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vitejs/plugin-react": "^6.0.3",
+    "@vitest/browser-playwright": "4.1.10",
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/addon-unicode11": "^0.9.0",
     "@xterm/headless": "^6.0.0",
@@ -302,6 +304,7 @@
     "turbo": "^2.10.4",
     "typescript": "^7.0.2",
     "vite": "^8.1.4",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "vitest-browser-react": "2.2.0"
   }
 }
