@@ -28,6 +28,7 @@ import hostI18n from "@/i18n"
 import "@hibernalglow/folia-player/styles.css"
 
 afterEach(() => {
+  vi.restoreAllMocks()
   useWorkspaceStore.getState().setChromePosition("right")
 })
 
@@ -174,6 +175,47 @@ test("renders populated Folia projections around one shared audio element", asyn
   expect(document.querySelectorAll('[data-folia-remote-mode="embedded"]')).toHaveLength(1)
   expect(document.querySelectorAll('[data-folia-component="FloatingPlayerControls"]')).toHaveLength(1)
   expect(document.querySelectorAll('[data-folia-component="UnifiedPanel"]')).toHaveLength(1)
+
+  const unified = document.querySelector<HTMLElement>('[data-folia-surface="unified"]')!
+  const coverPlayback = unified.querySelector<HTMLElement>("[data-folia-cover-playback]")
+  const sharedAudio = document.querySelector<HTMLAudioElement>("audio.folia-player-audio")!
+  expect(coverPlayback).not.toBeNull()
+  expect(coverPlayback!.querySelectorAll("[data-folia-remote-transport]")).toHaveLength(1)
+  expect(document.querySelectorAll("[data-folia-remote-seek]")).toHaveLength(2)
+  expect(unified.querySelector("[data-folia-cover-lyrics]")?.textContent).toContain(tracks[0]!.lyrics!.lines[0]!.fullText)
+
+  const coverNext = coverPlayback!.querySelector<HTMLButtonElement>('[data-folia-remote-control="next"]')!
+  const coverPrevious = coverPlayback!.querySelector<HTMLButtonElement>('[data-folia-remote-control="previous"]')!
+  const coverPlay = coverPlayback!.querySelector<HTMLButtonElement>('[data-folia-remote-control="play-pause"]')!
+  await page.elementLocator(coverNext).click()
+  await expect.poll(() => unified.textContent).toContain(tracks[1]!.title)
+  await page.elementLocator(coverPrevious).click()
+  await expect.poll(() => unified.textContent).toContain(tracks[0]!.title)
+
+  vi.spyOn(sharedAudio, "play").mockImplementation(async () => {
+    sharedAudio.dispatchEvent(new Event("play"))
+  })
+  await page.elementLocator(coverPlay).click()
+  await expect.poll(() => coverPlay.querySelector("svg.lucide-pause")).not.toBeNull()
+
+  Object.defineProperty(sharedAudio, "duration", { configurable: true, value: 120 })
+  sharedAudio.dispatchEvent(new Event("durationchange"))
+  const coverSeek = coverPlayback!.querySelector<HTMLInputElement>('input[aria-label="Seek"]')!
+  await expect.poll(() => coverSeek.max).toBe("120")
+  coverSeek.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }))
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(coverSeek, "30")
+  coverSeek.dispatchEvent(new Event("input", { bubbles: true }))
+  coverSeek.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+  await expect.poll(() => sharedAudio.currentTime).toBe(30)
+
+  const coverLoop = () => coverPlayback!.querySelector<HTMLButtonElement>("[data-folia-loop-mode]")!
+  expect(coverLoop().getAttribute("data-folia-loop-mode")).toBe("all")
+  await page.elementLocator(coverLoop()).click()
+  await expect.poll(() => coverLoop().getAttribute("data-folia-loop-mode")).toBe("one")
+  await page.elementLocator(coverLoop()).click()
+  await expect.poll(() => coverLoop().getAttribute("data-folia-loop-mode")).toBe("random")
+  expect(coverLoop().querySelector("svg.lucide-shuffle")).not.toBeNull()
+  expect(document.querySelectorAll("audio.folia-player-audio")).toHaveLength(1)
 
   const remote = document.querySelector<HTMLElement>('[data-folia-remote-mode="embedded"]')!
   expect(remote.textContent).toContain("焚蝶")
@@ -490,10 +532,14 @@ test("keeps the original Folia app across node container sizes without recreatin
 })
 
 function FoliaSurfaceHarness() {
+  const [loopMode, setLoopMode] = useState<FoliaLoopMode>("all")
+
   return (
     <FoliaPlayerProvider
       tracks={tracks}
       onTracksChange={vi.fn()}
+      preferences={{ loopMode }}
+      onPreferencesChange={(preferences) => setLoopMode(preferences.loopMode)}
       theme={theme}
       isDaylight
     >
