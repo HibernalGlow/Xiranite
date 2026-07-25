@@ -118,10 +118,10 @@ function WallpaperTile(props: {
               data-enginev-wallpaper-selection={props.item.workshopId}
               variant={props.selected ? "default" : "outline"}
               className={cn(
-                "gap-1 shadow-sm backdrop-blur-sm",
+                "gap-1",
                 props.selected
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "border-white/30 bg-black/55 text-white",
+                  : "border-zinc-500 bg-zinc-600 text-white",
               )}
             >
               {props.selected ? <Check className="size-3" /> : <MousePointer2 className="size-3" />}
