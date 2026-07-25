@@ -589,6 +589,7 @@ export class ReaderHttpController implements AsyncDisposable {
     )
     this.#fileOperations = new ReaderFileOperationHttpController(
       async () => {
+        if (options.fileOperationService) return options.fileOperationService
         const { ReaderFileOperationService } = await import("../../application/files/ReaderFileOperationService.js")
         const { PlatformReaderFileMutationProvider } = await import("../filesystem/PlatformReaderFileMutationProvider.js")
         return new ReaderFileOperationService(
@@ -602,6 +603,7 @@ export class ReaderHttpController implements AsyncDisposable {
       },
       (sessionId, descriptor, signal) => this.#directoryBrowser.resolveSelection(sessionId, descriptor, signal),
       (results, undo, signal) => this.#directoryBrowser.reconcileFileOperations(results, undo, signal),
+      !options.fileOperationService,
     )
     this.#systemIntegration = new ReaderSystemIntegrationHttpController(async () => {
       const { ReaderSystemIntegrationService } = await import("../../application/files/ReaderSystemIntegrationService.js")

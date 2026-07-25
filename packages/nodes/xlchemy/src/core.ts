@@ -132,6 +132,7 @@ export interface XlchemyRuntime {
   copyFile: (source: string, target: string) => Promise<void>
   removeFile: (path: string) => Promise<void>
   trashFile?: (path: string) => Promise<void>
+  deleteFile?: (path: string, mode: "trash" | "permanent") => Promise<void>
   renameFile: (source: string, target: string) => Promise<void>
   setTimes: (path: string, atimeMs: number, mtimeMs: number) => Promise<void>
   hashFile?: (path: string) => Promise<string>
@@ -724,10 +725,7 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
       return { ...plan, status: "skipped", outputBytes: input.copyIfLarger ? sourceInfo.size : 0, error: "output_not_smaller" }
     }
     if (input.deleteOriginal && plan.sourcePath !== plan.outputPath) {
-      if (input.deleteOriginalMode === "trash") {
-        if (!runtime.trashFile) throw new Error("The current runtime does not support moving files to the recycle bin.")
-        await runtime.trashFile(plan.sourcePath)
-      } else await runtime.removeFile(plan.sourcePath)
+      await deleteOriginalFile(plan.sourcePath, input.deleteOriginalMode ?? "trash", runtime)
     }
     return { ...plan, status: "converted", outputBytes: outputInfo.size, error: undefined }
   } catch (error) { return { ...plan, status: "error", error: error instanceof Error ? error.message : String(error) } }
@@ -813,10 +811,7 @@ async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyIn
     const sourceInfo = await runtime.pathInfo(plan.sourcePath)
     if (input.preserveTimestamps) await runtime.setTimes(outputPath, sourceInfo.atimeMs, sourceInfo.mtimeMs)
     if (input.deleteOriginal && plan.sourcePath !== outputPath) {
-      if (input.deleteOriginalMode === "trash") {
-        if (!runtime.trashFile) throw new Error("The current runtime does not support moving files to the recycle bin.")
-        await runtime.trashFile(plan.sourcePath)
-      } else await runtime.removeFile(plan.sourcePath)
+      await deleteOriginalFile(plan.sourcePath, input.deleteOriginalMode ?? "trash", runtime)
     }
     return { ...plan, outputPath, status: "converted", outputBytes: winner.size, error: undefined }
   } finally {
@@ -824,6 +819,23 @@ async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyIn
       if ((await runtime.pathInfo(candidate.path)).exists) await runtime.removeFile(candidate.path)
     }
   }
+}
+
+async function deleteOriginalFile(
+  path: string,
+  mode: NonNullable<XlchemyInput["deleteOriginalMode"]>,
+  runtime: XlchemyRuntime,
+): Promise<void> {
+  if (runtime.deleteFile) {
+    await runtime.deleteFile(path, mode)
+    return
+  }
+  if (mode === "trash") {
+    if (!runtime.trashFile) throw new Error("The current runtime does not support moving files to the recycle bin.")
+    await runtime.trashFile(path)
+    return
+  }
+  await runtime.removeFile(path)
 }
 
 async function requireCommand(runtime: XlchemyRuntime, candidates: string[]) { const command = await runtime.resolveCommand(candidates); if (!command) throw new Error(`Required encoder not found: ${candidates.join(" or ")}`); return command }

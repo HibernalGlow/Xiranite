@@ -541,7 +541,7 @@ export async function createReaderHttpController(
     folderRatingService,
     emmOverrideStore: dataStore,
     searchHistoryStore: dataStore,
-    fileUndoJournalStore: dataStore,
+    fileUndoJournalStore: options.fileUndoJournalStore ?? dataStore,
     disposeLibraryService: true,
     sessionOptions: runtimeConfig.sessionOptions,
     preloadOptions: runtimeConfig.preload,

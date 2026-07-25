@@ -1,7 +1,8 @@
 import { access, mkdtemp, mkdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { expect, test } from "bun:test"
+import type { FileOperationBatchResult, FileOperationRequest } from "@xiranite/file-operations"
+import { expect, mock, test } from "bun:test"
 
 import { createCachedCommandResolver, createNodeXlchemyRuntime, ensureDir } from "./platform.js"
 
@@ -54,4 +55,27 @@ test("materializes and cleans up clipboard image bytes in a temporary workspace"
   expect(await runtime.readFileBase64!(path)).toBe("cG5nLWJ5dGVz")
   await runtime.cleanupTemporaryFile!(path)
   await expect(access(path)).rejects.toBeTruthy()
+})
+
+test("delegates user-requested deletion modes to the scoped project file-operation service", async () => {
+  const execute = mock(async (request: FileOperationRequest): Promise<FileOperationBatchResult> => ({
+    results: request.operations.map((operation, index) => ({ index, operation, status: "succeeded" })),
+    succeeded: request.operations.length,
+    failed: 0,
+    cancelled: 0,
+    undoable: 0,
+  }))
+  const runtime = createNodeXlchemyRuntime({ fileOperations: { execute } })
+
+  await runtime.deleteFile!("D:/images/original.png", "trash")
+  await runtime.deleteFile!("D:/images/original.tmp", "permanent")
+
+  expect(execute).toHaveBeenNthCalledWith(1, {
+    operations: [{ kind: "trash", sourcePath: "D:/images/original.png" }],
+    concurrency: 1,
+  })
+  expect(execute).toHaveBeenNthCalledWith(2, {
+    operations: [{ kind: "delete", sourcePath: "D:/images/original.tmp" }],
+    concurrency: 1,
+  })
 })

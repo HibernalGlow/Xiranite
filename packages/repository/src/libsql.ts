@@ -21,6 +21,12 @@ import type {
 } from "@xiranite/shared"
 import type { NodeRunHistoryRepository, WorkspaceRepository } from "./index.js"
 
+export {
+  createLibsqlFileDeletionRepository,
+  type LibsqlFileDeletionRepository,
+  type LibsqlFileDeletionRepositoryOptions,
+} from "./fileDeletion.js"
+
 const workspaces = sqliteTable("workspaces", {
   id: text("id").primaryKey(),
   label: text("label").notNull(),

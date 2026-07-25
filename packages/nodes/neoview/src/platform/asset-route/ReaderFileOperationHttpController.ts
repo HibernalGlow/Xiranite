@@ -43,6 +43,7 @@ export class ReaderFileOperationHttpController {
       undo: boolean,
       signal?: AbortSignal,
     ) => void | Promise<void>,
+    private readonly disposeService = true,
   ) {}
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -104,7 +105,7 @@ export class ReaderFileOperationHttpController {
     this.#clipboard = undefined
     if (this.#selectionOperations) {
       await (await this.#selectionOperations).close()
-    } else if (this.#service) {
+    } else if (this.#service && this.disposeService) {
       await (await this.#service).close()
     }
   }
@@ -219,6 +220,7 @@ export class ReaderFileOperationHttpController {
         service,
         Date.now,
         (results) => this.onResults?.(results, false),
+        this.disposeService,
       ))
   }
 }

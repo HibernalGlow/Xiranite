@@ -301,7 +301,7 @@ test("restores the last track paused and preloads the remaining album covers", a
 
   const probe = document.querySelector<HTMLElement>("[data-folia-hydration-restore]")!
   await expect.poll(() => probe.getAttribute("data-active-track-id")).toBe("track-2")
-  await expect.poll(() => probe.getAttribute("data-cover-ready-ids")).toBe("track-1,track-2")
+  await expect.poll(() => probe.getAttribute("data-cover-ready-ids"), { timeout: 3_000 }).toBe("track-1,track-2")
   expect(probe.getAttribute("data-is-playing")).toBe("false")
   expect(hydrateTrack).toHaveBeenCalledTimes(1)
   expect(hydrateTrack).toHaveBeenCalledWith(
@@ -330,6 +330,20 @@ test("keeps the original Folia app across node container sizes without recreatin
   expect(getComputedStyle(fullscreen.querySelector<HTMLElement>('[data-folia-visualizer-layer]')!).visibility).toBe("visible")
   expect(fullscreen.querySelector("[data-folia-home-brand]")?.textContent?.trim()).toBe("Meloddeck")
   expect(document.querySelectorAll("[data-folia-home-tab]")).toHaveLength(0)
+
+  const homeSettingsButton = fullscreen.querySelector("svg.lucide-settings")?.closest("button")
+  expect(homeSettingsButton).not.toBeNull()
+  await page.elementLocator(homeSettingsButton!).click()
+  await expect.poll(() => document.querySelectorAll("[data-folia-settings]").length).toBe(1)
+  const metadataSwitch = document.querySelector<HTMLElement>('[data-folia-settings] [role="switch"]')!
+  expect(metadataSwitch.getAttribute("aria-checked")).toBe("false")
+  await page.elementLocator(metadataSwitch).click()
+  await expect.poll(() => metadataSwitch.getAttribute("aria-checked")).toBe("true")
+  await expect.poll(() => document.querySelector("[data-folia-responsive-queue]")?.getAttribute("data-background-metadata")).toBe("true")
+  const closeSettings = document.querySelector("[data-folia-settings] svg.lucide-x")?.closest("button")
+  expect(closeSettings).not.toBeNull()
+  await page.elementLocator(closeSettings!).click()
+  await expect.poll(() => document.querySelectorAll("[data-folia-settings]").length).toBe(0)
 
   await expect.poll(() => document.querySelectorAll(".theme-polaroid-card").length).toBeGreaterThan(0)
   await expect.poll(() => {
@@ -580,6 +594,7 @@ function ResponsiveFoliaSurfaceHarness() {
   const [responsiveTracks, setResponsiveTracks] = useState(tracks)
   const [responsiveLibraryRoots, setResponsiveLibraryRoots] = useState<string[]>([])
   const [responsiveLoopMode, setResponsiveLoopMode] = useState<FoliaLoopMode>("all")
+  const [responsiveBackgroundMetadata, setResponsiveBackgroundMetadata] = useState(false)
 
   return (
     <FoliaPlayerProvider
@@ -588,8 +603,11 @@ function ResponsiveFoliaSurfaceHarness() {
       libraryRoots={responsiveLibraryRoots}
       onLibraryRootsChange={setResponsiveLibraryRoots}
       host={responsiveFoliaHost}
-      preferences={{ loopMode: responsiveLoopMode }}
-      onPreferencesChange={(nextPreferences) => setResponsiveLoopMode(nextPreferences.loopMode)}
+      preferences={{ loopMode: responsiveLoopMode, backgroundMetadataEnabled: responsiveBackgroundMetadata }}
+      onPreferencesChange={(nextPreferences) => {
+        setResponsiveLoopMode(nextPreferences.loopMode)
+        setResponsiveBackgroundMetadata(nextPreferences.backgroundMetadataEnabled)
+      }}
       theme={theme}
       isDaylight
     >
@@ -613,6 +631,7 @@ function ResponsiveFoliaQueueProbe() {
       data-active-track-id={snapshot.activeTrack?.id ?? ""}
       data-library-roots={currentLibraryRoots.join(",")}
       data-loop-mode={preferences.loopMode}
+      data-background-metadata={String(preferences.backgroundMetadataEnabled)}
       data-track-order={currentTracks.map((track) => track.id).join(",")}
     />
   )
@@ -632,6 +651,7 @@ function FoliaHydrationRestoreHarness({
       initialActiveTrackId="track-2"
       onActiveTrackChange={onActiveTrackChange}
       host={host}
+      preferences={{ backgroundMetadataEnabled: true }}
     >
       <FoliaHydrationRestoreProbe />
     </FoliaPlayerProvider>

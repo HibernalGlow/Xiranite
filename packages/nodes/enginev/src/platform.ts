@@ -2,9 +2,17 @@ import { execFile } from "node:child_process"
 import { constants } from "node:fs"
 import { access, cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
+import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
+import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
 import type { EngineVDirEntry, EngineVPathInfo, EngineVRuntime } from "./core.js"
 
-export function createNodeEngineVRuntime(): EngineVRuntime {
+export interface EngineVRuntimeContext {
+  fileOperations?: FileOperationExecutor
+}
+
+let standaloneFileMutations: PlatformFileMutationProvider | undefined
+
+export function createNodeEngineVRuntime(context: EngineVRuntimeContext = {}): EngineVRuntime {
   return {
     pathInfo,
     listDir,
@@ -13,7 +21,7 @@ export function createNodeEngineVRuntime(): EngineVRuntime {
     ensureDir: (path) => mkdir(path, { recursive: true }).then(() => undefined),
     movePath,
     copyDir: (source, target) => cp(source, target, { recursive: true, force: false, errorOnExist: true }).then(() => undefined),
-    removePath,
+    removePath: (path, options) => removePath(path, options, context.fileOperations),
     join,
     dirname,
     basename,
@@ -92,26 +100,15 @@ async function movePath(source: string, target: string): Promise<void> {
   }
 }
 
-async function removePath(path: string, options?: { trash?: boolean }): Promise<void> {
+async function removePath(path: string, options?: { trash?: boolean }, executor?: FileOperationExecutor): Promise<void> {
   if (!(await exists(path))) return
-  if ((options?.trash ?? false) && process.platform === "win32") {
-    const moved = await recycleOnWindows(path)
-    if (moved) return
+  const operation = { kind: options?.trash ? "trash" as const : "delete" as const, sourcePath: path }
+  if (executor) {
+    await executeSingleFileMutation(executor, operation)
+    return
   }
-  await rm(path, { recursive: true, force: true })
-}
-
-async function recycleOnWindows(path: string): Promise<boolean> {
-  const item = await safeStat(path)
-  if (!item) return true
-  const method = item.isDirectory() ? "DeleteDirectory" : "DeleteFile"
-  const script = [
-    "$ProgressPreference = 'SilentlyContinue'",
-    "Add-Type -AssemblyName Microsoft.VisualBasic",
-    `[Microsoft.VisualBasic.FileIO.FileSystem]::${method}(${quotePowerShell(path)}, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)`,
-  ].join("; ")
-  const result = await runCommand("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
-  return result.code === 0
+  standaloneFileMutations ??= new PlatformFileMutationProvider()
+  await standaloneFileMutations.execute(operation)
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -138,8 +135,4 @@ async function runCommand(command: string, args: string[]): Promise<{ code: numb
       resolveResult({ code, stdout: String(stdout ?? ""), stderr: String(stderr ?? "") })
     })
   })
-}
-
-function quotePowerShell(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`
 }

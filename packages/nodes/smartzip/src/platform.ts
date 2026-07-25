@@ -2,6 +2,8 @@ import { execFile } from "node:child_process"
 import { appendFile, mkdir, mkdtemp, open, readFile, readdir, rename, rm, stat } from "node:fs/promises"
 import { basename, dirname, extname, join, parse } from "node:path"
 import type { NodeRunEvent } from "@xiranite/contract"
+import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
+import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
 import type {
   CommandResult,
   SmartZipCommandPlan,
@@ -15,12 +17,18 @@ import type {
   SmartZipTools,
 } from "./core.js"
 
-export function createNodeSmartZipRuntime(): SmartZipRuntime {
+export interface SmartZipRuntimeContext {
+  fileOperations?: FileOperationExecutor
+}
+
+let standaloneFileMutations: PlatformFileMutationProvider | undefined
+
+export function createNodeSmartZipRuntime(context: SmartZipRuntimeContext = {}): SmartZipRuntime {
   return {
     readText: (path) => readFile(path, "utf8"),
     appendRecord,
     find7z,
-    execute,
+    execute: (request, onEvent) => execute(request, onEvent, context.fileOperations),
     inspectCodePages,
     resolveInputPaths: expandExtractSources,
   }
@@ -53,7 +61,11 @@ async function find7z(configuredDirectory = ""): Promise<SmartZipTools | null> {
   return null
 }
 
-async function execute(request: SmartZipExecutionRequest, onEvent: (event: NodeRunEvent) => void): Promise<SmartZipOperationResult[]> {
+async function execute(
+  request: SmartZipExecutionRequest,
+  onEvent: (event: NodeRunEvent) => void,
+  fileOperations?: FileOperationExecutor,
+): Promise<SmartZipOperationResult[]> {
   if (request.action === "archive") return archivePaths(request, onEvent)
   if (request.action === "open") return smartOpen(request, onEvent)
   const sources = await expandExtractSources(request.paths, request.config)
@@ -62,7 +74,7 @@ async function execute(request: SmartZipExecutionRequest, onEvent: (event: NodeR
   for (let index = 0; index < sources.length; index += 1) {
     const sourcePath = sources[index]!
     onEvent({ type: "progress", progress: Math.round(index / sources.length * 100), message: `Extracting ${basename(sourcePath)}` })
-    results.push(await extractArchive(sourcePath, request, 0))
+    results.push(await extractArchive(sourcePath, request, 0, fileOperations))
   }
   onEvent({ type: "progress", progress: 100, message: "Smart extraction completed." })
   return results
@@ -86,7 +98,12 @@ async function expandExtractSources(paths: string[], config: SmartZipConfig, _ac
   return [...new Set(sources)]
 }
 
-async function extractArchive(sourcePath: string, request: SmartZipExecutionRequest, depth: number): Promise<SmartZipOperationResult> {
+async function extractArchive(
+  sourcePath: string,
+  request: SmartZipExecutionRequest,
+  depth: number,
+  fileOperations?: FileOperationExecutor,
+): Promise<SmartZipOperationResult> {
   if (!await pathExists(sourcePath)) return operationError(request.action, sourcePath, "Path does not exist.")
   const multipart = multipartKind(sourcePath)
   if (request.config.skipMultipart && multipart === "continuation") {
@@ -148,14 +165,14 @@ async function extractArchive(sourcePath: string, request: SmartZipExecutionRequ
   if (depth < 32 && request.config.nestedExtraction) {
     const nested = await nestedArchiveCandidates(outputPath, request, request.config.nestedExtractionForMultiple)
     for (const nestedPath of nested) {
-      const nestedResult = await extractArchive(nestedPath, request, depth + 1)
+      const nestedResult = await extractArchive(nestedPath, request, depth + 1, fileOperations)
       if (nestedResult.status === "completed" && multipartKind(nestedPath) !== "continuation") {
-        await recyclePath(nestedPath)
+        await recyclePath(nestedPath, fileOperations)
       }
     }
   }
   if (request.config.deleteSource || (password && request.config.deleteSourceWhenPassword)) {
-    await recyclePath(sourcePath)
+    await recyclePath(sourcePath, fileOperations)
   }
   return {
     action: request.action,
@@ -596,21 +613,14 @@ async function isFile(path: string): Promise<boolean> {
   try { return (await stat(path)).isFile() } catch { return false }
 }
 
-async function recyclePath(path: string): Promise<void> {
-  if (process.platform === "win32") {
-    const method = await isDirectory(path) ? "DeleteDirectory" : "DeleteFile"
-    const escaped = path.replaceAll("'", "''")
-    const script = `Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::${method}('${escaped}', [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)`
-    const result = await runRaw("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
-    if (result.code !== 0) throw new Error(result.stderr || `Unable to move ${path} to the Recycle Bin.`)
+export async function recyclePath(path: string, executor?: FileOperationExecutor): Promise<void> {
+  const operation = { kind: "trash" as const, sourcePath: path }
+  if (executor) {
+    await executeSingleFileMutation(executor, operation)
     return
   }
-  const command = process.platform === "darwin" ? "osascript" : "gio"
-  const args = process.platform === "darwin"
-    ? ["-e", `tell application "Finder" to delete POSIX file "${path.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`]
-    : ["trash", path]
-  const result = await runRaw(command, args)
-  if (result.code !== 0) throw new Error(result.stderr || `Unable to move ${path} to trash.`)
+  standaloneFileMutations ??= new PlatformFileMutationProvider()
+  await standaloneFileMutations.execute(operation)
 }
 
 async function runRaw(command: string, args: string[], detached = false): Promise<CommandResult> {

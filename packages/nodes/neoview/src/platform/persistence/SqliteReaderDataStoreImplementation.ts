@@ -1978,13 +1978,22 @@ const UndoReceiptSchema = z
         inode: z.number().finite().nonnegative(),
       })
       .strict(),
-    providerData: z
-      .object({
+    providerData: z.union([
+      z.object({
         kind: z.literal("windows-recycle-bin"),
         itemPath: PathSchema,
       })
-      .strict()
-      .optional(),
+        .strict(),
+      z.object({
+        kind: z.literal("trash-rs"),
+        item: z.object({
+          id: z.string().min(1),
+          name: z.string().min(1),
+          originalParent: PathSchema,
+          timeDeleted: z.number().finite(),
+        }).strict(),
+      }).strict(),
+    ]).optional(),
   })
   .strict()
 const UndoTransactionSchema = z
@@ -2001,6 +2010,7 @@ const UndoTransactionSchema = z
           .object({
             index: z.number().int().nonnegative(),
             receipt: UndoReceiptSchema,
+            deletionId: z.string().min(1).optional(),
           })
           .strict(),
       )

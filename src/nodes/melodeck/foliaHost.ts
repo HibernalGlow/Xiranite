@@ -1,6 +1,11 @@
-import type { FoliaPlayerHostAdapter, FoliaResolvedTrack, FoliaTrack } from "@hibernalglow/folia-player"
+import {
+  parseRemoteEmbeddedMetadataAsync,
+  type EmbeddedMetadataResult,
+  type FoliaPlayerHostAdapter,
+  type FoliaResolvedTrack,
+  type FoliaTrack,
+} from "@hibernalglow/folia-player"
 import { parseLyricsByFormat, type LyricData, type LyricParseFormat } from "@hibernalglow/folia-player/parser"
-import { parseWebStream, type IAudioMetadata } from "music-metadata"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
 import { listLocalFiles, pickLocalPaths, resolveLocalAudioTracks, type LocalFileEntry } from "@/backend/localFilesClient"
 
@@ -8,6 +13,8 @@ const LYRIC_FORMATS = ["lrc", "vtt", "ttml", "yrc", "qrc", "krc"] as const
 const OPTIONAL_FILE_EXTENSIONS = [...LYRIC_FORMATS.map((format) => `.${format}`), ".jpg", ".jpeg", ".png"]
 const optionalFilesByDirectory = new Map<string, Map<string, LocalFileEntry>>()
 const optionalFilesInFlight = new Map<string, Promise<Map<string, LocalFileEntry>>>()
+const metadataCache = new Map<string, EmbeddedMetadataResult>()
+const METADATA_CACHE_LIMIT = 128
 
 export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
   async scanLibraryRoots(roots, signal) {
@@ -55,6 +62,12 @@ export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
     return (await pickLocalPaths("directory"))[0] ?? null
   },
 
+  async hydrateTrackPreview(track, signal) {
+    if (!track.path) return {}
+    const metadata = await readMetadata(track, signal)
+    return resolveMetadata(track.path, metadata, signal)
+  },
+
   async hydrateTrack(track, signal) {
     if (!track.path) return {}
     const [metadata, lyrics] = await Promise.all([
@@ -69,29 +82,36 @@ export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
   },
 }
 
-async function readMetadata(track: FoliaTrack, signal: AbortSignal): Promise<IAudioMetadata | null> {
-  const response = await fetch(track.src, { cache: "no-store", signal })
-  if (!response.ok || !response.body) return null
-  return parseWebStream(response.body, track.mimeType, { skipPostHeaders: true })
+async function readMetadata(track: FoliaTrack, signal: AbortSignal): Promise<EmbeddedMetadataResult | null> {
+  const cacheKey = `${track.path ?? track.id}\0${track.fileSize ?? ""}`
+  const cached = metadataCache.get(cacheKey)
+  if (cached) return cached
+
+  const metadata = await parseRemoteEmbeddedMetadataAsync(track.src, {
+    mimeType: track.mimeType,
+    includeCover: true,
+    signal,
+  })
+  if (!metadata || signal.aborted) return null
+  metadataCache.set(cacheKey, metadata)
+  if (metadataCache.size > METADATA_CACHE_LIMIT) metadataCache.delete(metadataCache.keys().next().value as string)
+  return metadata
 }
 
 async function resolveMetadata(
   trackPath: string,
-  metadata: IAudioMetadata | null,
+  metadata: EmbeddedMetadataResult | null,
   signal: AbortSignal,
 ): Promise<FoliaResolvedTrack> {
-  const cover = metadata?.common.picture?.[0]
-  const coverBlob = cover
-    ? new Blob([cover.data], { type: cover.format })
-    : await readFolderCover(trackPath, signal)
+  const coverBlob = metadata?.cover ?? await readFolderCover(trackPath, signal)
   const coverUrl = coverBlob ? URL.createObjectURL(coverBlob) : undefined
   return {
-    title: metadata?.common.title,
-    artist: metadata?.common.artist,
-    album: metadata?.common.album,
-    duration: metadata?.format.duration,
-    replayGainTrackDb: metadata?.common.replaygain_track_gain?.dB,
-    replayGainAlbumDb: metadata?.common.replaygain_album_gain?.dB,
+    title: metadata?.title,
+    artist: metadata?.artist,
+    album: metadata?.album,
+    duration: metadata?.duration ? metadata.duration / 1000 : undefined,
+    replayGainTrackDb: metadata?.replayGainTrackGain,
+    replayGainAlbumDb: metadata?.replayGainAlbumGain,
     coverUrl,
     release: coverUrl ? () => URL.revokeObjectURL(coverUrl) : undefined,
   }
@@ -177,22 +197,8 @@ function splitLocalTrackPath(trackPath: string): { directory: string; stem: stri
   return { directory, stem: filename.replace(/\.[^.]+$/, "") }
 }
 
-function embeddedLyrics(metadata: IAudioMetadata | null): LyricData | null {
-  for (const tag of metadata?.common.lyrics ?? []) {
-    if (tag.text) {
-      const parsed = parseLyricsByFormat("lrc", tag.text)
-      if (parsed.lines.length) return parsed
-    }
-    if (tag.syncText?.length) {
-      const lrc = tag.syncText.map((entry) => {
-        const seconds = (entry.timestamp ?? 0) / 1000
-        const minute = Math.floor(seconds / 60)
-        const remainder = (seconds % 60).toFixed(3).padStart(6, "0")
-        return `[${String(minute).padStart(2, "0")}:${remainder}]${entry.text ?? ""}`
-      }).join("\n")
-      const parsed = parseLyricsByFormat("lrc", lrc)
-      if (parsed.lines.length) return parsed
-    }
-  }
-  return null
+function embeddedLyrics(metadata: EmbeddedMetadataResult | null): LyricData | null {
+  if (!metadata?.lyrics) return null
+  const parsed = parseLyricsByFormat("lrc", metadata.lyrics, metadata.translationLyrics ?? "")
+  return parsed.lines.length ? parsed : null
 }

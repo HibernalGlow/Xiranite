@@ -19,7 +19,10 @@ import {
   FoliaPlayerProvider,
   FoliaRemoteSurface,
   FoliaUnifiedPanel,
+  loadFoliaStoredLibrary,
+  saveFoliaStoredLibrary,
   useFoliaPlayer,
+  type FoliaStoredTrack,
   type FoliaTrack,
   type FoliaPlayerPreferences,
 } from "@hibernalglow/folia-player"
@@ -131,6 +134,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
   const playbackControlsRef = useRef<MusicPlaybackControls | null>(null)
   const applyingConfigRef = useRef(false)
   const skipNextSaveRef = useRef(false)
+  const skipNextLibrarySaveRef = useRef(false)
   const [collapsed, setCollapsed] = useState(true)
   const [mode, setModeState] = useState<DockMode>(DEFAULT_MELODECK_CONFIG.mode)
   const [playback, setPlaybackState] = useState<MusicPlaybackState>(EMPTY_PLAYBACK_STATE)
@@ -191,11 +195,21 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
       // Load-apply must not round-trip a save of the same snapshot; that was
       // blocking the event loop for ~1s on every desktop boot (see startup debug).
       skipNextSaveRef.current = true
-      startupDebugAsync("melodeck:provider:config-load", loadMelodeckConfig).then((config) => {
+      startupDebugAsync("melodeck:provider:config-load", async () => {
+        const config = await loadMelodeckConfig()
+        let storedTracks = await loadFoliaStoredLibrary("xiranite-melodeck")
+        if (!storedTracks.length && config.saved_tracks?.length) {
+          storedTracks = config.saved_tracks.flatMap(toFoliaStoredTrack)
+          await saveFoliaStoredLibrary("xiranite-melodeck", storedTracks)
+          await saveMelodeckConfig({ saved_tracks: undefined }, { broadcast: false })
+        }
+        return { config, storedTracks }
+      }).then(({ config, storedTracks }) => {
         if (cancelled) return
-        startupDebug("melodeck:provider:apply:begin", { savedTracks: config.saved_tracks?.length ?? 0 })
+        startupDebug("melodeck:provider:apply:begin", { savedTracks: storedTracks.length })
         setModeState(config.mode === "fullscreen" ? "floating" : config.mode ?? DEFAULT_MELODECK_CONFIG.mode)
-        setSavedTracks(config.saved_tracks ?? [])
+        skipNextLibrarySaveRef.current = true
+        setSavedTracks(storedTracks.map(fromFoliaStoredTrack))
         setSourcePath(config.source_path ?? "")
         setLibraryRoots(config.library?.roots ?? (config.source_path ? [config.source_path] : []))
         setPreferences((current) => ({
@@ -203,6 +217,9 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
           volume: config.playback?.volume ?? DEFAULT_FOLIA_PLAYER_PREFERENCES.volume,
           loopMode: config.playback?.loop_mode ?? DEFAULT_FOLIA_PLAYER_PREFERENCES.loopMode,
           replayGainMode: config.playback?.replay_gain_mode ?? DEFAULT_FOLIA_PLAYER_PREFERENCES.replayGainMode,
+          backgroundMetadataEnabled: typeof config.visualizer?.backgroundMetadataEnabled === "boolean"
+            ? config.visualizer.backgroundMetadataEnabled
+            : DEFAULT_FOLIA_PLAYER_PREFERENCES.backgroundMetadataEnabled,
           outputDeviceId: config.playback?.output_device_id,
           ...(config.visualizer as Partial<FoliaPlayerPreferences> | undefined),
         }))
@@ -241,7 +258,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
       startupDebug("melodeck:provider:config-save:begin")
       startupDebugAsync("melodeck:provider:config-save", () => saveMelodeckConfig({
         mode,
-        saved_tracks: savedTracks,
+        saved_tracks: undefined,
         source_path: sourcePath,
         floating_offset: floatingOffset,
         visualizer_style: visualizerStyle,
@@ -262,6 +279,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
           subtitleFontScale: preferences.subtitleFontScale,
           showHarmonySubtitle: preferences.showHarmonySubtitle,
           showSubtitleTranslation: preferences.showSubtitleTranslation,
+          backgroundMetadataEnabled: preferences.backgroundMetadataEnabled,
         },
         player_engine: playerEngine,
       }, { broadcast: false })).catch((error) => {
@@ -269,7 +287,21 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
       })
     }, 400)
     return () => window.clearTimeout(timer)
-  }, [activeTrackId, backendKey, collapsed, configLoaded, floatingOffset, followFullscreenWithFloating, libraryRoots, mode, playerEngine, preferences, savedTracks, sourcePath, visualizerStyle])
+  }, [activeTrackId, backendKey, collapsed, configLoaded, floatingOffset, followFullscreenWithFloating, libraryRoots, mode, playerEngine, preferences, sourcePath, visualizerStyle])
+
+  useEffect(() => {
+    if (!configLoaded) return
+    if (skipNextLibrarySaveRef.current) {
+      skipNextLibrarySaveRef.current = false
+      return
+    }
+    const timer = window.setTimeout(() => {
+      void saveFoliaStoredLibrary("xiranite-melodeck", savedTracks.flatMap(toFoliaStoredTrack)).catch((error) => {
+        logger.warn("Melodeck library database save failed", error)
+      })
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [configLoaded, savedTracks])
 
   return (
     <MelodeckContext.Provider
@@ -1126,6 +1158,28 @@ function useMelodeck(): MelodeckContextValue {
   const context = useContext(MelodeckContext)
   if (!context) throw new Error("WorkspaceMelodeck components must be rendered inside WorkspaceMelodeckProvider.")
   return context
+}
+
+function toFoliaStoredTrack(track: PersistedTrack): FoliaStoredTrack[] {
+  if (!track.path) return []
+  return [{
+    id: track.path,
+    path: track.path,
+    title: track.name,
+    artist: track.writer,
+    mimeType: track.type,
+    fileSize: track.size,
+  }]
+}
+
+function fromFoliaStoredTrack(track: FoliaStoredTrack): PersistedTrack {
+  return {
+    name: track.title,
+    writer: track.artist,
+    path: track.path,
+    size: track.fileSize,
+    type: track.mimeType,
+  }
 }
 
 function clamp(value: number, min: number, max: number) {

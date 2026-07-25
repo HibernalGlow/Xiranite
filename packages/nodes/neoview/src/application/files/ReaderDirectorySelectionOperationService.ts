@@ -46,6 +46,7 @@ export class ReaderDirectorySelectionOperationService implements AsyncDisposable
     private readonly fileOperations: ReaderFileOperationService,
     private readonly now: () => number = Date.now,
     private readonly onResults?: (results: readonly ReaderFileOperationResult[]) => void | Promise<void>,
+    private readonly disposeFileOperations = true,
   ) {}
 
   start(
@@ -113,7 +114,7 @@ export class ReaderDirectorySelectionOperationService implements AsyncDisposable
     const running = [...this.#jobs.values()].filter((job) => job.status === "running")
     for (const job of running) job.controller.abort(new DOMException("Reader selection operation service closed", "AbortError"))
     await Promise.allSettled(running.map((job) => job.done))
-    await this.fileOperations.close()
+    if (this.disposeFileOperations) await this.fileOperations.close()
   }
 
   [Symbol.asyncDispose](): Promise<void> {

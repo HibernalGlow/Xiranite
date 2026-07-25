@@ -3,23 +3,24 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { PlatformReaderFileMutationProvider, WINDOWS_FIND_TRASH_ITEM_SCRIPT } from "./PlatformReaderFileMutationProvider.js"
+import { PlatformReaderFileMutationProvider } from "./PlatformReaderFileMutationProvider.js"
 
 const roots: string[] = []
+const trashCapabilities = {
+  deleteToTrash: true,
+  list: true,
+  restore: true,
+  provider: "trash-rs" as const,
+  providerVersion: "5.2.6",
+}
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
 describe("PlatformReaderFileMutationProvider", () => {
-  it("[neoview.file-operations.windows-trash-match] matches a recycle item by original parent and display name", () => {
-    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("GetDirectoryName($target)")
-    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("System.Recycle.DeletedFrom")
-    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("System.ItemNameDisplay")
-    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("OrdinalIgnoreCase.Equals([string]$displayName, $name)")
-    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("$attempt -lt 20")
-    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).toContain("Start-Sleep -Milliseconds 50")
-    expect(WINDOWS_FIND_TRASH_ITEM_SCRIPT).not.toContain("GetFullPath([string]$from), $target")
+  it("[neoview.file-operations.trash-provider] uses the shared trash-rs provider", () => {
+    expect(new PlatformReaderFileMutationProvider({ trashCapabilities }).trashRestore).toBe(true)
   })
 
   it("[neoview.file-operations.platform] uses Node primitives and move-file without overwriting by default", async () => {
@@ -45,8 +46,11 @@ describe("PlatformReaderFileMutationProvider", () => {
     const root = await temporaryRoot()
     const source = join(root, "source.txt")
     await writeFile(source, "reader")
-    const trashPath = vi.fn(async () => undefined)
-    const provider = new PlatformReaderFileMutationProvider({ trash: trashPath })
+    const trashPath = vi.fn(async () => ({ trashed: true as const }))
+    const provider = new PlatformReaderFileMutationProvider({
+      trash: trashPath,
+      trashCapabilities: { ...trashCapabilities, list: false, restore: false },
+    })
 
     await provider.execute({ kind: "trash", sourcePath: source })
     expect(trashPath).toHaveBeenCalledWith(source)
@@ -57,22 +61,21 @@ describe("PlatformReaderFileMutationProvider", () => {
     const root = await temporaryRoot()
     const source = join(root, "source.txt")
     await writeFile(source, "reader")
-    const trashPath = vi.fn(async (path: string) => rm(path))
-    const restoreTrash = vi.fn(async (path: string) => writeFile(path, "reader"))
-    const identifyTrash = vi.fn(async () => "C:\\$Recycle.Bin\\test\\$R-source.txt")
-    const provider = new PlatformReaderFileMutationProvider({ trash: trashPath, restoreTrash, identifyTrash })
+    const item = { id: "$R-source", name: "source.txt", originalParent: root, timeDeleted: 123 }
+    const trashPath = vi.fn(async (path: string) => { await rm(path); return { trashed: true as const, receipt: item } })
+    const restoreTrash = vi.fn(async () => writeFile(source, "reader"))
+    const provider = new PlatformReaderFileMutationProvider({ trash: trashPath, restoreTrash, trashCapabilities })
 
     const receipt = await provider.execute({ kind: "trash", sourcePath: source })
     expect(provider.trashRestore).toBe(true)
     expect(receipt).toMatchObject({
       original: { kind: "trash", sourcePath: source },
       inverse: { kind: "trash", sourcePath: source },
-      providerData: { kind: "windows-recycle-bin", itemPath: "C:\\$Recycle.Bin\\test\\$R-source.txt" },
+      providerData: { kind: "trash-rs", item },
     })
 
     await provider.undo(receipt!)
-    expect(identifyTrash).toHaveBeenCalledWith(source)
-    expect(restoreTrash).toHaveBeenCalledWith(source, "C:\\$Recycle.Bin\\test\\$R-source.txt", undefined)
+    expect(restoreTrash).toHaveBeenCalledWith(item)
     expect(await readFile(source, "utf8")).toBe("reader")
   })
 
@@ -86,7 +89,7 @@ describe("PlatformReaderFileMutationProvider", () => {
 
     expect(receipt).toMatchObject({
       original: { kind: "trash", sourcePath: source },
-      providerData: { kind: "windows-recycle-bin", itemPath: expect.any(String) },
+      providerData: { kind: "trash-rs", item: expect.objectContaining({ id: expect.any(String) }) },
     })
     await provider.undo(receipt!)
     expect(await readFile(source, "utf8")).toBe("reader")
@@ -103,7 +106,7 @@ describe("PlatformReaderFileMutationProvider", () => {
 
     expect(receipt).toMatchObject({
       original: { kind: "trash", sourcePath: source },
-      providerData: { kind: "windows-recycle-bin", itemPath: expect.any(String) },
+      providerData: { kind: "trash-rs", item: expect.objectContaining({ id: expect.any(String) }) },
     })
     await provider.undo(receipt!)
     expect(await readFile(join(source, "reader.txt"), "utf8")).toBe("reader")
@@ -113,10 +116,10 @@ describe("PlatformReaderFileMutationProvider", () => {
     const root = await temporaryRoot()
     const source = join(root, "source.txt")
     await writeFile(source, "reader")
-    const trashPath = vi.fn(async (path: string) => rm(path))
-    const restoreTrash = vi.fn(async (path: string) => writeFile(path, "restored"))
-    const identifyTrash = vi.fn(async () => "C:\\$Recycle.Bin\\test\\$R-source.txt")
-    const provider = new PlatformReaderFileMutationProvider({ trash: trashPath, restoreTrash, identifyTrash })
+    const item = { id: "$R-source", name: "source.txt", originalParent: root, timeDeleted: 123 }
+    const trashPath = vi.fn(async (path: string) => { await rm(path); return { trashed: true as const, receipt: item } })
+    const restoreTrash = vi.fn(async () => writeFile(source, "restored"))
+    const provider = new PlatformReaderFileMutationProvider({ trash: trashPath, restoreTrash, trashCapabilities })
 
     const receipt = await provider.execute({ kind: "trash", sourcePath: source })
     await writeFile(source, "replacement")

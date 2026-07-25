@@ -391,6 +391,17 @@ describe("xlchemy core contract", () => {
     expect(runtime.commands.at(-1)).toEqual({ command: "trash", args: ["/photos/a.png"] })
   })
 
+  test("defaults unified original deletion to the recycle bin for legacy inputs", async () => {
+    const runtime = fakeRuntime()
+    runtime.deleteFile = vi.fn(async () => undefined)
+    const result = await runXlchemy({
+      action: "convert", paths: ["/photos/a.png"], format: "WebP", outputMode: "source", overwrite: true,
+      preserveMetadata: false, preserveStructure: true, recursive: true, deleteOriginal: true,
+    }, runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.deleteFile).toHaveBeenCalledWith("/photos/a.png", "trash")
+  })
+
   test("encodes the lossless comparison pool and keeps only the smallest real output", async () => {
     const runtime = fakeRuntime()
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "Smallest Lossless", outputMode: "source", overwrite: true, preserveMetadata: false, smallestFormatPool: { png: true, webp: true, jxl: true } }), runtime)

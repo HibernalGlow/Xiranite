@@ -39,6 +39,7 @@ export interface NodeRunner {
     input: TInput,
     onEvent?: (event: NodeRunEventDTO) => void,
     control?: NodeOperationControl,
+    context?: NodeOperationContext,
   ): Promise<NodeRunResultDTO<TData>>
 }
 
@@ -436,6 +437,9 @@ export class NodeRunnerService {
             await new Promise<void>((resolve) => { state.resumePaused = resolve })
           }
         },
+      }, {
+        componentId: state.componentId,
+        workspaceId: state.workspaceId,
       })
       if (isTerminalPhase(state.phase)) return
       this.finishOperation(state, result, result.success ? "completed" : "error")
