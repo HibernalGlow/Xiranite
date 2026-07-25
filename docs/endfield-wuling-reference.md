@@ -125,3 +125,13 @@ map-road:     #9C9A86
 - [ ] 是否移除了原作 Logo、角色立绘和官方宣传语
 - [ ] Open Endfield Map 的代码/数据复用前是否核对许可证
 - [ ] 发布包构建是否不会扫描 `reference/endfield-wuling/`
+
+## 本地已提取资产
+
+当前机器已从合法安装的客户端完成 2D 资产提取，实际文件位于：
+
+```text
+artifacts/reference/endfield-wuling/02-extracted-2d/
+```
+
+包含 `Sprite` 和 `Texture2D` 的 PNG，已按角色/立绘、图标/材料、UI 分类。当前交付包排除了地图、敌人、`palesent` 和 `T_auto_generat...` 自动生成贴图；完整来源与筛选规则见同目录 `README.md` 和 `selection-manifest.csv`。
