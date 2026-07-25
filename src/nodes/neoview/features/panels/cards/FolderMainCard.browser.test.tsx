@@ -13,14 +13,27 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
     sourceKind: "efu",
     parentPath: undefined,
     generation: 2,
+    entries: [
+      { name: "found.cbz", path: "D:/results/found.cbz", kind: "file", readerSupported: true },
+      { name: "missing.cbz", path: "D:/results/missing.cbz", kind: "file", readerSupported: true },
+    ],
+    total: 2,
+  })
+  const filteredEfu = directoryPage({
+    ...efu,
+    generation: 3,
+    hideMissingEfuEntries: true,
     entries: [{ name: "found.cbz", path: "D:/results/found.cbz", kind: "file", readerSupported: true }],
     total: 1,
   })
   const navigateDirectoryBrowser = vi.fn(async () => efu)
+  const filterDirectoryBrowser = vi.fn(async () => filteredEfu)
   const pickEfuFile = vi.fn(async () => "C:/lists/results.efu")
+  const onFolderView = vi.fn()
   const client = {
     openDirectoryBrowser: vi.fn(async () => directory),
     navigateDirectoryBrowser,
+    filterDirectoryBrowser,
     closeDirectoryBrowser: vi.fn(async () => undefined),
   } as unknown as ReaderHttpClient
 
@@ -32,6 +45,7 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
           disabled={false}
           sourcePath="C:/books"
           pickEfuFile={pickEfuFile}
+          onFolderView={onFolderView}
           onOpen={vi.fn()}
           onGoTo={vi.fn()}
         />
@@ -51,7 +65,25 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
   )
   await expect.poll(() => document.querySelector("[data-folder-source-kind='efu']")).not.toBeNull()
   await expect.element(page.getByText("found.cbz")).toBeVisible()
+  await expect.element(page.getByText("missing.cbz")).toBeVisible()
   await expect.element(page.getByRole("button", { name: "上级" })).toBeDisabled()
+
+  await expect.poll(() => document.querySelector("[data-folder-toolbar-menu='more']")).toBeNull()
+  await page.getByRole("button", { name: "更多" }).click()
+  await expect.poll(() => document.querySelector("[data-folder-toolbar-menu='more']")).not.toBeNull()
+  await page.getByRole("menuitemcheckbox", { name: "隐藏不存在的文件" }).click()
+
+  await expect.poll(() => filterDirectoryBrowser).toHaveBeenCalledWith(
+    "browser-1",
+    "all",
+    undefined,
+    expect.any(AbortSignal),
+    false,
+    true,
+  )
+  await expect.element(page.getByText("found.cbz")).toBeVisible()
+  await expect.poll(() => document.body.textContent).not.toContain("missing.cbz")
+  await expect.poll(() => onFolderView).toHaveBeenCalledWith({ hideMissingEfuEntries: true })
 })
 
 test("[neoview.folder.search-sort-gui] sorts the active search-result list without restoring the physical directory", async () => {

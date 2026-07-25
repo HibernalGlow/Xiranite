@@ -836,9 +836,9 @@
   - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：统一数据源接口承载真实目录、书签、历史和搜索，保留各自日期/删除/同步语义与面包屑图标。
   - 源码：`utils/virtualPathLoader.ts`、`components/BreadcrumbBar.svelte`、`components/SearchResultList.svelte`
-  - 测试：`neoview.library.contract`、`neoview.library.bookmarks`、`neoview.library.http`、`neoview.library.headless`、`neoview.library.headless-composition`、`neoview.library.cli`、`neoview.library.tui`、`neoview.folder.efu-http`、`neoview.folder.efu-mutations`、`neoview.folder.efu-gui`
+  - 测试：`neoview.library.contract`、`neoview.library.bookmarks`、`neoview.library.http`、`neoview.library.headless`、`neoview.library.headless-composition`、`neoview.library.cli`、`neoview.library.tui`、`neoview.folder.efu-http`、`neoview.folder.efu-missing-http`、`neoview.folder.efu-mutations`、`neoview.folder.efu-gui`
   - 计划测试：无
-  - 备注：ReaderLibraryService 已统一 History/Bookmark 的分页、日期与删除语义，HTTP、CLI 和通用 OpenTUI library-ui 复用同一 Headless controller；真实路径仅在添加书签时通过 detectViewSource 解析，不把虚拟路径交给 stat。作为明确扩展，File Card 的“更多”菜单可导入 Everything EFU，后端以 sourceKind=efu 复用同一 browser/catalog/renderer 契约；EFU 根不提供 parent、watch、树或粘贴目的地，但列表内真实文件继续支持打开、缩略图、选择、重命名、移动、回收站与永久删除，成功操作按目录前缀投影并在刷新、返回、重开、clone 和 undo 后重放。旧版 characterization 证据沿用 artifacts/neoview-legacy-cards/folder-main-card.png；本次重新生成旧版截图曾超时，因此没有把新截图记为已验证。FolderMain 的 History/Bookmark 独立视图/排序和点击同步仍待迁移。
+  - 备注：ReaderLibraryService 已统一 History/Bookmark 的分页、日期与删除语义，HTTP、CLI 和通用 OpenTUI library-ui 复用同一 Headless controller；真实路径仅在添加书签时通过 detectViewSource 解析，不把虚拟路径交给 stat。作为明确扩展，File Card 的“更多”菜单可导入 Everything EFU，后端以 sourceKind=efu 复用同一 browser/catalog/renderer 契约；EFU 根不提供 parent、watch、树或粘贴目的地，但列表内真实文件继续支持打开、缩略图、选择、重命名、移动、回收站与永久删除，成功操作按目录前缀投影并在刷新、返回、重开、clone 和 undo 后重放。“隐藏不存在的文件”只在 EFU 源激活时显示，以 p-map 每批 512 项、并发 32 检查路径；仅 ENOENT/ENOTDIR 隐藏，刷新重新探测，搜索、clone、reopen 和关闭开关均保持同一过滤语义。旧版 characterization 证据沿用 artifacts/neoview-legacy-cards/folder-main-card.png；本次重新生成旧版截图曾超时，因此没有把新截图记为已验证。FolderMain 的 History/Bookmark 独立视图/排序和点击同步仍待迁移。
 - [ ] `folder.virtual.cleanup` 无效书签/历史清理与同步
   - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：首次使用时有界清理无效项；支持 History/Bookmark 同步文件夹变化、单项删除和清空历史。
@@ -1017,7 +1017,7 @@
   - 源码：`stores/folderTabStore/layoutSettings.svelte.ts`、`stores/folderTabStore/sortingFiltering.svelte.ts`、`components/FolderToolbar/FolderToolbar.svelte`
   - 测试：`neoview.folder.settings-persistence`、`neoview.folder.details-columns`、`neoview.folder.settings-toml`、`neoview.folder.search-settings`、`neoview.folder.search-settings-gui`、`neoview.folder.search-settings-toml`
   - 计划测试：无
-  - 备注：六种 view_mode、4/9/16 preview_count、details 十列布局和旧 SearchSettings 三项已通过唯一 Reader config PATCH 规范化到 [nodes.neoview.folder]，串行乐观写入、失败回滚且不使用 localStorage；真实 TOML 落盘与重读已覆盖。排序、工具栏、树、删除、穿透、空白动作、虚拟源以及旧 folder localStorage 一次性导入仍待完成。
+  - 备注：六种 view_mode、4/9/16 preview_count、details 十列布局、旧 SearchSettings 三项和 EFU hide_missing_efu_entries 已通过唯一 Reader config PATCH 规范化到 [nodes.neoview.folder]，串行乐观写入、失败回滚且不使用 localStorage；真实 TOML 落盘与重读已覆盖。排序、工具栏、树、删除、穿透、空白动作、其余虚拟源以及旧 folder localStorage 一次性导入仍待完成。
 
 ## 全部 77 张 Card
 

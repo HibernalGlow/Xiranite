@@ -32,6 +32,7 @@ export interface DirectoryCatalog {
   filter: ReaderDirectoryFilterDto
   filterOptions: readonly ReaderDirectoryFilterDto[]
   showHiddenFolders: boolean
+  hideMissingEfuEntries: boolean
   sort: ReaderDirectorySortDto
   sortFields: readonly ReaderDirectorySortFieldDto[]
   metadataFields: readonly ReaderDirectoryMetadataFieldDto[]
@@ -101,6 +102,7 @@ export function createDirectoryCatalog(page: ReaderDirectoryPageDto): DirectoryC
     filter: page.filter ?? "all",
     filterOptions: page.filterOptions ?? ["all", "archive", "directory", "video"],
     showHiddenFolders: page.showHiddenFolders ?? false,
+    hideMissingEfuEntries: page.hideMissingEfuEntries ?? false,
     sort: page.sort,
     sortFields: page.sortFields,
     metadataFields: page.metadataFields,

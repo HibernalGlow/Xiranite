@@ -64,6 +64,8 @@ import {
 const MAXIMUM_TREE_WATCH_PATHS = 32
 const MAXIMUM_NAVIGATION_HISTORY = 50
 const MAXIMUM_RECENTLY_CLOSED_SESSIONS = 10
+const EFU_EXISTENCE_BATCH_SIZE = 512
+const EFU_EXISTENCE_CONCURRENCY = 32
 const DEFAULT_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 1024 * 1024
 const MAX_MAX_LISTING_PAYLOAD_BYTES_UNDER_PRESSURE = 64 * 1024 * 1024
 
@@ -92,6 +94,7 @@ export interface ReaderDirectoryPage {
   filter: ReaderDirectoryFilter
   filterOptions: readonly ReaderDirectoryFilter[]
   showHiddenFolders: boolean
+  hideMissingEfuEntries: boolean
   sort: ReaderDirectorySortRule
   sortFields: readonly ReaderDirectorySortField[]
   metadataFields: readonly ReaderDirectoryMetadataField[]
@@ -156,6 +159,8 @@ interface BrowserSession {
   sort: ReaderDirectorySortRule
   filter: ReaderDirectoryFilter
   showHiddenFolders: boolean
+  hideMissingEfuEntries: boolean
+  efuExistingPathKeys?: Set<string>
   sortPreference: ReaderDirectorySortPreferenceSnapshot
   temporarySort?: ReaderDirectoryTemporarySortRule
   sortFields: readonly ReaderDirectorySortField[]
@@ -200,6 +205,7 @@ interface ClosedBrowserSession {
   sort: ReaderDirectorySortRule
   filter: ReaderDirectoryFilter
   showHiddenFolders: boolean
+  hideMissingEfuEntries: boolean
   sortPreference: ReaderDirectorySortPreferenceSnapshot
   temporarySort?: ReaderDirectoryTemporarySortRule
   randomSeeds: Map<string, string>
@@ -260,6 +266,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       sort: sortPreference.sort,
       filter: "all",
       showHiddenFolders: false,
+      hideMissingEfuEntries: false,
       sortPreference,
       sortFields: this.#availableSortFields(),
       randomSeeds: new Map(),
@@ -314,6 +321,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
     signal?: AbortSignal,
     displayFields: ReadonlySet<ReaderDirectoryMetadataField> = new Set(),
     showHiddenFolders?: boolean,
+    hideMissingEfuEntries?: boolean,
   ): Promise<ReaderDirectoryPage | undefined> {
     const session = this.#sessions.get(sessionId)
     if (!session) return undefined
@@ -321,10 +329,26 @@ export class ReaderFileTreeService implements AsyncDisposable {
     await this.#refreshWatchedSession(session, signal)
     await this.#ensureListing(session, signal)
     signal?.throwIfAborted()
-    if (session.filter !== filter || (showHiddenFolders !== undefined && session.showHiddenFolders !== showHiddenFolders)) {
+    const nextHideMissingEfuEntries = hideMissingEfuEntries ?? session.hideMissingEfuEntries
+    const hideMissingChanged = nextHideMissingEfuEntries !== session.hideMissingEfuEntries
+    let efuExistingPathKeys = session.efuExistingPathKeys
+    if (hideMissingChanged) {
+      efuExistingPathKeys = nextHideMissingEfuEntries
+        ? await resolveEfuExistingPathKeys(this.provider, session.listing, signal)
+        : undefined
+      signal?.throwIfAborted()
+      if (this.#sessions.get(sessionId) !== session) return undefined
+    }
+    if (
+      session.filter !== filter
+      || (showHiddenFolders !== undefined && session.showHiddenFolders !== showHiddenFolders)
+      || hideMissingChanged
+    ) {
       abortDirectorySizeOperations(session)
       session.filter = filter
       if (showHiddenFolders !== undefined) session.showHiddenFolders = showHiddenFolders
+      session.hideMissingEfuEntries = nextHideMissingEfuEntries
+      session.efuExistingPathKeys = efuExistingPathKeys
       session.generation += 1
     }
     const entries = filteredEntries(session, this.options.classifyEntry)
@@ -362,6 +386,8 @@ export class ReaderFileTreeService implements AsyncDisposable {
       sort: { ...source.sort },
       filter: source.filter,
       showHiddenFolders: source.showHiddenFolders,
+      hideMissingEfuEntries: source.hideMissingEfuEntries,
+      efuExistingPathKeys: source.efuExistingPathKeys ? new Set(source.efuExistingPathKeys) : undefined,
       sortPreference: cloneSortPreference(source.sortPreference),
       temporarySort: source.temporarySort ? cloneTemporarySort(source.temporarySort) : undefined,
       sortFields: [...source.sortFields],
@@ -411,6 +437,9 @@ export class ReaderFileTreeService implements AsyncDisposable {
       closed.efuMutations,
     )
     const entries = await this.#hydrate(rawListing.entries, closed.sort, signal)
+    const efuExistingPathKeys = closed.hideMissingEfuEntries
+      ? await resolveEfuExistingPathKeys(this.provider, rawListing, signal)
+      : undefined
     signal?.throwIfAborted()
     const session: BrowserSession = {
       id: `browser-${this.#nextSessionId++}`,
@@ -424,6 +453,8 @@ export class ReaderFileTreeService implements AsyncDisposable {
       sort: { ...closed.sort },
       filter: closed.filter,
       showHiddenFolders: closed.showHiddenFolders,
+      hideMissingEfuEntries: closed.hideMissingEfuEntries,
+      efuExistingPathKeys,
       sortPreference: cloneSortPreference(closed.sortPreference),
       temporarySort: closed.temporarySort ? cloneTemporarySort(closed.temporarySort) : undefined,
       sortFields: this.#availableSortFields(),
@@ -547,12 +578,16 @@ export class ReaderFileTreeService implements AsyncDisposable {
         sortPreference.sort,
         randomSeedForPath(session, rawListing.path),
       )
+      const efuExistingPathKeys = session.hideMissingEfuEntries
+        ? await resolveEfuExistingPathKeys(this.provider, listing, combinedSignal)
+        : undefined
       combinedSignal.throwIfAborted()
       if (this.#sessions.get(sessionId) !== session || session.operation !== controller) return undefined
       session.currentNavigation.focusPath = navigation.focusPath
       updateHistory(session, navigation, listing.path)
       session.temporarySort = session.currentNavigation.temporarySort
       session.listing = listing
+      session.efuExistingPathKeys = efuExistingPathKeys
       session.listingReleased = false
       session.sort = sortPreference.sort
       session.sortPreference = sortPreference
@@ -680,7 +715,11 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const session = this.#sessions.get(sessionId)
     if (!session) throw new Error(`Reader file tree session not found: ${sessionId}`)
     let scanner = session.listing.sourceKind === "efu" || options?.maximumDepth === 0
-      ? new ReaderDirectoryListingScanner(session.listing.entries)
+      ? new ReaderDirectoryListingScanner(
+          session.listing.sourceKind === "efu" && session.hideMissingEfuEntries
+            ? filteredEntries(session, this.options.classifyEntry)
+            : session.listing.entries,
+        )
       : this.options.scanner
     if (!scanner) throw new Error("Reader file tree scanning is unavailable.")
     if (options?.includeTags?.length || options?.excludeTags?.length) {
@@ -996,6 +1035,9 @@ export class ReaderFileTreeService implements AsyncDisposable {
           randomSeedForPath(session, session.listing.path),
         )
       }
+      session.efuExistingPathKeys = session.hideMissingEfuEntries
+        ? await resolveEfuExistingPathKeys(this.provider, session.listing, signal)
+        : undefined
       session.listingReleased = false
       session.generation += 1
     }
@@ -1036,6 +1078,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       sort: { ...session.sort },
       filter: session.filter,
       showHiddenFolders: session.showHiddenFolders,
+      hideMissingEfuEntries: session.hideMissingEfuEntries,
       sortPreference: cloneSortPreference(session.sortPreference),
       temporarySort: session.temporarySort ? cloneTemporarySort(session.temporarySort) : undefined,
       randomSeeds: new Map(session.randomSeeds),
@@ -1161,6 +1204,9 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, session.temporarySort)
     this.#assertSortAvailable(sortPreference.sort)
     const entries = applyCachedDirectorySizes(session, await this.#hydrate(rawListing.entries, sortPreference.sort, signal))
+    const efuExistingPathKeys = session.hideMissingEfuEntries
+      ? await resolveEfuExistingPathKeys(this.provider, rawListing, signal)
+      : undefined
     signal.throwIfAborted()
     if (this.#sessions.get(session.id) !== session) return
     session.listing = sortListing(
@@ -1168,6 +1214,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       sortPreference.sort,
       randomSeedForPath(session, rawListing.path),
     )
+    session.efuExistingPathKeys = efuExistingPathKeys
     session.listingReleased = false
     session.sort = sortPreference.sort
     session.sortPreference = sortPreference
@@ -1194,6 +1241,9 @@ export class ReaderFileTreeService implements AsyncDisposable {
     const sortPreference = await this.sortPreferences.resolve(session.scopeId, rawListing.path, session.temporarySort)
     this.#assertSortAvailable(sortPreference.sort)
     const entries = applyCachedDirectorySizes(session, await this.#hydrate(rawListing.entries, sortPreference.sort, signal))
+    const efuExistingPathKeys = session.hideMissingEfuEntries
+      ? await resolveEfuExistingPathKeys(this.provider, rawListing, signal)
+      : undefined
     signal.throwIfAborted()
     if (this.#sessions.get(session.id) !== session || !session.listingReleased) return
     session.listing = sortListing(
@@ -1201,6 +1251,7 @@ export class ReaderFileTreeService implements AsyncDisposable {
       sortPreference.sort,
       randomSeedForPath(session, rawListing.path),
     )
+    session.efuExistingPathKeys = efuExistingPathKeys
     session.sort = sortPreference.sort
     session.sortPreference = sortPreference
     session.listingReleased = false
@@ -1431,6 +1482,7 @@ function pageOf(
     filter: session.filter,
     filterOptions: READER_DIRECTORY_FILTERS,
     showHiddenFolders: session.showHiddenFolders,
+    hideMissingEfuEntries: session.hideMissingEfuEntries,
     sort: session.sort,
     sortFields: session.sortFields,
     metadataFields,
@@ -1450,6 +1502,11 @@ function filteredEntries(
   classifyEntry: ReaderFileTreeServiceOptions["classifyEntry"],
 ): readonly ReaderDirectoryEntry[] {
   return session.listing.entries.filter((entry) => {
+    if (
+      session.listing.sourceKind === "efu"
+      && session.hideMissingEfuEntries
+      && !session.efuExistingPathKeys?.has(normalizePathKey(entry.path))
+    ) return false
     if (!session.showHiddenFolders && entry.kind === "directory" && entry.name.startsWith(".")) return false
     if (session.filter === "all") return true
     const type = entry.kind === "directory" ? "directory" : classifyEntry?.(entry) ?? "other"
@@ -1463,6 +1520,25 @@ function sortListing(
   randomSeed: string,
 ): ReaderDirectoryListing {
   return { ...listing, entries: sortReaderDirectoryEntries(listing.entries, sort, randomSeed) }
+}
+
+async function resolveEfuExistingPathKeys(
+  provider: ReaderDirectoryListingProvider,
+  listing: ReaderDirectoryListing,
+  signal?: AbortSignal,
+): Promise<Set<string> | undefined> {
+  if (listing.sourceKind !== "efu") return undefined
+  if (!provider.exists) throw new Error("EFU file existence filtering is unavailable.")
+  const existing = new Set<string>()
+  for (let cursor = 0; cursor < listing.entries.length; cursor += EFU_EXISTENCE_BATCH_SIZE) {
+    const batch = listing.entries.slice(cursor, cursor + EFU_EXISTENCE_BATCH_SIZE)
+    await pMap(batch, async (entry) => {
+      signal?.throwIfAborted()
+      if (await provider.exists!(entry.path, signal)) existing.add(normalizePathKey(entry.path))
+    }, { concurrency: EFU_EXISTENCE_CONCURRENCY, stopOnError: true })
+  }
+  signal?.throwIfAborted()
+  return existing
 }
 
 function projectEfuListing(

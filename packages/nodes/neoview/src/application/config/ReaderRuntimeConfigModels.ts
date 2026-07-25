@@ -247,6 +247,8 @@ export interface NeoviewFolderViewConfig {
   typeFilter: NeoviewFolderTypeFilter
   /** Keep development/configuration directories out of normal media browsing. */
   showHiddenFolders: boolean
+  /** Hide stale paths when browsing an imported Everything File List. */
+  hideMissingEfuEntries: boolean
   confirmations: NeoviewFolderConfirmationConfig
   tagDisplay: NeoviewFolderTagDisplayConfig
   penetration: NeoviewFolderPenetrationConfig
@@ -278,6 +280,7 @@ export interface NeoviewFolderViewPatch {
     hoverPreviewDelayMs?: NeoviewFolderHoverPreviewDelay
     typeFilter?: NeoviewFolderTypeFilter
     showHiddenFolders?: boolean
+    hideMissingEfuEntries?: boolean
     confirmations?: Partial<NeoviewFolderConfirmationConfig>
     tagDisplay?: Partial<NeoviewFolderTagDisplayConfig>
     penetration?: Partial<NeoviewFolderPenetrationConfig>
@@ -765,6 +768,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
+  hideMissingEfuEntries: false,
   confirmations: {
     trash: false,
     permanentDelete: true,

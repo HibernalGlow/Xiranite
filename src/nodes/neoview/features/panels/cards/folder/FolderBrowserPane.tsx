@@ -167,6 +167,7 @@ export const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
+  hideMissingEfuEntries: false,
   confirmations: {
     trash: false,
     permanentDelete: true,
@@ -689,7 +690,7 @@ export function FolderBrowserPane({
     setError(undefined)
     retryOperationRef.current = { kind: "open", path: normalized }
     try {
-      const opened = await client.openDirectoryBrowser(normalized, navigationRequestRef.current?.signal, undefined, true)
+      let opened = await client.openDirectoryBrowser(normalized, navigationRequestRef.current?.signal, undefined, true)
       if (generation !== navigationGenerationRef.current) {
         void client.closeDirectoryBrowser?.(opened.sessionId).catch(() => undefined)
         return
@@ -702,11 +703,21 @@ export function FolderBrowserPane({
       if (previous && previous !== opened.sessionId) void client.closeDirectoryBrowser?.(previous).catch(() => undefined)
       const preferredFilter = folderView.typeFilter ?? "library"
       const showHiddenFolders = folderView.showHiddenFolders ?? false
-      if ((preferredFilter !== opened.filter || showHiddenFolders) && client.filterDirectoryBrowser) {
-        await updateCatalogProjection(
-          (sessionId, focusPath, signal) => client.filterDirectoryBrowser!(sessionId, preferredFilter, focusPath, signal, showHiddenFolders),
-          true,
+      const hideMissingEfuEntries = folderView.hideMissingEfuEntries ?? false
+      if (
+        client.filterDirectoryBrowser
+        && (preferredFilter !== opened.filter || showHiddenFolders || (opened.sourceKind === "efu" && hideMissingEfuEntries))
+      ) {
+        opened = await client.filterDirectoryBrowser(
+          opened.sessionId,
+          preferredFilter,
+          undefined,
+          navigationRequestRef.current?.signal,
+          showHiddenFolders,
+          hideMissingEfuEntries,
         )
+        if (generation !== navigationGenerationRef.current) return
+        applyPage(opened)
       }
     } catch (cause) {
       if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
@@ -767,12 +778,28 @@ export function FolderBrowserPane({
       options,
     }
     try {
-      const result = await client.navigateDirectoryBrowser(
+      let result = await client.navigateDirectoryBrowser(
         sessionId,
         normalizedNavigation,
         navigationRequestRef.current?.signal,
         options.focusPath ?? capturedState?.focusedPath,
       )
+      const hideMissingEfuEntries = folderView.hideMissingEfuEntries ?? false
+      if (
+        result.sourceKind === "efu"
+        && hideMissingEfuEntries
+        && !result.hideMissingEfuEntries
+        && client.filterDirectoryBrowser
+      ) {
+        result = await client.filterDirectoryBrowser(
+          sessionId,
+          result.filter ?? "all",
+          options.focusPath ?? capturedState?.focusedPath,
+          navigationRequestRef.current?.signal,
+          result.showHiddenFolders ?? false,
+          true,
+        )
+      }
       if (generation === navigationGenerationRef.current) {
         let preferredState = normalizedNavigation.action === "refresh" ? capturedState : undefined
         if (preferredState && options.clearSelection) {
@@ -989,7 +1016,14 @@ export function FolderBrowserPane({
     if (!applyFilter || !current || filter === current.filter) return
     await updateCatalogProjection(
       (sessionId, focusPath, signal) =>
-        applyFilter(sessionId, filter, focusPath, signal, catalogRef.current?.showHiddenFolders ?? folderView.showHiddenFolders ?? false),
+        applyFilter(
+          sessionId,
+          filter,
+          focusPath,
+          signal,
+          current.showHiddenFolders,
+          current.hideMissingEfuEntries,
+        ),
       true,
     )
     if ((folderView.typeFilter ?? "library") !== filter) void onFolderView?.({ typeFilter: filter })
@@ -999,8 +1033,32 @@ export function FolderBrowserPane({
     const applyFilter = client.filterDirectoryBrowser
     const current = catalogRef.current
     if (!applyFilter || !current || showHiddenFolders === current.showHiddenFolders) return
-    await updateCatalogProjection((sessionId, focusPath, signal) => applyFilter(sessionId, current.filter, focusPath, signal, showHiddenFolders), true)
+    await updateCatalogProjection((sessionId, focusPath, signal) => applyFilter(
+      sessionId,
+      current.filter,
+      focusPath,
+      signal,
+      showHiddenFolders,
+      current.hideMissingEfuEntries,
+    ), true)
     if (showHiddenFolders !== (folderView.showHiddenFolders ?? false)) void onFolderView?.({ showHiddenFolders })
+  }
+
+  async function updateMissingEfuEntries(hideMissingEfuEntries: boolean) {
+    const applyFilter = client.filterDirectoryBrowser
+    const current = catalogRef.current
+    if (!applyFilter || current?.sourceKind !== "efu" || hideMissingEfuEntries === current.hideMissingEfuEntries) return
+    const updated = await updateCatalogProjection((sessionId, focusPath, signal) => applyFilter(
+      sessionId,
+      current.filter,
+      focusPath,
+      signal,
+      current.showHiddenFolders,
+      hideMissingEfuEntries,
+    ), true)
+    if (updated && hideMissingEfuEntries !== (folderView.hideMissingEfuEntries ?? false)) {
+      void onFolderView?.({ hideMissingEfuEntries })
+    }
   }
 
   async function updateSortPreference(command: ReaderDirectorySortPreferenceCommandDto) {
@@ -2073,6 +2131,8 @@ export function FolderBrowserPane({
                   typeFilter={catalog?.filter ?? folderView.typeFilter ?? "library"}
                   filterOptions={catalog?.filterOptions}
                   showHiddenFolders={catalog?.showHiddenFolders ?? folderView.showHiddenFolders ?? false}
+                  hideMissingEfuEntries={catalog?.hideMissingEfuEntries ?? folderView.hideMissingEfuEntries ?? false}
+                  canHideMissingEfuEntries={efuListingActive}
                   tagDisplay={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}
                   penetration={penetration}
                   treeOpen={treeVisible}
@@ -2135,6 +2195,9 @@ export function FolderBrowserPane({
                   }}
                   onChangeShowHiddenFolders={(showHiddenFolders) => {
                     void updateHiddenFolders(showHiddenFolders)
+                  }}
+                  onChangeHideMissingEfuEntries={(hideMissingEfuEntries) => {
+                    void updateMissingEfuEntries(hideMissingEfuEntries)
                   }}
                   onTagDisplayChange={(tagDisplay) => {
                     void onFolderView?.({ tagDisplay })

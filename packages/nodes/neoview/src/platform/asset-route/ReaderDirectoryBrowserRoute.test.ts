@@ -49,6 +49,52 @@ describe("ReaderDirectoryBrowserRoute", () => {
     }
   })
 
+  it("[neoview.folder.efu-missing-http] hides missing EFU paths and restores them when disabled", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-efu-missing-"))
+    directories.push(directory)
+    const presentPath = join(directory, "present.cbz")
+    const missingPath = join(directory, "missing.cbz")
+    const efuPath = join(directory, "results.efu")
+    await writeFile(presentPath, "book")
+    await writeFile(efuPath, [
+      "Filename",
+      `"${presentPath.replaceAll('"', '""')}"`,
+      `"${missingPath.replaceAll('"', '""')}"`,
+    ].join("\r\n"))
+    const route = new ReaderDirectoryBrowserRoute()
+    try {
+      const openedResponse = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: efuPath }),
+      })))!
+      const opened = await openedResponse.json() as { sessionId: string; total: number }
+      expect(opened.total).toBe(2)
+
+      const endpoint = `http://localhost/reader/browser/s/${opened.sessionId}/filter`
+      const hiddenResponse = (await route.handle(new Request(endpoint, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ filter: "all", hideMissingEfuEntries: true }),
+      })))!
+      await expect(hiddenResponse.json()).resolves.toMatchObject({
+        sourceKind: "efu",
+        hideMissingEfuEntries: true,
+        total: 1,
+        entries: [{ path: presentPath }],
+      })
+
+      const visibleResponse = (await route.handle(new Request(endpoint, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ filter: "all", hideMissingEfuEntries: false }),
+      })))!
+      await expect(visibleResponse.json()).resolves.toMatchObject({ hideMissingEfuEntries: false, total: 2 })
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.penetration-describe-http] returns direct internal archive names for visible folders", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-penetration-describe-"))
     directories.push(directory)

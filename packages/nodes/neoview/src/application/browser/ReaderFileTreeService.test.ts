@@ -987,7 +987,14 @@ describe("ReaderFileTreeService", () => {
   it("[neoview.folder.efu-mutations] keeps EFU search-result sessions consistent across mutations, refresh, and undo", async () => {
     const watch = vi.fn()
     const scan = vi.fn()
+    const existingPaths = new Set([
+      "C:/Library/Book",
+      "C:/Library/Book/page.jpg",
+      "C:/Library/keep.cbz",
+    ])
+    const exists = vi.fn(async (path: string) => existingPaths.has(path))
     const provider: ReaderDirectoryListingProvider = {
+      exists,
       async read(path) {
         return {
           path,
@@ -1008,6 +1015,26 @@ describe("ReaderFileTreeService", () => {
     const opened = await browser.open("C:/results.efu", undefined, "folder-main", new Set(), undefined, true)
     expect(opened).toMatchObject({ sourceKind: "efu", watching: false, total: 4 })
     expect(watch).not.toHaveBeenCalled()
+
+    const hidden = await browser.setFilter(opened.sessionId, "all", undefined, undefined, undefined, undefined, true)
+    expect(hidden).toMatchObject({ hideMissingEfuEntries: true, total: 3 })
+    expect(hidden?.entries.map((entry) => entry.name)).not.toContain("failed.cbz")
+    const refreshedHidden = await browser.navigate(opened.sessionId, { action: "refresh" })
+    expect(refreshedHidden).toMatchObject({ hideMissingEfuEntries: true, total: 3 })
+    const hiddenSearch = browser.search(opened.sessionId, "failed")
+    const hiddenSearchEntries: string[] = []
+    for await (const event of hiddenSearch.events) if (event.type === "entry") hiddenSearchEntries.push(event.entry.path)
+    expect(hiddenSearchEntries).toEqual([])
+    await hiddenSearch.close()
+    const clonedHidden = await browser.clone(opened.sessionId)
+    expect(clonedHidden).toMatchObject({ hideMissingEfuEntries: true, total: 3 })
+    await browser.close(clonedHidden!.sessionId, true)
+    const reopenedHidden = await browser.reopen(clonedHidden!.sessionId)
+    expect(reopenedHidden).toMatchObject({ hideMissingEfuEntries: true, total: 3 })
+    await browser.close(reopenedHidden!.sessionId)
+    const visible = await browser.setFilter(opened.sessionId, "all", undefined, undefined, undefined, undefined, false)
+    expect(visible).toMatchObject({ hideMissingEfuEntries: false, total: 4 })
+    expect(exists).toHaveBeenCalled()
 
     await browser.reconcileFileOperations([
       { status: "succeeded", operation: { kind: "rename", sourcePath: "C:/Library/Book", destinationPath: "D:/Moved/Renamed", overwrite: false } },

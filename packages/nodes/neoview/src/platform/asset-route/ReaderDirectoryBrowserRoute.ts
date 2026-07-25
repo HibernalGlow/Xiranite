@@ -93,6 +93,7 @@ const DirectoryFilterCommandSchema = z.object({
   filter: z.enum(READER_DIRECTORY_FILTERS),
   focusPath: z.string().trim().min(1).max(32_768).optional(),
   showHiddenFolders: z.boolean().optional(),
+  hideMissingEfuEntries: z.boolean().optional(),
 }).strict()
 const FolderPenetrationCommandSchema = z.object({
   path: z.string().trim().min(1).max(32_768),
@@ -625,6 +626,7 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
         request.signal,
         DISPLAY_METADATA_FIELDS,
         parsed.data.showHiddenFolders,
+        parsed.data.hideMissingEfuEntries,
       )
       return result ? Response.json(result, responseInit()) : errorResponse("Browser session not found", 404)
     } catch (error) {
