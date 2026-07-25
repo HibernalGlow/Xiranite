@@ -947,7 +947,7 @@ describe("ReaderApp", () => {
     expect(document.querySelector('[data-reader-frame-viewport="true"]')?.getAttribute("data-reader-fit-mode")).toBe("fit")
   })
 
-  it("[neoview.workspace.startup-mode] waits for the persisted swimlane mode instead of painting edge controls", async () => {
+  it("[neoview.workspace.startup-mode] renders the fallback swimlane while persisted config is loading", async () => {
     let resolveConfig!: (value: ReaderRuntimeConfigDto) => void
     const config = runtimeConfig()
     config.shell.workspace!.mode = "swimlane"
@@ -957,13 +957,14 @@ describe("ReaderApp", () => {
 
     render(<ReaderApp sessionScopeId="persisted-swimlane-startup-test" client={client} />)
 
+    await waitFor(() => expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).toBeTruthy())
     expect(screen.queryByRole("button", { name: "泳道模式" })).toBeNull()
-    expect(screen.queryByRole("button", { name: "四边栏模式" })).toBeNull()
+    expect(screen.getByRole("button", { name: "四边栏模式" })).toBeTruthy()
     expect(document.querySelector('[data-reader-edge="left"]')).toBeNull()
     expect(document.querySelector('[data-reader-edge="right"]')).toBeNull()
-    expect(document.querySelector('[data-reader-breadcrumb-bar="true"]')).toBeNull()
-    expect(document.querySelector('[data-neoview-workspace-mode="pending"]')).toBeTruthy()
-    expect(screen.getByLabelText("正在恢复阅读器布局")).toBeTruthy()
+    expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).toBeTruthy()
+    expect(document.querySelector('[data-neoview-workspace-mode="pending"]')).toBeNull()
+    expect(screen.queryByLabelText("正在恢复阅读器布局")).toBeNull()
 
     await act(async () => resolveConfig(config))
 
