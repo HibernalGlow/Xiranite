@@ -1,5 +1,8 @@
 # Xiranite agent instructions
 
+- Native Rust build, test, and Clippy tasks must run serially with one Cargo job. Use `RUSTC_WRAPPER=sccache` whenever `sccache` is available, but do not make it a required Cargo configuration. Limit task-scoped Clippy to `cargo clippy -p <crate> --all-targets --no-deps -j 1 -- -D warnings`. Native package build scripts must auto-detect `sccache` and fall back cleanly when it is unavailable.
+- Keep Xiranite's Node-API wrappers in the shared `native/` Cargo workspace. Prefer versioned crates.io dependencies for upstream Rust cores; import core source locally only when Xiranite must maintain real core changes. Do not add Git crate or fork dependencies unless the user explicitly reauthorizes them. Preserve upstream attribution and licenses when importing source.
+
 - 提交当前任务的修改时优先使用 `bun run commit "<message>" <path>...`，仅列出本任务拥有的文件；脚本使用 `git commit --only`，不得混入或清空其他任务已经暂存的内容。
 
 - 在合适的时候提交当前任务中由自己修改的部分，避免暂存区堆积；不得混入用户或其他任务的改动。
