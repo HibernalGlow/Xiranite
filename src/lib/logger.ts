@@ -13,6 +13,8 @@ const REMOTE_BATCH_SIZE = 20
 const REMOTE_QUEUE_LIMIT = 1_000
 const REMOTE_FLUSH_DELAY_MS = 100
 const REMOTE_RETRY_DELAY_MS = 1_000
+const REMOTE_MAX_ATTEMPTS = 3
+const REMOTE_ERROR_BODY_LIMIT = 8_192
 
 export const xiraniteLogLevels = ["silent", "error", "warn", "info", "debug", "trace"] as const
 
@@ -144,6 +146,8 @@ function createRemoteReporter(): ConsolaReporter | undefined {
   if (typeof window === "undefined") return undefined
 
   let flushTimer: number | undefined
+  let flushInFlight = false
+  let transportDisabled = false
   let droppedEvents = 0
   const pendingEvents: ReturnType<typeof createLogEnvelope>[] = []
   const session = createLogSession()
@@ -156,11 +160,12 @@ function createRemoteReporter(): ConsolaReporter | undefined {
   }
 
   const scheduleFlush = (delay: number) => {
-    if (flushTimer === undefined) flushTimer = window.setTimeout(flush, delay)
+    if (!transportDisabled && flushTimer === undefined) flushTimer = window.setTimeout(flush, delay)
   }
 
-  const flush = () => {
+  const flush = async () => {
     flushTimer = undefined
+    if (transportDisabled || flushInFlight) return
     const backend = resolveLogBackend()
     if (!backend) {
       if (pendingEvents.length || droppedEvents) scheduleFlush(REMOTE_RETRY_DELAY_MS)
@@ -180,27 +185,58 @@ function createRemoteReporter(): ConsolaReporter | undefined {
     }
     const events = pendingEvents.splice(0, REMOTE_BATCH_SIZE)
     if (!events.length) return
-    void fetch(`${backend.baseUrl}/logs`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(backend.token ? { "x-xiranite-token": backend.token } : {}),
-      },
-      body: JSON.stringify({ events }),
-      keepalive: true,
-    }).then((response) => {
-      if (!response.ok) throw new Error(`Log transport failed with HTTP ${response.status}`)
-    }).catch(() => {
-      const available = Math.max(0, REMOTE_QUEUE_LIMIT - pendingEvents.length)
-      pendingEvents.unshift(...events.slice(-available))
-      droppedEvents += events.length - available
-      scheduleFlush(REMOTE_RETRY_DELAY_MS)
-    })
-    if (pendingEvents.length) scheduleFlush(0)
+    flushInFlight = true
+    try {
+      await sendRemoteBatch(backend, events)
+    } catch (error) {
+      transportDisabled = true
+      pendingEvents.length = 0
+      // Do not report transport failures through Consola: that would enqueue the
+      // failure into the same broken transport and recreate the request storm.
+      console.error("[xiranite:logging.transport] Remote logging disabled for this page after repeated failures.", error)
+    } finally {
+      flushInFlight = false
+      if (pendingEvents.length) scheduleFlush(0)
+    }
+  }
+
+  const sendRemoteBatch = async (
+    backend: { baseUrl: string; token?: string },
+    events: ReturnType<typeof createLogEnvelope>[],
+  ): Promise<void> => {
+    const endpoint = `${backend.baseUrl}/logs`
+    let lastError: unknown
+    for (let attempt = 1; attempt <= REMOTE_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(backend.token ? { "x-xiranite-token": backend.token } : {}),
+          },
+          body: JSON.stringify({ events }),
+          keepalive: true,
+        })
+        if (response.ok) return
+        throw await createLogTransportError(response, endpoint, attempt)
+      } catch (error) {
+        lastError = error instanceof LogTransportError
+          ? error
+          : new LogTransportError(
+              `POST ${endpoint} failed (attempt ${attempt}/${REMOTE_MAX_ATTEMPTS}) before receiving a response: ${error instanceof Error ? error.message : String(error)}`,
+              { cause: error },
+            )
+      }
+      if (attempt < REMOTE_MAX_ATTEMPTS) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, REMOTE_RETRY_DELAY_MS * attempt))
+      }
+    }
+    throw lastError
   }
 
   return {
     log(logObject: LogObject) {
+      if (transportDisabled) return
       if (pendingEvents.length >= REMOTE_QUEUE_LIMIT) {
         droppedEvents += 1
         return
@@ -209,6 +245,24 @@ function createRemoteReporter(): ConsolaReporter | undefined {
       scheduleFlush(REMOTE_FLUSH_DELAY_MS)
     },
   }
+}
+
+class LogTransportError extends Error {
+  override name = "LogTransportError"
+}
+
+async function createLogTransportError(response: Response, endpoint: string, attempt: number): Promise<LogTransportError> {
+  const contentType = response.headers.get("content-type") || "unknown"
+  let body = "<empty response body>"
+  try {
+    const responseText = await response.text()
+    if (responseText) body = responseText.slice(0, REMOTE_ERROR_BODY_LIMIT)
+  } catch (error) {
+    body = `<failed to read response body: ${error instanceof Error ? error.message : String(error)}>`
+  }
+  return new LogTransportError(
+    `POST ${endpoint} failed (attempt ${attempt}/${REMOTE_MAX_ATTEMPTS}): HTTP ${response.status} ${response.statusText || "Unknown"}; content-type=${contentType}; body=${body}`,
+  )
 }
 
 function toLogEnvelope(
@@ -239,7 +293,7 @@ function serializeLogValue(value: unknown): LogJsonValue {
     return {
       name: value.name,
       message: value.message,
-      stack: value.stack,
+      ...(value.stack ? { stack: value.stack } : {}),
       ...(value.cause === undefined ? {} : { cause: serializeLogValue(value.cause) }),
     }
   }

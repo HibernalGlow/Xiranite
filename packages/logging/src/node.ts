@@ -47,16 +47,15 @@ export class RotatingJsonlLogWriter {
     this.source = sanitizeFilePart(options.source)
     this.sessionId = sanitizeFilePart(options.sessionId).slice(0, 48)
     const baseName = `${this.source}-${this.sessionId}`
+    const rotatedExtension = options.compress === false ? ".jsonl" : ".jsonl.gz"
+    // Size-only rotation avoids rotating-file-stream's UTC boundary loop in positive-offset time zones.
     this.stream = createStream((time, index) => {
       if (!time) return `${baseName}.current.jsonl`
       const date = formatUtcDate(time instanceof Date ? time : new Date(time))
-      return `${baseName}.${date}.${index ?? 0}.jsonl`
+      return `${baseName}.${date}.${index ?? 0}${rotatedExtension}`
     }, {
       path: this.directory,
       size: options.size ?? envFileSize("XIRANITE_LOG_FILE_SIZE", DEFAULT_LOG_FILE_SIZE),
-      interval: "1d",
-      intervalBoundary: true,
-      intervalUTC: true,
       compress: options.compress === false ? false : "gzip",
       history: `${baseName}.history.json`,
       maxFiles: options.maxFiles ?? envPositiveInteger("XIRANITE_LOG_MAX_FILES", DEFAULT_LOG_RETENTION_FILES),
@@ -124,8 +123,9 @@ export async function readLogDirectory(directory = resolveLogDirectory()): Promi
   const issues: LogFileParseIssue[] = []
   for (const file of files) {
     let lineNumber = 0
+    const compressed = file.endsWith(".gz") || await hasGzipHeader(file)
     const input = createReadStream(file)
-    const source = file.endsWith(".gz") ? input.pipe(createGunzip()) : input
+    const source = compressed ? input.pipe(createGunzip()) : input
     const lines = createInterface({ input: source, crlfDelay: Infinity })
     for await (const raw of lines) {
       lineNumber += 1
@@ -136,6 +136,14 @@ export async function readLogDirectory(directory = resolveLogDirectory()): Promi
     }
   }
   return { events, issues, files }
+}
+
+async function hasGzipHeader(file: string): Promise<boolean> {
+  const input = createReadStream(file, { start: 0, end: 1 })
+  const chunks: Buffer[] = []
+  for await (const chunk of input) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  const header = Buffer.concat(chunks)
+  return header.length >= 2 && header[0] === 0x1f && header[1] === 0x8b
 }
 
 export async function ensureLogDirectory(directory = resolveLogDirectory()): Promise<string> {
