@@ -24,6 +24,10 @@ export interface NodeDefLiteral {
   keywords?: string[]
 }
 
+export interface NodeAppLiteral {
+  backendFeatures: string[]
+}
+
 /**
  * Read the `def` literal from a node package entry file.
  *
@@ -36,6 +40,21 @@ export interface NodeDefLiteral {
  */
 export async function readNodeDef(indexPath: string): Promise<NodeDefLiteral> {
   return readNodeDefFile(indexPath, new Set())
+}
+
+/**
+ * Read a node application's explicit opt-in declaration without importing its
+ * browser entry. This keeps package discovery safe in a plain Bun process.
+ */
+export async function readNodeAppDeclaration(indexPath: string): Promise<NodeAppLiteral | undefined> {
+  const sourceText = await readFile(indexPath, "utf8")
+  const result = parseSync(indexPath, sourceText, {
+    lang: "tsx",
+    sourceType: "module",
+    astType: "ts",
+    preserveParens: true,
+  })
+  return findNodeAppLiteral(result.program)
 }
 
 async function readNodeDefFile(indexPath: string, visited: Set<string>): Promise<NodeDefLiteral> {
@@ -119,6 +138,33 @@ function findDefLiteral(root: Node): NodeDefLiteral | undefined {
   return found
 }
 
+function findNodeAppLiteral(root: Node): NodeAppLiteral | undefined {
+  let found: NodeAppLiteral | undefined
+
+  function visit(node: Node | undefined | null): void {
+    if (!node || found) return
+    if (node.type === "Property") {
+      const property = node as Property
+      if (propertyKey(property.key) === "nodeApp") {
+        const value = unwrapExpression(property.value)
+        if (value.type === "Literal" && value.value === true) {
+          found = { backendFeatures: [] }
+          return
+        }
+        if (value.type === "ObjectExpression") {
+          const backendFeatures = stringArrayProperty(value, "backendFeatures")
+          found = { backendFeatures: backendFeatures ?? [] }
+          return
+        }
+      }
+    }
+    walkChildren(node, visit)
+  }
+
+  visit(root)
+  return found
+}
+
 function parseNodeDefLiteral(object: ObjectExpression): NodeDefLiteral | undefined {
   const strings = new Map<string, string>()
   let keywords: string[] | undefined
@@ -159,6 +205,28 @@ function objectLiteralFromExpression(expression: Expression): ObjectExpression |
   }
   if (expression.type === "ParenthesizedExpression") {
     return objectLiteralFromExpression((expression as ParenthesizedExpression).expression)
+  }
+  return undefined
+}
+
+function unwrapExpression(expression: Expression): Expression {
+  if (expression.type === "TSSatisfiesExpression" || expression.type === "TSAsExpression") {
+    return unwrapExpression((expression as TSSatisfiesExpression | TSAsExpression).expression)
+  }
+  if (expression.type === "ParenthesizedExpression") {
+    return unwrapExpression((expression as ParenthesizedExpression).expression)
+  }
+  return expression
+}
+
+function stringArrayProperty(object: ObjectExpression, name: string): string[] | undefined {
+  for (const property of object.properties) {
+    if (property.type !== "Property" || propertyKey(property.key) !== name) continue
+    const value = unwrapExpression(property.value)
+    if (value.type !== "ArrayExpression") return undefined
+    return (value as ArrayExpression).elements
+      .map((element) => element && isStringLiteral(element) ? element.value : undefined)
+      .filter((item): item is string => typeof item === "string")
   }
   return undefined
 }

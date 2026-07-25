@@ -1,4 +1,4 @@
-import { readFile, mkdir, access, realpath } from "node:fs/promises"
+import { readFile, mkdir, access, realpath, writeFile } from "node:fs/promises"
 import { basename, dirname, join, resolve } from "node:path"
 import { homedir, platform as osPlatform } from "node:os"
 import { lock } from "proper-lockfile"
@@ -146,6 +146,16 @@ export interface UpdateNodeConfigFileResult<NodeConfig = unknown> {
   path: string
 }
 
+export interface AtomicJsonFileOptions<T> {
+  fallback: T
+  /**
+   * Optional validation/normalization for values read from disk and values
+   * about to be persisted. Throw to reject an invalid state transition.
+   */
+  parse?: (value: unknown) => T
+  lockRetries?: number
+}
+
 export async function loadXiraniteConfig(options: LoadConfigOptions = {}): Promise<{ config: XiraniteConfig; path: string }> {
   const path = resolveXiraniteConfigPath(options)
   let content: string
@@ -241,6 +251,47 @@ export async function updateNodeConfigFile<NodeConfig>(
     config: getNodeConfig<NodeConfig>(result.config, nodeId),
     path: result.path,
   }
+}
+
+/**
+ * Reads a small host-owned JSON document. Missing or malformed contents fall
+ * back to the caller-provided value so a damaged window-state file cannot
+ * prevent a node application from opening.
+ */
+export async function readAtomicJsonFile<T>(path: string, options: AtomicJsonFileOptions<T>): Promise<T> {
+  const content = await readFile(path, "utf8").catch(() => undefined)
+  if (!content?.trim()) return structuredClone(options.fallback)
+  try {
+    const value = JSON.parse(content) as unknown
+    return options.parse ? options.parse(value) : value as T
+  } catch {
+    return structuredClone(options.fallback)
+  }
+}
+
+/**
+ * Performs a complete JSON read-modify-write under a cross-process lock and
+ * replaces the file atomically. It is deliberately generic so host-owned
+ * runtime state can use the same durability semantics as project config.
+ */
+export async function updateAtomicJsonFile<T>(
+  path: string,
+  updater: (current: T) => T | Promise<T>,
+  options: AtomicJsonFileOptions<T>,
+): Promise<T> {
+  await mkdir(dirname(path), { recursive: true })
+  // proper-lockfile locks an existing path. Creating an empty seed file is
+  // harmless because the actual update below is atomic and protected by lock.
+  await writeFile(path, "", { encoding: "utf8", flag: "a" })
+  return withXiraniteConfigWriteLock(path, options.lockRetries, async (assertLockHeld) => {
+    const current = await readAtomicJsonFile(path, options)
+    const next = await updater(structuredClone(current))
+    const validated = options.parse ? options.parse(next) : next
+    assertLockHeld()
+    await writeFileAtomic(path, `${JSON.stringify(validated, null, 2)}\n`, { encoding: "utf8", fsync: true })
+    assertLockHeld()
+    return validated
+  })
 }
 
 function serializeValidatedConfig(config: XiraniteConfig): string {

@@ -7,6 +7,7 @@ import { spawn } from "node:child_process"
 const repoRoot = resolve(import.meta.dirname, "..")
 const verbose = process.argv.includes("--verbose")
 const skipFailedNodes = process.argv.includes("--skip-failed-nodes")
+const skipCli = process.argv.includes("--skip-cli")
 const excludedNodeIds = parseNodeIds(optionValue("--exclude-nodes"))
 const onlyNodeIds = parseNodeIds(optionValue("--only-nodes"))
 const failuresFile = optionValue("--failures-file")
@@ -22,6 +23,7 @@ const basePackages: PackageEntry[] = [
   { name: "@xiranite/config", path: "packages/config", script: "tsc -p tsconfig.json" },
   { name: "@xiranite/contract", path: "packages/contract", script: "tsc -p tsconfig.json" },
   { name: "@xiranite/shared", path: "packages/shared", script: "tsc -p tsconfig.json" },
+  { name: "@xiranite/logging", path: "packages/logging", script: "tsc -p tsconfig.json" },
   { name: "@xiranite/cli-runtime", path: "packages/cli-runtime", script: "tsc -p tsconfig.json" },
   { name: "@xiranite/file-operations", path: "packages/file-operations", script: "tsc -p tsconfig.json" },
   { name: "@xiranite/repository", path: "packages/repository", script: "tsc -p tsconfig.json" },
@@ -32,7 +34,7 @@ const basePackages: PackageEntry[] = [
 const extraPackages: PackageEntry[] = [
   { name: "@xiranite/runtime", path: "packages/runtime", script: "tsc -p tsconfig.json" },
   { name: "@xiranite/backend", path: "packages/backend", script: "tsc -p tsconfig.json" },
-  { name: "@xiranite/cli", path: "packages/cli", script: "tsc -p tsconfig.json" },
+  ...(skipCli ? [] : [{ name: "@xiranite/cli", path: "packages/cli", script: "tsc -p tsconfig.json" }]),
 ]
 
 async function discoverNodePackages(): Promise<PackageEntry[]> {

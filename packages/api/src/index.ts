@@ -405,6 +405,8 @@ export function createXiraniteApp(services: XiraniteServices) {
 
 export type XiraniteApp = ReturnType<typeof createXiraniteApp>
 
+export { createNodeAppApi } from "./nodeApp.js"
+
 function parseEventIndex(value: unknown): number {
   if (typeof value !== "string" || value.trim() === "") return 0
   const parsed = Number(value)

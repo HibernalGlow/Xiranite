@@ -79,6 +79,15 @@ func startLocalBackend(restartToken string) (*LocalBackend, error) {
 		}
 	}
 	args = append(args, "--token", token, "--public-base-url", wailsBackendPublicURL)
+	if nodeID := strings.TrimSpace(os.Getenv("XIRANITE_NODE_APP_ID")); nodeID != "" {
+		args = append(args, "--node-id", nodeID)
+		if snapshotID := strings.TrimSpace(os.Getenv("XIRANITE_NODE_APP_SNAPSHOT_ID")); snapshotID != "" {
+			args = append(args, "--snapshot-id", snapshotID)
+		}
+		if strings.TrimSpace(os.Getenv("XIRANITE_NODE_APP_ENABLE_READER")) == "1" {
+			args = append(args, "--enable-reader")
+		}
+	}
 
 	cmd := exec.Command(command, args...)
 	configureHiddenSubprocess(cmd)

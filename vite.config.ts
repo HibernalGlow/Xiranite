@@ -19,6 +19,7 @@ const foliaPlayerSrc = path.resolve(__dirname, "./vendor/folia-major/packages/pl
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
 const lucideReactEntry = path.resolve(__dirname, "./node_modules/lucide-react/dist/esm/lucide-react.js")
 const propTypesDevShim = path.resolve(__dirname, "./src/vendor/prop-types-dev.ts")
+const nodeAppHtml = path.resolve(__dirname, "./node-app.html")
 
 /**
  * Tailwind v4 normally watches every source file and re-emits the generated
@@ -305,6 +306,7 @@ export default defineConfig(({ command }) => ({
   },
   build: {
     rolldownOptions: {
+      ...(process.env.XIRANITE_NODE_APP_ID ? { input: nodeAppHtml } : {}),
       output: {
         codeSplitting: {
           groups: [

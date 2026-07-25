@@ -37,6 +37,22 @@ export interface NodeDef {
   keywords?: string[]
 }
 
+/**
+ * Optional build-time declaration for a node that can be published as a
+ * standalone desktop application.  It deliberately contains only the
+ * exceptional parts of the build; normal metadata, UI, and runtime
+ * dependencies continue to come from the node package itself.
+ */
+export interface NodeAppDeclaration {
+  /**
+   * Extra backend capabilities that cannot be inferred from the node host
+   * requirements.  The node-app builder keeps the default slice minimal.
+   */
+  backendFeatures?: readonly NodeAppBackendFeature[]
+}
+
+export type NodeAppBackendFeature = "reader"
+
 export interface NodeHelpExample {
   label?: string
   command: string
@@ -448,6 +464,12 @@ export interface AppNodeEntry<
   schemas?: NodeSchemas<TData, TConfig>
   window?: NodeWindowPreferences
   tray?: NodeTrayDeclaration | readonly NodeTrayDeclaration[]
+  /**
+   * Opt in to `bun scripts/package-node-app.ts <nodeId>`.  `true` uses the
+   * inferred package metadata and host requirements; object form is reserved
+   * for a small number of exceptional backend features.
+   */
+  nodeApp?: true | NodeAppDeclaration
 }
 
 export type NodeEntry<TCore extends Record<string, unknown> = Record<string, unknown>> = AppNodeEntry<TCore>
