@@ -25,7 +25,7 @@ export const help = {
     { name: "format", type: "enum", required: true, description: "Target image format." },
     { name: "lossless", type: "boolean", description: "Use lossless encoding where supported.", defaultValue: "false" },
     { name: "quality", type: "number", description: "Lossy quality from 1 to 100.", defaultValue: "60" },
-    { name: "effort", type: "number", description: "Compression effort from 1 to 10.", defaultValue: "7" }
+    { name: "effort", type: "number", description: "Compression effort from 1 to 10.", defaultValue: "6" }
   ],
   safety: { defaultMode: "preview", notes: ["Plan mode does not write files.", "Overwrite remains disabled unless explicitly enabled."] },
   translations: { "zh-CN": { title: "Xlchemy", short: "批量转换 JPEG XL、AVIF、WebP、PNG、TIFF 或 JPEG。", description: "Xlchemy 提供格式感知的质量、压缩力度、元数据与输出策略，并支持预演后再执行。" } }

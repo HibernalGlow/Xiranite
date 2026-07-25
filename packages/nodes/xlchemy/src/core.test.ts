@@ -2,6 +2,10 @@ import { describe, expect, test, vi } from "vitest"
 import { compressionRatio, discoverImages, normalizeXlchemyInput, runXlchemy, type XlchemyRuntime } from "./core.js"
 
 describe("xlchemy core contract", () => {
+  test("uses the standard Q60 effort 6 defaults", () => {
+    expect(normalizeXlchemyInput({})).toMatchObject({ quality: 60, effort: 6 })
+  })
+
   test("discovers every format exposed by the GUI filter tags", async () => {
     const runtime = fakeRuntime()
     runtime.listDir = async () => ["jxl", "jpg", "jpeg", "jfif", "jif", "jpe", "png", "apng", "gif", "webp", "jp2", "bmp", "ico", "tiff", "tif", "avif", "psd", "psb", "clip"].map((extension) => ({ path: `/photos/input.${extension}`, name: `input.${extension}`, isFile: true, isDirectory: false }))
@@ -26,7 +30,7 @@ describe("xlchemy core contract", () => {
     expect(runtime.commands.slice(0, 3)).toEqual([
       { command: "clip-to-psd-native", args: ["/photos/drawing.clip", "/photos/drawing[CLIP].png.xlchemy-clip.psd"] },
       { command: "/bin/magick", args: ["/photos/drawing[CLIP].png.xlchemy-clip.psd", "-background", "none", "-layers", "merge", "/photos/drawing[CLIP].png.xlchemy-layered.png"] },
-      { command: "/bin/magick", args: ["/photos/drawing[CLIP].png.xlchemy-layered.png", "-define", "png:compression-level=7", "/photos/drawing[CLIP].png"] },
+      { command: "/bin/magick", args: ["/photos/drawing[CLIP].png.xlchemy-layered.png", "-define", "png:compression-level=6", "/photos/drawing[CLIP].png"] },
     ])
   })
 
@@ -175,15 +179,15 @@ describe("xlchemy core contract", () => {
     expect(result.success).toBe(true)
     expect(result.data?.environment?.find((tool) => tool.id === "oxipng")).toMatchObject({ available: false, runnable: false })
     expect(result.data?.environment?.find((tool) => tool.id === "cjpegli")).toMatchObject({ available: true, runnable: true })
-    expect(result.data?.environment?.find((tool) => tool.id === "slimg-cffi")).toMatchObject({ available: true, runnable: true })
+    expect(result.data?.environment?.find((tool) => tool.id === "slimg-node")).toMatchObject({ available: true, runnable: true })
     expect(result.data?.environment?.some((tool) => "versionArgs" in tool)).toBe(false)
   })
 
-  test("uses the slimg DLL runtime instead of passing slimg to avifenc", async () => {
+  test("uses the slimg Node-API runtime instead of passing slimg to avifenc", async () => {
     const runtime = fakeRuntime()
-    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "slimg", outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "slimg", threads: 8, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
     expect(result.success).toBe(true)
-    expect(runtime.commands).toEqual([{ command: "slimg-cffi", args: ["/photos/a.png", "/photos/a.avif", "60"] }])
+    expect(runtime.commands).toEqual([{ command: "slimg-node", args: ["/photos/a.png", "/photos/a.avif", "60", "8"] }])
     expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 350 })
   })
 
@@ -433,8 +437,8 @@ function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; ar
     runCommand: async (command, args) => { runtime.commands.push({ command, args }); if (command.endsWith("jxlinfo")) return { exitCode: 0, stdout: "JPEG bitstream reconstruction data available", stderr: "" }; const output = args.includes("-outfile") ? args[args.indexOf("-outfile") + 1]! : args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!; const size = output.includes(".effort-9.jxl") ? 150 : output.includes(".smallest.jxl") ? 200 : output.includes(".smallest.webp") ? 300 : 400; files.set(output, { size }); return { exitCode: 0, stdout: "", stderr: "" } },
     resolveCommand: async (candidates) => `/bin/${candidates[0]}`,
     isAnimatedImage: async () => false,
-    probeSlimg: async () => ({ id: "slimg-cffi", label: "slimg CFFI", purpose: "slimg DLL AVIF 编码", path: "/lib/slimg_cffi.dll", available: true, runnable: true }),
-    convertWithSlimg: async (source, target, quality) => { runtime.commands.push({ command: "slimg-cffi", args: [source, target, String(quality)] }); files.set(target, { size: 350 }) },
+    probeSlimg: async () => ({ id: "slimg-node", label: "slimg Node-API", purpose: "slimg native AVIF encoding", path: "/lib/xiranite-slimg.node", available: true, runnable: true }),
+    convertWithSlimg: async (source, target, quality, jobs) => { runtime.commands.push({ command: "slimg-node", args: [source, target, String(quality), String(jobs)] }); files.set(target, { size: 350 }) },
     convertClipToPsd: async (source, target) => { runtime.commands.push({ command: "clip-to-psd-native", args: [source, target] }); files.set(target, { size: 1200 }) },
     join: (...parts) => parts.filter((part) => part && part !== ".").join("/").replace(/\/+/g, "/"), dirname: (path) => path.includes("/") ? path.replace(/\/[^/]+$/, "") || "/" : ".", basename: (path) => path.split("/").at(-1) ?? path, extname: (path) => /\.[^.]+$/.exec(path)?.[0] ?? "", relative: (from, to) => to.startsWith(`${from}/`) ? to.slice(from.length + 1) : to,
   }
