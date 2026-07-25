@@ -19,10 +19,7 @@ import {
   FoliaPlayerProvider,
   FoliaRemoteSurface,
   FoliaUnifiedPanel,
-  loadFoliaStoredLibrary,
-  saveFoliaStoredLibrary,
   useFoliaPlayer,
-  type FoliaStoredTrack,
   type FoliaTrack,
   type FoliaPlayerPreferences,
 } from "@hibernalglow/folia-player"
@@ -64,6 +61,7 @@ import {
   saveMelodeckConfig,
 } from "@/nodes/melodeck/config"
 import { foliaMelodeckHost } from "@/nodes/melodeck/foliaHost"
+import { loadAndMigrateMelodeckLibrary, saveMelodeckLibrary } from "@/nodes/melodeck/libraryMigration"
 import { useFoliaHostTheme } from "@/nodes/melodeck/foliaTheme"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 
@@ -197,19 +195,14 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
       skipNextSaveRef.current = true
       startupDebugAsync("melodeck:provider:config-load", async () => {
         const config = await loadMelodeckConfig()
-        let storedTracks = await loadFoliaStoredLibrary("xiranite-melodeck")
-        if (!storedTracks.length && config.saved_tracks?.length) {
-          storedTracks = config.saved_tracks.flatMap(toFoliaStoredTrack)
-          await saveFoliaStoredLibrary("xiranite-melodeck", storedTracks)
-          await saveMelodeckConfig({ saved_tracks: undefined }, { broadcast: false })
-        }
+        const storedTracks = await loadAndMigrateMelodeckLibrary(config)
         return { config, storedTracks }
       }).then(({ config, storedTracks }) => {
         if (cancelled) return
         startupDebug("melodeck:provider:apply:begin", { savedTracks: storedTracks.length })
         setModeState(config.mode === "fullscreen" ? "floating" : config.mode ?? DEFAULT_MELODECK_CONFIG.mode)
         skipNextLibrarySaveRef.current = true
-        setSavedTracks(storedTracks.map(fromFoliaStoredTrack))
+        setSavedTracks(storedTracks)
         setSourcePath(config.source_path ?? "")
         setLibraryRoots(config.library?.roots ?? (config.source_path ? [config.source_path] : []))
         setPreferences((current) => ({
@@ -296,7 +289,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
       return
     }
     const timer = window.setTimeout(() => {
-      void saveFoliaStoredLibrary("xiranite-melodeck", savedTracks.flatMap(toFoliaStoredTrack)).catch((error) => {
+      void saveMelodeckLibrary(savedTracks).catch((error) => {
         logger.warn("Melodeck library database save failed", error)
       })
     }, 400)
@@ -1160,27 +1153,6 @@ function useMelodeck(): MelodeckContextValue {
   return context
 }
 
-function toFoliaStoredTrack(track: PersistedTrack): FoliaStoredTrack[] {
-  if (!track.path) return []
-  return [{
-    id: track.path,
-    path: track.path,
-    title: track.name,
-    artist: track.writer,
-    mimeType: track.type,
-    fileSize: track.size,
-  }]
-}
-
-function fromFoliaStoredTrack(track: FoliaStoredTrack): PersistedTrack {
-  return {
-    name: track.title,
-    writer: track.artist,
-    path: track.path,
-    size: track.fileSize,
-    type: track.mimeType,
-  }
-}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))

@@ -6,12 +6,14 @@ const localFiles = vi.hoisted(() => ({
   resolveLocalAudioTracks: vi.fn(),
 }))
 const wailsRuntime = vi.hoisted(() => ({ openFile: vi.fn() }))
-const metadata = vi.hoisted(() => ({ parseWebStream: vi.fn() }))
+const metadata = vi.hoisted(() => ({ parseRemoteEmbeddedMetadataAsync: vi.fn() }))
 
 vi.mock("@/backend/localFilesClient", () => localFiles)
 vi.mock("@/backend/localBackendConfig", () => ({ localBackendFileUrl: (path: string) => `local://${path}` }))
 vi.mock("@wailsio/runtime", () => ({ Dialogs: { OpenFile: wailsRuntime.openFile } }))
-vi.mock("music-metadata", () => ({ parseWebStream: metadata.parseWebStream }))
+vi.mock("@hibernalglow/folia-player", () => ({
+  parseRemoteEmbeddedMetadataAsync: metadata.parseRemoteEmbeddedMetadataAsync,
+}))
 
 import { foliaMelodeckHost } from "./foliaHost"
 
@@ -19,7 +21,7 @@ describe("Folia Melodeck host adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     delete window._wails
-    metadata.parseWebStream.mockResolvedValue({ common: {}, format: {} })
+    metadata.parseRemoteEmbeddedMetadataAsync.mockResolvedValue({})
   })
 
   it("scans multiple roots and removes duplicate paths", async () => {
@@ -88,6 +90,31 @@ describe("Folia Melodeck host adapter", () => {
     expect(localFiles.listLocalFiles).toHaveBeenCalledWith("E:/Music/Album", expect.objectContaining({
       extensions: expect.arrayContaining([".lrc", ".yrc", ".jpg", ".png"]),
     }))
+    expect(metadata.parseRemoteEmbeddedMetadataAsync).toHaveBeenCalledTimes(2)
+  })
+
+  it("reuses worker metadata when a previewed track is selected", async () => {
+    metadata.parseRemoteEmbeddedMetadataAsync.mockResolvedValue({
+      title: "Worker title",
+      artist: "Worker artist",
+      duration: 12_000,
+    })
+    localFiles.listLocalFiles.mockResolvedValue([])
+    const track = {
+      id: "cached-track",
+      path: "E:/Music/Cached/cached-track.flac",
+      src: "local://cached-track.flac",
+      title: "Cached track",
+      fileSize: 42,
+    }
+    const signal = new AbortController().signal
+
+    const preview = await foliaMelodeckHost.hydrateTrackPreview?.(track, signal)
+    const selected = await foliaMelodeckHost.hydrateTrack?.(track, signal)
+
+    expect(preview).toMatchObject({ title: "Worker title", duration: 12 })
+    expect(selected).toMatchObject({ title: "Worker title", duration: 12 })
+    expect(metadata.parseRemoteEmbeddedMetadataAsync).toHaveBeenCalledTimes(1)
   })
 
   it("uses the local backend directory picker outside Wails", async () => {
