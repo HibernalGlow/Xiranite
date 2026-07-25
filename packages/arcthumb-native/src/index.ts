@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs"
 import { createRequire } from "node:module"
-import { dirname, join } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { resolveNativeBindingPath } from "@xiranite/native-loader"
 
 export interface ArcThumbInfo {
   apiVersion: number
@@ -83,8 +84,12 @@ let cachedBinding: ArcThumbBinding | undefined
 export function loadArcThumbBinding(): ArcThumbBinding {
   if (cachedBinding) return cachedBinding
   const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..")
-  const override = process.env.XIRANITE_ARCTHUMB_NATIVE_PATH
-  const bindingPath = override ?? join(packageRoot, "native", `xiranite-arcthumb.${process.platform}-${process.arch}.node`)
+  const bindingPath = resolveNativeBindingPath({
+    id: "arcthumb",
+    filename: `xiranite-arcthumb.${process.platform}-${process.arch}.node`,
+    overrideEnv: "XIRANITE_ARCTHUMB_NATIVE_PATH",
+    workspaceRoot: resolve(packageRoot, "..", ".."),
+  })
   if (!existsSync(bindingPath)) {
     throw new Error(`Xiranite ArcThumb native binding not found at ${bindingPath}. Run "bun run --cwd packages/arcthumb-native build:native" first.`)
   }

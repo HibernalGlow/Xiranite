@@ -1,0 +1,31 @@
+{
+  "name": "@xiranite/native-loader",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Shared native artifact and embedded asset resolver for Xiranite Node-API bindings.",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json",
+    "test": "vitest run src --maxWorkers=1",
+    "smoke:embedded": "bun run build && bun scripts/smoke-embedded.mjs",
+    "prepare:embedded": "bun scripts/build-native-assets.ts",
+    "refresh:prebuilt": "bun scripts/build-native-assets.ts --refresh",
+    "refresh:prebuilt:existing": "bun scripts/build-native-assets.ts --refresh --no-build"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "typescript": "^7.0.2"
+  }
+}

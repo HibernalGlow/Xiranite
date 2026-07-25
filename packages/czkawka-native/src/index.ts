@@ -2,6 +2,7 @@ import { existsSync } from "node:fs"
 import { createRequire } from "node:module"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { prependNativeLibraryPath } from "@xiranite/native-loader"
 import { resolveCzkawkaBindingPath } from "./native-asset.js"
 
 export interface CzkawkaInfo {
@@ -184,10 +185,7 @@ export function loadCzkawkaBinding(): CzkawkaBinding {
   if (!existsSync(bindingPath)) {
     throw new Error(`Xiranite Czkawka native binding not found at ${bindingPath}. Run "bun run --cwd packages/czkawka-native build:native" first.`)
   }
-  if (process.platform === "win32") {
-    const nativeDirectory = dirname(bindingPath)
-    process.env.PATH = `${nativeDirectory};${process.env.PATH ?? ""}`
-  }
+  prependNativeLibraryPath(bindingPath)
   cachedBinding = createRequire(import.meta.url)(bindingPath) as CzkawkaBinding
   return cachedBinding
 }

@@ -1,9 +1,9 @@
 {
-  "name": "@xiranite/arcthumb-native",
+  "name": "@xiranite/slimg-native",
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "description": "Typed Node-API loader for Xiranite's ArcThumb Rust core.",
+  "description": "Typed Node-API loader for slimg-core image conversion.",
   "license": "MIT",
   "exports": {
     ".": {
@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "build:native": "bun scripts/build-native.ts",
-    "benchmark:system-thumbnail": "bun scripts/benchmark-system-thumbnail.mjs",
+    "benchmark:avif": "bun scripts/benchmark-avif.mjs",
     "smoke:native": "bun run build && bun scripts/smoke-native.mjs"
   },
   "dependencies": {

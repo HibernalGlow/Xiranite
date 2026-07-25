@@ -8,9 +8,16 @@ const nativeRoot = join(workspaceRoot, "native")
 const profile = process.argv.includes("--debug") ? "debug" : "release"
 const args = ["build", "-p", "xiranite-arcthumb-node"]
 if (profile === "release") args.push("--release")
+args.push("-j", "1")
+
+const sccache = Bun.which("sccache")
+const env = sccache && !process.env.RUSTC_WRAPPER
+  ? { ...process.env, RUSTC_WRAPPER: sccache }
+  : process.env
 
 const processResult = Bun.spawnSync(["cargo", ...args], {
   cwd: nativeRoot,
+  env,
   stdout: "inherit",
   stderr: "inherit",
 })
@@ -22,7 +29,7 @@ const libraryName = process.platform === "win32"
     ? "libxiranite_arcthumb_node.dylib"
     : "libxiranite_arcthumb_node.so"
 const source = join(nativeRoot, "target", profile, libraryName)
-const destination = join(packageRoot, "native", `xiranite-arcthumb.${process.platform}-${process.arch}.node`)
+const destination = join(nativeRoot, "artifacts", `${process.platform}-${process.arch}`, `xiranite-arcthumb.${process.platform}-${process.arch}.node`)
 await mkdir(dirname(destination), { recursive: true })
 await Bun.write(destination, Bun.file(source))
 console.log(`ArcThumb native binding: ${destination}`)
