@@ -152,7 +152,7 @@ function normalizePlayback(value: unknown): MelodeckConfig["playback"] {
   if (!isRecord(value)) return undefined
   return {
     volume: normalizeVolume(value.volume),
-    loop_mode: value.loop_mode === "off" || value.loop_mode === "all" || value.loop_mode === "one" ? value.loop_mode : undefined,
+    loop_mode: value.loop_mode === "off" || value.loop_mode === "all" || value.loop_mode === "one" || value.loop_mode === "random" ? value.loop_mode : undefined,
     replay_gain_mode: value.replay_gain_mode === "off" || value.replay_gain_mode === "track" || value.replay_gain_mode === "album" ? value.replay_gain_mode : undefined,
     output_device_id: typeof value.output_device_id === "string" ? value.output_device_id : undefined,
     active_track_id: typeof value.active_track_id === "string" && value.active_track_id.trim() ? value.active_track_id : undefined,

@@ -10,6 +10,7 @@ import {
   FoliaRemoteSurface,
   FoliaUnifiedPanel,
   useFoliaPlayer,
+  type FoliaLoopMode,
   type FoliaPlayerHostAdapter,
   type FoliaTrack,
 } from "@hibernalglow/folia-player"
@@ -339,6 +340,12 @@ test("keeps the original Folia app across node container sizes without recreatin
   }).toBeGreaterThanOrEqual(12)
   expect(homeControlGroupsHaveGap()).toBe(true)
 
+  const importFolder = fullscreen.querySelector<HTMLElement>('[data-folia-grid-action="import-folder"]')
+  expect(importFolder).not.toBeNull()
+  await page.elementLocator(importFolder!).click()
+  const queueProbe = document.querySelector<HTMLElement>("[data-folia-responsive-queue]")!
+  await expect.poll(() => queueProbe.getAttribute("data-library-roots")).toBe("D:/Music")
+
   const sharedAudio = document.querySelector("audio.folia-player-audio")
   expect(sharedAudio).not.toBeNull()
 
@@ -401,6 +408,20 @@ test("keeps the original Folia app across node container sizes without recreatin
   expect(fullscreenPanelToggle).not.toBeNull()
   await page.elementLocator(fullscreenPanelToggle!).click()
   await expect.poll(() => fullscreenPanel!.querySelectorAll("[data-folia-panel-card]").length).toBe(1)
+
+  await page.elementLocator(fullscreenPanel!.querySelector<HTMLElement>('[data-folia-panel-tab="queue"]')!).click()
+  await expect.poll(() => fullscreenPanel!.querySelectorAll("[data-folia-queue-shuffle]").length).toBe(1)
+  expect(queueProbe.getAttribute("data-track-order")).toBe("track-1,track-2")
+  const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0)
+  try {
+    await page.elementLocator(fullscreenPanel!.querySelector<HTMLElement>("[data-folia-queue-shuffle]")!).click()
+  } finally {
+    randomSpy.mockRestore()
+  }
+  await expect.poll(() => queueProbe.getAttribute("data-track-order")).toBe("track-2,track-1")
+  expect(queueProbe.getAttribute("data-active-track-id")).toBe("track-2")
+  expect(document.querySelector("audio.folia-player-audio")).toBe(sharedAudio)
+
   const panelHomeButton = fullscreenPanel!.querySelector("svg.lucide-house")?.closest("button")
   expect(panelHomeButton).not.toBeNull()
   panelHomeButton!.click()
@@ -425,6 +446,26 @@ test("keeps the original Folia app across node container sizes without recreatin
   expect(document.querySelectorAll('[data-folia-surface="fullscreen"]')).toHaveLength(1)
   expect(fullscreen.getAttribute("data-folia-view")).toBe("player")
   expect(fullscreen.getAttribute("data-folia-active-track-id")).toBe("track-2")
+  expect(document.querySelector("audio.folia-player-audio")).toBe(sharedAudio)
+
+  await page.elementLocator(originalPlayerBar!).hover()
+  await expect.poll(() => originalPlayerBar!.querySelectorAll("[data-folia-loop-mode]").length).toBe(1)
+  const loopModeButton = originalPlayerBar!.querySelector<HTMLElement>("[data-folia-loop-mode]")!
+  expect(loopModeButton.getAttribute("data-folia-loop-mode")).toBe("all")
+  await page.elementLocator(loopModeButton).click()
+  await expect.poll(() => loopModeButton.getAttribute("data-folia-loop-mode")).toBe("one")
+  await page.elementLocator(loopModeButton).click()
+  await expect.poll(() => loopModeButton.getAttribute("data-folia-loop-mode")).toBe("random")
+  expect(loopModeButton.querySelector("svg.lucide-shuffle")).not.toBeNull()
+  expect(queueProbe.getAttribute("data-loop-mode")).toBe("random")
+
+  const randomPlaybackSpy = vi.spyOn(Math, "random").mockReturnValue(0)
+  try {
+    sharedAudio!.dispatchEvent(new Event("ended"))
+    await expect.poll(() => fullscreen.getAttribute("data-folia-active-track-id")).toBe("track-1")
+  } finally {
+    randomPlaybackSpy.mockRestore()
+  }
   expect(document.querySelector("audio.folia-player-audio")).toBe(sharedAudio)
 })
 
@@ -530,17 +571,44 @@ function WorkspaceMelodeckProjectionSetup() {
 
 function ResponsiveFoliaSurfaceHarness() {
   const [size, setSize] = useState({ width: 720, height: 420 })
+  const [responsiveTracks, setResponsiveTracks] = useState(tracks)
+  const [responsiveLibraryRoots, setResponsiveLibraryRoots] = useState<string[]>([])
+  const [responsiveLoopMode, setResponsiveLoopMode] = useState<FoliaLoopMode>("all")
 
   return (
-    <FoliaPlayerProvider tracks={tracks} onTracksChange={vi.fn()} theme={theme} isDaylight>
+    <FoliaPlayerProvider
+      tracks={responsiveTracks}
+      onTracksChange={setResponsiveTracks}
+      libraryRoots={responsiveLibraryRoots}
+      onLibraryRootsChange={setResponsiveLibraryRoots}
+      host={responsiveFoliaHost}
+      preferences={{ loopMode: responsiveLoopMode }}
+      onPreferencesChange={(nextPreferences) => setResponsiveLoopMode(nextPreferences.loopMode)}
+      theme={theme}
+      isDaylight
+    >
       <div className="min-h-screen bg-background p-4 text-foreground">
         <button type="button" onClick={() => setSize({ width: 1200, height: 720 })}>Use spacious player size</button>
         <button type="button" onClick={() => setSize({ width: 720, height: 420 })}>Use compact player size</button>
+        <ResponsiveFoliaQueueProbe />
         <div style={size}>
           <MelodeckFoliaNodeSurface />
         </div>
       </div>
     </FoliaPlayerProvider>
+  )
+}
+
+function ResponsiveFoliaQueueProbe() {
+  const { libraryRoots: currentLibraryRoots, preferences, snapshot, tracks: currentTracks } = useFoliaPlayer()
+  return (
+    <output
+      data-folia-responsive-queue
+      data-active-track-id={snapshot.activeTrack?.id ?? ""}
+      data-library-roots={currentLibraryRoots.join(",")}
+      data-loop-mode={preferences.loopMode}
+      data-track-order={currentTracks.map((track) => track.id).join(",")}
+    />
   )
 }
 
@@ -653,6 +721,10 @@ const tracksWithoutCovers = tracks.map(({ coverUrl: _coverUrl, lyrics: _lyrics, 
 const onTracksChange = vi.fn()
 const libraryRoots: string[] = []
 const foliaHost = {}
+const responsiveFoliaHost: FoliaPlayerHostAdapter = {
+  pickLibraryRoot: async () => "D:/Music",
+  scanLibraryRoots: async () => tracks,
+}
 
 const theme = buildFoliaDualTheme(
   { background: "rgb(250, 250, 250)", foreground: "rgb(25, 25, 25)", accent: "rgb(0, 120, 110)", secondary: "rgb(90, 95, 100)", fontFamily: "Inter" },
