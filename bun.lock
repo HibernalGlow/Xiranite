@@ -955,6 +955,7 @@
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
         "@xiranite/services": "workspace:*",
+        "@xiranite/shared": "workspace:*",
         "@zip.js/zip.js": "^2.8.26",
         "cacache": "20.0.1",
         "fast-xml-parser": "5.3.6",
@@ -1279,6 +1280,7 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
+        "@xiranite/shared": "workspace:*",
         "@xiranite/slimg-native": "workspace:*",
         "ag-psd": "^31.0.2",
         "sharp": "0.35.3",
@@ -1332,6 +1334,7 @@
       "name": "@xiranite/shared",
       "version": "0.1.0",
       "dependencies": {
+        "csv-parse": "^7.0.1",
         "json-rules-engine": "7.3.1",
         "zod": "^4.3.6",
       },

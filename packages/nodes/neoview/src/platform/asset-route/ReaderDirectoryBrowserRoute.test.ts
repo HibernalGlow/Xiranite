@@ -14,6 +14,41 @@ afterEach(async () => {
 })
 
 describe("ReaderDirectoryBrowserRoute", () => {
+  it("[neoview.folder.efu-http] opens an EFU file as a non-watching browser source", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-efu-"))
+    directories.push(directory)
+    const efuPath = join(directory, "results.efu")
+    await writeFile(efuPath, [
+      "Filename,Size,Attributes",
+      '"C:\\Books\\A, one.cbz",123,32',
+      '"D:\\Images\\Folder",0,D',
+    ].join("\r\n"))
+    const route = new ReaderDirectoryBrowserRoute()
+    try {
+      const response = (await route.handle(new Request("http://localhost/reader/browser/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: efuPath, watch: true }),
+      })))!
+
+      expect(response.status).toBe(201)
+      const page = await response.json() as Record<string, unknown>
+      expect(page).toMatchObject({
+        path: efuPath,
+        sourceKind: "efu",
+        watching: false,
+        total: 2,
+        entries: [
+          { name: "Folder", path: "D:\\Images\\Folder", kind: "directory" },
+          { name: "A, one.cbz", path: "C:\\Books\\A, one.cbz", kind: "file" },
+        ],
+      })
+      expect(page).not.toHaveProperty("parentPath")
+    } finally {
+      await route[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.folder.penetration-describe-http] returns direct internal archive names for visible folders", async () => {
     const directory = await mkdtemp(join(tmpdir(), "xiranite-browser-penetration-describe-"))
     directories.push(directory)

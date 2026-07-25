@@ -290,6 +290,7 @@ export interface ReaderAppProps {
   client?: ReaderHttpClient
   pickFile?: () => Promise<string | undefined>
   pickDirectory?: () => Promise<string | undefined>
+  pickEfuFile?: () => Promise<string | undefined>
   copyText?: (text: string) => Promise<void>
   copyFiles?: (paths: string[]) => Promise<void>
   onPathCommitted?: (path: string, browserOriginPath?: string) => void
@@ -306,6 +307,7 @@ export function ReaderApp({
   client: injectedClient,
   pickFile,
   pickDirectory,
+  pickEfuFile,
   copyText,
   copyFiles,
   onPathCommitted,
@@ -2250,6 +2252,7 @@ export function ReaderApp({
     sourcePath: path,
     browserOriginPath,
     pickDirectory,
+    pickEfuFile,
     systemActions: {
       copyText,
       copyFiles,

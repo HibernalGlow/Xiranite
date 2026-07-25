@@ -11,6 +11,7 @@ import {
   mergeDirectoryPage,
   normalizeFolderNavigationPath,
   restoreDirectoryVisitState,
+  sortDirectoryCatalogEntries,
   trimDirectoryPages,
 } from "./DirectoryCatalog"
 
@@ -90,6 +91,52 @@ describe("DirectoryCatalog", () => {
       filter: "video",
       filterOptions: ["all", "video"],
     })
+  })
+
+  it("[neoview.folder.virtual-sort] sorts the loaded virtual result set without changing its source identity", () => {
+    const source = page(0, 4)
+    const catalog = createDirectoryCatalog({
+      ...source,
+      path: "virtual://search/deep",
+      entries: [
+        { name: "zeta.cbz", path: "D:/deep/zeta.cbz", kind: "file", size: 2, readerSupported: true },
+        { name: "folder", path: "D:/deep/folder", kind: "directory", readerSupported: true },
+        { name: "alpha.zip", path: "D:/deep/alpha.zip", kind: "file", size: 20, readerSupported: true },
+        { name: "alpha.cbz", path: "D:/deep/alpha.cbz", kind: "file", size: 20, readerSupported: true },
+      ],
+    })
+
+    const sorted = sortDirectoryCatalogEntries(catalog, { field: "size", order: "desc", directoriesFirst: true })
+
+    expect(sorted.path).toBe("virtual://search/deep")
+    expect(sorted.total).toBe(4)
+    expect([...sorted.pages.keys()]).toEqual([0])
+    expect([...sorted.pages.values()].flat().map((entry) => entry.name)).toEqual([
+      "folder",
+      "alpha.cbz",
+      "alpha.zip",
+      "zeta.cbz",
+    ])
+  })
+
+  it("[neoview.folder.virtual-random-sort] keeps random ordering deterministic for the same result paths", () => {
+    const source = page(0, 3)
+    const catalog = createDirectoryCatalog({
+      ...source,
+      path: "virtual://search/random",
+      entries: [
+        { name: "a.cbz", path: "D:/deep/a.cbz", kind: "file", readerSupported: true },
+        { name: "b.cbz", path: "D:/deep/b.cbz", kind: "file", readerSupported: true },
+        { name: "c.cbz", path: "D:/deep/c.cbz", kind: "file", readerSupported: true },
+      ],
+    })
+    const rule = { field: "random", order: "asc", directoriesFirst: false } as const
+
+    const first = [...sortDirectoryCatalogEntries(catalog, rule).pages.values()].flat().map((entry) => entry.path)
+    const second = [...sortDirectoryCatalogEntries(catalog, rule).pages.values()].flat().map((entry) => entry.path)
+
+    expect(first).toEqual(second)
+    expect(first.toSorted()).toEqual(["D:/deep/a.cbz", "D:/deep/b.cbz", "D:/deep/c.cbz"])
   })
 
   it("[neoview.folder.restore-focus-ui] relocates saved focus and drops incompatible viewport snapshots", () => {

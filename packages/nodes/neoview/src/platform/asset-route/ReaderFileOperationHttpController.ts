@@ -1,5 +1,8 @@
 import type { ReaderFileMutation } from "../../ports/ReaderFileMutationProvider.js"
-import type { ReaderFileOperationService } from "../../application/files/ReaderFileOperationService.js"
+import type {
+  ReaderFileOperationResult,
+  ReaderFileOperationService,
+} from "../../application/files/ReaderFileOperationService.js"
 import {
   ReaderDirectorySelectionOperationService,
   type ReaderDirectorySelectionOperationKind,
@@ -35,6 +38,11 @@ export class ReaderFileOperationHttpController {
       descriptor: ReaderDirectorySelectionDescriptor,
       signal?: AbortSignal,
     ) => Promise<ReaderDirectorySelectionBatchSource | undefined>,
+    private readonly onResults?: (
+      results: readonly ReaderFileOperationResult[],
+      undo: boolean,
+      signal?: AbortSignal,
+    ) => void | Promise<void>,
   ) {}
 
   async handle(request: Request): Promise<Response | undefined> {
@@ -56,7 +64,9 @@ export class ReaderFileOperationHttpController {
       if (!body || body.confirmed !== true) return jsonResponse({ error: "Undo requires confirmed=true" }, 409)
       try {
         const service = await (this.#service ??= this.loadService())
-        return jsonResponse(await service.undoLatest(request.signal))
+        const result = await service.undoLatest(request.signal)
+        await this.onResults?.(result.results, true, request.signal)
+        return jsonResponse(result)
       } catch (error) {
         if (request.signal.aborted) throw error
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 409)
@@ -77,11 +87,13 @@ export class ReaderFileOperationHttpController {
     }
     try {
       const service = await (this.#service ??= this.loadService())
-      return jsonResponse(await service.execute({
+      const result = await service.execute({
         operations: body.operations as ReaderFileMutation[],
         concurrency: body.concurrency as number | undefined,
         signal: request.signal,
-      }))
+      })
+      await this.onResults?.(result.results, false, request.signal)
+      return jsonResponse(result)
     } catch (error) {
       if (request.signal.aborted) throw error
       return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400)
@@ -203,7 +215,11 @@ export class ReaderFileOperationHttpController {
 
   async #loadSelectionOperations(): Promise<ReaderDirectorySelectionOperationService> {
     return this.#selectionOperations ??= (this.#service ??= this.loadService())
-      .then((service) => new ReaderDirectorySelectionOperationService(service))
+      .then((service) => new ReaderDirectorySelectionOperationService(
+        service,
+        Date.now,
+        (results) => this.onResults?.(results, false),
+      ))
   }
 }
 

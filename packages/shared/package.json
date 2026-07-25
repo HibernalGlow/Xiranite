@@ -21,6 +21,14 @@
     "./rules-engine": {
       "types": "./dist/rules-engine.d.ts",
       "default": "./dist/rules-engine.js"
+    },
+    "./efu": {
+      "types": "./dist/efu.d.ts",
+      "default": "./dist/efu.js"
+    },
+    "./efu-stream": {
+      "types": "./dist/efu-stream.d.ts",
+      "default": "./dist/efu-stream.js"
     }
   },
   "files": [
@@ -32,6 +40,7 @@
     "test": "bun run build"
   },
   "dependencies": {
+    "csv-parse": "^7.0.1",
     "json-rules-engine": "7.3.1",
     "zod": "^4.3.6"
   },

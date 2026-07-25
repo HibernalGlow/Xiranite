@@ -16,7 +16,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`pending=12`，`partial=54`，`complete=8`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`pending=11`，`partial=55`，`complete=8`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -710,12 +710,12 @@
   - 计划测试：无
   - 备注：全局/标签默认与最多 1000 项文件夹记忆已进入现有 Reader SQLite，GUI 可锁定临时规则、设默认和清除当前/全部记忆；多标签 UI 与旧 localStorage 导入尚待完成。
 - [ ] `folder.sort.virtual` History/Bookmark 独立排序语义
-  - 六维：`core=N/A transport=N/A gui=- cli=- tui=- evidence=-`；阻塞：`gui`、`cli`、`tui`、`evidence`
+  - 六维：`core=N/A transport=N/A gui=P cli=- tui=- evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：History 的 date 表示访问时间、Bookmark 的 date 表示创建时间；各自保存视图/排序设置而不污染普通目录。
   - 源码：`utils/virtualPathLoader.ts`、`components/FolderToolbar/FolderToolbar.svelte`
-  - 测试：待补
+  - 测试：`neoview.folder.virtual-sort`、`neoview.folder.virtual-random-sort`、`neoview.folder.search-sort-gui`
   - 计划测试：无
-  - 备注：虚拟源不是普通 stat 数据。
+  - 备注：虚拟源不是普通 stat 数据。virtual://search 排序现直接投影当前搜索 catalog，不再调用保存真实目录状态的 browser session 排序，因此切换字段、升降序和随机排序都不会恢复到物理目录；History/Bookmark 的独立日期语义和持久化仍待完成。
 
 ### selection（4）
 
@@ -836,9 +836,9 @@
   - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：统一数据源接口承载真实目录、书签、历史和搜索，保留各自日期/删除/同步语义与面包屑图标。
   - 源码：`utils/virtualPathLoader.ts`、`components/BreadcrumbBar.svelte`、`components/SearchResultList.svelte`
-  - 测试：`neoview.library.contract`、`neoview.library.bookmarks`、`neoview.library.http`、`neoview.library.headless`、`neoview.library.headless-composition`、`neoview.library.cli`、`neoview.library.tui`
+  - 测试：`neoview.library.contract`、`neoview.library.bookmarks`、`neoview.library.http`、`neoview.library.headless`、`neoview.library.headless-composition`、`neoview.library.cli`、`neoview.library.tui`、`neoview.folder.efu-http`、`neoview.folder.efu-mutations`、`neoview.folder.efu-gui`
   - 计划测试：无
-  - 备注：ReaderLibraryService 已统一 History/Bookmark 的分页、日期与删除语义，HTTP、CLI 和通用 OpenTUI library-ui 复用同一 Headless controller；真实路径仅在添加书签时通过 detectViewSource 解析，不把虚拟路径交给 stat。FolderMain 的 virtual:// 面包屑、独立视图/排序和点击同步仍待迁移。
+  - 备注：ReaderLibraryService 已统一 History/Bookmark 的分页、日期与删除语义，HTTP、CLI 和通用 OpenTUI library-ui 复用同一 Headless controller；真实路径仅在添加书签时通过 detectViewSource 解析，不把虚拟路径交给 stat。作为明确扩展，File Card 的“更多”菜单可导入 Everything EFU，后端以 sourceKind=efu 复用同一 browser/catalog/renderer 契约；EFU 根不提供 parent、watch、树或粘贴目的地，但列表内真实文件继续支持打开、缩略图、选择、重命名、移动、回收站与永久删除，成功操作按目录前缀投影并在刷新、返回、重开、clone 和 undo 后重放。旧版 characterization 证据沿用 artifacts/neoview-legacy-cards/folder-main-card.png；本次重新生成旧版截图曾超时，因此没有把新截图记为已验证。FolderMain 的 History/Bookmark 独立视图/排序和点击同步仍待迁移。
 - [ ] `folder.virtual.cleanup` 无效书签/历史清理与同步
   - 六维：`core=C transport=C gui=P cli=C tui=C evidence=P`；阻塞：`gui`、`evidence`
   - 目标：首次使用时有界清理无效项；支持 History/Bookmark 同步文件夹变化、单项删除和清空历史。
@@ -881,16 +881,16 @@
   - 六维：`core=N/A transport=C gui=P cli=P tui=P evidence=P`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：内联/弹窗重命名保留扩展名策略、校验、冲突提示、取消和完成后选中项路径更新。
   - 源码：`components/FolderContextMenu.svelte`、`components/FolderListItem.svelte`
-  - 测试：`neoview.folder.rename-validation`、`neoview.folder.rename-client`、`neoview.folder.rename-context`、`neoview.folder.rename-ui`、`neoview.folder.rename-conflict`、`neoview.folder.rename-cancel`、`neoview.folder.rename-focus`
+  - 测试：`neoview.folder.rename-validation`、`neoview.folder.rename-client`、`neoview.folder.rename-context`、`neoview.folder.rename-ui`、`neoview.folder.rename-conflict`、`neoview.folder.rename-cancel`、`neoview.folder.rename-focus`、`neoview.folder.efu-mutations`
   - 计划测试：无
-  - 备注：GUI 右键菜单按需加载重命名弹窗，文件默认只选中名称主体并保留扩展名；Windows 保留名/非法字符、同名冲突、权限、源消失与取消均有明确反馈。成功后在同一 browser session 中以新路径刷新并重建 focus/selection，watcher generation 去重；内联入口、真实 Chromium 与 CLI/TUI surface 仍待完成。
+  - 备注：GUI 右键菜单按需加载重命名弹窗，文件默认只选中名称主体并保留扩展名；Windows 保留名/非法字符、同名冲突、权限、源消失与取消均有明确反馈。成功后在同一 browser session 中以新路径刷新并重建 focus/selection，watcher generation 去重；EFU 特殊列表会按文件或目录路径前缀同步投影成功的 rename/move，并在 undo 后恢复。内联入口、真实 Chromium 与 CLI/TUI surface 仍待完成。
 - [ ] `folder.op.delete` 回收站、永久删除与批量删除
   - 六维：`core=C transport=C gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：删除策略可切换回收站/永久删除；单项/批量确认、进度、部分失败、焦点迁移和安全边界完整。
   - 源码：`components/FolderContextMenu.svelte`、`components/SelectionBar.svelte`、`components/FolderToolbar/FolderToolbar.svelte`
-  - 测试：`neoview.file-operations.trash-adapter`、`neoview.file-operations.confirmation`、`neoview.context-menu.confirm-focus`、`neoview.folder.trash-context`、`neoview.folder.trash-failure`、`neoview.folder.trash-refresh`、`neoview.folder.context-actions-e2e`
+  - 测试：`neoview.file-operations.trash-adapter`、`neoview.file-operations.confirmation`、`neoview.context-menu.confirm-focus`、`neoview.folder.trash-context`、`neoview.folder.trash-failure`、`neoview.folder.trash-refresh`、`neoview.folder.context-actions-e2e`、`neoview.folder.efu-mutations`
   - 计划测试：无
-  - 备注：GUI 单项右键菜单现已通过共享 ContextMenu 确认门禁调用唯一 ReaderFileOperationService 的系统回收站操作；确认前不执行，取消后恢复文件列表焦点，成功后复用当前 browser session refresh 并按现有 generation/selection/focus 契约重建目录，权限与路径失效返回可访问错误。CLI/TUI 已共享同一 trash 契约。desktop Chromium 以网络 mock 证明 confirmed=true 请求、取消零请求、目录 refresh、活动阅读图像稳定且受控临时目录未被真实删除。批量删除、永久删除、进度/部分失败汇总及窄 Card 专项证据仍待完成。
+  - 备注：GUI 单项右键菜单现已通过共享 ContextMenu 确认门禁调用唯一 ReaderFileOperationService 的系统回收站操作；确认前不执行，取消后恢复文件列表焦点，成功后复用当前 browser session refresh 并按现有 generation/selection/focus 契约重建目录，权限与路径失效返回可访问错误。CLI/TUI 已共享同一 trash 契约。EFU 特殊列表只投影成功的 trash/delete，失败项保留，刷新与重开继续重放，trash undo 恢复原路径；永久删除不伪装可撤销。desktop Chromium 以网络 mock 证明 confirmed=true 请求、取消零请求、目录 refresh、活动阅读图像稳定且受控临时目录未被真实删除。批量删除、进度/部分失败汇总及窄 Card 专项证据仍待完成。
 - [ ] `folder.op.undo-delete` 撤销删除
   - 六维：`core=N/A transport=N/A gui=- cli=- tui=- evidence=-`；阻塞：`gui`、`cli`、`tui`、`evidence`
   - 目标：仅对可恢复删除提供撤销，恢复冲突与过期状态明确；永久删除不伪装可撤销。

@@ -983,4 +983,63 @@ describe("ReaderFileTreeService", () => {
     expect(read).toHaveBeenCalledOnce()
     await browser[Symbol.asyncDispose]()
   })
+
+  it("[neoview.folder.efu-mutations] keeps EFU search-result sessions consistent across mutations, refresh, and undo", async () => {
+    const watch = vi.fn()
+    const scan = vi.fn()
+    const provider: ReaderDirectoryListingProvider = {
+      async read(path) {
+        return {
+          path,
+          sourceKind: "efu",
+          entries: [
+            { name: "Book", path: "C:/Library/Book", kind: "directory", readerSupported: true },
+            { name: "page.jpg", path: "C:/Library/Book/page.jpg", kind: "file", readerSupported: true },
+            { name: "keep.cbz", path: "C:/Library/keep.cbz", kind: "file", readerSupported: true },
+            { name: "failed.cbz", path: "C:/Library/failed.cbz", kind: "file", readerSupported: true },
+          ],
+        }
+      },
+    }
+    const browser = new ReaderFileTreeService(provider, undefined, undefined, {
+      watcher: { subscribe: watch },
+      scanner: { scan },
+    })
+    const opened = await browser.open("C:/results.efu", undefined, "folder-main", new Set(), undefined, true)
+    expect(opened).toMatchObject({ sourceKind: "efu", watching: false, total: 4 })
+    expect(watch).not.toHaveBeenCalled()
+
+    await browser.reconcileFileOperations([
+      { status: "succeeded", operation: { kind: "rename", sourcePath: "C:/Library/Book", destinationPath: "D:/Moved/Renamed", overwrite: false } },
+      { status: "succeeded", operation: { kind: "trash", sourcePath: "C:/Library/keep.cbz" } },
+      { status: "failed", operation: { kind: "delete", sourcePath: "C:/Library/failed.cbz" } },
+    ])
+    const projected = await browser.list(opened.sessionId, 0, 128)
+    expect(projected?.entries.map((entry) => entry.path)).toEqual([
+      "D:/Moved/Renamed",
+      "C:/Library/failed.cbz",
+      "D:/Moved/Renamed/page.jpg",
+    ])
+
+    const refreshed = await browser.navigate(opened.sessionId, { action: "refresh" })
+    expect(refreshed?.entries.map((entry) => entry.path)).toEqual(projected?.entries.map((entry) => entry.path))
+
+    await browser.reconcileFileOperations([
+      { status: "succeeded", operation: { kind: "trash", sourcePath: "C:/Library/keep.cbz" } },
+      { status: "succeeded", operation: { kind: "rename", sourcePath: "C:/Library/Book", destinationPath: "D:/Moved/Renamed", overwrite: false } },
+    ], true)
+    const restored = await browser.list(opened.sessionId, 0, 128)
+    expect(restored?.entries.map((entry) => entry.path)).toEqual([
+      "C:/Library/Book",
+      "C:/Library/failed.cbz",
+      "C:/Library/keep.cbz",
+      "C:/Library/Book/page.jpg",
+    ])
+
+    const search = browser.search(opened.sessionId, "keep")
+    for await (const _event of search.events) void _event
+    expect(scan).not.toHaveBeenCalled()
+    await search.close()
+    await browser[Symbol.asyncDispose]()
+  })
 })

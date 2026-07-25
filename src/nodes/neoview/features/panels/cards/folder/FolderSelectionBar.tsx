@@ -13,13 +13,14 @@ import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchTo
 import type { ReaderFolderConfirmationConfig } from "../../../../adapters/reader-http-client"
 import { useFolderClipboard } from "./FolderClipboard"
 
-export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, currentPath, disabled, chainSelectMode, clickBehavior, switchToast, confirmations = { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true }, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted, onDeleteCompleted }: {
+export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, currentPath, canPasteToCurrentDirectory = true, disabled, chainSelectMode, clickBehavior, switchToast, confirmations = { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true }, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted, onDeleteCompleted }: {
   client: ReaderHttpClient
   sessionId: string
   selection: ReaderDirectorySelectionDescriptorDto
   selectedCount: number
   total: number
   currentPath: string
+  canPasteToCurrentDirectory?: boolean
   disabled: boolean
   chainSelectMode: boolean
   clickBehavior: "open" | "select"
@@ -198,7 +199,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
         ><Scissors /></Action>
         <Action
           label="粘贴到当前目录"
-          disabled={disabled || running || !clipboard.clipboard.available || !client.pasteDirectoryClipboard}
+          disabled={disabled || running || !canPasteToCurrentDirectory || !clipboard.clipboard.available || !client.pasteDirectoryClipboard}
           onClick={() => { void clipboard.paste(currentPath).catch(() => undefined) }}
         ><ClipboardPaste /></Action>
         {running ? (

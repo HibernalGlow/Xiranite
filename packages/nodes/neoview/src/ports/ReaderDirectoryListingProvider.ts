@@ -1,4 +1,5 @@
 export type ReaderDirectoryEntryKind = "directory" | "file" | "other"
+export type ReaderDirectorySourceKind = "directory" | "efu"
 
 export interface ReaderDirectoryEntry {
   name: string
@@ -20,6 +21,7 @@ export interface ReaderDirectoryEntry {
 export interface ReaderDirectoryListing {
   path: string
   parentPath?: string
+  sourceKind?: ReaderDirectorySourceKind
   entries: readonly ReaderDirectoryEntry[]
 }
 

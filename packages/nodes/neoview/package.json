@@ -55,6 +55,7 @@
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
+    "@xiranite/shared": "workspace:*",
     "@xiranite/services": "workspace:*",
     "@zip.js/zip.js": "^2.8.26",
     "cacache": "20.0.1",

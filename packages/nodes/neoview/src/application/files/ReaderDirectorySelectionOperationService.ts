@@ -45,6 +45,7 @@ export class ReaderDirectorySelectionOperationService implements AsyncDisposable
   constructor(
     private readonly fileOperations: ReaderFileOperationService,
     private readonly now: () => number = Date.now,
+    private readonly onResults?: (results: readonly ReaderFileOperationResult[]) => void | Promise<void>,
   ) {}
 
   start(
@@ -128,6 +129,7 @@ export class ReaderDirectorySelectionOperationService implements AsyncDisposable
             : { kind: job.kind, sourcePath: entry.path }),
           signal: job.controller.signal,
         })
+        await this.onResults?.(result.results)
         job.processed += result.results.length
         job.succeeded += result.succeeded
         job.failed += result.failed
