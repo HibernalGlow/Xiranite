@@ -462,6 +462,68 @@ NeeView 的价值不是 UI，而是成熟的阅读器领域模型。以下结论
 
 NeeView 使用 MIT License。若直接改写了实质源码，需要保留相应版权和许可；仅借鉴模型时也应在实现说明中保留来源记录。
 
+### 5.4 OpenComic/NeeView 与 NeoView 功能差距（源码索引）
+
+本节专门记录“参考项目有、NeoView 当前没有或没有完整 GUI”的功能。每一行都标出来源项目和本地源码位置；README 只证明项目公开声明，源码位置才作为实现证据。NeoView 的 `RemoteReader*` 是远程控制本地 Reader，不属于远程文件系统，因此不计入远程协议支持。
+
+#### 参考源码根目录
+
+- OpenComic：`D:/1VSCODE/Projects/ref/OpenComic`
+- NeeView：`D:/1VSCODE/Projects/ImageAll/NeeWaifu/NeeView`，C# 源码位于其 `NeeView/` 子目录
+- NeoView：当前 Xiranite 仓库；以下路径相对于 `D:/1VSCODE/Projects/Xiranite`
+
+#### OpenComic 功能
+
+| 功能 | OpenComic 源码证据 | NeeView 对应 | NeoView 当前源码与状态 | 建议 |
+| --- | --- | --- | --- | --- |
+| PDF 阅读 | `README.md:29`；`CHANGELOG.md:58,101-103,168,252,289` | `NeeView/Archiver/ArchiveManager.cs:31-35,394-396` | `packages/nodes/neoview/src/platform/books/PlatformReaderBookLoader.ts:47-58`；测试明确断言 `book.pdf` 为 `not available`：`PlatformReaderBookLoader.test.ts:278-284` | P1，优先使用成熟 PDF provider，不复制 OpenComic 实现 |
+| EPUB 图片阅读 | `README.md:29`；`scripts/reading/ebook.js:1-375` | NeeView 没有 EPUB provider | `platform/epub/EpubBookLoader.ts:40-60,76-106` 只从 manifest 收集图片 | P1/P2，先稳定图片/元数据，再做完整 EPUB |
+| EPUB HTML 重排、字体、主题、字号、行高 | `scripts/reading/ebook.js:18-186,298-375`；`scripts/reading.js:3246-3284` | 无对应实现 | Neo 没有 HTML/spine/font/theme/text renderer | P2；需要独立 EPUB renderer、CSS 限制和安全边界 |
+| 背景音乐 | `README.md:30`；`scripts/reading/music.js:1-135` | 无对应阅读背景音乐 | Neo 未发现独立 reading music/audio 模块；视频音频元数据不算此功能 | P2 |
+| 翻页音效 | `CHANGELOG.md:242`；`scripts/reading/music/sound-effect.js:44-100,115-217` | 无对应实现 | Neo 未发现 page-turn sound effect 模块 | P2 |
+| SMB、FTP/FTPS、SFTP、SSH、SCP、S3、WebDAV | `README.md:31`；`scripts/server-client.js:51-64,194-240,293-310,384-448` | 无对应远程文件 adapter | Neo 未发现远程文件 provider；`RemoteReader*` 只控制 Reader 会话 | P2，建议 WebDAV/SFTP 只读优先，SMB/S3 后置 |
+| Master folders / 聚合库 | `README.md:32`；`scripts/dom.js:730-741,854-950` | NeeView 有 Bookshelf/Quick Access，但不是同一套 Master Folder 聚合语义 | Neo 有文件树、pinned roots 和 library 数据，但没有 OpenComic 的多根目录统一 Library 入口 | P1/P2，优先补 Quick Library surface |
+| OPDS Catalog、认证、搜索、下载并加入库 | `README.md:33`；`scripts/opds.js:1-3,141-161,205-210,428-530,713-775` | 无对应 Catalog UI | Neo 已有 `ReaderOpdsClient.ts`、`ReaderOpdsHeadlessController.ts`、`ReaderOpdsHttpController.ts:6-45`，但当前缺少完整 Catalog GUI | P1，复用现有 client/route，不重写协议 |
+| 多窗口 | `README.md:34` | NeeView `App.Option.cs:60-64` 支持新窗口 | Neo 的卡片窗口/通用标签页仍是 pending：`docs/neoview-feature-checklist.md:53,450-463` | P2，沿现有 card-window 迁移完成 |
+| Favorite/custom labels | `README.md:35-36`；`scripts/dom.js:924-950` | NeeView 有书签/书架，不完全同构 | Neo 已有 Favorite、manual/EMM tags、rating；不是缺失项。相关契约见 `migration/neoview/book-settings-compatibility.json` | 不新增同名系统；只补标签驱动的配置 profile / 聚合入口 |
+| Manga read mode | `README.md:37`；`scripts/reading.js:3246-3253` | NeeView 通过方向、facing/page mode 组合实现 | Neo 已有 per-book reading direction/page mode；见 `migration/neoview/book-settings-compatibility.json:313-379` | 不必复制独立 Manga 状态，补行为细节即可 |
+| Webtoon read mode | `README.md:38`；`scripts/reading.js:3255-3284`；`CHANGELOG.md:101,195,270` | NeeView 有连续/滚动和 page view 设置 | Neo 已有 continuous/panorama/hover scroll，但没有 Webtoon 专用零边距、fit-width、章节滚动契约 | P2，扩展现有连续阅读模式 |
+| Bookmark/continue reading | `README.md:40` | NeeView 有 BookMemento/历史/书签 | Neo 已有 `xr_reader_progress`、bookmarks、history；既有数据边界见 `docs/neoview-migration.md:1758-1759` | 不新增重复存储 |
+| Floating magnifier | `README.md:40`；`scripts/reading.js:2805-2928` | NeeView README:22 有 Loupe mode | Neo 已有放大镜/缩放相关 Reader 能力 | 不列为缺口；做 UI/输入一致性验收 |
+| 颜色调节、黑白着色 | `README.md:43-44` | NeeView 有图像效果 | `packages/nodes/neoview/src/domain/color-filter/ReaderColorFilter.ts:118-128,273-283` | 已覆盖 |
+| AniList / MyAnimeList tracking | `README.md:45`；`scripts/tracking/tracking-sites.js:1-20`；`scripts/tracking.js:62-130`；`CHANGELOG.md:134-158` | 无对应实现 | Neo 未发现 AniList/MAL tracking adapter 或认证模型 | P2，账号/隐私/网络边界单独设计 |
+| Gamepad、custom shortcuts、tap zones | `README.md:46-47`；`scripts/gamepad.js`、`scripts/shortcuts.js` | NeeView README:18-20 支持触摸、手势和快捷键 | Neo `ReaderInputBindings.ts:37-43,162-174,228-242` 已定义 keyboard/mouse/touch/gamepad 等输入 | 不列为缺失；注意 `ReaderInputBindings.ts:102` 的旧注释不能代表当前 runtime |
+| 可选图像插值算法 | `README.md:48`；`scripts/settings.js:1059-1164` 列出 nearest/linear/mitchell/lanczos/cubic 等 | NeeView 使用 WPF scaling policy，没有同等公开算法菜单 | Neo 没有 interpolation method selector；现有 quality/upscale 不等价 | P2，先评估 WebView2/CSS/Sharp 实测收益 |
+| AI descreen / artifact removal | `CHANGELOG.md:15-16` | 无对应实现 | Neo 有 OpenComic system 超分 adapter，但只覆盖超分服务：`platform/super-resolution/opencomic-system/OpenComicAiSystemComposition.ts:46-123` | P2/P3，需模型、许可和显存预算验证 |
+| Calibre series/series_index 元数据 | `CHANGELOG.md:106` | 无对应实现 | Neo 有 EMM/手工元数据，但未发现 Calibre metadata adapter | P3，随 EPUB/PDF metadata 一起评估 |
+
+#### NeeView 功能
+
+| 功能 | NeeView 源码证据 | OpenComic 对应 | NeoView 当前源码与状态 | 建议 |
+| --- | --- | --- | --- | --- |
+| 视频/媒体作为书页 | `NeeView/Archiver/ArchiveManager.cs:31-35,155-158,397-399`；`README.md:10-17` | OpenComic README 未把本地视频作为主要阅读能力 | Neo 已有 `SingleFileBookLoader`、media registry、ffmpeg/ffprobe provider | 已覆盖，不新增第二套 media provider |
+| 递归目录作为一本书 | `NeeView/BookHub/BookHub.cs:533-596,624-628`，包含确认递归和自动递归 | OpenComic 有目录/服务器递归浏览，但不是 NeeView 的 Book recursive memento 语义 | `platform/filesystem/DirectoryBookLoader.ts:31-32` 只读取当前目录的直接文件，未递归子目录 | P2，补 `recursive directory book` 设置和有界扫描 |
+| 原图导出 | `Command/CommandTable.cs:114-116`；`ExportImage/OriginalImageExporter.cs:14-60` | OpenComic 有下载/导出，但没有 NeeView 同名原图 exporter | Neo 未发现 Reader export command/provider | P1，先支持单页和 archive entry |
+| 当前视图导出 | `ExportImage/ViewImageExporter.cs:14-70`；`ExportImage/ExportImageProcedure.cs:23-112` | OpenComic 无同等 NeeView View exporter 证据 | Neo 未发现把滤镜、裁边、旋转、背景和当前缩放合成为图片的导出链 | P1/P2，原图导出后实现，必须区分渲染尺寸和原始尺寸 |
+| 打印 | `Command/Commands/PrintCommand.cs:5-21`；`Print/PrintModel.cs:25-47,486-539` | OpenComic 未发现打印入口 | Neo 未发现 print adapter；正式目标是 Windows/Wails | P2，放在 export 后，隔离 Windows host |
+| 目标文件夹快速复制/移动 | `DestinationFolder/MainViewCopyToFolderTools.cs:23-53`；`MainViewMoveToFolderTools.cs:22-52` | OpenComic 有下载目标目录，但不是同等 copy/move menu | Neo 已有文件操作 route/service：`ReaderFileOperationHttpController.ts`、`ReaderDirectorySelectionOperationService.ts`；缺少持久化目标菜单 | P1，复用现有 file-operation service |
+| `.nvjs` 脚本、动态命令、事件钩子 | `Script/ScriptManager.cs:11-129`；`Script/ScriptCommandSource.cs:10-70`；事件脚本见 `Resources/Scripts/OnBookLoaded.*.nvjs` | OpenComic 有内部 JavaScript，但没有 NeeView 的用户脚本命令契约 | Neo 未发现用户脚本 runtime；不可直接暴露 Node/Wails 全权限 | P2/P3，需 capability manifest、sandbox、超时和取消 |
+| 独立 page-view history | `PageViewHistory/PageViewRecorder.cs:56-90,199-258` | OpenComic 有 continue reading/bookmark，但无同等逐次浏览记录证据 | Neo 有 history/progress，但未发现 NeeView 这种逐页浏览日志 | P3，先明确用途和存储上限 |
+| `.nvpls` 播放列表文件 | `Archiver/PlaylistArchive.cs:19-24,47-120` | OpenComic 有 library/playlist，但未发现 `.nvpls` 兼容格式 | Neo 已有 playlist service/HTTP：`ReaderPlaylistService.ts:29-148`、`reader-http-client-implementation.ts:838-852`，缺文件交换格式 | P2，优先完成 GUI，再决定兼容格式 |
+| Susie plugin ABI | `Archiver/ArchiveManager.cs:31-35,400-402`；`README.md:25` | OpenComic 无 Susie ABI | Neo 未发现 Susie loader/native plugin boundary | P3/不建议近期做，Windows 旧 ABI 和安全风险高 |
+| Touch、mouse gesture、拖动平移/旋转/缩放、Loupe、facing、slideshow | `README.md:18-25`；启动参数 `App.Option.cs:63-64` | OpenComic 有 gamepad/tap zones/多种阅读模式，但不完全同构 | Neo 已有 touch/mouse gesture、zoom/rotate、slideshow、double-page/RTL/panorama；差异应按具体交互验收，不应整体视为缺失 | 已覆盖或部分覆盖 |
+| 浏览器图片拖入 | `README.md:27`；相关 Windows drop/clipboard 逻辑在 `NeeView/External/ClipboardUtility.cs:12-114` | OpenComic 有拖放基础能力，但未发现 NeeView 同等专门说明 | Neo 有桌面 file drop/clipboard，但“浏览器图片直接拖入并创建阅读源”尚未形成明确契约 | P3，需求明确后再做 |
+| LZH/ACE/CBA/CBT 等额外格式和插件扩展 | `README.md:10-17`；`Archiver/ArchiveManager.cs:27-35` | OpenComic README 主要声明 PDF/EPUB/常见归档 | Neo 当前 archive 扩展集合为 `zip/cbz/rar/cbr/7z/cb7`：`platform/archives/ArchiveBookLoader.ts:18-19` | P3，按真实样本和成熟依赖逐项增加，不一次性铺开 |
+
+#### 当前建议顺序
+
+1. PDF provider、原图导出、OPDS GUI、播放列表/快速库 GUI、目标目录复制/移动。
+2. WebDAV/SFTP 远程文件 adapter、完整 EPUB、Webtoon 行为、当前视图导出和 Windows 打印。
+3. 脚本扩展、AniList/MAL、背景音乐/翻页音效、插值算法、递归目录书。
+4. AI descreen/artifact removal、Susie ABI、旧格式大扩展、Discord Rich Presence 和浏览器专用拖入。
+
+所有实现都只借鉴行为和领域边界。OpenComic 为 GPL-3.0，NeeView 为 MIT；不得从上述目录 import 或复制实现。新能力仍应遵守 NeoView 的 ReaderService、platform adapter、`[nodes.neoview]` TOML 和既有 `thumbnails.db` `xr_` 数据边界。
+
 ## 6. 目标架构
 
 ```mermaid
