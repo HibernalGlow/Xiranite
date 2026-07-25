@@ -7,11 +7,9 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const workspaceRoot = resolve(packageRoot, "..", "..")
 const nativeRoot = join(workspaceRoot, "native")
 const profile = process.argv.includes("--debug") ? "debug" : "release"
-const args = ["build", "-p", "xiranite-czkawka-node"]
+const args = ["build", "-p", "xiranite-slimg-node"]
 if (profile === "release") args.push("--release")
 args.push("-j", "1")
-const sccache = Bun.which("sccache")
-const rustEnv = sccache && !process.env.RUSTC_WRAPPER ? { RUSTC_WRAPPER: sccache } : {}
 
 const dav1dRoot = join(nativeRoot, "target", "dav1d")
 const dav1dArchive = join(nativeRoot, "vendor", "dav1d-windows-x64.zip")
@@ -23,6 +21,8 @@ if (process.platform === "win32" && (!existsSync(join(dav1dPkgConfig, "dav1d.pc"
   if (!extract.success) process.exit(extract.exitCode)
 }
 
+const sccache = Bun.which("sccache")
+const rustEnv = sccache && !process.env.RUSTC_WRAPPER ? { RUSTC_WRAPPER: sccache } : {}
 const env = process.platform === "win32" ? {
   ...process.env,
   ...rustEnv,
@@ -34,22 +34,23 @@ const env = process.platform === "win32" ? {
   PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: "1",
 } : { ...process.env, ...rustEnv }
 
-const processResult = Bun.spawnSync(["cargo", ...args], {
+const cargo = Bun.spawn(["cargo", ...args], {
   cwd: nativeRoot,
   env,
   stdout: "inherit",
   stderr: "inherit",
 })
-if (!processResult.success) process.exit(processResult.exitCode)
+const exitCode = await cargo.exited
+if (exitCode !== 0) process.exit(exitCode)
 
 const libraryName = process.platform === "win32"
-  ? "xiranite_czkawka_node.dll"
+  ? "xiranite_slimg_node.dll"
   : process.platform === "darwin"
-    ? "libxiranite_czkawka_node.dylib"
-    : "libxiranite_czkawka_node.so"
+    ? "libxiranite_slimg_node.dylib"
+    : "libxiranite_slimg_node.so"
 const source = join(nativeRoot, "target", profile, libraryName)
-const destination = join(nativeRoot, "artifacts", `${process.platform}-${process.arch}`, `xiranite-czkawka.${process.platform}-${process.arch}.node`)
+const destination = join(nativeRoot, "artifacts", `${process.platform}-${process.arch}`, `xiranite-slimg.${process.platform}-${process.arch}.node`)
 await mkdir(dirname(destination), { recursive: true })
 await Bun.write(destination, Bun.file(source))
 if (process.platform === "win32") await Bun.write(join(dirname(destination), "dav1d.dll"), Bun.file(dav1dDll))
-console.log(`Czkawka native binding: ${destination}`)
+console.log(`slimg native binding: ${destination}`)
