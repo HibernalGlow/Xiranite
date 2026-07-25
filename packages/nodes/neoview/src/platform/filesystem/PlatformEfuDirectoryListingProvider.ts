@@ -24,6 +24,20 @@ export class PlatformEfuDirectoryListingProvider implements ReaderDirectoryListi
     return this.directoryProvider.canonicalize?.(path, signal) ?? Promise.resolve(path)
   }
 
+  async exists(path: string, signal?: AbortSignal): Promise<boolean> {
+    signal?.throwIfAborted()
+    try {
+      await stat(path)
+      signal?.throwIfAborted()
+      return true
+    } catch (error) {
+      if (signal?.aborted) throw signal.reason ?? error
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === "ENOENT" || code === "ENOTDIR") return false
+      throw error
+    }
+  }
+
   async read(path: string, signal?: AbortSignal): Promise<ReaderDirectoryListing> {
     if (pathExtension(path) !== "efu") return this.directoryProvider.read(path, signal)
     signal?.throwIfAborted()

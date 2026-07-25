@@ -730,7 +730,7 @@ describe("reader-http-client", () => {
     vi.stubGlobal("fetch", fetchMock)
     const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
 
-    await client.filterDirectoryBrowser!("browser/source", "archive", "D:/books/book.cbz", undefined, true)
+    await client.filterDirectoryBrowser!("browser/source", "archive", "D:/books/book.cbz", undefined, true, true)
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/browser/s/browser%2Fsource/filter")
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: "PATCH" })
@@ -738,6 +738,7 @@ describe("reader-http-client", () => {
       filter: "archive",
       focusPath: "D:/books/book.cbz",
       showHiddenFolders: true,
+      hideMissingEfuEntries: true,
     })
   })
 

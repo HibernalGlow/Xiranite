@@ -413,11 +413,11 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
       request<{ cleared: number }>(`/reader/browser/search-history?scope=${encodeURIComponent(scope)}`, { method: "DELETE", signal }).then(
         (value) => value.cleared,
       ),
-    filterDirectoryBrowser: (sessionId, filter, focusPath, signal, showHiddenFolders) =>
+    filterDirectoryBrowser: (sessionId, filter, focusPath, signal, showHiddenFolders, hideMissingEfuEntries) =>
       request<Contract.ReaderDirectoryPageDto>(`/reader/browser/s/${encodeURIComponent(sessionId)}/filter`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ filter, focusPath, showHiddenFolders }),
+        body: JSON.stringify({ filter, focusPath, showHiddenFolders, hideMissingEfuEntries }),
         signal,
       }),
     sortDirectoryBrowser: (sessionId, sort, focusPath, signal) =>

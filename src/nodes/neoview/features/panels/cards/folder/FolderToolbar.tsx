@@ -8,6 +8,7 @@ import {
   Eye,
   FileType,
   FileSpreadsheet,
+  EyeOff,
   FolderTree,
   Grid2X2,
   HardDrive,
@@ -116,6 +117,8 @@ export type FolderToolbarProps = {
   typeFilter?: ReaderDirectoryFilterDto
   filterOptions?: readonly ReaderDirectoryFilterDto[]
   showHiddenFolders: boolean
+  hideMissingEfuEntries: boolean
+  canHideMissingEfuEntries: boolean
   tagDisplay: ReaderFolderTagDisplayConfig
   penetration: ReaderFolderPenetrationConfig
   treeOpen: boolean
@@ -159,6 +162,7 @@ export type FolderToolbarProps = {
   onToggleSearch(): void
   onChangeTypeFilter?(filter: ReaderDirectoryFilterDto): void
   onChangeShowHiddenFolders?(showHiddenFolders: boolean): void
+  onChangeHideMissingEfuEntries?(hideMissingEfuEntries: boolean): void
   onTagDisplayChange(patch: Partial<ReaderFolderTagDisplayConfig>): void
   onTogglePenetration(enabled: boolean): void
   onUpdatePenetration(patch: Partial<ReaderFolderPenetrationConfig>): void
@@ -225,6 +229,8 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     typeFilter = "library",
     filterOptions,
     showHiddenFolders,
+    hideMissingEfuEntries,
+    canHideMissingEfuEntries,
     tagDisplay,
     penetration,
     treeOpen,
@@ -268,6 +274,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     onToggleSearch,
     onChangeTypeFilter,
     onChangeShowHiddenFolders,
+    onChangeHideMissingEfuEntries,
     onTagDisplayChange,
     onTogglePenetration,
     onUpdatePenetration,
@@ -540,6 +547,17 @@ export default function FolderToolbar(props: FolderToolbarProps) {
               <Eye className="size-4" />
               显示隐藏文件夹
             </DropdownMenuCheckboxItem>
+
+            {canHideMissingEfuEntries ? (
+              <DropdownMenuCheckboxItem
+                checked={hideMissingEfuEntries}
+                disabled={!canFilter}
+                onCheckedChange={(checked) => onChangeHideMissingEfuEntries?.(checked === true)}
+              >
+                <EyeOff className="size-4" />
+                隐藏不存在的文件
+              </DropdownMenuCheckboxItem>
+            ) : null}
 
             <FolderTagDisplayMenu value={tagDisplay} onChange={onTagDisplayChange} />
 

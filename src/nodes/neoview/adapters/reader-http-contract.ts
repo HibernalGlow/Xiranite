@@ -877,6 +877,8 @@ export interface ReaderDirectoryPageDto {
   generation: number
   filter?: ReaderDirectoryFilterDto
   filterOptions?: ReaderDirectoryFilterDto[]
+  showHiddenFolders?: boolean
+  hideMissingEfuEntries?: boolean
   sort: ReaderDirectorySortDto
   sortFields: ReaderDirectorySortFieldDto[]
   metadataFields: ReaderDirectoryMetadataFieldDto[]
@@ -1667,6 +1669,7 @@ export interface ReaderFolderViewConfig {
   /** Preferred directory listing type filter; applied when a browser session opens. */
   typeFilter?: ReaderDirectoryFilterDto
   showHiddenFolders?: boolean
+  hideMissingEfuEntries?: boolean
   confirmations: ReaderFolderConfirmationConfig
   tagDisplay: ReaderFolderTagDisplayConfig
   penetration: ReaderFolderPenetrationConfig
@@ -1698,6 +1701,7 @@ export interface ReaderFolderViewPatch {
     hoverPreviewDelayMs?: 200 | 500 | 800 | 1200
     typeFilter?: ReaderDirectoryFilterDto
     showHiddenFolders?: boolean
+    hideMissingEfuEntries?: boolean
     confirmations?: Partial<ReaderFolderConfirmationConfig>
     tagDisplay?: Partial<ReaderFolderTagDisplayConfig>
     penetration?: Partial<ReaderFolderPenetrationConfig>
@@ -1940,6 +1944,7 @@ export interface ReaderHttpClient {
     focusPath?: string,
     signal?: AbortSignal,
     showHiddenFolders?: boolean,
+    hideMissingEfuEntries?: boolean,
   ): Promise<ReaderDirectoryPageDto>
   sortDirectoryBrowser?(sessionId: string, sort: ReaderDirectorySortDto, focusPath?: string, signal?: AbortSignal): Promise<ReaderDirectoryPageDto>
   updateDirectorySortPreference?(

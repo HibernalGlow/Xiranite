@@ -195,6 +195,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   hoverPreviewDelayMs: 500,
   typeFilter: "library",
   showHiddenFolders: false,
+  hideMissingEfuEntries: false,
   confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
   penetration: { enabled: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },

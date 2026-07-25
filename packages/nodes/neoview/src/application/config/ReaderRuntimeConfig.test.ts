@@ -333,6 +333,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       hoverPreviewDelayMs: 500,
       typeFilter: "library",
       showHiddenFolders: false,
+      hideMissingEfuEntries: false,
       tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
       penetration: { enabled: true, showInternalFiles: true, internalItemsMode: "single", maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
       emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
@@ -366,6 +367,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       hoverPreviewEnabled: false,
       hoverPreviewDelayMs: 1200,
       showHiddenFolders: true,
+      hideMissingEfuEntries: true,
       confirmations: { trash: true, permanentDelete: false, batchTrash: true, batchPermanentDelete: false },
       penetration: { enabled: true, showInternalFiles: false, internalItemsMode: "single", maxDepth: 10, terminalTargets: ["archive", "document"] },
       tree: { visible: true, layout: "bottom", size: 320, pinnedPaths: ["E:/Books"] },
@@ -383,6 +385,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         hoverPreviewEnabled: false,
         hoverPreviewDelayMs: 1200,
         showHiddenFolders: true,
+        hideMissingEfuEntries: true,
         confirmations: { trash: true, permanentDelete: false, batchTrash: true, batchPermanentDelete: false },
         penetration: { enabled: true, showInternalFiles: false, internalItemsMode: "single", maxDepth: 10, terminalTargets: ["archive", "document"] },
         details: {
@@ -406,6 +409,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         hover_preview_enabled: false,
         hover_preview_delay_ms: 1200,
         show_hidden_folders: true,
+        hide_missing_efu_entries: true,
         confirmations: { trash: true, permanent_delete: false, batch_trash: true, batch_permanent_delete: false },
         penetration: { enabled: true, show_internal_files: false, internal_items_mode: "single", max_depth: 10, terminal_targets: ["archive", "document"] },
         details: {
@@ -452,6 +456,7 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewFolderViewPatch({ folderView: { bannerWidthPercent: 101 } })).toThrow("between 20 and 100")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { hoverPreviewDelayMs: 300 } })).toThrow("one of: 200, 500, 800, 1200")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { showHiddenFolders: "yes" } })).toThrow("showHiddenFolders")
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { hideMissingEfuEntries: "yes" } })).toThrow("hideMissingEfuEntries")
     expect(parseNeoviewRuntimeConfig(undefined).folderView.penetration).toEqual({
       enabled: false,
       showInternalFiles: true,

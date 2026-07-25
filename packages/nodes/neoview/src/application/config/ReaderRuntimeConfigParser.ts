@@ -1466,6 +1466,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     "hoverPreviewDelayMs",
     "typeFilter",
     "showHiddenFolders",
+    "hideMissingEfuEntries",
     "confirmations",
     "tagDisplay",
     "penetration",
@@ -1526,6 +1527,10 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   if (folder.showHiddenFolders !== undefined) {
     patch.folderView.showHiddenFolders = optionalBoolean(folder.showHiddenFolders, "reader folder view patch.showHiddenFolders")
     toml.show_hidden_folders = patch.folderView.showHiddenFolders
+  }
+  if (folder.hideMissingEfuEntries !== undefined) {
+    patch.folderView.hideMissingEfuEntries = optionalBoolean(folder.hideMissingEfuEntries, "reader folder view patch.hideMissingEfuEntries")
+    toml.hide_missing_efu_entries = patch.folderView.hideMissingEfuEntries
   }
   if (folder.confirmations !== undefined) {
     const confirmations = requireRecord(folder.confirmations, "reader folder view patch.confirmations")
@@ -1825,6 +1830,9 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Mode
       Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.typeFilter,
     showHiddenFolders:
       optionalBoolean(value.show_hidden_folders, "[nodes.neoview.folder].show_hidden_folders") ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.showHiddenFolders,
+    hideMissingEfuEntries:
+      optionalBoolean(value.hide_missing_efu_entries, "[nodes.neoview.folder].hide_missing_efu_entries")
+      ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.hideMissingEfuEntries,
     confirmations: {
       trash:
         optionalBoolean(confirmations?.trash, "[nodes.neoview.folder.confirmations].trash")
