@@ -9,6 +9,12 @@ describe("Vite dependency optimization policy", () => {
     expect(VITE_EAGER_DEPENDENCIES).toContain("@wailsio/runtime")
     expect(VITE_EAGER_DEPENDENCIES).toContain("@diceui/shared")
     expect(VITE_EAGER_DEPENDENCIES).toContain("use-sync-external-store/shim/with-selector")
+    expect(VITE_EAGER_DEPENDENCIES).toContain("debug/src/browser.js")
+    expect(VITE_EAGER_DEPENDENCIES).toContain("blueimp-md5")
+    expect(VITE_EAGER_DEPENDENCIES).toContain("blueimp-md5/js/md5.js")
+    expect(VITE_EAGER_DEPENDENCIES).toContain("content-type")
+    expect(VITE_EAGER_DEPENDENCIES).toContain("ieee754")
+    expect(VITE_EAGER_DEPENDENCIES).toContain("dexie")
   })
 
   it("does not eagerly optimize feature-only heavyweight dependencies", () => {
