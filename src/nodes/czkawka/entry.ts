@@ -6,5 +6,6 @@ export default {
   def,
   core,
   Component,
+  nodeApp: true,
   host: { contractVersion: "^1.0.0", capabilities: ["state", "runner", "localFiles", "clipboard", "config", "env"] },
 } satisfies AppNodeEntry<typeof core>

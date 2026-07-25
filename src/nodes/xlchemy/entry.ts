@@ -55,6 +55,7 @@ export default {
   def,
   core,
   Component,
+  nodeApp: true,
   host: { contractVersion: "^1.0.0", capabilities: ["state", "runner", "clipboard", "localFiles", "config", "env"] },
   schemas: { data: dataSchema as unknown as NodeSchema<XlchemyCardState>, config: dataSchema as unknown as NodeSchema<Partial<XlchemyCardState>> },
 } satisfies AppNodeEntry<typeof core, XlchemyCardState, Partial<XlchemyCardState>>

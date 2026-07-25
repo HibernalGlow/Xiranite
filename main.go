@@ -25,6 +25,10 @@ func init() {
 }
 
 func main() {
+	if nodeAppID != "" {
+		runNodeApp()
+		return
+	}
 	localBackend, err := StartLocalBackend()
 	if err != nil {
 		log.Printf("Xiranite local backend is unavailable: %v", err)
