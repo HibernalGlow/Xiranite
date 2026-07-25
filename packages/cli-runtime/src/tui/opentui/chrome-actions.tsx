@@ -10,7 +10,7 @@ export interface TerminalChromeActions {
 
 const ChromeActionsContext = createContext<((actions?: TerminalChromeActions) => void) | undefined>(undefined)
 
-export function TerminalChromeActionsProvider({ register, children }: { register: (actions?: TerminalChromeActions) => void; children: ReactNode }) {
+export function TerminalChromeActionsProvider({ register, children }: { register: (actions?: TerminalChromeActions) => void; children: ReactNode }): ReactNode {
   return <ChromeActionsContext.Provider value={register}>{children}</ChromeActionsContext.Provider>
 }
 

@@ -1,4 +1,5 @@
 /* @jsxImportSource @opentui/react */
+import type { ReactNode } from "react"
 import { useTerminalTheme } from "../theme.js";
 
 export interface PathDiffProps {
@@ -13,7 +14,7 @@ export interface PathDiffProps {
  * quiet and highlights only the changed path segments, which is substantially
  * easier to review than treating a path as a one-line file diff.
  */
-export function PathDiff({ oldPath, newPath, selected = false, status = "ready" }: PathDiffProps) {
+export function PathDiff({ oldPath, newPath, selected = false, status = "ready" }: PathDiffProps): ReactNode {
   const theme = useTerminalTheme();
   const { oldPrefix, oldChanged, oldSuffix, newPrefix, newChanged, newSuffix } = splitPathDiff(oldPath, newPath);
   const marker = status === "conflict" ? "⚠" : status === "applied" ? "✓" : "↳";

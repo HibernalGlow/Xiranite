@@ -1,11 +1,11 @@
 /* @jsxImportSource @opentui/react */
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 import type { TerminalTaskQueueController, TerminalTaskQueueItem } from "../task-queue.js"
 import { useTerminalTheme } from "../theme.js"
 import { ClickTarget, WorkbenchButton, WorkbenchPanel } from "./workbench-controls.js"
 
-export function TerminalTaskQueueScreen({ controller, onBack }: { controller: TerminalTaskQueueController; onBack: () => void }) {
+export function TerminalTaskQueueScreen({ controller, onBack }: { controller: TerminalTaskQueueController; onBack: () => void }): ReactNode {
   const theme = useTerminalTheme()
   const [items, setItems] = useState<TerminalTaskQueueItem[]>([])
   const [selected, setSelected] = useState<string>()

@@ -1,6 +1,6 @@
 /* @jsxImportSource @opentui/react */
 import { useKeyboard } from "@opentui/react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 
 export interface NumberInputProps {
   id?: string
@@ -16,7 +16,7 @@ export interface NumberInputProps {
 }
 
 /** termcn OpenTUI NumberInput adapted for isolated focus and mouse controls. */
-export function NumberInput({ id, value, focused, disabled, min, max, step = 1, colors, onFocus, onChange }: NumberInputProps) {
+export function NumberInput({ id, value, focused, disabled, min, max, step = 1, colors, onFocus, onChange }: NumberInputProps): ReactNode {
   const [hovered, setHovered] = useState<"minus" | "plus" | null>(null)
   const [buffer, setBuffer] = useState(String(value))
   const bufferRef = useRef(buffer)

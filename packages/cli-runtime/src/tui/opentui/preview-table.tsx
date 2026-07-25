@@ -1,8 +1,9 @@
 /* @jsxImportSource @opentui/react */
+import type { ReactNode } from "react"
 import type { TerminalViewTable } from "../../interaction.js"
 import { useTerminalTheme } from "../theme.js"
 
-export function PreviewTable({ table, maxRows = 8 }: { table: TerminalViewTable; maxRows?: number }) {
+export function PreviewTable({ table, maxRows = 8 }: { table: TerminalViewTable; maxRows?: number }): ReactNode {
   const theme = useTerminalTheme()
   const rows = table.rows.slice(0, maxRows)
   return (

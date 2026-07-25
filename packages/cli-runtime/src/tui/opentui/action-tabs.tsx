@@ -1,5 +1,5 @@
 /* @jsxImportSource @opentui/react */
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 
 import type { InteractionOption, InteractionValue } from "../../interaction.js"
 import { useTerminalTheme } from "../theme.js"
@@ -25,7 +25,7 @@ export function ActionTabs({
   disabled?: boolean
   onFocus: () => void
   onChange: (value: InteractionValue) => void
-}) {
+}): ReactNode {
   return (
     <box id={id} flexDirection="row" flexWrap="wrap" minHeight={3} alignItems="center">
       {options.map((option) => (

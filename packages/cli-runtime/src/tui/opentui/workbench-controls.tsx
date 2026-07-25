@@ -25,7 +25,7 @@ export function WorkbenchPanel({
   children: ReactNode;
   width?: number | `${number}%`;
   flexGrow?: number;
-}) {
+}): ReactNode {
   const theme = useTerminalTheme();
   return (
     <box
@@ -83,7 +83,7 @@ export function WorkbenchField({
   t: TerminalTranslator;
   onFocus: () => void;
   onChange: (value: InteractionValue) => void;
-}) {
+}): ReactNode {
   const theme = useTerminalTheme();
   if (field.kind === "select" && field.role === "action") {
     return (
@@ -238,7 +238,7 @@ export function WorkbenchButton({
   danger?: boolean;
   disabled?: boolean;
   onClick: () => void;
-}) {
+}): ReactNode {
   const theme = useTerminalTheme();
   const [hovered, setHovered] = useState(false);
   const color = disabled
@@ -276,7 +276,7 @@ export function ExecutionActions<Result>({
   session: TerminalUiSession<Result>;
   executeLabel?: string;
   confirmLabel?: string;
-}) {
+}): ReactNode {
   if (session.phase === "running" || session.phase === "paused") {
     return (
       <box flexDirection="row" gap={1} flexShrink={0}>
@@ -337,7 +337,7 @@ export function WorkbenchHeaderActions({
   onExit: () => void;
   resetLabel?: string;
   exitLabel?: string;
-}) {
+}): ReactNode {
   return (
     <box height={3} flexShrink={0} flexDirection="row">
       <WorkbenchButton id="reset" onClick={onReset}>
@@ -366,7 +366,7 @@ export function ClickTarget({
   disabled?: boolean;
   bordered?: boolean;
   onClick: () => void;
-}) {
+}): ReactNode {
   const theme = useTerminalTheme();
   const [hovered, setHovered] = useState(false);
   const active = focused || hovered || selected;
