@@ -602,7 +602,7 @@ describe("backend", () => {
     const dataDir = await createTempDataDir()
     const bookDir = await mkdtemp(join(RUN_ROOT, "neoview-gateway-book-"))
     await writeFile(join(bookDir, "001.jpg"), ONE_PIXEL_PNG)
-    const publicBaseUrl = "http://127.0.0.1:5173"
+    const publicBaseUrl = "http://wails.localhost"
     const backend = await startBackend({
       token: "stable-token",
       publicBaseUrl,
@@ -619,6 +619,7 @@ describe("backend", () => {
       const session = await opened.json() as { visiblePages: Array<{ assetUrl: string }> }
       const publicAssetUrl = new URL(session.visiblePages[0]!.assetUrl)
       expect(publicAssetUrl.origin).toBe(publicBaseUrl)
+      expect(publicAssetUrl.protocol).toBe("http:")
       expect(publicAssetUrl.searchParams.get("token")).toBe("stable-token")
     } finally {
       await backend.close()

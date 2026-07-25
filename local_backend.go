@@ -24,7 +24,9 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-const wailsBackendPublicURL = "https://wails.localhost"
+// Wails v3 intercepts the Windows virtual asset origin only for HTTP requests.
+// Using HTTPS bypasses WebResourceRequested and never reaches this gateway.
+const wailsBackendPublicURL = "http://wails.localhost"
 
 type LocalBackendConfig struct {
 	BaseURL string `json:"baseUrl"`
@@ -187,6 +189,12 @@ func proxyBackendRequest(rw http.ResponseWriter, req *http.Request, config *Loca
 	if config == nil || config.BaseURL == "" {
 		http.Error(rw, "Xiranite local backend is unavailable.", http.StatusServiceUnavailable)
 		return
+	}
+	// Wails reconstructs WebView2 requests with a body stream but leaves
+	// ContentLength at zero. ReverseProxy treats that combination as an empty
+	// body, so mark its length as unknown and let net/http stream it chunked.
+	if req.Body != nil && req.Body != http.NoBody && req.ContentLength == 0 {
+		req.ContentLength = -1
 	}
 	target, err := url.Parse(config.BaseURL)
 	if err != nil {

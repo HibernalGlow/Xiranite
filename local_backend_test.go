@@ -31,7 +31,7 @@ func TestInjectBackendConfig(t *testing.T) {
 	if !strings.Contains(result, `window.__XIRANITE_BACKEND__`) {
 		t.Fatalf("expected backend config script to be injected: %s", result)
 	}
-	if !strings.Contains(result, `"baseUrl":"https://wails.localhost"`) {
+	if !strings.Contains(result, `"baseUrl":"http://wails.localhost"`) {
 		t.Fatalf("expected baseUrl in injected config: %s", result)
 	}
 	if !strings.Contains(result, `"token":"secret"`) {
@@ -64,7 +64,7 @@ func TestBackendGatewayProxiesBinaryResponsesAndSwitchesTargets(t *testing.T) {
 		},
 	)(http.NotFoundHandler())
 
-	request := httptest.NewRequest(http.MethodGet, "https://wails.localhost/reader/page?token=secret", nil)
+	request := httptest.NewRequest(http.MethodGet, "http://wails.localhost/reader/page?token=secret", nil)
 	request.Header.Set("Range", "bytes=0-3")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -77,9 +77,78 @@ func TestBackendGatewayProxiesBinaryResponsesAndSwitchesTargets(t *testing.T) {
 
 	current = &LocalBackendConfig{BaseURL: second.URL, Token: "secret"}
 	replacement := httptest.NewRecorder()
-	handler.ServeHTTP(replacement, httptest.NewRequest(http.MethodGet, "https://wails.localhost/health", nil))
+	handler.ServeHTTP(replacement, httptest.NewRequest(http.MethodGet, "http://wails.localhost/health", nil))
 	if replacement.Body.String() != "second" {
 		t.Fatalf("expected replacement backend response, got %q", replacement.Body.String())
+	}
+}
+
+func TestBackendGatewayPreservesJSONRequestBodies(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{
+			name:   "open reader session",
+			method: http.MethodPost,
+			path:   "/reader/sessions?source=desktop",
+			body:   `{"path":"D:/Books/demo.cbz"}`,
+		},
+		{
+			name:   "patch reader config",
+			method: http.MethodPatch,
+			path:   "/reader/config",
+			body:   `{"viewDefaults":{"fitMode":"fit-width"}}`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			backend := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				body, err := io.ReadAll(req.Body)
+				if err != nil {
+					t.Errorf("read proxied request body: %v", err)
+					http.Error(rw, "read request body", http.StatusInternalServerError)
+					return
+				}
+				if req.Method != test.method {
+					t.Errorf("method = %q, want %q", req.Method, test.method)
+				}
+				if req.URL.RequestURI() != test.path {
+					t.Errorf("request URI = %q, want %q", req.URL.RequestURI(), test.path)
+				}
+				if req.Header.Get("Content-Type") != "application/json" {
+					t.Errorf("content type = %q, want application/json", req.Header.Get("Content-Type"))
+				}
+				if string(body) != test.body {
+					t.Errorf("body = %q, want %q", body, test.body)
+				}
+				rw.WriteHeader(http.StatusNoContent)
+			}))
+			defer backend.Close()
+
+			handler := backendGatewayMiddleware(
+				func() *LocalBackendConfig {
+					return &LocalBackendConfig{BaseURL: backend.URL, Token: "secret"}
+				},
+				func() *LocalBackendConfig {
+					return &LocalBackendConfig{BaseURL: wailsBackendPublicURL, Token: "secret"}
+				},
+			)(http.NotFoundHandler())
+
+			request := httptest.NewRequest(test.method, "http://wails.localhost"+test.path, strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			// Wails reconstructs requests from a WebView2 stream without populating
+			// http.Request.ContentLength, so exercise that exact proxy shape.
+			request.ContentLength = 0
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusNoContent {
+				t.Fatalf("expected proxied response status 204, got %d: %s", response.Code, response.Body.String())
+			}
+		})
 	}
 }
 
