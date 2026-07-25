@@ -39,6 +39,7 @@ export const enginevDataSchema = z
 
 const enginevUiConfigSchema = z
   .object({
+    actionTrayPinned: z.boolean().optional(),
     galleryColumns: z.number().optional(),
     galleryCompact: z.boolean().optional(),
     galleryShowMeta: z.boolean().optional(),

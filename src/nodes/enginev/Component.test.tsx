@@ -87,6 +87,7 @@ describe("app-owned enginev Component", () => {
 
     await user.click(screen.getByRole("button", { name: "Dock action tray" }))
     expect(host.cardState.actionTrayPinned).toBe(true)
+    await waitFor(() => expect(host.savedUiConfig).toEqual({ actionTrayPinned: true }))
     const dockedTray = screen.getByTestId("enginev-floating-actions")
     expect(dockedTray.getAttribute("data-pinned")).toBe("true")
     expect(dockedTray.className).toContain("relative")
@@ -276,9 +277,21 @@ describe("app-owned enginev Component", () => {
     }))
   })
 
+  test("restores the action tray dock preference from node ui config", async () => {
+    surfaceState.mode = "workspace"
+    const host = createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] }, {
+      uiConfig: { actionTrayPinned: true },
+    })
+    render(<Component compId="comp-enginev" host={host} />)
+
+    await waitFor(() => expect(screen.getByTestId("enginev-floating-actions").getAttribute("data-pinned")).toBe("true"))
+    expect(host.cardState.actionTrayPinned).toBe(true)
+  })
+
   test("saves gallery display preferences with default config", async () => {
     surfaceState.mode = "regular"
     const uiConfig: EngineVUiConfig = {
+      actionTrayPinned: false,
       galleryColumns: 4,
       galleryCompact: true,
       galleryShowMeta: false,
@@ -293,7 +306,7 @@ describe("app-owned enginev Component", () => {
     render(<Component compId="comp-enginev" host={host} />)
     const user = userEvent.setup()
 
-    await user.click(screen.getByRole("button", { name: "enginev defaults" }))
+    await user.click(screen.getByRole("button", { name: "enginev 配置中心" }))
     await user.click(screen.getByRole("button", { name: "保存为默认" }))
 
     await waitFor(() => expect(host.savedConfig).toEqual({
@@ -303,6 +316,22 @@ describe("app-owned enginev Component", () => {
     }))
     expect(host.savedUiConfig).toEqual(uiConfig)
     expect(host.saveUiCalls).toEqual([uiConfig])
+  })
+
+  test("uses the theme highlight for only selected gallery pills", async () => {
+    surfaceState.mode = "expanded"
+    render(<Component compId="comp-enginev" host={createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })} />)
+    const user = userEvent.setup()
+    const pill = screen.getByText("111").closest("[data-enginev-wallpaper-selection]")
+
+    expect(pill?.getAttribute("data-variant")).toBe("outline")
+    expect(pill?.className).toContain("bg-black/55")
+
+    await user.click(screen.getByRole("button", { name: "选择 Ocean Loop" }))
+
+    const selectedPill = screen.getByText("111").closest("[data-enginev-wallpaper-selection]")
+    expect(selectedPill?.getAttribute("data-variant")).toBe("default")
+    expect(selectedPill?.className).toContain("bg-primary")
   })
 
   test("marks the card as error when the runner is unavailable", async () => {

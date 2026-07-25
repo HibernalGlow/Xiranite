@@ -105,6 +105,7 @@ export function Component({ host }: EngineVProps) {
         if (hasEngineVUiConfig(config)) {
           setUiDefaults(config)
           applyingUiConfigRef.current = true
+          if (config.actionTrayPinned !== undefined) setActionTrayPinned(config.actionTrayPinned)
           patch(config)
           lastSavedUiConfigKeyRef.current = stableStringify(config)
           uiConfigLoadedRef.current = true
@@ -141,8 +142,8 @@ export function Component({ host }: EngineVProps) {
   }, [data.outputPath, data.template, data.workshopPath, defaults])
 
   const uiConfigKey = useMemo(
-    () => stableStringify(pickEngineVUiConfig(data)),
-    [data.galleryColumns, data.galleryCompact, data.galleryShowMeta, data.galleryShowPath],
+    () => stableStringify(pickEngineVUiConfig({ ...data, actionTrayPinned })),
+    [actionTrayPinned, data.galleryColumns, data.galleryCompact, data.galleryShowMeta, data.galleryShowPath],
   )
 
   useEffect(() => {
@@ -150,7 +151,7 @@ export function Component({ host }: EngineVProps) {
     if (uiConfigKey === lastSavedUiConfigKeyRef.current) return
 
     const timer = window.setTimeout(() => {
-      const config = pickEngineVUiConfig(dataRef.current)
+      const config = pickEngineVUiConfig({ ...dataRef.current, actionTrayPinned })
       const nextKey = stableStringify(config)
       if (nextKey === lastSavedUiConfigKeyRef.current) return
 
@@ -162,7 +163,7 @@ export function Component({ host }: EngineVProps) {
     }, 400)
 
     return () => window.clearTimeout(timer)
-  }, [host, uiConfigKey])
+  }, [actionTrayPinned, host, uiConfigKey])
 
   function patch(patchData: Partial<EngineVCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -1041,6 +1042,7 @@ function pickEngineVRuntimeConfig(config: EngineVNodeConfig | undefined): Partia
 function normalizeEngineVUiConfig(config: EngineVUiConfig | undefined): EngineVUiConfig {
   if (!config) return {}
   const next: EngineVUiConfig = {}
+  if (typeof config.actionTrayPinned === "boolean") next.actionTrayPinned = config.actionTrayPinned
   if (typeof config.galleryColumns === "number" && Number.isFinite(config.galleryColumns)) {
     next.galleryColumns = Math.min(6, Math.max(1, Math.round(config.galleryColumns)))
   }
@@ -1071,6 +1073,7 @@ function pickEngineVUiConfig(data: Partial<EngineVCardState>): EngineVUiConfig {
 function resolveEngineVUiConfigForSave(data: Partial<EngineVCardState>): EngineVUiConfig {
   const value = data.galleryColumns
   return {
+    actionTrayPinned: data.actionTrayPinned ?? false,
     galleryColumns: typeof value === "number" && Number.isFinite(value)
       ? Math.min(6, Math.max(1, Math.round(value)))
       : undefined,
