@@ -343,7 +343,7 @@ describe("app-owned enginev Component", () => {
     const pill = screen.getByText("111").closest("[data-enginev-wallpaper-selection]")
 
     expect(pill?.getAttribute("data-variant")).toBe("outline")
-    expect(pill?.className).toContain("bg-black/55")
+    expect(pill?.className).toContain("bg-zinc-900/90")
 
     await user.click(screen.getByRole("button", { name: "选择 Ocean Loop" }))
 
