@@ -156,15 +156,41 @@ processes.
 
 ## Current verified state
 
-The verified local run produced 6,726 filtered PNGs:
+The verified local run produced 6,635 filtered PNGs:
 
 ```text
 01-characters:      167
 02-icons-materials: 1,311
-03-ui:              5,248
+03-ui:              5,157
 ```
 
 The WebUI data bundle contains `webui/data/manifest.json` and an asset index
 with 12,777 image entries. The local server at `127.0.0.1:8765` returned HTTP
 200 for both data paths, and the Resources page loaded without browser console
 errors.
+
+## Classify like the WebUI
+
+To make a browsable folder set with categories such as `Achievement`,
+`Activity`, and `Adventure`, run this from the Xiranite root:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  .\scripts\endfield\classify-wuling-2d-assets.ps1 `
+  -CleanOutput
+```
+
+The default output is:
+
+```text
+artifacts/reference/endfield-wuling/03-categorized-by-webui/
+  Achievement/Sprite/
+  Activity/Texture2D/
+  Adventure/Texture2D/
+  Other/
+  classification-manifest.csv
+```
+
+The classifier follows the ordered WebUI image-prefix rules, skips `map` and
+`enemy` categories, and creates hard links instead of copying PNG bytes. The
+original `02-extracted-2d` collection is left unchanged by the classifier.
