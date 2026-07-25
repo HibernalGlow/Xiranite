@@ -558,6 +558,7 @@ describe("app-owned xlchemy Component", () => {
   test("opens output analysis at conversion start and accepts live result snapshots", async () => {
     const host = createHost({ pathsText: "D:/images/a.png" })
     host.runner!.run = async <TInput, TData>(_nodeId: string, _input: TInput, onEvent?: (event: NodeRunEvent) => void) => {
+      onEvent?.({ type: "log", message: "Batch scheduler: 4 worker(s); CPU thread budget 16; encoder threads 4 each." })
       onEvent?.({ type: "progress", progress: 50, message: "Processed 1/1 image(s).", data: { kind: "xlchemy-live-result", result: { ...result, files: [{ sourcePath: "D:/images/a.png", outputPath: "D:/images/a.webp", sourceBytes: 1000, outputBytes: 250, status: "converted" }], inputCount: 1, convertedCount: 1, inputBytes: 1000, outputBytes: 250 } } })
       return { success: true, message: "Converted.", data: { ...result, files: [{ sourcePath: "D:/images/a.png", outputPath: "D:/images/a.webp", sourceBytes: 1000, outputBytes: 250, status: "converted" }], inputCount: 1, convertedCount: 1, inputBytes: 1000, outputBytes: 250 } as TData }
     }
@@ -567,6 +568,8 @@ describe("app-owned xlchemy Component", () => {
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(screen.getByRole("tab", { name: "输出分析" }).getAttribute("aria-selected")).toBe("true")
     expect(screen.getByText("75.0%")).toBeTruthy()
+    await userEvent.setup().click(screen.getByRole("tab", { name: "日志" }))
+    expect(screen.getByText(/Batch scheduler: 4 worker/)).toBeTruthy()
   })
 
   test("exposes the original in-place cancel action while conversion is running", async () => {

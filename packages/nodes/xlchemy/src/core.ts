@@ -282,30 +282,76 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     const animationDetectionFormats = new Set(options.animationDetectionFormats)
     const summary = createSummary()
     let lastLiveResultAt = 0
-    for await (const source of orderedSources) {
+    let activeWorkers = 0
+    let peakActiveWorkers = 0
+    const targetReservations = new Set<string>()
+    const targetLocks = new Map<string, Promise<void>>()
+    const planningLocks = new Map<string, Promise<void>>()
+    let lastDiagnosticLogAt = 0
+    const processSource = async (source: string, workerIndex: number, workerInput: XlchemyInput, announceWorker: boolean): Promise<void> => {
       await runtime.waitWhilePaused?.()
-      if (runtime.isCancelled?.()) return cancelledSummary(summary, started)
+      if (runtime.isCancelled?.()) return
+      const itemStarted = Date.now()
+      activeWorkers += 1
+      peakActiveWorkers = Math.max(peakActiveWorkers, activeWorkers)
+      if (options.action === "convert" && announceWorker) onEvent({ type: "log", message: `Worker #${workerIndex + 1} online with ${workerInput.threads} encoder thread(s); first input ${runtime.basename(source)}.` })
       let item: XlchemyFileResult
-      if (animationDetectionFormats.has(animationFormat(runtime.extname(source)))) {
-        try {
-          item = await runtime.isAnimatedImage(source)
-            ? { sourcePath: source, outputPath: source, status: "skipped", error: "animated_image" }
-            : await planFile(source, roots, options, runtime)
-        } catch (error) {
-          item = { sourcePath: source, outputPath: source, status: "error", error: `animation_probe_failed: ${error instanceof Error ? error.message : String(error)}` }
+      try {
+        if (animationDetectionFormats.has(animationFormat(runtime.extname(source)))) {
+          try {
+            item = await runtime.isAnimatedImage(source)
+              ? { sourcePath: source, outputPath: source, status: "skipped", error: "animated_image" }
+              : await withTargetLock("batch-planning", planningLocks, () => planFile(source, roots, options, runtime, targetReservations))
+          } catch (error) {
+            item = { sourcePath: source, outputPath: source, status: "error", error: `animation_probe_failed: ${error instanceof Error ? error.message : String(error)}` }
+          }
+        } else item = await withTargetLock("batch-planning", planningLocks, () => planFile(source, roots, options, runtime, targetReservations))
+        const result = options.action !== "convert" || item.status !== "planned"
+          ? item
+          : await withTargetLock(item.outputPath, targetLocks, async () => {
+              if (workerInput.existingPolicy === "skip" && (await runtime.pathInfo(item.outputPath)).exists) return { ...item, status: "skipped" as const, error: "target_exists" }
+              return convertFileWithProgress(item, workerInput, runtime, onEvent, summary.inputCount, totalInputCount)
+            })
+        appendSummary(summary, result)
+        const now = Date.now()
+        if (summary.inputCount === 1 || now - lastLiveResultAt >= LIVE_RESULT_INTERVAL_MS) {
+          emitLiveResult(onEvent, summary, started, totalInputCount)
+          lastLiveResultAt = now
         }
-      } else item = await planFile(source, roots, options, runtime)
-      const result = options.action !== "convert" || item.status !== "planned"
-        ? item
-        : await convertFileWithProgress(item, options, runtime, onEvent, summary.inputCount, totalInputCount)
-      appendSummary(summary, result)
-      const now = Date.now()
-      if (summary.inputCount === 1 || now - lastLiveResultAt >= LIVE_RESULT_INTERVAL_MS) {
-        emitLiveResult(onEvent, summary, started, totalInputCount)
-        lastLiveResultAt = now
+        if (options.action === "convert" && (summary.inputCount === 1 || summary.inputCount === totalInputCount || now - lastDiagnosticLogAt >= 1_000)) {
+          const elapsedSeconds = (Date.now() - itemStarted) / 1_000
+          const completed = summary.inputCount
+          const throughput = completed / Math.max((Date.now() - started) / 1_000, 0.001)
+          onEvent({ type: "log", message: `Worker #${workerIndex + 1} ${result.status} ${runtime.basename(source)} in ${elapsedSeconds.toFixed(2)}s; active workers ${activeWorkers - 1}; completed ${completed}/${totalInputCount}; ${throughput.toFixed(2)} images/s.` })
+          lastDiagnosticLogAt = now
+        }
+      } finally {
+        activeWorkers -= 1
       }
-      if (runtime.isCancelled?.()) return cancelledSummary(summary, started)
     }
+    if (options.action === "convert") {
+      const workerThreads = batchWorkerThreads(totalInputCount, options)
+      onEvent({ type: "log", message: batchExecutionMessage(options, workerThreads) })
+      const iterator = asAsyncIterable(orderedSources)[Symbol.asyncIterator]()
+      const nextSource = serializedIterator(iterator)
+      await Promise.all(workerThreads.map(async (encoderThreads, workerIndex) => {
+        const workerInput = { ...options, threads: encoderThreads }
+        let workerItems = 0
+        while (!runtime.isCancelled?.()) {
+          await runtime.waitWhilePaused?.()
+          const next = await nextSource()
+          if (next.done) return
+          await processSource(next.value, workerIndex, workerInput, workerItems === 0)
+          workerItems += 1
+        }
+      }))
+    } else {
+      for await (const source of orderedSources) {
+        await processSource(source, 0, options, false)
+        if (runtime.isCancelled?.()) break
+      }
+    }
+    if (runtime.isCancelled?.()) return cancelledSummary(summary, started)
     if (!summary.inputCount) return failure("No supported images were found.")
     emitLiveResult(onEvent, summary, started, totalInputCount)
     const data = summaryData(summary, Date.now() - started)
@@ -313,6 +359,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       onEvent({ type: "progress", progress: 100, message: `Planned ${data.inputCount} image(s).` })
       return success(`Xlchemy planned ${data.inputCount} image(s).`, data)
     }
+    onEvent({ type: "log", message: `Batch completed in ${((Date.now() - started) / 1_000).toFixed(2)}s; peak active workers ${peakActiveWorkers}; throughput ${(data.inputCount / Math.max((Date.now() - started) / 1_000, 0.001)).toFixed(2)} images/s; converted ${data.convertedCount}, skipped ${data.skippedCount}, errors ${data.errorCount}.` })
     onEvent({ type: "progress", progress: 100, message: `Converted ${data.convertedCount} image(s).` })
     return success(`Xlchemy converted ${data.convertedCount} of ${data.inputCount} image(s).`, data)
   } catch (error) {
@@ -454,6 +501,52 @@ function emitLiveResult(onEvent: (event: NodeRunEvent) => void, summary: Xlchemy
 function progressCount(completed: number, total: number) { return { kind: "xlchemy-progress-count", completed, total } }
 function progressPercent(completed: number, total: number) { return total > 0 ? Math.min(99.99, Math.round(completed / total * 10_000) / 100) : 0 }
 
+function batchWorkerThreads(total: number, input: XlchemyInput): number[] {
+  const threadBudget = Math.max(1, input.threads)
+  if (total <= 1 || input.processingOrder === "sequential") return [threadBudget]
+  const context = { format: input.format, avifEncoder: input.avifEncoder, jpegXlEffort: input.maxCompression ? 10 : input.effort, jpegXlLossyModular: input.jxlModular ?? false, jpegXlLossless: input.lossless, jpegXlIntelligentEffort: input.intelligentEffort ?? false }
+  if (input.ramOptimizer !== "disabled" && isRamOptimizerNecessary(context)) return [threadBudget]
+  const workerCount = Math.min(total, threadBudget)
+  if (total >= threadBudget) return Array.from({ length: workerCount }, () => 1)
+  const baseThreads = Math.floor(threadBudget / workerCount)
+  const extraThreads = threadBudget % workerCount
+  return Array.from({ length: workerCount }, (_, index) => baseThreads + (index < extraThreads ? 1 : 0))
+}
+
+function batchExecutionMessage(input: XlchemyInput, workerThreads: number[]): string {
+  const encoder = input.format === "AVIF" ? input.avifEncoder === "svt" ? "SVT-AV1" : input.avifEncoder === "slimg" ? "slimg" : "AOM AV1" : input.format
+  const distribution = [...new Set(workerThreads)].length === 1 ? `${workerThreads[0]} each` : workerThreads.join(",")
+  return `Batch scheduler: ${workerThreads.length} worker(s); CPU thread budget ${input.threads}; encoder threads ${distribution}; ${encoder}; ${input.lossless ? "lossless" : `Q${input.quality}`}; effort ${input.effort}.`
+}
+
+function serializedIterator<T>(iterator: AsyncIterator<T>): () => Promise<IteratorResult<T>> {
+  let pending = Promise.resolve<IteratorResult<T>>({ done: true, value: undefined as T })
+  return () => {
+    const next = pending.then(() => iterator.next())
+    pending = next
+    return next
+  }
+}
+
+async function* asAsyncIterable<T>(values: AsyncIterable<T> | Iterable<T>): AsyncGenerator<T> {
+  for await (const value of values) yield value
+}
+
+async function withTargetLock<T>(path: string, locks: Map<string, Promise<void>>, task: () => Promise<T>): Promise<T> {
+  const key = path.toLocaleLowerCase("en-US")
+  const previous = locks.get(key) ?? Promise.resolve()
+  let release = () => {}
+  const turn = new Promise<void>((resolve) => { release = resolve })
+  const tail = previous.then(() => turn)
+  locks.set(key, tail)
+  await previous
+  try { return await task() }
+  finally {
+    release()
+    if (locks.get(key) === tail) locks.delete(key)
+  }
+}
+
 const XLCHEMY_TOOLS: Array<{ id: string; label: string; purpose: string; versionArgs: string[] }> = [
   { id: "cjxl", label: "cjxl", purpose: "JPEG XL 编码", versionArgs: ["--version"] },
   { id: "djxl", label: "djxl", purpose: "JPEG XL 解码与校验", versionArgs: ["--version"] },
@@ -515,7 +608,7 @@ async function sourceRoots(paths: string[], runtime: XlchemyRuntime): Promise<st
   return roots
 }
 
-async function planFile(sourcePath: string, roots: string[], input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyFileResult> {
+async function planFile(sourcePath: string, roots: string[], input: XlchemyInput, runtime: XlchemyRuntime, reservations?: Set<string>): Promise<XlchemyFileResult> {
   const source = await runtime.pathInfo(sourcePath)
   if (!source.exists || !source.isFile) return { sourcePath, outputPath: "", status: "error", error: "source_not_found" }
   const root = roots.find((candidate) => source.path === candidate || source.path.startsWith(`${candidate}\\`) || source.path.startsWith(`${candidate}/`)) ?? runtime.dirname(source.path)
@@ -528,14 +621,16 @@ async function planFile(sourcePath: string, roots: string[], input: XlchemyInput
   const outputStem = applyFilenameRules(stem, source.path, sourceExtension, input)
   let outputPath = runtime.join(targetRoot, relativeDir === "." ? "" : relativeDir, `${outputStem}${extension}`)
   const existing = await runtime.pathInfo(outputPath)
+  const reserved = reservations?.has(outputPath.toLocaleLowerCase("en-US")) ?? false
   if (existing.exists && input.existingPolicy === "skip") return { sourcePath: source.path, outputPath, sourceBytes: source.size, status: "skipped", error: "target_exists" }
-  if (existing.exists && input.existingPolicy === "rename") outputPath = await uniqueTarget(outputPath, runtime)
+  if ((existing.exists || reserved) && input.existingPolicy === "rename") outputPath = await uniqueTarget(outputPath, runtime, reservations)
+  if (input.existingPolicy === "rename") reservations?.add(outputPath.toLocaleLowerCase("en-US"))
   return { sourcePath: source.path, outputPath, sourceBytes: source.size, status: "planned" }
 }
 
-async function uniqueTarget(path: string, runtime: XlchemyRuntime): Promise<string> {
+async function uniqueTarget(path: string, runtime: XlchemyRuntime, reservations?: Set<string>): Promise<string> {
   const ext = runtime.extname(path), stem = path.slice(0, -ext.length)
-  for (let index = 1; index < 10_000; index += 1) { const candidate = `${stem}_${index}${ext}`; if (!(await runtime.pathInfo(candidate)).exists) return candidate }
+  for (let index = 1; index < 10_000; index += 1) { const candidate = `${stem}_${index}${ext}`; if (!(await runtime.pathInfo(candidate)).exists && !reservations?.has(candidate.toLocaleLowerCase("en-US"))) return candidate }
   throw new Error(`Unable to allocate a unique output path for ${path}`)
 }
 
