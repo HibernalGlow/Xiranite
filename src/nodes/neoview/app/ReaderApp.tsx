@@ -927,6 +927,13 @@ export function ReaderApp({
     videoController.configure(updated)
   }
 
+  async function persistVideoControlsPinned(videoControlsPinned: boolean): Promise<void> {
+    if (!client.updateMedia) return
+    const updated = await client.updateMedia({ media: { videoControlsPinned } })
+    setMedia(updated)
+    videoController.configure(updated)
+  }
+
   async function persistAnimatedVideoMode(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto> {
     if (!client.updateMedia) return media ?? {
       supportedImageFormats: [],
@@ -935,6 +942,7 @@ export function ReaderApp({
       autoPlayAnimatedImages: true,
       animatedVideoEnabled: false,
       animatedVideoKeywords: ["[#dyna]"],
+      videoControlsPinned: false,
       videoMinPlaybackRate: 0.25,
       videoMaxPlaybackRate: 16,
       videoPlaybackRateStep: 0.25,
@@ -2379,6 +2387,7 @@ export function ReaderApp({
             superResolution={superResolution}
             viewerToggles={viewerToggles}
             onSubtitleConfigChange={persistSubtitleConfig}
+            onVideoControlsPinnedChange={persistVideoControlsPinned}
             onVisiblePageChange={syncPanoramaVisiblePage}
             imageTrim={imageTrim}
             onVideoListEnded={() => void navigate("next")}

@@ -839,6 +839,9 @@ function parseMediaConfig(image: Record<string, unknown> | undefined, subtitle: 
       optionalBoolean(image?.animated_video_enabled, "[nodes.neoview.image].animated_video_enabled") ??
       Models.DEFAULT_NEOVIEW_MEDIA_CONFIG.animatedVideoEnabled,
     animatedVideoKeywords: normalizeReaderAnimatedVideoKeywords(image?.animated_video_keywords),
+    videoControlsPinned:
+      optionalBoolean(image?.video_controls_pinned, "[nodes.neoview.image].video_controls_pinned") ??
+      Models.DEFAULT_NEOVIEW_MEDIA_CONFIG.videoControlsPinned,
     videoMinPlaybackRate,
     videoMaxPlaybackRate,
     videoPlaybackRateStep: boundedNumber(
@@ -883,6 +886,7 @@ export function parseNeoviewMediaPatch(
     "autoPlayAnimatedImages",
     "animatedVideoEnabled",
     "animatedVideoKeywords",
+    "videoControlsPinned",
     "videoMinPlaybackRate",
     "videoMaxPlaybackRate",
     "videoPlaybackRateStep",
@@ -921,6 +925,10 @@ export function parseNeoviewMediaPatch(
   if (media.animatedVideoKeywords !== undefined) {
     patch.media.animatedVideoKeywords = normalizeReaderAnimatedVideoKeywords(media.animatedVideoKeywords)
     imageToml.animated_video_keywords = patch.media.animatedVideoKeywords
+  }
+  if (media.videoControlsPinned !== undefined) {
+    patch.media.videoControlsPinned = requiredBoolean(media.videoControlsPinned, "reader media patch.videoControlsPinned")
+    imageToml.video_controls_pinned = patch.media.videoControlsPinned
   }
   if (media.videoMinPlaybackRate !== undefined) {
     patch.media.videoMinPlaybackRate = boundedNumber(

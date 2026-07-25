@@ -38,6 +38,7 @@ export function ReaderPanoramaFrame({
   media,
   superResolution,
   onSubtitleConfigChange,
+  onVideoControlsPinnedChange,
   onVideoListEnded,
   onVisiblePageChange,
 }: {
@@ -58,6 +59,7 @@ export function ReaderPanoramaFrame({
   media?: ReaderMediaConfigDto
   superResolution?: ReaderSuperResolutionConfigDto
   onSubtitleConfigChange(patch: Partial<ReaderSubtitleConfigDto>): Promise<void>
+  onVideoControlsPinnedChange?(pinned: boolean): Promise<void>
   onVideoListEnded(): void
   onVisiblePageChange?(pageIndex: number): void
 }) {
@@ -197,7 +199,7 @@ export function ReaderPanoramaFrame({
           const width = frameSize && scale ? frameSize.width * scale + gap : available.width
           const height = frameSize && scale ? frameSize.height * scale : available.height
           const unit = <div className="flex shrink-0 items-center justify-center bg-black p-1" style={{ width, height, flexDirection: "row" }} data-panorama-unit={index} data-reader-double-page-gap={renderedPages.length > 1 ? doublePageGap : undefined}>
-            {renderedPages.map((page, slotIndex) => <div key={page.id} className="flex shrink-0" data-reader-page-slot={slotIndex} style={slotIndex > 0 ? { marginInlineStart: doublePageGap } : undefined}><PageMedia page={page} rotation={page.dimensions ? effectiveReaderRotation(presentation.rotation, presentation.autoRotation, page.dimensions) : presentation.rotation} scale={scale === undefined ? undefined : scale * (stretchScales[slotIndex] ?? 1)} fallbackSize={available} colorFilter={colorFilter} imageTrim={imageTrim} imageTrimDetectionActive={page.index === imageTrimDetectionPageIndex} videoController={videoController} sessionId={sessionId} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVideoListEnded={onVideoListEnded} /></div>)}
+            {renderedPages.map((page, slotIndex) => <div key={page.id} className="flex shrink-0" data-reader-page-slot={slotIndex} style={slotIndex > 0 ? { marginInlineStart: doublePageGap } : undefined}><PageMedia page={page} rotation={page.dimensions ? effectiveReaderRotation(presentation.rotation, presentation.autoRotation, page.dimensions) : presentation.rotation} scale={scale === undefined ? undefined : scale * (stretchScales[slotIndex] ?? 1)} fallbackSize={available} colorFilter={colorFilter} imageTrim={imageTrim} imageTrimDetectionActive={page.index === imageTrimDetectionPageIndex} videoController={videoController} sessionId={sessionId} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVideoControlsPinnedChange={onVideoControlsPinnedChange} onVideoListEnded={onVideoListEnded} /></div>)}
           </div>
           return presentation.orientation === "vertical"
             ? <div className="flex w-full justify-center" data-panorama-unit-wrapper={index}>{unit}</div>

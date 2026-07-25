@@ -1458,6 +1458,7 @@ export interface ReaderMediaConfigDto {
   autoPlayAnimatedImages: boolean
   animatedVideoEnabled: boolean
   animatedVideoKeywords: readonly string[]
+  videoControlsPinned: boolean
   videoMinPlaybackRate: number
   videoMaxPlaybackRate: number
   videoPlaybackRateStep: number
@@ -1469,6 +1470,7 @@ export interface ReaderMediaPatchDto {
     autoPlayAnimatedImages?: boolean
     animatedVideoEnabled?: boolean
     animatedVideoKeywords?: readonly string[]
+    videoControlsPinned?: boolean
     subtitle?: Partial<ReaderSubtitleConfigDto>
   }
 }

@@ -457,6 +457,7 @@ export interface NeoviewMediaConfig {
   autoPlayAnimatedImages: boolean
   animatedVideoEnabled: boolean
   animatedVideoKeywords: readonly string[]
+  videoControlsPinned: boolean
   videoMinPlaybackRate: number
   videoMaxPlaybackRate: number
   videoPlaybackRateStep: number
@@ -471,6 +472,7 @@ export interface NeoviewMediaPatch {
     autoPlayAnimatedImages?: boolean
     animatedVideoEnabled?: boolean
     animatedVideoKeywords?: readonly string[]
+    videoControlsPinned?: boolean
     videoMinPlaybackRate?: number
     videoMaxPlaybackRate?: number
     videoPlaybackRateStep?: number
@@ -845,6 +847,7 @@ export const DEFAULT_NEOVIEW_MEDIA_CONFIG: NeoviewMediaConfig = {
   autoPlayAnimatedImages: true,
   animatedVideoEnabled: false,
   animatedVideoKeywords: DEFAULT_READER_ANIMATED_VIDEO_KEYWORDS,
+  videoControlsPinned: false,
   videoMinPlaybackRate: 0.25,
   videoMaxPlaybackRate: 16,
   videoPlaybackRateStep: 0.25,

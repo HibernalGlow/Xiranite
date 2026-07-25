@@ -24,6 +24,7 @@ describe("Reader media runtime config", () => {
         video_formats: ["mp4", "comicvideo"],
         media_mime_types: { comicimage: "image/webp", comicvideo: "video/mp4" },
         auto_play_animated_images: false,
+        video_controls_pinned: true,
         video_min_playback_rate: 0.5,
         video_max_playback_rate: 8,
         video_playback_rate_step: 0.5,
@@ -36,6 +37,7 @@ describe("Reader media runtime config", () => {
       autoPlayAnimatedImages: false,
       animatedVideoEnabled: false,
       animatedVideoKeywords: ["[#dyna]"],
+      videoControlsPinned: true,
       videoMinPlaybackRate: 0.5,
       videoMaxPlaybackRate: 8,
       videoPlaybackRateStep: 0.5,
@@ -47,6 +49,7 @@ describe("Reader media runtime config", () => {
       videoFormats: ["mp4", "comicvideo"],
       mediaMimeTypes: { comicimage: "image/webp", comicvideo: "video/mp4" },
       autoPlayAnimatedImages: false,
+      videoControlsPinned: true,
       videoMinPlaybackRate: 0.5,
       videoMaxPlaybackRate: 8,
       videoPlaybackRateStep: 0.5,
@@ -57,6 +60,7 @@ describe("Reader media runtime config", () => {
         video_formats: ["mp4", "comicvideo"],
         media_mime_types: { comicimage: "image/webp", comicvideo: "video/mp4" },
         auto_play_animated_images: false,
+        video_controls_pinned: true,
         video_min_playback_rate: 0.5,
         video_max_playback_rate: 8,
         video_playback_rate_step: 0.5,
@@ -91,6 +95,7 @@ describe("Reader media runtime config", () => {
       const initial = await request(controller, "GET")
       expect(await initial.json()).toMatchObject({ media: {
         autoPlayAnimatedImages: true,
+        videoControlsPinned: false,
         videoMinPlaybackRate: 0.25,
         videoMaxPlaybackRate: 16,
         videoPlaybackRateStep: 0.25,
@@ -114,6 +119,7 @@ describe("Reader media runtime config", () => {
       expect(updated.status).toBe(200)
       expect(await updated.json()).toMatchObject({ media: {
         autoPlayAnimatedImages: false,
+        videoControlsPinned: true,
         videoMinPlaybackRate: 8,
         videoMaxPlaybackRate: 12,
         videoPlaybackRateStep: 0.5,
@@ -124,11 +130,13 @@ describe("Reader media runtime config", () => {
       expect(toml).toContain("future_image_option = \"keep\"")
       expect(toml).toContain("video_min_playback_rate = 8")
       expect(toml).toContain("video_max_playback_rate = 12")
+      expect(toml).toContain("video_controls_pinned = true")
       expect(toml).toContain("[nodes.neoview.reader.subtitle]")
       expect(toml).toContain("future_subtitle_option = \"keep\"")
       expect(toml).toContain("font_size = 1.5")
       expect((await loadNeoviewRuntimeConfig({ configPath })).media).toMatchObject({
         autoPlayAnimatedImages: false,
+        videoControlsPinned: true,
         videoMinPlaybackRate: 8,
         videoMaxPlaybackRate: 12,
         subtitle: { color: "#ffff00", bottomPercent: 8 },

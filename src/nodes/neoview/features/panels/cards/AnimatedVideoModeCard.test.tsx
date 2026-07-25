@@ -76,6 +76,7 @@ function media(): ReaderMediaConfigDto {
     autoPlayAnimatedImages: true,
     animatedVideoEnabled: false,
     animatedVideoKeywords: ["[#dyna]"],
+    videoControlsPinned: false,
     videoMinPlaybackRate: 0.25,
     videoMaxPlaybackRate: 16,
     videoPlaybackRateStep: 0.25,

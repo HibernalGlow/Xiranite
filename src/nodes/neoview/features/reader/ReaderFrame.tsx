@@ -34,7 +34,7 @@ import { ReaderMagnifierLayer } from "./ReaderMagnifierLayer"
 
 const LazyReaderPanoramaFrame = lazy(async () => ({ default: (await import("./ReaderPanoramaFrame")).ReaderPanoramaFrame }))
 
-export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, doublePageGap = 0, totalPages, anchorPageIndex, preloadGeneration, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, slideshowFade = false, videoController, sessionId, client, media, superResolution, viewerToggles, onSubtitleConfigChange, onVisiblePageChange, onVideoListEnded }: {
+export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, doublePageGap = 0, totalPages, anchorPageIndex, preloadGeneration, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, slideshowFade = false, videoController, sessionId, client, media, superResolution, viewerToggles, onSubtitleConfigChange, onVideoControlsPinnedChange, onVisiblePageChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   framePages?: readonly FramePage[]
   presentation: ReaderPresentation
@@ -61,6 +61,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
   superResolution?: ReaderSuperResolutionConfigDto
   viewerToggles?: ReaderViewerTogglePort
   onSubtitleConfigChange(patch: Partial<ReaderSubtitleConfigDto>): Promise<void>
+  onVideoControlsPinnedChange?(pinned: boolean): Promise<void>
   onVideoListEnded: () => void
   onVisiblePageChange?: (pageIndex: number) => void
 }) {
@@ -141,7 +142,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
     viewerToggles={viewerToggles}
     client={client}
   />
-  if (panorama) return <div className="relative h-full min-h-0 w-full"><ReaderPageTransitionLayer pageIndex={anchorPageIndex} slideshowFade={slideshowFade} slideshowTarget={slideshowTarget} fill><Suspense fallback={null}><LazyReaderPanoramaFrame key={`${sessionId}:${pageMode}:${direction}`} sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} doublePageGap={doublePageGap} hoverScrollEnabled={hoverScrollEnabled} hoverScrollSpeed={hoverScrollSpeed} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense></ReaderPageTransitionLayer>{progressLayer}</div>
+  if (panorama) return <div className="relative h-full min-h-0 w-full"><ReaderPageTransitionLayer pageIndex={anchorPageIndex} slideshowFade={slideshowFade} slideshowTarget={slideshowTarget} fill><Suspense fallback={null}><LazyReaderPanoramaFrame key={`${sessionId}:${pageMode}:${direction}`} sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} doublePageGap={doublePageGap} hoverScrollEnabled={hoverScrollEnabled} hoverScrollSpeed={hoverScrollSpeed} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVideoControlsPinnedChange={onVideoControlsPinnedChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense></ReaderPageTransitionLayer>{progressLayer}</div>
   const frameOrientation = pages.length > 1 ? "horizontal" : presentation.orientation
   const dimensions = displayedPages.flatMap((page, index) => page.dimensions
     ? [readerImageTrimEffectiveDimensions(page.dimensions, DEFAULT_READER_IMAGE_TRIM, framePages?.[index]?.cropInsets)]
@@ -217,6 +218,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
                     media={media}
                     superResolution={superResolution}
                     onSubtitleConfigChange={onSubtitleConfigChange}
+                    onVideoControlsPinnedChange={onVideoControlsPinnedChange}
                     onVideoListEnded={onVideoListEnded}
                     onCommittedPage={(committedPage) => commitSlotPage(slotIndex, committedPage)}
                   />
