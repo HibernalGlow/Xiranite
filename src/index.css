@@ -213,19 +213,45 @@ samp {
   color: var(--destructive) !important;
 }
 
-.xiranite-floating-window [data-window-caption-visibility="titlebar-hover"] {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 150ms ease;
+[data-window-caption-visibility="expand-on-hover"] {
+  width: 1.75rem;
+  transition: width 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.xiranite-floating-window:has(:is(
-  [data-floating-window-titlebar="true"],
-  [data-floating-window-drag-row="true"]
-):is(:hover, :focus-within)) [data-window-caption-visibility="titlebar-hover"],
-.xiranite-floating-window [data-window-caption-visibility="titlebar-hover"]:is(:hover, :focus-within) {
+[data-window-caption-visibility="expand-on-hover"]:is(:hover, :focus-within) {
+  width: 4.25rem;
+}
+
+[data-window-caption-visibility="expand-on-hover"] [data-node-chrome-action] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 90ms ease;
+}
+
+[data-window-caption-visibility="expand-on-hover"] [data-node-chrome-expanded-surface] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 90ms ease;
+}
+
+[data-window-caption-visibility="expand-on-hover"]:is(:hover, :focus-within) [data-node-chrome-expanded-surface] {
   opacity: 1;
   pointer-events: auto;
+}
+
+[data-window-caption-visibility="expand-on-hover"]:is(:hover, :focus-within) [data-node-chrome-action] {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 45ms;
+}
+
+[data-window-caption-visibility="expand-on-hover"] [data-node-chrome-idle-indicator] {
+  opacity: 1;
+  transition: opacity 80ms ease;
+}
+
+[data-window-caption-visibility="expand-on-hover"]:is(:hover, :focus-within) [data-node-chrome-idle-indicator] {
+  opacity: 0;
 }
 
 /* ── Workspace canvas dot/grid background ── */
