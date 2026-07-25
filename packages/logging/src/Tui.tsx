@@ -1,6 +1,7 @@
 /* @jsxImportSource @opentui/react */
 import { useKeyboard, useTerminalDimensions } from "@opentui/react"
 import { useMemo, useState } from "react"
+import type { ReactNode } from "react"
 import { aggregateLogs, queryLogs } from "./query.js"
 import type { LogEnvelope } from "./schema.js"
 
@@ -10,7 +11,7 @@ export interface LogTuiProps {
   onExit: () => void
 }
 
-export function LogTui({ events, directory, onExit }: LogTuiProps) {
+export function LogTui({ events, directory, onExit }: LogTuiProps): ReactNode {
   const dimensions = useTerminalDimensions()
   const [sessionIndex, setSessionIndex] = useState(0)
   const [eventIndex, setEventIndex] = useState(0)
