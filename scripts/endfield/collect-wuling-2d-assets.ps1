@@ -8,7 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $sourceRoot = Join-Path $ExportRoot "recovered\AnimeStudio-cli\StreamingAssets\convert_by_type"
-$excludePattern = "(?i)map|enemy|palesent|^T_auto_generat"
+$excludePattern = "(?i)map|enemy|^eny[_-]|palesent|^T_auto_generat"
 
 function Get-Category([string]$Name) {
     if ($Name -match "(?i)char|character|portrait|avatar|profile|illustration|story|loading|login|banner") {
