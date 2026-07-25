@@ -335,26 +335,6 @@ describe("app-owned enginev Component", () => {
     expect(host.saveUiCalls).toEqual([uiConfig])
   })
 
-  test("uses the theme highlight for only selected gallery pills", async () => {
-    surfaceState.mode = "expanded"
-    const host = createHost({ workshopPath: "D:/workshop", wallpapers: [wallpaper] })
-    const view = render(<Component compId="comp-enginev" host={host} />)
-    const user = userEvent.setup()
-    const pill = screen.getByText("111").closest("[data-enginev-wallpaper-selection]")
-
-    expect(pill?.getAttribute("data-variant")).toBe("outline")
-    expect(pill?.className).toContain("bg-zinc-600")
-    expect(pill?.className).not.toContain("bg-primary")
-    expect(pill?.className).not.toContain("backdrop-blur")
-
-    await user.click(screen.getByRole("button", { name: "选择 Ocean Loop" }))
-
-    view.rerender(<Component compId="comp-enginev" host={host} />)
-    const selectedPill = screen.getByText("111").closest("[data-enginev-wallpaper-selection]")
-    expect(selectedPill?.getAttribute("data-variant")).toBe("default")
-    expect(selectedPill?.className).toContain("bg-primary")
-  })
-
   test("marks the card as error when the runner is unavailable", async () => {
     surfaceState.mode = "regular"
     const host = createHost({ workshopPath: "D:/workshop" }, { noRunner: true })

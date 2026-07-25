@@ -89,7 +89,7 @@ export function ModuleRenderer({ moduleId, compId, keepAlive = false }: { module
     )
   }
   return (
-    <div className="xiranite-node-surface h-full min-h-0 w-full overflow-hidden">
+    <div className={nodeSurfaceClassName(resolvedModuleId)}>
       <Suspense fallback={<div className="p-4"><Skeleton className="h-32 w-full" /></div>}>
         <Comp compId={compId} />
       </Suspense>
@@ -184,7 +184,7 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
 
   const Component = entry.Component as ComponentType<NodeComponentProps>
   return (
-    <div className="xiranite-node-surface h-full min-h-0 w-full overflow-hidden" data-module-id={moduleId} data-component-id={compId}>
+    <div className={nodeSurfaceClassName(moduleId)} data-module-id={moduleId} data-component-id={compId}>
       <NodeRenderBoundary moduleId={moduleId}>
         <NodeRuntimeProvider nodeId={moduleId}>
           <LocalFilesProvider value={host.localFiles}>
@@ -195,6 +195,11 @@ function PackageNodeRenderer({ moduleId, compId }: { moduleId: string; compId: s
       </NodeRenderBoundary>
     </div>
   )
+}
+
+function nodeSurfaceClassName(moduleId: string): string {
+  const base = "h-full min-h-0 w-full overflow-hidden"
+  return moduleId === "melodeck" ? base : `xiranite-node-surface ${base}`
 }
 
 /** One-shot mount/unmount log for package nodes (NeoView freeze diagnosis). */

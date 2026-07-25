@@ -1,4 +1,5 @@
 export const MUSIC_VISUALIZER_STYLE_VALUES = [
+  "None",
   "Waveform",
   "NewtonsCradle",
   "Miyagi",
@@ -53,7 +54,7 @@ const MUSIC_VISUALIZER_STYLE_SET = new Set<string>(MUSIC_VISUALIZER_STYLE_VALUES
 
 export const MUSIC_VISUALIZER_STYLE_OPTIONS = MUSIC_VISUALIZER_STYLE_VALUES.map((value) => ({
   value,
-  label: formatMusicVisualizerStyleLabel(value),
+  label: value === "None" ? "无波形" : formatMusicVisualizerStyleLabel(value),
 }))
 
 export function normalizeMusicVisualizerStyle(value: string | null | undefined): MusicVisualizerStyle {

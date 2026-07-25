@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -12,14 +13,42 @@ import {
   type RefObject,
 } from "react"
 import { motion, useDragControls, type PanInfo } from "motion/react"
-import { Disc3, GripHorizontal, Maximize2, Minimize2, PanelBottom, Pause, PictureInPicture2, Play, SkipBack, SkipForward, X } from "lucide-react"
+import {
+  DEFAULT_FOLIA_PLAYER_PREFERENCES,
+  FoliaBarSurface,
+  FoliaPlayerProvider,
+  FoliaRemoteSurface,
+  FoliaUnifiedPanel,
+  useFoliaPlayer,
+  type FoliaTrack,
+  type FoliaPlayerPreferences,
+} from "@hibernalglow/folia-player"
+import "@hibernalglow/folia-player/styles.css"
+import { AudioWaveform, Disc3, Ellipsis, GripHorizontal, Maximize2, Minus, PanelBottom, Pause, PictureInPicture2, Play, SkipBack, SkipForward, X } from "lucide-react"
 import type { MusicPlaybackControls, MusicPlaybackState, PersistedTrack } from "@/components/modules/musicPlayer/MusicPlayerSurface"
-import type { MusicVisualizerStyle } from "@/components/modules/musicPlayer/visualizerStyles"
+import {
+  MUSIC_VISUALIZER_STYLE_OPTIONS,
+  normalizeMusicVisualizerStyle,
+  type MusicVisualizerStyle,
+} from "@/components/modules/musicPlayer/visualizerStyles"
+import { Button } from "@/components/ui/button"
+import { NodeSurfaceChrome, type NodeSurfaceChromeAction } from "@/components/workspace/NodeSurfaceChrome"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { DynamicIsland, DynamicIslandProvider } from "@/components/ui/dynamic-island"
 import { useDynamicIslandSize } from "@/components/ui/dynamic-island-context"
-import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
+import { localBackendFileUrl } from "@/backend/localBackendConfig"
 import { cn } from "@/lib/utils"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { createLogger } from "@/lib/logger"
@@ -31,15 +60,17 @@ import {
   MELODECK_CONFIG_CHANGED_EVENT,
   saveMelodeckConfig,
 } from "@/nodes/melodeck/config"
+import { foliaMelodeckHost } from "@/nodes/melodeck/foliaHost"
+import { useFoliaHostTheme } from "@/nodes/melodeck/foliaTheme"
+import { useWorkspaceStore } from "@/store/workspaceStore"
 
 type DockMode = "bottom" | "floating" | "fullscreen"
+type MelodeckIslandVariant = "full" | "mini"
 
 interface FloatingOffset {
   x: number
   y: number
 }
-
-type MelodeckIslandVariant = "full" | "mini"
 
 interface MelodeckContextValue {
   collapsed: boolean
@@ -52,6 +83,8 @@ interface MelodeckContextValue {
   savedTracks: PersistedTrack[]
   sourcePath: string
   floatingOffset: FloatingOffset
+  playerEngine: "folia" | "legacy"
+  followFullscreenWithFloating: boolean
   setCollapsed(collapsed: boolean): void
   setMode(mode: DockMode): void
   setPlaybackControls(controls: MusicPlaybackControls | null): void
@@ -61,21 +94,30 @@ interface MelodeckContextValue {
   setSavedTracks(tracks: PersistedTrack[]): void
   setSourcePath(path: string): void
   setFloatingOffset(offset: FloatingOffset): void
+  setPlayerEngine(engine: "folia" | "legacy"): void
+  setFollowFullscreenWithFloating(follow: boolean): void
 }
 
-const MELODECK_GLASS_SHADOW_CLASS = "shadow-[0_14px_44px_rgba(0,0,0,0.16)] dark:shadow-[0_20px_64px_rgba(0,0,0,0.34)]"
 const EMPTY_PLAYBACK_STATE: MusicPlaybackState = {
   hasTrack: false,
   isPlaying: false,
   trackCount: 0,
+}
+const MELODECK_GLASS_SHADOW_CLASS = "shadow-[0_14px_44px_rgba(0,0,0,0.16)] dark:shadow-[0_20px_64px_rgba(0,0,0,0.34)]"
+const MELODECK_REMOTE_CONTROL_COLORS = {
+  primaryBackground: "var(--primary)",
+  primaryForeground: "var(--primary-foreground)",
+  secondaryBackground: "var(--accent)",
+  secondaryForeground: "var(--accent-foreground)",
 }
 const MusicPlayerSurface = lazy(() =>
   import("@/components/modules/musicPlayer/MusicPlayerSurface").then((module) => ({
     default: module.MusicPlayerSurface,
   })),
 )
+const loadMusicVisualizerIcon = () => import("@/components/modules/musicPlayer/MusicVisualizerIcon")
 const MusicVisualizerIcon = lazy(() =>
-  import("@/components/modules/musicPlayer/MusicVisualizerIcon").then((module) => ({
+  loadMusicVisualizerIcon().then((module) => ({
     default: module.MusicVisualizerIcon,
   })),
 )
@@ -83,17 +125,24 @@ const MelodeckContext = createContext<MelodeckContextValue | null>(null)
 
 export function WorkspaceMelodeckProvider({ children }: { children: ReactNode }) {
   const backendStatus = useLocalBackendStatus()
+  const isDaylight = useIsDaylight()
+  const foliaTheme = useFoliaHostTheme()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const playbackControlsRef = useRef<MusicPlaybackControls | null>(null)
   const applyingConfigRef = useRef(false)
   const skipNextSaveRef = useRef(false)
   const [collapsed, setCollapsed] = useState(true)
-  const [mode, setMode] = useState<DockMode>(DEFAULT_MELODECK_CONFIG.mode)
+  const [mode, setModeState] = useState<DockMode>(DEFAULT_MELODECK_CONFIG.mode)
   const [playback, setPlaybackState] = useState<MusicPlaybackState>(EMPTY_PLAYBACK_STATE)
   const [visualizerStyle, setVisualizerStyle] = useState<MusicVisualizerStyle>(DEFAULT_MELODECK_CONFIG.visualizer_style)
   const [surfaceMounted, setSurfaceMounted] = useState(false)
   const [savedTracks, setSavedTracks] = useState<PersistedTrack[]>([])
   const [sourcePath, setSourcePath] = useState("")
+  const [libraryRoots, setLibraryRoots] = useState<string[]>([])
+  const [preferences, setPreferences] = useState<FoliaPlayerPreferences>(DEFAULT_FOLIA_PLAYER_PREFERENCES)
+  const [activeTrackId, setActiveTrackId] = useState<string | null>(null)
+  const [playerEngine, setPlayerEngine] = useState<"folia" | "legacy">("folia")
+  const [followFullscreenWithFloating, setFollowFullscreenWithFloating] = useState(false)
   const [floatingOffset, setFloatingOffset] = useState<FloatingOffset>(DEFAULT_MELODECK_CONFIG.floating_offset)
   const [configLoaded, setConfigLoaded] = useState(false)
   const backendKey = backendStatus.data?.status === "ready" && backendStatus.data.config
@@ -101,6 +150,36 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
     : ""
   const setPlaybackControls = useCallback((controls: MusicPlaybackControls | null) => {
     playbackControlsRef.current = controls
+  }, [])
+  const foliaTracks = useMemo(() => savedTracks.flatMap<FoliaTrack>((track) => track.path ? [{
+    id: track.path,
+    path: track.path,
+    src: localBackendFileUrl(track.path),
+    title: track.name,
+    artist: track.writer,
+    mimeType: track.type,
+    fileSize: track.size,
+  }] : []), [savedTracks])
+  const handleFoliaTracksChange = useCallback((tracks: FoliaTrack[]) => {
+    setSavedTracks(tracks.map((track) => ({
+      name: track.title,
+      writer: track.artist,
+      path: track.path,
+      size: track.fileSize,
+      type: track.mimeType,
+    })))
+  }, [])
+  const handleLibraryRootsChange = useCallback((roots: string[]) => {
+    setLibraryRoots(roots)
+    setSourcePath(roots[0] ?? "")
+  }, [])
+  const setMode = useCallback((nextMode: DockMode) => {
+    if (nextMode === "fullscreen") {
+      openStandardMelodeckFullscreen()
+      setModeState("floating")
+      return
+    }
+    setModeState(nextMode)
   }, [])
 
   useEffect(() => {
@@ -115,9 +194,21 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
       startupDebugAsync("melodeck:provider:config-load", loadMelodeckConfig).then((config) => {
         if (cancelled) return
         startupDebug("melodeck:provider:apply:begin", { savedTracks: config.saved_tracks?.length ?? 0 })
-        setMode(config.mode ?? DEFAULT_MELODECK_CONFIG.mode)
+        setModeState(config.mode === "fullscreen" ? "floating" : config.mode ?? DEFAULT_MELODECK_CONFIG.mode)
         setSavedTracks(config.saved_tracks ?? [])
         setSourcePath(config.source_path ?? "")
+        setLibraryRoots(config.library?.roots ?? (config.source_path ? [config.source_path] : []))
+        setPreferences((current) => ({
+          ...current,
+          volume: config.playback?.volume ?? DEFAULT_FOLIA_PLAYER_PREFERENCES.volume,
+          loopMode: config.playback?.loop_mode ?? DEFAULT_FOLIA_PLAYER_PREFERENCES.loopMode,
+          replayGainMode: config.playback?.replay_gain_mode ?? DEFAULT_FOLIA_PLAYER_PREFERENCES.replayGainMode,
+          outputDeviceId: config.playback?.output_device_id,
+          ...(config.visualizer as Partial<FoliaPlayerPreferences> | undefined),
+        }))
+        setActiveTrackId(config.playback?.active_track_id ?? null)
+        setPlayerEngine(config.player_engine ?? "folia")
+        setFollowFullscreenWithFloating(config.surfaces?.follow_fullscreen_with_floating ?? false)
         setFloatingOffset(clampFloatingOffset(config.floating_offset ?? DEFAULT_MELODECK_CONFIG.floating_offset))
         setVisualizerStyle(config.visualizer_style ?? DEFAULT_MELODECK_CONFIG.visualizer_style)
         setConfigLoaded(true)
@@ -154,12 +245,31 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
         source_path: sourcePath,
         floating_offset: floatingOffset,
         visualizer_style: visualizerStyle,
+        playback: {
+          volume: preferences.volume,
+          loop_mode: preferences.loopMode,
+          replay_gain_mode: preferences.replayGainMode,
+          output_device_id: preferences.outputDeviceId,
+          active_track_id: activeTrackId ?? undefined,
+        },
+        library: { roots: libraryRoots },
+        surfaces: { mode, collapsed, follow_fullscreen_with_floating: followFullscreenWithFloating },
+        visualizer: {
+          visualizerMode: preferences.visualizerMode,
+          background: preferences.background,
+          visualizerTunings: preferences.visualizerTunings,
+          lyricsFontScale: preferences.lyricsFontScale,
+          subtitleFontScale: preferences.subtitleFontScale,
+          showHarmonySubtitle: preferences.showHarmonySubtitle,
+          showSubtitleTranslation: preferences.showSubtitleTranslation,
+        },
+        player_engine: playerEngine,
       }, { broadcast: false })).catch((error) => {
         logger.warn("Config save failed", error)
       })
     }, 400)
     return () => window.clearTimeout(timer)
-  }, [backendKey, configLoaded, floatingOffset, mode, savedTracks, sourcePath, visualizerStyle])
+  }, [activeTrackId, backendKey, collapsed, configLoaded, floatingOffset, followFullscreenWithFloating, libraryRoots, mode, playerEngine, preferences, savedTracks, sourcePath, visualizerStyle])
 
   return (
     <MelodeckContext.Provider
@@ -183,11 +293,58 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
         setSavedTracks,
         setSourcePath,
         setFloatingOffset,
+        playerEngine,
+        setPlayerEngine,
+        followFullscreenWithFloating,
+        setFollowFullscreenWithFloating,
       }}
     >
-      {children}
+      <FoliaPlayerProvider
+        tracks={foliaTracks}
+        onTracksChange={handleFoliaTracksChange}
+        libraryRoots={libraryRoots}
+        onLibraryRootsChange={handleLibraryRootsChange}
+        host={foliaMelodeckHost}
+        theme={foliaTheme}
+        isDaylight={isDaylight}
+        preferences={preferences}
+        onPreferencesChange={setPreferences}
+        initialActiveTrackId={activeTrackId}
+        onActiveTrackChange={setActiveTrackId}
+        enabled={playerEngine === "folia"}
+      >
+        <MelodeckFoliaBridge enabled={playerEngine === "folia"} />
+        {children}
+      </FoliaPlayerProvider>
     </MelodeckContext.Provider>
   )
+}
+
+function MelodeckFoliaBridge({ enabled }: { enabled: boolean }) {
+  const { setPlaybackControls, setPlaybackState } = useMelodeck()
+  const { actions, snapshot, tracks } = useFoliaPlayer()
+
+  useEffect(() => {
+    if (!enabled) return
+    setPlaybackState({
+      hasTrack: Boolean(snapshot.activeTrack),
+      isPlaying: snapshot.isPlaying,
+      trackCount: tracks.length,
+      currentTime: snapshot.currentTime,
+      duration: snapshot.duration,
+      artworkUrl: snapshot.activeTrack?.coverUrl,
+      trackName: snapshot.activeTrack?.title,
+      supportLine: snapshot.currentLyric || snapshot.activeTrack?.artist,
+    })
+    setPlaybackControls({
+      playPrevious: actions.previous,
+      playNext: actions.next,
+      togglePlay: () => void actions.toggle(),
+      seekTo: actions.seek,
+    })
+    return () => setPlaybackControls(null)
+  }, [actions, enabled, setPlaybackControls, setPlaybackState, snapshot, tracks.length])
+  return null
 }
 
 export function WorkspaceMelodeckTopBarSlot() {
@@ -200,7 +357,7 @@ export function WorkspaceMelodeckTopBarSlot() {
           initialSize="minimalLeading"
           presets={{
             minimalLeading: { width: 206, aspectRatio: 34 / 206, borderRadius: 17 },
-            compact: { width: 396, aspectRatio: 156 / 396, borderRadius: 28 },
+            compact: { width: 396, aspectRatio: 156 / 396, borderRadius: 22 },
           }}
         >
           <MelodeckIsland variant="full" />
@@ -215,7 +372,7 @@ export function WorkspaceMelodeckTopBarSlot() {
         initialSize="minimalLeading"
         presets={{
           minimalLeading: { width: 64, aspectRatio: 36 / 64, borderRadius: 18 },
-          compact: { width: 320, aspectRatio: 156 / 320, borderRadius: 28 },
+          compact: { width: 320, aspectRatio: 156 / 320, borderRadius: 22 },
         }}
       >
         <MelodeckIsland variant="mini" />
@@ -242,10 +399,12 @@ function useTopBarMusicIslandVariant(): MelodeckIslandVariant {
 
 function MelodeckIsland({ variant }: { variant: MelodeckIslandVariant }) {
   const dock = useMelodeck()
+  const isDaylight = useIsDaylight()
   const islandRef = useRef<HTMLDivElement>(null)
   const { state, setSize } = useDynamicIslandSize()
   const expanded = state.size === "compact"
-  const collapsedMini = variant === "mini" && !expanded
+  const miniVariant = variant === "mini"
+  const collapsedMini = miniVariant && !expanded
   const showSpectrum = dock.playback.isPlaying
   const primaryTrack = dock.playback.trackName ?? dock.savedTracks[0]?.name
   const trackLabel = primaryTrack ?? "音乐播放器"
@@ -253,14 +412,17 @@ function MelodeckIsland({ variant }: { variant: MelodeckIslandVariant }) {
     ? (dock.collapsed ? "后台播放" : "正在播放")
     : dock.collapsed
       ? "后台待机"
-      : dock.mode === "bottom" ? "底栏显示" : dock.mode === "fullscreen" ? "全屏 dock" : "浮窗显示"
+      : dock.mode === "bottom" ? "底栏显示" : "浮窗显示"
   const stateLabel = dock.playback.supportLine?.trim() || fallbackStateLabel
+  // Matches Folia GridMap's backdrop exactly, rather than deriving a second palette from cover art.
+  const gridMapBackground = isDaylight ? "rgba(250, 249, 246, 0.95)" : "rgba(9, 9, 11, 0.95)"
 
   useEffect(() => {
     if (!expanded) return
 
     function collapseFromOutside(event: PointerEvent) {
       const target = event.target
+      if (target instanceof Element && target.closest("[data-melodeck-island-menu]")) return
       if (target instanceof Node && islandRef.current?.contains(target)) return
       setSize("minimalLeading")
     }
@@ -272,7 +434,7 @@ function MelodeckIsland({ variant }: { variant: MelodeckIslandVariant }) {
   function showInMode(mode: DockMode) {
     dock.setMode(mode)
     dock.setSurfaceMounted(true)
-    dock.setCollapsed(false)
+    dock.setCollapsed(mode === "fullscreen" ? !dock.followFullscreenWithFloating : false)
     setSize("minimalLeading")
   }
 
@@ -285,75 +447,152 @@ function MelodeckIsland({ variant }: { variant: MelodeckIslandVariant }) {
   return (
     <DynamicIsland
       id={`melodeck-topbar-island-${variant}`}
+      transition={{ type: "spring", stiffness: 340, damping: 30, mass: 0.72 }}
       className={cn(
-        "absolute right-0 top-[7px] mx-0 max-w-[calc(100vw-9rem)] border border-border/55 bg-background/78 text-foreground shadow-[0_8px_24px_color-mix(in_oklch,var(--foreground)_12%,transparent)] ring-1 ring-border/25 backdrop-blur-xl backdrop-saturate-150",
-        "supports-[backdrop-filter]:bg-background/62",
-        expanded && "border-border/70 bg-popover/90 shadow-[0_18px_48px_color-mix(in_oklch,var(--foreground)_18%,transparent)] ring-primary/12 supports-[backdrop-filter]:bg-popover/82",
-        !dock.collapsed && "ring-primary/16",
+        "absolute right-0 top-[7px] mx-0 max-w-[calc(100vw-9rem)] border-0 bg-transparent text-foreground shadow-none ring-0",
       )}
     >
       <div
         ref={islandRef}
         data-melodeck-island-state={expanded ? "expanded" : "collapsed"}
         data-melodeck-island-variant={variant}
+        style={{ borderRadius: "inherit" }}
         className={cn(
-          "flex h-full w-full min-w-0 flex-col overflow-hidden",
-          collapsedMini ? "p-1" : expanded ? "px-3 py-2.5" : "px-2 py-1",
+          "relative h-full w-full min-w-0 overflow-hidden",
+          expanded ? "p-0" : collapsedMini ? "p-1" : "px-2 py-1",
         )}
       >
-        <button
-          type="button"
-          className={cn(
-            "flex min-w-0 items-center rounded-full text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-            collapsedMini
-              ? cn("size-full gap-1 px-1 hover:bg-muted/45", showSpectrum ? "justify-between" : "justify-center")
-              : expanded
-                ? "h-12 w-full gap-2 px-1.5 hover:bg-accent/45"
-                : "h-full w-full gap-1.5 px-1 hover:bg-muted/35",
-          )}
-          onClick={() => {
-            if (!expanded) setSize("compact")
-          }}
-          aria-expanded={expanded}
-          title={expanded ? "音乐 dock" : "展开音乐灵动岛"}
-          aria-label={expanded ? "音乐 dock" : "展开音乐灵动岛"}
-        >
-          <MusicIslandArtwork artworkUrl={dock.playback.artworkUrl} trackLabel={trackLabel} size={collapsedMini ? "lg" : "md"} />
-          {collapsedMini ? (
-            showSpectrum && (
-              <MusicIslandSpectrum
-                compact
-                isPlaying={dock.playback.isPlaying}
-                style={dock.visualizerStyle}
-              />
-            )
-          ) : (
-            <>
-              <div className="min-w-0 flex-1">
-                <span className={cn("block truncate font-semibold leading-none", expanded ? "text-sm" : "text-[10.5px]")}>
-                  {trackLabel}
-                </span>
-                <span className={cn("mt-0.5 block truncate leading-none text-muted-foreground", expanded ? "text-[11px]" : "text-[8.5px]")}>
-                  {stateLabel}
-                </span>
-              </div>
-              {showSpectrum && (
-                <MusicIslandSpectrum
-                  isPlaying={dock.playback.isPlaying}
-                  style={dock.visualizerStyle}
-                />
+        {!expanded && (
+          <div
+            data-melodeck-island-collapsed-shell
+            aria-hidden="true"
+            className={cn(
+              "pointer-events-none absolute inset-0 z-0 rounded-[inherit] border border-border/55 bg-background/78 ring-1 ring-border/25 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-background/62",
+              !dock.collapsed && "ring-primary/16",
+            )}
+            style={{ backgroundColor: gridMapBackground }}
+          />
+        )}
+        {expanded ? (
+          <div className="relative size-full min-h-0 overflow-hidden" onClick={(event) => event.stopPropagation()}>
+            <motion.div
+              data-melodeck-island-morph-shell
+              className="pointer-events-none absolute inset-0 bg-background/78 backdrop-blur-xl supports-[backdrop-filter]:bg-background/62"
+              initial={{ opacity: 1 }}
+              animate={{ opacity: 0 }}
+              transition={{ delay: 0.24, duration: 0.16, ease: "easeOut" }}
+              style={{
+                borderRadius: "inherit",
+                backgroundColor: gridMapBackground,
+              }}
+            />
+            <motion.div
+              data-melodeck-island-morph-summary
+              className={cn(
+                "pointer-events-none absolute right-0 top-0 z-10 flex items-center overflow-hidden",
+                miniVariant
+                  ? cn("h-9 w-16 gap-1 px-2 py-1", showSpectrum ? "justify-between" : "justify-center")
+                  : "h-[34px] w-[206px] gap-1.5 px-3 py-1",
               )}
-            </>
-          )}
-        </button>
-
-        <MusicIslandExpandedPlayer
-          expanded={expanded}
-          onHidePanel={hidePanel}
-          onShowInMode={showInMode}
-        />
+              initial={{ opacity: 1, scale: 1 }}
+              animate={{ opacity: 0, scale: 0.98 }}
+              transition={{ delay: 0.06, duration: 0.18, ease: "easeOut" }}
+              style={{ transformOrigin: "top right" }}
+            >
+              <MusicIslandCollapsedSummary
+                mini={miniVariant}
+                artworkUrl={dock.playback.artworkUrl}
+                trackLabel={trackLabel}
+                stateLabel={stateLabel}
+                showSpectrum={showSpectrum}
+                isPlaying={dock.playback.isPlaying}
+                visualizerStyle={dock.visualizerStyle}
+              />
+            </motion.div>
+            <motion.div
+              data-melodeck-island-expanded-content
+              className="relative size-full min-h-0 overflow-hidden"
+              initial={{ opacity: 0, scale: 0.985 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{
+                opacity: { delay: 0.08, duration: 0.22, ease: "easeOut" },
+                scale: { delay: 0.06, type: "spring", stiffness: 420, damping: 32, mass: 0.55 },
+              }}
+              style={{ transformOrigin: "top right" }}
+            >
+              <div className="size-full">
+                {dock.playerEngine === "folia"
+                  ? <FoliaRemoteSurface className="h-full w-full" controlColors={MELODECK_REMOTE_CONTROL_COLORS} />
+                  : <LegacyTopBarRemote />}
+              </div>
+              <MelodeckIslandMoreMenu onHidePanel={hidePanel} onShowInMode={showInMode} />
+            </motion.div>
+          </div>
+        ) : (
+          <motion.button
+            type="button"
+            className={cn(
+              "relative z-10 flex min-w-0 items-center rounded-full text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              collapsedMini
+                ? cn("size-full gap-1 px-1 hover:bg-muted/45", showSpectrum ? "justify-between" : "justify-center")
+                : "h-full w-full gap-1.5 px-1 hover:bg-muted/35",
+            )}
+            onClick={() => setSize("compact")}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.12, duration: 0.14, ease: "easeOut" }}
+            aria-expanded={false}
+            title="展开音乐灵动岛"
+            aria-label="展开音乐灵动岛"
+          >
+            <MusicIslandCollapsedSummary
+              mini={collapsedMini}
+              artworkUrl={dock.playback.artworkUrl}
+              trackLabel={trackLabel}
+              stateLabel={stateLabel}
+              showSpectrum={showSpectrum}
+              isPlaying={dock.playback.isPlaying}
+              visualizerStyle={dock.visualizerStyle}
+            />
+          </motion.button>
+        )}
       </div>
     </DynamicIsland>
+  )
+}
+
+function MusicIslandCollapsedSummary({
+  mini,
+  artworkUrl,
+  trackLabel,
+  stateLabel,
+  showSpectrum,
+  isPlaying,
+  visualizerStyle,
+}: {
+  mini: boolean
+  artworkUrl?: string
+  trackLabel: string
+  stateLabel: string
+  showSpectrum: boolean
+  isPlaying: boolean
+  visualizerStyle: MusicVisualizerStyle
+}) {
+  return (
+    <>
+      <MusicIslandArtwork artworkUrl={artworkUrl} trackLabel={trackLabel} size={mini ? "lg" : "md"} />
+      {mini ? (
+        showSpectrum && <MusicIslandSpectrum compact isPlaying={isPlaying} style={visualizerStyle} />
+      ) : (
+        <>
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-[10.5px] font-semibold leading-none">{trackLabel}</span>
+            <span className="mt-0.5 block truncate text-[8.5px] leading-none text-muted-foreground">{stateLabel}</span>
+          </div>
+          {showSpectrum && <MusicIslandSpectrum isPlaying={isPlaying} style={visualizerStyle} />}
+        </>
+      )}
+    </>
   )
 }
 
@@ -391,8 +630,11 @@ function MusicIslandSpectrum({
   isPlaying: boolean
   style: MusicVisualizerStyle
 }) {
+  if (style === "None") return null
+
   return (
     <span
+      data-melodeck-island-spectrum
       className={cn(
         "relative grid shrink-0 place-items-center overflow-hidden rounded-full border border-border/45 bg-muted/35 text-primary shadow-inner backdrop-blur-md",
         compact ? "h-6 w-8" : "h-6 w-11",
@@ -405,154 +647,143 @@ function MusicIslandSpectrum({
   )
 }
 
-function MusicIslandExpandedPlayer({
-  expanded,
+function MelodeckIslandMoreMenu({
   onHidePanel,
   onShowInMode,
 }: {
-  expanded: boolean
   onHidePanel(): void
   onShowInMode(mode: DockMode): void
 }) {
   const dock = useMelodeck()
+  const [menuOpen, setMenuOpen] = useState(false)
 
-  if (!expanded) return null
-
-  const duration = safePlaybackTime(dock.playback.duration)
-  const currentTime = clamp(safePlaybackTime(dock.playback.currentTime), 0, duration || Number.MAX_SAFE_INTEGER)
-  const canSeek = dock.playback.hasTrack && duration > 0
-  const sliderMax = canSeek ? duration : 100
-  const sliderValue = canSeek ? currentTime : 0
-
-  function runPlaybackControl(action: (controls: MusicPlaybackControls) => void) {
-    const controls = dock.playbackControlsRef.current
-    if (!dock.playback.hasTrack || !controls) {
-      onShowInMode("bottom")
-      return
-    }
-    action(controls)
-  }
-
-  function handleTogglePlayback() {
-    runPlaybackControl((controls) => controls.togglePlay())
-  }
+  useEffect(() => {
+    if (menuOpen) void loadMusicVisualizerIcon()
+  }, [menuOpen])
 
   return (
-    <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2" onClick={(event) => event.stopPropagation()}>
-      <div className="flex min-w-0 items-center justify-center gap-8">
-        <Button
+    <div
+      data-melodeck-island-actions
+      className="absolute right-2 top-2 z-[100] flex items-center gap-0.5 text-muted-foreground"
+    >
+      <button
+        type="button"
+        className="grid size-5 place-items-center bg-transparent opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 [&_svg]:size-3"
+        onClick={() => onShowInMode("bottom")}
+        aria-label="固定到底栏"
+        title="固定到底栏"
+      >
+        <PanelBottom />
+      </button>
+      <button
+        type="button"
+        className="grid size-5 place-items-center bg-transparent opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 [&_svg]:size-3"
+        onClick={() => onShowInMode("floating")}
+        aria-label="切换为浮动窗口"
+        title="切换为浮动窗口"
+      >
+        <PictureInPicture2 />
+      </button>
+      <button
+        type="button"
+        className="grid size-5 place-items-center bg-transparent opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 [&_svg]:size-3"
+        onClick={() => onShowInMode("fullscreen")}
+        aria-label="进入标准全屏"
+        title="进入标准全屏"
+      >
+        <Maximize2 />
+      </button>
+      <button
+        type="button"
+        className="grid size-5 place-items-center bg-transparent opacity-70 transition-opacity hover:text-destructive hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 [&_svg]:size-3"
+        onClick={onHidePanel}
+        aria-label="隐藏音乐 dock"
+        title="隐藏音乐 dock"
+      >
+        <X />
+      </button>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
           type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="rounded-full"
-          onClick={() => runPlaybackControl((controls) => controls.playPrevious())}
-          title="上一首"
-          aria-label="上一首"
+          data-melodeck-island-menu
+          data-melodeck-visualizer-style={dock.visualizerStyle}
+          className="grid size-5 place-items-center bg-transparent opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 [&_svg]:size-3"
+          aria-label="更多播放选项"
+          title="更多"
         >
-          <SkipBack />
-        </Button>
-        <Button
-          type="button"
-          size="icon-lg"
-          className="rounded-full shadow-sm"
-          onClick={handleTogglePlayback}
-          title={dock.playback.isPlaying ? "暂停" : "播放"}
-          aria-label={dock.playback.isPlaying ? "暂停" : "播放"}
+          <Ellipsis />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        data-melodeck-island-menu
+        align="end"
+        sideOffset={6}
+        className="z-[10000] min-w-40"
+      >
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <AudioWaveform />
+            调整波形
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent
+            data-melodeck-island-menu
+            className="z-[10001] max-h-80 min-w-44 overflow-y-auto"
+          >
+            <DropdownMenuRadioGroup
+              value={dock.visualizerStyle}
+              onValueChange={(value) => dock.setVisualizerStyle(normalizeMusicVisualizerStyle(value))}
+            >
+              {MUSIC_VISUALIZER_STYLE_OPTIONS.map((option) => (
+                <DropdownMenuRadioItem key={option.value} value={option.value} className="min-h-10 gap-2">
+                  <span
+                    data-melodeck-visualizer-preview={option.value}
+                    className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-md bg-muted/60 text-primary"
+                    aria-hidden="true"
+                  >
+                    {option.value === "None" ? (
+                      <span className="text-[9px] font-medium text-muted-foreground">无</span>
+                    ) : menuOpen ? (
+                      <Suspense fallback={<span className="size-3 animate-pulse rounded-full bg-current/25" />}>
+                        <MusicVisualizerIcon compact isPlaying style={option.value} />
+                      </Suspense>
+                    ) : null}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem
+          checked={dock.followFullscreenWithFloating}
+          onCheckedChange={(checked) => dock.setFollowFullscreenWithFloating(checked === true)}
         >
-          {dock.playback.isPlaying ? <Pause /> : <Play className="fill-current" />}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="rounded-full"
-          onClick={() => runPlaybackControl((controls) => controls.playNext())}
-          title="下一首"
-          aria-label="下一首"
-        >
-          <SkipForward />
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-[2.4rem_minmax(0,1fr)_2.4rem] items-center gap-2">
-        <span className="text-right text-[10px] tabular-nums text-muted-foreground">
-          {formatIslandTime(currentTime)}
-        </span>
-        <Slider
-          aria-label="音乐播放进度"
-          disabled={!canSeek}
-          min={0}
-          max={sliderMax}
-          step={1}
-          value={[sliderValue]}
-          onValueChange={(value) => {
-            if (!canSeek) return
-            runPlaybackControl((controls) => controls.seekTo(value[0] ?? 0))
-          }}
-          className="min-w-0"
-        />
-        <span className="text-[10px] tabular-nums text-muted-foreground">
-          {formatIslandTime(duration)}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-4 gap-1.5">
-        <MusicIslandAction
-          active={!dock.collapsed && dock.mode === "bottom"}
-          icon={<PanelBottom className="size-3.5" />}
-          label="底栏"
-          onClick={() => onShowInMode("bottom")}
-        />
-        <MusicIslandAction
-          active={!dock.collapsed && dock.mode === "floating"}
-          icon={<PictureInPicture2 className="size-3.5" />}
-          label="浮窗"
-          onClick={() => onShowInMode("floating")}
-        />
-        <MusicIslandAction
-          active={!dock.collapsed && dock.mode === "fullscreen"}
-          icon={<Maximize2 className="size-3.5" />}
-          label="全屏"
-          onClick={() => onShowInMode("fullscreen")}
-        />
-        <MusicIslandAction
-          icon={<X className="size-3.5" />}
-          label="隐藏"
-          onClick={onHidePanel}
-        />
-      </div>
+          全屏时同步打开浮窗
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }
 
-function MusicIslandAction({
-  active,
-  icon,
-  label,
-  onClick,
-}: {
-  active?: boolean
-  icon: ReactNode
-  label: string
-  onClick(): void
-}) {
+function LegacyTopBarRemote() {
+  const dock = useMelodeck()
+  const controls = dock.playbackControlsRef.current
   return (
-    <button
-      type="button"
-      className={cn(
-        "flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-full border border-transparent px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent/70 hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        active && "border-primary/25 bg-primary/12 text-primary",
-      )}
-      onClick={(event) => {
-        event.stopPropagation()
-        onClick()
-      }}
-      aria-pressed={active}
-      title={label}
-    >
-      {icon}
-      <span className="truncate">{label}</span>
-    </button>
+    <div className="flex items-center gap-2 rounded-lg border border-border/55 bg-card/70 p-2">
+      <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-border/45 bg-muted/55">
+        {dock.playback.artworkUrl ? <img src={dock.playback.artworkUrl} alt="" className="size-full object-cover" /> : <Disc3 className="size-5 text-primary" />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <strong className="block truncate text-sm">{dock.playback.trackName ?? "Music"}</strong>
+        <span className="block truncate text-xs text-muted-foreground">{dock.playback.supportLine ?? "Legacy"}</span>
+      </div>
+      <Button variant="ghost" size="icon-xs" onClick={() => controls?.playPrevious()} aria-label="上一首"><SkipBack /></Button>
+      <Button size="icon-xs" onClick={() => controls?.togglePlay()} aria-label={dock.playback.isPlaying ? "暂停" : "播放"}>{dock.playback.isPlaying ? <Pause /> : <Play />}</Button>
+      <Button variant="ghost" size="icon-xs" onClick={() => controls?.playNext()} aria-label="下一首"><SkipForward /></Button>
+    </div>
   )
 }
 
@@ -561,12 +792,17 @@ export function WorkspaceMelodeckPanel() {
   const dragControls = useDragControls()
   const dragBoundsRef = useRef<HTMLDivElement>(null)
   const backgroundMode = dock.collapsed
+  const [floatingPanelOpen, setFloatingPanelOpen] = useState(true)
 
   useEffect(() => {
     if (!dock.collapsed) dock.setSurfaceMounted(true)
   }, [dock.collapsed, dock.setSurfaceMounted])
 
-  function handleDragStart(event: ReactPointerEvent<HTMLDivElement>) {
+  useEffect(() => {
+    if (dock.collapsed || dock.mode !== "floating") setFloatingPanelOpen(true)
+  }, [dock.collapsed, dock.mode])
+
+  function handleDragStart(event: ReactPointerEvent<HTMLElement>) {
     if (dock.mode !== "floating") return
     event.preventDefault()
     dragControls.start(event)
@@ -583,6 +819,15 @@ export function WorkspaceMelodeckPanel() {
   const dockModeLabel = dock.mode === "bottom" ? "底栏 dock" : dock.mode === "fullscreen" ? "全屏 dock" : "浮动窗口"
   const bottomActions = dock.mode === "bottom" ? (
     <div className="flex shrink-0 items-center gap-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => dock.setPlayerEngine(dock.playerEngine === "folia" ? "legacy" : "folia")}
+        title="切换播放器引擎"
+      >
+        {dock.playerEngine === "folia" ? "Folia" : "Legacy"}
+      </Button>
       <Button
         type="button"
         variant="ghost"
@@ -617,6 +862,56 @@ export function WorkspaceMelodeckPanel() {
     </div>
   ) : undefined
 
+  const directProjectionActions: NodeSurfaceChromeAction[] = [
+    ...(dock.mode === "floating" ? [{
+      key: "collapse",
+      label: "暂时收起浮窗",
+      icon: <Minus className="h-3 w-3" />,
+      onClick: () => setFloatingPanelOpen(false),
+    } satisfies NodeSurfaceChromeAction] : []),
+    dock.mode === "bottom"
+      ? {
+          key: "floating",
+          label: "切换为浮动窗口",
+          icon: <PictureInPicture2 className="h-3 w-3" />,
+          onClick: () => dock.setMode("floating"),
+        }
+      : {
+          key: "bottom",
+          label: "固定到底栏",
+          icon: <PanelBottom className="h-3 w-3" />,
+          tone: "minimize",
+          onClick: () => dock.setMode("bottom"),
+        },
+    {
+      key: "fullscreen",
+      label: "进入标准全屏",
+      icon: <Maximize2 className="h-3 w-3" />,
+      tone: "maximize",
+      onClick: () => dock.setMode("fullscreen"),
+    },
+    {
+      key: "hide",
+      label: "隐藏音乐 dock",
+      icon: <X className="h-3 w-3" />,
+      tone: "close",
+      danger: true,
+      onClick: () => dock.setCollapsed(true),
+    },
+  ]
+  const directProjection = dock.playerEngine === "folia" && dock.mode !== "fullscreen"
+  const directDragHandle = dock.mode === "floating" ? (
+    <span
+      data-melodeck-part="drag-handle"
+      className="grid size-6 cursor-grab touch-none place-items-center active:cursor-grabbing"
+      onPointerDown={handleDragStart}
+      title="拖动浮窗"
+      aria-label="拖动浮窗"
+    >
+      <GripHorizontal className="size-3.5" />
+    </span>
+  ) : undefined
+
   if (backgroundMode && !dock.surfaceMounted) return null
 
   return (
@@ -632,7 +927,7 @@ export function WorkspaceMelodeckPanel() {
         layout
         drag={!backgroundMode && dock.mode === "floating"}
         dragControls={dragControls}
-        dragListener={false}
+        dragListener={!backgroundMode && directProjection && dock.mode === "floating"}
         dragMomentum={false}
         dragElastic={0.02}
         dragConstraints={dragBoundsRef}
@@ -642,20 +937,73 @@ export function WorkspaceMelodeckPanel() {
         transition={{ type: "spring", stiffness: 380, damping: 34 }}
         data-melodeck="panel"
         data-melodeck-mode={dock.mode}
+        data-melodeck-projection={directProjection ? "direct" : "framed"}
+        data-melodeck-direct-drag={!backgroundMode && directProjection && dock.mode === "floating" ? "true" : undefined}
         className={cn(
-          "absolute bottom-0 overflow-hidden",
+          "absolute bottom-0",
+          directProjection ? "group overflow-visible" : "overflow-hidden",
           backgroundMode
             ? "pointer-events-none left-0 top-0 size-px opacity-0"
             : cn(
               "pointer-events-auto opacity-100 transition-opacity duration-200",
               dock.mode === "bottom"
-                ? "left-0 right-0 mx-auto h-[clamp(112px,14vh,132px)] max-w-5xl"
+                ? directProjection
+                  ? "left-0 right-0 mx-auto h-24 w-[min(36rem,calc(100vw-1.5rem))]"
+                  : "left-0 right-0 mx-auto h-[clamp(112px,14vh,132px)] max-w-5xl"
                 : dock.mode === "fullscreen"
                   ? "inset-0"
-                  : "right-0 h-[min(520px,calc(100vh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-[760px]",
+                  : directProjection
+                    ? floatingPanelOpen
+                      ? "right-0 h-[min(580px,calc(100vh-1.5rem))] w-[min(20rem,calc(100vw-1.5rem))]"
+                      : "right-0 size-12"
+                    : "right-0 h-[min(520px,calc(100vh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-[760px]",
             ),
         )}
       >
+        {directProjection ? (
+          <>
+            {dock.mode === "floating" && floatingPanelOpen && (
+              <div
+                data-melodeck-part="toolbar-drag-region"
+                className="absolute inset-x-0 top-0 z-[90] h-10 cursor-grab touch-none active:cursor-grabbing"
+                onPointerDown={handleDragStart}
+                aria-label="拖动浮窗"
+              />
+            )}
+            {(dock.mode !== "floating" || floatingPanelOpen) && (
+              <div
+                data-melodeck-part="surface-chrome"
+                data-melodeck-bottom-chrome={dock.mode === "bottom" || undefined}
+                className="pointer-events-none absolute inset-0 z-[100]"
+              >
+                <NodeSurfaceChrome
+                  actions={directProjectionActions}
+                  dragHandle={directDragHandle}
+                  moduleId="melodeck"
+                  moduleName="Melo deck"
+                  stateLabel={dock.mode === "bottom" ? "底栏" : "浮窗"}
+                  hideIdleIndicator={dock.mode === "bottom"}
+                />
+              </div>
+            )}
+            {dock.mode === "bottom" ? (
+              <FoliaBarSurface
+                className="h-full"
+                onOpenPanel={() => dock.setMode("floating")}
+                onOpenFloating={() => dock.setMode("floating")}
+                onOpenFullscreen={() => dock.setMode("fullscreen")}
+              />
+            ) : (
+              <FoliaUnifiedPanel
+                className="h-full"
+                open={floatingPanelOpen}
+                onOpenChange={setFloatingPanelOpen}
+                onOpenFullscreen={() => dock.setMode("fullscreen")}
+                extraSettings={<button type="button" className="folia-icon-button" onClick={() => dock.setPlayerEngine("legacy")} title="Legacy" aria-label="Legacy"><Disc3 /></button>}
+              />
+            )}
+          </>
+        ) : (
         <div className={cn(
           "xiranite-app-region-no-drag relative isolate flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card/[0.16] backdrop-blur-2xl backdrop-saturate-150",
           MELODECK_GLASS_SHADOW_CLASS,
@@ -694,11 +1042,11 @@ export function WorkspaceMelodeckPanel() {
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  onClick={() => dock.setMode(dock.mode === "fullscreen" ? "floating" : "fullscreen")}
+                  onClick={() => dock.setMode("fullscreen")}
                   title={dock.mode === "fullscreen" ? "切换为浮动窗口" : "切换为全屏 dock"}
                   aria-label={dock.mode === "fullscreen" ? "切换为浮动窗口" : "切换为全屏 dock"}
                 >
-                  {dock.mode === "fullscreen" ? <Minimize2 /> : <Maximize2 />}
+                  <Maximize2 />
                 </Button>
                 <Button
                   type="button"
@@ -715,23 +1063,41 @@ export function WorkspaceMelodeckPanel() {
             </div>
           )}
 
-          <Suspense fallback={<MelodeckSurfaceFallback />}>
-            <MusicPlayerSurface
-              audioRef={dock.audioRef}
-              savedTracks={dock.savedTracks}
-              savedSourcePath={dock.sourcePath}
-              onSavedTracksChange={dock.setSavedTracks}
-              onSourcePathChange={dock.setSourcePath}
-              onPlaybackControlsChange={dock.setPlaybackControls}
-              onPlaybackStateChange={dock.setPlaybackState}
-              visualizerStyle={dock.visualizerStyle}
-              onVisualizerStyleChange={dock.setVisualizerStyle}
-              variant={dock.mode === "bottom" ? "dock" : "module"}
-              actions={bottomActions}
-              className="relative z-10 flex-1"
-            />
-          </Suspense>
+          <div className="relative z-10 min-h-0 flex-1">
+            {dock.playerEngine === "legacy" ? (
+              <Suspense fallback={<MelodeckSurfaceFallback />}>
+                <MusicPlayerSurface
+                  audioRef={dock.audioRef}
+                  savedTracks={dock.savedTracks}
+                  savedSourcePath={dock.sourcePath}
+                  onSavedTracksChange={dock.setSavedTracks}
+                  onSourcePathChange={dock.setSourcePath}
+                  onPlaybackControlsChange={dock.setPlaybackControls}
+                  onPlaybackStateChange={dock.setPlaybackState}
+                  visualizerStyle={dock.visualizerStyle}
+                  onVisualizerStyleChange={dock.setVisualizerStyle}
+                  variant={dock.mode === "bottom" ? "dock" : "module"}
+                  actions={bottomActions}
+                  className="h-full"
+                />
+              </Suspense>
+            ) : dock.mode === "bottom" ? (
+              <FoliaBarSurface
+                className="h-full"
+                onOpenPanel={() => dock.setMode("floating")}
+                onOpenFloating={() => dock.setMode("floating")}
+                onOpenFullscreen={() => dock.setMode("fullscreen")}
+              />
+            ) : (
+              <FoliaUnifiedPanel
+                className="h-full"
+                onOpenFullscreen={() => dock.setMode("fullscreen")}
+                extraSettings={<button type="button" className="folia-icon-button" onClick={() => dock.setPlayerEngine("legacy")} title="Legacy" aria-label="Legacy"><Disc3 /></button>}
+              />
+            )}
+          </div>
         </div>
+        )}
       </motion.div>
     </div>
   )
@@ -747,7 +1113,7 @@ function MelodeckSurfaceFallback() {
 
 function MelodeckAmbientLayer() {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+    <div data-melodeck-part="ambient-layer" aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       <div className="absolute inset-0 bg-[linear-gradient(145deg,hsl(var(--card)/0.20),transparent_55%,hsl(var(--muted)/0.14)),linear-gradient(90deg,hsl(var(--primary)/0.07),transparent_42%,hsl(var(--accent)/0.07))]" />
       <div className="absolute inset-0 bg-[repeating-linear-gradient(115deg,transparent_0,transparent_22px,hsl(var(--foreground)/0.018)_22px,hsl(var(--foreground)/0.018)_23px)] opacity-45 dark:opacity-30" />
       <div className="absolute inset-0 bg-white/[0.03] backdrop-blur-[22px] backdrop-saturate-150 dark:bg-white/[0.02]" />
@@ -766,17 +1132,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
-function safePlaybackTime(value: number | undefined): number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0
-}
-
-function formatIslandTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) return "0:00"
-  const minutes = Math.floor(seconds / 60)
-  const rest = Math.floor(seconds % 60)
-  return `${minutes}:${String(rest).padStart(2, "0")}`
-}
-
 function clampFloatingOffset(offset: FloatingOffset): FloatingOffset {
   if (typeof window === "undefined") {
     return {
@@ -786,8 +1141,8 @@ function clampFloatingOffset(offset: FloatingOffset): FloatingOffset {
   }
 
   const inset = 12
-  const panelWidth = Math.min(760, Math.max(0, window.innerWidth - inset * 2))
-  const panelHeight = Math.min(520, Math.max(0, window.innerHeight - inset * 2))
+  const panelWidth = Math.min(320, Math.max(0, window.innerWidth - inset * 2))
+  const panelHeight = Math.min(580, Math.max(0, window.innerHeight - inset * 2))
   const baseLeft = window.innerWidth - inset - panelWidth
   const baseTop = window.innerHeight - inset - panelHeight
 
@@ -795,4 +1150,42 @@ function clampFloatingOffset(offset: FloatingOffset): FloatingOffset {
     x: clamp(offset.x, inset - baseLeft, 0),
     y: clamp(offset.y, inset - baseTop, 0),
   }
+}
+
+export function useWorkspaceMelodeck() {
+  return useMelodeck()
+}
+
+function openStandardMelodeckFullscreen() {
+  const store = useWorkspaceStore.getState()
+  let component = store.components.find((candidate) => (
+    candidate.workspaceId === store.activeWorkspaceId && candidate.moduleId === "melodeck"
+  ))
+  if (!component) {
+    store.deployComponent("melodeck", { viewMode: "cards" })
+    const nextStore = useWorkspaceStore.getState()
+    component = [...nextStore.components].reverse().find((candidate) => (
+      candidate.workspaceId === nextStore.activeWorkspaceId && candidate.moduleId === "melodeck"
+    ))
+  }
+  if (!component) return
+  const nextStore = useWorkspaceStore.getState()
+  nextStore.setViewMode("cards")
+  nextStore.setComponentVisibility(component.id, "cards", true)
+  nextStore.setFullscreen(component.id)
+}
+
+function useIsDaylight(): boolean {
+  const [isDaylight, setIsDaylight] = useState(() => (
+    typeof document === "undefined" || !document.documentElement.classList.contains("dark")
+  ))
+  useEffect(() => {
+    const root = document.documentElement
+    const update = () => setIsDaylight(!root.classList.contains("dark"))
+    update()
+    const observer = new MutationObserver(update)
+    observer.observe(root, { attributes: true, attributeFilter: ["class", "style"] })
+    return () => observer.disconnect()
+  }, [])
+  return isDaylight
 }

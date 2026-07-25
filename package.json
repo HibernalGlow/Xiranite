@@ -10,7 +10,8 @@
   },
   "workspaces": [
     "packages/*",
-    "packages/nodes/*"
+    "packages/nodes/*",
+    "vendor/folia-major/packages/player"
   ],
   "scripts": {
     "commit": "bash scripts/commit-scope.sh",
@@ -145,6 +146,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
+    "@hibernalglow/folia-player": "workspace:*",
     "@hibernalglow/ocean-dataview": "file:vendor/ocean-dataview",
     "@hookform/resolvers": "^5.2.2",
     "@imagemagick/magick-wasm": "^0.0.37",
@@ -230,6 +232,7 @@
     "date-fns": "^4.1.0",
     "dockview-react": "^7.0.2",
     "embla-carousel-react": "^8.6.0",
+    "fuse.js": "^7.5.0",
     "gamepad.js": "3.0.1",
     "gridstack": "^12.6.0",
     "i18next": "^26.3.4",
@@ -290,6 +293,7 @@
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/browser-playwright": "4.1.10",
+    "@vitest/ui": "^4.1.10",
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/addon-unicode11": "^0.9.0",
     "@xterm/headless": "^6.0.0",
