@@ -112,6 +112,7 @@ describe("Reader media runtime config", () => {
 
       const updated = await request(controller, "PATCH", { media: {
         autoPlayAnimatedImages: false,
+        videoControlsPinned: true,
         videoMaxPlaybackRate: 12,
         videoPlaybackRateStep: 0.5,
         subtitle: { fontSize: 1.5, color: "#ffff00", backgroundOpacity: 0.8, bottomPercent: 8 },
