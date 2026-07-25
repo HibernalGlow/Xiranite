@@ -4,7 +4,7 @@ import { FloatingComponentWindow } from "./FloatingComponentWindow"
 
 const mocks = vi.hoisted(() => ({
   floatingWindowCaptionPosition: "right" as "left" | "right" | "island",
-  floatingWindowCaptionStyle: "capsule" as "capsule" | "traffic-light",
+  floatingWindowCaptionStyle: "windows" as "windows" | "capsule" | "traffic-light",
   nativeWindowControls: false,
   ensureComponent: vi.fn(),
   controlMain: vi.fn().mockResolvedValue({ success: true, supported: true }),
@@ -65,7 +65,7 @@ afterEach(() => {
   cleanup()
   mocks.nativeWindowControls = false
   mocks.floatingWindowCaptionPosition = "right"
-  mocks.floatingWindowCaptionStyle = "capsule"
+  mocks.floatingWindowCaptionStyle = "windows"
 })
 
 describe("FloatingComponentWindow", () => {
@@ -78,14 +78,14 @@ describe("FloatingComponentWindow", () => {
     expect(screen.queryByTestId("floating-window-fallback-drag-region")).toBeNull()
   })
 
-  test("overlays right-aligned capsule controls without adding a titlebar row", async () => {
+  test("overlays right-aligned Windows controls without adding a titlebar row", async () => {
     mocks.nativeWindowControls = true
 
     render(<FloatingComponentWindow compId="component-1" />)
 
     const controls = await screen.findByTestId("floating-window-integrated-controls")
     expect(controls.dataset.windowCaptionPosition).toBe("right")
-    expect(controls.dataset.windowCaptionStyle).toBe("capsule")
+    expect(controls.dataset.windowCaptionStyle).toBe("windows")
     expect(controls.className).toContain("fixed")
     expect(controls.className).toContain("right-1.5")
     expect(controls.className).toContain("bg-transparent")
@@ -95,7 +95,23 @@ describe("FloatingComponentWindow", () => {
     const titlebar = document.querySelector('[data-floating-window-titlebar="true"]')
     expect(titlebar?.className).toContain("xiranite-app-region-drag")
     expect(screen.getByTestId("module-renderer").parentElement?.previousElementSibling).toBeNull()
+    expect(controls.className).not.toContain("xiranite-node-chrome-pill")
+    expect([...controls.querySelectorAll("button")].every((button) => button.className.includes("rounded-none"))).toBe(true)
     await waitFor(() => expect(screen.queryByTestId("floating-window-fallback-controls")).toBeNull())
+  })
+
+  test("uses the node toolbar surface for the capsule style", async () => {
+    mocks.nativeWindowControls = true
+    mocks.floatingWindowCaptionStyle = "capsule"
+
+    render(<FloatingComponentWindow compId="component-1" />)
+
+    const controls = await screen.findByTestId("floating-window-integrated-controls")
+    expect(controls.dataset.windowCaptionStyle).toBe("capsule")
+    expect(controls.className).toContain("xiranite-node-chrome-pill")
+    expect(controls.className).toContain("bg-background/45")
+    expect(controls.className).toContain("ring-1")
+    expect([...controls.querySelectorAll("button")].every((button) => button.dataset.slot === "button" && button.dataset.variant === "ghost" && button.dataset.size === "icon-xs")).toBe(true)
   })
 
   test("centers traffic-light controls and uses close-minimize-maximize order", async () => {

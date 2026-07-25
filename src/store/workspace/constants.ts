@@ -76,7 +76,7 @@ export const INITIAL_STATE: WSState = {
   chromeActionOrder: [...DEFAULT_CHROME_ACTION_ORDER],
   chromeHiddenActions: [],
   floatingWindowCaptionPosition: "right",
-  floatingWindowCaptionStyle: "capsule",
+  floatingWindowCaptionStyle: "windows",
   alphabetIndexVisible: true,
   alphabetIndexOpacity: 92,
   alphabetIndexStyle: "glass",

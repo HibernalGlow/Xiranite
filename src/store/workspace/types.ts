@@ -127,7 +127,7 @@ export interface WSState {
   /** 普通节点桌面独立窗口的控制组位置；NeoView 使用自己的窗口栏配置。 */
   floatingWindowCaptionPosition: "left" | "island" | "right"
   /** 普通节点桌面独立窗口的控制组样式。 */
-  floatingWindowCaptionStyle: "capsule" | "traffic-light"
+  floatingWindowCaptionStyle: "windows" | "capsule" | "traffic-light"
   /** 字母索引可见性。 */
   alphabetIndexVisible: boolean
   /** 字母索引不透明度。 */

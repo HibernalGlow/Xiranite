@@ -8,11 +8,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Button } from "@/components/ui/button"
 import { hasNodeHelp } from "@/components/help/nodeHelpRegistry"
 import { useChromeAppearance } from "@/components/workspace/useChromeAppearance"
 import { cn } from "@/lib/utils"
 import { applyChromeActionPreferences, type ChromeActionPreferenceKey } from "./chromeActionPreferences"
+import { NODE_CHROME_PILL_CLASS_NAME, NodeChromeActionButton, NodeChromePill } from "./NodeChromePrimitives"
 
 const LazyNodeHelpSheet = lazy(async () => {
   const module = await import("@/components/help/NodeHelpSheet")
@@ -198,7 +198,7 @@ export function NodeSurfaceChrome({
         "xiranite-ui-copy pointer-events-none absolute top-2 z-20 flex items-center opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100",
         positionClass,
       )}>
-        <div className="xiranite-node-chrome-pill pointer-events-none flex items-center gap-0.5 rounded-[4px] border border-transparent bg-background/45 p-0.5 shadow-sm backdrop-blur-md ring-1 ring-border/20 group-focus-within:pointer-events-auto group-hover:pointer-events-auto">
+        <NodeChromePill className="pointer-events-none group-focus-within:pointer-events-auto group-hover:pointer-events-auto">
           {dragHandle && (
             <span className="xiranite-node-drag-handle grid h-6 w-6 place-items-center rounded-[3px] text-muted-foreground transition-colors hover:bg-muted/55 hover:text-primary">
               {dragHandle}
@@ -211,7 +211,7 @@ export function NodeSurfaceChrome({
               trafficLight={false}
             />
           ))}
-        </div>
+        </NodeChromePill>
       </div>
       {helpSheet}
     </>
@@ -270,7 +270,7 @@ function DynamicIslandChrome({
           "transition-[background-color,border-color,box-shadow,backdrop-filter] duration-150",
           expanded ? "overflow-hidden" : "overflow-visible",
           expanded
-            ? "xiranite-node-chrome-pill border border-border/35 bg-background/70 shadow-sm backdrop-blur-xl ring-1 ring-primary/10"
+            ? cn(NODE_CHROME_PILL_CLASS_NAME, "border-border/35 bg-background/70 backdrop-blur-xl ring-primary/10")
             : "border-0 bg-transparent shadow-none backdrop-blur-0 hover:shadow-none",
         )}
       >
@@ -395,24 +395,15 @@ function renderChromeButton(action: NodeSurfaceChromeAction, trafficLight: boole
   }
 
   return (
-    <Button
-      type="button"
+    <NodeChromeActionButton
       data-action-key={action.key}
-      variant="ghost"
-      size="icon-xs"
       title={action.label}
       aria-label={action.label}
-      onPointerDown={(event) => event.stopPropagation()}
       onClick={handleClick}
-      className={cn(
-        "text-muted-foreground",
-        action.danger
-          ? "hover:bg-destructive/10 hover:text-destructive"
-          : "hover:text-primary",
-      )}
+      danger={action.danger}
     >
       {action.icon}
-    </Button>
+    </NodeChromeActionButton>
   )
 }
 

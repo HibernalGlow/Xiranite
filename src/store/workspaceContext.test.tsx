@@ -71,6 +71,17 @@ describe("workspace UI preference persistence", () => {
     })
   })
 
+  test("migrates the old capsule label to the Windows style", async () => {
+    localStorage.setItem("xiranite-workspace-ui", JSON.stringify({
+      version: 2,
+      state: { floatingWindowCaptionStyle: "capsule" },
+    }))
+
+    await useWorkspaceStore.persist.rehydrate()
+
+    expect(useWorkspaceStore.getState().floatingWindowCaptionStyle).toBe("windows")
+  })
+
   test("switching theme presets preserves user background and chrome settings", async () => {
     const user = userEvent.setup()
 
