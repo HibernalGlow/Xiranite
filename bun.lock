@@ -195,6 +195,9 @@
     "packages/arcthumb-native": {
       "name": "@xiranite/arcthumb-native",
       "version": "0.1.0",
+      "dependencies": {
+        "@xiranite/native-loader": "workspace:*",
+      },
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "^7.0.2",
@@ -323,7 +326,7 @@
       "name": "@xiranite/czkawka-native",
       "version": "0.1.0",
       "dependencies": {
-        "fflate": "^0.8.3",
+        "@xiranite/native-loader": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^24.12.0",
@@ -361,6 +364,17 @@
         "@types/react": "^19.2.14",
         "typescript": "^7.0.2",
         "vitest": "^4.1.10",
+      },
+    },
+    "packages/native-loader": {
+      "name": "@xiranite/native-loader",
+      "version": "0.1.0",
+      "dependencies": {
+        "fflate": "^0.8.3",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
+        "typescript": "^7.0.2",
       },
     },
     "packages/nodes/arcthumb": {
@@ -1261,6 +1275,7 @@
         "@xiranite/cli-runtime": "workspace:*",
         "@xiranite/config": "workspace:*",
         "@xiranite/contract": "workspace:*",
+        "@xiranite/slimg-native": "workspace:*",
         "ag-psd": "^31.0.2",
         "sharp": "0.35.3",
       },
@@ -1317,6 +1332,17 @@
         "zod": "^4.3.6",
       },
       "devDependencies": {
+        "typescript": "^7.0.2",
+      },
+    },
+    "packages/slimg-native": {
+      "name": "@xiranite/slimg-native",
+      "version": "0.1.0",
+      "dependencies": {
+        "@xiranite/native-loader": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^24.12.0",
         "typescript": "^7.0.2",
       },
     },
@@ -2421,6 +2447,8 @@
 
     "@xiranite/logging": ["@xiranite/logging@workspace:packages/logging"],
 
+    "@xiranite/native-loader": ["@xiranite/native-loader@workspace:packages/native-loader"],
+
     "@xiranite/node-arcthumb": ["@xiranite/node-arcthumb@workspace:packages/nodes/arcthumb"],
 
     "@xiranite/node-audiov": ["@xiranite/node-audiov@workspace:packages/nodes/audiov"],
@@ -2532,6 +2560,8 @@
     "@xiranite/services": ["@xiranite/services@workspace:packages/services"],
 
     "@xiranite/shared": ["@xiranite/shared@workspace:packages/shared"],
+
+    "@xiranite/slimg-native": ["@xiranite/slimg-native@workspace:packages/slimg-native"],
 
     "@xiranite/svelte-migrate": ["@xiranite/svelte-migrate@workspace:packages/svelte-migrate"],
 
