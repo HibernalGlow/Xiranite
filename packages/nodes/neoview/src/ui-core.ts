@@ -132,6 +132,10 @@ export {
   type ReaderPanelPosition,
 } from "./application/config/ReaderLayoutManifest.js"
 export {
+  DEFAULT_NEOVIEW_SHELL_CONFIG,
+  DEFAULT_NEOVIEW_SHELL_MATERIAL_CONFIG,
+} from "./application/config/ReaderShellDefaults.js"
+export {
   applyReaderSwitchToastPatch,
   DEFAULT_READER_SWITCH_TOAST,
   normalizeReaderSwitchToast,

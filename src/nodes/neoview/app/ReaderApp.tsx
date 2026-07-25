@@ -1,6 +1,7 @@
 import { lazy, startTransition, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
 import { BookOpen, ChevronRight, LoaderCircle, Pin, PinOff, Trash2, X } from "lucide-react"
 import {
+  DEFAULT_NEOVIEW_SHELL_CONFIG,
   DEFAULT_READER_PRESENTATION,
   DEFAULT_READER_INPUT_BINDINGS,
   DEFAULT_READER_RADIAL_MENU_CONFIG,
@@ -96,6 +97,12 @@ function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConf
   } catch {
     return false
   }
+}
+
+function initialReaderShellConfig(): ReaderShellConfigDto {
+  const shell = structuredClone(DEFAULT_NEOVIEW_SHELL_CONFIG)
+  shell.workspace.mode = "swimlane"
+  return shell
 }
 
 function readerWorkspaceWithSession(shell: ReaderShellConfigDto, session: SwimlaneWorkspaceSessionState | undefined): ReaderWorkspaceConfig {
@@ -421,7 +428,8 @@ export function ReaderApp({
   }))
   const [videoController] = useState(() => new ReaderVideoController())
   const [viewerToggles] = useState(() => new ReaderViewerToggleStore())
-  const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(undefined)
+  const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(() => initialReaderShellConfig())
+  const [readerChromeReady, setReaderChromeReady] = useState(false)
   const [shellControlStore] = useState(() => createReaderShellControlStore({
     edges: {
       top: { open: true },
@@ -554,9 +562,12 @@ export function ReaderApp({
     // not pay module-evaluation cost on the freeze-critical turn.
     void loadReaderFrame().catch(() => undefined)
     const controller = new AbortController()
+    const chromeFallbackTimer = window.setTimeout(() => setReaderChromeReady(true), 0)
     const configStartedAt = performance.now()
     neoviewDebug("reader:config:request", { sessionScopeId })
     void clientRef.current.config(controller.signal).then((config) => {
+      window.clearTimeout(chromeFallbackTimer)
+      setReaderChromeReady(true)
       const networkMs = Math.round((performance.now() - configStartedAt) * 10) / 10
       neoviewDebug("reader:config:response", {
         sessionScopeId,
@@ -634,6 +645,7 @@ export function ReaderApp({
       })
       if (initialSwimlaneSoloLaneId === undefined) onSwimlaneSoloLaneIdCommitted?.(restoredSoloLaneId)
       if (initialReaderViewFullscreen === undefined) onReaderViewFullscreenCommitted?.(restoredReaderViewFullscreen)
+      shellRef.current = config.shell
       setShell(config.shell)
       shellControlStore.hydrate(shellControlHydration(config.shell))
       if (typeof localStorage !== "undefined") {
@@ -695,6 +707,8 @@ export function ReaderApp({
       })
     }).catch((cause) => {
       if (!controller.signal.aborted) {
+        window.clearTimeout(chromeFallbackTimer)
+        setReaderChromeReady(true)
         neoviewDebug("reader:config:failed", {
           sessionScopeId,
           durationMs: Math.round((performance.now() - configStartedAt) * 10) / 10,
@@ -702,7 +716,10 @@ export function ReaderApp({
         })
       }
     })
-    return () => controller.abort()
+    return () => {
+      window.clearTimeout(chromeFallbackTimer)
+      controller.abort()
+    }
   }, [])
 
   useEffect(() => {
@@ -1976,9 +1993,8 @@ export function ReaderApp({
   const frame = session?.frame
   const pathSegments = readerPathSegments(path)
   const workspace = shell ? readerWorkspaceWithSession(shell, swimlaneSession) : undefined
-  // The shell configuration is the source of truth for the workspace mode.
-  // Do not assume edges while it is in flight: doing so paints the four-edge
-  // chrome before a persisted swimlane configuration can be applied.
+  // Bootstrap with the complete swimlane shell so a failed config request
+  // cannot strand the compiled app on the workspace loading screen.
   const workspaceMode = workspace?.mode
   const workspaceLayoutPending = workspaceMode === undefined
   const readerOwnsSoloViewport = workspace?.swimlane.soloLaneId === "reader"
@@ -1993,7 +2009,7 @@ export function ReaderApp({
   //   cleared the right-side timeout, so the right rail never mounted
   const shellPresent = Boolean(shell)
   useEffect(() => {
-    if (workspaceMode !== "swimlane" || !shellPresent) {
+    if (workspaceMode !== "swimlane" || !shellPresent || !readerChromeReady) {
       setSwimlaneSidebarsReady(false)
       setSwimlaneRightSidebarReady(false)
       return
@@ -2045,7 +2061,7 @@ export function ReaderApp({
       if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle)
       if (rightTimeout !== undefined) window.clearTimeout(rightTimeout)
     }
-  }, [sessionScopeId, shellPresent, workspaceMode])
+  }, [readerChromeReady, sessionScopeId, shellPresent, workspaceMode])
   const toggleReaderViewFullscreen = () => {
     const next = !readerViewFullscreen
     setReaderViewFullscreen(next)
@@ -2117,7 +2133,7 @@ export function ReaderApp({
             <div className="xiranite-app-region-no-drag flex min-w-0 items-center justify-self-start">
               {session ? (
                 <Button className="border border-transparent bg-transparent text-foreground/80 shadow-none" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
-              ) : path.trim() ? (
+              ) : path.trim() && readerChromeReady ? (
                 <Button
                   className="border border-transparent bg-transparent text-foreground/80 shadow-none"
                   aria-label="打开书籍"
