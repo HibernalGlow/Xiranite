@@ -10,6 +10,26 @@ export interface CzkawkaInfo {
   sourceVersion: string
 }
 
+export interface TrashCapabilities {
+  deleteToTrash: boolean
+  list: boolean
+  restore: boolean
+  provider: "trash-rs"
+  providerVersion: string
+}
+
+export interface TrashItemReceipt {
+  id: string
+  name: string
+  originalParent: string
+  timeDeleted: number
+}
+
+export interface TrashPathResult {
+  trashed: true
+  receipt?: TrashItemReceipt
+}
+
 export interface DuplicateScanOptions {
   includedDirectories: string[]
   referenceDirectories?: string[]
@@ -169,6 +189,10 @@ export interface CzkawkaScanProgress {
 
 export interface CzkawkaBinding {
   getCzkawkaInfo(): CzkawkaInfo
+  getTrashCapabilities(): TrashCapabilities
+  trashPath(path: string): Promise<TrashPathResult>
+  listTrashItems(): Promise<TrashItemReceipt[]>
+  restoreTrashItem(receipt: TrashItemReceipt): Promise<void>
   scanDuplicateFiles(options: DuplicateScanOptions): Promise<DuplicateScanResult>
   scanBasicFiles(options: BasicScanOptions): Promise<BasicScanResult>
   scanMediaFiles(options: MediaScanOptions): Promise<MediaScanResult>
@@ -191,6 +215,10 @@ export function loadCzkawkaBinding(): CzkawkaBinding {
 }
 
 export const getCzkawkaInfo = (): CzkawkaInfo => loadCzkawkaBinding().getCzkawkaInfo()
+export const getTrashCapabilities = (): TrashCapabilities => loadCzkawkaBinding().getTrashCapabilities()
+export const trashPath = (path: string): Promise<TrashPathResult> => loadCzkawkaBinding().trashPath(path)
+export const listTrashItems = (): Promise<TrashItemReceipt[]> => loadCzkawkaBinding().listTrashItems()
+export const restoreTrashItem = (receipt: TrashItemReceipt): Promise<void> => loadCzkawkaBinding().restoreTrashItem(receipt)
 export const scanDuplicateFiles = (options: DuplicateScanOptions): Promise<DuplicateScanResult> =>
   loadCzkawkaBinding().scanDuplicateFiles(options)
 export const scanBasicFiles = (options: BasicScanOptions): Promise<BasicScanResult> =>

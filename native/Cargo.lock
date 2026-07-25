@@ -5781,6 +5781,7 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "trash",
  "xiranite-czkawka-core",
 ]
 
