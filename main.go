@@ -67,6 +67,8 @@ func main() {
 		},
 		Windows: wailsWindowsOptions(),
 	})
+	stopDevDesktopShutdownWatcher := startDevDesktopShutdownWatcher(App)
+	defer stopDevDesktopShutdownWatcher()
 
 	win := App.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:            "main",

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto"
 import { backendGatewayTargetPath, removeBackendGatewayTarget, writeBackendGatewayTarget } from "./backend-gateway"
+import { desktopHostShutdownPath, DEV_DESKTOP_SHUTDOWN_PATH_ENV, removeDesktopHostShutdownRequest, stopDesktopHost } from "./desktop-host-lifecycle"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
 import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness"
@@ -27,6 +28,7 @@ const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : 
 const viteCacheDir = managedViteCacheDir(frontendUrl)
 const gatewayTargetPath = backendGatewayTargetPath(frontendUrl)
 const backendToken = randomBytes(24).toString("base64url")
+const desktopShutdownPath = desktopHostShutdownPath(devSessionStartedAt)
 
 type DevBackend = Awaited<ReturnType<typeof startBackend>>
 
@@ -124,8 +126,8 @@ async function stop() {
   if (scheduledRestart) clearTimeout(scheduledRestart)
   await restartQueue
   await backend?.close()
-  await Promise.all([stopProcessTree(vite), ...(go ? [stopProcessTree(go)] : [])])
-  await Promise.all([removeBackendGatewayTarget(frontendUrl), removeDevSession()])
+  await Promise.all([stopProcessTree(vite), stopDesktopHost(go, desktopShutdownPath)])
+  await Promise.all([removeBackendGatewayTarget(frontendUrl), removeDevSession(), removeDesktopHostShutdownRequest(desktopShutdownPath)])
 }
 
 await writeDevSession({
@@ -141,7 +143,7 @@ const stopRequestPoll = setInterval(() => {
 stopRequestPoll.unref()
 process.on("SIGINT", () => { void stop() })
 process.on("SIGTERM", () => { void stop() })
-process.on("exit", () => { backend?.close(); void removeDevSession() })
+process.on("exit", () => { backend?.close(); void removeDevSession(); void removeDesktopHostShutdownRequest(desktopShutdownPath) })
 
 try {
   console.log(formatFrontendWaitLog(frontendUrl, { profile: "desktop" }))
@@ -165,6 +167,7 @@ try {
       FRONTEND_DEVSERVER_URL: frontendUrl,
       XIRANITE_BACKEND_URL: frontendUrl,
       XIRANITE_BACKEND_TOKEN: backendToken,
+      [DEV_DESKTOP_SHUTDOWN_PATH_ENV]: desktopShutdownPath,
     },
   })
   await writeDevSession({
