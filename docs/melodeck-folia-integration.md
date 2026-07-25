@@ -77,7 +77,7 @@ Melo deck 仍是 Xiranite 标准节点。Folia 提供新的 GUI 播放内核、�
 - 编译版目录导入复用 Xiranite Card host 与 XLchemy 相同的 Wails `Dialogs.OpenFile` 目录选择器；非 Wails 开发环境继续通过隔离 local backend 的 `/local-files/pick` fallback，不直接依赖 `showDirectoryPicker`
 - 文件夹导入只执行一次递归音频文件扫描并一次性替换受控队列；封面、音频元数据和歌词仅在歌曲成为当前曲目时解析，不得在导入阶段逐首预加载
 - 当前曲目按需读取元数据、封面与歌词；非活动曲目保持扫描阶段得到的文件信息，不触发逐首网络读取
-- 队列、随机排序、循环、随机播放、音量、ReplayGain 和输出设备；队列面板的随机按钮执行一次性 Fisher-Yates 排序并通过受控 `onTracksChange` 写回 `saved_tracks`，底栏循环按钮按 `off → all → one → random → off` 切换并把 `random` 写入 `playback.loop_mode`；两者均不得重建当前 `<audio>`
+- 队列、随机排序、循环、随机播放、音量、ReplayGain 和输出设备；队列面板的随机按钮执行一次性 Fisher-Yates 排序并通过受控 `onTracksChange` 写回 Folia 曲库数据库，底栏循环按钮按 `off → all → one → random → off` 切换并把 `random` 写入 `playback.loop_mode`；两者均不得重建当前 `<audio>`
 - 封面、歌词匹配、逐字歌词、翻译与和声
 - Folia 全部歌词 renderer、背景模式及其设置
 - Remote Control、底部播放条和 UnifiedPanel
@@ -111,12 +111,21 @@ Melo deck 仍是 Xiranite 标准节点。Folia 提供新的 GUI 播放内核、�
 - `[nodes.melodeck]` 是用户配置的唯一事实源。
 - 新配置使用版本化的 `playback`、`visualizer`、`surfaces` 与 `library` 分区。
 - `surfaces.follow_fullscreen_with_floating` 保存全屏与浮窗联动偏好，缺省值为 `false`。
-- `playback.active_track_id` 保存最后活动曲目；队列继续由 `saved_tracks` 保存。找不到旧曲目时回退到队列首曲，且不自动播放。
-- 现有 `source_path`、`saved_tracks`、`mode`、`floating_offset`、`visualizer_style`、`volume`、`mpv_path` 和 `ipc_path` 非破坏迁移。
+- `playback.active_track_id` 保存最后活动曲目；曲目队列写入 Folia Dexie 数据库的独立命名记录，不写入 TOML。找不到旧曲目时回退到队列首曲，且不自动播放。
+- 旧 TOML `saved_tracks` 仅作为一次性迁移输入：必须先成功写入数据库，再删除旧字段；数据库写入失败时保留原字段，禁止丢失曲库。
+- 现有 `source_path`、`mode`、`floating_offset`、`visualizer_style`、`volume`、`mpv_path` 和 `ipc_path` 非破坏迁移。
 - 现有单路径迁移为 `library_roots = [source_path]`，读取端继续兼容旧字段。
 - Folia host storage adapter 只保存不适合 TOML 的元数据、封面、歌词与自定义背景缓存。
 - Xiranite 中不使用 Folia 原有的配置 localStorage 键，也不保存浏览器 `FileSystemHandle`。
 - 本地文件由 Xiranite 后端扫描并提供稳定 URL。
+
+## 元数据加载
+
+- 导入文件夹只建立轻量曲目索引，不解析音频元数据，也不逐首请求封面和歌词。
+- 当前曲目通过 `@hibernalglow/folia-player` 包内的 Folia metadata worker 解析；React/WebView 主线程不得直接调用 `music-metadata` 解析音频流。
+- worker 请求必须支持 `AbortSignal`。快速切歌时取消旧请求并忽略失效结果，音频播放不得等待元数据完成。
+- worker 按文件路径选择解析器，避免独立 worker bundle 依赖 CommonJS MIME 解析互操作；解析结果使用有界缓存，后台预取过的歌曲被选中时不得重复解析。
+- 后台元数据提取默认关闭；开启后保持单 worker、逐首串行和固定间隔，不允许与当前曲目解析形成无界并发。
 
 ## i18n
 

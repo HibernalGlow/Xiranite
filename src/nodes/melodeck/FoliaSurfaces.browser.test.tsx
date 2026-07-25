@@ -470,13 +470,13 @@ test("keeps the original Folia app across node container sizes without recreatin
 
   await page.elementLocator(originalPlayerBar!).hover()
   await expect.poll(() => originalPlayerBar!.querySelectorAll("[data-folia-loop-mode]").length).toBe(1)
-  const loopModeButton = originalPlayerBar!.querySelector<HTMLElement>("[data-folia-loop-mode]")!
-  expect(loopModeButton.getAttribute("data-folia-loop-mode")).toBe("all")
-  await page.elementLocator(loopModeButton).click()
-  await expect.poll(() => loopModeButton.getAttribute("data-folia-loop-mode")).toBe("one")
-  await page.elementLocator(loopModeButton).click()
-  await expect.poll(() => loopModeButton.getAttribute("data-folia-loop-mode")).toBe("random")
-  expect(loopModeButton.querySelector("svg.lucide-shuffle")).not.toBeNull()
+  const currentLoopModeButton = () => originalPlayerBar!.querySelector<HTMLElement>("[data-folia-loop-mode]")!
+  expect(currentLoopModeButton().getAttribute("data-folia-loop-mode")).toBe("all")
+  await page.elementLocator(currentLoopModeButton()).click()
+  await expect.poll(() => currentLoopModeButton().getAttribute("data-folia-loop-mode")).toBe("one")
+  await page.elementLocator(currentLoopModeButton()).click()
+  await expect.poll(() => currentLoopModeButton().getAttribute("data-folia-loop-mode")).toBe("random")
+  expect(currentLoopModeButton().querySelector("svg.lucide-shuffle")).not.toBeNull()
   expect(queueProbe.getAttribute("data-loop-mode")).toBe("random")
 
   const randomPlaybackSpy = vi.spyOn(Math, "random").mockReturnValue(0)

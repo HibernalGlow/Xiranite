@@ -88,7 +88,7 @@ async function readMetadata(track: FoliaTrack, signal: AbortSignal): Promise<Emb
   if (cached) return cached
 
   const metadata = await parseRemoteEmbeddedMetadataAsync(track.src, {
-    mimeType: track.mimeType,
+    filePath: track.path,
     includeCover: true,
     signal,
   })
