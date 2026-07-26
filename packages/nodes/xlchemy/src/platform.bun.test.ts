@@ -79,3 +79,29 @@ test("delegates user-requested deletion modes to the scoped project file-operati
     concurrency: 1,
   })
 })
+
+test("adapts the shared weighted scheduler to an XLchemy worker lease", async () => {
+  let released = 0
+  let request: unknown
+  const runtime = createNodeXlchemyRuntime({
+    resourceScheduler: {
+      acquire: async (value) => {
+        request = value
+        return { weight: 3, release: () => { released += 1 } }
+      },
+    },
+  })
+  const lease = await runtime.acquireWorker!(8, 768)
+  expect(request).toEqual({
+    resource: "cpu",
+    kind: "xlchemy.image-convert",
+    priority: "background",
+    ownerId: "xlchemy",
+    weight: 8,
+    minimumWeight: 1,
+    memoryMiB: 768,
+  })
+  expect(lease.threads).toBe(3)
+  lease.release()
+  expect(released).toBe(1)
+})

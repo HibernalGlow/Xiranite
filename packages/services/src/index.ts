@@ -702,8 +702,11 @@ export type {
   ThumbnailResolver,
 } from "./thumbnailCoordinator.js"
 export type {
+  MemoryBudgetOptions,
+  MemoryBudgetSnapshot,
   ResourcePoolOptions,
   ResourcePoolSnapshot,
+  ResourceSchedulerServiceSnapshot,
   ResourceSchedulerServiceOptions,
 } from "./resourceScheduler.js"
 export type {

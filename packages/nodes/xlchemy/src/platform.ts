@@ -12,9 +12,11 @@ import { streamEfuPaths } from "./efu-stream.js"
 import { isAnimatedImage } from "./animation-probe.js"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { PlatformFileMutationProvider } from "@xiranite/file-operations/platform"
+import type { ResourceScheduler } from "@xiranite/contract"
 
 export interface XlchemyRuntimeContext {
   fileOperations?: FileOperationExecutor
+  resourceScheduler?: ResourceScheduler
 }
 
 let standaloneFileMutations: PlatformFileMutationProvider | undefined
@@ -33,6 +35,9 @@ export function createNodeXlchemyRuntime(context: XlchemyRuntimeContext = {}): X
     renameFile: async (source, target) => { const { rename } = await import("node:fs/promises"); await rename(source, target) },
     setTimes: async (path, atimeMs, mtimeMs) => { await utimes(path, new Date(atimeMs), new Date(mtimeMs)) },
     hashFile: sha256File,
+    ...(context.resourceScheduler ? {
+      acquireWorker: (threads: number, memoryMiB: number, isCancelled?: () => boolean) => acquireWorker(context.resourceScheduler!, threads, memoryMiB, isCancelled),
+    } : {}),
     runCommand: runXlchemyCommand,
     resolveCommand: resolveCachedCommand,
     probeSlimg,
@@ -91,6 +96,36 @@ async function listDir(path: string) { const entries = await readdir(path, { wit
 async function* streamDir(path: string) {
   const directory = await opendir(path)
   for await (const entry of directory) yield { path: join(path, entry.name), name: entry.name, isFile: entry.isFile(), isDirectory: entry.isDirectory() }
+}
+
+async function acquireWorker(
+  scheduler: ResourceScheduler,
+  threads: number,
+  memoryMiB: number,
+  isCancelled?: () => boolean,
+) {
+  const controller = new AbortController()
+  const cancelTimer = isCancelled ? setInterval(() => {
+    if (isCancelled()) controller.abort(new DOMException("Xlchemy operation cancelled.", "AbortError"))
+  }, 50) : undefined
+  try {
+    const lease = await scheduler.acquire({
+      resource: "cpu",
+      kind: "xlchemy.image-convert",
+      priority: "background",
+      ownerId: "xlchemy",
+      weight: Math.max(1, Math.round(threads)),
+      minimumWeight: 1,
+      memoryMiB: Math.max(1, Math.round(memoryMiB)),
+    }, controller.signal)
+    if (isCancelled?.()) {
+      lease.release()
+      throw new DOMException("Xlchemy operation cancelled.", "AbortError")
+    }
+    return { threads: Math.max(1, Math.round(lease.weight ?? threads)), release: () => lease.release() }
+  } finally {
+    if (cancelTimer) clearInterval(cancelTimer)
+  }
 }
 
 /**

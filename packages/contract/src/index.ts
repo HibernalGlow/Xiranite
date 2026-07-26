@@ -204,9 +204,19 @@ export interface ResourceTaskRequest {
   kind: string
   priority: ResourcePriority
   ownerId?: string
+  /** Maximum capacity units the task can use. Defaults to one. */
+  weight?: number
+  /** Minimum capacity units required to start. Defaults to `weight`. */
+  minimumWeight?: number
+  /** Estimated resident memory held while the lease is active. */
+  memoryMiB?: number
 }
 
 export interface ResourceLease {
+  /** Capacity units granted to this lease. Legacy schedulers may omit it. */
+  readonly weight?: number
+  /** Resident-memory admission reserved for this lease. */
+  readonly memoryMiB?: number
   release(): void
 }
 

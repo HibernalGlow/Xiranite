@@ -3,24 +3,28 @@ import { LogEnvelopeSchema, createLogEnvelope, createLogSession, type LogEnvelop
 import { resolveLogDirectory, RotatingJsonlLogWriter, type LogWriterOptions } from "@xiranite/logging/node"
 import {
   createMemoryFileDeletionRepository,
+  createMemoryMelodeckRepository,
   type FileDeletionRepository,
+  type MelodeckRepository,
   type NodeRunHistoryRepository,
   type WorkspaceRepository,
 } from "@xiranite/repository"
 import {
   createLibsqlFileDeletionRepository,
+  createLibsqlMelodeckRepository,
   createLibsqlNodeRunHistoryRepository,
   createLibsqlWorkspaceRepository,
   type LibsqlFileDeletionRepository,
+  type LibsqlMelodeckRepository,
   type LibsqlNodeRunHistoryRepository,
   type LibsqlWorkspaceRepository,
 } from "@xiranite/repository/libsql"
 import {
   createXiraniteServices,
+  ResourceSchedulerService,
   type NodeRunner,
   type NodeMemoryProtectionOptions,
   type ResourceScheduler,
-  type ResourceSchedulerService,
   type XiraniteSystemService,
 } from "@xiranite/services"
 import { NODE_MEMORY_PROTECTION_APP_SECTION } from "@xiranite/shared"
@@ -36,17 +40,20 @@ import { pipeline } from "node:stream/promises"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
 import { createBackendNodeMemoryProtectionController, createBackendNodeRunner } from "./nodeRunner.js"
+import { createBackendResourceScheduler } from "./resourceScheduler.js"
 import { BackendFileOperationManager, handleFileOperationRequest } from "./fileOperations.js"
 import { pickLocalPaths } from "./localFilePicker.js"
 import { clearFileClipboard, NativeFileClipboardUnavailableError, readFilesFromClipboard, writeFilesToClipboard } from "./fileClipboard.js"
 import { getDevelopmentSourceHotReloadEnabled, loadNodePlatformModule, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
 import { parseNodeAppDataContractVersion, recordNodeAppDataContract } from "./nodeAppDataContract.js"
+import { handleMelodeckRequest } from "./melodeck.js"
 
 export interface CreateDefaultBackendOptions {
   now?: number
   repository?: WorkspaceRepository
   historyRepository?: NodeRunHistoryRepository
   fileDeletionRepository?: FileDeletionRepository
+  melodeckRepository?: MelodeckRepository
   configPath?: string
   databaseUrl?: string
   databasePath?: string
@@ -99,6 +106,7 @@ export interface XiraniteBackendApp {
   repository: WorkspaceRepository
   historyRepository?: NodeRunHistoryRepository
   fileDeletionRepository: FileDeletionRepository
+  melodeckRepository: MelodeckRepository
   fileOperations: BackendFileOperationManager
   database?: BackendDatabaseConfig
   resources: ResourceSchedulerService
@@ -113,21 +121,24 @@ export async function createDefaultBackendApp(options: CreateDefaultBackendOptio
 export async function createDefaultBackend(options: CreateDefaultBackendOptions = {}): Promise<XiraniteBackendApp> {
   const database = options.repository ? undefined : resolveBackendDatabaseConfig(options)
   const ownsResourceScheduler = options.resourceScheduler === undefined
+  const resourceScheduler = options.resourceScheduler ?? createBackendResourceScheduler()
   const repository = options.repository ?? await createDefaultRepository(options)
   const historyRepository = options.historyRepository ?? (options.repository ? undefined : await createDefaultHistoryRepository(options))
   const fileDeletionRepository = options.fileDeletionRepository
     ?? (database ? await createDefaultFileDeletionRepository(options) : createMemoryFileDeletionRepository())
-  const fileOperations = new BackendFileOperationManager(fileDeletionRepository, options.resourceScheduler)
+  const melodeckRepository = options.melodeckRepository
+    ?? (database ? await createDefaultMelodeckRepository(options) : createMemoryMelodeckRepository())
+  const fileOperations = new BackendFileOperationManager(fileDeletionRepository, resourceScheduler)
   await ensureDefaultWorkspace(repository, options.now ?? Date.now())
   const memoryProtection = createBackendNodeMemoryProtectionController(process.env, options.nodeMemoryProtection)
 
   const services = createXiraniteServices(repository, {
-    nodeRunner: options.nodeRunner ?? createBackendNodeRunner({ fileOperations }),
+    nodeRunner: options.nodeRunner ?? createBackendNodeRunner({ fileOperations, resourceScheduler }),
     configPath: options.configPath,
     databasePath: database?.path,
     dataDir: options.dataDir,
     historyRepository,
-    resourceScheduler: options.resourceScheduler,
+    resourceScheduler,
     system: {
       ...options.system,
       getNodeSourceHotReload: getDevelopmentSourceHotReloadEnabled,
@@ -150,14 +161,16 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
     repository,
     historyRepository,
     fileDeletionRepository,
+    melodeckRepository,
     fileOperations,
     database,
-    resources: services.resources,
+    resources: resourceScheduler,
     close() {
       closeRepository(repository)
       closeHistoryRepository(historyRepository)
       closeFileDeletionRepository(fileDeletionRepository)
-      if (ownsResourceScheduler) services.resources.close()
+      closeMelodeckRepository(melodeckRepository)
+      if (ownsResourceScheduler) resourceScheduler.close()
     },
   }
 }
@@ -237,6 +250,14 @@ export async function startBackend(options: StartBackendOptions = {}) {
       if (url.pathname === "/local-files/list") {
         await writeNodeResponse(outgoing, await listLocalFiles(url))
         return
+      }
+
+      if (url.pathname.startsWith("/melodeck/")) {
+        const response = await handleMelodeckRequest(request, url, backend.melodeckRepository)
+        if (response) {
+          await writeNodeResponse(outgoing, response)
+          return
+        }
       }
 
       if (url.pathname === "/file-operations" || url.pathname.startsWith("/file-deletions")) {
@@ -744,6 +765,12 @@ async function createDefaultFileDeletionRepository(options: CreateDefaultBackend
   return createLibsqlFileDeletionRepository({ url: config.url, authToken: config.authToken })
 }
 
+async function createDefaultMelodeckRepository(options: CreateDefaultBackendOptions): Promise<MelodeckRepository> {
+  const config = resolveBackendDatabaseConfig(options)
+  if (config.path) await mkdir(path.dirname(config.path), { recursive: true })
+  return createLibsqlMelodeckRepository({ url: config.url, authToken: config.authToken })
+}
+
 export function resolveBackendDatabaseConfig(options: CreateDefaultBackendOptions = {}): BackendDatabaseConfig {
   const databaseUrl = options.databaseUrl ?? process.env.XIRANITE_DATABASE_URL
   if (databaseUrl) {
@@ -807,6 +834,11 @@ function closeHistoryRepository(repository: NodeRunHistoryRepository | undefined
 
 function closeFileDeletionRepository(repository: FileDeletionRepository): void {
   const maybeLibsql = repository as Partial<LibsqlFileDeletionRepository>
+  maybeLibsql.client?.close()
+}
+
+function closeMelodeckRepository(repository: MelodeckRepository): void {
+  const maybeLibsql = repository as Partial<LibsqlMelodeckRepository>
   maybeLibsql.client?.close()
 }
 

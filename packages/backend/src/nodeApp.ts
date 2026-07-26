@@ -9,6 +9,7 @@ import path from "node:path"
 import { pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
 import { createBackendNodeMemoryProtection, createBackendNodeRunner } from "./nodeRunner.js"
+import { createBackendResourceScheduler } from "./resourceScheduler.js"
 import { BackendFileOperationManager } from "./fileOperations.js"
 import { pickLocalPaths } from "./localFilePicker.js"
 import { NodeAppStateStore, resolveNodeAppDataDirectory } from "./nodeAppState.js"
@@ -44,13 +45,15 @@ export async function startNodeAppBackend(options: StartNodeAppBackendOptions) {
   await mkdir(path.dirname(databasePath), { recursive: true })
   const historyRepository = await createLibsqlNodeRunHistoryRepository({ url: pathToFileURL(databasePath).href })
   const deletionRepository = createMemoryFileDeletionRepository()
-  const fileOperations = new BackendFileOperationManager(deletionRepository)
+  const resourceScheduler = createBackendResourceScheduler()
+  const fileOperations = new BackendFileOperationManager(deletionRepository, resourceScheduler)
   const services = createXiraniteServices(repository, {
-    nodeRunner: createBackendNodeRunner({ fileOperations }),
+    nodeRunner: createBackendNodeRunner({ fileOperations, resourceScheduler }),
     configPath: options.configPath,
     databasePath,
     dataDir: options.dataDir,
     historyRepository,
+    resourceScheduler,
     system: {
       getNodeSourceHotReload: getDevelopmentSourceHotReloadEnabled,
       setNodeSourceHotReload: setDevelopmentSourceHotReloadEnabled,
@@ -61,7 +64,7 @@ export async function startNodeAppBackend(options: StartNodeAppBackendOptions) {
   const dataContractVersion = options.dataContractVersion
     ?? parseNodeAppDataContractVersion(process.env.XIRANITE_NODE_APP_DATA_CONTRACT_VERSION)
   if (dataContractVersion !== undefined) await recordNodeAppDataContract(dataContractVersion)
-  fileOperations.setScheduler(services.resources)
+  fileOperations.setScheduler(resourceScheduler)
   const activeOperations = new NodeAppOperationRecoveryStore(nodeId)
   await activeOperations.recoverInterrupted(services.history)
   const api = createNodeAppApi(services, nodeId, {
@@ -152,7 +155,7 @@ export async function startNodeAppBackend(options: StartNodeAppBackendOptions) {
     close: async () => {
       server.stop(true)
       await reader?.then((controller) => controller[Symbol.asyncDispose]()).catch(() => undefined)
-      services.resources.close()
+      resourceScheduler.close()
       await activeOperations.clear()
       historyRepository.client.close()
       await logWriter.close()

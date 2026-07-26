@@ -62,6 +62,104 @@ describe("ResourceSchedulerService", () => {
     gpu.release()
   })
 
+  it("[xiranite.scheduler.weight] reserves weighted interactive capacity and reports the granted weight", async () => {
+    const scheduler = new ResourceSchedulerService({
+      pools: {
+        cpu: {
+          maxConcurrent: 8,
+          reservedInteractive: 1,
+          maxWeight: 8,
+          reservedInteractiveWeight: 2,
+        },
+      },
+    })
+    const background = await scheduler.acquire({
+      resource: "cpu",
+      kind: "xlchemy.image-convert",
+      priority: "background",
+      weight: 8,
+      minimumWeight: 1,
+    })
+    expect(background.weight).toBe(6)
+    expect(scheduler.snapshot().cpu).toMatchObject({
+      active: 1,
+      activeWeight: 6,
+      maxWeight: 8,
+      reservedInteractiveWeight: 2,
+    })
+
+    const queued = scheduler.acquire({
+      resource: "cpu",
+      kind: "xlchemy.image-convert",
+      priority: "background",
+      weight: 2,
+      minimumWeight: 1,
+    })
+    expect(scheduler.snapshot().cpu).toMatchObject({ queued: 1, queuedWeight: 2 })
+
+    const interactive = await scheduler.acquire({
+      resource: "cpu",
+      kind: "neoview.image-transform",
+      priority: "interactive",
+      weight: 2,
+    })
+    expect(interactive.weight).toBe(2)
+    interactive.release()
+    background.release()
+    const next = await queued
+    expect(next.weight).toBe(2)
+    next.release()
+  })
+
+  it("[xiranite.scheduler.weight-validation] rejects impossible minimum weights instead of retaining them", async () => {
+    const scheduler = new ResourceSchedulerService({
+      pools: { cpu: { maxConcurrent: 4, maxWeight: 8, reservedInteractiveWeight: 2 } },
+    })
+    await expect(scheduler.acquire({
+      resource: "cpu",
+      kind: "oversized-background-task",
+      priority: "background",
+      weight: 8,
+      minimumWeight: 7,
+    })).rejects.toThrow("exceeds background capacity 6")
+    expect(scheduler.snapshot().cpu).toMatchObject({ active: 0, queued: 0, queuedWeight: 0 })
+  })
+
+  it("[xiranite.scheduler.memory-admission] reserves memory globally while retaining an interactive allowance", async () => {
+    const scheduler = new ResourceSchedulerService({
+      pools: { cpu: { maxConcurrent: 8, reservedInteractive: 1, maxWeight: 8, reservedInteractiveWeight: 1 } },
+      memory: { maxMiB: 1_024, reservedInteractiveMiB: 256 },
+    })
+    const batch = await scheduler.acquire({
+      resource: "cpu",
+      kind: "xlchemy.image-convert",
+      priority: "background",
+      memoryMiB: 768,
+    })
+    const queued = scheduler.acquire({
+      resource: "cpu",
+      kind: "xlchemy.image-convert",
+      priority: "background",
+      memoryMiB: 256,
+    })
+    expect(scheduler.snapshot()).toMatchObject({
+      cpu: { activeMemoryMiB: 768, queuedMemoryMiB: 256 },
+      memory: { activeMiB: 768, queuedMiB: 256, maxMiB: 1_024, reservedInteractiveMiB: 256 },
+    })
+    const interactive = await scheduler.acquire({
+      resource: "cpu",
+      kind: "neoview.image-transform",
+      priority: "interactive",
+      memoryMiB: 256,
+    })
+    expect(scheduler.snapshot().memory.activeMiB).toBe(1_024)
+    interactive.release()
+    batch.release()
+    const next = await queued
+    expect(next.memoryMiB).toBe(256)
+    next.release()
+  })
+
   it("[xiranite.scheduler.telemetry] reports lease lifecycle and monotonic queue wait without retaining tasks", async () => {
     let now = 100
     const scheduler = new ResourceSchedulerService({
