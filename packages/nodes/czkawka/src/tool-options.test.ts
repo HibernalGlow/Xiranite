@@ -22,6 +22,12 @@ describe("shared Czkawka option schema", () => {
     })
   })
 
+  test("accepts the legacy crop flag without writing its removed motion mode", () => {
+    expect(parseCzkawkaCliOptions(["--video-crop", "motion"])).toEqual({ similarVideosLetterboxCrop: true })
+    expect(parseCzkawkaCliOptions(["--video-crop", "motion", "--no-video-letterbox-crop"])).toEqual({ similarVideosLetterboxCrop: false })
+    expect(CZKAWKA_CLI_VALUE_FLAGS.has("--video-crop")).toBe(true)
+  })
+
   test("generates CLI help and TUI fields from the exact GUI option definitions", () => {
     const interactionIds = new Set(createCzkawkaInteractionSchema().fields.map((field) => field.id))
     const helpFields = createCzkawkaOptionHelpFields("en")

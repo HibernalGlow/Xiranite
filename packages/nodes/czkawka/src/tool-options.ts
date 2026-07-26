@@ -3,9 +3,10 @@ import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import type { NodeHelpField } from "@xiranite/contract"
 
 import type { CzkawkaAction, CzkawkaInput, CzkawkaTool } from "./core.js"
+import { resolveCzkawkaSimilarVideoCrop } from "./similar-video-crop.js"
 import { parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, serializeCzkawkaExtensionTokens } from "./source-inputs.js"
 
-type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "threadCount" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun">
+type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "threadCount" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun" | "similarVideosCropDetect">
 type OptionValue = string | number | boolean
 
 export interface CzkawkaOptionDefinition {
@@ -46,7 +47,7 @@ export const CZKAWKA_TOOL_OPTIONS: readonly CzkawkaOptionDefinition[] = [
   booleanOption("similarVideosIgnoreSameSize", SIMILAR_VIDEOS, "忽略相同尺寸", "Ignore same size", false, "--video-ignore-same-size"),
   numberOption("similarVideosSkipForward", SIMILAR_VIDEOS, "跳过开头（秒）", "Skip forward (seconds)", 15, "--video-skip", 0, 3600),
   numberOption("similarVideosHashDuration", SIMILAR_VIDEOS, "Hash 时长（秒）", "Hash duration (seconds)", 10, "--video-duration", 2, 3600),
-  option("similarVideosCropDetect", SIMILAR_VIDEOS, "select", "裁剪检测", "Crop detection", "letterbox", "--video-crop", ["letterbox", "motion", "none"]),
+  booleanOption("similarVideosLetterboxCrop", SIMILAR_VIDEOS, "检测黑边", "Detect letterbox bars", true, "--video-letterbox-crop"),
   option("musicCheckType", MUSIC, "select", "音频判断方式", "Audio check type", "tags", "--music-check", [{ value: "tags", label: "标签 / Tags" }, { value: "fingerprint", label: "音频指纹 / Fingerprint" }]),
   booleanOption("musicApproximateComparison", MUSIC, "近似标签比较", "Approximate tag comparison", true, "--music-approximate"),
   booleanOption("musicCompareTitle", MUSIC, "比较标题", "Compare title", true, "--music-title"),
@@ -134,6 +135,7 @@ export function createCzkawkaScanInput(tool: CzkawkaTool, values: Record<string,
     threadCount: optionalNumber(values.threadCount),
     filterText: text(values.filterText),
     ...valuesToCzkawkaOptions(values),
+    similarVideosLetterboxCrop: resolveCzkawkaSimilarVideoCrop(values).letterboxCrop,
   }
 }
 
@@ -170,10 +172,14 @@ export function parseCzkawkaCliOptions(args: string[]): Partial<CzkawkaInput> {
     if (index < 0 || args[index + 1] === undefined) continue
     result[definition.id] = coerceOptionValue(definition, args[index + 1])
   }
+  const legacyCropDetect = optionValueFor(args, "--video-crop")
+  if (result.similarVideosLetterboxCrop === undefined && legacyCropDetect !== undefined) {
+    result.similarVideosLetterboxCrop = resolveCzkawkaSimilarVideoCrop({ similarVideosCropDetect: legacyCropDetect }).letterboxCrop
+  }
   return result as Partial<CzkawkaInput>
 }
 
-export const CZKAWKA_CLI_VALUE_FLAGS = new Set(CZKAWKA_TOOL_OPTIONS.filter((definition) => definition.kind !== "boolean").map((definition) => definition.cliFlag))
+export const CZKAWKA_CLI_VALUE_FLAGS = new Set([...CZKAWKA_TOOL_OPTIONS.filter((definition) => definition.kind !== "boolean").map((definition) => definition.cliFlag), "--video-crop"])
 
 function option(id: OptionId, tools: readonly CzkawkaTool[], kind: CzkawkaOptionDefinition["kind"], zh: string, en: string, defaultValue: OptionValue, cliFlag: string, choices?: readonly (string | { value: string; label?: string })[]): CzkawkaOptionDefinition {
   return { id, tools, kind, label: { zh, en }, defaultValue, cliFlag, choices: choices?.map((choice) => typeof choice === "string" ? { value: choice } : choice) }
@@ -187,3 +193,4 @@ function optionalNumber(value: unknown): number | undefined { if (value === unde
 function text(value: unknown): string | undefined { return value === undefined || value === null ? undefined : String(value) }
 function extensionText(value: unknown): string | undefined { const tokens = parseCzkawkaExtensionTokens(value); return tokens.length ? serializeCzkawkaExtensionTokens(tokens) : undefined }
 function parseRenameItems(value: unknown): NonNullable<CzkawkaInput["renameItems"]> { return lines(value).map((line) => { const separator = line.lastIndexOf("\t"); if (separator < 0) return null; const path = line.slice(0, separator).trim(), properExtension = line.slice(separator + 1).trim(); return path && properExtension ? { path, properExtension } : null }).filter((item): item is NonNullable<typeof item> => item !== null) }
+function optionValueFor(args: string[], flag: string): string | undefined { const index = args.indexOf(flag); return index < 0 ? undefined : args[index + 1] }

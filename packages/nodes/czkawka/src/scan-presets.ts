@@ -1,4 +1,5 @@
 import { CZKAWKA_TOOLS, type CzkawkaInput, type CzkawkaTool } from "./core.js"
+import { resolveCzkawkaSimilarVideoCrop } from "./similar-video-crop.js"
 import { CZKAWKA_TOOL_OPTIONS, createCzkawkaScanInput } from "./tool-options.js"
 
 export interface CzkawkaScanPreset {
@@ -85,7 +86,9 @@ export function czkawkaScanPresetFromValues(name: string, values: Record<string,
 
 function canonicalScanInput(input: CzkawkaInput): CzkawkaInput {
   const blocked = new Set(["selectedPaths", "destinationDirectory", "destinationItems", "renameItems", "deleteMode", "copyMode", "preserveStructure", "conflictPolicy", "outputPath", "outputFormat", "exportScope", "exportEntries", "dryRun"])
-  return Object.fromEntries(Object.entries({ ...input, action: "scan", tool: normalizeTool(input.tool) }).filter(([key, value]) => !blocked.has(key) && value !== undefined)) as CzkawkaInput
+  const { similarVideosCropDetect: _legacyCropDetect, ...current } = input
+  const similarVideoCrop = resolveCzkawkaSimilarVideoCrop(input)
+  return Object.fromEntries(Object.entries({ ...current, action: "scan", tool: normalizeTool(input.tool), similarVideosLetterboxCrop: similarVideoCrop.letterboxCrop }).filter(([key, value]) => !blocked.has(key) && value !== undefined)) as CzkawkaInput
 }
 
 function validatePreset(value: unknown): CzkawkaScanPreset {

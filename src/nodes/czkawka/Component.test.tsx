@@ -164,7 +164,7 @@ describe("Czkawka node", () => {
       similarVideosIgnoreSameSize: true,
       similarVideosSkipForward: 42,
       similarVideosHashDuration: 18,
-      similarVideosCropDetect: "motion",
+      similarVideosLetterboxCrop: true,
     })
   })
 

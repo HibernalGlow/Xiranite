@@ -12,7 +12,7 @@ export type CzkawkaPanel = "source" | "results" | "analysis"
 export type CzkawkaSimilarImagesViewMode = "images" | "folders"
 
 export interface CzkawkaCardState {
-  schemaVersion?: 1
+  schemaVersion?: 1 | 2
   tool?: CzkawkaTool
   includedDirectoriesText?: string
   includedDirectoriesReferencedText?: string
@@ -49,7 +49,10 @@ export interface CzkawkaCardState {
   similarVideosIgnoreSameSize?: boolean
   similarVideosSkipForward?: string
   similarVideosHashDuration?: string
+  similarVideosLetterboxCrop?: boolean
+  /** Legacy v1 field retained for one rollback window. */
   similarVideosCropDetect?: CzkawkaVideoCropDetect
+  czkawka12MotionCropMigrationNotified?: boolean
   musicCheckType?: CzkawkaMusicCheckType
   musicApproximateComparison?: boolean
   musicCompareTitle?: boolean
