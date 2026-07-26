@@ -4,6 +4,7 @@ import type { CzkawkaActivityLogEntry } from "@xiranite/node-czkawka/activity-lo
 import type { CzkawkaCardId, CzkawkaCardLayout } from "@xiranite/node-czkawka/card-layout"
 import type { CzkawkaFilterResult, CzkawkaFilterState, CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
 import type { CzkawkaFloatingPanelState, CzkawkaFloatingViewport } from "@xiranite/node-czkawka/floating-panel"
+import type { CzkawkaImageComparisonMode, CzkawkaImageComparisonState } from "@xiranite/node-czkawka/image-comparison"
 import type { CzkawkaSelectionAssistantConfig, CzkawkaSelectionHistory, CzkawkaSelectionResult, CzkawkaSelectionStats } from "@xiranite/node-czkawka/selection-assistant"
 import type { CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
 import { ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderX, HardDrive, Image, Link2Off, Video } from "lucide-react"
@@ -26,6 +27,7 @@ export interface CzkawkaView {
   cardLayout: CzkawkaCardLayout
   workspaceLayout: CzkawkaWorkspaceLayout
   similarImagesViewMode: CzkawkaSimilarImagesViewMode
+  imageComparison: CzkawkaImageComparisonState
   previewPanelEnabled: boolean
   thumbnailEnabled: boolean
   floatingAnalysisPanel: CzkawkaFloatingPanelState
@@ -50,6 +52,13 @@ export interface CzkawkaView {
   setCardLayout: (layout: CzkawkaCardLayout) => void
   setWorkspaceLayout: (layout: CzkawkaWorkspaceLayout) => void
   setSimilarImagesViewMode: (mode: CzkawkaSimilarImagesViewMode) => void
+  openImageComparison: (path: string) => void
+  closeImageComparison: () => void
+  setImageComparisonMode: (mode: CzkawkaImageComparisonMode) => void
+  setImageComparisonColorCoding: (colorCoding: boolean) => void
+  setImageComparisonTarget: (path: string) => void
+  setImageComparisonSwipe: (swipePercent: number) => void
+  setImageComparisonOpacity: (onionOpacity: number) => void
   setPreviewPanelEnabled: (enabled: boolean) => void
   setThumbnailEnabled: (enabled: boolean) => void
   setFloatingAnalysisPanel: (state: CzkawkaFloatingPanelState) => void

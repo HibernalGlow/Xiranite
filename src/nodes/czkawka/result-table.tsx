@@ -22,6 +22,7 @@ import { LocalMediaPreviewPanel } from "@/nodes/shared/LocalMediaPreviewPanel"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import type { CzkawkaPhase } from "./types"
 import { CzkawkaNikoResultTable } from "./niko-result-table"
+import type { CzkawkaImageComparisonMode, CzkawkaImageComparisonState } from "@xiranite/node-czkawka/image-comparison"
 
 export type CzkawkaResultColumnId = "name" | "path" | "size" | "groupSize" | "modified" | "similarity" | "dimensions" | "title" | "artist" | "year" | "bitrate" | "length" | "target" | "error" | "currentExtension" | "properExtension"
 
@@ -105,6 +106,7 @@ export interface CzkawkaResultTableProps {
   reversePathDisplay?: boolean
   wrapText?: boolean
   getFileUrl?: (path: string) => string
+  imageComparison?: CzkawkaImageComparisonBindings
   onCopyText?: (text: string) => Promise<void>
   onCopyFiles?: (paths: string[]) => Promise<void>
   onOpenPath?: (path: string) => Promise<void>
@@ -113,6 +115,18 @@ export interface CzkawkaResultTableProps {
   onRetry?: () => Promise<void>
   onPreviewPanelEnabledChange?: (enabled: boolean) => void
   onSelectionChange: (paths: string[]) => void
+}
+
+export interface CzkawkaImageComparisonBindings {
+  groups: readonly CzkawkaGroup[]
+  state: CzkawkaImageComparisonState
+  open: (path: string) => void
+  close: () => void
+  setMode: (mode: CzkawkaImageComparisonMode) => void
+  setColorCoding: (colorCoding: boolean) => void
+  setTarget: (path: string) => void
+  setSwipe: (swipePercent: number) => void
+  setOpacity: (onionOpacity: number) => void
 }
 
 function LegacyCzkawkaResultTable(props: CzkawkaResultTableProps) {

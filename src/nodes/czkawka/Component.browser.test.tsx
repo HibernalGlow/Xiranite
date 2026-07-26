@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest"
 import { page } from "vitest/browser"
-import { render } from "vitest-browser-react"
+import { cleanup, render } from "vitest-browser-react"
 import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { CzkawkaData } from "@xiranite/node-czkawka/core"
 import { CZKAWKA_WORKSPACE_DEFAULTS } from "@xiranite/node-czkawka/workspace-layout"
@@ -16,6 +16,7 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
 }))
 
 afterEach(async () => {
+  cleanup()
   Object.assign(surface, { width: 1440, height: 860, mode: "workspace" })
   await i18n.changeLanguage("zh")
 })
@@ -99,6 +100,60 @@ test("persists Czkawka 12 similar-image invariance controls in the browser", asy
   await expect.poll(() => host.stateValue.similarImagesGeometricInvariance).toBe("mirror-flip-rotate-90")
 })
 
+test("compares similar-image group members through all four accessible modes", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/media", result: similarImageResult })
+
+  await render(<Component compId="czkawka-image-comparison-browser" host={host} />)
+  await page.getByRole("button", { name: "Preview left.jpg" }).click()
+  await expect.element(page.getByRole("dialog")).toBeVisible()
+  await expect.element(page.getByRole("button", { name: "Single image" })).toHaveAttribute("aria-pressed", "true")
+
+  await page.getByRole("button", { name: "Side by side" }).click()
+  await expect.poll(() => host.stateValue.imageComparisonMode).toBe("side-by-side")
+  await expect.element(page.getByText("Current image")).toBeVisible()
+  await expect.element(page.getByText("Comparison image")).toBeVisible()
+
+  await page.getByRole("button", { name: "Swipe divider" }).click()
+  const swipe = page.getByRole("slider", { name: "Swipe position" })
+  await swipe.fill("72")
+  await expect.element(swipe).toHaveValue("72")
+  document.querySelector<HTMLInputElement>("input[aria-label='Swipe position']")!.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" }))
+  await expect.element(swipe).toHaveValue("73")
+  const stage = document.querySelector<HTMLElement>("[data-testid='czkawka-image-comparison-swipe-stage']")!
+  Object.defineProperty(stage, "getBoundingClientRect", { configurable: true, value: () => ({ left: 0, top: 0, right: 400, bottom: 200, width: 400, height: 200 }) })
+  stage.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 80, pointerId: 7 }))
+  stage.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 300, pointerId: 7 }))
+  await expect.element(swipe).toHaveValue("75")
+  await page.getByRole("option", { name: "Compare with right.jpg" }).click()
+  await expect.element(swipe).toHaveValue("50")
+
+  await page.getByRole("button", { name: "Onion skin overlay" }).click()
+  const opacity = page.getByRole("slider", { name: "Overlay opacity" })
+  await opacity.fill("32")
+  await expect.element(opacity).toHaveValue("32")
+  await page.getByRole("button", { name: "Color coding" }).click()
+  await expect.poll(() => host.stateValue.imageComparisonColorCoding).toBe(true)
+  await page.getByRole("option", { name: "Compare with middle.jpg" }).click()
+  await expect.element(opacity).toHaveValue("50")
+  await page.getByRole("button", { name: "Close image comparison" }).click()
+  await expect.element(page.getByRole("dialog")).not.toBeInTheDocument()
+})
+
+test("keeps comparison controls usable in the compact Czkawka layout", async () => {
+  await i18n.changeLanguage("en")
+  Object.assign(surface, { width: 480, height: 780, mode: "compact" })
+  const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/media", result: similarImageResult })
+
+  await render(<Component compId="czkawka-image-comparison-compact-browser" host={host} />)
+  await page.getByRole("tab", { name: /Results 3/ }).click()
+  await page.getByRole("button", { name: "Preview left.jpg" }).click()
+  await page.getByRole("button", { name: "Side by side" }).click()
+
+  await expect.element(page.getByRole("button", { name: "Onion skin overlay" })).toBeVisible()
+  await expect.element(page.getByRole("option", { name: "Compare with middle.jpg" })).toBeVisible()
+})
+
 type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & {
   stateValue: CzkawkaCardState
 }
@@ -165,4 +220,21 @@ const selectionResult: CzkawkaData = {
   groupCount: 1,
   fileCount: 1,
   totalBytes: 10,
+}
+
+const similarImageEntries = [
+  { id: "left.jpg", groupId: 0, path: "left.jpg", name: "left.jpg", size: 10, modifiedDate: 1, width: 1920, height: 1080, similarity: "1" },
+  { id: "middle.jpg", groupId: 0, path: "middle.jpg", name: "middle.jpg", size: 12, modifiedDate: 2, width: 1080, height: 1920, similarity: "2" },
+  { id: "right.jpg", groupId: 0, path: "right.jpg", name: "right.jpg", size: 14, modifiedDate: 3, width: 1600, height: 900, similarity: "3" },
+]
+
+const similarImageResult: CzkawkaData = {
+  ...sample,
+  tool: "similar-images",
+  groups: [{ id: 0, entries: similarImageEntries, totalBytes: 36, reclaimableBytes: 24 }],
+  entries: similarImageEntries,
+  groupCount: 1,
+  fileCount: 3,
+  totalBytes: 36,
+  reclaimableBytes: 24,
 }

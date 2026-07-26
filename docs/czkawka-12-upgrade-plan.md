@@ -381,6 +381,8 @@ Video optimizer and EXIF processing may remain native performance work, but nati
 
 Use `ref/czkawka-web` only as interaction research. It resolves `czkawka_core 11.0.1`, not 12.0, and its compare modes are frontend-only.
 
+Status: complete for the GUI comparison slice. The implementation keeps the comparison state in the framework-neutral Czkawka workbench, persists only the mode and color-coding preference, and leaves the active image, target, swipe position, and opacity as session state.
+
 Implement framework-neutral comparison state with these modes:
 
 - Single image.
@@ -403,6 +405,12 @@ Improve the reference behavior:
 - Display each image's own size and dimensions.
 - Keep comparison state in the TypeScript workbench, not React local state.
 - Verify compact, portrait, regular, and maximized layouts in Vitest Browser Mode.
+
+Completed evidence:
+
+- `packages/nodes/czkawka/src/image-comparison.ts` covers group-local target selection, mode preferences, slider clamping, and reset rules.
+- `src/nodes/czkawka/image-comparison-dialog.tsx` uses Pointer Events plus keyboard-accessible range controls, renders image-specific metadata, and preserves aspect ratio with `object-contain`.
+- `src/nodes/czkawka/Component.browser.test.tsx` verifies all four modes, target changes, Pointer and keyboard controls, preference persistence, and the compact Results-tab workflow.
 
 ## 11. Official CLI fallback
 

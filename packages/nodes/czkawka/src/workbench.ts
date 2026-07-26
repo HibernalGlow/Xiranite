@@ -10,7 +10,21 @@ import {
   nextCzkawkaCacheRegenerationState,
   type CzkawkaCacheRegenerationState,
 } from "./cache-regeneration.js"
-import type { CzkawkaAction, CzkawkaData, CzkawkaInput, CzkawkaSelectionStrategy, CzkawkaTool } from "./core.js"
+import type { CzkawkaAction, CzkawkaData, CzkawkaGroup, CzkawkaInput, CzkawkaSelectionStrategy, CzkawkaTool } from "./core.js"
+import {
+  closeCzkawkaImageComparison,
+  createCzkawkaImageComparison,
+  czkawkaImageComparisonPreferences,
+  openCzkawkaImageComparison,
+  setCzkawkaImageComparisonColorCoding,
+  setCzkawkaImageComparisonMode,
+  setCzkawkaImageComparisonOpacity,
+  setCzkawkaImageComparisonSwipe,
+  setCzkawkaImageComparisonTarget,
+  type CzkawkaImageComparisonMode,
+  type CzkawkaImageComparisonPreferences,
+  type CzkawkaImageComparisonState,
+} from "./image-comparison.js"
 import type { CzkawkaFilterState } from "./filters.js"
 import {
   createCzkawkaSelectionHistory,
@@ -32,6 +46,7 @@ export interface CzkawkaWorkbenchState {
   filterStatesByTool: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
   activityLog: CzkawkaActivityLogEntry[]
   cacheRegeneration: CzkawkaCacheRegenerationState
+  imageComparison: CzkawkaImageComparisonState
 }
 
 export interface CzkawkaWorkbenchInitialState {
@@ -39,6 +54,7 @@ export interface CzkawkaWorkbenchInitialState {
   filterStatesByTool?: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
   activityLog?: CzkawkaActivityLogEntry[]
   cacheRegeneration?: CzkawkaCacheRegenerationState
+  imageComparison?: Partial<CzkawkaImageComparisonPreferences>
 }
 
 export interface CzkawkaWorkbenchPersistencePatch {
@@ -50,6 +66,7 @@ export interface CzkawkaWorkbenchPersistencePatch {
   filterStatesByTool?: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
   activityLog?: CzkawkaActivityLogEntry[]
   cacheRegeneration?: CzkawkaCacheRegenerationState
+  imageComparison?: CzkawkaImageComparisonPreferences
 }
 
 export interface CzkawkaWorkbenchPort {
@@ -90,6 +107,13 @@ export interface CzkawkaWorkbench {
   redoSelection(tool: CzkawkaTool): void
   addActivityLog(tool: CzkawkaTool, input: Omit<CzkawkaActivityLogInput, "tool">): void
   clearActivityLog(): void
+  openImageComparison(groups: readonly CzkawkaGroup[], path: string): void
+  closeImageComparison(): void
+  setImageComparisonMode(mode: CzkawkaImageComparisonMode): void
+  setImageComparisonColorCoding(colorCoding: boolean): void
+  setImageComparisonTarget(groups: readonly CzkawkaGroup[], path: string): void
+  setImageComparisonSwipe(swipePercent: number): void
+  setImageComparisonOpacity(onionOpacity: number): void
   executeScan(tool: CzkawkaTool, input: CzkawkaInput, messages: CzkawkaScanMessages): Promise<void>
   cancelScan(tool: CzkawkaTool, messages: Pick<CzkawkaScanMessages, "stopping">): Promise<void>
   executeOperation(
@@ -116,6 +140,7 @@ export function createCzkawkaWorkbench(
     filterStatesByTool: initial.filterStatesByTool ?? {},
     activityLog: initial.activityLog ?? [],
     cacheRegeneration: initial.cacheRegeneration ?? {},
+    imageComparison: createCzkawkaImageComparison(initial.imageComparison),
   }
   const store = createStore({
     context: initialState,
@@ -234,6 +259,29 @@ export function createCzkawkaWorkbench(
     clearActivityLog() {
       replace((current) => ({ ...current, activityLog: [] }))
       port.persist({ activityLog: [] })
+    },
+    openImageComparison(groups, path) {
+      replace((current) => ({ ...current, imageComparison: openCzkawkaImageComparison(current.imageComparison, groups, path) }))
+    },
+    closeImageComparison() {
+      replace((current) => ({ ...current, imageComparison: closeCzkawkaImageComparison(current.imageComparison) }))
+    },
+    setImageComparisonMode(mode) {
+      const state = replace((current) => ({ ...current, imageComparison: setCzkawkaImageComparisonMode(current.imageComparison, mode) }))
+      port.persist({ imageComparison: czkawkaImageComparisonPreferences(state.imageComparison) })
+    },
+    setImageComparisonColorCoding(colorCoding) {
+      const state = replace((current) => ({ ...current, imageComparison: setCzkawkaImageComparisonColorCoding(current.imageComparison, colorCoding) }))
+      port.persist({ imageComparison: czkawkaImageComparisonPreferences(state.imageComparison) })
+    },
+    setImageComparisonTarget(groups, path) {
+      replace((current) => ({ ...current, imageComparison: setCzkawkaImageComparisonTarget(current.imageComparison, groups, path) }))
+    },
+    setImageComparisonSwipe(swipePercent) {
+      replace((current) => ({ ...current, imageComparison: setCzkawkaImageComparisonSwipe(current.imageComparison, swipePercent) }))
+    },
+    setImageComparisonOpacity(onionOpacity) {
+      replace((current) => ({ ...current, imageComparison: setCzkawkaImageComparisonOpacity(current.imageComparison, onionOpacity) }))
     },
     async executeScan(tool, input, messages) {
       if (getState().running) return
