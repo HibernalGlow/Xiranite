@@ -198,7 +198,7 @@ export function ReaderSidebar({
       {panels.map((panel) => {
         const panelActive = panel.id === active?.id
         const panelVisible = edgeActive && panelActive
-        const cards = panelActive ? activeCards : cardsForPanel(panel.id, shell, hasSession)
+        const cards = panelActive ? activeCards : cardsForPanel(panel.id, shell, hasSession).filter((card) => card.id === "folder-main")
         const exclusive = cards.length === 1 && cards[0]?.exclusivePanel === true
         const PanelIcon = panel.icon
         const retainInactiveFilePanel = panel.id === "folder" && mountedPanels.has(panel.id)
