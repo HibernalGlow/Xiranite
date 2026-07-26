@@ -46,6 +46,8 @@ await run([process.execPath, "x", "vite", "build"], {
   XIRANITE_BUILD_ONLY_NODES: nodeId,
   XIRANITE_NODE_APP_ID: nodeId,
   XIRANITE_NODE_APP_SNAPSHOT_ID: manifest.snapshotId,
+  VITE_XIRANITE_NODE_APP_ID: nodeId,
+  VITE_XIRANITE_NODE_APP_SNAPSHOT_ID: manifest.snapshotId,
 })
 await rename(join(root, "dist", "node-app.html"), join(root, "dist", "index.html"))
 await copyFile(manifestPath, join(root, "dist", "node-app-manifest.json"))
