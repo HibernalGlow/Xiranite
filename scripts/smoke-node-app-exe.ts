@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { parseArgs } from "node:util"
@@ -26,6 +26,7 @@ const snapshotId = parsed.values["snapshot-id"]
 if (!exe || !nodeId || !snapshotId) throw new Error("--exe, --node-id, and --snapshot-id are required.")
 
 const root = await mkdtemp(join(tmpdir(), "xiranite-node-app-exe-smoke-"))
+await mkdir(join(root, "NeoView"), { recursive: true })
 const markerPath = join(root, "startup.json")
 const shutdownPath = join(root, "shutdown")
 const environment = {
