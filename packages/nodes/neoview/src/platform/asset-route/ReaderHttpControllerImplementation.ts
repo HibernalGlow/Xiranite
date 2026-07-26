@@ -2144,9 +2144,6 @@ export class ReaderHttpController implements AsyncDisposable {
       )
       if (!candidate) return new Response(null, { status: 204 })
       replacement = await this.#service.openViewSource({ kind: "path", path: candidate.path }, { signal: request.signal })
-      if (parsed.direction === "previous" && replacement.pages.length > 1) {
-        await replacement.goTo(replacement.pages.length - 1, request.signal)
-      }
       request.signal.throwIfAborted()
       this.#bookTraversalCursors.set(replacement.id, candidate.cursor)
       this.#retainSessionFrame(replacement, replacement.snapshot())
