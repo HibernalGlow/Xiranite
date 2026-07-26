@@ -415,6 +415,10 @@ export function FolderBrowserPane({
       // Reader source identity may point through several nested directories. It can focus a
       // direct entry, but only the explicit browser path is allowed to navigate this Card.
       if (sourcePath && sameFolderOrChild(catalogRef.current.path, sourcePath)) {
+        const focusedEntry = directoryEntryAt(catalogRef.current, focusedIndexRef.current ?? -1)
+        // A File Card click focuses before Reader commits sourcePath. Do not re-center the
+        // same entry after the open completes; external source changes still locate normally.
+        if (focusedEntry && sameFolderPath(focusedEntry.path, sourcePath)) return
         focusSourceEntry(sourcePath)
       }
       return

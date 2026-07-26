@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { expect, test, vi } from "vitest"
 import { page } from "vitest/browser"
 import { render } from "vitest-browser-react"
@@ -140,6 +141,61 @@ test("[neoview.folder.search-sort-gui] sorts the active search-result list witho
   expect(document.body.textContent).not.toContain("physical.cbz")
   const names = [...document.querySelectorAll<HTMLElement>("[data-folder-name]")].map((element) => element.dataset.folderName)
   expect(names.indexOf("zeta.cbz")).toBeLessThan(names.indexOf("alpha.cbz"))
+})
+
+test("[neoview.folder.open-keeps-scroll-gui] keeps the File Card viewport when opening its focused book", async () => {
+  const entries = Array.from({ length: 100 }, (_, index) => ({
+    name: `item-${index}.cbz`,
+    path: `C:/books/item-${index}.cbz`,
+    kind: "file" as const,
+    readerSupported: true,
+  }))
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => directoryPage({ entries, total: entries.length })),
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+  const onOpen = vi.fn()
+
+  function Harness() {
+    const [sourcePath, setSourcePath] = useState("C:/books")
+    return (
+      <FolderMainCard
+        client={client}
+        disabled={false}
+        sourcePath={sourcePath}
+        onOpen={(path, provenance) => {
+          onOpen(path, provenance)
+          setSourcePath(path)
+        }}
+        onGoTo={vi.fn()}
+      />
+    )
+  }
+
+  await render(
+    <div style={{ width: 900, height: 600 }}>
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <Harness />
+      </VirtuosoMockContext.Provider>
+    </div>,
+  )
+
+  await expect.element(page.getByText("item-0.cbz")).toBeVisible()
+  const scroller = document.querySelector<HTMLElement>('[data-testid="virtuoso-scroller"]')
+  expect(scroller).not.toBeNull()
+  scroller!.scrollTo({ top: 34 * 40 })
+  await expect.poll(() => scroller!.scrollTop).toBeGreaterThan(1_000)
+  await expect.element(page.getByText("item-40.cbz")).toBeVisible()
+  const scrollTopBeforeOpen = scroller!.scrollTop
+
+  await page.getByText("item-40.cbz").click()
+
+  await expect.poll(() => onOpen).toHaveBeenCalledWith("C:/books/item-40.cbz", {
+    browserOriginPath: "C:/books",
+    browserOriginEntryPath: "C:/books/item-40.cbz",
+  })
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  expect(scroller!.scrollTop).toBe(scrollTopBeforeOpen)
 })
 
 function directoryPage(overrides: Partial<ReaderDirectoryPageDto> = {}): ReaderDirectoryPageDto {
