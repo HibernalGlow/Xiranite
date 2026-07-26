@@ -21,7 +21,7 @@ export const ENVIRONMENT_TARGETS = [
   ["avifenc", "avifenc", "AVIF 编码"],
   ["avifdec", "avifdec", "AVIF 解码"],
   ["ffmpeg", "FFmpeg / SVT-AV1", "SVT-AV1 AVIF 编码"],
-  ["slimg-cffi", "slimg CFFI", "slimg DLL AVIF 编码"],
+  ["slimg", "slimg CLI", "slimg AVIF 编码"],
   ["cwebp", "cwebp", "WebP 编码"],
   ["oxipng", "oxipng", "PNG 无损优化"],
   ["exiftool", "ExifTool", "元数据复制与清理"],

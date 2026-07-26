@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest"
 import { render } from "vitest-browser-react"
-import type { NodeHostApi, NodeRunResult } from "@xiranite/contract"
+import type { NodeHostApi, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { XlchemyData } from "@xiranite/node-xlchemy/core"
 
 import { Component } from "./Component"
@@ -24,6 +24,35 @@ describe("XLchemy EFU browser behavior", () => {
     await expect.element(view.getByText("al.efu")).toBeVisible()
     await expect.element(view.getByTestId("xlchemy-efu-sources").getByText("流式", { exact: true })).toBeVisible()
     await expect.element(view.getByTestId("xlchemy-header").getByText("1 EFU", { exact: true })).toBeVisible()
+  })
+
+  test("leaves the preparing state when a normal file reports conversion progress", async () => {
+    const host = createHost((path) => `local://${path}`)
+    host.cardState = { pathsText: "D:/images/a.png", format: "AVIF", avifEncoder: "slimg" }
+    let finish = () => {}
+    const pending = new Promise<void>((resolve) => { finish = resolve })
+    host.runner!.run = async <_TInput, TData>(_nodeId: string, _input: _TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => {
+      onEvent?.({ type: "progress", progress: 0, message: "Backend accepted xlchemy; loading the node runtime." })
+      onEvent?.({ type: "progress", progress: 0, message: "Converting a.png.", data: { kind: "xlchemy-progress-count", completed: 0, total: 1 } })
+      await pending
+      return {
+        success: true,
+        message: "Converted.",
+        data: { files: [], inputCount: 1, convertedCount: 1, skippedCount: 0, errorCount: 0, inputBytes: 100, outputBytes: 50, errors: [] } as XlchemyData as TData,
+      }
+    }
+    const view = await render(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+
+    try {
+      await view.getByRole("button", { name: "开始转换" }).click()
+      await expect.poll(() => host.cardState.progressText).toBe("Converting a.png.")
+      await expect.poll(() => host.cardState.phase).toBe("running")
+      expect(host.cardState.processedCount).toBe(0)
+      expect(host.cardState.runInputCount).toBe(1)
+    } finally {
+      finish()
+    }
+    await expect.poll(() => host.cardState.phase).toBe("completed")
   })
 })
 

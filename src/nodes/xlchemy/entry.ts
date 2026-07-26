@@ -56,7 +56,6 @@ export default {
   core,
   Component,
   nodeApp: {
-    nativeProbe: { module: "@xiranite/slimg-native", exportName: "getSlimgInfo" },
     releaseGate: { script: "scripts/smoke-node-app-xlchemy.ts" },
   },
   host: { contractVersion: "^1.0.0", capabilities: ["state", "runner", "clipboard", "localFiles", "config", "env"] },

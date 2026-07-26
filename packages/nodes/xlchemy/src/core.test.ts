@@ -301,15 +301,15 @@ describe("xlchemy core contract", () => {
     expect(result.success).toBe(true)
     expect(result.data?.environment?.find((tool) => tool.id === "oxipng")).toMatchObject({ available: false, runnable: false })
     expect(result.data?.environment?.find((tool) => tool.id === "cjpegli")).toMatchObject({ available: true, runnable: true })
-    expect(result.data?.environment?.find((tool) => tool.id === "slimg-node")).toMatchObject({ available: true, runnable: true })
+    expect(result.data?.environment?.find((tool) => tool.id === "slimg")).toMatchObject({ available: true, runnable: true, version: "/bin/slimg 1.0" })
     expect(result.data?.environment?.some((tool) => "versionArgs" in tool)).toBe(false)
   })
 
-  test("uses the slimg Node-API runtime instead of passing slimg to avifenc", async () => {
+  test("uses the slimg 0.6 CLI contract instead of passing slimg to avifenc", async () => {
     const runtime = fakeRuntime()
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "slimg", threads: 8, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
     expect(result.success).toBe(true)
-    expect(runtime.commands).toEqual([{ command: "slimg-node", args: ["/photos/a.png", "/photos/a.avif", "60", "8"] }])
+    expect(runtime.commands).toEqual([{ command: "/bin/slimg", args: ["convert", "--format", "avif", "--quality", "60", "--output", "/photos/a.avif", "--overwrite", "--jobs", "1", "/photos/a.png"] }])
     expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 350 })
   })
 
@@ -329,7 +329,7 @@ describe("xlchemy core contract", () => {
     }), runtime)
     expect(result.success).toBe(true)
     expect(runtime.acquireWorker).toHaveBeenCalledWith(8, 768, undefined)
-    expect(runtime.commands).toEqual([{ command: "slimg-node", args: ["/photos/a.png", "/photos/a.avif", "60", "3"] }])
+    expect(runtime.commands).toEqual([{ command: "/bin/slimg", args: ["convert", "--format", "avif", "--quality", "60", "--output", "/photos/a.avif", "--overwrite", "--jobs", "1", "/photos/a.png"] }])
     expect(release).toHaveBeenCalledOnce()
   })
 
@@ -632,11 +632,9 @@ function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; ar
     pathInfo: async (path) => { const item = files.get(path); return { path, exists: Boolean(item), isFile: Boolean(item && !item.directory), isDirectory: Boolean(item?.directory), size: item?.size ?? 0, atimeMs: 10, mtimeMs: 20 } },
     listDir: async (path) => path === "/photos" ? [{ path: "/photos/a.png", name: "a.png", isFile: true, isDirectory: false }, { path: "/photos/events", name: "events", isFile: false, isDirectory: true }] : path === "/photos/events" ? [{ path: "/photos/events/b.jpg", name: "b.jpg", isFile: true, isDirectory: false }] : [],
     ensureDir: async () => undefined, copyFile: async () => undefined, removeFile: async (path) => { files.delete(path) }, trashFile: async (path) => { runtime.commands.push({ command: "trash", args: [path] }) }, renameFile: async (source, target) => { const item = files.get(source); if (item) { files.set(target, item); files.delete(source) } }, setTimes: async () => undefined, hashFile: async () => "matching-checksum",
-    runCommand: async (command, args) => { runtime.commands.push({ command, args }); if (command.endsWith("jxlinfo")) return { exitCode: 0, stdout: "JPEG bitstream reconstruction data available", stderr: "" }; const output = args.includes("-outfile") ? args[args.indexOf("-outfile") + 1]! : args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!; const size = output.includes(".effort-9.jxl") ? 150 : output.includes(".smallest.jxl") ? 200 : output.includes(".smallest.webp") ? 300 : 400; files.set(output, { size }); return { exitCode: 0, stdout: "", stderr: "" } },
+    runCommand: async (command, args) => { runtime.commands.push({ command, args }); if (command.endsWith("jxlinfo")) return { exitCode: 0, stdout: "JPEG bitstream reconstruction data available", stderr: "" }; const output = args.includes("-outfile") ? args[args.indexOf("-outfile") + 1]! : args.includes("--output") ? args[args.indexOf("--output") + 1]! : args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!; const size = command.endsWith("slimg") ? 350 : output.includes(".effort-9.jxl") ? 150 : output.includes(".smallest.jxl") ? 200 : output.includes(".smallest.webp") ? 300 : 400; files.set(output, { size }); return { exitCode: 0, stdout: "", stderr: "" } },
     resolveCommand: async (candidates) => `/bin/${candidates[0]}`,
     isAnimatedImage: async () => false,
-    probeSlimg: async () => ({ id: "slimg-node", label: "slimg Node-API", purpose: "slimg native AVIF encoding", path: "/lib/xiranite-slimg.node", available: true, runnable: true }),
-    convertWithSlimg: async (source, target, quality, jobs) => { runtime.commands.push({ command: "slimg-node", args: [source, target, String(quality), String(jobs)] }); files.set(target, { size: 350 }) },
     convertClipToPsd: async (source, target) => { runtime.commands.push({ command: "clip-to-psd-native", args: [source, target] }); files.set(target, { size: 1200 }) },
     join: (...parts) => parts.filter((part) => part && part !== ".").join("/").replace(/\/+/g, "/"), dirname: (path) => path.includes("/") ? path.replace(/\/[^/]+$/, "") || "/" : ".", basename: (path) => path.split("/").at(-1) ?? path, extname: (path) => /\.[^.]+$/.exec(path)?.[0] ?? "", relative: (from, to) => to.startsWith(`${from}/`) ? to.slice(from.length + 1) : to,
   }

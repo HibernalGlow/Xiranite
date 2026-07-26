@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Copy, EyeOff, Folder, History, MoreVertical, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Search, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Copy, EyeOff, Folder, History, Lock, MoreVertical, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, X } from "lucide-react"
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -13,20 +13,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { ReaderFolderRegionPosition, ReaderFolderTabsConfig } from "../../../../adapters/reader-http-client"
+import { folderTabReplacementPolicy, type FolderTabKind } from "./FolderTabNavigationPolicy"
 
 export interface FolderTabBarItem {
   id: string
   currentPath: string
   title: string
   pinned: boolean
-  kind?: "directory" | "search"
+  kind?: FolderTabKind
 }
 
 export interface RecentlyClosedFolderTabItem {
   id: string
   currentPath: string
   title: string
-  kind?: "directory" | "search"
+  kind?: FolderTabKind
 }
 
 export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, recentlyClosed, layout, onActivate, onCreate, onDuplicate, onClose, onTogglePinned, onCloseOthers, onCloseLeft, onCloseRight, onReopen, onLayoutChange }: {
@@ -135,12 +136,19 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
       <div className={vertical ? "flex min-h-0 min-w-0 flex-1 flex-col items-stretch gap-1" : "flex min-w-0 flex-1 items-center gap-1"} role="tablist" aria-label="文件夹标签">
         {tabs.map((tab, tabIndex) => {
           const active = tab.id === activeTabId
+          const protectedTab = folderTabReplacementPolicy(tab.kind ?? "directory") === "protected"
           const canClose = tabs.length > 1 && (tab.pinned || unpinnedCount > 1)
           const hasClosableOthers = tabs.some((candidate) => candidate.id !== tab.id && !candidate.pinned)
           const hasClosableLeft = tabs.slice(0, tabIndex).some((candidate) => !candidate.pinned)
           const hasClosableRight = tabs.slice(tabIndex + 1).some((candidate) => !candidate.pinned)
           return (
-            <span key={tab.id} className={`group flex h-7 min-w-20 shrink items-center rounded-md border border-transparent bg-background/60 data-[active=true]:border-border data-[active=true]:bg-background ${vertical ? "w-full" : "max-w-44"}`} data-active={active || undefined} data-pinned={tab.pinned || undefined}>
+            <span
+              key={tab.id}
+              className={`group flex h-7 min-w-20 shrink items-center rounded-md border border-transparent bg-background/60 data-[active=true]:border-border data-[active=true]:bg-background ${vertical ? "w-full" : "max-w-44"}`}
+              data-active={active || undefined}
+              data-pinned={tab.pinned || undefined}
+              data-folder-tab-protected={protectedTab || undefined}
+            >
               <FolderTabActionsMenu
                 tab={tab}
                 disabled={disabled}
@@ -161,8 +169,9 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
                 role="tab"
                 aria-selected={active}
                 data-folder-tab-kind={tab.kind ?? "directory"}
+                data-folder-tab-protected={protectedTab || undefined}
                 className="flex min-w-0 flex-1 items-center gap-1 px-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                title={tab.kind === "search" ? `${tab.title}\n${tab.currentPath}` : (tab.currentPath || tab.title)}
+                title={protectedTab ? `${tab.title}\n受保护标签页\n${tab.currentPath}` : (tab.currentPath || tab.title)}
                 disabled={disabled}
                 onClick={() => onActivate(tab.id)}
                 onAuxClick={(event) => {
@@ -172,8 +181,8 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
                   }
                 }}
               >
-                {tab.kind === "search"
-                  ? <Search className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                {protectedTab
+                  ? <Lock className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
                   : null}
                 <span className="truncate">{tab.title}</span>
               </button>
@@ -213,7 +222,7 @@ export default function FolderTabBar({ tabs, activeTabId, disabled, maxTabs, rec
           ) : (
             [...recentlyClosed].reverse().map((tab) => (
               <DropdownMenuItem key={tab.id} title={tab.currentPath} onSelect={() => onReopen(tab.id)}>
-                {tab.kind === "search" ? <Search /> : <History />}
+                {folderTabReplacementPolicy(tab.kind ?? "directory") === "protected" ? <Lock /> : <History />}
                 <span className="truncate">{tab.title}</span>
               </DropdownMenuItem>
             ))
@@ -268,20 +277,21 @@ function FolderTabActionsMenu({ tab, disabled, canDuplicate, canClose, canCloseO
   onCloseLeft(id: string): void
   onCloseRight(id: string): void
 }) {
+  const protectedTab = folderTabReplacementPolicy(tab.kind ?? "directory") === "protected"
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button type="button" className="ml-1 grid size-5 shrink-0 place-items-center rounded hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" aria-label={`标签操作 ${tab.title}`} title="标签操作" disabled={disabled}>
           {tab.pinned
             ? <Pin className="size-3 text-primary" />
-            : tab.kind === "search"
-              ? <Search className="size-3.5 text-muted-foreground" />
+            : protectedTab
+              ? <Lock className="size-3.5 text-muted-foreground" />
               : <Folder className="size-3.5 text-amber-500" />}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-44">
-        <DropdownMenuItem disabled={tab.kind === "search"} onSelect={() => onTogglePinned(tab.id)}>
-          {tab.pinned ? <PinOff /> : <Pin />}{tab.kind === "search" ? "搜索标签不可固定" : tab.pinned ? "取消固定" : "固定标签"}
+        <DropdownMenuItem disabled={protectedTab} onSelect={() => onTogglePinned(tab.id)}>
+          {tab.pinned ? <PinOff /> : protectedTab ? <Lock /> : <Pin />}{protectedTab ? "受保护标签不可固定" : tab.pinned ? "取消固定" : "固定标签"}
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!canDuplicate} onSelect={() => onDuplicate(tab.id)}><Copy />复制标签</DropdownMenuItem>
         <DropdownMenuSeparator />

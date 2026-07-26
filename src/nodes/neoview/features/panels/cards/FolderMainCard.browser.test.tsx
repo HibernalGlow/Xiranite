@@ -8,10 +8,13 @@ import type { ReaderDirectoryPageDto, ReaderHttpClient } from "../../../adapters
 import FolderMainCard from "./FolderMainCard"
 
 test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu", async () => {
-  const directory = directoryPage()
+  const directory = directoryPage({ filter: "library", filterOptions: ["all", "library"] })
   const efu = directoryPage({
+    sessionId: "browser-efu",
     path: "C:/lists/results.efu",
     sourceKind: "efu",
+    filter: "library",
+    filterOptions: ["all", "library"],
     parentPath: undefined,
     generation: 2,
     entries: [
@@ -27,12 +30,25 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
     entries: [{ name: "found.cbz", path: "D:/results/found.cbz", kind: "file", readerSupported: true }],
     total: 1,
   })
+  const historyDirectory = directoryPage({
+    sessionId: "browser-history",
+    path: "C:/history",
+    filter: "library",
+    filterOptions: ["all", "library"],
+    entries: [{ name: "history.cbz", path: "C:/history/history.cbz", kind: "file", readerSupported: true }],
+    total: 1,
+  })
   const navigateDirectoryBrowser = vi.fn(async () => efu)
   const filterDirectoryBrowser = vi.fn(async () => filteredEfu)
   const pickEfuFile = vi.fn(async () => "C:/lists/results.efu")
   const onFolderView = vi.fn()
+  const folderNavigationEvents = new EventTarget()
   const client = {
-    openDirectoryBrowser: vi.fn(async () => directory),
+    openDirectoryBrowser: vi.fn(async (path: string) => {
+      if (path === "C:/lists/results.efu") return efu
+      if (path === "C:/history") return historyDirectory
+      return directory
+    }),
     navigateDirectoryBrowser,
     filterDirectoryBrowser,
     closeDirectoryBrowser: vi.fn(async () => undefined),
@@ -46,6 +62,7 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
           disabled={false}
           sourcePath="C:/books"
           pickEfuFile={pickEfuFile}
+          folderNavigationEvents={folderNavigationEvents}
           onFolderView={onFolderView}
           onOpen={vi.fn()}
           onGoTo={vi.fn()}
@@ -58,13 +75,16 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
   await page.getByRole("menuitem", { name: "导入 EFU 文件列表" }).click()
 
   await expect.poll(() => pickEfuFile).toHaveBeenCalledOnce()
-  await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
-    "browser-1",
-    { action: "path", path: "C:/lists/results.efu" },
+  await expect.poll(() => client.openDirectoryBrowser).toHaveBeenCalledWith(
+    "C:/lists/results.efu",
     expect.any(AbortSignal),
     undefined,
+    true,
   )
+  expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
+  await expect.poll(() => document.querySelector("[data-folder-tab-count='2']")).not.toBeNull()
   await expect.poll(() => document.querySelector("[data-folder-source-kind='efu']")).not.toBeNull()
+  await expect.poll(() => document.querySelector("[data-folder-tab-kind='efu'] .lucide-lock")).not.toBeNull()
   await expect.element(page.getByText("found.cbz")).toBeVisible()
   await expect.element(page.getByText("missing.cbz")).toBeVisible()
   await expect.element(page.getByRole("button", { name: "上级" })).toBeDisabled()
@@ -75,8 +95,8 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
   await page.getByRole("menuitemcheckbox", { name: "隐藏不存在的文件" }).click()
 
   await expect.poll(() => filterDirectoryBrowser).toHaveBeenCalledWith(
-    "browser-1",
-    "all",
+    "browser-efu",
+    "library",
     undefined,
     expect.any(AbortSignal),
     false,
@@ -85,6 +105,24 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
   await expect.element(page.getByText("found.cbz")).toBeVisible()
   await expect.poll(() => document.body.textContent).not.toContain("missing.cbz")
   await expect.poll(() => onFolderView).toHaveBeenCalledWith({ hideMissingEfuEntries: true })
+
+  const activationDetail = { path: "C:/books/series", handled: false }
+  folderNavigationEvents.dispatchEvent(new CustomEvent("activate", { detail: activationDetail }))
+  expect(activationDetail.handled).toBe(false)
+  expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
+
+  folderNavigationEvents.dispatchEvent(new CustomEvent("browse", { detail: { path: "C:/history", newTab: false } }))
+  await expect.poll(() => client.openDirectoryBrowser).toHaveBeenCalledWith(
+    "C:/history",
+    expect.any(AbortSignal),
+    undefined,
+    true,
+  )
+  await expect.poll(() => document.querySelector("[data-folder-tab-count='3']")).not.toBeNull()
+
+  await page.getByRole("tab", { name: "results.efu" }).click()
+  await expect.element(page.getByText("found.cbz")).toBeVisible()
+  await expect.poll(() => document.querySelector("[data-folder-tab-kind='efu'][aria-selected='true']")).not.toBeNull()
 })
 
 test("[neoview.folder.search-sort-gui] sorts the active search-result list without restoring the physical directory", async () => {
@@ -101,8 +139,16 @@ test("[neoview.folder.search-sort-gui] sorts the active search-result list witho
     entries: [{ name: "physical.cbz", path: "C:/books/physical.cbz", kind: "file", readerSupported: true }],
     total: 1,
   }))
+  const folderNavigationEvents = new EventTarget()
   const client = {
-    openDirectoryBrowser: vi.fn(async () => opened),
+    openDirectoryBrowser: vi.fn(async (path: string) => path === "C:/history"
+      ? directoryPage({
+          sessionId: "browser-history",
+          path,
+          entries: [{ name: "history.cbz", path: `${path}/history.cbz`, kind: "file", readerSupported: true }],
+          total: 1,
+        })
+      : opened),
     searchDirectoryBrowser: vi.fn(async () => ({
       sessionId: "browser-1",
       rootPath: "C:/books",
@@ -121,7 +167,7 @@ test("[neoview.folder.search-sort-gui] sorts the active search-result list witho
   await render(
     <div style={{ width: 900, height: 600 }}>
       <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
-        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" onOpen={vi.fn()} onGoTo={vi.fn()} />
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" folderNavigationEvents={folderNavigationEvents} onOpen={vi.fn()} onGoTo={vi.fn()} />
       </VirtuosoMockContext.Provider>
     </div>,
   )
@@ -141,6 +187,48 @@ test("[neoview.folder.search-sort-gui] sorts the active search-result list witho
   expect(document.body.textContent).not.toContain("physical.cbz")
   const names = [...document.querySelectorAll<HTMLElement>("[data-folder-name]")].map((element) => element.dataset.folderName)
   expect(names.indexOf("zeta.cbz")).toBeLessThan(names.indexOf("alpha.cbz"))
+
+  folderNavigationEvents.dispatchEvent(new CustomEvent("browse", { detail: { path: "C:/history", newTab: false } }))
+  await expect.poll(() => document.querySelector("[data-folder-tab-count='2']")).not.toBeNull()
+  await expect.element(page.getByText("history.cbz")).toBeVisible()
+  await expect.poll(() => document.querySelector("[data-folder-tab-kind='search'] .lucide-lock")).not.toBeNull()
+
+  await page.getByRole("tab", { name: /搜索: deep/ }).click()
+  await expect.element(page.getByText("zeta.cbz")).toBeVisible()
+  expect(document.body.textContent).not.toContain("physical.cbz")
+  const activationDetail = { path: "C:/books/series", handled: false }
+  folderNavigationEvents.dispatchEvent(new CustomEvent("activate", { detail: activationDetail }))
+  expect(activationDetail.handled).toBe(false)
+  await expect.poll(() => document.querySelector("[data-folder-tab-kind='search'][aria-selected='true']")).not.toBeNull()
+})
+
+test("[neoview.folder.replaceable-tab-gui] reuses an ordinary directory tab for external browse", async () => {
+  const folderNavigationEvents = new EventTarget()
+  const client = {
+    openDirectoryBrowser: vi.fn(async (path: string) => directoryPage({
+      sessionId: path === "C:/history" ? "browser-history" : "browser-1",
+      path,
+      entries: path === "C:/history"
+        ? [{ name: "history.cbz", path: `${path}/history.cbz`, kind: "file", readerSupported: true }]
+        : [],
+      total: path === "C:/history" ? 1 : 0,
+    })),
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 900, height: 600 }}>
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" folderNavigationEvents={folderNavigationEvents} onOpen={vi.fn()} onGoTo={vi.fn()} />
+      </VirtuosoMockContext.Provider>
+    </div>,
+  )
+
+  folderNavigationEvents.dispatchEvent(new CustomEvent("browse", { detail: { path: "C:/history", newTab: false } }))
+
+  await expect.element(page.getByText("history.cbz")).toBeVisible()
+  await expect.poll(() => document.querySelector("[data-folder-tab-count='1']")).not.toBeNull()
+  expect(document.querySelector("[data-folder-tab-kind='search'], [data-folder-tab-kind='efu']")).toBeNull()
 })
 
 test("[neoview.folder.open-keeps-scroll-gui] keeps the File Card viewport when opening its focused book", async () => {

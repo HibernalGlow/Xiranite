@@ -9,6 +9,7 @@ import type {
 } from "../../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../../registry"
 import type { FolderBrowserCloneProvider, FolderBrowserCloneSnapshot } from "../FolderMainCard"
+import { folderTabReplacementPolicy, type FolderTabKind } from "./FolderTabNavigationPolicy"
 import { isVirtualSearchPath, searchTabTitle, virtualSearchLabel, type FolderSearchTabSnapshot } from "./search/folderSearchModel"
 
 const FolderTabBar = lazy(() => import("./FolderTabBar"))
@@ -17,7 +18,6 @@ const MAX_PINNED_FOLDER_TABS = 7
 const MAX_RECENTLY_CLOSED_TABS = 10
 
 type FolderPreviewCount = 4 | 9 | 16
-type FolderTabKind = "directory" | "search"
 
 interface FolderTabDescriptor {
   id: string
@@ -57,7 +57,9 @@ export type FolderBrowserPaneProps = ReaderPanelContext & {
   initialClone?: FolderBrowserCloneSnapshot
   onCurrentPathChange(path: string): void
   onOpenInNewTab(path: string): void
+  onOpenEfuInNewTab(path: string): void
   onOpenSearchInNewTab?(snapshot: FolderSearchTabSnapshot): void
+  currentFolderTabKind: FolderTabKind
   initialSearchSnapshot?: FolderSearchTabSnapshot
   onCloneProvider(provider?: FolderBrowserCloneProvider): void
 }
@@ -112,7 +114,12 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
   useEffect(() => {
     if (!context.sourcePath) return
     setTabs((current) => current.map((tab) => {
-      if (tab.id !== activeTabId || tab.pinned || tab.sourcePath === context.sourcePath) return tab
+      if (
+        tab.id !== activeTabId
+        || tab.pinned
+        || folderTabReplacementPolicy(tab.kind) === "protected"
+        || tab.sourcePath === context.sourcePath
+      ) return tab
       return { ...tab, sourcePath: context.sourcePath! }
     }))
   }, [context.sourcePath])
@@ -141,6 +148,15 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     if (tabsRef.current.length >= MAX_FOLDER_TABS) return
     const id = `folder-tab-${++tabSequenceRef.current}`
     const next = createFolderTab(id, path, folderView)
+    tabAccessHistoryRef.current = recordTabVisit(tabAccessHistoryRef.current, id)
+    setTabs((current) => [...current, next])
+    setActiveTabId(id)
+  }
+
+  function openEfuInNewTab(path: string) {
+    if (tabsRef.current.length >= MAX_FOLDER_TABS) return
+    const id = `folder-tab-${++tabSequenceRef.current}`
+    const next = { ...createFolderTab(id, path, folderView), kind: "efu" as const }
     tabAccessHistoryRef.current = recordTabVisit(tabAccessHistoryRef.current, id)
     setTabs((current) => [...current, next])
     setActiveTabId(id)
@@ -184,7 +200,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
     }
     const snapshot = structuredClone({ ...captured, clonedPage })
     const cloneId = `folder-tab-${++tabSequenceRef.current}`
-    const pinned = source.pinned && tabs.filter((tab) => tab.pinned).length < MAX_PINNED_FOLDER_TABS
+    const pinned = source.kind === "directory" && source.pinned && tabs.filter((tab) => tab.pinned).length < MAX_PINNED_FOLDER_TABS
     const clone: FolderTabDescriptor = {
       ...source,
       id: cloneId,
@@ -217,8 +233,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
 
   function togglePinned(id: string) {
     const source = tabs.find((tab) => tab.id === id)
-    // Search result tabs are session workspaces; pinning only persists path+title.
-    if (!source || source.kind === "search") return
+    if (!source || folderTabReplacementPolicy(source.kind) === "protected") return
     if (!source.pinned && tabs.filter((tab) => tab.pinned).length >= MAX_PINNED_FOLDER_TABS) return
     const previous = tabs
     const next = tabs.map((tab) => tab.id === id ? { ...tab, pinned: !tab.pinned } : tab)
@@ -354,7 +369,16 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
           }), tabs.filter((candidate) => candidate.id !== id)),
         }
       }
-      // Navigating away from a search workspace converts it back to a directory tab.
+      if (isEfuPath(path)) {
+        return {
+          ...tab,
+          kind: "efu" as const,
+          currentPath: path,
+          title: folderTabTitle(path),
+          searchSnapshot: undefined,
+        }
+      }
+      // Explicitly closing a search workspace converts it back to a directory tab.
       return {
         ...tab,
         kind: "directory" as const,
@@ -460,7 +484,9 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
               initialSearchSnapshot={tab.searchSnapshot}
               onCurrentPathChange={(path) => updateTabPath(tab.id, path)}
               onOpenInNewTab={openPathInNewTab}
+              onOpenEfuInNewTab={openEfuInNewTab}
               onOpenSearchInNewTab={openSearchInNewTab}
+              currentFolderTabKind={tab.kind}
               onCloneProvider={(provider) => {
                 if (provider) cloneProvidersRef.current.set(tab.id, provider)
                 else cloneProvidersRef.current.delete(tab.id)
@@ -474,7 +500,9 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
 }
 
 function initialFolderTabs(path: string, folderView: ReaderFolderViewConfig, sourcePath = path) {
-  const pinned = (folderView.tabs?.pinned ?? []).slice(0, MAX_PINNED_FOLDER_TABS)
+  const pinned = (folderView.tabs?.pinned ?? [])
+    .filter((tab) => !isEfuPath(tab.path))
+    .slice(0, MAX_PINNED_FOLDER_TABS)
   const tabs = pinned.map((tab, index) => ({
     ...createFolderTab(`folder-tab-${index + 1}`, tab.path, folderView),
     title: tab.title,
@@ -489,7 +517,7 @@ function createFolderTab(id: string, path: string, folderView: ReaderFolderViewC
   const startupPath = resolveFolderStartupPath(path, folderView.homePath)
   return {
     id,
-    kind: "directory",
+    kind: isEfuPath(startupPath) ? "efu" : "directory",
     sourcePath: startupPath,
     currentPath: startupPath,
     title: folderTabTitle(startupPath),
@@ -517,6 +545,10 @@ function reconcilePinnedTabs(tabs: readonly FolderTabDescriptor[], pinned: reado
 function folderTabTitle(path: string): string {
   const normalized = path.replace(/[\\/]+$/, "")
   return normalized.split(/[\\/]/).at(-1) || normalized || "新标签页"
+}
+
+function isEfuPath(path: string): boolean {
+  return /\.efu$/iu.test(path.trim())
 }
 
 function uniqueFolderTabTitle(title: string, tabs: readonly FolderTabDescriptor[]): string {

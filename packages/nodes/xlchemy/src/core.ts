@@ -158,8 +158,6 @@ export interface XlchemyRuntime {
   checkMemory?: () => void
   acquireWorker?: (threads: number, memoryMiB: number, isCancelled?: () => boolean) => Promise<XlchemyWorkerLease>
   resolveCommand: (candidates: string[]) => Promise<string | undefined>
-  probeSlimg?: () => Promise<XlchemyToolStatus>
-  convertWithSlimg?: (source: string, target: string, quality: number, jobs?: number) => Promise<void>
   convertClipToPsd?: (source: string, target: string) => Promise<void>
   join: (...parts: string[]) => string
   dirname: (path: string) => string
@@ -696,7 +694,7 @@ function batchWorkerThreads(total: number | undefined, input: XlchemyInput): num
 function batchExecutionMessage(input: XlchemyInput, workerThreads: number[]): string {
   const encoder = input.format === "AVIF" ? input.avifEncoder === "svt" ? "SVT-AV1" : input.avifEncoder === "slimg" ? "slimg" : "AOM AV1" : input.format
   const distribution = [...new Set(workerThreads)].length === 1 ? `${workerThreads[0]} each` : workerThreads.join(",")
-  const tuning = input.format === "AVIF" && input.avifEncoder === "slimg" ? "20ms native microbatch; host-bounded Rayon oversubscription; ravif speed 6 (effort setting ignored)" : `effort ${input.effort}`
+  const tuning = input.format === "AVIF" && input.avifEncoder === "slimg" ? "one slimg CLI child process per active file; one CLI job per process; effort setting ignored" : `effort ${input.effort}`
   return `Batch scheduler: ${workerThreads.length} worker(s); CPU thread budget ${input.threads}; encoder threads ${distribution}; ${encoder}; ${input.lossless ? "lossless" : `Q${input.quality}`}; ${tuning}.`
 }
 
@@ -772,6 +770,7 @@ async function withTargetLock<T>(path: string, locks: Map<string, Promise<void>>
 }
 
 const XLCHEMY_TOOLS: Array<{ id: string; label: string; purpose: string; versionArgs: string[] }> = [
+  { id: "slimg", label: "slimg CLI", purpose: "slimg AVIF encoding", versionArgs: ["--version"] },
   { id: "cjxl", label: "cjxl", purpose: "JPEG XL 编码", versionArgs: ["--version"] },
   { id: "djxl", label: "djxl", purpose: "JPEG XL 解码与校验", versionArgs: ["--version"] },
   { id: "jxlinfo", label: "jxlinfo", purpose: "JPEG XL 信息检查", versionArgs: ["--help"] },
@@ -802,8 +801,6 @@ export async function diagnoseXlchemyEnvironment(runtime: XlchemyRuntime, onEven
       environment.push({ id: tool.id, label: tool.label, purpose: tool.purpose, path, available: true, runnable: false, detail: error instanceof Error ? error.message : String(error) })
     }
   }
-  if (runtime.probeSlimg) environment.push(await runtime.probeSlimg())
-  else environment.push({ id: "slimg-node", label: "slimg Node-API", purpose: "slimg native AVIF encoding", available: false, runnable: false, detail: "The current runtime does not support native binding detection." })
   onEvent({ type: "progress", progress: 100, message: "Toolchain check complete." })
   const runnable = environment.filter((tool) => tool.runnable).length
   return { success: true, message: `Xlchemy toolchain: ${runnable}/${environment.length} commands runnable.`, data: { files: [], inputCount: 0, convertedCount: 0, skippedCount: 0, errorCount: 0, inputBytes: 0, outputBytes: 0, errors: [], environment } }
@@ -1200,6 +1197,7 @@ async function encoderInvocation(source: string, target: string, input: XlchemyI
   if (input.format === "Lossless JPEG Transcoding") return resolved(runtime, ["cjxl"], ["--lossless_jpeg=1", "-e", effort, "--num_threads", threads, ...custom(input.cjxlArgs), source, target])
   if (input.format === "JPEG Reconstruction") return resolved(runtime, ["djxl"], ["--num_threads", threads, source, target])
   if (input.format === "JPEG XL") { const losslessJpeg = jpegSource && input.autoLosslessJpeg; return resolved(runtime, ["cjxl"], ["-q", input.lossless || losslessJpeg ? "100" : quality, `--lossless_jpeg=${losslessJpeg ? 1 : 0}`, "-e", effort, "--num_threads", threads, ...(!input.lossless && !losslessJpeg && input.jxlModular ? ["--modular=1"] : []), ...custom(input.cjxlArgs), source, target]) }
+  if (input.format === "AVIF" && input.avifEncoder === "slimg") return resolved(runtime, ["slimg"], ["convert", "--format", "avif", "--quality", input.lossless ? "100" : quality, "--output", target, "--overwrite", "--jobs", "1", source])
   if (input.format === "AVIF" && input.avifEncoder === "svt") {
     const crf = input.lossless ? 0 : Math.round((100 - input.quality) * 0.63)
     const preset = input.maxCompression ? 0 : 13 - Math.round((input.effort - 1) * 13 / 9)
@@ -1221,7 +1219,7 @@ function avifPixelFormat(bitDepth: XlchemyInput["avifBitDepth"], chromaSubsampli
 }
 
 async function resolved(runtime: XlchemyRuntime, candidates: string[], args: string[]) { const command = await runtime.resolveCommand(candidates); if (!command) throw new Error(`Required encoder not found: ${candidates.join(" or ")}`); return { command, args } }
-async function runEncoderConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> { if (input.format === "AVIF" && input.avifEncoder === "slimg") return runSlimgConversion(source, target, input, runtime); const invocation = await encoderInvocation(source, target, input, runtime); return runRuntimeCommand(runtime, invocation.command, invocation.args) }
+async function runEncoderConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> { const invocation = await encoderInvocation(source, target, input, runtime); return runRuntimeCommand(runtime, invocation.command, invocation.args) }
 async function runIntelligentJxlComparison(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> {
   const effort9 = `${target}.effort-9.jxl`
   const effort7Result = await runEncoderConversion(source, target, { ...input, intelligentEffort: false, effort: 7, maxCompression: false }, runtime)
@@ -1233,7 +1231,6 @@ async function runIntelligentJxlComparison(source: string, target: string, input
   else if (effort9Info.exists) await runtime.removeFile(effort9)
   return effort7Result
 }
-async function runSlimgConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> { if (!runtime.convertWithSlimg) return { exitCode: 1, stdout: "", stderr: "slimg Node-API is not supported by the current runtime." }; try { await runtime.convertWithSlimg(source, target, input.lossless ? 100 : input.quality, input.threads); return { exitCode: 0, stdout: "slimg Node-API conversion completed.", stderr: "" } } catch (error) { return { exitCode: 1, stdout: "", stderr: error instanceof Error ? error.message : String(error) } } }
 /** Encoder-preserve is best effort: a format encoder may have already kept metadata,
  * while ExifTool may not support rewriting that target format (notably JXL). */
 async function copyMetadata(source: string, target: string, runtime: XlchemyRuntime): Promise<string | undefined> {

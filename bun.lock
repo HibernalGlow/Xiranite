@@ -92,6 +92,7 @@
         "@xiranite/node-xlchemy": "workspace:*",
         "@xiranite/runtime": "workspace:*",
         "@xiranite/shared": "workspace:*",
+        "@xstate/store": "^4.2.2",
         "@xyflow/react": "^12.11.2",
         "chrono-node": "^2.9.0",
         "class-variance-authority": "^0.7.1",
@@ -1303,7 +1304,6 @@
         "@xiranite/contract": "workspace:*",
         "@xiranite/file-operations": "workspace:*",
         "@xiranite/shared": "workspace:*",
-        "@xiranite/slimg-native": "workspace:*",
         "ag-psd": "^31.0.2",
         "sharp": "0.35.3",
       },
@@ -2644,6 +2644,8 @@
     "@xiranite/tauri-migrate": ["@xiranite/tauri-migrate@workspace:packages/tauri-migrate"],
 
     "@xmldom/xmldom": ["@xmldom/xmldom@0.9.10", "https://registry.npmmirror.com/@xmldom/xmldom/-/xmldom-0.9.10.tgz", {}, "sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw=="],
+
+    "@xstate/store": ["@xstate/store@4.2.2", "https://registry.npmmirror.com/@xstate/store/-/store-4.2.2.tgz", {}, "sha512-GdfKOba6q0VP7CGeFVqMbjy4aqAxnkxrM3VykoI+BZbRo3pKA+tDJBfLYaXJlyeGqE3RkHXcWU3GZ8fQW4tFfg=="],
 
     "@xterm/addon-serialize": ["@xterm/addon-serialize@0.14.0", "https://registry.npmmirror.com/@xterm/addon-serialize/-/addon-serialize-0.14.0.tgz", {}, "sha512-uteyTU1EkrQa2Ux6P/uFl2fzmXI46jy5uoQMKEOM0fKTyiW7cSn0WrFenHm5vO5uEXX/GpwW/FgILvv3r0WbkA=="],
 
