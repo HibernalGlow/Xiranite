@@ -4,7 +4,7 @@ import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { createMemoryWorkspaceRepository } from "@xiranite/repository"
 import { ResourceSchedulerService } from "@xiranite/services"
-import type { NodeRunEventDTO } from "@xiranite/shared"
+import { DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS, type NodeMemoryProtectionSettingsDTO, type NodeRunEventDTO } from "@xiranite/shared"
 import { createLogEnvelope, createLogSession } from "@xiranite/logging"
 import { createDefaultBackend, createDefaultBackendApp, parseBackendCliArgs, resolveBackendDatabaseConfig, resolveBackendDataDir, startBackend } from "./index.js"
 
@@ -147,6 +147,71 @@ describe("backend", () => {
       { type: "log", message: expect.stringMatching(/^Memory guard: RSS growth 8192\.0 MiB, heap growth 4096\.0 MiB, retained events 1000;/) },
       { type: "log", message: "running example" },
     ])
+  })
+
+  test("hot-applies and restores persisted node memory protection settings", async () => {
+    const dataDir = await createTempDataDir()
+    const configPath = join(dataDir, "xiranite.config.toml")
+    const custom: NodeMemoryProtectionSettingsDTO = {
+      defaultPolicy: {
+        maxRssGrowthMiB: 3_072,
+        maxHeapGrowthMiB: 1_536,
+        maxRetainedEvents: 640,
+        sampleIntervalMs: 175,
+      },
+      nodePolicies: {
+        xlchemy: {
+          maxRssGrowthMiB: 1_024,
+          maxHeapGrowthMiB: 768,
+          maxRetainedEvents: 128,
+          sampleIntervalMs: 75,
+        },
+      },
+    }
+    const nodeRunner = {
+      async runNode() { return { success: true as const, message: "done" } },
+    }
+    let first: Awaited<ReturnType<typeof createDefaultBackend>> | undefined
+    let second: Awaited<ReturnType<typeof createDefaultBackend>> | undefined
+    try {
+      first = await createDefaultBackend({ repository: createMemoryWorkspaceRepository(), configPath, nodeRunner })
+      const defaults = await first.app.handle(new Request("http://localhost/system/node-memory-protection"))
+      await expect(defaults.json()).resolves.toMatchObject({ supported: true, settings: DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS })
+
+      const saved = await first.app.handle(new Request("http://localhost/system/node-memory-protection", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(custom),
+      }))
+      expect(saved.status).toBe(200)
+      await expect(saved.json()).resolves.toEqual({ supported: true, settings: custom })
+
+      const run = await first.app.handle(new Request("http://localhost/nodes/example/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ input: {} }),
+      }))
+      const result = await run.json() as { events: NodeRunEventDTO[] }
+      expect(result.events[1]?.message).toMatch(/^Memory guard: RSS growth 3072\.0 MiB, heap growth 1536\.0 MiB, retained events 640;/)
+      first.close()
+      first = undefined
+
+      second = await createDefaultBackend({ repository: createMemoryWorkspaceRepository(), configPath, nodeRunner })
+      const restored = await second.app.handle(new Request("http://localhost/system/node-memory-protection"))
+      await expect(restored.json()).resolves.toEqual({ supported: true, settings: custom })
+
+      const restoredRun = await second.app.handle(new Request("http://localhost/nodes/xlchemy/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ input: {} }),
+      }))
+      const restoredResult = await restoredRun.json() as { events: NodeRunEventDTO[] }
+      expect(restoredResult.events[1]?.message).toMatch(/^Memory guard: RSS growth 1024\.0 MiB, heap growth 768\.0 MiB, retained events 128;/)
+    } finally {
+      first?.close()
+      second?.close()
+      await removeWithWindowsRetry(dataDir)
+    }
   })
 
   test("streams node operation events and final results", async () => {

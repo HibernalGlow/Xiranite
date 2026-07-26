@@ -1,4 +1,5 @@
 import { createXiraniteSystemClient, type LocalBackendRestartResult as ApiRestartResult } from "@xiranite/api/client"
+import type { NodeMemoryProtectionSettingsDTO } from "@xiranite/shared"
 import { getDenoDesktopBindings } from "../../desktop/bridge"
 import { resolveLocalBackendConfig, setLocalBackendConfig } from "./localBackendConfig"
 
@@ -15,6 +16,11 @@ export interface NodeSourceHotReloadState {
   enabled: boolean
 }
 
+export interface NodeMemoryProtectionState {
+  supported: boolean
+  settings: NodeMemoryProtectionSettingsDTO | null
+}
+
 export async function getNodeSourceHotReload(): Promise<NodeSourceHotReloadState> {
   const config = resolveLocalBackendConfig()
   return await createXiraniteSystemClient(config.baseUrl, { token: config.token }).getNodeSourceHotReload()
@@ -23,6 +29,16 @@ export async function getNodeSourceHotReload(): Promise<NodeSourceHotReloadState
 export async function setNodeSourceHotReload(enabled: boolean): Promise<NodeSourceHotReloadState> {
   const config = resolveLocalBackendConfig()
   return await createXiraniteSystemClient(config.baseUrl, { token: config.token }).setNodeSourceHotReload(enabled)
+}
+
+export async function getNodeMemoryProtection(): Promise<NodeMemoryProtectionState> {
+  const config = resolveLocalBackendConfig()
+  return await createXiraniteSystemClient(config.baseUrl, { token: config.token }).getNodeMemoryProtection()
+}
+
+export async function setNodeMemoryProtection(settings: NodeMemoryProtectionSettingsDTO): Promise<NodeMemoryProtectionState> {
+  const config = resolveLocalBackendConfig()
+  return await createXiraniteSystemClient(config.baseUrl, { token: config.token }).setNodeMemoryProtection(settings)
 }
 
 declare global {

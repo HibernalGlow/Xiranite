@@ -21,6 +21,7 @@ import {
   type NodeOperationListResponseDTO,
   type NodeOperationPhaseDTO,
   type NodeOperationStreamMessageDTO,
+  type NodeMemoryProtectionSettingsDTO,
   type NodeRunEventDTO,
   type NodeRunResultDTO,
   renameWorkspaceInputSchema,
@@ -644,6 +645,8 @@ export interface XiraniteSystemService {
   restartBackend?: () => Promise<LocalBackendRestartResult>
   getNodeSourceHotReload?: () => boolean
   setNodeSourceHotReload?: (enabled: boolean) => boolean
+  getNodeMemoryProtection?: () => NodeMemoryProtectionSettingsDTO
+  setNodeMemoryProtection?: (settings: NodeMemoryProtectionSettingsDTO) => NodeMemoryProtectionSettingsDTO
 }
 
 export interface CreateXiraniteServicesOptions {

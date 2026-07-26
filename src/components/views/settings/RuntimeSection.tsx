@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 import { RuntimeRow, SettingsStepCard } from "./primitives"
 import { NODE_SOURCE_HOT_RELOAD_STORAGE_KEY } from "./themeMeta"
 import { DesktopTraySettings } from "./DesktopTraySettings"
+import { NodeMemoryProtectionSettings } from "./NodeMemoryProtectionSettings"
 
 export function RuntimeSection() {
   const { t } = useTranslation()
@@ -227,6 +228,8 @@ export function RuntimeSection() {
       </SettingsStepCard>
 
       <DesktopTraySettings />
+
+      <NodeMemoryProtectionSettings available={backendStatusKind === "ready"} />
 
       <SettingsStepCard
         id="webview2"

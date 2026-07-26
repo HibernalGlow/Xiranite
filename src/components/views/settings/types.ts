@@ -27,6 +27,7 @@ export type SettingsStepId =
   | "components"
   | "card-interaction"
   | "connection"
+  | "memory-protection"
   | "desktop-tray"
   | "webview2"
   | "storage"
@@ -89,6 +90,7 @@ export const SETTINGS_STAGES: readonly SettingsStageDef[] = [
     icon: Server,
     steps: [
       { id: "connection", labelKey: "settings:timeline.steps.connection" },
+      { id: "memory-protection", labelKey: "settings:timeline.steps.memoryProtection" },
       { id: "webview2", labelKey: "settings:timeline.steps.webview2" },
     ],
   },

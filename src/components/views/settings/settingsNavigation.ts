@@ -104,6 +104,10 @@ export const SETTINGS_SEARCH_FIELDS: readonly SettingsSearchField[] = [
 
   field("node-hot-reload", "runtime", "connection", "settings:timeline.nodeHotReload", ["settings:timeline.nodeHotReloadDesc"], ["source watch development"]),
   field("desktop-tray", "runtime", "desktop-tray", "settings:desktopTray.keepRunning", ["settings:desktopTray.keepRunningDescription"], ["notification area minimize close"]),
+  field("node-memory-rss", "runtime", "memory-protection", "settings:memoryProtection.fields.rss.label", ["settings:memoryProtection.description"], ["rss memory limit node xlchemy"]),
+  field("node-memory-heap", "runtime", "memory-protection", "settings:memoryProtection.fields.heap.label", ["settings:memoryProtection.description"], ["heap memory limit node xlchemy"]),
+  field("node-memory-events", "runtime", "memory-protection", "settings:memoryProtection.fields.events.label", ["settings:memoryProtection.description"], ["event retention logs node xlchemy"]),
+  field("node-memory-sampling", "runtime", "memory-protection", "settings:memoryProtection.fields.interval.label", ["settings:memoryProtection.description"], ["sample interval node xlchemy"]),
   ...WEBVIEW2_FLAG_CATALOG.features.map((flag) => field(`webview2-${flag.key}`, "runtime", "webview2", `settings:webview2.flags.${flag.key}.label`, [`settings:webview2.flags.${flag.key}.description`], [flag.id, "webview2 feature chromium"])),
   ...WEBVIEW2_FLAG_CATALOG.switches.map((flag) => field(`webview2-${flag.key}`, "runtime", "webview2", `settings:webview2.flags.${flag.key}.label`, [`settings:webview2.flags.${flag.key}.description`], [flag.id, "webview2 switch chromium"])),
 ]

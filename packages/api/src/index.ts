@@ -5,6 +5,8 @@ import {
   componentWindowSizeLookupSchema,
   componentWindowSizeUpdateSchema,
   nexusCaptureRequestSchema,
+  NODE_MEMORY_PROTECTION_APP_SECTION,
+  nodeMemoryProtectionSettingsSchema,
   nodeRunHistoryClearQuerySchema,
   nodeRunHistoryQuerySchema,
   nodeRunRequestSchema,
@@ -67,6 +69,32 @@ export function createXiraniteApp(services: XiraniteServices) {
       return { supported: true, enabled: setEnabled(body.enabled) }
     }, {
       body: t.Object({ enabled: t.Boolean() }),
+    })
+    .get("/system/node-memory-protection", ({ set }) => {
+      const getSettings = services.system?.getNodeMemoryProtection
+      if (!getSettings) {
+        set.status = 501
+        return { supported: false, settings: null }
+      }
+      return { supported: true, settings: getSettings() }
+    })
+    .put("/system/node-memory-protection", async ({ body, set }) => {
+      const setSettings = services.system?.setNodeMemoryProtection
+      if (!setSettings) {
+        set.status = 501
+        return { supported: false, settings: null }
+      }
+      const parsed = nodeMemoryProtectionSettingsSchema.safeParse(body)
+      if (!parsed.success) {
+        set.status = 400
+        return { supported: true, settings: null, error: "Invalid node memory protection settings." }
+      }
+      const persisted = await services.config.updateAppConfig(NODE_MEMORY_PROTECTION_APP_SECTION, parsed.data)
+      const merged = nodeMemoryProtectionSettingsSchema.safeParse(persisted.config)
+      const settings = setSettings(merged.success ? merged.data : parsed.data)
+      return { supported: true, settings }
+    }, {
+      body: t.Any(),
     })
     .post("/nodes/:id/operations", ({ body, params }) => {
       const operation = services.nodes.startOperation(params.id, body.input, body.context)

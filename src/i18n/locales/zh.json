@@ -171,7 +171,7 @@
         "appearance": "主题、配色、字体语言与氛围效果。",
         "workspace": "画布背景、操作栏与字母索引。",
         "view": "泳道交互、组件皮肤与卡片点击行为。",
-        "runtime": "本地后端连接、热刷新与 WebView2 实验项。",
+        "runtime": "本地后端连接、节点内存保护、热刷新与 WebView2 实验项。",
         "data": "工作区持久化与数据库归属信息。"
       },
       "steps": {
@@ -187,6 +187,7 @@
         "components": "组件皮肤",
         "cardInteraction": "卡片交互",
         "connection": "运行时连接",
+        "memoryProtection": "节点内存保护",
         "webview2": "WebView2",
         "storage": "本地数据"
       },
@@ -640,6 +641,54 @@
       "copyStart": "复制一键命令",
       "copied": "已复制",
       "openFrontend": "打开前端"
+    },
+    "memoryProtection": {
+      "title": "节点内存保护",
+      "description": "限制每次节点任务相对启动基线的 RSS 与 JavaScript Heap 增长，并约束后端保留的运行事件。",
+      "applied": "已应用",
+      "unavailable": "本地后端就绪后才能读取和修改节点内存保护。",
+      "loading": "正在读取当前内存保护策略…",
+      "unsupported": "当前后端不支持运行时内存保护设置。",
+      "retry": "重新读取内存保护设置",
+      "invalid": "存在超出允许范围的值，请修正后再应用。",
+      "unsaved": "当前有尚未应用的修改。",
+      "liveHint": "保存后对新启动的任务立即生效；正在运行的任务继续使用其启动时策略。",
+      "restore": "恢复推荐值",
+      "apply": "应用设置",
+      "saving": "应用中",
+      "scopes": {
+        "default": {
+          "title": "通用节点默认值",
+          "description": "所有没有专属覆盖策略的节点使用这些限制。"
+        },
+        "xlchemy": {
+          "title": "XLchemy 专属限制",
+          "description": "覆盖通用值，限制大型 EFU 批量转换和原生编码期间的 Bun 内存。"
+        }
+      },
+      "fields": {
+        "rss": {
+          "label": "RSS 增长上限",
+          "description": "任务相对启动基线允许增长的常驻内存（{{min}}–{{max}} MiB）。"
+        },
+        "heap": {
+          "label": "Heap 增长上限",
+          "description": "任务相对启动基线允许增长的 JavaScript Heap（{{min}}–{{max}} MiB）。"
+        },
+        "events": {
+          "label": "保留事件数",
+          "description": "后端为单个任务保留的最新进度和日志数量（{{min}}–{{max}}）。"
+        },
+        "interval": {
+          "label": "内存采样间隔",
+          "description": "后端检查进程内存的周期（{{min}}–{{max}} ms）。"
+        }
+      },
+      "units": {
+        "mib": "MiB",
+        "events": "条",
+        "ms": "ms"
+      }
     },
     "webview2": {
       "title": "WebView2 实验特性",

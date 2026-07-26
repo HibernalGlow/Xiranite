@@ -205,6 +205,37 @@ export const nodeOperationStreamMessageSchema = z.discriminatedUnion("type", [
   }),
 ])
 
+export const nodeMemoryProtectionPolicySettingsSchema = z.object({
+  maxRssGrowthMiB: z.number().int().min(1).max(65_536),
+  maxHeapGrowthMiB: z.number().int().min(1).max(32_768),
+  maxRetainedEvents: z.number().int().min(1).max(10_000),
+  sampleIntervalMs: z.number().int().min(25).max(60_000),
+})
+
+export const nodeMemoryProtectionSettingsSchema = z.object({
+  defaultPolicy: nodeMemoryProtectionPolicySettingsSchema,
+  nodePolicies: z.record(z.string().min(1), nodeMemoryProtectionPolicySettingsSchema),
+})
+
+export const NODE_MEMORY_PROTECTION_APP_SECTION = "node_memory_protection"
+
+export const DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS: NodeMemoryProtectionSettingsDTO = {
+  defaultPolicy: {
+    maxRssGrowthMiB: 8_192,
+    maxHeapGrowthMiB: 4_096,
+    maxRetainedEvents: 1_000,
+    sampleIntervalMs: 250,
+  },
+  nodePolicies: {
+    xlchemy: {
+      maxRssGrowthMiB: 4_096,
+      maxHeapGrowthMiB: 2_048,
+      maxRetainedEvents: 256,
+      sampleIntervalMs: 100,
+    },
+  },
+}
+
 // ── Node run history ───────────────────────────────────────────────
 // 每次节点运行结束后持久化一条快照，用于全局历史中心 / 节点内参数恢复。
 export const nodeRunHistoryStatusSchema = z.enum([
@@ -332,6 +363,8 @@ export type NexusCaptureKindDTO = z.infer<typeof nexusCaptureKindSchema>
 export type NexusCaptureRequestDTO = z.infer<typeof nexusCaptureRequestSchema>
 export type NexusCaptureDTO = z.infer<typeof nexusCaptureSchema>
 export type NodeOperationPhaseDTO = z.infer<typeof nodeOperationPhaseSchema>
+export type NodeMemoryProtectionPolicySettingsDTO = z.infer<typeof nodeMemoryProtectionPolicySettingsSchema>
+export type NodeMemoryProtectionSettingsDTO = z.infer<typeof nodeMemoryProtectionSettingsSchema>
 export interface NodeRunResultDTO<TData = unknown> {
   success: boolean
   message: string
