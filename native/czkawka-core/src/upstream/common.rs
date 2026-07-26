@@ -3,6 +3,7 @@ use std::thread::JoinHandle;
 
 use crossbeam_channel::{Sender, unbounded};
 use czkawka_core::common::config_cache_path::set_config_cache_path;
+use czkawka_core::common::image::register_image_decoding_hooks;
 use czkawka_core::common::progress_data::ProgressData;
 use czkawka_core::common::traits::Search;
 
@@ -36,6 +37,20 @@ pub(crate) fn initialize_cache_path() {
     });
 }
 
+pub(crate) fn initialize_image_decoding_hooks() {
+    static INITIALIZE_IMAGE_DECODING_HOOKS: Once = Once::new();
+    INITIALIZE_IMAGE_DECODING_HOOKS.call_once(register_image_decoding_hooks);
+}
+
+pub(crate) fn extension_list(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|extension| !extension.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
 fn start_progress_forwarder(
     control: &ScanControl,
 ) -> (Option<Sender<ProgressData>>, Option<JoinHandle<()>>) {
@@ -45,10 +60,11 @@ fn start_progress_forwarder(
     let (sender, receiver) = unbounded::<ProgressData>();
     let handle = std::thread::spawn(move || {
         while let Ok(progress) = receiver.recv() {
+            let stage = progress.stage;
             let _ = target.send(ScanProgress {
-                stage: format!("{:?}", progress.sstage),
-                stage_index: progress.current_stage_idx,
-                stage_count: progress.max_stage_idx.saturating_add(1),
+                stage: format!("{stage:?}"),
+                stage_index: stage.current_stage_idx(),
+                stage_count: stage.max_stage_idx().saturating_add(1),
                 entries_checked: progress.entries_checked,
                 entries_total: progress.entries_to_check,
                 bytes_checked: progress.bytes_checked,

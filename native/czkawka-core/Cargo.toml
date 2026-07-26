@@ -10,9 +10,8 @@ publish = false
 crate-type = ["rlib"]
 
 [dependencies]
-czkawka_core = { version = "=10.0.0", default-features = false, features = ["libavif"] }
+czkawka_core = { version = "=12.0.0", default-features = false, features = ["libavif"] }
 image_hasher = { version = "3.0", features = ["fast_resize_unstable"] }
-vid_dup_finder_lib = "0.4"
 thiserror = "2"
 crossbeam-channel = "0.5"
 

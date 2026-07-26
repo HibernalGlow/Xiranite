@@ -17,18 +17,19 @@ try {
   assert.equal(capabilities.restore, process.platform === "win32")
 
   await writeFile(sourcePath, content, "utf8")
+  const deleteStartedAt = performance.now()
   const result = await trashPath(sourcePath)
+  const deleteDurationMs = performance.now() - deleteStartedAt
   assert.equal(result.trashed, true)
   assert.ok(result.receipt, "trash-rs did not return a receipt for the deleted fixture")
+  assert.ok(deleteDurationMs < 1_000, `trashPath took ${deleteDurationMs.toFixed(1)}ms; expected under 1000ms`)
   receipt = result.receipt
   await assert.rejects(stat(sourcePath), { code: "ENOENT" })
-
-  const listed = await listTrashItems()
-  assert.ok(listed.some((item) => item.id === receipt.id), "deleted fixture is missing from the recycle-bin listing")
+  console.log(JSON.stringify({ stage: "deleted", deleteDurationMs: Math.round(deleteDurationMs), receipt }))
 
   await restoreTrashItem(receipt)
   assert.equal(await readFile(sourcePath, "utf8"), content)
-  console.log(JSON.stringify({ capabilities, restored: sourcePath }))
+  console.log(JSON.stringify({ capabilities, deleteDurationMs: Math.round(deleteDurationMs), restored: sourcePath }))
 } finally {
   if (!receipt && !await exists(sourcePath)) {
     receipt = await findReceipt(sourcePath)

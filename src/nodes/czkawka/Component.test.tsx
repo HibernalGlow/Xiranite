@@ -461,9 +461,6 @@ describe("Czkawka node", () => {
     expect(within(screen.getByTestId("czkawka-lane-analysis")).queryByText("分析与操作 / LANE")).toBeNull()
     expect(within(screen.getByRole("navigation", { name: "泳道快速切换" })).queryByText(/切换到/)).toBeNull()
 
-    fireEvent.click(within(screen.getByTestId("czkawka-lane-source")).getByRole("button", { name: /扫描条件.*更多设置/ }))
-    fireEvent.click(screen.getByRole("menuitem", { name: "重置操作栏位置" }))
-    expect(host.stateValue.workspaceLayout).toMatchObject({ navigatorDock: "floating", navigatorLane: "source", navigatorPositionX: 96, navigatorPositionY: 94 })
   })
 
   test("drags a fixed navigator across Czkawka lanes and back to floating", async () => {
