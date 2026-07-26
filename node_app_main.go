@@ -102,7 +102,8 @@ func runNodeApp() {
 	win := App.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             "node-app",
 		Title:            title,
-		DevToolsEnabled:  false,
+		DevToolsEnabled:  true,
+		KeyBindings:      devToolsKeyBindings(),
 		Windows:          application.WindowsWindow{Theme: application.SystemDefault, ResizeDebounceMS: 0},
 		BackgroundColour: application.NewRGB(20, 20, 20),
 		URL:              "/",

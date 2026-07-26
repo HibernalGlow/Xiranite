@@ -1,6 +1,7 @@
 import { useState, type ComponentType, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { useTranslation } from "react-i18next"
+import { getRuntime } from "@/backend/client"
 import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
 import { countHazardAffectedNodes, disableAllNodeDryRuns } from "@/lib/hazardMode"
 import { cn } from "@/lib/utils"
@@ -13,12 +14,13 @@ import { getActiveCustomTheme, resolveThemeScheme, THEME_PRESET_OPTIONS } from "
 import type { ViewMode, CardLayout, AppCustomTheme, AppTheme } from "@/types/workspace"
 import { WorkspaceIcon, IconPicker } from "@/components/workspace/WorkspaceIcon"
 import { WorkspaceMelodeckTopBarSlot } from "@/components/workspace/WorkspaceMelodeck"
+import { AppMenuRoot, AppMenuRow, type AppMenuPage } from "@/components/workspace/AppMenuRoot"
 import {
   Activity, Settings, Grid, SplitSquareVertical, AlignJustify, Target,
   Gauge, LayoutDashboard, Workflow, Share2, Plus, ChevronDown, Check,
   Sun, Moon, Monitor, Palette,
   Code2, LayoutTemplate, Trash2, Edit3, Smile,
-  History, ArrowLeft, BookOpen, Database, LogOut, ShieldAlert, ChevronRight,
+  History, ArrowLeft, BookOpen, Database, LogOut, ShieldAlert,
 } from "lucide-react"
 import { WindowControlIcon } from "./WindowControlIcon"
 import { createLogger } from "@/lib/logger"
@@ -102,8 +104,6 @@ const CARD_LAYOUT_OPTIONS: { key: CardLayout; labelKey: string; hintKey: string;
 
 const THEME_PRESETS = THEME_PRESET_OPTIONS
 const CUSTOM_THEME_ACTIVE_VALUE = "__custom_theme_active__"
-type AppMenuPage = "root" | "workspaces" | "views" | "layouts"
-
 function CustomThemeSwatch({ theme }: { theme: AppCustomTheme }) {
   const colors = theme.cssVars.light
   const swatches = [colors.background, colors.primary, colors.secondary, colors.accent].filter(Boolean)
@@ -200,6 +200,16 @@ export function TopBar() {
     window.close()
   }
 
+  async function openDevTools() {
+    setWsMenuOpen(false)
+    try {
+      const result = await (await getRuntime()).windows.openDevTools()
+      if (!result.success) logger.info("Developer tools open failed", { message: result.message })
+    } catch (error) {
+      logger.info("Developer tools open failed", undefined, error)
+    }
+  }
+
   function enableHazardMode() {
     const changed = disableAllNodeDryRuns(state.components, workspaceActions.patchComponentData)
     setHazardAffectedCount(changed)
@@ -271,6 +281,8 @@ export function TopBar() {
                   workspaceActions.setOverlay("registry")
                   setWsMenuOpen(false)
                 }}
+                openDevToolsLabel={t("settings:webview2.openDevTools")}
+                onOpenDevTools={openDevTools}
                 onOpenSettings={() => {
                   workspaceActions.setOverlay("settings")
                   setWsMenuOpen(false)
@@ -903,74 +915,6 @@ function HazardStatusBadge({ onDisable }: { onDisable: () => void }) {
   )
 }
 
-function AppMenuRoot({
-  hazardMode,
-  onExit,
-  onHazard,
-  onNavigate,
-  onOpenDashboard,
-  onOpenHistory,
-  onOpenDeletions,
-  onOpenOperations,
-  onOpenRegistry,
-  onOpenSettings,
-}: {
-  hazardMode: boolean
-  onExit: () => void
-  onHazard: () => void
-  onNavigate: (page: AppMenuPage) => void
-  onOpenDashboard: () => void
-  onOpenHistory: () => void
-  onOpenDeletions: () => void
-  onOpenOperations: () => void
-  onOpenRegistry: () => void
-  onOpenSettings: () => void
-}) {
-  return (
-    <div data-testid="app-menu" className="p-1.5">
-      <div className="flex items-center justify-between px-2.5 pb-2 pt-1">
-        <span className="font-mono text-[10px] font-semibold tracking-[0.18em] text-muted-foreground">XIRANITE</span>
-        <span className="font-mono text-[9px] tracking-widest text-muted-foreground/55">COMMAND</span>
-      </div>
-
-      <div className="grid gap-0.5">
-        <AppMenuRow icon={Settings} label="设置" shortcut="Alt+P" onSelect={onOpenSettings} />
-        <AppMenuRow icon={LayoutDashboard} label="面板" hasSubmenu onSelect={() => onNavigate("views")} />
-        <AppMenuRow icon={Grid} label="工作空间" hasSubmenu onSelect={() => onNavigate("workspaces")} />
-        <AppMenuRow icon={SplitSquareVertical} label="布局" hasSubmenu onSelect={() => onNavigate("layouts")} />
-      </div>
-
-      <Separator className="my-1.5" />
-
-      <div className="grid gap-0.5">
-        <AppMenuRow icon={Plus} label="模块库" onSelect={onOpenRegistry} />
-        <AppMenuRow icon={Activity} label="节点运行" onSelect={onOpenOperations} />
-        <AppMenuRow icon={History} label="运行历史" shortcut="Alt+H" onSelect={onOpenHistory} />
-        <AppMenuRow icon={Trash2} label="删除历史" onSelect={onOpenDeletions} />
-        <AppMenuRow icon={Database} label="数据仪表盘" onSelect={onOpenDashboard} />
-      </div>
-
-      <Separator className="my-1.5" />
-
-      <div className="grid gap-0.5">
-        <AppMenuRow icon={BookOpen} label="运行时设置" onSelect={onOpenSettings} />
-        <AppMenuRow
-          active={hazardMode}
-          icon={ShieldAlert}
-          label={hazardMode ? "Hazard On" : "Hazard"}
-          shortcut={hazardMode ? "ON" : "ARM"}
-          tone="danger"
-          onSelect={onHazard}
-        />
-      </div>
-
-      <Separator className="my-1.5" />
-
-      <AppMenuRow icon={LogOut} label="退出应用" tone="danger" onSelect={onExit} />
-    </div>
-  )
-}
-
 function AppMenuViews({ onBack, onSelect, t, value }: {
   onBack: () => void
   onSelect: (view: ViewMode) => void
@@ -1017,43 +961,6 @@ function AppMenuBack({ label, onBack }: { label: string; onBack: () => void }) {
     >
       <ArrowLeft className="size-3.5" />
       <span>{label}</span>
-    </button>
-  )
-}
-
-function AppMenuRow({
-  active = false,
-  hasSubmenu = false,
-  icon: Icon,
-  label,
-  onSelect,
-  shortcut,
-  tone = "default",
-}: {
-  active?: boolean
-  hasSubmenu?: boolean
-  icon: ComponentType<{ className?: string }>
-  label: string
-  onSelect: () => void
-  shortcut?: string
-  tone?: "default" | "danger"
-}) {
-  const danger = tone === "danger"
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        "group flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-        active && "bg-foreground text-background shadow-sm",
-        !active && !danger && "text-foreground hover:bg-muted/65",
-        !active && danger && "text-destructive hover:bg-destructive/10",
-      )}
-    >
-      <Icon className="size-3.5 shrink-0 opacity-80" />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {shortcut ? <span className="shrink-0 text-[10px] tracking-wide opacity-55">{shortcut}</span> : null}
-      {hasSubmenu ? <ChevronRight className="size-3.5 shrink-0 opacity-55 transition-transform group-hover:translate-x-0.5" /> : null}
     </button>
   )
 }

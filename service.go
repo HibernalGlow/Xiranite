@@ -569,6 +569,7 @@ func (s *XiraniteService) WindowOpenComponent(inputJSON string) (WindowCommandRe
 		Name:            id,
 		Title:           title,
 		DevToolsEnabled: true,
+		KeyBindings:     devToolsKeyBindings(),
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 40,
 			Backdrop:                application.MacBackdropTranslucent,

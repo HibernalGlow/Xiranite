@@ -61,7 +61,7 @@ await run([
   "build",
   "-mod=mod",
   "-tags",
-  "production",
+  "production,devtools",
   "-ldflags",
   `-w -s -H windowsgui -X main.nodeAppID=${nodeId} -X main.nodeAppTitle=${manifest.node.name} -X main.nodeAppSnapshotID=${manifest.snapshotId} -X main.nodeAppMinimumBunVersion=${manifest.runtime.minimumBunVersion} -X main.nodeAppBuildBunVersion=${manifest.toolchain.bun} -X main.nodeAppDataContractVersion=${manifest.dataContract.currentVersion} -X main.nodeAppMinimumDataContractVersion=${manifest.dataContract.minimumSupportedVersion} -X main.nodeAppMaximumDataContractVersion=${manifest.dataContract.maximumSupportedVersion} -X main.nodeAppEnableReader=${enableReader}`,
   "-o",
