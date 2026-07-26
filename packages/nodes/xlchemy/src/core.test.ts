@@ -132,6 +132,38 @@ describe("xlchemy core contract", () => {
     expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 400 })
   })
 
+  test("uses current source size for keep-if-larger without preserving timestamps", async () => {
+    const runtime = fakeRuntime()
+    const originalPathInfo = runtime.pathInfo
+    const originalRunCommand = runtime.runCommand
+    let encoded = false
+    runtime.pathInfo = async (path) => path === "/photos/a.png" && encoded
+      ? { path, exists: true, isFile: true, isDirectory: false, size: 300, atimeMs: 30, mtimeMs: 40 }
+      : originalPathInfo(path)
+    runtime.runCommand = async (command, args, isCancelled) => {
+      const result = await originalRunCommand(command, args, isCancelled)
+      encoded = true
+      return result
+    }
+    runtime.setTimes = vi.fn(async () => undefined)
+
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert",
+      paths: ["/photos/a.png"],
+      format: "WebP",
+      outputMode: "source",
+      existingPolicy: "replace",
+      preserveMetadata: false,
+      preserveTimestamps: false,
+      keepIfLarger: true,
+      copyIfLarger: false,
+    }), runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data?.files[0]).toMatchObject({ status: "skipped", outputBytes: 0, error: "output_not_smaller" })
+    expect(runtime.setTimes).not.toHaveBeenCalled()
+  })
+
   test("emits incremental result snapshots while converting", async () => {
     const events: Array<{ progress?: number; data?: unknown }> = []
     const result = await runXlchemy({
@@ -185,6 +217,31 @@ describe("xlchemy core contract", () => {
       expect.stringMatching(/^EFU stream opened: large\.efu;/),
       expect.stringMatching(/^EFU stream completed: large\.efu; read 2500, accepted 2500, filtered 0/),
       expect.stringMatching(/^Result state: retained 1000\/2500/),
+    ]))
+  })
+
+  test("reports filtered extensions when an EFU contains no supported images", async () => {
+    const runtime = fakeRuntime()
+    runtime.streamEfuPaths = async function* () {
+      yield "/archives/a.zip"
+      yield "/archives/b.ZIP"
+    }
+    const events: Array<{ message?: string }> = []
+
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert",
+      paths: [],
+      efuFiles: ["/lists/archives.efu"],
+      format: "AVIF",
+      avifEncoder: "slimg",
+    }), runtime, (event) => events.push(event))
+
+    expect(result).toMatchObject({
+      success: false,
+      message: "No supported images were found. EFU read 2 path(s), accepted 0, and filtered 2 (.zip: 2).",
+    })
+    expect(events.map((event) => event.message)).toEqual(expect.arrayContaining([
+      expect.stringMatching(/^Input stream completed after \d+\.\d{2}s without supported images\. No supported images were found\. EFU read 2 path\(s\), accepted 0, and filtered 2 \(\.zip: 2\)\.$/),
     ]))
   })
 
@@ -305,7 +362,7 @@ describe("xlchemy core contract", () => {
     expect(result.data?.environment?.some((tool) => "versionArgs" in tool)).toBe(false)
   })
 
-  test("uses the slimg 0.6 CLI contract instead of passing slimg to avifenc", async () => {
+  test("uses the supported slimg CLI contract instead of passing slimg to avifenc", async () => {
     const runtime = fakeRuntime()
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "slimg", threads: 8, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
     expect(result.success).toBe(true)
@@ -313,10 +370,90 @@ describe("xlchemy core contract", () => {
     expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 350 })
   })
 
+  test("passes only planned files to slimg when a directory contains excluded and completed files", async () => {
+    const runtime = fakeRuntime()
+    const sources = new Set(["/photos/selected.png", "/photos/completed.png", "/photos/excluded.webp"])
+    const originalPathInfo = runtime.pathInfo
+    runtime.listDir = async () => [...sources].map((path) => ({
+      path,
+      name: path.split("/").at(-1)!,
+      isFile: true,
+      isDirectory: false,
+    }))
+    runtime.pathInfo = async (path) => {
+      if (sources.has(path)) return { path, exists: true, isFile: true, isDirectory: false, size: 1_000, atimeMs: 0, mtimeMs: 0 }
+      if (path === "/photos/completed.avif") return { path, exists: true, isFile: true, isDirectory: false, size: 350, atimeMs: 0, mtimeMs: 0 }
+      return originalPathInfo(path)
+    }
+    const events: Array<{ message?: string }> = []
+
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert",
+      paths: ["/photos"],
+      format: "AVIF",
+      avifEncoder: "slimg",
+      threads: 4,
+      outputMode: "source",
+      existingPolicy: "skip",
+      preserveMetadata: false,
+      excludedFormats: ["webp"],
+    }), runtime, (event) => events.push(event))
+
+    const slimgCommands = runtime.commands.filter((item) => item.command.endsWith("slimg"))
+    expect(result.success).toBe(true)
+    expect(result.data).toMatchObject({ inputCount: 2, convertedCount: 1, skippedCount: 1 })
+    expect(slimgCommands).toHaveLength(1)
+    expect(slimgCommands[0]?.args.at(-1)).toBe("/photos/selected.png")
+    expect(slimgCommands[0]?.args).not.toContain("/photos")
+    expect(events.find((event) => event.message?.startsWith("Batch scheduler:"))?.message).toContain("source directories are never passed to slimg")
+  })
+
+  test("plans skip-policy files concurrently without a global rename lock", async () => {
+    const runtime = fakeRuntime()
+    const inputs = new Set(Array.from({ length: 8 }, (_, index) => `/parallel/${index}.png`))
+    const outputs = new Set<string>()
+    let activeSourceReads = 0
+    let peakSourceReads = 0
+    runtime.pathInfo = async (path) => {
+      if (inputs.has(path)) {
+        activeSourceReads += 1
+        peakSourceReads = Math.max(peakSourceReads, activeSourceReads)
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        activeSourceReads -= 1
+        return { path, exists: true, isFile: true, isDirectory: false, size: 1_000, atimeMs: 0, mtimeMs: 0 }
+      }
+      if (outputs.has(path)) return { path, exists: true, isFile: true, isDirectory: false, size: 350, atimeMs: 0, mtimeMs: 0 }
+      return { path, exists: false, isFile: false, isDirectory: false, size: 0, atimeMs: 0, mtimeMs: 0 }
+    }
+    runtime.runCommand = async (command, args) => {
+      runtime.commands.push({ command, args })
+      outputs.add(args[args.indexOf("--output") + 1]!)
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      return { exitCode: 0, stdout: "", stderr: "" }
+    }
+
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert",
+      paths: [...inputs],
+      format: "AVIF",
+      avifEncoder: "slimg",
+      threads: 8,
+      outputMode: "source",
+      existingPolicy: "skip",
+      preserveMetadata: false,
+      excludedFormats: [],
+    }), runtime)
+
+    expect(result.success).toBe(true)
+    expect(peakSourceReads).toBeGreaterThan(1)
+    expect(runtime.commands.filter((item) => item.command.endsWith("slimg"))).toHaveLength(8)
+  })
+
   test("requests one global CPU unit for a slimg CLI process and releases the lease", async () => {
     const runtime = fakeRuntime()
     const release = vi.fn()
     runtime.acquireWorker = vi.fn(async () => ({ threads: 1, release }))
+    const events: Array<{ message: string }> = []
     const result = await runXlchemy(normalizeXlchemyInput({
       action: "convert",
       paths: ["/photos/a.png"],
@@ -326,11 +463,12 @@ describe("xlchemy core contract", () => {
       outputMode: "source",
       overwrite: true,
       preserveMetadata: false,
-    }), runtime)
+    }), runtime, (event) => events.push(event))
     expect(result.success).toBe(true)
     expect(runtime.acquireWorker).toHaveBeenCalledWith(1, 432, undefined)
     expect(runtime.commands).toEqual([{ command: "/bin/slimg", args: ["convert", "--format", "avif", "--quality", "60", "--output", "/photos/a.avif", "--overwrite", "--jobs", "1", "/photos/a.png"] }])
     expect(release).toHaveBeenCalledOnce()
+    expect(events.find((event) => event.message.startsWith("Global resource admission:"))?.message).toContain("approximately 432 MiB")
   })
 
   test("distributes the original thread budget across concurrent AOM workers", async () => {

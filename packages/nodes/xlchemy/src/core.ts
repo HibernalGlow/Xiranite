@@ -296,13 +296,17 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     let lastLiveResultAt = 0
     let activeWorkers = 0
     let peakActiveWorkers = 0
-    const sourceStream = streamInputSources(options.paths, options.recursive, options.efuFiles ?? [], runtime, accepts, onEvent, () => activeWorkers)
+    const inputDiagnostics: InputStreamDiagnostics = { efuRead: 0, efuAccepted: 0, efuFiltered: 0, filteredExtensions: new Map() }
+    const sourceStream = streamInputSources(options.paths, options.recursive, options.efuFiles ?? [], runtime, accepts, onEvent, () => activeWorkers, inputDiagnostics)
     const orderedSources = orderSourceStream(sourceStream, options.processingOrder, runtime)
     onEvent({ type: "log", message: `Input scheduler: single-pass streaming with bounded backpressure; ${totalInputCount === undefined ? "total finalized at EOF" : `${totalInputCount} direct input(s)`}.` })
     if (requiresWindowedOrder(options.processingOrder)) onEvent({ type: "log", message: `Processing order ${options.processingOrder} is applied in bounded windows of ${STREAM_ORDER_WINDOW_SIZE} files to preserve streaming.` })
     const targetReservations = new Set<string>()
     const targetLocks = new Map<string, Promise<void>>()
     const planningLocks = new Map<string, Promise<void>>()
+    const planSource = (source: string) => options.existingPolicy === "rename"
+      ? withTargetLock("batch-planning", planningLocks, () => planFile(source, roots, options, runtime, targetReservations))
+      : planFile(source, roots, options, runtime)
     let lastDiagnosticLogAt = 0
     let lastFileProgressAt = 0
     const processSource = async (source: string, workerIndex: number, workerInput: XlchemyInput, announceWorker: boolean): Promise<void> => {
@@ -319,11 +323,11 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
           try {
             item = await runtime.isAnimatedImage(source)
               ? { sourcePath: source, outputPath: source, status: "skipped", error: "animated_image" }
-              : await withTargetLock("batch-planning", planningLocks, () => planFile(source, roots, options, runtime, targetReservations))
+              : await planSource(source)
           } catch (error) {
             item = { sourcePath: source, outputPath: source, status: "error", error: `animation_probe_failed: ${error instanceof Error ? error.message : String(error)}` }
           }
-        } else item = await withTargetLock("batch-planning", planningLocks, () => planFile(source, roots, options, runtime, targetReservations))
+        } else item = await planSource(source)
         if (!item) throw new Error(`Failed to plan ${source}.`)
         const plannedItem = item
         const result = options.action !== "convert" || plannedItem.status !== "planned"
@@ -372,7 +376,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     if (options.action === "convert") {
       const workerThreads = batchWorkerThreads(totalInputCount, options)
       onEvent({ type: "log", message: batchExecutionMessage(options, workerThreads) })
-      onEvent({ type: "log", message: resourceAdmissionMessage(options, runtime) })
+      onEvent({ type: "log", message: resourceAdmissionMessage(options, runtime, workerThreads) })
       const iterator = asAsyncIterable(orderedSources)[Symbol.asyncIterator]()
       const nextSource = serializedIterator(iterator)
       await Promise.all(workerThreads.map(async (encoderThreads, workerIndex) => {
@@ -397,8 +401,9 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       return cancelledSummary(summary, started)
     }
     if (!summary.inputCount) {
-      onEvent({ type: "log", message: `Input stream completed after ${formatElapsed(started)} without supported images.` })
-      return failure("No supported images were found.")
+      const diagnostic = unsupportedInputMessage(inputDiagnostics)
+      onEvent({ type: "log", message: `Input stream completed after ${formatElapsed(started)} without supported images. ${diagnostic}` })
+      return failure(diagnostic)
     }
     emitLiveResult(onEvent, summary, started, summary.inputCount)
     const data = summaryData(summary, Date.now() - started)
@@ -436,6 +441,7 @@ async function* streamInputSources(
   accepts: (path: string) => boolean,
   onEvent: (event: NodeRunEvent) => void,
   activeWorkers: () => number,
+  diagnostics: InputStreamDiagnostics,
 ): AsyncGenerator<string> {
   for await (const source of streamDiscoveredImages(paths, recursive, runtime)) if (accepts(source)) yield source
   for (const efuFile of efuFiles) {
@@ -451,10 +457,16 @@ async function* streamInputSources(
         runtime.checkMemory?.()
         if (runtime.isCancelled?.()) return
         read += 1
+        diagnostics.efuRead += 1
         if (accepts(source)) {
           accepted += 1
+          diagnostics.efuAccepted += 1
           yield source
-        } else filtered += 1
+        } else {
+          filtered += 1
+          diagnostics.efuFiltered += 1
+          countFilteredExtension(diagnostics.filteredExtensions, runtime.extname(source))
+        }
         const now = Date.now()
         const rowsSinceLog = read - lastLoggedRead
         if (rowsSinceLog >= EFU_LOG_ROW_INTERVAL || rowsSinceLog >= EFU_LOG_MIN_ROWS && now - lastLoggedAt >= EFU_LOG_INTERVAL_MS) {
@@ -469,6 +481,29 @@ async function* streamInputSources(
       throw error
     }
   }
+}
+
+interface InputStreamDiagnostics {
+  efuRead: number
+  efuAccepted: number
+  efuFiltered: number
+  filteredExtensions: Map<string, number>
+}
+
+function countFilteredExtension(counts: Map<string, number>, extension: string): void {
+  const key = extension.toLowerCase() || "(no extension)"
+  if (counts.has(key) || counts.size < 16) counts.set(key, (counts.get(key) ?? 0) + 1)
+  else counts.set("(other)", (counts.get("(other)") ?? 0) + 1)
+}
+
+function unsupportedInputMessage(diagnostics: InputStreamDiagnostics): string {
+  if (!diagnostics.efuRead) return "No supported images were found."
+  const extensions = [...diagnostics.filteredExtensions]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 4)
+    .map(([extension, count]) => `${extension}: ${count}`)
+    .join(", ")
+  return `No supported images were found. EFU read ${diagnostics.efuRead} path(s), accepted ${diagnostics.efuAccepted}, and filtered ${diagnostics.efuFiltered}${extensions ? ` (${extensions})` : ""}.`
 }
 
 function requiresWindowedOrder(order: XlchemyInput["processingOrder"]): boolean {
@@ -702,7 +737,7 @@ function batchWorkerThreads(total: number | undefined, input: XlchemyInput): num
 function batchExecutionMessage(input: XlchemyInput, workerThreads: number[]): string {
   const encoder = input.format === "AVIF" ? input.avifEncoder === "svt" ? "SVT-AV1" : input.avifEncoder === "slimg" ? "slimg" : "AOM AV1" : input.format
   const distribution = [...new Set(workerThreads)].length === 1 ? `${workerThreads[0]} each` : workerThreads.join(",")
-  const tuning = input.format === "AVIF" && input.avifEncoder === "slimg" ? "one slimg CLI child process per active file; one CLI job per process; effort setting ignored" : `effort ${input.effort}`
+  const tuning = input.format === "AVIF" && input.avifEncoder === "slimg" ? "one slimg CLI child process per planned file; source directories are never passed to slimg; one CLI job per process; effort setting ignored" : `effort ${input.effort}`
   return `Batch scheduler: ${workerThreads.length} worker(s); CPU thread budget ${input.threads}; encoder threads ${distribution}; ${encoder}; ${input.lossless ? "lossless" : `Q${input.quality}`}; ${tuning}.`
 }
 
@@ -722,11 +757,14 @@ function boundedStateMessage(runtime: XlchemyRuntime): string {
   return `Bounded state: final details ${RESULT_DETAIL_LIMIT}, live details ${LIVE_DETAIL_LIMIT}, errors ${ERROR_DETAIL_LIMIT}, size sample ${INPUT_ANALYSIS_SAMPLE_LIMIT}, folder buckets ${INPUT_ANALYSIS_FOLDER_LIMIT}; host memory checks ${runtime.checkMemory ? "enabled" : "not supplied"}.`
 }
 
-function resourceAdmissionMessage(input: XlchemyInput, runtime: XlchemyRuntime): string {
-  const estimate = estimateXlchemyWorkerMemoryMiB(input)
+function resourceAdmissionMessage(input: XlchemyInput, runtime: XlchemyRuntime, workerThreads: number[]): string {
+  const estimates = (workerThreads.length ? workerThreads : [Math.max(1, input.threads)])
+    .map((threads) => estimateXlchemyWorkerMemoryMiB({ ...input, threads }))
+  const minimum = Math.min(...estimates), maximum = Math.max(...estimates)
+  const estimate = minimum === maximum ? `approximately ${maximum} MiB` : `approximately ${minimum}-${maximum} MiB`
   return runtime.acquireWorker
-    ? `Global resource admission: enabled; each encoder requests its thread share and approximately ${estimate} MiB before starting.`
-    : `Global resource admission: unavailable in this host; local worker limits remain active with approximately ${estimate} MiB estimated per encoder.`
+    ? `Global resource admission: enabled; each encoder requests its thread share and ${estimate} before starting.`
+    : `Global resource admission: unavailable in this host; local worker limits remain active with ${estimate} estimated per encoder.`
 }
 
 function resultRetentionMessage(data: XlchemyData): string {
@@ -1000,13 +1038,16 @@ async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime
       const warning = await copyMetadata(plan.sourcePath, plan.outputPath, runtime)
       if (warning) onEvent({ type: "log", message: `Metadata copy skipped for ${runtime.basename(plan.outputPath)}: ${warning}` })
     }
-    const sourceInfo = await runtime.pathInfo(plan.sourcePath)
-    if (input.preserveTimestamps) await runtime.setTimes(plan.outputPath, sourceInfo.atimeMs, sourceInfo.mtimeMs)
+    const sourceInfo = input.preserveTimestamps || input.keepIfLarger ? await runtime.pathInfo(plan.sourcePath) : undefined
+    if (input.preserveTimestamps && sourceInfo) await runtime.setTimes(plan.outputPath, sourceInfo.atimeMs, sourceInfo.mtimeMs)
     const outputInfo = await runtime.pathInfo(plan.outputPath)
-    if (input.keepIfLarger && outputInfo.size >= sourceInfo.size) {
-      await runtime.removeFile(plan.outputPath)
-      if (input.copyIfLarger) await runtime.copyFile(plan.sourcePath, plan.outputPath)
-      return { ...plan, status: "skipped", outputBytes: input.copyIfLarger ? sourceInfo.size : 0, error: "output_not_smaller" }
+    if (input.keepIfLarger) {
+      if (!sourceInfo) throw new Error("Source file information is unavailable for the keep-if-larger policy.")
+      if (outputInfo.size >= sourceInfo.size) {
+        await runtime.removeFile(plan.outputPath)
+        if (input.copyIfLarger) await runtime.copyFile(plan.sourcePath, plan.outputPath)
+        return { ...plan, status: "skipped", outputBytes: input.copyIfLarger ? sourceInfo.size : 0, error: "output_not_smaller" }
+      }
     }
     if (input.deleteOriginal && plan.sourcePath !== plan.outputPath) {
       await deleteOriginalFile(plan.sourcePath, input.deleteOriginalMode ?? "trash", runtime)
