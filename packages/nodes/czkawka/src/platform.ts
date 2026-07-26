@@ -5,9 +5,10 @@ import { basename, dirname, join, parse, relative } from "node:path"
 import { promisify } from "node:util"
 import { cancelCzkawkaScan, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
-import type { CzkawkaInput, CzkawkaNativeProgress, CzkawkaRuntime } from "./core.js"
+import { toNativeVideoCropDetect } from "./similar-video-crop.js"
+import type { CzkawkaNativeProgress, CzkawkaNormalizedInput, CzkawkaRuntime } from "./core.js"
 
-type NormalizedInput = Required<CzkawkaInput>
+type NormalizedInput = CzkawkaNormalizedInput
 const execFileAsync = promisify(execFile)
 let cacheEnvironmentSignature: string | undefined
 
@@ -79,7 +80,7 @@ export function toMediaScanOptions(input: NormalizedInput): MediaScanOptions {
     videoIgnoreSameSize: input.similarVideosIgnoreSameSize,
     videoSkipForward: input.similarVideosSkipForward,
     videoHashDuration: input.similarVideosHashDuration,
-    videoCropDetect: input.similarVideosCropDetect,
+    videoCropDetect: toNativeVideoCropDetect(input.similarVideosLetterboxCrop),
     musicCheckType: input.musicCheckType,
     musicApproximateComparison: input.musicApproximateComparison,
     musicCompareTitle: input.musicCompareTitle,

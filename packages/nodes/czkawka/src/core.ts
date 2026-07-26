@@ -1,5 +1,8 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { buildCzkawkaSimilarFolders, type CzkawkaSimilarFolderStat } from "./similar-folders.js"
+import { resolveCzkawkaSimilarVideoCrop } from "./similar-video-crop.js"
+export type { CzkawkaVideoCropDetect } from "./similar-video-crop.js"
+import type { CzkawkaVideoCropDetect } from "./similar-video-crop.js"
 
 export const CZKAWKA_TOOLS = [
   "duplicate-files",
@@ -21,7 +24,6 @@ export type CzkawkaCheckMethod = "name" | "size" | "size-and-name" | "hash"
 export type CzkawkaHashType = "crc32" | "xxh3" | "blake3"
 export type CzkawkaImageHashAlgorithm = "mean" | "gradient" | "blockhash" | "vert-gradient" | "double-gradient" | "median"
 export type CzkawkaImageResizeAlgorithm = "lanczos3" | "gaussian" | "catmull-rom" | "triangle" | "nearest"
-export type CzkawkaVideoCropDetect = "letterbox" | "motion" | "none"
 export type CzkawkaMusicCheckType = "tags" | "fingerprint"
 export type CzkawkaSort = "path" | "size" | "modified"
 export type CzkawkaSelectionStrategy = "all-except-first" | "all-except-newest" | "all-except-oldest" | "all-except-biggest" | "all-except-smallest"
@@ -69,6 +71,8 @@ export interface CzkawkaInput {
   similarVideosIgnoreSameSize?: boolean
   similarVideosSkipForward?: number
   similarVideosHashDuration?: number
+  similarVideosLetterboxCrop?: boolean
+  /** Legacy v1 field retained for one rollback window. */
   similarVideosCropDetect?: CzkawkaVideoCropDetect
   musicCheckType?: CzkawkaMusicCheckType
   musicApproximateComparison?: boolean
@@ -119,10 +123,12 @@ export interface NativeMediaResult {
   stopped: boolean
 }
 
+export type CzkawkaNormalizedInput = Omit<Required<CzkawkaInput>, "similarVideosCropDetect">
+
 export interface CzkawkaRuntime {
-  scanDuplicates: (input: Required<CzkawkaInput>, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeDuplicateResult>
-  scanBasic: (input: Required<CzkawkaInput>, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeBasicResult>
-  scanMedia: (input: Required<CzkawkaInput>, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeMediaResult>
+  scanDuplicates: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeDuplicateResult>
+  scanBasic: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeBasicResult>
+  scanMedia: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeMediaResult>
   pathExists: (path: string) => Promise<boolean>
   removePath: (path: string, options?: { trash?: boolean; emptyFoldersOnly?: boolean }) => Promise<void>
   copyPath: (source: string, target: string) => Promise<void>
@@ -194,10 +200,11 @@ export type CzkawkaResult = NodeRunResult<CzkawkaData>
 const BASIC_TOOLS = new Set<CzkawkaTool>(["empty-folders", "big-files", "empty-files", "temporary-files", "invalid-symlinks"])
 const MEDIA_TOOLS = new Set<CzkawkaTool>(["similar-images", "similar-videos", "duplicate-music", "broken-files", "bad-extensions"])
 
-export function normalizeCzkawkaInput(input: CzkawkaInput): Required<CzkawkaInput> {
+export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInput {
   const destinationItems = normalizeDestinationItems(input.destinationItems)
   const renameItems = normalizeRenameItems(input.renameItems)
   const exportEntries = input.exportEntries?.map((entry) => ({ ...entry })) ?? []
+  const similarVideoCrop = resolveCzkawkaSimilarVideoCrop(input)
   return {
     action: input.action ?? "scan",
     tool: input.tool ?? "duplicate-files",
@@ -235,7 +242,7 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): Required<CzkawkaInpu
     similarVideosIgnoreSameSize: input.similarVideosIgnoreSameSize ?? false,
     similarVideosSkipForward: clamp(input.similarVideosSkipForward, 0, 3600, 15),
     similarVideosHashDuration: clamp(input.similarVideosHashDuration, 2, 3600, 10),
-    similarVideosCropDetect: oneOf(input.similarVideosCropDetect, ["letterbox", "motion", "none"] as const, "letterbox"),
+    similarVideosLetterboxCrop: similarVideoCrop.letterboxCrop,
     musicCheckType: oneOf(input.musicCheckType, ["tags", "fingerprint"] as const, "tags"),
     musicApproximateComparison: input.musicApproximateComparison ?? true,
     musicCompareTitle: input.musicCompareTitle ?? true,
@@ -291,7 +298,7 @@ export async function runCzkawka(input: CzkawkaInput, runtime: CzkawkaRuntime, o
   }
 }
 
-async function scan(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
+async function scan(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
   if (!value.includedDirectories.length) return fail(value, "Add at least one included directory.")
   if (value.minimumFileSize > value.maximumFileSize) return fail(value, "Minimum file size cannot exceed maximum file size.")
   await runtime.waitWhilePaused?.()
@@ -328,7 +335,7 @@ async function scan(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, onEv
 function nativeProgressPercent(progress: CzkawkaNativeProgress): number { const stages = Math.max(1, progress.stageCount), stage = Math.max(0, Math.min(stages - 1, progress.stageIndex)), fraction = progress.entriesTotal > 0 ? progress.entriesChecked / progress.entriesTotal : progress.bytesTotal > 0 ? progress.bytesChecked / progress.bytesTotal : 0; return Math.max(3, Math.min(98, Math.round(((stage + Math.max(0, Math.min(1, fraction))) / stages) * 95 + 3))) }
 function nativeProgressMessage(progress: CzkawkaNativeProgress): string { const count = progress.entriesTotal > 0 ? ` ${progress.entriesChecked}/${progress.entriesTotal}` : progress.entriesChecked > 0 ? ` ${progress.entriesChecked}` : ""; return `${humanStage(progress.stage)}${count}` }
 function humanStage(stage: string): string { return stage.replace(/([a-z0-9])([A-Z])/g, "$1 $2") }
-function cancelled(value: Required<CzkawkaInput>): CzkawkaResult { return { success: false, message: `${value.tool} scan cancelled.`, data: summarize(value, [], "Scan cancelled.", true) } }
+function cancelled(value: CzkawkaNormalizedInput): CzkawkaResult { return { success: false, message: `${value.tool} scan cancelled.`, data: summarize(value, [], "Scan cancelled.", true) } }
 
 function makeGroup(index: number, raw: Array<Partial<CzkawkaEntry> & { path: string; name: string; size: number; modifiedDate: number }>, runtime: Pick<CzkawkaRuntime, "basename">, reclaimable: boolean): CzkawkaGroup {
   const entries = raw.map((entry, entryIndex) => ({ ...entry, id: `${index}:${entryIndex}:${entry.path}`, groupId: index, name: entry.name || runtime.basename(entry.path) })) as CzkawkaEntry[]
@@ -378,7 +385,7 @@ export function smartSelect(groups: CzkawkaGroup[], strategy: CzkawkaSelectionSt
   return [...selection]
 }
 
-async function mutate(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, action: "delete" | "move" | "rename", onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
+async function mutate(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, action: "delete" | "move" | "rename", onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
   const entries: CzkawkaEntry[] = []
   const claimedTargets = new Set<string>()
   const destinations = new Map(value.destinationItems.map((item) => [item.path, item.destination]))
@@ -428,7 +435,7 @@ function renameTarget(source: string, extension: string | undefined, runtime: Pi
   return runtime.join(runtime.dirname(source), `${stem}.${properExtension}`)
 }
 
-function operationTarget(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, source: string, itemDestination?: string): string {
+function operationTarget(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, source: string, itemDestination?: string): string {
   if (itemDestination) return runtime.join(itemDestination, runtime.basename(source))
   const relativeDirectory = value.preserveStructure ? runtime.relativeDirectoryFromRoot(source) : ""
   return relativeDirectory ? runtime.join(value.destinationDirectory, relativeDirectory, runtime.basename(source)) : runtime.join(value.destinationDirectory, runtime.basename(source))
@@ -447,7 +454,7 @@ async function availableTarget(target: string, runtime: CzkawkaRuntime, claimedT
   throw new Error(`No available target name for ${target}.`)
 }
 
-async function save(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
+async function save(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
   const sourceRows = value.exportEntries.length ? value.exportEntries : value.selectedPaths.map((path, index) => ({ id: `save:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0 }))
   const rows: CzkawkaEntry[] = sourceRows.map((entry, index) => ({ ...entry, id: entry.id || `save:${index}`, status: "saved", operation: "save" }))
   const content = value.outputFormat === "csv" ? exportCsv(rows) : `${JSON.stringify({ tool: value.tool, scope: value.exportScope, entries: rows }, null, 2)}\n`
@@ -457,13 +464,13 @@ async function save(value: Required<CzkawkaInput>, runtime: CzkawkaRuntime, onEv
   return { success: true, message: value.dryRun ? `Planned export of ${rows.length} path(s).` : `Saved ${rows.length} path(s).`, data }
 }
 
-function summarize(value: Required<CzkawkaInput>, groups: CzkawkaGroup[], messages: string, stopped: boolean): CzkawkaData {
+function summarize(value: CzkawkaNormalizedInput, groups: CzkawkaGroup[], messages: string, stopped: boolean): CzkawkaData {
   const entries = groups.flatMap((group) => group.entries)
   return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "renamed", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length, similarFolders: value.action === "scan" && value.tool === "similar-images" ? buildCzkawkaSimilarFolders(groups, value.similarImagesFolderThreshold) : undefined }
 }
 
 function isGroupedTool(tool: CzkawkaTool): boolean { return ["duplicate-files", "similar-images", "similar-videos", "duplicate-music"].includes(tool) }
-function fail(value: Required<CzkawkaInput>, message: string): CzkawkaResult { return { success: false, message, data: summarize(value, [], message, false) } }
+function fail(value: CzkawkaNormalizedInput, message: string): CzkawkaResult { return { success: false, message, data: summarize(value, [], message, false) } }
 function unique(values: string[]): string[] { return [...new Set(values.map(clean).filter(Boolean))] }
 function normalizeDestinationItems(items: CzkawkaDestinationItem[] | undefined): CzkawkaDestinationItem[] { const result = new Map<string, string>(); for (const item of items ?? []) { const path = clean(item.path), destination = clean(item.destination); if (path && destination) result.set(path, destination) } return [...result].map(([path, destination]) => ({ path, destination })) }
 function normalizeRenameItems(items: CzkawkaRenameItem[] | undefined): CzkawkaRenameItem[] { const result = new Map<string, string>(); for (const item of items ?? []) { const path = clean(item.path), properExtension = clean(item.properExtension).replace(/^\.+/, ""); if (path && properExtension) result.set(path, properExtension) } return [...result].map(([path, properExtension]) => ({ path, properExtension })) }

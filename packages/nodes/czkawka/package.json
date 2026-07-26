@@ -17,6 +17,7 @@
     "./floating-panel": { "types": "./dist/floating-panel.d.ts", "default": "./dist/floating-panel.js" },
     "./operations": { "types": "./dist/operations.d.ts", "default": "./dist/operations.js" },
     "./scan-presets": { "types": "./dist/scan-presets.d.ts", "default": "./dist/scan-presets.js" },
+    "./similar-video-crop": { "types": "./dist/similar-video-crop.d.ts", "default": "./dist/similar-video-crop.js" },
     "./source-inputs": { "types": "./dist/source-inputs.d.ts", "default": "./dist/source-inputs.js" },
     "./similar-folders": { "types": "./dist/similar-folders.d.ts", "default": "./dist/similar-folders.js" },
     "./platform": { "types": "./dist/platform.d.ts", "default": "./dist/platform.js" },

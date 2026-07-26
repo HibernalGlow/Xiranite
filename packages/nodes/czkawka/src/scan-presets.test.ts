@@ -12,9 +12,10 @@ describe("shared Czkawka scan presets", () => {
   })
 
   test("round trips every surface through canonical input", () => {
-    const { preset } = czkawkaScanPresetFromValues("Videos", { tool: "similar-videos", includedDirectoriesText: "D:/Videos\nE:/Archive", excludedItemsText: "*.part; */cache/*", similarity: "6", similarVideosHashDuration: "24", recursive: false }, { now: 1, createId: () => "videos" })
-    expect(preset.input).toMatchObject({ tool: "similar-videos", includedDirectories: ["D:/Videos", "E:/Archive"], excludedItems: ["*.part", "*/cache/*"], similarity: 6, similarVideosHashDuration: 24, recursive: false })
-    expect(czkawkaScanPresetToValues(preset)).toMatchObject({ tool: "similar-videos", includedDirectoriesText: "D:/Videos\nE:/Archive", excludedItemsText: "*.part; */cache/*", similarity: "6", similarVideosHashDuration: "24", recursive: false })
+    const { preset } = czkawkaScanPresetFromValues("Videos", { tool: "similar-videos", includedDirectoriesText: "D:/Videos\nE:/Archive", excludedItemsText: "*.part; */cache/*", similarity: "6", similarVideosHashDuration: "24", similarVideosCropDetect: "motion", recursive: false }, { now: 1, createId: () => "videos" })
+    expect(preset.input).toMatchObject({ tool: "similar-videos", includedDirectories: ["D:/Videos", "E:/Archive"], excludedItems: ["*.part", "*/cache/*"], similarity: 6, similarVideosHashDuration: 24, similarVideosLetterboxCrop: true, recursive: false })
+    expect(preset.input).not.toHaveProperty("similarVideosCropDetect")
+    expect(czkawkaScanPresetToValues(preset)).toMatchObject({ tool: "similar-videos", includedDirectoriesText: "D:/Videos\nE:/Archive", excludedItemsText: "*.part; */cache/*", similarity: "6", similarVideosHashDuration: "24", similarVideosLetterboxCrop: true, recursive: false })
   })
 
   test("exports, merges, replaces, and deletes versioned documents", () => {

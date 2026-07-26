@@ -46,4 +46,26 @@ describe("Czkawka node state migration", () => {
     });
     expect(czkawkaStateMigrationPatch({ ...broken, ...patch })).toBeUndefined();
   });
+
+  test("migrates motion crop detection once without discarding the rollback field", () => {
+    const legacy = {
+      schemaVersion: 1 as const,
+      tool: "similar-videos" as const,
+      similarVideosCropDetect: "motion" as const,
+      unknownFutureField: { preserve: true },
+    };
+    const patch = czkawkaStateMigrationPatch(legacy);
+    expect(normalizeCzkawkaCardState(legacy)).toMatchObject({
+      ...legacy,
+      schemaVersion: CZKAWKA_STATE_VERSION,
+      similarVideosLetterboxCrop: true,
+    });
+    expect(patch).toMatchObject({
+      similarVideosLetterboxCrop: true,
+      czkawka12MotionCropMigrationNotified: true,
+      activityLog: [expect.objectContaining({ kind: "system", level: "warning" })],
+    });
+    expect(patch).not.toHaveProperty("similarVideosCropDetect");
+    expect(czkawkaStateMigrationPatch({ ...legacy, ...patch })).toBeUndefined();
+  });
 });

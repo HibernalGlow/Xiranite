@@ -38,7 +38,7 @@ import { czkawkaScanPresetFromValues, czkawkaScanPresetToValues, deleteCzkawkaSc
 import { parseCzkawkaList } from "@xiranite/node-czkawka/source-inputs"
 import { CzkawkaDirectoryEditor, CzkawkaTokenEditor } from "./source-inputs"
 import { CZKAWKA_WORKSPACE_DEFAULTS, normalizeCzkawkaWorkspaceLayout, updateCzkawkaWorkspaceLayout, type CzkawkaBarHandlePosition, type CzkawkaBarHandleStyle, type CzkawkaLaneId, type CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
-import { czkawkaStateMigrationPatch, normalizeCzkawkaCardState } from "./state"
+import { CZKAWKA_STATE_VERSION, czkawkaStateMigrationPatch, normalizeCzkawkaCardState } from "./state"
 import { CzkawkaSimilarFoldersView } from "./similar-folders-view"
 import { CzkawkaSimilarityReferenceDialog } from "./similarity-reference-dialog"
 import { LaneResizer } from "@/components/workspace/lane/LaneResizer"
@@ -160,7 +160,7 @@ export function Component({ compId, host }: NodeComponentProps<CzkawkaCardState>
   function setWorkspaceLayout(next: CzkawkaWorkspaceLayout) {
     const normalized = normalizeCzkawkaWorkspaceLayout(next)
     setWorkspaceLayoutState(normalized)
-    patch({ schemaVersion: 1, workspaceLayout: normalized })
+    patch({ schemaVersion: CZKAWKA_STATE_VERSION, workspaceLayout: normalized })
   }
 
   function setPreviewPanelEnabled(enabled: boolean) {
