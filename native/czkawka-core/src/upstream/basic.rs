@@ -1,13 +1,13 @@
 use czkawka_core::tools::big_file::{BigFile, BigFileParameters, SearchMode};
+use czkawka_core::common::tool_data::CommonData;
 use czkawka_core::tools::empty_files::EmptyFiles;
 use czkawka_core::tools::empty_folder::EmptyFolder;
 use czkawka_core::tools::invalid_symlinks::InvalidSymlinks;
 use czkawka_core::tools::temporary::Temporary;
 
-use super::common::search_with_control;
+use super::common::{initialize_cache_path, search_with_control};
 use crate::{
-    BasicEntry, BasicScanOptions, BasicScanResult, BasicTool, CommonData, CzkawkaError,
-    ScanControl, initialize_cache_path,
+    BasicEntry, BasicScanOptions, BasicScanResult, BasicTool, CzkawkaError, ScanControl,
 };
 
 pub(crate) fn scan_basic_files(options: BasicScanOptions) -> Result<BasicScanResult, CzkawkaError> {
