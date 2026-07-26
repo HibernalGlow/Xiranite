@@ -34,6 +34,21 @@
           "sha256": "786b7e348adc4e84594e5c4abac3f7320d5f5c82d4a76dcbb639c42071e872fd"
         }
       ]
+    },
+    {
+      "id": "findz",
+      "version": "0.1.0-abi1",
+      "platform": "win32",
+      "arch": "x64",
+      "archive": "findz.win32-x64.zip",
+      "binding": "findz.dll",
+      "sha256": "cf966edbdf9ecda70a7e099a8d1fabfcb38eabf39c35108492504537c079f2e7",
+      "files": [
+        {
+          "name": "findz.dll",
+          "sha256": "f934d7b2e2d1f5478386d8e7216ea9acd41c5e61c95c18dc15c3492acd53d29e"
+        }
+      ]
     }
   ]
 }
