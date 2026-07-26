@@ -486,7 +486,6 @@ describe("ReaderHttpController", () => {
         folderView: {
           viewMode: "details",
           previewCount: 9,
-          titleWrap: { "cover-grid": false, "mosaic-grid": true },
           confirmations: { trash: true, permanentDelete: false, batchTrash: true, batchPermanentDelete: false },
           tagDisplay: { tagMode: "all", showRating: false, showCollectTagCount: true, showTags: true, maxTags: 5, showTooltips: false },
           details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
@@ -497,7 +496,6 @@ describe("ReaderHttpController", () => {
       expect(await folderPatched.json()).toMatchObject({ folderView: {
         viewMode: "details",
         previewCount: 9,
-        titleWrap: { "cover-grid": false, "mosaic-grid": true },
         confirmations: { trash: true, permanentDelete: false, batchTrash: true, batchPermanentDelete: false },
         tagDisplay: { tagMode: "all", showRating: false, showCollectTagCount: true, showTags: true, maxTags: 5, showTooltips: false },
         details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
@@ -508,7 +506,6 @@ describe("ReaderHttpController", () => {
         { folderView: {
           viewMode: "details",
           previewCount: 9,
-          titleWrap: { "cover-grid": false, "mosaic-grid": true },
           confirmations: { trash: true, permanentDelete: false, batchTrash: true, batchPermanentDelete: false },
           tagDisplay: { tagMode: "all", showRating: false, showCollectTagCount: true, showTags: true, maxTags: 5, showTooltips: false },
           details: { hiddenColumns: ["tags"], columnWidths: { name: 310 } },
@@ -518,7 +515,6 @@ describe("ReaderHttpController", () => {
         { folder: {
           view_mode: "details",
           preview_count: 9,
-          title_wrap: { cover_grid: false, mosaic_grid: true },
           confirmations: { trash: true, permanent_delete: false, batch_trash: true, batch_permanent_delete: false },
           tag_display: { tag_mode: "all", show_rating: false, show_collect_tag_count: true, show_tags: true, max_tags: 5, show_tooltips: false },
           details: { hidden_columns: ["tags"], column_widths: { name: 310 } },

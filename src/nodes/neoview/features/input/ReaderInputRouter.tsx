@@ -1,8 +1,11 @@
 import {
   matchingReaderInputBinding,
+  ReaderInputActionSequenceRunner,
   READER_INPUT_CONTEXTS,
   readerViewAreaAtPoint,
   type ReaderInputAction,
+  type ReaderInputActionExecutionContext,
+  type ReaderInputActionOutcome,
   type ReaderInputBinding,
   type ReaderInputBindingsConfig,
   type ReaderInputContext,
@@ -14,12 +17,13 @@ import { useEffect, useMemo, useRef, type PointerEventHandler } from "react"
 export interface ReaderInputRouterOptions {
   config: ReaderInputBindingsConfig
   disabled?: boolean
-  execute(action: ReaderInputAction): void | Promise<void>
+  execute(action: ReaderInputAction, context: ReaderInputActionExecutionContext): ReaderInputActionOutcome | void | Promise<ReaderInputActionOutcome | void>
 }
 
 export function useReaderInputRouter({ config, disabled = false, execute }: ReaderInputRouterOptions) {
   const executeRef = useRef(execute)
   executeRef.current = execute
+  const sequenceRunner = useRef(new ReaderInputActionSequenceRunner())
   const bindingsRef = useRef(config.bindings)
   bindingsRef.current = config.bindings
   const handledAreaPressPointers = useRef(new Set<number>())
@@ -63,7 +67,7 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
       if (existing) clearTimeout(existing)
       keyboardHoldTimers.current.set(key, setTimeout(() => {
         keyboardHoldTimers.current.delete(key)
-        void executeRef.current(holdBinding.action)
+        void sequenceRunner.current.run(holdBinding, executeRef.current)
       }, holdBinding.input.device === "keyboard" ? holdBinding.input.durationMs ?? 450 : 450))
     }
     if (handled || holdBinding) event.preventDefault()
@@ -162,7 +166,7 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
 
   function executeBinding(binding: ReaderInputBinding | null | undefined, repeat = false): boolean {
     if (!binding || (repeat && binding.ignoreRepeat)) return false
-    void executeRef.current(binding.action)
+    void sequenceRunner.current.run(binding, executeRef.current)
     return true
   }
 

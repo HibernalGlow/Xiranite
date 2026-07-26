@@ -139,6 +139,7 @@ interface OpenMenu {
 interface PendingConfirmation {
   item: ContextMenuItemDef
   returnFocus?: HTMLElement
+  resolve(confirmed: boolean): void
 }
 
 export function ContextMenuProvider({ children }: { children: ReactNode }) {
@@ -244,9 +245,14 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const requestConfirmation = useCallback((item: ContextMenuItemDef, returnFocus?: HTMLElement) => {
-    if (!item.confirm || item.disabled) return
-    setConfirm({ item, returnFocus })
-    setOpenMenu(null)
+    if (!item.confirm || item.disabled) return Promise.resolve(false)
+    return new Promise<boolean>((resolve) => {
+      setConfirm((current) => {
+        current?.resolve(false)
+        return { item, returnFocus, resolve }
+      })
+      setOpenMenu(null)
+    })
   }, [])
 
   const api = useMemo<ContextMenuAPI>(() => ({ register, show, confirm: requestConfirmation }), [register, requestConfirmation, show])
@@ -267,10 +273,17 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
           item={confirm.item}
           onClose={() => {
             const returnFocus = confirm.returnFocus
+            confirm.resolve(false)
             setConfirm(null)
             queueMicrotask(() => returnFocus?.isConnected && returnFocus.focus())
           }}
-          onConfirm={() => { void confirm.item.onSelect?.() }}
+          onConfirm={() => {
+            const returnFocus = confirm.returnFocus
+            confirm.resolve(true)
+            setConfirm(null)
+            void confirm.item.onSelect?.()
+            queueMicrotask(() => returnFocus?.isConnected && returnFocus.focus())
+          }}
         />
       )}
     </ContextMenuBuilderContext.Provider>

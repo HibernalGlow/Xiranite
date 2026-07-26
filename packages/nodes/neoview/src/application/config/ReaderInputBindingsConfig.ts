@@ -1,6 +1,7 @@
 import {
   cloneReaderInputBindings,
   DEFAULT_READER_INPUT_BINDINGS,
+  MAX_READER_INPUT_ACTION_SEQUENCE_LENGTH,
   READER_INPUT_ACTIONS,
   READER_INPUT_CONTEXTS,
   READER_MOUSE_GESTURE_DIRECTIONS,
@@ -61,13 +62,22 @@ function parseBindings(value: unknown, label: string): ReaderInputBinding[] {
 
 function parseBinding(value: unknown, label: string): ReaderInputBinding {
   const source = requireRecord(value, label)
-  rejectUnknown(source, ["id", "action", "context", "enabled", "ignoreRepeat", "input"], label)
+  rejectUnknown(source, ["id", "action", "followUpActions", "context", "enabled", "ignoreRepeat", "input"], label)
   const id = requiredString(source.id, `${label}.id`, 80)
   const action = requiredEnum(source.action, READER_INPUT_ACTIONS, `${label}.action`)
+  const followUpActions = parseFollowUpActions(source.followUpActions, `${label}.followUpActions`)
   const context = requiredEnum(source.context, READER_INPUT_CONTEXTS, `${label}.context`)
   if (typeof source.enabled !== "boolean") throw new Error(`${label}.enabled must be a boolean.`)
   const ignoreRepeat = optionalBoolean(source.ignoreRepeat, `${label}.ignoreRepeat`)
-  return { id, action, context, enabled: source.enabled, ...(ignoreRepeat ? { ignoreRepeat } : {}), input: parseInput(source.input, `${label}.input`) }
+  return { id, action, ...(followUpActions.length ? { followUpActions } : {}), context, enabled: source.enabled, ...(ignoreRepeat ? { ignoreRepeat } : {}), input: parseInput(source.input, `${label}.input`) }
+}
+
+function parseFollowUpActions(value: unknown, label: string): ReaderInputAction[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array.`)
+  const maximum = MAX_READER_INPUT_ACTION_SEQUENCE_LENGTH - 1
+  if (value.length > maximum) throw new Error(`${label} must not contain more than ${maximum} actions.`)
+  return value.map((action, index) => requiredEnum(action, READER_INPUT_ACTIONS, `${label}[${index}]`))
 }
 
 function parseInput(value: unknown, label: string): ReaderInputDescriptor {
@@ -144,7 +154,11 @@ function parseInput(value: unknown, label: string): ReaderInputDescriptor {
 }
 
 function persistedBindings(bindings: readonly ReaderInputBinding[]): unknown[] {
-  return bindings.map((current) => ({ ...current, input: { ...current.input } }))
+  return bindings.map((current) => ({
+    ...current,
+    ...(current.followUpActions?.length ? { followUpActions: [...current.followUpActions] } : {}),
+    input: { ...current.input },
+  }))
 }
 
 function modifiers(source: Record<string, unknown>, label: string): { ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean } {
