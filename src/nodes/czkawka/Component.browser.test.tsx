@@ -49,6 +49,30 @@ test("resets a fixed navigator from the source lane menu in the browser", async 
   })
 })
 
+test("keeps selection history synchronized with the result table in the browser", async () => {
+  const host = createHost({
+    tool: "duplicate-files",
+    includedDirectoriesText: "D:/media",
+    result: selectionResult,
+    analysisPanelTab: "selection",
+  })
+
+  await render(<Component compId="czkawka-selection-browser" host={host} />)
+
+  const rowCheckbox = page.getByRole("checkbox", { name: "\u9009\u62e9 duplicate-files-result.dat" })
+  await rowCheckbox.click()
+  await expect.element(rowCheckbox).toHaveAttribute("data-state", "checked")
+
+  await page.getByRole("button", { name: /\u9009\u62e9\u52a9\u624b/ }).click()
+  await page.getByRole("button", { name: /\u6e05\u7a7a\u9009\u62e9/ }).click()
+  await expect.element(rowCheckbox).toHaveAttribute("data-state", "unchecked")
+
+  const undo = page.getByRole("button", { name: "\u64a4\u9500\u9009\u62e9" })
+  await expect.element(undo).toBeVisible()
+  await undo.click()
+  await expect.element(rowCheckbox).toHaveAttribute("data-state", "checked")
+})
+
 type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & {
   stateValue: CzkawkaCardState
 }
@@ -96,4 +120,22 @@ const sample: CzkawkaData = {
   reclaimableBytes: 0,
   affectedCount: 0,
   errorCount: 0,
+}
+
+const selectionEntry = {
+  id: "duplicate-files-result.dat",
+  groupId: 0,
+  path: "duplicate-files-result.dat",
+  name: "duplicate-files-result.dat",
+  size: 10,
+  modifiedDate: 1,
+}
+
+const selectionResult: CzkawkaData = {
+  ...sample,
+  groups: [{ id: 0, entries: [selectionEntry], totalBytes: 10, reclaimableBytes: 0 }],
+  entries: [selectionEntry],
+  groupCount: 1,
+  fileCount: 1,
+  totalBytes: 10,
 }
