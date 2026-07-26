@@ -106,6 +106,18 @@ export interface XlchemyToolStatus {
   detail?: string
 }
 
+export interface XlchemyInputAnalysis {
+  totalFiles: number
+  totalSize: number
+  minSize: number
+  medianSize: number
+  maxSize: number
+  formats: Array<{ key: string; count: number; size: number }>
+  folders: Array<{ key: string; count: number; size: number }>
+  /** Median sampling or folder aggregation was bounded during the stream. */
+  sampled: boolean
+}
+
 export interface XlchemyData {
   files: XlchemyFileResult[]
   inputCount: number
@@ -116,6 +128,8 @@ export interface XlchemyData {
   outputBytes: number
   elapsedMs?: number
   errors: string[]
+  /** Bounded statistics accumulated while the input stream is consumed. */
+  inputAnalysis?: XlchemyInputAnalysis
   /** True when per-file details were capped while aggregate counts stayed exact. */
   detailsTruncated?: boolean
   environment?: XlchemyToolStatus[]
@@ -266,6 +280,9 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     if (!options.paths.length && !options.efuFiles?.length) return failure("At least one image, folder, or EFU file is required.")
     if (options.efuFiles?.length && !runtime.streamEfuPaths) return failure("The current runtime does not support streaming EFU inputs.")
     if (options.outputMode === "directory" && !options.outputDir) return failure("An output directory is required in directory mode.")
+    onEvent({ type: "log", message: taskConfigurationMessage(options) })
+    onEvent({ type: "log", message: outputPolicyMessage(options) })
+    onEvent({ type: "log", message: boundedStateMessage(runtime) })
     onEvent({ type: "progress", progress: 0, message: "Streaming image inputs; conversion starts as files are discovered." })
     const excluded = new Set(options.excludedFormats?.map((value) => value.replace(/^\./, "").toLowerCase()) ?? [])
     const accepts = (path: string) => {
@@ -276,15 +293,15 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     }
     const roots = await sourceRoots(options.paths, runtime)
     const totalInputCount = await knownDirectInputCount(options, runtime, accepts)
-    const sourceStream = streamInputSources(options.paths, options.recursive, options.efuFiles ?? [], runtime, accepts)
-    const orderedSources = orderSourceStream(sourceStream, options.processingOrder, runtime)
-    onEvent({ type: "log", message: `Input scheduler: single-pass streaming with bounded backpressure; ${totalInputCount === undefined ? "total finalized at EOF" : `${totalInputCount} direct input(s)`}.` })
-    if (requiresWindowedOrder(options.processingOrder)) onEvent({ type: "log", message: `Processing order ${options.processingOrder} is applied in bounded windows of ${STREAM_ORDER_WINDOW_SIZE} files to preserve streaming.` })
     const animationDetectionFormats = new Set(options.animationDetectionFormats)
     const summary = createSummary()
     let lastLiveResultAt = 0
     let activeWorkers = 0
     let peakActiveWorkers = 0
+    const sourceStream = streamInputSources(options.paths, options.recursive, options.efuFiles ?? [], runtime, accepts, onEvent, () => activeWorkers)
+    const orderedSources = orderSourceStream(sourceStream, options.processingOrder, runtime)
+    onEvent({ type: "log", message: `Input scheduler: single-pass streaming with bounded backpressure; ${totalInputCount === undefined ? "total finalized at EOF" : `${totalInputCount} direct input(s)`}.` })
+    if (requiresWindowedOrder(options.processingOrder)) onEvent({ type: "log", message: `Processing order ${options.processingOrder} is applied in bounded windows of ${STREAM_ORDER_WINDOW_SIZE} files to preserve streaming.` })
     const targetReservations = new Set<string>()
     const targetLocks = new Map<string, Promise<void>>()
     const planningLocks = new Map<string, Promise<void>>()
@@ -342,7 +359,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
           emitLiveResult(onEvent, summary, started, totalInputCount)
           lastLiveResultAt = now
         }
-        if (options.action === "convert" && (summary.inputCount === 1 || summary.inputCount === totalInputCount || now - lastDiagnosticLogAt >= 1_000)) {
+        if (options.action === "convert" && (summary.inputCount === 1 || summary.inputCount === totalInputCount || now - lastDiagnosticLogAt >= DIAGNOSTIC_LOG_INTERVAL_MS)) {
           const elapsedSeconds = (Date.now() - itemStarted) / 1_000
           const completed = summary.inputCount
           const throughput = completed / Math.max((Date.now() - started) / 1_000, 0.001)
@@ -357,6 +374,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     if (options.action === "convert") {
       const workerThreads = batchWorkerThreads(totalInputCount, options)
       onEvent({ type: "log", message: batchExecutionMessage(options, workerThreads) })
+      onEvent({ type: "log", message: resourceAdmissionMessage(options, runtime) })
       const iterator = asAsyncIterable(orderedSources)[Symbol.asyncIterator]()
       const nextSource = serializedIterator(iterator)
       await Promise.all(workerThreads.map(async (encoderThreads, workerIndex) => {
@@ -376,11 +394,19 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
         if (runtime.isCancelled?.()) break
       }
     }
-    if (runtime.isCancelled?.()) return cancelledSummary(summary, started)
-    if (!summary.inputCount) return failure("No supported images were found.")
+    if (runtime.isCancelled?.()) {
+      onEvent({ type: "log", message: `Task cancelled after ${formatElapsed(started)}; processed ${summary.inputCount} image(s).` })
+      return cancelledSummary(summary, started)
+    }
+    if (!summary.inputCount) {
+      onEvent({ type: "log", message: `Input stream completed after ${formatElapsed(started)} without supported images.` })
+      return failure("No supported images were found.")
+    }
     emitLiveResult(onEvent, summary, started, summary.inputCount)
     const data = summaryData(summary, Date.now() - started)
+    onEvent({ type: "log", message: resultRetentionMessage(data) })
     if (options.action !== "convert") {
+      onEvent({ type: "log", message: `Planning completed in ${formatElapsed(started)}; ${data.inputCount} image(s), ${formatBytesForLog(data.inputBytes)} input.` })
       onEvent({ type: "progress", progress: 100, message: `Planned ${data.inputCount} image(s).` })
       return success(`Xlchemy planned ${data.inputCount} image(s).`, data)
     }
@@ -388,7 +414,9 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     onEvent({ type: "progress", progress: 100, message: `Converted ${data.convertedCount} image(s).` })
     return success(`Xlchemy converted ${data.convertedCount} of ${data.inputCount} image(s).`, data)
   } catch (error) {
-    return failure(error instanceof Error ? error.message : String(error))
+    const message = error instanceof Error ? error.message : String(error)
+    onEvent({ type: "log", message: `Task failed after ${formatElapsed(started)}: ${message}` })
+    return failure(message)
   }
 }
 
@@ -402,13 +430,45 @@ async function convertFileWithProgress(item: XlchemyFileResult, input: XlchemyIn
   return await convertFile(item, input, runtime, onEvent)
 }
 
-async function* streamInputSources(paths: string[], recursive: boolean, efuFiles: string[], runtime: XlchemyRuntime, accepts: (path: string) => boolean): AsyncGenerator<string> {
+async function* streamInputSources(
+  paths: string[],
+  recursive: boolean,
+  efuFiles: string[],
+  runtime: XlchemyRuntime,
+  accepts: (path: string) => boolean,
+  onEvent: (event: NodeRunEvent) => void,
+  activeWorkers: () => number,
+): AsyncGenerator<string> {
   for await (const source of streamDiscoveredImages(paths, recursive, runtime)) if (accepts(source)) yield source
   for (const efuFile of efuFiles) {
-    for await (const source of runtime.streamEfuPaths!(efuFile)) {
-      runtime.checkMemory?.()
-      if (runtime.isCancelled?.()) return
-      if (accepts(source)) yield source
+    const started = Date.now()
+    let read = 0
+    let accepted = 0
+    let filtered = 0
+    let lastLoggedAt = started
+    let lastLoggedRead = 0
+    onEvent({ type: "log", message: `EFU stream opened: ${runtime.basename(efuFile)}; single-pass read started.` })
+    try {
+      for await (const source of runtime.streamEfuPaths!(efuFile)) {
+        runtime.checkMemory?.()
+        if (runtime.isCancelled?.()) return
+        read += 1
+        if (accepts(source)) {
+          accepted += 1
+          yield source
+        } else filtered += 1
+        const now = Date.now()
+        const rowsSinceLog = read - lastLoggedRead
+        if (rowsSinceLog >= EFU_LOG_ROW_INTERVAL || rowsSinceLog >= EFU_LOG_MIN_ROWS && now - lastLoggedAt >= EFU_LOG_INTERVAL_MS) {
+          onEvent({ type: "log", message: `EFU stream ${runtime.basename(efuFile)}: read ${read}, accepted ${accepted}, filtered ${filtered}; active workers ${activeWorkers()}.` })
+          lastLoggedAt = now
+          lastLoggedRead = read
+        }
+      }
+      onEvent({ type: "log", message: `EFU stream completed: ${runtime.basename(efuFile)}; read ${read}, accepted ${accepted}, filtered ${filtered} in ${formatElapsed(started)}; single pass.` })
+    } catch (error) {
+      onEvent({ type: "log", message: `EFU stream failed: ${runtime.basename(efuFile)} after ${read} record(s) in ${formatElapsed(started)}: ${error instanceof Error ? error.message : String(error)}` })
+      throw error
     }
   }
 }
@@ -418,6 +478,9 @@ function requiresWindowedOrder(order: XlchemyInput["processingOrder"]): boolean 
 }
 
 const STREAM_ORDER_WINDOW_SIZE = 64
+const EFU_LOG_ROW_INTERVAL = 10_000
+const EFU_LOG_MIN_ROWS = 100
+const EFU_LOG_INTERVAL_MS = 5_000
 
 async function* orderSourceStream(sources: AsyncIterable<string>, order: XlchemyInput["processingOrder"], runtime: XlchemyRuntime): AsyncGenerator<string> {
   if (!requiresWindowedOrder(order)) {
@@ -459,8 +522,11 @@ function mimeForFormat(format: XlchemyFormat): string {
 const RESULT_DETAIL_LIMIT = 1_000
 const LIVE_DETAIL_LIMIT = 20
 const ERROR_DETAIL_LIMIT = 200
-const LIVE_RESULT_INTERVAL_MS = 250
-const FILE_PROGRESS_INTERVAL_MS = 100
+const INPUT_ANALYSIS_SAMPLE_LIMIT = 2_048
+const INPUT_ANALYSIS_FOLDER_LIMIT = 64
+const LIVE_RESULT_INTERVAL_MS = 500
+const FILE_PROGRESS_INTERVAL_MS = 500
+const DIAGNOSTIC_LOG_INTERVAL_MS = 5_000
 
 interface XlchemySummary {
   files: XlchemyFileResult[]
@@ -473,16 +539,25 @@ interface XlchemySummary {
   outputBytes: number
   errors: string[]
   detailsTruncated: boolean
+  knownSizeCount: number
+  minSize: number
+  maxSize: number
+  sizeSamples: number[]
+  formats: Map<string, { count: number; size: number }>
+  folders: Map<string, { count: number; size: number }>
+  otherFolderCount: number
+  otherFolderSize: number
 }
 
 function createSummary(): XlchemySummary {
-  return { files: [], fileCursor: 0, inputCount: 0, convertedCount: 0, skippedCount: 0, errorCount: 0, inputBytes: 0, outputBytes: 0, errors: [], detailsTruncated: false }
+  return { files: [], fileCursor: 0, inputCount: 0, convertedCount: 0, skippedCount: 0, errorCount: 0, inputBytes: 0, outputBytes: 0, errors: [], detailsTruncated: false, knownSizeCount: 0, minSize: Number.POSITIVE_INFINITY, maxSize: 0, sizeSamples: [], formats: new Map(), folders: new Map(), otherFolderCount: 0, otherFolderSize: 0 }
 }
 
 function appendSummary(summary: XlchemySummary, file: XlchemyFileResult) {
   summary.inputCount += 1
   summary.inputBytes += file.sourceBytes ?? 0
   summary.outputBytes += file.outputBytes ?? 0
+  appendInputAnalysis(summary, file)
   if (file.status === "converted") summary.convertedCount += 1
   else if (file.status === "skipped") summary.skippedCount += 1
   else if (file.status === "error") {
@@ -511,8 +586,86 @@ function summaryData(summary: XlchemySummary, elapsedMs: number, live = false): 
     outputBytes: summary.outputBytes,
     elapsedMs,
     errors: [...summary.errors],
+    inputAnalysis: inputAnalysisData(summary),
     detailsTruncated: summary.detailsTruncated,
   }
+}
+
+function appendInputAnalysis(summary: XlchemySummary, file: XlchemyFileResult): void {
+  const size = Math.max(0, file.sourceBytes ?? 0)
+  appendDistribution(summary.formats, sourceExtension(file.sourcePath), size)
+  const folder = sourceFolder(file.sourcePath)
+  const existingFolder = summary.folders.get(folder)
+  if (existingFolder) {
+    existingFolder.count += 1
+    existingFolder.size += size
+  } else if (summary.folders.size < INPUT_ANALYSIS_FOLDER_LIMIT - 1) summary.folders.set(folder, { count: 1, size })
+  else {
+    summary.otherFolderCount += 1
+    summary.otherFolderSize += size
+  }
+  if (file.sourceBytes === undefined) return
+  summary.knownSizeCount += 1
+  summary.minSize = Math.min(summary.minSize, size)
+  summary.maxSize = Math.max(summary.maxSize, size)
+  if (summary.sizeSamples.length < INPUT_ANALYSIS_SAMPLE_LIMIT) summary.sizeSamples.push(size)
+  else {
+    const slot = deterministicReservoirSlot(summary.knownSizeCount)
+    if (slot < INPUT_ANALYSIS_SAMPLE_LIMIT) summary.sizeSamples[slot] = size
+  }
+}
+
+function inputAnalysisData(summary: XlchemySummary): XlchemyInputAnalysis {
+  const samples = [...summary.sizeSamples].sort((left, right) => left - right)
+  const folders = [...summary.folders.entries()].map(([key, value]) => ({ key, ...value }))
+  if (summary.otherFolderCount) {
+    const other = folders.find((item) => item.key === "其他")
+    if (other) {
+      other.count += summary.otherFolderCount
+      other.size += summary.otherFolderSize
+    } else folders.push({ key: "其他", count: summary.otherFolderCount, size: summary.otherFolderSize })
+  }
+  return {
+    totalFiles: summary.inputCount,
+    totalSize: summary.inputBytes,
+    minSize: Number.isFinite(summary.minSize) ? summary.minSize : 0,
+    medianSize: samples[Math.floor(samples.length / 2)] ?? 0,
+    maxSize: summary.maxSize,
+    formats: distributionData(summary.formats),
+    folders: folders.sort(distributionSort),
+    sampled: summary.knownSizeCount !== summary.inputCount || summary.knownSizeCount > INPUT_ANALYSIS_SAMPLE_LIMIT || summary.otherFolderCount > 0,
+  }
+}
+
+function appendDistribution(values: Map<string, { count: number; size: number }>, key: string, size: number): void {
+  const current = values.get(key) ?? { count: 0, size: 0 }
+  current.count += 1
+  current.size += size
+  values.set(key, current)
+}
+
+function distributionData(values: Map<string, { count: number; size: number }>) {
+  return [...values.entries()].map(([key, value]) => ({ key, ...value })).sort(distributionSort)
+}
+
+function distributionSort(left: { count: number; size: number }, right: { count: number; size: number }) {
+  return right.size - left.size || right.count - left.count
+}
+
+function deterministicReservoirSlot(count: number): number {
+  return (Math.imul(count, 2_654_435_761) >>> 0) % count
+}
+
+function sourceExtension(path: string): string {
+  const name = path.replace(/\\/g, "/").split("/").at(-1) ?? path
+  const dot = name.lastIndexOf(".")
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : "unknown"
+}
+
+function sourceFolder(path: string): string {
+  const normalized = path.replace(/\\/g, "/")
+  const directory = normalized.includes("/") ? normalized.slice(0, normalized.lastIndexOf("/")) : ""
+  return directory.split("/").filter(Boolean).at(-1) ?? "/"
 }
 
 function emitLiveResult(onEvent: (event: NodeRunEvent) => void, summary: XlchemySummary, started: number, total?: number) {
@@ -545,6 +698,49 @@ function batchExecutionMessage(input: XlchemyInput, workerThreads: number[]): st
   const distribution = [...new Set(workerThreads)].length === 1 ? `${workerThreads[0]} each` : workerThreads.join(",")
   const tuning = input.format === "AVIF" && input.avifEncoder === "slimg" ? "20ms native microbatch; host-bounded Rayon oversubscription; ravif speed 6 (effort setting ignored)" : `effort ${input.effort}`
   return `Batch scheduler: ${workerThreads.length} worker(s); CPU thread budget ${input.threads}; encoder threads ${distribution}; ${encoder}; ${input.lossless ? "lossless" : `Q${input.quality}`}; ${tuning}.`
+}
+
+function taskConfigurationMessage(input: XlchemyInput): string {
+  const inputSources = `${input.paths.length} direct source(s), ${input.efuFiles?.length ?? 0} EFU list(s)`
+  const quality = input.lossless ? "lossless" : `Q${input.quality}`
+  return `Task configured: ${input.action}; ${inputSources}; ${encoderLabel(input)} ${quality}; effort ${input.effort}; CPU budget ${input.threads}; order ${input.processingOrder}.`
+}
+
+function outputPolicyMessage(input: XlchemyInput): string {
+  const output = input.outputMode === "directory" ? `directory output with structure ${input.preserveStructure ? "preserved" : "flattened"}` : "source-adjacent output"
+  const deletion = input.deleteOriginal ? `delete originals via ${input.deleteOriginalMode}` : "retain originals"
+  return `Output policy: ${output}; existing ${input.existingPolicy}; metadata ${input.metadataMode}; timestamps ${input.preserveTimestamps ? "preserved" : "not preserved"}; ${deletion}.`
+}
+
+function boundedStateMessage(runtime: XlchemyRuntime): string {
+  return `Bounded state: final details ${RESULT_DETAIL_LIMIT}, live details ${LIVE_DETAIL_LIMIT}, errors ${ERROR_DETAIL_LIMIT}, size sample ${INPUT_ANALYSIS_SAMPLE_LIMIT}, folder buckets ${INPUT_ANALYSIS_FOLDER_LIMIT}; host memory checks ${runtime.checkMemory ? "enabled" : "not supplied"}.`
+}
+
+function resourceAdmissionMessage(input: XlchemyInput, runtime: XlchemyRuntime): string {
+  const estimate = estimateXlchemyWorkerMemoryMiB(input)
+  return runtime.acquireWorker
+    ? `Global resource admission: enabled; each encoder requests its thread share and approximately ${estimate} MiB before starting.`
+    : `Global resource admission: unavailable in this host; local worker limits remain active with approximately ${estimate} MiB estimated per encoder.`
+}
+
+function resultRetentionMessage(data: XlchemyData): string {
+  const sampling = data.inputAnalysis?.sampled ? "bounded sample" : "exact stream aggregate"
+  return `Result state: retained ${data.files.length}/${data.inputCount} file detail(s), ${data.errors.length}/${data.errorCount} error detail(s); input analysis ${sampling}.`
+}
+
+function encoderLabel(input: XlchemyInput): string {
+  return input.format === "AVIF" ? input.avifEncoder === "svt" ? "SVT-AV1" : input.avifEncoder === "slimg" ? "slimg" : "AOM AV1" : input.format
+}
+
+function formatElapsed(started: number): string {
+  return `${((Date.now() - started) / 1_000).toFixed(2)}s`
+}
+
+function formatBytesForLog(bytes: number): string {
+  if (bytes < 1_024) return `${bytes} B`
+  const units = ["KiB", "MiB", "GiB", "TiB"]
+  const unit = Math.min(Math.floor(Math.log(bytes) / Math.log(1_024)) - 1, units.length - 1)
+  return `${(bytes / 1_024 ** (unit + 1)).toFixed(1)} ${units[unit]}`
 }
 
 function serializedIterator<T>(iterator: AsyncIterator<T>): () => Promise<IteratorResult<T>> {

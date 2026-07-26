@@ -36,6 +36,19 @@ export function DataAnalysis(props: { paths: string[]; efuAnalyses?: XlchemyEfuA
 }
 
 function buildInputStats(paths: string[], efuAnalyses: XlchemyEfuAnalysis[], result: XlchemyData | null) {
+  if (result?.inputAnalysis) {
+    const analysis = result.inputAnalysis
+    return {
+      totalFiles: analysis.totalFiles,
+      totalSize: analysis.totalSize,
+      avgSize: analysis.totalFiles ? Math.round(analysis.totalSize / analysis.totalFiles) : 0,
+      minSize: analysis.minSize,
+      medianSize: analysis.medianSize,
+      maxSize: analysis.maxSize,
+      formats: analysis.formats,
+      folders: analysis.folders.slice(0, 6),
+    }
+  }
   const sizes = new Map(result?.files.map((file) => [normalizePath(file.sourcePath), file.sourceBytes ?? 0]) ?? [])
   const entries: InputEntry[] = paths.map((path) => {
     const normalized = normalizePath(path), name = normalized.split("/").at(-1) ?? normalized, directory = normalized.includes("/") ? normalized.slice(0, normalized.lastIndexOf("/")) : "", dot = name.lastIndexOf(".")

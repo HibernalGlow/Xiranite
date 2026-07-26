@@ -280,14 +280,12 @@ describe("app-owned xlchemy Component", () => {
   })
 
   test("keeps imported EFU files as backend-streamed references", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response([
-      "Filename,Size",
-      "D:/Pictures/a.png,100",
-      "D:/Pictures/b.jpg,300",
-    ].join("\r\n"))))
+    const fetchEfu = vi.fn(async () => new Response("Filename,Size\r\nD:/Pictures/a.png,100"))
+    vi.stubGlobal("fetch", fetchEfu)
     const host = createHost({})
+    const getUrl = vi.fn((path: string) => `local://${path}`)
     host.localFiles = {
-      getUrl: (path) => `local://${path}`,
+      getUrl,
       pickFiles: async (options) => options?.filters?.[0]?.pattern === "*.efu" ? ["D:/Downloads/al.efu"] : [],
       pickDirectory: async () => undefined,
     }
@@ -296,13 +294,15 @@ describe("app-owned xlchemy Component", () => {
     await user.click(screen.getByRole("button", { name: "添加输入" }))
     await user.click(screen.getByRole("menuitem", { name: "导入 EFU 文件列表" }))
     await waitFor(() => expect(host.cardState.efuFiles).toEqual(["D:/Downloads/al.efu"]))
-    await waitFor(() => expect(host.cardState.efuAnalysisByPath?.["D:/Downloads/al.efu"]).toMatchObject({ totalFiles: 2, totalSize: 400 }))
+    expect(getUrl).not.toHaveBeenCalled()
+    expect(fetchEfu).not.toHaveBeenCalled()
+    expect(host.cardState.efuAnalysisByPath?.["D:/Downloads/al.efu"]).toBeUndefined()
     expect(host.cardState.pathsText).toBeUndefined()
 
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(screen.getByText("al.efu")).toBeTruthy()
-    expect(within(screen.getByTestId("xlchemy-header")).getByText("2 项 · 1 EFU")).toBeTruthy()
-    expect(screen.getByText("200 B")).toBeTruthy()
+    expect(screen.getByText("流式")).toBeTruthy()
+    expect(within(screen.getByTestId("xlchemy-header")).getByText("1 EFU")).toBeTruthy()
     const plan = within(screen.getByTestId("xlchemy-header")).getByRole("button", { name: "预览计划" })
     expect(plan.hasAttribute("disabled")).toBe(false)
     fireEvent.click(plan)
