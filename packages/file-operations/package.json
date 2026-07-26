@@ -1,0 +1,36 @@
+{
+  "name": "@xiranite/file-operations",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "description": "Shared recoverable filesystem operations and deletion history for Xiranite nodes.",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./platform": {
+      "types": "./dist/platform.d.ts",
+      "default": "./dist/platform.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json",
+    "test": "vitest run src --maxWorkers=1 && bun run build"
+  },
+  "dependencies": {
+    "@xiranite/czkawka-native": "workspace:*",
+    "csv-stringify": "^6.6.0",
+    "move-file": "4.1.0",
+    "p-map": "4.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
