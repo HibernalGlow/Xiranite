@@ -607,6 +607,40 @@ mod tests {
     }
 
     #[test]
+    fn failed_refresh_clears_scan_state_and_allows_retry() {
+        let cache = (Mutex::new(TrashListCache::default()), Condvar::new());
+
+        let failed = list_trash_items_cached(&cache, || {
+            let mut state = cache.0.lock().unwrap();
+            upsert_trash_list_cache(
+                &mut state,
+                &trash_item("direct", Path::new("D:/archive/direct.txt"), 11),
+            );
+            Err(Error::from_reason("scan failed"))
+        });
+
+        assert!(failed.is_err());
+        {
+            let state = cache.0.lock().unwrap();
+            assert!(!state.refreshing);
+            assert!(state.pending_mutations.is_empty());
+            assert!(state.refreshed_at.is_none());
+        }
+
+        let retried = list_trash_items_cached(&cache, || {
+            Ok(vec![trash_item(
+                "direct",
+                Path::new("D:/archive/direct.txt"),
+                11,
+            )])
+        })
+        .unwrap();
+
+        assert_eq!(retried.len(), 1);
+        assert_eq!(retried[0].id, OsString::from("direct"));
+    }
+
+    #[test]
     fn selects_latest_new_receipt_for_original_path() {
         let path = Path::new(r"D:\\archive\\test.txt");
         let existing_id = OsString::from("existing");
