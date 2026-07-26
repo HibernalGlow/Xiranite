@@ -60,6 +60,8 @@
     "generate:node-registries": "bun scripts/generate-node-registries.ts",
     "lint": "oxlint .",
     "lint:all": "bun run lint && bun run audit:node-architecture",
+    "check:source-size": "bun scripts/check-source-size.ts",
+    "audit:source-size": "bun scripts/check-source-size.ts --all",
     "migrate:node-ui": "bun scripts/migrate-node-ui-to-app.ts",
     "migrate:tauri": "bun packages/tauri-migrate/src/cli.ts",
     "migrate:svelte": "bun packages/svelte-migrate/src/cli.ts",
