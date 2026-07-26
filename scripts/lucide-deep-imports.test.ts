@@ -6,34 +6,22 @@ import transformImports from "@rolldown/plugin-transform-imports"
 import { parseSync } from "oxc-parser"
 import { rolldown } from "rolldown"
 
-import { LUCIDE_TRANSFORM_IMPORT_OPTIONS, protectLucideTypeImports } from "./lucide-deep-imports"
+import { LUCIDE_TRANSFORM_IMPORT_OPTIONS } from "./lucide-deep-imports"
 
 describe("Lucide transform-import policy", () => {
-  it("protects standalone and mixed type imports", () => {
-    const source = `import { AlertTriangle, RefreshCw as Refresh, type LucideIcon } from "lucide-react"\n`
-      + `import type { LucideProps } from "lucide-react"\n`
-
-    expect(protectLucideTypeImports(source)).toBe(
-      `import type { LucideIcon } from "lucide-react/dist/esm/lucide-react.mjs";\n`
-      + `import { AlertTriangle, RefreshCw as Refresh } from "lucide-react";\n`
-      + `import type { LucideProps } from "lucide-react/dist/esm/lucide-react.mjs"\n`,
-    )
-  })
-
   it("uses the official Rolldown plugin for value deep imports", async () => {
-    const source = protectLucideTypeImports(
-      `import { AlertTriangle, PictureInPicture2, RefreshCw as Refresh, type LucideIcon } from "lucide-react"\n`
-      + `export const icons: LucideIcon[] = [AlertTriangle, PictureInPicture2, Refresh]\n`,
-    )!
+    const source = `import { AlertTriangle, PictureInPicture2, RefreshCw as Refresh, type LucideIcon } from "lucide-react"\n`
+      + `export const icons: LucideIcon[] = [AlertTriangle, PictureInPicture2, Refresh]\n`
     const code = await transformLucideSource(source)
 
     expect(code).toContain("lucide-react/dist/esm/icons/alert-triangle.mjs")
     expect(code).toContain("lucide-react/dist/esm/icons/picture-in-picture-2.mjs")
     expect(code).toContain("lucide-react/dist/esm/icons/refresh-cw.mjs")
     expect(code).not.toContain("lucide-react/dist/esm/lucide-react.mjs")
+    expect(code).not.toMatch(/from\s*["']lucide-react["']/)
   })
 
-  it("protects every Lucide type import in the application source", async () => {
+  it("resolves every application value import to a published module", async () => {
     const root = resolve(import.meta.dir, "..")
     const glob = new Bun.Glob("src/**/*.{ts,tsx}")
     let importFileCount = 0
@@ -43,11 +31,8 @@ describe("Lucide transform-import policy", () => {
       const source = await readFile(file, "utf8")
       if (!source.includes("lucide-react")) continue
       importFileCount += 1
-      const protectedSource = protectLucideTypeImports(source) ?? source
       expect(source).not.toMatch(/import\s+(?:\*\s+as\s+[\w$]+|[\w$]+)\s+from\s+["']lucide-react["']/)
       expect(source).not.toMatch(/import\s+["']lucide-react["']/)
-      expect(protectedSource).not.toMatch(/import\s+type\s+(?:\{[^}]*\}|\*\s+as\s+[\w$]+|[\w$]+)\s+from\s+["']lucide-react["']/)
-      expect(protectedSource).not.toMatch(/import\s*\{[^}]*\btype\s+[^}]*\}\s*from\s*["']lucide-react["']/)
       for (const name of collectLucideValueImports(source, file)) valueImports.add(name)
     }
 
@@ -60,7 +45,8 @@ describe("Lucide transform-import policy", () => {
     const deepImports = [...code.matchAll(/["'](lucide-react\/dist\/esm\/icons\/[^"']+)["']/g)]
       .map((match) => match[1]!)
 
-    expect(deepImports).toHaveLength(names.length)
+    expect(deepImports.length).toBeGreaterThan(300)
+    expect(code).not.toMatch(/from\s*["']lucide-react["']/)
     const missingDeepImports: string[] = []
     for (const modulePath of deepImports) {
       if (!await exists(resolve(root, "node_modules", modulePath))) missingDeepImports.push(modulePath)
