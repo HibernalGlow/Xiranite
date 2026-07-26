@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { ModuleRenderer } from "@/components/modules/ModuleRenderer"
@@ -11,6 +11,10 @@ import type { ComponentInstance } from "@/types/workspace"
 import { createLogger } from "@/lib/logger"
 
 const logger = createLogger("window.floating")
+
+const WorkspaceMelodeckProvider = lazy(() =>
+  import("./WorkspaceMelodeck").then((module) => ({ default: module.WorkspaceMelodeckProvider })),
+)
 
 interface Props {
   compId: string
@@ -161,7 +165,15 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
     </div>
   )
 
-  if (!showNativeWindowChrome) return content
+  const framedContent = showNativeWindowChrome
+    ? <FloatingWindowFrameProvider value={frame}>{content}</FloatingWindowFrameProvider>
+    : content
 
-  return <FloatingWindowFrameProvider value={frame}>{content}</FloatingWindowFrameProvider>
+  if (moduleId !== "melodeck" && moduleId !== "music-player") return framedContent
+
+  return (
+    <Suspense fallback={<div className={cn("h-screen bg-background", themeClass)} />}>
+      <WorkspaceMelodeckProvider>{framedContent}</WorkspaceMelodeckProvider>
+    </Suspense>
+  )
 }
