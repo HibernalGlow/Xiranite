@@ -5,7 +5,9 @@ import { join } from "node:path"
 import { cancelCzkawkaScan, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles } from "../dist/index.js"
 
 const info = getCzkawkaInfo()
-if (info.apiVersion !== 5 || info.sourceVersion !== "10.0.0") {
+const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel"]
+const missingCapabilities = requiredCapabilities.filter((capability) => !info.capabilities.includes(capability))
+if (info.apiVersion !== 5 || missingCapabilities.length) {
   throw new Error(`Unexpected Czkawka info: ${JSON.stringify(info)}`)
 }
 console.log(JSON.stringify(info))

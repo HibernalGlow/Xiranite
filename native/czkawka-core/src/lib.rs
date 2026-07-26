@@ -1,69 +1,33 @@
 use std::path::PathBuf;
-use std::sync::{Arc, Once, OnceLock};
-use std::sync::atomic::AtomicBool;
-use std::thread::JoinHandle;
+use std::sync::{Once, OnceLock};
 
-use crossbeam_channel::{Receiver, Sender, unbounded};
 use czkawka_core::common::config_cache_path::set_config_cache_path;
 use czkawka_core::common::model::{CheckingMethod, HashType};
-use czkawka_core::common::progress_data::ProgressData;
 use czkawka_core::common::tool_data::CommonData;
-use czkawka_core::common::traits::Search;
 use czkawka_core::tools::bad_extensions::{BadExtensions, BadExtensionsParameters};
-use czkawka_core::tools::big_file::{BigFile, BigFileParameters, SearchMode};
 use czkawka_core::tools::broken_files::{BrokenFiles, BrokenFilesParameters, CheckedTypes};
 use czkawka_core::tools::duplicate::{DuplicateEntry, DuplicateFinder, DuplicateFinderParameters};
-use czkawka_core::tools::empty_files::EmptyFiles;
-use czkawka_core::tools::empty_folder::EmptyFolder;
-use czkawka_core::tools::invalid_symlinks::InvalidSymlinks;
 use czkawka_core::tools::same_music::{MusicEntry, MusicSimilarity, SameMusic, SameMusicParameters};
 use czkawka_core::tools::similar_images::{ImagesEntry, SimilarImages, SimilarImagesParameters};
 use czkawka_core::tools::similar_videos::{SimilarVideos, SimilarVideosParameters, VideosEntry};
-use czkawka_core::tools::temporary::Temporary;
 use image_hasher::{FilterType, HashAlg};
 use thiserror::Error;
 use vid_dup_finder_lib::Cropdetect;
 
-pub const API_VERSION: u32 = 5;
+mod capabilities;
+mod scan_control;
+mod upstream;
+#[cfg(test)]
+mod tests;
 
-#[derive(Debug, Clone)]
-pub struct ScanProgress {
-    pub stage: String,
-    pub stage_index: u8,
-    pub stage_count: u8,
-    pub entries_checked: usize,
-    pub entries_total: usize,
-    pub bytes_checked: u64,
-    pub bytes_total: u64,
-}
+pub use capabilities::{CzkawkaInfo, API_VERSION, CAPABILITIES};
+pub use scan_control::{ScanControl, ScanProgress};
 
-#[derive(Clone)]
-pub struct ScanControl {
-    stop: Arc<AtomicBool>,
-    progress: Option<Sender<ScanProgress>>,
-}
-
-impl ScanControl {
-    pub fn detached() -> Self { Self { stop: Arc::new(AtomicBool::new(false)), progress: None } }
-    pub fn channel(stop: Arc<AtomicBool>) -> (Self, Receiver<ScanProgress>) { let (sender, receiver) = unbounded(); (Self { stop, progress: Some(sender) }, receiver) }
-    fn start_progress_forwarder(&self) -> (Option<Sender<ProgressData>>, Option<JoinHandle<()>>) {
-        let Some(target) = self.progress.clone() else { return (None, None) };
-        let (sender, receiver) = unbounded::<ProgressData>();
-        let handle = std::thread::spawn(move || while let Ok(progress) = receiver.recv() { let _ = target.send(ScanProgress { stage: format!("{:?}", progress.sstage), stage_index: progress.current_stage_idx, stage_count: progress.max_stage_idx.saturating_add(1), entries_checked: progress.entries_checked, entries_total: progress.entries_to_check, bytes_checked: progress.bytes_checked, bytes_total: progress.bytes_to_check }); });
-        (Some(sender), Some(handle))
-    }
-}
+use upstream::common::search_with_control;
 
 pub fn initialize_threads(thread_count: usize) -> usize {
     static THREAD_COUNT: OnceLock<usize> = OnceLock::new();
     *THREAD_COUNT.get_or_init(|| { czkawka_core::common::set_number_of_threads(thread_count); czkawka_core::common::get_number_of_threads() })
-}
-
-fn search_with_control<T: Search>(tool: &mut T, control: &ScanControl) {
-    let (progress, forwarder) = control.start_progress_forwarder();
-    tool.search(&control.stop, progress.as_ref());
-    drop(progress);
-    if let Some(handle) = forwarder { let _ = handle.join(); }
 }
 
 #[derive(Debug, Error)]
@@ -72,17 +36,8 @@ pub enum CzkawkaError {
     InvalidOption(String),
 }
 
-#[derive(Debug, Clone)]
-pub struct CzkawkaInfo {
-    pub api_version: u32,
-    pub source_version: &'static str,
-}
-
 pub fn czkawka_info() -> CzkawkaInfo {
-    CzkawkaInfo {
-        api_version: API_VERSION,
-        source_version: czkawka_core::CZKAWKA_VERSION,
-    }
+    capabilities::info(czkawka_core::CZKAWKA_VERSION)
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -345,134 +300,14 @@ pub struct BasicScanResult {
 }
 
 pub fn scan_basic_files(options: BasicScanOptions) -> Result<BasicScanResult, CzkawkaError> {
-    scan_basic_files_controlled(options, &ScanControl::detached())
+    upstream::basic::scan_basic_files(options)
 }
 
-pub fn scan_basic_files_controlled(options: BasicScanOptions, control: &ScanControl) -> Result<BasicScanResult, CzkawkaError> {
-    initialize_cache_path();
-    if options.included_directories.is_empty() {
-        return Err(CzkawkaError::InvalidOption(
-            "included_directories cannot be empty".into(),
-        ));
-    }
-    match options.tool {
-        BasicTool::BigFiles => {
-            let mode = if options.biggest_first {
-                SearchMode::BiggestFiles
-            } else {
-                SearchMode::SmallestFiles
-            };
-            let mut tool = BigFile::new(BigFileParameters::new(options.number_of_files, mode));
-            configure_tool(&mut tool, &options);
-            search_with_control(&mut tool, control);
-            let entries = tool
-                .get_big_files()
-                .iter()
-                .map(|entry| BasicEntry {
-                    path: entry.path.clone(),
-                    size: entry.size,
-                    modified_date: entry.modified_date,
-                    secondary_path: None,
-                    detail: None,
-                })
-                .collect();
-            Ok(basic_result(&tool, entries))
-        }
-        BasicTool::EmptyFiles => {
-            let mut tool = EmptyFiles::new();
-            configure_tool(&mut tool, &options);
-            search_with_control(&mut tool, control);
-            let entries = tool
-                .get_empty_files()
-                .iter()
-                .map(|entry| BasicEntry {
-                    path: entry.path.clone(),
-                    size: entry.size,
-                    modified_date: entry.modified_date,
-                    secondary_path: None,
-                    detail: None,
-                })
-                .collect();
-            Ok(basic_result(&tool, entries))
-        }
-        BasicTool::EmptyFolders => {
-            let mut tool = EmptyFolder::new();
-            configure_tool(&mut tool, &options);
-            search_with_control(&mut tool, control);
-            let entries = tool
-                .get_empty_folder_list()
-                .values()
-                .map(|entry| BasicEntry {
-                    path: entry.path.clone(),
-                    size: 0,
-                    modified_date: entry.modified_date,
-                    secondary_path: None,
-                    detail: None,
-                })
-                .collect();
-            Ok(basic_result(&tool, entries))
-        }
-        BasicTool::TemporaryFiles => {
-            let mut tool = Temporary::new();
-            configure_tool(&mut tool, &options);
-            search_with_control(&mut tool, control);
-            let entries = tool
-                .get_temporary_files()
-                .iter()
-                .map(|entry| BasicEntry {
-                    path: entry.path.clone(),
-                    size: entry.size,
-                    modified_date: entry.modified_date,
-                    secondary_path: None,
-                    detail: None,
-                })
-                .collect();
-            Ok(basic_result(&tool, entries))
-        }
-        BasicTool::InvalidSymlinks => {
-            let mut tool = InvalidSymlinks::new();
-            configure_tool(&mut tool, &options);
-            search_with_control(&mut tool, control);
-            let entries = tool
-                .get_invalid_symlinks()
-                .iter()
-                .map(|entry| BasicEntry {
-                    path: entry.path.clone(),
-                    size: entry.size,
-                    modified_date: entry.modified_date,
-                    secondary_path: Some(entry.symlink_info.destination_path.clone()),
-                    detail: Some(entry.symlink_info.type_of_error.to_string()),
-                })
-                .collect();
-            Ok(basic_result(&tool, entries))
-        }
-    }
-}
-
-fn configure_tool<T: CommonData>(tool: &mut T, options: &BasicScanOptions) {
-    tool.set_included_directory(options.included_directories.clone());
-    if !options.reference_directories.is_empty() {
-        tool.set_reference_directory(options.reference_directories.clone());
-    }
-    tool.set_excluded_directory(options.excluded_directories.clone());
-    tool.set_excluded_items(options.excluded_items.clone());
-    tool.set_allowed_extensions(options.allowed_extensions.clone());
-    tool.set_excluded_extensions(options.excluded_extensions.clone());
-    tool.set_recursive_search(options.recursive);
-    tool.set_minimal_file_size(options.minimum_file_size);
-    tool.set_maximal_file_size(options.maximum_file_size);
-    tool.set_use_cache(options.use_cache);
-    tool.set_save_also_as_json(options.save_also_as_json);
-    tool.set_delete_outdated_cache(options.delete_outdated_cache);
-}
-
-fn basic_result<T: CommonData>(tool: &T, mut entries: Vec<BasicEntry>) -> BasicScanResult {
-    entries.sort_unstable_by(|left, right| left.path.cmp(&right.path));
-    BasicScanResult {
-        entries,
-        messages: tool.get_text_messages().create_messages_text(),
-        stopped: tool.get_stopped_search(),
-    }
+pub fn scan_basic_files_controlled(
+    options: BasicScanOptions,
+    control: &ScanControl,
+) -> Result<BasicScanResult, CzkawkaError> {
+    upstream::basic::scan_basic_files_controlled(options, control)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -869,7 +704,7 @@ fn configure_media_tool<T: CommonData>(tool: &mut T, options: &MediaScanOptions)
     tool.set_delete_outdated_cache(options.delete_outdated_cache);
 }
 
-fn initialize_cache_path() {
+pub(crate) fn initialize_cache_path() {
     static INITIALIZE_CACHE_PATH: Once = Once::new();
     INITIALIZE_CACHE_PATH.call_once(|| {
         let _ = set_config_cache_path("xiranite", "xiranite");
@@ -881,28 +716,5 @@ fn media_result<T: CommonData>(tool: &T, groups: Vec<MediaGroup>) -> MediaScanRe
         groups,
         messages: tool.get_text_messages().create_messages_text(),
         stopped: tool.get_stopped_search(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::fs;
-
-    use tempfile::tempdir;
-
-    use super::*;
-
-    #[test]
-    fn duplicate_scan_returns_identical_files() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("one.bin"), b"same-content").unwrap();
-        fs::write(dir.path().join("two.bin"), b"same-content").unwrap();
-        fs::write(dir.path().join("different.bin"), b"different-content").unwrap();
-
-        let options = DuplicateScanOptions::new(vec![dir.path().to_path_buf()]);
-        let result = scan_duplicate_files(options).unwrap();
-        assert_eq!(result.groups.len(), 1);
-        assert_eq!(result.groups[0].files.len(), 2);
-        assert!(!result.stopped);
     }
 }

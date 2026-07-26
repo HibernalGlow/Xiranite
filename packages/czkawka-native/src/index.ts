@@ -8,6 +8,11 @@ import { resolveCzkawkaBindingPath } from "./native-asset.js"
 export interface CzkawkaInfo {
   apiVersion: number
   sourceVersion: string
+  capabilities: string[]
+}
+
+interface CzkawkaBindingInfo extends Omit<CzkawkaInfo, "capabilities"> {
+  capabilities?: string[]
 }
 
 export interface TrashCapabilities {
@@ -188,7 +193,7 @@ export interface CzkawkaScanProgress {
 }
 
 export interface CzkawkaBinding {
-  getCzkawkaInfo(): CzkawkaInfo
+  getCzkawkaInfo(): CzkawkaBindingInfo
   getTrashCapabilities(): TrashCapabilities
   trashPath(path: string): Promise<TrashPathResult>
   listTrashItems(): Promise<TrashItemReceipt[]>
@@ -214,7 +219,10 @@ export function loadCzkawkaBinding(): CzkawkaBinding {
   return cachedBinding
 }
 
-export const getCzkawkaInfo = (): CzkawkaInfo => loadCzkawkaBinding().getCzkawkaInfo()
+export const getCzkawkaInfo = (): CzkawkaInfo => {
+  const info = loadCzkawkaBinding().getCzkawkaInfo()
+  return { ...info, capabilities: info.capabilities ?? [] }
+}
 export const getTrashCapabilities = (): TrashCapabilities => loadCzkawkaBinding().getTrashCapabilities()
 export const trashPath = (path: string): Promise<TrashPathResult> => loadCzkawkaBinding().trashPath(path)
 export const listTrashItems = (): Promise<TrashItemReceipt[]> => loadCzkawkaBinding().listTrashItems()
@@ -227,3 +235,10 @@ export const scanMediaFiles = (options: MediaScanOptions): Promise<MediaScanResu
   loadCzkawkaBinding().scanMediaFiles(options)
 export const cancelCzkawkaScan = (scanId: string): boolean => loadCzkawkaBinding().cancelCzkawkaScan?.(scanId) ?? false
 export const getCzkawkaScanProgress = (scanId: string): CzkawkaScanProgress | undefined => loadCzkawkaBinding().getCzkawkaScanProgress?.(scanId) ?? undefined
+
+export {
+  assertCzkawkaCompatibility,
+  checkCzkawkaCompatibility,
+  type CzkawkaBindingRequirement,
+  type CzkawkaCompatibilityResult,
+} from "./compatibility.js"
