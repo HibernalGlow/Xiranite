@@ -69,6 +69,7 @@ import { folderEntryName } from "./FolderDirectoryListItem"
 import { useFolderThumbnailPipeline } from "./useFolderThumbnailPipeline"
 import { useFolderSelectionController } from "./useFolderSelectionController"
 import { useFolderPenetrationPipeline } from "./useFolderPenetrationPipeline"
+import { useFolderEntryActivation } from "./useFolderEntryActivation"
 import { FolderBrowserPaneView } from "./FolderBrowserPaneView"
 export { DirectoryListItem } from "./FolderDirectoryListItem"
 export { isSameFolderNavigationEntry } from "./FolderPathIdentity"
@@ -79,9 +80,6 @@ export type { SavedDirectoryState, FolderBrowserCloneSnapshot, FolderBrowserClon
 const PAGE_SIZE = 128
 const MAX_CACHED_PAGES = 12
 const INITIAL_THUMBNAIL_DEMAND = 24
-// A short confirmation window preserves double-click raw-folder entry without
-// making a resolved folder feel like a half-second blocking operation.
-const PENETRATION_CLICK_DELAY_MS = 180
 const EMPTY_SELECTED_PATHS: ReadonlySet<string> = new Set()
 const DETAILS_METADATA_FIELDS: readonly ReaderDirectoryMetadataFieldDto[] = ["date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "tags"]
 
@@ -157,16 +155,6 @@ export function FolderBrowserPane({
   const sessionIdRef = useRef<string | undefined>(undefined)
   const catalogRef = useRef<DirectoryCatalog | undefined>(undefined)
   const navigationRequestRef = useRef<AbortController | undefined>(undefined)
-  const penetrationActivationRef = useRef<
-    | {
-        path: string
-        sessionId: string
-        generation: number
-        controller: AbortController
-        timer: ReturnType<typeof setTimeout>
-      }
-    | undefined
-  >(undefined)
   const retryOperationRef = useRef<FolderRetryOperation | undefined>(undefined)
   const catalogRequestRef = useRef<AbortController | undefined>(undefined)
   const pendingCursorsRef = useRef(new Set<string>())
@@ -211,6 +199,7 @@ export function FolderBrowserPane({
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
+  const [inlineBranchPath, setInlineBranchPath] = useState<string>()
   const {
     penetration,
     descriptions: penetrationDescriptions,
@@ -226,6 +215,19 @@ export function FolderBrowserPane({
     viewMode,
     reportError: setError,
   })
+  const { activate, cancelPendingActivation } = useFolderEntryActivation({
+    client,
+    catalogRef,
+    penetration,
+    switchToast,
+    openReaderEntry,
+    enterRawDirectory,
+    toggleInlineBranch,
+    reportError: setError,
+  })
+  useEffect(() => {
+    if (!active || !penetration.enabled || !penetration.expandBranchesInline) setInlineBranchPath(undefined)
+  }, [active, penetration.enabled, penetration.expandBranchesInline])
   const selectionController = useFolderSelectionController({
     client,
     catalog,
@@ -1072,14 +1074,6 @@ export function FolderBrowserPane({
     void onFolderView?.({ tree: { size } })
   }
 
-  function cancelPenetrationActivation(): void {
-    const pending = penetrationActivationRef.current
-    if (!pending) return
-    penetrationActivationRef.current = undefined
-    clearTimeout(pending.timer)
-    pending.controller.abort()
-  }
-
   function openReaderEntry(entry: Pick<ReaderDirectoryEntryDto, "path">, browserOriginEntryPath = entry.path, browserOriginSelfTerminal = false): void {
     const current = catalogRef.current
     void onOpen?.(
@@ -1095,8 +1089,13 @@ export function FolderBrowserPane({
   }
 
   function enterRawDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void {
-    cancelPenetrationActivation()
+    cancelPendingActivation()
+    setInlineBranchPath(undefined)
     void navigate({ action: "path", path: entry.path }, { focusPath: entry.path })
+  }
+
+  function toggleInlineBranch(path: string): void {
+    setInlineBranchPath((current) => sameFolderPath(current ?? "", path) ? undefined : path)
   }
 
   /**
@@ -1137,74 +1136,9 @@ export function FolderBrowserPane({
     })
   }
 
-  function activate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported">, rawDirectory = false) {
-    if (entry.kind === "directory") {
-      if (rawDirectory || !penetration.enabled || !client.resolveFolderPenetration) {
-        enterRawDirectory(entry)
-        return
-      }
-      const current = catalogRef.current
-      if (!current) return
-      cancelPenetrationActivation()
-      const controller = new AbortController()
-      const pending = {
-        path: entry.path,
-        sessionId: current.sessionId,
-        generation: current.generation,
-        controller,
-        timer: setTimeout(() => undefined, PENETRATION_CLICK_DELAY_MS),
-      }
-      penetrationActivationRef.current = pending
-      clearTimeout(pending.timer)
-      const delay = new Promise<void>((resolve) => {
-        pending.timer = setTimeout(resolve, PENETRATION_CLICK_DELAY_MS)
-      })
-      void Promise.all([
-        client.resolveFolderPenetration(
-          current.sessionId,
-          entry.path,
-          {
-            maxDepth: penetration.maxDepth,
-            terminalTargets: penetration.terminalTargets,
-          },
-          controller.signal,
-        ),
-        delay,
-      ])
-        .then(([resolution]) => {
-          if (penetrationActivationRef.current !== pending) return
-          penetrationActivationRef.current = undefined
-          if (catalogRef.current?.sessionId !== pending.sessionId || catalogRef.current?.generation !== pending.generation) return
-          if (resolution.status === "resolved" && resolution.terminal) {
-            const mixedMedia = resolution.reason === "mixed-media-directory"
-            if (mixedMedia) {
-              switchToast?.show({
-                title: `先阅读“${entry.name}”的当前层图片`,
-                description: `当前层 ${resolution.directMediaCount ?? 0} 张图片；发现 ${resolution.deferredDirectoryCount ?? 0} 个子文件夹，可继续作为“下一本”。`,
-              })
-            }
-            openReaderEntry({ path: resolution.terminal.path }, entry.path, mixedMedia)
-            return
-          }
-          if (resolution.status === "blocked" && (resolution.reason === "permission" || resolution.reason === "cycle")) {
-            setError(`无法穿透此文件夹：${resolution.reason === "permission" ? "没有读取权限" : "检测到目录循环"}`)
-            return
-          }
-          enterRawDirectory(entry)
-        })
-        .catch((cause) => {
-          if (controller.signal.aborted || penetrationActivationRef.current !== pending) return
-          penetrationActivationRef.current = undefined
-          setError(`穿透解析失败：${folderErrorMessage(cause)}`)
-        })
-      return
-    }
-    if (entry.readerSupported) openReaderEntry(entry)
-    else void client.openSystemPath?.(entry.path)
-  }
-
   function beginNavigation(): number {
-    cancelPenetrationActivation()
+    cancelPendingActivation()
+    setInlineBranchPath(undefined)
     navigationRequestRef.current?.abort()
     catalogRequestRef.current?.abort()
     navigationRequestRef.current = new AbortController()
@@ -1318,7 +1252,8 @@ export function FolderBrowserPane({
 
   function disposeBrowser() {
     navigationGenerationRef.current += 1
-    cancelPenetrationActivation()
+    cancelPendingActivation()
+    setInlineBranchPath(undefined)
     navigationRequestRef.current?.abort()
     catalogRequestRef.current?.abort()
     releaseThumbnailContext()
@@ -1384,6 +1319,7 @@ export function FolderBrowserPane({
         hoverPreviewDelayMs,
         penetration,
         penetrationDescriptions,
+        inlineBranchPath,
         multiSelectMode,
         chainSelectMode,
         checkModeClickBehavior,
@@ -1453,6 +1389,7 @@ export function FolderBrowserPane({
         updateHiddenFolders,
         updateMissingEfuEntries,
         updatePenetration,
+        closeInlineBranch: () => setInlineBranchPath(undefined),
         toggleTree,
         switchTreeLayout,
         toggleInlineTree,

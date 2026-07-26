@@ -89,10 +89,12 @@ describe("ReaderFolderPenetrationResolver", () => {
     const resolver = new ReaderFolderPenetrationResolver(provider({
       "/many": { path: "/many", entries: [file("/many/a.cbz"), file("/many/b.cbz")] },
       "/mixed": { path: "/mixed", entries: [directory("/mixed/nested"), file("/mixed/a.cbz")] },
+      "/branch": { path: "/branch", entries: [directory("/branch/one"), directory("/branch/two")] },
     }))
 
     await expect(resolver.resolve("/many")).resolves.toMatchObject({ status: "branch", reason: "multiple-primary-items" })
     await expect(resolver.resolve("/mixed")).resolves.toMatchObject({ status: "branch", reason: "multiple-primary-items" })
+    await expect(resolver.resolve("/branch")).resolves.toMatchObject({ status: "branch", directDirectoryCount: 2 })
   })
 
   it("[neoview.folder.penetration-safety] stops at exact depth and detects canonical cycles", async () => {
