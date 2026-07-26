@@ -6,6 +6,8 @@ import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { type FolderViewMode } from "./FolderBrowserState"
+import type { FolderThumbnailStore } from "./FolderThumbnailStore"
+import { useFolderThumbnail } from "./useFolderThumbnail"
 
 export function DirectoryListItem({
   itemId,
@@ -17,6 +19,7 @@ export function DirectoryListItem({
   showRating,
   showCollectTagCount,
   visualMode,
+  thumbnailStore,
   thumbnailUrl,
   thumbnailUrls,
   contentWidthPercent,
@@ -29,6 +32,7 @@ export function DirectoryListItem({
   onSelect,
 }: DirectoryItemProps & {
   visualMode: FolderViewMode
+  thumbnailStore?: FolderThumbnailStore
   thumbnailUrl?: string
   thumbnailUrls?: readonly string[]
   contentWidthPercent: number
@@ -39,10 +43,13 @@ export function DirectoryListItem({
   deleteStrategy: FolderDeleteStrategy
   confirmDelete: boolean
 }) {
+  const storedThumbnail = useFolderThumbnail(thumbnailStore, entry?.path)
+  const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
+  const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
   const rich = visualMode !== "compact"
   if (!entry) return <div className={`${rich ? "h-[76px]" : "h-[34px]"} animate-pulse border-b bg-muted/30`} aria-hidden="true" />
   return (
-    <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled && rich} delayMs={hoverPreviewDelayMs} label={entry.name}>
+    <FolderHoverPreview thumbnailUrl={resolvedThumbnailUrl} enabled={hoverPreviewEnabled && rich} delayMs={hoverPreviewDelayMs} label={entry.name}>
       <div className="relative">
         {deleteMode ? (
           <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} placement="leading" confirm={confirmDelete} />
@@ -71,10 +78,10 @@ export function DirectoryListItem({
               className="grid h-16 shrink-0 place-items-center overflow-hidden rounded bg-muted/30"
               style={{ width: `${contentWidthPercent}%`, maxWidth: "70%" }}
             >
-              {thumbnailUrl ? (
+              {resolvedThumbnailUrl ? (
                 <ReaderThumbnailSurface
-                  url={thumbnailUrl}
-                  urls={thumbnailUrls}
+                  url={resolvedThumbnailUrl}
+                  urls={resolvedThumbnailUrls}
                   kind={entry.kind === "directory" ? "folder" : "file"}
                   fit="contain"
                   imageLoading="eager"

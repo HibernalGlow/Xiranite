@@ -1,4 +1,4 @@
-import { lazy, Suspense, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react"
+import { lazy, Suspense, useEffect, useRef, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react"
 import { Virtuoso, type GridStateSnapshot, type ListRange, type VirtuosoGridHandle, type VirtuosoHandle } from "react-virtuoso"
 import { GalleryHorizontalEnd, Grid2X2, LayoutGrid, List, RefreshCw, Rows3, TableProperties, type LucideIcon } from "lucide-react"
 
@@ -21,9 +21,12 @@ import type {
 import type { ReaderPanelContext } from "../../registry"
 import {
   directoryEntryAt,
+  directoryEntryIndex,
   folderErrorMessage,
   isEditableKeyboardEvent,
   isVerticalFolderRegion,
+  nearestLoadedDirectoryEntry,
+  removeDirectoryCatalogEntry,
   thumbnailPixelSize,
   viewUsesBanner,
   viewUsesFixedGrid,
@@ -48,6 +51,7 @@ import type { FolderContextEntry } from "./FolderContextActions"
 import type { FolderDeleteStrategy } from "./FolderDeleteButton"
 import { DEFAULT_FOLDER_VIEW, type FolderPreviewCount, type FolderViewMode, type SavedDirectoryState } from "./FolderBrowserState"
 import { DirectoryListItem } from "./FolderDirectoryListItem"
+import type { FolderThumbnailStore } from "./FolderThumbnailStore"
 import type { FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import type { FolderSearchListingUpdate } from "./FolderSearchPanel"
 import type { FolderSearchTabSnapshot } from "./search/folderSearchModel"
@@ -145,8 +149,7 @@ export interface FolderBrowserPaneViewProps {
     restoreState?: SavedDirectoryState
     restoreIndex?: number
     shouldLocateRestore: boolean
-    thumbnailUrls: ReadonlyMap<string, string>
-    thumbnailUrlSets: ReadonlyMap<string, readonly string[]>
+    thumbnailStore: FolderThumbnailStore
     thumbnailRefreshPending: boolean
     loading: boolean
     error?: string
@@ -243,7 +246,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     contentWidthPercent, thumbnailWidthPercent, bannerWidthPercent, hoverPreviewEnabled,
     hoverPreviewDelayMs, penetration, penetrationDescriptions, multiSelectMode, chainSelectMode,
     checkModeClickBehavior, deleteMode, deleteStrategy, activeDeleteConfirmation, confirmations,
-    restoreState, restoreIndex, shouldLocateRestore, thumbnailUrls, thumbnailUrlSets,
+    restoreState, restoreIndex, shouldLocateRestore, thumbnailStore,
     thumbnailRefreshPending, loading, error, searchOpen, treeOpen, inlineTreeOpen, treeLayout,
     treeSize, renameRequest, focusedPath, focusedIndex, focusedItemId, itemIdPrefix, clipboard, canRetry,
     sessionId, searchRootPath, pendingSearchSnapshot,
@@ -265,6 +268,12 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     requestRange, handleDirectoryKeyDown, selectEntry, emptyAreaHandlers,
   } = actions
   const selectedCount = catalog ? directorySelectionCount(selection, catalog.total) : 0
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const publishSize = () => rootRef.current?.setAttribute("data-thumbnail-cache-size", String(thumbnailStore.size()))
+    publishSize()
+    return thumbnailStore.subscribeAll(publishSize)
+  }, [thumbnailStore])
   // A generation identifies fresh listing data, not a new browser visit. Keep the
   // renderer mounted while refreshing/back-forwarding the same navigation entry so
   // Virtuoso/Niko can retain its viewport and existing thumbnail DOM.
@@ -310,6 +319,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
   return (
     <FolderEntryDisplayProvider value={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}>
       <div
+        ref={rootRef}
         className="relative flex h-full min-h-0 min-w-0 w-full flex-1 gap-2"
         data-neoview-folder-card={active || null}
         data-neoview-folder-pane={true}
@@ -321,7 +331,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
         data-folder-source-kind={catalog?.sourceKind}
         data-selection-count={selectedCount}
         data-selection-total={catalog?.total ?? 0}
-        data-thumbnail-cache-size={thumbnailUrls.size}
+        data-thumbnail-cache-size={thumbnailStore.size()}
         data-restored-thumbnail-cache-size={restoreState?.thumbnailUrls?.size ?? 0}
         data-selection-all={selection.allSelected || null}
         data-folder-delete-mode={deleteMode || null}
@@ -398,6 +408,35 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                     keepTree: true,
                     focusPath: destinationPath,
                     selectFocus: true,
+                  },
+                )
+              }
+              onDeleteStarted={(entry) => {
+                const current = catalogRef.current
+                if (!current) return
+                const removedIndex = directoryEntryIndex(current, entry.path)
+                if (removedIndex === undefined) return
+                const next = removeDirectoryCatalogEntry(current, entry.path)
+                commitCatalog(next)
+                let nextIndex = sourcePath ? directoryEntryIndex(next, sourcePath) : undefined
+                if (nextIndex === undefined && focusedPath) nextIndex = directoryEntryIndex(next, focusedPath)
+                const nearestEntry = nextIndex === undefined ? nearestLoadedDirectoryEntry(next, removedIndex) : undefined
+                nextIndex ??= nearestEntry?.index
+                const nextEntry = nearestEntry?.entry ?? (nextIndex === undefined ? undefined : directoryEntryAt(next, nextIndex))
+                focusedIndexRef.current = nextIndex
+                setFocusedIndex(nextIndex)
+                setFocusedPath(nextEntry?.path)
+                setSelection(nextEntry && nextIndex !== undefined
+                  ? selectDirectorySingle(next.generation, nextEntry.path, nextIndex)
+                  : createDirectorySelection(next.generation))
+              }}
+              onDeleteFailed={(entry) =>
+                navigate(
+                  { action: "refresh" },
+                  {
+                    keepTree: true,
+                    focusPath: sourcePath || entry.path,
+                    preserveThumbnailCache: true,
                   },
                 )
               }
@@ -804,8 +843,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                             showRating={catalog.metadataFields.includes("rating")}
                             showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
                             visualMode={viewMode}
-                            thumbnailUrl={entry ? thumbnailUrls.get(entry.path) : undefined}
-                            thumbnailUrls={entry ? thumbnailUrlSets.get(entry.path) : undefined}
+                            thumbnailStore={thumbnailStore}
                             contentWidthPercent={contentWidthPercent}
                             hoverPreviewEnabled={active && hoverPreviewEnabled}
                             hoverPreviewDelayMs={hoverPreviewDelayMs}
@@ -858,8 +896,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         selectedPaths={selectedPaths}
                         focusedIndex={focusedIndex}
                         itemIdPrefix={itemIdPrefix}
-                        thumbnailUrls={thumbnailUrls}
-                        thumbnailUrlSets={thumbnailUrlSets}
+                        thumbnailStore={thumbnailStore}
                         hoverPreviewEnabled={active && hoverPreviewEnabled}
                         hoverPreviewDelayMs={hoverPreviewDelayMs}
                         penetrationFiles={penetrationDescriptions}
@@ -893,8 +930,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         selectedPaths={selectedPaths}
                         focusedIndex={focusedIndex}
                         itemIdPrefix={itemIdPrefix}
-                        thumbnailUrls={thumbnailUrls}
-                        thumbnailUrlSets={thumbnailUrlSets}
+                        thumbnailStore={thumbnailStore}
                         tileSize={thumbnailPixelSize(thumbnailWidthPercent)}
                         hoverPreviewEnabled={active && hoverPreviewEnabled}
                         hoverPreviewDelayMs={hoverPreviewDelayMs}
