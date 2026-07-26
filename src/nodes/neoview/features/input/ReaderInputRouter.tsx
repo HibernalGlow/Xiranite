@@ -3,6 +3,7 @@ import {
   READER_INPUT_CONTEXTS,
   readerViewAreaAtPoint,
   type ReaderInputAction,
+  type ReaderInputBinding,
   type ReaderInputBindingsConfig,
   type ReaderInputContext,
   type ReaderInputDescriptor,
@@ -23,6 +24,8 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
   bindingsRef.current = config.bindings
   const handledAreaPressPointers = useRef(new Set<number>())
   const keyboardHoldTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const keyboardRepeatBindings = useRef(new Map<string, ReaderInputBinding | null>())
+  const keyboardRepeatBindingSource = useRef(config.bindings)
 
   const keyboardKeys = useMemo(() => config.bindings.flatMap((binding) => {
     if (!binding.enabled || binding.input.device !== "keyboard") return []
@@ -31,7 +34,11 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
   }), [config.bindings])
 
   useHotkeys<HTMLElement>(keyboardKeys, (event) => {
-    if (disabled || event.repeat || event.isComposing) return
+    if (disabled || event.isComposing) return
+    if (keyboardRepeatBindingSource.current !== bindingsRef.current) {
+      keyboardRepeatBindings.current.clear()
+      keyboardRepeatBindingSource.current = bindingsRef.current
+    }
     const input = {
       device: "keyboard",
       code: event.code,
@@ -40,8 +47,16 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
       shift: event.shiftKey || undefined,
       meta: event.metaKey || undefined,
     } as const
-    const handled = dispatch({ ...input, trigger: "down" }, event.target)
-    const holdBinding = matchingReaderInputBinding(bindingsRef.current, { ...input, trigger: "hold" }, readerInputContexts(event.target))
+    let downBinding = keyboardRepeatBindings.current.get(event.code)
+    if (!event.repeat || downBinding === undefined) {
+      downBinding = matchingReaderInputBinding(bindingsRef.current, { ...input, trigger: "down" }, readerInputContexts(event.target)) ?? null
+      keyboardRepeatBindings.current.set(event.code, downBinding)
+    }
+    const handled = executeBinding(downBinding, event.repeat)
+
+    const holdBinding = event.repeat
+      ? undefined
+      : matchingReaderInputBinding(bindingsRef.current, { ...input, trigger: "hold" }, readerInputContexts(event.target))
     if (holdBinding) {
       const key = keyboardEventKey(event)
       const existing = keyboardHoldTimers.current.get(key)
@@ -61,6 +76,7 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
   }, [disabled, keyboardKeys])
 
   useHotkeys<HTMLElement>(keyboardKeys, (event) => {
+    keyboardRepeatBindings.current.delete(event.code)
     const key = keyboardEventKey(event)
     const timer = keyboardHoldTimers.current.get(key)
     if (!timer) return
@@ -79,6 +95,7 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
     const clear = () => {
       for (const timer of keyboardHoldTimers.current.values()) clearTimeout(timer)
       keyboardHoldTimers.current.clear()
+      keyboardRepeatBindings.current.clear()
     }
     window.addEventListener("blur", clear)
     if (disabled) clear()
@@ -140,7 +157,11 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
   function dispatch(input: ReaderInputDescriptor, target: EventTarget | null): boolean {
     const contexts = readerInputContexts(target)
     const binding = matchingReaderInputBinding(bindingsRef.current, input, contexts)
-    if (!binding) return false
+    return executeBinding(binding)
+  }
+
+  function executeBinding(binding: ReaderInputBinding | null | undefined, repeat = false): boolean {
+    if (!binding || (repeat && binding.ignoreRepeat)) return false
     void executeRef.current(binding.action)
     return true
   }

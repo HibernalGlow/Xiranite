@@ -59,6 +59,30 @@ describe("ReaderInputRouter", () => {
     expect(execute).not.toHaveBeenCalled()
   })
 
+  it("[neoview.bindings.keyboard-repeat-runtime] dispatches repeats by default and filters bindings that opt out", () => {
+    const execute = vi.fn()
+    const config: ReaderInputBindingsConfig = { bindings: [
+      { id: "next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "keyboard", code: "ArrowRight" } },
+    ] }
+    const view = render(<Harness config={config} execute={execute} />)
+    const reader = screen.getByTestId("reader")
+    fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight" })
+    fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight", repeat: true })
+    expect(execute).toHaveBeenCalledTimes(2)
+
+    view.rerender(<Harness config={{ bindings: [{ ...config.bindings[0]!, action: "reader.previous-page" }] }} execute={execute} />)
+    fireEvent.keyDown(reader, { key: "ArrowRight", code: "ArrowRight", repeat: true })
+    expect(execute).toHaveBeenLastCalledWith("reader.previous-page")
+
+    view.unmount()
+    execute.mockClear()
+    render(<Harness config={{ bindings: [{ ...config.bindings[0]!, ignoreRepeat: true }] }} execute={execute} />)
+    const optOutReader = screen.getByTestId("reader")
+    fireEvent.keyDown(optOutReader, { key: "ArrowRight", code: "ArrowRight" })
+    fireEvent.keyDown(optOutReader, { key: "ArrowRight", code: "ArrowRight", repeat: true })
+    expect(execute).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.bindings.mouse-runtime] routes configured pointer buttons without stealing unbound or interactive clicks", () => {
     const execute = vi.fn()
     render(<Harness config={{ bindings: [

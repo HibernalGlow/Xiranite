@@ -75,6 +75,7 @@ import type { ReaderSettingsCardContext } from "../../panels/registry"
 import { SettingsCardShell } from "../SettingsCardShell"
 import { useReaderKeyboardRecorder } from "../../input/useReaderKeyboardRecorder"
 import { GUI_READER_INPUT_ACTIONS, GUI_READER_INPUT_ACTION_SET } from "../../input/ReaderInputActionCapabilities"
+import { KeyboardInputEditor } from "./KeyboardInputEditor"
 
 const LazyReaderDeviceInputRecorder = lazy(async () => ({
   default: (await import("../../input/ReaderDeviceInputRecorder")).ReaderDeviceInputRecorder,
@@ -705,6 +706,10 @@ function BindingRow({
       {expanded ? (
         <div className="grid gap-3 rounded-lg border border-dashed bg-muted/20 p-3">
           <InputDescriptorEditor input={binding.input} disabled={disabled} recording={recording} onRecord={onRecord} onChange={(input) => onChange({ ...binding, input })} />
+          <label className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-2.5 py-2 text-xs">
+            <span>忽略重复输入</span>
+            <Switch checked={Boolean(binding.ignoreRepeat)} disabled={disabled} onCheckedChange={(ignoreRepeat) => onChange({ ...binding, ignoreRepeat: ignoreRepeat || undefined })} aria-label="忽略重复输入" />
+          </label>
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Copy className="size-3" />复制到</span>
             {READER_INPUT_CONTEXTS.filter((context) => context !== binding.context).map((context) => {
@@ -803,24 +808,6 @@ function TimingEditor<T extends Extract<ReaderInputDescriptor, { device: "mouse"
 
 function directionShortLabel(direction: Extract<ReaderInputDescriptor, { device: "mouse-gesture" }>["directions"][number]): string {
   return direction === "left" ? "L" : direction === "right" ? "R" : direction === "up" ? "U" : "D"
-}
-
-function KeyboardInputEditor({ input, disabled, recording, onRecord, onChange }: {
-  input: Extract<ReaderInputDescriptor, { device: "keyboard" }>
-  disabled: boolean
-  recording: boolean
-  onRecord(event: MouseEvent<HTMLButtonElement>): void
-  onChange(input: ReaderInputDescriptor): void
-}) {
-  return <div className="grid gap-1">
-    <div className="grid grid-cols-[minmax(0,1fr)_6rem_auto] gap-1">
-      <Input className="h-8 text-xs" value={input.code} disabled={disabled || recording} onChange={(event) => onChange({ ...input, code: event.currentTarget.value })} aria-label="键盘代码" />
-      <select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.trigger ?? "down"} disabled={disabled || recording} onChange={(event) => onChange(event.currentTarget.value === "hold" ? { ...input, trigger: "hold", durationMs: input.durationMs ?? 450 } : { device: "keyboard", code: input.code, ctrl: input.ctrl, alt: input.alt, shift: input.shift, meta: input.meta })} aria-label="键盘触发方式"><option value="down">按下</option><option value="hold">长按</option></select>
-      <Button type="button" size="sm" variant={recording ? "default" : "outline"} disabled={disabled && !recording} onClick={onRecord} aria-label={recording ? "取消录制键盘输入" : "录制键盘输入"}><Radio />{recording ? "录制中" : "录制"}</Button>
-    </div>
-    <ModifierEditor input={input} disabled={disabled || recording} onChange={onChange} />
-    {input.trigger === "hold" ? <label className="grid gap-0.5 text-[10px] text-muted-foreground">长按毫秒<Input className="h-8 text-xs" type="number" min={100} max={5000} value={input.durationMs ?? 450} disabled={disabled || recording} onChange={(event) => onChange({ ...input, durationMs: Number(event.currentTarget.value) })} /></label> : null}
-  </div>
 }
 
 function ModifierEditor<T extends Extract<ReaderInputDescriptor, { device: "keyboard" | "wheel" }>>({ input, disabled, onChange }: { input: T; disabled: boolean; onChange(input: T): void }) {

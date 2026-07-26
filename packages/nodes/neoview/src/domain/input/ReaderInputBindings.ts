@@ -48,6 +48,7 @@ export interface ReaderInputBinding {
   action: ReaderInputAction
   context: ReaderInputContext
   enabled: boolean
+  ignoreRepeat?: boolean
   input: ReaderInputDescriptor
 }
 

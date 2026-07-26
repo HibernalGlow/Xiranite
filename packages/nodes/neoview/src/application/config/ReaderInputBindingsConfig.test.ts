@@ -33,6 +33,23 @@ describe("ReaderInputBindingsConfig", () => {
     expect(parsed.patch.inputBindings.bindings?.[1]?.input).toEqual({ device: "mouse", button: 3, action: "click" })
   })
 
+  it("[neoview.bindings.repeat-policy] persists the repeat policy on every binding type and defaults to dispatching repeats", () => {
+    const parsed = parseNeoviewInputBindingsPatch({ inputBindings: { bindings: [
+      { id: "key", action: "reader.next-page", context: "reader", enabled: true, ignoreRepeat: true, input: { device: "keyboard", code: "ArrowRight" } },
+      { id: "mouse", action: "reader.previous-page", context: "reader", enabled: true, input: { device: "mouse", button: 3, action: "click" } },
+      { id: "pad", action: "reader.next-page", context: "reader", enabled: true, ignoreRepeat: false, input: { device: "gamepad", button: 5 } },
+    ] } })
+
+    expect(parsed.patch.inputBindings.bindings).toEqual([
+      { id: "key", action: "reader.next-page", context: "reader", enabled: true, ignoreRepeat: true, input: { device: "keyboard", code: "ArrowRight" } },
+      { id: "mouse", action: "reader.previous-page", context: "reader", enabled: true, input: { device: "mouse", button: 3, action: "click" } },
+      { id: "pad", action: "reader.next-page", context: "reader", enabled: true, input: { device: "gamepad", button: 5 } },
+    ])
+    expect(() => parseNeoviewInputBindingsPatch({ inputBindings: { bindings: [
+      { id: "invalid", action: "reader.next-page", context: "reader", enabled: true, ignoreRepeat: "yes", input: { device: "keyboard", code: "ArrowRight" } },
+    ] } })).toThrow("ignoreRepeat must be a boolean")
+  })
+
   it("[neoview.bindings.keyboard-hold] persists hold timing independently from key-down", () => {
     const bindings = [
       { id: "enter-down", action: "reader.next-page", context: "reader", enabled: true, input: { device: "keyboard", code: "Enter" } },

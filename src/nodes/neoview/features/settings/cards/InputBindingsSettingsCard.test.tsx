@@ -33,7 +33,7 @@ describe("InputBindingsSettingsCard", () => {
     render(<InputBindingsEditor value={{ bindings: [binding("one", "keyboard"), binding("two", "keyboard")] }} onSave={save as never} />)
     expect(screen.getByRole("alert").textContent).toContain("输入冲突")
     expect(screen.getByRole("status").textContent).toContain("存在冲突")
-    fireEvent.click(screen.getAllByRole("switch")[1]!)
+    fireEvent.click(screen.getAllByRole("switch", { name: "下一页启用" })[1]!)
     await waitFor(() => expect(save).toHaveBeenCalledOnce(), { timeout: 1_000 })
   })
 
