@@ -18,3 +18,16 @@
 - NeoView Card 迁移必须先建立旧源码逐控件清单，再实现和验收；逐项覆盖菜单、选项值、字段、快捷键、状态、持久化、生命周期、性能和 GUI/CLI/TUI 共用契约。UI 默认保持旧版层级、控件、图标语义、标签、信息密度、交互状态与响应式几何，任何有意偏离必须写明替代契约。事实源和门禁见 `migration/neoview/card-acceptance-contract.json`、对应 Card compatibility JSON 与 `docs/neoview-card-functional-checklist.md`，不得用 Card 标题、能力摘要、后端 API 或 smoke UI 代替完整清单。
 - 每张 NeoView Card 在编写生产 React 实现前，必须先用 `svelte/compiler` 与 OXC AST 生成可重复的 TSX 原型并审阅；原型至少冻结 DOM/组件层级、图标 import、class、条件块、循环、控件类型/属性、事件和 unsupported 节点。随后使用终端脚本生成旧版 `1920x1080` characterization 截图，再基于原型实现并记录有意偏离。AST 原型不能直接视为完成实现，生产源码不得 import `migration/neoview/frontend/tsx-scaffold`。
 - NeoView 配置协议新增或解析代码变更时，开发态由 dev supervisor 监听 `packages/nodes/neoview/src` 并自动重启后端、更新 backend manifest；不得因此手动重建 `dist`，也不得重启 Vite 或桌面窗口。Reader 配置接口优先使用显式 `section` + `patch` 协议，由 section registry 统一登记、校验和分派，再交给共用配置服务持久化与广播；旧的 section 对象格式必须继续兼容。
+
+## 代码结构与 AI 可读性
+
+- 维护中的源码单文件上限为 1000 个物理行，800 行开始预警。适用范围包括 `src/`、`packages/`、`scripts/`、`cmd/`、`native/` 和 `examples/` 中的 TS/TSX/JS/JSX/Rust/Go/CSS/Svelte/Vue 等源码；`vendor/`、生成物、构建产物、迁移快照、测试附件和资源文件不计入。使用 `bun run check:source-size` 检查当前改动，使用 `bun run audit:source-size` 查看全仓库债务。
+- 已经超过 1000 行的历史文件不要求在本任务中一次性重写，但新文件不得超过上限；修改历史超长文件时不得继续增加行数，并应在边界清晰时拆出类型、状态、适配器、服务、路由或测试模块。复杂功能若确实不能拆分，必须在变更说明中记录理由和后续拆分点。
+- 每个模块只负责一个清晰的领域边界。入口文件负责组装，领域语义留在领域模块，平台差异留在 adapter/desktop 边界，持久化、HTTP、UI 和纯逻辑不要互相穿透。公共入口保持薄，避免把整个功能堆进一个组件、控制器或 `index` 文件。
+- 代码必须便于下一次 AI 定位：使用完整、稳定、可搜索的领域命名；避免无意义缩写、隐式全局状态、跨文件复制的魔法字符串和过度压缩的一行表达式。类型、输入输出契约、错误边界和副作用应靠近实现或集中在明确的 contract 文件中。
+- 前端遵守“纯 TS 核心、框架薄适配”原则：领域逻辑、数据转换、校验、状态机、选择器和策略优先写成不依赖 React/Svelte/Vue 的纯 TS 模块；框架层负责视图、生命周期、事件绑定和组件组合。公共 contract 不得反向依赖具体前端框架，方便未来替换框架。
+- 框架可替换性不以牺牲性能、美观、组件模块化或编写便利为代价。不要为了抽象而抽象，不要把成熟的组件库能力重新手写，不要在渲染热路径增加通用 adapter、重复对象创建或额外订阅；性能敏感代码必须保留现有快路径，并用实际基准或渲染测试证明没有回归。
+- 前端新增依赖必须说明它解决的具体问题，以及 API、许可证、包体、运行时开销、维护状态和替换成本；能用现有依赖或纯 TS 清晰解决时，不新增框架绑定依赖。框架专属依赖集中在 UI/adapter 边界，不能渗透到共享 domain、contract 和平台无关服务。
+- 注释只解释原因、约束、兼容性或不明显的生命周期；不要用注释复述代码。需要复杂推理时，先拆成有名字的纯函数或小模块，再补一段短的设计注释。
+- AI 修改代码前必须先阅读目标文件的消费者、相关类型/协议和最近的测试；修改后必须说明改动边界、验证命令和未验证风险。禁止为了“顺手整理”大范围格式化、重命名或改写无关文件。
+- 新增或修改前端交互、布局和视觉行为继续遵守 Vitest Browser Mode 规则；纯逻辑使用普通 Vitest，跨进程/宿主行为使用 Go 或集成测试。完整约定见 `docs/code-quality.md`。
