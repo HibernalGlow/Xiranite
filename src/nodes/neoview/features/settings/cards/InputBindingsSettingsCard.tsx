@@ -75,15 +75,14 @@ import type { ReaderSettingsCardContext } from "../../panels/registry"
 import { SettingsCardShell } from "../SettingsCardShell"
 import { useReaderKeyboardRecorder } from "../../input/useReaderKeyboardRecorder"
 import { GUI_READER_INPUT_ACTIONS, GUI_READER_INPUT_ACTION_SET } from "../../input/ReaderInputActionCapabilities"
+import { BindingActionSequenceEditor } from "./BindingActionSequenceEditor"
 import { KeyboardInputEditor } from "./KeyboardInputEditor"
-
 const LazyReaderDeviceInputRecorder = lazy(async () => ({
   default: (await import("../../input/ReaderDeviceInputRecorder")).ReaderDeviceInputRecorder,
 }))
 const LazyRadialMenuSettingsEditor = lazy(async () => ({
   default: (await import("./RadialMenuSettingsEditor")).RadialMenuSettingsEditor,
 }))
-
 type RecordableReaderDevice = Extract<ReaderInputDescriptor["device"], "mouse" | "mouse-gesture" | "wheel" | "touch" | "gamepad">
 type DeviceKind = ReaderInputDescriptor["device"]
 
@@ -710,6 +709,7 @@ function BindingRow({
             <span>忽略重复输入</span>
             <Switch checked={Boolean(binding.ignoreRepeat)} disabled={disabled} onCheckedChange={(ignoreRepeat) => onChange({ ...binding, ignoreRepeat: ignoreRepeat || undefined })} aria-label="忽略重复输入" />
           </label>
+          <BindingActionSequenceEditor actions={binding.followUpActions} disabled={disabled} onChange={(followUpActions) => onChange({ ...binding, followUpActions })} />
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Copy className="size-3" />复制到</span>
             {READER_INPUT_CONTEXTS.filter((context) => context !== binding.context).map((context) => {

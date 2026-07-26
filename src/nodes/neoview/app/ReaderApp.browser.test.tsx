@@ -2,6 +2,14 @@ import { expect, test, vi } from "vitest"
 import { page } from "vitest/browser"
 import { render } from "vitest-browser-react"
 
+import {
+  DEFAULT_NEOVIEW_SHELL_CONFIG,
+  DEFAULT_READER_COLOR_FILTER,
+  DEFAULT_READER_INPUT_BINDINGS,
+  DEFAULT_READER_PAGE_TRANSITION,
+  DEFAULT_READER_RADIAL_MENU_CONFIG,
+} from "@xiranite/node-neoview/ui-core"
+
 import type { ReaderHttpClient, ReaderRuntimeConfigDto, ReaderSessionDto } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 
@@ -44,29 +52,149 @@ test("[neoview.workspace.startup-mode-gui] keeps the fallback swimlane usable wh
   expect(document.querySelector('[data-reader-workspace-loading="true"]')).toBeNull()
 })
 
-function readerSession(): ReaderSessionDto {
+test("[neoview.bindings.file-delete-next-gui] keeps the adjacent book visible after deleting the current file", async () => {
+  const opened = readerSession()
+  const replacement = readerSession({
+    sessionId: "reader-browser-2",
+    bookId: "book-browser-2",
+    displayName: "next.cbz",
+    pageId: "page-browser-2",
+    pageName: "002.jpg",
+  })
+  const openAdjacentBook = vi.fn(async () => replacement)
+  const executeFileOperations = vi.fn(async () => ({
+    results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/books/demo.cbz" }, status: "succeeded" as const }],
+    succeeded: 1,
+    failed: 0,
+    cancelled: 0,
+    undoable: 1,
+    undoId: "browser-delete",
+  }))
+  const client = {
+    config: vi.fn(async () => deleteNextRuntimeConfig()),
+    open: vi.fn(async () => opened),
+    openAdjacentBook,
+    executeFileOperations,
+    close: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 1200, height: 800 }}>
+      <ReaderApp sessionScopeId="browser-delete-next" initialPath="D:/books/demo.cbz" client={client} />
+    </div>,
+  )
+
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  await expect.element(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+
+  document.querySelector<HTMLElement>("[data-reader-app]")!.dispatchEvent(new KeyboardEvent("keydown", {
+    bubbles: true,
+    code: "Delete",
+    key: "Delete",
+  }))
+
+  await expect.poll(() => openAdjacentBook).toHaveBeenCalledWith("reader-browser-1", "next", expect.any(AbortSignal))
+  await expect.poll(() => executeFileOperations).toHaveBeenCalledWith(
+    [{ kind: "trash", sourcePath: "D:/books/demo.cbz" }],
+    true,
+    expect.any(AbortSignal),
+  )
+  await expect.element(page.getByRole("img", { name: "002.jpg" })).toBeVisible()
+})
+
+function readerSession({
+  sessionId = "reader-browser-1",
+  bookId = "book-browser-1",
+  displayName = "demo.cbz",
+  pageId = "page-browser-1",
+  pageName = "001.jpg",
+}: {
+  sessionId?: string
+  bookId?: string
+  displayName?: string
+  pageId?: string
+  pageName?: string
+} = {}): ReaderSessionDto {
   return {
-    sessionId: "reader-browser-1",
-    book: { id: "book-browser-1", displayName: "demo.cbz", pageCount: 1 },
+    sessionId,
+    book: { id: bookId, displayName, pageCount: 1 },
     frame: {
       generation: 0,
       anchorPageIndex: 0,
       direction: "left-to-right",
       layout: { pageMode: "single", panorama: false, singleFirstPage: true, singleLastPage: true, treatWidePageAsSingle: true },
-      pages: [{ pageId: "page-browser-1", pageIndex: 0, side: "single" }],
+      pages: [{ pageId, pageIndex: 0, side: "single" }],
       pageCount: 1,
       atStart: true,
       atEnd: true,
     },
     visiblePages: [{
-      id: "page-browser-1",
+      id: pageId,
       index: 0,
-      name: "001.jpg",
+      name: pageName,
       mediaKind: "image",
       mimeType: "image/gif",
       byteLength: 43,
       contentVersion: "browser-v1",
       assetUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
     }],
+  }
+}
+
+function deleteNextRuntimeConfig(): ReaderRuntimeConfigDto {
+  const inputBindings = structuredClone(DEFAULT_READER_INPUT_BINDINGS)
+  inputBindings.bindings.push({
+    id: "delete-current-browser",
+    action: "file.delete-current",
+    followUpActions: ["reader.next-book"],
+    context: "reader",
+    enabled: true,
+    input: { device: "keyboard", code: "Delete" },
+  })
+  return {
+    shell: structuredClone(DEFAULT_NEOVIEW_SHELL_CONFIG),
+    viewDefaults: { fitMode: "fit", pageMode: "single" },
+    book: { lockedSortMode: null, lockedMediaPriority: null, lockedReadingDirection: null },
+    sessionOptions: { tailOverflow: "stay-on-last-page" },
+    pageList: { viewMode: "list", followProgress: true },
+    bookmarkList: { activeListId: "all" },
+    historyList: { viewMode: "compact" },
+    folderView: {
+      homePath: "",
+      viewMode: "compact",
+      previewCount: 4,
+      titleWrap: { compact: false, "cover-list": false, "mosaic-list": false, details: false, "cover-grid": true, "mosaic-grid": false },
+      showHiddenFolders: false,
+      confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
+      penetration: { enabled: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
+      details: {
+        columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
+        hiddenColumns: [],
+        pinnedLeft: ["name"],
+        pinnedRight: [],
+        columnWidths: { name: 240, path: 320, type: 110, extension: 100, size: 120, modifiedAt: 180, dimensions: 120, pageCount: 100, rating: 100, tags: 220 },
+      },
+      search: { includeSubfolders: true, showHistoryOnFocus: true, searchInPath: false },
+      tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
+    },
+    slideshow: { intervalSeconds: 5, loop: false, random: false, fadeTransition: true },
+    colorFilter: structuredClone(DEFAULT_READER_COLOR_FILTER),
+    pageTransition: structuredClone(DEFAULT_READER_PAGE_TRANSITION),
+    inputBindings,
+    radialMenu: structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG),
+    media: {
+      supportedImageFormats: [],
+      videoFormats: [],
+      mediaMimeTypes: {},
+      autoPlayAnimatedImages: true,
+      animatedVideoEnabled: false,
+      animatedVideoKeywords: ["[#dyna]"],
+      videoControlsPinned: false,
+      videoMinPlaybackRate: 0.25,
+      videoMaxPlaybackRate: 16,
+      videoPlaybackRateStep: 0.25,
+      subtitle: { fontSize: 1, color: "#ffffff", backgroundOpacity: 0.7, bottomPercent: 5 },
+    },
+    systemMonitor: { enabled: false, pollIntervalMs: 1_000, historySeconds: 60 },
   }
 }

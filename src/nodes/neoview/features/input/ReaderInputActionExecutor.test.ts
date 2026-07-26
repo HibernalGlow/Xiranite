@@ -4,9 +4,9 @@ import { describe, expect, it, vi } from "vitest"
 import { executeReaderInputAction, type ReaderInputActionControls } from "./ReaderInputActionExecutor"
 
 describe("ReaderInputActionExecutor", () => {
-  it("[neoview.bindings.action-executor] routes navigation, view, shell and slideshow actions", () => {
+  it("[neoview.bindings.action-executor] routes navigation, view, shell and slideshow actions", async () => {
     const controls = fixture()
-    expect(executeReaderInputAction("reader.page-left", controls)).toBe(true)
+    await expect(executeReaderInputAction("reader.page-left", controls)).resolves.toEqual({ status: "succeeded" })
     expect(controls.navigate).toHaveBeenCalledWith("next")
     executeReaderInputAction("reader.last-page", controls)
     expect(controls.goTo).toHaveBeenCalledWith(99)
@@ -18,18 +18,18 @@ describe("ReaderInputActionExecutor", () => {
     expect(controls.toggleShellEdge).toHaveBeenCalledWith("left")
     executeReaderInputAction("slideshow.skip", controls)
     expect(controls.slideshow.skip).toHaveBeenCalledOnce()
-    expect(executeReaderInputAction("viewer.toggle-progress-bar", controls)).toBe(true)
-    expect(executeReaderInputAction("viewer.toggle-progress-bar-glow", controls)).toBe(true)
-    expect(executeReaderInputAction("viewer.toggle-page-info", controls)).toBe(true)
+    await expect(executeReaderInputAction("viewer.toggle-progress-bar", controls)).resolves.toEqual({ status: "succeeded" })
+    await expect(executeReaderInputAction("viewer.toggle-progress-bar-glow", controls)).resolves.toEqual({ status: "succeeded" })
+    await expect(executeReaderInputAction("viewer.toggle-page-info", controls)).resolves.toEqual({ status: "succeeded" })
     expect(controls.viewerToggles?.toggleProgressBar).toHaveBeenCalledOnce()
     expect(controls.viewerToggles?.toggleProgressBarGlow).toHaveBeenCalledOnce()
     expect(controls.viewerToggles?.togglePageInfo).toHaveBeenCalledOnce()
   })
 
-  it("[neoview.bindings.video-actions] routes all video actions and remaps page actions in seek mode", () => {
+  it("[neoview.bindings.video-actions] routes all video actions and remaps page actions in seek mode", async () => {
     const controls = fixture()
     vi.mocked(controls.video!.isSeekMode).mockReturnValue(true)
-    expect(executeReaderInputAction("video.play-pause", controls)).toBe(true)
+    await expect(executeReaderInputAction("video.play-pause", controls)).resolves.toEqual({ status: "succeeded" })
     executeReaderInputAction("video.seek-forward", controls)
     executeReaderInputAction("video.seek-backward", controls)
     executeReaderInputAction("video.toggle-mute", controls)
@@ -48,14 +48,14 @@ describe("ReaderInputActionExecutor", () => {
     expect(controls.video?.seek).toHaveBeenNthCalledWith(4, -1)
   })
 
-  it("[neoview.bindings.action-capability] reports unsupported actions without their provider", () => {
+  it("[neoview.bindings.action-capability] reports unsupported actions without their provider", async () => {
     const controls = fixture()
     controls.video = undefined
-    expect(executeReaderInputAction("video.play-pause", controls)).toBe(false)
-    expect(executeReaderInputAction("upscale.toggle-auto", controls)).toBe(false)
+    await expect(executeReaderInputAction("video.play-pause", controls)).resolves.toEqual({ status: "unavailable" })
+    await expect(executeReaderInputAction("upscale.toggle-auto", controls)).resolves.toEqual({ status: "unavailable" })
   })
 
-  it("routes swimlane workspace actions through the shared binding executor", () => {
+  it("routes swimlane workspace actions through the shared binding executor", async () => {
     const controls = fixture()
     const workspace = {
       toggleLayoutMode: vi.fn(),
@@ -66,7 +66,7 @@ describe("ReaderInputActionExecutor", () => {
     }
     controls.workspace = workspace
 
-    expect(executeReaderInputAction("workspace.toggle-layout-mode", controls)).toBe(true)
+    await expect(executeReaderInputAction("workspace.toggle-layout-mode", controls)).resolves.toEqual({ status: "succeeded" })
     executeReaderInputAction("workspace.focus-reader", controls)
     executeReaderInputAction("workspace.focus-previous-lane", controls)
     executeReaderInputAction("workspace.focus-next-lane", controls)
@@ -80,16 +80,33 @@ describe("ReaderInputActionExecutor", () => {
     expect(workspace.fitLanes).toHaveBeenCalledOnce()
   })
 
-  it("[neoview.bindings.file-delete] routes current-file deletion through its destructive action port", () => {
+  it("[neoview.bindings.file-delete] routes current-file deletion through its destructive action port", async () => {
     const controls = fixture()
-    controls.deleteCurrentFile = vi.fn()
-    expect(executeReaderInputAction("file.delete-current", controls)).toBe(true)
-    expect(controls.deleteCurrentFile).toHaveBeenCalledOnce()
+    controls.deleteCurrentFile = vi.fn(async () => ({ status: "succeeded" as const }))
+    await expect(executeReaderInputAction("file.delete-current", controls)).resolves.toEqual({ status: "succeeded" })
+    expect(controls.deleteCurrentFile).toHaveBeenCalledWith(undefined)
     controls.session = () => undefined
-    expect(executeReaderInputAction("file.delete-current", controls)).toBe(false)
+    await expect(executeReaderInputAction("file.delete-current", controls)).resolves.toEqual({ status: "unavailable" })
   })
 
-  it("[neoview.bindings.viewer-toggle-provider] routes persistent toast and info overlay toggles", () => {
+  it("[neoview.bindings.file-delete-next] consumes a prepared adjacent-book action exactly once", async () => {
+    const controls = fixture()
+    controls.deleteCurrentFile = vi.fn(async () => ({ status: "succeeded" as const, consumedAction: "reader.next-book" as const }))
+    const deleted = await executeReaderInputAction("file.delete-current", controls, {
+      bindingId: "delete-next",
+      index: 0,
+      nextAction: "reader.next-book",
+    })
+    expect(controls.deleteCurrentFile).toHaveBeenCalledWith("next")
+    await expect(executeReaderInputAction("reader.next-book", controls, {
+      bindingId: "delete-next",
+      index: 1,
+      previousOutcome: deleted,
+    })).resolves.toEqual({ status: "succeeded" })
+    expect(controls.switchBook).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.bindings.viewer-toggle-provider] routes persistent toast and info overlay toggles", async () => {
     const switchToast = {
       getSnapshot: vi.fn(() => ({ enableBook: false, enablePage: true, enableBoundaryToast: true })),
       update: vi.fn(async (_patch: { enableBook?: boolean; enablePage?: boolean; enableBoundaryToast?: boolean }) => undefined),
@@ -104,11 +121,11 @@ describe("ReaderInputActionExecutor", () => {
     }
     const controls = fixture({ switchToast, infoOverlay, hoverScroll })
 
-    expect(executeReaderInputAction("viewer.toggle-page-switch-toast", controls)).toBe(true)
-    expect(executeReaderInputAction("viewer.toggle-book-switch-toast", controls)).toBe(true)
-    expect(executeReaderInputAction("viewer.toggle-boundary-toast", controls)).toBe(true)
-    expect(executeReaderInputAction("viewer.toggle-info-overlay", controls)).toBe(true)
-    expect(executeReaderInputAction("viewer.toggle-hover-scroll", controls)).toBe(true)
+    await expect(executeReaderInputAction("viewer.toggle-page-switch-toast", controls)).resolves.toEqual({ status: "succeeded" })
+    await expect(executeReaderInputAction("viewer.toggle-book-switch-toast", controls)).resolves.toEqual({ status: "succeeded" })
+    await expect(executeReaderInputAction("viewer.toggle-boundary-toast", controls)).resolves.toEqual({ status: "succeeded" })
+    await expect(executeReaderInputAction("viewer.toggle-info-overlay", controls)).resolves.toEqual({ status: "succeeded" })
+    await expect(executeReaderInputAction("viewer.toggle-hover-scroll", controls)).resolves.toEqual({ status: "succeeded" })
     expect(switchToast.update).toHaveBeenNthCalledWith(1, { enablePage: false })
     expect(switchToast.update).toHaveBeenNthCalledWith(2, { enableBook: true })
     expect(switchToast.update).toHaveBeenNthCalledWith(3, { enableBoundaryToast: false })

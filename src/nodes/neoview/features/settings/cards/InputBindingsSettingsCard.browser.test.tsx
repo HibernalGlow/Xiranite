@@ -25,3 +25,35 @@ test("[neoview.bindings.repeat-policy-editor] exposes a default-off repeat switc
   await repeatSwitch.click()
   await expect.element(repeatSwitch).toHaveAttribute("data-state", "checked")
 })
+
+test("[neoview.bindings.action-sequence-editor] edits, reorders and persists follow-up actions inside one binding", async () => {
+  const save = vi.fn(async ({ bindings }) => ({ bindings: bindings ?? [] }))
+  await render(
+    <div style={{ width: 960 }}>
+      <InputBindingsEditor
+        value={{ bindings: [{
+          id: "delete-binding",
+          action: "file.delete-current",
+          context: "reader",
+          enabled: true,
+          input: { device: "keyboard", code: "Delete" },
+        }] }}
+        onSave={save}
+      />
+    </div>,
+  )
+
+  await page.getByRole("button", { name: "添加", exact: true }).click()
+  const followUp = page.getByRole("combobox", { name: "后续动作 1" })
+  await followUp.selectOptions("reader.next-book")
+  await expect.element(followUp).toHaveValue("reader.next-book")
+  await page.getByRole("button", { name: "添加", exact: true }).click()
+  const secondFollowUp = page.getByRole("combobox", { name: "后续动作 2" })
+  await secondFollowUp.selectOptions("reader.first-page")
+  await page.getByRole("button", { name: "上移后续动作 2" }).click()
+  await expect.element(page.getByRole("combobox", { name: "后续动作 1" })).toHaveValue("reader.first-page")
+  await expect.poll(() => save).toHaveBeenCalledWith({ bindings: [expect.objectContaining({
+    id: "delete-binding",
+    followUpActions: ["reader.first-page", "reader.next-book"],
+  })] })
+})
