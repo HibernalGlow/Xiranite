@@ -8,6 +8,7 @@ import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteBut
 import { type FolderViewMode } from "./FolderBrowserState"
 import { folderThumbnailIsLoading, type FolderThumbnailStore } from "./FolderThumbnailStore"
 import { useFolderThumbnail } from "./useFolderThumbnail"
+import { folderTitleClassName } from "./FolderViewPresentation"
 
 export function DirectoryListItem({
   itemId,
@@ -25,6 +26,7 @@ export function DirectoryListItem({
   contentWidthPercent,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  wrapTitle = false,
   penetrationFiles,
   deleteMode,
   deleteStrategy,
@@ -38,6 +40,7 @@ export function DirectoryListItem({
   contentWidthPercent: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  wrapTitle?: boolean
   penetrationFiles?: readonly FolderPenetrationFileName[]
   deleteMode: boolean
   deleteStrategy: FolderDeleteStrategy
@@ -59,7 +62,7 @@ export function DirectoryListItem({
         <button
           id={itemId}
           type="button"
-          className={`flex w-full items-center gap-2 border-b pr-2 text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${deleteMode ? "pl-9" : "pl-2"} ${rich ? "min-h-[76px] py-1.5" : penetrationFiles?.length ? "min-h-[34px] py-1" : "h-[34px]"}`}
+          className={`flex w-full items-center gap-2 border-b pr-2 text-left text-xs hover:bg-muted aria-selected:bg-accent data-[focused=true]:ring-1 data-[focused=true]:ring-inset data-[focused=true]:ring-primary ${deleteMode ? "pl-9" : "pl-2"} ${rich ? "min-h-[76px] py-1.5" : wrapTitle || penetrationFiles?.length ? "min-h-[34px] py-1" : "h-[34px]"}`}
           aria-selected={selected}
           data-focused={focused || undefined}
           disabled={disabled}
@@ -98,7 +101,7 @@ export function DirectoryListItem({
             <FolderEntryIcon entry={entry} />
           )}
           <span className="grid min-w-0 flex-1 gap-1">
-            <span className="truncate">{entry.name}</span>
+            <span className={folderTitleClassName(wrapTitle)} data-folder-entry-title-wrap={wrapTitle || undefined}>{entry.name}</span>
             {rich ? <span className="truncate text-[10px] text-muted-foreground">{entry.path}</span> : null}
             {rich ? <FolderEntryFileMetadata entry={entry} /> : null}
             <FolderPenetrationFileNames files={penetrationFiles} />

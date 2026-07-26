@@ -464,6 +464,8 @@ pub struct MediaScanOptions {
     pub image_hash_algorithm: Option<String>,
     pub image_resize_algorithm: Option<String>,
     pub image_ignore_same_size: Option<bool>,
+    pub image_ignore_same_resolution: Option<bool>,
+    pub image_geometric_invariance: Option<String>,
     pub video_ignore_same_size: Option<bool>,
     pub video_skip_forward: Option<u32>,
     pub video_hash_duration: Option<u32>,
@@ -609,6 +611,25 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<AsyncTask<MediaScan
         }
     };
     core_options.image_ignore_same_size = options.image_ignore_same_size.unwrap_or(false);
+    core_options.image_ignore_same_resolution =
+        options.image_ignore_same_resolution.unwrap_or(false);
+    core_options.image_geometric_invariance = match options
+        .image_geometric_invariance
+        .as_deref()
+        .unwrap_or("off")
+    {
+        "off" => core::ImageGeometricInvariance::Off,
+        "mirror-flip" | "mirrorFlip" => core::ImageGeometricInvariance::MirrorFlip,
+        "mirror-flip-rotate-90" | "mirrorFlipRotate90" => {
+            core::ImageGeometricInvariance::MirrorFlipRotate90
+        }
+        value => {
+            return Err(Error::new(
+                Status::InvalidArg,
+                format!("unsupported image geometric invariance: {value}"),
+            ));
+        }
+    };
     core_options.video_ignore_same_size = options.video_ignore_same_size.unwrap_or(false);
     core_options.video_skip_forward = options.video_skip_forward.unwrap_or(15);
     core_options.video_hash_duration = options.video_hash_duration.unwrap_or(10).max(2);

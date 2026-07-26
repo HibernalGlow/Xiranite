@@ -20,7 +20,7 @@ export async function loadOpenComicSystemRuntime(
   const packageName = options.packageName?.trim() || OPENCOMIC_SYSTEM_PACKAGE
   let imported: unknown
   try {
-    imported = await (options.importModule ?? importRuntimeModule)(packageName)
+    imported = await (options.importModule ?? importDefaultRuntimeModule)(packageName)
   } catch (error) {
     throw new OpenComicSystemRuntimeUnavailableError(`OpenComic system runtime is unavailable: ${packageName}`, { cause: error })
   }
@@ -32,8 +32,10 @@ export async function loadOpenComicSystemRuntime(
   return runtime
 }
 
-async function importRuntimeModule(specifier: string): Promise<unknown> {
-  return await import(specifier)
+async function importDefaultRuntimeModule(_specifier: string): Promise<unknown> {
+  // Keep the default package literal so Bun includes it in standalone backend bundles.
+  // @ts-expect-error The package ships index.d.ts but omits a types condition from exports.
+  return await import("@hibernalglow/opencomic-ai-system")
 }
 
 function isOpenComicSystemRuntime(value: unknown): value is OpenComicSystemRuntime {

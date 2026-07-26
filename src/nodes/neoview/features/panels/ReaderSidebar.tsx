@@ -201,9 +201,10 @@ export function ReaderSidebar({
         const cards = panelActive ? activeCards : cardsForPanel(panel.id, shell, hasSession)
         const exclusive = cards.length === 1 && cards[0]?.exclusivePanel === true
         const PanelIcon = panel.icon
-        // Never keep inactive panels mounted: control/history/etc. each pull many
-        // lazy cards, and caching every visited panel on first paint freezes swimlane.
-        if (!panelActive) return null
+        const retainInactiveFilePanel = panel.id === "folder" && mountedPanels.has(panel.id)
+        // File Card owns a live directory session and viewport-local thumbnail cache.
+        // Other inactive panels still unmount so their lazy cards cannot freeze swimlane.
+        if (!panelActive && !retainInactiveFilePanel) return null
         return (
           <div
             key={panel.id}
@@ -211,7 +212,9 @@ export function ReaderSidebar({
             className={cn(
               "min-h-0 min-w-0 flex-1 overscroll-contain",
               exclusive ? "relative flex h-full w-full basis-full flex-col self-stretch overflow-hidden" : "overflow-y-auto",
+              !panelActive && "pointer-events-none invisible absolute inset-x-0 top-0 h-0 overflow-hidden",
             )}
+            style={!panelActive ? { contentVisibility: "hidden", containIntrinsicSize: "auto 100%" } : undefined}
             aria-hidden={!panelVisible || undefined}
             data-reader-panel={panelVisible ? panel.id : undefined}
             data-reader-panel-cache={panel.id}

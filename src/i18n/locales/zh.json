@@ -120,6 +120,7 @@
     "registry": "模块库",
     "operations": "节点运行",
     "history": "运行历史",
+    "deletions": "删除历史",
     "search": "搜索...",
     "searchHint": "搜索",
     "devRuntime": {
@@ -845,12 +846,58 @@
     "settings": "设置",
     "operations": "节点运行",
     "history": "运行历史",
+    "deletions": "文件删除历史",
     "floatingMode": "切换为悬浮遮罩",
     "dockMode": "固定为推开侧栏",
     "resize": "拖动调整面板大小",
     "drag": "拖动移动面板"
   },
   "view": {
+    "deletions": {
+      "title": "已删除文件",
+      "subtitle": "跨节点删除台账",
+      "nodeFilter": "按节点筛选",
+      "stateFilter": "按恢复状态筛选",
+      "allNodes": "全部节点",
+      "export": "导出",
+      "restore": "撤回删除",
+      "restorePath": "撤回删除 {{path}}",
+      "restoreUnavailable": "此记录已无法撤回",
+      "restoreFailed": "撤回失败",
+      "undoAvailable": "可撤回",
+      "loading": "正在加载删除历史...",
+      "loadingMore": "正在加载更多删除历史",
+      "loadFailed": "无法加载删除历史",
+      "empty": "当前筛选条件下没有删除记录",
+      "filters": {
+        "all": "全部状态",
+        "recoverable": "仅可撤回",
+        "pending": "处理中",
+        "trashed": "回收站中",
+        "restored": "已恢复",
+        "permanent": "永久删除",
+        "delete-failed": "删除失败",
+        "restore-failed": "恢复失败"
+      },
+      "states": {
+        "pending": "处理中",
+        "trashed": "回收站中",
+        "restored": "已恢复",
+        "permanent": "永久删除",
+        "delete-failed": "删除失败",
+        "restore-failed": "恢复失败"
+      },
+      "kinds": {
+        "trash": "移入回收站",
+        "delete": "永久删除"
+      },
+      "pathKinds": {
+        "file": "文件",
+        "directory": "目录",
+        "symbolic-link": "符号链接",
+        "other": "其他"
+      }
+    },
     "dashboard": {
       "scope": "使用数据中心",
       "title": "运行态智能仪表盘",

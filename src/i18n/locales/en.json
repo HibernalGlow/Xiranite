@@ -120,6 +120,7 @@
     "registry": "REGISTRY",
     "operations": "Node operations",
     "history": "Run history",
+    "deletions": "Deletion history",
     "search": "SEARCH...",
     "searchHint": "Search",
     "devRuntime": {
@@ -845,12 +846,58 @@
     "settings": "SETTINGS",
     "operations": "NODE OPERATIONS",
     "history": "RUN HISTORY",
+    "deletions": "FILE DELETION HISTORY",
     "floatingMode": "Use floating overlay",
     "dockMode": "Dock as fixed panel",
     "resize": "Drag to resize panel",
     "drag": "Drag to move panel"
   },
   "view": {
+    "deletions": {
+      "title": "Deleted files",
+      "subtitle": "Cross-node deletion ledger",
+      "nodeFilter": "Filter by node",
+      "stateFilter": "Filter by restore state",
+      "allNodes": "All nodes",
+      "export": "Export",
+      "restore": "Restore",
+      "restorePath": "Restore {{path}}",
+      "restoreUnavailable": "This entry can no longer be restored",
+      "restoreFailed": "Restore failed",
+      "undoAvailable": "Recoverable",
+      "loading": "Loading deletion history...",
+      "loadingMore": "Loading more deletion history",
+      "loadFailed": "Deletion history could not be loaded",
+      "empty": "No deletion records match these filters",
+      "filters": {
+        "all": "All states",
+        "recoverable": "Recoverable only",
+        "pending": "Pending",
+        "trashed": "In recycle bin",
+        "restored": "Restored",
+        "permanent": "Permanent",
+        "delete-failed": "Delete failed",
+        "restore-failed": "Restore failed"
+      },
+      "states": {
+        "pending": "Pending",
+        "trashed": "In recycle bin",
+        "restored": "Restored",
+        "permanent": "Permanent",
+        "delete-failed": "Delete failed",
+        "restore-failed": "Restore failed"
+      },
+      "kinds": {
+        "trash": "Recycle bin",
+        "delete": "Permanent deletion"
+      },
+      "pathKinds": {
+        "file": "File",
+        "directory": "Directory",
+        "symbolic-link": "Symbolic link",
+        "other": "Other"
+      }
+    },
     "dashboard": {
       "scope": "usage command center",
       "title": "Runtime Intelligence Dashboard",

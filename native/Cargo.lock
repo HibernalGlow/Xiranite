@@ -4580,6 +4580,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "trash-core"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f02312bffc05d15401c4d08adf74ae65ef27dfa4993360dcb66a15b2d894932"
+dependencies = [
+ "chrono",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "triple_accel"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5301,7 +5311,9 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "rayon",
  "trash",
+ "trash-core",
  "windows 0.56.0",
  "windows-core 0.56.0",
  "xiranite-czkawka-core",

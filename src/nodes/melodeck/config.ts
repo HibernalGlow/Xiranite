@@ -10,6 +10,18 @@ export interface MelodeckFloatingOffset {
   y: number
 }
 
+export interface MelodeckFloatingSize {
+  width: number
+  height: number
+}
+
+export const MELODECK_FLOATING_SIZE_LIMITS = {
+  minWidth: 280,
+  maxWidth: 960,
+  minHeight: 420,
+  maxHeight: 1_080,
+} as const
+
 export interface MelodeckConfig {
   config_version?: 1
   auto_start?: boolean
@@ -32,6 +44,7 @@ export interface MelodeckConfig {
   saved_tracks?: PersistedTrack[]
   mode?: MelodeckMode
   floating_offset?: MelodeckFloatingOffset
+  floating_size?: MelodeckFloatingSize
   visualizer_style?: MusicVisualizerStyle
   mpv_path?: string
   ipc_path?: string
@@ -137,6 +150,7 @@ function normalizeMelodeckConfig(value: unknown): MelodeckConfig {
   const mode = isMelodeckMode(value.mode) ? value.mode : undefined
   const savedTracks = Array.isArray(value.saved_tracks) ? value.saved_tracks.filter(isPersistedTrack) : undefined
   const floatingOffset = normalizeFloatingOffset(value.floating_offset)
+  const floatingSize = normalizeFloatingSize(value.floating_size)
   const visualizerStyle = typeof value.visualizer_style === "string"
     ? normalizeMusicVisualizerStyle(value.visualizer_style)
     : undefined
@@ -146,6 +160,7 @@ function normalizeMelodeckConfig(value: unknown): MelodeckConfig {
     saved_tracks: savedTracks,
     mode,
     floating_offset: floatingOffset,
+    floating_size: floatingSize,
     visualizer_style: visualizerStyle,
     config_version: value.config_version === 1 ? 1 : undefined,
     auto_start: typeof value.auto_start === "boolean" ? value.auto_start : undefined,
@@ -227,6 +242,23 @@ function normalizeFloatingOffset(value: unknown): MelodeckFloatingOffset | undef
   return { x: value.x, y: value.y }
 }
 
+function normalizeFloatingSize(value: unknown): MelodeckFloatingSize | undefined {
+  if (!isRecord(value) || typeof value.width !== "number" || typeof value.height !== "number") return undefined
+  if (!Number.isFinite(value.width) || !Number.isFinite(value.height)) return undefined
+  return clampMelodeckFloatingSize(value)
+}
+
+export function clampMelodeckFloatingSize(size: MelodeckFloatingSize): MelodeckFloatingSize {
+  return {
+    width: clampInteger(size.width, MELODECK_FLOATING_SIZE_LIMITS.minWidth, MELODECK_FLOATING_SIZE_LIMITS.maxWidth),
+    height: clampInteger(size.height, MELODECK_FLOATING_SIZE_LIMITS.minHeight, MELODECK_FLOATING_SIZE_LIMITS.maxHeight),
+  }
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)))
+}
+
 function isMelodeckMode(value: unknown): value is MelodeckMode {
   return value === "bottom" || value === "floating" || value === "fullscreen"
 }
@@ -269,6 +301,7 @@ export const DEFAULT_MELODECK_CONFIG = {
   saved_tracks: [],
   source_path: "",
   floating_offset: { x: 0, y: 0 },
+  floating_size: { width: 384, height: 680 },
   visualizer_style: DEFAULT_MUSIC_VISUALIZER_STYLE,
   volume: 80,
 } as const satisfies MelodeckConfig

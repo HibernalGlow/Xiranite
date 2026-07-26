@@ -16,7 +16,10 @@ export function Component(_props: NodeComponentProps) {
   if (deck.playerEngine === "legacy") {
     const controls = deck.playbackControlsRef.current
     return (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 bg-card/40 p-4 text-center">
+      <div
+        className="flex h-full min-h-0 flex-col items-center justify-center gap-4 bg-card/40 p-4 text-center"
+        onPointerDownCapture={() => !deck.playerEnabled && deck.startPlayer()}
+      >
         {deck.playback.artworkUrl ? <img src={deck.playback.artworkUrl} alt="" className="size-28 rounded-lg object-cover" /> : null}
         <div className="min-w-0"><strong className="block truncate">{deck.playback.trackName ?? "Music"}</strong><span className="block truncate text-xs text-muted-foreground">{deck.playback.supportLine ?? "Legacy"}</span></div>
         <div className="flex items-center gap-3">
@@ -29,14 +32,17 @@ export function Component(_props: NodeComponentProps) {
     )
   }
 
-  return <MelodeckFoliaNodeSurface />
+  return <MelodeckFoliaNodeSurface onInteraction={() => {
+    if (!deck.playerEnabled) deck.startPlayer()
+  }} />
 }
 
-export function MelodeckFoliaNodeSurface() {
+export function MelodeckFoliaNodeSurface({ onInteraction }: { onInteraction?: () => void }) {
   return (
     <div
       className="relative h-full min-h-0 w-full overflow-hidden rounded-[inherit]"
       data-melodeck-folia-view="app"
+      onPointerDownCapture={onInteraction}
     >
       <Suspense fallback={<div className="grid h-full place-items-center text-xs text-muted-foreground">Loading lyrics...</div>}>
         <FoliaFullscreenSurface brandLabel="Meloddeck" className="h-full min-h-0 rounded-[inherit]" />

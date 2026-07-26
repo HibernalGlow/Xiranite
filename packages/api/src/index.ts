@@ -112,6 +112,14 @@ export function createXiraniteApp(services: XiraniteServices) {
     }, {
       body: nodeRunRequestSchema,
     })
+    .get("/nodes/:id/runtime-info", async ({ params, set }) => {
+      try {
+        return { info: await services.nodes.getNodeRuntimeInfo(params.id) }
+      } catch (error) {
+        set.status = 404
+        return { error: error instanceof Error ? error.message : String(error) }
+      }
+    })
     .delete("/node-operations", ({ query }) => {
       return services.nodes.cleanupOperations({
         maxAgeMs: parseOptionalInteger(query.maxAgeMs),

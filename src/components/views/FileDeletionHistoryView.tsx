@@ -83,14 +83,16 @@ export function FileDeletionHistoryView() {
       bodyClassName="overflow-hidden"
       header={
         <div className="flex flex-col gap-3">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-2 min-[380px]:flex-row min-[380px]:items-start min-[380px]:justify-between">
             <div className="min-w-0">
               <h1 className="text-base font-semibold text-foreground">{t("view:deletions.title")}</h1>
               <p className="mt-1 text-xs text-muted-foreground">{t("view:deletions.subtitle")}</p>
             </div>
-            <ExportMenu onExport={exportHistory} />
+            <div className="self-end min-[380px]:self-auto">
+              <ExportMenu onExport={exportHistory} />
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
             <Select value={nodeId} onValueChange={setNodeId}>
               <SelectTrigger size="sm" className="w-full" aria-label={t("view:deletions.nodeFilter")}>
                 <SelectValue />
@@ -167,7 +169,7 @@ function DeletionRow({
   const { t } = useTranslation()
   return (
     <article className="border-b border-border/55 px-4 py-3" data-deletion-id={item.id}>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-2 min-[380px]:flex-row min-[380px]:items-start min-[380px]:justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <Badge variant="outline" className="rounded-sm font-mono text-[9px]">{item.nodeId}</Badge>
           <Badge variant="outline" className={cn("rounded-sm text-[9px]", STATE_CLASS[item.state])}>
@@ -184,10 +186,10 @@ function DeletionRow({
           type="button"
           size="sm"
           variant="outline"
-          className="h-7 shrink-0 gap-1.5 px-2 text-[10px]"
+          className="h-7 shrink-0 self-end gap-1.5 px-2 text-[10px]"
           disabled={!item.restoreAvailable || restoring}
           onClick={onRestore}
-          aria-label={t("view:deletions.restore")}
+          aria-label={t("view:deletions.restorePath", { path: item.sourcePath })}
           title={item.restoreAvailable ? t("view:deletions.restore") : t("view:deletions.restoreUnavailable")}
         >
           {restoring ? <Loader2 className="animate-spin" /> : <RotateCcw />}

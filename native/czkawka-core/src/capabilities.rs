@@ -12,6 +12,8 @@ pub const CAPABILITIES: &[&str] = &[
     "scan.media",
     "scan.progress.v2",
     "scan.cancel",
+    "similar-images.geometric-invariance",
+    "similar-images.same-resolution-exclusion",
     "operation.trash.list",
     "operation.trash.restore",
 ];

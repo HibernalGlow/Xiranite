@@ -265,6 +265,8 @@ export interface NodeRunnerCapability {
     input: TInput,
     onEvent?: (event: NodeRunEvent) => void,
   ) => Promise<NodeRunResult<TData>>
+  /** Read immutable runtime metadata without creating a tracked operation. */
+  getInfo?: <TInfo = unknown>(nodeId: string) => Promise<TInfo>
   /** Cancel the active backend operation associated with this component. */
   cancelCurrent?: () => Promise<boolean>
 }

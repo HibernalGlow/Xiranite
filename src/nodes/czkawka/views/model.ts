@@ -13,6 +13,7 @@ import type { CzkawkaCardState, CzkawkaPanel, CzkawkaSimilarImagesViewMode } fro
 export interface CzkawkaView {
   data: CzkawkaCardState
   tool: CzkawkaTool
+  nativeCapabilities: ReadonlySet<string>
   result: CzkawkaData | null
   filterState: CzkawkaFilterState
   filterResult: CzkawkaFilterResult

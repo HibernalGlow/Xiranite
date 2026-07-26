@@ -166,6 +166,13 @@ describe("Czkawka node", () => {
       similarVideosHashDuration: 18,
       similarVideosLetterboxCrop: true,
     })
+    expect(scanInput("similar-images", {
+      similarImagesIgnoreSameResolution: true,
+      similarImagesGeometricInvariance: "mirror-flip-rotate-90",
+    })).toMatchObject({
+      similarImagesIgnoreSameResolution: true,
+      similarImagesGeometricInvariance: "mirror-flip-rotate-90",
+    })
   })
 
   test("keeps results and selections isolated when switching tools", async () => {
@@ -633,7 +640,7 @@ function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInp
     env: { theme: "light", platform: "web" },
     localFiles: { getUrl: (path) => `local://${path}`, pickDirectory: async () => host.pickedDirectory, pickDirectories: async () => host.pickedDirectories ?? (host.pickedDirectory ? [host.pickedDirectory] : []) },
     state: { getData: () => host.stateValue, patchData: (patch) => { host.stateValue = { ...host.stateValue, ...patch } } },
-    runner: { run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as CzkawkaInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 1 item(s).", data: resultFactory(input as CzkawkaInput) as TData } }, cancelCurrent: async () => { host.cancelCalls += 1; return true } },
+    runner: { getInfo: async <TInfo,>() => ({ apiVersion: 5, sourceVersion: "12.0.0", capabilities: ["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"] }) as TInfo, run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as CzkawkaInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 1 item(s).", data: resultFactory(input as CzkawkaInput) as TData } }, cancelCurrent: async () => { host.cancelCalls += 1; return true } },
     getData: <T,>() => host.stateValue as T,
     patchData: (_id, patch) => { host.stateValue = { ...host.stateValue, ...patch } },
     listComponents: () => [],

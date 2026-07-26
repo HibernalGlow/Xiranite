@@ -4,11 +4,11 @@ use thiserror::Error;
 
 mod capabilities;
 mod scan_control;
-mod upstream;
 #[cfg(test)]
 mod tests;
+mod upstream;
 
-pub use capabilities::{CzkawkaInfo, API_VERSION, CAPABILITIES};
+pub use capabilities::{API_VERSION, CAPABILITIES, CzkawkaInfo};
 pub use scan_control::{ScanControl, ScanProgress};
 
 pub fn initialize_threads(thread_count: usize) -> usize {
@@ -233,6 +233,14 @@ pub enum ImageResizeAlgorithm {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
+pub enum ImageGeometricInvariance {
+    #[default]
+    Off,
+    MirrorFlip,
+    MirrorFlipRotate90,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
 pub enum VideoCropDetect {
     #[default]
     Letterbox,
@@ -268,6 +276,8 @@ pub struct MediaScanOptions {
     pub image_hash_algorithm: ImageHashAlgorithm,
     pub image_resize_algorithm: ImageResizeAlgorithm,
     pub image_ignore_same_size: bool,
+    pub image_ignore_same_resolution: bool,
+    pub image_geometric_invariance: ImageGeometricInvariance,
     pub video_ignore_same_size: bool,
     pub video_skip_forward: u32,
     pub video_hash_duration: u32,
@@ -311,6 +321,8 @@ impl MediaScanOptions {
             image_hash_algorithm: ImageHashAlgorithm::Mean,
             image_resize_algorithm: ImageResizeAlgorithm::Lanczos3,
             image_ignore_same_size: false,
+            image_ignore_same_resolution: false,
+            image_geometric_invariance: ImageGeometricInvariance::Off,
             video_ignore_same_size: false,
             video_skip_forward: 15,
             video_hash_duration: 10,
@@ -369,18 +381,34 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<MediaScanResult, Cz
     scan_media_files_controlled(options, &ScanControl::detached())
 }
 
-pub fn scan_media_files_controlled(options: MediaScanOptions, control: &ScanControl) -> Result<MediaScanResult, CzkawkaError> {
+pub fn scan_media_files_controlled(
+    options: MediaScanOptions,
+    control: &ScanControl,
+) -> Result<MediaScanResult, CzkawkaError> {
     upstream::media::scan_media_files_controlled(options, control)
 }
 
 #[cfg(any())]
 fn music_media_entry(entry: &MusicEntry, is_reference: bool) -> MediaEntry {
     MediaEntry {
-        path: entry.path.clone(), size: entry.size, modified_date: entry.modified_date,
-        width: None, height: None, similarity: None, title: Some(entry.track_title.clone()),
-        artist: Some(entry.track_artist.clone()), year: Some(entry.year.clone()), length: Some(entry.length.clone()),
-        genre: Some(entry.genre.clone()), bitrate: Some(entry.bitrate), is_reference,
-        detail: Some(format!("{} · {} · {} kbps", entry.year, entry.genre, entry.bitrate)), proper_extension: None,
+        path: entry.path.clone(),
+        size: entry.size,
+        modified_date: entry.modified_date,
+        width: None,
+        height: None,
+        similarity: None,
+        title: Some(entry.track_title.clone()),
+        artist: Some(entry.track_artist.clone()),
+        year: Some(entry.year.clone()),
+        length: Some(entry.length.clone()),
+        genre: Some(entry.genre.clone()),
+        bitrate: Some(entry.bitrate),
+        is_reference,
+        detail: Some(format!(
+            "{} · {} · {} kbps",
+            entry.year, entry.genre, entry.bitrate
+        )),
+        proper_extension: None,
     }
 }
 

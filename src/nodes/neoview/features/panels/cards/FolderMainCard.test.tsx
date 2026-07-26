@@ -2911,6 +2911,7 @@ function folderViewConfig(overrides: Partial<ReaderFolderViewConfig> = {}): Read
     viewMode: "compact",
     previewGridEnabled: false,
     previewCount: 4,
+    titleWrap: { compact: false, "cover-list": false, "mosaic-list": false, details: false, "cover-grid": true, "mosaic-grid": false },
     thumbnailWidthPercent: 20,
     bannerWidthPercent: 50,
     confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },

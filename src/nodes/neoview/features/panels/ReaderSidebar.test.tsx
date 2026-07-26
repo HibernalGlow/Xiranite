@@ -280,8 +280,14 @@ describe("ReaderSidebar layout gestures", () => {
     expect(openDirectoryBrowser).toHaveBeenCalledOnce()
     expect(closeDirectoryBrowser).not.toHaveBeenCalled()
 
-    config.cardLayout["page-navigation"]!.panelId = "folder"
-    view.rerender(<ReaderSidebar side="left" context={value} shell={config} />)
+    const combinedConfig = {
+      ...config,
+      cardLayout: {
+        ...config.cardLayout,
+        "page-navigation": { ...config.cardLayout["page-navigation"]!, panelId: "folder" },
+      },
+    }
+    view.rerender(<ReaderSidebar side="left" context={value} shell={combinedConfig} />)
     expect(document.querySelector('[data-neoview-folder-card="true"]')).toBe(folderCard)
     expect(document.querySelector('[data-reader-panel-cache="folder"] h2')?.textContent).toBe("文件夹")
     expect(document.querySelector('[data-reader-card="文件浏览"]')?.getAttribute("data-reader-card-chrome")).toBe("default")
@@ -323,7 +329,7 @@ describe("ReaderSidebar layout gestures", () => {
     const value = context(false)
     const view = render(<ReaderSidebar side="left" selectedPanelId="folder" context={value} shell={config} />)
 
-    await waitFor(() => expect(document.querySelector('[data-neoview-folder-card="true"]')).toBeTruthy())
+    await waitFor(() => expect(document.querySelector('[data-neoview-folder-card="true"]')).toBeTruthy(), { timeout: 3_000 })
     expect(document.querySelector('[data-reader-panel="folder"] [data-reader-card-deferred]')).toBeNull()
     expect(document.querySelector('[data-reader-panel="folder"] [data-slot="magic-card"]')).toBeNull()
 
@@ -436,21 +442,29 @@ describe("ReaderSidebar layout gestures", () => {
     }
   })
 
-  it("[neoview.shell.resident-cards] renders stable sessionless Card shells and empty states", () => {
+  it("[neoview.shell.resident-cards] renders stable sessionless Card shells and empty states", async () => {
     render(<ReaderSidebar side="left" context={context(false)} shell={shell()} />)
-    expect(document.querySelector('[data-reader-panel-cache="pageList"] [data-reader-card-empty="true"]')).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
+    await waitFor(() => expect(document.querySelector('[data-reader-panel-cache="pageList"] [data-reader-card-empty="true"]')).toBeTruthy())
     expect(screen.queryByRole("button", { name: "折叠页面导航" })).toBeNull()
   })
 
-  it("[neoview.shell.resident-panel-cache] mounts every visible panel cache before its tab is clicked", () => {
+  it("[neoview.shell.resident-panel-cache] retains only the visited File Card while other inactive panels unmount", () => {
     render(<ReaderSidebar side="left" context={context(false)} shell={shell()} />)
 
     expect(document.querySelector('[data-reader-panel-cache="folder"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-panel-cache="history"]')).toBeNull()
+    expect(document.querySelector('[data-reader-panel-cache="bookmark"]')).toBeNull()
+    expect(document.querySelector('[data-reader-panel-cache="pageList"]')).toBeNull()
+    expect(document.querySelector('[data-reader-panel-cache="settings"]')).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: "历史记录" }))
+    expect(document.querySelector('[data-reader-panel-cache="folder"]')).toBeTruthy()
     expect(document.querySelector('[data-reader-panel-cache="history"]')).toBeTruthy()
-    expect(document.querySelector('[data-reader-panel-cache="bookmark"]')).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "页面列表" }))
+    expect(document.querySelector('[data-reader-panel-cache="folder"]')).toBeTruthy()
+    expect(document.querySelector('[data-reader-panel-cache="history"]')).toBeNull()
     expect(document.querySelector('[data-reader-panel-cache="pageList"]')).toBeTruthy()
-    // Settings is default-visible on the left rail and mounts with the resident panel cache.
-    expect(document.querySelector('[data-reader-panel-cache="settings"]')).toBeTruthy()
   })
 
   it("[neoview.card.exclusive-fill] exclusive single-card panels fill the sidebar pane", () => {

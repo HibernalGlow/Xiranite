@@ -1649,6 +1649,8 @@ export interface ReaderFolderTagDisplayConfig {
   showTooltips: boolean
 }
 
+export type ReaderFolderTitleWrapConfig = Record<ReaderFolderViewMode, boolean>
+
 export interface ReaderFolderConfirmationConfig {
   trash: boolean
   permanentDelete: boolean
@@ -1666,6 +1668,7 @@ export interface ReaderFolderViewConfig {
   bannerWidthPercent: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: 200 | 500 | 800 | 1200
+  titleWrap: ReaderFolderTitleWrapConfig
   /** Preferred directory listing type filter; applied when a browser session opens. */
   typeFilter?: ReaderDirectoryFilterDto
   showHiddenFolders?: boolean
@@ -1699,6 +1702,7 @@ export interface ReaderFolderViewPatch {
     bannerWidthPercent?: number
     hoverPreviewEnabled?: boolean
     hoverPreviewDelayMs?: 200 | 500 | 800 | 1200
+    titleWrap?: Partial<ReaderFolderTitleWrapConfig>
     typeFilter?: ReaderDirectoryFilterDto
     showHiddenFolders?: boolean
     hideMissingEfuEntries?: boolean

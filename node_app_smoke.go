@@ -23,6 +23,7 @@ func writeNodeAppSmokeMarker(backend *LocalBackend) {
 		NodeID         string `json:"nodeId"`
 		SnapshotID     string `json:"snapshotId"`
 		BackendBaseURL string `json:"backendBaseUrl,omitempty"`
+		BackendToken   string `json:"backendToken,omitempty"`
 		WindowCreated  bool   `json:"windowCreated"`
 	}{
 		NodeID:        nodeAppID,
@@ -31,6 +32,7 @@ func writeNodeAppSmokeMarker(backend *LocalBackend) {
 	}
 	if backend != nil {
 		payload.BackendBaseURL = backend.Config.BaseURL
+		payload.BackendToken = backend.Config.Token
 	}
 	content, err := json.Marshal(payload)
 	if err != nil {

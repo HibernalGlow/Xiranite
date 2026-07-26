@@ -3,18 +3,29 @@ import { describe, expect, test } from "vitest"
 import { CZKAWKA_TOOLS } from "./core.js"
 import { help } from "./help.js"
 import { createCzkawkaInteractionSchema } from "./interaction.js"
-import { createCzkawkaOperationInput, createCzkawkaOptionHelpFields, createCzkawkaScanInput, CZKAWKA_CLI_VALUE_FLAGS, CZKAWKA_TOOL_OPTIONS, getCzkawkaToolOptions, parseCzkawkaCliOptions } from "./tool-options.js"
+import { createCzkawkaOperationInput, createCzkawkaOptionHelpFields, createCzkawkaScanInput, CZKAWKA_CLI_VALUE_FLAGS, CZKAWKA_TOOL_OPTIONS, getCzkawkaGuiToolOptions, getCzkawkaToolOptions, parseCzkawkaCliOptions } from "./tool-options.js"
 
 describe("shared Czkawka option schema", () => {
-  test("is the source for every GUI/CLI/TUI tool option", () => {
+  test("keeps GUI-only Czkawka 12 options out of terminal surfaces", () => {
     const interactionIds = new Set(createCzkawkaInteractionSchema().fields.map((field) => field.id))
-    expect(CZKAWKA_TOOL_OPTIONS.every((option) => interactionIds.has(option.id))).toBe(true)
-    expect(CZKAWKA_TOOL_OPTIONS.filter((option) => option.kind !== "boolean").every((option) => CZKAWKA_CLI_VALUE_FLAGS.has(option.cliFlag))).toBe(true)
+    const terminalOptions = CZKAWKA_TOOL_OPTIONS.filter((option) => option.cliFlag)
+    expect(terminalOptions.every((option) => interactionIds.has(option.id))).toBe(true)
+    expect(terminalOptions.filter((option) => option.kind !== "boolean").every((option) => CZKAWKA_CLI_VALUE_FLAGS.has(option.cliFlag!))).toBe(true)
+    expect(interactionIds).not.toContain("similarImagesIgnoreSameResolution")
+    expect(interactionIds).not.toContain("similarImagesGeometricInvariance")
+    expect(getCzkawkaGuiToolOptions("similar-images", new Set())).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "similarImagesIgnoreSameResolution" }),
+      expect.objectContaining({ id: "similarImagesGeometricInvariance" }),
+    ]))
+    expect(getCzkawkaGuiToolOptions("similar-images", new Set(["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"]))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "similarImagesIgnoreSameResolution" }),
+      expect.objectContaining({ id: "similarImagesGeometricInvariance" }),
+    ]))
     expect(CZKAWKA_TOOLS.every((tool) => getCzkawkaToolOptions(tool).length > 0 || ["empty-folders", "empty-files", "temporary-files", "invalid-symlinks", "bad-extensions"].includes(tool))).toBe(true)
   })
 
-  test("parses advanced pipe CLI flags from the same definitions", () => {
-    expect(parseCzkawkaCliOptions(["--image-hash", "double-gradient", "--image-hash-size", "64", "--image-ignore-same-size", "--no-prehash"])).toMatchObject({
+  test("parses legacy pipe CLI flags without taking ownership of Czkawka 12 GUI flags", () => {
+    expect(parseCzkawkaCliOptions(["--image-hash", "double-gradient", "--image-hash-size", "64", "--image-ignore-same-size", "--image-ignore-same-resolution", "--image-geometric-invariance", "mirror-flip", "--no-prehash"])).toMatchObject({
       similarImagesHashAlgorithm: "double-gradient",
       similarImagesHashSize: 64,
       similarImagesIgnoreSameSize: true,
@@ -28,43 +39,47 @@ describe("shared Czkawka option schema", () => {
     expect(CZKAWKA_CLI_VALUE_FLAGS.has("--video-crop")).toBe(true)
   })
 
-  test("generates CLI help and TUI fields from the exact GUI option definitions", () => {
+  test("generates legacy CLI help and TUI fields only from terminal option definitions", () => {
     const interactionIds = new Set(createCzkawkaInteractionSchema().fields.map((field) => field.id))
     const helpFields = createCzkawkaOptionHelpFields("en")
+    const terminalOptions = CZKAWKA_TOOL_OPTIONS.filter((definition) => definition.cliFlag)
     expect(help.fields).toEqual(helpFields)
-    expect(helpFields).toHaveLength(CZKAWKA_TOOL_OPTIONS.length)
-    for (const [index, definition] of CZKAWKA_TOOL_OPTIONS.entries()) {
+    expect(helpFields).toHaveLength(terminalOptions.length)
+    for (const [index, definition] of terminalOptions.entries()) {
       expect(interactionIds.has(definition.id)).toBe(true)
       expect(helpFields[index]).toMatchObject({ type: definition.kind, defaultValue: String(definition.defaultValue) })
-      expect(helpFields[index]?.name).toContain(definition.cliFlag)
+      expect(helpFields[index]?.name).toContain(definition.cliFlag!)
       expect(helpFields[index]?.description).toContain(definition.label.en)
       expect(help.translations?.zh?.fields?.[index]?.description).toContain(definition.label.zh)
     }
   })
 
-  test("round-trips every tool-specific CLI flag through the shared parser", () => {
+  test("round-trips every legacy CLI flag through the shared parser", () => {
     const args: string[] = []
     const expected: Record<string, unknown> = {}
-    for (const definition of CZKAWKA_TOOL_OPTIONS) {
+    for (const definition of CZKAWKA_TOOL_OPTIONS.filter((definition) => definition.cliFlag)) {
+      const cliFlag = definition.cliFlag!
       if (definition.kind === "boolean") {
-        args.push(`--no-${definition.cliFlag.slice(2)}`)
+        args.push(`--no-${cliFlag.slice(2)}`)
         expected[definition.id] = false
       } else {
         const value = definition.choices?.at(-1)?.value ?? String(definition.max ?? definition.defaultValue)
-        args.push(definition.cliFlag, value)
+        args.push(cliFlag, value)
         expected[definition.id] = typeof definition.defaultValue === "number" ? Number(value) : value
       }
     }
     expect(parseCzkawkaCliOptions(args)).toEqual(expected)
   })
 
-  test("builds the same core scan contract for every surface", () => {
+  test("builds the GUI scan contract for Czkawka 12 image settings", () => {
     expect(createCzkawkaScanInput("similar-images", {
       includedDirectoriesText: "D:/Images\nE:/Archive\nF:/Reference",
       includedDirectoriesReferencedText: "F:/Reference",
       excludedItemsText: "*/cache/*; *.part",
       minimumFileSize: "100",
       similarImagesHashSize: "64",
+      similarImagesIgnoreSameResolution: true,
+      similarImagesGeometricInvariance: "mirror-flip-rotate-90",
       saveAlsoAsJson: true,
       deleteOutdatedCache: false,
       cacheFolderPath: "D:/cache",
@@ -77,6 +92,8 @@ describe("shared Czkawka option schema", () => {
       excludedItems: ["*/cache/*", "*.part"],
       minimumFileSize: 100,
       similarImagesHashSize: 64,
+      similarImagesIgnoreSameResolution: true,
+      similarImagesGeometricInvariance: "mirror-flip-rotate-90",
       saveAlsoAsJson: true,
       deleteOutdatedCache: false,
       cacheFolderPath: "D:/cache",

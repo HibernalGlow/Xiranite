@@ -1,6 +1,6 @@
-use czkawka_core::tools::big_file::{BigFile, BigFileParameters, SearchMode};
 use czkawka_core::common::tool_data::CommonData;
 use czkawka_core::helpers::messages::MessageLimit;
+use czkawka_core::tools::big_file::{BigFile, BigFileParameters, SearchMode};
 use czkawka_core::tools::empty_files::EmptyFiles;
 use czkawka_core::tools::empty_files::EmptyFilesParameters;
 use czkawka_core::tools::empty_folder::EmptyFolder;
@@ -9,9 +9,7 @@ use czkawka_core::tools::temporary::Temporary;
 use czkawka_core::tools::temporary::TemporaryParameters;
 
 use super::common::{extension_list, initialize_cache_path, search_with_control};
-use crate::{
-    BasicEntry, BasicScanOptions, BasicScanResult, BasicTool, CzkawkaError, ScanControl,
-};
+use crate::{BasicEntry, BasicScanOptions, BasicScanResult, BasicTool, CzkawkaError, ScanControl};
 
 pub(crate) fn scan_basic_files(options: BasicScanOptions) -> Result<BasicScanResult, CzkawkaError> {
     scan_basic_files_controlled(options, &ScanControl::detached())
@@ -142,7 +140,9 @@ fn basic_result<T: CommonData>(tool: &T, mut entries: Vec<BasicEntry>) -> BasicS
     entries.sort_unstable_by(|left, right| left.path.cmp(&right.path));
     BasicScanResult {
         entries,
-        messages: tool.get_text_messages().create_messages_text(MessageLimit::NoLimit),
+        messages: tool
+            .get_text_messages()
+            .create_messages_text(MessageLimit::NoLimit),
         stopped: tool.get_stopped_search(),
     }
 }

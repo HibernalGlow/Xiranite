@@ -496,7 +496,7 @@ function SwitchLine({ label, checked, onChange }: { label: string; checked: bool
   return (
     <label className="flex items-center justify-between gap-2 rounded-md border bg-background/50 px-2 py-1.5 text-xs">
       <span>{label}</span>
-      <Switch checked={checked} size="sm" onCheckedChange={onChange} />
+      <Switch aria-label={label} checked={checked} size="sm" onCheckedChange={onChange} />
     </label>
   )
 }

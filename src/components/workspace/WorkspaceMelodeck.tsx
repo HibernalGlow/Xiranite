@@ -44,22 +44,21 @@ import {
   loadMelodeckConfig,
   MELODECK_CONFIG_CHANGED_EVENT,
   saveMelodeckConfig,
+  type MelodeckFloatingOffset,
+  type MelodeckFloatingSize,
 } from "@/nodes/melodeck/config"
 import { foliaMelodeckHost } from "@/nodes/melodeck/foliaHost"
+import { clampMelodeckFloatingOffset } from "@/nodes/melodeck/floatingPanelGeometry"
 import { loadAndMigrateMelodeckLibrary, saveMelodeckLibrary } from "@/nodes/melodeck/libraryMigration"
 import { useFoliaHostTheme } from "@/nodes/melodeck/foliaTheme"
 import { useMelodeckThemeMode } from "@/nodes/melodeck/useMelodeckThemeMode"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import type { XiraniteFoliaTrack } from "@/nodes/melodeck/foliaTypes"
 import { MelodeckFoliaBridge } from "@/nodes/melodeck/MelodeckFoliaBridge"
+import { MelodeckFloatingResizeHandle } from "@/nodes/melodeck/MelodeckFloatingResizeHandle"
 
 type DockMode = "bottom" | "floating" | "fullscreen"
 type MelodeckIslandVariant = "full" | "mini"
-
-interface FloatingOffset {
-  x: number
-  y: number
-}
 
 interface MelodeckContextValue {
   collapsed: boolean
@@ -71,7 +70,8 @@ interface MelodeckContextValue {
   surfaceMounted: boolean
   savedTracks: PersistedTrack[]
   sourcePath: string
-  floatingOffset: FloatingOffset
+  floatingOffset: MelodeckFloatingOffset
+  floatingSize: MelodeckFloatingSize
   autoStart: boolean
   playerEnabled: boolean
   playerEngine: "folia" | "legacy"
@@ -84,7 +84,8 @@ interface MelodeckContextValue {
   setSurfaceMounted(mounted: boolean): void
   setSavedTracks(tracks: PersistedTrack[]): void
   setSourcePath(path: string): void
-  setFloatingOffset(offset: FloatingOffset): void
+  setFloatingOffset(offset: MelodeckFloatingOffset): void
+  setFloatingSize(size: MelodeckFloatingSize): void
   setAutoStart(autoStart: boolean): void
   setPlayerEngine(engine: "folia" | "legacy"): void
   setFollowFullscreenWithFloating(follow: boolean): void
@@ -140,7 +141,8 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
   const [playerEnabled, setPlayerEnabled] = useState(false)
   const [playerEngine, setPlayerEngine] = useState<"folia" | "legacy">("folia")
   const [followFullscreenWithFloating, setFollowFullscreenWithFloating] = useState(false)
-  const [floatingOffset, setFloatingOffset] = useState<FloatingOffset>(DEFAULT_MELODECK_CONFIG.floating_offset)
+  const [floatingOffset, setFloatingOffset] = useState<MelodeckFloatingOffset>(DEFAULT_MELODECK_CONFIG.floating_offset)
+  const [floatingSize, setFloatingSize] = useState<MelodeckFloatingSize>(DEFAULT_MELODECK_CONFIG.floating_size)
   const [configLoaded, setConfigLoaded] = useState(false)
   const backendKey = backendStatus.data?.status === "ready" && backendStatus.data.config
     ? `${backendStatus.data.config.baseUrl}\n${backendStatus.data.config.token ?? ""}`
@@ -256,7 +258,12 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
         }
         setPlayerEngine(config.player_engine ?? "folia")
         setFollowFullscreenWithFloating(config.surfaces?.follow_fullscreen_with_floating ?? false)
-        setFloatingOffset(clampFloatingOffset(config.floating_offset ?? DEFAULT_MELODECK_CONFIG.floating_offset))
+        const nextFloatingSize = config.floating_size ?? DEFAULT_MELODECK_CONFIG.floating_size
+        setFloatingSize(nextFloatingSize)
+        setFloatingOffset(clampMelodeckFloatingOffset(
+          config.floating_offset ?? DEFAULT_MELODECK_CONFIG.floating_offset,
+          nextFloatingSize,
+        ))
         setVisualizerStyle(config.visualizer_style ?? DEFAULT_MELODECK_CONFIG.visualizer_style)
         setConfigLoaded(true)
         startupDebug("melodeck:provider:apply:end")
@@ -296,6 +303,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
         saved_tracks: undefined,
         source_path: sourcePath,
         floating_offset: floatingOffset,
+        floating_size: floatingSize,
         visualizer_style: visualizerStyle,
         playback: {
           volume: preferences.volume,
@@ -331,7 +339,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
       })
     }, 400)
     return () => window.clearTimeout(timer)
-  }, [activeTrackId, autoStart, backendKey, collapsed, configLoaded, floatingOffset, followFullscreenWithFloating, libraryRoots, mode, playerEngine, preferences, sourcePath, visualizerStyle])
+  }, [activeTrackId, autoStart, backendKey, collapsed, configLoaded, floatingOffset, floatingSize, followFullscreenWithFloating, libraryRoots, mode, playerEngine, preferences, sourcePath, visualizerStyle])
 
   useEffect(() => {
     if (!configLoaded) return
@@ -360,6 +368,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
         savedTracks,
         sourcePath,
         floatingOffset,
+        floatingSize,
         autoStart,
         playerEnabled,
         setCollapsed,
@@ -371,6 +380,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
         setSavedTracks,
         setSourcePath,
         setFloatingOffset,
+        setFloatingSize,
         setAutoStart,
         playerEngine,
         setPlayerEngine,
@@ -394,6 +404,7 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
         initialActiveTrackId={activeTrackId}
         onActiveTrackChange={setActiveTrackId}
         enabled={playerEnabled && playerEngine === "folia"}
+        onEnableRequest={startPlayer}
       >
         <MelodeckFoliaBridge
           enabled={playerEnabled && playerEngine === "folia"}
@@ -545,6 +556,7 @@ function MelodeckIsland({ variant }: { variant: MelodeckIslandVariant }) {
         ref={islandRef}
         data-melodeck-island-state={expanded ? "expanded" : "collapsed"}
         data-melodeck-island-variant={variant}
+        onPointerDownCapture={() => !dock.playerEnabled && dock.startPlayer()}
         style={{ borderRadius: "inherit" }}
         className={cn(
           "relative h-full w-full min-w-0 overflow-hidden",
@@ -764,13 +776,18 @@ export function WorkspaceMelodeckPanel() {
   const dragBoundsRef = useRef<HTMLDivElement>(null)
   const backgroundMode = dock.collapsed
   const [floatingPanelOpen, setFloatingPanelOpen] = useState(true)
+  const [floatingSizePreview, setFloatingSizePreview] = useState<MelodeckFloatingSize | null>(null)
+  const floatingSize = floatingSizePreview ?? dock.floatingSize
 
   useEffect(() => {
     if (!dock.collapsed) dock.setSurfaceMounted(true)
   }, [dock.collapsed, dock.setSurfaceMounted])
 
   useEffect(() => {
-    if (dock.collapsed || dock.mode !== "floating") setFloatingPanelOpen(true)
+    if (dock.collapsed || dock.mode !== "floating") {
+      setFloatingPanelOpen(true)
+      setFloatingSizePreview(null)
+    }
   }, [dock.collapsed, dock.mode])
 
   function handleDragStart(event: ReactPointerEvent<HTMLElement>) {
@@ -781,10 +798,16 @@ export function WorkspaceMelodeckPanel() {
 
   function handleDragEnd(_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
     if (dock.mode !== "floating") return
-    dock.setFloatingOffset(clampFloatingOffset({
+    dock.setFloatingOffset(clampMelodeckFloatingOffset({
       x: dock.floatingOffset.x + info.offset.x,
       y: dock.floatingOffset.y + info.offset.y,
-    }))
+    }, floatingSize))
+  }
+
+  function handleFloatingSizeCommit(size: MelodeckFloatingSize) {
+    setFloatingSizePreview(null)
+    dock.setFloatingSize(size)
+    dock.setFloatingOffset(clampMelodeckFloatingOffset(dock.floatingOffset, size))
   }
 
   const dockModeLabel = dock.mode === "bottom" ? "底栏 dock" : dock.mode === "fullscreen" ? "全屏 dock" : "浮动窗口"
@@ -895,7 +918,7 @@ export function WorkspaceMelodeckPanel() {
       aria-hidden={backgroundMode}
     >
       <motion.div
-        layout
+        layout={floatingSizePreview === null}
         drag={!backgroundMode && dock.mode === "floating"}
         dragControls={dragControls}
         dragListener={!backgroundMode && directProjection && dock.mode === "floating"}
@@ -903,13 +926,18 @@ export function WorkspaceMelodeckPanel() {
         dragElastic={0.02}
         dragConstraints={dragBoundsRef}
         onDragEnd={handleDragEnd}
+        onPointerDownCapture={() => !dock.playerEnabled && dock.startPlayer()}
         animate={!backgroundMode && dock.mode !== "floating" ? { x: 0, y: 0 } : undefined}
-        style={!backgroundMode && dock.mode === "floating" ? dock.floatingOffset : undefined}
+        style={!backgroundMode && dock.mode === "floating" ? {
+          ...dock.floatingOffset,
+          ...(floatingPanelOpen ? floatingSize : {}),
+        } : undefined}
         transition={{ type: "spring", stiffness: 380, damping: 34 }}
         data-melodeck="panel"
         data-melodeck-mode={dock.mode}
         data-melodeck-projection={directProjection ? "direct" : "framed"}
         data-melodeck-direct-drag={!backgroundMode && directProjection && dock.mode === "floating" ? "true" : undefined}
+        data-melodeck-floating-size={dock.mode === "floating" && floatingPanelOpen ? `${floatingSize.width}x${floatingSize.height}` : undefined}
         className={cn(
           "absolute bottom-0",
           directProjection ? "group overflow-visible" : "overflow-hidden",
@@ -925,9 +953,9 @@ export function WorkspaceMelodeckPanel() {
                   ? "inset-0"
                   : directProjection
                     ? floatingPanelOpen
-                      ? "right-0 h-[min(580px,calc(100vh-1.5rem))] w-[min(20rem,calc(100vw-1.5rem))]"
+                      ? "right-0 max-h-[calc(100vh-1.5rem)] max-w-[calc(100vw-1.5rem)]"
                       : "right-0 size-12"
-                    : "right-0 h-[min(520px,calc(100vh-1.5rem))] w-[calc(100vw-1.5rem)] max-w-[760px]",
+                    : "right-0 max-h-[calc(100vh-1.5rem)] max-w-[calc(100vw-1.5rem)]",
             ),
         )}
       >
@@ -1036,7 +1064,7 @@ export function WorkspaceMelodeckPanel() {
 
           <div className="relative z-10 min-h-0 flex-1">
             {dock.playerEngine === "legacy" ? (
-              <Suspense fallback={<MelodeckSurfaceFallback />}>
+              <Suspense fallback={<div className="relative z-10 grid min-h-0 flex-1 place-items-center p-4 text-xs text-muted-foreground">Loading music player...</div>}>
                 <MusicPlayerSurface
                   audioRef={dock.audioRef}
                   savedTracks={dock.savedTracks}
@@ -1069,15 +1097,14 @@ export function WorkspaceMelodeckPanel() {
           </div>
         </div>
         )}
+        {!backgroundMode && dock.mode === "floating" && floatingPanelOpen ? (
+          <MelodeckFloatingResizeHandle
+            size={floatingSize}
+            onPreview={setFloatingSizePreview}
+            onCommit={handleFloatingSizeCommit}
+          />
+        ) : null}
       </motion.div>
-    </div>
-  )
-}
-
-function MelodeckSurfaceFallback() {
-  return (
-    <div className="relative z-10 grid min-h-0 flex-1 place-items-center p-4 text-xs text-muted-foreground">
-      Loading music player...
     </div>
   )
 }
@@ -1100,30 +1127,6 @@ function useMelodeck(): MelodeckContextValue {
 }
 
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value))
-}
-
-function clampFloatingOffset(offset: FloatingOffset): FloatingOffset {
-  if (typeof window === "undefined") {
-    return {
-      x: clamp(offset.x, -900, 0),
-      y: clamp(offset.y, -720, 0),
-    }
-  }
-
-  const inset = 12
-  const panelWidth = Math.min(320, Math.max(0, window.innerWidth - inset * 2))
-  const panelHeight = Math.min(580, Math.max(0, window.innerHeight - inset * 2))
-  const baseLeft = window.innerWidth - inset - panelWidth
-  const baseTop = window.innerHeight - inset - panelHeight
-
-  return {
-    x: clamp(offset.x, inset - baseLeft, 0),
-    y: clamp(offset.y, inset - baseTop, 0),
-  }
-}
-
 export function useWorkspaceMelodeck() {
   return useMelodeck()
 }
@@ -1145,8 +1148,4 @@ function openStandardMelodeckFullscreen() {
   nextStore.setViewMode("cards")
   nextStore.setComponentVisibility(component.id, "cards", true)
   nextStore.setFullscreen(component.id)
-}
-
-function useIsDaylight(): boolean {
-  return useMelodeckThemeMode().isDaylight
 }

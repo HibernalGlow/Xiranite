@@ -2,7 +2,13 @@ use std::fs;
 
 use tempfile::tempdir;
 
-use crate::{DuplicateScanOptions, scan_duplicate_files};
+use crate::{CAPABILITIES, DuplicateScanOptions, scan_duplicate_files};
+
+#[test]
+fn advertises_czkawka_12_similar_image_capabilities() {
+    assert!(CAPABILITIES.contains(&"similar-images.geometric-invariance"));
+    assert!(CAPABILITIES.contains(&"similar-images.same-resolution-exclusion"));
+}
 
 #[test]
 fn duplicate_scan_returns_identical_files() {

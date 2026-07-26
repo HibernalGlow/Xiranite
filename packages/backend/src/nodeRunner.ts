@@ -1,4 +1,4 @@
-import { runNodeWithEvents } from "@xiranite/runtime/node-runner"
+import { getNodeRuntimeInfo, runNodeWithEvents } from "@xiranite/runtime/node-runner"
 import type { NodeMemoryProtectionOptions, NodeOperationContext, NodeOperationControl, NodeRunner, ResourceScheduler } from "@xiranite/services"
 import {
   DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS,
@@ -160,6 +160,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function createBackendNodeRunner(options: BackendNodeRunnerOptions = {}): NodeRunner {
   return {
+    getNodeRuntimeInfo: async <TInfo = unknown>(nodeId: string) => await getNodeRuntimeInfo<TInfo>(nodeId),
     async runNode<TInput = unknown, TData = unknown>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEventDTO) => void, control?: NodeOperationControl, context: NodeOperationContext = {}) {
       return await runNodeWithEvents(nodeId, input, onEvent, control, {
         nodeId,

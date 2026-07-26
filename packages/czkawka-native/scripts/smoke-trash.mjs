@@ -25,11 +25,37 @@ try {
   assert.ok(deleteDurationMs < 1_000, `trashPath took ${deleteDurationMs.toFixed(1)}ms; expected under 1000ms`)
   receipt = result.receipt
   await assert.rejects(stat(sourcePath), { code: "ENOENT" })
-  console.log(JSON.stringify({ stage: "deleted", deleteDurationMs: Math.round(deleteDurationMs), receipt }))
+
+  const coldListStartedAt = performance.now()
+  const coldItems = await listTrashItems()
+  const coldListDurationMs = performance.now() - coldListStartedAt
+  assert.ok(coldItems.some((item) => sameReceiptId(item.id, receipt.id)), "cold recycle-bin listing omitted the deleted fixture")
+  assert.ok(coldListDurationMs < 1_000, `cold listTrashItems took ${coldListDurationMs.toFixed(1)}ms; expected under 1000ms`)
+
+  const cachedListStartedAt = performance.now()
+  const cachedItems = await listTrashItems()
+  const cachedListDurationMs = performance.now() - cachedListStartedAt
+  assert.equal(cachedItems.length, coldItems.length)
+  assert.ok(cachedListDurationMs < 1_000, `cached listTrashItems took ${cachedListDurationMs.toFixed(1)}ms; expected under 1000ms`)
+  console.log(JSON.stringify({
+    stage: "deleted",
+    deleteDurationMs: Math.round(deleteDurationMs),
+    coldListDurationMs: Math.round(coldListDurationMs),
+    cachedListDurationMs: Math.round(cachedListDurationMs),
+    listedItems: coldItems.length,
+    receipt,
+  }))
 
   await restoreTrashItem(receipt)
   assert.equal(await readFile(sourcePath, "utf8"), content)
-  console.log(JSON.stringify({ capabilities, deleteDurationMs: Math.round(deleteDurationMs), restored: sourcePath }))
+  assert.ok(!(await listTrashItems()).some((item) => sameReceiptId(item.id, receipt.id)), "restored receipt remained in the cached listing")
+  console.log(JSON.stringify({
+    capabilities,
+    deleteDurationMs: Math.round(deleteDurationMs),
+    coldListDurationMs: Math.round(coldListDurationMs),
+    cachedListDurationMs: Math.round(cachedListDurationMs),
+    restored: sourcePath,
+  }))
 } finally {
   if (!receipt && !await exists(sourcePath)) {
     receipt = await findReceipt(sourcePath)
@@ -57,4 +83,10 @@ async function exists(path) {
     if (error?.code === "ENOENT") return false
     throw error
   }
+}
+
+function sameReceiptId(left, right) {
+  return process.platform === "win32"
+    ? left.toLocaleLowerCase("en-US") === right.toLocaleLowerCase("en-US")
+    : left === right
 }

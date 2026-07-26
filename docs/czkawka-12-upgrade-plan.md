@@ -1,6 +1,6 @@
 # Czkawka 12.0 upgrade and maintenance plan
 
-Status: approved plan, implementation not started
+Status: implementation in progress; core upgrade and boundary refactor are complete, GUI feature slices are ongoing
 
 Target: Windows/Wails production path
 
@@ -17,7 +17,7 @@ The fixed architecture is:
 ```mermaid
 flowchart LR
   R["React view adapter"] --> W["Framework-neutral TS workbench"]
-  T["Xiranite CLI / OpenTUI"] --> W
+  T["Legacy CLI / OpenTUI compatibility"] -. existing features only .-> W
   W --> H["Czkawka host ports"]
   H --> N["Node-API adapter (primary)"]
   H -. explicit fallback .-> C["Official CLI adapter"]
@@ -267,7 +267,7 @@ Upgrade the Czkawka card state from schema v1 to schema v2 without deleting lega
 
 - Keep `similarVideosCropDetect` for one rollback window.
 - New readers prefer `similarVideosLetterboxCrop` when present.
-- Migrate persisted card state, scan presets, pipe CLI configuration, and OpenTUI defaults through the same codec.
+- Migrate persisted card state and scan presets through the same codec. Legacy CLI/OpenTUI retain their existing crop compatibility path but receive no new 12.0 option migration.
 - Do not silently represent `motion` as if 12.0 still supported motion analysis.
 - Do not write the removed value into new canonical presets.
 
@@ -470,7 +470,7 @@ Run heavy commands strictly serially on Windows. Use `RUSTC_WRAPPER=sccache` whe
 - Legacy `motion` warning and rollback-field retention.
 - Capability negotiation and fallback selection.
 - Workbench transitions, selectors, per-tool isolation, persistence, and operation plans.
-- GUI/CLI/OpenTUI option parity.
+- GUI option visibility, native capability gating, and legacy terminal parser compatibility.
 
 Use ordinary Vitest with `--maxWorkers=1`.
 
@@ -541,7 +541,7 @@ No scheduled automation is required. When the maintainer chooses a future releas
 8. Run focused Rust, native smoke, TypeScript, and Browser Mode gates serially.
 9. Compare scan performance, RSS, result behavior, and artifact size.
 10. Refresh and verify the Czkawka prebuilt asset only after source-level gates pass.
-11. Update `docs/native/image-core.md`, release evidence, and this plan's completed phase status.
+11. Update `docs/native/image-core.md`, release evidence, and this plan's completed phase status. A transport-compatible bump must not force CLI/OpenTUI changes.
 
 An upstream version bump that does not change Xiranite's transport contract must not force edits in React, CLI, OpenTUI, or every native smoke file.
 
@@ -560,7 +560,7 @@ The 12.0 program is complete when:
 
 - The published `czkawka_core 12.0.0` crate is used with no Git or vendored fork dependency.
 - Existing 11-tool behavior passes the frozen compatibility matrix.
-- The useful non-destructive 11/12 capabilities are available across GUI, CLI, and OpenTUI or explicitly capability-gated with a recorded reason.
+- The useful non-destructive 11/12 capabilities are available in the GUI and explicitly capability-gated. CLI/OpenTUI keep their pre-existing behavior but are outside the 12.0 feature and release-validation scope.
 - Bad names, EXIF remover, and video optimizer have safe scan/dry-run surfaces; live execution is either routed through the approved safety contract or remains intentionally disabled.
 - All upstream Rust API usage is confined to the native upstream adapter.
 - Node-API TypeScript declarations are generated and drift-checked.
