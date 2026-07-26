@@ -35,8 +35,10 @@ describe("backend file operation API", () => {
       deletionId = deletion.results[0]?.deletionId
       expect(deletion.results[0]).toMatchObject({ status: "succeeded", deletionId: expect.any(String) })
       await expect(access(sourcePath)).rejects.toMatchObject({ code: "ENOENT" })
+      expect(backend.fileOperations.scoped({ nodeId: "czkawka", componentId: "component-cz", workspaceId: "workspace-cz" }).undoState())
+        .toMatchObject({ available: true, count: 1 })
 
-      const listed = await fetch(`${backend.url}/file-deletions?nodeId=czkawka&token=${backend.token}`)
+      const listed = await fetch(`${backend.url}/file-deletions?nodeId=czkawka&restoreAvailable=true&token=${backend.token}`)
       expect(await listed.json()).toMatchObject({
         items: [{
           id: deletionId,
@@ -60,6 +62,8 @@ describe("backend file operation API", () => {
       expect(restored.status, restoredText).toBe(200)
       expect(JSON.parse(restoredText)).toMatchObject({ record: { id: deletionId, state: "restored", restoreAvailable: false }, historyPersisted: true })
       expect(await readFile(sourcePath, "utf8")).toBe("restore me")
+      expect(backend.fileOperations.scoped({ nodeId: "czkawka", componentId: "component-cz", workspaceId: "workspace-cz" }).undoState())
+        .toMatchObject({ available: false, count: 0 })
 
       await backend.close()
       backend = await startBackend({ token: "trash-test", dataDir, logWriter })

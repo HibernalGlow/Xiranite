@@ -1,4 +1,18 @@
 import { treaty, type Treaty } from "@elysiajs/eden"
+import type {
+  FileDeletionExportFormat,
+  FileDeletionList,
+  FileDeletionQuery,
+  FileDeletionRestoreResult,
+} from "@xiranite/file-operations"
+export type {
+  FileDeletionExportFormat,
+  FileDeletionList,
+  FileDeletionQuery,
+  FileDeletionRecord,
+  FileDeletionRestoreResult,
+  FileDeletionState,
+} from "@xiranite/file-operations"
 import type { ConfigHistoryRepositoryStatus, ConfigVersion, ConfigVersionDetail, NodeConfigExportResult } from "@xiranite/services"
 import type {
   ComponentWindowSizeDTO,
@@ -393,6 +407,13 @@ export function createXiraniteSystemClient(baseUrl: string, options: XiraniteCli
   }
 }
 
+export interface XiraniteFileDeletionClient {
+  list(query: FileDeletionQuery): Promise<FileDeletionList>
+  listNodes(): Promise<string[]>
+  restore(id: string): Promise<FileDeletionRestoreResult>
+  exportUrl(format: FileDeletionExportFormat, query?: Omit<FileDeletionQuery, "cursor" | "limit">): string
+}
+
 export function createXiraniteWorkspaceClient(baseUrl: string, options: XiraniteClientOptions = {}): XiraniteWorkspaceClient {
   const client = createXiraniteClient(baseUrl, options)
   const headers = requestHeaders(options)
@@ -564,6 +585,61 @@ export function createXiraniteRuntimeHistoryClient(baseUrl: string, options: Xir
       return await response.json() as RuntimeHistoryClearResultDTO
     },
   }
+}
+
+export function createXiraniteFileDeletionClient(
+  baseUrl: string,
+  options: XiraniteClientOptions = {},
+): XiraniteFileDeletionClient {
+  const headers = requestHeaders(options)
+
+  return {
+    async list(query) {
+      const url = fileDeletionUrl(baseUrl, "/file-deletions", query)
+      const response = await fetch(url, { headers })
+      if (!response.ok) throw new Error(`File deletion history load failed: ${response.status}`)
+      return await response.json() as FileDeletionList
+    },
+    async listNodes() {
+      const response = await fetch(apiUrl(baseUrl, "/file-deletions/nodes"), { headers })
+      if (!response.ok) throw new Error(`File deletion node list failed: ${response.status}`)
+      const data = await response.json() as { nodes: string[] }
+      return data.nodes
+    },
+    async restore(id) {
+      const response = await fetch(apiUrl(baseUrl, `/file-deletions/${encodeURIComponent(id)}/restore`), {
+        method: "POST",
+        headers,
+      })
+      if (!response.ok) throw new Error(`File deletion restore failed: ${response.status}`)
+      return await response.json() as FileDeletionRestoreResult
+    },
+    exportUrl(format, query = {}) {
+      const url = fileDeletionUrl(baseUrl, "/file-deletions/export", query)
+      url.searchParams.set("format", format)
+      if (options.token) url.searchParams.set("token", options.token)
+      return url.href
+    },
+  }
+}
+
+function fileDeletionUrl(
+  baseUrl: string,
+  path: string,
+  query: Omit<FileDeletionQuery, "cursor" | "limit"> & Pick<FileDeletionQuery, "cursor" | "limit">,
+): URL {
+  const url = apiUrl(baseUrl, path)
+  if (query.nodeId) url.searchParams.set("nodeId", query.nodeId)
+  if (query.componentId) url.searchParams.set("componentId", query.componentId)
+  if (query.workspaceId) url.searchParams.set("workspaceId", query.workspaceId)
+  if (query.state) url.searchParams.set("state", query.state)
+  if (query.deletionKind) url.searchParams.set("deletionKind", query.deletionKind)
+  if (query.restoreAvailable !== undefined) url.searchParams.set("restoreAvailable", String(query.restoreAvailable))
+  if (query.from !== undefined) url.searchParams.set("from", String(query.from))
+  if (query.to !== undefined) url.searchParams.set("to", String(query.to))
+  if (query.limit !== undefined) url.searchParams.set("limit", String(query.limit))
+  if (query.cursor) url.searchParams.set("cursor", query.cursor)
+  return url
 }
 
 function treatyOptions(options: XiraniteClientOptions): Treaty.Config {

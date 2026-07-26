@@ -48,6 +48,9 @@ export function createMemoryFileOperationStore(options: {
         nextCursor: start + limit < filtered.length ? items.at(-1)?.id ?? null : null,
       }
     },
+    async listFileDeletionNodes() {
+      return [...new Set(deletions.map((record) => record.nodeId))].sort()
+    },
     async updateFileDeletion(record) {
       const index = deletions.findIndex((item) => item.id === record.id)
       if (index < 0) throw new Error(`File deletion not found: ${record.id}`)
@@ -89,6 +92,7 @@ function matches(record: FileDeletionRecord, query: FileDeletionQuery): boolean 
     && (!query.workspaceId || record.workspaceId === query.workspaceId)
     && (!query.state || record.state === query.state)
     && (!query.deletionKind || record.deletionKind === query.deletionKind)
+    && (query.restoreAvailable === undefined || record.restoreAvailable === query.restoreAvailable)
     && (query.from === undefined || record.deletedAt >= query.from)
     && (query.to === undefined || record.deletedAt <= query.to)
 }

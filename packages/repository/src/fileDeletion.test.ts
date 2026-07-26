@@ -27,6 +27,9 @@ describe("createLibsqlFileDeletionRepository", () => {
         .resolves.toMatchObject({ items: [{ id: "c" }, { id: "a" }] })
       await expect(repository.listFileDeletions({ state: "permanent", from: 250, to: 350 }))
         .resolves.toMatchObject({ items: [{ id: "b" }] })
+      await expect(repository.listFileDeletions({ nodeId: "neoview", restoreAvailable: true }))
+        .resolves.toMatchObject({ items: [{ id: "c" }, { id: "a" }] })
+      await expect(repository.listFileDeletionNodes()).resolves.toEqual(["czkawka", "neoview"])
       await expect(repository.getFileDeletion("c")).resolves.toMatchObject({
         id: "c",
         sourcePath: "D:\\Books\\c.cbz",
