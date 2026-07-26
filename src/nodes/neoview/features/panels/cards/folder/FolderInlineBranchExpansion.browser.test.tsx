@@ -143,6 +143,105 @@ test("[neoview.folder.inline-branch-setting-browser] enables the optional branch
   await expect.element(expandBranchesInline).toHaveAttribute("aria-checked", "true")
 })
 
+test("[neoview.folder.inline-branch-fallback-browser] enters the raw directory when branch expansion is disabled", async () => {
+  const root = directoryPage({
+    entries: [{ name: "series", path: "C:/books/series", kind: "directory", readerSupported: true }],
+    total: 1,
+  })
+  const rawDirectory = directoryPage({ path: "C:/books/series", parentPath: "C:/books", navigationEntryId: 2, generation: 2 })
+  const navigateDirectoryBrowser = vi.fn(async () => rawDirectory)
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => root),
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+    navigateDirectoryBrowser,
+    resolveFolderPenetration: vi.fn(async () => ({
+      status: "branch" as const,
+      originPath: "C:/books/series",
+      chain: [],
+      reason: "multiple-primary-items" as const,
+      directDirectoryCount: 2,
+    })),
+  } as unknown as ReaderHttpClient
+
+  const view = await render(
+    <div style={{ width: 960, height: 720 }}>
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 480, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+          folderView={{
+            ...DEFAULT_FOLDER_VIEW,
+            penetration: { ...DEFAULT_FOLDER_VIEW.penetration, enabled: true, expandBranchesInline: false },
+          }}
+        />
+      </VirtuosoMockContext.Provider>
+    </div>,
+  )
+
+  await view.getByTitle("C:/books/series").click()
+  await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
+    "browser-root",
+    { action: "path", path: "C:/books/series" },
+    expect.any(AbortSignal),
+    "C:/books/series",
+  )
+  expect(document.querySelector('[data-folder-inline-branch="true"]')).toBeNull()
+})
+
+test("[neoview.folder.inline-branch-raw-browser] treats a double-click as raw directory navigation even when branch expansion is enabled", async () => {
+  const root = directoryPage({
+    entries: [{ name: "series", path: "C:/books/series", kind: "directory", readerSupported: true }],
+    total: 1,
+  })
+  const rawDirectory = directoryPage({ path: "C:/books/series", parentPath: "C:/books", navigationEntryId: 2, generation: 2 })
+  const navigateDirectoryBrowser = vi.fn(async () => rawDirectory)
+  const resolveFolderPenetration = vi.fn(async () => ({
+    status: "branch" as const,
+    originPath: "C:/books/series",
+    chain: [],
+    reason: "multiple-primary-items" as const,
+    directDirectoryCount: 2,
+  }))
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => root),
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+    navigateDirectoryBrowser,
+    resolveFolderPenetration,
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 960, height: 720 }}>
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 480, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+          folderView={{
+            ...DEFAULT_FOLDER_VIEW,
+            penetration: { ...DEFAULT_FOLDER_VIEW.penetration, enabled: true, expandBranchesInline: true },
+          }}
+        />
+      </VirtuosoMockContext.Provider>
+    </div>,
+  )
+
+  await expect.element(page.getByTitle("C:/books/series")).toBeVisible()
+  document.querySelector<HTMLElement>('[title="C:/books/series"]')?.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 2 }))
+  await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
+    "browser-root",
+    { action: "path", path: "C:/books/series" },
+    expect.any(AbortSignal),
+    "C:/books/series",
+  )
+  expect(resolveFolderPenetration).not.toHaveBeenCalled()
+  expect(document.querySelector('[data-folder-inline-branch="true"]')).toBeNull()
+})
+
 function directoryPage(overrides: Partial<ReaderDirectoryPageDto> = {}): ReaderDirectoryPageDto {
   return {
     sessionId: "browser-root",
