@@ -1,8 +1,8 @@
 use czkawka_core::tools::similar_videos::{
     DEFAULT_AUDIO_LENGTH_RATIO, DEFAULT_AUDIO_MAXIMUM_DIFFERENCE,
     DEFAULT_AUDIO_MIN_DURATION_SECONDS, DEFAULT_AUDIO_SIMILARITY_PERCENT,
-    DEFAULT_THUMBNAIL_GRID_TILES_PER_SIDE, DEFAULT_VIDEO_PERCENTAGE_FOR_THUMBNAIL,
-    SimilarVideos, SimilarVideosParameters, VideosEntry,
+    DEFAULT_THUMBNAIL_GRID_TILES_PER_SIDE, DEFAULT_VIDEO_PERCENTAGE_FOR_THUMBNAIL, SimilarVideos,
+    SimilarVideosParameters, VideosEntry,
 };
 
 use super::common::search_with_control;
@@ -52,7 +52,7 @@ fn parameters(options: &MediaScanOptions) -> SimilarVideosParameters {
         VideoCropDetect::Letterbox | VideoCropDetect::Motion => true,
         VideoCropDetect::None => false,
     };
-    let mut tool = SimilarVideos::new(SimilarVideosParameters::new(
+    SimilarVideosParameters::new(
         options.similarity.min(20) as i32,
         options.video_ignore_same_size,
         options.video_ignore_same_resolution,
