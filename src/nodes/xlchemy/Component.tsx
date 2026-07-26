@@ -33,6 +33,8 @@ import { DataAnalysis } from "./DataAnalysis"
 import { FilenameRuleEditor } from "./FilenameRuleEditor"
 import { ClipboardConvertDialog, type ClipboardConversionResult, type ClipboardImageData } from "./ClipboardConvertDialog"
 import { XlchemyFormatField, XlchemySliderField } from "./ConversionControls"
+import { analyzeEfuUrl } from "./efu"
+import { enabledXlchemyInputExtensions, XLCHEMY_INPUT_EXTENSIONS } from "./input-format-policy"
 import { FloatingWindowCaptionControls, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 
 export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>) {
@@ -55,6 +57,10 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   const [customPresets, setCustomPresets] = useState<XlchemyCustomPreset[]>([])
   const [configPath, setConfigPath] = useState<string>()
   const [configDirty, setConfigDirty] = useState(false)
+  const [inputFileSizes, setInputFileSizes] = useState<Map<string, number>>(() => new Map())
+  const recordInputFileSizes = useCallback((entries: Array<[string, number]>) => {
+    setInputFileSizes((current) => new Map([...current, ...entries]))
+  }, [])
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const configSaveQueueRef = useRef<Promise<void>>(Promise.resolve())
   const persistedConfigSignatureRef = useRef("")
@@ -72,9 +78,10 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     try {
       const [response, presetResponse] = await Promise.all([pending, pendingPresets])
       if (response) {
-        const loadedDefaults = normalizeXlchemyDefaults(response.config)
+        const persistedDefaults = normalizeXlchemyDefaults(response.config)
+        const loadedDefaults = { ...XL_FACTORY_DEFAULTS, ...(persistedDefaults ?? {}) }
         setDefaults(loadedDefaults); setConfigPath(response.path)
-        persistedConfigSignatureRef.current = configSignature(loadedDefaults)
+        persistedConfigSignatureRef.current = configSignature(persistedDefaults)
         setConfigLoaded(true)
         const startup: Partial<XlchemyCardState> = {}
         if (response.config?.disableDownscalingStartup) startup.downscaleEnabled = false
@@ -92,18 +99,29 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     })
     if (!picked?.length) return
     const efuFiles = [...new Set([...(dataRef.current.efuFiles ?? []), ...picked])]
-    const efuAnalysisByPath = { ...(dataRef.current.efuAnalysisByPath ?? {}) }
-    for (const path of picked) delete efuAnalysisByPath[path]
-    const message = `已登记 ${picked.length} 个 EFU 文件；任务开始后由后端单遍流式读取。`
-    patch({ efuFiles, efuAnalysisByPath, progressText: message, logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
+    const startMessage = `正在流式分析 ${picked.length} 个 EFU 文件…`
+    patch({ efuFiles, progressText: startMessage, logs: [...(dataRef.current.logs ?? []), startMessage].slice(-120) })
+    for (const path of picked) {
+      try {
+        const url = host.localFiles?.getUrl?.(path)
+        if (!url) throw new Error("当前宿主不能读取本地 EFU。")
+        const analysis = await analyzeEfuUrl(url)
+        const efuAnalysisByPath = { ...(dataRef.current.efuAnalysisByPath ?? {}), [path]: analysis }
+        const message = `已分析 ${baseName(path)}：${analysis.totalFiles.toLocaleString()} 个图片条目；路径明细未载入界面内存。`
+        patch({ efuAnalysisByPath, progressText: message, logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
+      } catch (error) {
+        const message = `${baseName(path)} 分析失败：${error instanceof Error ? error.message : String(error)}；转换时仍会由后端流式读取。`
+        patch({ progressText: message, logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
+      }
+    }
   }
 
   async function pickInputFiles() {
-    const enabled = XL_INPUT_FORMATS.filter((format) => inputFormatEnabled(`file.${format}`, dataRef.current.excludedFormatsText))
+    const enabled = enabledXlchemyInputExtensions(dataRef.current)
     if (!enabled.length) return []
     return await host.localFiles?.pickFiles?.({
       title: "选择已启用格式的输入文件",
-      filters: [{ displayName: "已启用的输入格式", pattern: enabled.map((format) => `*.${format}`).join(";") }],
+      filters: [{ displayName: "已启用的输入格式", pattern: enabled.map((extension) => `*${extension}`).join(";") }],
     }) ?? []
   }
 
@@ -232,12 +250,12 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     const run = host.runner?.run ?? host.actions?.run
     if (!run) { patch({ phase: "error", progressText: t("errors.backend", "GUI 已就绪，等待 Xlchemy 后端执行接口接入。") }); return }
     setRunning(true)
-    if (nextAction === "diagnose") patch({ action: nextAction, environment: pendingEnvironment(), environmentCheckedAt: undefined, progressText: "正在检测 PATH 与 slimg CLI 工具链…" })
-    else patch({ action: nextAction, phase: "running", progress: 0, processedCount: 0, runInputCount: undefined, progressText: t("status.start", "正在准备 Xlchemy 转换任务…"), analysisTab: nextAction === "convert" ? "output" : dataRef.current.analysisTab, result: null })
+    if (nextAction === "diagnose") patch({ action: nextAction, environment: pendingEnvironment(), environmentCheckedAt: undefined, progressText: "正在检测 PATH 与 slimg DLL 工具链…" })
+    else patch({ action: nextAction, phase: "running", progress: 0, processedCount: 0, runInputCount: undefined, progressText: dataRef.current.format === "dynar" ? "正在准备动图重命名任务…" : t("status.start", "正在准备 Xlchemy 转换任务…"), analysisTab: nextAction === "convert" ? "output" : dataRef.current.analysisTab, result: null })
     try {
       const response = await run<XlchemyInput, XlchemyData>("xlchemy", input, (event: NodeRunEvent) => {
         if (event.type === "progress") {
-          const currentFile = /^Converting (.+)\.$/.exec(event.message)?.[1]
+          const currentFile = /^(?:Converting|Renaming) (.+)\.$/.exec(event.message)?.[1]
           const liveResult = readLiveResult(event.data)
           const progressCount = readProgressCount(event.data)
           patch({ progress: event.progress ?? dataRef.current.progress ?? 0, progressText: event.message, ...(progressCount ? { processedCount: progressCount.completed, runInputCount: progressCount.total } : liveResult ? { processedCount: liveResult.inputCount } : {}), ...(currentFile ? { currentFile } : {}), ...(liveResult ? { result: liveResult } : {}) })
@@ -251,7 +269,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
         const sizeChange = lastFile?.sourceBytes !== undefined && lastFile.outputBytes !== undefined ? `${formatCompactBytes(lastFile.sourceBytes)} → ${formatCompactBytes(lastFile.outputBytes)}` : undefined
         const next: Partial<XlchemyCardState> = { phase: cancelled ? "cancelled" : response.success ? "completed" : "error", progress: response.success ? 100 : cancelled ? dataRef.current.progress ?? 0 : 0, processedCount: response.data?.inputCount ?? dataRef.current.processedCount, runInputCount: response.data?.inputCount ?? dataRef.current.runInputCount, progressText: sizeChange ? `${response.message} · ${sizeChange}` : response.message, ...(lastFile ? { currentFile: baseName(lastFile.sourcePath) } : {}), result: response.data ?? null }
         if (response.success && nextAction === "convert" && dataRef.current.autoClearCompleted && response.data) {
-          const completed = new Set(response.data.files.filter((file) => file.status === "converted").map((file) => file.sourcePath))
+          const completed = new Set(response.data.files.filter((file) => file.status === "converted" || file.status === "renamed").map((file) => file.sourcePath))
           const remaining = splitLines(dataRef.current.pathsText).filter((path) => !completed.has(path))
           next.pathsText = remaining.join("\n"); next.selectedPaths = remaining
         }
@@ -331,7 +349,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }
 
   const props: ViewProps = {
-    cancelling, configDirty, configPath, customPresets, data, defaults, format, paths, portalContainer: surfaceElement, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onListFiles: host.localFiles?.list, onPickFiles: pickInputFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
+    cancelling, configDirty, configPath, customPresets, data, defaults, format, inputFileSizes, paths, portalContainer: surfaceElement, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onInputFileSizesDiscovered: recordInputFileSizes, onListFiles: host.localFiles?.list, onPickFiles: pickInputFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
     onCancel: cancelCurrentRun, onClipboardRead: readClipboardImage, onClipboardConvert: convertClipboardImage, onClipboardCopy: copyClipboardImage, onExecute: execute, onImportEfu: importEfuLists, onPatch: patch, onSelectPreset: selectPreset,
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => patch(defaults ?? XL_FACTORY_DEFAULTS), onSaveDefaults: saveDefaults,
     onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset, onExportPresets: exportCustomPresets, onImportPresets: importCustomPresets,
@@ -357,7 +375,7 @@ const XL_FACTORY_DEFAULTS: Partial<XlchemyCardState> = {
   intelligentEffort: false, jxlModular: false, jxlVerify: false, jxlPngFallback: true, jxlNormalize: false, jxlNormalizeWhen: "on-fail",
   chromaSubsampling: "default", metadataMode: "encoder-preserve", keepIfLarger: false, copyIfLarger: false,
   skipAnimatedImages: true, detectAnimatedPng: false, detectAnimatedWebp: true, detectAnimatedAvif: false, detectAnimatedJxl: false,
-  smallestPng: true, smallestWebp: true, smallestJxl: true, jpegEncoder: "jpegli", avifEncoder: "aom", avifBitDepth: "auto",
+  smallestPng: true, smallestWebp: true, smallestJxl: true, jpegEncoder: "jpegli", avifEncoder: "aom", slimgBackend: "dll", avifBitDepth: "auto",
   avifAomIqTune: false, disableProgressiveJpegli: false, autoLosslessJpeg: true, qualityPrecisionSnapping: true,
   disableSorting: false, disableDownscalingStartup: false, disableDeleteStartup: true, enableCustomArgs: false,
   cjxlArgs: "", avifencArgs: "", cjpegliArgs: "", imageMagickArgs: "", ramOptimizer: "dynamic", ramOptimizerRules: DEFAULT_RAM_OPTIMIZER_RULES,
@@ -393,7 +411,8 @@ function normalizeXlchemyDefaults(value: unknown): Partial<XlchemyCardState> | u
   const defaults: Partial<XlchemyCardState> = {}
   for (const field of XL_SAVED_FIELDS) {
     const fieldValue = (value as Record<string, unknown>)[field]
-    if (fieldValue !== undefined) (defaults as Record<string, unknown>)[field] = fieldValue
+    if (field === "filenameRules" && Array.isArray(fieldValue)) defaults.filenameRules = normalizeXlchemyInput({ filenameRules: fieldValue as XlchemyInput["filenameRules"] }).filenameRules
+    else if (fieldValue !== undefined) (defaults as Record<string, unknown>)[field] = fieldValue
   }
   return Object.keys(defaults).length ? defaults : undefined
 }
@@ -412,8 +431,8 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
 }
 
 interface ViewProps {
-  alwaysShowQuality?: boolean; cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; paths: string[]; portalContainer?: HTMLElement | null; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
-  onCancel: () => void; onClipboardRead: () => Promise<ClipboardImageData>; onClipboardConvert: (source: ClipboardImageData) => Promise<ClipboardConversionResult>; onClipboardCopy: (output: ClipboardImageData) => Promise<void>; onExecute: (action: XlchemyAction) => void; onImportEfu: () => Promise<void>; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
+  alwaysShowQuality?: boolean; cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; inputFileSizes: ReadonlyMap<string, number>; paths: string[]; portalContainer?: HTMLElement | null; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
+  onCancel: () => void; onClipboardRead: () => Promise<ClipboardImageData>; onClipboardConvert: (source: ClipboardImageData) => Promise<ClipboardConversionResult>; onClipboardCopy: (output: ClipboardImageData) => Promise<void>; onExecute: (action: XlchemyAction) => void; onImportEfu: () => Promise<void>; onInputFileSizesDiscovered: (entries: Array<[string, number]>) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
 }
 
 function CollapsedView(props: ViewProps) {
@@ -421,7 +440,7 @@ function CollapsedView(props: ViewProps) {
 }
 
 function CompactView(props: ViewProps & { portrait: boolean }) {
-  return <div data-testid={props.portrait ? "xlchemy-portrait-view" : "xlchemy-compact-view"} className="flex min-h-0 flex-1 flex-col gap-2 p-2"><Header props={props} /><ScrollArea className="min-h-0 flex-1"><div className="flex flex-col gap-2 pr-2"><WorkbenchCard title={props.t("sections.input", "输入文件")} grow><InputWorkbench props={props} /></WorkbenchCard><ConfigurationCard props={props} /><OperationsCard props={props} /><WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard><WorkbenchCard title="转换结果"><ResultPanel props={props} /></WorkbenchCard></div></ScrollArea></div>
+  return <div data-testid={props.portrait ? "xlchemy-portrait-view" : "xlchemy-compact-view"} className="flex min-h-0 flex-1 flex-col gap-2 p-2"><Header props={props} /><ScrollArea className="min-h-0 flex-1"><div className="flex flex-col gap-2 pr-2"><WorkbenchCard title={props.t("sections.input", "输入文件")} grow><InputWorkbench props={props} /></WorkbenchCard><ConfigurationCard props={props} /><OperationsCard props={props} /><WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} fileSizes={props.inputFileSizes} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard><WorkbenchCard title="转换结果"><ResultPanel props={props} /></WorkbenchCard></div></ScrollArea></div>
 }
 
 function FullView(props: ViewProps) {
@@ -433,7 +452,7 @@ function FullView(props: ViewProps) {
         <ScrollArea className="min-h-0 @2xl/xlchemy:h-full"><div className="flex flex-col gap-2 pr-2">
             <WorkbenchCard icon={FolderInput} title={props.t("sections.input", "输入文件")} grow><InputWorkbench props={props} /></WorkbenchCard>
             <OperationsCard props={props} />
-            <WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard>
+            <WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} fileSizes={props.inputFileSizes} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard>
         </div></ScrollArea>
         <ScrollArea className="min-h-0 @2xl/xlchemy:h-full"><div className="flex flex-col gap-2 pr-2">
             <ConfigurationCard props={props} />
@@ -452,7 +471,7 @@ function WorkspaceWorkbench({ props }: { props: ViewProps }) {
         <WorkbenchCard fill grow icon={FolderInput} title={props.t("sections.input", "输入文件")}><InputWorkbench props={props} /></WorkbenchCard>
         <div className="grid min-h-0 grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] gap-2">
           <OperationsCard fill props={props} />
-          <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
+          <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} fileSizes={props.inputFileSizes} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
         </div>
       </div>
       <div data-testid="xlchemy-workspace-right-column" className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(220px,1fr)] gap-2">
@@ -470,8 +489,8 @@ function ConfigurationCard({ props }: { props: ViewProps }) {
       <Tabs defaultValue={props.data.settingsTab ?? "common"} className="flex flex-col gap-2" data-testid="xlchemy-settings-tabs" onValueChange={(settingsTab) => props.onPatch({ settingsTab: settingsTab as XlchemyCardState["settingsTab"] })}>
         <TabsList layout="fill"><TabsTrigger aria-label="参数" value="common"><SlidersHorizontal /><span className="hidden @sm/xlchemy-settings:inline">参数</span></TabsTrigger><TabsTrigger aria-label="转换" value="conversion"><Sparkles /><span className="hidden @sm/xlchemy-settings:inline">转换</span></TabsTrigger><TabsTrigger aria-label="文件" value="files"><Files /><span className="hidden @sm/xlchemy-settings:inline">文件</span></TabsTrigger><TabsTrigger aria-label="常规" value="general"><Settings2 /><span className="hidden @sm/xlchemy-settings:inline">常规</span></TabsTrigger></TabsList>
         <TabsContent value="common" className="flex flex-col gap-2"><FormatControls props={props} /><CoreExecutionOptions props={props} /></TabsContent>
-        <TabsContent value="conversion" className="grid gap-2 @xl/xlchemy-settings:grid-cols-2"><SettingsGroup label="输入格式"><InputFilterCard props={props} embedded /></SettingsGroup><SettingsGroup label="转换设置"><OriginalConversionSettings props={props} /></SettingsGroup><SettingsGroup label="当前格式优化"><EncoderTuning props={props} /></SettingsGroup></TabsContent>
-        <TabsContent value="files" className="grid gap-2 @xl/xlchemy-settings:grid-cols-2"><SettingsGroup label="保存"><SourcePolicies props={props} /></SettingsGroup><SettingsGroup label="缩小"><DownscalingCard props={props} embedded /></SettingsGroup><SettingsGroup label="元数据"><MetadataCard props={props} embedded /></SettingsGroup></TabsContent>
+        <TabsContent value="conversion" className="grid gap-2 @xl/xlchemy-settings:grid-cols-2">{props.format === "dynar" ? <SettingsGroup label="动图识别"><OriginalConversionSettings props={props} /></SettingsGroup> : <><SettingsGroup label="输入格式"><InputFilterCard props={props} embedded /></SettingsGroup><SettingsGroup label="转换设置"><OriginalConversionSettings props={props} /></SettingsGroup><SettingsGroup label="当前格式优化"><EncoderTuning props={props} /></SettingsGroup></>}</TabsContent>
+        <TabsContent value="files" className="grid gap-2 @xl/xlchemy-settings:grid-cols-2"><SettingsGroup label="保存"><SourcePolicies props={props} /></SettingsGroup>{props.format !== "dynar" && <><SettingsGroup label="缩小"><DownscalingCard props={props} embedded /></SettingsGroup><SettingsGroup label="元数据"><MetadataCard props={props} embedded /></SettingsGroup></>}</TabsContent>
         <TabsContent value="general"><GeneralSettings props={props} /></TabsContent>
       </Tabs>
     </div>
@@ -485,7 +504,20 @@ function OperationsCard({ fill = false, props }: { fill?: boolean; props: ViewPr
 function Header({ props }: { props: ViewProps }) {
   const compactActions = props.surfaceMode === "compact" || props.surfaceMode === "portrait"
   const floatingFrame = useFloatingWindowFrame()
-  return <div data-testid="xlchemy-header" data-floating-window-titlebar={floatingFrame ? "true" : undefined} onDoubleClick={floatingFrame?.handleTitlebarDoubleClick} className="flex shrink-0 items-stretch justify-between gap-3"><div data-testid="xlchemy-window-drag-region" className={cn("flex min-w-0 flex-1 items-center gap-2", floatingFrame && "xiranite-app-region-drag select-none")}><div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant="secondary">{inputSourceLabel(props)}</Badge><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div></div><div className="xiranite-app-region-no-drag flex shrink-0 items-stretch gap-1"><div className="flex items-center gap-1"><FilenameRuleEditor compact={compactActions} disabled={props.running} rules={props.data.filenameRules} onChange={(filenameRules) => props.onPatch({ filenameRules })} /><RunButton compact={compactActions} label="转换" props={props} /><Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !hasInputSources(props)}>预览计划</Button><NodeConfigPopover configPath={props.configPath} defaults={props.defaults} fallbackDefaults={XL_FACTORY_DEFAULTS} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: props.customPresets.map((preset) => ({ value: preset.id, label: preset.name, editable: true, description: props.t("config.customPresetDescription", "此节点的自定义预设"), values: preset.values as Record<string, unknown> })), onValueChange: props.onSelectPreset, onCreate: props.onCreatePreset, onDelete: props.onDeletePreset, onOverwrite: props.onOverwritePreset, onRename: props.onRenamePreset, onExport: props.onExportPresets, onImport: props.onImportPresets }} /><Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button></div><FloatingWindowCaptionControls integrated /></div></div>
+  const runLabel = props.format === "dynar" ? "重命名" : "转换"
+  return <div data-testid="xlchemy-header" data-floating-window-titlebar={floatingFrame ? "true" : undefined} onDoubleClick={floatingFrame?.handleTitlebarDoubleClick} className="flex shrink-0 items-stretch justify-between gap-3">
+    <div data-testid="xlchemy-window-drag-region" className={cn("flex min-w-0 flex-1 items-center gap-2", floatingFrame && "xiranite-app-region-drag select-none")}>
+      <div className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground"><Images /></div>
+      <div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold">Xlchemy</h3><Badge variant="secondary">{inputSourceLabel(props)}</Badge><Badge variant={props.data.phase === "error" ? "destructive" : props.data.phase === "completed" ? "default" : "outline"}>{statusLabel(props)}</Badge></div><div className="truncate text-xs text-muted-foreground">{props.data.progressText || props.t("subtitle", "高性能图片批量转码工作台")}</div></div>
+    </div>
+    <div className="xiranite-app-region-no-drag flex shrink-0 items-stretch gap-1"><div className="flex items-center gap-1">
+      <FilenameRuleEditor compact={compactActions} disabled={props.running} rules={props.data.filenameRules} onChange={(filenameRules) => props.onPatch({ filenameRules })} />
+      <RunButton compact={compactActions} label={runLabel} props={props} />
+      <Button size="sm" variant="outline" onClick={() => props.onExecute("plan")} disabled={props.running || !hasInputSources(props)}>预览计划</Button>
+      <NodeConfigPopover configPath={props.configPath} defaults={props.defaults} fallbackDefaults={XL_FACTORY_DEFAULTS} dirty={props.configDirty} disabled={props.running} t={props.t} onOpenFile={props.onOpenConfig} onReload={props.onReloadDefaults} onRestore={props.onRestoreDefaults} onSave={props.onSaveDefaults} preset={{ value: props.data.selectedPreset, options: props.customPresets.map((preset) => ({ value: preset.id, label: preset.name, editable: true, description: props.t("config.customPresetDescription", "此节点的自定义预设"), values: preset.values as Record<string, unknown> })), onValueChange: props.onSelectPreset, onCreate: props.onCreatePreset, onDelete: props.onDeletePreset, onOverwrite: props.onOverwritePreset, onRename: props.onRenamePreset, onExport: props.onExportPresets, onImport: props.onImportPresets }} />
+      <Button aria-label="清空状态" size="icon-sm" variant="outline" onClick={() => props.onPatch({ phase: "idle", progress: 0, progressText: "", result: null })}><RotateCcw /></Button>
+    </div><FloatingWindowCaptionControls integrated /></div>
+  </div>
 }
 
 function InputWorkbench({ props }: { props: ViewProps }) {
@@ -508,15 +540,16 @@ function InputWorkbench({ props }: { props: ViewProps }) {
       })
     },
   }
-  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog autoCopy={props.data.clipboardAutoCopy ?? false} configuration={<ConfigurationCard props={clipboardProps} />} disabled={props.running} portalContainer={props.portalContainer} onAutoCopyChange={(clipboardAutoCopy) => props.onPatch({ clipboardAutoCopy })} onRead={props.onClipboardRead} onConvert={props.onClipboardConvert} onCopy={props.onClipboardCopy} />} data={props.data} disabled={props.running} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
+  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog autoCopy={props.data.clipboardAutoCopy ?? false} configuration={<ConfigurationCard props={clipboardProps} />} disabled={props.running} portalContainer={props.portalContainer} onAutoCopyChange={(clipboardAutoCopy) => props.onPatch({ clipboardAutoCopy })} onRead={props.onClipboardRead} onConvert={props.onClipboardConvert} onCopy={props.onClipboardCopy} />} data={props.data} disabled={props.running} inputFileSizes={props.inputFileSizes} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onInputFileSizesDiscovered={props.onInputFileSizesDiscovered} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
 }
 
 function FormatControls({ props }: { props: ViewProps }) {
   const lossy = !(props.data.lossless ?? false), outputMode = props.data.outputMode ?? "source", supportsLosslessChoice = ["JPEG XL", "AVIF", "WebP", "TIFF"].includes(props.format), qualityUnavailable = props.format !== "JPEG" && (!supportsLosslessChoice || !lossy), showQuality = props.alwaysShowQuality || !qualityUnavailable, chromaUnavailable = props.format === "AVIF" && props.data.avifEncoder === "slimg"
   const selectFormat = (format: XlchemyFormat) => props.onPatch({ format, ...(format === "PNG" || format === "Lossless JPEG Transcoding" || format === "Smallest Lossless" ? { lossless: true } : format === "JPEG" || format === "JPEG Reconstruction" ? { lossless: false } : {}) })
+  const availableFormats = props.alwaysShowQuality ? FORMATS.map((item) => item.value).filter((format) => format !== "dynar") : undefined
   return <div className="flex flex-col gap-2">
     <div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-2">
-      <XlchemyFormatField value={props.format} onChange={selectFormat} />
+      <XlchemyFormatField formats={availableFormats} value={props.format} onChange={selectFormat} />
       {supportsLosslessChoice && <ChoiceControlField label="压缩模式"><ToggleGroup type="single" value={lossy ? "lossy" : "lossless"} className="grid w-full grid-cols-2" size="sm" onValueChange={(value) => value && props.onPatch({ lossless: value === "lossless" })}><ToggleGroupItem value="lossless">无损</ToggleGroupItem><ToggleGroupItem value="lossy">有损</ToggleGroupItem></ToggleGroup></ChoiceControlField>}
       <ChoiceControlField label="输出位置"><ToggleGroup type="single" value={outputMode} className="grid w-full grid-cols-2" size="sm" variant="outline" onValueChange={(value) => value && props.onPatch({ outputMode: value as "source" | "directory" })}><ToggleGroupItem value="source">源文件旁</ToggleGroupItem><ToggleGroupItem value="directory">指定目录</ToggleGroupItem></ToggleGroup></ChoiceControlField>
       <Field className="gap-1"><FieldLabel className="text-[10px]">同名输出</FieldLabel><Select value={props.data.existingPolicy ?? (props.data.overwrite ? "replace" : "skip")} onValueChange={(existingPolicy) => props.onPatch({ existingPolicy: existingPolicy as XlchemyCardState["existingPolicy"], overwrite: existingPolicy === "replace" })}><SelectTrigger className="w-full" size="sm"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="replace">覆盖</SelectItem><SelectItem value="skip">跳过</SelectItem><SelectItem value="rename">自动改名</SelectItem></SelectGroup></SelectContent></Select></Field>
@@ -540,25 +573,34 @@ function InputFilterCard({ props, embedded = false }: { props: ViewProps; embedd
 }
 
 function OriginalConversionSettings({ props }: { props: ViewProps }) {
+  if (props.format === "dynar") return <AnimationDetectionSettings props={props} />
   return <div className="flex flex-col gap-2">
     <div className="grid grid-cols-2 gap-2">
       {props.format === "JPEG" && <SelectField label="JPEG 编码器" value={props.data.jpegEncoder ?? "jpegli"} options={[["jpegli", "JPEGLI"], ["libjpeg", "libjpeg"]]} onChange={(jpegEncoder) => props.onPatch({ jpegEncoder: jpegEncoder as "jpegli" | "libjpeg" })} />}
-      {props.format === "AVIF" && <><SelectField label="AVIF 编码器" value={props.data.avifEncoder ?? "aom"} options={[["aom", "AOM AV1"], ["svt", "SVT-AV1-PSY"], ["slimg", "slimg"]]} onChange={(avifEncoder) => props.onPatch({ avifEncoder: avifEncoder as "aom" | "svt" | "slimg" })} /><SelectField label="AVIF 位深" value={props.data.avifBitDepth ?? "auto"} options={[["auto", "自动"], ["12", "12-bit"], ["10", "10-bit"], ["8", "8-bit"]]} onChange={(avifBitDepth) => props.onPatch({ avifBitDepth: avifBitDepth as XlchemyCardState["avifBitDepth"] })} /></>}
+      {props.format === "AVIF" && <><SelectField label="AVIF 编码器" value={props.data.avifEncoder ?? "aom"} options={[["aom", "AOM AV1"], ["svt", "SVT-AV1-PSY"], ["slimg", "slimg"]]} onChange={(avifEncoder) => props.onPatch({ avifEncoder: avifEncoder as "aom" | "svt" | "slimg" })} />{props.data.avifEncoder === "slimg" && <SelectField label="slimg 后端" value={props.data.slimgBackend ?? "dll"} options={[["dll", "DLL（低内存）"], ["cli", "CLI"]]} onChange={(slimgBackend) => props.onPatch({ slimgBackend: slimgBackend as "dll" | "cli" })} />}<SelectField label="AVIF 位深" value={props.data.avifBitDepth ?? "auto"} options={[["auto", "自动"], ["12", "12-bit"], ["10", "10-bit"], ["8", "8-bit"]]} onChange={(avifBitDepth) => props.onPatch({ avifBitDepth: avifBitDepth as XlchemyCardState["avifBitDepth"] })} /></>}
     </div>
     <div className="grid grid-cols-2 gap-2">
       {props.format === "JPEG" && props.data.jpegEncoder !== "libjpeg" && <SwitchField label="禁用渐进式 JPEGli" checked={props.data.disableProgressiveJpegli ?? false} onChange={(disableProgressiveJpegli) => props.onPatch({ disableProgressiveJpegli })} />}
       {props.format === "AVIF" && (props.data.avifEncoder ?? "aom") === "aom" && <SwitchField label="AOM IQ 调优" checked={props.data.avifAomIqTune ?? false} onChange={(avifAomIqTune) => props.onPatch({ avifAomIqTune })} />}
       <SwitchField label="转换后未变小时保留原图" description="转换结果大于或等于原图时，删除转换结果并保留原图。" checked={props.data.keepIfLarger ?? false} onChange={(keepIfLarger) => props.onPatch(keepIfLarger ? { keepIfLarger } : { keepIfLarger, copyIfLarger: false })} />
       <SwitchField label="未变小时复制原图到输出目录" description="转换结果未变小时，用原图替代输出目录中的转换结果；开启时会同时启用保留原图。" checked={props.data.copyIfLarger ?? false} onChange={(copyIfLarger) => props.onPatch(copyIfLarger ? { keepIfLarger: true, copyIfLarger } : { copyIfLarger })} />
-      <SwitchField label="自动检测并跳过动图" description="在转换前检查已启用的格式；识别为动图时跳过该文件。默认仅检查最常见的动画 WebP。" checked={props.data.skipAnimatedImages ?? true} onChange={(skipAnimatedImages) => props.onPatch({ skipAnimatedImages })} />
-      {(props.data.skipAnimatedImages ?? true) && <div className="col-span-2 grid grid-cols-2 gap-2 rounded-md border border-dashed p-2">
-        <SwitchField label="PNG / APNG" description="解析 PNG chunk；包含 acTL 时按 APNG 动图跳过。" checked={props.data.detectAnimatedPng ?? false} onChange={(detectAnimatedPng) => props.onPatch({ detectAnimatedPng })} />
-        <SwitchField label="WebP" description="使用 Sharp 读取 WebP 帧数；多于一帧时跳过。" checked={props.data.detectAnimatedWebp ?? true} onChange={(detectAnimatedWebp) => props.onPatch({ detectAnimatedWebp })} />
-        <SwitchField label="AVIF" description="解析 AVIF BMFF 容器；检测到 avis 或 msf1 序列品牌时跳过。" checked={props.data.detectAnimatedAvif ?? false} onChange={(detectAnimatedAvif) => props.onPatch({ detectAnimatedAvif })} />
-        <SwitchField label="JPEG XL" description="使用 Sharp 读取 JPEG XL 帧数；多于一帧时跳过。" checked={props.data.detectAnimatedJxl ?? false} onChange={(detectAnimatedJxl) => props.onPatch({ detectAnimatedJxl })} />
-      </div>}
+      <AnimationDetectionSettings props={props} />
       {props.format === "JPEG XL" && <><SwitchField label="JXL 有损 Modular" checked={props.data.jxlModular ?? false} onChange={(jxlModular) => props.onPatch({ jxlModular })} /><SwitchField label="自动无损 JPEG" checked={props.data.autoLosslessJpeg ?? true} onChange={(autoLosslessJpeg) => props.onPatch({ autoLosslessJpeg })} /></>}
     </div>
+  </div>
+}
+
+function AnimationDetectionSettings({ props }: { props: ViewProps }) {
+  const dynar = props.format === "dynar"
+  const enabled = dynar || (props.data.skipAnimatedImages ?? true)
+  return <div className={cn(dynar ? "grid grid-cols-2 gap-2" : "col-span-2 contents")}>
+    {!dynar && <SwitchField label="自动检测并跳过动图" description="在转换前检查已启用的格式；识别为动图时跳过该文件。默认仅检查最常见的动画 WebP。" checked={props.data.skipAnimatedImages ?? true} onChange={(skipAnimatedImages) => props.onPatch({ skipAnimatedImages })} />}
+    {enabled && <div className={cn("grid grid-cols-2 gap-2 rounded-md border border-dashed p-2", !dynar && "col-span-2")}>
+      <SwitchField label="PNG / APNG" description={dynar ? "识别 APNG 后按命名规则重命名。" : "解析 PNG chunk；包含 acTL 时按 APNG 动图跳过。"} checked={props.data.detectAnimatedPng ?? false} onChange={(detectAnimatedPng) => props.onPatch({ detectAnimatedPng })} />
+      <SwitchField label="WebP" description={dynar ? "识别动画 WebP 后按命名规则重命名。" : "使用 Sharp 读取 WebP 帧数；多于一帧时跳过。"} checked={props.data.detectAnimatedWebp ?? true} onChange={(detectAnimatedWebp) => props.onPatch({ detectAnimatedWebp })} />
+      <SwitchField label="AVIF" description={dynar ? "识别动画 AVIF 后按命名规则重命名。" : "解析 AVIF BMFF 容器；检测到 avis 或 msf1 序列品牌时跳过。"} checked={props.data.detectAnimatedAvif ?? false} onChange={(detectAnimatedAvif) => props.onPatch({ detectAnimatedAvif })} />
+      <SwitchField label="JPEG XL" description={dynar ? "识别动画 JPEG XL 后按命名规则重命名。" : "使用 Sharp 读取 JPEG XL 帧数；多于一帧时跳过。"} checked={props.data.detectAnimatedJxl ?? false} onChange={(detectAnimatedJxl) => props.onPatch({ detectAnimatedJxl })} />
+    </div>}
   </div>
 }
 
@@ -598,16 +640,17 @@ function AdvancedSettings({ props }: { props: ViewProps }) {
 function EnvironmentSettings({ props }: { props: ViewProps }) {
   const tools = props.data.environment?.length ? props.data.environment : pendingEnvironment(), ready = tools.filter((tool) => tool.runnable).length, pending = tools.filter((tool) => tool.detail === "等待检测" || tool.detail === "正在检测").length, unavailable = tools.filter((tool) => tool.detail?.startsWith("运行端待刷新")).length
   const cpuThreads = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : undefined
-  return <div className="@container/xlchemy-tool-panel"><div className="flex flex-col gap-2"><div className="flex flex-wrap items-center gap-2"><div className="min-w-48 flex-1"><div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold"><Wrench />工具链维护<Badge variant="outline">{pending ? `检测中 · ${tools.length}` : unavailable ? `待刷新 · ${tools.length}` : `${ready}/${tools.length}`}</Badge><Badge variant="secondary">CPU {cpuThreads ?? "—"} 线程</Badge><Badge variant="secondary">任务 {props.data.threads ?? 4} 线程</Badge><Badge variant="secondary">{activeEncoder(props.data)}</Badge></div><div className="mt-0.5 text-[10px] text-muted-foreground">检测 PATH 中的编码命令，包括 slimg 0.6 CLI；不下载或安装二进制。{props.data.environmentCheckedAt ? ` 上次：${new Date(props.data.environmentCheckedAt).toLocaleTimeString()}` : ""}</div></div><Button size="sm" variant="outline" disabled={props.running} onClick={() => props.onExecute("diagnose")}><RefreshCw className={cn(props.running && "animate-spin motion-reduce:animate-none")} data-icon="inline-start" />{props.running ? "检测中" : "重新检测"}</Button></div><div className="grid gap-1.5 @xl/xlchemy-tool-panel:grid-cols-2">{tools.map((tool) => { const checking = tool.detail === "等待检测" || tool.detail === "正在检测", stale = tool.detail?.startsWith("运行端待刷新"); return <Item key={tool.id} size="sm" variant="outline" className="min-w-0 flex-nowrap px-2 py-1.5"><ItemMedia>{checking ? <RefreshCw className="animate-spin text-muted-foreground motion-reduce:animate-none" /> : stale ? <AlertTriangle className="text-muted-foreground" /> : tool.runnable ? <CircleCheck className="text-chart-2" /> : <CircleX className="text-destructive" />}</ItemMedia><ItemContent className="min-w-0 gap-0.5"><ItemTitle className="w-full min-w-0 text-xs"><span className="truncate">{tool.label}</span><Badge className="ml-auto" variant={checking || stale ? "outline" : tool.runnable ? "secondary" : "destructive"}>{checking ? "检测中" : stale ? "待刷新" : tool.runnable ? "可用" : tool.available ? "异常" : "缺失"}</Badge></ItemTitle><ItemDescription className="block truncate text-[10px]" title={tool.path ?? tool.detail}>{tool.purpose} · {tool.version ?? tool.path ?? tool.detail}</ItemDescription></ItemContent></Item> })}</div></div></div>
+  return <div className="@container/xlchemy-tool-panel"><div className="flex flex-col gap-2"><div className="flex flex-wrap items-center gap-2"><div className="min-w-48 flex-1"><div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold"><Wrench />工具链维护<Badge variant="outline">{pending ? `检测中 · ${tools.length}` : unavailable ? `待刷新 · ${tools.length}` : `${ready}/${tools.length}`}</Badge><Badge variant="secondary">CPU {cpuThreads ?? "—"} 线程</Badge><Badge variant="secondary">任务 {props.data.threads ?? 4} 线程</Badge><Badge variant="secondary">{activeEncoder(props.data)}</Badge></div><div className="mt-0.5 text-[10px] text-muted-foreground">检测 PATH 中的编码命令与系统 slimg DLL；不下载或安装二进制。{props.data.environmentCheckedAt ? ` 上次：${new Date(props.data.environmentCheckedAt).toLocaleTimeString()}` : ""}</div></div><Button size="sm" variant="outline" disabled={props.running} onClick={() => props.onExecute("diagnose")}><RefreshCw className={cn(props.running && "animate-spin motion-reduce:animate-none")} data-icon="inline-start" />{props.running ? "检测中" : "重新检测"}</Button></div><div className="grid gap-1.5 @xl/xlchemy-tool-panel:grid-cols-2">{tools.map((tool) => { const checking = tool.detail === "等待检测" || tool.detail === "正在检测", stale = tool.detail?.startsWith("运行端待刷新"); return <Item key={tool.id} size="sm" variant="outline" className="min-w-0 flex-nowrap px-2 py-1.5"><ItemMedia>{checking ? <RefreshCw className="animate-spin text-muted-foreground motion-reduce:animate-none" /> : stale ? <AlertTriangle className="text-muted-foreground" /> : tool.runnable ? <CircleCheck className="text-chart-2" /> : <CircleX className="text-destructive" />}</ItemMedia><ItemContent className="min-w-0 gap-0.5"><ItemTitle className="w-full min-w-0 text-xs"><span className="truncate">{tool.label}</span><Badge className="ml-auto" variant={checking || stale ? "outline" : tool.runnable ? "secondary" : "destructive"}>{checking ? "检测中" : stale ? "待刷新" : tool.runnable ? "可用" : tool.available ? "异常" : "缺失"}</Badge></ItemTitle><ItemDescription className="block truncate text-[10px]" title={tool.path ?? tool.detail}>{tool.purpose} · {tool.version ?? tool.path ?? tool.detail}</ItemDescription></ItemContent></Item> })}</div></div></div>
 }
 
 function SettingsGroup({ children, label }: { children: ReactNode; label: string }) {
   return <FieldSet className="min-w-0 gap-1.5 rounded-lg border px-2.5 pb-2.5"><FieldLegend className="mb-0 ml-1 w-fit px-1 text-[10px] text-muted-foreground" variant="label">{label}</FieldLegend><div className="flex min-w-0 flex-col gap-2">{children}</div></FieldSet>
 }
 
-function activeEncoder(data: XlchemyCardState) { const format = data.format ?? "JPEG XL"; if (format === "AVIF") return data.avifEncoder === "svt" ? "SVT-AV1" : data.avifEncoder === "slimg" ? "slimg" : "AOM AV1"; if (format === "JPEG") return data.jpegEncoder === "libjpeg" ? "libjpeg" : "JPEGli"; if (format === "JPEG XL" || format === "Lossless JPEG Transcoding") return "cjxl"; if (format === "JPEG Reconstruction") return "djxl"; return format }
+function activeEncoder(data: XlchemyCardState) { const format = data.format ?? "JPEG XL"; if (format === "AVIF") return data.avifEncoder === "svt" ? "SVT-AV1" : data.avifEncoder === "slimg" ? `slimg ${data.slimgBackend === "cli" ? "CLI" : "DLL"}` : "AOM AV1"; if (format === "JPEG") return data.jpegEncoder === "libjpeg" ? "libjpeg" : "JPEGli"; if (format === "JPEG XL" || format === "Lossless JPEG Transcoding") return "cjxl"; if (format === "JPEG Reconstruction") return "djxl"; return format }
 
 function SourcePolicies({ props }: { props: ViewProps }) {
+  if (props.format === "dynar") return <SwitchField label="保留目录结构" checked={props.data.preserveStructure ?? true} onChange={(preserveStructure) => props.onPatch({ preserveStructure })} />
   return <div className="flex flex-col gap-2"><div className="grid grid-cols-2 gap-2"><SwitchField label="保留目录结构" checked={props.data.preserveStructure ?? true} onChange={(preserveStructure) => props.onPatch({ preserveStructure })} /><SwitchField label="转换后删除原图" checked={props.data.deleteOriginal ?? false} onChange={(deleteOriginal) => props.onPatch({ deleteOriginal })} /></div>{props.data.deleteOriginal && <SelectField label="删除方式" value={props.data.deleteOriginalMode ?? "trash"} options={[["trash", "移到回收站"], ["permanent", "永久删除"]]} onChange={(deleteOriginalMode) => props.onPatch({ deleteOriginalMode: deleteOriginalMode as "trash" | "permanent" })} />}</div>
 }
 
@@ -631,11 +674,12 @@ function SelectField({ label, onChange, options, value }: { label: string; onCha
 function NumberField({ label, onChange, step = 1, value }: { label: string; onChange: (value: number) => void; step?: number; value: number }) { return <Field><FieldLabel>{label}</FieldLabel><Input type="number" step={step} value={value} onChange={(event) => onChange(Number(event.currentTarget.value))} /></Field> }
 
 function RunButton({ className, label, props, compact }: { className?: string; label?: string; props: ViewProps; compact?: boolean }) {
-  if (props.running) return <Button className={className} aria-label="取消转换" disabled={props.cancelling} size={compact ? "icon-sm" : "sm"} variant="outline" onClick={props.onCancel}><Square />{!compact && (props.cancelling ? "正在取消…" : "取消转换")}</Button>
-  const live = (props.data.overwrite ?? false) || (props.data.deleteOriginal ?? false)
-  const button = <Button className={className} aria-label="开始转换" disabled={!hasInputSources(props)} size={compact ? "icon-sm" : "sm"} variant={live ? "destructive" : "default"} onClick={live ? undefined : () => props.onExecute("convert")}><Play />{!compact && (label ?? "开始转换")}</Button>
+  const dynar = props.format === "dynar", actionLabel = dynar ? "重命名" : "转换"
+  if (props.running) return <Button className={className} aria-label={`取消${actionLabel}`} disabled={props.cancelling} size={compact ? "icon-sm" : "sm"} variant="outline" onClick={props.onCancel}><Square />{!compact && (props.cancelling ? "正在取消…" : `取消${actionLabel}`)}</Button>
+  const live = (props.data.overwrite ?? false) || (!dynar && (props.data.deleteOriginal ?? false))
+  const button = <Button className={className} aria-label={`开始${actionLabel}`} disabled={!hasInputSources(props)} size={compact ? "icon-sm" : "sm"} variant={live ? "destructive" : "default"} onClick={live ? undefined : () => props.onExecute("convert")}><Play />{!compact && (label ?? `开始${actionLabel}`)}</Button>
   if (!live) return button
-  return <AlertDialog><AlertDialogTrigger asChild>{button}</AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认覆盖并转换？</AlertDialogTitle><AlertDialogDescription>Xlchemy 将写入目标文件，并允许覆盖已存在的输出。请先检查目标格式和输出位置。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => props.onExecute("convert")}>确认转换</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+  return <AlertDialog><AlertDialogTrigger asChild>{button}</AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>确认覆盖并{actionLabel}？</AlertDialogTitle><AlertDialogDescription>Xlchemy 将写入目标路径，并允许覆盖已存在的文件。请先检查目标格式和输出位置。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={() => props.onExecute("convert")}>确认{actionLabel}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 }
 
 function ResultPanel({ props }: { props: ViewProps }) {
@@ -647,7 +691,6 @@ function WorkbenchCard({ badge, children, fill = false, grow = false, icon: Icon
 }
 
 function splitLines(value?: string) { return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean) }
-function inputFormatEnabled(path: string, excludedFormatsText?: string) { const name = path.replace(/\\/g, "/").split("/").at(-1) ?? path, dot = name.lastIndexOf("."); if (dot <= 0) return true; const extension = name.slice(dot + 1).toLowerCase(); const excluded = new Set(String(excludedFormatsText ?? DEFAULT_EXCLUDED_FORMATS).split(/[,;\s]+/).map((value) => value.replace(/^\./, "").toLowerCase()).filter(Boolean)); return !excluded.has(extension) }
 function readLiveResult(value: unknown): XlchemyData | undefined {
   if (!value || typeof value !== "object" || (value as { kind?: unknown }).kind !== "xlchemy-live-result") return undefined
   const result = (value as { result?: unknown }).result
@@ -666,17 +709,17 @@ function baseName(path: string) { return path.replace(/\\/g, "/").split("/").fil
 function formatCompactBytes(bytes: number) { if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`; return `${(bytes / 1024 ** 2).toFixed(1)} MB` }
 function formatExtension(format: XlchemyFormat) { return FORMATS.find((item) => item.value === format)?.extension ?? "" }
 function statusLabel(props: ViewProps) { if (props.running || props.data.phase === "running") return "运行中"; if (props.data.phase === "completed") return "完成"; if (props.data.phase === "cancelled") return "已取消"; if (props.data.phase === "error") return "错误"; return "在线" }
-function buildInput(action: XlchemyAction, data: XlchemyCardState): XlchemyInput { const normalized = normalizeXlchemyInput({ action, paths: splitLines(data.pathsText), efuFiles: data.efuFiles, format: data.format, lossless: data.lossless, quality: data.quality, effort: data.effort, maxCompression: data.maxCompression, threads: data.threads, outputMode: data.outputMode, outputDir: data.outputDir, preserveMetadata: data.preserveMetadata, preserveStructure: data.preserveStructure, preserveTimestamps: data.preserveTimestamps, overwrite: data.overwrite, existingPolicy: data.existingPolicy, recursive: data.recursive, deleteOriginal: data.deleteOriginal, deleteOriginalMode: data.deleteOriginalMode, intelligentEffort: data.intelligentEffort, jxlModular: data.jxlModular, jxlVerify: data.jxlVerify, jxlPngFallback: data.jxlPngFallback, jxlNormalize: data.jxlNormalize, jxlNormalizeWhen: data.jxlNormalizeWhen, chromaSubsampling: data.chromaSubsampling, metadataMode: data.metadataMode, keepIfLarger: data.keepIfLarger, copyIfLarger: data.copyIfLarger, animationDetectionFormats: animationDetectionFormats(data), smallestFormatPool: { png: data.smallestPng ?? true, webp: data.smallestWebp ?? true, jxl: data.smallestJxl ?? true }, jpegEncoder: data.jpegEncoder, avifEncoder: data.avifEncoder, avifBitDepth: data.avifBitDepth, avifAomIqTune: data.avifAomIqTune, disableProgressiveJpegli: data.disableProgressiveJpegli, autoLosslessJpeg: data.autoLosslessJpeg, enableCustomArgs: data.enableCustomArgs, cjxlArgs: data.cjxlArgs, avifencArgs: data.avifencArgs, cjpegliArgs: data.cjpegliArgs, imageMagickArgs: data.imageMagickArgs, ramOptimizer: data.ramOptimizer, ramOptimizerRules: data.ramOptimizerRules, exiftoolWipeArgs: data.exiftoolWipeArgs, exiftoolPreserveArgs: data.exiftoolPreserveArgs, exiftoolUnsafeWipeArgs: data.exiftoolUnsafeWipeArgs, exiftoolCustomArgs: data.exiftoolCustomArgs, processingOrder: data.processingOrder, excludedFormats: String(data.excludedFormatsText ?? "avif,jxl,webp,gif").split(/[,;\s]+/).filter(Boolean), downscale: { enabled: data.downscaleEnabled ?? false, mode: data.downscaleMode ?? "resolution", width: data.downscaleWidth ?? 1920, height: data.downscaleHeight ?? 1080, percent: data.downscalePercent ?? 50, fileSizeKb: data.downscaleFileSizeKb ?? 500, shortestSide: data.downscaleShortestSide ?? 1080, longestSide: data.downscaleLongestSide ?? 1920, megapixels: data.downscaleMegapixels ?? 2.1, resample: data.downscaleResample ?? "default" } }); normalized.efuFiles = [...new Set(data.efuFiles ?? [])]; return normalized }
+function buildInput(action: XlchemyAction, data: XlchemyCardState): XlchemyInput { const normalized = normalizeXlchemyInput({ action, paths: splitLines(data.pathsText), efuFiles: data.efuFiles, format: data.format, lossless: data.lossless, quality: data.quality, effort: data.effort, maxCompression: data.maxCompression, threads: data.threads, outputMode: data.outputMode, outputDir: data.outputDir, preserveMetadata: data.preserveMetadata, preserveStructure: data.preserveStructure, preserveTimestamps: data.preserveTimestamps, overwrite: data.overwrite, existingPolicy: data.existingPolicy, recursive: data.recursive, deleteOriginal: data.deleteOriginal, deleteOriginalMode: data.deleteOriginalMode, intelligentEffort: data.intelligentEffort, jxlModular: data.jxlModular, jxlVerify: data.jxlVerify, jxlPngFallback: data.jxlPngFallback, jxlNormalize: data.jxlNormalize, jxlNormalizeWhen: data.jxlNormalizeWhen, chromaSubsampling: data.chromaSubsampling, metadataMode: data.metadataMode, keepIfLarger: data.keepIfLarger, copyIfLarger: data.copyIfLarger, animationDetectionFormats: animationDetectionFormats(data), smallestFormatPool: { png: data.smallestPng ?? true, webp: data.smallestWebp ?? true, jxl: data.smallestJxl ?? true }, jpegEncoder: data.jpegEncoder, avifEncoder: data.avifEncoder, slimgBackend: data.slimgBackend, avifBitDepth: data.avifBitDepth, avifAomIqTune: data.avifAomIqTune, disableProgressiveJpegli: data.disableProgressiveJpegli, autoLosslessJpeg: data.autoLosslessJpeg, enableCustomArgs: data.enableCustomArgs, cjxlArgs: data.cjxlArgs, avifencArgs: data.avifencArgs, cjpegliArgs: data.cjpegliArgs, imageMagickArgs: data.imageMagickArgs, ramOptimizer: data.ramOptimizer, ramOptimizerRules: data.ramOptimizerRules, exiftoolWipeArgs: data.exiftoolWipeArgs, exiftoolPreserveArgs: data.exiftoolPreserveArgs, exiftoolUnsafeWipeArgs: data.exiftoolUnsafeWipeArgs, exiftoolCustomArgs: data.exiftoolCustomArgs, processingOrder: data.processingOrder, excludedFormats: String(data.excludedFormatsText ?? "avif,jxl,webp,gif").split(/[,;\s]+/).filter(Boolean), downscale: { enabled: data.downscaleEnabled ?? false, mode: data.downscaleMode ?? "resolution", width: data.downscaleWidth ?? 1920, height: data.downscaleHeight ?? 1080, percent: data.downscalePercent ?? 50, fileSizeKb: data.downscaleFileSizeKb ?? 500, shortestSide: data.downscaleShortestSide ?? 1080, longestSide: data.downscaleLongestSide ?? 1920, megapixels: data.downscaleMegapixels ?? 2.1, resample: data.downscaleResample ?? "default" } }); normalized.efuFiles = [...new Set(data.efuFiles ?? [])]; return normalized }
 
 function animationDetectionFormats(data: XlchemyCardState): NonNullable<XlchemyInput["animationDetectionFormats"]> {
-  if (data.skipAnimatedImages === false) return []
+  if (data.format !== "dynar" && data.skipAnimatedImages === false) return []
   return [data.detectAnimatedPng === true && "png", data.detectAnimatedWebp !== false && "webp", data.detectAnimatedAvif === true && "avif", data.detectAnimatedJxl === true && "jxl"].filter((format): format is NonNullable<XlchemyInput["animationDetectionFormats"]>[number] => Boolean(format))
 }
 
 function hasInputSources(props: Pick<ViewProps, "data" | "paths">) { return props.paths.length > 0 || Boolean(props.data.efuFiles?.length) }
-function inputSourceLabel(props: Pick<ViewProps, "data" | "paths">) { const efuCount = props.data.efuFiles?.length ?? 0; return efuCount ? `${props.paths.length ? `${props.paths.length.toLocaleString()} 项 · ` : ""}${efuCount} EFU` : `${props.paths.length} 项` }
+function inputSourceLabel(props: Pick<ViewProps, "data" | "paths">) { const efuCount = props.data.efuFiles?.length ?? 0, efuItems = selectedEfuAnalyses(props.data).reduce((sum, item) => sum + item.totalFiles, 0); return efuCount ? `${(props.paths.length + efuItems).toLocaleString()} 项 · ${efuCount} EFU` : `${props.paths.length} 项` }
 function playCompletionTone(volume: number) { const AudioContextCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext; if (!AudioContextCtor) return; const context = new AudioContextCtor(), oscillator = context.createOscillator(), gain = context.createGain(); oscillator.frequency.value = 660; gain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)) * 0.12, context.currentTime); gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22); oscillator.connect(gain).connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.22); oscillator.addEventListener("ended", () => void context.close()) }
 function getHostData(host: NodeComponentProps<XlchemyCardState>["host"], compId: string): XlchemyCardState { return host.state?.getData?.() ?? host.getData<XlchemyCardState>(compId) ?? {} }
 
-const XL_INPUT_FORMATS = ["jxl", "jpg", "jpeg", "jfif", "jif", "jpe", "png", "apng", "gif", "webp", "jp2", "bmp", "ico", "tiff", "tif", "avif", "psd", "psb", "clip"]
 const DEFAULT_EXCLUDED_FORMATS = "avif,jxl,webp,gif"
+const XL_INPUT_FORMATS = XLCHEMY_INPUT_EXTENSIONS.map((extension) => extension.slice(1))

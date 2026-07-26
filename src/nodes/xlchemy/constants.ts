@@ -10,6 +10,7 @@ export const FORMATS: Array<{ value: XlchemyFormat; label: string; extension: st
   { value: "Lossless JPEG Transcoding", label: "JPEG 无损转码", extension: ".jxl" },
   { value: "JPEG Reconstruction", label: "JPEG 重建", extension: ".jpg" },
   { value: "Smallest Lossless", label: "最小无损", extension: "自动" },
+  { value: "dynar", label: "dynar", extension: "重命名" },
 ]
 
 export const ENVIRONMENT_TARGETS = [
@@ -21,7 +22,8 @@ export const ENVIRONMENT_TARGETS = [
   ["avifenc", "avifenc", "AVIF 编码"],
   ["avifdec", "avifdec", "AVIF 解码"],
   ["ffmpeg", "FFmpeg / SVT-AV1", "SVT-AV1 AVIF 编码"],
-  ["slimg", "slimg CLI", "slimg AVIF 编码"],
+  ["slimg", "slimg CLI", "slimg CLI AVIF 编码"],
+  ["slimg-cffi", "slimg DLL", "slimg AVIF 编码"],
   ["cwebp", "cwebp", "WebP 编码"],
   ["oxipng", "oxipng", "PNG 无损优化"],
   ["exiftool", "ExifTool", "元数据复制与清理"],

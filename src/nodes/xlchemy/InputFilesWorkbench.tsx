@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import type { NodeLocalFilesCapability } from "@xiranite/contract"
 import type { Column, RowSelectionState, SortingState, Updater } from "@tanstack/react-table"
 import { ArrowDown, ArrowUp, CaseSensitive, CheckCheck, ChevronRight, Eraser, Eye, EyeOff, FileImage, FilePlus, FileSpreadsheet, FileType, Folder, FolderPlus, FolderTree, Plus, Rows3, Trash2, Weight } from "lucide-react"
@@ -18,9 +18,10 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useLocalFileDrop } from "@/nodes/shared/useLocalFileDrop"
-import { LOCAL_IMAGE_EXTENSIONS, LocalImagePreview } from "@/nodes/shared/LocalImagePreview"
+import { LocalImagePreview } from "@/nodes/shared/LocalImagePreview"
 import type { XlchemyData } from "@xiranite/node-xlchemy/core"
 import type { XlchemyCardState } from "./types"
+import { enabledXlchemyInputExtensions, isXlchemyInputPathEnabled } from "./input-format-policy"
 
 type ViewMode = "list" | "tree"
 type SortField = "name" | "ext" | "size" | "dir"
@@ -28,32 +29,49 @@ type FileEntry = { path: string; name: string; ext: string; dir: string; size: n
 type TreeNode = { id: string; name: string; path: string; kind: "folder" | "file"; size: number; count: number; entry?: FileEntry; children: TreeNode[] }
 type TreeModel = { rootLabel: string; nodes: TreeNode[] }
 const VIRTUALIZE_TABLE_AT = 200
-const XLCHEMY_INPUT_EXTENSIONS = [...LOCAL_IMAGE_EXTENSIONS, ".psd", ".psb", ".clip"]
-
-export function InputFilesWorkbench(props: { clipboardAction?: ReactNode; data: XlchemyCardState; disabled?: boolean; footer: ReactNode; getFileUrl?: (path: string) => string; result: XlchemyData | null; onCopyPath: (path: string) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onPickFiles: () => Promise<string[]>; onPickDirectory: () => Promise<string | undefined>; onImportEfu: () => Promise<void>; onListFiles?: (path: string, options?: { recursive?: boolean; extensions?: string[]; limit?: number }) => Promise<Array<{ path: string; isDirectory: boolean; sizeBytes: number }>>; onSubscribeDrops?: NodeLocalFilesCapability["subscribeDrops"] }) {
+export function InputFilesWorkbench(props: { clipboardAction?: ReactNode; data: XlchemyCardState; disabled?: boolean; footer: ReactNode; inputFileSizes: ReadonlyMap<string, number>; getFileUrl?: (path: string) => string; result: XlchemyData | null; onCopyPath: (path: string) => void; onInputFileSizesDiscovered: (entries: Array<[string, number]>) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onPickFiles: () => Promise<string[]>; onPickDirectory: () => Promise<string | undefined>; onImportEfu: () => Promise<void>; onListFiles?: (path: string, options?: { recursive?: boolean; extensions?: string[]; limit?: number }) => Promise<Array<{ path: string; isDirectory: boolean; sizeBytes: number }>>; onSubscribeDrops?: NodeLocalFilesCapability["subscribeDrops"] }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [discoveredSizes, setDiscoveredSizes] = useState<Map<string, number>>(new Map())
   const efuFiles = props.data.efuFiles ?? []
-  const entries = useMemo(() => deriveEntries(props.data.pathsText, props.result, discoveredSizes), [discoveredSizes, props.data.pathsText, props.result])
+  const inputExtensions = enabledXlchemyInputExtensions(props.data)
+  const missingSizePaths = splitLines(props.data.pathsText).filter((path) => !props.inputFileSizes.has(path))
+  const missingSizeSignature = missingSizePaths.join("\0")
+  const inputExtensionSignature = inputExtensions.join("\0")
+  const entries = useMemo(() => deriveEntries(props.data.pathsText, props.result, props.inputFileSizes), [props.data.pathsText, props.inputFileSizes, props.result])
   const selected = useMemo(() => new Set(props.data.selectedPaths ?? entries.map((entry) => entry.path)), [props.data.selectedPaths, entries])
   const viewMode = props.data.inputViewMode ?? "tree", sortField = props.data.inputSortField ?? "name", sortDesc = props.data.inputSortDesc ?? false
   const sorted = useMemo(() => props.data.disableSorting ? entries : [...entries].sort((a, b) => compareEntries(a, b, sortField) * (sortDesc ? -1 : 1)), [entries, props.data.disableSorting, sortDesc, sortField])
   const tree = useMemo(() => viewMode === "tree" ? buildTree(sorted) : { rootLabel: "", nodes: [] }, [sorted, viewMode]), totalBytes = entries.reduce((sum, entry) => sum + entry.size, 0)
   const fileDrop = useLocalFileDrop({ disabled: props.disabled, subscribeDrops: props.onSubscribeDrops, onDropPaths: (paths) => void addLocalPaths(paths) })
 
+  useEffect(() => {
+    if (!props.onListFiles || !missingSizePaths.length) return
+    let cancelled = false
+    void (async () => {
+      const discovered: Array<[string, number]> = []
+      for (let index = 0; index < missingSizePaths.length; index += 16) {
+        const batch = missingSizePaths.slice(index, index + 16)
+        const listed = (await Promise.all(batch.map((path) => props.onListFiles!(path, { extensions: inputExtensions, limit: 1 }).catch(() => [])))).flat()
+        if (cancelled) return
+        for (const entry of listed) if (!entry.isDirectory && isXlchemyInputPathEnabled(entry.path, inputExtensions)) discovered.push([entry.path, entry.sizeBytes])
+      }
+      if (discovered.length && !cancelled) props.onInputFileSizesDiscovered(discovered)
+    })()
+    return () => { cancelled = true }
+  }, [inputExtensionSignature, missingSizeSignature, props.onInputFileSizesDiscovered, props.onListFiles])
+
   function togglePath(path: string, checked: boolean) { const next = new Set(selected); if (checked) next.add(path); else next.delete(path); props.onPatch({ selectedPaths: [...next] }) }
   function togglePaths(paths: string[], checked: boolean) { const next = new Set(selected); for (const path of paths) { if (checked) next.add(path); else next.delete(path) } props.onPatch({ selectedPaths: [...next] }) }
   function removeSelected() { props.onPatch({ pathsText: entries.filter((entry) => !selected.has(entry.path)).map((entry) => entry.path).join("\n"), selectedPaths: [] }) }
-  function addPaths(paths: string[]) { const accepted = paths.filter((path) => inputFormatEnabled(path, props.data.excludedFormatsText)); if (!accepted.length) return; const next = [...new Set([...splitLines(props.data.pathsText), ...accepted])]; props.onPatch({ pathsText: next.join("\n"), selectedPaths: next }) }
-  function addListed(entries: Array<{ path: string; isDirectory: boolean; sizeBytes: number }>, fallback: string[]) { const candidates = entries.filter((entry) => !entry.isDirectory), files = candidates.filter((entry) => inputFormatEnabled(entry.path, props.data.excludedFormatsText)); if (files.length) setDiscoveredSizes((current) => new Map([...current, ...files.map((entry) => [entry.path, entry.sizeBytes] as const)])); addPaths(candidates.length ? files.map((entry) => entry.path) : fallback) }
-  async function addLocalPaths(paths: string[]) { if (!paths.length) return; if (!props.onListFiles) { addPaths(paths); return } const listed = (await Promise.all(paths.map((path) => props.onListFiles!(path, { recursive: props.data.recursive !== false, extensions: XLCHEMY_INPUT_EXTENSIONS, limit: 10_000 }).catch(() => [])))).flat(); addListed(listed, paths) }
-  async function pickFiles() { const paths = await props.onPickFiles(); if (!paths.length) return; if (!props.onListFiles) { addPaths(paths); return } const entries = (await Promise.all(paths.map((path) => props.onListFiles!(path, { extensions: XLCHEMY_INPUT_EXTENSIONS, limit: 1 }).catch(() => [])))).flat(); addListed(entries, paths) }
-  async function pickDirectory() { const path = await props.onPickDirectory(); if (!path) return; const files = await props.onListFiles?.(path, { recursive: props.data.recursive !== false, extensions: XLCHEMY_INPUT_EXTENSIONS, limit: 10_000 }); addListed(files ?? [], [path]) }
+  function addPaths(paths: string[]) { const accepted = paths.filter((path) => isXlchemyInputPathEnabled(path, inputExtensions)); if (!accepted.length) return; const next = [...new Set([...splitLines(props.data.pathsText), ...accepted])]; props.onPatch({ pathsText: next.join("\n"), selectedPaths: next }) }
+  function addListed(entries: Array<{ path: string; isDirectory: boolean; sizeBytes: number }>, fallback: string[]) { const candidates = entries.filter((entry) => !entry.isDirectory), files = candidates.filter((entry) => isXlchemyInputPathEnabled(entry.path, inputExtensions)); if (files.length) props.onInputFileSizesDiscovered(files.map((entry) => [entry.path, entry.sizeBytes])); addPaths(candidates.length ? files.map((entry) => entry.path) : fallback) }
+  async function addLocalPaths(paths: string[]) { if (!paths.length) return; if (!props.onListFiles) { addPaths(paths); return } const listed = (await Promise.all(paths.map((path) => props.onListFiles!(path, { recursive: props.data.recursive !== false, extensions: inputExtensions, limit: 10_000 }).catch(() => [])))).flat(); addListed(listed, paths) }
+  async function pickFiles() { const paths = await props.onPickFiles(); if (!paths.length) return; if (!props.onListFiles) { addPaths(paths); return } const entries = (await Promise.all(paths.map((path) => props.onListFiles!(path, { extensions: inputExtensions, limit: 1 }).catch(() => [])))).flat(); addListed(entries, paths) }
+  async function pickDirectory() { const path = await props.onPickDirectory(); if (!path) return; const files = await props.onListFiles?.(path, { recursive: props.data.recursive !== false, extensions: inputExtensions, limit: 10_000 }); addListed(files ?? [], [path]) }
   function selectAll(checked: boolean) { props.onPatch({ selectedPaths: checked ? entries.map((entry) => entry.path) : [] }) }
 
   return <div className="flex min-h-0 flex-1 flex-col gap-2" data-testid="xlchemy-input-workbench">
     <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card px-2.5 py-2">
-      <div className="flex items-center gap-1"><AddInputMenu disabled={props.disabled} onFiles={() => void pickFiles()} onFolder={() => void pickDirectory()} onImportEfu={() => void props.onImportEfu()} />{props.clipboardAction}<IconButton icon={Eraser} label="清空" disabled={(!entries.length && !efuFiles.length) || props.disabled} onClick={() => props.onPatch({ pathsText: "", selectedPaths: [], efuFiles: [], efuAnalysisByPath: {} })} /><IconButton icon={CheckCheck} label="移除已完成" disabled={!props.result?.files.length || props.disabled} onClick={() => { const done = new Set(props.result?.files.filter((file) => file.status === "converted").map((file) => file.sourcePath)); props.onPatch({ pathsText: entries.filter((entry) => !done.has(entry.path)).map((entry) => entry.path).join("\n") }) }} /><IconButton icon={Trash2} label="删除已选" disabled={!selected.size || props.disabled} onClick={removeSelected} /><IconButton icon={props.data.showOriginalPreview ? Eye : EyeOff} label={props.data.showOriginalPreview ? "隐藏预览" : "显示预览"} onClick={() => props.onPatch({ showOriginalPreview: !props.data.showOriginalPreview })} /></div>
+      <div className="flex items-center gap-1"><AddInputMenu disabled={props.disabled} onFiles={() => void pickFiles()} onFolder={() => void pickDirectory()} onImportEfu={() => void props.onImportEfu()} />{props.clipboardAction}<IconButton icon={Eraser} label="清空" disabled={(!entries.length && !efuFiles.length) || props.disabled} onClick={() => props.onPatch({ pathsText: "", selectedPaths: [], efuFiles: [], efuAnalysisByPath: {} })} /><IconButton icon={CheckCheck} label="移除已完成" disabled={!props.result?.files.length || props.disabled} onClick={() => { const done = new Set(props.result?.files.filter((file) => file.status === "converted" || file.status === "renamed").map((file) => file.sourcePath)); props.onPatch({ pathsText: entries.filter((entry) => !done.has(entry.path)).map((entry) => entry.path).join("\n") }) }} /><IconButton icon={Trash2} label="删除已选" disabled={!selected.size || props.disabled} onClick={removeSelected} /><IconButton icon={props.data.showOriginalPreview ? Eye : EyeOff} label={props.data.showOriginalPreview ? "隐藏预览" : "显示预览"} onClick={() => props.onPatch({ showOriginalPreview: !props.data.showOriginalPreview })} /></div>
       <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">{totalBytes > 0 && <Badge variant="outline">{formatBytes(totalBytes)}</Badge>}{selected.size > 0 && <Badge variant="outline">已选 {selected.size}</Badge>}<SortFieldMenu value={sortField} onChange={(inputSortField) => props.onPatch({ inputSortField })} /><IconButton icon={sortDesc ? ArrowDown : ArrowUp} label={sortDesc ? "降序" : "升序"} onClick={() => props.onPatch({ inputSortDesc: !sortDesc })} /><ToggleGroup type="single" value={viewMode} variant="outline" size="sm" className="w-auto shrink-0" onValueChange={(value) => value && props.onPatch({ inputViewMode: value as ViewMode })}><ToggleGroupItem value="list" aria-label="列表视图"><Rows3 /></ToggleGroupItem><ToggleGroupItem value="tree" aria-label="文件树视图"><FolderTree /></ToggleGroupItem></ToggleGroup></div>
     </div>
     {efuFiles.length > 0 && <div className="flex flex-wrap gap-2" data-testid="xlchemy-efu-sources">{efuFiles.map((path) => <div key={path} className="flex min-w-0 max-w-full items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-xs"><FileSpreadsheet className="size-4 shrink-0 text-primary" /><span className="max-w-72 truncate" title={path}>{baseName(path)}</span><Badge variant="outline">流式</Badge><Button aria-label={`移除 EFU ${baseName(path)}`} disabled={props.disabled} size="icon-xs" variant="ghost" onClick={() => { const efuAnalysisByPath = { ...(props.data.efuAnalysisByPath ?? {}) }; delete efuAnalysisByPath[path]; props.onPatch({ efuFiles: efuFiles.filter((item) => item !== path), efuAnalysisByPath }) }}><Trash2 /></Button></div>)}</div>}
@@ -118,6 +136,5 @@ function collectFiles(node: TreeNode): FileEntry[] { if (node.entry) return [nod
 function commonRootSegments(entries: FileEntry[]) { if (!entries.length) return []; const paths = entries.map((entry) => entry.dir.split("/").filter(Boolean)), first = paths[0] ?? []; let index = 0; while (index < first.length && paths.every((parts) => parts[index] === first[index])) index += 1; return first.slice(0, index) }
 function commonRoot(entries: FileEntry[]) { const segments = commonRootSegments(entries); return segments.length ? segments.join("/") : entries.length > 1 ? "多个位置" : entries[0]?.dir || "" }
 function splitLines(value?: string) { return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean) }
-function inputFormatEnabled(path: string, excludedFormatsText?: string) { const name = path.replace(/\\/g, "/").split("/").at(-1) ?? path, dot = name.lastIndexOf("."); if (dot <= 0) return true; const extension = name.slice(dot + 1).toLowerCase(); const excluded = new Set(String(excludedFormatsText ?? "avif,jxl,webp,gif").split(/[,;\s]+/).map((value) => value.replace(/^\./, "").toLowerCase()).filter(Boolean)); return !excluded.has(extension) }
 function formatBytes(bytes: number) { if (!bytes) return "0 B"; const units = ["B", "KB", "MB", "GB", "TB"], index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1); return `${(bytes / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}` }
 function baseName(path: string) { return path.replace(/\\/g, "/").split("/").at(-1) ?? path }

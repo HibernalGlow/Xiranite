@@ -167,7 +167,6 @@ export async function collectNodeAppSourcePaths(root: string, nodeId: string, ba
     "packages/repository/",
     "packages/runtime/",
     "packages/services/",
-    "packages/slimg-native/",
     "packages/shared/",
     ...(backendFeatures.includes("reader") ? ["packages/arcthumb-native/"] : []),
     "native/prebuilt/win32-x64/",

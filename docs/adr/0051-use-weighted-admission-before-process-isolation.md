@@ -17,7 +17,7 @@ Extend the existing `ResourceScheduler` contract with requested and minimum weig
 - backend CPU capacity defaults to the host logical CPU count;
 - background work cannot consume the interactive CPU and memory reserve;
 - XLchemy acquires a background lease immediately before conversion and passes the granted CPU weight to the native encoder;
-- encoder adapters must not multiply the granted weight; slimg caps its Rayon jobs at the granted total and host capacity;
+- encoder adapters must not multiply the granted weight; XLchemy starts at most one single-threaded slimg CFFI call per granted CPU unit;
 - CPU, I/O, and GPU pools retain independent weighted capacity;
 - estimated memory admission limits overlapping work before launch;
 - the existing node memory guard remains the runtime hard stop based on observed RSS and heap growth.

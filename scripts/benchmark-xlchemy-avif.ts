@@ -6,7 +6,7 @@ import { normalizeXlchemyInput, runXlchemy, type XlchemyRuntime } from "../packa
 import { createNodeXlchemyRuntime } from "../packages/nodes/xlchemy/src/platform.js"
 
 interface CpuSnapshot { idle: number; total: number }
-interface CpuSample { percent: number; activeEncoders: number; weight: number }
+interface CpuSample { percent: number; activeEncoders: number; weight: number; rssMiB: number; heapMiB: number }
 type AvifEncoder = "aom" | "slimg"
 
 const threads = numberArgument("--threads", Math.max(1, availableParallelism() - 1))
@@ -15,6 +15,7 @@ const width = numberArgument("--width", 2560)
 const height = numberArgument("--height", 1440)
 const encoder = encoderArgument("--encoder", "aom")
 const parallelOnly = process.argv.includes("--parallel-only")
+const measureIdle = process.argv.includes("--measure-idle")
 const workspace = await mkdtemp(join(tmpdir(), "xiranite-xlchemy-avif-benchmark-"))
 const inputDirectory = join(workspace, "input")
 const baseRuntime = createNodeXlchemyRuntime()
@@ -89,12 +90,14 @@ async function benchmark(processingOrder: "sequential" | "original") {
   }
 
   const cpuSamples: CpuSample[] = []
+  const baselineMemory = process.memoryUsage()
   let previousCpu = cpuSnapshot()
   const sampler = setInterval(() => {
     const currentCpu = cpuSnapshot()
     const totalDelta = currentCpu.total - previousCpu.total
     const idleDelta = currentCpu.idle - previousCpu.idle
-    if (totalDelta > 0) cpuSamples.push({ percent: (1 - idleDelta / totalDelta) * 100, activeEncoders, weight: totalDelta })
+    const memory = process.memoryUsage()
+    if (totalDelta > 0) cpuSamples.push({ percent: (1 - idleDelta / totalDelta) * 100, activeEncoders, weight: totalDelta, rssMiB: memory.rss / 1_048_576, heapMiB: memory.heapUsed / 1_048_576 })
     previousCpu = currentCpu
   }, 250)
 
@@ -129,6 +132,9 @@ async function benchmark(processingOrder: "sequential" | "original") {
   if (!result.success || result.data?.convertedCount !== fileCount) {
     throw new Error(result.data?.errors.join("\n") || result.message)
   }
+  const afterIdleMemory = measureIdle
+    ? await new Promise<NodeJS.MemoryUsage>((resolve) => setTimeout(() => resolve(process.memoryUsage()), 12_000))
+    : undefined
 
   const expectedEncoders = processingOrder === "sequential" ? 1 : Math.min(threads, fileCount)
   const saturatedSamples = cpuSamples.filter((sample) => sample.activeEncoders >= expectedEncoders)
@@ -157,6 +163,14 @@ async function benchmark(processingOrder: "sequential" | "original") {
         p10Percent: rounded(weightedPercentile(saturatedSamples, 0.1)),
         p90Percent: rounded(weightedPercentile(saturatedSamples, 0.9)),
       },
+    },
+    memory: {
+      baselineRssMiB: rounded(baselineMemory.rss / 1_048_576),
+      peakRssMiB: rounded(Math.max(baselineMemory.rss / 1_048_576, ...cpuSamples.map((sample) => sample.rssMiB))),
+      rssGrowthMiB: rounded(Math.max(0, ...cpuSamples.map((sample) => sample.rssMiB - baselineMemory.rss / 1_048_576))),
+      baselineHeapMiB: rounded(baselineMemory.heapUsed / 1_048_576),
+      peakHeapMiB: rounded(Math.max(baselineMemory.heapUsed / 1_048_576, ...cpuSamples.map((sample) => sample.heapMiB))),
+      ...(afterIdleMemory ? { afterIdleRssMiB: rounded(afterIdleMemory.rss / 1_048_576), afterIdleHeapMiB: rounded(afterIdleMemory.heapUsed / 1_048_576) } : {}),
     },
     encoders: {
       peakActive: peakActiveEncoders,

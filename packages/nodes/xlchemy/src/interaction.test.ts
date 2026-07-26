@@ -14,18 +14,25 @@ describe("xlchemy interaction schema", () => {
     expect(schema.isDangerous?.(schema.toInput(schema.initialValues))).toBe(true)
   })
 
+  test("treats dynar as an animation rename target even when conversion skipping is disabled", () => {
+    const schema = createXlchemyInteractionSchema({ action: "convert", pathsText: "D:/a.webp", format: "dynar", skipAnimatedImages: false })
+    const input = schema.toInput(schema.initialValues)
+    expect(input).toMatchObject({ format: "dynar", animationDetectionFormats: ["webp"] })
+    expect(schema.preview?.(input)).toContain("真实执行：仅重命名识别到的动图。")
+  })
+
   test("exposes and maps the complete conversion capability set", () => {
     const schema = createXlchemyInteractionSchema({
-      pathsText: "D:/a.png", action: "convert", format: "AVIF", avifEncoder: "slimg", avifBitDepth: "10",
+      pathsText: "D:/a.png", action: "convert", format: "AVIF", avifEncoder: "slimg", slimgBackend: "cli", avifBitDepth: "10",
       deleteOriginal: true, deleteOriginalMode: "trash", metadataMode: "exiftool-custom", exiftoolCustomArgs: '-Artist="X" "$dst"',
       downscaleEnabled: true, downscaleMode: "megapixels", downscaleMegapixels: 3.2, downscaleResample: "lanczos",
       ramOptimizer: "dynamic", enableCustomArgs: true, avifencArgs: "--foo bar", processingOrder: "size-desc", excludedFormatsText: "gif,bmp",
       detectAnimatedPng: true, detectAnimatedAvif: true, detectAnimatedJxl: true,
     })
     const ids = new Set(schema.fields.map((field) => field.id))
-    for (const id of ["maxCompression", "jxlPngFallback", "jxlNormalizeWhen", "smallestPng", "avifEncoder", "deleteOriginalMode", "processingOrder", "exiftoolCustomArgs", "downscaleMegapixels", "ramOptimizerRules", "avifencArgs", "skipAnimatedImages", "detectAnimatedPng", "detectAnimatedWebp", "detectAnimatedAvif", "detectAnimatedJxl"]) expect(ids.has(id)).toBe(true)
+    for (const id of ["maxCompression", "jxlPngFallback", "jxlNormalizeWhen", "smallestPng", "avifEncoder", "slimgBackend", "deleteOriginalMode", "processingOrder", "exiftoolCustomArgs", "downscaleMegapixels", "ramOptimizerRules", "avifencArgs", "skipAnimatedImages", "detectAnimatedPng", "detectAnimatedWebp", "detectAnimatedAvif", "detectAnimatedJxl"]) expect(ids.has(id)).toBe(true)
     const input = schema.toInput(schema.initialValues)
-    expect(input).toMatchObject({ avifEncoder: "slimg", avifBitDepth: "10", deleteOriginalMode: "trash", metadataMode: "exiftool-custom", exiftoolCustomArgs: '-Artist="X" "$dst"', processingOrder: "size-desc", excludedFormats: ["gif", "bmp"], animationDetectionFormats: ["png", "webp", "avif", "jxl"], ramOptimizer: "dynamic", enableCustomArgs: true, avifencArgs: "--foo bar", downscale: { enabled: true, mode: "megapixels", megapixels: 3.2, resample: "lanczos" } })
+    expect(input).toMatchObject({ avifEncoder: "slimg", slimgBackend: "cli", avifBitDepth: "10", deleteOriginalMode: "trash", metadataMode: "exiftool-custom", exiftoolCustomArgs: '-Artist="X" "$dst"', processingOrder: "size-desc", excludedFormats: ["gif", "bmp"], animationDetectionFormats: ["png", "webp", "avif", "jxl"], ramOptimizer: "dynamic", enableCustomArgs: true, avifencArgs: "--foo bar", downscale: { enabled: true, mode: "megapixels", megapixels: 3.2, resample: "lanczos" } })
     expect(schema.view?.sections.map((section) => section.id)).toEqual(["input", "files", "modify", "advanced"])
   })
 })

@@ -114,10 +114,20 @@ describe("app-owned xlchemy Component", () => {
     render(<Component compId="xlchemy-card" host={host} />)
 
     await waitFor(() => expect(host.savedConfig).toBeDefined(), { timeout: 2_000 })
-    expect(host.savedConfig).toMatchObject({ format: "AVIF", quality: 81, excludedFormatsText: "avif,jxl,webp,gif", skipAnimatedImages: true, detectAnimatedPng: false, detectAnimatedWebp: true, detectAnimatedAvif: false, detectAnimatedJxl: false })
+    expect(host.savedConfig).toMatchObject({
+      format: "AVIF",
+      quality: 81,
+      excludedFormatsText: "avif,jxl,webp,gif",
+      skipAnimatedImages: true,
+      detectAnimatedPng: false,
+      detectAnimatedWebp: true,
+      detectAnimatedAvif: false,
+      detectAnimatedJxl: false,
+      filenameRules: expect.arrayContaining([expect.objectContaining({ id: "builtin-dynar", outputFormats: ["dynar"], prefix: "[#dyna]", suffix: ".wbp" })]),
+    })
   })
 
-  test("opens the filename rule editor and passes default PSD and CLIP rules", async () => {
+  test("opens the filename rule editor and passes default PSD, CLIP, and dynar rules", async () => {
     const host = createHost({ pathsText: "D:/images/art.psd", format: "WebP", existingPolicy: "rename" })
     render(<Component compId="xlchemy-card" host={host} />)
     const user = userEvent.setup()
@@ -128,7 +138,7 @@ describe("app-owned xlchemy Component", () => {
     await user.keyboard("{Escape}")
     await user.click(screen.getByRole("button", { name: "预览计划" }))
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
-    expect(host.runCalls[0]?.input).toMatchObject({ filenameRules: [{ suffix: "[PSD]" }, { suffix: "[CLIP]" }], existingPolicy: "rename" })
+    expect(host.runCalls[0]?.input).toMatchObject({ filenameRules: [{ suffix: "[PSD]" }, { suffix: "[CLIP]" }, { outputFormats: ["dynar"], prefix: "[#dyna]", suffix: ".wbp" }], existingPolicy: "rename" })
   })
 
   test("edits, adds and reorders filename rules before planning", async () => {
@@ -144,23 +154,24 @@ describe("app-owned xlchemy Component", () => {
     await user.click(screen.getByRole("button", { name: "添加规则" }))
     view.rerender(<Component compId="xlchemy-card" host={host} />)
 
-    let thirdRule = screen.getByRole("region", { name: "命名规则 3" })
-    await user.clear(within(thirdRule).getByRole("textbox", { name: "输入扩展名" }))
-    await user.type(within(thirdRule).getByRole("textbox", { name: "输入扩展名" }), ".psd")
+    let fourthRule = screen.getByRole("region", { name: "命名规则 4" })
+    await user.clear(within(fourthRule).getByRole("textbox", { name: "输入扩展名" }))
+    await user.type(within(fourthRule).getByRole("textbox", { name: "输入扩展名" }), ".psd")
     view.rerender(<Component compId="xlchemy-card" host={host} />)
-    thirdRule = screen.getByRole("region", { name: "命名规则 3" })
-    await user.type(within(thirdRule).getByRole("textbox", { name: "添加后缀" }), "-custom")
+    fourthRule = screen.getByRole("region", { name: "命名规则 4" })
+    await user.type(within(fourthRule).getByRole("textbox", { name: "添加后缀" }), "-custom")
     view.rerender(<Component compId="xlchemy-card" host={host} />)
-    thirdRule = screen.getByRole("region", { name: "命名规则 3" })
-    await user.click(within(thirdRule).getByRole("button", { name: "上移规则" }))
+    fourthRule = screen.getByRole("region", { name: "命名规则 4" })
+    await user.click(within(fourthRule).getByRole("button", { name: "上移规则" }))
 
     await user.keyboard("{Escape}")
     await user.click(screen.getByRole("button", { name: "预览计划" }))
     await waitFor(() => expect(host.runCalls).toHaveLength(1))
     expect(host.runCalls[0]?.input).toMatchObject({ filenameRules: [
       { id: "builtin-psd", prefix: "source-", suffix: "[PSD]" },
-      { inputExtensions: ["psd"], suffix: "-custom" },
       { id: "builtin-clip", suffix: "[CLIP]" },
+      { inputExtensions: ["psd"], suffix: "-custom" },
+      { id: "builtin-dynar", outputFormats: ["dynar"], prefix: "[#dyna]", suffix: ".wbp" },
     ] })
   })
 
@@ -271,7 +282,7 @@ describe("app-owned xlchemy Component", () => {
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(screen.getByText("alpha.png")).toBeTruthy()
     expect(screen.getByText("beta.jpg")).toBeTruthy()
-    expect(screen.getByText("246 B")).toBeTruthy()
+    expect(within(screen.getByTestId("xlchemy-input-workbench")).getByText("246 B")).toBeTruthy()
     await user.click(screen.getByRole("button", { name: "添加输入" }))
     await user.click(screen.getByRole("menuitem", { name: "添加文件夹" }))
     await waitFor(() => expect(host.cardState.pathsText).toContain("D:/images/folder/nested.jp2"))
@@ -279,7 +290,7 @@ describe("app-owned xlchemy Component", () => {
     expect(host.cardState.selectedPaths).toEqual(["D:/images/alpha.png", "D:/images/beta.jpg", "D:/images/folder/nested.jp2"])
   })
 
-  test("keeps imported EFU files as backend-streamed references", async () => {
+  test("keeps imported EFU paths out of the table while streaming a bounded analysis", async () => {
     const fetchEfu = vi.fn(async () => new Response("Filename,Size\r\nD:/Pictures/a.png,100"))
     vi.stubGlobal("fetch", fetchEfu)
     const host = createHost({})
@@ -294,15 +305,15 @@ describe("app-owned xlchemy Component", () => {
     await user.click(screen.getByRole("button", { name: "添加输入" }))
     await user.click(screen.getByRole("menuitem", { name: "导入 EFU 文件列表" }))
     await waitFor(() => expect(host.cardState.efuFiles).toEqual(["D:/Downloads/al.efu"]))
-    expect(getUrl).not.toHaveBeenCalled()
-    expect(fetchEfu).not.toHaveBeenCalled()
-    expect(host.cardState.efuAnalysisByPath?.["D:/Downloads/al.efu"]).toBeUndefined()
+    await waitFor(() => expect(host.cardState.efuAnalysisByPath?.["D:/Downloads/al.efu"]?.totalFiles).toBe(1))
+    expect(getUrl).toHaveBeenCalledWith("D:/Downloads/al.efu")
+    expect(fetchEfu).toHaveBeenCalledWith("local://D:/Downloads/al.efu")
     expect(host.cardState.pathsText).toBeUndefined()
 
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(screen.getByText("al.efu")).toBeTruthy()
     expect(screen.getByText("流式")).toBeTruthy()
-    expect(within(screen.getByTestId("xlchemy-header")).getByText("1 EFU")).toBeTruthy()
+    expect(within(screen.getByTestId("xlchemy-header")).getByText("1 项 · 1 EFU")).toBeTruthy()
     const plan = within(screen.getByTestId("xlchemy-header")).getByRole("button", { name: "预览计划" })
     expect(plan.hasAttribute("disabled")).toBe(false)
     fireEvent.click(plan)
@@ -339,7 +350,8 @@ describe("app-owned xlchemy Component", () => {
     await waitFor(() => expect(host.cardState.pathsText).toBe("D:/images/dropped.png"))
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(screen.getByText("dropped.png")).toBeTruthy()
-    expect(screen.getAllByText("321 B")).toHaveLength(2)
+    expect(within(screen.getByTestId("xlchemy-input-workbench")).getAllByText("321 B")).toHaveLength(2)
+    expect(within(screen.getByTestId("xlchemy-data-analysis")).getAllByText("321 B").length).toBeGreaterThan(0)
   })
 
   test("selects a real local output directory through the host picker", async () => {
@@ -504,7 +516,7 @@ describe("app-owned xlchemy Component", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "重新检测" }))
     await waitFor(() => expect(host.runCalls.at(-1)?.input.action).toBe("diagnose"))
     view.rerender(<Component compId="xlchemy-card" host={host} />)
-    expect(screen.getByText("slimg CLI")).toBeTruthy()
+    expect(screen.getByText("slimg DLL")).toBeTruthy()
     expect(screen.getByText("jpegtran")).toBeTruthy()
     expect(host.cardState.environment).toHaveLength(13)
   })
@@ -604,6 +616,36 @@ describe("app-owned xlchemy Component", () => {
     await waitFor(() => expect(host.cardState.phase).toBe("completed"))
     expect(host.cardState.currentFile).toBe("a.png")
     expect(host.cardState.progressText).toContain("2.0 KB → 512 B")
+  })
+
+  test("reports and automatically clears a successfully renamed dynar input", async () => {
+    const host = createHost({ pathsText: "D:/images/a.webp\nD:/images/still.webp", format: "dynar", autoClearCompleted: true })
+    host.runner!.run = async <TInput, TData>(_nodeId: string, _input: TInput, onEvent?: (event: NodeRunEvent) => void) => {
+      onEvent?.({ type: "progress", progress: 50, message: "Renaming a.webp." })
+      expect(host.cardState.currentFile).toBe("a.webp")
+      return {
+        success: true,
+        message: "Renamed 1 animated image(s).",
+        data: {
+          ...result,
+          files: [
+            { sourcePath: "D:/images/a.webp", outputPath: "D:/images/[#dyna]a.webp", sourceBytes: 2048, outputBytes: 2048, status: "renamed" },
+            { sourcePath: "D:/images/still.webp", outputPath: "D:/images/still.webp", sourceBytes: 1024, status: "skipped", error: "not_animated" },
+          ],
+          inputCount: 2,
+          renamedCount: 1,
+          skippedCount: 1,
+          inputBytes: 3072,
+          outputBytes: 2048,
+        } as TData,
+      }
+    }
+    render(<Component compId="xlchemy-card" host={host} />)
+    await userEvent.setup().click(screen.getByRole("button", { name: "开始重命名" }))
+    await waitFor(() => expect(host.cardState.phase).toBe("completed"))
+    expect(host.cardState.currentFile).toBe("still.webp")
+    expect(host.cardState.pathsText).toBe("D:/images/still.webp")
+    expect(host.cardState.selectedPaths).toEqual(["D:/images/still.webp"])
   })
 
   test("previews, compares and explicitly copies a clipboard conversion from one workbench", async () => {

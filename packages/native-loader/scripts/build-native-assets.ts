@@ -15,9 +15,6 @@ const outputRoot = join(workspaceRoot, "build", "wails", "native-assets")
 const bindings = [
   { id: "arcthumb", packageName: "arcthumb-native", filename: `xiranite-arcthumb.${platformId}.node`, dependencies: [] },
   { id: "czkawka", packageName: "czkawka-native", filename: `xiranite-czkawka.${platformId}.node`, dependencies: process.platform === "win32" ? ["dav1d.dll"] : [] },
-  // Temporarily disabled: XLchemy uses the system slimg v0.6 CLI because the
-  // in-process Node-API batch path caused unacceptable Bun RSS peaks.
-  // { id: "slimg", packageName: "slimg-native", filename: `xiranite-slimg.${platformId}.node`, dependencies: process.platform === "win32" ? ["dav1d.dll"] : [] },
 ] as const
 
 if (process.argv.includes("--refresh")) await refreshPrebuilt()
@@ -79,13 +76,12 @@ async function refreshPrebuilt(): Promise<void> {
 function infoMethod(id: string): string {
   if (id === "arcthumb") return "getArcThumbInfo"
   if (id === "czkawka") return "getCzkawkaInfo"
-  return "getSlimgInfo"
+  throw new Error(`Unknown native binding: ${id}`)
 }
 
 function bindingVersion(id: string, info: Record<string, unknown>): string {
   const apiVersion = String(info.apiVersion ?? "unknown")
-  const sourceVersion = id === "slimg" ? info.bindingVersion : info.sourceVersion
-  return `${String(sourceVersion ?? "unknown")}-api${apiVersion}`
+  return `${String(info.sourceVersion ?? "unknown")}-api${apiVersion}`
 }
 
 function hash(value: Uint8Array): string {

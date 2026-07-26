@@ -1,30 +1,16 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { DEFAULT_RAM_OPTIMIZER_RULES, isRamOptimizerNecessary, optimizedEncoderThreads, parseRamOptimizationRules } from "./ram-optimizer.js"
+import { applyFilenameRules, DEFAULT_FILENAME_RULES, normalizeFilenameRule, type XlchemyFilenameRule } from "./filename-rules.js"
+import { appendXlchemyAnalysis, createXlchemyAnalysisSummary, INPUT_ANALYSIS_FOLDER_LIMIT, INPUT_ANALYSIS_SAMPLE_LIMIT, xlchemyAnalysisData, type XlchemyAnalysisSummary, type XlchemyInputAnalysis, type XlchemyOutputAnalysis } from "./analysis.js"
 export { DEFAULT_RAM_OPTIMIZER_RULES } from "./ram-optimizer.js"
-
+export { DEFAULT_FILENAME_RULES } from "./filename-rules.js"
+export type { XlchemyFilenameMatchTarget, XlchemyFilenameMatcher, XlchemyFilenameRule } from "./filename-rules.js"
+export type { XlchemyInputAnalysis, XlchemyOutputAnalysis } from "./analysis.js"
 export type XlchemyAction = "plan" | "convert" | "diagnose"
-export type XlchemyFormat = "JPEG XL" | "AVIF" | "WebP" | "PNG" | "TIFF" | "JPEG" | "Lossless JPEG Transcoding" | "JPEG Reconstruction" | "Smallest Lossless"
+export type XlchemyFormat = "JPEG XL" | "AVIF" | "WebP" | "PNG" | "TIFF" | "JPEG" | "Lossless JPEG Transcoding" | "JPEG Reconstruction" | "Smallest Lossless" | "dynar"
 export type XlchemyOutputMode = "source" | "directory"
 export type XlchemyExistingPolicy = "replace" | "skip" | "rename"
 export type XlchemyAnimationFormat = "png" | "webp" | "avif" | "jxl"
-export type XlchemyFilenameMatchTarget = "filename" | "path"
-export type XlchemyFilenameMatcher = "contains" | "glob" | "regex"
-export interface XlchemyFilenameRule {
-  id: string
-  enabled: boolean
-  inputExtensions: string[]
-  outputFormats: XlchemyFormat[]
-  outputModes: XlchemyOutputMode[]
-  matchTarget: XlchemyFilenameMatchTarget
-  matcher: XlchemyFilenameMatcher
-  pattern: string
-  prefix: string
-  suffix: string
-}
-export const DEFAULT_FILENAME_RULES: XlchemyFilenameRule[] = [
-  { id: "builtin-psd", enabled: true, inputExtensions: ["psd", "psb"], outputFormats: [], outputModes: [], matchTarget: "filename", matcher: "glob", pattern: "*", prefix: "", suffix: "[PSD]" },
-  { id: "builtin-clip", enabled: true, inputExtensions: ["clip"], outputFormats: [], outputModes: [], matchTarget: "filename", matcher: "glob", pattern: "*", prefix: "", suffix: "[CLIP]" },
-]
 export type XlchemyDownscaleMode = "resolution" | "percent" | "file-size" | "shortest-side" | "longest-side" | "megapixels"
 export interface XlchemyDownscaleSettings { enabled: boolean; mode: XlchemyDownscaleMode; width: number; height: number; percent: number; fileSizeKb: number; shortestSide: number; longestSide: number; megapixels: number; resample: string }
 
@@ -63,6 +49,7 @@ export interface XlchemyInput {
   smallestFormatPool?: { png?: boolean; webp?: boolean; jxl?: boolean }
   jpegEncoder?: "jpegli" | "libjpeg"
   avifEncoder?: "aom" | "svt" | "slimg"
+  slimgBackend?: "dll" | "cli"
   avifBitDepth?: "auto" | "8" | "10" | "12"
   avifAomIqTune?: boolean
   disableProgressiveJpegli?: boolean
@@ -91,10 +78,9 @@ export interface XlchemyFileResult {
   outputPath: string
   sourceBytes?: number
   outputBytes?: number
-  status: "planned" | "converted" | "skipped" | "error"
+  status: "planned" | "converted" | "renamed" | "skipped" | "error"
   error?: string
 }
-
 export interface XlchemyToolStatus {
   id: string
   label: string
@@ -106,22 +92,11 @@ export interface XlchemyToolStatus {
   detail?: string
 }
 
-export interface XlchemyInputAnalysis {
-  totalFiles: number
-  totalSize: number
-  minSize: number
-  medianSize: number
-  maxSize: number
-  formats: Array<{ key: string; count: number; size: number }>
-  folders: Array<{ key: string; count: number; size: number }>
-  /** Median sampling or folder aggregation was bounded during the stream. */
-  sampled: boolean
-}
-
 export interface XlchemyData {
   files: XlchemyFileResult[]
   inputCount: number
   convertedCount: number
+  renamedCount?: number
   skippedCount: number
   errorCount: number
   inputBytes: number
@@ -130,6 +105,8 @@ export interface XlchemyData {
   errors: string[]
   /** Bounded statistics accumulated while the input stream is consumed. */
   inputAnalysis?: XlchemyInputAnalysis
+  /** Exact converted-format totals accumulated independently of retained file details. */
+  outputAnalysis?: XlchemyOutputAnalysis
   /** True when per-file details were capped while aggregate counts stayed exact. */
   detailsTruncated?: boolean
   environment?: XlchemyToolStatus[]
@@ -158,6 +135,8 @@ export interface XlchemyRuntime {
   checkMemory?: () => void
   acquireWorker?: (threads: number, memoryMiB: number, isCancelled?: () => boolean) => Promise<XlchemyWorkerLease>
   resolveCommand: (candidates: string[]) => Promise<string | undefined>
+  probeSlimg?: () => Promise<XlchemyToolStatus>
+  convertWithSlimg?: (source: string, target: string, quality: number) => Promise<void>
   convertClipToPsd?: (source: string, target: string) => Promise<void>
   join: (...parts: string[]) => string
   dirname: (path: string) => string
@@ -173,7 +152,7 @@ export interface XlchemyRuntime {
 
 export type XlchemyResult = NodeRunResult<XlchemyData>
 export const XL_IMAGE_EXTENSIONS = new Set([".jxl", ".jpg", ".jpeg", ".jfif", ".jif", ".jpe", ".png", ".apng", ".gif", ".webp", ".jp2", ".bmp", ".ico", ".tiff", ".tif", ".avif", ".psd", ".psb", ".clip"])
-const FORMAT_EXTENSIONS: Record<XlchemyFormat, string> = { "JPEG XL": ".jxl", AVIF: ".avif", WebP: ".webp", PNG: ".png", TIFF: ".tiff", JPEG: ".jpg", "Lossless JPEG Transcoding": ".jxl", "JPEG Reconstruction": ".jpg", "Smallest Lossless": ".smallest" }
+const FORMAT_EXTENSIONS: Record<XlchemyFormat, string> = { "JPEG XL": ".jxl", AVIF: ".avif", WebP: ".webp", PNG: ".png", TIFF: ".tiff", JPEG: ".jpg", "Lossless JPEG Transcoding": ".jxl", "JPEG Reconstruction": ".jpg", "Smallest Lossless": ".smallest", dynar: "" }
 
 export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInput {
   return {
@@ -210,6 +189,7 @@ export function normalizeXlchemyInput(input: Partial<XlchemyInput>): XlchemyInpu
     smallestFormatPool: { png: input.smallestFormatPool?.png ?? true, webp: input.smallestFormatPool?.webp ?? true, jxl: input.smallestFormatPool?.jxl ?? true },
     jpegEncoder: input.jpegEncoder ?? "jpegli",
     avifEncoder: input.avifEncoder ?? "aom",
+    slimgBackend: input.slimgBackend ?? "dll",
     avifBitDepth: input.avifBitDepth ?? "auto",
     avifAomIqTune: input.avifAomIqTune ?? false,
     disableProgressiveJpegli: input.disableProgressiveJpegli ?? false,
@@ -281,10 +261,11 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     onEvent({ type: "log", message: taskConfigurationMessage(options) })
     onEvent({ type: "log", message: outputPolicyMessage(options) })
     onEvent({ type: "log", message: boundedStateMessage(runtime) })
-    onEvent({ type: "progress", progress: 0, message: "Streaming image inputs; conversion starts as files are discovered." })
+    onEvent({ type: "progress", progress: 0, message: options.format === "dynar" ? "Streaming image inputs; GIF files are renamed directly and other animations are renamed as detected." : "Streaming image inputs; conversion starts as files are discovered." })
     const excluded = new Set(options.excludedFormats?.map((value) => value.replace(/^\./, "").toLowerCase()) ?? [])
     const accepts = (path: string) => {
       const extension = runtime.extname(path).slice(1).toLowerCase()
+      if (options.format === "dynar") return XL_IMAGE_EXTENSIONS.has(runtime.extname(path).toLowerCase())
       if (options.format === "JPEG Reconstruction") return extension === "jxl"
       if (options.format === "Lossless JPEG Transcoding") return ["jpg", "jpeg", "jfif", "jif", "jpe"].includes(extension)
       return XL_IMAGE_EXTENSIONS.has(runtime.extname(path).toLowerCase()) && !excluded.has(extension)
@@ -316,12 +297,27 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       const itemStarted = Date.now()
       activeWorkers += 1
       peakActiveWorkers = Math.max(peakActiveWorkers, activeWorkers)
-      if (options.action === "convert" && announceWorker) onEvent({ type: "log", message: `Worker #${workerIndex + 1} online; requested ${workerInput.threads} encoder thread(s); first input ${runtime.basename(source)}.` })
+      if (options.action === "convert" && announceWorker) onEvent({ type: "log", message: options.format === "dynar" ? `Rename worker #${workerIndex + 1} online; first input ${runtime.basename(source)}.` : `Worker #${workerIndex + 1} online; requested ${workerInput.threads} encoder thread(s); first input ${runtime.basename(source)}.` })
       let item: XlchemyFileResult | undefined
       try {
-        if (animationDetectionFormats.has(animationFormat(runtime.extname(source)))) {
+        const sourceExtension = runtime.extname(source).toLowerCase()
+        const alwaysAnimatedGif = options.format === "dynar" && sourceExtension === ".gif"
+        const animationDetectionEnabled = animationDetectionFormats.has(animationFormat(sourceExtension))
+        if (alwaysAnimatedGif) {
+          item = await planSource(source)
+        } else if (options.format === "dynar" && !animationDetectionEnabled) {
+          const sourceInfo = await runtime.pathInfo(source)
+          item = { sourcePath: sourceInfo.path, outputPath: sourceInfo.path, sourceBytes: sourceInfo.size, status: "skipped", error: "animation_detection_disabled" }
+        } else if (animationDetectionEnabled) {
           try {
-            item = await runtime.isAnimatedImage(source)
+            const animated = await runtime.isAnimatedImage(source)
+            if (options.format === "dynar") {
+              if (animated) item = await planSource(source)
+              else {
+                const sourceInfo = await runtime.pathInfo(source)
+                item = { sourcePath: sourceInfo.path, outputPath: sourceInfo.path, sourceBytes: sourceInfo.size, status: "skipped", error: "not_animated" }
+              }
+            } else item = animated
               ? { sourcePath: source, outputPath: source, status: "skipped", error: "animated_image" }
               : await planSource(source)
           } catch (error) {
@@ -337,6 +333,10 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
               const now = Date.now()
               const emitFileProgress = lastFileProgressAt === 0 || now - lastFileProgressAt >= FILE_PROGRESS_INTERVAL_MS
               if (emitFileProgress) lastFileProgressAt = now
+              if (workerInput.format === "dynar") {
+                if (emitFileProgress) onEvent({ type: "progress", progress: progressPercent(summary.inputCount, totalInputCount), message: `Renaming ${runtime.basename(plannedItem.sourcePath)}.`, data: progressCount(summary.inputCount, totalInputCount) })
+                return renameAnimatedFile(plannedItem, workerInput, runtime)
+              }
               const lease = await runtime.acquireWorker?.(
                 workerInput.threads,
                 estimateXlchemyWorkerMemoryMiB(workerInput),
@@ -376,7 +376,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
     if (options.action === "convert") {
       const workerThreads = batchWorkerThreads(totalInputCount, options)
       onEvent({ type: "log", message: batchExecutionMessage(options, workerThreads) })
-      onEvent({ type: "log", message: resourceAdmissionMessage(options, runtime, workerThreads) })
+      if (options.format !== "dynar") onEvent({ type: "log", message: resourceAdmissionMessage(options, runtime, workerThreads) })
       const iterator = asAsyncIterable(orderedSources)[Symbol.asyncIterator]()
       const nextSource = serializedIterator(iterator)
       await Promise.all(workerThreads.map(async (encoderThreads, workerIndex) => {
@@ -413,9 +413,11 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       onEvent({ type: "progress", progress: 100, message: `Planned ${data.inputCount} image(s).` })
       return success(`Xlchemy planned ${data.inputCount} image(s).`, data)
     }
-    onEvent({ type: "log", message: `Batch completed in ${((Date.now() - started) / 1_000).toFixed(2)}s; peak active workers ${peakActiveWorkers}; throughput ${(data.inputCount / Math.max((Date.now() - started) / 1_000, 0.001)).toFixed(2)} images/s; converted ${data.convertedCount}, skipped ${data.skippedCount}, errors ${data.errorCount}.` })
-    onEvent({ type: "progress", progress: 100, message: `Converted ${data.convertedCount} image(s).` })
-    return success(`Xlchemy converted ${data.convertedCount} of ${data.inputCount} image(s).`, data)
+    const renamedCount = data.renamedCount ?? 0
+    onEvent({ type: "log", message: `Batch completed in ${((Date.now() - started) / 1_000).toFixed(2)}s; peak active workers ${peakActiveWorkers}; throughput ${(data.inputCount / Math.max((Date.now() - started) / 1_000, 0.001)).toFixed(2)} images/s; converted ${data.convertedCount}, renamed ${renamedCount}, skipped ${data.skippedCount}, errors ${data.errorCount}.` })
+    const completedMessage = options.format === "dynar" ? `Renamed ${renamedCount} animated image(s).` : `Converted ${data.convertedCount} image(s).`
+    onEvent({ type: "progress", progress: 100, message: completedMessage })
+    return success(`Xlchemy ${options.format === "dynar" ? "renamed" : "converted"} ${options.format === "dynar" ? renamedCount : data.convertedCount} of ${data.inputCount} image(s).`, data)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     onEvent({ type: "log", message: `Task failed after ${formatElapsed(started)}: ${message}` })
@@ -555,8 +557,6 @@ function mimeForFormat(format: XlchemyFormat): string {
 const RESULT_DETAIL_LIMIT = 1_000
 const LIVE_DETAIL_LIMIT = 20
 const ERROR_DETAIL_LIMIT = 200
-const INPUT_ANALYSIS_SAMPLE_LIMIT = 2_048
-const INPUT_ANALYSIS_FOLDER_LIMIT = 64
 const LIVE_RESULT_INTERVAL_MS = 500
 const FILE_PROGRESS_INTERVAL_MS = 500
 const DIAGNOSTIC_LOG_INTERVAL_MS = 5_000
@@ -566,32 +566,27 @@ interface XlchemySummary {
   fileCursor: number
   inputCount: number
   convertedCount: number
+  renamedCount: number
   skippedCount: number
   errorCount: number
   inputBytes: number
   outputBytes: number
   errors: string[]
   detailsTruncated: boolean
-  knownSizeCount: number
-  minSize: number
-  maxSize: number
-  sizeSamples: number[]
-  formats: Map<string, { count: number; size: number }>
-  folders: Map<string, { count: number; size: number }>
-  otherFolderCount: number
-  otherFolderSize: number
+  analysis: XlchemyAnalysisSummary
 }
 
 function createSummary(): XlchemySummary {
-  return { files: [], fileCursor: 0, inputCount: 0, convertedCount: 0, skippedCount: 0, errorCount: 0, inputBytes: 0, outputBytes: 0, errors: [], detailsTruncated: false, knownSizeCount: 0, minSize: Number.POSITIVE_INFINITY, maxSize: 0, sizeSamples: [], formats: new Map(), folders: new Map(), otherFolderCount: 0, otherFolderSize: 0 }
+  return { files: [], fileCursor: 0, inputCount: 0, convertedCount: 0, renamedCount: 0, skippedCount: 0, errorCount: 0, inputBytes: 0, outputBytes: 0, errors: [], detailsTruncated: false, analysis: createXlchemyAnalysisSummary() }
 }
 
 function appendSummary(summary: XlchemySummary, file: XlchemyFileResult) {
   summary.inputCount += 1
   summary.inputBytes += file.sourceBytes ?? 0
   summary.outputBytes += file.outputBytes ?? 0
-  appendInputAnalysis(summary, file)
+  appendXlchemyAnalysis(summary.analysis, file)
   if (file.status === "converted") summary.convertedCount += 1
+  else if (file.status === "renamed") summary.renamedCount += 1
   else if (file.status === "skipped") summary.skippedCount += 1
   else if (file.status === "error") {
     summary.errorCount += 1
@@ -613,92 +608,16 @@ function summaryData(summary: XlchemySummary, elapsedMs: number, live = false): 
     files: live ? orderedFiles.slice(-LIVE_DETAIL_LIMIT) : [...orderedFiles],
     inputCount: summary.inputCount,
     convertedCount: summary.convertedCount,
+    renamedCount: summary.renamedCount,
     skippedCount: summary.skippedCount,
     errorCount: summary.errorCount,
     inputBytes: summary.inputBytes,
     outputBytes: summary.outputBytes,
     elapsedMs,
     errors: [...summary.errors],
-    inputAnalysis: inputAnalysisData(summary),
+    ...xlchemyAnalysisData(summary.analysis),
     detailsTruncated: summary.detailsTruncated,
   }
-}
-
-function appendInputAnalysis(summary: XlchemySummary, file: XlchemyFileResult): void {
-  const size = Math.max(0, file.sourceBytes ?? 0)
-  appendDistribution(summary.formats, sourceExtension(file.sourcePath), size)
-  const folder = sourceFolder(file.sourcePath)
-  const existingFolder = summary.folders.get(folder)
-  if (existingFolder) {
-    existingFolder.count += 1
-    existingFolder.size += size
-  } else if (summary.folders.size < INPUT_ANALYSIS_FOLDER_LIMIT - 1) summary.folders.set(folder, { count: 1, size })
-  else {
-    summary.otherFolderCount += 1
-    summary.otherFolderSize += size
-  }
-  if (file.sourceBytes === undefined) return
-  summary.knownSizeCount += 1
-  summary.minSize = Math.min(summary.minSize, size)
-  summary.maxSize = Math.max(summary.maxSize, size)
-  if (summary.sizeSamples.length < INPUT_ANALYSIS_SAMPLE_LIMIT) summary.sizeSamples.push(size)
-  else {
-    const slot = deterministicReservoirSlot(summary.knownSizeCount)
-    if (slot < INPUT_ANALYSIS_SAMPLE_LIMIT) summary.sizeSamples[slot] = size
-  }
-}
-
-function inputAnalysisData(summary: XlchemySummary): XlchemyInputAnalysis {
-  const samples = [...summary.sizeSamples].sort((left, right) => left - right)
-  const folders = [...summary.folders.entries()].map(([key, value]) => ({ key, ...value }))
-  if (summary.otherFolderCount) {
-    const other = folders.find((item) => item.key === "其他")
-    if (other) {
-      other.count += summary.otherFolderCount
-      other.size += summary.otherFolderSize
-    } else folders.push({ key: "其他", count: summary.otherFolderCount, size: summary.otherFolderSize })
-  }
-  return {
-    totalFiles: summary.inputCount,
-    totalSize: summary.inputBytes,
-    minSize: Number.isFinite(summary.minSize) ? summary.minSize : 0,
-    medianSize: samples[Math.floor(samples.length / 2)] ?? 0,
-    maxSize: summary.maxSize,
-    formats: distributionData(summary.formats),
-    folders: folders.sort(distributionSort),
-    sampled: summary.knownSizeCount !== summary.inputCount || summary.knownSizeCount > INPUT_ANALYSIS_SAMPLE_LIMIT || summary.otherFolderCount > 0,
-  }
-}
-
-function appendDistribution(values: Map<string, { count: number; size: number }>, key: string, size: number): void {
-  const current = values.get(key) ?? { count: 0, size: 0 }
-  current.count += 1
-  current.size += size
-  values.set(key, current)
-}
-
-function distributionData(values: Map<string, { count: number; size: number }>) {
-  return [...values.entries()].map(([key, value]) => ({ key, ...value })).sort(distributionSort)
-}
-
-function distributionSort(left: { count: number; size: number }, right: { count: number; size: number }) {
-  return right.size - left.size || right.count - left.count
-}
-
-function deterministicReservoirSlot(count: number): number {
-  return (Math.imul(count, 2_654_435_761) >>> 0) % count
-}
-
-function sourceExtension(path: string): string {
-  const name = path.replace(/\\/g, "/").split("/").at(-1) ?? path
-  const dot = name.lastIndexOf(".")
-  return dot > 0 ? name.slice(dot + 1).toLowerCase() : "unknown"
-}
-
-function sourceFolder(path: string): string {
-  const normalized = path.replace(/\\/g, "/")
-  const directory = normalized.includes("/") ? normalized.slice(0, normalized.lastIndexOf("/")) : ""
-  return directory.split("/").filter(Boolean).at(-1) ?? "/"
 }
 
 function emitLiveResult(onEvent: (event: NodeRunEvent) => void, summary: XlchemySummary, started: number, total?: number) {
@@ -716,12 +635,16 @@ function progressPercent(completed: number, total?: number) { return total && to
 
 function batchWorkerThreads(total: number | undefined, input: XlchemyInput): number[] {
   const threadBudget = Math.max(1, input.threads)
+  if (input.format === "dynar") {
+    const workerCount = input.processingOrder === "sequential" ? 1 : total === undefined ? Math.min(threadBudget, XLCHEMY_MAX_CONCURRENT_FILES) : Math.min(total, threadBudget, XLCHEMY_MAX_CONCURRENT_FILES)
+    return Array.from({ length: workerCount }, () => 1)
+  }
   if (input.format === "AVIF" && input.avifEncoder === "slimg") {
     const workerCount = input.processingOrder === "sequential"
       ? 1
       : total === undefined
-        ? Math.min(threadBudget, XLCHEMY_MAX_SLIMG_PROCESSES)
-        : Math.min(total, threadBudget, XLCHEMY_MAX_SLIMG_PROCESSES)
+        ? threadBudget
+        : Math.min(total, threadBudget)
     return Array.from({ length: workerCount }, () => 1)
   }
   if ((total !== undefined && total <= 1) || input.processingOrder === "sequential") return [threadBudget]
@@ -735,20 +658,25 @@ function batchWorkerThreads(total: number | undefined, input: XlchemyInput): num
 }
 
 function batchExecutionMessage(input: XlchemyInput, workerThreads: number[]): string {
+  if (input.format === "dynar") return `Batch scheduler: ${workerThreads.length} rename worker(s); animation probing and filesystem renames only; no encoder will run.`
   const encoder = input.format === "AVIF" ? input.avifEncoder === "svt" ? "SVT-AV1" : input.avifEncoder === "slimg" ? "slimg" : "AOM AV1" : input.format
   const distribution = [...new Set(workerThreads)].length === 1 ? `${workerThreads[0]} each` : workerThreads.join(",")
-  const tuning = input.format === "AVIF" && input.avifEncoder === "slimg" ? "one slimg CLI child process per planned file; source directories are never passed to slimg; one CLI job per process; effort setting ignored" : `effort ${input.effort}`
+  const tuning = input.format === "AVIF" && input.avifEncoder === "slimg"
+    ? input.slimgBackend === "cli" ? "one slimg CLI child process per worker; one file per process; effort ignored" : "one single-threaded CFFI call per worker; shared in-process DLL worker pool; effort ignored"
+    : `effort ${input.effort}`
   return `Batch scheduler: ${workerThreads.length} worker(s); CPU thread budget ${input.threads}; encoder threads ${distribution}; ${encoder}; ${input.lossless ? "lossless" : `Q${input.quality}`}; ${tuning}.`
 }
 
 function taskConfigurationMessage(input: XlchemyInput): string {
   const inputSources = `${input.paths.length} direct source(s), ${input.efuFiles?.length ?? 0} EFU list(s)`
+  if (input.format === "dynar") return `Task configured: ${input.action}; ${inputSources}; dynar animation detection and filename rules; order ${input.processingOrder}.`
   const quality = input.lossless ? "lossless" : `Q${input.quality}`
   return `Task configured: ${input.action}; ${inputSources}; ${encoderLabel(input)} ${quality}; effort ${input.effort}; CPU budget ${input.threads}; order ${input.processingOrder}.`
 }
 
 function outputPolicyMessage(input: XlchemyInput): string {
   const output = input.outputMode === "directory" ? `directory output with structure ${input.preserveStructure ? "preserved" : "flattened"}` : "source-adjacent output"
+  if (input.format === "dynar") return `Rename policy: ${output}; existing ${input.existingPolicy}; source extension retained before the .wbp marker.`
   const deletion = input.deleteOriginal ? `delete originals via ${input.deleteOriginalMode}` : "retain originals"
   return `Output policy: ${output}; existing ${input.existingPolicy}; metadata ${input.metadataMode}; timestamps ${input.preserveTimestamps ? "preserved" : "not preserved"}; ${deletion}.`
 }
@@ -816,7 +744,7 @@ async function withTargetLock<T>(path: string, locks: Map<string, Promise<void>>
 }
 
 const XLCHEMY_TOOLS: Array<{ id: string; label: string; purpose: string; versionArgs: string[] }> = [
-  { id: "slimg", label: "slimg CLI", purpose: "slimg AVIF encoding", versionArgs: ["--version"] },
+  { id: "slimg", label: "slimg CLI", purpose: "slimg CLI AVIF encoding", versionArgs: ["--version"] },
   { id: "cjxl", label: "cjxl", purpose: "JPEG XL 编码", versionArgs: ["--version"] },
   { id: "djxl", label: "djxl", purpose: "JPEG XL 解码与校验", versionArgs: ["--version"] },
   { id: "jxlinfo", label: "jxlinfo", purpose: "JPEG XL 信息检查", versionArgs: ["--help"] },
@@ -847,9 +775,11 @@ export async function diagnoseXlchemyEnvironment(runtime: XlchemyRuntime, onEven
       environment.push({ id: tool.id, label: tool.label, purpose: tool.purpose, path, available: true, runnable: false, detail: error instanceof Error ? error.message : String(error) })
     }
   }
+  if (runtime.probeSlimg) environment.push(await runtime.probeSlimg())
+  else environment.push({ id: "slimg-cffi", label: "slimg CFFI", purpose: "slimg DLL AVIF encoding", available: false, runnable: false, detail: "The current runtime does not support DLL detection." })
   onEvent({ type: "progress", progress: 100, message: "Toolchain check complete." })
   const runnable = environment.filter((tool) => tool.runnable).length
-  return { success: true, message: `Xlchemy toolchain: ${runnable}/${environment.length} commands runnable.`, data: { files: [], inputCount: 0, convertedCount: 0, skippedCount: 0, errorCount: 0, inputBytes: 0, outputBytes: 0, errors: [], environment } }
+  return { success: true, message: `Xlchemy toolchain: ${runnable}/${environment.length} commands runnable.`, data: { files: [], inputCount: 0, convertedCount: 0, renamedCount: 0, skippedCount: 0, errorCount: 0, inputBytes: 0, outputBytes: 0, errors: [], environment } }
 }
 
 export async function discoverImages(paths: string[], recursive: boolean, runtime: XlchemyRuntime): Promise<string[]> {
@@ -860,6 +790,7 @@ export async function discoverImages(paths: string[], recursive: boolean, runtim
 
 export function estimateXlchemyWorkerMemoryMiB(input: Pick<XlchemyInput, "format" | "avifEncoder" | "threads">): number {
   const threads = Math.max(1, Math.round(input.threads))
+  if (input.format === "dynar") return 32
   if (input.format === "AVIF") {
     const base = input.avifEncoder === "aom" ? 512 : 384
     return Math.min(4_096, base + threads * 48)
@@ -872,7 +803,6 @@ export function estimateXlchemyWorkerMemoryMiB(input: Pick<XlchemyInput, "format
 }
 
 const XLCHEMY_MAX_CONCURRENT_FILES = 16
-const XLCHEMY_MAX_SLIMG_PROCESSES = 24
 
 async function* streamDiscoveredImages(paths: string[], recursive: boolean, runtime: XlchemyRuntime): AsyncGenerator<string> {
   for (const path of paths) {
@@ -928,12 +858,15 @@ async function planFile(sourcePath: string, roots: string[], input: XlchemyInput
   const root = roots.find((candidate) => source.path === candidate || source.path.startsWith(`${candidate}\\`) || source.path.startsWith(`${candidate}/`)) ?? runtime.dirname(source.path)
   const targetRoot = input.outputMode === "directory" ? input.outputDir! : runtime.dirname(source.path)
   const relativeDir = input.outputMode === "directory" && input.preserveStructure ? runtime.dirname(runtime.relative(root, source.path)) : ""
-  let extension = FORMAT_EXTENSIONS[input.format]
-  if (input.format === "JPEG Reconstruction") extension = await jpegReconstructionExtension(source.path, input, runtime)
   const sourceExtension = runtime.extname(source.path)
-  const stem = runtime.basename(source.path).slice(0, -sourceExtension.length)
+  let extension = input.format === "dynar" ? "" : FORMAT_EXTENSIONS[input.format]
+  if (input.format === "JPEG Reconstruction") extension = await jpegReconstructionExtension(source.path, input, runtime)
+  const sourceStem = runtime.basename(source.path).slice(0, -sourceExtension.length)
+  const stem = input.format === "dynar" ? `${sourceStem}${sourceExtension}` : sourceStem
   const outputStem = applyFilenameRules(stem, source.path, sourceExtension, input)
-  let outputPath = runtime.join(targetRoot, relativeDir === "." ? "" : relativeDir, `${outputStem}${extension}`)
+  const dynarExtension = input.format === "dynar" && !outputStem.toLowerCase().endsWith(".wbp") ? ".wbp" : ""
+  let outputPath = runtime.join(targetRoot, relativeDir === "." ? "" : relativeDir, `${outputStem}${extension}${dynarExtension}`)
+  if (input.format === "dynar" && outputPath.toLocaleLowerCase("en-US") === source.path.toLocaleLowerCase("en-US")) return { sourcePath: source.path, outputPath, sourceBytes: source.size, status: "skipped", error: "name_unchanged" }
   const existing = await runtime.pathInfo(outputPath)
   const reserved = reservations?.has(outputPath.toLocaleLowerCase("en-US")) ?? false
   if (existing.exists && input.existingPolicy === "skip") return { sourcePath: source.path, outputPath, sourceBytes: source.size, status: "skipped", error: "target_exists" }
@@ -956,35 +889,6 @@ async function uniqueTarget(path: string, runtime: XlchemyRuntime, reservations?
   const ext = runtime.extname(path), stem = path.slice(0, -ext.length)
   for (let index = 1; index < 10_000; index += 1) { const candidate = `${stem}_${index}${ext}`; if (!(await runtime.pathInfo(candidate)).exists && !reservations?.has(candidate.toLocaleLowerCase("en-US"))) return candidate }
   throw new Error(`Unable to allocate a unique output path for ${path}`)
-}
-
-function normalizeFilenameRule(rule: XlchemyFilenameRule): XlchemyFilenameRule {
-  const extensions = rule.inputExtensions.map((value) => value.trim().replace(/^\./, "").toLowerCase()).filter(Boolean)
-  return { ...rule, id: rule.id || `rule-${Math.random().toString(36).slice(2)}`, enabled: rule.enabled !== false, inputExtensions: [...new Set(extensions)], outputFormats: [...new Set(rule.outputFormats)], outputModes: [...new Set(rule.outputModes)], matchTarget: rule.matchTarget ?? "filename", matcher: rule.matcher ?? "glob", pattern: rule.pattern ?? "*", prefix: rule.prefix ?? "", suffix: rule.suffix ?? "" }
-}
-
-function applyFilenameRules(stem: string, sourcePath: string, sourceExtension: string, input: XlchemyInput): string {
-  const extension = sourceExtension.replace(/^\./, "").toLowerCase()
-  const filename = sourcePath.replace(/\\/g, "/").split("/").at(-1) ?? sourcePath
-  const matching = (input.filenameRules ?? DEFAULT_FILENAME_RULES).filter((rule) => {
-    if (!rule.enabled) return false
-    if (rule.inputExtensions.length && !rule.inputExtensions.includes(extension)) return false
-    if (rule.outputFormats.length && !rule.outputFormats.includes(input.format)) return false
-    if (rule.outputModes.length && !rule.outputModes.includes(input.outputMode)) return false
-    const value = rule.matchTarget === "path" ? sourcePath : filename
-    return matchesFilenameRule(value, rule)
-  })
-  return `${matching.map((rule) => rule.prefix).join("")}${stem}${matching.map((rule) => rule.suffix).join("")}`
-}
-
-function matchesFilenameRule(value: string, rule: XlchemyFilenameRule): boolean {
-  if (!rule.pattern || rule.pattern === "*") return true
-  if (rule.matcher === "contains") return value.toLowerCase().includes(rule.pattern.toLowerCase())
-  try {
-    if (rule.matcher === "regex") return new RegExp(rule.pattern, "i").test(value)
-    const escaped = rule.pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")
-    return new RegExp(`^${escaped}$`, "i").test(value)
-  } catch { return false }
 }
 
 async function jpegReconstructionExtension(source: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<".jpg" | ".png"> {
@@ -1146,6 +1050,17 @@ async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyIn
   }
 }
 
+async function renameAnimatedFile(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyFileResult> {
+  try {
+    await runtime.ensureDir(runtime.dirname(plan.outputPath))
+    if (input.existingPolicy === "replace" && (await runtime.pathInfo(plan.outputPath)).exists) await runtime.removeFile(plan.outputPath)
+    await runtime.renameFile(plan.sourcePath, plan.outputPath)
+    return { ...plan, status: "renamed", outputBytes: plan.sourceBytes, error: undefined }
+  } catch (error) {
+    return { ...plan, status: "error", error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
 async function deleteOriginalFile(
   path: string,
   mode: NonNullable<XlchemyInput["deleteOriginalMode"]>,
@@ -1247,7 +1162,7 @@ async function encoderInvocation(source: string, target: string, input: XlchemyI
   if (input.format === "Lossless JPEG Transcoding") return resolved(runtime, ["cjxl"], ["--lossless_jpeg=1", "-e", effort, "--num_threads", threads, ...custom(input.cjxlArgs), source, target])
   if (input.format === "JPEG Reconstruction") return resolved(runtime, ["djxl"], ["--num_threads", threads, source, target])
   if (input.format === "JPEG XL") { const losslessJpeg = jpegSource && input.autoLosslessJpeg; return resolved(runtime, ["cjxl"], ["-q", input.lossless || losslessJpeg ? "100" : quality, `--lossless_jpeg=${losslessJpeg ? 1 : 0}`, "-e", effort, "--num_threads", threads, ...(!input.lossless && !losslessJpeg && input.jxlModular ? ["--modular=1"] : []), ...custom(input.cjxlArgs), source, target]) }
-  if (input.format === "AVIF" && input.avifEncoder === "slimg") return resolved(runtime, ["slimg"], ["convert", "--format", "avif", "--quality", input.lossless ? "100" : quality, "--output", target, "--overwrite", "--jobs", "1", source])
+  if (input.format === "AVIF" && input.avifEncoder === "slimg" && input.slimgBackend === "cli") return resolved(runtime, ["slimg"], ["convert", "--format", "avif", "--quality", input.lossless ? "100" : quality, "--output", target, "--overwrite", "--jobs", "1", source])
   if (input.format === "AVIF" && input.avifEncoder === "svt") {
     const crf = input.lossless ? 0 : Math.round((100 - input.quality) * 0.63)
     const preset = input.maxCompression ? 0 : 13 - Math.round((input.effort - 1) * 13 / 9)
@@ -1269,7 +1184,7 @@ function avifPixelFormat(bitDepth: XlchemyInput["avifBitDepth"], chromaSubsampli
 }
 
 async function resolved(runtime: XlchemyRuntime, candidates: string[], args: string[]) { const command = await runtime.resolveCommand(candidates); if (!command) throw new Error(`Required encoder not found: ${candidates.join(" or ")}`); return { command, args } }
-async function runEncoderConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> { const invocation = await encoderInvocation(source, target, input, runtime); return runRuntimeCommand(runtime, invocation.command, invocation.args) }
+async function runEncoderConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> { if (input.format === "AVIF" && input.avifEncoder === "slimg" && input.slimgBackend !== "cli") return runSlimgConversion(source, target, input, runtime); const invocation = await encoderInvocation(source, target, input, runtime); return runRuntimeCommand(runtime, invocation.command, invocation.args) }
 async function runIntelligentJxlComparison(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> {
   const effort9 = `${target}.effort-9.jxl`
   const effort7Result = await runEncoderConversion(source, target, { ...input, intelligentEffort: false, effort: 7, maxCompression: false }, runtime)
@@ -1281,6 +1196,7 @@ async function runIntelligentJxlComparison(source: string, target: string, input
   else if (effort9Info.exists) await runtime.removeFile(effort9)
   return effort7Result
 }
+async function runSlimgConversion(source: string, target: string, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyCommandResult> { if (!runtime.convertWithSlimg) return { exitCode: 1, stdout: "", stderr: "slimg CFFI is not supported by the current runtime." }; try { await runtime.convertWithSlimg(source, target, input.lossless ? 100 : input.quality); return { exitCode: 0, stdout: "slimg CFFI conversion completed.", stderr: "" } } catch (error) { return { exitCode: 1, stdout: "", stderr: error instanceof Error ? error.message : String(error) } } }
 /** Encoder-preserve is best effort: a format encoder may have already kept metadata,
  * while ExifTool may not support rewriting that target format (notably JXL). */
 async function copyMetadata(source: string, target: string, runtime: XlchemyRuntime): Promise<string | undefined> {

@@ -7,7 +7,21 @@ import { Component } from "./Component"
 import type { XlchemyCardState } from "./types"
 
 describe("XLchemy EFU browser behavior", () => {
-  test("registers an EFU reference without fetching or scanning it", async () => {
+  test("persists the selected slimg backend", async () => {
+    const host = createHost((path) => `local://${path}`)
+    host.cardState = { pathsText: "D:/images/a.png", format: "AVIF", avifEncoder: "slimg" }
+    const view = await render(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+
+    await view.getByRole("tab", { name: "转换", exact: true }).click()
+    await view.getByText("DLL（低内存）", { exact: true }).click()
+    await view.getByRole("option", { name: "CLI" }).click()
+
+    await expect.poll(() => host.cardState.slimgBackend).toBe("cli")
+    await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+    await expect.poll(() => host.savedConfig?.slimgBackend).toBe("cli")
+  })
+
+  test("streams a bounded EFU analysis without loading paths into the table", async () => {
     const fetchEfu = vi.fn(async () => new Response("Filename,Size\r\nD:/images/a.png,100"))
     vi.stubGlobal("fetch", fetchEfu)
     const getUrl = vi.fn((path: string) => `local://${path}`)
@@ -18,12 +32,15 @@ describe("XLchemy EFU browser behavior", () => {
     await view.getByRole("menuitem", { name: "导入 EFU 文件列表" }).click()
 
     await expect.poll(() => host.cardState.efuFiles).toEqual(["D:/Downloads/al.efu"])
-    expect(getUrl).not.toHaveBeenCalled()
-    expect(fetchEfu).not.toHaveBeenCalled()
+    await expect.poll(() => host.cardState.efuAnalysisByPath?.["D:/Downloads/al.efu"]?.totalFiles).toBe(1)
+    expect(getUrl).toHaveBeenCalledWith("D:/Downloads/al.efu")
+    expect(fetchEfu).toHaveBeenCalledWith("local://D:/Downloads/al.efu")
+    expect(host.cardState.pathsText).toBeUndefined()
     await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
-    await expect.element(view.getByText("al.efu")).toBeVisible()
+    await expect.element(view.getByTestId("xlchemy-efu-sources").getByText("al.efu", { exact: true })).toBeVisible()
     await expect.element(view.getByTestId("xlchemy-efu-sources").getByText("流式", { exact: true })).toBeVisible()
-    await expect.element(view.getByTestId("xlchemy-header").getByText("1 EFU", { exact: true })).toBeVisible()
+    await expect.element(view.getByTestId("xlchemy-header").getByText("1 项 · 1 EFU", { exact: true })).toBeVisible()
+    await expect.element(view.getByTestId("xlchemy-data-analysis").getByText("100 B", { exact: true }).first()).toBeVisible()
   })
 
   test("leaves the preparing state when a normal file reports conversion progress", async () => {
@@ -54,9 +71,48 @@ describe("XLchemy EFU browser behavior", () => {
     }
     await expect.poll(() => host.cardState.phase).toBe("completed")
   })
+
+  test("selects dynar as a rename target and submits the animation naming contract", async () => {
+    const host = createHost((path) => `local://${path}`)
+    host.cardState = { pathsText: "D:/images/motion.gif", format: "JPEG XL" }
+    let receivedInput: unknown
+    let pickerPattern = ""
+    host.localFiles!.pickFiles = async (options) => { pickerPattern = options?.filters?.[0]?.pattern ?? ""; return ["D:/images/motion.gif"] }
+    host.localFiles!.list = async (path) => [{ name: "motion.gif", path, isDirectory: false, sizeBytes: 2048, lastModified: 0, type: "image/gif" }]
+    host.runner!.run = async <TInput, TData>(_nodeId: string, input: TInput): Promise<NodeRunResult<TData>> => {
+      receivedInput = input
+      return {
+        success: true,
+        message: "Renamed.",
+        data: { files: [], inputCount: 1, convertedCount: 0, renamedCount: 1, skippedCount: 0, errorCount: 0, inputBytes: 100, outputBytes: 100, errors: [] } as XlchemyData as TData,
+      }
+    }
+    const view = await render(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+
+    await view.getByRole("combobox", { name: "目标格式" }).click()
+    await view.getByRole("option", { name: "dynar · 重命名" }).click()
+
+    await expect.poll(() => host.cardState.format).toBe("dynar")
+    await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+    await expect.element(view.getByRole("button", { name: "开始重命名" })).toBeVisible()
+    await expect.poll(() => host.savedConfig?.filenameRules).toEqual(expect.arrayContaining([expect.objectContaining({ outputFormats: ["dynar"], prefix: "[#dyna]", suffix: ".wbp" })]))
+
+    await expect.element(view.getByTestId("xlchemy-input-workbench").getByText("2.0 KB", { exact: true }).first()).toBeVisible()
+    await expect.element(view.getByTestId("xlchemy-data-analysis").getByText("2.0 KB", { exact: true }).first()).toBeVisible()
+
+    await view.getByRole("tab", { name: "转换", exact: true }).click()
+    for (const name of ["PNG / APNG", "WebP", "AVIF", "JPEG XL"]) await expect.element(view.getByRole("switch", { name })).toBeVisible()
+
+    await view.getByRole("button", { name: "添加输入" }).click()
+    await view.getByRole("menuitem", { name: "添加文件", exact: true }).click()
+    await expect.poll(() => pickerPattern).toBe("*.gif;*.webp")
+
+    await view.getByRole("button", { name: "开始重命名" }).click()
+    await expect.poll(() => receivedInput).toMatchObject({ format: "dynar", animationDetectionFormats: ["webp"], filenameRules: expect.arrayContaining([expect.objectContaining({ prefix: "[#dyna]" })]) })
+  })
 })
 
-type TestHost = NodeHostApi<XlchemyCardState, Partial<XlchemyCardState>> & { cardState: XlchemyCardState }
+type TestHost = NodeHostApi<XlchemyCardState, Partial<XlchemyCardState>> & { cardState: XlchemyCardState; savedConfig?: Partial<XlchemyCardState> }
 
 function createHost(getUrl: (path: string) => string): TestHost {
   const host = {
@@ -82,7 +138,7 @@ function createHost(getUrl: (path: string) => string): TestHost {
     clipboard: { readText: async () => "", writeText: async () => undefined },
     config: {
       get: async () => ({ config: undefined, path: "D:/config/xiranite.config.toml" }),
-      save: async () => undefined,
+      save: async (config: Partial<XlchemyCardState>) => { host.savedConfig = config },
       getPresets: async () => ({ presets: [] }),
     },
     getData: <T,>() => host.cardState as T,

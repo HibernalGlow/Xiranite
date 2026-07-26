@@ -358,13 +358,22 @@ describe("xlchemy core contract", () => {
     expect(result.success).toBe(true)
     expect(result.data?.environment?.find((tool) => tool.id === "oxipng")).toMatchObject({ available: false, runnable: false })
     expect(result.data?.environment?.find((tool) => tool.id === "cjpegli")).toMatchObject({ available: true, runnable: true })
-    expect(result.data?.environment?.find((tool) => tool.id === "slimg")).toMatchObject({ available: true, runnable: true, version: "/bin/slimg 1.0" })
+    expect(result.data?.environment?.find((tool) => tool.id === "slimg")).toMatchObject({ available: true, runnable: true })
+    expect(result.data?.environment?.find((tool) => tool.id === "slimg-cffi")).toMatchObject({ available: true, runnable: true })
     expect(result.data?.environment?.some((tool) => "versionArgs" in tool)).toBe(false)
   })
 
-  test("uses the supported slimg CLI contract instead of passing slimg to avifenc", async () => {
+  test("uses the slimg DLL runtime instead of passing slimg to avifenc", async () => {
     const runtime = fakeRuntime()
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "slimg", threads: 8, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.commands).toEqual([{ command: "slimg-cffi", args: ["/photos/a.png", "/photos/a.avif", "60"] }])
+    expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 350 })
+  })
+
+  test("uses the slimg CLI when that backend is selected", async () => {
+    const runtime = fakeRuntime()
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "slimg", slimgBackend: "cli", threads: 8, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
     expect(result.success).toBe(true)
     expect(runtime.commands).toEqual([{ command: "/bin/slimg", args: ["convert", "--format", "avif", "--quality", "60", "--output", "/photos/a.avif", "--overwrite", "--jobs", "1", "/photos/a.png"] }])
     expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 350 })
@@ -399,13 +408,13 @@ describe("xlchemy core contract", () => {
       excludedFormats: ["webp"],
     }), runtime, (event) => events.push(event))
 
-    const slimgCommands = runtime.commands.filter((item) => item.command.endsWith("slimg"))
+    const slimgCommands = runtime.commands.filter((item) => item.command === "slimg-cffi")
     expect(result.success).toBe(true)
     expect(result.data).toMatchObject({ inputCount: 2, convertedCount: 1, skippedCount: 1 })
     expect(slimgCommands).toHaveLength(1)
-    expect(slimgCommands[0]?.args.at(-1)).toBe("/photos/selected.png")
+    expect(slimgCommands[0]?.args[0]).toBe("/photos/selected.png")
     expect(slimgCommands[0]?.args).not.toContain("/photos")
-    expect(events.find((event) => event.message?.startsWith("Batch scheduler:"))?.message).toContain("source directories are never passed to slimg")
+    expect(events.find((event) => event.message?.startsWith("Batch scheduler:"))?.message).toContain("one single-threaded CFFI call per worker")
   })
 
   test("plans skip-policy files concurrently without a global rename lock", async () => {
@@ -431,6 +440,10 @@ describe("xlchemy core contract", () => {
       await new Promise((resolve) => setTimeout(resolve, 5))
       return { exitCode: 0, stdout: "", stderr: "" }
     }
+    runtime.convertWithSlimg = async (_source, target) => {
+      outputs.add(target)
+      await new Promise((resolve) => setTimeout(resolve, 5))
+    }
 
     const result = await runXlchemy(normalizeXlchemyInput({
       action: "convert",
@@ -446,10 +459,10 @@ describe("xlchemy core contract", () => {
 
     expect(result.success).toBe(true)
     expect(peakSourceReads).toBeGreaterThan(1)
-    expect(runtime.commands.filter((item) => item.command.endsWith("slimg"))).toHaveLength(8)
+    expect(result.data?.convertedCount).toBe(8)
   })
 
-  test("requests one global CPU unit for a slimg CLI process and releases the lease", async () => {
+  test("requests one CPU unit for each in-process slimg DLL worker and releases the lease", async () => {
     const runtime = fakeRuntime()
     const release = vi.fn()
     runtime.acquireWorker = vi.fn(async () => ({ threads: 1, release }))
@@ -466,7 +479,7 @@ describe("xlchemy core contract", () => {
     }), runtime, (event) => events.push(event))
     expect(result.success).toBe(true)
     expect(runtime.acquireWorker).toHaveBeenCalledWith(1, 432, undefined)
-    expect(runtime.commands).toEqual([{ command: "/bin/slimg", args: ["convert", "--format", "avif", "--quality", "60", "--output", "/photos/a.avif", "--overwrite", "--jobs", "1", "/photos/a.png"] }])
+    expect(runtime.commands).toEqual([{ command: "slimg-cffi", args: ["/photos/a.png", "/photos/a.avif", "60"] }])
     expect(release).toHaveBeenCalledOnce()
     expect(events.find((event) => event.message.startsWith("Global resource admission:"))?.message).toContain("approximately 432 MiB")
   })
@@ -509,7 +522,7 @@ describe("xlchemy core contract", () => {
     expect(events.find((event) => event.message.startsWith("Batch completed"))?.message).toContain("peak active workers 3")
   })
 
-  test("runs one single-job slimg process per CPU unit up to the slimg process cap", async () => {
+  test("runs one single-threaded slimg DLL call per CPU unit", async () => {
     const runtime = fakeRuntime()
     const inputs = Array.from({ length: 30 }, (_, index) => `/slimg/${index}.png`)
     const originalPathInfo = runtime.pathInfo
@@ -519,14 +532,14 @@ describe("xlchemy core contract", () => {
     const release = vi.fn()
     const acquireWorker = vi.fn(async (threads: number) => ({ threads, release }))
     runtime.acquireWorker = acquireWorker
-    const originalRunCommand = runtime.runCommand
     let activeEncoders = 0
     let peakActiveEncoders = 0
-    runtime.runCommand = async (command, args, isCancelled) => {
+    const originalConvertWithSlimg = runtime.convertWithSlimg!
+    runtime.convertWithSlimg = async (source, target, quality) => {
       activeEncoders += 1
       peakActiveEncoders = Math.max(peakActiveEncoders, activeEncoders)
       await new Promise((resolve) => setTimeout(resolve, 10))
-      try { return await originalRunCommand(command, args, isCancelled) }
+      try { return await originalConvertWithSlimg(source, target, quality) }
       finally { activeEncoders -= 1 }
     }
 
@@ -545,13 +558,12 @@ describe("xlchemy core contract", () => {
       excludedFormats: [],
     }), runtime, (event) => events.push(event))
 
-    const commands = runtime.commands.filter((item) => item.command.endsWith("slimg"))
+    const commands = runtime.commands.filter((item) => item.command === "slimg-cffi")
     expect(result.success).toBe(true)
     expect(peakActiveEncoders).toBe(22)
     expect(acquireWorker).toHaveBeenCalledTimes(30)
     expect(acquireWorker.mock.calls.every(([threads]) => threads === 1)).toBe(true)
     expect(commands).toHaveLength(30)
-    expect(commands.every((item) => item.args.slice(item.args.indexOf("--jobs"), item.args.indexOf("--jobs") + 2).join(" ") === "--jobs 1")).toBe(true)
     expect(events.find((event) => event.message.startsWith("Batch scheduler:"))?.message).toContain("22 worker(s); CPU thread budget 22; encoder threads 1 each")
     expect(events.find((event) => event.message.startsWith("Batch completed"))?.message).toContain("peak active workers 22")
     expect(release).toHaveBeenCalledTimes(30)
@@ -821,6 +833,8 @@ function fakeRuntime(): XlchemyRuntime & { commands: Array<{ command: string; ar
     runCommand: async (command, args) => { runtime.commands.push({ command, args }); if (command.endsWith("jxlinfo")) return { exitCode: 0, stdout: "JPEG bitstream reconstruction data available", stderr: "" }; const output = args.includes("-outfile") ? args[args.indexOf("-outfile") + 1]! : args.includes("--output") ? args[args.indexOf("--output") + 1]! : args.includes("-o") ? args[args.indexOf("-o") + 1]! : args.at(-1)!; const size = command.endsWith("slimg") ? 350 : output.includes(".effort-9.jxl") ? 150 : output.includes(".smallest.jxl") ? 200 : output.includes(".smallest.webp") ? 300 : 400; files.set(output, { size }); return { exitCode: 0, stdout: "", stderr: "" } },
     resolveCommand: async (candidates) => `/bin/${candidates[0]}`,
     isAnimatedImage: async () => false,
+    probeSlimg: async () => ({ id: "slimg-cffi", label: "slimg CFFI", purpose: "slimg DLL AVIF encoding", path: "/lib/slimg_cffi.dll", available: true, runnable: true }),
+    convertWithSlimg: async (source, target, quality) => { runtime.commands.push({ command: "slimg-cffi", args: [source, target, String(quality)] }); files.set(target, { size: 350 }) },
     convertClipToPsd: async (source, target) => { runtime.commands.push({ command: "clip-to-psd-native", args: [source, target] }); files.set(target, { size: 1200 }) },
     join: (...parts) => parts.filter((part) => part && part !== ".").join("/").replace(/\/+/g, "/"), dirname: (path) => path.includes("/") ? path.replace(/\/[^/]+$/, "") || "/" : ".", basename: (path) => path.split("/").at(-1) ?? path, extname: (path) => /\.[^.]+$/.exec(path)?.[0] ?? "", relative: (from, to) => to.startsWith(`${from}/`) ? to.slice(from.length + 1) : to,
   }
