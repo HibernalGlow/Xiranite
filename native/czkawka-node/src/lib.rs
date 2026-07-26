@@ -11,21 +11,115 @@ use xiranite_czkawka_core as core;
 mod trash_api;
 pub use trash_api::*;
 
+#[cfg(target_os = "windows")]
+mod windows_trash;
+
 #[derive(Clone)]
-struct ScanSession { id: String, stop: Arc<AtomicBool>, progress: Arc<Mutex<Option<core::ScanProgress>>> }
-fn scan_sessions() -> &'static Mutex<HashMap<String, ScanSession>> { static SESSIONS: OnceLock<Mutex<HashMap<String, ScanSession>>> = OnceLock::new(); SESSIONS.get_or_init(|| Mutex::new(HashMap::new())) }
+struct ScanSession {
+    id: String,
+    stop: Arc<AtomicBool>,
+    progress: Arc<Mutex<Option<core::ScanProgress>>>,
+}
+fn scan_sessions() -> &'static Mutex<HashMap<String, ScanSession>> {
+    static SESSIONS: OnceLock<Mutex<HashMap<String, ScanSession>>> = OnceLock::new();
+    SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
 impl ScanSession {
-    fn create(id: Option<String>) -> Option<Self> { let id = id?.trim().to_owned(); if id.is_empty() { return None; } let session = Self { id: id.clone(), stop: Arc::new(AtomicBool::new(false)), progress: Arc::new(Mutex::new(None)) }; if let Some(previous) = scan_sessions().lock().expect("scan session registry poisoned").insert(id, session.clone()) { previous.stop.store(true, Ordering::Relaxed); } Some(session) }
-    fn finish(&self) { let mut sessions = scan_sessions().lock().expect("scan session registry poisoned"); if sessions.get(&self.id).is_some_and(|current| Arc::ptr_eq(&current.stop, &self.stop)) { sessions.remove(&self.id); } }
+    fn create(id: Option<String>) -> Option<Self> {
+        let id = id?.trim().to_owned();
+        if id.is_empty() {
+            return None;
+        }
+        let session = Self {
+            id: id.clone(),
+            stop: Arc::new(AtomicBool::new(false)),
+            progress: Arc::new(Mutex::new(None)),
+        };
+        if let Some(previous) = scan_sessions()
+            .lock()
+            .expect("scan session registry poisoned")
+            .insert(id, session.clone())
+        {
+            previous.stop.store(true, Ordering::Relaxed);
+        }
+        Some(session)
+    }
+    fn finish(&self) {
+        let mut sessions = scan_sessions()
+            .lock()
+            .expect("scan session registry poisoned");
+        if sessions
+            .get(&self.id)
+            .is_some_and(|current| Arc::ptr_eq(&current.stop, &self.stop))
+        {
+            sessions.remove(&self.id);
+        }
+    }
 }
 
 #[napi(object)]
-pub struct CzkawkaScanProgress { pub stage: String, pub stage_index: u32, pub stage_count: u32, pub entries_checked: i64, pub entries_total: i64, pub bytes_checked: i64, pub bytes_total: i64 }
+pub struct CzkawkaScanProgress {
+    pub stage: String,
+    pub stage_index: u32,
+    pub stage_count: u32,
+    pub entries_checked: i64,
+    pub entries_total: i64,
+    pub bytes_checked: i64,
+    pub bytes_total: i64,
+}
 #[napi]
-pub fn cancel_czkawka_scan(scan_id: String) -> bool { let sessions = scan_sessions().lock().expect("scan session registry poisoned"); let Some(session) = sessions.get(&scan_id) else { return false; }; session.stop.store(true, Ordering::Relaxed); true }
+pub fn cancel_czkawka_scan(scan_id: String) -> bool {
+    let sessions = scan_sessions()
+        .lock()
+        .expect("scan session registry poisoned");
+    let Some(session) = sessions.get(&scan_id) else {
+        return false;
+    };
+    session.stop.store(true, Ordering::Relaxed);
+    true
+}
 #[napi]
-pub fn get_czkawka_scan_progress(scan_id: String) -> Option<CzkawkaScanProgress> { let sessions = scan_sessions().lock().expect("scan session registry poisoned"); let session = sessions.get(&scan_id)?; let progress = session.progress.lock().expect("scan progress poisoned").clone()?; Some(CzkawkaScanProgress { stage: progress.stage, stage_index: progress.stage_index.into(), stage_count: progress.stage_count.into(), entries_checked: saturating_i64(progress.entries_checked as u64), entries_total: saturating_i64(progress.entries_total as u64), bytes_checked: saturating_i64(progress.bytes_checked), bytes_total: saturating_i64(progress.bytes_total) }) }
-fn run_controlled<T>(session: &Option<ScanSession>, scan: impl FnOnce(&core::ScanControl) -> std::result::Result<T, core::CzkawkaError>) -> Result<T> { let Some(session) = session else { return scan(&core::ScanControl::detached()).map_err(|error| Error::from_reason(error.to_string())); }; let (control, progress_receiver) = core::ScanControl::channel(session.stop.clone()); let progress_state = session.progress.clone(); let monitor = std::thread::spawn(move || while let Ok(progress) = progress_receiver.recv() { *progress_state.lock().expect("scan progress poisoned") = Some(progress); }); let result = scan(&control).map_err(|error| Error::from_reason(error.to_string())); drop(control); let _ = monitor.join(); session.finish(); result }
+pub fn get_czkawka_scan_progress(scan_id: String) -> Option<CzkawkaScanProgress> {
+    let sessions = scan_sessions()
+        .lock()
+        .expect("scan session registry poisoned");
+    let session = sessions.get(&scan_id)?;
+    let progress = session
+        .progress
+        .lock()
+        .expect("scan progress poisoned")
+        .clone()?;
+    Some(CzkawkaScanProgress {
+        stage: progress.stage,
+        stage_index: progress.stage_index.into(),
+        stage_count: progress.stage_count.into(),
+        entries_checked: saturating_i64(progress.entries_checked as u64),
+        entries_total: saturating_i64(progress.entries_total as u64),
+        bytes_checked: saturating_i64(progress.bytes_checked),
+        bytes_total: saturating_i64(progress.bytes_total),
+    })
+}
+fn run_controlled<T>(
+    session: &Option<ScanSession>,
+    scan: impl FnOnce(&core::ScanControl) -> std::result::Result<T, core::CzkawkaError>,
+) -> Result<T> {
+    let Some(session) = session else {
+        return scan(&core::ScanControl::detached())
+            .map_err(|error| Error::from_reason(error.to_string()));
+    };
+    let (control, progress_receiver) = core::ScanControl::channel(session.stop.clone());
+    let progress_state = session.progress.clone();
+    let monitor = std::thread::spawn(move || {
+        while let Ok(progress) = progress_receiver.recv() {
+            *progress_state.lock().expect("scan progress poisoned") = Some(progress);
+        }
+    });
+    let result = scan(&control).map_err(|error| Error::from_reason(error.to_string()));
+    drop(control);
+    let _ = monitor.join();
+    session.finish();
+    result
+}
 
 #[napi(object)]
 pub struct CzkawkaInfo {
@@ -90,7 +184,11 @@ pub struct DuplicateScanResult {
     pub stopped: bool,
 }
 
-pub struct DuplicateScanTask { options: core::DuplicateScanOptions, session: Option<ScanSession>, thread_count: usize }
+pub struct DuplicateScanTask {
+    options: core::DuplicateScanOptions,
+    session: Option<ScanSession>,
+    thread_count: usize,
+}
 
 #[napi]
 pub fn scan_duplicate_files(options: DuplicateScanOptions) -> Result<AsyncTask<DuplicateScanTask>> {
@@ -125,8 +223,16 @@ pub fn scan_duplicate_files(options: DuplicateScanOptions) -> Result<AsyncTask<D
     core_options.use_cache = options.use_cache.unwrap_or(false);
     core_options.save_also_as_json = options.save_also_as_json.unwrap_or(false);
     core_options.delete_outdated_cache = options.delete_outdated_cache.unwrap_or(true);
-    core_options.minimal_cache_file_size = non_negative_u64(options.minimal_cache_file_size.unwrap_or(256 * 1024), "minimalCacheFileSize")?;
-    core_options.minimal_prehash_cache_file_size = non_negative_u64(options.minimal_prehash_cache_file_size.unwrap_or(256 * 1024), "minimalPrehashCacheFileSize")?;
+    core_options.minimal_cache_file_size = non_negative_u64(
+        options.minimal_cache_file_size.unwrap_or(256 * 1024),
+        "minimalCacheFileSize",
+    )?;
+    core_options.minimal_prehash_cache_file_size = non_negative_u64(
+        options
+            .minimal_prehash_cache_file_size
+            .unwrap_or(256 * 1024),
+        "minimalPrehashCacheFileSize",
+    )?;
     core_options.ignore_hard_links = options.ignore_hard_links.unwrap_or(true);
     core_options.use_prehash = options.use_prehash.unwrap_or(true);
     core_options.case_sensitive_names = options.case_sensitive_names.unwrap_or(false);
@@ -154,7 +260,11 @@ pub fn scan_duplicate_files(options: DuplicateScanOptions) -> Result<AsyncTask<D
         }
     };
     let session = ScanSession::create(options.scan_id);
-    Ok(AsyncTask::new(DuplicateScanTask { options: core_options, session, thread_count: options.thread_count.unwrap_or(0) as usize }))
+    Ok(AsyncTask::new(DuplicateScanTask {
+        options: core_options,
+        session,
+        thread_count: options.thread_count.unwrap_or(0) as usize,
+    }))
 }
 
 impl Task for DuplicateScanTask {
@@ -163,7 +273,9 @@ impl Task for DuplicateScanTask {
 
     fn compute(&mut self) -> Result<Self::Output> {
         core::initialize_threads(self.thread_count);
-        run_controlled(&self.session, |control| core::scan_duplicate_files_controlled(self.options.clone(), control))
+        run_controlled(&self.session, |control| {
+            core::scan_duplicate_files_controlled(self.options.clone(), control)
+        })
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
@@ -237,7 +349,11 @@ pub struct BasicScanResult {
     pub stopped: bool,
 }
 
-pub struct BasicScanTask { options: core::BasicScanOptions, session: Option<ScanSession>, thread_count: usize }
+pub struct BasicScanTask {
+    options: core::BasicScanOptions,
+    session: Option<ScanSession>,
+    thread_count: usize,
+}
 
 #[napi]
 pub fn scan_basic_files(options: BasicScanOptions) -> Result<AsyncTask<BasicScanTask>> {
@@ -276,15 +392,23 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<AsyncTask<BasicScan
     core_options.allowed_extensions = options.allowed_extensions.unwrap_or_default();
     core_options.excluded_extensions = options.excluded_extensions.unwrap_or_default();
     core_options.recursive = options.recursive.unwrap_or(true);
-    core_options.minimum_file_size = non_negative_u64(options.minimum_file_size.unwrap_or(1), "minimumFileSize")?;
-    core_options.maximum_file_size = non_negative_u64(options.maximum_file_size.unwrap_or(i64::MAX), "maximumFileSize")?;
+    core_options.minimum_file_size =
+        non_negative_u64(options.minimum_file_size.unwrap_or(1), "minimumFileSize")?;
+    core_options.maximum_file_size = non_negative_u64(
+        options.maximum_file_size.unwrap_or(i64::MAX),
+        "maximumFileSize",
+    )?;
     core_options.use_cache = options.use_cache.unwrap_or(true);
     core_options.save_also_as_json = options.save_also_as_json.unwrap_or(false);
     core_options.delete_outdated_cache = options.delete_outdated_cache.unwrap_or(true);
     core_options.number_of_files = options.number_of_files.unwrap_or(50).max(1) as usize;
     core_options.biggest_first = options.biggest_first.unwrap_or(true);
     let session = ScanSession::create(options.scan_id);
-    Ok(AsyncTask::new(BasicScanTask { options: core_options, session, thread_count: options.thread_count.unwrap_or(0) as usize }))
+    Ok(AsyncTask::new(BasicScanTask {
+        options: core_options,
+        session,
+        thread_count: options.thread_count.unwrap_or(0) as usize,
+    }))
 }
 
 impl Task for BasicScanTask {
@@ -293,7 +417,9 @@ impl Task for BasicScanTask {
 
     fn compute(&mut self) -> Result<Self::Output> {
         core::initialize_threads(self.thread_count);
-        run_controlled(&self.session, |control| core::scan_basic_files_controlled(self.options.clone(), control))
+        run_controlled(&self.session, |control| {
+            core::scan_basic_files_controlled(self.options.clone(), control)
+        })
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
@@ -392,7 +518,11 @@ pub struct MediaScanResult {
     pub stopped: bool,
 }
 
-pub struct MediaScanTask { options: core::MediaScanOptions, session: Option<ScanSession>, thread_count: usize }
+pub struct MediaScanTask {
+    options: core::MediaScanOptions,
+    session: Option<ScanSession>,
+    thread_count: usize,
+}
 
 #[napi]
 pub fn scan_media_files(options: MediaScanOptions) -> Result<AsyncTask<MediaScanTask>> {
@@ -431,62 +561,108 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<AsyncTask<MediaScan
     core_options.allowed_extensions = options.allowed_extensions.unwrap_or_default();
     core_options.excluded_extensions = options.excluded_extensions.unwrap_or_default();
     core_options.recursive = options.recursive.unwrap_or(true);
-    core_options.minimum_file_size = non_negative_u64(options.minimum_file_size.unwrap_or(1), "minimumFileSize")?;
-    core_options.maximum_file_size = non_negative_u64(options.maximum_file_size.unwrap_or(i64::MAX), "maximumFileSize")?;
+    core_options.minimum_file_size =
+        non_negative_u64(options.minimum_file_size.unwrap_or(1), "minimumFileSize")?;
+    core_options.maximum_file_size = non_negative_u64(
+        options.maximum_file_size.unwrap_or(i64::MAX),
+        "maximumFileSize",
+    )?;
     core_options.use_cache = options.use_cache.unwrap_or(true);
     core_options.save_also_as_json = options.save_also_as_json.unwrap_or(false);
     core_options.delete_outdated_cache = options.delete_outdated_cache.unwrap_or(true);
     core_options.ignore_hard_links = options.ignore_hard_links.unwrap_or(true);
     core_options.similarity = options.similarity.unwrap_or(10);
-    core_options.image_hash_size = options.image_hash_size.unwrap_or(16).clamp(1, u8::MAX as u32) as u8;
-    core_options.image_hash_algorithm = match options.image_hash_algorithm.as_deref().unwrap_or("mean") {
-        "mean" => core::ImageHashAlgorithm::Mean,
-        "gradient" => core::ImageHashAlgorithm::Gradient,
-        "blockhash" => core::ImageHashAlgorithm::Blockhash,
-        "vert-gradient" | "vertGradient" => core::ImageHashAlgorithm::VertGradient,
-        "double-gradient" | "doubleGradient" => core::ImageHashAlgorithm::DoubleGradient,
-        "median" => core::ImageHashAlgorithm::Median,
-        value => return Err(Error::new(Status::InvalidArg, format!("unsupported image hash algorithm: {value}"))),
-    };
-    core_options.image_resize_algorithm = match options.image_resize_algorithm.as_deref().unwrap_or("lanczos3") {
+    core_options.image_hash_size = options
+        .image_hash_size
+        .unwrap_or(16)
+        .clamp(1, u8::MAX as u32) as u8;
+    core_options.image_hash_algorithm =
+        match options.image_hash_algorithm.as_deref().unwrap_or("mean") {
+            "mean" => core::ImageHashAlgorithm::Mean,
+            "gradient" => core::ImageHashAlgorithm::Gradient,
+            "blockhash" => core::ImageHashAlgorithm::Blockhash,
+            "vert-gradient" | "vertGradient" => core::ImageHashAlgorithm::VertGradient,
+            "double-gradient" | "doubleGradient" => core::ImageHashAlgorithm::DoubleGradient,
+            "median" => core::ImageHashAlgorithm::Median,
+            value => {
+                return Err(Error::new(
+                    Status::InvalidArg,
+                    format!("unsupported image hash algorithm: {value}"),
+                ));
+            }
+        };
+    core_options.image_resize_algorithm = match options
+        .image_resize_algorithm
+        .as_deref()
+        .unwrap_or("lanczos3")
+    {
         "lanczos3" => core::ImageResizeAlgorithm::Lanczos3,
         "gaussian" => core::ImageResizeAlgorithm::Gaussian,
         "catmull-rom" | "catmullRom" => core::ImageResizeAlgorithm::CatmullRom,
         "triangle" => core::ImageResizeAlgorithm::Triangle,
         "nearest" => core::ImageResizeAlgorithm::Nearest,
-        value => return Err(Error::new(Status::InvalidArg, format!("unsupported image resize algorithm: {value}"))),
+        value => {
+            return Err(Error::new(
+                Status::InvalidArg,
+                format!("unsupported image resize algorithm: {value}"),
+            ));
+        }
     };
     core_options.image_ignore_same_size = options.image_ignore_same_size.unwrap_or(false);
     core_options.video_ignore_same_size = options.video_ignore_same_size.unwrap_or(false);
     core_options.video_skip_forward = options.video_skip_forward.unwrap_or(15);
     core_options.video_hash_duration = options.video_hash_duration.unwrap_or(10).max(2);
-    core_options.video_crop_detect = match options.video_crop_detect.as_deref().unwrap_or("letterbox") {
-        "letterbox" => core::VideoCropDetect::Letterbox,
-        "motion" => core::VideoCropDetect::Motion,
-        "none" => core::VideoCropDetect::None,
-        value => return Err(Error::new(Status::InvalidArg, format!("unsupported video crop detection: {value}"))),
-    };
+    core_options.video_crop_detect =
+        match options.video_crop_detect.as_deref().unwrap_or("letterbox") {
+            "letterbox" => core::VideoCropDetect::Letterbox,
+            "motion" => core::VideoCropDetect::Motion,
+            "none" => core::VideoCropDetect::None,
+            value => {
+                return Err(Error::new(
+                    Status::InvalidArg,
+                    format!("unsupported video crop detection: {value}"),
+                ));
+            }
+        };
     core_options.music_check_type = match options.music_check_type.as_deref().unwrap_or("tags") {
         "tags" => core::MusicCheckType::Tags,
         "fingerprint" => core::MusicCheckType::Fingerprint,
-        value => return Err(Error::new(Status::InvalidArg, format!("unsupported music check type: {value}"))),
+        value => {
+            return Err(Error::new(
+                Status::InvalidArg,
+                format!("unsupported music check type: {value}"),
+            ));
+        }
     };
-    core_options.music_approximate_comparison = options.music_approximate_comparison.unwrap_or(true);
+    core_options.music_approximate_comparison =
+        options.music_approximate_comparison.unwrap_or(true);
     core_options.music_compare_title = options.music_compare_title.unwrap_or(true);
     core_options.music_compare_artist = options.music_compare_artist.unwrap_or(true);
     core_options.music_compare_bitrate = options.music_compare_bitrate.unwrap_or(false);
     core_options.music_compare_genre = options.music_compare_genre.unwrap_or(false);
     core_options.music_compare_year = options.music_compare_year.unwrap_or(false);
     core_options.music_compare_length = options.music_compare_length.unwrap_or(false);
-    core_options.music_maximum_difference = options.music_maximum_difference.unwrap_or(10.0).clamp(0.0, 10.0);
-    core_options.music_minimum_fragment_duration = options.music_minimum_fragment_duration.unwrap_or(15.0).max(0.0) as f32;
-    core_options.music_compare_fingerprints_only_with_similar_titles = options.music_compare_fingerprints_only_with_similar_titles.unwrap_or(true);
+    core_options.music_maximum_difference = options
+        .music_maximum_difference
+        .unwrap_or(10.0)
+        .clamp(0.0, 10.0);
+    core_options.music_minimum_fragment_duration = options
+        .music_minimum_fragment_duration
+        .unwrap_or(15.0)
+        .max(0.0) as f32;
+    core_options.music_compare_fingerprints_only_with_similar_titles = options
+        .music_compare_fingerprints_only_with_similar_titles
+        .unwrap_or(true);
     core_options.broken_audio = options.broken_audio.unwrap_or(true);
     core_options.broken_pdf = options.broken_pdf.unwrap_or(true);
     core_options.broken_archive = options.broken_archive.unwrap_or(true);
     core_options.broken_image = options.broken_image.unwrap_or(true);
     let session = ScanSession::create(options.scan_id);
-    Ok(AsyncTask::new(MediaScanTask { options: core_options, session, thread_count: options.thread_count.unwrap_or(0) as usize }))
+    Ok(AsyncTask::new(MediaScanTask {
+        options: core_options,
+        session,
+        thread_count: options.thread_count.unwrap_or(0) as usize,
+    }))
 }
 
 impl Task for MediaScanTask {
@@ -495,7 +671,9 @@ impl Task for MediaScanTask {
 
     fn compute(&mut self) -> Result<Self::Output> {
         core::initialize_threads(self.thread_count);
-        run_controlled(&self.session, |control| core::scan_media_files_controlled(self.options.clone(), control))
+        run_controlled(&self.session, |control| {
+            core::scan_media_files_controlled(self.options.clone(), control)
+        })
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {

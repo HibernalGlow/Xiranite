@@ -44,7 +44,14 @@ pub(crate) fn scan(
             genre: None,
             bitrate: None,
             is_reference: false,
-            detail: Some(format!("{:?}: {}", entry.type_of_file, entry.error_string)),
+            detail: Some(
+                entry
+                    .errors
+                    .iter()
+                    .filter_map(|(kind, message)| message.as_ref().map(|message| format!("{kind:?}: {message}")))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ),
             proper_extension: None,
         })
         .collect();

@@ -1,6 +1,7 @@
 use czkawka_core::common::tool_data::CommonData;
+use czkawka_core::helpers::messages::MessageLimit;
 
-use super::common::initialize_cache_path;
+use super::common::{extension_list, initialize_cache_path};
 use crate::{CzkawkaError, MediaScanOptions, MediaScanResult, MediaTool, ScanControl};
 
 pub(crate) fn scan_media_files_controlled(
@@ -23,14 +24,15 @@ pub(crate) fn scan_media_files_controlled(
 }
 
 pub(crate) fn configure_tool<T: CommonData>(tool: &mut T, options: &MediaScanOptions) {
-    tool.set_included_directory(options.included_directories.clone());
+    tool.set_hide_hard_links(options.ignore_hard_links);
+    tool.set_included_paths(options.included_directories.clone());
     if !options.reference_directories.is_empty() {
-        tool.set_reference_directory(options.reference_directories.clone());
+        tool.set_reference_paths(options.reference_directories.clone());
     }
-    tool.set_excluded_directory(options.excluded_directories.clone());
+    tool.set_excluded_paths(options.excluded_directories.clone());
     tool.set_excluded_items(options.excluded_items.clone());
-    tool.set_allowed_extensions(options.allowed_extensions.clone());
-    tool.set_excluded_extensions(options.excluded_extensions.clone());
+    tool.set_allowed_extensions(extension_list(&options.allowed_extensions));
+    tool.set_excluded_extensions(extension_list(&options.excluded_extensions));
     tool.set_recursive_search(options.recursive);
     tool.set_minimal_file_size(options.minimum_file_size);
     tool.set_maximal_file_size(options.maximum_file_size);
@@ -42,7 +44,7 @@ pub(crate) fn configure_tool<T: CommonData>(tool: &mut T, options: &MediaScanOpt
 pub(crate) fn result<T: CommonData>(tool: &T, groups: Vec<crate::MediaGroup>) -> MediaScanResult {
     MediaScanResult {
         groups,
-        messages: tool.get_text_messages().create_messages_text(),
+        messages: tool.get_text_messages().create_messages_text(MessageLimit::NoLimit),
         stopped: tool.get_stopped_search(),
     }
 }

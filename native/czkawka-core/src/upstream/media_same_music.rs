@@ -79,7 +79,7 @@ fn media_entry(entry: &MusicEntry, is_reference: bool) -> MediaEntry {
         title: Some(entry.track_title.clone()),
         artist: Some(entry.track_artist.clone()),
         year: Some(entry.year.clone()),
-        length: Some(entry.length.clone()),
+        length: Some(entry.length.to_string()),
         genre: Some(entry.genre.clone()),
         bitrate: Some(entry.bitrate),
         is_reference,

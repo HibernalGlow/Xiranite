@@ -1,8 +1,9 @@
 use czkawka_core::common::model::{CheckingMethod, HashType};
 use czkawka_core::common::tool_data::CommonData;
+use czkawka_core::helpers::messages::MessageLimit;
 use czkawka_core::tools::duplicate::{DuplicateEntry, DuplicateFinder, DuplicateFinderParameters};
 
-use super::common::{initialize_cache_path, search_with_control};
+use super::common::{extension_list, initialize_cache_path, search_with_control};
 use crate::{
     CzkawkaError, DuplicateCheckMethod, DuplicateFile, DuplicateGroup, DuplicateHashType,
     DuplicateScanOptions, DuplicateScanResult, ScanControl,
@@ -38,20 +39,20 @@ pub(crate) fn scan_duplicate_files_controlled(
     let mut finder = DuplicateFinder::new(DuplicateFinderParameters::new(
         check_method,
         hash_type,
-        options.ignore_hard_links,
         options.use_prehash,
         options.minimal_cache_file_size,
         options.minimal_prehash_cache_file_size,
         options.case_sensitive_names,
     ));
-    finder.set_included_directory(options.included_directories);
+    finder.set_hide_hard_links(options.ignore_hard_links);
+    finder.set_included_paths(options.included_directories);
     if !options.reference_directories.is_empty() {
-        finder.set_reference_directory(options.reference_directories);
+        finder.set_reference_paths(options.reference_directories);
     }
-    finder.set_excluded_directory(options.excluded_directories);
+    finder.set_excluded_paths(options.excluded_directories);
     finder.set_excluded_items(options.excluded_items);
-    finder.set_allowed_extensions(options.allowed_extensions);
-    finder.set_excluded_extensions(options.excluded_extensions);
+    finder.set_allowed_extensions(extension_list(&options.allowed_extensions));
+    finder.set_excluded_extensions(extension_list(&options.excluded_extensions));
     finder.set_minimal_file_size(options.minimum_file_size);
     finder.set_maximal_file_size(options.maximum_file_size);
     finder.set_recursive_search(options.recursive);
@@ -131,7 +132,7 @@ pub(crate) fn scan_duplicate_files_controlled(
         .collect();
     Ok(DuplicateScanResult {
         groups,
-        messages: finder.get_text_messages().create_messages_text(),
+        messages: finder.get_text_messages().create_messages_text(MessageLimit::NoLimit),
         stopped: finder.get_stopped_search(),
     })
 }

@@ -1,7 +1,9 @@
-use czkawka_core::tools::similar_images::{ImagesEntry, SimilarImages, SimilarImagesParameters};
+use czkawka_core::tools::similar_images::{
+    GeometricInvariance, ImagesEntry, SimilarImages, SimilarImagesParameters,
+};
 use image_hasher::{FilterType, HashAlg};
 
-use super::common::search_with_control;
+use super::common::{initialize_image_decoding_hooks, search_with_control};
 use super::media::{configure_tool, result};
 use crate::{
     CzkawkaError, ImageHashAlgorithm, ImageResizeAlgorithm, MediaEntry, MediaGroup,
@@ -12,6 +14,7 @@ pub(crate) fn scan(
     options: MediaScanOptions,
     control: &ScanControl,
 ) -> Result<MediaScanResult, CzkawkaError> {
+    initialize_image_decoding_hooks();
     let hash_algorithm = match options.image_hash_algorithm {
         ImageHashAlgorithm::Mean => HashAlg::Mean,
         ImageHashAlgorithm::Gradient => HashAlg::Gradient,
@@ -33,7 +36,8 @@ pub(crate) fn scan(
         hash_algorithm,
         resize_algorithm,
         options.image_ignore_same_size,
-        options.ignore_hard_links,
+        false,
+        GeometricInvariance::Off,
     ));
     configure_tool(&mut tool, &options);
     search_with_control(&mut tool, control);
@@ -64,7 +68,7 @@ fn media_entry(entry: &ImagesEntry, is_reference: bool) -> MediaEntry {
         modified_date: entry.modified_date,
         width: Some(entry.width),
         height: Some(entry.height),
-        similarity: Some(entry.similarity.to_string()),
+        similarity: Some(entry.difference.to_string()),
         title: None,
         artist: None,
         year: None,

@@ -15,5 +15,14 @@ napi-derive = "3"
 trash = "=5.2.6"
 xiranite-czkawka-core = { path = "../czkawka-core" }
 
+[target.'cfg(windows)'.dependencies]
+windows = { version = "=0.56.0", features = [
+    "implement",
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_UI_Shell",
+] }
+windows-core = "=0.56.0"
+
 [build-dependencies]
 napi-build = "2"
