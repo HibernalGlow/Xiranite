@@ -12,7 +12,7 @@ const MAX_WIC_INPUT_BYTES = 32 * 1024 * 1024
 const MAX_WIC_DIMENSION = 8192
 const JXL_CONTAINER_SIGNATURE = Uint8Array.of(0, 0, 0, 12, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a)
 
-type WicFormat = "avif" | "jxl"
+type WicFormat = "avif" | "jxl" | "webp"
 
 export interface WicEncodedThumbnail {
   data: Uint8Array
@@ -227,6 +227,7 @@ async function collectInput(input: PeekedInput, maxBytes: number, signal?: Abort
 function detectWicFormat(bytes: Uint8Array): WicFormat | undefined {
   if (bytes.byteLength >= 2 && bytes[0] === 0xff && bytes[1] === 0x0a) return "jxl"
   if (startsWith(bytes, JXL_CONTAINER_SIGNATURE)) return "jxl"
+  if (startsWith(bytes, Uint8Array.of(0x52, 0x49, 0x46, 0x46)) && ascii(bytes, 8, 12) === "WEBP") return "webp"
   if (ascii(bytes, 4, 8) === "ftyp") {
     const brand = ascii(bytes, 8, 12)
     if (brand === "avif" || brand === "avis") return "avif"

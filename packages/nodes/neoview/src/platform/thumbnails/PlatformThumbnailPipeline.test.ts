@@ -100,13 +100,42 @@ describe("PlatformThumbnailPipeline", () => {
     expect(left.bytes).toEqual(right.bytes)
     expect(bookLoader).toHaveBeenCalledOnce()
     expect(transform).toHaveBeenCalledOnce()
-    expect(transform.mock.calls[0]?.[3]).toMatchObject({ priority: "view", kind: "neoview.thumbnail.generate" })
+    expect(transform.mock.calls[0]?.[3]).toMatchObject({
+      priority: "view",
+      kind: "neoview.thumbnail.generate",
+      animation: "first-frame",
+    })
     expect(put).toHaveBeenCalledOnce()
     expect(put).toHaveBeenCalledWith(expect.objectContaining({ key: descriptor.path, category: "file" }))
     first.release()
     second.release()
     await pipeline.dispose()
     expect(closeBook).toHaveBeenCalledOnce()
+  })
+
+  it("[neoview.thumbnail.library-render-version] regenerates a cached WebP created by an older thumbnail renderer", async () => {
+    const page = fixturePage("D:/library/book/cover.webp")
+    const stale = fixtureWebp(2)
+    const generated = fixtureWebp(9)
+    const get = vi.fn(async () => ({
+      bytes: stale,
+      contentType: "image/webp" as const,
+      sourceSize: 100,
+      date: "2099-01-01 00:00:00",
+      generationHash: 0,
+    }))
+    const transform = vi.fn(async () => ({ contentType: "image/webp" as const, stream: byteStream(generated) }))
+    const pipeline = new PlatformThumbnailPipeline({
+      bookLoader: async () => fixtureBook(page),
+      thumbnailStore: { get },
+      loadImageTransformer: async () => ({ transform }),
+    })
+    const lease = pipeline.acquireLibrary(librarySource("file", "D:/library/book.cbz", 100), { contextId: "library:renderer-v2" })
+
+    await expect(lease.ready).resolves.toMatchObject({ bytes: generated })
+    expect(transform).toHaveBeenCalledOnce()
+    lease.release()
+    await pipeline.dispose()
   })
 
   it("[neoview.thumbnail.library-refresh] bypasses every old cache source and waits for atomic persistence", async () => {
@@ -660,7 +689,7 @@ function librarySource(kind: "file" | "folder", path: string, sourceSize?: numbe
 }
 
 function thumbnailGenerationHash(contentVersion: string): number {
-  return createHash("sha256").update(contentVersion).digest().readUInt32LE(0)
+  return createHash("sha256").update("thumbnail-static-frame-v2\0").update(contentVersion).digest().readUInt32LE(0)
 }
 
 function fixtureBook(page: ReaderPage, close = vi.fn(async () => undefined)): ReaderBook {

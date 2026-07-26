@@ -52,6 +52,27 @@ describe("WindowsWicImageTransformer", () => {
     expect(release).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.thumbnail.wic-webp] decodes WebP through WIC instead of the animated Sharp fallback", async () => {
+    const input = webpHeader()
+    const fallback = unusedFallback()
+    const createWicImageThumbnailEncoded = vi.fn(async () => encoded())
+    const transformer = new WindowsWicImageTransformer(fallback, {
+      loadWic: async () => ({ createWicImageThumbnailEncoded }),
+    })
+
+    const result = await transformer.transform(chunkStream(input, 3), REQUEST, undefined, { animation: "first-frame" })
+
+    expect(await readAll(result.stream)).toEqual(WEBP)
+    expect(createWicImageThumbnailEncoded).toHaveBeenCalledWith({
+      data: input,
+      maxDimension: 416,
+      format: "webp",
+      lossless: false,
+      quality: 82,
+    })
+    expect(fallback.transform).not.toHaveBeenCalled()
+  })
+
   it("[neoview.image.wic-shared-lease] reuses but never releases an externally owned CPU lease", async () => {
     const acquire = vi.fn()
     const release = vi.fn()
@@ -120,6 +141,10 @@ describe("WindowsWicImageTransformer", () => {
 
 function isoBrand(brand: "avif" | "avis"): Uint8Array {
   return Uint8Array.of(0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, ...new TextEncoder().encode(brand), 0, 0, 0, 0)
+}
+
+function webpHeader(): Uint8Array {
+  return Uint8Array.of(0x52, 0x49, 0x46, 0x46, 4, 0, 0, 0, 0x57, 0x45, 0x42, 0x50)
 }
 
 function encoded() {

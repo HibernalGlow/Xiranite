@@ -188,7 +188,6 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       if (current) current.push(page)
       else byCategory.set(category, [page])
     }
-
     let databaseHits = 0
     let primed = 0
     const revision = this.#thumbnailRevision()
@@ -205,7 +204,8 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       for (const page of categoryPages) {
         const record = records.get(page.thumbnailSource!.key)
         const sizeMatches = record?.sourceSize === undefined || page.byteLength === undefined || record.sourceSize === page.byteLength
-        if (!record?.contentType?.startsWith("image/") || !sizeMatches) continue
+        const versionMatches = record?.generationHash === undefined || record.generationHash === thumbnailGenerationHash(page.contentVersion)
+        if (!record?.contentType?.startsWith("image/") || !sizeMatches || !versionMatches) continue
         databaseHits += 1
         const cacheKey = pageThumbnailCacheKey(page, "page-strip-v1", revision)
         if (primedKeys.has(cacheKey)) continue
@@ -487,7 +487,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       }, signal, {
         priority: thumbnailLanePriority(demand.lane),
         kind: "neoview.thumbnail.generate",
-        ownerId: demand.contextId,
+        ownerId: demand.contextId, animation: "first-frame",
       }, this.#resourceScheduler)
       if (result.contentType !== "image/webp") {
         await result.stream.cancel("unexpected thumbnail content type").catch(() => undefined)
@@ -604,7 +604,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
         }, signal, {
           priority: thumbnailLanePriority(demand.lane),
           kind: "neoview.thumbnail.generate",
-          ownerId: demand.contextId,
+          ownerId: demand.contextId, animation: "first-frame",
         }, this.#resourceScheduler)
         if (result.contentType !== "image/webp") {
           await result.stream.cancel("unexpected thumbnail content type").catch(() => undefined)
@@ -695,7 +695,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
     const reusable = persistence && this.#thumbnailStore
       ? await this.#thumbnailStore.get(persistence.key, persistence.category)
       : undefined
-    if (reusable?.contentType === "image/webp"
+    if (reusable?.contentType === "image/webp" && (reusable.generationHash === undefined || reusable.generationHash === thumbnailGenerationHash(page.contentVersion))
       && (reusable.sourceSize === undefined || page.byteLength === undefined || reusable.sourceSize === page.byteLength)) {
       return reusable.bytes
     }
@@ -719,7 +719,7 @@ export class PlatformThumbnailPipeline implements AsyncDisposable {
       }, signal, {
         priority: thumbnailLanePriority(demand.lane),
         kind: "neoview.thumbnail.folder-tile",
-        ownerId: demand.contextId,
+        ownerId: demand.contextId, animation: "first-frame",
       }, this.#resourceScheduler)
       if (result.contentType !== "image/webp") {
         await result.stream.cancel("unexpected folder tile content type").catch(() => undefined)
@@ -926,7 +926,7 @@ function thumbnailFailureReason(error: unknown): string {
 }
 
 function thumbnailGenerationHash(contentVersion: string): number {
-  return createHash("sha256").update(contentVersion).digest().readUInt32LE(0)
+  return createHash("sha256").update("thumbnail-static-frame-v2\0").update(contentVersion).digest().readUInt32LE(0)
 }
 
 function libraryThumbnailCacheIdentity(source: LibraryThumbnailSource, profile: LibraryThumbnailProfile): string {
@@ -957,7 +957,7 @@ function isValidLibraryThumbnail(
 ): record is ReaderThumbnailAsset & { contentType: string } {
   if (!record?.contentType?.startsWith("image/")) return false
   const exactVersion = record.generationHash === thumbnailGenerationHash(source.contentVersion)
-  const versionMatches = exactVersion || (source.kind === "file" && timestampAtOrAfter(record.date, source.modifiedAtMs))
+  const versionMatches = exactVersion || (record.generationHash === undefined && source.kind === "file" && timestampAtOrAfter(record.date, source.modifiedAtMs))
   if (!versionMatches) return false
   return source.kind === "folder" || record.sourceSize === undefined || record.sourceSize === source.sourceSize
 }

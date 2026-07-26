@@ -51,6 +51,31 @@ describe("SharpImageTransformer", () => {
     await expect(sharp(output).metadata()).resolves.toMatchObject({ format: "webp", width: 1, height: 1 })
   })
 
+  it("[neoview.thumbnail.animated-webp] extracts the first WebP frame for bounded thumbnails", async () => {
+    const sharp = await loadSharp()
+    const frames = await Promise.all(["#ef4444", "#3b82f6"].map((background) =>
+      sharp({ create: { width: 640, height: 640, channels: 4, background } }).png().toBuffer(),
+    ))
+    const source = await sharp(frames, { join: { animated: true } }).webp({ loop: 0, delay: [100, 100] }).toBuffer()
+
+    const preserved = await new SharpImageTransformer().transform(byteStream(source), {
+      ...WEBP_REQUEST,
+      width: 320,
+      height: 320,
+    })
+    const preservedMetadata = await sharp(Buffer.from(await new Response(preserved.stream).arrayBuffer()), { animated: true }).metadata()
+    expect(preservedMetadata).toMatchObject({ format: "webp", pages: 2, pageHeight: 320, height: 640 })
+
+    const thumbnail = await new SharpImageTransformer().transform(byteStream(source), {
+      ...WEBP_REQUEST,
+      width: 320,
+      height: 320,
+    }, undefined, { animation: "first-frame" })
+    const thumbnailMetadata = await sharp(Buffer.from(await new Response(thumbnail.stream).arrayBuffer()), { animated: true }).metadata()
+    expect(thumbnailMetadata).toMatchObject({ format: "webp", width: 320, height: 320 })
+    expect(thumbnailMetadata.pages ?? 1).toBe(1)
+  })
+
   it("[neoview.image.transform-cancellation] propagates abort to an active input stream", async () => {
     let cancelled: unknown
     let emitted = false
@@ -114,4 +139,8 @@ describe("SharpImageTransformer", () => {
 async function loadSharp(): Promise<typeof sharp> {
   const module = await import("sharp")
   return ((module as unknown as { default?: typeof sharp }).default ?? module) as typeof sharp
+}
+
+function byteStream(bytes: Uint8Array): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(bytes); controller.close() } })
 }
