@@ -16,7 +16,8 @@
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "build:native": "bun scripts/build-native.ts",
-    "smoke:native": "bun run build && bun scripts/smoke-native.ts"
+    "smoke:native": "bun run build && bun scripts/smoke-native.ts",
+    "smoke:embedded": "bun run build && bun run --cwd ../native-loader build && bun scripts/smoke-embedded.ts"
   },
   "dependencies": {
     "@xiranite/native-loader": "workspace:*"
