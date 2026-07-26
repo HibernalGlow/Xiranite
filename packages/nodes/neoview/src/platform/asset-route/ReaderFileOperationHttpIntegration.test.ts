@@ -25,6 +25,7 @@ describe("Reader file operation HTTP composition", () => {
       token: "runtime-token",
       configPath: join(root, "missing.toml"),
       legacyThumbnailDatabasePath: databasePath,
+      legacyEmmDatabasePaths: false,
     })
     try {
       const executed = await controller.handle(jsonRequest("/reader/files/operations", {

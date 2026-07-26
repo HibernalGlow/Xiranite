@@ -2,11 +2,40 @@ import { describe, expect, test } from "vitest"
 import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
-import { createLibsqlWorkspaceRepository, type LibsqlWorkspaceRepository } from "./libsql.js"
+import { createLibsqlWorkspaceRepository, LOCAL_LIBSQL_BUSY_TIMEOUT_MS, type LibsqlWorkspaceRepository } from "./libsql.js"
 
 const RUN_ROOT = join(process.cwd(), "artifacts", "test-runs", "repository")
 
 describe("createLibsqlWorkspaceRepository", () => {
+  test("serializes concurrent local schema initialization and retains a finite busy timeout", async () => {
+    await mkdir(RUN_ROOT, { recursive: true })
+    const dir = await mkdtemp(join(RUN_ROOT, "xiranite-libsql-concurrent-"))
+    const url = pathToFileURL(join(dir, "xiranite.db")).href
+    const clients: LibsqlWorkspaceRepository[] = []
+    try {
+      const repositories = await Promise.all([
+        createLibsqlWorkspaceRepository({ url }),
+        createLibsqlWorkspaceRepository({ url }),
+      ])
+      clients.push(...repositories)
+      await Promise.all(repositories.map(async (repository, index) => await repository.createWorkspace({
+        id: `ws-concurrent-${index}`,
+        label: `Concurrent ${index}`,
+        createdAt: index,
+        updatedAt: index,
+      })))
+      const timeout = await repositories[0]!.client.execute("PRAGMA busy_timeout")
+      expect(Number(Object.values(timeout.rows[0] ?? {})[0])).toBe(LOCAL_LIBSQL_BUSY_TIMEOUT_MS)
+      await expect(repositories[0]!.listWorkspaces()).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: "ws-concurrent-0" }),
+        expect.objectContaining({ id: "ws-concurrent-1" }),
+      ]))
+    } finally {
+      clients.forEach((repository) => repository.client.close())
+      await removeWithWindowsRetry(dir)
+    }
+  })
+
   test("persists complete workspace snapshots to a local libSQL file", async () => {
     const tmpRoot = RUN_ROOT
     await mkdir(tmpRoot, { recursive: true })

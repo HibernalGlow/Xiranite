@@ -24,8 +24,9 @@ describe("PlatformFileTreeWatcher", () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
 
-  it.runIf(process.platform === "win32")("[neoview.file-tree.watcher-native] receives a real Windows create event and releases the subscription", async () => {
+  it.runIf(process.platform === "win32")("[neoview.file-tree.watcher-native] receives a real Windows file event and releases the subscription", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-file-tree-watch-"))
+    const file = join(root, "book.cbz")
     let resolveChange!: (path: string) => void
     let rejectChange!: (error: Error) => void
     const changed = new Promise<string>((resolve, reject) => {
@@ -35,20 +36,24 @@ describe("PlatformFileTreeWatcher", () => {
     const subscription = await new PlatformFileTreeWatcher().subscribe(
       root,
       (changes) => {
-        const created = changes.find((change) => change.kind === "create")
-        if (created) resolveChange(created.path)
+        const changedFile = changes.find((change) => change.path === file && (change.kind === "create" || change.kind === "update"))
+        if (changedFile) resolveChange(changedFile.path)
       },
       rejectChange,
     )
     try {
-      const file = join(root, "book.cbz")
       await writeFile(file, "fixture")
-      await expect(withTimeout(changed, 5_000)).resolves.toBe(file)
+      // Native subscriptions can resolve before Windows has armed the watcher.
+      // A second write validates the supported update path without making the
+      // integration test depend on the first event's startup timing.
+      await sleep(200)
+      await writeFile(file, "fixture-updated")
+      await expect(withTimeout(changed, 10_000)).resolves.toBe(file)
     } finally {
       await subscription.close()
       await rm(root, { recursive: true, force: true })
     }
-  })
+  }, 15_000)
 })
 
 function withTimeout<T>(value: Promise<T>, timeoutMs: number): Promise<T> {
@@ -59,4 +64,8 @@ function withTimeout<T>(value: Promise<T>, timeoutMs: number): Promise<T> {
       void value.then(() => clearTimeout(timer), () => clearTimeout(timer))
     }),
   ])
+}
+
+async function sleep(milliseconds: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
 }

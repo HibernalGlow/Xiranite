@@ -84,9 +84,17 @@ func startLocalBackend(restartToken string) (*LocalBackend, error) {
 		if snapshotID := strings.TrimSpace(os.Getenv("XIRANITE_NODE_APP_SNAPSHOT_ID")); snapshotID != "" {
 			args = append(args, "--snapshot-id", snapshotID)
 		}
+		if dataContractVersion := strings.TrimSpace(os.Getenv("XIRANITE_NODE_APP_DATA_CONTRACT_VERSION")); dataContractVersion != "" {
+			args = append(args, "--data-contract-version", dataContractVersion)
+		}
 		if strings.TrimSpace(os.Getenv("XIRANITE_NODE_APP_ENABLE_READER")) == "1" {
 			args = append(args, "--enable-reader")
 		}
+	} else {
+		// The main desktop host publishes the same monotonic compatibility
+		// marker as standalone node apps, but only after its Bun backend has
+		// initialized shared configuration and database state.
+		args = append(args, "--data-contract-version", fmt.Sprintf("%d", nodeAppCurrentDataContractVersion))
 	}
 
 	cmd := exec.Command(command, args...)
@@ -297,6 +305,14 @@ func resolveLocalBackendCommand() (string, []string, string, error) {
 	}
 
 	bun, bunErr := resolveBunCommand()
+	if strings.TrimSpace(os.Getenv("XIRANITE_NODE_APP_ID")) != "" && bunErr == nil {
+		if err := ensureNodeAppBunVersion(bun, nodeAppMinimumBunVersion); err != nil {
+			return "", nil, "", err
+		}
+		if nodeAppBunCompatibilityWarning != "" {
+			log.Print(nodeAppBunCompatibilityWarning)
+		}
+	}
 
 	if script := strings.TrimSpace(os.Getenv("XIRANITE_BACKEND_JS")); script != "" {
 		if bunErr != nil {
@@ -305,12 +321,17 @@ func resolveLocalBackendCommand() (string, []string, string, error) {
 		return bun, []string{script}, "", nil
 	}
 
-	for _, candidate := range localBackendScriptCandidates() {
-		if fileExists(candidate) {
-			if bunErr != nil {
-				return "", nil, "", fmt.Errorf("found Xiranite local backend JS but Bun runtime is unavailable: %w", bunErr)
+	// A packaged node app must always run its embedded, node-scoped backend.
+	// Falling back to a checkout's build/wails bundle would couple the snapshot
+	// to unrelated source changes whenever it is launched from a repository.
+	if strings.TrimSpace(os.Getenv("XIRANITE_NODE_APP_ID")) == "" {
+		for _, candidate := range localBackendScriptCandidates() {
+			if fileExists(candidate) {
+				if bunErr != nil {
+					return "", nil, "", fmt.Errorf("found Xiranite local backend JS but Bun runtime is unavailable: %w", bunErr)
+				}
+				return bun, []string{candidate}, "", nil
 			}
-			return bun, []string{candidate}, "", nil
 		}
 	}
 

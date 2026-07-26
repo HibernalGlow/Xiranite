@@ -39,6 +39,7 @@ import { BackendFileOperationManager, handleFileOperationRequest } from "./fileO
 import { pickLocalPaths } from "./localFilePicker.js"
 import { clearFileClipboard, NativeFileClipboardUnavailableError, readFilesFromClipboard, writeFilesToClipboard } from "./fileClipboard.js"
 import { getDevelopmentSourceHotReloadEnabled, loadNodePlatformModule, setDevelopmentSourceHotReloadEnabled } from "@xiranite/runtime/node-runner"
+import { parseNodeAppDataContractVersion, recordNodeAppDataContract } from "./nodeAppDataContract.js"
 
 export interface CreateDefaultBackendOptions {
   now?: number
@@ -69,6 +70,12 @@ export interface StartBackendOptions extends CreateDefaultBackendOptions {
   clearClipboardFiles?: () => Promise<void>
   logDirectory?: string
   logWriter?: BackendLogWriter
+  /**
+   * Explicitly records the shared configuration/database contract after this
+   * backend has finished its normal initialization. Desktop hosts opt in;
+   * ordinary test backends never write to a user's node-app marker.
+   */
+  dataContractVersion?: number
 }
 
 export interface BackendLogWriter {
@@ -181,6 +188,14 @@ export async function startBackend(options: StartBackendOptions = {}) {
       })]).catch(() => undefined)
     }),
   })
+  if (options.dataContractVersion !== undefined) {
+    try {
+      await recordNodeAppDataContract(options.dataContractVersion)
+    } catch (error) {
+      backend.close()
+      throw error
+    }
+  }
   let backendUrl = ""
   let readerController: Promise<BackendRequestController> | undefined
   let stagingDirectory: Promise<string> | undefined
@@ -910,6 +925,7 @@ export function parseBackendCliArgs(argv: string[] = process.argv.slice(2)): Bac
       "database-path": { type: "string" },
       "data-dir": { type: "string" },
       "database-auth-token": { type: "string" },
+      "data-contract-version": { type: "string" },
     },
   })
 
@@ -929,6 +945,7 @@ export function parseBackendCliArgs(argv: string[] = process.argv.slice(2)): Bac
     databasePath: values["database-path"],
     dataDir: values["data-dir"],
     databaseAuthToken: values["database-auth-token"],
+    dataContractVersion: parseNodeAppDataContractVersion(values["data-contract-version"]),
   }
 }
 
@@ -944,6 +961,7 @@ Options:
   --database-path <path>                 Local database file path
   --data-dir <path>                      App data directory. Uses xiranite.db inside it
   --database-auth-token <token>          Remote libSQL auth token
+  --data-contract-version <version>      Record an initialized shared data contract
   -h, --help                             Show help
 
 Environment overrides:

@@ -6,6 +6,9 @@ export default {
   def,
   core,
   Component,
-  nodeApp: true,
+  nodeApp: {
+    nativeProbe: { module: "@xiranite/czkawka-native", exportName: "getCzkawkaInfo" },
+    releaseGate: { script: "scripts/smoke-node-app-czkawka.ts" },
+  },
   host: { contractVersion: "^1.0.0", capabilities: ["state", "runner", "localFiles", "clipboard", "config", "env"] },
 } satisfies AppNodeEntry<typeof core>

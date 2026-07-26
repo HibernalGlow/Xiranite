@@ -55,7 +55,10 @@ export default {
   def,
   core,
   Component,
-  nodeApp: true,
+  nodeApp: {
+    nativeProbe: { module: "@xiranite/slimg-native", exportName: "getSlimgInfo" },
+    releaseGate: { script: "scripts/smoke-node-app-xlchemy.ts" },
+  },
   host: { contractVersion: "^1.0.0", capabilities: ["state", "runner", "clipboard", "localFiles", "config", "env"] },
   schemas: { data: dataSchema as unknown as NodeSchema<XlchemyCardState>, config: dataSchema as unknown as NodeSchema<Partial<XlchemyCardState>> },
 } satisfies AppNodeEntry<typeof core, XlchemyCardState, Partial<XlchemyCardState>>

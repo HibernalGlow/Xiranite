@@ -12,7 +12,11 @@ export default {
   def,
   core,
   Component,
-  nodeApp: { backendFeatures: ["reader"] },
+  nodeApp: {
+    backendFeatures: ["reader"],
+    nativeProbe: { module: "@xiranite/arcthumb-native", exportName: "getArcThumbInfo" },
+    releaseGate: { script: "scripts/smoke-node-app-neoview.ts" },
+  },
   host: { contractVersion: "^1.0.0", capabilities: ["state", "localFiles"] },
   window: { maximizeBehavior: "fullscreen" },
 } satisfies AppNodeEntry<typeof core, NeoViewCardState>
