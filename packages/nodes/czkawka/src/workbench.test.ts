@@ -118,6 +118,37 @@ describe("Czkawka workbench", () => {
     expect(cancel).toHaveBeenCalledOnce()
     void promise
   })
+
+  test("keeps image comparison state in the workbench and persists only view preferences", () => {
+    const { workbench, patches } = createTestWorkbench()
+    const groups = [{
+      id: 0,
+      totalBytes: 30,
+      reclaimableBytes: 10,
+      entries: [
+        { id: "a", groupId: 0, path: "D:/a.jpg", name: "a.jpg", size: 10, modifiedDate: 1 },
+        { id: "b", groupId: 0, path: "D:/b.jpg", name: "b.jpg", size: 20, modifiedDate: 2 },
+      ],
+    }]
+
+    workbench.openImageComparison(groups, "D:/a.jpg")
+    workbench.setImageComparisonSwipe(72)
+    workbench.setImageComparisonOpacity(24)
+    workbench.setImageComparisonTarget(groups, "D:/b.jpg")
+    workbench.setImageComparisonMode("onion-skin")
+    workbench.setImageComparisonColorCoding(true)
+
+    expect(workbench.getState().imageComparison).toMatchObject({
+      activePath: "D:/a.jpg",
+      targetPath: "D:/b.jpg",
+      mode: "onion-skin",
+      colorCoding: true,
+      swipePercent: 50,
+      onionOpacity: 50,
+    })
+    expect(patches).toContainEqual({ imageComparison: { mode: "onion-skin", colorCoding: false } })
+    expect(patches).toContainEqual({ imageComparison: { mode: "onion-skin", colorCoding: true } })
+  })
 })
 
 function createTestWorkbench(

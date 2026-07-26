@@ -32,12 +32,16 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
     else host.patchData(compId, next)
   }, [compId, host])
   const persistWorkbenchPatch = useCallback((next: CzkawkaWorkbenchPersistencePatch) => {
-    const { cacheRegeneration, ...cardPatch } = next
+    const { cacheRegeneration, imageComparison, ...cardPatch } = next
     patch({
       ...cardPatch,
       ...(cacheRegeneration ? {
         czkawkaCacheSourceVersion: cacheRegeneration.sourceVersion,
-        czkawkaCacheRegenerationNoticeSourceVersion: cacheRegeneration.noticeSourceVersion,
+          czkawkaCacheRegenerationNoticeSourceVersion: cacheRegeneration.noticeSourceVersion,
+      } : {}),
+      ...(imageComparison ? {
+        imageComparisonMode: imageComparison.mode,
+        imageComparisonColorCoding: imageComparison.colorCoding,
       } : {}),
     })
   }, [patch])
@@ -56,6 +60,10 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
       cacheRegeneration: {
         sourceVersion: data.czkawkaCacheSourceVersion,
         noticeSourceVersion: data.czkawkaCacheRegenerationNoticeSourceVersion,
+      },
+      imageComparison: {
+        mode: data.imageComparisonMode,
+        colorCoding: data.imageComparisonColorCoding,
       },
     }, { persist: persistWorkbenchPatch })
   }
@@ -208,6 +216,7 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
     cardLayout,
     workspaceLayout,
     similarImagesViewMode,
+    imageComparison: state.imageComparison,
     previewPanelEnabled: previewPanelEnabledByTool[tool] ?? false,
     thumbnailEnabled: thumbnailEnabledByTool[tool] ?? true,
     floatingAnalysisPanel: normalizeCzkawkaFloatingPanel(floatingAnalysisPanelState, floatingViewport),
@@ -232,6 +241,13 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
     setCardLayout,
     setWorkspaceLayout,
     setSimilarImagesViewMode,
+    openImageComparison: (path) => workbench.openImageComparison(result?.groups ?? [], path),
+    closeImageComparison: () => workbench.closeImageComparison(),
+    setImageComparisonMode: (mode) => workbench.setImageComparisonMode(mode),
+    setImageComparisonColorCoding: (colorCoding) => workbench.setImageComparisonColorCoding(colorCoding),
+    setImageComparisonTarget: (path) => workbench.setImageComparisonTarget(result?.groups ?? [], path),
+    setImageComparisonSwipe: (swipePercent) => workbench.setImageComparisonSwipe(swipePercent),
+    setImageComparisonOpacity: (onionOpacity) => workbench.setImageComparisonOpacity(onionOpacity),
     setPreviewPanelEnabled,
     setThumbnailEnabled,
     setFloatingAnalysisPanel,
