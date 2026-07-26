@@ -20,7 +20,7 @@ import { SettingsStepCard } from "./primitives"
 
 type PolicyField = keyof NodeMemoryProtectionPolicySettingsDTO
 
-const POLICY_FIELDS: readonly Array<{
+const POLICY_FIELDS: ReadonlyArray<{
   key: PolicyField
   labelKey: string
   descriptionKey: string
