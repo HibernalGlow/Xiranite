@@ -80,6 +80,8 @@ describe("settingsNavigation", () => {
   it("[settings.search.fields] indexes settings fields and derives every WebView2 flag from its source catalog", () => {
     const startup = filterSettingsMatches("restore reopen", t)
     expect(startup.some((match) => match.kind === "field" && match.fieldId === "startup-restore")).toBe(true)
+    const memory = filterSettingsMatches("rss memory limit", t)
+    expect(memory.some((match) => match.kind === "field" && match.fieldId === "node-memory-rss")).toBe(true)
 
     for (const group of [WEBVIEW2_FLAG_CATALOG.features, WEBVIEW2_FLAG_CATALOG.switches]) {
       for (const flag of group) {

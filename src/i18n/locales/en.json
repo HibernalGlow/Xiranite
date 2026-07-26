@@ -171,7 +171,7 @@
         "appearance": "Theme, color mode, typeface, language, and atmosphere.",
         "workspace": "Canvas background, operation bar, and alphabet index.",
         "view": "Swimlane interaction, component skins, and card clicks.",
-        "runtime": "Local backend connection, hot reload, and WebView2 flags.",
+        "runtime": "Local backend connection, node memory protection, hot reload, and WebView2 flags.",
         "data": "Workspace persistence and database ownership."
       },
       "steps": {
@@ -187,6 +187,7 @@
         "components": "Component skins",
         "cardInteraction": "Card interaction",
         "connection": "Runtime connection",
+        "memoryProtection": "Node memory protection",
         "webview2": "WebView2",
         "storage": "Local data"
       },
@@ -640,6 +641,54 @@
       "copyStart": "Copy one-shot command",
       "copied": "Copied",
       "openFrontend": "Open frontend"
+    },
+    "memoryProtection": {
+      "title": "Node memory protection",
+      "description": "Limit RSS and JavaScript heap growth relative to each operation's baseline, and bound retained backend events.",
+      "applied": "Applied",
+      "unavailable": "The local backend must be ready before node memory protection can be loaded or changed.",
+      "loading": "Loading the active memory protection policy...",
+      "unsupported": "The active backend does not support runtime memory protection settings.",
+      "retry": "Reload memory protection settings",
+      "invalid": "One or more values are outside the allowed range.",
+      "unsaved": "There are unapplied changes.",
+      "liveHint": "Saving applies immediately to newly started operations; running operations keep their startup policy.",
+      "restore": "Restore recommended values",
+      "apply": "Apply settings",
+      "saving": "Applying",
+      "scopes": {
+        "default": {
+          "title": "General node defaults",
+          "description": "These limits apply to every node without a dedicated override."
+        },
+        "xlchemy": {
+          "title": "XLchemy limits",
+          "description": "Overrides the general values for large EFU batches and native encoding inside Bun."
+        }
+      },
+      "fields": {
+        "rss": {
+          "label": "RSS growth limit",
+          "description": "Allowed resident-memory growth from the operation baseline ({{min}}–{{max}} MiB)."
+        },
+        "heap": {
+          "label": "Heap growth limit",
+          "description": "Allowed JavaScript heap growth from the operation baseline ({{min}}–{{max}} MiB)."
+        },
+        "events": {
+          "label": "Retained events",
+          "description": "Latest progress and log events retained for one operation ({{min}}–{{max}})."
+        },
+        "interval": {
+          "label": "Memory sample interval",
+          "description": "How often the backend samples process memory ({{min}}–{{max}} ms)."
+        }
+      },
+      "units": {
+        "mib": "MiB",
+        "events": "events",
+        "ms": "ms"
+      }
     },
     "webview2": {
       "title": "WebView2 Experiments",

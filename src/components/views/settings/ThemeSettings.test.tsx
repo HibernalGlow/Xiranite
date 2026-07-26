@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import type { NodeMemoryProtectionSettingsDTO } from "@xiranite/shared"
 import type { NodeSurfaceMode } from "@/nodes/shared/useNodeSurface"
 import { NODE_SURFACE_TEST_SPECS } from "@/nodes/shared/nodeSurfaceTestUtils"
 import { resolveSettingsChrome } from "./ThemeSettings"
@@ -119,6 +120,14 @@ vi.mock("@/backend/runtimeConnectionInfo", () => ({
 vi.mock("@/backend/localBackendControl", () => ({
   getNodeSourceHotReload: vi.fn(async () => ({ supported: true, enabled: false })),
   setNodeSourceHotReload: vi.fn(async (enabled: boolean) => ({ supported: true, enabled })),
+  getNodeMemoryProtection: vi.fn(async () => ({
+    supported: true,
+    settings: {
+      defaultPolicy: { maxRssGrowthMiB: 8192, maxHeapGrowthMiB: 4096, maxRetainedEvents: 1000, sampleIntervalMs: 250 },
+      nodePolicies: { xlchemy: { maxRssGrowthMiB: 4096, maxHeapGrowthMiB: 2048, maxRetainedEvents: 256, sampleIntervalMs: 100 } },
+    },
+  })),
+  setNodeMemoryProtection: vi.fn(async (settings: NodeMemoryProtectionSettingsDTO) => ({ supported: true, settings })),
   restartLocalBackend: vi.fn(async () => ({ restarted: true, supported: true, source: "test", message: "ok" })),
 }))
 

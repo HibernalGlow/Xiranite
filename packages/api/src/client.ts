@@ -10,6 +10,7 @@ import type {
   NodeOperationListResponseDTO,
   NodeOperationStartResponseDTO,
   NodeOperationStreamMessageDTO,
+  NodeMemoryProtectionSettingsDTO,
   NodeRunEventDTO,
   NodeRunHistoryClearQueryDTO,
   NodeRunHistoryClearResultDTO,
@@ -52,6 +53,8 @@ export interface XiraniteSystemClient {
   restartBackend(): Promise<LocalBackendRestartResult>
   getNodeSourceHotReload(): Promise<{ supported: boolean; enabled: boolean }>
   setNodeSourceHotReload(enabled: boolean): Promise<{ supported: boolean; enabled: boolean }>
+  getNodeMemoryProtection(): Promise<{ supported: boolean; settings: NodeMemoryProtectionSettingsDTO | null }>
+  setNodeMemoryProtection(settings: NodeMemoryProtectionSettingsDTO): Promise<{ supported: boolean; settings: NodeMemoryProtectionSettingsDTO | null }>
 }
 
 export interface XiraniteWorkspaceClient {
@@ -372,6 +375,20 @@ export function createXiraniteSystemClient(baseUrl: string, options: XiraniteCli
       })
       if (!response.ok) throw new Error(`Node source hot reload update failed: ${response.status}`)
       return await response.json() as { supported: boolean; enabled: boolean }
+    },
+    async getNodeMemoryProtection() {
+      const response = await fetch(apiUrl(baseUrl, "/system/node-memory-protection"), { headers })
+      if (!response.ok) throw new Error(`Node memory protection status failed: ${response.status}`)
+      return await response.json() as { supported: boolean; settings: NodeMemoryProtectionSettingsDTO | null }
+    },
+    async setNodeMemoryProtection(settings) {
+      const response = await fetch(apiUrl(baseUrl, "/system/node-memory-protection"), {
+        method: "PUT",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify(settings),
+      })
+      if (!response.ok) throw new Error(`Node memory protection update failed: ${response.status}`)
+      return await response.json() as { supported: boolean; settings: NodeMemoryProtectionSettingsDTO | null }
     },
   }
 }

@@ -23,6 +23,7 @@ import {
   type ResourceSchedulerService,
   type XiraniteSystemService,
 } from "@xiranite/services"
+import { NODE_MEMORY_PROTECTION_APP_SECTION } from "@xiranite/shared"
 import { randomBytes } from "node:crypto"
 import { createReadStream, createWriteStream } from "node:fs"
 import { mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises"
@@ -34,7 +35,7 @@ import { Readable } from "node:stream"
 import { pipeline } from "node:stream/promises"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parseArgs } from "node:util"
-import { createBackendNodeMemoryProtection, createBackendNodeRunner } from "./nodeRunner.js"
+import { createBackendNodeMemoryProtectionController, createBackendNodeRunner } from "./nodeRunner.js"
 import { BackendFileOperationManager, handleFileOperationRequest } from "./fileOperations.js"
 import { pickLocalPaths } from "./localFilePicker.js"
 import { clearFileClipboard, NativeFileClipboardUnavailableError, readFilesFromClipboard, writeFilesToClipboard } from "./fileClipboard.js"
@@ -118,6 +119,7 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
     ?? (database ? await createDefaultFileDeletionRepository(options) : createMemoryFileDeletionRepository())
   const fileOperations = new BackendFileOperationManager(fileDeletionRepository, options.resourceScheduler)
   await ensureDefaultWorkspace(repository, options.now ?? Date.now())
+  const memoryProtection = createBackendNodeMemoryProtectionController(process.env, options.nodeMemoryProtection)
 
   const services = createXiraniteServices(repository, {
     nodeRunner: options.nodeRunner ?? createBackendNodeRunner({ fileOperations }),
@@ -130,11 +132,17 @@ export async function createDefaultBackend(options: CreateDefaultBackendOptions 
       ...options.system,
       getNodeSourceHotReload: getDevelopmentSourceHotReloadEnabled,
       setNodeSourceHotReload: setDevelopmentSourceHotReloadEnabled,
+      getNodeMemoryProtection: memoryProtection.getSettings,
+      setNodeMemoryProtection: memoryProtection.applySettings,
     },
     onHistoryRecordError: options.onHistoryRecordError,
-    nodeMemoryProtection: options.nodeMemoryProtection ?? createBackendNodeMemoryProtection(),
+    nodeMemoryProtection: memoryProtection.options,
   })
   await services.config.ensureConfigFile()
+  if (options.nodeMemoryProtection === undefined) {
+    const persisted = await services.config.getAppConfig(NODE_MEMORY_PROTECTION_APP_SECTION)
+    memoryProtection.applySettings(persisted.config)
+  }
   fileOperations.setScheduler(services.resources)
 
   return {
