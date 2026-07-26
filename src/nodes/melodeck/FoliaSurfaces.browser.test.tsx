@@ -102,7 +102,9 @@ test("uses the current theme's fourth color before expanding transparently aroun
   await render(<WorkspaceMelodeckTopBarHarness />)
 
   const island = document.querySelector<HTMLElement>('[data-melodeck-island-state="collapsed"]')
+  const stateProbe = document.querySelector<HTMLElement>("[data-melodeck-state-probe]")!
   expect(island).not.toBeNull()
+  await expect.poll(() => stateProbe.getAttribute("data-player-enabled")).toBe("true")
   expect(island?.getAttribute("data-melodeck-island-variant")).toBe("full")
   const collapsedShell = island!.querySelector<HTMLElement>("[data-melodeck-island-collapsed-shell]")
   const collapsedButton = island!.querySelector<HTMLElement>('button[aria-expanded="false"]')
@@ -198,7 +200,6 @@ test("uses the current theme's fourth color before expanding transparently aroun
   )?.closest('[data-melodeck-island-menu]')).toBe(moreMenu)
   expect(moreMenu!.querySelector('[role="menuitem"][aria-label="固定到底栏"]')).toBeNull()
   const followFullscreen = moreMenu!.querySelector<HTMLElement>('[role="menuitemcheckbox"]')!
-  const stateProbe = document.querySelector<HTMLElement>("[data-melodeck-state-probe]")!
   expect(followFullscreen.textContent).toContain("全屏时同步打开浮窗")
   expect(followFullscreen.getAttribute("aria-checked")).toBe("false")
   expect(stateProbe.getAttribute("data-follow-fullscreen-with-floating")).toBe("false")
@@ -211,7 +212,31 @@ test("uses the current theme's fourth color before expanding transparently aroun
   document.querySelector<HTMLElement>('[role="menuitemcheckbox"]')!.click()
   await expect.poll(() => stateProbe.getAttribute("data-follow-fullscreen-with-floating")).toBe("false")
 
-  island!.querySelector<HTMLButtonElement>('button[aria-label="进入标准全屏"]')!.click()
+  island!.querySelector<HTMLButtonElement>('button[data-melodeck-island-menu]')!.click()
+  const autoStart = page.getByRole("menuitemcheckbox", { name: "应用启动时自动启动" })
+  await expect.element(autoStart).toBeVisible()
+  expect(stateProbe.getAttribute("data-auto-start")).toBe("true")
+  const autoStartMenuItem = [...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')]
+    .find((item) => item.textContent?.includes("应用启动时自动启动"))!
+  autoStartMenuItem.click()
+  await expect.poll(() => stateProbe.getAttribute("data-auto-start")).toBe("false")
+
+  island!.querySelector<HTMLButtonElement>('button[data-melodeck-island-menu]')!.click()
+  const shutdownMenuItem = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    .find((item) => item.textContent?.includes("彻底关闭播放器"))!
+  shutdownMenuItem.click()
+  await expect.poll(() => stateProbe.getAttribute("data-player-enabled")).toBe("false")
+  expect(stateProbe.getAttribute("data-surface-mounted")).toBe("false")
+  expect(stateProbe.getAttribute("data-collapsed")).toBe("true")
+  expect(document.querySelectorAll("audio.folia-player-audio")).toHaveLength(0)
+
+  await page.getByRole("button", { name: "展开音乐灵动岛" }).click()
+  document.querySelector<HTMLButtonElement>('button[aria-label="固定到底栏"]')!.click()
+  await expect.poll(() => stateProbe.getAttribute("data-player-enabled")).toBe("true")
+  await expect.poll(() => document.querySelectorAll("audio.folia-player-audio").length).toBe(1)
+
+  await page.getByRole("button", { name: "展开音乐灵动岛" }).click()
+  document.querySelector<HTMLButtonElement>('button[aria-label="进入标准全屏"]')!.click()
   await expect.poll(() => island?.getAttribute("data-melodeck-island-state")).toBe("collapsed")
   await expect.poll(() => stateProbe.getAttribute("data-collapsed")).toBe("true")
   expect(island!.querySelectorAll('[data-folia-surface="remote"]')).toHaveLength(0)
@@ -628,15 +653,19 @@ function WorkspaceMelodeckStateProbe() {
     <output
       data-melodeck-state-probe
       data-collapsed={String(dock.collapsed)}
+      data-auto-start={String(dock.autoStart)}
       data-follow-fullscreen-with-floating={String(dock.followFullscreenWithFloating)}
+      data-player-enabled={String(dock.playerEnabled)}
+      data-surface-mounted={String(dock.surfaceMounted)}
     />
   )
 }
 
 function WorkspaceMelodeckTopBarTintSetup() {
-  const { setPlaybackState } = useWorkspaceMelodeck()
+  const { setPlaybackState, startPlayer } = useWorkspaceMelodeck()
 
   useEffect(() => {
+    startPlayer()
     setPlaybackState({
       hasTrack: true,
       isPlaying: true,
@@ -647,7 +676,7 @@ function WorkspaceMelodeckTopBarTintSetup() {
       trackName: "雪路",
       supportLine: "wukino",
     })
-  }, [setPlaybackState])
+  }, [setPlaybackState, startPlayer])
 
   return null
 }
@@ -675,14 +704,16 @@ function WorkspaceMelodeckProjectionSetup() {
     setMode,
     setPlayerEngine,
     setSurfaceMounted,
+    startPlayer,
   } = useWorkspaceMelodeck()
 
   useEffect(() => {
+    startPlayer()
     setPlayerEngine("folia")
     setMode("floating")
     setSurfaceMounted(true)
     setCollapsed(false)
-  }, [setCollapsed, setMode, setPlayerEngine, setSurfaceMounted])
+  }, [setCollapsed, setMode, setPlayerEngine, setSurfaceMounted, startPlayer])
 
   return null
 }

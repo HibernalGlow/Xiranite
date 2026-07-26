@@ -259,6 +259,10 @@ export function TopBar() {
                   workspaceActions.setOverlay("history")
                   setWsMenuOpen(false)
                 }}
+                onOpenDeletions={() => {
+                  workspaceActions.setOverlay("deletions")
+                  setWsMenuOpen(false)
+                }}
                 onOpenOperations={() => {
                   workspaceActions.setOverlay("operations")
                   setWsMenuOpen(false)
@@ -514,11 +518,13 @@ export function TopBar() {
           devRuntimeActive={runtimeInfo.frontendSource === "vite-dev"}
           devRuntimeLabel={t(runtimeInfo.frontendSource === "vite-dev" ? "topbar:devRuntime.vite" : "topbar:devRuntime.packaged")}
           historyLabel={t("topbar:history")}
+          deletionsLabel={t("topbar:deletions")}
           operationsLabel={t("topbar:operations")}
           registryLabel={t("overlay:registry")}
           onToggleDashboard={() => workspaceActions.setViewMode(state.viewMode === "dashboard" ? "cards" : "dashboard")}
           onOpenDevRuntime={() => workspaceActions.setOverlay("settings")}
           onOpenHistory={() => workspaceActions.setOverlay("history")}
+          onOpenDeletions={() => workspaceActions.setOverlay("deletions")}
           onOpenOperations={() => workspaceActions.setOverlay("operations")}
           onOpenRegistry={() => workspaceActions.setOverlay("registry")}
         />
@@ -733,11 +739,13 @@ function TopBarActionDock({
   devRuntimeActive,
   devRuntimeLabel,
   historyLabel,
+  deletionsLabel,
   operationsLabel,
   registryLabel,
   onToggleDashboard,
   onOpenDevRuntime,
   onOpenHistory,
+  onOpenDeletions,
   onOpenOperations,
   onOpenRegistry,
 }: {
@@ -747,11 +755,13 @@ function TopBarActionDock({
   devRuntimeActive: boolean
   devRuntimeLabel: string
   historyLabel: string
+  deletionsLabel: string
   operationsLabel: string
   registryLabel: string
   onToggleDashboard: () => void
   onOpenDevRuntime: () => void
   onOpenHistory: () => void
+  onOpenDeletions: () => void
   onOpenOperations: () => void
   onOpenRegistry: () => void
 }) {
@@ -804,9 +814,16 @@ function TopBarActionDock({
           </span>
         </TopBarDockIcon>
         <TopBarDockIcon
+          label={deletionsLabel}
+          onSelect={onOpenDeletions}
+          className="z-10 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
+        >
+          <Trash2 className="h-4 w-4" />
+        </TopBarDockIcon>
+        <TopBarDockIcon
           label={historyLabel}
           onSelect={onOpenHistory}
-          className="z-10 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
+          className="z-0 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
         >
           <History className="h-4 w-4" />
         </TopBarDockIcon>
@@ -814,7 +831,7 @@ function TopBarActionDock({
           label={dashboardLabel}
           onSelect={onToggleDashboard}
           className={cn(
-            "z-0 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1",
+            "-z-10 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1",
             dashboardActive ? "text-primary hover:text-primary" : undefined,
           )}
         >
@@ -893,6 +910,7 @@ function AppMenuRoot({
   onNavigate,
   onOpenDashboard,
   onOpenHistory,
+  onOpenDeletions,
   onOpenOperations,
   onOpenRegistry,
   onOpenSettings,
@@ -903,6 +921,7 @@ function AppMenuRoot({
   onNavigate: (page: AppMenuPage) => void
   onOpenDashboard: () => void
   onOpenHistory: () => void
+  onOpenDeletions: () => void
   onOpenOperations: () => void
   onOpenRegistry: () => void
   onOpenSettings: () => void
@@ -927,6 +946,7 @@ function AppMenuRoot({
         <AppMenuRow icon={Plus} label="模块库" onSelect={onOpenRegistry} />
         <AppMenuRow icon={Activity} label="节点运行" onSelect={onOpenOperations} />
         <AppMenuRow icon={History} label="运行历史" shortcut="Alt+H" onSelect={onOpenHistory} />
+        <AppMenuRow icon={Trash2} label="删除历史" onSelect={onOpenDeletions} />
         <AppMenuRow icon={Database} label="数据仪表盘" onSelect={onOpenDashboard} />
       </div>
 

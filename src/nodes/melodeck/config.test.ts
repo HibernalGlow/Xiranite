@@ -121,6 +121,12 @@ describe("Melodeck config migration", () => {
     window.removeEventListener(MELODECK_CONFIG_CHANGED_EVENT, listener)
   })
 
+  it("persists the startup preference in the Melodeck TOML patch", async () => {
+    await saveMelodeckConfig({ auto_start: false }, { broadcast: false })
+
+    expect(backend.saveNodeConfigToBackend).toHaveBeenCalledWith("melodeck", { auto_start: false })
+  })
+
   it("preserves the legacy engine escape hatch in the versioned config", async () => {
     backend.getNodeConfigFromBackend.mockResolvedValue({
       config: {
@@ -150,5 +156,17 @@ describe("Melodeck config migration", () => {
     const config = await loadMelodeckConfig()
 
     expect(config.surfaces?.follow_fullscreen_with_floating).toBe(true)
+  })
+
+  it("defaults startup playback to on and preserves an explicit opt-out", async () => {
+    expect(DEFAULT_MELODECK_CONFIG.auto_start).toBe(true)
+    backend.getNodeConfigFromBackend.mockResolvedValue({
+      config: { auto_start: false },
+      path: "config.toml",
+    })
+
+    const config = await loadMelodeckConfig()
+
+    expect(config.auto_start).toBe(false)
   })
 })

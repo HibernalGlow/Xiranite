@@ -9,7 +9,7 @@ const setOverlayModeMock = vi.hoisted(() => vi.fn())
 const setOverlayWidthMock = vi.hoisted(() => vi.fn())
 const setOverlayFloatingMetricsMock = vi.hoisted(() => vi.fn())
 const overlayState = vi.hoisted(() => ({
-  value: null as null | "registry" | "settings" | "operations" | "history",
+  value: null as null | "registry" | "settings" | "operations" | "history" | "deletions",
   mode: "docked" as "docked" | "floating",
   width: 440,
   floatingMetrics: {
@@ -24,6 +24,7 @@ const moduleLoadCounts = vi.hoisted(() => ({
   settings: vi.fn(),
   operations: vi.fn(),
   history: vi.fn(),
+  deletions: vi.fn(),
 }))
 
 vi.mock("@/store/workspaceStore", () => ({
@@ -67,6 +68,11 @@ vi.mock("@/components/views/NodeRunHistoryView", () => {
   return { NodeRunHistoryView: () => <div data-testid="history-view">History view</div> }
 })
 
+vi.mock("@/components/views/FileDeletionHistoryView", () => {
+  moduleLoadCounts.deletions()
+  return { FileDeletionHistoryView: () => <div data-testid="deletions-view">Deletions view</div> }
+})
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
@@ -100,6 +106,7 @@ describe("OverlayHost", () => {
     expect(moduleLoadCounts.settings).not.toHaveBeenCalled()
     expect(moduleLoadCounts.operations).not.toHaveBeenCalled()
     expect(moduleLoadCounts.history).not.toHaveBeenCalled()
+    expect(moduleLoadCounts.deletions).not.toHaveBeenCalled()
   })
 
   test("loads only the active overlay view", async () => {
@@ -114,6 +121,17 @@ describe("OverlayHost", () => {
     expect(moduleLoadCounts.settings).not.toHaveBeenCalled()
     expect(moduleLoadCounts.operations).not.toHaveBeenCalled()
     expect(moduleLoadCounts.history).not.toHaveBeenCalled()
+    expect(moduleLoadCounts.deletions).not.toHaveBeenCalled()
+  })
+
+  test("loads the global deletion history overlay", async () => {
+    overlayState.value = "deletions"
+
+    render(<OverlayHost />)
+
+    expect(await screen.findByTestId("deletions-view")).toBeTruthy()
+    expect(moduleLoadCounts.deletions).toHaveBeenCalledTimes(1)
+    expect(moduleLoadCounts.registry).not.toHaveBeenCalled()
   })
 
   test("renders floating mode and custom size from the store", async () => {

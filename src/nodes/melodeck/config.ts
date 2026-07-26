@@ -12,6 +12,7 @@ export interface MelodeckFloatingOffset {
 
 export interface MelodeckConfig {
   config_version?: 1
+  auto_start?: boolean
   player_engine?: "folia" | "legacy"
   playback?: {
     volume?: number
@@ -147,6 +148,7 @@ function normalizeMelodeckConfig(value: unknown): MelodeckConfig {
     floating_offset: floatingOffset,
     visualizer_style: visualizerStyle,
     config_version: value.config_version === 1 ? 1 : undefined,
+    auto_start: typeof value.auto_start === "boolean" ? value.auto_start : undefined,
     player_engine: value.player_engine === "legacy" ? "legacy" : value.player_engine === "folia" ? "folia" : undefined,
     playback: normalizePlayback(value.playback),
     library: normalizeLibrary(value.library),
@@ -258,6 +260,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export const DEFAULT_MELODECK_CONFIG = {
   config_version: 1,
+  auto_start: true,
   player_engine: "folia",
   playback: { volume: 0.8, loop_mode: "all", replay_gain_mode: "off" },
   library: { roots: [] },
