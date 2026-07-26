@@ -986,7 +986,7 @@ function ReaderSwimlane({
       {resizeBoundaryWith ? <LaneResizer
         label={`调整${label}与${DEFAULT_LANE_LABELS[resizeBoundaryWith] ?? resizeBoundaryWith}泳道宽度`}
         edge="end"
-        className="absolute inset-y-0 right-0 z-30 w-2"
+        className="absolute inset-y-0 right-0 z-30 w-2 opacity-0"
         onResizeStart={onResizeStart}
         onResize={onResizeBoundary}
         onResizeEnd={onResizeEnd}

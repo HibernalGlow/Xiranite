@@ -27,6 +27,9 @@ test("keeps swimlane boundaries draggable in Reader view fullscreen", async () =
   await expect.element(page.getByRole("separator", { name: "调整左侧面板与阅读器泳道宽度" })).toBeVisible()
   const separator = page.getByRole("separator", { name: "调整阅读器与右侧面板泳道宽度" })
   await expect.element(separator).toBeVisible()
+  const separatorElement = document.querySelector<HTMLElement>('[role="separator"][aria-label="调整阅读器与右侧面板泳道宽度"]')!
+  expect(getComputedStyle(separatorElement).opacity).toBe("0")
+  expect(getComputedStyle(separatorElement).pointerEvents).not.toBe("none")
 
   const readerLane = document.querySelector<HTMLElement>('[data-reader-swimlane="reader"]')!
   const rightLane = document.querySelector<HTMLElement>('[data-reader-swimlane="right"]')!
@@ -37,8 +40,32 @@ test("keeps swimlane boundaries draggable in Reader view fullscreen", async () =
 
   await expect.poll(() => readerLane.getBoundingClientRect().width).toBeLessThan(initialReaderWidth)
   await expect.poll(() => rightLane.getBoundingClientRect().width).toBeGreaterThan(initialRightWidth)
-  await expect.poll(() => onWorkspaceChange).toHaveBeenCalled()
+  await expect.poll(() => onWorkspaceChange).toHaveBeenCalledOnce()
   expect(onWorkspaceChange.mock.lastCall?.[0].lanes?.right?.landscapeWidth).toBeGreaterThan(initialRightWidth)
+})
+
+test("keeps the fullscreen resize boundary transparent beside a collapsed lane", async () => {
+  const workspace = fullscreenWorkspace()
+  workspace.swimlane.lanes.right = { ...workspace.swimlane.lanes.right!, collapsed: true }
+
+  await render(
+    <div style={{ width: 1200, height: 700 }}>
+      <ReaderSwimlaneWorkspace
+        shell={shellConfig(workspace)}
+        workspace={workspace}
+        reader={<div>reader</div>}
+        left={<div>left</div>}
+        right={<div>right</div>}
+        readerViewFullscreen
+        onWorkspaceChange={vi.fn()}
+      />
+    </div>,
+  )
+
+  const separator = document.querySelector<HTMLElement>('[role="separator"][aria-label="调整阅读器与右侧面板泳道宽度"]')!
+  await expect.poll(() => separator.getBoundingClientRect().width).toBeGreaterThan(0)
+  expect(getComputedStyle(separator).opacity).toBe("0")
+  expect(getComputedStyle(separator).pointerEvents).not.toBe("none")
 })
 
 function shellConfig(workspace: ReaderWorkspaceConfig): ReaderShellConfigDto {
