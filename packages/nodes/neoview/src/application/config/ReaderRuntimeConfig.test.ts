@@ -336,7 +336,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       showHiddenFolders: false,
       hideMissingEfuEntries: false,
       tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
-      penetration: { enabled: true, showInternalFiles: true, internalItemsMode: "single", maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
+      penetration: { enabled: true, expandBranchesInline: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
       emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
       details: {
         columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
@@ -370,7 +370,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       showHiddenFolders: true,
       hideMissingEfuEntries: true,
       confirmations: { trash: true, permanentDelete: false, batchTrash: true, batchPermanentDelete: false },
-      penetration: { enabled: true, showInternalFiles: false, internalItemsMode: "single", maxDepth: 10, terminalTargets: ["archive", "document"] },
+      penetration: { enabled: true, expandBranchesInline: true, showInternalFiles: false, internalItemsMode: "single", maxDepth: 10, terminalTargets: ["archive", "document"] },
       tree: { visible: true, layout: "bottom", size: 320, pinnedPaths: ["E:/Books"] },
       tabs: { pinned: [{ path: "E:/Library", title: "Library" }] },
       details: { columnOrder: ["rating", "name"], hiddenColumns: ["tags"], pinnedLeft: ["name"], pinnedRight: ["rating"], columnWidths: { name: 300, rating: 84 } },
@@ -388,7 +388,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         showHiddenFolders: true,
         hideMissingEfuEntries: true,
         confirmations: { trash: true, permanentDelete: false, batchTrash: true, batchPermanentDelete: false },
-        penetration: { enabled: true, showInternalFiles: false, internalItemsMode: "single", maxDepth: 10, terminalTargets: ["archive", "document"] },
+        penetration: { enabled: true, expandBranchesInline: true, showInternalFiles: false, internalItemsMode: "single", maxDepth: 10, terminalTargets: ["archive", "document"] },
         details: {
           columnOrder: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hiddenColumns: ["tags"],
@@ -412,7 +412,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         show_hidden_folders: true,
         hide_missing_efu_entries: true,
         confirmations: { trash: true, permanent_delete: false, batch_trash: true, batch_permanent_delete: false },
-        penetration: { enabled: true, show_internal_files: false, internal_items_mode: "single", max_depth: 10, terminal_targets: ["archive", "document"] },
+        penetration: { enabled: true, expand_branches_inline: true, show_internal_files: false, internal_items_mode: "single", max_depth: 10, terminal_targets: ["archive", "document"] },
         details: {
           column_order: ["rating", "name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
           hidden_columns: ["tags"],
@@ -459,7 +459,7 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewFolderViewPatch({ folderView: { showHiddenFolders: "yes" } })).toThrow("showHiddenFolders")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { hideMissingEfuEntries: "yes" } })).toThrow("hideMissingEfuEntries")
     expect(parseNeoviewRuntimeConfig(undefined).folderView.penetration).toEqual({
-      enabled: false,
+      enabled: false, expandBranchesInline: false,
       showInternalFiles: true,
       internalItemsMode: "single",
       maxDepth: 3,

@@ -57,11 +57,11 @@ import type { FolderSearchListingUpdate } from "./FolderSearchPanel"
 import type { FolderSearchTabSnapshot } from "./search/folderSearchModel"
 import { isVirtualSearchPath } from "./search/folderSearchModel"
 import { DEFAULT_FOLDER_TITLE_WRAP, FOLDER_VIEW_PRESENTATION_OPTIONS, resolveFolderTitleWrap } from "./FolderViewPresentation"
+import FolderBrowserBreadcrumb from "./FolderBrowserBreadcrumb"
 
 const FolderDetailsView = lazy(() => import("./FolderDetailsView"))
 const FolderGridWorkspace = lazy(() => import("./FolderGridWorkspace"))
 const FolderMosaicWorkspace = lazy(() => import("./FolderMosaicWorkspace"))
-const FolderBreadcrumb = lazy(() => import("./FolderBreadcrumb"))
 const FolderSearchPanel = lazy(() => import("./FolderSearchPanel"))
 const FolderTreeWorkspace = lazy(() => import("./FolderTreeWorkspace"))
 const FolderTreePanel = lazy(() => import("./FolderTreePanel"))
@@ -70,6 +70,7 @@ const FolderChromeLayout = lazy(() => import("./FolderChromeLayout"))
 const FolderSelectionBar = lazy(() => import("./FolderSelectionBar"))
 const FolderContextActions = lazy(() => import("./FolderContextActions"))
 const FolderToolbarLazy = lazy(async () => ({ default: (await import("./FolderToolbar")).default }))
+const FolderInlineBranchPanel = lazy(() => import("./FolderInlineBranchPanel"))
 
 const SORT_LABELS: Record<ReaderDirectorySortFieldDto, string> = {
   name: "名称",
@@ -174,6 +175,7 @@ export interface FolderBrowserPaneViewProps {
     sessionId?: string
     searchRootPath?: string
     pendingSearchSnapshot?: FolderSearchTabSnapshot
+    inlineBranchPath?: string
   }
   refs: {
     catalogRef: RefObject<DirectoryCatalog | undefined>
@@ -214,6 +216,7 @@ export interface FolderBrowserPaneViewProps {
     updateHiddenFolders(showHiddenFolders: boolean): Promise<void>
     updateMissingEfuEntries(hideMissingEfuEntries: boolean): Promise<void>
     updatePenetration(patch: Partial<ReaderFolderPenetrationConfig>): Promise<void>
+    closeInlineBranch(): void
     toggleTree(): void
     switchTreeLayout(layout: ReaderFolderTreeLayout): void
     toggleInlineTree(): void
@@ -255,7 +258,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     restoreState, restoreIndex, shouldLocateRestore, thumbnailStore,
     thumbnailRefreshPending, loading, error, searchOpen, treeOpen, inlineTreeOpen, treeLayout,
     treeSize, renameRequest, focusedPath, focusedIndex, focusedItemId, itemIdPrefix, clipboard, canRetry,
-    sessionId, searchRootPath, pendingSearchSnapshot,
+    sessionId, searchRootPath, pendingSearchSnapshot, inlineBranchPath,
   } = state
   const {
     catalogRef, focusedIndexRef, chainAnchorIndexRef, listRef, gridRef, mosaicRef, listHostRef,
@@ -266,7 +269,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     refreshThumbnails, setRenameRequest, switchView, togglePreviewGrid, switchPreviewCount,
     commitHoverPreviewEnabled, commitHoverPreviewDelay, setContentWidthPercent, commitContentWidth,
     setThumbnailWidthPercent, commitThumbnailWidth, setBannerWidthPercent, commitBannerWidth,
-    setSearchOpen, updateFilter, updateHiddenFolders, updateMissingEfuEntries, updatePenetration,
+    setSearchOpen, updateFilter, updateHiddenFolders, updateMissingEfuEntries, updatePenetration, closeInlineBranch,
     toggleTree, switchTreeLayout, toggleInlineTree, toggleMultiSelectMode, setDeleteMode,
     setDeleteStrategy, updateSortPreference, refreshVisibleThumbnails, refreshSelectedThumbnails,
     cancelThumbnailRefresh, setSelection, setFocusedIndex, setFocusedPath, setChainSelectMode, setCheckModeClickBehavior,
@@ -299,30 +302,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
         void navigate(command)
       }),
   }
-  const breadcrumbNode = (
-    <Suspense fallback={<div className="h-8 rounded-md border bg-background" aria-label="正在加载路径导航" />}>
-      <FolderBreadcrumb
-        path={catalog?.path ?? sourcePath ?? ""}
-        disabled={disabled}
-        loading={loading}
-        vertical={isVerticalFolderRegion(tabLayout.breadcrumbPosition)}
-        canGoBack={catalog?.canGoBack}
-        canGoForward={catalog?.canGoForward}
-        canGoUp={Boolean(catalog?.parentPath)}
-        client={client}
-        sessionId={catalog?.sessionId}
-        canCreateTab={!tabBar && folderTabCount < maxFolderTabs}
-        onCreateTab={onCreateTab}
-        onNavigate={(path) => {
-          void navigate({ action: "path", path })
-        }}
-        onNavigateAction={(action) => {
-          void navigate({ action })
-        }}
-        onCopyPath={systemActions?.copyText}
-      />
-    </Suspense>
-  )
+  const breadcrumbNode = <FolderBrowserBreadcrumb path={catalog?.path ?? sourcePath ?? ""} disabled={disabled} loading={loading} vertical={isVerticalFolderRegion(tabLayout.breadcrumbPosition)} canGoBack={catalog?.canGoBack} canGoForward={catalog?.canGoForward} canGoUp={Boolean(catalog?.parentPath)} client={client} sessionId={catalog?.sessionId} canCreateTab={!tabBar && folderTabCount < maxFolderTabs} onCreateTab={onCreateTab} onNavigate={(path) => { void navigate({ action: "path", path }) }} onNavigateAction={(action) => { void navigate({ action }) }} onCopyPath={systemActions?.copyText} />
 
   return (
     <FolderEntryDisplayProvider value={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}>
@@ -978,6 +958,25 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                     <div className="grid h-72 place-items-center text-xs text-muted-foreground">{loading ? "正在读取目录…" : "选择一个目录"}</div>
                   ) : null}
                   </div>
+                  {inlineBranchPath && catalog ? (
+                    <Suspense fallback={<div className="h-32 animate-pulse border-t bg-muted/30" aria-label="正在加载展开文件夹" />}>
+                      <FolderInlineBranchPanel
+                        client={client}
+                        path={inlineBranchPath}
+                        viewMode={viewMode}
+                        filter={catalog.filter}
+                        sort={catalog.sort}
+                        showHiddenFolders={catalog.showHiddenFolders}
+                        hideMissingEfuEntries={catalog.hideMissingEfuEntries}
+                        previewGridEnabled={previewGridEnabled}
+                        previewCount={previewCount}
+                        disabled={disabled || loading}
+                        onActivate={activate}
+                        onEnterDirectory={enterRawDirectory}
+                        onClose={closeInlineBranch}
+                      />
+                    </Suspense>
+                  ) : null}
                 </div>
               </div>
             </div>
