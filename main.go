@@ -80,6 +80,7 @@ func main() {
 		Name:            "main",
 		Title:           "Xiranite",
 		DevToolsEnabled: true,
+		KeyBindings:     devToolsKeyBindings(),
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 48,
 			Backdrop:                application.MacBackdropTranslucent,
