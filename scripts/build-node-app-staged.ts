@@ -38,9 +38,6 @@ await run([process.execPath, "x", "tsc", "--noEmit", "--pretty", "false", "-p", 
 // those small TypeScript outputs before invoking Bun's resolver.
 await run([process.execPath, "run", "--cwd", "packages/native-loader", "build"])
 await run([process.execPath, "run", "--cwd", "packages/czkawka-native", "build"])
-// Temporarily disabled: XLchemy uses the system slimg v0.6 CLI because the
-// in-process Node-API batch path caused unacceptable Bun RSS peaks.
-// await run([process.execPath, "run", "--cwd", "packages/slimg-native", "build"])
 if (backendFeatures.includes("reader")) {
   await run([process.execPath, "run", "--cwd", "packages/arcthumb-native", "build"])
 }
@@ -125,7 +122,6 @@ async function prepareStagedWorkspace(root: string, nodeId: string, backendFeatu
     "packages/runtime",
     "packages/services",
     "packages/shared",
-    // "packages/slimg-native", // Disabled with the XLchemy Node-API path; see above.
     `packages/nodes/${nodeId}`,
     "vendor/folia-major/packages/player",
   ]
@@ -140,7 +136,6 @@ async function prepareStagedWorkspace(root: string, nodeId: string, backendFeatu
   // by the staged root dependency graph.
   packageJson.dependencies ??= {}
   packageJson.dependencies["@xiranite/czkawka-native"] = "workspace:*"
-  // packageJson.dependencies["@xiranite/slimg-native"] = "workspace:*"
   if (requiresReader) packageJson.dependencies["@xiranite/arcthumb-native"] = "workspace:*"
   await writeFile(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`, "utf8")
 }

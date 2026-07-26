@@ -8,8 +8,8 @@ import type { XlchemyEfuAnalysis } from "./types"
 type InputEntry = { ext: string; folder: string; size: number }
 type Distribution = { key: string; count: number; size: number }
 
-export function DataAnalysis(props: { paths: string[]; efuAnalyses?: XlchemyEfuAnalysis[]; result: XlchemyData | null; activeTab?: "input" | "output"; onTabChange?: (tab: "input" | "output") => void }) {
-  const input = buildInputStats(props.paths, props.efuAnalyses ?? [], props.result)
+export function DataAnalysis(props: { paths: string[]; fileSizes?: ReadonlyMap<string, number>; efuAnalyses?: XlchemyEfuAnalysis[]; result: XlchemyData | null; activeTab?: "input" | "output"; onTabChange?: (tab: "input" | "output") => void }) {
+  const input = buildInputStats(props.paths, props.fileSizes, props.efuAnalyses ?? [], props.result)
   const output = buildOutputStats(props.result)
   return <Tabs defaultValue="input" value={props.activeTab} className="flex min-h-0 flex-col gap-2" data-testid="xlchemy-data-analysis" onValueChange={(tab) => props.onTabChange?.(tab as "input" | "output")}>
     <TabsList className="grid w-full grid-cols-2">
@@ -35,21 +35,12 @@ export function DataAnalysis(props: { paths: string[]; efuAnalyses?: XlchemyEfuA
   </Tabs>
 }
 
-function buildInputStats(paths: string[], efuAnalyses: XlchemyEfuAnalysis[], result: XlchemyData | null) {
-  if (result?.inputAnalysis) {
-    const analysis = result.inputAnalysis
-    return {
-      totalFiles: analysis.totalFiles,
-      totalSize: analysis.totalSize,
-      avgSize: analysis.totalFiles ? Math.round(analysis.totalSize / analysis.totalFiles) : 0,
-      minSize: analysis.minSize,
-      medianSize: analysis.medianSize,
-      maxSize: analysis.maxSize,
-      formats: analysis.formats,
-      folders: analysis.folders.slice(0, 6),
-    }
-  }
-  const sizes = new Map(result?.files.map((file) => [normalizePath(file.sourcePath), file.sourceBytes ?? 0]) ?? [])
+function buildInputStats(paths: string[], fileSizes: ReadonlyMap<string, number> | undefined, efuAnalyses: XlchemyEfuAnalysis[], result: XlchemyData | null) {
+  const sizes = new Map([...(fileSizes ?? [])].map(([path, size]) => [normalizePath(path), size] as const))
+  for (const file of result?.files ?? []) if (file.sourceBytes !== undefined) sizes.set(normalizePath(file.sourcePath), file.sourceBytes)
+  const expectedFiles = paths.length + efuAnalyses.reduce((sum, item) => sum + item.totalFiles, 0)
+  const knownDirectFiles = paths.filter((path) => sizes.has(normalizePath(path))).length
+  if (result?.inputAnalysis && result.inputAnalysis.totalFiles === expectedFiles && knownDirectFiles < paths.length) return { ...result.inputAnalysis, avgSize: result.inputAnalysis.totalFiles ? Math.round(result.inputAnalysis.totalSize / result.inputAnalysis.totalFiles) : 0 }
   const entries: InputEntry[] = paths.map((path) => {
     const normalized = normalizePath(path), name = normalized.split("/").at(-1) ?? normalized, directory = normalized.includes("/") ? normalized.slice(0, normalized.lastIndexOf("/")) : "", dot = name.lastIndexOf(".")
     return { ext: dot > 0 ? name.slice(dot + 1).toLowerCase() : "unknown", folder: directory.split("/").filter(Boolean).at(-1) ?? "/", size: sizes.get(normalized) ?? 0 }
@@ -73,12 +64,13 @@ function buildInputStats(paths: string[], efuAnalyses: XlchemyEfuAnalysis[], res
 function buildOutputStats(result: XlchemyData | null) {
   const files = result?.files.filter((file) => file.status === "converted") ?? [], totalSrcSize = result?.inputBytes ?? files.reduce((sum, file) => sum + (file.sourceBytes ?? 0), 0), totalDstSize = result?.outputBytes ?? files.reduce((sum, file) => sum + (file.outputBytes ?? 0), 0), elapsed = result?.elapsedMs ?? 0
   const formatMap = new Map<string, { count: number; srcSize: number; dstSize: number }>()
-  for (const file of files) {
+  for (const file of result?.outputAnalysis ? [] : files) {
     const name = normalizePath(file.sourcePath).split("/").at(-1) ?? file.sourcePath, dot = name.lastIndexOf("."), ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "unknown", current = formatMap.get(ext) ?? { count: 0, srcSize: 0, dstSize: 0 }
     current.count += 1; current.srcSize += file.sourceBytes ?? 0; current.dstSize += file.outputBytes ?? 0; formatMap.set(ext, current)
   }
   const successCount = result?.convertedCount ?? files.length, failedCount = result?.errorCount ?? 0, total = successCount + failedCount, savedBytes = totalSrcSize - totalDstSize
-  return { successCount, total, totalSrcSize, totalDstSize, savedBytes, savedPercent: totalSrcSize > 0 ? (1 - totalDstSize / totalSrcSize) * 100 : 0, elapsed, avgTime: successCount ? elapsed / successCount : 0, speed: elapsed > 0 ? successCount / elapsed * 1000 : 0, formats: [...formatMap.entries()].map(([key, value]) => ({ key, ...value, ratio: value.srcSize > 0 ? value.dstSize / value.srcSize : 0 })).sort((a, b) => b.count - a.count) }
+  const formats = result?.outputAnalysis?.formats.map((item) => ({ key: item.key, count: item.count, srcSize: item.sourceBytes, dstSize: item.outputBytes, ratio: item.sourceBytes > 0 ? item.outputBytes / item.sourceBytes : 0 })) ?? [...formatMap.entries()].map(([key, value]) => ({ key, ...value, ratio: value.srcSize > 0 ? value.dstSize / value.srcSize : 0 })).sort((a, b) => b.count - a.count)
+  return { successCount, total, totalSrcSize, totalDstSize, savedBytes, savedPercent: totalSrcSize > 0 ? (1 - totalDstSize / totalSrcSize) * 100 : 0, elapsed, avgTime: successCount ? elapsed / successCount : 0, speed: elapsed > 0 ? successCount / elapsed * 1000 : 0, formats }
 }
 
 function distribute(entries: InputEntry[], field: "ext" | "folder"): Distribution[] { const values = new Map<string, { count: number; size: number }>(); for (const entry of entries) { const current = values.get(entry[field]) ?? { count: 0, size: 0 }; current.count += 1; current.size += entry.size; values.set(entry[field], current) } return [...values.entries()].map(([key, value]) => ({ key, ...value })).sort((a, b) => b.size - a.size) }

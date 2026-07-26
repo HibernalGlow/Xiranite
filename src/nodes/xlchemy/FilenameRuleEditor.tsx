@@ -31,7 +31,7 @@ export function FilenameRuleEditor(props: { compact?: boolean; disabled?: boolea
             {!rules.length && <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">当前没有命名规则，输出将沿用原文件名。</div>}
           </div>
         </ScrollArea>
-        <div className="flex items-center justify-between gap-2 border-t pt-3"><Button variant="ghost" onClick={() => commit(cloneDefaultRules())}><RotateCcw />恢复 PSD / CLIP 默认规则</Button><Button onClick={add}><Plus />添加规则</Button></div>
+        <div className="flex items-center justify-between gap-2 border-t pt-3"><Button variant="ghost" onClick={() => commit(cloneDefaultRules())}><RotateCcw />恢复默认规则</Button><Button onClick={add}><Plus />添加规则</Button></div>
       </DialogContent>
     </Dialog>
   )
