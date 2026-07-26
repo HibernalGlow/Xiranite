@@ -202,7 +202,7 @@ void findz_free(uint8_t* response);
 
 Requests have `requestVersion`, `requestId`, `method`, and `params`. Responses echo `requestId`. Mutating methods are idempotency-aware through the request id or a supplied client operation id. Queries include `page: { cursor, limit }` and return `{ items, nextCursor, total? }`; `limit` is bounded by the core. There is no free-form SQL endpoint.
 
-Representative methods are `library.open`, `scan.start`, `scan.reconcile`, `watcher.apply_changes`, `query.archives`, `query.members`, `projection.treemap`, `analysis.start`, `task.pause`, `task.resume`, `task.cancel`, `task.get`, and `export.rows`.
+Representative methods are `library.open`, `library.close`, `scan.start`, `scan.reconcile`, `watcher.apply_changes`, `watcher.set_health`, `query.archives`, `query.members`, `projection.treemap`, `analysis.start`, `task.pause`, `task.resume`, `task.cancel`, `task.get`, and `export.rows`.
 
 ```mermaid
 stateDiagram-v2

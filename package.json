@@ -282,6 +282,7 @@
     "usehooks-ts": "^3.1.1",
     "vaul": "^1.1.2",
     "waviz": "1.0.0",
+    "webtreemap-cdt": "3.2.1",
     "zod": "^4.3.6",
     "zustand": "^5.0.10"
   },

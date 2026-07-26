@@ -15,6 +15,7 @@ const outputRoot = join(workspaceRoot, "build", "wails", "native-assets")
 const bindings = [
   { id: "arcthumb", packageName: "arcthumb-native", filename: `xiranite-arcthumb.${platformId}.node`, dependencies: [] },
   { id: "czkawka", packageName: "czkawka-native", filename: `xiranite-czkawka.${platformId}.node`, dependencies: process.platform === "win32" ? ["dav1d.dll"] : [] },
+  { id: "findz", packageName: "findz-native", filename: "findz.dll", dependencies: [] },
 ] as const
 
 if (process.argv.includes("--refresh")) await refreshPrebuilt()
@@ -49,8 +50,9 @@ async function refreshPrebuilt(): Promise<void> {
     const files = Object.fromEntries(await Promise.all(filenames.map(async (name) => [name, new Uint8Array(await readFile(join(artifactRoot, name)))])))
     const archive = zipSync(files, { level: 9 })
     const archiveName = `${binding.id}.${platformId}.zip`
-    const nativeBinding = createRequire(import.meta.url)(join(artifactRoot, binding.filename)) as Record<string, () => Record<string, unknown>>
-    const info = nativeBinding[infoMethod(binding.id)]?.()
+    const info = binding.id === "findz"
+      ? await getFindzNativeInfo(join(artifactRoot, binding.filename))
+      : getNodeApiInfo(binding.id, join(artifactRoot, binding.filename))
     if (!info) throw new Error(`Native binding ${binding.id} did not expose its info method.`)
     const version = bindingVersion(binding.id, info)
     archives.set(archiveName, archive)
@@ -80,8 +82,53 @@ function infoMethod(id: string): string {
 }
 
 function bindingVersion(id: string, info: Record<string, unknown>): string {
+  if (id === "findz") return `${String(info.coreVersion ?? "unknown")}-abi${String(info.abiVersion ?? "unknown")}`
   const apiVersion = String(info.apiVersion ?? "unknown")
   return `${String(info.sourceVersion ?? "unknown")}-api${apiVersion}`
+}
+
+function getNodeApiInfo(id: string, bindingPath: string): Record<string, unknown> {
+  const nativeBinding = createRequire(import.meta.url)(bindingPath) as Record<string, () => Record<string, unknown>>
+  const info = nativeBinding[infoMethod(id)]?.()
+  if (!info) throw new Error(`Native binding ${id} did not expose its info method.`)
+  return info
+}
+
+async function getFindzNativeInfo(bindingPath: string): Promise<Record<string, unknown>> {
+  const ffi = await import("bun:ffi") as unknown as {
+    dlopen(path: string, symbols: Record<string, unknown>): {
+      symbols: {
+        findz_abi_version(): number
+        findz_api_info(length: unknown): unknown
+        findz_free(response: unknown): void
+      }
+      close(): void
+    }
+    ptr(value: BigUint64Array): unknown
+    toArrayBuffer(pointer: unknown, byteOffset: number, length: number): ArrayBuffer
+  }
+  const library = ffi.dlopen(bindingPath, {
+    findz_abi_version: { args: [], returns: "u32" },
+    findz_api_info: { args: ["ptr"], returns: "ptr" },
+    findz_free: { args: ["ptr"], returns: "void" },
+  })
+  try {
+    if (library.symbols.findz_abi_version() !== 1) throw new Error(`Findz native core has an incompatible ABI at ${bindingPath}.`)
+    const responseLength = new BigUint64Array(1)
+    const responsePointer = library.symbols.findz_api_info(ffi.ptr(responseLength))
+    if (!responsePointer) throw new Error("Findz native core did not return API info.")
+    try {
+      const length = Number(responseLength[0])
+      if (!Number.isSafeInteger(length) || length <= 0) throw new Error("Findz native core returned an invalid API-info response length.")
+      const response = JSON.parse(new TextDecoder().decode(ffi.toArrayBuffer(responsePointer, 0, length))) as { ok?: boolean; result?: Record<string, unknown> }
+      if (!response.ok || !response.result) throw new Error(`Findz native core rejected API-info request: ${JSON.stringify(response)}`)
+      return response.result
+    } finally {
+      library.symbols.findz_free(responsePointer)
+    }
+  } finally {
+    library.close()
+  }
 }
 
 function hash(value: Uint8Array): string {
