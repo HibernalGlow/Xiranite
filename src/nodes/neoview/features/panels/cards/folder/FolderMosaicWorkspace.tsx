@@ -22,7 +22,7 @@ import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_LIST_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
-import type { FolderThumbnailStore } from "./FolderThumbnailStore"
+import { folderThumbnailIsLoading, type FolderThumbnailStore } from "./FolderThumbnailStore"
 import { useFolderThumbnail } from "./useFolderThumbnail"
 
 export type FolderMosaicSpan = "square" | "wide" | "tall"
@@ -342,9 +342,11 @@ export function DirectoryMosaicItem({
   onDimensions(path: string, width: number, height: number): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }) {
-  const storedThumbnail = useFolderThumbnail(thumbnailStore, entry.path)
+  const thumbnailEligible = entry.kind === "directory" || entry.readerSupported
+  const storedThumbnail = useFolderThumbnail(thumbnailStore, entry.path, thumbnailEligible)
   const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
   const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
+  const thumbnailLoading = Boolean(thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
   const geometry = folderMosaicGeometry(span, previewReady, columnCount)
   return (
     <FolderHoverPreview thumbnailUrl={resolvedThumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
@@ -376,13 +378,14 @@ export function DirectoryMosaicItem({
         data-folder-reader-supported={entry.readerSupported}
       >
         <span className="relative grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
-          {resolvedThumbnailUrl
+          {resolvedThumbnailUrl || thumbnailLoading
             ? <ReaderThumbnailSurface
                 url={resolvedThumbnailUrl}
                 urls={resolvedThumbnailUrls}
                 kind={entry.kind === "directory" ? "folder" : "file"}
                 fit="contain"
                 imageLoading="eager"
+                loading={thumbnailLoading}
                 className="size-full rounded-none bg-transparent"
                 onDimensions={(width, height) => onDimensions(entry.path, width, height)}
               />

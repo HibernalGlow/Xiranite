@@ -55,7 +55,24 @@ export function useFolderThumbnailPipeline({
   const initialRangeRef = useRef<{ sessionId: string; generation: number; range: ListRange }>()
   const thumbnailStoreRef = useRef<FolderThumbnailStore>()
   const thumbnailStore = thumbnailStoreRef.current ??= new FolderThumbnailStore()
+  const demandRegistrationRef = useRef<(paths: ReadonlySet<string>, force: boolean) => void>()
+  const demandHandlerRef = useRef<(paths: ReadonlySet<string>, force: boolean) => void>()
+  const pendingDemandPathsRef = useRef(new Set<string>())
+  const pendingDemandForceRef = useRef(false)
+  const suppressedCancellationTokensRef = useRef(new Set<number>())
+  demandHandlerRef.current ??= (paths, force) => demandRegistrationRef.current?.(paths, force)
+  demandRegistrationRef.current = (paths, force) => {
+    for (const path of paths) pendingDemandPathsRef.current.add(path)
+    pendingDemandForceRef.current ||= force
+    flushDemandRegistration()
+  }
   const [refreshPending, setRefreshPending] = useState(false)
+
+  useEffect(() => {
+    const enabled = thumbnailsVisible && viewUsesThumbnails(viewMode) && Boolean(client.registerLibraryThumbnails)
+    thumbnailStore.setDemandHandler(enabled ? demandHandlerRef.current : undefined)
+    return () => thumbnailStore.setDemandHandler(undefined)
+  }, [client.registerLibraryThumbnails, thumbnailStore, thumbnailsVisible, viewMode])
 
   useEffect(() => {
     if (!thumbnailsVisible || !catalog || !viewUsesThumbnails(viewMode)) return
@@ -100,7 +117,7 @@ export function useFolderThumbnailPipeline({
     }
   }, [thumbnailsVisible, catalog?.sessionId, catalog?.generation, catalog?.total, viewMode, previewGridEnabled, previewCount])
 
-  async function registerVisible(refresh = false, targetPaths?: ReadonlySet<string>): Promise<void> {
+  async function registerVisible(refresh = false, targetPaths?: ReadonlySet<string>, force = false): Promise<void> {
     const current = catalogRef.current
     if (!thumbnailsVisible || !current || !viewUsesThumbnails(viewMode) || !client.registerLibraryThumbnails) return
     const currentThumbnails = thumbnailStore.snapshot()
@@ -111,27 +128,31 @@ export function useFolderThumbnailPipeline({
     const visible = candidates
       .filter(({ entry }) => entry.kind === "directory" || (entry.kind === "file" && entry.readerSupported))
       .filter(({ entry }) => !targetPaths || targetPaths.has(entry.path))
-      .filter(({ entry }) => refresh || isThumbnailDemandNeeded(
-        entry,
-        viewMode,
-        previewCount,
-        currentThumbnails.thumbnailProfiles,
-        currentThumbnails.thumbnailUrls,
-        previewGridEnabled,
-        currentThumbnails.thumbnailUrlSets,
+      .filter(({ entry }) => refresh || force || (
+        thumbnailStore.entry(entry.path).availability !== "unavailable" && isThumbnailDemandNeeded(
+          entry,
+          viewMode,
+          previewCount,
+          currentThumbnails.thumbnailProfiles,
+          currentThumbnails.thumbnailUrls,
+          previewGridEnabled,
+          currentThumbnails.thumbnailUrlSets,
+        )
       ))
       .slice(0, MAX_THUMBNAILS)
     if (!visible.length) {
       clearInitialRange(current)
       return
     }
-    const signature = `${refresh ? `refresh:${++refreshSequenceRef.current}` : "normal"}:${targetPaths ? "selected" : "visible"}:${current.sessionId}:${current.generation}:${viewMode}:${previewGridEnabled}:${previewCount}:${visible.map(({ index, entry }) => `${index}:${entry.path}`).join("|")}`
+    const signature = `${refresh ? `refresh:${++refreshSequenceRef.current}` : force ? "forced" : "normal"}:${targetPaths ? "selected" : "visible"}:${current.sessionId}:${current.generation}:${viewMode}:${previewGridEnabled}:${previewCount}:${visible.map(({ index, entry }) => `${index}:${entry.path}`).join("|")}`
     if (signatureRef.current === signature) return
     signatureRef.current = signature
     requestRef.current?.abort()
     const request = new AbortController()
     requestRef.current = request
     const generation = ++generationRef.current
+    const requestedPaths = new Set(visible.map(({ entry }) => entry.path))
+    thumbnailStore.beginRegistration(requestedPaths, generation, refresh)
     const contextId = contextRef.current ?? `folder:${current.sessionId}:${++contextSequenceRef.current}`
     contextRef.current = contextId
     const pathById = new Map(visible.map(({ index, entry }) => [String(index), entry.path]))
@@ -171,17 +192,43 @@ export function useFolderThumbnailPipeline({
       for (const path of nextProfiles.keys()) {
         if (!nextUrls.has(path)) nextProfiles.delete(path)
       }
-      // The registration response is the backend-owned completion signal for this
-      // demand batch. Publish path snapshots directly so only affected tiles update.
-      thumbnailStore.replace({
+      // Registration only publishes asset capabilities. Mounted tiles probe those
+      // URLs independently and publish readiness to their own path subscribers.
+      const returnedPaths = new Set(resolved.map(([path]) => path))
+      thumbnailStore.completeRegistration({
         thumbnailUrls: nextUrls,
         thumbnailUrlSets: nextUrlSets,
         thumbnailProfiles: nextProfiles,
-      })
+      }, requestedPaths, returnedPaths, generation)
     }).catch(() => {
-      if (!request.signal.aborted && generation === generationRef.current) signatureRef.current = ""
+      thumbnailStore.cancelRegistration(
+        requestedPaths,
+        generation,
+        !request.signal.aborted,
+        !suppressedCancellationTokensRef.current.has(generation),
+      )
       clearInitialRange(current)
+    }).finally(() => {
+      thumbnailStore.cancelRegistration(
+        requestedPaths,
+        generation,
+        false,
+        !suppressedCancellationTokensRef.current.has(generation),
+      )
+      suppressedCancellationTokensRef.current.delete(generation)
+      if (requestRef.current === request) requestRef.current = undefined
+      if (generation === generationRef.current) signatureRef.current = ""
+      queueMicrotask(flushDemandRegistration)
     })
+  }
+
+  function flushDemandRegistration(): void {
+    if (requestRef.current || !pendingDemandPathsRef.current.size) return
+    const batch = new Set([...pendingDemandPathsRef.current].slice(0, MAX_THUMBNAILS))
+    for (const path of batch) pendingDemandPathsRef.current.delete(path)
+    const force = pendingDemandForceRef.current
+    if (!pendingDemandPathsRef.current.size) pendingDemandForceRef.current = false
+    void registerVisible(false, batch, force).finally(() => queueMicrotask(flushDemandRegistration))
   }
 
   async function refresh(targetPaths?: ReadonlySet<string>): Promise<void> {
@@ -196,6 +243,7 @@ export function useFolderThumbnailPipeline({
 
   function cancelRefresh(): void {
     if (!refreshPending) return
+    suppressedCancellationTokensRef.current.add(generationRef.current)
     requestRef.current?.abort(new DOMException("Thumbnail refresh cancelled", "AbortError"))
     requestRef.current = undefined
     generationRef.current += 1
@@ -277,13 +325,18 @@ export function useFolderThumbnailPipeline({
   }
 
   function resetRegistration(): void {
+    if (requestRef.current) suppressedCancellationTokensRef.current.add(generationRef.current)
     requestRef.current?.abort()
     requestRef.current = undefined
     signatureRef.current = ""
+    pendingDemandPathsRef.current.clear()
+    pendingDemandForceRef.current = false
   }
 
   function releaseContext(): void {
     resetRegistration()
+    thumbnailStore.stop()
+    thumbnailStore.invalidateManagedEntries()
     const contextId = contextRef.current
     contextRef.current = undefined
     if (contextId) void client.releaseLibraryThumbnailContext?.(contextId).catch(() => undefined)

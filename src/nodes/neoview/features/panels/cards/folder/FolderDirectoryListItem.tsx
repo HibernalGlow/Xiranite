@@ -6,7 +6,7 @@ import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { type FolderViewMode } from "./FolderBrowserState"
-import type { FolderThumbnailStore } from "./FolderThumbnailStore"
+import { folderThumbnailIsLoading, type FolderThumbnailStore } from "./FolderThumbnailStore"
 import { useFolderThumbnail } from "./useFolderThumbnail"
 
 export function DirectoryListItem({
@@ -43,10 +43,12 @@ export function DirectoryListItem({
   deleteStrategy: FolderDeleteStrategy
   confirmDelete: boolean
 }) {
-  const storedThumbnail = useFolderThumbnail(thumbnailStore, entry?.path)
+  const rich = visualMode !== "compact"
+  const thumbnailEligible = Boolean(rich && entry && (entry.kind === "directory" || entry.readerSupported))
+  const storedThumbnail = useFolderThumbnail(thumbnailStore, entry?.path, thumbnailEligible)
   const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
   const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
-  const rich = visualMode !== "compact"
+  const thumbnailLoading = Boolean(thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
   if (!entry) return <div className={`${rich ? "h-[76px]" : "h-[34px]"} animate-pulse border-b bg-muted/30`} aria-hidden="true" />
   return (
     <FolderHoverPreview thumbnailUrl={resolvedThumbnailUrl} enabled={hoverPreviewEnabled && rich} delayMs={hoverPreviewDelayMs} label={entry.name}>
@@ -78,13 +80,14 @@ export function DirectoryListItem({
               className="grid h-16 shrink-0 place-items-center overflow-hidden rounded bg-muted/30"
               style={{ width: `${contentWidthPercent}%`, maxWidth: "70%" }}
             >
-              {resolvedThumbnailUrl ? (
+              {resolvedThumbnailUrl || thumbnailLoading ? (
                 <ReaderThumbnailSurface
                   url={resolvedThumbnailUrl}
                   urls={resolvedThumbnailUrls}
                   kind={entry.kind === "directory" ? "folder" : "file"}
                   fit="contain"
                   imageLoading="eager"
+                  loading={thumbnailLoading}
                   className="size-full rounded-none bg-transparent"
                 />
               ) : entry.kind === "directory" ? null : (
