@@ -1,6 +1,7 @@
 import { expect, onTestFinished, test, vi } from "vitest"
 import { render } from "vitest-browser-react"
 import { VirtuosoMockContext } from "react-virtuoso"
+import { useRef, useState } from "react"
 
 import type {
   ReaderDirectoryPageDto,
@@ -8,7 +9,11 @@ import type {
   ReaderLibraryThumbnailBatchDto,
 } from "../../../../adapters/reader-http-client"
 import FolderMainCard from "../FolderMainCard"
+import { createDirectoryCatalog, type DirectoryCatalog } from "./DirectoryCatalog"
 import { DEFAULT_FOLDER_VIEW } from "./FolderBrowserPane"
+import { FolderThumbnailStore } from "./FolderThumbnailStore"
+import { useFolderThumbnail } from "./useFolderThumbnail"
+import { useFolderThumbnailPipeline } from "./useFolderThumbnailPipeline"
 
 test("[neoview.folder.thumbnail-response-gui] publishes every visible thumbnail when the backend registration returns without refreshing the directory", async () => {
   const entries = Array.from({ length: 6 }, (_, index) => ({
@@ -63,6 +68,73 @@ test("[neoview.folder.thumbnail-response-gui] publishes every visible thumbnail 
   expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
 })
 
+test("[neoview.folder.thumbnail-self-check-gui] retries a generating visible asset through TanStack Query", async () => {
+  const path = "C:/books/generating.cbz"
+  const thumbnailUrl = "http://127.0.0.1:41000/reader/library/t/generating?token=test"
+  let finishGeneration: (() => void) | undefined
+  const fetch = vi.fn()
+    .mockResolvedValueOnce(new Response(null, { status: 429, headers: { "retry-after": "0" } }))
+    .mockImplementationOnce(() => new Promise<Response>((resolve) => {
+      finishGeneration = () => resolve(new Response(null, { status: 200 }))
+    }))
+  vi.stubGlobal("fetch", fetch)
+  onTestFinished(() => vi.unstubAllGlobals())
+  const store = new FolderThumbnailStore()
+  store.replace(thumbnailSnapshot(path, thumbnailUrl))
+
+  await render(<ThumbnailAvailability store={store} path={path} />)
+
+  await expect.poll(() => fetch).toHaveBeenCalledTimes(2)
+  await expect.poll(() => document.querySelector("[data-thumbnail-availability]")?.textContent).toBe("generating")
+  finishGeneration?.()
+
+  await expect.poll(() => document.querySelector("[data-thumbnail-availability]")?.textContent).toBe("ready")
+})
+
+test("[neoview.folder.thumbnail-self-check-cancel-gui] cancels the query when the visible item unmounts", async () => {
+  const path = "C:/books/leaving.cbz"
+  const thumbnailUrl = "http://127.0.0.1:41000/reader/library/t/leaving?token=test"
+  let probeSignal: AbortSignal | undefined
+  const fetch = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+    probeSignal = init?.signal as AbortSignal
+    return new Promise<Response>((_resolve, reject) => {
+      probeSignal?.addEventListener("abort", () => reject(probeSignal?.reason), { once: true })
+    })
+  })
+  vi.stubGlobal("fetch", fetch)
+  onTestFinished(() => vi.unstubAllGlobals())
+  const store = new FolderThumbnailStore()
+  store.replace(thumbnailSnapshot(path, thumbnailUrl))
+  const rendered = await render(<ThumbnailAvailability store={store} path={path} />)
+  await expect.poll(() => probeSignal).toBeInstanceOf(AbortSignal)
+
+  rendered.unmount()
+
+  expect(probeSignal?.aborted).toBe(true)
+})
+
+test("[neoview.folder.thumbnail-self-check-batch-gui] drains more than one backend registration batch", async () => {
+  const entries = Array.from({ length: 30 }, (_, index) => ({
+    name: `book-${index}.cbz`,
+    path: `C:/books/book-${index}.cbz`,
+    kind: "file" as const,
+    readerSupported: true,
+  }))
+  const page = directoryPage({ entries, total: entries.length })
+  const thumbnails = createPixelThumbnailRegistration()
+  onTestFinished(thumbnails.dispose)
+  const client = { registerLibraryThumbnails: thumbnails.registerLibraryThumbnails } as unknown as ReaderHttpClient
+
+  await render(<ThumbnailDemandHarness client={client} page={page} />)
+
+  await expect.poll(() => thumbnails.registerLibraryThumbnails).toHaveBeenCalledTimes(2)
+  expect(thumbnails.registerLibraryThumbnails.mock.calls.map((call) => call[2].length)).toEqual([24, 6])
+  expect(thumbnails.registerLibraryThumbnails.mock.calls.flatMap((call) => call[2].map((item) => item.path))).toEqual(
+    entries.map((entry) => entry.path),
+  )
+  await expect.poll(() => document.querySelectorAll('[data-thumbnail-availability="ready"]').length).toBe(entries.length)
+})
+
 function directoryPage(overrides: Partial<ReaderDirectoryPageDto> = {}): ReaderDirectoryPageDto {
   return {
     sessionId: "browser-1",
@@ -104,5 +176,38 @@ function createPixelThumbnailRegistration() {
     dispose: () => {
       for (const url of urls) URL.revokeObjectURL(url)
     },
+  }
+}
+
+function ThumbnailAvailability({ store, path }: { store: FolderThumbnailStore; path: string }) {
+  const thumbnail = useFolderThumbnail(store, path)
+  return <span data-thumbnail-availability={thumbnail.availability}>{thumbnail.availability}</span>
+}
+
+function ThumbnailDemandHarness({ client, page }: { client: ReaderHttpClient; page: ReaderDirectoryPageDto }) {
+  const [catalog] = useState(() => createDirectoryCatalog(page))
+  const catalogRef = useRef<DirectoryCatalog | undefined>(catalog)
+  const visibleRangeRef = useRef({ startIndex: 0, endIndex: page.entries.length - 1 })
+  const pipeline = useFolderThumbnailPipeline({
+    client,
+    catalog,
+    catalogRef,
+    thumbnailsVisible: true,
+    viewMode: "cover-list",
+    previewGridEnabled: false,
+    previewCount: 4,
+    visibleRangeRef,
+    selectedPaths: new Set(),
+  })
+  return <>{page.entries.map((entry) => (
+    <ThumbnailAvailability key={entry.path} store={pipeline.thumbnailStore} path={entry.path} />
+  ))}</>
+}
+
+function thumbnailSnapshot(path: string, thumbnailUrl: string) {
+  return {
+    thumbnailUrls: new Map([[path, thumbnailUrl]]),
+    thumbnailUrlSets: new Map([[path, [thumbnailUrl]]]),
+    thumbnailProfiles: new Map(),
   }
 }

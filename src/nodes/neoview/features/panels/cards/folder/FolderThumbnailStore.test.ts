@@ -1,53 +1,176 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { FolderThumbnailStore } from "./FolderThumbnailStore"
+import { FolderThumbnailStore, type FolderThumbnailSnapshot } from "./FolderThumbnailStore"
+
+const FIRST_PATH = "C:/books/first.cbz"
+const SECOND_PATH = "C:/books/second.cbz"
+const MANAGED_URL = "http://127.0.0.1:41000/reader/library/t/first?token=test"
 
 describe("FolderThumbnailStore", () => {
-  it("notifies only the paths whose thumbnail snapshot changed", () => {
+  it("notifies only the paths whose registered thumbnail changed", () => {
     const store = new FolderThumbnailStore()
     const firstListener = vi.fn()
     const secondListener = vi.fn()
-    store.subscribe("C:/books/first.cbz", firstListener)
-    store.subscribe("C:/books/second.cbz", secondListener)
-
-    store.replace({
-      thumbnailUrls: new Map([
-        ["C:/books/first.cbz", "blob:first-v1"],
-        ["C:/books/second.cbz", "blob:second-v1"],
-      ]),
-      thumbnailUrlSets: new Map(),
-      thumbnailProfiles: new Map(),
-    })
+    store.subscribe(FIRST_PATH, firstListener)
+    store.subscribe(SECOND_PATH, secondListener)
+    store.replace(thumbnailSnapshot([
+      [FIRST_PATH, "blob:first-v1"],
+      [SECOND_PATH, "blob:second-v1"],
+    ]))
     firstListener.mockClear()
     secondListener.mockClear()
 
-    store.replace({
-      thumbnailUrls: new Map([
-        ["C:/books/first.cbz", "blob:first-v2"],
-        ["C:/books/second.cbz", "blob:second-v1"],
-      ]),
-      thumbnailUrlSets: new Map(),
-      thumbnailProfiles: new Map(),
-    })
+    store.replace(thumbnailSnapshot([
+      [FIRST_PATH, "blob:first-v2"],
+      [SECOND_PATH, "blob:second-v1"],
+    ]))
 
-    expect(firstListener).toHaveBeenCalledOnce()
+    expect(firstListener).toHaveBeenCalled()
     expect(secondListener).not.toHaveBeenCalled()
-    expect(store.entry("C:/books/first.cbz").thumbnailUrl).toBe("blob:first-v2")
+    expect(store.entry(FIRST_PATH)).toEqual({
+      availability: "ready",
+      revision: 2,
+      thumbnailUrl: "blob:first-v2",
+      thumbnailUrls: ["blob:first-v2"],
+    })
   })
 
-  it("notifies a path when its cached thumbnail is removed", () => {
+  it("micro-batches missing active paths into one registration demand", async () => {
     const store = new FolderThumbnailStore()
-    store.replace({
-      thumbnailUrls: new Map([["C:/books/book.cbz", "blob:book"]]),
-      thumbnailUrlSets: new Map([["C:/books/book.cbz", ["blob:book"]]]),
-      thumbnailProfiles: new Map([["C:/books/book.cbz", "file:cover"]]),
-    })
-    const listener = vi.fn()
-    store.subscribe("C:/books/book.cbz", listener)
+    const demand = vi.fn()
+    store.setDemandHandler(demand)
 
-    store.replace({ thumbnailUrls: new Map(), thumbnailUrlSets: new Map(), thumbnailProfiles: new Map() })
+    const releaseFirst = store.activate(FIRST_PATH)
+    const releaseSecond = store.activate(SECOND_PATH)
+    await flushMicrotasks()
 
-    expect(listener).toHaveBeenCalledOnce()
-    expect(store.entry("C:/books/book.cbz")).toEqual({})
+    expect(demand).toHaveBeenCalledOnce()
+    expect([...demand.mock.calls[0]![0]]).toEqual([FIRST_PATH, SECOND_PATH])
+    expect(demand.mock.calls[0]![1]).toBe(false)
+    expect(store.entry(FIRST_PATH).availability).toBe("checking")
+    releaseFirst()
+    releaseSecond()
+  })
+
+  it("publishes a managed URL as checking until its query reports ready", () => {
+    const store = new FolderThumbnailStore()
+    const paths = new Set([FIRST_PATH])
+    const snapshot = thumbnailSnapshot([[FIRST_PATH, MANAGED_URL]])
+    store.beginRegistration(paths, 1)
+
+    store.completeRegistration(snapshot, paths, paths, 1)
+    const checking = store.entry(FIRST_PATH)
+    expect(checking.availability).toBe("checking")
+
+    store.reportProbeReady(FIRST_PATH, checking.revision)
+    expect(store.entry(FIRST_PATH).availability).toBe("ready")
+  })
+
+  it.each(["stale", "unavailable"])("forces one re-registration for a %s managed asset", async () => {
+    const store = new FolderThumbnailStore()
+    const demand = vi.fn()
+    store.replace(thumbnailSnapshot([[FIRST_PATH, MANAGED_URL]]))
+    store.setDemandHandler(demand)
+    const release = store.activate(FIRST_PATH)
+    const revision = store.entry(FIRST_PATH).revision
+
+    store.reportProbeError(FIRST_PATH, revision, true)
+    await flushMicrotasks()
+
+    expect(demand).toHaveBeenCalledOnce()
+    expect([...demand.mock.calls[0]![0]]).toEqual([FIRST_PATH])
+    expect(demand.mock.calls[0]![1]).toBe(true)
+    expect(store.entry(FIRST_PATH).availability).toBe("checking")
+    release()
+  })
+
+  it("settles as unavailable when a re-registered asset still cannot be served", async () => {
+    const store = new FolderThumbnailStore()
+    const demand = vi.fn()
+    const paths = new Set([FIRST_PATH])
+    const snapshot = thumbnailSnapshot([[FIRST_PATH, MANAGED_URL]])
+    store.replace(snapshot)
+    store.setDemandHandler(demand)
+    const release = store.activate(FIRST_PATH)
+    store.reportProbeError(FIRST_PATH, store.entry(FIRST_PATH).revision, true)
+    await flushMicrotasks()
+
+    store.beginRegistration(paths, 1)
+    store.completeRegistration(snapshot, paths, paths, 1)
+    store.reportProbeError(FIRST_PATH, store.entry(FIRST_PATH).revision, true)
+
+    expect(demand).toHaveBeenCalledOnce()
+    expect(store.entry(FIRST_PATH).availability).toBe("unavailable")
+    release()
+  })
+
+  it("checks an unavailable managed asset again when it re-enters the mounted range", () => {
+    const store = new FolderThumbnailStore()
+    const paths = new Set([FIRST_PATH])
+    const snapshot = thumbnailSnapshot([[FIRST_PATH, MANAGED_URL]])
+    store.replace(snapshot)
+    store.beginRegistration(paths, 1)
+    store.completeRegistration(snapshot, paths, new Set(), 1)
+    const unavailableRevision = store.entry(FIRST_PATH).revision
+
+    const release = store.activate(FIRST_PATH)
+
+    expect(store.entry(FIRST_PATH).availability).toBe("checking")
+    expect(store.entry(FIRST_PATH).revision).toBeGreaterThan(unavailableRevision)
+    release()
+  })
+
+  it("marks paths omitted by the registration response as unavailable", () => {
+    const store = new FolderThumbnailStore()
+    const paths = new Set([FIRST_PATH])
+    store.beginRegistration(paths, 1)
+
+    store.completeRegistration(thumbnailSnapshot([]), paths, new Set(), 1)
+
+    expect(store.entry(FIRST_PATH).availability).toBe("unavailable")
+  })
+
+  it("does not requeue a registration explicitly cancelled by navigation", async () => {
+    const store = new FolderThumbnailStore()
+    const demand = vi.fn()
+    const paths = new Set([FIRST_PATH])
+    store.setDemandHandler(demand)
+    const release = store.activate(FIRST_PATH)
+    await flushMicrotasks()
+    demand.mockClear()
+    store.beginRegistration(paths, 1)
+
+    store.cancelRegistration(paths, 1, false, false)
+    await flushMicrotasks()
+
+    expect(demand).not.toHaveBeenCalled()
+    expect(store.entry(FIRST_PATH).availability).toBe("missing")
+    release()
+  })
+
+  it("invalidates managed readiness when its backend context is released", () => {
+    const store = new FolderThumbnailStore()
+    store.replace(thumbnailSnapshot([[FIRST_PATH, MANAGED_URL]]))
+    const revision = store.entry(FIRST_PATH).revision
+    store.reportProbeReady(FIRST_PATH, revision)
+
+    store.invalidateManagedEntries()
+
+    expect(store.entry(FIRST_PATH).availability).toBe("checking")
+    expect(store.entry(FIRST_PATH).revision).toBeGreaterThan(revision)
+    expect(new FolderThumbnailStore().queryScope).not.toBe(store.queryScope)
   })
 })
+
+function thumbnailSnapshot(urls: readonly (readonly [string, string])[]): FolderThumbnailSnapshot {
+  return {
+    thumbnailUrls: new Map(urls),
+    thumbnailUrlSets: new Map(urls.map(([path, url]) => [path, [url]])),
+    thumbnailProfiles: new Map(),
+  }
+}
+
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve()
+  await Promise.resolve()
+}
