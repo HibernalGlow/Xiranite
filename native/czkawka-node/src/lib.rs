@@ -31,6 +31,7 @@ fn run_controlled<T>(session: &Option<ScanSession>, scan: impl FnOnce(&core::Sca
 pub struct CzkawkaInfo {
     pub api_version: u32,
     pub source_version: String,
+    pub capabilities: Vec<String>,
 }
 
 #[napi]
@@ -39,6 +40,7 @@ pub fn get_czkawka_info() -> CzkawkaInfo {
     CzkawkaInfo {
         api_version: info.api_version,
         source_version: info.source_version.into(),
+        capabilities: info.capabilities.iter().map(ToString::to_string).collect(),
     }
 }
 
