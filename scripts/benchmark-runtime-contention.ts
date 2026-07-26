@@ -38,6 +38,7 @@ const args = parseArgs({
     "memory-guard": { type: "string", default: "on" },
     "cpu-profile": { type: "boolean", default: false },
     "assert-event-loop-p99-ms": { type: "string" },
+    "assert-event-loop-excess-p99-ms": { type: "string" },
     "assert-health-p95-ms": { type: "string" },
   },
   strict: true,
@@ -59,6 +60,7 @@ const options = {
   memoryGuard: onOff(args.values["memory-guard"], "memory-guard"),
   cpuProfile: args.values["cpu-profile"],
   assertEventLoopP99Ms: optionalPositive(args.values["assert-event-loop-p99-ms"], "assert-event-loop-p99-ms"),
+  assertEventLoopExcessP99Ms: optionalPositive(args.values["assert-event-loop-excess-p99-ms"], "assert-event-loop-excess-p99-ms"),
   assertHealthP95Ms: optionalPositive(args.values["assert-health-p95-ms"], "assert-health-p95-ms"),
 }
 
@@ -113,15 +115,19 @@ try {
     existingPolicy: "replace",
     recursive: false,
   }
-  await warmReaderTransform(backend.url, backend.token, opened.sessionId)
-  const warmup = await nodeClient.runNode<XlchemyInput, XlchemyData>("xlchemy", {
-    ...xlInput,
-    paths: [join(inputDirectory, "input-001.jpg")],
-    threads: Math.min(2, options.threads),
-  })
-  if (!warmup.success || warmup.data?.convertedCount !== 1) throw new Error(`XLchemy warmup failed: ${warmup.message}`)
-  await rm(outputDirectory, { recursive: true, force: true })
-  await mkdir(outputDirectory)
+  if (options.scenario !== "xlchemy") {
+    await warmReaderTransform(backend.url, backend.token, opened.sessionId)
+  }
+  if (options.scenario !== "reader") {
+    const warmup = await nodeClient.runNode<XlchemyInput, XlchemyData>("xlchemy", {
+      ...xlInput,
+      paths: [join(inputDirectory, "input-001.jpg")],
+      threads: Math.min(2, options.threads),
+    })
+    if (!warmup.success || warmup.data?.convertedCount !== 1) throw new Error(`XLchemy warmup failed: ${warmup.message}`)
+    await rm(outputDirectory, { recursive: true, force: true })
+    await mkdir(outputDirectory)
+  }
   const baseline = await measureControlPlaneBaseline(
     backend.url,
     options.baselineMs,
@@ -183,6 +189,7 @@ try {
     throw new Error(`XLchemy converted ${xl.result.data?.convertedCount ?? 0}/${options.xlImages}: ${xl.result.data?.errors.join("; ") ?? "missing result data"}`)
   }
   const xlInputMiB = options.xlImages * jpeg.byteLength / MIB
+  const eventLoopP99ExcessMs = round(Math.max(0, eventLoopDelay.p99 - baseline.eventLoopDelayMs.p99))
   const report = {
     benchmark: "single-bun-runtime-contention",
     scenario: options.scenario,
@@ -190,7 +197,7 @@ try {
     runtime: `Bun ${Bun.version}`,
     platform: `${process.platform}-${process.arch}`,
     topology: "isolated in-process HTTP backend; one Bun control plane; native encoder threads admitted by the global weighted scheduler",
-    cacheState: "NeoView transform path, XLchemy runtime, and slimg binding warmed once before sampling; operating-system file cache unspecified",
+    cacheState: `${options.scenario === "combined" ? "NeoView transform and XLchemy encoder paths" : options.scenario === "reader" ? "NeoView transform path" : "XLchemy encoder path"} warmed once before sampling; operating-system file cache unspecified`,
     sample: {
       width: options.width,
       height: options.height,
@@ -204,6 +211,7 @@ try {
     elapsedMs: round(elapsedMs),
     baseline,
     eventLoopDelayMs: eventLoopDelay,
+    eventLoopP99ExcessMs,
     healthScheduledLatencyMs: health,
     reader: reader ?? null,
     xlchemy: xl ? {
@@ -221,8 +229,8 @@ try {
       attribution: "process-wide growth per operation; concurrent same-process allocations are not attributable until compute-process isolation",
     } : null,
   }
-  assertBudgets(report)
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
+  assertBudgets(report)
 } finally {
   if (readerSessionId) {
     await fetch(`${isolated.backend.url}/reader/s/${readerSessionId}`, {
@@ -410,11 +418,15 @@ async function runReaderScenario(
 
 function assertBudgets(report: {
   eventLoopDelayMs: { p99: number }
+  eventLoopP99ExcessMs: number
   healthScheduledLatencyMs: { p95: number }
 }): void {
   const failures: string[] = []
   if (options.assertEventLoopP99Ms !== undefined && report.eventLoopDelayMs.p99 > options.assertEventLoopP99Ms) {
     failures.push(`event-loop p99 ${report.eventLoopDelayMs.p99} ms > ${options.assertEventLoopP99Ms} ms`)
+  }
+  if (options.assertEventLoopExcessP99Ms !== undefined && report.eventLoopP99ExcessMs > options.assertEventLoopExcessP99Ms) {
+    failures.push(`event-loop p99 excess ${report.eventLoopP99ExcessMs} ms > ${options.assertEventLoopExcessP99Ms} ms`)
   }
   if (options.assertHealthP95Ms !== undefined && report.healthScheduledLatencyMs.p95 > options.assertHealthP95Ms) {
     failures.push(`health p95 ${report.healthScheduledLatencyMs.p95} ms > ${options.assertHealthP95Ms} ms`)

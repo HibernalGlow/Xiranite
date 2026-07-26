@@ -16,19 +16,28 @@ const args = parseArgs({
   options: {
     "output-mib": { type: "string", default: "16" },
     iterations: { type: "string", default: "8" },
+    "baseline-ms": { type: "string", default: "500" },
     "assert-event-loop-p99-ms": { type: "string" },
+    "assert-event-loop-excess-p99-ms": { type: "string" },
   },
   strict: true,
   allowPositionals: false,
 })
 const outputMiB = integer(args.values["output-mib"], "output-mib", 1, 256)
 const iterations = integer(args.values.iterations, "iterations", 1, 1_000)
+const baselineMs = integer(args.values["baseline-ms"], "baseline-ms", 100, 60_000)
 const eventLoopBudget = optionalPositive(args.values["assert-event-loop-p99-ms"], "assert-event-loop-p99-ms")
+const eventLoopExcessBudget = optionalPositive(args.values["assert-event-loop-excess-p99-ms"], "assert-event-loop-excess-p99-ms")
 
 const source = repeatingThumbnailBytes(outputMiB * MIB)
 const stored = await encodeLegacyLz4Block(source)
 const warm = await decodeLegacyThumbnailBlob(stored, source.byteLength)
 if (!equalBytes(warm.bytes, source)) throw new Error("LZ4 warmup returned different bytes.")
+
+const baselineSampler = new EventLoopDelaySampler(2)
+baselineSampler.start()
+await Bun.sleep(baselineMs)
+const baselineEventLoopDelayMs = await baselineSampler.stop()
 
 const eventLoop = new EventLoopDelaySampler(2)
 const processResources = new ProcessResourceSampler(5)
@@ -46,6 +55,7 @@ for (let iteration = 0; iteration < iterations; iteration += 1) {
 const eventLoopDelay = await eventLoop.stop()
 const bunProcess = processResources.stop()
 const elapsedMs = durations.reduce((sum, value) => sum + value, 0)
+const eventLoopP99ExcessMs = round(Math.max(0, eventLoopDelay.p99 - baselineEventLoopDelayMs.p99))
 const report = {
   benchmark: "neoview-lz4-thumbnail-js",
   runtime: `Bun ${Bun.version}`,
@@ -57,12 +67,17 @@ const report = {
     sha256: createHash("sha256").update(source).digest("hex"),
   },
   decodeMs: summarize(durations),
+  baseline: { durationMs: baselineMs, eventLoopDelayMs: baselineEventLoopDelayMs },
   eventLoopDelayMs: eventLoopDelay,
+  eventLoopP99ExcessMs,
   throughputMiBPerSecond: round(decodedBytes / MIB / (elapsedMs / 1_000)),
   resources: { bunProcess },
 }
 if (eventLoopBudget !== undefined && report.eventLoopDelayMs.p99 > eventLoopBudget) {
   throw new Error(`LZ4 event-loop p99 ${report.eventLoopDelayMs.p99} ms > ${eventLoopBudget} ms.`)
+}
+if (eventLoopExcessBudget !== undefined && report.eventLoopP99ExcessMs > eventLoopExcessBudget) {
+  throw new Error(`LZ4 event-loop p99 excess ${report.eventLoopP99ExcessMs} ms > ${eventLoopExcessBudget} ms.`)
 }
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
 
