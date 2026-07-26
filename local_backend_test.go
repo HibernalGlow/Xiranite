@@ -102,6 +102,12 @@ func TestBackendGatewayPreservesJSONRequestBodies(t *testing.T) {
 			path:   "/reader/config",
 			body:   `{"viewDefaults":{"fitMode":"fit-width"}}`,
 		},
+		{
+			name:   "save melodeck metadata",
+			method: http.MethodPut,
+			path:   "/melodeck/metadata",
+			body:   `{"path":"D:/Music/demo.flac","lyricsHydrated":true}`,
+		},
 	}
 
 	for _, test := range tests {
@@ -158,7 +164,7 @@ func TestBackendGatewayLeavesWailsRuntimeAndAssetsAlone(t *testing.T) {
 			t.Fatalf("expected %s to remain owned by Wails", path)
 		}
 	}
-	for _, path := range []string{"/health", "/reader/s/1/page/2", "/workspace/snapshot", "/config"} {
+	for _, path := range []string{"/health", "/reader/s/1/page/2", "/workspace/snapshot", "/config", "/melodeck/library", "/melodeck/metadata"} {
 		if !isBackendGatewayPath(path) {
 			t.Fatalf("expected %s to be owned by backend gateway", path)
 		}
