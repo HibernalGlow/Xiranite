@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
+import { useState, type ComponentType, type KeyboardEvent, type MouseEvent, type ReactNode } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { useTranslation } from "react-i18next"
 import { getRuntimeConnectionInfo } from "@/backend/runtimeConnectionInfo"
@@ -159,26 +159,14 @@ export function TopBar() {
   const activeCustomTheme = activeSelection.kind === "custom" ? getActiveCustomTheme(state.customThemes, activeSelection.name) : null
   const activePreset = THEME_PRESETS.find(p => p.key === activePresetKey) ?? THEME_PRESETS[0]
   const activeThemeLabel = activeCustomTheme?.name ?? t(activePreset.labelKey)
-  const activeCustomColors = activeCustomTheme
-    ? (activeScheme === "dark" ? activeCustomTheme.cssVars.dark : activeCustomTheme.cssVars.light) ?? activeCustomTheme.cssVars.light
-    : null
-  const activeThemeColors = activeCustomColors
+  const activeThemeColors = activeCustomTheme
     ? [
-      activeCustomColors.background ?? activeCustomTheme?.cssVars.light.background,
-      activeCustomColors.primary ?? activeCustomTheme?.cssVars.light.primary,
-      activeCustomColors.secondary ?? activeCustomTheme?.cssVars.light.secondary,
-      activeCustomColors.accent ?? activeCustomTheme?.cssVars.light.accent,
+      (activeScheme === "dark" ? activeCustomTheme.cssVars.dark : activeCustomTheme.cssVars.light)?.background ?? activeCustomTheme.cssVars.light.background,
+      (activeScheme === "dark" ? activeCustomTheme.cssVars.dark : activeCustomTheme.cssVars.light)?.primary ?? activeCustomTheme.cssVars.light.primary,
+      (activeScheme === "dark" ? activeCustomTheme.cssVars.dark : activeCustomTheme.cssVars.light)?.secondary ?? activeCustomTheme.cssVars.light.secondary,
+      (activeScheme === "dark" ? activeCustomTheme.cssVars.dark : activeCustomTheme.cssVars.light)?.accent ?? activeCustomTheme.cssVars.light.accent,
     ].filter(Boolean)
     : activePreset.palette
-  const titlebarPaletteColor = activeCustomTheme
-    ? activeCustomColors?.accent
-      ?? activeCustomColors?.["--accent"]
-      ?? activeCustomTheme.cssVars.light.accent
-      ?? activeCustomTheme.cssVars.light["--accent"]
-      ?? activeCustomTheme.cssVars.theme?.accent
-      ?? activeCustomTheme.cssVars.theme?.["--accent"]
-      ?? "var(--accent)"
-    : activePreset.palette[3] ?? "var(--accent)"
 
   // 切换预设时自动同步颜色模式
   function selectPreset(key: AppTheme) {
@@ -223,15 +211,10 @@ export function TopBar() {
   return (
     <header
       onDoubleClick={handleTitleBarDoubleClick}
-      data-titlebar-palette-slot="4"
-      style={{
-        "--xiranite-titlebar-palette-color": titlebarPaletteColor,
-        backgroundColor: "color-mix(in oklch, var(--xiranite-titlebar-palette-color) 32%, var(--background))",
-      } as CSSProperties}
       className={cn(
         "xiranite-app-region-drag",
         "xiranite-topbar",
-        "relative z-[1500] flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 overflow-visible border-b border-border bg-background px-4 transition-colors duration-300",
+        "relative z-[1500] flex h-12 min-w-0 flex-shrink-0 select-none items-center gap-3 overflow-visible border-b border-border bg-background px-4",
       )}
     >
       {/* ── 品牌 + 工作区切换入口 ── */}
