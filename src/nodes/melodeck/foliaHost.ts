@@ -8,6 +8,7 @@ import {
 import { parseLyricsByFormat, type LyricData, type LyricParseFormat } from "@hibernalglow/folia-player/parser"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
 import {
+  isMelodeckDatabaseMissingFileError,
   loadMelodeckDatabaseMetadata,
   melodeckDatabaseCoverUrl,
   saveMelodeckDatabaseMetadata,
@@ -16,12 +17,14 @@ import {
 import { listLocalFiles, pickLocalPaths, resolveLocalAudioTracks, type LocalFileEntry } from "@/backend/localFilesClient"
 import { createLogger } from "@/lib/logger"
 import type { XiraniteFoliaTrack } from "./foliaTypes"
+import { reportMissingMelodeckTrack } from "./missingTrackEvents"
 
 const LYRIC_FORMATS = ["lrc", "vtt", "ttml", "yrc", "qrc", "krc"] as const
 const OPTIONAL_FILE_EXTENSIONS = [...LYRIC_FORMATS.map((format) => `.${format}`), ".jpg", ".jpeg", ".png"]
 const optionalFilesByDirectory = new Map<string, Map<string, LocalFileEntry>>()
 const optionalFilesInFlight = new Map<string, Promise<Map<string, LocalFileEntry>>>()
 const logger = createLogger("melodeck.metadata")
+const MISSING_LOCAL_TRACK = Symbol("missing-local-track")
 
 export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
   async scanLibraryRoots(roots, signal) {
@@ -78,7 +81,8 @@ export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
 
   async hydrateTrackPreview(track, signal) {
     if (!track.path) return {}
-    const cached = await loadCachedMetadata(track.path, signal)
+    const cached = await loadCachedMetadata(track.id, track.path, signal)
+    if (cached === MISSING_LOCAL_TRACK) return {}
     if (cached) return fromDatabaseMetadata(cached)
 
     const metadata = await parseMetadata(track, signal)
@@ -96,7 +100,8 @@ export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
 
   async hydrateTrack(track, signal) {
     if (!track.path) return {}
-    const cached = await loadCachedMetadata(track.path, signal)
+    const cached = await loadCachedMetadata(track.id, track.path, signal)
+    if (cached === MISSING_LOCAL_TRACK) return {}
     if (cached?.lyricsHydrated) return fromDatabaseMetadata(cached)
     if (cached) {
       const lyrics = await readLyrics(track.path, signal) ?? cached.lyrics ?? null
@@ -129,11 +134,19 @@ async function parseMetadata(track: FoliaTrack, signal: AbortSignal): Promise<Em
   return metadata
 }
 
-async function loadCachedMetadata(path: string, signal: AbortSignal): Promise<MelodeckDatabaseMetadata | null> {
+async function loadCachedMetadata(
+  trackId: string,
+  path: string,
+  signal: AbortSignal,
+): Promise<MelodeckDatabaseMetadata | null | typeof MISSING_LOCAL_TRACK> {
   try {
     return await loadMelodeckDatabaseMetadata(path, signal)
   } catch (error) {
     if (signal.aborted) throw error
+    if (isMelodeckDatabaseMissingFileError(error)) {
+      reportMissingMelodeckTrack(trackId)
+      return MISSING_LOCAL_TRACK
+    }
     logger.warn("Metadata database read failed; falling back to file extraction", error)
     return null
   }

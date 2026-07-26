@@ -50,6 +50,24 @@ export interface SaveMelodeckMetadataInput {
   cover?: Blob | null
 }
 
+export class MelodeckDatabaseRequestError extends Error {
+  readonly status: number
+  readonly detail: string
+
+  constructor(status: number, detail: string) {
+    super(detail || `Melo deck database service returned ${status}.`)
+    this.name = "MelodeckDatabaseRequestError"
+    this.status = status
+    this.detail = detail
+  }
+}
+
+export function isMelodeckDatabaseMissingFileError(error: unknown): boolean {
+  return error instanceof MelodeckDatabaseRequestError
+    && error.status === 404
+    && /\bENOENT\b/i.test(error.detail)
+}
+
 export async function loadMelodeckDatabaseLibrary(signal?: AbortSignal): Promise<MelodeckDatabaseLibrary> {
   const response = await melodeckRequest("/melodeck/library", { signal })
   const body = await response.json() as Partial<MelodeckDatabaseLibrary>
@@ -127,7 +145,7 @@ async function melodeckRequest(
   const response = await fetch(url.href, { ...init, cache: "no-store", headers })
   if (response.ok) return response
   const detail = await response.text().catch(() => "")
-  throw new Error(detail || `Melo deck database service returned ${response.status}.`)
+  throw new MelodeckDatabaseRequestError(response.status, detail)
 }
 
 function isDatabaseTrack(value: unknown): value is MelodeckDatabaseTrack {

@@ -19,7 +19,6 @@ import {
   FoliaPlayerProvider,
   FoliaRemoteSurface,
   FoliaUnifiedPanel,
-  useFoliaPlayer,
   type FoliaTrack,
   type FoliaPlayerPreferences,
 } from "@hibernalglow/folia-player"
@@ -66,6 +65,7 @@ import { loadAndMigrateMelodeckLibrary, saveMelodeckLibrary } from "@/nodes/melo
 import { useFoliaHostTheme } from "@/nodes/melodeck/foliaTheme"
 import { useWorkspaceStore } from "@/store/workspaceStore"
 import type { XiraniteFoliaTrack } from "@/nodes/melodeck/foliaTypes"
+import { MelodeckFoliaBridge } from "@/nodes/melodeck/MelodeckFoliaBridge"
 
 type DockMode = "bottom" | "floating" | "fullscreen"
 type MelodeckIslandVariant = "full" | "mini"
@@ -375,38 +375,15 @@ export function WorkspaceMelodeckProvider({ children }: { children: ReactNode })
         onActiveTrackChange={setActiveTrackId}
         enabled={playerEngine === "folia"}
       >
-        <MelodeckFoliaBridge enabled={playerEngine === "folia"} />
+        <MelodeckFoliaBridge
+          enabled={playerEngine === "folia"}
+          setPlaybackControls={setPlaybackControls}
+          setPlaybackState={setPlaybackState}
+        />
         {children}
       </FoliaPlayerProvider>
     </MelodeckContext.Provider>
   )
-}
-
-function MelodeckFoliaBridge({ enabled }: { enabled: boolean }) {
-  const { setPlaybackControls, setPlaybackState } = useMelodeck()
-  const { actions, snapshot, tracks } = useFoliaPlayer()
-
-  useEffect(() => {
-    if (!enabled) return
-    setPlaybackState({
-      hasTrack: Boolean(snapshot.activeTrack),
-      isPlaying: snapshot.isPlaying,
-      trackCount: tracks.length,
-      currentTime: snapshot.currentTime,
-      duration: snapshot.duration,
-      artworkUrl: snapshot.activeTrack?.coverUrl,
-      trackName: snapshot.activeTrack?.title,
-      supportLine: snapshot.currentLyric || snapshot.activeTrack?.artist,
-    })
-    setPlaybackControls({
-      playPrevious: actions.previous,
-      playNext: actions.next,
-      togglePlay: () => void actions.toggle(),
-      seekTo: actions.seek,
-    })
-    return () => setPlaybackControls(null)
-  }, [actions, enabled, setPlaybackControls, setPlaybackState, snapshot, tracks.length])
-  return null
 }
 
 export function WorkspaceMelodeckTopBarSlot() {
