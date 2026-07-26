@@ -6,6 +6,10 @@ import {
   type CzkawkaActivityLogEntry,
   type CzkawkaActivityLogInput,
 } from "./activity-log.js"
+import {
+  nextCzkawkaCacheRegenerationState,
+  type CzkawkaCacheRegenerationState,
+} from "./cache-regeneration.js"
 import type { CzkawkaAction, CzkawkaData, CzkawkaInput, CzkawkaSelectionStrategy, CzkawkaTool } from "./core.js"
 import type { CzkawkaFilterState } from "./filters.js"
 import {
@@ -27,12 +31,14 @@ export interface CzkawkaWorkbenchState {
   selectionHistoriesByTool: Partial<Record<CzkawkaTool, CzkawkaSelectionHistory>>
   filterStatesByTool: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
   activityLog: CzkawkaActivityLogEntry[]
+  cacheRegeneration: CzkawkaCacheRegenerationState
 }
 
 export interface CzkawkaWorkbenchInitialState {
   result?: CzkawkaData | null
   filterStatesByTool?: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
   activityLog?: CzkawkaActivityLogEntry[]
+  cacheRegeneration?: CzkawkaCacheRegenerationState
 }
 
 export interface CzkawkaWorkbenchPersistencePatch {
@@ -43,6 +49,7 @@ export interface CzkawkaWorkbenchPersistencePatch {
   operation?: CzkawkaData | null
   filterStatesByTool?: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
   activityLog?: CzkawkaActivityLogEntry[]
+  cacheRegeneration?: CzkawkaCacheRegenerationState
 }
 
 export interface CzkawkaWorkbenchPort {
@@ -58,6 +65,7 @@ export interface CzkawkaWorkbenchPort {
 export interface CzkawkaScanMessages {
   noRoots: string
   noRuntime: string
+  cacheRegeneration: string
   starting: string
   stopping: string
 }
@@ -107,6 +115,7 @@ export function createCzkawkaWorkbench(
     selectionHistoriesByTool: {},
     filterStatesByTool: initial.filterStatesByTool ?? {},
     activityLog: initial.activityLog ?? [],
+    cacheRegeneration: initial.cacheRegeneration ?? {},
   }
   const store = createStore({
     context: initialState,
@@ -235,6 +244,12 @@ export function createCzkawkaWorkbench(
       if (!port.run) {
         fail(tool, "system", messages.noRuntime)
         return
+      }
+      const cacheRegeneration = nextCzkawkaCacheRegenerationState(getState().cacheRegeneration, tool)
+      if (cacheRegeneration) {
+        replace((current) => ({ ...current, cacheRegeneration }))
+        port.persist({ cacheRegeneration })
+        addActivityLog(tool, { kind: "system", level: "warning", message: messages.cacheRegeneration })
       }
       replace((current) => ({ ...current, running: true }))
       resetSelectedPaths(tool)

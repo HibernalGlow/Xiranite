@@ -5,7 +5,7 @@ import { applyCzkawkaFilters, normalizeCzkawkaFilterState } from "@xiranite/node
 import { normalizeCzkawkaCardLayout, type CzkawkaCardLayout } from "@xiranite/node-czkawka/card-layout"
 import { createDefaultCzkawkaFloatingPanel, normalizeCzkawkaFloatingPanel, type CzkawkaFloatingPanelState, type CzkawkaFloatingViewport } from "@xiranite/node-czkawka/floating-panel"
 import { createCzkawkaOperationInput } from "@xiranite/node-czkawka/tool-options"
-import { createCzkawkaWorkbench, type CzkawkaWorkbench } from "@xiranite/node-czkawka/workbench"
+import { createCzkawkaWorkbench, type CzkawkaWorkbench, type CzkawkaWorkbenchPersistencePatch } from "@xiranite/node-czkawka/workbench"
 import { normalizeCzkawkaWorkspaceLayout, type CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
 import { smartSelect, type CzkawkaAction, type CzkawkaInput, type CzkawkaTool } from "@xiranite/node-czkawka/core"
 
@@ -31,6 +31,16 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
     if (host.state?.patchData) host.state.patchData(next)
     else host.patchData(compId, next)
   }, [compId, host])
+  const persistWorkbenchPatch = useCallback((next: CzkawkaWorkbenchPersistencePatch) => {
+    const { cacheRegeneration, ...cardPatch } = next
+    patch({
+      ...cardPatch,
+      ...(cacheRegeneration ? {
+        czkawkaCacheSourceVersion: cacheRegeneration.sourceVersion,
+        czkawkaCacheRegenerationNoticeSourceVersion: cacheRegeneration.noticeSourceVersion,
+      } : {}),
+    })
+  }, [patch])
 
   useEffect(() => {
     const migration = czkawkaStateMigrationPatch(rawData)
@@ -43,11 +53,15 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
       result: data.result,
       filterStatesByTool: data.filterStatesByTool,
       activityLog: data.activityLog,
-    }, { persist: patch })
+      cacheRegeneration: {
+        sourceVersion: data.czkawkaCacheSourceVersion,
+        noticeSourceVersion: data.czkawkaCacheRegenerationNoticeSourceVersion,
+      },
+    }, { persist: persistWorkbenchPatch })
   }
   const workbench = workbenchRef.current
   workbench.updatePort({
-    persist: patch,
+    persist: persistWorkbenchPatch,
     run: host.runner?.run ?? host.actions?.run,
     cancel: host.runner?.cancelCurrent ?? host.actions?.cancelCurrent,
   })
@@ -149,6 +163,7 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
     await workbench.executeScan(tool, scanInput(tool, data), {
       noRoots: t("errors.noRoots", "请至少添加一个包含目录。"),
       noRuntime: t("errors.noRuntime", "当前环境没有本地运行能力。"),
+      cacheRegeneration: t("notices.cacheRegeneration", "Czkawka 12 将为本次扫描重新生成不兼容的缓存项。"),
       starting: t("progress.starting", "正在启动 Czkawka 扫描。"),
       stopping: t("progress.stopping", "正在请求停止 Czkawka 扫描..."),
     })

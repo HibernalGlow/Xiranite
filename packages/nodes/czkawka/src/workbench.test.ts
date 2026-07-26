@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest"
 
 import type { CzkawkaData, CzkawkaInput } from "./core.js"
+import { CZKAWKA_CACHE_SOURCE_VERSION } from "./cache-regeneration.js"
 import { createCzkawkaWorkbench, type CzkawkaWorkbenchPersistencePatch } from "./workbench.js"
 
 const data: CzkawkaData = {
@@ -21,6 +22,7 @@ const data: CzkawkaData = {
 const messages = {
   noRoots: "Add a directory.",
   noRuntime: "Runtime unavailable.",
+  cacheRegeneration: "Czkawka will regenerate incompatible cache entries.",
   starting: "Starting scan.",
   stopping: "Stopping scan.",
 }
@@ -66,6 +68,30 @@ describe("Czkawka workbench", () => {
     expect(run).not.toHaveBeenCalled()
     expect(patches.at(-1)).toEqual({ activityLog: expect.any(Array) })
     expect(workbench.getState().activityLog.at(-1)).toMatchObject({ level: "error", message: messages.noRoots })
+  })
+
+  test("records one cache regeneration notice before the first affected scan", async () => {
+    const { workbench, patches } = createTestWorkbench()
+
+    await workbench.executeScan("duplicate-files", { action: "scan", tool: "duplicate-files", includedDirectories: ["D:/library"] }, messages)
+    await workbench.executeScan("similar-images", { action: "scan", tool: "similar-images", includedDirectories: ["D:/photos"] }, messages)
+
+    expect(patches).toContainEqual({
+      cacheRegeneration: {
+        sourceVersion: CZKAWKA_CACHE_SOURCE_VERSION,
+        noticeSourceVersion: CZKAWKA_CACHE_SOURCE_VERSION,
+      },
+    })
+    expect(workbench.getState().activityLog.filter((entry) => entry.message === messages.cacheRegeneration)).toHaveLength(1)
+  })
+
+  test("does not record a cache regeneration notice for unaffected tools", async () => {
+    const { workbench, patches } = createTestWorkbench()
+
+    await workbench.executeScan("empty-files", { action: "scan", tool: "empty-files", includedDirectories: ["D:/library"] }, messages)
+
+    expect(patches.some((patch) => patch.cacheRegeneration !== undefined)).toBe(false)
+    expect(workbench.getState().activityLog.some((entry) => entry.message === messages.cacheRegeneration)).toBe(false)
   })
 
   test("keeps live operations behind an explicit selected-path input and clears selection only after success", async () => {

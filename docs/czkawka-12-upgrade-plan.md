@@ -30,6 +30,7 @@ flowchart LR
 - Framework-neutral TypeScript owns product semantics, defaults, validation, capabilities, migration, scan orchestration, result state, filtering, sorting, selection, analysis, preview state, and operation plans.
 - React owns rendering, lifecycle binding, component composition, and direct interaction handling only.
 - Node-API remains the primary runtime. The installed official CLI is an explicit fallback and diagnostic path, not the default backend.
+- GUI is the only 12.0 delivery target. Existing CLI and OpenTUI paths remain available for compatibility, but new 12.0 feature parity, UI work, and release validation for them are intentionally deferred.
 - `@xiranite/node-czkawka` remains the reusable headless package. Do not create another workspace package during this upgrade.
 - Production source files must remain below 1000 physical lines; 800 lines is the warning threshold.
 - Upgrades remain manually initiated. Do not add Dependabot, scheduled workflows, automated pull requests, or automatic binary commits for this plan.
@@ -38,7 +39,7 @@ flowchart LR
 
 1. Preserve all current 10.0 user-visible behavior while establishing a narrow, testable upstream adapter.
 2. Upgrade the core to 12.0 without exposing upstream Rust types to Node-API or application TypeScript.
-3. Retain current GUI, CLI, and OpenTUI contracts and migrate persisted state without deleting unknown or legacy fields.
+3. Retain the GUI contract and migrate persisted state without deleting unknown or legacy fields. Preserve existing CLI and OpenTUI behavior where the shared core permits it, without making new 12.0 parity a delivery requirement.
 4. Expose the useful 11.0 and 12.0 scan capabilities in staged feature slices.
 5. Add the three missing tools, but keep destructive execution behind Xiranite's operation, audit, confirmation, and recovery boundaries.
 6. Move stateful application logic out of React without adding measurable scan or rendering overhead.
@@ -315,7 +316,7 @@ Exit criteria:
 
 - `czkawka_core` imports are confined to the upstream adapter.
 - React reads snapshots and dispatches commands; it does not implement scan or operation state transitions.
-- GUI, CLI, and OpenTUI consume the same normalized TypeScript model.
+- GUI consumes the normalized TypeScript model. Existing CLI and OpenTUI continue to use it where practical, but their 12.0 feature parity is deferred.
 - Current 10.0 behavior and baseline performance remain intact.
 - Every touched production source file passes `bun run check:source-size`.
 
@@ -344,7 +345,7 @@ Exit criteria:
 
 ### Phase 3: Expose non-destructive 11/12 scan capabilities
 
-Implement independent vertical slices, each containing domain types, capability gating, native mapping, GUI controls, CLI/OpenTUI parity, migration/defaults, and tests.
+Implement independent GUI vertical slices, each containing domain types, capability gating, native mapping, GUI controls, migration/defaults, and tests. CLI/OpenTUI parity is deferred.
 
 Recommended order:
 
