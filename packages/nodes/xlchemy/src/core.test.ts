@@ -155,17 +155,54 @@ describe("xlchemy core contract", () => {
       efuPasses += 1
       for (let index = 0; index < 2_500; index += 1) yield `/bulk/${index}.png`
     }
-    const events: Array<{ data?: unknown }> = []
+    const events: Array<{ data?: unknown; message?: string; progress?: number }> = []
     const result = await runXlchemy(normalizeXlchemyInput({ action: "plan", paths: [], efuFiles: ["/lists/large.efu"], format: "WebP" }), runtime, (event) => events.push(event))
     const snapshots = events.flatMap((event) => (event.data as { kind?: string; result?: { files: unknown[] } } | undefined)?.kind === "xlchemy-live-result" ? [event.data as { result: { files: unknown[] } }] : [])
     expect(result.success).toBe(true)
-    expect(result.data).toMatchObject({ inputCount: 2_500, detailsTruncated: true })
+    expect(result.data).toMatchObject({
+      inputCount: 2_500,
+      detailsTruncated: true,
+      inputAnalysis: {
+        totalFiles: 2_500,
+        totalSize: 250_000,
+        minSize: 100,
+        medianSize: 100,
+        maxSize: 100,
+        formats: [{ key: "png", count: 2_500, size: 250_000 }],
+        folders: [{ key: "bulk", count: 2_500, size: 250_000 }],
+        sampled: true,
+      },
+    })
     expect(result.data?.files).toHaveLength(1_000)
     expect(result.data?.files.at(-1)?.sourcePath).toBe("/bulk/2499.png")
     expect(efuPasses).toBe(1)
     expect(snapshots.length).toBeLessThan(10)
     expect(Math.max(...snapshots.map((snapshot) => snapshot.result.files.length))).toBeLessThanOrEqual(20)
     expect(events.some((event) => typeof event.progress === "number" && event.progress > 0 && event.progress < 100)).toBe(true)
+    expect(events.map((event) => event.message)).toEqual(expect.arrayContaining([
+      expect.stringMatching(/^Task configured: plan;/),
+      expect.stringMatching(/^Bounded state: final details 1000,/),
+      expect.stringMatching(/^EFU stream opened: large\.efu;/),
+      expect.stringMatching(/^EFU stream completed: large\.efu; read 2500, accepted 2500, filtered 0/),
+      expect.stringMatching(/^Result state: retained 1000\/2500/),
+    ]))
+  })
+
+  test("bounds input analysis folder state while retaining exact totals", async () => {
+    const runtime = fakeRuntime()
+    const originalPathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => /^\/many\/folder-\d+\/image\.png$/.test(path)
+      ? { path, exists: true, isFile: true, isDirectory: false, size: 10, atimeMs: 0, mtimeMs: 0 }
+      : originalPathInfo(path)
+    runtime.streamEfuPaths = async function* () {
+      for (let index = 0; index < 100; index += 1) yield `/many/folder-${index}/image.png`
+    }
+
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "plan", paths: [], efuFiles: ["/lists/folders.efu"], format: "WebP", excludedFormats: [] }), runtime)
+
+    expect(result.data?.inputAnalysis).toMatchObject({ totalFiles: 100, totalSize: 1_000, sampled: true })
+    expect(result.data?.inputAnalysis?.folders).toHaveLength(64)
+    expect(result.data?.inputAnalysis?.folders).toContainEqual({ key: "其他", count: 37, size: 370 })
   })
 
   test("starts ordered EFU conversion before EOF without a counting pass", async () => {

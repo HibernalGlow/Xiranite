@@ -33,7 +33,6 @@ import { DataAnalysis } from "./DataAnalysis"
 import { FilenameRuleEditor } from "./FilenameRuleEditor"
 import { ClipboardConvertDialog, type ClipboardConversionResult, type ClipboardImageData } from "./ClipboardConvertDialog"
 import { XlchemyFormatField, XlchemySliderField } from "./ConversionControls"
-import { analyzeEfuUrl } from "./efu"
 import { FloatingWindowCaptionControls, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 
 export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>) {
@@ -93,21 +92,10 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
     })
     if (!picked?.length) return
     const efuFiles = [...new Set([...(dataRef.current.efuFiles ?? []), ...picked])]
-    const startMessage = `正在流式分析 ${picked.length} 个 EFU 文件…`
-    patch({ efuFiles, progressText: startMessage, logs: [...(dataRef.current.logs ?? []), startMessage].slice(-120) })
-    for (const path of picked) {
-      try {
-        const url = host.localFiles?.getUrl?.(path)
-        if (!url) throw new Error("当前宿主不能读取本地 EFU。")
-        const analysis = await analyzeEfuUrl(url)
-        const efuAnalysisByPath = { ...(dataRef.current.efuAnalysisByPath ?? {}), [path]: analysis }
-        const message = `已分析 ${baseName(path)}：${analysis.totalFiles.toLocaleString()} 个图片条目；路径明细未载入界面内存。`
-        patch({ efuAnalysisByPath, progressText: message, logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
-      } catch (error) {
-        const message = `${baseName(path)} 分析失败：${error instanceof Error ? error.message : String(error)}；转换时仍会由后端流式读取。`
-        patch({ progressText: message, logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
-      }
-    }
+    const efuAnalysisByPath = { ...(dataRef.current.efuAnalysisByPath ?? {}) }
+    for (const path of picked) delete efuAnalysisByPath[path]
+    const message = `已登记 ${picked.length} 个 EFU 文件；任务开始后由后端单遍流式读取。`
+    patch({ efuFiles, efuAnalysisByPath, progressText: message, logs: [...(dataRef.current.logs ?? []), message].slice(-120) })
   }
 
   async function pickInputFiles() {
@@ -252,7 +240,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
           const currentFile = /^Converting (.+)\.$/.exec(event.message)?.[1]
           const liveResult = readLiveResult(event.data)
           const progressCount = readProgressCount(event.data)
-          patch({ progress: event.progress ?? dataRef.current.progress ?? 0, progressText: event.message, ...(progressCount ? { processedCount: progressCount.completed, runInputCount: progressCount.total } : liveResult ? { processedCount: liveResult.inputCount } : {}), ...(currentFile ? { currentFile } : {}), ...(liveResult ? { result: liveResult } : {}), logs: [...(dataRef.current.logs ?? []), `${new Date().toTimeString().slice(0, 8)} ${event.message ?? "Progress"}`].slice(-120) })
+          patch({ progress: event.progress ?? dataRef.current.progress ?? 0, progressText: event.message, ...(progressCount ? { processedCount: progressCount.completed, runInputCount: progressCount.total } : liveResult ? { processedCount: liveResult.inputCount } : {}), ...(currentFile ? { currentFile } : {}), ...(liveResult ? { result: liveResult } : {}) })
         }
         if (event.type === "log") patch({ logs: [...(dataRef.current.logs ?? []), `${new Date().toTimeString().slice(0, 8)} ${event.message}`].slice(-120) })
       }) as NodeRunResult<XlchemyData>
@@ -686,7 +674,7 @@ function animationDetectionFormats(data: XlchemyCardState): NonNullable<XlchemyI
 }
 
 function hasInputSources(props: Pick<ViewProps, "data" | "paths">) { return props.paths.length > 0 || Boolean(props.data.efuFiles?.length) }
-function inputSourceLabel(props: Pick<ViewProps, "data" | "paths">) { const efuCount = props.data.efuFiles?.length ?? 0, efuItems = selectedEfuAnalyses(props.data).reduce((sum, item) => sum + item.totalFiles, 0); return efuCount ? `${(props.paths.length + efuItems).toLocaleString()} 项 · ${efuCount} EFU` : `${props.paths.length} 项` }
+function inputSourceLabel(props: Pick<ViewProps, "data" | "paths">) { const efuCount = props.data.efuFiles?.length ?? 0; return efuCount ? `${props.paths.length ? `${props.paths.length.toLocaleString()} 项 · ` : ""}${efuCount} EFU` : `${props.paths.length} 项` }
 function playCompletionTone(volume: number) { const AudioContextCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext; if (!AudioContextCtor) return; const context = new AudioContextCtor(), oscillator = context.createOscillator(), gain = context.createGain(); oscillator.frequency.value = 660; gain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)) * 0.12, context.currentTime); gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22); oscillator.connect(gain).connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.22); oscillator.addEventListener("ended", () => void context.close()) }
 function getHostData(host: NodeComponentProps<XlchemyCardState>["host"], compId: string): XlchemyCardState { return host.state?.getData?.() ?? host.getData<XlchemyCardState>(compId) ?? {} }
 
