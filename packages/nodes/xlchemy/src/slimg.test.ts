@@ -17,7 +17,7 @@ describe("slimg Node-API batching", () => {
     ])
 
     expect(calls).toHaveLength(1)
-    expect(calls[0]).toMatchObject({ format: "avif", quality: 60, jobs: 12, overwrite: true })
+    expect(calls[0]).toMatchObject({ format: "avif", quality: 60, jobs: 6, overwrite: true })
     expect(calls[0]?.files).toEqual([
       { sourcePath: "/images/a.png", outputPath: "/images/a.avif" },
       { sourcePath: "/images/b.png", outputPath: "/images/b.avif" },
@@ -25,10 +25,10 @@ describe("slimg Node-API batching", () => {
     ])
   })
 
-  test("bounds the measured Rayon oversubscription by host capacity", () => {
-    expect(slimgWorkerJobs(15, 16)).toBe(24)
-    expect(slimgWorkerJobs(64, 16)).toBe(24)
-    expect(slimgWorkerJobs(1, 16)).toBe(2)
+  test("does not exceed the globally granted CPU budget or host capacity", () => {
+    expect(slimgWorkerJobs(15, 16)).toBe(15)
+    expect(slimgWorkerJobs(64, 16)).toBe(16)
+    expect(slimgWorkerJobs(1, 16)).toBe(1)
   })
 
   test("rejects only the failed file in a native batch", async () => {
