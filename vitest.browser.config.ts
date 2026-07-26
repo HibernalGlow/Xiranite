@@ -10,9 +10,11 @@ export default defineConfig(async (environment) => {
     ? await viteConfig(environment)
     : await viteConfig
   const chromeExecutablePath = resolveChromeExecutablePath()
+  const browserPlugins = (resolvedViteConfig.plugins ?? []).flat().filter((plugin) => plugin?.name !== "rolldown-plugin-transform-imports")
 
   return {
     ...resolvedViteConfig,
+    plugins: browserPlugins,
     test: {
       include: ["src/**/*.browser.test.{ts,tsx}"],
       exclude: ["**/dist/**", "**/artifacts/**", "**/build/**", "**/vendor/**", "**/ref/**"],
