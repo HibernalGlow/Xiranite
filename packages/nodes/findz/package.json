@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": false,
-  "description": "Search files and archive members with SQL-like filters.",
+  "description": "Incremental ZIP and CBZ library indexing with manual image-header analysis.",
   "license": "UNLICENSED",
   "bin": {
     "xfindz": "./dist/cli.js"
@@ -40,12 +40,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
+    "smoke:worker": "bun run build && bun scripts/smoke-worker.ts",
     "test": "vitest run src --exclude src/Tui.bun.test.tsx --exclude src/cli.visual.test.ts"
   },
   "dependencies": {
+    "@parcel/watcher": "^2.5.6",
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
-    "@xiranite/contract": "workspace:*"
+    "@xiranite/contract": "workspace:*",
+    "@xiranite/findz-native": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",

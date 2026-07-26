@@ -1,0 +1,206 @@
+package main
+
+import (
+	"archive/zip"
+	"bytes"
+	"image"
+	"image/color"
+	"image/png"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestFindzIndexesDuplicateMembersAndCorruptArchives(t *testing.T) {
+	root := t.TempDir()
+	createZipFixture(t, filepath.Join(root, "valid.cbz"), []zipFixture{
+		{name: "pages/cover.png", contents: pngFixture(t, 8, 4)},
+		{name: "pages/cover.png", contents: pngFixture(t, 4, 8)},
+	})
+	if err := os.WriteFile(filepath.Join(root, "broken.zip"), []byte("not a ZIP"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	service, runtime := openTestLibrary(t, root)
+	task, err := service.startScan(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, task.ID)
+
+	archives, err := queryArchives(runtime, archiveQueryParams{LibraryID: runtime.id, Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(archives.Items) != 2 {
+		t.Fatalf("expected 2 archives, got %d", len(archives.Items))
+	}
+	var valid archiveRow
+	for _, archive := range archives.Items {
+		if archive.RelativePath == "valid.cbz" {
+			valid = archive
+		}
+	}
+	if valid.ID == 0 || valid.MemberCount != 2 {
+		t.Fatalf("expected duplicate ZIP entries to remain indexed, got %#v", valid)
+	}
+	members, err := queryMembers(runtime, memberQueryParams{LibraryID: runtime.id, ArchiveID: valid.ID, Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(members.Items) != 2 {
+		t.Fatalf("expected 2 duplicate members, got %d", len(members.Items))
+	}
+}
+
+func TestFindzManualAnalysisReadsBoundedImageMetadata(t *testing.T) {
+	root := t.TempDir()
+	createZipFixture(t, filepath.Join(root, "sample.zip"), []zipFixture{
+		{name: "cover.png", contents: pngFixture(t, 12, 7)},
+	})
+	service, runtime := openTestLibrary(t, root)
+	scan, err := service.startScan(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, scan.ID)
+
+	analysis, err := service.startAnalysis(runtime, analysisScope{Kind: "all"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, analysis.ID)
+	archives, err := queryArchives(runtime, archiveQueryParams{LibraryID: runtime.id, Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	members, err := queryMembers(runtime, memberQueryParams{LibraryID: runtime.id, ArchiveID: archives.Items[0].ID, Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	member := members.Items[0]
+	if member.ActualFormat != "png" || member.Width == nil || member.Height == nil || *member.Width != 12 || *member.Height != 7 {
+		t.Fatalf("unexpected analyzed member: %#v", member)
+	}
+	if member.MetadataStatus != "complete" || member.BytesPerMegapixel == nil {
+		t.Fatalf("image analysis did not complete: %#v", member)
+	}
+}
+
+func TestFindzFiltersArchivesByTreemapPathPrefix(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "series"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	createZipFixture(t, filepath.Join(root, "series", "volume.cbz"), []zipFixture{{name: "cover.txt", contents: []byte("series")}})
+	createZipFixture(t, filepath.Join(root, "other.cbz"), []zipFixture{{name: "cover.txt", contents: []byte("other")}})
+	service, runtime := openTestLibrary(t, root)
+	scan, err := service.startScan(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, scan.ID)
+
+	archives, err := queryArchives(runtime, archiveQueryParams{LibraryID: runtime.id, PathPrefix: "series", Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(archives.Items) != 1 || archives.Items[0].RelativePath != "series/volume.cbz" {
+		t.Fatalf("unexpected prefix-filter result: %#v", archives.Items)
+	}
+}
+
+func TestFindzArchivePaginationKeepsTheFilteredTotal(t *testing.T) {
+	root := t.TempDir()
+	createZipFixture(t, filepath.Join(root, "first.cbz"), []zipFixture{{name: "cover.txt", contents: []byte("first")}})
+	createZipFixture(t, filepath.Join(root, "second.cbz"), []zipFixture{{name: "cover.txt", contents: []byte("second")}})
+	service, runtime := openTestLibrary(t, root)
+	scan, err := service.startScan(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, scan.ID)
+
+	archives, err := queryArchives(runtime, archiveQueryParams{LibraryID: runtime.id, Page: pageRequest{Limit: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if archives.Total != 2 || len(archives.Items) != 1 || archives.NextCursor == "" {
+		t.Fatalf("unexpected paged archives: %#v", archives)
+	}
+}
+
+func openTestLibrary(t *testing.T, root string) (*findzService, *libraryRuntime) {
+	t.Helper()
+	runtime, err := openLibraryDatabase(libraryOpenParams{
+		LibraryID:    "test-library",
+		Root:         root,
+		DatabasePath: filepath.Join(t.TempDir(), "findz.sqlite"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = runtime.db.Close() })
+	return newFindzService(), runtime
+}
+
+func waitForTask(t *testing.T, runtime *libraryRuntime, taskID string) taskRecord {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		task, err := readTask(runtime, taskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if isTerminalTaskStatus(task.Status) {
+			if task.Status == "failed" {
+				t.Fatalf("task %s failed: %s", task.ID, task.Message)
+			}
+			return task
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("task %s did not finish", taskID)
+	return taskRecord{}
+}
+
+type zipFixture struct {
+	name     string
+	contents []byte
+}
+
+func createZipFixture(t *testing.T, path string, files []zipFixture) {
+	t.Helper()
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer := zip.NewWriter(file)
+	for _, fixture := range files {
+		entry, err := writer.Create(fixture.name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := entry.Write(fixture.contents); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func pngFixture(t *testing.T, width int, height int) []byte {
+	t.Helper()
+	imageValue := image.NewRGBA(image.Rect(0, 0, width, height))
+	imageValue.Set(0, 0, color.RGBA{R: 64, G: 128, B: 255, A: 255})
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, imageValue); err != nil {
+		t.Fatal(err)
+	}
+	return buffer.Bytes()
+}

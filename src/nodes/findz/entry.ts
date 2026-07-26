@@ -4,35 +4,18 @@ import { z } from "zod"
 import { Component } from "./Component"
 import type { FindzCardState } from "./types"
 
-/**
- * Runtime validation schema for persisted findz card state. Uses `.passthrough()`
- * so legacy fields (e.g. `result`) do not disappear during the migration period.
- * The precise `FindzCardState` type stays hand-maintained in `./types`; this
- * schema is the runtime guard wired into `host.state.getData()`.
- */
 export const findzDataSchema = z
   .object({
-    pathText: z.string().optional(),
-    where: z.string().optional(),
-    noArchive: z.boolean().optional(),
-    followSymlinks: z.boolean().optional(),
-    withImageMeta: z.boolean().optional(),
-    longFormat: z.boolean().optional(),
-    continueOnError: z.boolean().optional(),
-    maxResults: z.number().optional(),
-    maxReturnFiles: z.number().optional(),
-    groupBy: z.string().optional(),
-    refine: z.string().optional(),
+    libraryRoot: z.string().optional(),
+    libraryId: z.string().optional(),
+    pathPrefix: z.string().optional(),
+    text: z.string().optional(),
+    rules: z.unknown().optional(),
     sortBy: z.string().optional(),
     sortDesc: z.boolean().optional(),
-    outputFormat: z.string().optional(),
-    outputPath: z.string().optional(),
-    archiveSeparator: z.string().optional(),
-    printZero: z.boolean().optional(),
-    logs: z.array(z.string()).optional(),
-    phase: z.string().optional(),
-    progress: z.number().optional(),
-    progressText: z.string().optional(),
+    areaBy: z.string().optional(),
+    selectedArchiveId: z.number().int().positive().optional(),
+    taskId: z.string().optional(),
   })
   .passthrough()
 

@@ -1,0 +1,30 @@
+{
+  "name": "@xiranite/findz-native",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Typed Bun FFI client for the Findz Go index core.",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:tsc": "tsc -p tsconfig.json",
+    "build:native": "bun scripts/build-native.ts",
+    "smoke:native": "bun run build && bun scripts/smoke-native.ts"
+  },
+  "dependencies": {
+    "@xiranite/native-loader": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/node": "^24.12.0",
+    "fflate": "^0.8.2",
+    "typescript": "^7.0.2"
+  }
+}

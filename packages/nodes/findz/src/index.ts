@@ -6,9 +6,9 @@ export const def = {
   name: "Findz",
   version: "0.1.0",
   category: "file",
-  description: "Search files and archive members with SQL-like filters.",
+  description: "Incrementally index ZIP and CBZ libraries, then analyze image headers on demand.",
   icon: "Search",
-  keywords: ["search", "archive", "filter", "find", "zip"],
+  keywords: ["search", "archive", "zip", "cbz", "analysis", "treemap"],
 } satisfies NodeDef
 
 const entry = {
