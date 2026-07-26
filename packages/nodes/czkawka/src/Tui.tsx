@@ -30,7 +30,7 @@ import {
   type CzkawkaTool,
 } from "./core.js"
 import { czkawkaToolLabel } from "./interaction.js"
-import { getCzkawkaToolOptions } from "./tool-options.js"
+import { getCzkawkaTerminalToolOptions } from "./tool-options.js"
 import { buildCzkawkaAnalysis } from "./analysis.js"
 import { formatCzkawkaActivityMessage } from "./activity-log.js"
 
@@ -304,8 +304,8 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
                   <Field id="filterText" />
                 </>
               ) : setupTab === "algorithm" ? (
-                getCzkawkaToolOptions(tool).length ? (
-                  getCzkawkaToolOptions(tool).map((option) => <Field key={option.id} id={option.id} />)
+                getCzkawkaTerminalToolOptions(tool).length ? (
+                  getCzkawkaTerminalToolOptions(tool).map((option) => <Field key={option.id} id={option.id} />)
                 ) : (
                   <text fg={theme.colors.mutedForeground}>
                     {l("当前工具没有专属算法参数。", "This scanner has no algorithm-specific options.")}

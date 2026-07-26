@@ -331,6 +331,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       bannerWidthPercent: 70,
       hoverPreviewEnabled: true,
       hoverPreviewDelayMs: 500,
+      titleWrap: { compact: false, "cover-list": false, "mosaic-list": false, details: false, "cover-grid": true, "mosaic-grid": false },
       typeFilter: "library",
       showHiddenFolders: false,
       hideMissingEfuEntries: false,
@@ -1208,6 +1209,29 @@ describe("parseNeoviewRuntimeConfig", () => {
       patch: { folderView: { tagDisplay: { showTags: false, maxTags: 8 } } },
       tomlPatch: { folder: { tag_display: { show_tags: false, max_tags: 8 } } },
     })
+  })
+
+  it("[neoview.folder.title-wrap-config] persists a separate title policy for every File Card view", () => {
+    expect(parseNeoviewRuntimeConfig({ folder: { title_wrap: {
+      compact: true,
+      cover_list: true,
+      mosaic_list: false,
+      details: true,
+      cover_grid: false,
+      mosaic_grid: true,
+    } } }).folderView.titleWrap).toEqual({
+      compact: true,
+      "cover-list": true,
+      "mosaic-list": false,
+      details: true,
+      "cover-grid": false,
+      "mosaic-grid": true,
+    })
+    expect(parseNeoviewFolderViewPatch({ folderView: { titleWrap: { "cover-grid": false, "mosaic-grid": true } } })).toEqual({
+      patch: { folderView: { titleWrap: { "cover-grid": false, "mosaic-grid": true } } },
+      tomlPatch: { folder: { title_wrap: { cover_grid: false, mosaic_grid: true } } },
+    })
+    expect(() => parseNeoviewFolderViewPatch({ folderView: { titleWrap: { unknown: true } } })).toThrow("unsupported view modes")
   })
 
   it("[neoview.color-filter.layout] keeps the legacy filter visible in the control panel without a session", () => {

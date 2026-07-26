@@ -158,6 +158,21 @@ describe("Melodeck config migration", () => {
     expect(config.surfaces?.follow_fullscreen_with_floating).toBe(true)
   })
 
+  it("restores a valid floating size and clamps malformed dimensions", async () => {
+    expect(DEFAULT_MELODECK_CONFIG.floating_size).toEqual({ width: 384, height: 680 })
+    backend.getNodeConfigFromBackend.mockResolvedValue({
+      config: { floating_size: { width: 2_400.4, height: 260 } },
+      path: "config.toml",
+    })
+
+    const config = await loadMelodeckConfig()
+
+    expect(config.floating_size).toEqual({ width: 960, height: 420 })
+    expect(backend.saveNodeConfigToBackend).toHaveBeenCalledWith("melodeck", expect.objectContaining({
+      floating_size: { width: 960, height: 420 },
+    }))
+  })
+
   it("defaults startup playback to on and preserves an explicit opt-out", async () => {
     expect(DEFAULT_MELODECK_CONFIG.auto_start).toBe(true)
     backend.getNodeConfigFromBackend.mockResolvedValue({

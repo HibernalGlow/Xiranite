@@ -8,6 +8,7 @@ type SmokeMarker = {
   nodeId?: string
   snapshotId?: string
   backendBaseUrl?: string
+  backendToken?: string
   windowCreated?: boolean
 }
 
@@ -49,6 +50,17 @@ try {
   const body = await health.json() as { nodeId?: string; snapshotId?: string }
   if (!health.ok || body.nodeId !== nodeId || body.snapshotId !== snapshotId) {
     throw new Error("Standalone node executable backend handshake did not match the snapshot.")
+  }
+  if (nodeId === "neoview") {
+    if (!marker.backendToken) throw new Error("NeoView executable smoke marker did not expose its isolated backend token.")
+    const capability = await fetch(new URL("/reader/upscale-capabilities", marker.backendBaseUrl), {
+      headers: { "x-xiranite-token": marker.backendToken },
+    })
+    const capabilityText = await capability.text()
+    const capabilityBody = parseJson(capabilityText) as { available?: boolean; models?: unknown[] } | undefined
+    if (!capability.ok || capabilityBody?.available !== true || !capabilityBody.models?.length) {
+      throw new Error(`NeoView executable super-resolution runtime is unavailable (${capability.status}): ${capabilityText}`)
+    }
   }
 
   secondary = Bun.spawn([exe], { env: environment, stdout: "ignore", stderr: "ignore" })
@@ -97,6 +109,14 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
 
 async function sleep(ms: number): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, ms))
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown
+  } catch {
+    return undefined
+  }
 }
 
 async function removeSmokeRoot(root: string): Promise<void> {

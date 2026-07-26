@@ -777,7 +777,7 @@ function TopBarActionDock({
         <TopBarDockIcon
           label={registryLabel}
           onSelect={onOpenRegistry}
-          className="z-40 text-foreground shadow-sm"
+          className="z-50 text-foreground shadow-sm"
         >
           <Plus className="h-4 w-4" />
         </TopBarDockIcon>
@@ -785,7 +785,7 @@ function TopBarActionDock({
           label={devRuntimeLabel}
           onSelect={onOpenDevRuntime}
           className={cn(
-            "z-30 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1",
+            "z-40 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1",
             devRuntimeActive ? "text-primary hover:text-primary" : undefined,
           )}
         >
@@ -802,7 +802,7 @@ function TopBarActionDock({
         <TopBarDockIcon
           label={operationsLabel}
           onSelect={onOpenOperations}
-          className="z-20 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
+          className="z-30 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
         >
           <span className="relative grid place-items-center">
             <Activity className="h-4 w-4" />
@@ -816,14 +816,14 @@ function TopBarActionDock({
         <TopBarDockIcon
           label={deletionsLabel}
           onSelect={onOpenDeletions}
-          className="z-10 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
+          className="z-20 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
         >
           <Trash2 className="h-4 w-4" />
         </TopBarDockIcon>
         <TopBarDockIcon
           label={historyLabel}
           onSelect={onOpenHistory}
-          className="z-0 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
+          className="z-10 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1"
         >
           <History className="h-4 w-4" />
         </TopBarDockIcon>
@@ -831,7 +831,7 @@ function TopBarActionDock({
           label={dashboardLabel}
           onSelect={onToggleDashboard}
           className={cn(
-            "-z-10 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1",
+            "z-0 -mr-2.5 shadow-xs group-hover:mr-1 group-focus-within:mr-1",
             dashboardActive ? "text-primary hover:text-primary" : undefined,
           )}
         >

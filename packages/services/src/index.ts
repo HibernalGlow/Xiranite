@@ -47,6 +47,7 @@ export interface NodeRunner {
     control?: NodeOperationControl,
     context?: NodeOperationContext,
   ): Promise<NodeRunResultDTO<TData>>
+  getNodeRuntimeInfo?<TInfo = unknown>(nodeId: string): Promise<TInfo>
 }
 
 export interface NodeOperationControl {
@@ -480,6 +481,11 @@ export class NodeRunnerService {
     } finally {
       if (monitor !== undefined) clearInterval(monitor)
     }
+  }
+
+  async getNodeRuntimeInfo<TInfo = unknown>(nodeId: string): Promise<TInfo> {
+    if (!this.runner.getNodeRuntimeInfo) throw new Error(`Node runtime info is not available for ${nodeId}.`)
+    return await this.runner.getNodeRuntimeInfo<TInfo>(nodeId)
   }
 
   private pushEvent(state: NodeOperationState, event: NodeRunEventDTO): void {

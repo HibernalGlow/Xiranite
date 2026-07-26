@@ -24,6 +24,7 @@ export type CzkawkaCheckMethod = "name" | "size" | "size-and-name" | "hash"
 export type CzkawkaHashType = "crc32" | "xxh3" | "blake3"
 export type CzkawkaImageHashAlgorithm = "mean" | "gradient" | "blockhash" | "vert-gradient" | "double-gradient" | "median"
 export type CzkawkaImageResizeAlgorithm = "lanczos3" | "gaussian" | "catmull-rom" | "triangle" | "nearest"
+export type CzkawkaImageGeometricInvariance = "off" | "mirror-flip" | "mirror-flip-rotate-90"
 export type CzkawkaMusicCheckType = "tags" | "fingerprint"
 export type CzkawkaSort = "path" | "size" | "modified"
 export type CzkawkaSelectionStrategy = "all-except-first" | "all-except-newest" | "all-except-oldest" | "all-except-biggest" | "all-except-smallest"
@@ -67,6 +68,8 @@ export interface CzkawkaInput {
   similarImagesHashAlgorithm?: CzkawkaImageHashAlgorithm
   similarImagesResizeAlgorithm?: CzkawkaImageResizeAlgorithm
   similarImagesIgnoreSameSize?: boolean
+  similarImagesIgnoreSameResolution?: boolean
+  similarImagesGeometricInvariance?: CzkawkaImageGeometricInvariance
   similarImagesFolderThreshold?: number
   similarVideosIgnoreSameSize?: boolean
   similarVideosSkipForward?: number
@@ -126,6 +129,7 @@ export interface NativeMediaResult {
 export type CzkawkaNormalizedInput = Omit<Required<CzkawkaInput>, "similarVideosCropDetect">
 
 export interface CzkawkaRuntime {
+  capabilities?: readonly string[]
   scanDuplicates: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeDuplicateResult>
   scanBasic: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeBasicResult>
   scanMedia: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeMediaResult>
@@ -141,6 +145,12 @@ export interface CzkawkaRuntime {
   relativeDirectoryFromRoot: (path: string) => string
   isCancelled?: () => boolean
   waitWhilePaused?: () => Promise<void>
+}
+
+export interface CzkawkaRuntimeInfo {
+  apiVersion: number
+  sourceVersion: string
+  capabilities: readonly string[]
 }
 
 export interface CzkawkaNativeProgress { stage: string; stageIndex: number; stageCount: number; entriesChecked: number; entriesTotal: number; bytesChecked: number; bytesTotal: number }
@@ -238,6 +248,8 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInp
     similarImagesHashAlgorithm: oneOf(input.similarImagesHashAlgorithm, ["mean", "gradient", "blockhash", "vert-gradient", "double-gradient", "median"] as const, "mean"),
     similarImagesResizeAlgorithm: oneOf(input.similarImagesResizeAlgorithm, ["lanczos3", "gaussian", "catmull-rom", "triangle", "nearest"] as const, "lanczos3"),
     similarImagesIgnoreSameSize: input.similarImagesIgnoreSameSize ?? false,
+    similarImagesIgnoreSameResolution: input.similarImagesIgnoreSameResolution ?? false,
+    similarImagesGeometricInvariance: oneOf(input.similarImagesGeometricInvariance, ["off", "mirror-flip", "mirror-flip-rotate-90"] as const, "off"),
     similarImagesFolderThreshold: clamp(input.similarImagesFolderThreshold, 1, 10_000, 2),
     similarVideosIgnoreSameSize: input.similarVideosIgnoreSameSize ?? false,
     similarVideosSkipForward: clamp(input.similarVideosSkipForward, 0, 3600, 15),
@@ -301,6 +313,8 @@ export async function runCzkawka(input: CzkawkaInput, runtime: CzkawkaRuntime, o
 async function scan(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
   if (!value.includedDirectories.length) return fail(value, "Add at least one included directory.")
   if (value.minimumFileSize > value.maximumFileSize) return fail(value, "Minimum file size cannot exceed maximum file size.")
+  const missingCapabilities = missingNativeCapabilities(value, runtime.capabilities)
+  if (missingCapabilities.length) return fail(value, `Czkawka binding is missing: ${missingCapabilities.join(", ")}.`)
   await runtime.waitWhilePaused?.()
   if (runtime.isCancelled?.()) return cancelled(value)
   onEvent({ type: "progress", progress: 2, message: `Starting ${value.tool}.` })
@@ -330,6 +344,17 @@ async function scan(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEv
   onEvent({ type: "progress", progress: stopped ? 99 : 100, message: stopped ? `Stopped ${value.tool}.` : `Finished ${value.tool}.` })
   const data = summarize(value, groups, messages, stopped)
   return { success: !stopped, message: stopped ? `Stopped ${value.tool}; retained ${data.fileCount} partial item(s).` : `Found ${data.fileCount} item(s) in ${data.groupCount} group(s).`, data }
+}
+
+function missingNativeCapabilities(value: CzkawkaNormalizedInput, capabilities: readonly string[] | undefined): string[] {
+  const required: string[] = []
+  if (value.tool === "similar-images") {
+    if (value.similarImagesIgnoreSameResolution) required.push("similar-images.same-resolution-exclusion")
+    if (value.similarImagesGeometricInvariance !== "off") required.push("similar-images.geometric-invariance")
+  }
+  if (!required.length) return []
+  const available = new Set(capabilities ?? [])
+  return required.filter((capability) => !available.has(capability))
 }
 
 function nativeProgressPercent(progress: CzkawkaNativeProgress): number { const stages = Math.max(1, progress.stageCount), stage = Math.max(0, Math.min(stages - 1, progress.stageIndex)), fraction = progress.entriesTotal > 0 ? progress.entriesChecked / progress.entriesTotal : progress.bytesTotal > 0 ? progress.bytesChecked / progress.bytesTotal : 0; return Math.max(3, Math.min(98, Math.round(((stage + Math.max(0, Math.min(1, fraction))) / stages) * 95 + 3))) }

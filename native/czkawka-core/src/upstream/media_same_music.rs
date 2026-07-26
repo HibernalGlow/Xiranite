@@ -1,5 +1,7 @@
 use czkawka_core::common::model::CheckingMethod;
-use czkawka_core::tools::same_music::{MusicEntry, MusicSimilarity, SameMusic, SameMusicParameters};
+use czkawka_core::tools::same_music::{
+    MusicEntry, MusicSimilarity, SameMusic, SameMusicParameters,
+};
 
 use super::common::search_with_control;
 use super::media::{configure_tool, result};
@@ -61,7 +63,10 @@ pub(crate) fn scan(
         tool.get_duplicated_music_entries()
             .iter()
             .map(|group| MediaGroup {
-                entries: group.iter().map(|entry| media_entry(entry, false)).collect(),
+                entries: group
+                    .iter()
+                    .map(|entry| media_entry(entry, false))
+                    .collect(),
             })
             .collect()
     };
@@ -83,7 +88,10 @@ fn media_entry(entry: &MusicEntry, is_reference: bool) -> MediaEntry {
         genre: Some(entry.genre.clone()),
         bitrate: Some(entry.bitrate),
         is_reference,
-        detail: Some(format!("{} 路 {} 路 {} kbps", entry.year, entry.genre, entry.bitrate)),
+        detail: Some(format!(
+            "{} 路 {} 路 {} kbps",
+            entry.year, entry.genre, entry.bitrate
+        )),
         proper_extension: None,
     }
 }

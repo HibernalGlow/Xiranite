@@ -7,7 +7,7 @@ import { createDefaultCzkawkaFloatingPanel, normalizeCzkawkaFloatingPanel, type 
 import { createCzkawkaOperationInput } from "@xiranite/node-czkawka/tool-options"
 import { createCzkawkaWorkbench, type CzkawkaWorkbench, type CzkawkaWorkbenchPersistencePatch } from "@xiranite/node-czkawka/workbench"
 import { normalizeCzkawkaWorkspaceLayout, type CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
-import { smartSelect, type CzkawkaAction, type CzkawkaInput, type CzkawkaTool } from "@xiranite/node-czkawka/core"
+import { smartSelect, type CzkawkaAction, type CzkawkaInput, type CzkawkaRuntimeInfo, type CzkawkaTool } from "@xiranite/node-czkawka/core"
 
 import { CZKAWKA_STATE_VERSION, czkawkaStateMigrationPatch, normalizeCzkawkaCardState } from "./state"
 import type { CzkawkaCardState, CzkawkaSimilarImagesViewMode } from "./types"
@@ -82,6 +82,16 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
   const [floatingAnalysisPanelState, setFloatingAnalysisPanelState] = useState<CzkawkaFloatingPanelState>(() => data.floatingAnalysisPanel ?? createDefaultCzkawkaFloatingPanel(floatingViewport))
   const [filterNow] = useState(Date.now)
   const [similarImagesViewMode, setSimilarImagesViewModeState] = useState<CzkawkaSimilarImagesViewMode>(() => data.similarImagesViewMode ?? "images")
+  const [nativeCapabilities, setNativeCapabilities] = useState<ReadonlySet<string>>(() => new Set())
+
+  useEffect(() => {
+    let active = true
+    void host.runner?.getInfo?.<CzkawkaRuntimeInfo>("czkawka").then(
+      (info) => { if (active) setNativeCapabilities(new Set(info.capabilities)) },
+      () => { if (active) setNativeCapabilities(new Set()) },
+    )
+    return () => { active = false }
+  }, [host.runner])
 
   const result = workbench.getResult(tool, data.result)
   const selectedPaths = workbench.getSelectedPaths(tool)
@@ -185,6 +195,7 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
   return {
     data,
     tool,
+    nativeCapabilities,
     result,
     filterState,
     filterResult,

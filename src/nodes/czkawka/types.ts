@@ -1,4 +1,4 @@
-import type { CzkawkaCheckMethod, CzkawkaConflictPolicy, CzkawkaData, CzkawkaDeleteMode, CzkawkaExportScope, CzkawkaHashType, CzkawkaImageHashAlgorithm, CzkawkaImageResizeAlgorithm, CzkawkaMusicCheckType, CzkawkaSort, CzkawkaTool, CzkawkaVideoCropDetect } from "@xiranite/node-czkawka/core"
+import type { CzkawkaCheckMethod, CzkawkaConflictPolicy, CzkawkaData, CzkawkaDeleteMode, CzkawkaExportScope, CzkawkaHashType, CzkawkaImageGeometricInvariance, CzkawkaImageHashAlgorithm, CzkawkaImageResizeAlgorithm, CzkawkaMusicCheckType, CzkawkaSort, CzkawkaTool, CzkawkaVideoCropDetect } from "@xiranite/node-czkawka/core"
 import type { CzkawkaFilterState, CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
 import type { CzkawkaSelectionAssistantConfig } from "@xiranite/node-czkawka/selection-assistant"
 import type { CzkawkaActivityLogEntry } from "@xiranite/node-czkawka/activity-log"
@@ -44,6 +44,8 @@ export interface CzkawkaCardState {
   similarImagesHashAlgorithm?: CzkawkaImageHashAlgorithm
   similarImagesResizeAlgorithm?: CzkawkaImageResizeAlgorithm
   similarImagesIgnoreSameSize?: boolean
+  similarImagesIgnoreSameResolution?: boolean
+  similarImagesGeometricInvariance?: CzkawkaImageGeometricInvariance
   similarImagesFolderThreshold?: string
   similarImagesViewMode?: CzkawkaSimilarImagesViewMode
   similarVideosIgnoreSameSize?: boolean

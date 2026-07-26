@@ -1403,6 +1403,7 @@ function runtimeConfig(): ReaderRuntimeConfigDto {
       homePath: "",
       viewMode: "compact",
       previewCount: 4,
+      titleWrap: { compact: false, "cover-list": false, "mosaic-list": false, details: false, "cover-grid": true, "mosaic-grid": false },
       showHiddenFolders: false,
       confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
       penetration: { enabled: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },

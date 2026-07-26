@@ -1464,6 +1464,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     "bannerWidthPercent",
     "hoverPreviewEnabled",
     "hoverPreviewDelayMs",
+    "titleWrap",
     "typeFilter",
     "showHiddenFolders",
     "hideMissingEfuEntries",
@@ -1531,6 +1532,24 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   if (folder.hideMissingEfuEntries !== undefined) {
     patch.folderView.hideMissingEfuEntries = optionalBoolean(folder.hideMissingEfuEntries, "reader folder view patch.hideMissingEfuEntries")
     toml.hide_missing_efu_entries = patch.folderView.hideMissingEfuEntries
+  }
+  if (folder.titleWrap !== undefined) {
+    const titleWrap = requireRecord(folder.titleWrap, "reader folder view patch.titleWrap")
+    const unknownModes = Object.keys(titleWrap).filter((key) => !Models.NEOVIEW_FOLDER_VIEW_MODES.includes(key as Models.NeoviewFolderViewMode))
+    if (unknownModes.length) throw new Error(`reader folder view patch.titleWrap contains unsupported view modes: ${unknownModes.join(", ")}.`)
+    const titleWrapPatch: Partial<Models.NeoviewFolderTitleWrapConfig> = {}
+    const titleWrapToml: Record<string, boolean> = {}
+    for (const viewMode of Models.NEOVIEW_FOLDER_VIEW_MODES) {
+      const value = titleWrap[viewMode]
+      if (value === undefined) continue
+      const enabled = optionalBoolean(value, `reader folder view patch.titleWrap.${viewMode}`)
+      if (enabled === undefined) continue
+      titleWrapPatch[viewMode] = enabled
+      titleWrapToml[Models.NEOVIEW_FOLDER_TITLE_WRAP_TOML_KEYS[viewMode]] = enabled
+    }
+    if (!Object.keys(titleWrapPatch).length) throw new Error("reader folder view patch.titleWrap must change at least one view mode.")
+    patch.folderView.titleWrap = titleWrapPatch
+    toml.title_wrap = titleWrapToml
   }
   if (folder.confirmations !== undefined) {
     const confirmations = requireRecord(folder.confirmations, "reader folder view patch.confirmations")
@@ -1776,6 +1795,7 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Mode
   if (!value) return Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG
   const details = optionalRecord(value.details, "[nodes.neoview.folder.details]")
   const search = optionalRecord(value.search, "[nodes.neoview.folder.search]")
+  const titleWrap = optionalRecord(value.title_wrap ?? value.titleWrap, "[nodes.neoview.folder.title_wrap]")
   const emptyArea = optionalRecord(value.empty_area, "[nodes.neoview.folder.empty_area]")
   const tree = optionalRecord(value.tree_view, "[nodes.neoview.folder.tree_view]")
   const tabs = optionalRecord(value.tabs, "[nodes.neoview.folder.tabs]")
@@ -1825,6 +1845,7 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Mode
       value.hover_preview_delay_ms === undefined
         ? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.hoverPreviewDelayMs
         : parseFolderHoverPreviewDelay(value.hover_preview_delay_ms, "[nodes.neoview.folder].hover_preview_delay_ms"),
+    titleWrap: parseFolderTitleWrapConfig(titleWrap),
     typeFilter:
       optionalEnum(value.type_filter, "[nodes.neoview.folder].type_filter", Models.NEOVIEW_FOLDER_TYPE_FILTERS) ??
       Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.typeFilter,
@@ -3812,6 +3833,18 @@ function parseFolderHoverPreviewDelay(value: unknown, path: string): Models.Neov
     throw new Error(`${path} must be one of: ${Models.NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS.join(", ")}.`)
   }
   return delay as Models.NeoviewFolderHoverPreviewDelay
+}
+
+function parseFolderTitleWrapConfig(value: Record<string, unknown> | undefined): Models.NeoviewFolderTitleWrapConfig {
+  return Object.fromEntries(Models.NEOVIEW_FOLDER_VIEW_MODES.map((viewMode) => {
+    const tomlKey = Models.NEOVIEW_FOLDER_TITLE_WRAP_TOML_KEYS[viewMode]
+    const camelKey = viewMode.replace(/-([a-z])/gu, (_, letter: string) => letter.toUpperCase())
+    const enabled = optionalBoolean(
+      value?.[tomlKey] ?? value?.[viewMode] ?? value?.[camelKey],
+      `[nodes.neoview.folder.title_wrap].${tomlKey}`,
+    )
+    return [viewMode, enabled ?? Models.DEFAULT_NEOVIEW_FOLDER_TITLE_WRAP[viewMode]]
+  })) as Models.NeoviewFolderTitleWrapConfig
 }
 
 function optionalRecord(value: unknown, path: string): Record<string, unknown> | undefined {

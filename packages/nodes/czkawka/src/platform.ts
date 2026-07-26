@@ -3,10 +3,10 @@ import { randomUUID } from "node:crypto"
 import { cp, lstat, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, join, parse, relative } from "node:path"
 import { promisify } from "node:util"
-import { cancelCzkawkaScan, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
+import { cancelCzkawkaScan, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { toNativeVideoCropDetect } from "./similar-video-crop.js"
-import type { CzkawkaNativeProgress, CzkawkaNormalizedInput, CzkawkaRuntime } from "./core.js"
+import type { CzkawkaNativeProgress, CzkawkaNormalizedInput, CzkawkaRuntime, CzkawkaRuntimeInfo } from "./core.js"
 
 type NormalizedInput = CzkawkaNormalizedInput
 const execFileAsync = promisify(execFile)
@@ -77,6 +77,8 @@ export function toMediaScanOptions(input: NormalizedInput): MediaScanOptions {
     imageHashAlgorithm: input.similarImagesHashAlgorithm,
     imageResizeAlgorithm: input.similarImagesResizeAlgorithm,
     imageIgnoreSameSize: input.similarImagesIgnoreSameSize,
+    imageIgnoreSameResolution: input.similarImagesIgnoreSameResolution,
+    imageGeometricInvariance: input.similarImagesGeometricInvariance,
     videoIgnoreSameSize: input.similarVideosIgnoreSameSize,
     videoSkipForward: input.similarVideosSkipForward,
     videoHashDuration: input.similarVideosHashDuration,
@@ -103,8 +105,15 @@ export interface CzkawkaRuntimeContext {
   fileOperations?: FileOperationExecutor
 }
 
+export function getNodeRuntimeInfo(): CzkawkaRuntimeInfo {
+  const info = getCzkawkaInfo()
+  return { apiVersion: info.apiVersion, sourceVersion: info.sourceVersion, capabilities: [...info.capabilities] }
+}
+
 export function createNodeCzkawkaRuntime(context: CzkawkaRuntimeContext = {}): CzkawkaRuntime {
+  const nativeInfo = getNodeRuntimeInfo()
   const runtime: CzkawkaRuntime = {
+    capabilities: nativeInfo.capabilities,
     scanDuplicates: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toDuplicateScanOptions(input), input.threadCount, runtime, onProgress, scanDuplicateFiles) },
     scanBasic: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toBasicScanOptions(input), input.threadCount, runtime, onProgress, scanBasicFiles) },
     scanMedia: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toMediaScanOptions(input), input.threadCount, runtime, onProgress, scanMediaFiles) },

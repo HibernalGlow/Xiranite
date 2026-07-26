@@ -44,7 +44,9 @@ pub(crate) fn configure_tool<T: CommonData>(tool: &mut T, options: &MediaScanOpt
 pub(crate) fn result<T: CommonData>(tool: &T, groups: Vec<crate::MediaGroup>) -> MediaScanResult {
     MediaScanResult {
         groups,
-        messages: tool.get_text_messages().create_messages_text(MessageLimit::NoLimit),
+        messages: tool
+            .get_text_messages()
+            .create_messages_text(MessageLimit::NoLimit),
         stopped: tool.get_stopped_search(),
     }
 }

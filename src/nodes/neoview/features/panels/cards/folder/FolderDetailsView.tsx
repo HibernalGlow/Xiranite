@@ -20,6 +20,7 @@ import { directoryEntryAt, formatFolderRating } from "./DirectoryCatalog"
 import { FolderDetailsReturnFooter, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 import { FolderEntryIcon, formatFolderTagSummary } from "./FolderEntryPresentation"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
+import { folderTitleClassName } from "./FolderViewPresentation"
 
 interface DirectoryDetailsRow {
   index: number
@@ -33,6 +34,7 @@ interface FolderDetailsViewProps {
   initialIndex?: number
   initialScrollTop?: number
   layout: ReaderFolderDetailsConfig
+  wrapTitle?: boolean
   deleteMode?: boolean
   deleteStrategy?: FolderDeleteStrategy
   confirmDelete?: boolean
@@ -81,6 +83,7 @@ export default function FolderDetailsView({
   initialIndex,
   initialScrollTop,
   layout,
+  wrapTitle = false,
   deleteMode = false,
   deleteStrategy = "trash",
   confirmDelete = true,
@@ -93,22 +96,13 @@ export default function FolderDetailsView({
 }: FolderDetailsViewProps) {
   const rows = useMemo(() => loadedRows(catalog), [catalog.pages])
   const columns = useMemo<DataTableColumnDef<DirectoryDetailsRow>[]>(() => DETAILS_COLUMNS.map((column) => (
-    column.id === "name" && deleteMode
+    column.id === "name"
       ? {
           ...column,
-          cell: ({ row }) => {
-            const { entry, index } = row.original
-            return (
-              <div className="flex min-w-0 items-center gap-2" title={entry.path}>
-                <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} confirm={confirmDelete} />
-                <FolderEntryIcon entry={entry} />
-                <span className="truncate text-xs font-medium">{entry.name}</span>
-              </div>
-            )
-          },
+          cell: ({ row }) => <FolderDetailsTitle entry={row.original.entry} index={row.original.index} disabled={disabled} deleteMode={deleteMode} deleteStrategy={deleteStrategy} confirmDelete={confirmDelete} wrapTitle={wrapTitle} />,
         }
       : column
-  )), [confirmDelete, deleteMode, deleteStrategy, disabled])
+  )), [confirmDelete, deleteMode, deleteStrategy, disabled, wrapTitle])
   const rowSelection = useMemo(() => folderDetailsRowSelection(rows, selectedPaths), [rows, selectedPaths])
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(layout.columnOrder)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => visibilityFromLayout(layout))
@@ -201,7 +195,7 @@ export default function FolderDetailsView({
           <DataTable height="calc(100% - 2rem)" className="h-[calc(100%_-_2rem)] rounded-none border-0">
             <DataTableDndHeader resizable />
             <DataTableVirtualizedBody
-              estimateSize={36}
+              estimateSize={wrapTitle ? 52 : 36}
               overscan={12}
               initialViewportHeight={256}
               useColumnSizing
@@ -224,6 +218,32 @@ export default function FolderDetailsView({
           </DataTable>
         </DataTableColumnDndProvider>
       </DataTableRoot>
+    </div>
+  )
+}
+
+function FolderDetailsTitle({
+  entry,
+  index,
+  disabled,
+  deleteMode,
+  deleteStrategy,
+  confirmDelete,
+  wrapTitle,
+}: {
+  entry: ReaderDirectoryEntryDto
+  index: number
+  disabled: boolean
+  deleteMode: boolean
+  deleteStrategy: FolderDeleteStrategy
+  confirmDelete: boolean
+  wrapTitle: boolean
+}) {
+  return (
+    <div className={`flex min-w-0 gap-2 ${wrapTitle ? "items-start py-1" : "items-center"}`} title={entry.path}>
+      {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} confirm={confirmDelete} /> : null}
+      <FolderEntryIcon entry={entry} />
+      <span className={folderTitleClassName(wrapTitle) + " text-xs font-medium"} data-folder-entry-title-wrap={wrapTitle || undefined}>{entry.name}</span>
     </div>
   )
 }

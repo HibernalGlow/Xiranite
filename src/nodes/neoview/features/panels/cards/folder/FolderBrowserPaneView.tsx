@@ -56,6 +56,7 @@ import type { FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import type { FolderSearchListingUpdate } from "./FolderSearchPanel"
 import type { FolderSearchTabSnapshot } from "./search/folderSearchModel"
 import { isVirtualSearchPath } from "./search/folderSearchModel"
+import { DEFAULT_FOLDER_TITLE_WRAP, FOLDER_VIEW_PRESENTATION_OPTIONS, resolveFolderTitleWrap } from "./FolderViewPresentation"
 
 const FolderDetailsView = lazy(() => import("./FolderDetailsView"))
 const FolderGridWorkspace = lazy(() => import("./FolderGridWorkspace"))
@@ -86,14 +87,19 @@ const SORT_SOURCE_LABELS: Record<ReaderDirectorySortSourceDto, string> = {
   "tab-default": "标签默认",
   "global-default": "全局默认",
 }
-const VIEW_MODE_OPTIONS: readonly { value: ReaderFolderViewMode; label: string; icon: LucideIcon }[] = [
-  { value: "compact", label: "紧凑列表", icon: List },
-  { value: "cover-list", label: "封面列表", icon: Rows3 },
-  { value: "mosaic-list", label: "横幅", icon: GalleryHorizontalEnd },
-  { value: "details", label: "详细信息", icon: TableProperties },
-  { value: "cover-grid", label: "封面网格", icon: Grid2X2 },
-  { value: "mosaic-grid", label: "自由缩略图", icon: LayoutGrid },
-]
+const VIEW_MODE_ICONS = {
+  compact: List,
+  "cover-list": Rows3,
+  "mosaic-list": GalleryHorizontalEnd,
+  details: TableProperties,
+  "cover-grid": Grid2X2,
+  "mosaic-grid": LayoutGrid,
+} satisfies Record<ReaderFolderViewMode, LucideIcon>
+
+const VIEW_MODE_OPTIONS = FOLDER_VIEW_PRESENTATION_OPTIONS.map((option) => ({
+  ...option,
+  icon: VIEW_MODE_ICONS[option.value],
+}))
 
 interface FolderNavigationOptions {
   keepTree?: boolean
@@ -284,6 +290,8 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
   const treeVisible = treeOpen && !efuListingActive
   const inlineTreeVisible = inlineTreeOpen && !efuListingActive
   const showReturnFooter = folderView.emptyArea.showBackButton && !searchListingActive
+  const folderTitleWrap = folderView.titleWrap ?? DEFAULT_FOLDER_TITLE_WRAP
+  const wrapTitle = resolveFolderTitleWrap(folderTitleWrap, viewMode)
   const returnFooterContext = {
     disabled: disabled || loading || !catalog || (!catalog.canGoBack && !catalog.parentPath),
     onReturn: () =>
@@ -511,6 +519,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                   hideMissingEfuEntries={catalog?.hideMissingEfuEntries ?? folderView.hideMissingEfuEntries ?? false}
                   canHideMissingEfuEntries={efuListingActive}
                   tagDisplay={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}
+                  titleWrap={folderTitleWrap}
                   penetration={penetration}
                   treeOpen={treeVisible}
                   treeLayout={treeLayout}
@@ -578,6 +587,9 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                   }}
                   onTagDisplayChange={(tagDisplay) => {
                     void onFolderView?.({ tagDisplay })
+                  }}
+                  onTitleWrapChange={(titleWrap) => {
+                    void onFolderView?.({ titleWrap })
                   }}
                   onTogglePenetration={(enabled) => {
                     void updatePenetration({ enabled })
@@ -817,7 +829,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                       totalCount={catalog.total}
                       components={showReturnFooter ? FOLDER_LIST_COMPONENTS : EMPTY_VIRTUOSO_COMPONENTS}
                       context={showReturnFooter ? returnFooterContext : undefined}
-                      fixedItemHeight={viewMode === "compact" ? 34 : 76}
+                      fixedItemHeight={wrapTitle ? undefined : viewMode === "compact" ? 34 : 76}
                       increaseViewportBy={{
                         top: viewMode === "compact" ? 68 : 152,
                         bottom: viewMode === "compact" ? 136 : 304,
@@ -843,6 +855,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                             showRating={catalog.metadataFields.includes("rating")}
                             showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
                             visualMode={viewMode}
+                            wrapTitle={wrapTitle}
                             thumbnailStore={thumbnailStore}
                             contentWidthPercent={contentWidthPercent}
                             hoverPreviewEnabled={active && hoverPreviewEnabled}
@@ -869,6 +882,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         }
                         initialScrollTop={restoreState?.viewMode === "details" ? restoreState.detailsScrollTop : undefined}
                         layout={folderView.details}
+                        wrapTitle={wrapTitle}
                         deleteMode={deleteMode}
                         deleteStrategy={deleteStrategy}
                         confirmDelete={activeDeleteConfirmation}
@@ -892,6 +906,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         gridRef={gridRef}
                         catalog={catalog}
                         viewMode={viewMode}
+                        wrapTitle={wrapTitle}
                         disabled={disabled}
                         selectedPaths={selectedPaths}
                         focusedIndex={focusedIndex}
@@ -932,6 +947,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         itemIdPrefix={itemIdPrefix}
                         thumbnailStore={thumbnailStore}
                         tileSize={thumbnailPixelSize(thumbnailWidthPercent)}
+                        wrapTitle={wrapTitle}
                         hoverPreviewEnabled={active && hoverPreviewEnabled}
                         hoverPreviewDelayMs={hoverPreviewDelayMs}
                         penetrationFiles={penetrationDescriptions}

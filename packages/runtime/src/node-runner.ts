@@ -116,6 +116,12 @@ export async function loadNodePlatformModule(nodeId: string): Promise<NodeModule
   return loadModule(spec.loadPlatform)
 }
 
+/** Loads a node's side-effect-free runtime metadata without starting an operation. */
+export async function getNodeRuntimeInfo<TInfo = unknown>(nodeId: string): Promise<TInfo> {
+  const platform = await loadNodePlatformModule(nodeId)
+  return getFunction<() => TInfo>(platform, "getNodeRuntimeInfo")()
+}
+
 export async function runNodeWithEvents(
   nodeId: unknown,
   input: unknown,

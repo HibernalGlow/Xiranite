@@ -138,6 +138,44 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
   await expect.poll(() => document.querySelector("[data-folder-tab-kind='efu'][aria-selected='true']")).not.toBeNull()
 })
 
+test("[neoview.folder.title-wrap-gui] controls the cover-grid title policy from the File Card More menu", async () => {
+  const onFolderView = vi.fn(async () => undefined)
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => directoryPage({
+      entries: [{ name: "a long cover-grid title that needs a second line.cbz", path: "C:/books/long-title.cbz", kind: "file", readerSupported: true }],
+      total: 1,
+    })),
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 900, height: 600 }}>
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          folderView={{ ...DEFAULT_FOLDER_VIEW, viewMode: "cover-grid" }}
+          onFolderView={onFolderView}
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+        />
+      </VirtuosoMockContext.Provider>
+    </div>,
+  )
+
+  await expect.poll(() => document.querySelector('[data-folder-entry-title-wrap="true"]')?.className).toContain("line-clamp-2")
+  await page.getByRole("button", { name: "更多" }).click()
+  const titleWrapTrigger = page.getByRole("menuitem", { name: /标题换行/u })
+  await expect.element(titleWrapTrigger).toBeVisible()
+  await titleWrapTrigger.hover()
+  const coverGridToggle = page.getByRole("menuitemcheckbox", { name: "封面网格", exact: true })
+  await expect.element(coverGridToggle).toBeVisible()
+  await coverGridToggle.click()
+
+  await expect.poll(() => onFolderView).toHaveBeenCalledWith({ titleWrap: { "cover-grid": false } })
+})
+
 test("[neoview.folder.search-sort-gui] sorts the active search-result list without restoring the physical directory", async () => {
   const opened = directoryPage({
     entries: [{ name: "physical.cbz", path: "C:/books/physical.cbz", kind: "file", readerSupported: true }],

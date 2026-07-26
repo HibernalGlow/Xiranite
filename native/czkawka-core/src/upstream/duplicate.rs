@@ -132,12 +132,16 @@ pub(crate) fn scan_duplicate_files_controlled(
         .collect();
     Ok(DuplicateScanResult {
         groups,
-        messages: finder.get_text_messages().create_messages_text(MessageLimit::NoLimit),
+        messages: finder
+            .get_text_messages()
+            .create_messages_text(MessageLimit::NoLimit),
         stopped: finder.get_stopped_search(),
     })
 }
 
-fn referenced_duplicate_group(group: &(DuplicateEntry, Vec<DuplicateEntry>)) -> Vec<(DuplicateEntry, bool)> {
+fn referenced_duplicate_group(
+    group: &(DuplicateEntry, Vec<DuplicateEntry>),
+) -> Vec<(DuplicateEntry, bool)> {
     std::iter::once((group.0.clone(), true))
         .chain(group.1.iter().cloned().map(|entry| (entry, false)))
         .collect()

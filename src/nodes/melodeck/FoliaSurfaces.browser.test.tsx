@@ -65,6 +65,21 @@ test("keeps Folia actions stable when a workspace bridge writes playback state",
   expect(document.querySelector("[data-folia-bridge]")?.textContent).toBe("track-1")
 })
 
+test("wakes the player on the first title-bar interaction when auto-start is off", async () => {
+  await render(<WorkspaceMelodeckDormantTopBarHarness />)
+
+  const stateProbe = document.querySelector<HTMLElement>("[data-melodeck-state-probe]")!
+  await expect.poll(() => stateProbe.getAttribute("data-auto-start")).toBe("false")
+  expect(stateProbe.getAttribute("data-player-enabled")).toBe("false")
+  expect(document.querySelectorAll("audio.folia-player-audio")).toHaveLength(0)
+
+  const expandButton = document.querySelector<HTMLButtonElement>('[data-melodeck-island-state="collapsed"] button[aria-expanded="false"]')!
+  await page.elementLocator(expandButton).click()
+
+  await expect.poll(() => stateProbe.getAttribute("data-player-enabled")).toBe("true")
+  await expect.poll(() => document.querySelectorAll("audio.folia-player-audio").length).toBe(1)
+})
+
 test("uses the current theme's fourth color before expanding transparently around Folia Remote", async () => {
   const state = useWorkspaceStore.getState()
   const previousCustomThemes = state.customThemes
@@ -401,6 +416,18 @@ test("does not mount the Folia audio element while the legacy engine is active",
   expect(document.querySelectorAll("audio.folia-player-audio")).toHaveLength(0)
 })
 
+test("restarts the disabled player and continues the requested play action", async () => {
+  const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined)
+  await render(<RestartableFoliaPlayerHarness />)
+
+  expect(document.querySelectorAll("audio.folia-player-audio")).toHaveLength(0)
+  await page.getByRole("button", { name: "Play after shutdown" }).click()
+
+  await expect.poll(() => document.querySelector("[data-restartable-player]")?.getAttribute("data-enabled")).toBe("true")
+  await expect.poll(() => document.querySelectorAll("audio.folia-player-audio").length).toBe(1)
+  await expect.poll(() => play.mock.calls.length).toBe(1)
+})
+
 test("restores the last track paused and preloads the remaining album covers", async () => {
   const hydrateTrack = vi.fn(async (track: FoliaTrack) => ({
     coverUrl: `full-cover://${track.id}`,
@@ -647,6 +674,31 @@ function WorkspaceMelodeckTopBarHarness() {
   )
 }
 
+function WorkspaceMelodeckDormantTopBarHarness() {
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchInterval: false } },
+  }))
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <div className="relative flex h-64 w-full justify-end bg-background text-foreground">
+        <WorkspaceMelodeckProvider>
+          <WorkspaceMelodeckDormantSetup />
+          <WorkspaceMelodeckStateProbe />
+          <WorkspaceMelodeckTopBarSlot />
+        </WorkspaceMelodeckProvider>
+      </div>
+    </QueryClientProvider>
+  )
+}
+
+function WorkspaceMelodeckDormantSetup() {
+  const { setAutoStart } = useWorkspaceMelodeck()
+
+  useEffect(() => setAutoStart(false), [setAutoStart])
+  return null
+}
+
 function WorkspaceMelodeckStateProbe() {
   const dock = useWorkspaceMelodeck()
   return (
@@ -823,6 +875,30 @@ function FoliaActionBridgeHarness() {
       <FoliaActionBridge onBridgeStateChange={setBridgeState} />
       <output data-folia-bridge>{bridgeState?.trackId ?? "pending"}</output>
     </FoliaPlayerProvider>
+  )
+}
+
+function RestartableFoliaPlayerHarness() {
+  const [enabled, setEnabled] = useState(false)
+
+  return (
+    <FoliaPlayerProvider
+      tracks={tracks}
+      onTracksChange={vi.fn()}
+      enabled={enabled}
+      onEnableRequest={() => setEnabled(true)}
+    >
+      <RestartableFoliaPlayerProbe enabled={enabled} />
+    </FoliaPlayerProvider>
+  )
+}
+
+function RestartableFoliaPlayerProbe({ enabled }: { enabled: boolean }) {
+  const { actions } = useFoliaPlayer()
+  return (
+    <div data-restartable-player data-enabled={String(enabled)}>
+      <button type="button" onClick={() => void actions.toggle()}>Play after shutdown</button>
+    </div>
   )
 }
 

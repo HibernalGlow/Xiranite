@@ -79,6 +79,7 @@ export interface XiraniteWorkspaceClient {
 }
 
 export interface XiraniteNodeClient {
+  getNodeRuntimeInfo<TInfo = unknown>(nodeId: string): Promise<TInfo>
   startNodeOperation<TInput = unknown>(
     nodeId: string,
     input: TInput,
@@ -456,6 +457,12 @@ export function createXiraniteNodeClient(baseUrl: string, options: XiraniteClien
   const headers = requestHeaders(options)
 
   return {
+    async getNodeRuntimeInfo<TInfo = unknown>(nodeId: string) {
+      const response = await fetch(apiUrl(baseUrl, `/nodes/${encodeURIComponent(nodeId)}/runtime-info`), { headers })
+      if (!response.ok) throw new Error(`Node runtime info load failed: ${response.status}`)
+      const payload = await response.json() as { info: TInfo }
+      return payload.info
+    },
     async startNodeOperation(nodeId, input, context) {
       const response = await fetch(apiUrl(baseUrl, `/nodes/${encodeURIComponent(nodeId)}/operations`), {
         method: "POST",

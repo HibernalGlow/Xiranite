@@ -6,8 +6,8 @@ use image_hasher::{FilterType, HashAlg};
 use super::common::{initialize_image_decoding_hooks, search_with_control};
 use super::media::{configure_tool, result};
 use crate::{
-    CzkawkaError, ImageHashAlgorithm, ImageResizeAlgorithm, MediaEntry, MediaGroup,
-    MediaScanOptions, MediaScanResult, ScanControl,
+    CzkawkaError, ImageGeometricInvariance, ImageHashAlgorithm, ImageResizeAlgorithm, MediaEntry,
+    MediaGroup, MediaScanOptions, MediaScanResult, ScanControl,
 };
 
 pub(crate) fn scan(
@@ -36,8 +36,8 @@ pub(crate) fn scan(
         hash_algorithm,
         resize_algorithm,
         options.image_ignore_same_size,
-        false,
-        GeometricInvariance::Off,
+        options.image_ignore_same_resolution,
+        geometric_invariance(options.image_geometric_invariance),
     ));
     configure_tool(&mut tool, &options);
     search_with_control(&mut tool, control);
@@ -54,11 +54,22 @@ pub(crate) fn scan(
         tool.get_similar_images()
             .iter()
             .map(|group| MediaGroup {
-                entries: group.iter().map(|entry| media_entry(entry, false)).collect(),
+                entries: group
+                    .iter()
+                    .map(|entry| media_entry(entry, false))
+                    .collect(),
             })
             .collect()
     };
     Ok(result(&tool, groups))
+}
+
+fn geometric_invariance(value: ImageGeometricInvariance) -> GeometricInvariance {
+    match value {
+        ImageGeometricInvariance::Off => GeometricInvariance::Off,
+        ImageGeometricInvariance::MirrorFlip => GeometricInvariance::MirrorFlip,
+        ImageGeometricInvariance::MirrorFlipRotate90 => GeometricInvariance::MirrorFlipRotate90,
+    }
 }
 
 fn media_entry(entry: &ImagesEntry, is_reference: bool) -> MediaEntry {
@@ -78,5 +89,28 @@ fn media_entry(entry: &ImagesEntry, is_reference: bool) -> MediaEntry {
         is_reference,
         detail: None,
         proper_extension: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::geometric_invariance;
+    use crate::ImageGeometricInvariance;
+    use czkawka_core::tools::similar_images::GeometricInvariance;
+
+    #[test]
+    fn maps_every_stable_geometric_invariance_mode() {
+        assert_eq!(
+            geometric_invariance(ImageGeometricInvariance::Off),
+            GeometricInvariance::Off
+        );
+        assert_eq!(
+            geometric_invariance(ImageGeometricInvariance::MirrorFlip),
+            GeometricInvariance::MirrorFlip
+        );
+        assert_eq!(
+            geometric_invariance(ImageGeometricInvariance::MirrorFlipRotate90),
+            GeometricInvariance::MirrorFlipRotate90
+        );
     }
 }

@@ -73,11 +73,37 @@ test("keeps selection history synchronized with the result table in the browser"
   await expect.element(rowCheckbox).toHaveAttribute("data-state", "checked")
 })
 
+test("hides Czkawka 12 image controls until the native binding advertises their capabilities", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/media", sourceSettingsTab: "algorithm" }, [])
+
+  await render(<Component compId="czkawka-image-invariance-unavailable-browser" host={host} />)
+
+  await expect.element(page.getByText("Ignore same resolution")).not.toBeInTheDocument()
+  await expect.element(page.getByText("Geometric invariance")).not.toBeInTheDocument()
+})
+
+test("persists Czkawka 12 similar-image invariance controls in the browser", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/media", sourceSettingsTab: "algorithm" })
+
+  await render(<Component compId="czkawka-image-invariance-browser" host={host} />)
+
+  const sameResolution = page.getByRole("switch", { name: "Ignore same resolution" })
+  await sameResolution.click()
+  await expect.poll(() => host.stateValue.similarImagesIgnoreSameResolution).toBe(true)
+
+  const invariance = page.getByRole("combobox", { name: "Geometric invariance" })
+  await invariance.click()
+  await page.getByRole("option", { name: "Mirror, flip and 90° rotation" }).click()
+  await expect.poll(() => host.stateValue.similarImagesGeometricInvariance).toBe("mirror-flip-rotate-90")
+})
+
 type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & {
   stateValue: CzkawkaCardState
 }
 
-function createHost(initial: CzkawkaCardState): TestHost {
+function createHost(initial: CzkawkaCardState, nativeCapabilities = ["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"]): TestHost {
   const host: TestHost = {
     stateValue: initial,
     contract: {
@@ -93,6 +119,7 @@ function createHost(initial: CzkawkaCardState): TestHost {
       patchData: (patch) => { host.stateValue = { ...host.stateValue, ...patch } },
     },
     runner: {
+      getInfo: async <TInfo,>() => ({ apiVersion: 5, sourceVersion: "12.0.0", capabilities: nativeCapabilities }) as TInfo,
       run: async <TInput, TData>(_nodeId: string, _input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => {
         onEvent?.({ type: "progress", progress: 50, message: "Scanning" })
         return { success: true, message: "Completed", data: sample as TData }

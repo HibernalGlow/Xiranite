@@ -65,6 +65,7 @@ import type {
   ReaderFolderConfirmationConfig,
   ReaderFolderPenetrationConfig,
   ReaderFolderTagDisplayConfig,
+  ReaderFolderTitleWrapConfig,
   ReaderFolderTreeLayout,
   ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
@@ -73,6 +74,7 @@ import {
 } from "./DirectoryCatalog"
 import FolderTypeFilterPanel, { folderTypeFilterMeta } from "./FolderTypeFilterBar"
 import FolderTagDisplayMenu from "./FolderTagDisplayMenu"
+import FolderViewTitleWrapMenu from "./FolderViewTitleWrapMenu"
 import type { FolderDeleteStrategy } from "./FolderDeleteButton"
 import { ReaderFilePresentationMoreMenuItems } from "../shared/ReaderFilePresentationMoreMenu"
 
@@ -120,6 +122,7 @@ export type FolderToolbarProps = {
   hideMissingEfuEntries: boolean
   canHideMissingEfuEntries: boolean
   tagDisplay: ReaderFolderTagDisplayConfig
+  titleWrap: ReaderFolderTitleWrapConfig
   penetration: ReaderFolderPenetrationConfig
   treeOpen: boolean
   treeLayout: ReaderFolderTreeLayout
@@ -164,6 +167,7 @@ export type FolderToolbarProps = {
   onChangeShowHiddenFolders?(showHiddenFolders: boolean): void
   onChangeHideMissingEfuEntries?(hideMissingEfuEntries: boolean): void
   onTagDisplayChange(patch: Partial<ReaderFolderTagDisplayConfig>): void
+  onTitleWrapChange(patch: Partial<ReaderFolderTitleWrapConfig>): void
   onTogglePenetration(enabled: boolean): void
   onUpdatePenetration(patch: Partial<ReaderFolderPenetrationConfig>): void
   onToggleTree(): void
@@ -232,6 +236,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     hideMissingEfuEntries,
     canHideMissingEfuEntries,
     tagDisplay,
+    titleWrap,
     penetration,
     treeOpen,
     treeLayout,
@@ -276,6 +281,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
     onChangeShowHiddenFolders,
     onChangeHideMissingEfuEntries,
     onTagDisplayChange,
+    onTitleWrapChange,
     onTogglePenetration,
     onUpdatePenetration,
     onToggleTree,
@@ -560,6 +566,11 @@ export default function FolderToolbar(props: FolderToolbarProps) {
             ) : null}
 
             <FolderTagDisplayMenu value={tagDisplay} onChange={onTagDisplayChange} />
+
+            <FolderViewTitleWrapMenu
+              value={titleWrap}
+              onChange={(viewMode, wrapTitle) => onTitleWrapChange({ [viewMode]: wrapTitle })}
+            />
 
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>

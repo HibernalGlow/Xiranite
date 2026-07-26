@@ -6,6 +6,11 @@ import {
 } from "./OpenComicSystemRuntimeLoader.js"
 
 describe("OpenComic system runtime loader", () => {
+  it("[neoview.super-resolution.runtime-loader-default-package] loads the installed default runtime", async () => {
+    const runtime = await loadOpenComicSystemRuntime()
+    expect(runtime.modelsList.length).toBeGreaterThan(0)
+  })
+
   it("[neoview.super-resolution.runtime-loader] accepts the validated default export", async () => {
     const runtime = fakeRuntime()
     const importModule = vi.fn(async () => ({ default: runtime }))

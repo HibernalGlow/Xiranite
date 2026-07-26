@@ -1,3 +1,13 @@
+#[cfg(any(
+    test,
+    all(
+        unix,
+        not(target_os = "macos"),
+        not(target_os = "ios"),
+        not(target_os = "android")
+    )
+))]
+use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::{Condvar, Mutex, OnceLock};
@@ -222,7 +232,7 @@ fn list_trash_items_native() -> Result<Vec<trash::TrashItem>> {
     }
     drop(state);
 
-    let scanned = trash::os_limited::list().map_err(trash_error);
+    let scanned = scan_trash_items_native();
     let mut state = cache.lock().expect("trash list cache mutex poisoned");
     state.refreshing = false;
     if let Ok(items) = &scanned {
@@ -263,6 +273,23 @@ fn restore_trash_item_native(item: trash::TrashItem) -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+fn scan_trash_items_native() -> Result<Vec<trash::TrashItem>> {
+    crate::windows_trash::list_trash_items().map_err(|error| {
+        Error::from_reason(format!("Failed to enumerate the recycle bin: {error}"))
+    })
+}
+
+#[cfg(all(
+    unix,
+    not(target_os = "macos"),
+    not(target_os = "ios"),
+    not(target_os = "android")
+))]
+fn scan_trash_items_native() -> Result<Vec<trash::TrashItem>> {
+    trash::os_limited::list().map_err(trash_error)
+}
+
 #[cfg(not(any(
     target_os = "windows",
     all(
@@ -286,10 +313,87 @@ fn delete_to_trash_with_receipt(path: &Path) -> Result<Option<trash::TrashItem>>
     Ok(receipt)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(all(
+    unix,
+    not(target_os = "macos"),
+    not(target_os = "ios"),
+    not(target_os = "android")
+))]
+fn delete_to_trash_with_receipt(path: &Path) -> Result<Option<trash::TrashItem>> {
+    let before = list_matching_trash_item_ids(path)?;
+    trash::delete(path).map_err(trash_error)?;
+    let receipt = find_new_trash_item(path, &before)?;
+    if let Some(item) = &receipt {
+        upsert_cached_trash_item(item);
+    }
+    Ok(receipt)
+}
+
+#[cfg(not(any(
+    target_os = "windows",
+    all(
+        unix,
+        not(target_os = "macos"),
+        not(target_os = "ios"),
+        not(target_os = "android")
+    )
+)))]
 fn delete_to_trash_with_receipt(path: &Path) -> Result<Option<trash::TrashItem>> {
     trash::delete(path).map_err(trash_error)?;
     Ok(None)
+}
+
+#[cfg(all(
+    unix,
+    not(target_os = "macos"),
+    not(target_os = "ios"),
+    not(target_os = "android")
+))]
+fn list_matching_trash_item_ids(path: &Path) -> Result<HashSet<OsString>> {
+    Ok(trash::os_limited::list()
+        .map_err(trash_error)?
+        .into_iter()
+        .filter(|item| item.original_path() == path)
+        .map(|item| item.id)
+        .collect())
+}
+
+#[cfg(all(
+    unix,
+    not(target_os = "macos"),
+    not(target_os = "ios"),
+    not(target_os = "android")
+))]
+fn find_new_trash_item(
+    path: &Path,
+    before: &HashSet<OsString>,
+) -> Result<Option<trash::TrashItem>> {
+    let items = trash::os_limited::list().map_err(trash_error)?;
+    Ok(select_new_trash_item(path, before, items))
+}
+
+#[cfg(any(
+    test,
+    all(
+        unix,
+        not(target_os = "macos"),
+        not(target_os = "ios"),
+        not(target_os = "android")
+    )
+))]
+fn select_new_trash_item(
+    path: &Path,
+    before: &HashSet<OsString>,
+    items: Vec<trash::TrashItem>,
+) -> Option<trash::TrashItem> {
+    items
+        .into_iter()
+        .filter(|item| item.original_path() == path && !before.contains(&item.id))
+        .max_by(|left, right| {
+            left.time_deleted
+                .cmp(&right.time_deleted)
+                .then_with(|| left.id.cmp(&right.id))
+        })
 }
 
 fn trash_error(error: trash::Error) -> Error {
@@ -307,7 +411,9 @@ fn upsert_cached_trash_item(item: &trash::TrashItem) {
     if state.refreshed_at.is_none() {
         return;
     }
-    state.items.retain(|candidate| candidate.id != item.id);
+    state
+        .items
+        .retain(|candidate| !trash_item_ids_equal(&candidate.id, &item.id));
     state.items.push(item.clone());
 }
 
@@ -315,6 +421,49 @@ fn remove_cached_trash_item(id: &OsString) {
     let (cache, _) = trash_list_cache();
     let mut state = cache.lock().expect("trash list cache mutex poisoned");
     if state.refreshed_at.is_some() {
-        state.items.retain(|candidate| &candidate.id != id);
+        state
+            .items
+            .retain(|candidate| !trash_item_ids_equal(&candidate.id, id));
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn trash_item_ids_equal(left: &OsString, right: &OsString) -> bool {
+    left.as_os_str().eq_ignore_ascii_case(right.as_os_str())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn trash_item_ids_equal(left: &OsString, right: &OsString) -> bool {
+    left == right
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selects_latest_new_receipt_for_original_path() {
+        let path = Path::new(r"D:\\archive\\test.txt");
+        let existing_id = OsString::from("existing");
+        let before = HashSet::from([existing_id.clone()]);
+        let items = vec![
+            trash_item(&existing_id.to_string_lossy(), path, 30),
+            trash_item("other-path", Path::new(r"D:\\other\\test.txt"), 40),
+            trash_item("older-new", path, 10),
+            trash_item("latest-new", path, 20),
+        ];
+
+        let selected = select_new_trash_item(path, &before, items).unwrap();
+
+        assert_eq!(selected.id, OsString::from("latest-new"));
+    }
+
+    fn trash_item(id: &str, original_path: &Path, time_deleted: i64) -> trash::TrashItem {
+        trash::TrashItem {
+            id: OsString::from(id),
+            name: original_path.file_name().unwrap().to_owned(),
+            original_parent: original_path.parent().unwrap().to_owned(),
+            time_deleted,
+        }
     }
 }

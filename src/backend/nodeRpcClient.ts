@@ -7,6 +7,10 @@ import { resolveLocalBackendConfig, type LocalBackendConfig } from "./localBacke
 let nodeClient: ReturnType<typeof createXiraniteNodeClient> | null = null
 let nodeClientKey: string | null = null
 
+export async function getNodeRuntimeInfoFromLocalBackend<TInfo = unknown>(nodeId: string): Promise<TInfo> {
+  return await getNodeClient().getNodeRuntimeInfo<TInfo>(nodeId)
+}
+
 export async function runNodeOnLocalBackend<TInput = unknown, TData = unknown>(
   nodeId: string,
   input: TInput,

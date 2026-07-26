@@ -21,6 +21,8 @@ describe("czkawka TypeScript orchestration", () => {
     expect(value.hashType).toBe("blake3")
     expect(value.threadCount).toBe(0)
     expect(value.similarImagesHashSize).toBe(16)
+    expect(value.similarImagesIgnoreSameResolution).toBe(false)
+    expect(value.similarImagesGeometricInvariance).toBe("off")
     expect(value.similarVideosLetterboxCrop).toBe(true)
     expect(value).not.toHaveProperty("similarVideosCropDetect")
     expect(value.musicCheckType).toBe("tags")
@@ -29,6 +31,43 @@ describe("czkawka TypeScript orchestration", () => {
     expect(value.deleteOutdatedCache).toBe(true)
     expect(value.duplicateMinimalHashCacheSizeKiB).toBe(256)
     expect(value.duplicateMinimalPrehashCacheSizeKiB).toBe(256)
+  })
+
+  test("normalizes the stable Czkawka 12 image-invariance modes", () => {
+    const enabled = normalizeCzkawkaInput({
+      similarImagesIgnoreSameResolution: true,
+      similarImagesGeometricInvariance: "mirror-flip-rotate-90",
+    })
+    const invalid = normalizeCzkawkaInput({
+      similarImagesGeometricInvariance: "unsupported" as "off",
+    })
+
+    expect(enabled).toMatchObject({
+      similarImagesIgnoreSameResolution: true,
+      similarImagesGeometricInvariance: "mirror-flip-rotate-90",
+    })
+    expect(invalid.similarImagesGeometricInvariance).toBe("off")
+  })
+
+  test("rejects Czkawka 12 image settings when the native binding lacks their capabilities", async () => {
+    const adapter = runtime()
+    const result = await runCzkawka({
+      tool: "similar-images",
+      includedDirectories: ["D:/"],
+      similarImagesIgnoreSameResolution: true,
+      similarImagesGeometricInvariance: "mirror-flip",
+    }, adapter)
+
+    expect(result).toMatchObject({ success: false, message: expect.stringContaining("similar-images.same-resolution-exclusion") })
+    expect(adapter.scanMedia).not.toHaveBeenCalled()
+
+    adapter.capabilities = ["similar-images.same-resolution-exclusion", "similar-images.geometric-invariance"]
+    await expect(runCzkawka({
+      tool: "similar-images",
+      includedDirectories: ["D:/"],
+      similarImagesIgnoreSameResolution: true,
+      similarImagesGeometricInvariance: "mirror-flip",
+    }, adapter)).resolves.toMatchObject({ success: true })
   })
 
   test("clamps cache thresholds and trims custom folders", () => {

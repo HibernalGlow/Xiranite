@@ -11,7 +11,7 @@ import { CzkawkaResultTable } from "../result-table"
 import { CzkawkaSimilarFoldersView } from "../similar-folders-view"
 import { CzkawkaDirectoryEditor, CzkawkaTokenEditor } from "../source-inputs"
 import type { CzkawkaCardState } from "../types"
-import { getCzkawkaToolOptions, type CzkawkaOptionDefinition } from "@xiranite/node-czkawka/tool-options"
+import { getCzkawkaGuiToolOptions, type CzkawkaOptionDefinition } from "@xiranite/node-czkawka/tool-options"
 import { updateCzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
 import { formatBytes, type CzkawkaView } from "./model"
 import { CzkawkaCardContent, Field, Metric, SectionHeader, SwitchLine } from "./CzkawkaCardsView"
@@ -49,7 +49,7 @@ function SourcePanel(props: CzkawkaView) {
 function AlgorithmFields(props: CzkawkaView) {
   return (
     <div className="grid gap-2">
-      {getCzkawkaToolOptions(props.tool).map((definition) => (
+      {getCzkawkaGuiToolOptions(props.tool, props.nativeCapabilities).map((definition) => (
         <SchemaOptionField key={definition.id} definition={definition} {...props} />
       ))}
     </div>
@@ -79,7 +79,7 @@ function SchemaOptionField({ data, definition, patch, language }: CzkawkaView & 
   return (
     <Field label={label}>
       <Select value={String(value)} onValueChange={(next) => patch({ [definition.id]: next } as Partial<CzkawkaCardState>)}>
-        <SelectTrigger>
+        <SelectTrigger aria-label={label}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

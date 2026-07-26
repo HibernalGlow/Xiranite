@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { parseArgs } from "node:util"
@@ -7,6 +7,7 @@ import { parseArgs } from "node:util"
 type Manifest = {
   node: {
     id: string
+    backendFeatures?: string[]
     nativeProbe?: { module: string; exportName: string }
   }
   snapshotId: string
@@ -45,17 +46,27 @@ console.log(`[node-app] Release gates passed for ${nodeId}`)
 
 async function verifyBackendHandshake(snapshot: Manifest): Promise<void> {
   const dataRoot = await mkdtemp(join(tmpdir(), "xiranite-node-app-gate-"))
+  const runtimeRoot = join(dataRoot, "runtime")
+  const backendBundle = join(runtimeRoot, "xiranite-backend.js")
+  const nativeAssetRoot = join(process.cwd(), "build", "wails", "native-assets")
   const token = crypto.randomUUID()
-  const child = Bun.spawn([
+  await Promise.all([
+    mkdir(runtimeRoot, { recursive: true }),
+    mkdir(join(dataRoot, "NeoView"), { recursive: true }),
+  ])
+  await copyFile(join(process.cwd(), "build", "wails", "xiranite-backend.js"), backendBundle)
+  const command = [
     process.execPath,
-    "build/wails/xiranite-backend.js",
+    backendBundle,
     "--node-id", snapshot.node.id,
     "--snapshot-id", snapshot.snapshotId,
     "--data-contract-version", String(snapshot.dataContract.currentVersion),
     "--token", token,
     "--data-dir", join(dataRoot, "data"),
-  ], {
-    cwd: process.cwd(),
+  ]
+  if (snapshot.node.backendFeatures?.includes("reader")) command.push("--enable-reader")
+  const child = Bun.spawn(command, {
+    cwd: runtimeRoot,
     stdout: "pipe",
     stderr: "inherit",
     env: {
@@ -63,6 +74,7 @@ async function verifyBackendHandshake(snapshot: Manifest): Promise<void> {
       APPDATA: dataRoot,
       LOCALAPPDATA: dataRoot,
       XIRANITE_DATA_DIR: join(dataRoot, "data"),
+      XIRANITE_NATIVE_ASSET_ROOT: nativeAssetRoot,
     },
   })
   try {
@@ -91,10 +103,26 @@ async function verifyBackendHandshake(snapshot: Manifest): Promise<void> {
     if (!runtime.ok || runtimeBody.dataContract?.currentVersion !== snapshot.dataContract.currentVersion) {
       throw new Error("Bundled node backend did not record the snapshot data contract.")
     }
+    if (snapshot.node.backendFeatures?.includes("reader")) {
+      const capability = await fetch(new URL("/reader/upscale-capabilities", ready.baseUrl), { headers })
+      const capabilityText = await capability.text()
+      const capabilityBody = parseJson(capabilityText) as { available?: boolean; reason?: string; models?: unknown[] } | undefined
+      if (!capability.ok || capabilityBody?.available !== true || !capabilityBody.models?.length) {
+        throw new Error(`Bundled Reader super-resolution runtime is unavailable (${capability.status}): ${capabilityText}`)
+      }
+    }
   } finally {
     child.kill()
     await withTimeout(child.exited, 5_000, "bundled node backend did not exit").catch(() => undefined)
     await rm(dataRoot, { recursive: true, force: true })
+  }
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown
+  } catch {
+    return undefined
   }
 }
 

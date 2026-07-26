@@ -16,6 +16,7 @@ import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteBut
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_GRID_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 import { folderThumbnailIsLoading, type FolderThumbnailStore } from "./FolderThumbnailStore"
 import { useFolderThumbnail } from "./useFolderThumbnail"
+import { folderTitleClassName } from "./FolderViewPresentation"
 
 export default function FolderGridWorkspace({
   virtualKey,
@@ -31,6 +32,7 @@ export default function FolderGridWorkspace({
   thumbnailUrlSets = EMPTY_THUMBNAIL_URL_SETS,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  wrapTitle = false,
   penetrationFiles = EMPTY_PENETRATION_FILES,
   deleteMode,
   deleteStrategy,
@@ -58,6 +60,7 @@ export default function FolderGridWorkspace({
   thumbnailUrlSets?: ReadonlyMap<string, readonly string[]>
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  wrapTitle?: boolean
   penetrationFiles?: ReadonlyMap<string, readonly FolderPenetrationFileName[]>
   deleteMode?: boolean
   deleteStrategy?: FolderDeleteStrategy
@@ -159,6 +162,7 @@ export default function FolderGridWorkspace({
             thumbnailUrls={entry ? thumbnailUrlSets.get(entry.path) : undefined}
             hoverPreviewEnabled={hoverPreviewEnabled}
             hoverPreviewDelayMs={hoverPreviewDelayMs}
+            wrapTitle={wrapTitle}
             penetrationFiles={entry ? penetrationFiles.get(entry.path) : undefined}
             deleteMode={Boolean(deleteMode)}
             deleteStrategy={deleteStrategy ?? "trash"}
@@ -186,6 +190,7 @@ interface DirectoryGridItemProps {
   thumbnailUrls?: readonly string[]
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  wrapTitle?: boolean
   penetrationFiles?: readonly FolderPenetrationFileName[]
   deleteMode?: boolean
   deleteStrategy?: FolderDeleteStrategy
@@ -193,7 +198,7 @@ interface DirectoryGridItemProps {
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }
 
-export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailStore, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, penetrationFiles, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
+export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailStore, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, wrapTitle = false, penetrationFiles, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
   const thumbnailEligible = Boolean(entry && (entry.kind === "directory" || entry.readerSupported))
   const storedThumbnail = useFolderThumbnail(thumbnailStore, entry?.path, thumbnailEligible)
   const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
@@ -229,7 +234,7 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
           : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
       <span className="grid min-w-0 content-center gap-0.5 px-2 py-1.5" data-folder-entry-info="two-line">
-        <span className="truncate font-medium" data-folder-entry-line="name">{entry.name}</span>
+        <span className={folderTitleClassName(wrapTitle) + " font-medium"} data-folder-entry-line="name" data-folder-entry-title-wrap={wrapTitle || undefined}>{entry.name}</span>
         <FolderPenetrationFileNames files={penetrationFiles} />
         <span className="flex min-w-0 items-center gap-1" data-folder-entry-line="metadata">
           <FolderEntryFileMetadata entry={entry} className="min-w-0" />
@@ -246,7 +251,7 @@ const EMPTY_THUMBNAIL_URL_SETS: ReadonlyMap<string, readonly string[]> = new Map
 const EMPTY_THUMBNAIL_URLS: ReadonlyMap<string, string> = new Map()
 const EMPTY_PENETRATION_FILES: ReadonlyMap<string, readonly FolderPenetrationFileName[]> = new Map()
 
-export function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailStore, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, penetrationFiles, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
+export function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailStore, thumbnailUrl, thumbnailUrls, hoverPreviewEnabled, hoverPreviewDelayMs, wrapTitle = false, penetrationFiles, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
   const thumbnailEligible = Boolean(entry && (entry.kind === "directory" || entry.readerSupported))
   const storedThumbnail = useFolderThumbnail(thumbnailStore, entry?.path, thumbnailEligible)
   const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
@@ -288,9 +293,9 @@ export function DirectoryGridItem({ itemId, entry, index, disabled, selected, fo
           : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
         {penetrationFiles?.length ? <span className="absolute inset-x-1 bottom-1 max-h-20 overflow-hidden"><FolderPenetrationFileNames files={penetrationFiles} variant="overlay" /></span> : null}
       </span>
-      <span className="flex min-w-0 items-center gap-1 border-t px-1.5 py-1.5">
+      <span className={`flex min-w-0 gap-1 border-t px-1.5 py-1.5 ${wrapTitle ? "min-h-10 items-start" : "items-center"}`}>
         <FolderEntryIcon entry={entry} className="size-3.5" />
-        <span className="truncate">{entry.name}</span>
+        <span className={folderTitleClassName(wrapTitle)} data-folder-entry-title-wrap={wrapTitle || undefined}>{entry.name}</span>
       </span>
       {showMetadata ? <FolderEntryMetadata entry={entry} showRating={showRating} showCollectTagCount={showCollectTagCount} className="h-5 border-t px-1.5" /> : null}
     </button>

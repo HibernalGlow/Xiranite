@@ -1,10 +1,9 @@
 use czkawka_core::tools::similar_videos::{
     DEFAULT_AUDIO_LENGTH_RATIO, DEFAULT_AUDIO_MAXIMUM_DIFFERENCE,
     DEFAULT_AUDIO_MIN_DURATION_SECONDS, DEFAULT_AUDIO_SIMILARITY_PERCENT,
-    DEFAULT_DURATION_TOLERANCE_PCT, DEFAULT_MIN_MATCHING_WINDOWS,
-    DEFAULT_SUBCLIP_MIN_MATCH, DEFAULT_THUMBNAIL_GRID_TILES_PER_SIDE,
-    DEFAULT_VIDEO_PERCENTAGE_FOR_THUMBNAIL, DEFAULT_WINDOW_COUNT, SimilarVideos,
-    SimilarVideosParameters, VideosEntry,
+    DEFAULT_DURATION_TOLERANCE_PCT, DEFAULT_MIN_MATCHING_WINDOWS, DEFAULT_SUBCLIP_MIN_MATCH,
+    DEFAULT_THUMBNAIL_GRID_TILES_PER_SIDE, DEFAULT_VIDEO_PERCENTAGE_FOR_THUMBNAIL,
+    DEFAULT_WINDOW_COUNT, SimilarVideos, SimilarVideosParameters, VideosEntry,
 };
 
 use super::common::search_with_control;
@@ -86,7 +85,9 @@ fn media_entry(entry: &VideosEntry, is_reference: bool) -> MediaEntry {
         year: None,
         length: entry.duration.map(|duration| format!("{duration:.2} s")),
         genre: None,
-        bitrate: entry.bitrate.and_then(|bitrate| u32::try_from(bitrate).ok()),
+        bitrate: entry
+            .bitrate
+            .and_then(|bitrate| u32::try_from(bitrate).ok()),
         is_reference,
         detail: (!entry.error.is_empty()).then(|| entry.error.clone()),
         proper_extension: None,

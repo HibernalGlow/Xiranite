@@ -3,6 +3,7 @@ import { type ReaderDirectoryPageDto, type ReaderFolderViewMode, type ReaderFold
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../../adapters/reader-http-client"
 import { type DirectorySelectionModel } from "./DirectorySelection"
 import { DEFAULT_FOLDER_TAG_DISPLAY } from "./FolderEntryPresentation"
+import { DEFAULT_FOLDER_TITLE_WRAP } from "./FolderViewPresentation"
 
 export type FolderViewMode = ReaderFolderViewMode
 export type FolderPreviewCount = 4 | 9 | 16
@@ -16,6 +17,7 @@ export const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   bannerWidthPercent: 50,
   hoverPreviewEnabled: true,
   hoverPreviewDelayMs: 500,
+  titleWrap: { ...DEFAULT_FOLDER_TITLE_WRAP },
   typeFilter: "library",
   showHiddenFolders: false,
   hideMissingEfuEntries: false,

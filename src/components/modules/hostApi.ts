@@ -34,7 +34,7 @@ import {
   syncConfigHistoryOnBackend,
   updateNodePresetOnBackend,
 } from "@/backend/configRpcClient"
-import { cancelNodeOperationOnLocalBackend, runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
+import { cancelNodeOperationOnLocalBackend, getNodeRuntimeInfoFromLocalBackend, runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
 import { useTheme } from "@/components/use-theme"
 import { useNodeOperations } from "@/store/nodeOperations"
 import { getWorkspaceState, useWorkspaceActions, useWorkspaceComponentData } from "@/store/workspaceStore"
@@ -123,6 +123,7 @@ export function useNodeHostApi(
     }
 
     const runnerCapability = {
+      getInfo: <TInfo = unknown>(id: string) => getNodeRuntimeInfoFromLocalBackend<TInfo>(id),
       run: <TInput = unknown, TData = unknown>(
         id: string,
         input: TInput,

@@ -163,6 +163,26 @@ export type NeoviewFolderRegionPosition = (typeof NEOVIEW_FOLDER_REGION_POSITION
 export type NeoviewFolderDetailColumn = (typeof NEOVIEW_FOLDER_DETAIL_COLUMNS)[number]
 export type NeoviewFolderHoverPreviewDelay = (typeof NEOVIEW_FOLDER_HOVER_PREVIEW_DELAYS)[number]
 
+export type NeoviewFolderTitleWrapConfig = Record<NeoviewFolderViewMode, boolean>
+
+export const NEOVIEW_FOLDER_TITLE_WRAP_TOML_KEYS: Readonly<Record<NeoviewFolderViewMode, string>> = {
+  compact: "compact",
+  "cover-list": "cover_list",
+  "mosaic-list": "mosaic_list",
+  details: "details",
+  "cover-grid": "cover_grid",
+  "mosaic-grid": "mosaic_grid",
+}
+
+export const DEFAULT_NEOVIEW_FOLDER_TITLE_WRAP: NeoviewFolderTitleWrapConfig = {
+  compact: false,
+  "cover-list": false,
+  "mosaic-list": false,
+  details: false,
+  "cover-grid": true,
+  "mosaic-grid": false,
+}
+
 export interface NeoviewFolderDetailsConfig {
   columnOrder: NeoviewFolderDetailColumn[]
   hiddenColumns: NeoviewFolderDetailColumn[]
@@ -243,6 +263,7 @@ export interface NeoviewFolderViewConfig {
   bannerWidthPercent: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: NeoviewFolderHoverPreviewDelay
+  titleWrap: NeoviewFolderTitleWrapConfig
   /** Preferred directory listing type filter; applied when a browser session opens. */
   typeFilter: NeoviewFolderTypeFilter
   /** Keep development/configuration directories out of normal media browsing. */
@@ -278,6 +299,7 @@ export interface NeoviewFolderViewPatch {
     bannerWidthPercent?: number
     hoverPreviewEnabled?: boolean
     hoverPreviewDelayMs?: NeoviewFolderHoverPreviewDelay
+    titleWrap?: Partial<NeoviewFolderTitleWrapConfig>
     typeFilter?: NeoviewFolderTypeFilter
     showHiddenFolders?: boolean
     hideMissingEfuEntries?: boolean
@@ -766,6 +788,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   bannerWidthPercent: 50,
   hoverPreviewEnabled: true,
   hoverPreviewDelayMs: 500,
+  titleWrap: { ...DEFAULT_NEOVIEW_FOLDER_TITLE_WRAP },
   typeFilter: "library",
   showHiddenFolders: false,
   hideMissingEfuEntries: false,

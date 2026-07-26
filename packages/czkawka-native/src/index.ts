@@ -131,6 +131,8 @@ export interface MediaScanOptions {
   imageHashAlgorithm?: "mean" | "gradient" | "blockhash" | "vert-gradient" | "double-gradient" | "median"
   imageResizeAlgorithm?: "lanczos3" | "gaussian" | "catmull-rom" | "triangle" | "nearest"
   imageIgnoreSameSize?: boolean
+  imageIgnoreSameResolution?: boolean
+  imageGeometricInvariance?: "off" | "mirror-flip" | "mirror-flip-rotate-90"
   videoIgnoreSameSize?: boolean
   videoSkipForward?: number
   videoHashDuration?: number

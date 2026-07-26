@@ -48,7 +48,11 @@ pub(crate) fn scan(
                 entry
                     .errors
                     .iter()
-                    .filter_map(|(kind, message)| message.as_ref().map(|message| format!("{kind:?}: {message}")))
+                    .filter_map(|(kind, message)| {
+                        message
+                            .as_ref()
+                            .map(|message| format!("{kind:?}: {message}"))
+                    })
                     .collect::<Vec<_>>()
                     .join(", "),
             ),

@@ -24,6 +24,7 @@ import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteBut
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_LIST_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 import { folderThumbnailIsLoading, type FolderThumbnailStore } from "./FolderThumbnailStore"
 import { useFolderThumbnail } from "./useFolderThumbnail"
+import { folderTitleClassName } from "./FolderViewPresentation"
 
 export type FolderMosaicSpan = "square" | "wide" | "tall"
 
@@ -49,6 +50,7 @@ export default function FolderMosaicWorkspace({
   tileSize,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  wrapTitle = false,
   penetrationFiles = EMPTY_PENETRATION_FILES,
   deleteMode = false,
   deleteStrategy = "trash",
@@ -75,6 +77,7 @@ export default function FolderMosaicWorkspace({
   tileSize: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  wrapTitle?: boolean
   penetrationFiles?: ReadonlyMap<string, readonly FolderPenetrationFileName[]>
   deleteMode?: boolean
   deleteStrategy?: FolderDeleteStrategy
@@ -282,6 +285,7 @@ function DirectoryMosaicGroup({
             thumbnailUrls={thumbnailUrlSets.get(entry.path)}
             hoverPreviewEnabled={hoverPreviewEnabled}
             hoverPreviewDelayMs={hoverPreviewDelayMs}
+            wrapTitle={wrapTitle}
             penetrationFiles={penetrationFiles.get(entry.path)}
             deleteMode={deleteMode}
             deleteStrategy={deleteStrategy}
@@ -312,6 +316,7 @@ export function DirectoryMosaicItem({
   thumbnailUrls,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
+  wrapTitle = false,
   penetrationFiles,
   deleteMode,
   deleteStrategy,
@@ -335,6 +340,7 @@ export function DirectoryMosaicItem({
   thumbnailUrls?: readonly string[]
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
+  wrapTitle?: boolean
   penetrationFiles?: readonly FolderPenetrationFileName[]
   deleteMode: boolean
   deleteStrategy: FolderDeleteStrategy
@@ -392,10 +398,10 @@ export function DirectoryMosaicItem({
             : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
           {penetrationFiles?.length ? <span className="absolute inset-x-1 bottom-1 max-h-20 overflow-hidden"><FolderPenetrationFileNames files={penetrationFiles} variant="overlay" /></span> : null}
         </span>
-        <span className="grid min-w-0 gap-0.5 border-t px-1.5 py-1">
+        <span className={`grid min-w-0 gap-0.5 border-t px-1.5 py-1 ${wrapTitle ? "min-h-10" : ""}`}>
           <span className="flex min-w-0 items-center gap-1">
             <FolderEntryIcon entry={entry} className="size-3.5" />
-            <span className="truncate font-medium">{entry.name}</span>
+            <span className={folderTitleClassName(wrapTitle) + " font-medium"} data-folder-entry-title-wrap={wrapTitle || undefined}>{entry.name}</span>
           </span>
           {span !== "square" ? (
             <span className="flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground">
