@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { CoreReaderService } from "../../application/reader/ReaderService.js"
+import type { ReaderProgressRecord, ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import { ReaderHttpController } from "./ReaderHttpController.js"
 
 const roots: string[] = []
@@ -14,7 +15,7 @@ afterEach(async () => {
 })
 
 describe("Reader adjacent-book HTTP", () => {
-  it("[neoview.control.hierarchical-book] preserves non-penetrable branches and opens the previous book at its last page", async () => {
+  it("[neoview.control.hierarchical-book] preserves non-penetrable branches and uses the previous book's default start page without history", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-hierarchical-http-"))
     roots.push(root)
     const a = join(root, "A")
@@ -52,7 +53,27 @@ describe("Reader adjacent-book HTTP", () => {
       expect(previous.status).toBe(201)
       const previousBook = await previous.json() as typeof current
       expect(previousBook.book.displayName).toBe("Book 2")
-      expect(previousBook.frame.anchorPageIndex).toBe(1)
+      expect(previousBook.frame.anchorPageIndex).toBe(0)
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.control.adjacent-book-progress] restores the previous book's saved page instead of forcing its last page", async () => {
+    const { first } = await fixture()
+    await writeFile(join(first, "2.jpg"), Uint8Array.of(3))
+    const controller = createController(memoryProgressStore())
+    try {
+      const opened = await open(controller, first)
+      const nextResponse = await request(controller, `/reader/s/${opened.sessionId}/adjacent-book`, "POST", { direction: "next" })
+      expect(nextResponse.status).toBe(201)
+      const next = await nextResponse.json() as { sessionId: string; frame: { anchorPageIndex: number } }
+      expect(next.frame.anchorPageIndex).toBe(0)
+
+      const previousResponse = await request(controller, `/reader/s/${next.sessionId}/adjacent-book`, "POST", { direction: "previous" })
+      expect(previousResponse.status).toBe(201)
+      const previous = await previousResponse.json() as typeof next
+      expect(previous.frame.anchorPageIndex).toBe(0)
     } finally {
       await controller[Symbol.asyncDispose]()
     }
@@ -109,12 +130,22 @@ describe("Reader adjacent-book HTTP", () => {
   })
 })
 
-function createController(): ReaderHttpController {
+function createController(progressStore: ReaderProgressStore | false = false): ReaderHttpController {
   return new ReaderHttpController({
     baseUrl: "http://127.0.0.1:43131",
     token: "adjacent-token",
-    progressStore: false,
+    progressStore,
   })
+}
+
+function memoryProgressStore(): ReaderProgressStore {
+  const records = new Map<string, ReaderProgressRecord>()
+  return {
+    get: async (bookId) => records.get(bookId),
+    save: async (record) => { records.set(record.bookId, record) },
+    close: async () => undefined,
+    [Symbol.asyncDispose]: async () => undefined,
+  }
 }
 
 async function open(controller: ReaderHttpController, path: string): Promise<{ sessionId: string }> {
