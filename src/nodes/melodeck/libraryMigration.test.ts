@@ -3,51 +3,73 @@ import { describe, expect, it, vi } from "vitest"
 import { loadAndMigrateMelodeckLibrary, type MelodeckLibraryMigrationDependencies } from "./libraryMigration"
 
 describe("Melodeck library migration", () => {
-  it("uses an initialized database even when it contains an empty library", async () => {
+  it("uses the shared database directly after this browser origin has migrated", async () => {
     const dependencies = createDependencies()
-    dependencies.loadLibrary.mockResolvedValue([])
+    dependencies.loadDatabaseLibrary.mockResolvedValue({ initialized: true, tracks: [] })
+    dependencies.isOriginMigrationComplete.mockReturnValue(true)
 
     await expect(loadAndMigrateMelodeckLibrary({
       saved_tracks: [{ name: "Legacy", path: "D:/Music/legacy.flac" }],
     }, dependencies)).resolves.toEqual([])
 
-    expect(dependencies.saveLibrary).not.toHaveBeenCalled()
+    expect(dependencies.loadOriginLibrary).not.toHaveBeenCalled()
+    expect(dependencies.saveDatabaseLibrary).not.toHaveBeenCalled()
     expect(dependencies.removeLegacyTracks).not.toHaveBeenCalled()
   })
 
-  it("writes legacy tracks to the database before removing them from TOML", async () => {
+  it("merges each origin's old IndexedDB list into the shared database once", async () => {
     const order: string[] = []
     const dependencies = createDependencies()
-    dependencies.loadLibrary.mockResolvedValue(null)
-    dependencies.saveLibrary.mockImplementation(async () => { order.push("database") })
+    dependencies.loadDatabaseLibrary.mockResolvedValue({
+      initialized: true,
+      tracks: [{ path: "D:/Music/shared.flac", title: "Database title" }],
+    })
+    dependencies.loadOriginLibrary.mockResolvedValue([
+      { id: "shared", path: "d:\\music\\shared.flac", title: "Stale origin title" },
+      { id: "origin", path: "D:/Music/origin.flac", title: "Origin" },
+    ])
+    dependencies.saveDatabaseLibrary.mockImplementation(async () => { order.push("database") })
     dependencies.removeLegacyTracks.mockImplementation(async () => { order.push("toml") })
+    dependencies.markOriginMigrationComplete.mockImplementation(() => { order.push("origin-marker") })
 
     await expect(loadAndMigrateMelodeckLibrary({
-      saved_tracks: [{ name: "Legacy", writer: "Artist", path: "D:/Music/legacy.flac" }],
+      saved_tracks: [{ name: "TOML", path: "D:/Music/toml.flac" }],
     }, dependencies)).resolves.toEqual([
-      { name: "Legacy", writer: "Artist", path: "D:/Music/legacy.flac", size: undefined, type: undefined },
+      expect.objectContaining({ name: "Database title", path: "D:/Music/shared.flac" }),
+      expect.objectContaining({ name: "Origin", path: "D:/Music/origin.flac" }),
+      expect.objectContaining({ name: "TOML", path: "D:/Music/toml.flac" }),
     ])
 
-    expect(order).toEqual(["database", "toml"])
+    expect(dependencies.saveDatabaseLibrary).toHaveBeenCalledWith([
+      expect.objectContaining({ title: "Database title", path: "D:/Music/shared.flac" }),
+      expect.objectContaining({ title: "Origin", path: "D:/Music/origin.flac" }),
+      expect.objectContaining({ title: "TOML", path: "D:/Music/toml.flac" }),
+    ])
+    expect(order).toEqual(["database", "toml", "origin-marker"])
   })
 
-  it("keeps the legacy TOML field when the database write fails", async () => {
+  it("does not mark an origin migrated or remove TOML when the database write fails", async () => {
     const dependencies = createDependencies()
-    dependencies.loadLibrary.mockResolvedValue(null)
-    dependencies.saveLibrary.mockRejectedValue(new Error("IndexedDB unavailable"))
+    dependencies.loadDatabaseLibrary.mockResolvedValue({ initialized: false, tracks: [] })
+    dependencies.loadOriginLibrary.mockResolvedValue(null)
+    dependencies.saveDatabaseLibrary.mockRejectedValue(new Error("database unavailable"))
 
     await expect(loadAndMigrateMelodeckLibrary({
       saved_tracks: [{ name: "Legacy", path: "D:/Music/legacy.flac" }],
-    }, dependencies)).rejects.toThrow("IndexedDB unavailable")
+    }, dependencies)).rejects.toThrow("database unavailable")
 
     expect(dependencies.removeLegacyTracks).not.toHaveBeenCalled()
+    expect(dependencies.markOriginMigrationComplete).not.toHaveBeenCalled()
   })
 })
 
 function createDependencies() {
   return {
-    loadLibrary: vi.fn<MelodeckLibraryMigrationDependencies["loadLibrary"]>(),
-    saveLibrary: vi.fn<MelodeckLibraryMigrationDependencies["saveLibrary"]>(),
+    loadDatabaseLibrary: vi.fn<MelodeckLibraryMigrationDependencies["loadDatabaseLibrary"]>(),
+    saveDatabaseLibrary: vi.fn<MelodeckLibraryMigrationDependencies["saveDatabaseLibrary"]>(),
+    loadOriginLibrary: vi.fn<MelodeckLibraryMigrationDependencies["loadOriginLibrary"]>(),
+    isOriginMigrationComplete: vi.fn<MelodeckLibraryMigrationDependencies["isOriginMigrationComplete"]>().mockReturnValue(false),
+    markOriginMigrationComplete: vi.fn<MelodeckLibraryMigrationDependencies["markOriginMigrationComplete"]>(),
     removeLegacyTracks: vi.fn<MelodeckLibraryMigrationDependencies["removeLegacyTracks"]>(),
   }
 }

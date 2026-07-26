@@ -7,14 +7,21 @@ import {
 } from "@hibernalglow/folia-player"
 import { parseLyricsByFormat, type LyricData, type LyricParseFormat } from "@hibernalglow/folia-player/parser"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
+import {
+  loadMelodeckDatabaseMetadata,
+  melodeckDatabaseCoverUrl,
+  saveMelodeckDatabaseMetadata,
+  type MelodeckDatabaseMetadata,
+} from "@/backend/melodeckLibraryClient"
 import { listLocalFiles, pickLocalPaths, resolveLocalAudioTracks, type LocalFileEntry } from "@/backend/localFilesClient"
+import { createLogger } from "@/lib/logger"
+import type { XiraniteFoliaTrack } from "./foliaTypes"
 
 const LYRIC_FORMATS = ["lrc", "vtt", "ttml", "yrc", "qrc", "krc"] as const
 const OPTIONAL_FILE_EXTENSIONS = [...LYRIC_FORMATS.map((format) => `.${format}`), ".jpg", ".jpeg", ".png"]
 const optionalFilesByDirectory = new Map<string, Map<string, LocalFileEntry>>()
 const optionalFilesInFlight = new Map<string, Promise<Map<string, LocalFileEntry>>>()
-const metadataCache = new Map<string, EmbeddedMetadataResult>()
-const METADATA_CACHE_LIMIT = 128
+const logger = createLogger("melodeck.metadata")
 
 export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
   async scanLibraryRoots(roots, signal) {
@@ -44,7 +51,14 @@ export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
         artist: track.writer,
         mimeType: track.type,
         fileSize: track.size,
-      }]
+        xiraniteSource: {
+          title: track.name,
+          artist: track.writer,
+          fileName: track.fileName,
+          relativePath: track.relativePath,
+          lastModified: track.lastModified,
+        },
+      } satisfies XiraniteFoliaTrack]
     }))
   },
 
@@ -64,54 +78,152 @@ export const foliaMelodeckHost: FoliaPlayerHostAdapter = {
 
   async hydrateTrackPreview(track, signal) {
     if (!track.path) return {}
-    const metadata = await readMetadata(track, signal)
-    return resolveMetadata(track.path, metadata, signal)
+    const cached = await loadCachedMetadata(track.path, signal)
+    if (cached) return fromDatabaseMetadata(cached)
+
+    const metadata = await parseMetadata(track, signal)
+    const cover = await resolveCover(track.path, metadata, signal)
+    const lyrics = embeddedLyrics(metadata)
+    return persistMetadata({
+      path: track.path,
+      metadata,
+      cover,
+      lyrics,
+      lyricsHydrated: false,
+      signal,
+    })
   },
 
   async hydrateTrack(track, signal) {
     if (!track.path) return {}
+    const cached = await loadCachedMetadata(track.path, signal)
+    if (cached?.lyricsHydrated) return fromDatabaseMetadata(cached)
+    if (cached) {
+      const lyrics = await readLyrics(track.path, signal) ?? cached.lyrics ?? null
+      return persistDatabaseMetadata({ ...cached, lyrics, lyricsHydrated: true }, signal)
+    }
+
     const [metadata, lyrics] = await Promise.all([
-      readMetadata(track, signal),
+      parseMetadata(track, signal),
       readLyrics(track.path, signal),
     ])
-    const resolved = await resolveMetadata(track.path, metadata, signal)
-    return {
-      ...resolved,
+    const cover = await resolveCover(track.path, metadata, signal)
+    return persistMetadata({
+      path: track.path,
+      metadata,
+      cover,
       lyrics: lyrics ?? embeddedLyrics(metadata),
-    } satisfies FoliaResolvedTrack
+      lyricsHydrated: true,
+      signal,
+    })
   },
 }
 
-async function readMetadata(track: FoliaTrack, signal: AbortSignal): Promise<EmbeddedMetadataResult | null> {
-  const cacheKey = `${track.path ?? track.id}\0${track.fileSize ?? ""}`
-  const cached = metadataCache.get(cacheKey)
-  if (cached) return cached
-
+async function parseMetadata(track: FoliaTrack, signal: AbortSignal): Promise<EmbeddedMetadataResult | null> {
   const metadata = await parseRemoteEmbeddedMetadataAsync(track.src, {
     filePath: track.path,
     includeCover: true,
     signal,
   })
   if (!metadata || signal.aborted) return null
-  metadataCache.set(cacheKey, metadata)
-  if (metadataCache.size > METADATA_CACHE_LIMIT) metadataCache.delete(metadataCache.keys().next().value as string)
   return metadata
 }
 
-async function resolveMetadata(
+async function loadCachedMetadata(path: string, signal: AbortSignal): Promise<MelodeckDatabaseMetadata | null> {
+  try {
+    return await loadMelodeckDatabaseMetadata(path, signal)
+  } catch (error) {
+    if (signal.aborted) throw error
+    logger.warn("Metadata database read failed; falling back to file extraction", error)
+    return null
+  }
+}
+
+async function resolveCover(
   trackPath: string,
   metadata: EmbeddedMetadataResult | null,
   signal: AbortSignal,
+): Promise<Blob | null> {
+  return metadata?.cover ?? await readFolderCover(trackPath, signal)
+}
+
+async function persistMetadata(options: {
+  path: string
+  metadata: EmbeddedMetadataResult | null
+  cover: Blob | null
+  lyrics: LyricData | null
+  lyricsHydrated: boolean
+  signal: AbortSignal
+}): Promise<FoliaResolvedTrack> {
+  const resolved = {
+    title: options.metadata?.title,
+    artist: options.metadata?.artist,
+    album: options.metadata?.album,
+    duration: options.metadata?.duration ? options.metadata.duration / 1000 : undefined,
+    replayGainTrackDb: options.metadata?.replayGainTrackGain,
+    replayGainAlbumDb: options.metadata?.replayGainAlbumGain,
+    lyrics: options.lyrics,
+  }
+  try {
+    const saved = await saveMelodeckDatabaseMetadata({
+      path: options.path,
+      ...resolved,
+      cover: options.cover,
+      lyricsHydrated: options.lyricsHydrated,
+    }, options.signal)
+    return fromDatabaseMetadata(saved)
+  } catch (error) {
+    if (options.signal.aborted) throw error
+    logger.warn("Metadata database write failed; keeping the extracted data in memory", error)
+    return withTransientCover(resolved, options.cover)
+  }
+}
+
+async function persistDatabaseMetadata(
+  metadata: MelodeckDatabaseMetadata,
+  signal: AbortSignal,
 ): Promise<FoliaResolvedTrack> {
-  const coverBlob = metadata?.cover ?? await readFolderCover(trackPath, signal)
-  const coverUrl = coverBlob ? URL.createObjectURL(coverBlob) : undefined
+  try {
+    const saved = await saveMelodeckDatabaseMetadata({
+      path: metadata.path,
+      title: metadata.title,
+      artist: metadata.artist,
+      album: metadata.album,
+      duration: metadata.duration,
+      replayGainTrackDb: metadata.replayGainTrackDb,
+      replayGainAlbumDb: metadata.replayGainAlbumDb,
+      lyrics: metadata.lyrics,
+      lyricsHydrated: metadata.lyricsHydrated,
+      cover: undefined,
+    }, signal)
+    return fromDatabaseMetadata(saved)
+  } catch (error) {
+    if (signal.aborted) throw error
+    logger.warn("Metadata database update failed; using the cached record", error)
+    return fromDatabaseMetadata(metadata)
+  }
+}
+
+function fromDatabaseMetadata(metadata: MelodeckDatabaseMetadata): FoliaResolvedTrack {
   return {
-    title: metadata?.title,
-    artist: metadata?.artist,
-    album: metadata?.album,
-    duration: metadata?.duration ? metadata.duration / 1000 : undefined,
-    replayGainTrackDb: metadata?.replayGainTrackGain,
-    replayGainAlbumDb: metadata?.replayGainAlbumGain,
+    title: metadata.title,
+    artist: metadata.artist,
+    album: metadata.album,
+    duration: metadata.duration,
+    replayGainTrackDb: metadata.replayGainTrackDb,
+    replayGainAlbumDb: metadata.replayGainAlbumDb,
+    lyrics: metadata.lyrics,
+    coverUrl: metadata.hasCover ? melodeckDatabaseCoverUrl(metadata.path) : undefined,
+  }
+}
+
+function withTransientCover(
+  resolved: Omit<FoliaResolvedTrack, "coverUrl" | "release">,
+  cover: Blob | null,
+): FoliaResolvedTrack {
+  const coverUrl = cover ? URL.createObjectURL(cover) : undefined
+  return {
+    ...resolved,
     coverUrl,
     release: coverUrl ? () => URL.revokeObjectURL(coverUrl) : undefined,
   }

@@ -111,17 +111,19 @@ Melo deck 仍是 Xiranite 标准节点。Folia 提供新的 GUI 播放内核、�
 
 ## 配置与存储
 
-- `[nodes.melodeck]` 是用户配置的唯一事实源。
+- `[nodes.melodeck]` 是用户偏好与播放配置的唯一事实源；歌曲列表和媒体元数据属于运行数据，不写入 TOML。
 - 新配置使用版本化的 `playback`、`visualizer`、`surfaces` 与 `library` 分区。
 - `surfaces.follow_fullscreen_with_floating` 保存全屏与浮窗联动偏好，缺省值为 `false`。
-- `playback.active_track_id` 保存最后活动曲目；曲目队列写入 Folia Dexie 数据库的独立命名记录，不写入 TOML。找不到旧曲目时回退到队列首曲，且不自动播放。
+- `playback.active_track_id` 保存最后活动曲目；曲目队列写入共享 `xiranite.db` 的 `melodeck_library_state` / `melodeck_library_tracks`，不写入 TOML，也不以 Folia Dexie 或 origin-local storage 为事实源。找不到旧曲目时回退到队列首曲，且不自动播放。
 - `visualizer` 保存完整 `FoliaPlayerPreferences` 视觉与实验字段，包括 `staticMode`、`disableHomeDynamicBackground`、`visualizerFrameRate`、`hidePlayerProgressBar`、`hidePlayerTranslationSubtitle`、`hidePlayerRightPanelButton`、`showOpenPanelCloseButton` 与 `alwaysShowPlayerBackButton`；切换到 legacy 引擎时保留这些值，切回 Folia 后继续生效。
 - Melo deck 不复用 Folia 主应用的 Zustand/localStorage 设置存储，也不挂载包含 Electron 专属开关的原版 `LabSettingsModal`；player 包复用同一设置语义和上游组件 props，Xiranite TOML 是唯一事实源。
 - `visualizerFrameRate` 只在 `FoliaFullscreenSurface` 处于歌词播放页时安装作用域 RAF limiter；返回 Home、关闭限制或卸载表面后必须恢复宿主原本的 `requestAnimationFrame` / `cancelAnimationFrame`。多个歌词表面同时活动时采用最低请求帧率，最后一个离开后恢复。
 - 旧 TOML `saved_tracks` 仅作为一次性迁移输入：必须先成功写入数据库，再删除旧字段；数据库写入失败时保留原字段，禁止丢失曲库。
 - 现有 `source_path`、`mode`、`floating_offset`、`visualizer_style`、`volume`、`mpv_path` 和 `ipc_path` 非破坏迁移。
 - 现有单路径迁移为 `library_roots = [source_path]`，读取端继续兼容旧字段。
-- Folia host storage adapter 只保存不适合 TOML 的元数据、封面、歌词与自定义背景缓存。
+- Folia host storage adapter 将不适合 TOML 的标题、歌手、专辑、时长、ReplayGain、封面和歌词写入共享 `xiranite.db` 的 `melodeck_track_metadata`；封面保存为 BLOB，歌词保存为 JSON。dev 与 Wails 必须通过同一后端 API 读取这些表，不能依赖页面 origin。
+- 元数据缓存以规范化本地路径定位，并以音频文件大小和最后修改时间校验；任一指纹变化都必须回退到 Folia metadata worker 重新提取。后台提取仍按单曲低速串行运行，数据库写入不得把解析搬回 React 主线程。
+- 升级时，每个旧浏览器 origin 只执行一次 Folia Dexie / 旧 TOML 曲库合并；共享数据库记录优先，同路径旧记录不得覆盖数据库记录。迁移完成后该 origin 只读写共享数据库，保留 Folia 自身 Dexie 作为独立 Folia 应用的 fallback。
 - Xiranite 中不使用 Folia 原有的配置 localStorage 键，也不保存浏览器 `FileSystemHandle`。
 - 本地文件由 Xiranite 后端扫描并提供稳定 URL。
 

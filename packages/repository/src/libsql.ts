@@ -30,6 +30,11 @@ export {
   type LibsqlFileDeletionRepository,
   type LibsqlFileDeletionRepositoryOptions,
 } from "./fileDeletion.js"
+export {
+  createLibsqlMelodeckRepository,
+  type LibsqlMelodeckRepository,
+  type LibsqlMelodeckRepositoryOptions,
+} from "./melodeckLibsql.js"
 
 const workspaces = sqliteTable("workspaces", {
   id: text("id").primaryKey(),
