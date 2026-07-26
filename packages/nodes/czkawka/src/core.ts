@@ -265,9 +265,9 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInp
     similarVideosHashDuration: clamp(input.similarVideosHashDuration, 2, 60, 10),
     similarVideosLetterboxCrop: similarVideoCrop.letterboxCrop,
     similarVideosWindowCount: clamp(input.similarVideosWindowCount, 1, 20, 5),
-    similarVideosDurationTolerancePct: clamp(input.similarVideosDurationTolerancePct, 0, 100, 20),
-    similarVideosMinMatchingWindows: clamp(input.similarVideosMinMatchingWindows, 0, 1, 0.6),
-    similarVideosSubclipMinMatch: clamp(input.similarVideosSubclipMinMatch, 0, 1, 0.5),
+    similarVideosDurationTolerancePct: clampDecimal(input.similarVideosDurationTolerancePct, 0, 100, 20),
+    similarVideosMinMatchingWindows: clampDecimal(input.similarVideosMinMatchingWindows, 0, 1, 0.6),
+    similarVideosSubclipMinMatch: clampDecimal(input.similarVideosSubclipMinMatch, 0, 1, 0.5),
     similarVideosCheckAudioContent: input.similarVideosCheckAudioContent ?? false,
     musicCheckType: oneOf(input.musicCheckType, ["tags", "fingerprint"] as const, "tags"),
     musicApproximateComparison: input.musicApproximateComparison ?? true,
@@ -525,8 +525,9 @@ function normalizeDestinationItems(items: CzkawkaDestinationItem[] | undefined):
 function normalizeRenameItems(items: CzkawkaRenameItem[] | undefined): CzkawkaRenameItem[] { const result = new Map<string, string>(); for (const item of items ?? []) { const path = clean(item.path), properExtension = clean(item.properExtension).replace(/^\.+/, ""); if (path && properExtension) result.set(path, properExtension) } return [...result].map(([path, properExtension]) => ({ path, properExtension })) }
 function clean(value: unknown): string { return String(value ?? "").trim() }
 function clamp(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.round(parsed))) : fallback }
+function clampDecimal(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback }
 function oneOf<const Values extends readonly (string | number)[]>(value: unknown, values: Values, fallback: Values[number]): Values[number] { return values.includes(value as Values[number]) ? value as Values[number] : fallback }
 function csv(value: string): string { return `"${value.replaceAll('"', '""')}"` }
-const EXPORT_FIELDS = ["groupId", "path", "name", "size", "modifiedDate", "hash", "secondaryPath", "detail", "properExtension", "width", "height", "similarity", "title", "artist", "year", "length", "genre", "bitrate", "isReference", "status", "operation", "conflictPolicy", "error"] as const satisfies readonly (keyof CzkawkaEntry)[]
+const EXPORT_FIELDS = ["groupId", "path", "name", "size", "modifiedDate", "hash", "secondaryPath", "detail", "properExtension", "width", "height", "fps", "codec", "similarity", "title", "artist", "year", "length", "genre", "bitrate", "isReference", "status", "operation", "conflictPolicy", "error"] as const satisfies readonly (keyof CzkawkaEntry)[]
 function exportCsv(entries: CzkawkaEntry[]): string { return `${EXPORT_FIELDS.join(",")}\n${entries.map((entry) => EXPORT_FIELDS.map((field) => csv(String(entry[field] ?? ""))).join(",")).join("\n")}\n` }
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error) }

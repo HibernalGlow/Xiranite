@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { cancelCzkawkaScan, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles } from "../dist/index.js"
 
 const info = getCzkawkaInfo()
-const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel"]
+const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio"]
 const missingCapabilities = requiredCapabilities.filter((capability) => !info.capabilities.includes(capability))
 if (info.apiVersion !== 5 || missingCapabilities.length) {
   throw new Error(`Unexpected Czkawka info: ${JSON.stringify(info)}`)
@@ -38,9 +38,15 @@ try {
     imageResizeAlgorithm: "catmull-rom",
     imageIgnoreSameSize: true,
     videoIgnoreSameSize: true,
+    videoIgnoreSameResolution: true,
     videoSkipForward: 45,
     videoHashDuration: 20,
     videoCropDetect: "motion",
+    videoWindowCount: 12,
+    videoDurationTolerancePct: 35,
+    videoMinMatchingWindows: 0.75,
+    videoSubclipMinMatch: 0.4,
+    videoCheckAudioContent: true,
     musicCheckType: "fingerprint",
     musicMaximumDifference: 4,
     musicMinimumFragmentDuration: 30,

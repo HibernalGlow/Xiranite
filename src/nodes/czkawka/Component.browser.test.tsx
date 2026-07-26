@@ -100,6 +100,56 @@ test("persists Czkawka 12 similar-image invariance controls in the browser", asy
   await expect.poll(() => host.stateValue.similarImagesGeometricInvariance).toBe("mirror-flip-rotate-90")
 })
 
+test("hides Czkawka 12 similario controls until the native binding advertises their capabilities", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "similar-videos", includedDirectoriesText: "D:/media", sourceSettingsTab: "algorithm" }, [])
+
+  await render(<Component compId="czkawka-similario-unavailable-browser" host={host} />)
+
+  await expect.element(page.getByText("Ignore same resolution")).not.toBeInTheDocument()
+  await expect.element(page.getByText("Window count")).not.toBeInTheDocument()
+  await expect.element(page.getByText("Duration tolerance (%)")).not.toBeInTheDocument()
+  await expect.element(page.getByText("Minimum matching windows")).not.toBeInTheDocument()
+  await expect.element(page.getByText("Minimum subclip match")).not.toBeInTheDocument()
+  await expect.element(page.getByText("Compare audio content")).not.toBeInTheDocument()
+})
+
+test("persists every Czkawka 12 similario control in the browser", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost(
+    { tool: "similar-videos", includedDirectoriesText: "D:/media", sourceSettingsTab: "algorithm" },
+    ["similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio"],
+  )
+
+  await render(<Component compId="czkawka-similario-browser" host={host} />)
+
+  await page.getByRole("switch", { name: "Ignore same resolution" }).click()
+  await page.getByRole("spinbutton", { name: "Window count" }).fill("12")
+  await page.getByRole("spinbutton", { name: "Duration tolerance (%)" }).fill("35")
+  await page.getByRole("spinbutton", { name: "Minimum matching windows" }).fill("0.75")
+  await page.getByRole("spinbutton", { name: "Minimum subclip match" }).fill("0.4")
+  await page.getByRole("switch", { name: "Compare audio content" }).click()
+
+  await expect.poll(() => host.stateValue).toMatchObject({
+    similarVideosIgnoreSameResolution: true,
+    similarVideosWindowCount: "12",
+    similarVideosDurationTolerancePct: "35",
+    similarVideosMinMatchingWindows: "0.75",
+    similarVideosSubclipMinMatch: "0.4",
+    similarVideosCheckAudioContent: true,
+  })
+})
+
+test("renders Czkawka 12 video codec and frame-rate metadata in the browser", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "similar-videos", includedDirectoriesText: "D:/media", result: similarVideoResult })
+
+  await render(<Component compId="czkawka-similario-metadata-browser" host={host} />)
+
+  await expect.element(page.getByText("23.98 fps").first()).toBeVisible()
+  await expect.element(page.getByText("H.264").first()).toBeVisible()
+})
+
 test("compares similar-image group members through all four accessible modes", async () => {
   await i18n.changeLanguage("en")
   const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/media", result: similarImageResult })
@@ -237,4 +287,20 @@ const similarImageResult: CzkawkaData = {
   fileCount: 3,
   totalBytes: 36,
   reclaimableBytes: 24,
+}
+
+const similarVideoEntries = [
+  { id: "left.mp4", groupId: 0, path: "left.mp4", name: "left.mp4", size: 10, modifiedDate: 1, width: 1920, height: 1080, fps: 23.98, codec: "H.264", bitrate: 1_200, length: "6.00 s", similarity: "1" },
+  { id: "right.mp4", groupId: 0, path: "right.mp4", name: "right.mp4", size: 12, modifiedDate: 2, width: 1920, height: 1080, fps: 23.98, codec: "H.264", bitrate: 1_200, length: "6.00 s", similarity: "2" },
+]
+
+const similarVideoResult: CzkawkaData = {
+  ...sample,
+  tool: "similar-videos",
+  groups: [{ id: 0, entries: similarVideoEntries, totalBytes: 22, reclaimableBytes: 12 }],
+  entries: similarVideoEntries,
+  groupCount: 1,
+  fileCount: 2,
+  totalBytes: 22,
+  reclaimableBytes: 12,
 }

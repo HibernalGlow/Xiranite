@@ -9,6 +9,7 @@ describe("Czkawka result table model", () => {
   test("defines fork-specific columns for every tool", () => {
     expect(Object.keys(CZKAWKA_RESULT_COLUMNS)).toHaveLength(11)
     expect(CZKAWKA_RESULT_COLUMNS["similar-images"].map((item) => item.id)).toEqual(expect.arrayContaining(["similarity", "dimensions", "groupSize"]))
+    expect(CZKAWKA_RESULT_COLUMNS["similar-videos"].map((item) => item.id)).toEqual(expect.arrayContaining(["fps", "codec", "bitrate", "length"]))
     expect(CZKAWKA_RESULT_COLUMNS["duplicate-music"].map((item) => item.id)).toEqual(expect.arrayContaining(["title", "artist", "year", "bitrate", "length"]))
     expect(CZKAWKA_RESULT_COLUMNS["invalid-symlinks"].map((item) => item.id)).toEqual(expect.arrayContaining(["target", "error"]))
     expect(CZKAWKA_RESULT_COLUMNS["bad-extensions"].map((item) => item.id)).toEqual(expect.arrayContaining(["currentExtension", "properExtension"]))
