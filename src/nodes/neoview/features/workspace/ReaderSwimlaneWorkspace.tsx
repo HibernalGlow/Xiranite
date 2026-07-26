@@ -527,7 +527,7 @@ export function ReaderSwimlaneWorkspace({
         collapsed={collapsed}
         width={effectiveWidth}
         solo={solo}
-        resizeBoundaryWith={!readerViewFullscreen && nextLaneId && ((!solo && soloLaneId !== nextLaneId) || previewBoundary) ? nextLaneId : undefined}
+        resizeBoundaryWith={nextLaneId && ((!solo && soloLaneId !== nextLaneId) || previewBoundary) ? nextLaneId : undefined}
         dragged={draggedLane === laneId}
         setRef={(node) => { laneRefs.current[laneId] = node }}
         onActivate={() => activateLane(laneId)}
