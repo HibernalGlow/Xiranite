@@ -1,0 +1,108 @@
+import { describe, expect, test, vi } from "vitest"
+
+import type { CzkawkaData, CzkawkaInput } from "./core.js"
+import { createCzkawkaWorkbench, type CzkawkaWorkbenchPersistencePatch } from "./workbench.js"
+
+const data: CzkawkaData = {
+  action: "scan",
+  tool: "duplicate-files",
+  groups: [],
+  entries: [],
+  messages: "",
+  stopped: false,
+  groupCount: 0,
+  fileCount: 0,
+  totalBytes: 0,
+  reclaimableBytes: 0,
+  affectedCount: 0,
+  errorCount: 0,
+}
+
+const messages = {
+  noRoots: "Add a directory.",
+  noRuntime: "Runtime unavailable.",
+  starting: "Starting scan.",
+  stopping: "Stopping scan.",
+}
+
+describe("Czkawka workbench", () => {
+  test("keeps selection history and filters isolated per tool", () => {
+    const { workbench, patches } = createTestWorkbench()
+    const filter = { text: { enabled: true, pattern: "portrait" } }
+
+    workbench.setSelectedPaths("duplicate-files", ["D:/one.bin"])
+    workbench.setSelectedPaths("duplicate-files", ["D:/two.bin"])
+    workbench.undoSelection("duplicate-files")
+    workbench.setSelectedPaths("similar-images", ["D:/one.jpg"])
+    workbench.setFilterState("similar-images", filter)
+
+    expect(workbench.getSelectedPaths("duplicate-files")).toEqual(["D:/one.bin"])
+    expect(workbench.getSelectedPaths("similar-images")).toEqual(["D:/one.jpg"])
+    expect(workbench.getFilterState("similar-images")).toBe(filter)
+    expect(patches.at(-1)).toEqual({ filterStatesByTool: { "similar-images": filter } })
+  })
+
+  test("normalizes scan progress, retains stopped partial results, and switches to results", async () => {
+    const partial = { ...data, stopped: true, fileCount: 1 }
+    const { workbench, patches, run } = createTestWorkbench(async (_input, onEvent) => {
+      onEvent?.({ type: "progress", progress: 43, message: "Hashing 25/100" })
+      return { success: false, message: "Stopped with a partial result.", data: partial }
+    })
+
+    await workbench.executeScan("duplicate-files", { action: "scan", tool: "duplicate-files", includedDirectories: ["D:/library"] }, messages)
+
+    expect(run).toHaveBeenCalledOnce()
+    expect(workbench.getResult("duplicate-files")).toBe(partial)
+    expect(workbench.getState()).toMatchObject({ running: false, panel: "results" })
+    expect(patches).toContainEqual({ progress: 43, progressText: "Hashing 25/100" })
+    expect(patches).toContainEqual(expect.objectContaining({ phase: "stopped", progress: 100, result: partial }))
+  })
+
+  test("does not call the runner when scan input has no included directory", async () => {
+    const { workbench, run, patches } = createTestWorkbench()
+
+    await workbench.executeScan("duplicate-files", { action: "scan", tool: "duplicate-files", includedDirectories: [] }, messages)
+
+    expect(run).not.toHaveBeenCalled()
+    expect(patches.at(-1)).toEqual({ activityLog: expect.any(Array) })
+    expect(workbench.getState().activityLog.at(-1)).toMatchObject({ level: "error", message: messages.noRoots })
+  })
+
+  test("keeps live operations behind an explicit selected-path input and clears selection only after success", async () => {
+    const { workbench, run } = createTestWorkbench(async () => ({ success: true, message: "Moved.", data: { ...data, action: "move", affectedCount: 1 } }))
+    workbench.setSelectedPaths("duplicate-files", ["D:/one.bin"])
+
+    await workbench.executeOperation(
+      "duplicate-files",
+      "move",
+      { action: "move", tool: "duplicate-files", selectedPaths: ["D:/one.bin"], dryRun: false },
+      { description: (action, count) => `${action} ${count} item(s)` },
+    )
+
+    expect(run).toHaveBeenCalledOnce()
+    expect(workbench.getSelectedPaths("duplicate-files")).toEqual([])
+  })
+
+  test("delegates cancellation only while an active scan exists", async () => {
+    const cancel = vi.fn(async () => true)
+    const { workbench } = createTestWorkbench(async () => new Promise(() => undefined), cancel)
+    const promise = workbench.executeScan("duplicate-files", { action: "scan", tool: "duplicate-files", includedDirectories: ["D:/library"] }, messages)
+
+    await workbench.cancelScan("duplicate-files", messages)
+    expect(cancel).toHaveBeenCalledOnce()
+    void promise
+  })
+})
+
+function createTestWorkbench(
+  handler: (input: CzkawkaInput, onEvent?: (event: { type: "progress"; progress?: number; message: string }) => void) => Promise<{ success: boolean; message: string; data?: CzkawkaData }> = async () => ({ success: true, message: "Done.", data }),
+  cancel?: () => Promise<unknown>,
+) {
+  const patches: CzkawkaWorkbenchPersistencePatch[] = []
+  const run = vi.fn(async (_nodeId: string, input: CzkawkaInput, onEvent?: (event: { type: "progress"; progress?: number; message: string }) => void) => handler(input, onEvent))
+  return {
+    patches,
+    run,
+    workbench: createCzkawkaWorkbench({}, { persist: (patch) => patches.push(patch), run, cancel }),
+  }
+}
