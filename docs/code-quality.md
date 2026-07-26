@@ -14,6 +14,16 @@ bun run audit:source-size   # 报告全仓库超过 1000 行的历史文件，�
 bun scripts/check-source-size.ts --all --strict  # 将全仓库超限视为失败
 ```
 
+拆分 TS/TSX 前可先用仓库已有的 OXC AST 工具列出顶层声明和依赖，再进行同目录提取：
+
+```text
+bun run tsx:split --file src/path/Feature.tsx
+bun run tsx:split --file src/path/Feature.tsx --target src/path/FeatureView.tsx --symbols FeatureView,FeatureViewProps
+bun run tsx:split --file src/path/Feature.tsx --target src/path/FeatureView.tsx --symbols FeatureView,FeatureViewProps --write
+```
+
+提取默认只生成报告；`--write` 会拒绝部分变量声明、残留的同模块依赖和嵌套绑定遮蔽，并在写入前重新解析源模块与目标模块。工具只负责可证明安全的顶层声明迁移，组件内部的 hook、闭包和副作用边界仍需人工拆分和行为测试。
+
 历史超长文件按债务处理：不要为了满足数字进行无意义拆分；但当一个任务已经触及该文件时，应优先按领域边界拆出模块，并至少保持文件不继续增长。常见拆分方向如下：
 
 - React：视图、事件协调、状态 hook、纯展示子组件、类型和测试。
