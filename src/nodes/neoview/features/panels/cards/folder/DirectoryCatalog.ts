@@ -10,6 +10,7 @@ import type {
   ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
 import { rebaseDirectorySelection, type DirectorySelectionModel } from "./DirectorySelection"
+import { sameFolderPath } from "./FolderPathIdentity"
 
 const DIRECTORY_VIEWPORT_HEIGHT = 288
 // A larger virtualized batch lets CSS grid dense packing fill gaps across the
@@ -235,6 +236,60 @@ export function directoryEntryAt(catalog: DirectoryCatalog, index: number): Read
     if (index >= cursor && index < cursor + entries.length) return entries[index - cursor]
   }
   return undefined
+}
+
+export function directoryEntryIndex(catalog: DirectoryCatalog, path: string): number | undefined {
+  for (const [cursor, entries] of catalog.pages) {
+    const offset = entries.findIndex((entry) => sameFolderPath(entry.path, path))
+    if (offset >= 0) return cursor + offset
+  }
+  return undefined
+}
+
+export function nearestLoadedDirectoryEntry(
+  catalog: DirectoryCatalog,
+  targetIndex: number,
+): { index: number; entry: ReaderDirectoryEntryDto } | undefined {
+  let previous: { index: number; entry: ReaderDirectoryEntryDto } | undefined
+  let next: { index: number; entry: ReaderDirectoryEntryDto } | undefined
+  for (const [cursor, entries] of catalog.pages) {
+    entries.forEach((entry, offset) => {
+      const index = cursor + offset
+      if (index >= catalog.total) return
+      if (index >= targetIndex && (!next || index < next.index)) next = { index, entry }
+      if (index < targetIndex && (!previous || index > previous.index)) previous = { index, entry }
+    })
+  }
+  return next ?? previous
+}
+
+export function removeDirectoryCatalogEntry(catalog: DirectoryCatalog, path: string): DirectoryCatalog {
+  let removedCursor: number | undefined
+  let removedOffset: number | undefined
+  for (const [cursor, entries] of catalog.pages) {
+    const offset = entries.findIndex((entry) => sameFolderPath(entry.path, path))
+    if (offset < 0) continue
+    removedCursor = cursor
+    removedOffset = offset
+    break
+  }
+  if (removedCursor === undefined || removedOffset === undefined) return catalog
+
+  const pages = new Map<number, readonly ReaderDirectoryEntryDto[]>()
+  const pageMetadataFields = new Map<number, ReadonlySet<ReaderDirectoryMetadataFieldDto>>()
+  for (const [cursor, entries] of catalog.pages) {
+    const nextEntries = cursor === removedCursor ? entries.toSpliced(removedOffset, 1) : entries
+    if (nextEntries.length === 0) continue
+    pages.set(cursor, nextEntries)
+    const metadataFields = catalog.pageMetadataFields.get(cursor)
+    if (metadataFields) pageMetadataFields.set(cursor, metadataFields)
+  }
+  return {
+    ...catalog,
+    total: Math.max(0, catalog.total - 1),
+    pages,
+    pageMetadataFields,
+  }
 }
 
 export function directoryPageCursors(startIndex: number, endIndex: number, total: number, pageSize: number): number[] {

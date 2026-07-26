@@ -281,8 +281,7 @@ export function FolderBrowserPane({
     selectedPaths,
   })
   const {
-    thumbnailUrls,
-    thumbnailUrlSets,
+    thumbnailStore,
     refreshPending: thumbnailRefreshPending,
     registerVisible: registerVisibleThumbnails,
     refreshVisible: refreshVisibleThumbnails,
@@ -1395,8 +1394,7 @@ export function FolderBrowserPane({
         restoreState,
         restoreIndex,
         shouldLocateRestore,
-        thumbnailUrls,
-        thumbnailUrlSets,
+        thumbnailStore,
         thumbnailRefreshPending,
         loading,
         error,

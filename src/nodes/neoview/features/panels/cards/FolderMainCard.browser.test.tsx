@@ -334,16 +334,25 @@ test("[neoview.folder.delete-sibling-keeps-reader-gui] deleting an earlier sibli
     total: 2,
     suggestedSelection: { path: "C:/books/current.cbz", index: 0 },
   })
-  const executeFileOperations = vi.fn(async () => ({
-    results: [{
-      index: 0,
-      operation: { kind: "trash" as const, sourcePath: "C:/books/earlier.cbz" },
-      status: "succeeded" as const,
-    }],
-    succeeded: 1,
-    failed: 0,
-    cancelled: 0,
-    undoable: 1,
+  let resolveDeletion!: () => void
+  const executeFileOperations = vi.fn(() => new Promise<{
+    results: [{ index: number; operation: { kind: "trash"; sourcePath: string }; status: "succeeded" }]
+    succeeded: number
+    failed: number
+    cancelled: number
+    undoable: number
+  }>((resolve) => {
+    resolveDeletion = () => resolve({
+      results: [{
+        index: 0,
+        operation: { kind: "trash", sourcePath: "C:/books/earlier.cbz" },
+        status: "succeeded",
+      }],
+      succeeded: 1,
+      failed: 0,
+      cancelled: 0,
+      undoable: 1,
+    })
   }))
   const navigateDirectoryBrowser = vi.fn(async () => refreshed)
   const onPrepareFileMutation = vi.fn(async () => undefined)
@@ -382,6 +391,11 @@ test("[neoview.folder.delete-sibling-keeps-reader-gui] deleting an earlier sibli
   document.querySelector<HTMLButtonElement>('[data-folder-delete-button="true"]')!.click()
 
   await expect.poll(() => executeFileOperations).toHaveBeenCalledOnce()
+  await expect.poll(() => document.querySelector('[data-folder-path="C:/books/earlier.cbz"]')).toBeNull()
+  expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
+  expect(document.querySelector('[data-folder-path="C:/books/current.cbz"]')?.getAttribute("data-focused")).toBe("true")
+
+  resolveDeletion()
   await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
     "browser-1",
     { action: "refresh" },
@@ -472,6 +486,72 @@ test("[neoview.folder.delete-current-advances-gui] deleting the current reader f
   expect(onPrepareFileMutation).toHaveBeenCalledWith("C:/books/current.cbz", expect.any(AbortSignal))
   expect(commit).toHaveBeenCalledOnce()
   expect(restore).not.toHaveBeenCalled()
+})
+
+test("[neoview.folder.optimistic-delete-rollback-gui] restores the hidden entry when deletion fails", async () => {
+  const opened = directoryPage({
+    entries: [
+      { name: "earlier.cbz", path: "C:/books/earlier.cbz", kind: "file", readerSupported: true },
+      { name: "current.cbz", path: "C:/books/current.cbz", kind: "file", readerSupported: true },
+      { name: "later.cbz", path: "C:/books/later.cbz", kind: "file", readerSupported: true },
+    ],
+    total: 3,
+    suggestedSelection: { path: "C:/books/current.cbz", index: 1 },
+  })
+  const refreshed = directoryPage({ ...opened, generation: 2 })
+  let rejectDeletion!: () => void
+  const executeFileOperations = vi.fn(() => new Promise<never>((_resolve, reject) => {
+    rejectDeletion = () => reject(new Error("recycle bin unavailable"))
+  }))
+  const navigateDirectoryBrowser = vi.fn(async () => refreshed)
+  const commit = vi.fn()
+  const restore = vi.fn(async () => undefined)
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => opened),
+    navigateDirectoryBrowser,
+    executeFileOperations,
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <ContextMenuProvider>
+      <div style={{ width: 900, height: 600 }}>
+        <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+          <FolderMainCard
+            client={client}
+            disabled={false}
+            sourcePath="C:/books/current.cbz"
+            onPrepareFileMutation={vi.fn(async () => ({ commit, restore }))}
+            onOpen={vi.fn()}
+            onGoTo={vi.fn()}
+          />
+          <FolderDeleteButton
+            entry={{ index: 0, path: "C:/books/earlier.cbz", name: "earlier.cbz", kind: "file", readerSupported: true }}
+            strategy="trash"
+            confirm={false}
+          />
+        </VirtuosoMockContext.Provider>
+      </div>
+    </ContextMenuProvider>,
+  )
+
+  await expect.element(page.getByText("earlier.cbz", { exact: true })).toBeVisible()
+  document.querySelector<HTMLButtonElement>('[data-folder-delete-button="true"]')!.click()
+
+  await expect.poll(() => executeFileOperations).toHaveBeenCalledOnce()
+  await expect.poll(() => document.querySelector('[data-folder-path="C:/books/earlier.cbz"]')).toBeNull()
+  expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
+
+  rejectDeletion()
+  await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
+    "browser-1",
+    { action: "refresh" },
+    expect.any(AbortSignal),
+    "C:/books/current.cbz",
+  )
+  await expect.element(page.getByText("earlier.cbz", { exact: true })).toBeVisible()
+  expect(restore).toHaveBeenCalledOnce()
+  expect(commit).not.toHaveBeenCalled()
 })
 
 function directoryPage(overrides: Partial<ReaderDirectoryPageDto> = {}): ReaderDirectoryPageDto {

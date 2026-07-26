@@ -2,14 +2,17 @@ import { useEffect, useRef, useState, type RefObject } from "react"
 import type { ListRange } from "react-virtuoso"
 
 import type { ReaderDirectoryPageDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
-import { waitForLibraryThumbnailBatch } from "../../../thumbnails/LibraryThumbnailBatchQuery"
 import {
   directoryLoadedEntries,
-  isAbortError,
   viewUsesThumbnails,
   type DirectoryCatalog,
 } from "./DirectoryCatalog"
 import type { FolderPreviewCount, FolderViewMode } from "./FolderBrowserState"
+import {
+  emptyFolderThumbnailSnapshot,
+  FolderThumbnailStore,
+  type FolderThumbnailSnapshot,
+} from "./FolderThumbnailStore"
 import { isVirtualSearchPath } from "./search/folderSearchModel"
 import {
   isThumbnailDemandNeeded,
@@ -20,12 +23,6 @@ import {
 
 const MAX_THUMBNAILS = 24
 const MAX_CACHED_THUMBNAIL_URLS = 256
-
-export interface FolderThumbnailSnapshot {
-  thumbnailUrls: ReadonlyMap<string, string>
-  thumbnailUrlSets: ReadonlyMap<string, readonly string[]>
-  thumbnailProfiles: ReadonlyMap<string, string>
-}
 
 export function useFolderThumbnailPipeline({
   client,
@@ -56,11 +53,8 @@ export function useFolderThumbnailPipeline({
   const refreshSequenceRef = useRef(0)
   const compileKeysRef = useRef(new Set<string>())
   const initialRangeRef = useRef<{ sessionId: string; generation: number; range: ListRange }>()
-  const [thumbnailUrls, setThumbnailUrls] = useState<ReadonlyMap<string, string>>(() => new Map())
-  const [thumbnailUrlSets, setThumbnailUrlSets] = useState<ReadonlyMap<string, readonly string[]>>(() => new Map())
-  const thumbnailUrlsRef = useRef<ReadonlyMap<string, string>>(thumbnailUrls)
-  const thumbnailUrlSetsRef = useRef<ReadonlyMap<string, readonly string[]>>(thumbnailUrlSets)
-  const thumbnailProfilesRef = useRef<ReadonlyMap<string, string>>(new Map())
+  const thumbnailStoreRef = useRef<FolderThumbnailStore>()
+  const thumbnailStore = thumbnailStoreRef.current ??= new FolderThumbnailStore()
   const [refreshPending, setRefreshPending] = useState(false)
 
   useEffect(() => {
@@ -109,6 +103,7 @@ export function useFolderThumbnailPipeline({
   async function registerVisible(refresh = false, targetPaths?: ReadonlySet<string>): Promise<void> {
     const current = catalogRef.current
     if (!thumbnailsVisible || !current || !viewUsesThumbnails(viewMode) || !client.registerLibraryThumbnails) return
+    const currentThumbnails = thumbnailStore.snapshot()
     const range = visibleRangeRef.current
     const candidates = targetPaths
       ? [...current.pages].flatMap(([cursor, entries]) => entries.map((entry, offset) => ({ index: cursor + offset, entry })))
@@ -120,10 +115,10 @@ export function useFolderThumbnailPipeline({
         entry,
         viewMode,
         previewCount,
-        thumbnailProfilesRef.current,
-        thumbnailUrlsRef.current,
+        currentThumbnails.thumbnailProfiles,
+        currentThumbnails.thumbnailUrls,
         previewGridEnabled,
-        thumbnailUrlSetsRef.current,
+        currentThumbnails.thumbnailUrlSets,
       ))
       .slice(0, MAX_THUMBNAILS)
     if (!visible.length) {
@@ -152,15 +147,7 @@ export function useFolderThumbnailPipeline({
         ...(refresh ? { refresh: true } : {}),
       })),
       request.signal,
-    ).then(async (batch) => {
-      if (request.signal.aborted || generation !== generationRef.current) return
-      try {
-        await waitForLibraryThumbnailBatch(batch, request.signal)
-      } catch (cause) {
-        if (request.signal.aborted || isAbortError(cause)) return
-        // Publish after bounded retry so a persistent backend cooldown can still be
-        // recovered with the existing manual refresh action.
-      }
+    ).then((batch) => {
       if (request.signal.aborted || generation !== generationRef.current) return
       clearInitialRange(current)
       const resolved = batch.items.flatMap((item) => {
@@ -172,25 +159,24 @@ export function useFolderThumbnailPipeline({
         if (!path) return []
         return [[path, item.thumbnailUrls?.length ? item.thumbnailUrls : [item.thumbnailUrl]] as const]
       })
-      setThumbnailUrlSets((currentSets) => {
-        const next = mergeThumbnailUrlSets(currentSets, resolvedSets, MAX_CACHED_THUMBNAIL_URLS)
-        thumbnailUrlSetsRef.current = next
-        return next
-      })
-      setThumbnailUrls((currentUrls) => {
-        const next = mergeThumbnailUrls(currentUrls, resolved, MAX_CACHED_THUMBNAIL_URLS)
-        const nextProfiles = new Map(thumbnailProfilesRef.current)
-        for (const item of batch.items) {
-          const path = pathById.get(item.id)
-          const profile = profileById.get(item.id)
-          if (path && profile) nextProfiles.set(path, profile)
-        }
-        for (const path of nextProfiles.keys()) {
-          if (!next.has(path)) nextProfiles.delete(path)
-        }
-        thumbnailUrlsRef.current = next
-        thumbnailProfilesRef.current = nextProfiles
-        return next
+      const latest = thumbnailStore.snapshot()
+      const nextUrls = mergeThumbnailUrls(latest.thumbnailUrls, resolved, MAX_CACHED_THUMBNAIL_URLS)
+      const nextUrlSets = mergeThumbnailUrlSets(latest.thumbnailUrlSets, resolvedSets, MAX_CACHED_THUMBNAIL_URLS)
+      const nextProfiles = new Map(latest.thumbnailProfiles)
+      for (const item of batch.items) {
+        const path = pathById.get(item.id)
+        const profile = profileById.get(item.id)
+        if (path && profile) nextProfiles.set(path, profile)
+      }
+      for (const path of nextProfiles.keys()) {
+        if (!nextUrls.has(path)) nextProfiles.delete(path)
+      }
+      // The registration response is the backend-owned completion signal for this
+      // demand batch. Publish path snapshots directly so only affected tiles update.
+      thumbnailStore.replace({
+        thumbnailUrls: nextUrls,
+        thumbnailUrlSets: nextUrlSets,
+        thumbnailProfiles: nextProfiles,
       })
     }).catch(() => {
       if (!request.signal.aborted && generation === generationRef.current) signatureRef.current = ""
@@ -238,67 +224,52 @@ export function useFolderThumbnailPipeline({
   }
 
   function snapshot(): FolderThumbnailSnapshot {
-    return {
-      thumbnailUrls: thumbnailUrlsRef.current,
-      thumbnailUrlSets: thumbnailUrlSetsRef.current,
-      thumbnailProfiles: thumbnailProfilesRef.current,
-    }
+    return thumbnailStore.snapshot()
   }
 
   function restore(next: Partial<FolderThumbnailSnapshot>, preserve: boolean): FolderThumbnailSnapshot {
+    const current = thumbnailStore.snapshot()
     const restoredUrls = preserve
-      ? mergeThumbnailUrls(thumbnailUrlsRef.current, next.thumbnailUrls ? [...next.thumbnailUrls] : [], MAX_CACHED_THUMBNAIL_URLS)
+      ? mergeThumbnailUrls(current.thumbnailUrls, next.thumbnailUrls ? [...next.thumbnailUrls] : [], MAX_CACHED_THUMBNAIL_URLS)
       : (next.thumbnailUrls ?? new Map())
     const restoredUrlSets = preserve
-      ? mergeThumbnailUrlSets(thumbnailUrlSetsRef.current, next.thumbnailUrlSets ? [...next.thumbnailUrlSets] : [], MAX_CACHED_THUMBNAIL_URLS)
+      ? mergeThumbnailUrlSets(current.thumbnailUrlSets, next.thumbnailUrlSets ? [...next.thumbnailUrlSets] : [], MAX_CACHED_THUMBNAIL_URLS)
       : (next.thumbnailUrlSets ?? new Map())
     const restoredProfiles = preserve
       ? new Map([...restoredUrls.keys()].flatMap((path) => {
-          const profile = next.thumbnailProfiles?.get(path) ?? thumbnailProfilesRef.current.get(path)
+          const profile = next.thumbnailProfiles?.get(path) ?? current.thumbnailProfiles.get(path)
           return profile ? [[path, profile] as const] : []
         }))
       : (next.thumbnailProfiles ?? new Map())
-    thumbnailUrlsRef.current = restoredUrls
-    thumbnailUrlSetsRef.current = restoredUrlSets
-    thumbnailProfilesRef.current = restoredProfiles
-    setThumbnailUrls(restoredUrls)
-    setThumbnailUrlSets(restoredUrlSets)
-    return {
+    const restored = {
       thumbnailUrls: restoredUrls,
       thumbnailUrlSets: restoredUrlSets,
       thumbnailProfiles: restoredProfiles,
     }
+    thumbnailStore.replace(restored)
+    return restored
   }
 
   function clearCaches(): void {
     resetRegistration()
-    const urls = new Map<string, string>()
-    const urlSets = new Map<string, readonly string[]>()
-    thumbnailUrlsRef.current = urls
-    thumbnailUrlSetsRef.current = urlSets
-    thumbnailProfilesRef.current = new Map()
-    setThumbnailUrls(urls)
-    setThumbnailUrlSets(urlSets)
+    thumbnailStore.replace(emptyFolderThumbnailSnapshot())
   }
 
   function retainFileCaches(): void {
     resetRegistration()
+    const current = thumbnailStore.snapshot()
     const urls = new Map<string, string>()
     const urlSets = new Map<string, readonly string[]>()
     const profiles = new Map<string, string>()
-    for (const [path, profile] of thumbnailProfilesRef.current) {
+    for (const [path, profile] of current.thumbnailProfiles) {
       if (profile.startsWith("folder:")) continue
-      const url = thumbnailUrlsRef.current.get(path)
-      const set = thumbnailUrlSetsRef.current.get(path)
+      const url = current.thumbnailUrls.get(path)
+      const set = current.thumbnailUrlSets.get(path)
       if (url) urls.set(path, url)
       if (set) urlSets.set(path, set)
       profiles.set(path, profile)
     }
-    thumbnailUrlsRef.current = urls
-    thumbnailUrlSetsRef.current = urlSets
-    thumbnailProfilesRef.current = profiles
-    setThumbnailUrls(urls)
-    setThumbnailUrlSets(urlSets)
+    thumbnailStore.replace({ thumbnailUrls: urls, thumbnailUrlSets: urlSets, thumbnailProfiles: profiles })
   }
 
   function invalidateRegistration(): void {
@@ -324,8 +295,7 @@ export function useFolderThumbnailPipeline({
   }
 
   return {
-    thumbnailUrls,
-    thumbnailUrlSets,
+    thumbnailStore,
     refreshPending,
     registerVisible,
     refreshVisible: () => refresh(),

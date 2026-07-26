@@ -22,6 +22,8 @@ import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_LIST_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
+import type { FolderThumbnailStore } from "./FolderThumbnailStore"
+import { useFolderThumbnail } from "./useFolderThumbnail"
 
 export type FolderMosaicSpan = "square" | "wide" | "tall"
 
@@ -41,7 +43,8 @@ export default function FolderMosaicWorkspace({
   selectedPaths,
   focusedIndex,
   itemIdPrefix,
-  thumbnailUrls,
+  thumbnailStore,
+  thumbnailUrls = EMPTY_THUMBNAIL_URLS,
   thumbnailUrlSets = EMPTY_THUMBNAIL_URL_SETS,
   tileSize,
   hoverPreviewEnabled,
@@ -66,7 +69,8 @@ export default function FolderMosaicWorkspace({
   selectedPaths: ReadonlySet<string>
   focusedIndex?: number
   itemIdPrefix?: string
-  thumbnailUrls: ReadonlyMap<string, string>
+  thumbnailStore?: FolderThumbnailStore
+  thumbnailUrls?: ReadonlyMap<string, string>
   thumbnailUrlSets?: ReadonlyMap<string, readonly string[]>
   tileSize: number
   hoverPreviewEnabled: boolean
@@ -182,6 +186,7 @@ export default function FolderMosaicWorkspace({
           selectedPaths={selectedPaths}
           focusedIndex={focusedIndex}
           itemIdPrefix={itemIdPrefix}
+          thumbnailStore={thumbnailStore}
           thumbnailUrls={thumbnailUrls}
           thumbnailUrlSets={thumbnailUrlSets}
           measuredSpans={measuredSpans}
@@ -208,6 +213,7 @@ function DirectoryMosaicGroup({
   selectedPaths,
   focusedIndex,
   itemIdPrefix,
+  thumbnailStore,
   thumbnailUrls,
   thumbnailUrlSets,
   measuredSpans,
@@ -228,6 +234,7 @@ function DirectoryMosaicGroup({
   selectedPaths: ReadonlySet<string>
   focusedIndex?: number
   itemIdPrefix?: string
+  thumbnailStore?: FolderThumbnailStore
   thumbnailUrls: ReadonlyMap<string, string>
   thumbnailUrlSets: ReadonlyMap<string, readonly string[]>
   measuredSpans: ReadonlyMap<string, FolderMosaicSpan>
@@ -270,6 +277,7 @@ function DirectoryMosaicGroup({
             focused={index === focusedIndex}
             showRating={catalog.metadataFields.includes("rating")}
             showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
+            thumbnailStore={thumbnailStore}
             thumbnailUrl={thumbnailUrls.get(entry.path)}
             thumbnailUrls={thumbnailUrlSets.get(entry.path)}
             hoverPreviewEnabled={hoverPreviewEnabled}
@@ -299,6 +307,7 @@ export function DirectoryMosaicItem({
   focused,
   showRating,
   showCollectTagCount,
+  thumbnailStore,
   thumbnailUrl,
   thumbnailUrls,
   hoverPreviewEnabled,
@@ -321,6 +330,7 @@ export function DirectoryMosaicItem({
   focused: boolean
   showRating: boolean
   showCollectTagCount: boolean
+  thumbnailStore?: FolderThumbnailStore
   thumbnailUrl?: string
   thumbnailUrls?: readonly string[]
   hoverPreviewEnabled: boolean
@@ -332,9 +342,12 @@ export function DirectoryMosaicItem({
   onDimensions(path: string, width: number, height: number): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }) {
+  const storedThumbnail = useFolderThumbnail(thumbnailStore, entry.path)
+  const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
+  const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
   const geometry = folderMosaicGeometry(span, previewReady, columnCount)
   return (
-    <FolderHoverPreview thumbnailUrl={thumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
+    <FolderHoverPreview thumbnailUrl={resolvedThumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
       <div
         className="relative size-full min-h-0 min-w-0"
         style={{ gridColumn: `span ${geometry.columns}`, gridRow: `span ${geometry.rows}` }}
@@ -363,10 +376,10 @@ export function DirectoryMosaicItem({
         data-folder-reader-supported={entry.readerSupported}
       >
         <span className="relative grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
-          {thumbnailUrl
+          {resolvedThumbnailUrl
             ? <ReaderThumbnailSurface
-                url={thumbnailUrl}
-                urls={thumbnailUrls}
+                url={resolvedThumbnailUrl}
+                urls={resolvedThumbnailUrls}
                 kind={entry.kind === "directory" ? "folder" : "file"}
                 fit="contain"
                 imageLoading="eager"
@@ -394,6 +407,7 @@ export function DirectoryMosaicItem({
   )
 }
 
+const EMPTY_THUMBNAIL_URLS: ReadonlyMap<string, string> = new Map()
 const EMPTY_THUMBNAIL_URL_SETS: ReadonlyMap<string, readonly string[]> = new Map()
 const EMPTY_PENETRATION_FILES: ReadonlyMap<string, readonly FolderPenetrationFileName[]> = new Map()
 

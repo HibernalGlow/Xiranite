@@ -39,6 +39,8 @@ export default function FolderContextActions({
   onPrepareFileMutation,
   switchToast,
   onRenamed,
+  onDeleteStarted,
+  onDeleteFailed,
   onTrashed,
   onUndoDelete,
   confirmations = { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
@@ -67,6 +69,8 @@ export default function FolderContextActions({
   onPrepareFileMutation?(sourcePath: string, signal?: AbortSignal): Promise<ReaderFileMutationPreparation | undefined>
   switchToast?: ReaderSwitchToastPort
   onRenamed?(destinationPath: string): void | Promise<void>
+  onDeleteStarted?(entry: FolderContextEntry): void
+  onDeleteFailed?(entry: FolderContextEntry): void | Promise<void>
   onTrashed?(entry: FolderContextEntry): void | Promise<void>
   onUndoDelete?(): void | Promise<void>
   confirmations?: ReaderFolderConfirmationConfig
@@ -171,10 +175,13 @@ export default function FolderContextActions({
       setFeedback(undefined)
       let movedToTrash = false
       let completed = false
+      let optimisticDeleteStarted = false
       let preparation: ReaderFileMutationPreparation | undefined
       try {
         preparation = await onPrepareFileMutation?.(entry.path, operation.signal)
         operation.signal.throwIfAborted()
+        onDeleteStarted?.(entry)
+        optimisticDeleteStarted = Boolean(onDeleteStarted)
         const result = await execute([{ kind: action, sourcePath: entry.path }], true, operation.signal)
         const failed = result.results.find((item) => item.status !== "succeeded")
         if (failed || result.succeeded !== 1) throw new Error(fileOperationError(action, failed?.errorCode, failed?.error))
@@ -187,7 +194,16 @@ export default function FolderContextActions({
         setFeedback({ kind: "status", text: message })
         switchToast?.show({ title: message })
       } catch (error) {
-        if (!completed) await preparation?.restore().catch(() => undefined)
+        if (!completed) {
+          await preparation?.restore().catch(() => undefined)
+          if (optimisticDeleteStarted && !operation.signal.aborted) {
+            try {
+              await onDeleteFailed?.(entry)
+            } catch {
+              // Preserve the original file-operation failure as the actionable error.
+            }
+          }
+        }
         if (!operation.signal.aborted) {
           const message = movedToTrash
             ? `已将 ${entry.name} 移到回收站，但列表刷新失败，请手动刷新。${errorMessage(error)}`

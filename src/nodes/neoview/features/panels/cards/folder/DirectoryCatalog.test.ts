@@ -4,12 +4,15 @@ import type { ReaderDirectoryPageDto } from "../../../../adapters/reader-http-cl
 import {
   createDirectoryCatalog,
   directoryEntryAt,
+  directoryEntryIndex,
   directoryPageHasMetadata,
   directoryPageCursors,
   folderMetadataFieldsForView,
   folderErrorMessage,
   mergeDirectoryPage,
+  nearestLoadedDirectoryEntry,
   normalizeFolderNavigationPath,
+  removeDirectoryCatalogEntry,
   restoreDirectoryVisitState,
   sortDirectoryCatalogEntries,
   trimDirectoryPages,
@@ -80,6 +83,31 @@ describe("DirectoryCatalog", () => {
     expect(retainedEntries).toBeLessThanOrEqual(384)
     expect(directoryEntryAt(catalog, 99_999)?.path).toBe("D:/library/item-99999")
     expect(directoryEntryAt(catalog, 0)).toBeUndefined()
+  })
+
+  it("[neoview.folder.optimistic-delete-catalog] removes a loaded entry without changing server page cursors", () => {
+    let catalog = createDirectoryCatalog(page(0, 260))
+    catalog = mergeDirectoryPage(catalog, page(128, 260))
+    catalog = mergeDirectoryPage(catalog, page(256, 260))
+
+    const updated = removeDirectoryCatalogEntry(catalog, "d:\\LIBRARY\\item-40")
+
+    expect(updated.total).toBe(259)
+    expect(directoryEntryIndex(updated, "D:/library/item-40")).toBeUndefined()
+    expect(directoryEntryAt(updated, 40)?.path).toBe("D:/library/item-41")
+    expect(directoryEntryAt(updated, 127)).toBeUndefined()
+    expect(directoryEntryAt(updated, 128)?.path).toBe("D:/library/item-128")
+    expect(nearestLoadedDirectoryEntry(updated, 127)).toEqual({
+      index: 128,
+      entry: expect.objectContaining({ path: "D:/library/item-128" }),
+    })
+    expect(nearestLoadedDirectoryEntry(updated, 260)).toEqual({
+      index: 258,
+      entry: expect.objectContaining({ path: "D:/library/item-258" }),
+    })
+    expect([...updated.pages.keys()]).toEqual([0, 128, 256])
+    expect([...updated.pageMetadataFields.keys()]).toEqual([0, 128, 256])
+    expect(removeDirectoryCatalogEntry(updated, "D:/library/missing")).toBe(updated)
   })
 
   it("[neoview.folder.filter-catalog] normalizes older pages and preserves server-advertised filters", () => {
