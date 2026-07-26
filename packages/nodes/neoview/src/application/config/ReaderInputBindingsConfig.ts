@@ -61,12 +61,13 @@ function parseBindings(value: unknown, label: string): ReaderInputBinding[] {
 
 function parseBinding(value: unknown, label: string): ReaderInputBinding {
   const source = requireRecord(value, label)
-  rejectUnknown(source, ["id", "action", "context", "enabled", "input"], label)
+  rejectUnknown(source, ["id", "action", "context", "enabled", "ignoreRepeat", "input"], label)
   const id = requiredString(source.id, `${label}.id`, 80)
   const action = requiredEnum(source.action, READER_INPUT_ACTIONS, `${label}.action`)
   const context = requiredEnum(source.context, READER_INPUT_CONTEXTS, `${label}.context`)
   if (typeof source.enabled !== "boolean") throw new Error(`${label}.enabled must be a boolean.`)
-  return { id, action, context, enabled: source.enabled, input: parseInput(source.input, `${label}.input`) }
+  const ignoreRepeat = optionalBoolean(source.ignoreRepeat, `${label}.ignoreRepeat`)
+  return { id, action, context, enabled: source.enabled, ...(ignoreRepeat ? { ignoreRepeat } : {}), input: parseInput(source.input, `${label}.input`) }
 }
 
 function parseInput(value: unknown, label: string): ReaderInputDescriptor {
@@ -188,4 +189,10 @@ function requiredEnum<const T extends string | number>(value: unknown, values: r
 function boundedInteger(value: unknown, minimum: number, maximum: number, label: string): number {
   if (!Number.isInteger(value) || (value as number) < minimum || (value as number) > maximum) throw new Error(`${label} must be an integer between ${minimum} and ${maximum}.`)
   return value as number
+}
+
+function optionalBoolean(value: unknown, label: string): boolean | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== "boolean") throw new Error(`${label} must be a boolean.`)
+  return value
 }

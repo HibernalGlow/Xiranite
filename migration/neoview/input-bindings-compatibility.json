@@ -43,6 +43,7 @@
         "修饰键",
         "录制开始/取消/完成",
         "禁用",
+        "忽略重复输入",
         "删除",
         "恢复默认",
         "IME 与输入框隔离"
@@ -335,7 +336,7 @@
         "src/lib/components/dialogs/KeyBindingPanel.svelte",
         "src/lib/stores/keybindings/keyHandlers.svelte.ts"
       ],
-      "targetContract": "Dynamic keyboard bindings use a maintained hotkey engine, preserve physical codes/modifiers, ignore repeat/composition and remain disabled in incompatible contexts.",
+      "targetContract": "Every binding independently persists whether to ignore repeated input (default false). Dynamic keyboard bindings use a maintained hotkey engine, preserve physical codes/modifiers, ignore composition and remain disabled in incompatible contexts.",
       "surfaces": [
         "GUI"
       ],
@@ -356,7 +357,7 @@
         "neoview.bindings.keyboard-hold-runtime"
       ],
       "plannedTestIds": [],
-      "notes": "react-hotkeys-hook owns runtime matching, key-down/key-up lifecycle and capture-phase chord recording. The editor exposes physical codes, modifiers and bounded hold timing; Enter hold opens the radial menu after 450 ms and key-up/blur/unmount cancel pending timers."
+      "notes": "react-hotkeys-hook owns runtime matching, key-down/key-up lifecycle and capture-phase chord recording. Each binding exposes a default-off repeat-input switch; keyboard repeats dispatch unless its binding opts out. The editor exposes physical codes, modifiers and bounded hold timing; Enter hold opens the radial menu after 450 ms and key-up/blur/unmount cancel pending timers."
     },
     {
       "id": "bindings.mouse",
