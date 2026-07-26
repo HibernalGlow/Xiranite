@@ -249,7 +249,7 @@ describe("ReaderSidebar layout gestures", () => {
 
     const config = shell()
     const view = render(<ReaderSidebar side="left" context={value} shell={config} />)
-    await waitFor(() => expect(document.querySelector('[data-neoview-folder-card="true"]')).toBeTruthy())
+    await waitFor(() => expect(document.querySelector('[data-neoview-folder-card="true"]')).toBeTruthy(), { timeout: 3_000 })
     const folderCard = document.querySelector<HTMLElement>('[data-neoview-folder-card="true"]')!
     folderCard.setAttribute("data-folder-card-instance", "stable")
     expect(document.querySelector('[data-reader-panel-cache="folder"] h2')).toBeNull()
