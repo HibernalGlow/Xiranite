@@ -15,7 +15,7 @@ afterEach(async () => {
 })
 
 describe("Reader adjacent-book HTTP", () => {
-  it("[neoview.control.hierarchical-book] preserves non-penetrable branches and uses the previous book's default start page without history", async () => {
+  it("[neoview.control.hierarchical-book] preserves non-penetrable branches and restores progress through hierarchical traversal", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-hierarchical-http-"))
     roots.push(root)
     const a = join(root, "A")
@@ -32,7 +32,7 @@ describe("Reader adjacent-book HTTP", () => {
       writeFile(join(b2, "2.jpg"), Uint8Array.of(4)),
       writeFile(join(c, "1.jpg"), Uint8Array.of(5)),
     ])
-    const controller = createController()
+    const controller = createController(memoryProgressStore())
     try {
       const opened = await request(controller, "/reader/sessions", "POST", {
         path: a,
