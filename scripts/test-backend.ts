@@ -112,7 +112,10 @@ async function removeWithWindowsRetry(path: string): Promise<void> {
       await access(path)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return
-      if ((error as NodeJS.ErrnoException).code === "EBUSY" && attempt === 7) return
+      if ((error as NodeJS.ErrnoException).code === "EBUSY" && attempt === 7) {
+        process.stderr.write(`[xiranite-test-backend] cleanup skipped; current process still holds a lock: ${path}\n`)
+        return
+      }
       if (attempt === 7) throw error
     }
     await delay(50 * (attempt + 1))

@@ -189,7 +189,11 @@ function parseDeletionQuery(url: URL, includePagination: boolean): FileDeletionQ
   }
   if (includePagination) {
     query.cursor = optionalParam(url, "cursor")
-    query.limit = optionalNumber(url, "limit")
+    const limit = optionalNumber(url, "limit")
+    if (limit !== undefined && (limit < 1 || limit > 1_000)) {
+      throw Object.assign(new Error("limit must be from 1 to 1000."), { status: 400 })
+    }
+    query.limit = limit
   }
   return query
 }

@@ -13,6 +13,9 @@ describe("backend file operation API", () => {
     await writeFile(sourcePath, "restore me", "utf8")
     let deletionId: string | undefined
     try {
+      const invalidLimit = await fetch(`${backend.url}/file-deletions?limit=0&token=${backend.token}`)
+      expect(invalidLimit.status).toBe(400)
+
       const deleted = await fetch(`${backend.url}/file-operations?token=${backend.token}`, {
         method: "POST",
         headers: { "content-type": "application/json" },

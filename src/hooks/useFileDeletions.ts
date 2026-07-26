@@ -16,7 +16,7 @@ export function useFileDeletions(query: Omit<FileDeletionQuery, "cursor" | "limi
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     staleTime: 2_000,
-    refetchInterval: 2_000,
+    refetchInterval: (query) => (query.state.data?.pages.length ?? 0) <= 1 ? 2_000 : false,
     retry: false,
   })
 }
