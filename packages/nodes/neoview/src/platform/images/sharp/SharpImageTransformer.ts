@@ -32,7 +32,7 @@ export class SharpImageTransformer implements ImageTransformer {
       signal?.throwIfAborted()
 
       let pipeline = sharp({
-        animated: true,
+        animated: execution.animation !== "first-frame",
         failOn: "warning",
         limitInputPixels: 100_000_000,
         sequentialRead: true,

@@ -12,6 +12,7 @@ export interface ImageTransformExecution {
   kind?: string
   ownerId?: string
   resourceLease?: ResourceLease
+  animation?: "preserve" | "first-frame"
 }
 
 export interface ImageTransformer {
