@@ -5,9 +5,12 @@ use tempfile::tempdir;
 use crate::{CAPABILITIES, DuplicateScanOptions, scan_duplicate_files};
 
 #[test]
-fn advertises_czkawka_12_similar_image_capabilities() {
+fn advertises_czkawka_12_media_capabilities() {
     assert!(CAPABILITIES.contains(&"similar-images.geometric-invariance"));
     assert!(CAPABILITIES.contains(&"similar-images.same-resolution-exclusion"));
+    assert!(CAPABILITIES.contains(&"similar-videos.similario"));
+    assert!(CAPABILITIES.contains(&"similar-videos.same-resolution-exclusion"));
+    assert!(CAPABILITIES.contains(&"similar-videos.audio"));
 }
 
 #[test]

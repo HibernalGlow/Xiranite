@@ -23,6 +23,11 @@ describe("czkawka TypeScript orchestration", () => {
     expect(value.similarImagesHashSize).toBe(16)
     expect(value.similarImagesIgnoreSameResolution).toBe(false)
     expect(value.similarImagesGeometricInvariance).toBe("off")
+    expect(value.similarVideosWindowCount).toBe(5)
+    expect(value.similarVideosDurationTolerancePct).toBe(20)
+    expect(value.similarVideosMinMatchingWindows).toBe(0.6)
+    expect(value.similarVideosSubclipMinMatch).toBe(0.5)
+    expect(value.similarVideosCheckAudioContent).toBe(false)
     expect(value.similarVideosLetterboxCrop).toBe(true)
     expect(value).not.toHaveProperty("similarVideosCropDetect")
     expect(value.musicCheckType).toBe("tags")
@@ -68,6 +73,36 @@ describe("czkawka TypeScript orchestration", () => {
       similarImagesIgnoreSameResolution: true,
       similarImagesGeometricInvariance: "mirror-flip",
     }, adapter)).resolves.toMatchObject({ success: true })
+  })
+
+  test("normalizes and capability-gates Czkawka 12 similario settings", async () => {
+    const value = normalizeCzkawkaInput({
+      tool: "similar-videos",
+      similarVideosSkipForward: 999,
+      similarVideosHashDuration: 999,
+      similarVideosWindowCount: 999,
+      similarVideosDurationTolerancePct: 999,
+      similarVideosMinMatchingWindows: -1,
+      similarVideosSubclipMinMatch: 2,
+      similarVideosIgnoreSameResolution: true,
+      similarVideosCheckAudioContent: true,
+    })
+    expect(value).toMatchObject({
+      similarVideosSkipForward: 300,
+      similarVideosHashDuration: 60,
+      similarVideosWindowCount: 20,
+      similarVideosDurationTolerancePct: 100,
+      similarVideosMinMatchingWindows: 0,
+      similarVideosSubclipMinMatch: 1,
+    })
+
+    const adapter = runtime()
+    const result = await runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)
+    expect(result).toMatchObject({ success: false, message: expect.stringContaining("similar-videos.same-resolution-exclusion") })
+    expect(adapter.scanMedia).not.toHaveBeenCalled()
+
+    adapter.capabilities = ["similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio"]
+    await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
   })
 
   test("clamps cache thresholds and trims custom folders", () => {

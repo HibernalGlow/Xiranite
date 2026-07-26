@@ -359,6 +359,15 @@ Recommended order:
 
 Do not expose a control before the runtime advertises its capability.
 
+Status: the similar-image and similar-video GUI vertical slices are complete. CLI and OpenTUI retain their existing option surface and receive no new 12.0 controls or release-validation obligation.
+
+Completed similar-video evidence:
+
+- The stable core contract and Node-API expose window count, duration tolerance, matching-window and subclip thresholds, same-resolution exclusion, audio-content comparison, FPS, and codec without leaking `czkawka_core` types.
+- `similar-videos.similario`, `similar-videos.same-resolution-exclusion`, and `similar-videos.audio` gate the GUI schema and reject non-default unsupported requests before native scanning starts.
+- The pure TypeScript normalizer bounds 12.0 values, preserves fractional matching thresholds, and constrains legacy skip/hash-duration inputs to the current upstream limits.
+- The result table and local video preview show FPS, codec, bitrate, and duration; Browser Mode covers capability visibility, persistence of every video setting, metadata rendering, and existing result selection behavior.
+
 ### Phase 4: Add missing tools behind safe operation contracts
 
 Add the current missing tools:

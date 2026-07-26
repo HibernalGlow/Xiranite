@@ -28,6 +28,9 @@ describe("Czkawka Niko result table", () => {
     view.rerender(<CzkawkaResultTable tool="similar-images" groups={[group]} running={false} selectedPaths={[]} onSelectionChange={vi.fn()} />)
     expect(screen.getByText("Similarity")).toBeTruthy()
     expect(screen.getByText("Dimensions")).toBeTruthy()
+    view.rerender(<CzkawkaResultTable tool="similar-videos" groups={[group]} running={false} selectedPaths={[]} onSelectionChange={vi.fn()} />)
+    expect(screen.getAllByText("23.98 fps").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("H.264").length).toBeGreaterThan(0)
   })
 
   test("keeps row and group selection while protecting references", () => {
@@ -114,4 +117,4 @@ describe("Czkawka Niko result table", () => {
 
 const entries: CzkawkaEntry[] = [entry("a.mp3", "Alpha"), entry("b.mp3", "Beta")]
 const group: CzkawkaGroup = { id: 0, entries, totalBytes: 30, reclaimableBytes: 10 }
-function entry(path: string, title: string): CzkawkaEntry { return { id: path, groupId: 0, path, name: path, size: path.startsWith("a") ? 10 : 20, modifiedDate: 1, title, artist: "Artist", genre: "Rock", year: "2025", bitrate: 320, length: "03:00", width: 1920, height: 1080, similarity: "98%" } }
+function entry(path: string, title: string): CzkawkaEntry { return { id: path, groupId: 0, path, name: path, size: path.startsWith("a") ? 10 : 20, modifiedDate: 1, title, artist: "Artist", genre: "Rock", year: "2025", bitrate: 320, length: "03:00", width: 1920, height: 1080, fps: 23.98, codec: "H.264", similarity: "98%" } }

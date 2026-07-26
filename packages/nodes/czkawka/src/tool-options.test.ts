@@ -13,6 +13,8 @@ describe("shared Czkawka option schema", () => {
     expect(terminalOptions.filter((option) => option.kind !== "boolean").every((option) => CZKAWKA_CLI_VALUE_FLAGS.has(option.cliFlag!))).toBe(true)
     expect(interactionIds).not.toContain("similarImagesIgnoreSameResolution")
     expect(interactionIds).not.toContain("similarImagesGeometricInvariance")
+    expect(interactionIds).not.toContain("similarVideosWindowCount")
+    expect(interactionIds).not.toContain("similarVideosCheckAudioContent")
     expect(getCzkawkaGuiToolOptions("similar-images", new Set())).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "similarImagesIgnoreSameResolution" }),
       expect.objectContaining({ id: "similarImagesGeometricInvariance" }),
@@ -20,6 +22,17 @@ describe("shared Czkawka option schema", () => {
     expect(getCzkawkaGuiToolOptions("similar-images", new Set(["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"]))).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "similarImagesIgnoreSameResolution" }),
       expect.objectContaining({ id: "similarImagesGeometricInvariance" }),
+    ]))
+    expect(getCzkawkaGuiToolOptions("similar-videos", new Set())).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "similarVideosIgnoreSameResolution" }),
+      expect.objectContaining({ id: "similarVideosWindowCount" }),
+      expect.objectContaining({ id: "similarVideosCheckAudioContent" }),
+    ]))
+    expect(getCzkawkaGuiToolOptions("similar-videos", new Set(["similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio"]))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "similarVideosIgnoreSameResolution" }),
+      expect.objectContaining({ id: "similarVideosWindowCount", step: 1 }),
+      expect.objectContaining({ id: "similarVideosMinMatchingWindows", step: 0.05 }),
+      expect.objectContaining({ id: "similarVideosCheckAudioContent" }),
     ]))
     expect(CZKAWKA_TOOLS.every((tool) => getCzkawkaToolOptions(tool).length > 0 || ["empty-folders", "empty-files", "temporary-files", "invalid-symlinks", "bad-extensions"].includes(tool))).toBe(true)
   })
@@ -98,6 +111,27 @@ describe("shared Czkawka option schema", () => {
       deleteOutdatedCache: false,
       cacheFolderPath: "D:/cache",
       duplicateMinimalHashCacheSizeKiB: 12,
+    })
+  })
+
+  test("builds the GUI-only similario scan contract without adding terminal flags", () => {
+    expect(createCzkawkaScanInput("similar-videos", {
+      includedDirectoriesText: "D:/Videos",
+      similarVideosIgnoreSameResolution: true,
+      similarVideosWindowCount: "12",
+      similarVideosDurationTolerancePct: "35",
+      similarVideosMinMatchingWindows: "0.75",
+      similarVideosSubclipMinMatch: "0.4",
+      similarVideosCheckAudioContent: true,
+    })).toMatchObject({
+      tool: "similar-videos",
+      includedDirectories: ["D:/Videos"],
+      similarVideosIgnoreSameResolution: true,
+      similarVideosWindowCount: 12,
+      similarVideosDurationTolerancePct: 35,
+      similarVideosMinMatchingWindows: 0.75,
+      similarVideosSubclipMinMatch: 0.4,
+      similarVideosCheckAudioContent: true,
     })
   })
 

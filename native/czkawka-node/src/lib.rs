@@ -308,7 +308,13 @@ fn non_negative_u64(value: i64, name: &str) -> Result<u64> {
         .map_err(|_| Error::new(Status::InvalidArg, format!("{name} cannot be negative")))
 }
 
-fn bounded_f64(value: Option<f64>, default: f64, minimum: f64, maximum: f64, name: &str) -> Result<f64> {
+fn bounded_f64(
+    value: Option<f64>,
+    default: f64,
+    minimum: f64,
+    maximum: f64,
+    name: &str,
+) -> Result<f64> {
     let value = value.unwrap_or(default);
     if !value.is_finite() {
         return Err(Error::new(
@@ -650,7 +656,8 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<AsyncTask<MediaScan
         }
     };
     core_options.video_ignore_same_size = options.video_ignore_same_size.unwrap_or(false);
-    core_options.video_ignore_same_resolution = options.video_ignore_same_resolution.unwrap_or(false);
+    core_options.video_ignore_same_resolution =
+        options.video_ignore_same_resolution.unwrap_or(false);
     core_options.video_skip_forward = options.video_skip_forward.unwrap_or(15).min(300);
     core_options.video_hash_duration = options.video_hash_duration.unwrap_or(10).clamp(2, 60);
     core_options.video_crop_detect =
