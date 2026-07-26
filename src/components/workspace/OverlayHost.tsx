@@ -31,12 +31,16 @@ const NodeOperationMonitor = lazy(() =>
 const NodeRunHistoryView = lazy(() =>
   import("@/components/views/NodeRunHistoryView").then((module) => ({ default: module.NodeRunHistoryView })),
 )
+const FileDeletionHistoryView = lazy(() =>
+  import("@/components/views/FileDeletionHistoryView").then((module) => ({ default: module.FileDeletionHistoryView })),
+)
 
 const TITLE_KEYS = {
   registry: "overlay:registry",
   settings: "overlay:settings",
   operations: "overlay:operations",
   history: "overlay:history",
+  deletions: "overlay:deletions",
 } as const
 
 const FLOATING_MARGIN = 16
@@ -171,6 +175,7 @@ export function OverlayHost() {
           {overlay === "settings" && <ThemeSettings />}
           {overlay === "operations" && <NodeOperationMonitor />}
           {overlay === "history" && <NodeRunHistoryView />}
+          {overlay === "deletions" && <FileDeletionHistoryView />}
         </Suspense>
       </motion.div>
     </OverlayPanelFrame>
