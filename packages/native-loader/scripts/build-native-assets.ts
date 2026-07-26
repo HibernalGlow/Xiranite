@@ -18,7 +18,8 @@ const bindings = [
   { id: "findz", packageName: "findz-native", filename: "findz.dll", dependencies: [] },
 ] as const
 
-if (process.argv.includes("--refresh")) await refreshPrebuilt()
+const refreshBindings = selectedRefreshBindings()
+if (process.argv.includes("--refresh")) await refreshPrebuilt(refreshBindings ?? bindings, refreshBindings !== undefined)
 
 const manifestBytes = await readFile(join(prebuiltRoot, "manifest.json"))
 const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as { assets: Array<{ archive: string; sha256: string }> }
@@ -33,9 +34,9 @@ for (const asset of manifest.assets) {
 }
 console.log(`Prepared ${manifest.assets.length} embedded native asset(s) from ${prebuiltRoot}`)
 
-async function refreshPrebuilt(): Promise<void> {
+async function refreshPrebuilt(selectedBindings: readonly (typeof bindings)[number][], preserveExistingAssets: boolean): Promise<void> {
   if (!process.argv.includes("--no-build")) {
-    for (const binding of bindings) {
+    for (const binding of selectedBindings) {
       const bindingPackage = join(workspaceRoot, "packages", binding.packageName)
       const build = Bun.spawnSync([process.execPath, "run", "build:native"], { cwd: bindingPackage, stdout: "inherit", stderr: "inherit" })
       if (!build.success) process.exit(build.exitCode)
@@ -45,7 +46,7 @@ async function refreshPrebuilt(): Promise<void> {
   if (process.platform === "win32") process.env.PATH = `${artifactRoot};${process.env.PATH ?? ""}`
   const assets = []
   const archives = new Map<string, Uint8Array>()
-  for (const binding of bindings) {
+  for (const binding of selectedBindings) {
     const filenames = [binding.filename, ...binding.dependencies]
     const files = Object.fromEntries(await Promise.all(filenames.map(async (name) => [name, new Uint8Array(await readFile(join(artifactRoot, name)))])))
     const archive = zipSync(files, { level: 9 })
@@ -68,11 +69,37 @@ async function refreshPrebuilt(): Promise<void> {
     })
   }
 
+  if (preserveExistingAssets) {
+    const manifestPath = join(prebuiltRoot, "manifest.json")
+    const existingManifest = JSON.parse(await readFile(manifestPath, "utf8")) as { schemaVersion: number; assets: Array<{ id: string; platform: string; arch: string }> }
+    if (existingManifest.schemaVersion !== 1) throw new Error(`Unsupported native asset manifest schema: ${existingManifest.schemaVersion}`)
+    const existingAssets = existingManifest.assets.filter((asset) => !assets.some((replacement) => replacement.id === asset.id && replacement.platform === asset.platform && replacement.arch === asset.arch))
+    await mkdir(prebuiltRoot, { recursive: true })
+    for (const [archiveName, archive] of archives) await writeFile(join(prebuiltRoot, archiveName), archive)
+    await writeFile(manifestPath, `${JSON.stringify({ schemaVersion: 1, assets: [...existingAssets, ...assets] }, null, 2)}\n`)
+    console.log(`Refreshed ${assets.length} native prebuilt asset(s) without replacing other assets: ${prebuiltRoot}`)
+    return
+  }
+
   await rm(prebuiltRoot, { recursive: true, force: true })
   await mkdir(prebuiltRoot, { recursive: true })
   for (const [archiveName, archive] of archives) await writeFile(join(prebuiltRoot, archiveName), archive)
   await writeFile(join(prebuiltRoot, "manifest.json"), `${JSON.stringify({ schemaVersion: 1, assets }, null, 2)}\n`)
   console.log(`Refreshed ${assets.length} native prebuilt asset(s): ${prebuiltRoot}`)
+}
+
+function selectedRefreshBindings(): readonly (typeof bindings)[number][] | undefined {
+  const onlyIndex = process.argv.findIndex((argument) => argument === "--only" || argument.startsWith("--only="))
+  if (onlyIndex === -1) return undefined
+  if (!process.argv.includes("--refresh")) throw new Error("--only requires --refresh.")
+  const value = process.argv[onlyIndex] === "--only"
+    ? process.argv[onlyIndex + 1]
+    : process.argv[onlyIndex]?.slice("--only=".length)
+  if (!value || value.startsWith("--")) throw new Error("--only requires one or more comma-separated native asset ids.")
+  const ids = new Set(value.split(",").map((id) => id.trim()).filter(Boolean))
+  const selected = bindings.filter((binding) => ids.delete(binding.id))
+  if (ids.size > 0) throw new Error(`Unknown native asset id(s): ${[...ids].join(", ")}.`)
+  return selected
 }
 
 function infoMethod(id: string): string {
