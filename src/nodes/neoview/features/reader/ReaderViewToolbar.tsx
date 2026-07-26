@@ -147,7 +147,7 @@ export function ReaderViewToolbar({
 
   return (
     <div className="xiranite-app-region-no-drag min-w-0" data-reader-view-toolbar="true">
-      <div className="flex min-h-12 min-w-0 flex-wrap items-center justify-start gap-1 px-3 py-1.5 lg:justify-center" data-reader-toolbar-row="primary">
+      <div className="flex min-h-12 min-w-0 flex-wrap items-center justify-center gap-1 px-3 py-1.5" data-reader-toolbar-row="primary">
         <Button title="页面排序" aria-label="页面排序" aria-expanded={expanded === "sort"} type="button" size="icon-sm" variant={expanded === "sort" ? "default" : "ghost"} disabled={disabled || !onPageOrderChange} onClick={() => toggle("sort")}><ArrowDownUp /></Button>
         <Button title={`缩放模式：${FIT_MODES.find((mode) => mode.value === presentation.fitMode)?.label}`} aria-label="展开缩放设置" aria-expanded={expanded === "zoom"} type="button" size="icon-sm" variant={expanded === "zoom" ? "default" : "ghost"} disabled={disabled} onClick={() => toggle("zoom")}><CurrentFitIcon /></Button>
         <Separator />
