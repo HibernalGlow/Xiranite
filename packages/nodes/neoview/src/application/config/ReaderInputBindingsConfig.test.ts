@@ -52,7 +52,7 @@ describe("ReaderInputBindingsConfig", () => {
 
   it("[neoview.bindings.action-sequence-config] persists up to seven follow-up actions and defaults old bindings to one action", () => {
     const legacy = { id: "legacy", action: "file.delete-current", context: "reader", enabled: true, input: { device: "keyboard", code: "Delete" } }
-    const sequence = { ...legacy, id: "sequence", followUpActions: ["reader.next-book", "reader.first-page"] }
+    const sequence = { ...legacy, id: "sequence", followUpActions: ["reader.next-book", "reader.first-page"], input: { device: "keyboard", code: "KeyD" } }
     const parsed = parseNeoviewInputBindingsPatch({ inputBindings: { bindings: [legacy, sequence] } })
 
     expect(parsed.patch.inputBindings.bindings).toEqual([legacy, sequence])

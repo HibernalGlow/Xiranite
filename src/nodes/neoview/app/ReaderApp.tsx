@@ -1,5 +1,5 @@
 import { lazy, startTransition, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
-import { BookOpen, ChevronRight, LoaderCircle, Pin, PinOff, Trash2, X } from "lucide-react"
+import { BookOpen, ChevronRight, LoaderCircle, Pin, PinOff, X } from "lucide-react"
 import {
   DEFAULT_NEOVIEW_SHELL_CONFIG,
   DEFAULT_READER_PRESENTATION,
@@ -9,6 +9,8 @@ import {
   ReaderSlideshow,
   type ReaderPresentation,
   type ReaderInputAction,
+  type ReaderInputActionExecutionContext,
+  type ReaderInputActionOutcome,
   type ReaderInputBindingsConfig,
   type ReaderRadialMenuConfig,
   type ReaderVoiceControlConfig,
@@ -72,6 +74,7 @@ import { ReaderWindowBar } from "../features/shell/ReaderWindowBar"
 import { ThumbnailStrip } from "../features/thumbnails/ThumbnailStrip"
 import { useReaderInputRouter } from "../features/input/ReaderInputRouter"
 import { executeReaderInputAction } from "../features/input/ReaderInputActionExecutor"
+import { readerCurrentFileDeleteConfirmation } from "../features/input/ReaderCurrentFileDeleteConfirmation"
 import { createReaderColorFilterStore } from "../features/color-filter/ReaderColorFilterStore"
 import { migrateLegacyReaderColorFilter } from "../features/color-filter/LegacyReaderColorFilterMigration"
 import { createReaderPageTransitionStore } from "../features/page-transition/ReaderPageTransitionStore"
@@ -1287,11 +1290,11 @@ export function ReaderApp({
     return result
   }
 
-  function executeInputAction(action: ReaderInputAction): void {
+  function executeInputAction(action: ReaderInputAction, context: ReaderInputActionExecutionContext): Promise<ReaderInputActionOutcome> {
     if (switchToast.getSnapshot().enableAction) {
       switchToast.show({ title: `操作：${READER_INPUT_ACTION_LABELS[action]}` })
     }
-    executeReaderInputAction(action, {
+    return executeReaderInputAction(action, {
       session: () => session ? {
         pageCount: session.book.pageCount,
         pageIndex: session.frame.anchorPageIndex,
@@ -1336,7 +1339,7 @@ export function ReaderApp({
         stop: () => slideshow.stop(),
         skip: async () => { await navigate("next", true); slideshow.resetOnUserAction() },
       },
-    })
+    }, context)
   }
 
   function applyInputPresentation(next: ReaderPresentation): void {
@@ -1592,82 +1595,78 @@ export function ReaderApp({
       },
     }
   }
-
-  function requestDeleteCurrentFile() {
+  async function requestDeleteCurrentFile(adjacentDirection?: "next" | "previous"): Promise<ReaderInputActionOutcome> {
     const sessionId = sessionRef.current
     const sourcePath = path.trim()
-    if (!sessionId || !sourcePath || operationRef.current || !clientRef.current.executeFileOperations) return
-    const run = () => deleteCurrentFile(sessionId, sourcePath)
+    if (!sessionId || !sourcePath || operationRef.current || !clientRef.current.executeFileOperations) return { status: "unavailable" }
     const confirmTrash = folderViewRef.current.confirmations.trash
-    if (!confirmTrash) {
-      void run()
-      return
-    }
-    if (!contextMenu) {
+    if (confirmTrash && !contextMenu) {
       setError("当前界面无法打开删除确认框，文件未删除。")
-      return
+      return { status: "unavailable" }
     }
-    const name = sourcePath.replaceAll("\\", "/").split("/").at(-1) ?? sourcePath
-    contextMenu.confirm({
-      id: "neoview-reader-delete-current-file",
-      label: "删除当前文件",
-      icon: <Trash2 />,
-      destructive: true,
-      confirm: {
-        title: "移到回收站？",
-        description: `“${name}”将移到系统回收站。`,
-        confirmLabel: "移到回收站",
-        cancelLabel: "取消",
-      },
-      onSelect: run,
-    })
+    const confirmed = !confirmTrash || await contextMenu!.confirm(readerCurrentFileDeleteConfirmation(sourcePath))
+    if (!confirmed) return { status: "cancelled" }
+    const switched = adjacentDirection ? await switchAdjacentBook(adjacentDirection) : false
+    const consumedAction = switched ? adjacentDirection === "next" ? "reader.next-book" : "reader.previous-book" : undefined
+    return deleteCurrentFile(sessionId, sourcePath, consumedAction, switched ? sessionRef.current : undefined)
   }
-
-  async function deleteCurrentFile(sessionId: string, sourcePath: string) {
+  async function deleteCurrentFile(sessionId: string, sourcePath: string, consumedAction?: ReaderInputAction, replacementSessionId?: string): Promise<ReaderInputActionOutcome> {
     const execute = clientRef.current.executeFileOperations
-    if (!execute || sessionRef.current !== sessionId || operationRef.current) return
+    if (!execute || sessionRef.current !== (replacementSessionId ?? sessionId) || operationRef.current) return { status: "unavailable" }
     slideshow.stop()
     const controller = new AbortController()
     operationRef.current = controller
     setBusy(true)
     setError(undefined)
-    let released = false
+    let released = Boolean(replacementSessionId)
     try {
-      await clientRef.current.close(sessionId)
-      released = true
-      controller.signal.throwIfAborted()
-      if (sessionRef.current !== sessionId) return
-      sessionRef.current = undefined
-      setSession(undefined)
-      setSlideshowFadeFrame(undefined)
-      setMagnifierEnabled(false)
-
+      if (!replacementSessionId) {
+        await clientRef.current.close(sessionId)
+        released = true
+        controller.signal.throwIfAborted()
+        if (sessionRef.current !== sessionId) return { status: "cancelled" }
+        sessionRef.current = undefined
+        setSession(undefined)
+        setSlideshowFadeFrame(undefined)
+        setMagnifierEnabled(false)
+      }
       const result = await execute([{ kind: "trash", sourcePath }], true, controller.signal)
       const failed = result.results.find((item) => item.status !== "succeeded")
       if (result.succeeded !== 1 || failed) {
         throw new Error(failed?.error ?? failed?.errorCode ?? "移动到回收站失败")
       }
-      setPath("")
-      activeSourcePathRef.current = ""
+      if (!replacementSessionId) {
+        setPath("")
+        activeSourcePathRef.current = ""
+      }
       switchToast.show({ title: "已移到回收站", description: sourcePath })
+      return { status: "succeeded", ...(consumedAction ? { consumedAction } : {}) }
     } catch (cause) {
-      if (controller.signal.aborted) return
-      if (released && !sessionRef.current) {
+      if (controller.signal.aborted) return { status: "cancelled" }
+      if (released) {
         try {
+          if (replacementSessionId && sessionRef.current === replacementSessionId) {
+            await clientRef.current.close(replacementSessionId)
+            sessionRef.current = undefined
+            setSession(undefined)
+          }
+          if (sessionRef.current) throw new Error("Reader session changed during delete recovery.")
           const reopened = await clientRef.current.open(sourcePath, controller.signal)
           sessionRef.current = reopened.sessionId
           setSession(reopened)
+          setPath(sourcePath)
+          activeSourcePathRef.current = sourcePath
         } catch {
           // Preserve the original operation error; reopening is best-effort recovery.
         }
       }
       setError(errorMessage(cause))
+      return { status: "failed", error: cause }
     } finally {
       if (operationRef.current === controller) operationRef.current = undefined
       if (!controller.signal.aborted) setBusy(false)
     }
   }
-
   function requestShellEdgeOpen(edge: ReaderShellEdge, open: boolean) {
     const previous = shellControlStore.getSnapshot()
     shellControlStore.requestOpen(edge, open)

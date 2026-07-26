@@ -83,6 +83,28 @@ describe("ReaderInputRouter", () => {
     expect(execute).toHaveBeenCalledOnce()
   })
 
+  it("[neoview.bindings.action-sequence-repeat] coalesces repeated input while one sequence is running", async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const execute = vi.fn(async (action: ReaderInputAction) => {
+      if (action === "file.delete-current") await gate
+    })
+    render(<Harness config={{ bindings: [{
+      id: "delete-next",
+      action: "file.delete-current",
+      followUpActions: ["reader.next-book"],
+      context: "reader",
+      enabled: true,
+      input: { device: "keyboard", code: "Delete" },
+    }] }} execute={execute} />)
+    const reader = screen.getByTestId("reader")
+    fireEvent.keyDown(reader, { key: "Delete", code: "Delete" })
+    fireEvent.keyDown(reader, { key: "Delete", code: "Delete", repeat: true })
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(1))
+    release()
+    await waitFor(() => expect(execute.mock.calls.map(([action]) => action)).toEqual(["file.delete-current", "reader.next-book"]))
+  })
+
   it("[neoview.bindings.mouse-runtime] routes configured pointer buttons without stealing unbound or interactive clicks", () => {
     const execute = vi.fn()
     render(<Harness config={{ bindings: [
@@ -157,8 +179,8 @@ describe("ReaderInputRouter", () => {
   })
 })
 
-function Harness({ config, execute }: { config: ReaderInputBindingsConfig; execute: (action: ReaderInputAction) => void }) {
-  const router = useReaderInputRouter({ config, execute })
+function Harness({ config, execute }: { config: ReaderInputBindingsConfig; execute: (action: ReaderInputAction) => void | Promise<void> }) {
+  const router = useReaderInputRouter({ config, execute: (action) => execute(action) })
   return (
     <div
       data-testid="reader"

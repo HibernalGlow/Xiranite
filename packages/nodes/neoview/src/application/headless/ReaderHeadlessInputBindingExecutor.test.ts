@@ -50,6 +50,20 @@ describe("ReaderHeadlessInputBindingExecutor", () => {
       result: { handled: false, action: "viewer.toggle-render-mode", reason: "unsupported-on-headless-surface" },
     })
   })
+
+  it("[neoview.bindings.action-sequence-headless] executes follow-up actions until one is unavailable", async () => {
+    const controller = fixture()
+    const config = bindings({
+      ...binding("sequence", "reader.next-page", "reader"),
+      followUpActions: ["reader.next-book", "reader.zoom-in"],
+    })
+    await expect(executeReaderHeadlessInputBinding(config, key(), ["reader"], controller)).resolves.toMatchObject({
+      matched: true,
+      sequence: { status: "unavailable", completedActions: 2, action: "reader.zoom-in" },
+    })
+    expect(controller.next).toHaveBeenCalledOnce()
+    expect(controller.openAdjacent).toHaveBeenCalledOnce()
+  })
 })
 
 function key() {
@@ -84,5 +98,6 @@ function fixture() {
     next: vi.fn(async () => snapshot),
     previous: vi.fn(async () => snapshot),
     goTo: vi.fn(async () => snapshot),
+    openAdjacent: vi.fn(async () => snapshot),
   }
 }
