@@ -95,7 +95,7 @@ type ReaderFolderPenetrationResolution = {
 穿透模式：
 
 - 单击可穿透文件夹：打开解析终点。
-- 单击不可穿透文件夹：进入文件夹。
+- 关闭“分支文件夹就地展开”时，单击不可穿透文件夹：进入文件夹。
 - 双击任何文件夹：强制进入原文件夹，绕过穿透。
 - `Enter`：执行智能穿透。
 - `Alt+Enter` 或 `ArrowRight`：进入原文件夹。
@@ -105,6 +105,56 @@ type ReaderFolderPenetrationResolution = {
 浏览器必须区分 click 与 double-click。第一次点击启动预解析但延迟提交；同一路径第二次点击在系统双击间隔内到达时，取消预解析并进入原文件夹。协调器位于 BrowserPane，不得放在可能被虚拟化卸载的行组件中。请求身份绑定 `path + browser generation`。双击的第二次 `click` 不得再次启动解析；`dblclick` 提交原目录导航后，任何迟到的解析结果都必须因请求身份失效而丢弃。
 
 触屏不依赖双击；目录条目保留明确的“进入文件夹”按钮或上下文菜单。
+
+## 分支文件夹就地展开
+
+File Card 的现有行为会在解析结果为 `branch` 时进入被点击的目录。本功能增加一个默认关闭的可选开关“分支文件夹就地展开”：启用穿透模式且启用该开关后，点击自身直接包含两个或以上子文件夹的分支目录，不改变主 browser session 的路径，而是在该条目下方展开该目录原本会进入的内容区域。
+
+它是 File Card 的局部浏览体验，不是递归显示、Folder Tree 的替代品，也不改变 Reader 的上一本/下一本遍历规则。History、Bookmark、Search 和 CLI/TUI 不继承此 GUI 专属布局行为。
+
+### 适用条件与点击规则
+
+- 仅当 resolver 返回 `status = "branch"`，且入口目录直接子目录数至少为 2 时触发；多个压缩包、目录与压缩包混合、权限错误、空目录、深度上限和不支持内容仍沿用现有“进入文件夹”或错误反馈。
+- resolver 的返回 DTO 必须提供入口目录的 `directDirectoryCount`。这个数字来自已有的单层 listing，不得额外递归扫描来决定是否展开。
+- 当前 File Card 的每个目录标签、每个当前目录最多保留一个展开项。点击另一个合资格分支时，先关闭并释放原展开项，再展开新项；再次点击已展开项时收起。
+- 双击、`Alt+Enter`、`ArrowRight`、右键“进入此文件夹”和触屏明确的进入按钮始终执行现有原始目录导航。单击的智能穿透解析与双击竞态仍按 `path + browser generation` 取消和丢弃迟到结果。
+- 关闭开关、关闭标签、切换到其他路径、刷新导致父目录 generation 失效、删除该目录或切换当前标签时，必须收起并关闭展开项。后退/前进恢复同一目录访问快照时可恢复展开的路径和滚动位置，但不能把展开状态写入 TOML。
+
+### 展开区域
+
+展开区域等价于“进入该目录后”的直接子项 catalog：复用后端 Directory Browser session、当前 Card 的排序、筛选、类型过滤和当前 renderer。不得把子目录加载成 React 路径数组，也不得把它并入父目录的普通 list/grid/details 数据集。
+
+- 展开区显示被展开目录的简短路径标题、加载/空/错误状态，以及明确的“进入此文件夹”命令；不再嵌套第二套 Card 工具栏、面包屑或标签栏。
+- 该区域使用当前 File Card 的视图模式和响应式列数。列表、网格、瀑布流和 details 的行高、列数及缩略图尺寸均沿用当前视图，改变视图或 Card 宽度后重新测量。
+- 首选高度由直接子项数量、当前 renderer 和可用宽度计算。高度不得超过 File Card 当前可用内容高度；超过时，展开区内部滚动并继续使用已有虚拟化机制。小目录完整显示，不引入无意义的固定空白高度。
+- 父目录的选中项、焦点、滚动位置、缩略图需求和 navigation history 保持不变。展开区有独立的焦点与稀疏选择状态，收起时释放其 browser session、watcher、缩略图需求和 AbortController。
+- 子项仍使用现有文件/目录激活语义。展开区自身不无限嵌套；若需要查看更深的分支，用户可使用其明确的“进入此文件夹”命令或父条目的双击进入。
+
+### 配置与状态边界
+
+开关位于现有“穿透设置”对话框，规范 TOML 字段为 `expand_branches_inline`，默认 `false`：
+
+```toml
+[nodes.neoview.folder.penetration]
+enabled = true
+show_internal_files = true
+internal_items_mode = "single"
+max_depth = 3
+terminal_targets = ["archive", "document", "media-directory", "file"]
+expand_branches_inline = false
+```
+
+Reader 配置协议使用 `folderView.penetration.expandBranchesInline`，并继续兼容旧的深层表、`config = { ... }` envelope 和迁移期混合格式；混合冲突时 `config` 优先。该持久化字段只控制功能是否启用。`expandedBranchPath`、子 browser session、子区域滚动与选择是瞬态标签状态，不能写入 `[nodes.neoview.folder.penetration]`。
+
+### 验收
+
+- 开关默认关闭且关闭时，所有现有穿透点击、双击和键盘行为不变。
+- 开启后，含两个直接子文件夹的 `branch` 单击就地展开；点击同项收起，点击另一项替换展开项。
+- 只有 archive、多个文件、权限错误、空目录、深度上限或不支持内容的目录不触发展开。
+- 展开区按 compact、cover-list、mosaic-list、cover-grid、mosaic-grid 和 details 的当前尺寸正确重新测量；小目录完整显示，大目录内部滚动并虚拟化。
+- 双击、`Alt+Enter`、`ArrowRight`、右键和触屏进入命令仍进入原始目录，且不会被在途解析结果反向打开 Reader 或展开区域。
+- 切换、刷新、删除、关闭标签和 Card 卸载时没有残留子 browser session、watcher、缩略图 context 或网络请求。
+- 交互与高度回归使用 `*.browser.test.tsx` 的 Vitest Browser Mode，在 desktop 和受限 Card 尺寸分别验证；纯解析和状态转换使用普通 Vitest。
 
 ## 上一本、下一本与翻页
 
