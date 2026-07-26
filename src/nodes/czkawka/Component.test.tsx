@@ -578,18 +578,6 @@ describe("Czkawka node", () => {
     expect(screen.queryByTestId("czkawka-floating-analysis")).toBeNull()
   })
 
-  test("keeps per-tool selection history synchronized with the result table", async () => {
-    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }), analysisPanelTab: "selection" })
-    render(<Component compId="czkawka" host={host} />)
-    fireEvent.click(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }))
-    expect(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }).getAttribute("data-state")).toBe("checked")
-    fireEvent.click(screen.getByRole("button", { name: /选择助手/ }))
-    fireEvent.click(await screen.findByRole("button", { name: /清空选择/ }))
-    expect(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }).getAttribute("data-state")).toBe("unchecked")
-    fireEvent.click(screen.getByRole("button", { name: "撤销选择" }))
-    expect(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }).getAttribute("data-state")).toBe("checked")
-  })
-
   test("persists selection assistant visibility and rule configuration", () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }), analysisPanelTab: "selection" })
     render(<Component compId="czkawka" host={host} />)

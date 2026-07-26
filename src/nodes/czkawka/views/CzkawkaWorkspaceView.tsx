@@ -113,6 +113,7 @@ function Full(props: CzkawkaView) {
     setDraggedLane(null)
   }
   function activateLane(id: CzkawkaLaneId) {
+    if (activeLane === id && (!layout.soloOnFocus || layout.soloLane === id)) return
     clearTimeout(focusTimerRef.current)
     clearTimeout(revealTimerRef.current)
     clearTimeout(restoreTimerRef.current)
