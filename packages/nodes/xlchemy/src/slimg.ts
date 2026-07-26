@@ -102,8 +102,7 @@ export function createSlimgConverter(runBatch: BatchRunner = convertBatch) {
 
 export function slimgWorkerJobs(requestedJobs: number, logicalCpus = availableParallelism()): number {
   const requested = Math.max(1, Math.round(requestedJobs))
-  const hostLimit = Math.max(1, logicalCpus + Math.ceil(logicalCpus / 2))
-  return Math.min(1024, hostLimit, requested * 2)
+  return Math.min(1_024, Math.max(1, logicalCpus), requested)
 }
 
 export const convertWithSlimg = createSlimgConverter()

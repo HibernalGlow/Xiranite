@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 
 import { ZipArchiveProvider } from "../packages/nodes/neoview/src/platform/archives/zip/ZipArchiveProvider.js"
 import { createZipFixture, deterministicBytes } from "../packages/nodes/neoview/test/fixture-builders/create-zip-fixture.js"
+import { EventLoopDelaySampler, ProcessResourceSampler } from "./lib/runtime-benchmark-metrics"
 
 const mib = 1024 * 1024
 const storedBytes = deterministicBytes(32 * mib)
@@ -33,8 +34,14 @@ try {
   const indexBytesRead = fileBytesRead
   const indexReadCalls = readCalls
   const measurements = []
+  const eventLoop = new EventLoopDelaySampler(2)
+  const processResources = new ProcessResourceSampler(5)
+  eventLoop.start()
+  processResources.start()
 
   for (const entry of entries) {
+    const entryEventLoop = new EventLoopDelaySampler(2)
+    entryEventLoop.start()
     fileBytesRead = 0
     readCalls = 0
     const stream = await provider.openEntry(entry.id)
@@ -51,6 +58,7 @@ try {
     }
     const remainingMs = performance.now() - fullStart
     const totalMs = firstChunkMs + remainingMs
+    const entryEventLoopDelay = await entryEventLoop.stop()
     measurements.push({
       path: entry.path,
       compression: entry.compressionMethod,
@@ -61,8 +69,12 @@ try {
       throughputMiBPerSecond: round(outputBytes / mib / (totalMs / 1000)),
       sourceMiBRead: round(fileBytesRead / mib),
       sourceReadCalls: readCalls,
+      eventLoopDelayMs: entryEventLoopDelay,
     })
+    await Bun.sleep(0)
   }
+  const eventLoopDelay = await eventLoop.stop()
+  const bunProcess = processResources.stop()
 
   process.stdout.write(`${JSON.stringify({
     runtime: `Bun ${Bun.version}`,
@@ -79,6 +91,8 @@ try {
       sourceReadCalls: indexReadCalls,
       maxReadKiB: round(maxRead / 1024),
     },
+    eventLoopDelayMs: eventLoopDelay,
+    resources: { bunProcess },
     entries: measurements,
   }, null, 2)}\n`)
 } finally {
