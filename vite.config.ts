@@ -9,10 +9,7 @@ import babel from "@rolldown/plugin-babel"
 import transformImports from "@rolldown/plugin-transform-imports"
 import react, { reactCompilerPreset } from "@vitejs/plugin-react"
 import { defineConfig, type ViteDevServer } from "vite"
-import {
-  LUCIDE_TRANSFORM_IMPORT_OPTIONS,
-  protectLucideTypeImports,
-} from "./scripts/lucide-deep-imports"
+import { LUCIDE_TRANSFORM_IMPORT_OPTIONS } from "./scripts/lucide-deep-imports"
 import { reactCompilerModeForCommand } from "./scripts/react-compiler-mode"
 import { VITE_EAGER_DEPENDENCIES, VITE_EXCLUDED_DEPENDENCIES } from "./scripts/vite-dependency-policy"
 import { isBackendGatewayPath, readBackendGatewayTarget } from "./scripts/backend-gateway"
@@ -79,18 +76,6 @@ function developmentCjsShimPlugin() {
     enforce: "pre" as const,
     resolveId(id: string) {
       return id === "prop-types" ? propTypesDevShim : null
-    },
-  }
-}
-
-function lucideTypeImportProtectionPlugin() {
-  return {
-    name: "xiranite:lucide-type-import-protection",
-    enforce: "pre" as const,
-    transform(source: string, id: string) {
-      if (!source.includes("lucide-react") || !/\.[cm]?[jt]sx?(?:\?|$)/.test(id)) return null
-      const code = protectLucideTypeImports(source)
-      return code === null ? null : { code, map: null }
     },
   }
 }
@@ -174,7 +159,6 @@ export default defineConfig(({ command }) => ({
   plugins: [
     developmentCjsShimPlugin(),
     backendGatewayPlugin(),
-    lucideTypeImportProtectionPlugin(),
     transformImports(LUCIDE_TRANSFORM_IMPORT_OPTIONS),
     tailwindCandidateSnapshotPlugin(),
     productionChunkReportPlugin(),
