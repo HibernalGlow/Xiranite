@@ -347,6 +347,8 @@ describe("backend", () => {
       "portable-data",
       "--database-auth-token",
       "remote-token",
+      "--data-contract-version",
+      "2",
     ])
 
     expect(options).toEqual({
@@ -360,6 +362,7 @@ describe("backend", () => {
       databasePath: undefined,
       dataDir: "portable-data",
       databaseAuthToken: "remote-token",
+      dataContractVersion: 2,
     })
   })
 

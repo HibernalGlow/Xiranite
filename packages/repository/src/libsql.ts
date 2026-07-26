@@ -1,7 +1,11 @@
 import { createClient, type Client } from "@libsql/client"
+import { withXiraniteFileLock } from "@xiranite/config"
 import { asc, desc, eq, inArray, not, and, lt, type SQL } from "drizzle-orm"
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql"
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { mkdir } from "node:fs/promises"
+import { dirname } from "node:path"
+import { fileURLToPath } from "node:url"
 import type {
   ComponentDTO,
   ComponentWindowSizeDTO,
@@ -124,13 +128,43 @@ export interface LibsqlWorkspaceRepository extends WorkspaceRepository {
 
 type WorkspaceDb = Pick<LibSQLDatabase, "delete" | "insert">
 
-export async function createLibsqlWorkspaceRepository(options: LibsqlWorkspaceRepositoryOptions): Promise<LibsqlWorkspaceRepository> {
-  const client = createClient({
-    url: options.url,
-    authToken: options.authToken,
+export const LOCAL_LIBSQL_BUSY_TIMEOUT_MS = 5_000
+
+async function createConfiguredLibsqlClient(options: { url: string; authToken?: string }): Promise<Client> {
+  const client = createClient({ url: options.url, authToken: options.authToken })
+  if (localLibsqlPath(options.url)) {
+    await client.execute(`PRAGMA busy_timeout = ${LOCAL_LIBSQL_BUSY_TIMEOUT_MS}`)
+  }
+  return client
+}
+
+async function initializeLocalLibsqlSchema(client: Client, url: string, initialize: () => Promise<void>): Promise<void> {
+  const databasePath = localLibsqlPath(url)
+  if (!databasePath) {
+    await initialize()
+    return
+  }
+  await mkdir(dirname(databasePath), { recursive: true })
+  await withXiraniteFileLock(databasePath, async (assertLockHeld) => {
+    assertLockHeld()
+    await initialize()
+    assertLockHeld()
   })
+}
+
+function localLibsqlPath(url: string): string | undefined {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === "file:" ? fileURLToPath(parsed) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export async function createLibsqlWorkspaceRepository(options: LibsqlWorkspaceRepositoryOptions): Promise<LibsqlWorkspaceRepository> {
+  const client = await createConfiguredLibsqlClient(options)
   const db = drizzle(client)
-  await ensureSchema(client)
+  await initializeLocalLibsqlSchema(client, options.url, async () => await ensureSchema(client))
 
   return {
     client,
@@ -459,12 +493,9 @@ export interface LibsqlNodeRunHistoryRepository extends NodeRunHistoryRepository
 export async function createLibsqlNodeRunHistoryRepository(
   options: LibsqlNodeRunHistoryRepositoryOptions,
 ): Promise<LibsqlNodeRunHistoryRepository> {
-  const client = createClient({
-    url: options.url,
-    authToken: options.authToken,
-  })
+  const client = await createConfiguredLibsqlClient(options)
   const db = drizzle(client)
-  await ensureHistorySchema(client)
+  await initializeLocalLibsqlSchema(client, options.url, async () => await ensureHistorySchema(client))
 
   const repository: LibsqlNodeRunHistoryRepository = {
     client,

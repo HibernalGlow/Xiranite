@@ -24,10 +24,12 @@ type XiraniteService struct {
 	backendMu         sync.Mutex
 	backendRestartMu  sync.Mutex
 	componentWindowMu sync.Mutex
+	nodeAppMu         sync.RWMutex
 	userDataDir       string
 	storageFile       string
 	localBackend      *LocalBackend
 	trayManager       *desktopTrayManager
+	nodeAppRuntime    *nodeAppLifecycle
 }
 
 type FsEntry struct {
@@ -212,6 +214,48 @@ func (s *XiraniteService) StopLocalBackend() {
 	if backend != nil {
 		backend.Stop()
 	}
+}
+
+func (s *XiraniteService) setNodeAppLifecycle(lifecycle *nodeAppLifecycle) {
+	s.nodeAppMu.Lock()
+	s.nodeAppRuntime = lifecycle
+	s.nodeAppMu.Unlock()
+}
+
+func (s *XiraniteService) nodeAppLifecycle() *nodeAppLifecycle {
+	s.nodeAppMu.RLock()
+	defer s.nodeAppMu.RUnlock()
+	return s.nodeAppRuntime
+}
+
+// NodeAppContinueInBackground hides a standalone node window while preserving
+// its owned backend and active operations. It is unavailable to the workspace
+// host, where the ordinary tray manager owns this policy.
+func (s *XiraniteService) NodeAppContinueInBackground() NodeAppLifecycleActionResult {
+	lifecycle := s.nodeAppLifecycle()
+	if lifecycle == nil {
+		return NodeAppLifecycleActionResult{Supported: false, Message: "This is not a standalone node application."}
+	}
+	return lifecycle.continueInBackground()
+}
+
+// NodeAppCancelTasksAndQuit explicitly cancels active node operations before
+// terminating the standalone application and its contained Bun process tree.
+func (s *XiraniteService) NodeAppCancelTasksAndQuit() NodeAppLifecycleActionResult {
+	lifecycle := s.nodeAppLifecycle()
+	if lifecycle == nil {
+		return NodeAppLifecycleActionResult{Supported: false, Message: "This is not a standalone node application."}
+	}
+	return lifecycle.cancelTasksAndQuit()
+}
+
+// NodeAppRuntimeStatus exposes recovery state to the standalone diagnostic UI.
+func (s *XiraniteService) NodeAppRuntimeStatus() NodeAppBackendRuntimeStatus {
+	lifecycle := s.nodeAppLifecycle()
+	if lifecycle == nil {
+		return NodeAppBackendRuntimeStatus{State: "unavailable", Message: "This is not a standalone node application."}
+	}
+	return lifecycle.runtimeStatus()
 }
 
 func (s *XiraniteService) StorageGet(key string) (*string, error) {

@@ -22,6 +22,8 @@ type FileDropEvent struct {
 func init() {
 	application.RegisterEvent[FileDropEvent]("files-dropped")
 	application.RegisterEvent[TrayActionEvent]("tray-action")
+	application.RegisterEvent[NodeAppCloseRequestedEvent]("node-app-close-requested")
+	application.RegisterEvent[NodeAppBackendRuntimeStatus]("node-app-backend-status")
 }
 
 func main() {

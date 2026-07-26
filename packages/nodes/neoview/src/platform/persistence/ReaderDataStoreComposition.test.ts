@@ -233,6 +233,7 @@ describe("Reader data store composition", () => {
     const controller = await createReaderFileTreeController({
       configPath: join(root, "missing.toml"),
       legacyThumbnailDatabasePath: false,
+      legacyEmmDatabasePaths: false,
       searchHistoryStore: false,
     })
     try {

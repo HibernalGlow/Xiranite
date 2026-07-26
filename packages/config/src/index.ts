@@ -270,6 +270,21 @@ export async function readAtomicJsonFile<T>(path: string, options: AtomicJsonFil
 }
 
 /**
+ * Serializes a short cross-process operation for an Xiranite-owned local file.
+ * Database adapters use this only around schema work; normal reads and writes
+ * remain governed by the database engine itself.
+ */
+export async function withXiraniteFileLock<Result>(
+  path: string,
+  operation: (assertLockHeld: () => void) => Promise<Result>,
+  lockRetries?: number,
+): Promise<Result> {
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, "", { encoding: "utf8", flag: "a" })
+  return await withXiraniteConfigWriteLock(path, lockRetries, operation)
+}
+
+/**
  * Performs a complete JSON read-modify-write under a cross-process lock and
  * replaces the file atomically. It is deliberately generic so host-owned
  * runtime state can use the same durability semantics as project config.

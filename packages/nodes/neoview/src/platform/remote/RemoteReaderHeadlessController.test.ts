@@ -124,8 +124,8 @@ describe("RemoteReaderHeadlessController", () => {
     expect(requests.every((request) => request.headers.get("x-xiranite-token") === "library-token")).toBe(true)
     expect(await requests[2]?.json()).toEqual({ id: "reading", name: "Reading" })
     expect(await requests[4]?.json()).toEqual({ entries: [{ id: "entry-1", name: "Demo", source: { kind: "archive", path: "D:/books/demo.cbz" } }] })
+    expect(await requests[5]?.json()).toEqual({ ids: ["entry-1"] })
     expect(await requests[6]?.json()).toEqual({ ids: ["entry-1"] })
-    expect(await requests[7]?.json()).toEqual({ ids: ["entry-1"] })
   })
 
   it("[neoview.library.playlist.remote-wire] rejects malformed library responses before exposing them to CLI", async () => {
@@ -809,6 +809,21 @@ function sessionDto(assetUrl: string, pageOptions: {
       contentVersion: pageOptions.contentVersion ?? "v1",
       assetUrl,
     }],
+  }
+}
+
+function playlistRecord() {
+  return { id: "reading", name: "Reading", createdAt: 1, updatedAt: 2 }
+}
+
+function playlistEntry() {
+  return {
+    id: "entry-1",
+    playlistId: "reading",
+    source: { kind: "archive" as const, path: "D:/books/demo.cbz" },
+    name: "Demo",
+    position: 0,
+    createdAt: 1,
   }
 }
 

@@ -26,6 +26,17 @@ export interface NodeDefLiteral {
 
 export interface NodeAppLiteral {
   backendFeatures: string[]
+  nativeProbe?: {
+    module: string
+    exportName: string
+  }
+  releaseGate?: {
+    script: string
+  }
+  dataContract?: {
+    minimumVersion?: number
+    maximumVersion?: number
+  }
 }
 
 /**
@@ -153,7 +164,12 @@ function findNodeAppLiteral(root: Node): NodeAppLiteral | undefined {
         }
         if (value.type === "ObjectExpression") {
           const backendFeatures = stringArrayProperty(value, "backendFeatures")
-          found = { backendFeatures: backendFeatures ?? [] }
+          found = {
+            backendFeatures: backendFeatures ?? [],
+            nativeProbe: nativeProbeProperty(value),
+            releaseGate: releaseGateProperty(value),
+            dataContract: dataContractProperty(value),
+          }
           return
         }
       }
@@ -163,6 +179,63 @@ function findNodeAppLiteral(root: Node): NodeAppLiteral | undefined {
 
   visit(root)
   return found
+}
+
+function nativeProbeProperty(object: ObjectExpression): NodeAppLiteral["nativeProbe"] {
+  for (const property of object.properties) {
+    if (property.type !== "Property" || propertyKey(property.key) !== "nativeProbe") continue
+    const value = objectLiteralFromExpression(property.value)
+    if (!value) return undefined
+    const module = stringProperty(value, "module")
+    const exportName = stringProperty(value, "exportName")
+    if (!module || !exportName) return undefined
+    return { module, exportName }
+  }
+  return undefined
+}
+
+function releaseGateProperty(object: ObjectExpression): NodeAppLiteral["releaseGate"] {
+  for (const property of object.properties) {
+    if (property.type !== "Property" || propertyKey(property.key) !== "releaseGate") continue
+    const value = objectLiteralFromExpression(property.value)
+    const script = value ? stringProperty(value, "script") : undefined
+    if (script) return { script }
+  }
+  return undefined
+}
+
+function dataContractProperty(object: ObjectExpression): NodeAppLiteral["dataContract"] {
+  for (const property of object.properties) {
+    if (property.type !== "Property" || propertyKey(property.key) !== "dataContract") continue
+    const value = objectLiteralFromExpression(property.value)
+    if (!value) return undefined
+    const minimumVersion = numberProperty(value, "minimumVersion")
+    const maximumVersion = numberProperty(value, "maximumVersion")
+    return minimumVersion === undefined && maximumVersion === undefined
+      ? undefined
+      : { minimumVersion, maximumVersion }
+  }
+  return undefined
+}
+
+function stringProperty(object: ObjectExpression, name: string): string | undefined {
+  for (const property of object.properties) {
+    if (property.type !== "Property" || propertyKey(property.key) !== name) continue
+    const value = unwrapExpression(property.value)
+    return isStringLiteral(value) ? value.value : undefined
+  }
+  return undefined
+}
+
+function numberProperty(object: ObjectExpression, name: string): number | undefined {
+  for (const property of object.properties) {
+    if (property.type !== "Property" || propertyKey(property.key) !== name) continue
+    const value = unwrapExpression(property.value)
+    return value.type === "Literal" && typeof value.value === "number" && Number.isSafeInteger(value.value)
+      ? value.value
+      : undefined
+  }
+  return undefined
 }
 
 function parseNodeDefLiteral(object: ObjectExpression): NodeDefLiteral | undefined {

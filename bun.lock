@@ -1317,6 +1317,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@libsql/client": "^0.15.15",
+        "@xiranite/config": "workspace:*",
         "@xiranite/file-operations": "workspace:*",
         "@xiranite/shared": "workspace:*",
         "drizzle-orm": "^0.45.1",

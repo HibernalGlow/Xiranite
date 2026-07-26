@@ -46,7 +46,7 @@
   "scripts": {
     "build": "bun scripts/build.ts",
     "build:tsc": "bun scripts/build.ts",
-    "test": "vitest run src --environment node --exclude src/testing/Tui.bun.test.tsx && bun test src/testing/Tui.bun.test.tsx"
+    "test": "vitest run src --environment node --exclude src/testing/Tui.bun.test.tsx --exclude src/testing/Tui.directory.bun.test.tsx --exclude src/testing/Tui.archive.bun.test.tsx --maxWorkers=1 && bun test src/testing/Tui.bun.test.tsx src/testing/Tui.directory.bun.test.tsx src/testing/Tui.archive.bun.test.tsx --extension-order .js"
   },
   "dependencies": {
     "@hibernalglow/opencomic-ai-system": "github:HibernalGlow/opencomic-ai-bin#cc83499463e68cc893c8b67d12c6e0bf375081a7",

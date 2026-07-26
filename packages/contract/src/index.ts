@@ -49,9 +49,40 @@ export interface NodeAppDeclaration {
    * requirements.  The node-app builder keeps the default slice minimal.
    */
   backendFeatures?: readonly NodeAppBackendFeature[]
+  /**
+   * Optional verification of a Node-API dependency that cannot be exercised by
+   * a generic backend handshake. The packager runs it against the staged
+   * artifact before publishing an executable.
+   */
+  nativeProbe?: NodeAppNativeProbe
+  /**
+   * Optional staged release gate for a workflow that a generic window smoke
+   * cannot represent. The packager supplies the frozen manifest to the script.
+   */
+  releaseGate?: NodeAppReleaseGate
+  /**
+   * Shared configuration/database contract versions this snapshot may open.
+   * Omit it while the default contract is sufficient; the packager records
+   * that default range in the immutable snapshot manifest.
+   */
+  dataContract?: NodeAppDataContractRange
 }
 
 export type NodeAppBackendFeature = "reader"
+
+export interface NodeAppNativeProbe {
+  module: string
+  exportName: string
+}
+
+export interface NodeAppReleaseGate {
+  script: string
+}
+
+export interface NodeAppDataContractRange {
+  minimumVersion?: number
+  maximumVersion?: number
+}
 
 export interface NodeHelpExample {
   label?: string

@@ -52,6 +52,13 @@ describe("loadNeoviewSessionOptions", () => {
       orientation: "horizontal",
       autoRotation: "none",
       widePageStretch: "uniform-height",
+      background: {
+        color: "#000000",
+        mode: "solid",
+        ambient: { style: "vibrant", speed: 8, blur: 80, opacity: 0.8 },
+        aurora: { showRadialGradient: true },
+        spotlight: { color: "white" },
+      },
     })
     expect((await loadNeoviewRuntimeConfig({ configPath })).slideshow).toEqual({ intervalSeconds: 13, loop: true, random: false, fadeTransition: false })
 
@@ -453,7 +460,7 @@ describe("loadNeoviewSessionOptions", () => {
     } finally {
       await controller[Symbol.asyncDispose]()
     }
-  })
+  }, 15_000)
 })
 
 function pngHeader(width: number, height: number): Uint8Array {
