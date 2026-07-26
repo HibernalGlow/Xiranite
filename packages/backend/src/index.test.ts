@@ -844,6 +844,9 @@ describe("backend", () => {
       "[nodes.neoview.reader]",
       "reading_direction = \"right-to-left\"",
       "double_page_view = true",
+      "[nodes.neoview.image.processing]",
+      "reader_transform_enabled = true",
+      "sharp_fallback_enabled = true",
       "",
     ].join("\n"), "utf8")
     const resourceScheduler = new ResourceSchedulerService()
@@ -925,8 +928,8 @@ describe("backend", () => {
       expect(acquireResource).toHaveBeenCalledWith(expect.objectContaining({
         resource: "cpu",
         kind: "neoview.thumbnail.generate",
-        priority: "background",
-        ownerId: "library:backend-library",
+        priority: "interactive",
+        ownerId: expect.stringMatching(/^library:asset:/),
       }), expect.any(AbortSignal))
 
       const diagnosticsResponse = await fetch(`${backend.url}/reader/diagnostics`, {
