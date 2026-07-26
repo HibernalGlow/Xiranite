@@ -1,11 +1,14 @@
 import { useState } from "react"
-import { expect, test, vi } from "vitest"
+import { expect, onTestFinished, test, vi } from "vitest"
 import { page } from "vitest/browser"
 import { render } from "vitest-browser-react"
 import { VirtuosoMockContext } from "react-virtuoso"
 
+import { ContextMenuProvider } from "@/components/context-menu"
 import type { ReaderDirectoryPageDto, ReaderHttpClient } from "../../../adapters/reader-http-client"
 import FolderMainCard from "./FolderMainCard"
+import FolderDeleteButton from "./folder/FolderDeleteButton"
+import { DEFAULT_FOLDER_VIEW } from "./folder/FolderBrowserPane"
 
 test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu", async () => {
   const directory = directoryPage({ filter: "library", filterOptions: ["all", "library"] })
@@ -40,6 +43,9 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
   })
   const navigateDirectoryBrowser = vi.fn(async () => efu)
   const filterDirectoryBrowser = vi.fn(async () => filteredEfu)
+  const thumbnails = createPixelThumbnailRegistration()
+  onTestFinished(thumbnails.dispose)
+  const registerLibraryThumbnails = thumbnails.registerLibraryThumbnails
   const pickEfuFile = vi.fn(async () => "C:/lists/results.efu")
   const onFolderView = vi.fn()
   const folderNavigationEvents = new EventTarget()
@@ -51,6 +57,7 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
     }),
     navigateDirectoryBrowser,
     filterDirectoryBrowser,
+    registerLibraryThumbnails,
     closeDirectoryBrowser: vi.fn(async () => undefined),
   } as unknown as ReaderHttpClient
 
@@ -61,6 +68,7 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
           client={client}
           disabled={false}
           sourcePath="C:/books"
+          folderView={{ ...DEFAULT_FOLDER_VIEW, viewMode: "cover-list" }}
           pickEfuFile={pickEfuFile}
           folderNavigationEvents={folderNavigationEvents}
           onFolderView={onFolderView}
@@ -85,8 +93,13 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
   await expect.poll(() => document.querySelector("[data-folder-tab-count='2']")).not.toBeNull()
   await expect.poll(() => document.querySelector("[data-folder-source-kind='efu']")).not.toBeNull()
   await expect.poll(() => document.querySelector("[data-folder-tab-kind='efu'] .lucide-lock")).not.toBeNull()
-  await expect.element(page.getByText("found.cbz")).toBeVisible()
-  await expect.element(page.getByText("missing.cbz")).toBeVisible()
+  await expect.element(page.getByText("found.cbz", { exact: true })).toBeVisible()
+  await expect.element(page.getByText("missing.cbz", { exact: true })).toBeVisible()
+  await expect.poll(() => registerLibraryThumbnails.mock.calls.find(([contextId]) => contextId.startsWith("folder:browser-efu:"))?.[2].map((item) => item.path)).toEqual([
+    "D:/results/found.cbz",
+    "D:/results/missing.cbz",
+  ])
+  await expect.poll(() => document.querySelectorAll('[data-folder-source-kind="efu"] img').length).toBe(2)
   await expect.element(page.getByRole("button", { name: "上级" })).toBeDisabled()
 
   await expect.poll(() => document.querySelector("[data-folder-toolbar-menu='more']")).toBeNull()
@@ -102,7 +115,7 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
     false,
     true,
   )
-  await expect.element(page.getByText("found.cbz")).toBeVisible()
+  await expect.element(page.getByText("found.cbz", { exact: true })).toBeVisible()
   await expect.poll(() => document.body.textContent).not.toContain("missing.cbz")
   await expect.poll(() => onFolderView).toHaveBeenCalledWith({ hideMissingEfuEntries: true })
 
@@ -121,7 +134,7 @@ test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu"
   await expect.poll(() => document.querySelector("[data-folder-tab-count='3']")).not.toBeNull()
 
   await page.getByRole("tab", { name: "results.efu" }).click()
-  await expect.element(page.getByText("found.cbz")).toBeVisible()
+  await expect.element(page.getByText("found.cbz", { exact: true })).toBeVisible()
   await expect.poll(() => document.querySelector("[data-folder-tab-kind='efu'][aria-selected='true']")).not.toBeNull()
 })
 
@@ -139,6 +152,8 @@ test("[neoview.folder.search-sort-gui] sorts the active search-result list witho
     entries: [{ name: "physical.cbz", path: "C:/books/physical.cbz", kind: "file", readerSupported: true }],
     total: 1,
   }))
+  const thumbnails = createPixelThumbnailRegistration()
+  onTestFinished(thumbnails.dispose)
   const folderNavigationEvents = new EventTarget()
   const client = {
     openDirectoryBrowser: vi.fn(async (path: string) => path === "C:/history"
@@ -161,13 +176,22 @@ test("[neoview.folder.search-sort-gui] sorts the active search-result list witho
       truncated: false,
     })),
     sortDirectoryBrowser,
+    registerLibraryThumbnails: thumbnails.registerLibraryThumbnails,
     closeDirectoryBrowser: vi.fn(async () => undefined),
   } as unknown as ReaderHttpClient
 
   await render(
     <div style={{ width: 900, height: 600 }}>
       <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
-        <FolderMainCard client={client} disabled={false} sourcePath="C:/books" folderNavigationEvents={folderNavigationEvents} onOpen={vi.fn()} onGoTo={vi.fn()} />
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          folderView={{ ...DEFAULT_FOLDER_VIEW, viewMode: "cover-list" }}
+          folderNavigationEvents={folderNavigationEvents}
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+        />
       </VirtuosoMockContext.Provider>
     </div>,
   )
@@ -177,7 +201,12 @@ test("[neoview.folder.search-sort-gui] sorts the active search-result list witho
   await input.fill("deep")
   document.querySelector<HTMLInputElement>('input[aria-label="搜索文件"]')?.closest("form")?.requestSubmit()
   await expect.element(page.getByRole("listbox", { name: "搜索结果" })).toBeVisible()
-  await expect.element(page.getByText("alpha.cbz")).toBeVisible()
+  await expect.element(page.getByText("alpha.cbz", { exact: true })).toBeVisible()
+  await expect.poll(() => thumbnails.registerLibraryThumbnails.mock.calls.some(([, , items]) => items.map((item) => item.path).join("|") === [
+    "C:/books/deep/alpha.cbz",
+    "C:/books/deep/zeta.cbz",
+  ].join("|"))).toBe(true)
+  await expect.poll(() => document.querySelectorAll('[data-folder-search-listing="true"] img').length).toBe(2)
 
   await page.getByRole("button", { name: "排序" }).click()
   await page.getByRole("menuitem", { name: "切换为降序" }).click()
@@ -190,11 +219,11 @@ test("[neoview.folder.search-sort-gui] sorts the active search-result list witho
 
   folderNavigationEvents.dispatchEvent(new CustomEvent("browse", { detail: { path: "C:/history", newTab: false } }))
   await expect.poll(() => document.querySelector("[data-folder-tab-count='2']")).not.toBeNull()
-  await expect.element(page.getByText("history.cbz")).toBeVisible()
+  await expect.element(page.getByText("history.cbz", { exact: true })).toBeVisible()
   await expect.poll(() => document.querySelector("[data-folder-tab-kind='search'] .lucide-lock")).not.toBeNull()
 
   await page.getByRole("tab", { name: /搜索: deep/ }).click()
-  await expect.element(page.getByText("zeta.cbz")).toBeVisible()
+  await expect.element(page.getByText("zeta.cbz", { exact: true })).toBeVisible()
   expect(document.body.textContent).not.toContain("physical.cbz")
   const activationDetail = { path: "C:/books/series", handled: false }
   folderNavigationEvents.dispatchEvent(new CustomEvent("activate", { detail: activationDetail }))
@@ -286,6 +315,165 @@ test("[neoview.folder.open-keeps-scroll-gui] keeps the File Card viewport when o
   expect(scroller!.scrollTop).toBe(scrollTopBeforeOpen)
 })
 
+test("[neoview.folder.delete-sibling-keeps-reader-gui] deleting an earlier sibling keeps the current reader file focused", async () => {
+  const opened = directoryPage({
+    entries: [
+      { name: "earlier.cbz", path: "C:/books/earlier.cbz", kind: "file", readerSupported: true },
+      { name: "current.cbz", path: "C:/books/current.cbz", kind: "file", readerSupported: true },
+      { name: "later.cbz", path: "C:/books/later.cbz", kind: "file", readerSupported: true },
+    ],
+    total: 3,
+    suggestedSelection: { path: "C:/books/current.cbz", index: 1 },
+  })
+  const refreshed = directoryPage({
+    generation: 2,
+    entries: [
+      { name: "current.cbz", path: "C:/books/current.cbz", kind: "file", readerSupported: true },
+      { name: "later.cbz", path: "C:/books/later.cbz", kind: "file", readerSupported: true },
+    ],
+    total: 2,
+    suggestedSelection: { path: "C:/books/current.cbz", index: 0 },
+  })
+  const executeFileOperations = vi.fn(async () => ({
+    results: [{
+      index: 0,
+      operation: { kind: "trash" as const, sourcePath: "C:/books/earlier.cbz" },
+      status: "succeeded" as const,
+    }],
+    succeeded: 1,
+    failed: 0,
+    cancelled: 0,
+    undoable: 1,
+  }))
+  const navigateDirectoryBrowser = vi.fn(async () => refreshed)
+  const onPrepareFileMutation = vi.fn(async () => undefined)
+  const onOpen = vi.fn()
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => opened),
+    navigateDirectoryBrowser,
+    executeFileOperations,
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <ContextMenuProvider>
+      <div style={{ width: 900, height: 600 }}>
+        <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+          <FolderMainCard
+            client={client}
+            disabled={false}
+            sourcePath="C:/books/current.cbz"
+            onPrepareFileMutation={onPrepareFileMutation}
+            onOpen={onOpen}
+            onGoTo={vi.fn()}
+          />
+          <FolderDeleteButton
+            entry={{ index: 0, path: "C:/books/earlier.cbz", name: "earlier.cbz", kind: "file", readerSupported: true }}
+            strategy="trash"
+            confirm={false}
+          />
+        </VirtuosoMockContext.Provider>
+      </div>
+    </ContextMenuProvider>,
+  )
+
+  await expect.poll(() => document.querySelector('[data-folder-path="C:/books/current.cbz"]')?.getAttribute("data-focused")).toBe("true")
+  await expect.poll(() => document.querySelectorAll("button").length, { timeout: 5_000 }).toBeGreaterThan(4)
+  document.querySelector<HTMLButtonElement>('[data-folder-delete-button="true"]')!.click()
+
+  await expect.poll(() => executeFileOperations).toHaveBeenCalledOnce()
+  await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
+    "browser-1",
+    { action: "refresh" },
+    expect.any(AbortSignal),
+    "C:/books/current.cbz",
+  )
+  await expect.poll(() => document.querySelector('[data-folder-path="C:/books/current.cbz"]')?.getAttribute("data-focused")).toBe("true")
+  expect(document.querySelector('[data-folder-path="C:/books/later.cbz"]')?.getAttribute("data-focused")).not.toBe("true")
+  expect(onPrepareFileMutation).toHaveBeenCalledWith("C:/books/earlier.cbz", expect.any(AbortSignal))
+  expect(onOpen).not.toHaveBeenCalled()
+})
+
+test("[neoview.folder.delete-current-advances-gui] deleting the current reader file keeps the adjacent focus fallback", async () => {
+  const opened = directoryPage({
+    entries: [
+      { name: "earlier.cbz", path: "C:/books/earlier.cbz", kind: "file", readerSupported: true },
+      { name: "current.cbz", path: "C:/books/current.cbz", kind: "file", readerSupported: true },
+      { name: "later.cbz", path: "C:/books/later.cbz", kind: "file", readerSupported: true },
+    ],
+    total: 3,
+    suggestedSelection: { path: "C:/books/current.cbz", index: 1 },
+  })
+  const refreshed = directoryPage({
+    generation: 2,
+    entries: [
+      { name: "earlier.cbz", path: "C:/books/earlier.cbz", kind: "file", readerSupported: true },
+      { name: "later.cbz", path: "C:/books/later.cbz", kind: "file", readerSupported: true },
+    ],
+    total: 2,
+    suggestedSelection: { path: "C:/books/later.cbz", index: 1 },
+  })
+  const executeFileOperations = vi.fn(async () => ({
+    results: [{
+      index: 0,
+      operation: { kind: "trash" as const, sourcePath: "C:/books/current.cbz" },
+      status: "succeeded" as const,
+    }],
+    succeeded: 1,
+    failed: 0,
+    cancelled: 0,
+    undoable: 1,
+  }))
+  const navigateDirectoryBrowser = vi.fn(async () => refreshed)
+  const commit = vi.fn()
+  const restore = vi.fn(async () => undefined)
+  const onPrepareFileMutation = vi.fn(async () => ({ commit, restore }))
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => opened),
+    navigateDirectoryBrowser,
+    executeFileOperations,
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <ContextMenuProvider>
+      <div style={{ width: 900, height: 600 }}>
+        <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+          <FolderMainCard
+            client={client}
+            disabled={false}
+            sourcePath="C:/books/current.cbz"
+            onPrepareFileMutation={onPrepareFileMutation}
+            onOpen={vi.fn()}
+            onGoTo={vi.fn()}
+          />
+          <FolderDeleteButton
+            entry={{ index: 1, path: "C:/books/current.cbz", name: "current.cbz", kind: "file", readerSupported: true }}
+            strategy="trash"
+            confirm={false}
+          />
+        </VirtuosoMockContext.Provider>
+      </div>
+    </ContextMenuProvider>,
+  )
+
+  await expect.poll(() => document.querySelector('[data-folder-path="C:/books/current.cbz"]')?.getAttribute("data-focused")).toBe("true")
+  document.querySelector<HTMLButtonElement>('[data-folder-delete-button="true"]')!.click()
+
+  await expect.poll(() => executeFileOperations).toHaveBeenCalledOnce()
+  await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
+    "browser-1",
+    { action: "refresh" },
+    expect.any(AbortSignal),
+    "C:/books/current.cbz",
+  )
+  await expect.poll(() => document.querySelector('[data-folder-path="C:/books/later.cbz"]')?.getAttribute("data-focused")).toBe("true")
+  expect(document.querySelector('[data-folder-path="C:/books/earlier.cbz"]')?.getAttribute("data-focused")).not.toBe("true")
+  expect(onPrepareFileMutation).toHaveBeenCalledWith("C:/books/current.cbz", expect.any(AbortSignal))
+  expect(commit).toHaveBeenCalledOnce()
+  expect(restore).not.toHaveBeenCalled()
+})
+
 function directoryPage(overrides: Partial<ReaderDirectoryPageDto> = {}): ReaderDirectoryPageDto {
   return {
     sessionId: "browser-1",
@@ -307,5 +495,26 @@ function directoryPage(overrides: Partial<ReaderDirectoryPageDto> = {}): ReaderD
     tabDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
     watching: false,
     ...overrides,
+  }
+}
+
+function createPixelThumbnailRegistration() {
+  const urls = new Map<string, string>()
+  return {
+    registerLibraryThumbnails: vi.fn(async (contextId: string, generation: number, items: readonly { id: string; path: string }[]) => ({
+      contextId,
+      generation,
+      items: items.map((item) => {
+        const key = `${contextId}:${generation}:${item.id}`
+        const thumbnailUrl = urls.get(key) ?? URL.createObjectURL(new Blob([
+          Uint8Array.from(atob("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="), (character) => character.charCodeAt(0)),
+        ], { type: "image/gif" }))
+        urls.set(key, thumbnailUrl)
+        return { id: item.id, thumbnailUrl, contentVersion: item.path }
+      }),
+    })),
+    dispose: () => {
+      for (const url of urls.values()) URL.revokeObjectURL(url)
+    },
   }
 }

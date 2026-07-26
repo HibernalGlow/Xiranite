@@ -31,6 +31,7 @@ import type {
 } from "../../../../adapters/reader-http-client"
 import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS } from "../../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
+import { waitForLibraryThumbnailBatch } from "../../../thumbnails/LibraryThumbnailBatchQuery"
 import type { ReaderPanelContext } from "../../registry"
 import type { FolderContextEntry } from "./FolderContextActions"
 import {
@@ -108,6 +109,7 @@ import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_LIST_COMPONENTS, runFolderNavigation,
 
 const PAGE_SIZE = 128
 const MAX_CACHED_PAGES = 12
+const INITIAL_THUMBNAIL_DEMAND = 24
 const MAX_THUMBNAILS = 24
 const MAX_CACHED_THUMBNAIL_URLS = 256
 // A short confirmation window preserves double-click raw-folder entry without
@@ -348,6 +350,7 @@ export function FolderBrowserPane({
   const thumbnailCompileKeysRef = useRef(new Set<string>())
   const clipboardCompletionRef = useRef<string>()
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
+  const initialThumbnailRangeRef = useRef<{ sessionId: string; generation: number; range: ListRange }>()
   const listRef = useRef<VirtuosoHandle>(null)
   const gridRef = useRef<VirtuosoGridHandle>(null)
   const mosaicRef = useRef<VirtuosoHandle>(null)
@@ -611,7 +614,13 @@ export function FolderBrowserPane({
           ),
       )
       .slice(0, MAX_THUMBNAILS)
-    if (!visible.length) return
+    if (!visible.length) {
+      const pendingInitialRange = initialThumbnailRangeRef.current
+      if (pendingInitialRange?.sessionId === current.sessionId && pendingInitialRange.generation === current.generation) {
+        initialThumbnailRangeRef.current = undefined
+      }
+      return
+    }
     const signature = `${refresh ? `refresh:${++thumbnailRefreshSequenceRef.current}` : "normal"}:${targetPaths ? "selected" : "visible"}:${current.sessionId}:${current.generation}:${viewMode}:${previewGridEnabled}:${previewCount}:${visible.map(({ index, entry }) => `${index}:${entry.path}`).join("|")}`
     if (thumbnailSignatureRef.current === signature) return
     thumbnailSignatureRef.current = signature
@@ -636,8 +645,20 @@ export function FolderBrowserPane({
         })),
         request.signal,
       )
-      .then((batch) => {
+      .then(async (batch) => {
         if (request.signal.aborted || generation !== thumbnailGenerationRef.current) return
+        try {
+          await waitForLibraryThumbnailBatch(batch, request.signal)
+        } catch (cause) {
+          if (request.signal.aborted || isAbortError(cause)) return
+          // A persistent backend cooldown must not leave the previous visit blank.
+          // Publish the URLs after the bounded query retry and retain manual reload.
+        }
+        if (request.signal.aborted || generation !== thumbnailGenerationRef.current) return
+        const pendingInitialRange = initialThumbnailRangeRef.current
+        if (pendingInitialRange?.sessionId === current.sessionId && pendingInitialRange.generation === current.generation) {
+          initialThumbnailRangeRef.current = undefined
+        }
         const resolved = batch.items.flatMap((item) => {
           const path = pathById.get(item.id)
           return path ? [[path, item.thumbnailUrl] as const] : []
@@ -670,6 +691,11 @@ export function FolderBrowserPane({
         })
       })
       .catch(() => {
+        if (!request.signal.aborted && generation === thumbnailGenerationRef.current) thumbnailSignatureRef.current = ""
+        const pendingInitialRange = initialThumbnailRangeRef.current
+        if (pendingInitialRange?.sessionId === current.sessionId && pendingInitialRange.generation === current.generation) {
+          initialThumbnailRangeRef.current = undefined
+        }
         // Keep the bounded visit cache visible when background revalidation fails.
       })
   }
@@ -911,7 +937,13 @@ export function FolderBrowserPane({
           startIndex: page.cursor,
           endIndex: Math.max(page.cursor, Math.min(page.total - 1, page.cursor + page.entries.length - 1)),
         }
-      : { startIndex: 0, endIndex: 0 }
+      : {
+          startIndex: page.cursor,
+          endIndex: Math.max(page.cursor, Math.min(page.total - 1, page.cursor + Math.min(page.entries.length, INITIAL_THUMBNAIL_DEMAND) - 1)),
+        }
+    initialThumbnailRangeRef.current = !sameNavigationEntry && thumbnailsVisible && viewUsesThumbnails(viewMode) && client.registerLibraryThumbnails
+      ? { sessionId: page.sessionId, generation: page.generation, range: visibleRangeRef.current }
+      : undefined
     const suggested = page.suggestedSelection
     let restored = restoreDirectoryVisitState(page, preferredState, navigationStatesRef.current, {
       total: page.total,
@@ -1109,9 +1141,21 @@ export function FolderBrowserPane({
   }
 
   function requestRange(range: ListRange) {
-    visibleRangeRef.current = range
     const current = catalogRef.current
-    requestPenetrationDescriptions(range, current)
+    const initial = initialThumbnailRangeRef.current
+    let requestedRange = range
+    if (initial) {
+      if (current && initial.sessionId === current.sessionId && initial.generation === current.generation) {
+        requestedRange = {
+          startIndex: Math.min(initial.range.startIndex, range.startIndex),
+          endIndex: Math.max(initial.range.endIndex, range.endIndex),
+        }
+      } else {
+        initialThumbnailRangeRef.current = undefined
+      }
+    }
+    visibleRangeRef.current = requestedRange
+    requestPenetrationDescriptions(requestedRange, current)
     if (!current) return
     // Virtual search already holds every hit in-memory — skip listDirectoryBrowser
     // paging, but still run the shared visible-thumbnail pipeline so scroll works.
@@ -1120,7 +1164,7 @@ export function FolderBrowserPane({
         viewMode === "details"
           ? DETAILS_METADATA_FIELDS.filter((field) => current.metadataCapabilities.includes(field))
           : folderMetadataFieldsForView(viewMode, current.metadataCapabilities)
-      const cursors = directoryPageCursors(range.startIndex - 16, range.endIndex + 16, current.total, PAGE_SIZE)
+      const cursors = directoryPageCursors(requestedRange.startIndex - 16, requestedRange.endIndex + 16, current.total, PAGE_SIZE)
       for (const cursor of cursors) {
         const requestKey = `${cursor}:${metadataFields.join(",")}`
         if ((current.pages.has(cursor) && directoryPageHasMetadata(current, cursor, metadataFields)) || pendingCursorsRef.current.has(requestKey)) continue
@@ -1917,7 +1961,7 @@ export function FolderBrowserPane({
       if (range.endIndex <= range.startIndex && latest.total > 0) {
         requestRange({
           startIndex: 0,
-          endIndex: Math.min(latest.total - 1, Math.max(0, MAX_THUMBNAILS - 1)),
+          endIndex: Math.min(latest.total - 1, Math.max(0, INITIAL_THUMBNAIL_DEMAND - 1)),
         })
         return
       }
@@ -2112,7 +2156,10 @@ export function FolderBrowserPane({
                   { action: "refresh" },
                   {
                     keepTree: true,
-                    focusPath: entry.path,
+                    // Keep the active Reader source selected when another entry is removed.
+                    // If the source itself was removed, its missing path intentionally leaves
+                    // the saved index in place so the next (or final previous) entry is focused.
+                    focusPath: sourcePath || entry.path,
                     preserveThumbnailCache: true,
                   },
                 )
