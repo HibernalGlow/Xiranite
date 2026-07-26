@@ -1,2 +1,9 @@
 pub(crate) mod basic;
 pub(crate) mod common;
+pub(crate) mod duplicate;
+pub(crate) mod media;
+pub(crate) mod media_bad_extensions;
+pub(crate) mod media_broken_files;
+pub(crate) mod media_same_music;
+pub(crate) mod media_similar_images;
+pub(crate) mod media_similar_videos;

@@ -1,18 +1,6 @@
 use std::path::PathBuf;
-use std::sync::{Once, OnceLock};
 
-use czkawka_core::common::config_cache_path::set_config_cache_path;
-use czkawka_core::common::model::{CheckingMethod, HashType};
-use czkawka_core::common::tool_data::CommonData;
-use czkawka_core::tools::bad_extensions::{BadExtensions, BadExtensionsParameters};
-use czkawka_core::tools::broken_files::{BrokenFiles, BrokenFilesParameters, CheckedTypes};
-use czkawka_core::tools::duplicate::{DuplicateEntry, DuplicateFinder, DuplicateFinderParameters};
-use czkawka_core::tools::same_music::{MusicEntry, MusicSimilarity, SameMusic, SameMusicParameters};
-use czkawka_core::tools::similar_images::{ImagesEntry, SimilarImages, SimilarImagesParameters};
-use czkawka_core::tools::similar_videos::{SimilarVideos, SimilarVideosParameters, VideosEntry};
-use image_hasher::{FilterType, HashAlg};
 use thiserror::Error;
-use vid_dup_finder_lib::Cropdetect;
 
 mod capabilities;
 mod scan_control;
@@ -23,11 +11,8 @@ mod tests;
 pub use capabilities::{CzkawkaInfo, API_VERSION, CAPABILITIES};
 pub use scan_control::{ScanControl, ScanProgress};
 
-use upstream::common::search_with_control;
-
 pub fn initialize_threads(thread_count: usize) -> usize {
-    static THREAD_COUNT: OnceLock<usize> = OnceLock::new();
-    *THREAD_COUNT.get_or_init(|| { czkawka_core::common::set_number_of_threads(thread_count); czkawka_core::common::get_number_of_threads() })
+    upstream::common::initialize_threads(thread_count)
 }
 
 #[derive(Debug, Error)]
@@ -37,7 +22,7 @@ pub enum CzkawkaError {
 }
 
 pub fn czkawka_info() -> CzkawkaInfo {
-    capabilities::info(czkawka_core::CZKAWKA_VERSION)
+    capabilities::info(upstream::common::source_version())
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -137,100 +122,7 @@ pub fn scan_duplicate_files_controlled(
     options: DuplicateScanOptions,
     control: &ScanControl,
 ) -> Result<DuplicateScanResult, CzkawkaError> {
-    if options.included_directories.is_empty() {
-        return Err(CzkawkaError::InvalidOption(
-            "included_directories cannot be empty".into(),
-        ));
-    }
-    if options.minimum_file_size > options.maximum_file_size {
-        return Err(CzkawkaError::InvalidOption(
-            "minimum_file_size cannot exceed maximum_file_size".into(),
-        ));
-    }
-    initialize_cache_path();
-
-    let check_method = match options.check_method {
-        DuplicateCheckMethod::Name => CheckingMethod::Name,
-        DuplicateCheckMethod::Size => CheckingMethod::Size,
-        DuplicateCheckMethod::SizeAndName => CheckingMethod::SizeName,
-        DuplicateCheckMethod::Hash => CheckingMethod::Hash,
-    };
-    let hash_type = match options.hash_type {
-        DuplicateHashType::Crc32 => HashType::Crc32,
-        DuplicateHashType::Xxh3 => HashType::Xxh3,
-        DuplicateHashType::Blake3 => HashType::Blake3,
-    };
-    let mut finder = DuplicateFinder::new(DuplicateFinderParameters::new(
-        check_method,
-        hash_type,
-        options.ignore_hard_links,
-        options.use_prehash,
-        options.minimal_cache_file_size,
-        options.minimal_prehash_cache_file_size,
-        options.case_sensitive_names,
-    ));
-    finder.set_included_directory(options.included_directories);
-    if !options.reference_directories.is_empty() {
-        finder.set_reference_directory(options.reference_directories);
-    }
-    finder.set_excluded_directory(options.excluded_directories);
-    finder.set_excluded_items(options.excluded_items);
-    finder.set_allowed_extensions(options.allowed_extensions);
-    finder.set_excluded_extensions(options.excluded_extensions);
-    finder.set_minimal_file_size(options.minimum_file_size);
-    finder.set_maximal_file_size(options.maximum_file_size);
-    finder.set_recursive_search(options.recursive);
-    finder.set_use_cache(options.use_cache);
-    finder.set_save_also_as_json(options.save_also_as_json);
-    finder.set_delete_outdated_cache(options.delete_outdated_cache);
-
-    search_with_control(&mut finder, control);
-    let raw_groups: Vec<Vec<(DuplicateEntry, bool)>> = if finder.get_use_reference() {
-        match check_method {
-            CheckingMethod::Hash => finder.get_files_with_identical_hashes_referenced().values().flatten().map(referenced_duplicate_group).collect(),
-            CheckingMethod::Name => finder.get_files_with_identical_name_referenced().values().map(referenced_duplicate_group).collect(),
-            CheckingMethod::Size => finder.get_files_with_identical_size_referenced().values().map(referenced_duplicate_group).collect(),
-            CheckingMethod::SizeName => finder.get_files_with_identical_size_names_referenced().values().map(referenced_duplicate_group).collect(),
-            _ => unreachable!(),
-        }
-    } else {
-        match check_method {
-            CheckingMethod::Hash => finder.get_files_sorted_by_hash().values().flatten().map(|group| group.iter().cloned().map(|entry| (entry, false)).collect()).collect(),
-            CheckingMethod::Name => finder.get_files_sorted_by_names().values().map(|group| group.iter().cloned().map(|entry| (entry, false)).collect()).collect(),
-            CheckingMethod::Size => finder.get_files_sorted_by_size().values().map(|group| group.iter().cloned().map(|entry| (entry, false)).collect()).collect(),
-            CheckingMethod::SizeName => finder.get_files_sorted_by_size_name().values().map(|group| group.iter().cloned().map(|entry| (entry, false)).collect()).collect(),
-            _ => unreachable!(),
-        }
-    };
-    let groups = raw_groups
-        .into_iter()
-        .map(|mut entries| {
-            entries.sort_unstable_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.path.cmp(&b.0.path)));
-            DuplicateGroup {
-                files: entries
-                    .into_iter()
-                    .map(|(entry, is_reference)| DuplicateFile {
-                        path: entry.path,
-                        modified_date: entry.modified_date,
-                        size: entry.size,
-                        hash: entry.hash,
-                        is_reference,
-                    })
-                    .collect(),
-            }
-        })
-        .collect();
-    Ok(DuplicateScanResult {
-        groups,
-        messages: finder.get_text_messages().create_messages_text(),
-        stopped: finder.get_stopped_search(),
-    })
-}
-
-fn referenced_duplicate_group(group: &(DuplicateEntry, Vec<DuplicateEntry>)) -> Vec<(DuplicateEntry, bool)> {
-    std::iter::once((group.0.clone(), true))
-        .chain(group.1.iter().cloned().map(|entry| (entry, false)))
-        .collect()
+    upstream::duplicate::scan_duplicate_files_controlled(options, control)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -478,205 +370,10 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<MediaScanResult, Cz
 }
 
 pub fn scan_media_files_controlled(options: MediaScanOptions, control: &ScanControl) -> Result<MediaScanResult, CzkawkaError> {
-    initialize_cache_path();
-    if options.included_directories.is_empty() {
-        return Err(CzkawkaError::InvalidOption(
-            "included_directories cannot be empty".into(),
-        ));
-    }
-    match options.tool {
-        MediaTool::SimilarImages => {
-            let hash_algorithm = match options.image_hash_algorithm {
-                ImageHashAlgorithm::Mean => HashAlg::Mean,
-                ImageHashAlgorithm::Gradient => HashAlg::Gradient,
-                ImageHashAlgorithm::Blockhash => HashAlg::Blockhash,
-                ImageHashAlgorithm::VertGradient => HashAlg::VertGradient,
-                ImageHashAlgorithm::DoubleGradient => HashAlg::DoubleGradient,
-                ImageHashAlgorithm::Median => HashAlg::Median,
-            };
-            let resize_algorithm = match options.image_resize_algorithm {
-                ImageResizeAlgorithm::Lanczos3 => FilterType::Lanczos3,
-                ImageResizeAlgorithm::Gaussian => FilterType::Gaussian,
-                ImageResizeAlgorithm::CatmullRom => FilterType::CatmullRom,
-                ImageResizeAlgorithm::Triangle => FilterType::Triangle,
-                ImageResizeAlgorithm::Nearest => FilterType::Nearest,
-            };
-            let mut tool = SimilarImages::new(SimilarImagesParameters::new(
-                options.similarity.min(40),
-                options.image_hash_size,
-                hash_algorithm,
-                resize_algorithm,
-                options.image_ignore_same_size,
-                options.ignore_hard_links,
-            ));
-            configure_media_tool(&mut tool, &options);
-            search_with_control(&mut tool, control);
-            let groups = if tool.get_use_reference() {
-                tool.get_similar_images_referenced().iter().map(|(reference, others)| MediaGroup {
-                    entries: std::iter::once(image_media_entry(reference, true))
-                        .chain(others.iter().map(|entry| image_media_entry(entry, false)))
-                        .collect(),
-                }).collect()
-            } else {
-                tool.get_similar_images().iter().map(|group| MediaGroup {
-                    entries: group.iter().map(|entry| image_media_entry(entry, false)).collect(),
-                }).collect()
-            };
-            Ok(media_result(&tool, groups))
-        }
-        MediaTool::SimilarVideos => {
-            let crop_detect = match options.video_crop_detect {
-                VideoCropDetect::Letterbox => Cropdetect::Letterbox,
-                VideoCropDetect::Motion => Cropdetect::Motion,
-                VideoCropDetect::None => Cropdetect::None,
-            };
-            let mut tool = SimilarVideos::new(SimilarVideosParameters::new(
-                options.similarity.min(20) as i32,
-                options.video_ignore_same_size,
-                options.ignore_hard_links,
-                options.video_skip_forward,
-                options.video_hash_duration,
-                crop_detect,
-            ));
-            configure_media_tool(&mut tool, &options);
-            search_with_control(&mut tool, control);
-            let groups = if tool.get_use_reference() {
-                tool.get_similar_videos_referenced().iter().map(|(reference, others)| MediaGroup {
-                    entries: std::iter::once(video_media_entry(reference, true, 0.0))
-                        .chain(others.iter().map(|entry| video_media_entry(entry, false, normalized_video_distance(reference, entry))))
-                        .collect(),
-                }).collect()
-            } else {
-                tool.get_similar_videos().iter().map(|group| MediaGroup {
-                    entries: group.first().map(|baseline| group.iter().map(|entry| video_media_entry(entry, false, normalized_video_distance(baseline, entry))).collect()).unwrap_or_default(),
-                }).collect()
-            };
-            Ok(media_result(&tool, groups))
-        }
-        MediaTool::DuplicateMusic => {
-            let mut similarity = MusicSimilarity::NONE;
-            if options.music_compare_title { similarity |= MusicSimilarity::TRACK_TITLE; }
-            if options.music_compare_artist { similarity |= MusicSimilarity::TRACK_ARTIST; }
-            if options.music_compare_bitrate { similarity |= MusicSimilarity::BITRATE; }
-            if options.music_compare_genre { similarity |= MusicSimilarity::GENRE; }
-            if options.music_compare_year { similarity |= MusicSimilarity::YEAR; }
-            if options.music_compare_length { similarity |= MusicSimilarity::LENGTH; }
-            if similarity == MusicSimilarity::NONE {
-                similarity = MusicSimilarity::TRACK_TITLE | MusicSimilarity::TRACK_ARTIST;
-            }
-            let check_method = match options.music_check_type {
-                MusicCheckType::Tags => CheckingMethod::AudioTags,
-                MusicCheckType::Fingerprint => CheckingMethod::AudioContent,
-            };
-            let mut tool = SameMusic::new(SameMusicParameters::new(
-                similarity,
-                options.music_approximate_comparison,
-                check_method,
-                options.music_minimum_fragment_duration,
-                options.music_maximum_difference,
-                options.music_compare_fingerprints_only_with_similar_titles,
-            ));
-            configure_media_tool(&mut tool, &options);
-            search_with_control(&mut tool, control);
-            let groups = if tool.get_use_reference() {
-                tool.get_similar_music_referenced().iter().map(|(reference, others)| MediaGroup {
-                    entries: std::iter::once(music_media_entry(reference, true))
-                        .chain(others.iter().map(|entry| music_media_entry(entry, false)))
-                        .collect(),
-                }).collect()
-            } else {
-                tool.get_duplicated_music_entries().iter().map(|group| MediaGroup {
-                    entries: group.iter().map(|entry| music_media_entry(entry, false)).collect(),
-                }).collect()
-            };
-            Ok(media_result(&tool, groups))
-        }
-        MediaTool::BrokenFiles => {
-            let mut checked = CheckedTypes::NONE;
-            if options.broken_audio { checked |= CheckedTypes::AUDIO; }
-            if options.broken_pdf { checked |= CheckedTypes::PDF; }
-            if options.broken_image { checked |= CheckedTypes::IMAGE; }
-            if options.broken_archive { checked |= CheckedTypes::ARCHIVE; }
-            if checked == CheckedTypes::NONE { checked = CheckedTypes::AUDIO; }
-            let mut tool = BrokenFiles::new(BrokenFilesParameters::new(checked));
-            configure_media_tool(&mut tool, &options);
-            search_with_control(&mut tool, control);
-            let entries = tool
-                .get_broken_files()
-                .iter()
-                .map(|entry| MediaEntry {
-                    path: entry.path.clone(),
-                    size: entry.size,
-                    modified_date: entry.modified_date,
-                    width: None,
-                    height: None,
-                    similarity: None,
-                    title: None,
-                    artist: None,
-                    year: None,
-                    length: None,
-                    genre: None,
-                    bitrate: None,
-                    is_reference: false,
-                    detail: Some(format!("{:?}: {}", entry.type_of_file, entry.error_string)),
-                    proper_extension: None,
-                })
-                .collect();
-            Ok(media_result(&tool, vec![MediaGroup { entries }]))
-        }
-        MediaTool::BadExtensions => {
-            let mut tool = BadExtensions::new(BadExtensionsParameters::new());
-            configure_media_tool(&mut tool, &options);
-            search_with_control(&mut tool, control);
-            let entries = tool
-                .get_bad_extensions_files()
-                .iter()
-                .map(|entry| MediaEntry {
-                    path: entry.path.clone(),
-                    size: entry.size,
-                    modified_date: entry.modified_date,
-                    width: None,
-                    height: None,
-                    similarity: None,
-                    title: None,
-                    artist: None,
-                    year: None,
-                    length: None,
-                    genre: None,
-                    bitrate: None,
-                    is_reference: false,
-                    detail: Some(format!("current: {}", entry.current_extension)),
-                    proper_extension: Some(entry.proper_extension.clone()),
-                })
-                .collect();
-            Ok(media_result(&tool, vec![MediaGroup { entries }]))
-        }
-    }
+    upstream::media::scan_media_files_controlled(options, control)
 }
 
-fn image_media_entry(entry: &ImagesEntry, is_reference: bool) -> MediaEntry {
-    MediaEntry {
-        path: entry.path.clone(), size: entry.size, modified_date: entry.modified_date,
-        width: Some(entry.width), height: Some(entry.height), similarity: Some(entry.similarity.to_string()),
-        title: None, artist: None, year: None, length: None, genre: None, bitrate: None,
-        is_reference, detail: None, proper_extension: None,
-    }
-}
-
-fn video_media_entry(entry: &VideosEntry, is_reference: bool, normalized_distance: f64) -> MediaEntry {
-    MediaEntry {
-        path: entry.path.clone(), size: entry.size, modified_date: entry.modified_date,
-        width: None, height: None, similarity: Some(format!("{:.2}", normalized_distance * 100.0)), title: None, artist: None, year: None,
-        length: None, genre: None, bitrate: None, is_reference,
-        detail: (!entry.error.is_empty()).then(|| entry.error.clone()), proper_extension: None,
-    }
-}
-
-fn normalized_video_distance(baseline: &VideosEntry, entry: &VideosEntry) -> f64 {
-    // vid_dup_finder_lib 0.4 uses a fixed 10x10x10-bit hash; its normalized helper is test-feature-only.
-    f64::from(baseline.vhash.hamming_distance(&entry.vhash)) / 1000.0
-}
-
+#[cfg(any())]
 fn music_media_entry(entry: &MusicEntry, is_reference: bool) -> MediaEntry {
     MediaEntry {
         path: entry.path.clone(), size: entry.size, modified_date: entry.modified_date,
@@ -687,6 +384,7 @@ fn music_media_entry(entry: &MusicEntry, is_reference: bool) -> MediaEntry {
     }
 }
 
+#[cfg(any())]
 fn configure_media_tool<T: CommonData>(tool: &mut T, options: &MediaScanOptions) {
     tool.set_included_directory(options.included_directories.clone());
     if !options.reference_directories.is_empty() {
@@ -704,6 +402,7 @@ fn configure_media_tool<T: CommonData>(tool: &mut T, options: &MediaScanOptions)
     tool.set_delete_outdated_cache(options.delete_outdated_cache);
 }
 
+#[cfg(any())]
 pub(crate) fn initialize_cache_path() {
     static INITIALIZE_CACHE_PATH: Once = Once::new();
     INITIALIZE_CACHE_PATH.call_once(|| {
@@ -711,6 +410,7 @@ pub(crate) fn initialize_cache_path() {
     });
 }
 
+#[cfg(any())]
 fn media_result<T: CommonData>(tool: &T, groups: Vec<MediaGroup>) -> MediaScanResult {
     MediaScanResult {
         groups,
