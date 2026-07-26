@@ -313,10 +313,10 @@ describe("xlchemy core contract", () => {
     expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 350 })
   })
 
-  test("uses the globally granted worker weight as the encoder thread count and releases the lease", async () => {
+  test("requests one global CPU unit for a slimg CLI process and releases the lease", async () => {
     const runtime = fakeRuntime()
     const release = vi.fn()
-    runtime.acquireWorker = vi.fn(async () => ({ threads: 3, release }))
+    runtime.acquireWorker = vi.fn(async () => ({ threads: 1, release }))
     const result = await runXlchemy(normalizeXlchemyInput({
       action: "convert",
       paths: ["/photos/a.png"],
@@ -328,7 +328,7 @@ describe("xlchemy core contract", () => {
       preserveMetadata: false,
     }), runtime)
     expect(result.success).toBe(true)
-    expect(runtime.acquireWorker).toHaveBeenCalledWith(8, 768, undefined)
+    expect(runtime.acquireWorker).toHaveBeenCalledWith(1, 432, undefined)
     expect(runtime.commands).toEqual([{ command: "/bin/slimg", args: ["convert", "--format", "avif", "--quality", "60", "--output", "/photos/a.avif", "--overwrite", "--jobs", "1", "/photos/a.png"] }])
     expect(release).toHaveBeenCalledOnce()
   })
@@ -369,6 +369,54 @@ describe("xlchemy core contract", () => {
     expect(runtime.commands.filter((item) => item.command.endsWith("avifenc")).every((item) => item.args.includes("2"))).toBe(true)
     expect(events.find((event) => event.message.startsWith("Batch scheduler:"))?.message).toContain("3 worker(s); CPU thread budget 6; encoder threads 2 each")
     expect(events.find((event) => event.message.startsWith("Batch completed"))?.message).toContain("peak active workers 3")
+  })
+
+  test("runs one single-job slimg process per CPU unit up to the slimg process cap", async () => {
+    const runtime = fakeRuntime()
+    const inputs = Array.from({ length: 30 }, (_, index) => `/slimg/${index}.png`)
+    const originalPathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => inputs.includes(path)
+      ? { path, exists: true, isFile: true, isDirectory: false, size: 1_000, atimeMs: 0, mtimeMs: 0 }
+      : originalPathInfo(path)
+    const release = vi.fn()
+    const acquireWorker = vi.fn(async (threads: number) => ({ threads, release }))
+    runtime.acquireWorker = acquireWorker
+    const originalRunCommand = runtime.runCommand
+    let activeEncoders = 0
+    let peakActiveEncoders = 0
+    runtime.runCommand = async (command, args, isCancelled) => {
+      activeEncoders += 1
+      peakActiveEncoders = Math.max(peakActiveEncoders, activeEncoders)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      try { return await originalRunCommand(command, args, isCancelled) }
+      finally { activeEncoders -= 1 }
+    }
+
+    const events: Array<{ message: string }> = []
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert",
+      paths: inputs,
+      format: "AVIF",
+      avifEncoder: "slimg",
+      quality: 64,
+      effort: 6,
+      threads: 22,
+      outputMode: "source",
+      overwrite: true,
+      preserveMetadata: false,
+      excludedFormats: [],
+    }), runtime, (event) => events.push(event))
+
+    const commands = runtime.commands.filter((item) => item.command.endsWith("slimg"))
+    expect(result.success).toBe(true)
+    expect(peakActiveEncoders).toBe(22)
+    expect(acquireWorker).toHaveBeenCalledTimes(30)
+    expect(acquireWorker.mock.calls.every(([threads]) => threads === 1)).toBe(true)
+    expect(commands).toHaveLength(30)
+    expect(commands.every((item) => item.args.slice(item.args.indexOf("--jobs"), item.args.indexOf("--jobs") + 2).join(" ") === "--jobs 1")).toBe(true)
+    expect(events.find((event) => event.message.startsWith("Batch scheduler:"))?.message).toContain("22 worker(s); CPU thread budget 22; encoder threads 1 each")
+    expect(events.find((event) => event.message.startsWith("Batch completed"))?.message).toContain("peak active workers 22")
+    expect(release).toHaveBeenCalledTimes(30)
   })
 
   test("caps in-flight files while preserving a large encoder thread budget", async () => {

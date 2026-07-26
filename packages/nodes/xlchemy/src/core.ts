@@ -681,6 +681,14 @@ function progressPercent(completed: number, total?: number) { return total && to
 
 function batchWorkerThreads(total: number | undefined, input: XlchemyInput): number[] {
   const threadBudget = Math.max(1, input.threads)
+  if (input.format === "AVIF" && input.avifEncoder === "slimg") {
+    const workerCount = input.processingOrder === "sequential"
+      ? 1
+      : total === undefined
+        ? Math.min(threadBudget, XLCHEMY_MAX_SLIMG_PROCESSES)
+        : Math.min(total, threadBudget, XLCHEMY_MAX_SLIMG_PROCESSES)
+    return Array.from({ length: workerCount }, () => 1)
+  }
   if ((total !== undefined && total <= 1) || input.processingOrder === "sequential") return [threadBudget]
   const context = { format: input.format, avifEncoder: input.avifEncoder, jpegXlEffort: input.maxCompression ? 10 : input.effort, jpegXlLossyModular: input.jxlModular ?? false, jpegXlLossless: input.lossless, jpegXlIntelligentEffort: input.intelligentEffort ?? false }
   if (input.ramOptimizer !== "disabled" && isRamOptimizerNecessary(context)) return [threadBudget]
@@ -826,6 +834,7 @@ export function estimateXlchemyWorkerMemoryMiB(input: Pick<XlchemyInput, "format
 }
 
 const XLCHEMY_MAX_CONCURRENT_FILES = 16
+const XLCHEMY_MAX_SLIMG_PROCESSES = 24
 
 async function* streamDiscoveredImages(paths: string[], recursive: boolean, runtime: XlchemyRuntime): AsyncGenerator<string> {
   for (const path of paths) {
