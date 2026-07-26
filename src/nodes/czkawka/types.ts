@@ -53,6 +53,8 @@ export interface CzkawkaCardState {
   /** Legacy v1 field retained for one rollback window. */
   similarVideosCropDetect?: CzkawkaVideoCropDetect
   czkawka12MotionCropMigrationNotified?: boolean
+  czkawkaCacheSourceVersion?: string
+  czkawkaCacheRegenerationNoticeSourceVersion?: string
   musicCheckType?: CzkawkaMusicCheckType
   musicApproximateComparison?: boolean
   musicCompareTitle?: boolean

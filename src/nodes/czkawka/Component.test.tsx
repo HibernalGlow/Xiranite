@@ -220,7 +220,8 @@ describe("Czkawka node", () => {
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", result: resultFor({ tool: "duplicate-files" }), analysisPanelTab: "operations" }, resultFor)
     const view = render(<Component compId="czkawka" host={host} />)
     fireEvent.click(screen.getByRole("button", { name: "开始扫描" }))
-    await waitFor(() => expect(host.stateValue.activityLog?.map((entry) => entry.kind)).toEqual(["scan", "progress", "scan"]))
+    await waitFor(() => expect(host.stateValue.activityLog?.map((entry) => entry.kind)).toEqual(["system", "scan", "progress", "scan"]))
+    expect(host.stateValue.activityLog?.[0]).toMatchObject({ level: "warning" })
     expect(host.stateValue.activityLog?.at(-1)?.level).toBe("success")
 
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 duplicate-files-result.dat" }))
@@ -233,6 +234,36 @@ describe("Czkawka node", () => {
     fireEvent.click(screen.getByRole("button", { name: "清空活动日志" }))
     expect(host.stateValue.activityLog).toEqual([])
     expect(screen.getByText("没有匹配的日志")).toBeTruthy()
+  })
+
+  test("persists the Czkawka 12 cache notice once from the GUI scan action", async () => {
+    await i18n.changeLanguage("en")
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" }, resultFor)
+    render(<Component compId="czkawka-cache-notice" host={host} />)
+
+    await screen.getByRole("button", { name: "Start scan" }).click()
+    await waitFor(() => expect(host.stateValue.czkawkaCacheSourceVersion).toBe("12.0.0"))
+    expect(host.stateValue.czkawkaCacheRegenerationNoticeSourceVersion).toBe("12.0.0")
+    expect(host.stateValue.activityLog?.filter((entry) => entry.kind === "system" && entry.level === "warning")).toHaveLength(1)
+
+    await screen.getByRole("button", { name: "Start scan" }).click()
+    await waitFor(() => expect(host.calls).toHaveLength(2))
+    expect(host.stateValue.activityLog?.filter((entry) => entry.kind === "system" && entry.level === "warning")).toHaveLength(1)
+  })
+
+  test("does not repeat the Czkawka 12 cache notice when the persisted sentinel is current", async () => {
+    await i18n.changeLanguage("en")
+    const host = createHost({
+      tool: "duplicate-files",
+      includedDirectoriesText: "D:/media",
+      czkawkaCacheSourceVersion: "12.0.0",
+      czkawkaCacheRegenerationNoticeSourceVersion: "12.0.0",
+    }, resultFor)
+    render(<Component compId="czkawka-cache-notice-current" host={host} />)
+
+    await screen.getByRole("button", { name: "Start scan" }).click()
+    await waitFor(() => expect(host.calls).toHaveLength(1))
+    expect(host.stateValue.activityLog?.some((entry) => entry.kind === "system" && entry.level === "warning")).toBe(false)
   })
 
   test("sends shared safe move options and renders detailed per-item results", async () => {
