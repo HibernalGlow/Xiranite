@@ -250,6 +250,7 @@ export interface ReaderFolderPenetrationResolutionDto {
   originPath: string
   terminal?: { kind: ReaderFolderPenetrationTerminalKindDto; path: string }
   directMediaCount?: number
+  directDirectoryCount?: number
   deferredDirectoryCount?: number
   chain: readonly {
     path: string
@@ -1632,6 +1633,7 @@ export interface ReaderFolderEmptyAreaConfig {
 
 export interface ReaderFolderPenetrationConfig {
   enabled: boolean
+  expandBranchesInline: boolean
   showInternalFiles: boolean
   internalItemsMode: "single" | "all"
   maxDepth: number

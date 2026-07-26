@@ -49,6 +49,7 @@ export interface ReaderFolderPenetrationResolution {
   originPath: string
   terminal?: { kind: ReaderFolderPenetrationTerminalKind; path: string }
   directMediaCount?: number
+  directDirectoryCount?: number
   deferredDirectoryCount?: number
   chain: readonly ReaderFolderPenetrationStep[]
   reason: ReaderFolderPenetrationReason
@@ -220,7 +221,7 @@ export class ReaderFolderPenetrationResolver {
         if (terminalFiles.length === 0 && classified.media.length === 0 && !hasBlockingFiles) {
           return result("empty", originPath, chain, "empty")
         }
-        return result("branch", originPath, chain, terminalFiles.length > 1 ? "multiple-primary-items" : "unsupported-content")
+        return result("branch", originPath, chain, terminalFiles.length > 1 ? "multiple-primary-items" : "unsupported-content", classified.directories.length)
       }
 
       if (classified.media.length >= MINIMUM_MIXED_DIRECTORY_MEDIA && terminalFiles.length === 0 && !hasBlockingFiles
@@ -232,6 +233,7 @@ export class ReaderFolderPenetrationResolver {
           chain,
           reason: "mixed-media-directory",
           directMediaCount: classified.media.length,
+          directDirectoryCount: classified.directories.length,
           deferredDirectoryCount: classified.directories.length,
         }
       }
@@ -241,7 +243,7 @@ export class ReaderFolderPenetrationResolver {
         currentPath = classified.directories[0]!.path
         continue
       }
-      return result("branch", originPath, chain, "multiple-primary-items")
+      return result("branch", originPath, chain, "multiple-primary-items", classified.directories.length)
     }
     return result("blocked", originPath, chain, "depth-limit")
   }
@@ -296,8 +298,9 @@ function result(
   originPath: string,
   chain: readonly ReaderFolderPenetrationStep[],
   reason: ReaderFolderPenetrationReason,
+  directDirectoryCount?: number,
 ): ReaderFolderPenetrationResolution {
-  return { status, originPath, chain, reason }
+  return { status, originPath, chain, reason, ...(directDirectoryCount === undefined ? {} : { directDirectoryCount }) }
 }
 
 function cloneResolution(resolution: ReaderFolderPenetrationResolution): ReaderFolderPenetrationResolution {

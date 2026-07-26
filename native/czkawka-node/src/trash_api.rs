@@ -33,6 +33,12 @@ struct TrashListCache {
     items: Vec<trash::TrashItem>,
     refreshed_at: Option<Instant>,
     refreshing: bool,
+    pending_mutations: Vec<TrashListCacheMutation>,
+}
+
+enum TrashListCacheMutation {
+    Upsert(trash::TrashItem),
+    Remove(OsString),
 }
 
 #[napi(object)]
@@ -213,7 +219,13 @@ fn require_trash_item_api() -> Result<()> {
     )
 ))]
 fn list_trash_items_native() -> Result<Vec<trash::TrashItem>> {
-    let (cache, refreshed) = trash_list_cache();
+    list_trash_items_cached(trash_list_cache(), scan_trash_items_native)
+}
+
+fn list_trash_items_cached(
+    (cache, refreshed): &(Mutex<TrashListCache>, Condvar),
+    scan: impl FnOnce() -> Result<Vec<trash::TrashItem>>,
+) -> Result<Vec<trash::TrashItem>> {
     let mut state = cache.lock().expect("trash list cache mutex poisoned");
     loop {
         if state
@@ -232,15 +244,25 @@ fn list_trash_items_native() -> Result<Vec<trash::TrashItem>> {
     }
     drop(state);
 
-    let scanned = scan_trash_items_native();
+    let scanned = scan();
     let mut state = cache.lock().expect("trash list cache mutex poisoned");
     state.refreshing = false;
-    if let Ok(items) = &scanned {
-        state.items.clone_from(items);
-        state.refreshed_at = Some(Instant::now());
-    }
+    let result = match scanned {
+        Ok(mut items) => {
+            for mutation in state.pending_mutations.drain(..) {
+                apply_trash_list_cache_mutation(&mut items, mutation);
+            }
+            state.items = items;
+            state.refreshed_at = Some(Instant::now());
+            Ok(state.items.clone())
+        }
+        Err(error) => {
+            state.pending_mutations.clear();
+            Err(error)
+        }
+    };
     refreshed.notify_all();
-    scanned
+    result
 }
 
 #[cfg(not(any(
@@ -408,22 +430,55 @@ fn trash_list_cache() -> &'static (Mutex<TrashListCache>, Condvar) {
 fn upsert_cached_trash_item(item: &trash::TrashItem) {
     let (cache, _) = trash_list_cache();
     let mut state = cache.lock().expect("trash list cache mutex poisoned");
-    if state.refreshed_at.is_none() {
-        return;
+    upsert_trash_list_cache(&mut state, item);
+}
+
+fn upsert_trash_list_cache(state: &mut TrashListCache, item: &trash::TrashItem) {
+    if state.refreshed_at.is_some() {
+        apply_trash_list_cache_mutation(
+            &mut state.items,
+            TrashListCacheMutation::Upsert(item.clone()),
+        );
     }
-    state
-        .items
-        .retain(|candidate| !trash_item_ids_equal(&candidate.id, &item.id));
-    state.items.push(item.clone());
+    if state.refreshing {
+        state
+            .pending_mutations
+            .push(TrashListCacheMutation::Upsert(item.clone()));
+    }
 }
 
 fn remove_cached_trash_item(id: &OsString) {
     let (cache, _) = trash_list_cache();
     let mut state = cache.lock().expect("trash list cache mutex poisoned");
+    remove_trash_list_cache_item(&mut state, id);
+}
+
+fn remove_trash_list_cache_item(state: &mut TrashListCache, id: &OsString) {
     if state.refreshed_at.is_some() {
+        apply_trash_list_cache_mutation(
+            &mut state.items,
+            TrashListCacheMutation::Remove(id.clone()),
+        );
+    }
+    if state.refreshing {
         state
-            .items
-            .retain(|candidate| !trash_item_ids_equal(&candidate.id, id));
+            .pending_mutations
+            .push(TrashListCacheMutation::Remove(id.clone()));
+    }
+}
+
+fn apply_trash_list_cache_mutation(
+    items: &mut Vec<trash::TrashItem>,
+    mutation: TrashListCacheMutation,
+) {
+    match mutation {
+        TrashListCacheMutation::Upsert(item) => {
+            items.retain(|candidate| !trash_item_ids_equal(&candidate.id, &item.id));
+            items.insert(0, item);
+        }
+        TrashListCacheMutation::Remove(id) => {
+            items.retain(|candidate| !trash_item_ids_equal(&candidate.id, &id));
+        }
     }
 }
 
@@ -440,6 +495,116 @@ fn trash_item_ids_equal(left: &OsString, right: &OsString) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, mpsc};
+    use std::thread;
+
+    #[test]
+    fn coalesces_concurrent_cache_refreshes() {
+        let cache = Arc::new((Mutex::new(TrashListCache::default()), Condvar::new()));
+        let scan_count = Arc::new(AtomicUsize::new(0));
+        let (leader_started_tx, leader_started_rx) = mpsc::channel();
+        let (release_leader_tx, release_leader_rx) = mpsc::channel();
+
+        let leader_cache = Arc::clone(&cache);
+        let leader_scan_count = Arc::clone(&scan_count);
+        let leader = thread::spawn(move || {
+            list_trash_items_cached(&leader_cache, || {
+                leader_scan_count.fetch_add(1, Ordering::SeqCst);
+                leader_started_tx.send(()).unwrap();
+                release_leader_rx.recv().unwrap();
+                Ok(vec![
+                    trash_item("shared", Path::new("D:/archive/shared.txt"), 10),
+                    trash_item("restored", Path::new("D:/archive/restored.txt"), 9),
+                ])
+            })
+            .unwrap()
+        });
+        leader_started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap();
+
+        let follower_cache = Arc::clone(&cache);
+        let follower_scan_count = Arc::clone(&scan_count);
+        let (follower_started_tx, follower_started_rx) = mpsc::channel();
+        let (follower_scanned_tx, follower_scanned_rx) = mpsc::channel();
+        let follower = thread::spawn(move || {
+            follower_started_tx.send(()).unwrap();
+            list_trash_items_cached(&follower_cache, || {
+                follower_scan_count.fetch_add(1, Ordering::SeqCst);
+                follower_scanned_tx.send(()).unwrap();
+                Ok(vec![trash_item(
+                    "duplicate-scan",
+                    Path::new("D:/archive/duplicate.txt"),
+                    11,
+                )])
+            })
+            .unwrap()
+        });
+        follower_started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap();
+        assert!(matches!(
+            follower_scanned_rx.recv_timeout(Duration::from_millis(50)),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+        {
+            let mut state = cache.0.lock().unwrap();
+            upsert_trash_list_cache(
+                &mut state,
+                &trash_item("direct", Path::new("D:/archive/direct.txt"), 11),
+            );
+            remove_trash_list_cache_item(&mut state, &OsString::from("restored"));
+        }
+
+        release_leader_tx.send(()).unwrap();
+        let leader_items = leader.join().unwrap();
+        let follower_items = follower.join().unwrap();
+
+        assert_eq!(scan_count.load(Ordering::SeqCst), 1);
+        let expected_ids = vec![OsString::from("direct"), OsString::from("shared")];
+        assert_eq!(
+            leader_items
+                .iter()
+                .map(|item| item.id.clone())
+                .collect::<Vec<_>>(),
+            expected_ids
+        );
+        assert_eq!(follower_items, leader_items);
+    }
+
+    #[test]
+    fn direct_mutations_keep_warm_cache_consistent() {
+        let retained = trash_item("retained", Path::new("D:/archive/retained.txt"), 10);
+        let old_receipt = trash_item("receipt", Path::new("D:/archive/old.txt"), 20);
+        let new_receipt = trash_item("receipt", Path::new("D:/archive/new.txt"), 30);
+        let mut state = TrashListCache {
+            items: vec![retained, old_receipt],
+            refreshed_at: Some(Instant::now()),
+            refreshing: false,
+            pending_mutations: Vec::new(),
+        };
+
+        upsert_trash_list_cache(&mut state, &new_receipt);
+
+        assert_eq!(
+            state
+                .items
+                .iter()
+                .map(|item| item.id.clone())
+                .collect::<Vec<_>>(),
+            vec![OsString::from("receipt"), OsString::from("retained")]
+        );
+        assert_eq!(
+            state.items[0].original_path(),
+            PathBuf::from("D:/archive/new.txt")
+        );
+
+        remove_trash_list_cache_item(&mut state, &OsString::from("receipt"));
+
+        assert_eq!(state.items.len(), 1);
+        assert_eq!(state.items[0].id, OsString::from("retained"));
+    }
 
     #[test]
     fn selects_latest_new_receipt_for_original_path() {

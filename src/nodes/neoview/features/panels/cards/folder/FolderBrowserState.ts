@@ -30,6 +30,7 @@ export const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   tagDisplay: DEFAULT_FOLDER_TAG_DISPLAY,
   penetration: {
     enabled: false,
+    expandBranchesInline: false,
     showInternalFiles: true,
     internalItemsMode: "single",
     maxDepth: 3,

@@ -52,9 +52,15 @@ export interface CzkawkaCardState {
   imageComparisonMode?: CzkawkaImageComparisonMode
   imageComparisonColorCoding?: boolean
   similarVideosIgnoreSameSize?: boolean
+  similarVideosIgnoreSameResolution?: boolean
   similarVideosSkipForward?: string
   similarVideosHashDuration?: string
   similarVideosLetterboxCrop?: boolean
+  similarVideosWindowCount?: string
+  similarVideosDurationTolerancePct?: string
+  similarVideosMinMatchingWindows?: string
+  similarVideosSubclipMinMatch?: string
+  similarVideosCheckAudioContent?: boolean
   /** Legacy v1 field retained for one rollback window. */
   similarVideosCropDetect?: CzkawkaVideoCropDetect
   czkawka12MotionCropMigrationNotified?: boolean
