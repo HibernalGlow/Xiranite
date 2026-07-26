@@ -24,6 +24,7 @@
     "test": "bun run build"
   },
   "dependencies": {
+    "@xiranite/file-operations": "workspace:*",
     "@xiranite/services": "workspace:*",
     "@xiranite/shared": "workspace:*",
     "@elysiajs/eden": "^1.4.9",

@@ -39,8 +39,18 @@ export class BackendFileOperationManager {
     return this.repository.listFileDeletions(query)
   }
 
-  restore(id: string, signal?: AbortSignal) {
-    return this.scoped({ nodeId: "xiranite" }).restoreDeletion(id, signal)
+  listNodes() {
+    return this.repository.listFileDeletionNodes()
+  }
+
+  async restore(id: string, signal?: AbortSignal) {
+    const record = await this.repository.getFileDeletion(id)
+    if (!record) throw Object.assign(new Error(`File deletion record not found: ${id}`), { code: "ENOENT" })
+    return this.scoped({
+      nodeId: record.nodeId,
+      componentId: record.componentId,
+      workspaceId: record.workspaceId,
+    }).restoreDeletion(id, signal)
   }
 
   async export(
@@ -141,6 +151,10 @@ export async function handleFileOperationRequest(
     })
   }
 
+  if (url.pathname === "/file-deletions/nodes" && request.method === "GET") {
+    return json({ nodes: await manager.listNodes() })
+  }
+
   if (url.pathname === "/file-deletions" && request.method === "GET") {
     return json(await manager.list(parseDeletionQuery(url, true)))
   }
@@ -169,6 +183,7 @@ function parseDeletionQuery(url: URL, includePagination: boolean): FileDeletionQ
     workspaceId: optionalParam(url, "workspaceId"),
     state: state as FileDeletionQuery["state"],
     deletionKind: deletionKind as FileDeletionQuery["deletionKind"],
+    restoreAvailable: optionalBoolean(url, "restoreAvailable"),
     from: optionalNumber(url, "from"),
     to: optionalNumber(url, "to"),
   }
@@ -177,6 +192,14 @@ function parseDeletionQuery(url: URL, includePagination: boolean): FileDeletionQ
     query.limit = optionalNumber(url, "limit")
   }
   return query
+}
+
+function optionalBoolean(url: URL, name: string): boolean | undefined {
+  const raw = optionalParam(url, name)
+  if (raw === undefined) return undefined
+  if (raw === "true") return true
+  if (raw === "false") return false
+  throw Object.assign(new Error(`${name} must be true or false.`), { status: 400 })
 }
 
 function optionalParam(url: URL, name: string): string | undefined {

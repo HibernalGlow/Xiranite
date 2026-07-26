@@ -7,7 +7,7 @@ import {
   type FileOperationScope,
   type FileUndoJournalRecord,
 } from "@xiranite/file-operations"
-import { and, desc, eq, gte, inArray, isNull, lt, lte, or, type SQL } from "drizzle-orm"
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or, type SQL } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/libsql"
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
 
@@ -93,6 +93,12 @@ export async function createLibsqlFileDeletionRepository(
       if (rows.length > limit) rows = rows.slice(0, limit)
       return { items: rows.map(toFileDeletionRecord), nextCursor }
     },
+    async listFileDeletionNodes() {
+      const rows = await db.selectDistinct({ nodeId: fileDeletions.nodeId })
+        .from(fileDeletions)
+        .orderBy(asc(fileDeletions.nodeId))
+      return rows.map((row) => row.nodeId)
+    },
     async updateFileDeletion(record) {
       parseFileDeletionRecord(record)
       const rows = await db.update(fileDeletions).set(fromFileDeletionRecord(record))
@@ -161,6 +167,8 @@ async function ensureFileDeletionSchema(client: Client): Promise<void> {
     `CREATE INDEX IF NOT EXISTS file_deletions_component_idx ON file_deletions (component_id, deleted_at DESC, id DESC)`,
     `CREATE INDEX IF NOT EXISTS file_deletions_workspace_idx ON file_deletions (workspace_id, deleted_at DESC, id DESC)`,
     `CREATE INDEX IF NOT EXISTS file_deletions_state_idx ON file_deletions (state, deleted_at DESC, id DESC)`,
+    `CREATE INDEX IF NOT EXISTS file_deletions_restore_node_idx
+      ON file_deletions (restore_available, node_id, deleted_at DESC, id DESC)`,
     `CREATE TABLE IF NOT EXISTS file_undo_transactions (
       id TEXT PRIMARY KEY NOT NULL,
       created_at INTEGER NOT NULL,
@@ -236,6 +244,7 @@ function deletionConditions(query: FileDeletionQuery): SQL[] {
   if (query.workspaceId) conditions.push(eq(fileDeletions.workspaceId, query.workspaceId))
   if (query.state) conditions.push(eq(fileDeletions.state, query.state))
   if (query.deletionKind) conditions.push(eq(fileDeletions.deletionKind, query.deletionKind))
+  if (query.restoreAvailable !== undefined) conditions.push(eq(fileDeletions.restoreAvailable, query.restoreAvailable))
   if (query.from !== undefined) conditions.push(gte(fileDeletions.deletedAt, query.from))
   if (query.to !== undefined) conditions.push(lte(fileDeletions.deletedAt, query.to))
   return conditions

@@ -114,6 +114,7 @@ export interface FileDeletionQuery {
   workspaceId?: string
   state?: FileDeletionState
   deletionKind?: "trash" | "delete"
+  restoreAvailable?: boolean
   from?: number
   to?: number
   limit?: number
@@ -129,6 +130,7 @@ export interface FileDeletionStore {
   createFileDeletionRecords(records: readonly FileDeletionRecord[]): Promise<void>
   getFileDeletion(id: string): Promise<FileDeletionRecord | undefined>
   listFileDeletions(query: FileDeletionQuery): Promise<FileDeletionList>
+  listFileDeletionNodes(): Promise<string[]>
   updateFileDeletion(record: FileDeletionRecord): Promise<FileDeletionRecord>
 }
 
