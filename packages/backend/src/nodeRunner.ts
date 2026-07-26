@@ -1,5 +1,5 @@
 import { runNodeWithEvents } from "@xiranite/runtime/node-runner"
-import type { NodeMemoryProtectionOptions, NodeOperationContext, NodeOperationControl, NodeRunner } from "@xiranite/services"
+import type { NodeMemoryProtectionOptions, NodeOperationContext, NodeOperationControl, NodeRunner, ResourceScheduler } from "@xiranite/services"
 import {
   DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS,
   type NodeMemoryProtectionPolicySettingsDTO,
@@ -12,6 +12,7 @@ import type { BackendFileOperationManager } from "./fileOperations.js"
 
 export interface BackendNodeRunnerOptions {
   fileOperations?: BackendFileOperationManager
+  resourceScheduler?: ResourceScheduler
 }
 
 const MIB = 1024 * 1024
@@ -165,6 +166,7 @@ export function createBackendNodeRunner(options: BackendNodeRunnerOptions = {}):
         componentId: context.componentId,
         workspaceId: context.workspaceId,
         fileOperations: options.fileOperations?.scoped({ nodeId, ...context }),
+        resourceScheduler: options.resourceScheduler,
       }) as NodeRunResultDTO<TData>
     },
   }

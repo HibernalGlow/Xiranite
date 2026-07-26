@@ -86,7 +86,11 @@ describe("PriorityResourceScheduler", () => {
     expect(scheduler.snapshot()).toEqual({
       topology: "shared-queue",
       active: 0,
+      activeWeight: 0,
       queued: 0,
+      queuedWeight: 0,
+      maxWeight: 1,
+      reservedInteractiveWeight: 0,
       queuedByPriority: { interactive: 0, view: 0, ahead: 0, background: 0 },
       granted: 0,
       released: 0,
@@ -123,6 +127,33 @@ describe("PriorityResourceScheduler", () => {
     })
     next.release()
     expect(scheduler.snapshot()).toMatchObject({ active: 0, released: 2 })
+  })
+
+  it("[neoview.scheduler.weight] preserves interactive weighted capacity", async () => {
+    const scheduler = new PriorityResourceScheduler({
+      maxConcurrent: 8,
+      reservedInteractive: 1,
+      maxWeight: 8,
+      reservedInteractiveWeight: 2,
+    })
+    const background = await scheduler.acquire({
+      resource: "cpu",
+      kind: "background",
+      priority: "background",
+      weight: 8,
+      minimumWeight: 1,
+    })
+    expect(background.weight).toBe(6)
+    const interactive = await scheduler.acquire({
+      resource: "cpu",
+      kind: "interactive",
+      priority: "interactive",
+      weight: 2,
+    })
+    expect(interactive.weight).toBe(2)
+    expect(scheduler.snapshot()).toMatchObject({ activeWeight: 8, queuedWeight: 0 })
+    interactive.release()
+    background.release()
   })
 
   it("[neoview.scheduler.cancellation] removes cancelled queued work without consuming a slot", async () => {

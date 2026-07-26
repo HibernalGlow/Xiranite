@@ -125,6 +125,7 @@ export interface XlchemyData {
 export interface XlchemyPathInfo { path: string; exists: boolean; isFile: boolean; isDirectory: boolean; size: number; atimeMs: number; mtimeMs: number }
 export interface XlchemyDirEntry { path: string; name: string; isFile: boolean; isDirectory: boolean }
 export interface XlchemyCommandResult { exitCode: number; stdout: string; stderr: string }
+export interface XlchemyWorkerLease { threads: number; release(): void }
 export interface XlchemyRuntime {
   pathInfo: (path: string) => Promise<XlchemyPathInfo>
   listDir: (path: string) => Promise<XlchemyDirEntry[]>
@@ -141,6 +142,7 @@ export interface XlchemyRuntime {
   isCancelled?: () => boolean
   waitWhilePaused?: () => Promise<void>
   checkMemory?: () => void
+  acquireWorker?: (threads: number, memoryMiB: number, isCancelled?: () => boolean) => Promise<XlchemyWorkerLease>
   resolveCommand: (candidates: string[]) => Promise<string | undefined>
   probeSlimg?: () => Promise<XlchemyToolStatus>
   convertWithSlimg?: (source: string, target: string, quality: number, jobs?: number) => Promise<void>
@@ -295,7 +297,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       const itemStarted = Date.now()
       activeWorkers += 1
       peakActiveWorkers = Math.max(peakActiveWorkers, activeWorkers)
-      if (options.action === "convert" && announceWorker) onEvent({ type: "log", message: `Worker #${workerIndex + 1} online with ${workerInput.threads} encoder thread(s); first input ${runtime.basename(source)}.` })
+      if (options.action === "convert" && announceWorker) onEvent({ type: "log", message: `Worker #${workerIndex + 1} online; requested ${workerInput.threads} encoder thread(s); first input ${runtime.basename(source)}.` })
       let item: XlchemyFileResult | undefined
       try {
         if (animationDetectionFormats.has(animationFormat(runtime.extname(source)))) {
@@ -316,7 +318,23 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
               const now = Date.now()
               const emitFileProgress = lastFileProgressAt === 0 || now - lastFileProgressAt >= FILE_PROGRESS_INTERVAL_MS
               if (emitFileProgress) lastFileProgressAt = now
-              return convertFileWithProgress(plannedItem, workerInput, runtime, onEvent, summary.inputCount, totalInputCount, emitFileProgress)
+              const lease = await runtime.acquireWorker?.(
+                workerInput.threads,
+                estimateXlchemyWorkerMemoryMiB(workerInput),
+                runtime.isCancelled,
+              )
+              const scheduledInput = lease && lease.threads !== workerInput.threads
+                ? { ...workerInput, threads: lease.threads }
+                : workerInput
+              if (lease && announceWorker) onEvent({
+                type: "log",
+                message: `Worker #${workerIndex + 1} received ${lease.threads}/${workerInput.threads} CPU thread unit(s) from the global scheduler.`,
+              })
+              try {
+                return await convertFileWithProgress(plannedItem, scheduledInput, runtime, onEvent, summary.inputCount, totalInputCount, emitFileProgress)
+              } finally {
+                lease?.release()
+              }
             })
         appendSummary(summary, result)
         const now = Date.now()
@@ -599,6 +617,19 @@ export async function discoverImages(paths: string[], recursive: boolean, runtim
   const output: string[] = []
   for await (const path of streamDiscoveredImages(paths, recursive, runtime)) output.push(path)
   return [...new Set(output)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))
+}
+
+export function estimateXlchemyWorkerMemoryMiB(input: Pick<XlchemyInput, "format" | "avifEncoder" | "threads">): number {
+  const threads = Math.max(1, Math.round(input.threads))
+  if (input.format === "AVIF") {
+    const base = input.avifEncoder === "aom" ? 512 : 384
+    return Math.min(4_096, base + threads * 48)
+  }
+  if (["JPEG XL", "Lossless JPEG Transcoding", "JPEG Reconstruction"].includes(input.format)) {
+    return Math.min(4_096, 256 + threads * 32)
+  }
+  if (input.format === "Smallest Lossless") return Math.min(4_096, 384 + threads * 32)
+  return Math.min(4_096, 192 + threads * 24)
 }
 
 const XLCHEMY_MAX_CONCURRENT_FILES = 16

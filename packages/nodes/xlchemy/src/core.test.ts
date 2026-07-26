@@ -276,6 +276,26 @@ describe("xlchemy core contract", () => {
     expect(result.data?.files[0]).toMatchObject({ status: "converted", outputBytes: 350 })
   })
 
+  test("uses the globally granted worker weight as the encoder thread count and releases the lease", async () => {
+    const runtime = fakeRuntime()
+    const release = vi.fn()
+    runtime.acquireWorker = vi.fn(async () => ({ threads: 3, release }))
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert",
+      paths: ["/photos/a.png"],
+      format: "AVIF",
+      avifEncoder: "slimg",
+      threads: 8,
+      outputMode: "source",
+      overwrite: true,
+      preserveMetadata: false,
+    }), runtime)
+    expect(result.success).toBe(true)
+    expect(runtime.acquireWorker).toHaveBeenCalledWith(8, 768, undefined)
+    expect(runtime.commands).toEqual([{ command: "slimg-node", args: ["/photos/a.png", "/photos/a.avif", "60", "3"] }])
+    expect(release).toHaveBeenCalledOnce()
+  })
+
   test("distributes the original thread budget across concurrent AOM workers", async () => {
     const runtime = fakeRuntime()
     const originalPathInfo = runtime.pathInfo

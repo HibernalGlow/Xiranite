@@ -7,6 +7,8 @@ import type {
 
 interface WaitingTask {
   request: ResourceTaskRequest
+  requestedWeight: number
+  minimumWeight: number
   enqueuedAtMs: number
   resolve: (lease: ResourceLease) => void
   reject: (error: unknown) => void
@@ -17,7 +19,11 @@ interface WaitingTask {
 export interface PriorityResourceSchedulerSnapshot {
   topology: "shared-queue"
   active: number
+  activeWeight: number
   queued: number
+  queuedWeight: number
+  maxWeight: number
+  reservedInteractiveWeight: number
   queuedByPriority: Readonly<Record<ResourcePriority, number>>
   granted: number
   released: number
@@ -31,6 +37,8 @@ export interface PriorityResourceSchedulerSnapshot {
 export interface PriorityResourceSchedulerOptions {
   maxConcurrent?: number
   reservedInteractive?: number
+  maxWeight?: number
+  reservedInteractiveWeight?: number
   /** How long deferred work may wait before it earns one priority level. */
   deferredAgingMs?: number
   now?: () => number
@@ -48,6 +56,8 @@ const DEFERRED_PRIORITY_RANK: Readonly<Record<ResourcePriority, number>> = {
 export class PriorityResourceScheduler implements ResourceScheduler, AsyncDisposable {
   readonly #maxConcurrent: number
   readonly #reservedInteractive: number
+  readonly #maxWeight: number
+  readonly #reservedInteractiveWeight: number
   readonly #deferredAgingMs: number
   readonly #queues: Record<ResourcePriority, WaitingTask[]> = {
     interactive: [],
@@ -56,6 +66,7 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
     background: [],
   }
   #active = 0
+  #activeWeight = 0
   #granted = 0
   #released = 0
   #cancelled = 0
@@ -72,6 +83,13 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
       "reservedInteractive",
       0,
       this.#maxConcurrent - 1,
+    )
+    this.#maxWeight = boundedInteger(options.maxWeight ?? this.#maxConcurrent, "maxWeight", 1, 1_000_000)
+    this.#reservedInteractiveWeight = boundedInteger(
+      options.reservedInteractiveWeight ?? Math.min(1, this.#maxWeight - 1),
+      "reservedInteractiveWeight",
+      0,
+      this.#maxWeight - 1,
     )
     this.#deferredAgingMs = positiveFiniteNumber(
       options.deferredAgingMs ?? DEFAULT_DEFERRED_AGING_MS,
@@ -96,7 +114,14 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
     return {
       topology: "shared-queue",
       active: this.#active,
+      activeWeight: this.#activeWeight,
       queued: this.queued,
+      queuedWeight: Object.values(this.#queues).reduce(
+        (total, queue) => total + queue.reduce((sum, task) => sum + task.requestedWeight, 0),
+        0,
+      ),
+      maxWeight: this.#maxWeight,
+      reservedInteractiveWeight: this.#reservedInteractiveWeight,
       queuedByPriority: {
         interactive: this.#queues.interactive.length,
         view: this.#queues.view.length,
@@ -116,8 +141,16 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
   acquire(request: ResourceTaskRequest, signal?: AbortSignal): Promise<ResourceLease> {
     if (this.#closed) return Promise.reject(resourceSchedulerClosedError())
     signal?.throwIfAborted()
+    const requestedWeight = boundedInteger(request.weight ?? 1, "weight", 1, 1_000_000)
+    const minimumWeight = boundedInteger(request.minimumWeight ?? requestedWeight, "minimumWeight", 1, requestedWeight)
+    const eligibleWeight = request.priority === "interactive"
+      ? this.#maxWeight
+      : this.#maxWeight - this.#reservedInteractiveWeight
+    if (minimumWeight > eligibleWeight) {
+      return Promise.reject(new RangeError(`minimumWeight ${minimumWeight} exceeds ${request.priority} capacity ${eligibleWeight}`))
+    }
     return new Promise<ResourceLease>((resolve, reject) => {
-      const waiting: WaitingTask = { request, enqueuedAtMs: this.#now(), resolve, reject, signal }
+      const waiting: WaitingTask = { request, requestedWeight, minimumWeight, enqueuedAtMs: this.#now(), resolve, reject, signal }
       if (signal) {
         waiting.abort = () => {
           const queue = this.#queues[request.priority]
@@ -155,19 +188,21 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
   #drain(): void {
     if (this.#closed) return
     while (this.#active < this.#maxConcurrent) {
-      const interactive = this.#queues.interactive.shift()
+      const interactiveCapacity = this.#maxWeight - this.#activeWeight
+      const interactive = takeFitting(this.#queues.interactive, interactiveCapacity)
       if (interactive) {
-        this.#start(interactive)
+        this.#start(interactive, Math.min(interactive.requestedWeight, interactiveCapacity))
         continue
       }
       if (this.#active >= this.#maxConcurrent - this.#reservedInteractive) return
-      const deferred = this.#takeDeferred()
+      const deferredCapacity = this.#maxWeight - this.#reservedInteractiveWeight - this.#activeWeight
+      const deferred = deferredCapacity > 0 ? this.#takeDeferred(deferredCapacity) : undefined
       if (!deferred) return
-      this.#start(deferred)
+      this.#start(deferred, Math.min(deferred.requestedWeight, deferredCapacity))
     }
   }
 
-  #takeDeferred(): WaitingTask | undefined {
+  #takeDeferred(availableWeight: number): WaitingTask | undefined {
     const now = this.#now()
     let selectedPriority: ResourcePriority | undefined
     let selectedIndex = -1
@@ -178,6 +213,7 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
       const queue = this.#queues[priority]
       for (let index = 0; index < queue.length; index += 1) {
         const waiting = queue[index]!
+        if (waiting.minimumWeight > availableWeight) continue
         const waitMs = Math.max(0, now - waiting.enqueuedAtMs)
         const agingSteps = Math.floor(waitMs / this.#deferredAgingMs)
         const rank = Math.min(
@@ -196,7 +232,7 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
     return selectedPriority === undefined ? undefined : this.#queues[selectedPriority].splice(selectedIndex, 1)[0]
   }
 
-  #start(waiting: WaitingTask): void {
+  #start(waiting: WaitingTask, grantedWeight: number): void {
     waiting.signal?.removeEventListener("abort", waiting.abort!)
     if (waiting.signal?.aborted) {
       this.#cancelled += 1
@@ -205,21 +241,29 @@ export class PriorityResourceScheduler implements ResourceScheduler, AsyncDispos
     }
     const queueWaitMs = Math.max(0, this.#now() - waiting.enqueuedAtMs)
     this.#active += 1
+    this.#activeWeight += grantedWeight
     this.#granted += 1
     this.#queueWaitSamples += 1
     this.#totalQueueWaitMs += queueWaitMs
     this.#maxQueueWaitMs = Math.max(this.#maxQueueWaitMs, queueWaitMs)
     let released = false
     waiting.resolve({
+      weight: grantedWeight,
       release: () => {
         if (released) return
         released = true
         this.#active -= 1
+        this.#activeWeight -= grantedWeight
         this.#released += 1
         this.#drain()
       },
     })
   }
+}
+
+function takeFitting(queue: WaitingTask[], availableWeight: number): WaitingTask | undefined {
+  const index = queue.findIndex((task) => task.minimumWeight <= availableWeight)
+  return index < 0 ? undefined : queue.splice(index, 1)[0]
 }
 
 function resourceSchedulerClosedError(): DOMException {
