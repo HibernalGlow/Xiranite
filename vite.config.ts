@@ -6,9 +6,13 @@ import { request as httpsRequest } from "node:https"
 import tailwindcss from "@tailwindcss/vite"
 import { Scanner } from "@tailwindcss/oxide"
 import babel from "@rolldown/plugin-babel"
+import transformImports from "@rolldown/plugin-transform-imports"
 import react, { reactCompilerPreset } from "@vitejs/plugin-react"
 import { defineConfig, type ViteDevServer } from "vite"
-import { collectLucideIconExports, rewriteLucideDeepImports } from "./scripts/lucide-deep-imports"
+import {
+  LUCIDE_TRANSFORM_IMPORT_OPTIONS,
+  protectLucideTypeImports,
+} from "./scripts/lucide-deep-imports"
 import { reactCompilerModeForCommand } from "./scripts/react-compiler-mode"
 import { VITE_EAGER_DEPENDENCIES, VITE_EXCLUDED_DEPENDENCIES } from "./scripts/vite-dependency-policy"
 import { isBackendGatewayPath, readBackendGatewayTarget } from "./scripts/backend-gateway"
@@ -17,7 +21,6 @@ const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
 const foliaPlayerSrc = path.resolve(__dirname, "./vendor/folia-major/packages/player/src")
 const tailwindCandidateSnapshot = path.resolve(appSrc, "./styles/.tailwind-candidates.txt")
-const lucideReactEntry = path.resolve(__dirname, "./node_modules/lucide-react/dist/esm/lucide-react.js")
 const propTypesDevShim = path.resolve(__dirname, "./src/vendor/prop-types-dev.ts")
 const nodeAppHtml = path.resolve(__dirname, "./node-app.html")
 
@@ -80,16 +83,13 @@ function developmentCjsShimPlugin() {
   }
 }
 
-function lucideDeepImportsPlugin() {
-  let iconExports: Promise<ReturnType<typeof collectLucideIconExports>> | undefined
+function lucideTypeImportProtectionPlugin() {
   return {
-    name: "xiranite:lucide-deep-imports",
+    name: "xiranite:lucide-type-import-protection",
     enforce: "pre" as const,
-    async transform(source: string, id: string) {
+    transform(source: string, id: string) {
       if (!source.includes("lucide-react") || !/\.[cm]?[jt]sx?(?:\?|$)/.test(id)) return null
-      if (id.replaceAll("\\", "/").includes("/vendor/folia-major/")) return null
-      iconExports ??= readFile(lucideReactEntry, "utf8").then(collectLucideIconExports)
-      const code = rewriteLucideDeepImports(source, id, await iconExports)
+      const code = protectLucideTypeImports(source)
       return code === null ? null : { code, map: null }
     },
   }
@@ -174,7 +174,8 @@ export default defineConfig(({ command }) => ({
   plugins: [
     developmentCjsShimPlugin(),
     backendGatewayPlugin(),
-    lucideDeepImportsPlugin(),
+    lucideTypeImportProtectionPlugin(),
+    transformImports(LUCIDE_TRANSFORM_IMPORT_OPTIONS),
     tailwindCandidateSnapshotPlugin(),
     productionChunkReportPlugin(),
     react(),
