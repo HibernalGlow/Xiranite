@@ -1607,7 +1607,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   }
   if (folder.penetration !== undefined) {
     const penetration = requireRecord(folder.penetration, "reader folder view patch.penetration")
-    const allowedPenetration = new Set(["enabled", "showInternalFiles", "internalItemsMode", "maxDepth", "terminalTargets"])
+    const allowedPenetration = new Set(["enabled", "expandBranchesInline", "showInternalFiles", "internalItemsMode", "maxDepth", "terminalTargets"])
     const unknownPenetration = Object.keys(penetration).filter((key) => !allowedPenetration.has(key))
     if (unknownPenetration.length) throw new Error(`reader folder view patch.penetration contains unsupported fields: ${unknownPenetration.join(", ")}.`)
     const penetrationPatch: Partial<Models.NeoviewFolderPenetrationConfig> = {}
@@ -1615,6 +1615,10 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
     if (penetration.enabled !== undefined) {
       penetrationPatch.enabled = optionalBoolean(penetration.enabled, "reader folder view patch.penetration.enabled")
       penetrationToml.enabled = penetrationPatch.enabled
+    }
+    if (penetration.expandBranchesInline !== undefined) {
+      penetrationPatch.expandBranchesInline = optionalBoolean(penetration.expandBranchesInline, "reader folder view patch.penetration.expandBranchesInline")
+      penetrationToml.expand_branches_inline = penetrationPatch.expandBranchesInline
     }
     if (penetration.showInternalFiles !== undefined) {
       penetrationPatch.showInternalFiles = optionalBoolean(penetration.showInternalFiles, "reader folder view patch.penetration.showInternalFiles")
@@ -1891,6 +1895,9 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Mode
     penetration: {
       enabled:
         optionalBoolean(penetration?.enabled, "[nodes.neoview.folder.penetration].enabled") ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.enabled,
+      expandBranchesInline:
+        optionalBoolean(penetration?.expand_branches_inline ?? penetration?.expandBranchesInline, "[nodes.neoview.folder.penetration].expand_branches_inline")
+        ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.expandBranchesInline,
       showInternalFiles:
         optionalBoolean(penetration?.show_internal_files ?? penetration?.showInternalFiles, "[nodes.neoview.folder.penetration].show_internal_files") ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.showInternalFiles,
       internalItemsMode:

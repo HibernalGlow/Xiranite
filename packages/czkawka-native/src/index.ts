@@ -134,9 +134,15 @@ export interface MediaScanOptions {
   imageIgnoreSameResolution?: boolean
   imageGeometricInvariance?: "off" | "mirror-flip" | "mirror-flip-rotate-90"
   videoIgnoreSameSize?: boolean
+  videoIgnoreSameResolution?: boolean
   videoSkipForward?: number
   videoHashDuration?: number
   videoCropDetect?: "letterbox" | "motion" | "none"
+  videoWindowCount?: number
+  videoDurationTolerancePct?: number
+  videoMinMatchingWindows?: number
+  videoSubclipMinMatch?: number
+  videoCheckAudioContent?: boolean
   musicCheckType?: "tags" | "fingerprint"
   musicApproximateComparison?: boolean
   musicCompareTitle?: boolean
@@ -162,6 +168,8 @@ export interface MediaEntry {
   modifiedDate: number
   width?: number
   height?: number
+  fps?: number
+  codec?: string
   similarity?: string
   title?: string
   artist?: string

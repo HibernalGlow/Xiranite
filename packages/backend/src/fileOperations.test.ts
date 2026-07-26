@@ -1,10 +1,47 @@
 import { access, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
+import type { FileDeletionRecord } from "@xiranite/file-operations"
+import { createMemoryFileDeletionRepository } from "@xiranite/repository"
 import { describe, expect, it, vi } from "vitest"
 
 import { startIsolatedTestBackend } from "../../../scripts/test-backend.js"
+import { BackendFileOperationManager, LazyScopedFileOperations } from "./fileOperations.js"
 
 describe("backend file operation API", () => {
+  it("restores through the scope stored on the deletion record", async () => {
+    const repository = createMemoryFileDeletionRepository()
+    const record: FileDeletionRecord = {
+      id: "scoped-restore",
+      nodeId: "czkawka",
+      componentId: "component-cz",
+      workspaceId: "workspace-cz",
+      sourcePath: "D:\\archive\\scoped-restore.cbz",
+      deletionKind: "trash",
+      deletedAt: 1_700_000_000_000,
+      state: "trashed",
+      restoreAvailable: true,
+    }
+    await repository.createFileDeletionRecords([record])
+    const manager = new BackendFileOperationManager(repository)
+    const scopedService = new LazyScopedFileOperations(repository, {
+      nodeId: "czkawka",
+      componentId: "component-cz",
+      workspaceId: "workspace-cz",
+    })
+    const restored = { record: { ...record, state: "restored" as const, restoreAvailable: false }, historyPersisted: true }
+    const restoreDeletion = vi.spyOn(scopedService, "restoreDeletion").mockResolvedValue(restored)
+    const scoped = vi.spyOn(manager, "scoped").mockReturnValue(scopedService)
+
+    await expect(manager.restore(record.id)).resolves.toEqual(restored)
+
+    expect(scoped).toHaveBeenCalledWith({
+      nodeId: "czkawka",
+      componentId: "component-cz",
+      workspaceId: "workspace-cz",
+    })
+    expect(restoreDeletion).toHaveBeenCalledWith(record.id, undefined)
+  })
+
   it.runIf(process.platform === "win32")("persists, exports and restores a CZ trash-rs deletion by id", async () => {
     const logWriter = { append: vi.fn(async () => undefined), close: vi.fn(async () => undefined) }
     const isolated = await startIsolatedTestBackend({ token: "trash-test", logWriter })

@@ -79,6 +79,8 @@ fn media_entry(entry: &ImagesEntry, is_reference: bool) -> MediaEntry {
         modified_date: entry.modified_date,
         width: Some(entry.width),
         height: Some(entry.height),
+        fps: None,
+        codec: None,
         similarity: Some(entry.difference.to_string()),
         title: None,
         artist: None,

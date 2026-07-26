@@ -832,6 +832,16 @@ export default function FolderToolbar(props: FolderToolbarProps) {
               />
             </Field>
             <Field orientation="horizontal">
+              <FieldLabel htmlFor="folder-penetration-expand-branches-inline">分支文件夹就地展开</FieldLabel>
+              <Switch
+                id="folder-penetration-expand-branches-inline"
+                aria-label="分支文件夹就地展开"
+                checked={penetration.expandBranchesInline}
+                disabled={busy || !penetration.enabled}
+                onCheckedChange={(expandBranchesInline) => onUpdatePenetration({ expandBranchesInline })}
+              />
+            </Field>
+            <Field orientation="horizontal">
               <FieldLabel htmlFor="folder-penetration-show-internal-files">显示内部条目</FieldLabel>
               <Switch
                 id="folder-penetration-show-internal-files"

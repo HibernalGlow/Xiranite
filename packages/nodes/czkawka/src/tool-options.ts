@@ -17,6 +17,7 @@ export interface CzkawkaOptionDefinition {
   defaultValue: OptionValue
   min?: number
   max?: number
+  step?: number
   choices?: ReadonlyArray<{ value: string; label?: string }>
   cliFlag?: string
   requiredNativeCapabilities?: readonly string[]
@@ -48,9 +49,15 @@ export const CZKAWKA_TOOL_OPTIONS: readonly CzkawkaOptionDefinition[] = [
   guiOption("similarImagesGeometricInvariance", SIMILAR_IMAGES, "select", "几何变换比较", "Geometric invariance", "off", "similar-images.geometric-invariance", [{ value: "off", label: "关闭 / Off" }, { value: "mirror-flip", label: "镜像与翻转 / Mirror and flip" }, { value: "mirror-flip-rotate-90", label: "镜像、翻转与 90° 旋转 / Mirror, flip and 90° rotation" }]),
   numberOption("similarImagesFolderThreshold", SIMILAR_IMAGES, "文件夹阈值", "Folder threshold", 2, "--folder-threshold", 1, 10_000),
   booleanOption("similarVideosIgnoreSameSize", SIMILAR_VIDEOS, "忽略相同尺寸", "Ignore same size", false, "--video-ignore-same-size"),
-  numberOption("similarVideosSkipForward", SIMILAR_VIDEOS, "跳过开头（秒）", "Skip forward (seconds)", 15, "--video-skip", 0, 3600),
-  numberOption("similarVideosHashDuration", SIMILAR_VIDEOS, "Hash 时长（秒）", "Hash duration (seconds)", 10, "--video-duration", 2, 3600),
+  guiBooleanOption("similarVideosIgnoreSameResolution", SIMILAR_VIDEOS, "忽略相同分辨率", "Ignore same resolution", false, "similar-videos.same-resolution-exclusion"),
+  numberOption("similarVideosSkipForward", SIMILAR_VIDEOS, "跳过开头（秒）", "Skip forward (seconds)", 15, "--video-skip", 0, 300),
+  numberOption("similarVideosHashDuration", SIMILAR_VIDEOS, "Hash 时长（秒）", "Hash duration (seconds)", 10, "--video-duration", 2, 60),
   booleanOption("similarVideosLetterboxCrop", SIMILAR_VIDEOS, "检测黑边", "Detect letterbox bars", true, "--video-letterbox-crop"),
+  guiNumberOption("similarVideosWindowCount", SIMILAR_VIDEOS, "采样窗口数", "Window count", 5, 1, 20, 1, "similar-videos.similario"),
+  guiNumberOption("similarVideosDurationTolerancePct", SIMILAR_VIDEOS, "时长容差（%）", "Duration tolerance (%)", 20, 0, 100, 1, "similar-videos.similario"),
+  guiNumberOption("similarVideosMinMatchingWindows", SIMILAR_VIDEOS, "最小匹配窗口比例", "Minimum matching windows", 0.6, 0, 1, 0.05, "similar-videos.similario"),
+  guiNumberOption("similarVideosSubclipMinMatch", SIMILAR_VIDEOS, "子片段最小匹配比例", "Minimum subclip match", 0.5, 0, 1, 0.05, "similar-videos.similario"),
+  guiBooleanOption("similarVideosCheckAudioContent", SIMILAR_VIDEOS, "按音频内容比较", "Compare audio content", false, "similar-videos.audio"),
   option("musicCheckType", MUSIC, "select", "音频判断方式", "Audio check type", "tags", "--music-check", [{ value: "tags", label: "标签 / Tags" }, { value: "fingerprint", label: "音频指纹 / Fingerprint" }]),
   booleanOption("musicApproximateComparison", MUSIC, "近似标签比较", "Approximate tag comparison", true, "--music-approximate"),
   booleanOption("musicCompareTitle", MUSIC, "比较标题", "Compare title", true, "--music-title"),
@@ -91,7 +98,7 @@ export function createCzkawkaOptionFields(language: TerminalLanguage): Interacti
     kind: definition.kind,
     min: definition.min,
     max: definition.max,
-    step: definition.kind === "number" ? 1 : undefined,
+    step: definition.kind === "number" ? definition.step ?? 1 : undefined,
     options: definition.choices?.map((choice) => ({ value: choice.value, label: choice.label ?? human(choice.value) })),
     visibleWhen: (values: InteractionValues) => values.action === "scan" && definition.tools.includes(values.tool as CzkawkaTool),
   }))
@@ -198,12 +205,13 @@ function terminalOptions(): CzkawkaOptionDefinition[] { return CZKAWKA_TOOL_OPTI
 function option(id: OptionId, tools: readonly CzkawkaTool[], kind: CzkawkaOptionDefinition["kind"], zh: string, en: string, defaultValue: OptionValue, cliFlag: string, choices?: readonly (string | { value: string; label?: string })[]): CzkawkaOptionDefinition {
   return { id, tools, kind, label: { zh, en }, defaultValue, cliFlag, choices: choices?.map((choice) => typeof choice === "string" ? { value: choice } : choice) }
 }
-function numberOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: number, cliFlag: string, min: number, max: number) { return { ...option(id, tools, "number", zh, en, defaultValue, cliFlag), min, max } }
+function numberOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: number, cliFlag: string, min: number, max: number) { return { ...option(id, tools, "number", zh, en, defaultValue, cliFlag), min, max, step: 1 } }
 function booleanOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: boolean, cliFlag: string) { return option(id, tools, "boolean", zh, en, defaultValue, cliFlag) }
 function guiOption(id: OptionId, tools: readonly CzkawkaTool[], kind: CzkawkaOptionDefinition["kind"], zh: string, en: string, defaultValue: OptionValue, requiredNativeCapability: string, choices?: readonly (string | { value: string; label?: string })[]): CzkawkaOptionDefinition {
   return { id, tools, kind, label: { zh, en }, defaultValue, requiredNativeCapabilities: [requiredNativeCapability], choices: choices?.map((choice) => typeof choice === "string" ? { value: choice } : choice) }
 }
 function guiBooleanOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: boolean, requiredNativeCapability: string) { return guiOption(id, tools, "boolean", zh, en, defaultValue, requiredNativeCapability) }
+function guiNumberOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: number, min: number, max: number, step: number, requiredNativeCapability: string) { return { ...guiOption(id, tools, "number", zh, en, defaultValue, requiredNativeCapability), min, max, step } }
 function coerceOptionValue(definition: CzkawkaOptionDefinition, value: unknown): OptionValue { const candidate = value ?? definition.defaultValue; return typeof definition.defaultValue === "number" ? Number(candidate) : typeof definition.defaultValue === "boolean" ? candidate !== false && candidate !== "false" : String(candidate) }
 function human(value: string) { return value.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ") }
 function lines(value: unknown): string[] { return Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : String(value ?? "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean) }

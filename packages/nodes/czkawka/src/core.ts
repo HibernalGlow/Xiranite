@@ -72,9 +72,15 @@ export interface CzkawkaInput {
   similarImagesGeometricInvariance?: CzkawkaImageGeometricInvariance
   similarImagesFolderThreshold?: number
   similarVideosIgnoreSameSize?: boolean
+  similarVideosIgnoreSameResolution?: boolean
   similarVideosSkipForward?: number
   similarVideosHashDuration?: number
   similarVideosLetterboxCrop?: boolean
+  similarVideosWindowCount?: number
+  similarVideosDurationTolerancePct?: number
+  similarVideosMinMatchingWindows?: number
+  similarVideosSubclipMinMatch?: number
+  similarVideosCheckAudioContent?: boolean
   /** Legacy v1 field retained for one rollback window. */
   similarVideosCropDetect?: CzkawkaVideoCropDetect
   musicCheckType?: CzkawkaMusicCheckType
@@ -121,7 +127,7 @@ export interface NativeBasicResult {
   stopped: boolean
 }
 export interface NativeMediaResult {
-  groups: Array<{ entries: Array<{ path: string; modifiedDate: number; size: number; width?: number; height?: number; similarity?: string; title?: string; artist?: string; year?: string; length?: string; genre?: string; bitrate?: number; isReference?: boolean; detail?: string; properExtension?: string }> }>
+  groups: Array<{ entries: Array<{ path: string; modifiedDate: number; size: number; width?: number; height?: number; fps?: number; codec?: string; similarity?: string; title?: string; artist?: string; year?: string; length?: string; genre?: string; bitrate?: number; isReference?: boolean; detail?: string; properExtension?: string }> }>
   messages: string
   stopped: boolean
 }
@@ -168,6 +174,8 @@ export interface CzkawkaEntry {
   properExtension?: string
   width?: number
   height?: number
+  fps?: number
+  codec?: string
   similarity?: string
   title?: string
   artist?: string
@@ -252,9 +260,15 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInp
     similarImagesGeometricInvariance: oneOf(input.similarImagesGeometricInvariance, ["off", "mirror-flip", "mirror-flip-rotate-90"] as const, "off"),
     similarImagesFolderThreshold: clamp(input.similarImagesFolderThreshold, 1, 10_000, 2),
     similarVideosIgnoreSameSize: input.similarVideosIgnoreSameSize ?? false,
-    similarVideosSkipForward: clamp(input.similarVideosSkipForward, 0, 3600, 15),
-    similarVideosHashDuration: clamp(input.similarVideosHashDuration, 2, 3600, 10),
+    similarVideosIgnoreSameResolution: input.similarVideosIgnoreSameResolution ?? false,
+    similarVideosSkipForward: clamp(input.similarVideosSkipForward, 0, 300, 15),
+    similarVideosHashDuration: clamp(input.similarVideosHashDuration, 2, 60, 10),
     similarVideosLetterboxCrop: similarVideoCrop.letterboxCrop,
+    similarVideosWindowCount: clamp(input.similarVideosWindowCount, 1, 20, 5),
+    similarVideosDurationTolerancePct: clamp(input.similarVideosDurationTolerancePct, 0, 100, 20),
+    similarVideosMinMatchingWindows: clamp(input.similarVideosMinMatchingWindows, 0, 1, 0.6),
+    similarVideosSubclipMinMatch: clamp(input.similarVideosSubclipMinMatch, 0, 1, 0.5),
+    similarVideosCheckAudioContent: input.similarVideosCheckAudioContent ?? false,
     musicCheckType: oneOf(input.musicCheckType, ["tags", "fingerprint"] as const, "tags"),
     musicApproximateComparison: input.musicApproximateComparison ?? true,
     musicCompareTitle: input.musicCompareTitle ?? true,
@@ -351,6 +365,16 @@ function missingNativeCapabilities(value: CzkawkaNormalizedInput, capabilities: 
   if (value.tool === "similar-images") {
     if (value.similarImagesIgnoreSameResolution) required.push("similar-images.same-resolution-exclusion")
     if (value.similarImagesGeometricInvariance !== "off") required.push("similar-images.geometric-invariance")
+  }
+  if (value.tool === "similar-videos") {
+    if (value.similarVideosIgnoreSameResolution) required.push("similar-videos.same-resolution-exclusion")
+    if (
+      value.similarVideosWindowCount !== 5 ||
+      value.similarVideosDurationTolerancePct !== 20 ||
+      value.similarVideosMinMatchingWindows !== 0.6 ||
+      value.similarVideosSubclipMinMatch !== 0.5
+    ) required.push("similar-videos.similario")
+    if (value.similarVideosCheckAudioContent) required.push("similar-videos.audio")
   }
   if (!required.length) return []
   const available = new Set(capabilities ?? [])

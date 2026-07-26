@@ -14,6 +14,9 @@ pub const CAPABILITIES: &[&str] = &[
     "scan.cancel",
     "similar-images.geometric-invariance",
     "similar-images.same-resolution-exclusion",
+    "similar-videos.similario",
+    "similar-videos.same-resolution-exclusion",
+    "similar-videos.audio",
     "operation.trash.list",
     "operation.trash.restore",
 ];

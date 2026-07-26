@@ -308,6 +308,17 @@ fn non_negative_u64(value: i64, name: &str) -> Result<u64> {
         .map_err(|_| Error::new(Status::InvalidArg, format!("{name} cannot be negative")))
 }
 
+fn bounded_f64(value: Option<f64>, default: f64, minimum: f64, maximum: f64, name: &str) -> Result<f64> {
+    let value = value.unwrap_or(default);
+    if !value.is_finite() {
+        return Err(Error::new(
+            Status::InvalidArg,
+            format!("{name} must be a finite number"),
+        ));
+    }
+    Ok(value.clamp(minimum, maximum))
+}
+
 fn saturating_i64(value: u64) -> i64 {
     value.min(i64::MAX as u64) as i64
 }
@@ -467,9 +478,15 @@ pub struct MediaScanOptions {
     pub image_ignore_same_resolution: Option<bool>,
     pub image_geometric_invariance: Option<String>,
     pub video_ignore_same_size: Option<bool>,
+    pub video_ignore_same_resolution: Option<bool>,
     pub video_skip_forward: Option<u32>,
     pub video_hash_duration: Option<u32>,
     pub video_crop_detect: Option<String>,
+    pub video_window_count: Option<u32>,
+    pub video_duration_tolerance_pct: Option<f64>,
+    pub video_min_matching_windows: Option<f64>,
+    pub video_subclip_min_match: Option<f64>,
+    pub video_check_audio_content: Option<bool>,
     pub music_check_type: Option<String>,
     pub music_approximate_comparison: Option<bool>,
     pub music_compare_title: Option<bool>,
@@ -496,6 +513,8 @@ pub struct MediaEntry {
     pub modified_date: i64,
     pub width: Option<u32>,
     pub height: Option<u32>,
+    pub fps: Option<f64>,
+    pub codec: Option<String>,
     pub similarity: Option<String>,
     pub title: Option<String>,
     pub artist: Option<String>,
@@ -631,8 +650,9 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<AsyncTask<MediaScan
         }
     };
     core_options.video_ignore_same_size = options.video_ignore_same_size.unwrap_or(false);
-    core_options.video_skip_forward = options.video_skip_forward.unwrap_or(15);
-    core_options.video_hash_duration = options.video_hash_duration.unwrap_or(10).max(2);
+    core_options.video_ignore_same_resolution = options.video_ignore_same_resolution.unwrap_or(false);
+    core_options.video_skip_forward = options.video_skip_forward.unwrap_or(15).min(300);
+    core_options.video_hash_duration = options.video_hash_duration.unwrap_or(10).clamp(2, 60);
     core_options.video_crop_detect =
         match options.video_crop_detect.as_deref().unwrap_or("letterbox") {
             "letterbox" => core::VideoCropDetect::Letterbox,
@@ -645,6 +665,29 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<AsyncTask<MediaScan
                 ));
             }
         };
+    core_options.video_window_count = options.video_window_count.unwrap_or(5).clamp(1, 20);
+    core_options.video_duration_tolerance_pct = bounded_f64(
+        options.video_duration_tolerance_pct,
+        20.0,
+        0.0,
+        100.0,
+        "videoDurationTolerancePct",
+    )?;
+    core_options.video_min_matching_windows = bounded_f64(
+        options.video_min_matching_windows,
+        0.6,
+        0.0,
+        1.0,
+        "videoMinMatchingWindows",
+    )?;
+    core_options.video_subclip_min_match = bounded_f64(
+        options.video_subclip_min_match,
+        0.5,
+        0.0,
+        1.0,
+        "videoSubclipMinMatch",
+    )?;
+    core_options.video_check_audio_content = options.video_check_audio_content.unwrap_or(false);
     core_options.music_check_type = match options.music_check_type.as_deref().unwrap_or("tags") {
         "tags" => core::MusicCheckType::Tags,
         "fingerprint" => core::MusicCheckType::Fingerprint,
@@ -712,6 +755,8 @@ impl Task for MediaScanTask {
                             modified_date: saturating_i64(entry.modified_date),
                             width: entry.width,
                             height: entry.height,
+                            fps: entry.fps,
+                            codec: entry.codec,
                             similarity: entry.similarity,
                             title: entry.title,
                             artist: entry.artist,

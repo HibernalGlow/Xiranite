@@ -80,6 +80,8 @@ fn media_entry(entry: &MusicEntry, is_reference: bool) -> MediaEntry {
         modified_date: entry.modified_date,
         width: None,
         height: None,
+        fps: None,
+        codec: None,
         similarity: None,
         title: Some(entry.track_title.clone()),
         artist: Some(entry.track_artist.clone()),

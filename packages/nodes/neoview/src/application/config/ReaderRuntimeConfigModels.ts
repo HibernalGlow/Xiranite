@@ -230,6 +230,7 @@ export type NeoviewFolderPenetrationTarget = (typeof NEOVIEW_FOLDER_PENETRATION_
 
 export interface NeoviewFolderPenetrationConfig {
   enabled: boolean
+  expandBranchesInline: boolean
   showInternalFiles: boolean
   internalItemsMode: "single" | "all"
   maxDepth: number
@@ -808,6 +809,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
   },
   penetration: {
     enabled: false,
+    expandBranchesInline: false,
     showInternalFiles: true,
     internalItemsMode: "single",
     maxDepth: 3,

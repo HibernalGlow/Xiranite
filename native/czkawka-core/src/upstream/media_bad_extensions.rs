@@ -20,6 +20,8 @@ pub(crate) fn scan(
             modified_date: entry.modified_date,
             width: None,
             height: None,
+            fps: None,
+            codec: None,
             similarity: None,
             title: None,
             artist: None,

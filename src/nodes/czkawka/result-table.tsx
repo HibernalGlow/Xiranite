@@ -24,7 +24,7 @@ import type { CzkawkaPhase } from "./types"
 import { CzkawkaNikoResultTable } from "./niko-result-table"
 import type { CzkawkaImageComparisonMode, CzkawkaImageComparisonState } from "@xiranite/node-czkawka/image-comparison"
 
-export type CzkawkaResultColumnId = "name" | "path" | "size" | "groupSize" | "modified" | "similarity" | "dimensions" | "title" | "artist" | "year" | "bitrate" | "length" | "target" | "error" | "currentExtension" | "properExtension"
+export type CzkawkaResultColumnId = "name" | "path" | "size" | "groupSize" | "modified" | "similarity" | "dimensions" | "fps" | "codec" | "title" | "artist" | "year" | "bitrate" | "length" | "target" | "error" | "currentExtension" | "properExtension"
 
 export interface CzkawkaResultColumn {
   id: CzkawkaResultColumnId
@@ -42,6 +42,8 @@ const GROUP_SIZE = column("groupSize", "组大小", (_entry, group) => group.tot
 const MODIFIED = column("modified", "修改时间", (entry) => entry.modifiedDate, (entry) => formatDate(entry.modifiedDate))
 const SIMILARITY = column("similarity", "相似度", (entry) => numeric(entry.similarity), (entry) => entry.similarity || "—")
 const DIMENSIONS = column("dimensions", "分辨率", (entry) => (entry.width ?? 0) * (entry.height ?? 0), (entry) => entry.width && entry.height ? `${entry.width}×${entry.height}` : "—")
+const FPS = column("fps", "帧率", (entry) => entry.fps ?? 0, (entry) => formatFps(entry.fps), "right")
+const CODEC = column("codec", "编码", (entry) => entry.codec ?? "")
 const TITLE = column("title", "标题", (entry) => entry.title ?? "")
 const ARTIST = column("artist", "艺术家", (entry) => entry.artist ?? "")
 const YEAR = column("year", "年份", (entry) => numeric(entry.year))
@@ -59,7 +61,7 @@ export const CZKAWKA_RESULT_COLUMNS: Record<CzkawkaTool, readonly CzkawkaResultC
   "empty-files": [NAME, PATH, MODIFIED],
   "temporary-files": [NAME, PATH, MODIFIED],
   "similar-images": [SIMILARITY, SIZE, GROUP_SIZE, DIMENSIONS, NAME, PATH, MODIFIED],
-  "similar-videos": [SIMILARITY, SIZE, GROUP_SIZE, DIMENSIONS, NAME, PATH, MODIFIED],
+  "similar-videos": [SIMILARITY, SIZE, GROUP_SIZE, DIMENSIONS, FPS, CODEC, BITRATE, LENGTH, NAME, PATH, MODIFIED],
   "duplicate-music": [SIZE, GROUP_SIZE, NAME, TITLE, ARTIST, YEAR, BITRATE, LENGTH, PATH, MODIFIED],
   "invalid-symlinks": [NAME, PATH, TARGET, ERROR, MODIFIED],
   "broken-files": [NAME, PATH, ERROR, SIZE, MODIFIED],
@@ -416,6 +418,7 @@ function defaultColumnWidth(id: CzkawkaResultColumnId): number {
 function defaultSort(tool: CzkawkaTool): CzkawkaResultColumnId { return tool === "big-files" ? "size" : "path" }
 function extension(name: string): string { const index = name.lastIndexOf("."); return index > 0 ? name.slice(index + 1) : "" }
 function numeric(value: string | undefined): number { const parsed = Number.parseFloat(value ?? ""); return Number.isFinite(parsed) ? parsed : 0 }
+function formatFps(value: number | undefined): string { return value === undefined ? "—" : `${Number(value.toFixed(2))} fps` }
 function unique(values: string[]): string[] { return [...new Set(values)] }
 function clamp(value: number, min: number, max: number): number { return Math.min(max, Math.max(min, value)) }
 function formatDate(value: number): string { if (!value) return "—"; const milliseconds = value < 10_000_000_000 ? value * 1000 : value; return new Date(milliseconds).toLocaleString() }

@@ -67,6 +67,7 @@ function SchemaOptionField({ data, definition, patch, language }: CzkawkaView & 
           type="number"
           min={definition.min}
           max={definition.max}
+          step={definition.step}
           value={String(value)}
           onChange={(event) =>
             patch({
