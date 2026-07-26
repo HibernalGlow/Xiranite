@@ -1,5 +1,9 @@
 [workspace]
 members = ["arcthumb-core", "arcthumb-node", "czkawka-core", "czkawka-node", "slimg-node"]
+# Keep the crate in the workspace for source maintenance, but exclude it from
+# default native builds while XLchemy uses the system slimg v0.6 CLI. The
+# in-process Node-API batch path caused unacceptable Bun RSS peaks.
+default-members = ["arcthumb-core", "arcthumb-node", "czkawka-core", "czkawka-node"]
 resolver = "3"
 
 [workspace.package]

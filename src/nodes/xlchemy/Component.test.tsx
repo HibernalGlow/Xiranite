@@ -504,7 +504,7 @@ describe("app-owned xlchemy Component", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "重新检测" }))
     await waitFor(() => expect(host.runCalls.at(-1)?.input.action).toBe("diagnose"))
     view.rerender(<Component compId="xlchemy-card" host={host} />)
-    expect(screen.getByText("slimg CFFI")).toBeTruthy()
+    expect(screen.getByText("slimg CLI")).toBeTruthy()
     expect(screen.getByText("jpegtran")).toBeTruthy()
     expect(host.cardState.environment).toHaveLength(13)
   })

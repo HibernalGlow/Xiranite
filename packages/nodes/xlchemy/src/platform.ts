@@ -6,7 +6,6 @@ import { delimiter } from "node:path"
 import { tmpdir } from "node:os"
 import type { XlchemyRuntime } from "./core.js"
 import { runXlchemyCommand } from "./command.js"
-import { convertWithSlimg, probeSlimg } from "./slimg.js"
 import { convertClipToPsd } from "./clip-to-psd.js"
 import { streamEfuPaths } from "./efu-stream.js"
 import { isAnimatedImage } from "./animation-probe.js"
@@ -40,8 +39,6 @@ export function createNodeXlchemyRuntime(context: XlchemyRuntimeContext = {}): X
     } : {}),
     runCommand: runXlchemyCommand,
     resolveCommand: resolveCachedCommand,
-    probeSlimg,
-    convertWithSlimg,
     convertClipToPsd,
     join,
     dirname,

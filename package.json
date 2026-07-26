@@ -226,6 +226,7 @@
     "@xiranite/node-xlchemy": "workspace:*",
     "@xiranite/runtime": "workspace:*",
     "@xiranite/shared": "workspace:*",
+    "@xstate/store": "^4.2.2",
     "@xyflow/react": "^12.11.2",
     "chrono-node": "^2.9.0",
     "class-variance-authority": "^0.7.1",

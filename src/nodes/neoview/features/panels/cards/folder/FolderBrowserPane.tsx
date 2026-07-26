@@ -93,6 +93,13 @@ import {
 } from "./FolderEntryPresentation"
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, folderViewShowsPenetrationFiles, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
+import {
+  folderTabReplacementPolicy,
+  routeFolderTabActivation,
+  routeFolderTabBrowse,
+  routeFolderTabNavigation,
+  type FolderTabKind,
+} from "./FolderTabNavigationPolicy"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { useFolderClipboard } from "./FolderClipboard"
 import { readerEntryClickIntent } from "../shared/ReaderEntryInteraction"
@@ -274,10 +281,12 @@ export function FolderBrowserPane({
   onCreateTab,
   onCurrentPathChange,
   onOpenInNewTab,
+  onOpenEfuInNewTab,
   folderNavigationEvents,
   initialClone,
   initialSearchSnapshot,
   onOpenSearchInNewTab,
+  currentFolderTabKind,
   onCloneProvider,
 }: ReaderPanelContext & {
   active: boolean
@@ -295,7 +304,9 @@ export function FolderBrowserPane({
   onReopenFolderTab(): void
   onCurrentPathChange(path: string): void
   onOpenInNewTab(path: string): void
+  onOpenEfuInNewTab(path: string): void
   onOpenSearchInNewTab?(snapshot: FolderSearchTabSnapshot): void
+  currentFolderTabKind: FolderTabKind
   initialClone?: FolderBrowserCloneSnapshot
   initialSearchSnapshot?: FolderSearchTabSnapshot
   onCloneProvider(provider?: FolderBrowserCloneProvider): void
@@ -404,6 +415,16 @@ export function FolderBrowserPane({
     })
   })
 
+  function currentReplacementPolicy() {
+    const current = catalogRef.current
+    const kind: FolderTabKind = isVirtualSearchPath(current?.path)
+      ? "search"
+      : current?.sourceKind === "efu"
+        ? "efu"
+        : currentFolderTabKind
+    return folderTabReplacementPolicy(kind)
+  }
+
   useEffect(() => {
     const snapshot = pendingInitialCloneRef.current
     pendingInitialCloneRef.current = undefined
@@ -434,15 +455,25 @@ export function FolderBrowserPane({
       if (!(event instanceof CustomEvent)) return
       const detail = event.detail as { path?: unknown; newTab?: unknown } | undefined
       if (typeof detail?.path !== "string" || !detail.path.trim()) return
-      if (detail.newTab === true) onOpenInNewTab(detail.path)
-      else void openBrowser(detail.path)
+      routeFolderTabBrowse({
+        policy: currentReplacementPolicy(),
+        forceNewTab: detail.newTab === true,
+        path: detail.path,
+        openInNewTab: onOpenInNewTab,
+        replaceCurrent: (path) => { void openBrowser(path) },
+      })
     }
     const activateFromLibrary = (event: Event) => {
       if (!(event instanceof CustomEvent)) return
       const detail = event.detail as { path?: unknown; handled?: boolean } | undefined
       if (typeof detail?.path !== "string" || !detail.path.trim()) return
-      if (detail && typeof detail === "object") detail.handled = true
-      void activateLibraryFolder(detail.path)
+      if (detail && typeof detail === "object") {
+        detail.handled = routeFolderTabActivation({
+          policy: currentReplacementPolicy(),
+          path: detail.path,
+          activateCurrent: (path) => { void activateLibraryFolder(path) },
+        })
+      }
     }
     folderNavigationEvents.addEventListener("browse", browse)
     folderNavigationEvents.addEventListener("activate", activateFromLibrary)
@@ -450,7 +481,7 @@ export function FolderBrowserPane({
       folderNavigationEvents.removeEventListener("browse", browse)
       folderNavigationEvents.removeEventListener("activate", activateFromLibrary)
     }
-  }, [folderNavigationEvents, navigationActive, onOpenInNewTab])
+  }, [currentFolderTabKind, folderNavigationEvents, navigationActive, onOpenInNewTab])
 
   useEffect(() => disposeBrowser, [])
 
@@ -744,6 +775,12 @@ export function FolderBrowserPane({
             path: normalizeFolderNavigationPath(navigation.path),
           }
         : navigation
+    if (routeFolderTabNavigation({
+      policy: currentReplacementPolicy(),
+      navigation: normalizedNavigation,
+      fallbackPath: catalogRef.current?.parentPath,
+      openInNewTab: onOpenInNewTab,
+    })) return
     const sessionId = sessionIdRef.current
     if (!sessionId) {
       if (normalizedNavigation.action === "path") await openBrowser(normalizedNavigation.path)
@@ -2157,7 +2194,7 @@ export function FolderBrowserPane({
                   thumbnailRefreshPending={thumbnailRefreshPending}
                   canRefreshThumbnails={Boolean(client.registerLibraryThumbnails)}
                   canRefreshSelectedThumbnails={Boolean(client.registerLibraryThumbnails && selectedPaths.size)}
-                  canImportEfu={Boolean(pickEfuFile)}
+                  canImportEfu={Boolean(pickEfuFile) && folderTabCount < maxFolderTabs}
                   sortLabels={SORT_LABELS}
                   sortSourceLabels={SORT_SOURCE_LABELS}
                   onNavigateBack={() => {
@@ -2239,7 +2276,7 @@ export function FolderBrowserPane({
                   onCancelThumbnailRefresh={cancelThumbnailRefresh}
                   onImportEfu={() => {
                     void pickEfuFile?.().then((path) => {
-                      if (path) void navigate({ action: "path", path })
+                      if (path) onOpenEfuInNewTab(path)
                     })
                   }}
                 />

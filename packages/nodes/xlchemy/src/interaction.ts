@@ -35,7 +35,7 @@ export function createXlchemyInteractionSchema(defaults: Partial<XlchemyInteract
     { id: "maxCompression", label: text("最大压缩", "Maximum compression"), kind: "boolean", visibleWhen: jxl },
     { id: "threads", label: text("并行线程", "Threads"), kind: "number", min: 1, max: 64, step: 1 },
     { id: "jpegEncoder", label: text("JPEG 编码器", "JPEG encoder"), kind: "select", options: [{ value: "jpegli", label: "JPEGli" }, { value: "libjpeg", label: "libjpeg" }], visibleWhen: jpeg },
-    { id: "avifEncoder", label: text("AVIF 编码器", "AVIF encoder"), kind: "select", options: [{ value: "aom", label: "AOM AV1" }, { value: "svt", label: "SVT-AV1-PSY" }, { value: "slimg", label: "slimg Node-API" }], visibleWhen: avif },
+    { id: "avifEncoder", label: text("AVIF 编码器", "AVIF encoder"), kind: "select", options: [{ value: "aom", label: "AOM AV1" }, { value: "svt", label: "SVT-AV1-PSY" }, { value: "slimg", label: "slimg CLI" }], visibleWhen: avif },
     { id: "avifBitDepth", label: text("AVIF 位深", "AVIF bit depth"), kind: "select", options: ["auto", "8", "10", "12"].map((value) => ({ value, label: value })), visibleWhen: avif },
     { id: "avifAomIqTune", label: text("AOM IQ 调优", "AOM IQ tune"), kind: "boolean", visibleWhen: and(avif, is("avifEncoder", "aom")) },
     { id: "disableProgressiveJpegli", label: text("禁用渐进 JPEGli", "Disable progressive JPEGli"), kind: "boolean", visibleWhen: and(jpeg, is("jpegEncoder", "jpegli")) },

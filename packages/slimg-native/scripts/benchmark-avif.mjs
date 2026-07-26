@@ -7,7 +7,7 @@ import { performance } from "node:perf_hooks"
 import { convertBatch } from "../dist/index.js"
 
 const inputPaths = process.argv.slice(2).filter((argument) => !argument.startsWith("--")).map((argument) => resolve(argument))
-const requestedModes = value("modes", "node,aom,cffi").split(",").map((mode) => mode.trim()).filter(Boolean)
+const requestedModes = value("modes", "node,cli,aom,cffi").split(",").map((mode) => mode.trim()).filter(Boolean)
 const quality = integer("quality", 60)
 const effort = integer("effort", 6)
 const jobs = integer("jobs", 15)
@@ -31,8 +31,8 @@ try {
     elapsedMs: elapsedMs.toFixed(1),
     throughputFilesPerSecond: (files / (elapsedMs / 1000)).toFixed(2),
     averageSecondsPerFile: (elapsedMs / 1000 / files).toFixed(2),
-    averageCpuCores: mode === "aom-avifenc" ? "child" : cpuCores.toFixed(2),
-    processCpuCapacityPercent: mode === "aom-avifenc" ? "child" : processCpuCapacityPercent.toFixed(1),
+    averageCpuCores: mode === "aom-avifenc" || mode === "slimg-cli" ? "child" : cpuCores.toFixed(2),
+    processCpuCapacityPercent: mode === "aom-avifenc" || mode === "slimg-cli" ? "child" : processCpuCapacityPercent.toFixed(1),
     outputMiB: (outputBytes / 1024 / 1024).toFixed(2),
   })))
   console.log(JSON.stringify({ quality, effort, jobs, repeat, inputs: inputPaths, results }, null, 2))
@@ -42,9 +42,24 @@ try {
 
 async function benchmarkMode(mode) {
   if (mode === "node") return benchmarkNode()
+  if (mode === "cli") return benchmarkCli()
   if (mode === "aom") return benchmarkAom()
   if (mode === "cffi") return benchmarkCffi()
   throw new Error(`Unknown benchmark mode: ${mode}`)
+}
+
+async function benchmarkCli() {
+  const slimg = Bun.which("slimg")
+  if (!slimg) return unavailable("cli", "slimg is not on PATH")
+  await mkdir(join(directory, "cli"), { recursive: true })
+  const files = repeatedFiles("cli")
+  const started = performance.now()
+  await runPool(files, Math.min(jobs, files.length), async (file) => {
+    const child = Bun.spawn([slimg, "convert", "--format", "avif", "--quality", String(quality), "--output", file.outputPath, "--overwrite", "--jobs", "1", file.sourcePath], { stdout: "ignore", stderr: "pipe" })
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()])
+    if (exitCode !== 0) throw new Error(`slimg CLI failed (${exitCode}): ${stderr}`)
+  })
+  return resultFromFiles("slimg-cli", performance.now() - started, files)
 }
 
 async function benchmarkNode() {
@@ -119,6 +134,17 @@ async function resultFromFiles(mode, elapsedMs, files) {
   let outputBytes = 0
   for (const file of files) outputBytes += (await stat(file.outputPath)).size
   return { mode, elapsedMs, outputBytes, files: files.length }
+}
+
+async function runPool(items, concurrency, task) {
+  let index = 0
+  await Promise.all(Array.from({ length: concurrency }, async () => {
+    for (;;) {
+      const current = index++
+      if (current >= items.length) return
+      await task(items[current])
+    }
+  }))
 }
 
 function withCpu(result, usage) {

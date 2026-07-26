@@ -15,7 +15,9 @@ const outputRoot = join(workspaceRoot, "build", "wails", "native-assets")
 const bindings = [
   { id: "arcthumb", packageName: "arcthumb-native", filename: `xiranite-arcthumb.${platformId}.node`, dependencies: [] },
   { id: "czkawka", packageName: "czkawka-native", filename: `xiranite-czkawka.${platformId}.node`, dependencies: process.platform === "win32" ? ["dav1d.dll"] : [] },
-  { id: "slimg", packageName: "slimg-native", filename: `xiranite-slimg.${platformId}.node`, dependencies: process.platform === "win32" ? ["dav1d.dll"] : [] },
+  // Temporarily disabled: XLchemy uses the system slimg v0.6 CLI because the
+  // in-process Node-API batch path caused unacceptable Bun RSS peaks.
+  // { id: "slimg", packageName: "slimg-native", filename: `xiranite-slimg.${platformId}.node`, dependencies: process.platform === "win32" ? ["dav1d.dll"] : [] },
 ] as const
 
 if (process.argv.includes("--refresh")) await refreshPrebuilt()

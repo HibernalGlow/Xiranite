@@ -121,15 +121,17 @@ function NeoViewKeepAliveNode({ host, renderNode, compId }: { host: HTMLDivEleme
 export function NeoViewKeepAliveSlot({ compId }: { compId: string }) {
   const context = useContext(NeoViewKeepAliveContext)
   const slotRef = useRef<HTMLDivElement | null>(null)
+  const registerSlot = context?.registerSlot
+  const unregisterSlot = context?.unregisterSlot
 
   useLayoutEffect(() => {
-    if (!context) return undefined
+    if (!registerSlot || !unregisterSlot) return undefined
     const target = slotRef.current
-    context.registerSlot(compId, target)
+    registerSlot(compId, target)
     return () => {
-      if (target) context.unregisterSlot(compId, target)
+      if (target) unregisterSlot(compId, target)
     }
-  }, [compId, context])
+  }, [compId, registerSlot, unregisterSlot])
 
   return <div ref={slotRef} className="h-full min-h-0 w-full" data-neoview-keepalive-slot={compId} />
 }

@@ -25,9 +25,15 @@ import {
   useWorkspaceMelodeck,
 } from "@/components/workspace/WorkspaceMelodeck"
 import hostI18n from "@/i18n"
+import type { AppCustomTheme } from "@/types/workspace"
 import "@hibernalglow/folia-player/styles.css"
 
+let restoreWorkspaceTheme: (() => void) | undefined
+
 afterEach(() => {
+  restoreWorkspaceTheme?.()
+  restoreWorkspaceTheme = undefined
+  document.documentElement.classList.remove("dark")
   vi.restoreAllMocks()
   useWorkspaceStore.getState().setChromePosition("right")
 })
@@ -59,41 +65,87 @@ test("keeps Folia actions stable when a workspace bridge writes playback state",
   expect(document.querySelector("[data-folia-bridge]")?.textContent).toBe("track-1")
 })
 
-test("expands the original topbar island around Folia Remote and a floating more menu", async () => {
+test("uses the current theme's fourth color before expanding transparently around Folia Remote", async () => {
+  const state = useWorkspaceStore.getState()
+  const previousCustomThemes = state.customThemes
+  const previousLightSelection = state.themeSelections.light
+  const previousDarkSelection = state.themeSelections.dark
+  const customTheme: AppCustomTheme = {
+    name: "Melodeck palette mode test",
+    cssVars: {
+      light: {
+        background: "rgb(248, 251, 251)",
+        primary: "rgb(0, 184, 201)",
+        secondary: "rgb(205, 239, 239)",
+        accent: "rgb(247, 232, 181)",
+        "accent-foreground": "rgb(31, 48, 55)",
+      },
+      dark: {
+        background: "rgb(8, 28, 40)",
+        primary: "rgb(0, 184, 201)",
+        secondary: "rgb(14, 61, 68)",
+        accent: "rgb(18, 48, 56)",
+        "accent-foreground": "rgb(238, 221, 163)",
+      },
+    },
+  }
+  state.setCustomThemes([...previousCustomThemes, customTheme])
+  state.setThemeSelection("light", { kind: "custom", name: customTheme.name })
+  state.setThemeSelection("dark", { kind: "custom", name: customTheme.name })
+  restoreWorkspaceTheme = () => {
+    const currentState = useWorkspaceStore.getState()
+    currentState.setCustomThemes(previousCustomThemes)
+    currentState.setThemeSelection("light", previousLightSelection)
+    currentState.setThemeSelection("dark", previousDarkSelection)
+  }
+
   await render(<WorkspaceMelodeckTopBarHarness />)
 
   const island = document.querySelector<HTMLElement>('[data-melodeck-island-state="collapsed"]')
   expect(island).not.toBeNull()
   expect(island?.getAttribute("data-melodeck-island-variant")).toBe("full")
   const collapsedShell = island!.querySelector<HTMLElement>("[data-melodeck-island-collapsed-shell]")
+  const collapsedButton = island!.querySelector<HTMLElement>('button[aria-expanded="false"]')
   expect(collapsedShell).not.toBeNull()
+  expect(collapsedButton).not.toBeNull()
   expect(island?.hasAttribute("data-melodeck-artwork-tint")).toBe(false)
-  expect(getComputedStyle(collapsedShell!).backgroundColor).toBe("rgba(250, 249, 246, 0.95)")
+  expect(collapsedShell?.dataset.melodeckIslandPaletteSlot).toBe("4")
+  expect(collapsedShell?.dataset.melodeckIslandPaletteScheme).toBe("light")
+  expect(collapsedShell?.style.backgroundColor).toContain(customTheme.cssVars.light.accent)
+  const lightGlassBackground = getComputedStyle(collapsedShell!).backgroundColor
+  expect(lightGlassBackground).not.toBe(customTheme.cssVars.light.accent)
+  expect(lightGlassBackground).not.toBe("rgba(0, 0, 0, 0)")
+  expect(getComputedStyle(collapsedShell!).backdropFilter).toContain("blur(64px)")
+  expect(getComputedStyle(collapsedButton!).color).toBe(customTheme.cssVars.light["accent-foreground"])
   document.documentElement.classList.add("dark")
-  await expect.poll(() => getComputedStyle(collapsedShell!).backgroundColor).toBe("rgba(9, 9, 11, 0.95)")
+  await expect.poll(() => collapsedShell?.dataset.melodeckIslandPaletteScheme).toBe("dark")
+  await expect.poll(() => collapsedShell?.style.backgroundColor).toContain(customTheme.cssVars.dark!.accent!)
+  await expect.poll(() => getComputedStyle(collapsedShell!).backgroundColor).not.toBe(lightGlassBackground)
+  await expect.poll(() => getComputedStyle(collapsedButton!).color).toBe(customTheme.cssVars.dark?.["accent-foreground"])
   document.documentElement.classList.remove("dark")
-  await expect.poll(() => getComputedStyle(collapsedShell!).backgroundColor).toBe("rgba(250, 249, 246, 0.95)")
-  expect(getComputedStyle(document.querySelector<HTMLElement>("#melodeck-topbar-island-full")!).borderTopWidth).toBe("0px")
-  expect(getComputedStyle(document.querySelector<HTMLElement>("#melodeck-topbar-island-full")!).boxShadow).not.toMatch(/(?:8|24)px/)
+  await expect.poll(() => collapsedShell?.dataset.melodeckIslandPaletteScheme).toBe("light")
+  await expect.poll(() => collapsedShell?.style.backgroundColor).toContain(customTheme.cssVars.light.accent!)
+  const islandRoot = document.querySelector<HTMLElement>("#melodeck-topbar-island-full")!
+  expect(getComputedStyle(islandRoot).borderTopWidth).toBe("0px")
+  expect(getComputedStyle(islandRoot).boxShadow).not.toMatch(/(?:8|24)px/)
   const collapsedWidth = island!.getBoundingClientRect().width
 
   await page.getByRole("button", { name: "展开音乐灵动岛" }).click()
 
   await expect.poll(() => island?.getAttribute("data-melodeck-island-state")).toBe("expanded")
   const expandedContent = island!.querySelector<HTMLElement>("[data-melodeck-island-expanded-content]")
-  const morphShell = island!.querySelector<HTMLElement>("[data-melodeck-island-morph-shell]")
   const morphSummary = island!.querySelector<HTMLElement>("[data-melodeck-island-morph-summary]")
   expect(expandedContent).not.toBeNull()
-  expect(morphShell).not.toBeNull()
   expect(morphSummary).not.toBeNull()
   expect(island!.querySelector("[data-melodeck-island-collapsed-shell]")).toBeNull()
-  expect(Number.parseFloat(getComputedStyle(morphShell!).opacity)).toBeGreaterThan(0)
-  expect(getComputedStyle(morphShell!).borderTopWidth).toBe("0px")
-  expect(getComputedStyle(morphShell!).boxShadow).toBe("none")
+  expect(island!.querySelector("[data-melodeck-island-morph-shell]")).toBeNull()
+  expect(getComputedStyle(islandRoot).backgroundColor).toBe("rgba(0, 0, 0, 0)")
+  expect(getComputedStyle(islandRoot).borderTopWidth).toBe("0px")
+  const shadowLengths = getComputedStyle(islandRoot).boxShadow.match(/-?\d+(?:\.\d+)?px/g) ?? []
+  expect(shadowLengths.every((length) => Number.parseFloat(length) === 0)).toBe(true)
   expect(Number.parseFloat(getComputedStyle(morphSummary!).opacity)).toBeGreaterThan(0)
   expect(Number.parseFloat(getComputedStyle(expandedContent!).opacity)).toBeLessThan(1)
   await expect.poll(() => getComputedStyle(morphSummary!).opacity).toBe("0")
-  await expect.poll(() => getComputedStyle(morphShell!).opacity).toBe("0")
   await expect.poll(() => getComputedStyle(expandedContent!).opacity).toBe("1")
   await expect.poll(() => island!.getBoundingClientRect().width).toBeGreaterThan(collapsedWidth + 150)
   expect(island!.querySelectorAll('[data-folia-surface="remote"]')).toHaveLength(1)
