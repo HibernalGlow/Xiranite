@@ -54,6 +54,7 @@ const BACKEND_ROUTE_PREFIXES = [
   "/health",
   "/local-files",
   "/logs",
+  "/melodeck",
   "/nexus",
   "/node-operations",
   "/node-run-history",

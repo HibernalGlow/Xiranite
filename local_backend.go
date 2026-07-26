@@ -240,6 +240,7 @@ var backendRoutePrefixes = [...]string{
 	"/health",
 	"/local-files",
 	"/logs",
+	"/melodeck",
 	"/nexus",
 	"/node-operations",
 	"/node-run-history",
