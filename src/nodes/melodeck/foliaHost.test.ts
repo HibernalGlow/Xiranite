@@ -16,6 +16,7 @@ const database = vi.hoisted(() => ({
 vi.mock("@/backend/localFilesClient", () => localFiles)
 vi.mock("@/backend/localBackendConfig", () => ({ localBackendFileUrl: (path: string) => `local://${path}` }))
 vi.mock("@/backend/melodeckLibraryClient", () => ({
+  isMelodeckDatabaseMissingFileError: (error: unknown) => error instanceof Error && error.message.startsWith("ENOENT:"),
   loadMelodeckDatabaseMetadata: database.load,
   saveMelodeckDatabaseMetadata: database.save,
   melodeckDatabaseCoverUrl: (path: string) => `database-cover://${path}`,
@@ -26,6 +27,7 @@ vi.mock("@hibernalglow/folia-player", () => ({
 }))
 
 import { foliaMelodeckHost } from "./foliaHost"
+import { subscribeMissingMelodeckTrack } from "./missingTrackEvents"
 
 describe("Folia Melodeck host adapter", () => {
   beforeEach(() => {
@@ -138,6 +140,27 @@ describe("Folia Melodeck host adapter", () => {
     expect(preview).toMatchObject({ title: "Worker title", duration: 12 })
     expect(selected).toMatchObject({ title: "Worker title", duration: 12 })
     expect(metadata.parseRemoteEmbeddedMetadataAsync).toHaveBeenCalledTimes(1)
+  })
+
+  it("reports a deleted track without retrying extraction or metadata persistence", async () => {
+    database.load.mockRejectedValueOnce(new Error("ENOENT: no such file or directory"))
+    const missingTrackIds: string[] = []
+    const unsubscribe = subscribeMissingMelodeckTrack((trackId) => missingTrackIds.push(trackId))
+
+    try {
+      await expect(foliaMelodeckHost.hydrateTrackPreview?.({
+        id: "deleted-track",
+        path: "E:/Music/deleted.flac",
+        src: "local://deleted.flac",
+        title: "Deleted",
+      }, new AbortController().signal)).resolves.toEqual({})
+    } finally {
+      unsubscribe()
+    }
+
+    expect(missingTrackIds).toEqual(["deleted-track"])
+    expect(metadata.parseRemoteEmbeddedMetadataAsync).not.toHaveBeenCalled()
+    expect(database.save).not.toHaveBeenCalled()
   })
 
   it("uses the local backend directory picker outside Wails", async () => {
