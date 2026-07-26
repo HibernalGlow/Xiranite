@@ -50,6 +50,20 @@ describe("ReaderInputBindingsConfig", () => {
     ] } })).toThrow("ignoreRepeat must be a boolean")
   })
 
+  it("[neoview.bindings.action-sequence-config] persists up to seven follow-up actions and defaults old bindings to one action", () => {
+    const legacy = { id: "legacy", action: "file.delete-current", context: "reader", enabled: true, input: { device: "keyboard", code: "Delete" } }
+    const sequence = { ...legacy, id: "sequence", followUpActions: ["reader.next-book", "reader.first-page"] }
+    const parsed = parseNeoviewInputBindingsPatch({ inputBindings: { bindings: [legacy, sequence] } })
+
+    expect(parsed.patch.inputBindings.bindings).toEqual([legacy, sequence])
+    expect(parsed.tomlPatch).toEqual({ bindings: { items: [legacy, sequence] } })
+    expect(parseNeoviewInputBindingsConfig({ items: [legacy] }).bindings[0]?.followUpActions).toBeUndefined()
+    expect(() => parseNeoviewInputBindingsPatch({ inputBindings: { bindings: [{
+      ...legacy,
+      followUpActions: Array(8).fill("reader.next-page"),
+    }] } })).toThrow("must not contain more than 7 actions")
+  })
+
   it("[neoview.bindings.keyboard-hold] persists hold timing independently from key-down", () => {
     const bindings = [
       { id: "enter-down", action: "reader.next-page", context: "reader", enabled: true, input: { device: "keyboard", code: "Enter" } },

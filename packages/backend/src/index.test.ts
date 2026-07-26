@@ -150,32 +150,38 @@ describe("backend", () => {
   })
 
   test("reads node runtime metadata without creating a tracked operation", async () => {
-    const getNodeRuntimeInfo = vi.fn(async () => ({
-      apiVersion: 5,
-      sourceVersion: "12.0.0",
-      capabilities: ["similar-images.geometric-invariance"],
-    }))
-    const app = await createDefaultBackendApp({
-      now: 100,
-      repository: createMemoryWorkspaceRepository(),
-      nodeRunner: {
-        getNodeRuntimeInfo,
-        async runNode() { return { success: true as const, message: "done" } },
-      },
-    })
-
-    const response = await app.handle(new Request("http://localhost/nodes/czkawka/runtime-info"))
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      info: {
+    const dataDir = await createTempDataDir()
+    try {
+      const getNodeRuntimeInfo = vi.fn(async () => ({
         apiVersion: 5,
         sourceVersion: "12.0.0",
         capabilities: ["similar-images.geometric-invariance"],
-      },
-    })
-    expect(getNodeRuntimeInfo).toHaveBeenCalledOnce()
-    expect(getNodeRuntimeInfo).toHaveBeenCalledWith("czkawka")
+      }))
+      const app = await createDefaultBackendApp({
+        now: 100,
+        repository: createMemoryWorkspaceRepository(),
+        configPath: join(dataDir, "xiranite.config.toml"),
+        nodeRunner: {
+          getNodeRuntimeInfo,
+          async runNode() { return { success: true as const, message: "done" } },
+        },
+      })
+
+      const response = await app.handle(new Request("http://localhost/nodes/czkawka/runtime-info"))
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({
+        info: {
+          apiVersion: 5,
+          sourceVersion: "12.0.0",
+          capabilities: ["similar-images.geometric-invariance"],
+        },
+      })
+      expect(getNodeRuntimeInfo).toHaveBeenCalledOnce()
+      expect(getNodeRuntimeInfo).toHaveBeenCalledWith("czkawka")
+    } finally {
+      await removeWithWindowsRetry(dataDir)
+    }
   })
 
   test("hot-applies and restores persisted node memory protection settings", async () => {

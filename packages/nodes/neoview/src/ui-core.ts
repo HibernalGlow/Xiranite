@@ -75,6 +75,7 @@ export {
 export {
   cloneReaderInputBindings,
   DEFAULT_READER_INPUT_BINDINGS,
+  MAX_READER_INPUT_ACTION_SEQUENCE_LENGTH,
   matchingReaderInputBinding,
   LEGACY_READER_INPUT_ACTION_MAP,
   READER_INPUT_ACTION_CATEGORIES,
@@ -91,6 +92,7 @@ export {
   readerInputConflictKey,
   readerInputConflicts,
   readerInputDescriptorKey,
+  readerInputBindingActions,
   readerViewAreaAtPoint,
   type ReaderInputAction,
   type ReaderInputActionDefinition,
@@ -120,6 +122,14 @@ export {
   type ReaderSlideshowSnapshot,
   type ReaderSlideshowState,
 } from "./application/slideshow/ReaderSlideshow.js"
+export {
+  executeReaderInputActionSequence,
+  ReaderInputActionSequenceRunner,
+  type ReaderInputActionExecutionContext,
+  type ReaderInputActionOperation,
+  type ReaderInputActionOutcome,
+  type ReaderInputActionSequenceResult,
+} from "./application/input/ReaderInputActionSequenceRunner.js"
 export {
   READER_CARD_MANIFEST,
   READER_PANEL_MANIFEST,

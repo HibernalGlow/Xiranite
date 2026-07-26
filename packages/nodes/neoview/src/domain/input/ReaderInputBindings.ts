@@ -24,6 +24,8 @@ export const READER_INPUT_CONTEXTS = ["global", "reader", "video", "panel", "she
 
 export type ReaderInputContext = typeof READER_INPUT_CONTEXTS[number]
 
+export const MAX_READER_INPUT_ACTION_SEQUENCE_LENGTH = 8
+
 export const READER_VIEW_AREAS = [
   "top-left", "top-center", "top-right",
   "middle-left", "middle-center", "middle-right",
@@ -46,6 +48,7 @@ export type ReaderInputDescriptor =
 export interface ReaderInputBinding {
   id: string
   action: ReaderInputAction
+  followUpActions?: ReaderInputAction[]
   context: ReaderInputContext
   enabled: boolean
   ignoreRepeat?: boolean
@@ -259,7 +262,15 @@ function sameModifiers(
 }
 
 export function cloneReaderInputBindings(config: ReaderInputBindingsConfig): ReaderInputBindingsConfig {
-  return { bindings: config.bindings.map((current) => ({ ...current, input: { ...current.input } })) }
+  return { bindings: config.bindings.map((current) => ({
+    ...current,
+    ...(current.followUpActions?.length ? { followUpActions: [...current.followUpActions] } : {}),
+    input: { ...current.input },
+  })) }
+}
+
+export function readerInputBindingActions(binding: Pick<ReaderInputBinding, "action" | "followUpActions">): readonly ReaderInputAction[] {
+  return binding.followUpActions?.length ? [binding.action, ...binding.followUpActions] : [binding.action]
 }
 
 export function readerViewAreaAtPoint(x: number, y: number, width: number, height: number): ReaderViewArea {

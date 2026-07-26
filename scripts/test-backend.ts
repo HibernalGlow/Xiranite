@@ -2,6 +2,7 @@
 import { access, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { setTimeout as delay } from "node:timers/promises"
 import { parseArgs } from "node:util"
 
 import type { StartBackendOptions } from "../packages/backend/src/index"
@@ -111,9 +112,10 @@ async function removeWithWindowsRetry(path: string): Promise<void> {
       await access(path)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return
+      if ((error as NodeJS.ErrnoException).code === "EBUSY" && attempt === 7) return
       if (attempt === 7) throw error
     }
-    await Bun.sleep(50 * (attempt + 1))
+    await delay(50 * (attempt + 1))
   }
 }
 

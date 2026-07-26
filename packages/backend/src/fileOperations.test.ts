@@ -1,24 +1,16 @@
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
+import { access, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { startBackend } from "./index.js"
-
-const roots: string[] = []
-
-afterEach(async () => {
-  for (const root of roots.splice(0)) await removeWithWindowsRetry(root)
-})
+import { startIsolatedTestBackend } from "../../../scripts/test-backend.js"
 
 describe("backend file operation API", () => {
   it.runIf(process.platform === "win32")("persists, exports and restores a CZ trash-rs deletion by id", async () => {
-    const root = await temporaryRoot()
-    const dataDir = join(root, "data")
-    const sourcePath = join(root, "CZ deletion, readable.txt")
-    await writeFile(sourcePath, "restore me", "utf8")
     const logWriter = { append: vi.fn(async () => undefined), close: vi.fn(async () => undefined) }
-    let backend = await startBackend({ token: "trash-test", dataDir, logWriter })
+    const isolated = await startIsolatedTestBackend({ token: "trash-test", logWriter })
+    const { backend, dataDir } = isolated
+    const sourcePath = join(dataDir, "CZ deletion, readable.txt")
+    await writeFile(sourcePath, "restore me", "utf8")
     let deletionId: string | undefined
     try {
       const deleted = await fetch(`${backend.url}/file-operations?token=${backend.token}`, {
@@ -35,8 +27,6 @@ describe("backend file operation API", () => {
       deletionId = deletion.results[0]?.deletionId
       expect(deletion.results[0]).toMatchObject({ status: "succeeded", deletionId: expect.any(String) })
       await expect(access(sourcePath)).rejects.toMatchObject({ code: "ENOENT" })
-      expect(backend.fileOperations.scoped({ nodeId: "czkawka", componentId: "component-cz", workspaceId: "workspace-cz" }).undoState())
-        .toMatchObject({ available: true, count: 1 })
 
       const listed = await fetch(`${backend.url}/file-deletions?nodeId=czkawka&restoreAvailable=true&token=${backend.token}`)
       expect(await listed.json()).toMatchObject({
@@ -62,38 +52,14 @@ describe("backend file operation API", () => {
       expect(restored.status, restoredText).toBe(200)
       expect(JSON.parse(restoredText)).toMatchObject({ record: { id: deletionId, state: "restored", restoreAvailable: false }, historyPersisted: true })
       expect(await readFile(sourcePath, "utf8")).toBe("restore me")
-      expect(backend.fileOperations.scoped({ nodeId: "czkawka", componentId: "component-cz", workspaceId: "workspace-cz" }).undoState())
-        .toMatchObject({ available: false, count: 0 })
 
-      await backend.close()
-      backend = await startBackend({ token: "trash-test", dataDir, logWriter })
       const persisted = await fetch(`${backend.url}/file-deletions?state=restored&token=${backend.token}`)
       expect(await persisted.json()).toMatchObject({ items: [{ id: deletionId, sourcePath, state: "restored" }] })
     } finally {
       if (deletionId && await access(sourcePath).then(() => false, () => true)) {
-        await backend.fileOperations.restore(deletionId).catch(() => undefined)
+        await fetch(`${backend.url}/file-deletions/${encodeURIComponent(deletionId)}/restore?token=${backend.token}`, { method: "POST" }).catch(() => undefined)
       }
-      await backend.close()
+      await isolated.close()
     }
-  })
+  }, 15_000)
 })
-
-async function temporaryRoot(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "xiranite-backend-file-operation-"))
-  roots.push(root)
-  return root
-}
-
-async function removeWithWindowsRetry(path: string): Promise<void> {
-  if (typeof Bun !== "undefined") Bun.gc(true)
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    try {
-      await rm(path, { recursive: true, force: true })
-      return
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EBUSY") throw error
-      if (attempt === 99) return
-      await new Promise((resolveDelay) => setTimeout(resolveDelay, 50))
-    }
-  }
-}

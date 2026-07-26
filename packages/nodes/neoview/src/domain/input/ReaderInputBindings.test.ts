@@ -4,6 +4,7 @@ import {
   matchingReaderInputBinding,
   readerInputConflicts,
   readerInputDescriptorKey,
+  readerInputBindingActions,
   readerViewAreaAtPoint,
   type ReaderInputBinding,
 } from "./ReaderInputBindings.js"
@@ -57,6 +58,14 @@ describe("ReaderInputBindings", () => {
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "area")).toBe(true)
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.action === "reader.page-left")).toBe(true)
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "gamepad")).toBe(false)
+  })
+
+  it("[neoview.bindings.action-sequence] expands one primary action followed by its configured actions", () => {
+    expect(readerInputBindingActions({ action: "file.delete-current", followUpActions: ["reader.next-book"] })).toEqual([
+      "file.delete-current",
+      "reader.next-book",
+    ])
+    expect(readerInputBindingActions({ action: "reader.next-page" })).toEqual(["reader.next-page"])
   })
 
   it("[neoview.bindings.radial-context] opens the wheel only on the reader surface, not panel/modal", () => {

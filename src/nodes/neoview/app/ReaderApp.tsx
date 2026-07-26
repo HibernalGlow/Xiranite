@@ -80,7 +80,6 @@ import { ReaderViewerToggleStore } from "../features/viewer/ReaderViewerToggleSt
 import { migrateLegacyReaderPageTransition } from "../features/page-transition/LegacyReaderPageTransitionMigration"
 import { migrateLegacySidebarHeight } from "../features/panels/cards/LegacySidebarHeightMigration"
 import { applyReaderFilePresentationOverridePatch } from "../features/panels/readerFilePresentation"
-import { DEFAULT_FOLDER_TITLE_WRAP } from "../features/panels/cards/folder/FolderViewPresentation"
 import { ReaderPanelDndProvider } from "../features/panels/ReaderPanelDnd"
 import { readerShellMaterialDraft, readerShellMaterialStyle } from "../features/material/ReaderShellMaterial"
 import { createReaderSwitchToastStore } from "../features/switch-toast/ReaderSwitchToastStore"
@@ -201,7 +200,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   bannerWidthPercent: 50,
   hoverPreviewEnabled: true,
   hoverPreviewDelayMs: 500,
-  titleWrap: { ...DEFAULT_FOLDER_TITLE_WRAP },
+  titleWrap: { compact: false, "cover-list": false, "mosaic-list": false, details: false, "cover-grid": true, "mosaic-grid": false },
   typeFilter: "library",
   showHiddenFolders: false,
   hideMissingEfuEntries: false,
@@ -1499,6 +1498,7 @@ export function ReaderApp({
         ...folderViewRef.current.emptyArea,
         ...patch.emptyArea,
       },
+      titleWrap: { ...folderViewRef.current.titleWrap, ...patch.titleWrap },
       confirmations: {
         ...folderViewRef.current.confirmations,
         ...patch.confirmations,
