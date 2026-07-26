@@ -7,7 +7,7 @@ import type {
   ReaderHttpClient,
 } from "../../../../adapters/reader-http-client"
 
-interface FolderClipboardState {
+export interface FolderClipboardState {
   clipboard: ReaderDirectoryClipboardSnapshotDto
   operation?: ReaderDirectorySelectionOperationSnapshotDto
   lastCompleted?: ReaderDirectorySelectionOperationSnapshotDto

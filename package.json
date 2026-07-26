@@ -15,6 +15,7 @@
   ],
   "scripts": {
     "commit": "bash scripts/commit-scope.sh",
+    "tsx:split": "bun scripts/tsx-module-split.ts",
     "dev": "bun run generate:node-registries && bun run build:packages:incremental && bun scripts/dev-with-backend.ts",
     "dev:lean": "bun run generate:node-registries && bun run build:packages:incremental && bun scripts/dev-with-backend.ts --lean-vite",
     "dev:quick": "bun scripts/dev-with-backend.ts",
