@@ -64,7 +64,20 @@ export interface PersistedTrack {
   path?: string
   relativePath?: string
   size?: number
+  lastModified?: number
   type?: string
+  metadata?: PersistedTrackMetadata
+}
+
+export interface PersistedTrackMetadata {
+  title?: string
+  artist?: string
+  album?: string
+  duration?: number
+  replayGainTrackDb?: number
+  replayGainAlbumDb?: number
+  coverUrl?: string
+  lyricsHydrated?: boolean
 }
 
 interface RuntimeTrack extends PersistedTrack {

@@ -16,6 +16,7 @@ export interface LocalAudioTrack {
   path: string
   relativePath?: string
   size?: number
+  lastModified?: number
   type?: string
   src: string
 }
@@ -41,6 +42,7 @@ export async function resolveLocalAudioTracks(sourcePath: string): Promise<Local
         ...metadata,
         path: entry.path,
         size: entry.sizeBytes,
+        lastModified: Math.trunc(entry.lastModified),
         type: entry.type || inferMimeType(entry.path),
         src: localBackendFileUrl(entry.path),
       }

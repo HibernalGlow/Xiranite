@@ -7,9 +7,19 @@ const localFiles = vi.hoisted(() => ({
 }))
 const wailsRuntime = vi.hoisted(() => ({ openFile: vi.fn() }))
 const metadata = vi.hoisted(() => ({ parseRemoteEmbeddedMetadataAsync: vi.fn() }))
+const database = vi.hoisted(() => ({
+  records: new Map<string, Record<string, unknown>>(),
+  load: vi.fn(),
+  save: vi.fn(),
+}))
 
 vi.mock("@/backend/localFilesClient", () => localFiles)
 vi.mock("@/backend/localBackendConfig", () => ({ localBackendFileUrl: (path: string) => `local://${path}` }))
+vi.mock("@/backend/melodeckLibraryClient", () => ({
+  loadMelodeckDatabaseMetadata: database.load,
+  saveMelodeckDatabaseMetadata: database.save,
+  melodeckDatabaseCoverUrl: (path: string) => `database-cover://${path}`,
+}))
 vi.mock("@wailsio/runtime", () => ({ Dialogs: { OpenFile: wailsRuntime.openFile } }))
 vi.mock("@hibernalglow/folia-player", () => ({
   parseRemoteEmbeddedMetadataAsync: metadata.parseRemoteEmbeddedMetadataAsync,
@@ -20,6 +30,19 @@ import { foliaMelodeckHost } from "./foliaHost"
 describe("Folia Melodeck host adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    database.records.clear()
+    database.load.mockImplementation(async (path: string) => database.records.get(path) ?? null)
+    database.save.mockImplementation(async (input: Record<string, unknown>) => {
+      const record = {
+        ...input,
+        fileSize: 42,
+        lastModified: 100,
+        hasCover: input.cover instanceof Blob,
+        updatedAt: 200,
+      }
+      database.records.set(String(input.path), record)
+      return record
+    })
     delete window._wails
     metadata.parseRemoteEmbeddedMetadataAsync.mockResolvedValue({})
   })
