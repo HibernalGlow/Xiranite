@@ -392,6 +392,12 @@ Completed shared-input evidence:
 - The GUI exposes a native file-picker action only for included paths and writes selected files through the existing reference-aware list model. The rules editor provides an accessible `$TRASH` preset action without adding a terminal-only option surface.
 - Browser Mode verifies both persisted GUI interactions. The release-binding smoke scans a single included empty file, proving that the upstream path adapter handles files as well as directories.
 
+Completed cache-control evidence:
+
+- Node settings expose cleanup for the current scanner, defaulted to enabled and persisted in `deleteOutdatedCacheByTool` without changing another scanner's preference.
+- The framework-neutral scan-input model selects that per-tool value, and every native adapter delegates it to the upstream cache cleanup setting.
+- Browser Mode covers the setting boundary and per-tool preservation; existing unit and platform tests cover the scan-input and native DTO mappings.
+
 ### Phase 4: Add missing tools behind safe operation contracts
 
 Add the current missing tools:
