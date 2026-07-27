@@ -101,7 +101,7 @@ func main() {
 	})
 
 	wireFileDrop(win)
-	service.trayManager = newDesktopTrayManager(App, win)
+	service.trayManager = newDesktopTrayManager(App, win, service.mainTrayEnabled())
 	primeWindowFrame(win)
 
 	if err := App.Run(); err != nil {

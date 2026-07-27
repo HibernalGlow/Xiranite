@@ -42,6 +42,20 @@ describe("Wails window runtime", () => {
     expect(runtime.ToggleMaximise).not.toHaveBeenCalled()
   })
 
+  it("delegates minimize and close to the desktop host tray policy", async () => {
+    runtime.callByName
+      .mockResolvedValueOnce({ success: true, supported: true, state: "minimized" })
+      .mockResolvedValueOnce({ success: true, supported: true, state: "closed" })
+
+    const windows = createWailsRuntime().windows
+
+    await expect(windows.controlMain("minimize")).resolves.toMatchObject({ state: "minimized" })
+    await expect(windows.controlMain("close")).resolves.toMatchObject({ state: "closed" })
+
+    expect(runtime.callByName).toHaveBeenNthCalledWith(1, "main.XiraniteService.WindowControlMain", "minimize")
+    expect(runtime.callByName).toHaveBeenNthCalledWith(2, "main.XiraniteService.WindowControlMain", "close")
+  })
+
   it("opens developer tools through the compiled host service", async () => {
     runtime.callByName.mockResolvedValueOnce({ success: true, supported: true, message: "Developer tools opened." })
 

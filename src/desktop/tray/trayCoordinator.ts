@@ -17,10 +17,10 @@ const listeners = new Set<Listener>()
 
 let runtime: RuntimeInterface | null = null
 let supported = false
-let mainEnabled = true
+let mainEnabled = false
 let initPromise: Promise<void> | null = null
 let syncRevision = 0
-let stateSnapshot: MainTrayState = { enabled: true, supported: false }
+let stateSnapshot: MainTrayState = { enabled: false, supported: false }
 
 export interface MainTrayState {
   enabled: boolean
@@ -48,7 +48,7 @@ export function initializeDesktopTrays(): Promise<void> {
     }
 
     const saved = await runtime.storage.get(MAIN_TRAY_STORAGE_KEY)
-    mainEnabled = saved === null ? true : saved === "1"
+    mainEnabled = saved === "1"
     await runtime.trays.subscribe(handleTrayAction)
     await runtime.trays.setMainEnabled(mainEnabled)
     emitState()

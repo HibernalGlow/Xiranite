@@ -315,6 +315,17 @@ func (s *XiraniteService) StorageKeys(prefix string) ([]string, error) {
 	return keys, nil
 }
 
+func (s *XiraniteService) mainTrayEnabled() bool {
+	s.storageMu.Lock()
+	defer s.storageMu.Unlock()
+
+	storage, err := s.loadStorage()
+	if err != nil {
+		return false
+	}
+	return storage[mainTrayStorageKey] == "1"
+}
+
 func (s *XiraniteService) FsExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
