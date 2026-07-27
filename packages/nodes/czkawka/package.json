@@ -21,6 +21,7 @@
     "./operations": { "types": "./dist/operations.d.ts", "default": "./dist/operations.js" },
     "./scan-presets": { "types": "./dist/scan-presets.d.ts", "default": "./dist/scan-presets.js" },
     "./similar-video-crop": { "types": "./dist/similar-video-crop.d.ts", "default": "./dist/similar-video-crop.js" },
+    "./simiu-sets": { "types": "./dist/simiu-sets.d.ts", "default": "./dist/simiu-sets.js" },
     "./image-comparison": { "types": "./dist/image-comparison.d.ts", "default": "./dist/image-comparison.js" },
     "./source-inputs": { "types": "./dist/source-inputs.d.ts", "default": "./dist/source-inputs.js" },
     "./similar-folders": { "types": "./dist/similar-folders.d.ts", "default": "./dist/similar-folders.js" },

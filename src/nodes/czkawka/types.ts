@@ -1,4 +1,5 @@
 import type { CzkawkaCheckMethod, CzkawkaConflictPolicy, CzkawkaData, CzkawkaDeleteMode, CzkawkaExportScope, CzkawkaHashType, CzkawkaImageGeometricInvariance, CzkawkaImageHashAlgorithm, CzkawkaImageResizeAlgorithm, CzkawkaMusicCheckType, CzkawkaSort, CzkawkaTool, CzkawkaVideoCropDetect, CzkawkaVideoOptimizerCodec, CzkawkaVideoOptimizerMode, CzkawkaVideoOptimizerNoiseReduction } from "@xiranite/node-czkawka/core"
+import type { SimiuSetApplyMode, SimiuSetScanOrder } from "@xiranite/node-czkawka/simiu-sets"
 import type { CzkawkaImageComparisonMode } from "@xiranite/node-czkawka/image-comparison"
 import type { CzkawkaFilterState, CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
 import type { CzkawkaSelectionAssistantConfig } from "@xiranite/node-czkawka/selection-assistant"
@@ -11,6 +12,7 @@ import type { CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-la
 export type CzkawkaPhase = "idle" | "running" | "completed" | "stopped" | "error"
 export type CzkawkaPanel = "source" | "results" | "analysis"
 export type CzkawkaSimilarImagesViewMode = "images" | "folders"
+export type CzkawkaSimilarImagesMode = "scanner" | "simiu-sets"
 
 export interface CzkawkaCardState {
   schemaVersion?: 1 | 2
@@ -48,6 +50,13 @@ export interface CzkawkaCardState {
   similarImagesIgnoreSameResolution?: boolean
   similarImagesGeometricInvariance?: CzkawkaImageGeometricInvariance
   similarImagesFolderThreshold?: string
+  similarImagesMode?: CzkawkaSimilarImagesMode
+  simiuSetsScanOrder?: SimiuSetScanOrder
+  simiuSetsNamePrefix?: string
+  simiuSetsMinimumGroupSize?: string
+  simiuSetsThreshold?: string
+  simiuSetsOperationMode?: SimiuSetApplyMode
+  simiuSetsCleanEmptyDirectories?: boolean
   similarImagesViewMode?: CzkawkaSimilarImagesViewMode
   imageComparisonMode?: CzkawkaImageComparisonMode
   imageComparisonColorCoding?: boolean

@@ -1,6 +1,8 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { buildCzkawkaSimilarFolders, type CzkawkaSimilarFolderStat } from "./similar-folders.js"
 import { resolveCzkawkaSimilarVideoCrop } from "./similar-video-crop.js"
+import { runCzkawkaSimiuSetApply, runCzkawkaSimiuSetScan, runCzkawkaSimiuSetUndo } from "./simiu-sets-runner.js"
+import type { SimiuSetApplyMode, SimiuSetOperation, SimiuSetScanOrder, SimiuSetGroup } from "./simiu-sets.js"
 import { isDefaultTemporaryFileExtensions, normalizeTemporaryFileExtensions } from "./temporary-file-extensions.js"
 export type { CzkawkaVideoCropDetect } from "./similar-video-crop.js"
 import type { CzkawkaVideoCropDetect } from "./similar-video-crop.js"
@@ -39,7 +41,7 @@ export const CZKAWKA_TERMINAL_TOOLS = [
   "bad-extensions",
 ] as const satisfies readonly CzkawkaTool[]
 export type CzkawkaTerminalTool = typeof CZKAWKA_TERMINAL_TOOLS[number]
-export type CzkawkaAction = "scan" | "delete" | "move" | "rename" | "clean-exif" | "optimize-video" | "save"
+export type CzkawkaAction = "scan" | "delete" | "move" | "rename" | "clean-exif" | "optimize-video" | "save" | "simiu-apply" | "simiu-undo"
 export type CzkawkaCheckMethod = "name" | "size" | "size-and-name" | "hash"
 export type CzkawkaHashType = "crc32" | "xxh3" | "blake3"
 export type CzkawkaImageHashAlgorithm = "mean" | "gradient" | "blockhash" | "vert-gradient" | "double-gradient" | "median"
@@ -50,7 +52,7 @@ export type CzkawkaSort = "path" | "size" | "modified"
 export type CzkawkaSelectionStrategy = "all-except-first" | "all-except-newest" | "all-except-oldest" | "all-except-biggest" | "all-except-smallest"
 export type CzkawkaDeleteMode = "trash" | "permanent"
 export type CzkawkaConflictPolicy = "skip" | "overwrite" | "rename" | "error"
-export type CzkawkaOperationStatus = "planned" | "deleted" | "trashed" | "moved" | "copied" | "renamed" | "cleaned" | "optimized" | "saved" | "skipped" | "error"
+export type CzkawkaOperationStatus = "planned" | "deleted" | "trashed" | "moved" | "copied" | "linked" | "renamed" | "cleaned" | "optimized" | "saved" | "skipped" | "error"
 export interface CzkawkaDestinationItem { path: string; destination: string }
 export interface CzkawkaRenameItem { path: string; properExtension?: string; targetName?: string }
 export interface CzkawkaExifTag { name: string; code: number; group: string }
@@ -98,6 +100,15 @@ export interface CzkawkaInput {
   similarImagesIgnoreSameResolution?: boolean
   similarImagesGeometricInvariance?: CzkawkaImageGeometricInvariance
   similarImagesFolderThreshold?: number
+  simiuSetsEnabled?: boolean
+  simiuSetsScanOrder?: SimiuSetScanOrder
+  simiuSetsNamePrefix?: string
+  simiuSetsMinimumGroupSize?: number
+  simiuSetsThreshold?: number
+  simiuSetsOperationMode?: SimiuSetApplyMode
+  simiuSetsOperations?: SimiuSetOperation[]
+  simiuSetsUndoLogPath?: string
+  simiuSetsCleanEmptyDirectories?: boolean
   similarVideosIgnoreSameSize?: boolean
   similarVideosIgnoreSameResolution?: boolean
   similarVideosSkipForward?: number
@@ -208,9 +219,12 @@ export interface CzkawkaRuntime {
   createVideoOptimizerCandidate: (item: CzkawkaVideoOptimizerItem, input: CzkawkaNormalizedInput) => Promise<NativeVideoOptimizerCandidate>
   replaceWithCandidate: (candidatePath: string, sourcePath: string) => Promise<void>
   pathExists: (path: string) => Promise<boolean>
+  listDirectory: (path: string) => Promise<Array<{ path: string; isDirectory: boolean; isFile: boolean }>>
   removePath: (path: string, options?: { trash?: boolean; emptyFoldersOnly?: boolean }) => Promise<void>
   copyPath: (source: string, target: string) => Promise<void>
   movePath: (source: string, target: string) => Promise<void>
+  linkPath: (source: string, target: string) => Promise<void>
+  readText: (path: string) => Promise<string>
   writeText: (path: string, content: string) => Promise<void>
   ensureDirectory: (path: string) => Promise<void>
   join: (...parts: string[]) => string
@@ -255,7 +269,7 @@ export interface CzkawkaEntry {
   bitrate?: number
   isReference?: boolean
   status?: CzkawkaOperationStatus
-  operation?: "delete" | "trash" | "move" | "copy" | "rename" | "clean-exif" | "optimize-video" | "save"
+  operation?: "delete" | "trash" | "move" | "copy" | "link" | "rename" | "clean-exif" | "optimize-video" | "save"
   conflictPolicy?: CzkawkaConflictPolicy
   error?: string
 }
@@ -281,6 +295,13 @@ export interface CzkawkaData {
   affectedCount: number
   errorCount: number
   similarFolders?: CzkawkaSimilarFolderStat[]
+  simiuSets?: {
+    groups: SimiuSetGroup[]
+    operations: SimiuSetOperation[]
+    directoryCount: number
+    imageCount: number
+    undoLogPaths?: string[]
+  }
 }
 
 export type CzkawkaResult = NodeRunResult<CzkawkaData>
@@ -331,6 +352,15 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInp
     similarImagesIgnoreSameResolution: input.similarImagesIgnoreSameResolution ?? false,
     similarImagesGeometricInvariance: oneOf(input.similarImagesGeometricInvariance, ["off", "mirror-flip", "mirror-flip-rotate-90"] as const, "off"),
     similarImagesFolderThreshold: clamp(input.similarImagesFolderThreshold, 1, 10_000, 2),
+    simiuSetsEnabled: input.simiuSetsEnabled ?? false,
+    simiuSetsScanOrder: oneOf(input.simiuSetsScanOrder, ["path", "smallest-first", "deepest-first"] as const, "path"),
+    simiuSetsNamePrefix: clean(input.simiuSetsNamePrefix) || "simiu_set",
+    simiuSetsMinimumGroupSize: clamp(input.simiuSetsMinimumGroupSize, 2, 10_000, 2),
+    simiuSetsThreshold: clampDecimal(input.simiuSetsThreshold, 0, 1, 0.17),
+    simiuSetsOperationMode: oneOf(input.simiuSetsOperationMode, ["move", "copy", "link"] as const, "move"),
+    simiuSetsOperations: normalizeSimiuSetOperations(input.simiuSetsOperations),
+    simiuSetsUndoLogPath: clean(input.simiuSetsUndoLogPath),
+    simiuSetsCleanEmptyDirectories: input.simiuSetsCleanEmptyDirectories ?? true,
     similarVideosIgnoreSameSize: input.similarVideosIgnoreSameSize ?? false,
     similarVideosIgnoreSameResolution: input.similarVideosIgnoreSameResolution ?? false,
     similarVideosSkipForward: clamp(input.similarVideosSkipForward, 0, 300, 15),
@@ -403,6 +433,8 @@ export async function runCzkawka(input: CzkawkaInput, runtime: CzkawkaRuntime, o
   const value = normalizeCzkawkaInput(input)
   try {
     if (value.action === "scan") return await scan(value, runtime, onEvent)
+    if (value.action === "simiu-apply") return await runCzkawkaSimiuSetApply(value, runtime, onEvent, simiuSetRunnerHelpers())
+    if (value.action === "simiu-undo") return await runCzkawkaSimiuSetUndo(value, runtime, onEvent, simiuSetRunnerHelpers())
     if (!value.selectedPaths.length) return fail(value, "Select at least one result path.")
     if (value.action === "delete") return await mutate(value, runtime, "delete", onEvent)
     if (value.action === "move") {
@@ -437,6 +469,7 @@ async function scan(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEv
   if (missingCapabilities.length) return fail(value, `Czkawka binding is missing: ${missingCapabilities.join(", ")}.`)
   await runtime.waitWhilePaused?.()
   if (runtime.isCancelled?.()) return cancelled(value)
+  if (value.tool === "similar-images" && value.simiuSetsEnabled) return await runCzkawkaSimiuSetScan(value, runtime, onEvent, simiuSetRunnerHelpers())
   onEvent({ type: "progress", progress: 2, message: `Starting ${value.tool}.` })
   const onProgress = (progress: CzkawkaNativeProgress) => onEvent({ type: "progress", progress: nativeProgressPercent(progress), message: nativeProgressMessage(progress) })
   let groups: CzkawkaGroup[]
@@ -537,6 +570,10 @@ function makeGroup(index: number, raw: Array<Partial<CzkawkaEntry> & { path: str
       : totalBytes - Math.max(...entries.map((entry) => entry.size))
     : 0
   return { id: index, entries, totalBytes, reclaimableBytes }
+}
+
+function simiuSetRunnerHelpers() {
+  return { makeGroup, filterAndSort: filterAndSortGroups, summarize, fail }
 }
 
 export function filterAndSortGroups(groups: CzkawkaGroup[], input: Pick<Required<CzkawkaInput>, "filterText" | "sortBy" | "descending">): CzkawkaGroup[] {
@@ -719,7 +756,7 @@ async function save(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEv
 
 function summarize(value: CzkawkaNormalizedInput, groups: CzkawkaGroup[], messages: string, stopped: boolean): CzkawkaData {
   const entries = groups.flatMap((group) => group.entries)
-  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "renamed", "cleaned", "optimized", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length, similarFolders: value.action === "scan" && value.tool === "similar-images" ? buildCzkawkaSimilarFolders(groups, value.similarImagesFolderThreshold) : undefined }
+  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "linked", "renamed", "cleaned", "optimized", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length, similarFolders: value.action === "scan" && value.tool === "similar-images" ? buildCzkawkaSimilarFolders(groups, value.similarImagesFolderThreshold) : undefined }
 }
 
 function isGroupedTool(tool: CzkawkaTool): boolean { return ["duplicate-files", "similar-images", "similar-videos", "duplicate-music"].includes(tool) }
@@ -729,6 +766,7 @@ function normalizeDestinationItems(items: CzkawkaDestinationItem[] | undefined):
 function normalizeRenameItems(items: CzkawkaRenameItem[] | undefined): CzkawkaRenameItem[] { const result = new Map<string, CzkawkaRenameItem>(); for (const item of items ?? []) { const path = clean(item.path), properExtension = clean(item.properExtension).replace(/^\.+/, ""), targetName = clean(item.targetName); if (!path || (!properExtension && !targetName)) continue; result.set(path, { path, ...(targetName ? { targetName } : { properExtension }) }) } return [...result.values()] }
 function normalizeExifItems(items: CzkawkaExifItem[] | undefined): CzkawkaExifItem[] { const result = new Map<string, CzkawkaExifItem>(); for (const item of items ?? []) { const path = clean(item.path); const tags = (item.tags ?? []).map((tag) => ({ name: clean(tag.name), code: Math.trunc(Number(tag.code)), group: clean(tag.group) })).filter((tag) => tag.name && tag.group && Number.isInteger(tag.code) && tag.code >= 0 && tag.code <= 0xffff); if (path && tags.length) result.set(path, { path, tags }) } return [...result.values()] }
 function normalizeVideoOptimizerItems(items: CzkawkaVideoOptimizerItem[] | undefined): CzkawkaVideoOptimizerItem[] { const result = new Map<string, CzkawkaVideoOptimizerItem>(); for (const item of items ?? []) { const path = clean(item.path), codec = clean(item.codec); const cropRect = normalizeCropRect(item.cropRect); if (path && codec) result.set(path, { path, codec, ...(cropRect ? { cropRect } : {}) }) } return [...result.values()] }
+function normalizeSimiuSetOperations(items: SimiuSetOperation[] | undefined): SimiuSetOperation[] { const result = new Map<string, SimiuSetOperation>(); for (const item of items ?? []) { const root = clean(item.root), sourcePath = clean(item.sourcePath), targetPath = clean(item.targetPath), mode = oneOf(item.mode, ["move", "copy", "link"] as const, "move"); if (root && sourcePath && targetPath) result.set(sourcePath, { root, sourcePath, targetPath, mode }) } return [...result.values()] }
 function normalizeVideoOptimizerCodecs(value: unknown): string { const accepted = new Set(["h264", "h265", "av1", "vp9"]); const aliases: Record<string, string> = { hevc: "h265", "libx264": "h264", "libx265": "h265", "libsvtav1": "av1", "libvpx-vp9": "vp9" }; const values = clean(value).split(",").map((item) => aliases[item.trim().toLowerCase()] ?? item.trim().toLowerCase()).filter((item) => accepted.has(item)); return [...new Set(values)].join(",") || "h265,av1,vp9" }
 function normalizeCropRect(value: Partial<CzkawkaVideoCropRect> | undefined): CzkawkaVideoCropRect | undefined { const left = Math.trunc(Number(value?.left)), top = Math.trunc(Number(value?.top)), right = Math.trunc(Number(value?.right)), bottom = Math.trunc(Number(value?.bottom)); return Number.isSafeInteger(left) && Number.isSafeInteger(top) && Number.isSafeInteger(right) && Number.isSafeInteger(bottom) && left >= 0 && top >= 0 && left < right && top < bottom ? { left, top, right, bottom } : undefined }
 function cropRectFromNative(entry: NativeVideoOptimizerResult["entries"][number]): CzkawkaVideoCropRect | undefined { return normalizeCropRect({ left: entry.cropLeft, top: entry.cropTop, right: entry.cropRight, bottom: entry.cropBottom }) }

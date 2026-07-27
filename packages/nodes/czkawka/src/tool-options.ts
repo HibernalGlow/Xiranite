@@ -171,6 +171,12 @@ export function createCzkawkaScanInput(tool: CzkawkaTool, values: Record<string,
     threadCount: optionalNumber(values.threadCount),
     filterText: text(values.filterText),
     ...valuesToCzkawkaOptions(values),
+    simiuSetsEnabled: values.simiuSetsEnabled === true,
+    simiuSetsScanOrder: values.simiuSetsScanOrder as CzkawkaInput["simiuSetsScanOrder"],
+    simiuSetsNamePrefix: text(values.simiuSetsNamePrefix),
+    simiuSetsMinimumGroupSize: optionalNumber(values.simiuSetsMinimumGroupSize),
+    simiuSetsThreshold: optionalNumber(values.simiuSetsThreshold),
+    simiuSetsOperationMode: values.simiuSetsOperationMode as CzkawkaInput["simiuSetsOperationMode"],
     similarVideosLetterboxCrop: resolveCzkawkaSimilarVideoCrop(values).letterboxCrop,
   }
 }
@@ -192,6 +198,10 @@ export function createCzkawkaOperationInput(action: Exclude<CzkawkaAction, "scan
     outputFormat: outputPath?.toLowerCase().endsWith(".csv") || values.outputFormat === "csv" ? "csv" : "json",
     exportScope: ["selected", "visible", "all"].includes(String(values.exportScope)) ? values.exportScope as NonNullable<CzkawkaInput["exportScope"]> : "selected",
     exportEntries: Array.isArray(values.exportEntries) ? values.exportEntries as NonNullable<CzkawkaInput["exportEntries"]> : [],
+    simiuSetsOperationMode: values.simiuSetsOperationMode as CzkawkaInput["simiuSetsOperationMode"],
+    simiuSetsOperations: Array.isArray(values.simiuSetsOperations) ? values.simiuSetsOperations as NonNullable<CzkawkaInput["simiuSetsOperations"]> : [],
+    simiuSetsUndoLogPath: text(values.simiuSetsUndoLogPath),
+    simiuSetsCleanEmptyDirectories: values.simiuSetsCleanEmptyDirectories !== false,
     dryRun: action === "save" ? false : values.dryRun !== false,
   }
 }
