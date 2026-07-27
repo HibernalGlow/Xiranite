@@ -9,10 +9,11 @@ import {
 describe("ReaderInputActions", () => {
   it("[neoview.bindings.action-catalog] freezes every legacy core and provider action", () => {
     expect(Object.keys(LEGACY_READER_INPUT_ACTION_MAP)).toHaveLength(61)
-    expect(READER_INPUT_ACTION_DEFINITIONS).toHaveLength(69)
+    expect(READER_INPUT_ACTION_DEFINITIONS).toHaveLength(70)
     expect(new Set(READER_INPUT_ACTIONS).size).toBe(READER_INPUT_ACTIONS.length)
     expect(readerInputActionFromLegacyId("nextPage")).toBe("reader.next-page")
     expect(readerInputActionFromLegacyId("viewer.toggleAutoRotate")).toBe("viewer.cycle-auto-rotate")
     expect(readerInputActionFromLegacyId("upscale.toggleTile")).toBe("upscale.toggle-tile")
+    expect(READER_INPUT_ACTIONS).toContain("folder.toggle-inline-branch-expansion")
   })
 })

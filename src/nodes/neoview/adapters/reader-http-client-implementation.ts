@@ -125,13 +125,8 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         body: JSON.stringify(patch),
         signal,
       }).then((value) => value.inputBindings),
-    updateRadialMenu: (patch, signal) =>
-      request<Contract.ReaderRuntimeConfigDto>("/reader/config", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(patch),
-        signal,
-      }).then((value) => value.radialMenu),
+    updateRadialMenu: (patch, signal) => request<Contract.ReaderRuntimeConfigDto>("/reader/config", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(patch), signal }).then((value) => value.radialMenu),
+    updateInputBindingsAndRadialMenu: (patch, signal) => request<Contract.ReaderRuntimeConfigDto>("/reader/config", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(patch), signal }),
     folderRatingCache: (signal) => request<Contract.ReaderFolderRatingCacheDto>("/reader/folder-ratings", { signal }),
     rebuildFolderRatingCache: (signal) => request<Contract.ReaderFolderRatingCacheDto>("/reader/folder-ratings/rebuild", { method: "POST", signal }),
     supplementFolderRatingCache: (path, signal) => request<Contract.ReaderFolderRatingCacheDto>("/reader/folder-ratings/supplement", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }), signal }),

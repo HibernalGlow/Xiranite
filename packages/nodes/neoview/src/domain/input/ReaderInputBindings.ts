@@ -44,6 +44,7 @@ export type ReaderInputDescriptor =
   | { device: "touch"; gesture: "swipe-left" | "swipe-right" | "swipe-up" | "swipe-down" | "tap" | "long-press"; fingers: 1 | 2 | 3; durationMs?: number; moveTolerancePx?: number }
   | { device: "gamepad"; button: number }
   | { device: "area"; area: ReaderViewArea; button: 0 | 1 | 2; action: "click" | "double-click" | "press" }
+  | { device: "radial"; menuId: string; itemId: string }
 
 export interface ReaderInputBinding {
   id: string
@@ -141,6 +142,15 @@ export const DEFAULT_READER_INPUT_BINDINGS: ReaderInputBindingsConfig = {
     binding("legacy-radial-open-default-reader-0", "radial.open-default", "reader", { device: "mouse", button: 2, action: "press" }),
     binding("legacy-radial-open-default-reader-1", "radial.open-default", "reader", { device: "keyboard", code: "Enter" }),
     binding("legacy-radial-confirm-reader-0", "radial.confirm", "reader", { device: "keyboard", code: "Space" }),
+    binding("radial-default-temp-fit", "reader.toggle-temporary-fit", "reader", { device: "radial", menuId: "default", itemId: "radial-temp-fit" }),
+    binding("radial-default-auto-upscale", "upscale.toggle-auto", "reader", { device: "radial", menuId: "default", itemId: "radial-auto-upscale" }),
+    binding("radial-default-temp-fit-alt", "reader.toggle-temporary-fit", "reader", { device: "radial", menuId: "default", itemId: "radial-temp-fit-alt" }),
+    binding("radial-default-rotate-180", "reader.rotate-180", "reader", { device: "radial", menuId: "default", itemId: "radial-rotate-180" }),
+    binding("radial-default-fullscreen", "reader.fullscreen", "reader", { device: "radial", menuId: "default", itemId: "radial-fullscreen" }),
+    binding("radial-default-page-toast", "viewer.toggle-page-switch-toast", "reader", { device: "radial", menuId: "default", itemId: "radial-page-toast" }),
+    binding("radial-default-next-page", "reader.next-page", "reader", { device: "radial", menuId: "default", itemId: "radial-next-page" }),
+    binding("radial-default-last-page", "reader.last-page", "reader", { device: "radial", menuId: "default", itemId: "radial-last-page" }),
+    binding("radial-default-bottom-thumb-pin", "shell.toggle-bottom-thumbnail-pin", "reader", { device: "radial", menuId: "default", itemId: "radial-bottom-thumb-pin" }),
 
     // video (legacy videoPlayer context → video)
     binding("legacy-video-play-pause-video-0", "video.play-pause", "video", { device: "area", area: "middle-center", button: 0, action: "click" }),
@@ -176,6 +186,8 @@ export function readerInputDescriptorKey(input: ReaderInputDescriptor): string {
       return `gamepad:${input.button}`
     case "area":
       return `area:${input.area}:${input.button}:${input.action}`
+    case "radial":
+      return `radial:${input.menuId}:${input.itemId}`
   }
 }
 
@@ -247,6 +259,10 @@ function readerInputDescriptorsEqual(left: ReaderInputDescriptor, right: ReaderI
     case "area": {
       const candidate = right as Extract<ReaderInputDescriptor, { device: "area" }>
       return left.area === candidate.area && left.button === candidate.button && left.action === candidate.action
+    }
+    case "radial": {
+      const candidate = right as Extract<ReaderInputDescriptor, { device: "radial" }>
+      return left.menuId === candidate.menuId && left.itemId === candidate.itemId
     }
   }
 }

@@ -89,6 +89,15 @@ describe("ReaderInputActionExecutor", () => {
     await expect(executeReaderInputAction("file.delete-current", controls)).resolves.toEqual({ status: "unavailable" })
   })
 
+  it("[neoview.bindings.folder-inline-branch] routes the persisted branch-expansion toggle through its action port", async () => {
+    const controls = fixture()
+    controls.toggleInlineBranchExpansion = vi.fn(async () => undefined)
+    await expect(executeReaderInputAction("folder.toggle-inline-branch-expansion", controls)).resolves.toEqual({ status: "succeeded" })
+    expect(controls.toggleInlineBranchExpansion).toHaveBeenCalledOnce()
+    controls.toggleInlineBranchExpansion = undefined
+    await expect(executeReaderInputAction("folder.toggle-inline-branch-expansion", controls)).resolves.toEqual({ status: "unavailable" })
+  })
+
   it("[neoview.bindings.file-delete-next] consumes a prepared adjacent-book action exactly once", async () => {
     const controls = fixture()
     controls.deleteCurrentFile = vi.fn(async () => ({ status: "succeeded" as const, consumedAction: "reader.next-book" as const }))

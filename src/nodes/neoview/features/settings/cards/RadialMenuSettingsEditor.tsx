@@ -5,11 +5,14 @@
  */
 import {
   cloneReaderRadialMenuConfig,
+  cloneReaderInputBindings,
   READER_INPUT_ACTION_CATEGORIES,
   READER_INPUT_ACTION_CATEGORY_LABELS,
   READER_INPUT_ACTION_LABELS,
   READER_INPUT_ACTION_METADATA,
   type ReaderInputAction,
+  type ReaderInputBinding,
+  type ReaderInputBindingsConfig,
   type ReaderRadialMenuConfig,
   type ReaderRadialMenuItem,
 } from "@xiranite/node-neoview/ui-core"
@@ -28,7 +31,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
-import type { ReaderRadialMenuPatch } from "../../../adapters/reader-http-client"
+import type { ReaderInputBindingsPatch, ReaderRadialMenuPatch } from "../../../adapters/reader-http-client"
 import { GUI_READER_INPUT_ACTIONS } from "../../input/ReaderInputActionCapabilities"
 import { ReaderRadialMenuOverlay } from "../../input/ReaderRadialMenuOverlay"
 
@@ -53,12 +56,15 @@ interface EditorSlot {
 
 export function RadialMenuSettingsEditor({
   value,
+  inputBindings,
   onSave,
 }: {
   value: ReaderRadialMenuConfig
-  onSave(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRadialMenuConfig>
+  inputBindings: ReaderInputBindingsConfig
+  onSave(patch: ReaderRadialMenuPatch["radialMenu"], inputBindings: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRadialMenuConfig>
 }) {
   const [draft, setDraft] = useState(() => cloneReaderRadialMenuConfig(value))
+  const [bindingsDraft, setBindingsDraft] = useState(() => cloneReaderInputBindings(inputBindings))
   const [selected, setSelected] = useState<{ level: 1 | 2 | 3; itemId: string }>()
   const [preview, setPreview] = useState(0)
   const [geometryOpen, setGeometryOpen] = useState(false)
@@ -67,8 +73,9 @@ export function RadialMenuSettingsEditor({
 
   useEffect(() => {
     setDraft(cloneReaderRadialMenuConfig(value))
+    setBindingsDraft(cloneReaderInputBindings(inputBindings))
     setSelected(undefined)
-  }, [value])
+  }, [inputBindings, value])
 
   const activeMenu = draft.menus.find((menu) => menu.id === draft.activeMenuId) ?? draft.menus[0]!
   const layerCount = draft.layerCount
@@ -81,6 +88,9 @@ export function RadialMenuSettingsEditor({
     if (!selected) return undefined
     return findItemById(activeMenu.layers[selected.level - 1] ?? [], selected.itemId)
   }, [activeMenu, selected])
+  const selectedBinding = useMemo(() => selectedItem
+    ? bindingsDraft.bindings.find((binding) => isRadialBinding(binding, activeMenu.id, selectedItem.id))
+    : undefined, [activeMenu.id, bindingsDraft.bindings, selectedItem])
 
   useEffect(() => {
     if (selected && !selectedItem) setSelected(undefined)
@@ -126,9 +136,13 @@ export function RadialMenuSettingsEditor({
     })
   }
 
-  function updateSelected(patch: Partial<ReaderRadialMenuItem>) {
+  function updateSelected(patch: Omit<Partial<ReaderRadialMenuItem>, "action">) {
     if (!selected) return
-    mutateLayer(selected.level, (items) => items.map((item) => (item.id === selected.itemId ? { ...item, ...patch } : item)))
+    mutateLayer(selected.level, (items) => items.map((item) => {
+      if (item.id !== selected.itemId) return item
+      const { action: _legacyAction, ...withoutLegacyAction } = item
+      return { ...withoutLegacyAction, ...patch }
+    }))
   }
 
   async function commit(patch: ReaderRadialMenuPatch["radialMenu"]) {
@@ -136,8 +150,10 @@ export function RadialMenuSettingsEditor({
     setSaving(true)
     setFeedback(undefined)
     try {
-      const updated = await onSave(patch)
+      const linkedBindings: ReaderInputBindingsPatch["inputBindings"] = patch.reset ? { reset: "defaults" } : { bindings: materializeLegacyBindings(bindingsDraft.bindings, draft) }
+      const updated = await onSave(patch.reset ? patch : { config: stripLegacyActions(draft) }, linkedBindings)
       setDraft(cloneReaderRadialMenuConfig(updated))
+      if (!patch.reset) setBindingsDraft({ bindings: linkedBindings.bindings ?? [] })
       setFeedback(patch.reset ? "已恢复默认轮盘。" : "轮盘设置已保存并立即生效。")
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : String(error))
@@ -164,15 +180,16 @@ export function RadialMenuSettingsEditor({
   }
 
   function deleteMenu() {
+    if (draft.menus.length <= 1) return
+    const removed = draft.activeMenuId
     updateDraft((current) => {
-      if (current.menus.length <= 1) return
-      const removed = current.activeMenuId
       current.menus = current.menus.filter((menu) => menu.id !== removed)
       current.activeMenuId = current.menus[0]!.id
       for (const menu of current.menus) {
         for (const layer of menu.layers) clearMenuReferences(layer, removed)
       }
     })
+    setBindingsDraft((current) => ({ bindings: current.bindings.filter((binding) => binding.input.device !== "radial" || binding.input.menuId !== removed) }))
     setSelected(undefined)
   }
 
@@ -184,6 +201,7 @@ export function RadialMenuSettingsEditor({
     }
     const item = newItem(activeMenu.layers[slot.level - 1] ?? [], slot.index)
     mutateLayer(slot.level, (items) => [...items, item])
+    setRadialBinding(activeMenu.id, item.id, DEFAULT_NEW_ITEM_ACTION)
     updateDraft((current) => {
       current.layerCount = Math.max(current.layerCount, slot.level) as 1 | 2 | 3
     })
@@ -192,6 +210,7 @@ export function RadialMenuSettingsEditor({
 
   function removeSelected() {
     if (!selected) return
+    setRadialBinding(activeMenu.id, selected.itemId, undefined)
     mutateLayer(selected.level, (items) => items.filter((item) => item.id !== selected.itemId))
     setSelected(undefined)
   }
@@ -211,8 +230,30 @@ export function RadialMenuSettingsEditor({
     })
   }
 
-  const selectedActionLabel = selectedItem?.action
-    ? READER_INPUT_ACTION_LABELS[selectedItem.action] ?? selectedItem.action
+  function setRadialBinding(menuId: string, itemId: string, action: ReaderInputAction | undefined) {
+    setBindingsDraft((current) => {
+      const index = current.bindings.findIndex((binding) => isRadialBinding(binding, menuId, itemId))
+      if (!action) return { bindings: index < 0 ? current.bindings : current.bindings.filter((_, candidate) => candidate !== index) }
+      const binding = { id: radialBindingId(current.bindings, menuId, itemId), action, context: "reader", enabled: true, input: { device: "radial" as const, menuId, itemId } } satisfies ReaderInputBinding
+      return { bindings: index < 0 ? [...current.bindings, binding] : current.bindings.map((currentBinding, candidate) => candidate === index ? { ...currentBinding, action, context: "reader", input: binding.input } : currentBinding) }
+    })
+  }
+
+  function updateSelectedAction(action: ReaderInputAction | undefined) {
+    if (!selected) return
+    setRadialBinding(activeMenu.id, selected.itemId, action)
+    mutateLayer(selected.level, (items) => items.map((item) => {
+      if (item.id !== selected.itemId) return item
+      const { action: _legacyAction, ...withoutLegacyAction } = item
+      const previousLabel = inputActionLabel(selectedBinding?.action ?? item.action)
+      return { ...withoutLegacyAction, ...(action && (item.label === "新操作" || item.label === previousLabel) ? { label: inputActionLabel(action) } : {}) }
+    }))
+  }
+
+  const selectedActionLabel = selectedBinding?.action
+    ? READER_INPUT_ACTION_LABELS[selectedBinding.action] ?? selectedBinding.action
+    : selectedItem?.action
+      ? READER_INPUT_ACTION_LABELS[selectedItem.action] ?? selectedItem.action
     : selectedItem?.moveToMenuId
       ? (draft.menus.find((menu) => menu.id === selectedItem.moveToMenuId)?.name ?? "跳转轮盘")
       : "未绑定"
@@ -431,9 +472,11 @@ export function RadialMenuSettingsEditor({
                   disabled={saving}
                   onChange={(event) => {
                     if (event.currentTarget.value === "moveTo") {
-                      updateSelected({ action: null, moveToMenuId: otherMenus[0]?.id })
+                      setRadialBinding(activeMenu.id, selectedItem.id, undefined)
+                      updateSelected({ moveToMenuId: otherMenus[0]?.id })
                     } else {
-                      updateSelected({ moveToMenuId: undefined, action: selectedItem.action ?? "reader.next-page" })
+                      updateSelected({ moveToMenuId: undefined })
+                      updateSelectedAction(selectedBinding?.action ?? selectedItem.action ?? DEFAULT_NEW_ITEM_ACTION)
                     }
                   }}
                 >
@@ -449,7 +492,7 @@ export function RadialMenuSettingsEditor({
                     className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                     value={selectedItem.moveToMenuId}
                     disabled={saving}
-                    onChange={(event) => updateSelected({ moveToMenuId: event.currentTarget.value, action: null })}
+                    onChange={(event) => updateSelected({ moveToMenuId: event.currentTarget.value })}
                   >
                     {otherMenus.map((menu) => <option key={menu.id} value={menu.id}>{menu.name}</option>)}
                   </select>
@@ -459,17 +502,10 @@ export function RadialMenuSettingsEditor({
                   动作
                   <select
                     className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                    value={selectedItem.action ?? ""}
+                    value={selectedBinding?.action ?? selectedItem.action ?? ""}
                     disabled={saving}
                     onChange={(event) => {
-                      const next = event.currentTarget.value ? event.currentTarget.value as ReaderInputAction : null
-                      const previousActionLabel = inputActionLabel(selectedItem.action)
-                      const shouldFollowAction = selectedItem.label === "新操作" || selectedItem.label === previousActionLabel
-                      updateSelected({
-                        action: next,
-                        moveToMenuId: undefined,
-                        ...(shouldFollowAction ? { label: inputActionLabel(next) } : {}),
-                      })
+                      updateSelectedAction(event.currentTarget.value ? event.currentTarget.value as ReaderInputAction : undefined)
                     }}
                   >
                     <option value="">未绑定</option>
@@ -649,9 +685,44 @@ function newItem(items: readonly ReaderRadialMenuItem[], preferredSlot?: number)
   return {
     id: uniqueId("item", ids),
     label: inputActionLabel(DEFAULT_NEW_ITEM_ACTION),
-    action: DEFAULT_NEW_ITEM_ACTION,
     slotIndex: Math.min(63, slotIndex),
   }
+}
+
+function isRadialBinding(binding: ReaderInputBinding, menuId: string, itemId: string): boolean {
+  return binding.input.device === "radial" && binding.input.menuId === menuId && binding.input.itemId === itemId
+}
+
+function radialBindingId(bindings: readonly ReaderInputBinding[], menuId: string, itemId: string): string {
+  const base = `radial-${menuId}-${itemId}`.slice(0, 80)
+  let id = base
+  let suffix = 2
+  while (bindings.some((binding) => binding.id === id)) {
+    const addition = `-${suffix++}`
+    id = `${base.slice(0, 80 - addition.length)}${addition}`
+  }
+  return id
+}
+
+function materializeLegacyBindings(bindings: readonly ReaderInputBinding[], config: ReaderRadialMenuConfig): ReaderInputBinding[] {
+  const result = bindings.map((binding) => ({ ...binding, input: { ...binding.input } }))
+  for (const menu of config.menus) {
+    for (const item of radialItems(menu.layers.flat())) {
+      if (!item.action || item.moveToMenuId || result.some((binding) => isRadialBinding(binding, menu.id, item.id))) continue
+      result.push({ id: radialBindingId(result, menu.id, item.id), action: item.action, context: "reader", enabled: true, input: { device: "radial", menuId: menu.id, itemId: item.id } })
+    }
+  }
+  return result
+}
+
+function stripLegacyActions(config: ReaderRadialMenuConfig): ReaderRadialMenuConfig {
+  const result = cloneReaderRadialMenuConfig(config)
+  for (const menu of result.menus) for (const item of radialItems(menu.layers.flat())) delete item.action
+  return result
+}
+
+function radialItems(items: readonly ReaderRadialMenuItem[]): ReaderRadialMenuItem[] {
+  return items.flatMap((item) => [item, ...(item.children ? radialItems(item.children) : [])])
 }
 
 function inputActionLabel(action: ReaderInputAction | null | undefined): string {

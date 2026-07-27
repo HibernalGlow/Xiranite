@@ -240,7 +240,6 @@ export interface ReaderDirectorySelectionDescriptorDto {
   explicit: readonly { path: string; index?: number }[]
 }
 
-export type ReaderFolderPenetrationTerminalKindDto = "archive" | "document" | "media-directory" | "file"
 export interface ReaderFolderPenetrationPolicyDto {
   maxDepth?: number
   terminalTargets?: readonly ReaderFolderPenetrationTerminalKindDto[]
@@ -251,6 +250,7 @@ export interface ReaderFolderPenetrationResolutionDto {
   terminal?: { kind: ReaderFolderPenetrationTerminalKindDto; path: string }
   directMediaCount?: number
   directDirectoryCount?: number
+  directFileCount?: number
   deferredDirectoryCount?: number
   chain: readonly {
     path: string
@@ -1631,15 +1631,6 @@ export interface ReaderFolderEmptyAreaConfig {
   showBackButton: boolean
 }
 
-export interface ReaderFolderPenetrationConfig {
-  enabled: boolean
-  expandBranchesInline: boolean
-  showInternalFiles: boolean
-  internalItemsMode: "single" | "all"
-  maxDepth: number
-  terminalTargets: ReaderFolderPenetrationTerminalKindDto[]
-}
-
 export type ReaderUpscaleArtifactProbeResultDto = ReaderUpscaleArtifactResultDto | { status: "miss" | "pending" }
 
 export interface ReaderFolderTagDisplayConfig {
@@ -1848,6 +1839,7 @@ export interface ReaderHttpClient {
   updateImageProcessing?(patch: ReaderImageProcessingPatchDto, signal?: AbortSignal): Promise<ReaderImageProcessingConfigDto>
   updateInputBindings?(patch: ReaderInputBindingsPatch, signal?: AbortSignal): Promise<ReaderInputBindingsConfig>
   updateRadialMenu?(patch: ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRadialMenuConfig>
+  updateInputBindingsAndRadialMenu?(patch: ReaderInputBindingsPatch & ReaderRadialMenuPatch, signal?: AbortSignal): Promise<ReaderRuntimeConfigDto>
   folderRatingCache?(signal?: AbortSignal): Promise<ReaderFolderRatingCacheDto>
   rebuildFolderRatingCache?(signal?: AbortSignal): Promise<ReaderFolderRatingCacheDto>
   supplementFolderRatingCache?(path: string, signal?: AbortSignal): Promise<ReaderFolderRatingCacheDto>
@@ -2100,3 +2092,6 @@ export interface ReaderHttpClient {
   ): Promise<ReaderNavigationDto & { pageOrder: ReaderPageOrderDto }>
   close(sessionId: string): Promise<void>
 }
+import type { ReaderFolderPenetrationConfig, ReaderFolderPenetrationTerminalKindDto } from "./reader-folder-penetration-contract"
+
+export type { ReaderFolderPenetrationConfig, ReaderFolderPenetrationTerminalKindDto } from "./reader-folder-penetration-contract"

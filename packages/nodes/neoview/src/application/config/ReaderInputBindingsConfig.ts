@@ -69,7 +69,9 @@ function parseBinding(value: unknown, label: string): ReaderInputBinding {
   const context = requiredEnum(source.context, READER_INPUT_CONTEXTS, `${label}.context`)
   if (typeof source.enabled !== "boolean") throw new Error(`${label}.enabled must be a boolean.`)
   const ignoreRepeat = optionalBoolean(source.ignoreRepeat, `${label}.ignoreRepeat`)
-  return { id, action, ...(followUpActions.length ? { followUpActions } : {}), context, enabled: source.enabled, ...(ignoreRepeat ? { ignoreRepeat } : {}), input: parseInput(source.input, `${label}.input`) }
+  const input = parseInput(source.input, `${label}.input`)
+  if (input.device === "radial" && context !== "reader") throw new Error(`${label}.context must be reader for radial input.`)
+  return { id, action, ...(followUpActions.length ? { followUpActions } : {}), context, enabled: source.enabled, ...(ignoreRepeat ? { ignoreRepeat } : {}), input }
 }
 
 function parseFollowUpActions(value: unknown, label: string): ReaderInputAction[] {
@@ -82,7 +84,7 @@ function parseFollowUpActions(value: unknown, label: string): ReaderInputAction[
 
 function parseInput(value: unknown, label: string): ReaderInputDescriptor {
   const source = requireRecord(value, label)
-  const device = requiredEnum(source.device, ["keyboard", "mouse", "mouse-gesture", "wheel", "touch", "gamepad", "area"] as const, `${label}.device`)
+  const device = requiredEnum(source.device, ["keyboard", "mouse", "mouse-gesture", "wheel", "touch", "gamepad", "area", "radial"] as const, `${label}.device`)
   if (device === "keyboard") {
     rejectUnknown(source, ["device", "code", "trigger", "durationMs", "ctrl", "alt", "shift", "meta"], label)
     const trigger = source.trigger === undefined ? "down" : requiredEnum(source.trigger, ["down", "hold"] as const, `${label}.trigger`)
@@ -144,6 +146,10 @@ function parseInput(value: unknown, label: string): ReaderInputDescriptor {
     rejectUnknown(source, ["device", "button"], label)
     return { device, button: boundedInteger(source.button, 0, 31, `${label}.button`) }
   }
+  if (device === "radial") {
+    rejectUnknown(source, ["device", "menuId", "itemId"], label)
+    return { device, menuId: identifier(source.menuId, `${label}.menuId`), itemId: identifier(source.itemId, `${label}.itemId`) }
+  }
   rejectUnknown(source, ["device", "area", "button", "action"], label)
   return {
     device,
@@ -193,6 +199,12 @@ function rejectUnknown(record: Record<string, unknown>, allowed: readonly string
 function requiredString(value: unknown, label: string, maxLength: number): string {
   if (typeof value !== "string" || !value.trim() || value.length > maxLength) throw new Error(`${label} must be a non-empty string up to ${maxLength} characters.`)
   return value.trim()
+}
+
+function identifier(value: unknown, label: string): string {
+  const result = requiredString(value, label, 80)
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/u.test(result)) throw new Error(`${label} must be a valid identifier.`)
+  return result
 }
 
 function requiredEnum<const T extends string | number>(value: unknown, values: readonly T[], label: string): T {

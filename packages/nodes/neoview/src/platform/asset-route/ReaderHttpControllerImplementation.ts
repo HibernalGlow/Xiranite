@@ -184,12 +184,10 @@ import {
   type NeoviewFolderViewPatch,
   type NeoviewFileTreeConfig,
 } from "../../application/config/ReaderRuntimeConfig.js"
-import { parseNeoviewInputBindingsPatch, type NeoviewInputBindingsPatch } from "../../application/config/ReaderInputBindingsConfig.js"
+import { parseReaderInputBindingsRadialMenuPatch } from "../../application/config/ReaderInputBindingsRadialMenuPatch.js"
 import {
   cloneReaderRadialMenuConfig,
   DEFAULT_READER_RADIAL_MENU_CONFIG,
-  parseReaderRadialMenuPatch,
-  type NeoviewRadialMenuPatch,
   type ReaderRadialMenuConfig,
 } from "../../application/config/ReaderRadialMenuConfig.js"
 import {
@@ -1127,47 +1125,21 @@ export class ReaderHttpController implements AsyncDisposable {
         return jsonResponse({ error: errorMessage(error) }, 500)
       }
     }
-    if (Object.hasOwn(body, "inputBindings")) {
-      if (!this.#updateInputBindings) return jsonResponse({ error: "Reader input bindings are read-only" }, 405)
-      let parsed: ReturnType<typeof parseNeoviewInputBindingsPatch>
-      try {
-        parsed = parseNeoviewInputBindingsPatch(body)
-      } catch (error) {
-        return jsonResponse({ error: errorMessage(error) }, 400)
-      }
-      let updated: ReaderInputBindingsConfig | undefined
+    if (Object.hasOwn(body, "inputBindings") || Object.hasOwn(body, "radialMenu")) {
+      let parsed: ReturnType<typeof parseReaderInputBindingsRadialMenuPatch>
+      try { parsed = parseReaderInputBindingsRadialMenuPatch(body) } catch (error) { return jsonResponse({ error: errorMessage(error) }, 400) }
+      if (!parsed) return jsonResponse({ error: "Reader input bindings patch is empty" }, 400)
+      if ((parsed.kind === "input" || parsed.kind === "combined") && !this.#updateInputBindings) return jsonResponse({ error: "Reader input bindings are read-only" }, 405)
+      if (parsed.kind === "radial" && !this.#updateRadialMenu) return jsonResponse({ error: "Reader radial menu is read-only" }, 405)
       const operation = this.#configUpdateQueue.then(async () => {
-        updated = await this.#updateInputBindings!(parsed.patch, parsed.tomlPatch)
-        this.#inputBindings = updated
+        if (parsed.kind === "radial") this.#radialMenu = await this.#updateRadialMenu!(parsed.radial, parsed.tomlPatch)
+        else {
+          this.#inputBindings = await this.#updateInputBindings!(parsed.input, parsed.tomlPatch)
+          if (parsed.kind === "combined") this.#radialMenu = parsed.radialMenu
+        }
       })
       this.#configUpdateQueue = operation.catch(() => undefined)
-      try {
-        await operation
-        return jsonResponse(this.#configDto())
-      } catch (error) {
-        return jsonResponse({ error: errorMessage(error) }, 500)
-      }
-    }
-    if (Object.hasOwn(body, "radialMenu")) {
-      if (!this.#updateRadialMenu) return jsonResponse({ error: "Reader radial menu is read-only" }, 405)
-      let parsed: ReturnType<typeof parseReaderRadialMenuPatch>
-      try {
-        parsed = parseReaderRadialMenuPatch(body)
-      } catch (error) {
-        return jsonResponse({ error: errorMessage(error) }, 400)
-      }
-      let updated: ReaderRadialMenuConfig | undefined
-      const operation = this.#configUpdateQueue.then(async () => {
-        updated = await this.#updateRadialMenu!(parsed.patch, parsed.tomlPatch)
-        this.#radialMenu = updated
-      })
-      this.#configUpdateQueue = operation.catch(() => undefined)
-      try {
-        await operation
-        return jsonResponse(this.#configDto())
-      } catch (error) {
-        return jsonResponse({ error: errorMessage(error) }, 500)
-      }
+      try { await operation; return jsonResponse(this.#configDto()) } catch (error) { return jsonResponse({ error: errorMessage(error) }, 500) }
     }
     if (Object.hasOwn(body, "voiceControl")) {
       if (!this.#updateVoiceControl) return jsonResponse({ error: "Reader voice control config is read-only" }, 405)

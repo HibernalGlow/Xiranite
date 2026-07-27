@@ -47,6 +47,7 @@ export interface ReaderInputActionControls {
   toggleShellEdge(edge: "left" | "right"): void
   toggleShellPin(edge: "top" | "bottom"): void
   toggleSidebarControl(): void
+  toggleInlineBranchExpansion?(): void | Promise<unknown>
   workspace?: {
     toggleLayoutMode(): void
     focusReader(): void
@@ -115,6 +116,7 @@ export async function executeReaderInputAction(
     case "shell.toggle-top-toolbar-pin": controls.toggleShellPin("top"); return SUCCEEDED
     case "shell.toggle-bottom-thumbnail-pin": controls.toggleShellPin("bottom"); return SUCCEEDED
     case "viewer.toggle-sidebar-control": controls.toggleSidebarControl(); return SUCCEEDED
+    case "folder.toggle-inline-branch-expansion": return controls.toggleInlineBranchExpansion ? outcomeOf(controls.toggleInlineBranchExpansion()) : UNAVAILABLE
     case "viewer.toggle-progress-bar": controls.viewerToggles?.toggleProgressBar(); return controls.viewerToggles ? SUCCEEDED : UNAVAILABLE
     case "viewer.toggle-progress-bar-glow": controls.viewerToggles?.toggleProgressBarGlow(); return controls.viewerToggles ? SUCCEEDED : UNAVAILABLE
     case "viewer.toggle-page-info": controls.viewerToggles?.togglePageInfo(); return controls.viewerToggles ? SUCCEEDED : UNAVAILABLE

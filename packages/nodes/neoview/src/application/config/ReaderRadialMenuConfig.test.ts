@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { DEFAULT_READER_INPUT_BINDINGS } from "../../domain/input/ReaderInputBindings.js"
 import { DEFAULT_READER_RADIAL_MENU_CONFIG, parseReaderRadialMenuConfig, parseReaderRadialMenuPatch } from "./ReaderRadialMenuConfig.js"
 
 describe("ReaderRadialMenuConfig", () => {
@@ -22,7 +23,7 @@ describe("ReaderRadialMenuConfig", () => {
     })
     expect(parsed.menus).toHaveLength(2)
     expect(parsed.menus[0]?.layers).toHaveLength(3)
-    expect(parsed.menus[0]?.layers[0]?.map((item) => item.action)).toEqual(["reader.next-page", null])
+    expect(parsed.menus[0]?.layers[0]?.map((item) => item.action)).toEqual(["reader.next-page", undefined])
   })
 
   it("[neoview.bindings.radial-validation] rejects executable actions, duplicate items, invalid jumps and unbounded geometry", () => {
@@ -38,21 +39,11 @@ describe("ReaderRadialMenuConfig", () => {
     expect(parsed.menus[0]?.layers[0]?.[0]).toMatchObject({ id: "next", slotIndex: 3, action: "reader.next-page" })
   })
 
-  it("[neoview.bindings.radial-defaults] seeds layer-1/2 slots from the legacy radialMenus export", () => {
+  it("[neoview.bindings.radial-defaults] seeds layer-1/2 slots with matching radial input bindings", () => {
     expect(DEFAULT_READER_RADIAL_MENU_CONFIG.layerCount).toBe(2)
-    expect(DEFAULT_READER_RADIAL_MENU_CONFIG.menus[0]?.layers[0]?.map((item) => item.action)).toEqual([
-      "reader.toggle-temporary-fit",
-      "upscale.toggle-auto",
-      "reader.toggle-temporary-fit",
-      "reader.rotate-180",
-      "reader.fullscreen",
-      "viewer.toggle-page-switch-toast",
-    ])
-    expect(DEFAULT_READER_RADIAL_MENU_CONFIG.menus[0]?.layers[1]?.map((item) => item.action)).toEqual([
-      "reader.next-page",
-      "reader.last-page",
-      "shell.toggle-bottom-thumbnail-pin",
-    ])
+    const items = DEFAULT_READER_RADIAL_MENU_CONFIG.menus[0]!.layers.flat()
+    expect(items.every((item) => item.action === undefined)).toBe(true)
+    expect(items.every((item) => DEFAULT_READER_INPUT_BINDINGS.bindings.some((binding) => binding.input.device === "radial" && binding.input.menuId === "default" && binding.input.itemId === item.id))).toBe(true)
     expect(() => parseReaderRadialMenuConfig(DEFAULT_READER_RADIAL_MENU_CONFIG)).not.toThrow()
   })
 
