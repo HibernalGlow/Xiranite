@@ -1,6 +1,24 @@
 export const FINDZ_ABI_VERSION = 1
 export const FINDZ_REQUEST_VERSION = 1
 
+export const FINDZ_REQUIRED_CAPABILITIES = [
+  "library.open",
+  "library.close",
+  "scan.start",
+  "scan.reconcile",
+  "watcher.apply_changes",
+  "watcher.set_health",
+  "query.archives",
+  "query.members",
+  "export.rows",
+  "projection.treemap",
+  "analysis.start",
+  "task.get",
+  "task.pause",
+  "task.resume",
+  "task.cancel",
+] as const
+
 export interface FindzError {
   code: string
   message: string
@@ -126,6 +144,7 @@ export interface FindzMemberRow {
   id: number
   archiveId: number
   memberPath: string
+  nestingDepth: number
   compressedSize: number
   uncompressedSize: number
   compressionMethod: number
@@ -138,7 +157,10 @@ export interface FindzMemberRow {
   width?: number
   height?: number
   pixels?: number
+  aspectRatio?: number
   bytesPerMegapixel?: number
+  animated?: boolean
+  frameCount?: number
   metadataStatus?: string
   metadataErrorCode?: string
   anomalyKind?: string
@@ -166,6 +188,7 @@ export interface FindzNativeClient {
   openLibrary(params: FindzLibraryOpenParams): Promise<FindzLibrarySummary>
   closeLibrary(libraryId: string): Promise<void>
   startScan(libraryId: string): Promise<FindzTask>
+  reconcileScan(libraryId: string): Promise<FindzTask>
   applyWatcherChanges(libraryId: string, changes: Array<{ path: string; type: string }>): Promise<FindzTask>
   setWatcherHealth(libraryId: string, health: "healthy" | "degraded"): Promise<FindzLibrarySummary>
   startAnalysis(libraryId: string, scope?: FindzAnalysisScope): Promise<FindzTask>

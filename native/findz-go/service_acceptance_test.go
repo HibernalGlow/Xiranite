@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"database/sql"
 	"encoding/binary"
 	"encoding/json"
 	"image"
@@ -146,6 +147,52 @@ func TestFindzWatcherReindexesChangedArchivesAndDeletesRemovedPaths(t *testing.T
 	}
 }
 
+func TestFindzReconciliationVerifiesCentralDirectoryWhenStatFingerprintIsUnchanged(t *testing.T) {
+	root := t.TempDir()
+	archivePath := filepath.Join(root, "volume.cbz")
+	imageBytes := pngFixture(t, 8, 8)
+	createZipFixture(t, archivePath, []zipFixture{{name: "old.png", contents: imageBytes}})
+	service, runtime := openTestLibrary(t, root)
+	initial, err := service.startScan(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, initial.ID)
+	before, err := os.Stat(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	createZipFixture(t, archivePath, []zipFixture{{name: "new.png", contents: imageBytes}})
+	if err := os.Chtimes(archivePath, before.ModTime(), before.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Size() != after.Size() || before.ModTime().UnixNano() != after.ModTime().UnixNano() {
+		t.Fatalf("fixture did not preserve the stat fingerprint: before=%#v after=%#v", before, after)
+	}
+
+	reconciliation, err := service.startReconciliation(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, reconciliation.ID)
+	archives, err := queryArchives(runtime, archiveQueryParams{LibraryID: runtime.id, Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	members, err := queryMembers(runtime, memberQueryParams{LibraryID: runtime.id, ArchiveID: archives.Items[0].ID, Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(members.Items) != 1 || members.Items[0].MemberPath != "new.png" {
+		t.Fatalf("central-directory reconciliation retained stale members: %#v", members.Items)
+	}
+}
+
 func TestFindzQueuesAndCoalescesWatcherChangesBehindAnActiveScan(t *testing.T) {
 	root := t.TempDir()
 	service, runtime := openTestLibrary(t, root)
@@ -203,11 +250,66 @@ func TestFindzRecoversRunningTasksAndRecordsSchemaMigration(t *testing.T) {
 		t.Fatalf("expected recovered task to be paused, got %#v", task)
 	}
 	var migrationCount int
-	if err := recovered.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 1`).Scan(&migrationCount); err != nil {
+	if err := recovered.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&migrationCount); err != nil {
 		t.Fatal(err)
 	}
-	if migrationCount != 1 {
-		t.Fatalf("expected exactly one applied schema migration, got %d", migrationCount)
+	if migrationCount != latestFindzSchemaVersion {
+		t.Fatalf("expected %d applied schema migrations, got %d", latestFindzSchemaVersion, migrationCount)
+	}
+}
+
+func TestFindzMigratesVersionOneIndexesWithoutDroppingExistingData(t *testing.T) {
+	root := t.TempDir()
+	databasePath := filepath.Join(t.TempDir(), "legacy-findz.sqlite")
+	legacy, err := sql.Open("sqlite3", databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := legacy.Exec(`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := legacy.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := applyFindzSchemaV1(tx); err != nil {
+		_ = tx.Rollback()
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(`INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?)`, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		_ = tx.Rollback()
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	runtime, err := openLibraryDatabase(libraryOpenParams{LibraryID: "legacy", Root: root, DatabasePath: databasePath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = runtime.db.Close() })
+	for _, column := range []struct {
+		table string
+		name  string
+	}{
+		{table: "archive", name: "central_directory_fingerprint"},
+		{table: "archive_member", name: "nesting_depth"},
+		{table: "image_metadata", name: "aspect_ratio"},
+	} {
+		if !findzTableHasColumn(t, runtime.db, column.table, column.name) {
+			t.Fatalf("migration did not add %s.%s", column.table, column.name)
+		}
+	}
+	var versionTwoCount int
+	if err := runtime.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 2`).Scan(&versionTwoCount); err != nil {
+		t.Fatal(err)
+	}
+	if versionTwoCount != 1 {
+		t.Fatalf("expected migration 2 to be recorded once, got %d", versionTwoCount)
 	}
 }
 
@@ -365,4 +467,31 @@ func markZipMemberEncrypted(t *testing.T, path string, memberName string) {
 	if err := os.WriteFile(path, contents, 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func findzTableHasColumn(t *testing.T, db *sql.DB, table string, name string) bool {
+	t.Helper()
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var ordinal int
+		var columnName string
+		var columnType string
+		var notNull int
+		var defaultValue interface{}
+		var primaryKey int
+		if err := rows.Scan(&ordinal, &columnName, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			t.Fatal(err)
+		}
+		if columnName == name {
+			return true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return false
 }

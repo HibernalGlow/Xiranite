@@ -5,6 +5,7 @@ import { resolveNativeBindingPath } from "@xiranite/native-loader"
 import { readFindzNativeResponse, type FindzNativePointer } from "./native-response.js"
 import {
   FINDZ_ABI_VERSION,
+  FINDZ_REQUIRED_CAPABILITIES,
   FINDZ_REQUEST_VERSION,
   type FindzApiInfo,
   type FindzArchiveQuery,
@@ -118,6 +119,13 @@ function createFindzNativeClient(bindingPath: string): FindzNativeClient {
       nativeLibrary = undefined
       throw new Error(`Findz native core does not support request version ${FINDZ_REQUEST_VERSION}.`)
     }
+    try {
+      assertCompatibleFindzApiInfo(parsed.result)
+    } catch (error) {
+      loaded.close()
+      nativeLibrary = undefined
+      throw error
+    }
     apiInfo = parsed.result
     return loaded
   }
@@ -132,6 +140,7 @@ function createFindzNativeClient(bindingPath: string): FindzNativeClient {
       await invoke<{ libraryId: string }>("library.close", { libraryId })
     },
     startScan: (libraryId) => invoke<FindzTask>("scan.start", { libraryId }),
+    reconcileScan: (libraryId) => invoke<FindzTask>("scan.reconcile", { libraryId }),
     applyWatcherChanges: (libraryId, changes) => invoke<FindzTask>("watcher.apply_changes", { libraryId, changes }),
     setWatcherHealth: (libraryId, health) => invoke<FindzLibrarySummary>("watcher.set_health", { libraryId, health }),
     startAnalysis: (libraryId, scope = { kind: "all" }) => invoke<FindzTask>("analysis.start", { libraryId, scope }),
@@ -148,6 +157,17 @@ function createFindzNativeClient(bindingPath: string): FindzNativeClient {
       nativeLibrary = undefined
       apiInfo = undefined
     },
+  }
+}
+
+export function assertCompatibleFindzApiInfo(apiInfo: FindzApiInfo): void {
+  if (apiInfo.abiVersion !== FINDZ_ABI_VERSION) {
+    throw new Error(`Findz native core reported incompatible ABI version ${apiInfo.abiVersion}.`)
+  }
+  const capabilities = new Set(apiInfo.capabilities)
+  const missing = FINDZ_REQUIRED_CAPABILITIES.filter((capability) => !capabilities.has(capability))
+  if (missing.length) {
+    throw new Error(`Findz native core is missing required capabilities: ${missing.join(", ")}.`)
   }
 }
 

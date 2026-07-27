@@ -13,6 +13,13 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+const latestFindzSchemaVersion = 2
+
+type schemaMigration struct {
+	version int
+	apply   func(*sql.Tx) error
+}
+
 type libraryRuntime struct {
 	id           string
 	root         string
@@ -72,13 +79,95 @@ func openLibraryDatabase(params libraryOpenParams) (*libraryRuntime, error) {
 }
 
 func initializeSchema(db *sql.DB, libraryID string, root string) error {
-	statements := []string{
-		`PRAGMA journal_mode = WAL`,
-		`PRAGMA foreign_keys = ON`,
-		`CREATE TABLE IF NOT EXISTS schema_migrations (
+	if _, err := db.Exec(`PRAGMA journal_mode = WAL`); err != nil {
+		return fmt.Errorf("enable Findz WAL mode: %w", err)
+	}
+	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		return fmt.Errorf("enable Findz foreign keys: %w", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
 			version INTEGER PRIMARY KEY,
 			applied_at TEXT NOT NULL
-		)`,
+		)`); err != nil {
+		return fmt.Errorf("create Findz schema migration ledger: %w", err)
+	}
+	if err := applyFindzSchemaMigrations(db); err != nil {
+		return err
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := db.Exec(`INSERT OR REPLACE INTO library (id, root_path, watcher_health, analysis_policy, created_at, updated_at)
+		VALUES (?, ?, COALESCE((SELECT watcher_health FROM library WHERE id = ?), 'healthy'), ?, COALESCE((SELECT created_at FROM library WHERE id = ?), ?), ?)`,
+		libraryID, root, libraryID, defaultAnalysisPolicy, libraryID, now, now); err != nil {
+		return fmt.Errorf("initialize Findz library record: %w", err)
+	}
+	return nil
+}
+
+func applyFindzSchemaMigrations(db *sql.DB) error {
+	applied, err := readAppliedFindzSchemaMigrations(db)
+	if err != nil {
+		return err
+	}
+	for _, migration := range findzSchemaMigrations() {
+		if applied[migration.version] {
+			continue
+		}
+		for laterVersion := migration.version + 1; laterVersion <= latestFindzSchemaVersion; laterVersion++ {
+			if applied[laterVersion] {
+				return fmt.Errorf("Findz schema history is missing migration %d before migration %d", migration.version, laterVersion)
+			}
+		}
+		tx, err := db.Begin()
+		if err != nil {
+			return fmt.Errorf("begin Findz schema migration %d: %w", migration.version, err)
+		}
+		if err := migration.apply(tx); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("apply Findz schema migration %d: %w", migration.version, err)
+		}
+		if _, err := tx.Exec(`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`, migration.version, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("record Findz schema migration %d: %w", migration.version, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit Findz schema migration %d: %w", migration.version, err)
+		}
+	}
+	return nil
+}
+
+func readAppliedFindzSchemaMigrations(db *sql.DB) (map[int]bool, error) {
+	rows, err := db.Query(`SELECT version FROM schema_migrations ORDER BY version ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("read Findz schema migrations: %w", err)
+	}
+	defer rows.Close()
+	applied := make(map[int]bool)
+	for rows.Next() {
+		var version int
+		if err := rows.Scan(&version); err != nil {
+			return nil, fmt.Errorf("read Findz schema migration version: %w", err)
+		}
+		if version < 1 || version > latestFindzSchemaVersion {
+			return nil, fmt.Errorf("Findz index schema version %d is not supported by this core", version)
+		}
+		applied[version] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate Findz schema migrations: %w", err)
+	}
+	return applied, nil
+}
+
+func findzSchemaMigrations() []schemaMigration {
+	return []schemaMigration{
+		{version: 1, apply: applyFindzSchemaV1},
+		{version: 2, apply: applyFindzSchemaV2},
+	}
+}
+
+func applyFindzSchemaV1(tx *sql.Tx) error {
+	statements := []string{
 		`CREATE TABLE IF NOT EXISTS library (
 			id TEXT PRIMARY KEY,
 			root_path TEXT NOT NULL,
@@ -179,18 +268,23 @@ func initializeSchema(db *sql.DB, libraryID string, root string) error {
 		`CREATE INDEX IF NOT EXISTS anomaly_by_policy_score ON anomaly(policy_revision, score DESC)`,
 	}
 	for _, statement := range statements {
-		if _, err := db.Exec(statement); err != nil {
-			return fmt.Errorf("initialize Findz schema: %w", err)
+		if _, err := tx.Exec(statement); err != nil {
+			return fmt.Errorf("create Findz schema v1: %w", err)
 		}
 	}
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	if _, err := db.Exec(`INSERT OR REPLACE INTO library (id, root_path, watcher_health, analysis_policy, created_at, updated_at)
-		VALUES (?, ?, COALESCE((SELECT watcher_health FROM library WHERE id = ?), 'healthy'), ?, COALESCE((SELECT created_at FROM library WHERE id = ?), ?), ?)`,
-		libraryID, root, libraryID, defaultAnalysisPolicy, libraryID, now, now); err != nil {
-		return fmt.Errorf("initialize Findz library record: %w", err)
+	return nil
+}
+
+func applyFindzSchemaV2(tx *sql.Tx) error {
+	statements := []string{
+		`ALTER TABLE archive ADD COLUMN central_directory_fingerprint TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE archive_member ADD COLUMN nesting_depth INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE image_metadata ADD COLUMN aspect_ratio REAL`,
 	}
-	if _, err := db.Exec(`INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (1, ?)`, now); err != nil {
-		return fmt.Errorf("record Findz schema migration: %w", err)
+	for _, statement := range statements {
+		if _, err := tx.Exec(statement); err != nil {
+			return err
+		}
 	}
 	return nil
 }

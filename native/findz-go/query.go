@@ -184,9 +184,9 @@ func queryMembers(runtime *libraryRuntime, params memberQueryParams) (pagedResul
 		where += " AND LOWER(m.member_path) LIKE LOWER(?)"
 		args = append(args, "%"+strings.TrimSpace(params.Text)+"%")
 	}
-	query := `SELECT m.id, m.archive_id, m.member_path, m.compressed_size, m.uncompressed_size, m.compression_method, m.crc32,
+	query := `SELECT m.id, m.archive_id, m.member_path, m.nesting_depth, m.compressed_size, m.uncompressed_size, m.compression_method, m.crc32,
 		m.extension, m.is_image_candidate, m.is_nested_archive, m.is_encrypted, metadata.actual_format, metadata.width, metadata.height,
-		metadata.pixels, metadata.bytes_per_megapixel, metadata.status, metadata.error_code, anomaly.kind, anomaly.score,
+		metadata.pixels, metadata.aspect_ratio, metadata.bytes_per_megapixel, metadata.animated, metadata.frame_count, metadata.status, metadata.error_code, anomaly.kind, anomaly.score,
 		COALESCE(anomaly.estimated_savings_bytes, 0)
 		FROM archive_member m
 		LEFT JOIN image_metadata metadata ON metadata.member_id = m.id AND metadata.policy_revision = ?
@@ -230,13 +230,16 @@ func scanMemberRow(rows *sql.Rows) (memberRow, error) {
 	var width sql.NullInt64
 	var height sql.NullInt64
 	var pixels sql.NullInt64
+	var aspectRatio sql.NullFloat64
 	var bytesPerMegapixel sql.NullFloat64
+	var animated sql.NullInt64
+	var frameCount sql.NullInt64
 	var metadataStatus sql.NullString
 	var metadataError sql.NullString
 	var anomalyKind sql.NullString
 	var anomalyScore sql.NullFloat64
-	err := rows.Scan(&row.ID, &row.ArchiveID, &row.MemberPath, &row.CompressedSize, &row.UncompressedSize, &row.CompressionMethod, &crc,
-		&row.Extension, &imageCandidate, &nestedArchive, &encrypted, &actualFormat, &width, &height, &pixels, &bytesPerMegapixel,
+	err := rows.Scan(&row.ID, &row.ArchiveID, &row.MemberPath, &row.NestingDepth, &row.CompressedSize, &row.UncompressedSize, &row.CompressionMethod, &crc,
+		&row.Extension, &imageCandidate, &nestedArchive, &encrypted, &actualFormat, &width, &height, &pixels, &aspectRatio, &bytesPerMegapixel, &animated, &frameCount,
 		&metadataStatus, &metadataError, &anomalyKind, &anomalyScore, &row.EstimatedSavingsBytes)
 	if err != nil {
 		return row, err
@@ -249,7 +252,10 @@ func scanMemberRow(rows *sql.Rows) (memberRow, error) {
 	row.Width = nullableInt64(width)
 	row.Height = nullableInt64(height)
 	row.Pixels = nullableInt64(pixels)
+	row.AspectRatio = nullableFloat64(aspectRatio)
 	row.BytesPerMegapixel = nullableFloat64(bytesPerMegapixel)
+	row.Animated = nullableBool(animated)
+	row.FrameCount = nullableInt64(frameCount)
 	row.MetadataStatus = nullableString(metadataStatus)
 	row.MetadataErrorCode = nullableString(metadataError)
 	row.AnomalyKind = nullableString(anomalyKind)
@@ -270,6 +276,14 @@ func nullableFloat64(value sql.NullFloat64) *float64 {
 		return nil
 	}
 	result := value.Float64
+	return &result
+}
+
+func nullableBool(value sql.NullInt64) *bool {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Int64 != 0
 	return &result
 }
 
