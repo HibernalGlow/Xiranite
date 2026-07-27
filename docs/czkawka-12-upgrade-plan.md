@@ -406,7 +406,7 @@ Add the current missing tools:
 - EXIF remover.
 - Video optimizer.
 
-Status: the Bad Names source slice and isolated release-binding smoke are complete. Its shared Windows prebuilt ZIP is pending the concurrent asset owner's refresh; EXIF remover and video optimizer remain pending.
+Status: the Bad Names source slice and isolated release-binding smoke are complete. The EXIF remover source and GUI slice are implemented and verified through core tests, strict Clippy, TypeScript tests, Browser Mode, and typecheck; its current release-binding smoke remains pending because Windows release linking did not produce a new loadable DLL within the isolated ten-minute build window. The current embedded Windows ZIP still advertises neither Bad Names nor EXIF capabilities, so it remains an intentionally gated older asset and must not be treated as this slice's publication. Video optimizer remains pending.
 
 For each tool:
 
@@ -423,7 +423,14 @@ Bad names implementation evidence:
 - The GUI hides Bad Names until `scan.bad-names` is advertised, previews proposed targets in the result table, and requires the normal operation confirmation dialog before invoking the shared rename contract. Browser Mode covers both capability hiding and dry-run preview.
 - The release-binding native smoke advertises `scan.bad-names` and finds `report-🙂.TXT` with a `report-.txt` proposal. Publication of the refreshed Windows prebuilt ZIP remains deferred to the concurrent task that owns `native/prebuilt/win32-x64`; the capability gate keeps that older asset from exposing this tool prematurely.
 
-Video optimizer and EXIF processing may remain native performance work, but native code should produce an output candidate rather than silently replacing the source. If the upstream API cannot provide a safe output boundary, keep live execution disabled until an adapter can enforce it.
+EXIF remover implementation evidence:
+
+- The native adapter scans stable `ExifTag` DTOs only. For a live operation it copies the source to a reserved system-temporary candidate, invokes Czkawka 12's public EXIF cleanup API only on that candidate, and never lets upstream overwrite the original source.
+- `createExifCleanupPlan` is a framework-neutral TypeScript boundary over selected scan entries. Dry-run creates only itemized plans. A confirmed live operation delegates replacement to Xiranite's ordered file-operation service: trash the source, then move the candidate into the original path. If replacement fails, operation details retain the candidate path and the original is recoverable from the system trash.
+- The GUI gates the scanner on `scan.exif-remover` and the live command on `operation.exif.candidate`; it displays returned tag names, previews selected tag counts, and requires the existing confirmation dialog. The terminal CLI and OpenTUI use their fixed terminal-tool list, so neither gains Bad Names or EXIF controls implicitly.
+- A Rust fixture copies an existing repository JPEG and injects a minimal `ImageDescription` EXIF segment. It proves scan detection, source-byte preservation, candidate tag removal, and Windows path-case tolerance. The package test suite, Browser Mode, typecheck, source-size gate, and strict Clippy pass. A current release DLL could not be linked in an isolated target within ten minutes. Embedded smoke confirms the current ZIP lacks both `scan.bad-names` and EXIF capabilities, so native release smoke and prebuilt publication remain explicitly pending rather than inferred from prior artifacts.
+
+Video optimizer may remain native performance work, but native code should produce an output candidate rather than silently replacing the source. If the upstream API cannot provide a safe output boundary, keep live execution disabled until an adapter can enforce it.
 
 ### Phase 5: Add four-mode image comparison UX
 
