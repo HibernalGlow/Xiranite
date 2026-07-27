@@ -21,14 +21,14 @@ The benchmark creates 24 ZIP/CBZ archives with 32 valid PNG members each (768 me
 Environment: Windows x64, AMD Ryzen 7 8845H with Radeon 780M Graphics.
 
 ```text
-BenchmarkFindzZIPIndexing/central_directory_baseline    2.25 ms/op  24 archives/op  768 members/op   350,428 B/op   3,384 allocs/op
-BenchmarkFindzZIPIndexing/findz_cold_index             38.64 ms/op  24 archives/op  768 members/op 1,342,282 B/op  19,666 allocs/op
-BenchmarkFindzZIPIndexing/findz_warm_unchanged          5.68 ms/op  24 archives/op  768 members/op    51,075 B/op   1,296 allocs/op
-BenchmarkFindzZIPIndexing/metadata_prefix_read         45.37 ms/op 768 members/op 100,745,472 metadata bytes read/op   590,110 B/op 10,297 allocs/op
-BenchmarkFindzZIPIndexing/metadata_sniff_read          16.14 ms/op 768 members/op         49,152 metadata bytes read/op   577,812 B/op  9,529 allocs/op
-BenchmarkFindzZIPIndexing/metadata_header_parse        15.32 ms/op 768 members/op         49,152 metadata bytes read/op 1,505,625 B/op 12,602 allocs/op
+BenchmarkFindzZIPIndexing/central_directory_baseline    2.02 ms/op  24 archives/op  768 members/op   350,417 B/op   3,384 allocs/op
+BenchmarkFindzZIPIndexing/findz_cold_index             41.03 ms/op  24 archives/op  768 members/op 1,380,520 B/op  19,930 allocs/op
+BenchmarkFindzZIPIndexing/findz_warm_unchanged          5.08 ms/op  24 archives/op  768 members/op    55,683 B/op   1,440 allocs/op
+BenchmarkFindzZIPIndexing/metadata_prefix_read         38.05 ms/op 768 members/op 100,745,472 metadata bytes read/op   590,104 B/op 10,297 allocs/op
+BenchmarkFindzZIPIndexing/metadata_sniff_read          14.81 ms/op 768 members/op         49,152 metadata bytes read/op   577,808 B/op  9,529 allocs/op
+BenchmarkFindzZIPIndexing/metadata_header_parse        16.92 ms/op 768 members/op         49,152 metadata bytes read/op 1,505,624 B/op 12,602 allocs/op
 ```
 
-The full-prefix path decompresses approximately 100.7 MiB for the corpus. The standard header parser reads 49 KiB, or 64 B per member, while returning the same dimensions. The three repeated, single-worker pairs for matching 64 B reads were `15.61 ms -> 15.23 ms` (-2.5%), `19.17 ms -> 16.15 ms` (-15.8%), and `13.95 ms -> 16.06 ms` (+15.1%). All are within the 20% metadata-adapter gate. Every run reported zero skipped and zero budget-exceeded members.
+The full-prefix path decompresses approximately 100.7 MiB for the corpus. The standard header parser reads 49 KiB, or 64 B per member, while returning the same dimensions. The three repeated, single-worker matching 64 B runs were `16.04 ms -> 16.06 ms` (+0.1%), `16.51 ms -> 15.77 ms` (-4.5%), and `15.02 ms -> 17.84 ms` (+18.9%). All are within the 20% metadata-adapter gate. Every run reported zero skipped and zero budget-exceeded members.
 
 The warm unchanged path performs no image analysis and is the relevant restart/incremental behavior: only filesystem fingerprints and indexed state are revisited. The cold-index reference is intentionally reported separately because it includes SQLite persistence that the bare central-directory loop does not perform; comparing those two absolute numbers would not measure image-analysis overhead. The allocation figures are Go allocations per operation, not a process peak-memory claim.
