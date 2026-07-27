@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
-import type { FindzArchiveRow, FindzLibrarySummary, FindzMemberRow, FindzTask, FindzTreemapNode } from "@xiranite/findz-native"
+import type { FindzAnalysisScope, FindzArchiveRow, FindzLibrarySummary, FindzMemberRow, FindzTask, FindzTreemapNode } from "@xiranite/findz-native"
 import type { FindzData, FindzInput } from "@xiranite/node-findz/core"
 import { BarChart3, ChevronDown, Download, Filter, TriangleAlert } from "lucide-react"
 import { FloatingWindowNodeHeader } from "@/components/workspace/FloatingWindowFrame"
@@ -89,12 +89,12 @@ export function Component({ host }: FindzProps) {
     }
   }, [card.libraryRoot, invoke, patch, refresh])
 
-  const startTask = useCallback(async (action: "scan" | "analyze") => {
+  const startTask = useCallback(async (action: "scan" | "analyze", analysisScope?: FindzAnalysisScope) => {
     if (!card.libraryId) return
     setBusy(true)
     setError(undefined)
     try {
-      const data = await invoke({ action, libraryId: card.libraryId })
+      const data = await invoke({ action, libraryId: card.libraryId, ...(analysisScope ? { analysisScope } : {}) })
       if (!data.task) throw new Error(t("errors.taskMissing", "Findz did not create a task."))
       setTask(data.task)
       patch({ taskId: data.task.id })
@@ -252,7 +252,7 @@ export function Component({ host }: FindzProps) {
         {error && <div role="alert" className="flex shrink-0 items-center gap-2 border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"><TriangleAlert className="size-4" />{error}</div>}
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(180px,1.25fr)_minmax(160px,0.9fr)] gap-3">
           <section aria-label={t("workspace.archiveResults", "Findz archive results")} className="min-h-0 overflow-hidden">
-            <FindzArchiveTable archives={archives} members={members} selectedArchiveId={card.selectedArchiveId} sortBy={card.sortBy ?? "archiveSize"} sortDesc={card.sortDesc ?? true} total={archivePage.total} hasPreviousPage={pageTrail.length > 0} hasNextPage={Boolean(archivePage.nextCursor)} onSelectArchive={(archiveId) => void selectArchive(archiveId)} onSort={changeSort} onPreviousPage={previousPage} onNextPage={nextPage} />
+            <FindzArchiveTable archives={archives} members={members} selectedArchiveId={card.selectedArchiveId} sortBy={card.sortBy ?? "archiveSize"} sortDesc={card.sortDesc ?? true} total={archivePage.total} hasPreviousPage={pageTrail.length > 0} hasNextPage={Boolean(archivePage.nextCursor)} onSelectArchive={(archiveId) => void selectArchive(archiveId)} onDeepRetryMember={(memberId) => void startTask("analyze", { kind: "members", memberIds: [memberId], deepRetry: true })} onSort={changeSort} onPreviousPage={previousPage} onNextPage={nextPage} />
           </section>
           <section aria-label={t("workspace.treemap", "Findz treemap")} className="flex min-h-0 flex-col border bg-background">
             <div className="flex shrink-0 items-center justify-between border-b px-3 py-2"><span className="text-xs font-medium">{t("workspace.treemap", "Treemap")}</span><span className="text-xs text-muted-foreground">{t("workspace.area", "Area")}: {areaMetrics.find((metric) => metric.value === (card.areaBy ?? "archiveSize"))?.label}</span></div>

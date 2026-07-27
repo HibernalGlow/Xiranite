@@ -88,6 +88,50 @@ func TestFindzManualAnalysisReadsBoundedImageMetadata(t *testing.T) {
 	}
 }
 
+func TestFindzDeepRetryRequeuesOnlyTheSelectedBudgetExceededMember(t *testing.T) {
+	root := t.TempDir()
+	createZipFixture(t, filepath.Join(root, "sample.cbz"), []zipFixture{{name: "cover.png", contents: pngFixture(t, 12, 7)}})
+	service, runtime := openTestLibrary(t, root)
+	scan, err := service.startScan(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, scan.ID)
+	archives, err := queryArchives(runtime, archiveQueryParams{LibraryID: runtime.id, Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	members, err := queryMembers(runtime, memberQueryParams{LibraryID: runtime.id, ArchiveID: archives.Items[0].ID, Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.db.Exec(`INSERT INTO analysis_run (id, policy_revision, started_at, status) VALUES ('budget-run', ?, ?, 'completed')`, defaultAnalysisPolicy, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		t.Fatal(err)
+	}
+	if err := storeImageMetadata(runtime, "budget-run", members.Items[0].ID, imageMetadataResult{actualFormat: "png", status: "metadata_budget_exceeded", errorCode: "metadata_budget_exceeded"}); err != nil {
+		t.Fatal(err)
+	}
+
+	retry, err := service.startAnalysis(runtime, analysisScope{Kind: "members", MemberIDs: []int64{members.Items[0].ID}, DeepRetry: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed := waitForTask(t, runtime, retry.ID)
+	if completed.TotalMembers != 1 || completed.DoneMembers != 1 {
+		t.Fatalf("expected a one-member deep retry, got %#v", completed)
+	}
+	updated, err := queryMembers(runtime, memberQueryParams{LibraryID: runtime.id, ArchiveID: archives.Items[0].ID, Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Items[0].MetadataStatus != "complete" || updated.Items[0].Width == nil || *updated.Items[0].Width != 12 {
+		t.Fatalf("deep retry did not replace the budget result: %#v", updated.Items[0])
+	}
+	if _, err := service.startAnalysis(runtime, analysisScope{Kind: "all", DeepRetry: true}); err == nil {
+		t.Fatal("expected deep retry without selected members to be rejected")
+	}
+}
+
 func TestFindzRecordsUnsupportedAndUnsafeZIPArchivesWithoutMembers(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "not-a-zip.zip"), []byte("not a ZIP"), 0o644); err != nil {

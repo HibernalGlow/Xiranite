@@ -60,6 +60,13 @@ export interface FindzTask {
   analysisPolicy?: string
 }
 
+export interface FindzAnalysisScope {
+  kind: "all" | "archives" | "members"
+  archiveIds?: number[]
+  memberIds?: number[]
+  deepRetry?: boolean
+}
+
 export interface FindzPage {
   cursor?: string
   limit?: number
@@ -161,7 +168,7 @@ export interface FindzNativeClient {
   startScan(libraryId: string): Promise<FindzTask>
   applyWatcherChanges(libraryId: string, changes: Array<{ path: string; type: string }>): Promise<FindzTask>
   setWatcherHealth(libraryId: string, health: "healthy" | "degraded"): Promise<FindzLibrarySummary>
-  startAnalysis(libraryId: string, scope?: { kind: "all" | "archives"; archiveIds?: number[] }): Promise<FindzTask>
+  startAnalysis(libraryId: string, scope?: FindzAnalysisScope): Promise<FindzTask>
   getTask(libraryId: string, taskId: string): Promise<FindzTask>
   pauseTask(libraryId: string, taskId: string): Promise<FindzTask>
   resumeTask(libraryId: string, taskId: string): Promise<FindzTask>

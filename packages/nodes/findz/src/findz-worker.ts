@@ -1,4 +1,4 @@
-import { loadFindzNativeClient, type FindzLibraryOpenParams } from "@xiranite/findz-native"
+import { loadFindzNativeClient, type FindzAnalysisScope, type FindzLibraryOpenParams } from "@xiranite/findz-native"
 import type { FindzWorkerMethod, FindzWorkerRequest, FindzWorkerResponse } from "./worker-protocol.js"
 import { FindzLibraryWatch, type FindzWatcherEvent } from "./watcher-service.js"
 
@@ -40,7 +40,7 @@ async function handleRequest(request: FindzWorkerRequest): Promise<unknown> {
       return await nativeClient.applyWatcherChanges(params.libraryId, params.changes)
     }
     case "analysis.start": {
-      const params = request.params as { libraryId: string; scope?: { kind: "all" | "archives"; archiveIds?: number[] } }
+      const params = request.params as { libraryId: string; scope?: FindzAnalysisScope }
       return await nativeClient.startAnalysis(params.libraryId, params.scope)
     }
     case "task.get": {
@@ -97,7 +97,13 @@ async function startLibraryWatch(libraryId: string, root: string, summary: Await
     watches.set(libraryId, watch)
     return await nativeClient.setWatcherHealth(libraryId, "healthy")
   } catch {
-    return await nativeClient.setWatcherHealth(libraryId, "degraded")
+    const degraded = await nativeClient.setWatcherHealth(libraryId, "degraded")
+    try {
+      await nativeClient.startScan(libraryId)
+    } catch {
+      // Keep the degraded state visible when native reconciliation cannot start.
+    }
+    return degraded
   }
 }
 

@@ -22,36 +22,43 @@ import (
 const (
 	standardImagePrefixBudget = 512 * 1024
 	isoImagePrefixBudget      = 4 * 1024 * 1024
-	metadataSniffBufferSize   = 4 * 1024
+	deepStandardPrefixBudget  = 8 * 1024 * 1024
+	deepISOImagePrefixBudget  = 16 * 1024 * 1024
+	metadataSniffBufferSize   = 64
 )
 
 func (service *findzService) startAnalysis(runtime *libraryRuntime, scope analysisScope) (taskRecord, error) {
 	if scope.Kind == "" {
 		scope.Kind = "all"
 	}
-	if scope.Kind != "all" && scope.Kind != "archives" {
+	if scope.Kind != "all" && scope.Kind != "archives" && scope.Kind != "members" {
 		return taskRecord{}, fmt.Errorf("unsupported analysis scope: %s", scope.Kind)
 	}
+	if scope.DeepRetry && (scope.Kind != "members" || len(scope.MemberIDs) == 0) {
+		return taskRecord{}, fmt.Errorf("deep retry requires one or more selected members")
+	}
+	// Reserve the global analysis slot before creating its persisted work. Creating
+	// the queue can take long enough for another request to otherwise race through.
 	service.mu.Lock()
 	if service.activeImageAnalysisTask != "" {
 		activeTaskID := service.activeImageAnalysisTask
 		service.mu.Unlock()
 		return taskRecord{}, fmt.Errorf("image analysis is already running: %s", activeTaskID)
 	}
-	service.mu.Unlock()
-
 	task, err := service.createTask(runtime, "analysis", analysisStartParams{LibraryID: runtime.id, Scope: scope})
 	if err != nil {
+		service.mu.Unlock()
 		return task, err
 	}
-	if err := enqueueAnalysis(runtime, task.ID, scope); err != nil {
-		return task, err
-	}
-	service.mu.Lock()
 	service.activeImageAnalysisTask = task.ID
 	service.mu.Unlock()
+	if err := enqueueAnalysis(runtime, task.ID, scope); err != nil {
+		_ = updateTask(runtime, task.ID, "failed", err.Error())
+		service.finishAnalysisTask(task.ID)
+		return task, err
+	}
 	controller := service.installTaskController(task.ID)
-	go service.runAnalysis(runtime, task.ID, controller)
+	go service.runAnalysis(runtime, task.ID, scope, controller)
 	return readTask(runtime, task.ID)
 }
 
@@ -70,9 +77,10 @@ func (service *findzService) resumeStoredAnalysis(runtime *libraryRuntime, task 
 	service.mu.Unlock()
 	controller := service.installTaskController(task.ID)
 	if err := updateTask(runtime, task.ID, "running", "Resumed image analysis."); err != nil {
+		service.finishAnalysisTask(task.ID)
 		return err
 	}
-	go service.runAnalysis(runtime, task.ID, controller)
+	go service.runAnalysis(runtime, task.ID, params.Scope, controller)
 	return nil
 }
 
@@ -87,6 +95,9 @@ func enqueueAnalysis(runtime *libraryRuntime, taskID string, scope analysisScope
 		return fmt.Errorf("create analysis run: %w", err)
 	}
 	where := `m.is_image_candidate = 1 AND (metadata.member_id IS NULL OR metadata.status <> 'complete')`
+	if scope.DeepRetry {
+		where = `m.is_image_candidate = 1 AND metadata.status = 'metadata_budget_exceeded'`
+	}
 	args := []interface{}{defaultAnalysisPolicy}
 	if scope.Kind == "archives" {
 		if len(scope.ArchiveIDs) == 0 {
@@ -98,6 +109,18 @@ func enqueueAnalysis(runtime *libraryRuntime, taskID string, scope analysisScope
 				args = append(args, archiveID)
 			}
 			where += " AND m.archive_id IN (" + strings.Join(placeholders, ",") + ")"
+		}
+	}
+	if scope.Kind == "members" {
+		if len(scope.MemberIDs) == 0 {
+			where += " AND 1 = 0"
+		} else {
+			placeholders := make([]string, 0, len(scope.MemberIDs))
+			for _, memberID := range scope.MemberIDs {
+				placeholders = append(placeholders, "?")
+				args = append(args, memberID)
+			}
+			where += " AND m.id IN (" + strings.Join(placeholders, ",") + ")"
 		}
 	}
 	insert := `INSERT INTO analysis_queue (task_id, archive_id, member_id, status)
@@ -123,14 +146,18 @@ func enqueueAnalysis(runtime *libraryRuntime, taskID string, scope analysisScope
 	return nil
 }
 
-func (service *findzService) runAnalysis(runtime *libraryRuntime, taskID string, controller *taskController) {
-	if err := updateTask(runtime, taskID, "running", "Reading image headers."); err != nil {
+func (service *findzService) runAnalysis(runtime *libraryRuntime, taskID string, scope analysisScope, controller *taskController) {
+	defer service.finishAnalysisTask(taskID)
+	message := "Reading image headers."
+	if scope.DeepRetry {
+		message = "Retrying image headers with the deep read budget."
+	}
+	if err := updateTask(runtime, taskID, "running", message); err != nil {
 		return
 	}
 	archiveIDs, err := queuedArchiveIDs(runtime, taskID)
 	if err != nil {
 		_ = updateTask(runtime, taskID, "failed", err.Error())
-		service.finishAnalysisTask(taskID)
 		return
 	}
 	var doneArchives int64
@@ -141,7 +168,7 @@ func (service *findzService) runAnalysis(runtime *libraryRuntime, taskID string,
 		if !controller.waitUntilRunnable() {
 			return
 		}
-		done, skipped, failed := analyzeArchive(runtime, taskID, archiveID, controller)
+		done, skipped, failed := analyzeArchive(runtime, taskID, archiveID, scope.DeepRetry, controller)
 		doneMembers += done
 		skippedMembers += skipped
 		failedMembers += failed
@@ -153,18 +180,16 @@ func (service *findzService) runAnalysis(runtime *libraryRuntime, taskID string,
 	}
 	if err := recomputeAnomalies(runtime); err != nil {
 		_ = updateTask(runtime, taskID, "failed", err.Error())
-		service.finishAnalysisTask(taskID)
 		return
 	}
 	status := "completed"
-	message := "Image analysis completed."
+	message = "Image analysis completed."
 	if failedMembers > 0 {
 		status = "completed_with_warnings"
 		message = fmt.Sprintf("Image analysis completed with %d unreadable member(s).", failedMembers)
 	}
 	_, _ = runtime.db.Exec(`UPDATE analysis_run SET finished_at = ?, status = ? WHERE id = ?`, time.Now().UTC().Format(time.RFC3339Nano), status, taskID)
 	_ = updateTask(runtime, taskID, status, message)
-	service.finishAnalysisTask(taskID)
 }
 
 func (service *findzService) finishAnalysisTask(taskID string) {
@@ -202,7 +227,7 @@ type queuedMember struct {
 	unencrypted    bool
 }
 
-func analyzeArchive(runtime *libraryRuntime, taskID string, archiveID int64, controller *taskController) (done int64, skipped int64, failed int64) {
+func analyzeArchive(runtime *libraryRuntime, taskID string, archiveID int64, deepRetry bool, controller *taskController) (done int64, skipped int64, failed int64) {
 	archivePath, members, err := queuedMembersForArchive(runtime, taskID, archiveID)
 	if err != nil {
 		return 0, 0, 1
@@ -233,7 +258,7 @@ func analyzeArchive(runtime *libraryRuntime, taskID string, archiveID int64, con
 			failed++
 			continue
 		}
-		result := analyzeZipMember(reader.File[member.entryIndex], member.extension, member.compressedSize)
+		result := analyzeZipMemberWithBudget(reader.File[member.entryIndex], member.extension, member.compressedSize, deepRetry)
 		_ = storeImageMetadata(runtime, taskID, member.memberID, result)
 		queueStatus := "completed"
 		if result.status != "complete" && result.status != "unsupported_format" && result.status != "metadata_budget_exceeded" {
@@ -288,17 +313,25 @@ type imageMetadataResult struct {
 }
 
 func analyzeZipMember(member *zip.File, extension string, compressedSize int64) imageMetadataResult {
+	return analyzeZipMemberWithBudget(member, extension, compressedSize, false)
+}
+
+func analyzeZipMemberWithBudget(member *zip.File, extension string, compressedSize int64, deepRetry bool) imageMetadataResult {
 	reader, err := member.Open()
 	if err != nil {
 		return imageMetadataResult{status: "parser_failure", errorCode: "member_open_failed"}
 	}
 	defer reader.Close()
-	return analyzeImageStream(reader, extension, compressedSize)
+	return analyzeImageStreamWithBudget(reader, extension, compressedSize, deepRetry)
 }
 
 func analyzeImageStream(reader io.Reader, extension string, compressedSize int64) imageMetadataResult {
-	budget := prefixBudgetForExtension(extension)
-	bounded := &metadataBudgetReader{reader: reader, remaining: budget}
+	return analyzeImageStreamWithBudget(reader, extension, compressedSize, false)
+}
+
+func analyzeImageStreamWithBudget(reader io.Reader, extension string, compressedSize int64, deepRetry bool) imageMetadataResult {
+	hintBudget := prefixBudgetForAnalysis(extension, deepRetry)
+	bounded := &metadataBudgetReader{reader: reader, remaining: hintBudget}
 	buffered := bufio.NewReaderSize(bounded, metadataSniffBufferSize)
 	format := detectImageFormat(peekImageSignature(buffered))
 	if format == "jxl" {
@@ -307,6 +340,8 @@ func analyzeImageStream(reader io.Reader, extension string, compressedSize int64
 	if format == "" {
 		return imageMetadataResult{status: "unsupported_format", errorCode: "unsupported_format"}
 	}
+	budget := prefixBudgetForFormat(format, deepRetry)
+	bounded.setTotalBudget(hintBudget, budget)
 
 	var width int64
 	var height int64
@@ -341,6 +376,15 @@ type metadataBudgetReader struct {
 	reader    io.Reader
 	remaining int64
 	exhausted bool
+}
+
+func (reader *metadataBudgetReader) setTotalBudget(previousTotal int64, total int64) {
+	consumed := previousTotal - reader.remaining
+	reader.remaining = total - consumed
+	if reader.remaining < 0 {
+		reader.remaining = 0
+	}
+	reader.exhausted = reader.remaining == 0
 }
 
 func (reader *metadataBudgetReader) Read(buffer []byte) (int, error) {
@@ -383,12 +427,30 @@ func readPrefix(reader io.Reader, budget int64) ([]byte, bool, error) {
 }
 
 func prefixBudgetForExtension(extension string) int64 {
+	return prefixBudgetForAnalysis(extension, false)
+}
+
+func prefixBudgetForAnalysis(extension string, deepRetry bool) int64 {
 	switch strings.ToLower(extension) {
 	case "avif", "heif", "heic":
-		return isoImagePrefixBudget
+		return prefixBudgetForFormat("avif", deepRetry)
 	default:
-		return standardImagePrefixBudget
+		return prefixBudgetForFormat("standard", deepRetry)
 	}
+}
+
+func prefixBudgetForFormat(format string, deepRetry bool) int64 {
+	isISOFormat := format == "avif" || format == "heif"
+	if isISOFormat {
+		if deepRetry {
+			return deepISOImagePrefixBudget
+		}
+		return isoImagePrefixBudget
+	}
+	if deepRetry {
+		return deepStandardPrefixBudget
+	}
+	return standardImagePrefixBudget
 }
 
 func decodeImageDimensions(format string, prefix []byte) (int64, int64, error) {

@@ -1,6 +1,6 @@
 # Findz v2 design
 
-**Status:** accepted design, implementation has not started
+**Status:** implemented and verified on Windows, 2026-07-27
 
 **Audience:** Findz maintainers and the Xiranite node/runtime owners
 **Decision record:** [ADR 0053](adr/0053-build-findz-as-a-go-index-core-with-a-bun-worker-boundary.md)
@@ -167,7 +167,7 @@ The metadata path uses header/config APIs and a bounded forward-seeking adapter 
 | AVIF, HEIF | 4 MiB | `metadata_budget_exceeded` |
 | JPEG XL | 0 | `unsupported_format` |
 
-A selected result may be retried by an explicit **deep retry** command with a user-visible larger budget. Deep retry is never part of base scans or automatic watcher work. The core runs at most one image-analysis task across all open Libraries and applies bounded worker concurrency so file handles, decompression, and CPU use remain controlled.
+A selected `metadata_budget_exceeded` result may be retried by an explicit **deep retry** command. The retry is restricted to its selected Member ids and increases the total budget to 8 MiB for JPEG, PNG, GIF, and WebP or 16 MiB for AVIF and HEIF. The adapter chooses that budget from the detected header signature after the initial 64-byte sniff, rather than trusting a misleading extension. Deep retry is never part of base scans or automatic watcher work. The core runs at most one image-analysis task across all open Libraries and applies bounded worker concurrency so file handles, decompression, and CPU use remain controlled.
 
 The implementation benchmark gate is evaluated against the same durable-index control path, not against a bare ZIP reader that performs no persistence:
 
@@ -254,12 +254,12 @@ Implementation removes and replaces the old Findz GUI, `core.ts`, platform adapt
 
 Do not change MVZ's separate archive parser, historical global planning documents, or unrelated node state. Do not migrate old Findz settings: old cards retain their host state but the v2 view starts with no selected Library. The first selected root creates a new per-library database.
 
-## Acceptance plan
+## Acceptance evidence
 
-Before v2 is called complete, provide the following evidence:
+Windows verification completed on 2026-07-27:
 
-1. Go unit/integration tests for valid ZIP/CBZ indexing, duplicate paths, corrupted archives, encrypted members, unsupported/nested archives, source fingerprint invalidation, schema migration, anomaly cohorts, task recovery, and every FFI error envelope.
-2. A DLL smoke test loads the packaged and development artifact, performs the ABI handshake, creates a temporary Library database, scans a fixture, queries a paginated result, and releases response buffers.
-3. Bun tests cover Worker request routing, pointer cleanup, watcher coalescing/degraded recovery, and cancellation hand-off without touching the user's `xiranite.db`.
-4. Vitest Browser Mode tests cover rule-tree field mapping, table/treemap selection synchronization, sort/metric changes, manual-analysis progress controls, pagination, and all empty/error/unsupported states.
-5. Representative ZIP corpus benchmarks demonstrate the base-scan and header-metadata gates above. Any dependency or policy that misses a gate must be replaced or explicitly re-decided in a new ADR before it becomes the default path.
+1. Go unit/integration tests cover valid ZIP/CBZ indexing, duplicate paths, corrupted archives, encrypted and nested members, unsupported and unsafe archives, source-fingerprint invalidation, schema migration, anomaly cohorts, task recovery, request-id idempotency, deep retry, and every FFI error envelope.
+2. `packages/findz-native` DLL smoke tests load both development and embedded artifacts, complete the ABI handshake, create a temporary Library database, scan a fixture, paginate a query, and release native response buffers.
+3. Bun tests cover Worker routing, pointer cleanup, watcher coalescing/degraded recovery, cancellation hand-off, and Worker failure cleanup without accessing the user's `xiranite.db`.
+4. Vitest Browser Mode covers rule-tree field mapping, table/treemap synchronization, sort and metric changes, manual analysis controls, deep retry, pagination, empty/error/unsupported states, and Chinese localization.
+5. The representative ZIP corpus benchmark passes the header-metadata gate. Its corpus, commands, bytes-read data, and paired run results are recorded in [Findz v2 benchmark evidence](findz-v2-benchmarks.md). Any dependency or policy that later misses a gate requires a focused ADR update before it becomes the default path.

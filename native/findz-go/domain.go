@@ -40,6 +40,8 @@ type watcherHealthParams struct {
 type analysisScope struct {
 	Kind       string  `json:"kind"`
 	ArchiveIDs []int64 `json:"archiveIds"`
+	MemberIDs  []int64 `json:"memberIds"`
+	DeepRetry  bool    `json:"deepRetry"`
 }
 
 type analysisStartParams struct {
