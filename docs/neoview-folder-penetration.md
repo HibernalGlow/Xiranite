@@ -145,9 +145,10 @@ expand_branches_inline = false
 inline_branch_max_directories = 4
 inline_branch_max_files = 4
 inline_branch_max_items = 4
+inline_branch_limits_enabled = true
 ```
 
-Reader 配置协议使用 `folderView.penetration.expandBranchesInline`、`inlineBranchMaxDirectories`、`inlineBranchMaxFiles` 与 `inlineBranchMaxItems`，并继续兼容旧的深层表、`config = { ... }` envelope 和迁移期混合格式；混合冲突时 `config` 优先。三个上限均为 `0..100` 的整数。`0` 表示该类直属条目不得存在；由于就地展开本身要求至少两个直属子文件夹，子文件夹上限设为 `0` 或 `1` 会等价于关闭就地展开。该持久化字段只控制功能是否启用。`expandedBranchPath`、子 browser session、子区域滚动与选择是瞬态标签状态，不能写入 `[nodes.neoview.folder.penetration]`。
+Reader 配置协议使用 `folderView.penetration.expandBranchesInline`、`inlineBranchLimitsEnabled`、`inlineBranchMaxDirectories`、`inlineBranchMaxFiles` 与 `inlineBranchMaxItems`，并继续兼容旧的深层表、`config = { ... }` envelope 和迁移期混合格式；混合冲突时 `config` 优先。`inlineBranchLimitsEnabled` 默认开启，关闭后保留数值但不再以三个上限阻止就地展开。三个上限均为 `0..100` 的整数；开关开启时，`0` 表示该类直属条目不得存在。由于就地展开本身要求至少两个直属子文件夹，子文件夹上限设为 `0` 或 `1` 会等价于关闭就地展开。该持久化字段只控制功能是否启用。`expandedBranchPath`、子 browser session、子区域滚动与选择是瞬态标签状态，不能写入 `[nodes.neoview.folder.penetration]`。
 
 Reader 操作 `folder.toggle-inline-branch-expansion` 切换 `expandBranchesInline` 并通过同一 folder-view 写队列持久化。它由 GUI 操作绑定目录和轮盘编辑器共同提供；轮盘项目会保存为普通 `device = "radial"` 绑定，因此键盘、鼠标、手柄与轮盘触发具有相同的执行和失败语义。
 

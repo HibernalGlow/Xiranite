@@ -304,6 +304,27 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
       }),
   }
   const breadcrumbNode = <FolderBrowserBreadcrumb path={catalog?.path ?? sourcePath ?? ""} disabled={disabled} loading={loading} vertical={isVerticalFolderRegion(tabLayout.breadcrumbPosition)} canGoBack={catalog?.canGoBack} canGoForward={catalog?.canGoForward} canGoUp={Boolean(catalog?.parentPath)} client={client} sessionId={catalog?.sessionId} canCreateTab={!tabBar && folderTabCount < maxFolderTabs} onCreateTab={onCreateTab} onNavigate={(path) => { void navigate({ action: "path", path }) }} onNavigateAction={(action) => { void navigate({ action }) }} onCopyPath={systemActions?.copyText} />
+  const inlineBranchContent = inlineBranchPath && catalog ? (
+    <Suspense fallback={<div className="h-32 animate-pulse border-t bg-muted/30" aria-label="正在加载展开文件夹" />}>
+      <FolderInlineBranchPanel
+        client={client}
+        path={inlineBranchPath}
+        viewMode={viewMode}
+        filter={catalog.filter}
+        sort={catalog.sort}
+        showHiddenFolders={catalog.showHiddenFolders}
+        hideMissingEfuEntries={catalog.hideMissingEfuEntries}
+        previewGridEnabled={previewGridEnabled}
+        previewCount={previewCount}
+        penetration={penetration}
+        disabled={disabled || loading}
+        onActivate={activate}
+        onEnterDirectory={enterRawDirectory}
+        onUpdatePenetration={(patch) => void updatePenetration(patch)}
+        onClose={closeInlineBranch}
+      />
+    </Suspense>
+  ) : undefined
 
   return (
     <FolderEntryDisplayProvider value={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}>
@@ -941,25 +962,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         initialScrollTop={restoreState?.viewMode === viewMode ? restoreState.mosaicScrollTop : undefined}
                         initialIndex={shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.mosaicSnapshot ? restoreIndex : undefined}
                         inlineBranchPath={inlineBranchPath}
-                        inlineBranch={inlineBranchPath ? (
-                          <Suspense fallback={<div className="h-32 animate-pulse border-t bg-muted/30" aria-label="正在加载展开文件夹" />}>
-                            <FolderInlineBranchPanel
-                              client={client}
-                              path={inlineBranchPath}
-                              viewMode={viewMode}
-                              filter={catalog.filter}
-                              sort={catalog.sort}
-                              showHiddenFolders={catalog.showHiddenFolders}
-                              hideMissingEfuEntries={catalog.hideMissingEfuEntries}
-                              previewGridEnabled={previewGridEnabled}
-                              previewCount={previewCount}
-                              disabled={disabled || loading}
-                              onActivate={activate}
-                              onEnterDirectory={enterRawDirectory}
-                              onClose={closeInlineBranch}
-                            />
-                          </Suspense>
-                        ) : undefined}
+                        inlineBranch={inlineBranchContent}
                         onRangeChange={requestRange}
                         onScrollTopChange={(scrollTop) => {
                           mosaicScrollTopRef.current = scrollTop
@@ -979,26 +982,10 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                     <div className="grid h-72 place-items-center text-xs text-muted-foreground">{loading ? "正在读取目录…" : "选择一个目录"}</div>
                   ) : null}
                   </div>
-                  {inlineBranchPath && catalog && !viewUsesMosaicGrid(viewMode) ? (
+                  {inlineBranchPath && inlineBranchContent && !viewUsesMosaicGrid(viewMode) ? (
                     <Suspense fallback={null}>
                       <FolderInlineBranchDrawer fullWidth={viewUsesFixedGrid(viewMode)} path={inlineBranchPath} scopeRef={listHostRef}>
-                        <Suspense fallback={<div className="h-32 animate-pulse border-t bg-muted/30" aria-label="正在加载展开文件夹" />}>
-                          <FolderInlineBranchPanel
-                            client={client}
-                            path={inlineBranchPath}
-                            viewMode={viewMode}
-                            filter={catalog.filter}
-                            sort={catalog.sort}
-                            showHiddenFolders={catalog.showHiddenFolders}
-                            hideMissingEfuEntries={catalog.hideMissingEfuEntries}
-                            previewGridEnabled={previewGridEnabled}
-                            previewCount={previewCount}
-                            disabled={disabled || loading}
-                            onActivate={activate}
-                            onEnterDirectory={enterRawDirectory}
-                            onClose={closeInlineBranch}
-                          />
-                        </Suspense>
+                        {inlineBranchContent}
                       </FolderInlineBranchDrawer>
                     </Suspense>
                   ) : null}

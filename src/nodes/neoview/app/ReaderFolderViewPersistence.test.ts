@@ -12,6 +12,7 @@ const folderView = {
   penetration: {
     enabled: true,
     expandBranchesInline: false,
+    inlineBranchLimitsEnabled: true,
     inlineBranchMaxDirectories: 4,
     inlineBranchMaxFiles: 4,
     inlineBranchMaxItems: 4,
@@ -30,6 +31,7 @@ it("merges inline-branch updates without replacing the existing penetration poli
   expect(next.penetration).toMatchObject({
     enabled: true,
     expandBranchesInline: true,
+    inlineBranchLimitsEnabled: true,
     inlineBranchMaxDirectories: 4,
     inlineBranchMaxFiles: 4,
     inlineBranchMaxItems: 4,

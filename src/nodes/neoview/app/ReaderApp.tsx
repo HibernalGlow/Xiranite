@@ -210,7 +210,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   showHiddenFolders: false,
   hideMissingEfuEntries: false,
   confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
-  penetration: { enabled: false, expandBranchesInline: false, inlineBranchMaxDirectories: 4, inlineBranchMaxFiles: 4, inlineBranchMaxItems: 4, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
+  penetration: { enabled: false, expandBranchesInline: false, inlineBranchLimitsEnabled: true, inlineBranchMaxDirectories: 4, inlineBranchMaxFiles: 4, inlineBranchMaxItems: 4, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],

@@ -9,7 +9,9 @@ export function canExpandPenetratedBranchInline(
   return resolution.status === "branch"
     && penetration.expandBranchesInline
     && directDirectoryCount >= 2
-    && directDirectoryCount <= penetration.inlineBranchMaxDirectories
-    && directFileCount <= penetration.inlineBranchMaxFiles
-    && directDirectoryCount + directFileCount <= penetration.inlineBranchMaxItems
+    && (!penetration.inlineBranchLimitsEnabled || (
+      directDirectoryCount <= penetration.inlineBranchMaxDirectories
+      && directFileCount <= penetration.inlineBranchMaxFiles
+      && directDirectoryCount + directFileCount <= penetration.inlineBranchMaxItems
+    ))
 }

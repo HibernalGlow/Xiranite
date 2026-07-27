@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react"
-import { ChevronDown, FolderInput, X } from "lucide-react"
+import { ChevronDown, FolderInput, SlidersHorizontal, X } from "lucide-react"
 import { Virtuoso, VirtuosoGrid, type ListRange } from "react-virtuoso"
 
 import { Button } from "@/components/ui/button"
-import type { ReaderDirectoryEntryDto, ReaderDirectoryFilterDto, ReaderDirectorySortDto, ReaderFolderViewMode, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Switch } from "@/components/ui/switch"
+import type { ReaderDirectoryEntryDto, ReaderDirectoryFilterDto, ReaderDirectorySortDto, ReaderFolderPenetrationConfig, ReaderFolderViewMode, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import {
   createDirectoryCatalog,
   directoryEntryAt,
@@ -14,6 +16,7 @@ import {
 } from "./DirectoryCatalog"
 import { DirectoryBannerItem, DirectoryGridItem } from "./FolderGridWorkspace"
 import { DirectoryListItem, folderEntryName } from "./FolderDirectoryListItem"
+import { FolderInlineBranchLimitInputs } from "./FolderInlineBranchLimitFields"
 import type { FolderPreviewCount } from "./FolderBrowserState"
 import { useFolderThumbnailPipeline } from "./useFolderThumbnailPipeline"
 
@@ -62,9 +65,11 @@ export default function FolderInlineBranchPanel({
   hideMissingEfuEntries,
   previewGridEnabled,
   previewCount,
+  penetration,
   disabled,
   onActivate,
   onEnterDirectory,
+  onUpdatePenetration,
   onClose,
 }: {
   client: ReaderHttpClient
@@ -76,9 +81,11 @@ export default function FolderInlineBranchPanel({
   hideMissingEfuEntries: boolean
   previewGridEnabled: boolean
   previewCount: FolderPreviewCount
+  penetration: ReaderFolderPenetrationConfig
   disabled: boolean
   onActivate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported">): void
   onEnterDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void
+  onUpdatePenetration(patch: Partial<ReaderFolderPenetrationConfig>): void
   onClose(): void
 }) {
   const { panelRef, availableHeight } = useInlineBranchAvailableHeight(path)
@@ -191,6 +198,7 @@ export default function FolderInlineBranchPanel({
       <header className="flex h-10 shrink-0 items-center gap-2 border-b bg-background/80 px-2">
         <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate text-xs font-medium" title={path}>展开：{folderEntryName(path)}</span>
+        <FolderInlineBranchQuickLimits disabled={disabled} penetration={penetration} onUpdate={onUpdatePenetration} />
         <Button type="button" variant="ghost" size="icon-sm" aria-label="进入此文件夹" title="进入此文件夹" disabled={disabled} onClick={() => onEnterDirectory({ path })}>
           <FolderInput className="size-4" />
         </Button>
@@ -246,6 +254,47 @@ export default function FolderInlineBranchPanel({
         />
       ) : null}
     </section>
+  )
+}
+
+function FolderInlineBranchQuickLimits({
+  disabled,
+  penetration,
+  onUpdate,
+}: {
+  disabled: boolean
+  penetration: ReaderFolderPenetrationConfig
+  onUpdate(patch: Partial<ReaderFolderPenetrationConfig>): void
+}) {
+  const toggleDisabled = disabled || !penetration.enabled || !penetration.expandBranchesInline
+  const inputsDisabled = toggleDisabled || !penetration.inlineBranchLimitsEnabled
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <Switch
+        size="sm"
+        aria-label="启用就地展开上限"
+        title="启用就地展开上限"
+        checked={penetration.inlineBranchLimitsEnabled}
+        disabled={toggleDisabled}
+        onCheckedChange={(inlineBranchLimitsEnabled) => onUpdate({ inlineBranchLimitsEnabled })}
+      />
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="设置就地展开上限" title="设置就地展开上限" disabled={inputsDisabled}>
+            <SlidersHorizontal className="size-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-72 p-3">
+          <div className="mb-2 text-xs font-medium">就地展开上限</div>
+          <FolderInlineBranchLimitInputs
+            idPrefix="folder-inline-drawer"
+            penetration={penetration}
+            disabled={inputsDisabled}
+            onUpdate={onUpdate}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
   )
 }
 
