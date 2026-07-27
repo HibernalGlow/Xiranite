@@ -1,0 +1,335 @@
+/**
+ * Simiu's workflow lives above the native scanner. Czkawka supplies visual
+ * candidates; this module owns the directory-local set semantics and rollback
+ * format so it can survive Czkawka upgrades unchanged.
+ */
+export const SIMIU_SET_IMAGE_EXTENSIONS = new Set([
+  ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".avif", ".jxl",
+])
+export const SIMIU_SET_MARKER = "__set_"
+
+export type SimiuSetScanOrder = "path" | "smallest-first" | "deepest-first"
+export type SimiuSetApplyMode = "move" | "copy" | "link"
+
+export interface SimiuSetDirectoryEntry {
+  path: string
+  isDirectory: boolean
+  isFile: boolean
+}
+
+export interface SimiuSetMediaEntry {
+  path: string
+  modifiedDate: number
+  size: number
+  width?: number
+  height?: number
+  similarity?: string
+}
+
+export interface SimiuSetNativeResult {
+  groups: Array<{ entries: SimiuSetMediaEntry[] }>
+  messages: string
+  stopped: boolean
+}
+
+export interface SimiuSetGroup {
+  root: string
+  parentDirectory: string
+  name: string
+  files: SimiuSetMediaEntry[]
+}
+
+export interface SimiuSetOperation {
+  root: string
+  mode: SimiuSetApplyMode
+  sourcePath: string
+  targetPath: string
+}
+
+export interface SimiuSetOptions {
+  roots: string[]
+  recursive: boolean
+  scanOrder: SimiuSetScanOrder
+  namePrefix: string
+  minimumGroupSize: number
+}
+
+export interface SimiuSetScanResult {
+  groups: SimiuSetGroup[]
+  operations: SimiuSetOperation[]
+  directoryCount: number
+  imageCount: number
+  messages: string[]
+  stopped: boolean
+}
+
+export interface SimiuSetApplyResult {
+  operations: Array<SimiuSetOperation & { status: "planned" | "succeeded" | "error"; error?: string }>
+  undoLogPaths: string[]
+}
+
+export interface SimiuSetRuntime {
+  listDirectory(path: string): Promise<SimiuSetDirectoryEntry[]>
+  scanSimilarImages(directory: string, onProgress?: (progress: { stage: string; stageIndex: number; stageCount: number; entriesChecked: number; entriesTotal: number; bytesChecked: number; bytesTotal: number }) => void): Promise<SimiuSetNativeResult>
+  pathExists(path: string): Promise<boolean>
+  ensureDirectory(path: string): Promise<void>
+  movePath(source: string, target: string): Promise<void>
+  copyPath(source: string, target: string): Promise<void>
+  linkPath(source: string, target: string): Promise<void>
+  removePath(path: string, options?: { trash?: boolean; emptyFoldersOnly?: boolean }): Promise<void>
+  readText(path: string): Promise<string>
+  writeText(path: string, content: string): Promise<void>
+  join(...parts: string[]): string
+  dirname(path: string): string
+  basename(path: string): string
+  isCancelled?(): boolean
+  waitWhilePaused?(): Promise<void>
+}
+
+type SimiuSetMutationRuntime = Pick<SimiuSetRuntime, "pathExists" | "ensureDirectory" | "movePath" | "copyPath" | "linkPath" | "removePath" | "readText" | "writeText" | "join" | "dirname" | "basename" | "isCancelled" | "waitWhilePaused">
+
+interface SimiuSetDirectory {
+  root: string
+  path: string
+  imageCount: number
+}
+
+interface SimiuSetUndoOperation {
+  mode: SimiuSetApplyMode
+  src: string
+  dst: string
+}
+
+interface SimiuSetUndoLog {
+  version: 1
+  createdAt: string
+  root: string
+  operations: SimiuSetUndoOperation[]
+  createdDirectories: string[]
+}
+
+export function normalizeSimiuSetOptions(input: Partial<SimiuSetOptions>): SimiuSetOptions {
+  return {
+    roots: unique(input.roots ?? []),
+    recursive: input.recursive ?? true,
+    scanOrder: oneOf(input.scanOrder, ["path", "smallest-first", "deepest-first"], "path"),
+    namePrefix: sanitizePrefix(input.namePrefix ?? "simiu_set"),
+    minimumGroupSize: clamp(input.minimumGroupSize, 2, 10_000, 2),
+  }
+}
+
+export async function scanSimiuSets(input: Partial<SimiuSetOptions>, runtime: SimiuSetRuntime, onProgress: (progress: number, message: string) => void = () => {}): Promise<SimiuSetScanResult> {
+  const options = normalizeSimiuSetOptions(input)
+  const directories = await collectSimiuSetDirectories(options, runtime)
+  const groups: SimiuSetGroup[] = []
+  const messages: string[] = []
+  let imageCount = 0
+  let stopped = false
+
+  for (let index = 0; index < directories.length; index += 1) {
+    await runtime.waitWhilePaused?.()
+    if (runtime.isCancelled?.()) { stopped = true; break }
+    const directory = directories[index]!
+    imageCount += directory.imageCount
+    onProgress(Math.round((index / Math.max(1, directories.length)) * 96) + 2, `Scanning ${directory.path}`)
+    const native = await runtime.scanSimilarImages(directory.path)
+    if (native.messages) messages.push(native.messages)
+    const candidates = native.groups
+      .map((group) => group.entries.filter((entry) => sameDirectory(parentDirectory(entry.path), directory.path)))
+      .filter((entries) => entries.length >= options.minimumGroupSize)
+      .sort((left, right) => comparePaths(left[0]?.path ?? "", right[0]?.path ?? ""))
+    if (native.stopped || runtime.isCancelled?.()) { stopped = true; break }
+    if (candidates.length === 1 && candidates[0]?.length === directory.imageCount) continue
+    const names = await resolveGroupNames(directory.path, candidates.length, options.namePrefix, runtime)
+    candidates.forEach((files, groupIndex) => {
+      const name = names[groupIndex]
+      if (name) groups.push({ root: directory.root, parentDirectory: directory.path, name, files: [...files].sort((left, right) => comparePaths(left.path, right.path)) })
+    })
+  }
+
+  const operations = await planSimiuSetOperations(groups, "move", runtime)
+  onProgress(stopped ? 99 : 100, stopped ? "Stopped Simiu sets." : "Finished Simiu sets.")
+  return { groups, operations, directoryCount: directories.length, imageCount, messages, stopped }
+}
+
+export async function collectSimiuSetDirectories(input: SimiuSetOptions, runtime: Pick<SimiuSetRuntime, "listDirectory">): Promise<SimiuSetDirectory[]> {
+  const pending = input.roots.map((root) => ({ root, path: root }))
+  const directories: SimiuSetDirectory[] = []
+  const visited = new Set<string>()
+  while (pending.length) {
+    const current = pending.shift()!
+    const key = normalizedDirectory(current.path)
+    if (visited.has(key)) continue
+    visited.add(key)
+    if (shouldSkipSimiuSetDirectory(current.path, input.namePrefix)) continue
+    const entries = await runtime.listDirectory(current.path)
+    const imageCount = entries.filter((entry) => entry.isFile && isSimiuSetImage(entry.path)).length
+    if (imageCount) directories.push({ ...current, imageCount })
+    if (input.recursive) {
+      for (const entry of entries) if (entry.isDirectory) pending.push({ root: current.root, path: entry.path })
+    }
+  }
+  return sortSimiuSetDirectories(directories, input.scanOrder)
+}
+
+export async function planSimiuSetOperations(groups: readonly SimiuSetGroup[], mode: SimiuSetApplyMode, runtime: Pick<SimiuSetRuntime, "basename" | "join" | "pathExists">): Promise<SimiuSetOperation[]> {
+  const claimed = new Set<string>()
+  const operations: SimiuSetOperation[] = []
+  for (const group of groups) {
+    for (const file of group.files) {
+      const targetPath = await nextAvailablePath(runtime.join(group.parentDirectory, group.name, runtime.basename(file.path)), claimed, runtime)
+      operations.push({ root: group.root, mode, sourcePath: file.path, targetPath })
+    }
+  }
+  return operations
+}
+
+export async function applySimiuSetOperations(operations: readonly SimiuSetOperation[], dryRun: boolean, runtime: SimiuSetMutationRuntime): Promise<SimiuSetApplyResult> {
+  const results: SimiuSetApplyResult["operations"] = []
+  const completedByRoot = new Map<string, SimiuSetUndoOperation[]>()
+  const createdByRoot = new Map<string, Set<string>>()
+  const claimed = new Set<string>()
+  for (const operation of operations) {
+    await runtime.waitWhilePaused?.()
+    if (runtime.isCancelled?.()) break
+    try {
+      const targetPath = await nextAvailablePath(operation.targetPath, claimed, runtime)
+      if (dryRun) { results.push({ ...operation, targetPath, status: "planned" }); continue }
+      const targetDirectory = runtime.dirname(targetPath)
+      const existed = await runtime.pathExists(targetDirectory)
+      await runtime.ensureDirectory(targetDirectory)
+      if (!existed) addCreatedDirectory(createdByRoot, operation.root, targetDirectory)
+      if (operation.mode === "move") await runtime.movePath(operation.sourcePath, targetPath)
+      else if (operation.mode === "copy") await runtime.copyPath(operation.sourcePath, targetPath)
+      else await runtime.linkPath(operation.sourcePath, targetPath)
+      const completed = completedByRoot.get(operation.root) ?? []
+      completed.push({ mode: operation.mode, src: operation.sourcePath, dst: targetPath })
+      completedByRoot.set(operation.root, completed)
+      results.push({ ...operation, targetPath, status: "succeeded" })
+    } catch (error) {
+      results.push({ ...operation, status: "error", error: errorMessage(error) })
+    }
+  }
+  if (dryRun) return { operations: results, undoLogPaths: [] }
+  const undoLogPaths: string[] = []
+  for (const [root, completed] of completedByRoot) {
+    if (!completed.length) continue
+    const logPath = await nextUndoLogPath(root, runtime)
+    const payload: SimiuSetUndoLog = { version: 1, createdAt: new Date().toISOString(), root, operations: completed, createdDirectories: [...(createdByRoot.get(root) ?? [])] }
+    await runtime.writeText(logPath, `${JSON.stringify(payload, null, 2)}\n`)
+    undoLogPaths.push(logPath)
+  }
+  return { operations: results, undoLogPaths }
+}
+
+export async function undoSimiuSetLog(logPath: string, cleanEmptyDirectories: boolean, runtime: SimiuSetMutationRuntime): Promise<SimiuSetApplyResult> {
+  const payload = parseUndoLog(await runtime.readText(logPath))
+  const results: SimiuSetApplyResult["operations"] = []
+  const claimed = new Set<string>()
+  for (const operation of [...payload.operations].reverse()) {
+    try {
+      if (!await runtime.pathExists(operation.dst)) { results.push({ root: payload.root, mode: operation.mode, sourcePath: operation.src, targetPath: operation.dst, status: "error", error: "Target path no longer exists." }); continue }
+      if (operation.mode === "move") {
+        const restored = await nextAvailablePath(operation.src, claimed, runtime)
+        await runtime.movePath(operation.dst, restored)
+        results.push({ root: payload.root, mode: operation.mode, sourcePath: restored, targetPath: operation.dst, status: "succeeded" })
+      } else {
+        await runtime.removePath(operation.dst, { trash: false })
+        results.push({ root: payload.root, mode: operation.mode, sourcePath: operation.src, targetPath: operation.dst, status: "succeeded" })
+      }
+    } catch (error) {
+      results.push({ root: payload.root, mode: operation.mode, sourcePath: operation.src, targetPath: operation.dst, status: "error", error: errorMessage(error) })
+    }
+  }
+  if (cleanEmptyDirectories) {
+    for (const directory of [...payload.createdDirectories].sort((left, right) => right.length - left.length)) {
+      try { await runtime.removePath(directory, { trash: false, emptyFoldersOnly: true }) } catch { /* A new file makes cleanup intentionally best-effort. */ }
+    }
+  }
+  return { operations: results, undoLogPaths: [] }
+}
+
+export function shouldSkipSimiuSetDirectory(path: string, namePrefix: string): boolean {
+  const name = basename(path).toLocaleLowerCase()
+  return name.startsWith(".simiu-") || name.includes(SIMIU_SET_MARKER) || name.startsWith(namePrefix.toLocaleLowerCase())
+}
+
+export function isSimiuSetImage(path: string): boolean {
+  const dot = path.lastIndexOf(".")
+  return dot >= 0 && SIMIU_SET_IMAGE_EXTENSIONS.has(path.slice(dot).toLocaleLowerCase())
+}
+
+/**
+ * The original OpenCV pHash path compares 64 bits. Czkawka's native option is
+ * an absolute Hamming distance, so persist Simiu's historical 0..1 value and
+ * convert it at the adapter boundary rather than leaking native units into UI.
+ */
+export function simiuSetThresholdToCzkawkaSimilarity(value: unknown): number {
+  const threshold = Number(value)
+  const normalized = Number.isFinite(threshold) ? Math.max(0, Math.min(1, threshold)) : 0.17
+  return Math.round(normalized * 64)
+}
+
+function sortSimiuSetDirectories(directories: SimiuSetDirectory[], order: SimiuSetScanOrder): SimiuSetDirectory[] {
+  return [...directories].sort((left, right) => order === "smallest-first"
+    ? left.imageCount - right.imageCount || comparePaths(left.path, right.path)
+    : order === "deepest-first"
+      ? depth(right.path) - depth(left.path) || comparePaths(left.path, right.path)
+      : comparePaths(left.path, right.path))
+}
+
+async function resolveGroupNames(parent: string, count: number, prefix: string, runtime: Pick<SimiuSetRuntime, "join" | "pathExists">): Promise<string[]> {
+  const used = new Set<string>()
+  const names: string[] = []
+  for (let index = 1; index <= count; index += 1) {
+    const base = `${prefix}${SIMIU_SET_MARKER}${String(index).padStart(3, "0")}`
+    let candidate = base
+    let suffix = 1
+    while (used.has(candidate.toLocaleLowerCase()) || await runtime.pathExists(runtime.join(parent, candidate))) candidate = `${base}_${String(suffix++).padStart(2, "0")}`
+    used.add(candidate.toLocaleLowerCase())
+    names.push(candidate)
+  }
+  return names
+}
+
+async function nextAvailablePath(path: string, claimed: Set<string>, runtime: Pick<SimiuSetRuntime, "pathExists">): Promise<string> {
+  const parsed = splitExtension(path)
+  let candidate = path
+  let index = 1
+  while (claimed.has(candidate.toLocaleLowerCase()) || await runtime.pathExists(candidate)) candidate = `${parsed.stem}_${String(index++).padStart(2, "0")}${parsed.extension}`
+  claimed.add(candidate.toLocaleLowerCase())
+  return candidate
+}
+
+async function nextUndoLogPath(root: string, runtime: Pick<SimiuSetRuntime, "join" | "pathExists">): Promise<string> {
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "").replace("T", "-")
+  const base = runtime.join(root, `.simiu-undo-${stamp}.json`)
+  return nextAvailablePath(base, new Set(), runtime)
+}
+
+function parseUndoLog(text: string): SimiuSetUndoLog {
+  const value = JSON.parse(text) as Partial<SimiuSetUndoLog>
+  if (value.version !== 1 || typeof value.root !== "string" || !Array.isArray(value.operations)) throw new Error("Invalid Simiu undo log.")
+  const operations = value.operations.filter((item): item is SimiuSetUndoOperation => Boolean(item) && typeof item.mode === "string" && ["move", "copy", "link"].includes(item.mode) && typeof item.src === "string" && typeof item.dst === "string")
+  if (operations.length !== value.operations.length) throw new Error("Invalid Simiu undo log operations.")
+  return { version: 1, createdAt: typeof value.createdAt === "string" ? value.createdAt : "", root: value.root, operations, createdDirectories: Array.isArray(value.createdDirectories) ? value.createdDirectories.filter((item): item is string => typeof item === "string") : [] }
+}
+
+function addCreatedDirectory(target: Map<string, Set<string>>, root: string, directory: string): void {
+  const current = target.get(root) ?? new Set<string>()
+  current.add(directory)
+  target.set(root, current)
+}
+
+function sanitizePrefix(value: string): string { return value.trim().replace(/[<>:"/\\|?*]/g, "_") || "simiu_set" }
+function parentDirectory(path: string): string { const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")); return index < 0 ? "" : path.slice(0, index) }
+function sameDirectory(left: string, right: string): boolean { return normalizedDirectory(left) === normalizedDirectory(right) }
+function normalizedDirectory(path: string): string { return path.replace(/[\\/]+$/, "").replaceAll("\\", "/").toLocaleLowerCase() }
+function basename(path: string): string { const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")); return index < 0 ? path : path.slice(index + 1) }
+function splitExtension(path: string): { stem: string; extension: string } { const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")), dot = path.lastIndexOf("."); return dot > slash ? { stem: path.slice(0, dot), extension: path.slice(dot) } : { stem: path, extension: "" } }
+function depth(path: string): number { return path.replaceAll("\\", "/").split("/").filter(Boolean).length }
+function comparePaths(left: string, right: string): number { return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }) }
+function clamp(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.floor(parsed))) : fallback }
+function oneOf<const Values extends readonly string[]>(value: unknown, values: Values, fallback: Values[number]): Values[number] { return values.includes(value as Values[number]) ? value as Values[number] : fallback }
+function unique(values: readonly string[]): string[] { return [...new Set(values.map((value) => value.trim()).filter(Boolean))] }
+function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error) }

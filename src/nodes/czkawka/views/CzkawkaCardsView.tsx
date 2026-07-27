@@ -213,6 +213,9 @@ function OperationsCard(props: CzkawkaView) {
     subfolderTemplate: props.data.organizeSubfolderTemplate,
     skipSingleFileFolders: props.data.organizeSkipSingleFileFolders
   })
+  const simiuSetsEnabled = props.tool === "similar-images" && props.data.similarImagesMode === "simiu-sets"
+  const simiuOperations = props.result?.simiuSets?.operations ?? []
+  const simiuUndoLogPath = props.data.operation?.simiuSets?.undoLogPaths?.at(-1)
   const visibleEntries = props.filterResult.groups.flatMap((group) => group.entries)
   const exportEntries = props.data.exportScope === "all" ? (props.result?.entries ?? []) : props.data.exportScope === "visible" ? visibleEntries : (props.result?.entries ?? []).filter((entry) => props.selectedPaths.includes(entry.path))
   const renameItems = (props.result?.entries ?? [])
@@ -301,7 +304,43 @@ function OperationsCard(props: CzkawkaView) {
           </SelectContent>
         </Select>
       </Field>
-      {props.tool === "similar-images" ? (
+      {simiuSetsEnabled ? (
+        <div className="grid gap-2 rounded-md border p-2">
+          <div className="text-xs text-muted-foreground">按每个来源目录分别整理相似图片；扫描只生成预览，应用时写入可撤销的 JSON 记录。</div>
+          <Field label="集合操作">
+            <Select value={props.data.simiuSetsOperationMode ?? "move"} onValueChange={(simiuSetsOperationMode) => props.patch({ simiuSetsOperationMode: simiuSetsOperationMode as CzkawkaCardState["simiuSetsOperationMode"] })}>
+              <SelectTrigger aria-label="simiu set operation mode"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="move">移动</SelectItem><SelectItem value="copy">复制</SelectItem><SelectItem value="link">硬链接</SelectItem></SelectContent>
+            </Select>
+          </Field>
+          <SwitchLine label="撤销时清理空集合目录" checked={props.data.simiuSetsCleanEmptyDirectories ?? true} onChange={(simiuSetsCleanEmptyDirectories) => props.patch({ simiuSetsCleanEmptyDirectories })} />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={!simiuOperations.length || props.running} size="sm" variant="outline"><ArchiveX />整理 Simiu 集合（{simiuOperations.length}）</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{(props.data.dryRun ?? true) ? "生成 Simiu 集合操作计划？" : "应用 Simiu 集合操作？"}</AlertDialogTitle>
+                <AlertDialogDescription>将在每个来源目录创建集合子目录；移动、复制和硬链接都将保留逐项操作记录。</AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="grid max-h-48 gap-1 overflow-auto rounded-md border p-2 text-xs">
+                {simiuOperations.slice(0, 12).map((item) => <div key={item.sourcePath} className="grid"><span className="truncate font-mono">{item.sourcePath}</span><span className="truncate font-mono text-muted-foreground">→ {item.targetPath}</span></div>)}
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void props.executeOperation("simiu-apply", { selectedPaths: simiuOperations.map((item) => item.sourcePath), simiuSetsOperations: simiuOperations, simiuSetsOperationMode: props.data.simiuSetsOperationMode ?? "move" })}>确认</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          {simiuUndoLogPath ? <AlertDialog>
+            <AlertDialogTrigger asChild><Button disabled={props.running} size="sm" variant="ghost"><RotateCcw />撤销最近的 Simiu 操作</Button></AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader><AlertDialogTitle>撤销 Simiu 集合操作？</AlertDialogTitle><AlertDialogDescription>{simiuUndoLogPath}</AlertDialogDescription></AlertDialogHeader>
+              <AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction onClick={() => void props.executeOperation("simiu-undo", { selectedPaths: [simiuUndoLogPath], simiuSetsUndoLogPath: simiuUndoLogPath, simiuSetsCleanEmptyDirectories: props.data.simiuSetsCleanEmptyDirectories ?? true, dryRun: false })}>确认撤销</AlertDialogAction></AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog> : null}
+        </div>
+      ) : props.tool === "similar-images" ? (
         <div className="grid gap-2 rounded-md border p-2">
           <Field label={props.t("operations.organizeTemplate", "相似组子目录模板")}>
             <Input

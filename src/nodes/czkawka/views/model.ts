@@ -115,7 +115,11 @@ export function getCzkawkaToolMeta(tool: CzkawkaTool, t?: CzkawkaView["t"]) {
 }
 
 export function scanInput(tool: CzkawkaTool, data: CzkawkaCardState): CzkawkaInput {
-  return createCzkawkaScanInput(tool, { ...data, deleteOutdatedCache: data.deleteOutdatedCacheByTool?.[tool] ?? true } as Record<string, unknown>)
+  return createCzkawkaScanInput(tool, {
+    ...data,
+    deleteOutdatedCache: data.deleteOutdatedCacheByTool?.[tool] ?? true,
+    simiuSetsEnabled: tool === "similar-images" && data.similarImagesMode === "simiu-sets",
+  } as Record<string, unknown>)
 }
 
 export function formatBytes(bytes: number): string {

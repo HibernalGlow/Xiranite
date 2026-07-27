@@ -49,9 +49,44 @@ function SourcePanel(props: CzkawkaView) {
 function AlgorithmFields(props: CzkawkaView) {
   return (
     <div className="grid gap-2">
+      {props.tool === "similar-images" ? <SimiuSetsFields {...props} /> : null}
       {getCzkawkaGuiToolOptions(props.tool, props.nativeCapabilities).map((definition) => (
         <SchemaOptionField key={definition.id} definition={definition} {...props} />
       ))}
+    </div>
+  )
+}
+
+function SimiuSetsFields(props: CzkawkaView) {
+  const enabled = props.data.similarImagesMode === "simiu-sets"
+  return (
+    <div className="grid gap-2 rounded-md border border-dashed p-2">
+      <Field label="相似图片模式">
+        <Select value={enabled ? "simiu-sets" : "scanner"} onValueChange={(similarImagesMode) => props.patch({ similarImagesMode: similarImagesMode as CzkawkaCardState["similarImagesMode"] })}>
+          <SelectTrigger aria-label="similar image mode"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="scanner">Czkawka 相似扫描</SelectItem>
+            <SelectItem value="simiu-sets">Simiu 同目录集合</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      {enabled ? <>
+        <Field label="Simiu 阈值">
+          <Input aria-label="simiu set threshold" type="number" min="0" max="1" step="0.01" value={props.data.simiuSetsThreshold ?? "0.17"} onChange={(event) => props.patch({ simiuSetsThreshold: event.currentTarget.value })} />
+        </Field>
+        <Field label="集合目录前缀">
+          <Input aria-label="simiu set directory prefix" value={props.data.simiuSetsNamePrefix ?? "simiu_set"} onChange={(event) => props.patch({ simiuSetsNamePrefix: event.currentTarget.value })} />
+        </Field>
+        <Field label="最小集合大小">
+          <Input aria-label="simiu set minimum group size" type="number" min="2" value={props.data.simiuSetsMinimumGroupSize ?? "2"} onChange={(event) => props.patch({ simiuSetsMinimumGroupSize: event.currentTarget.value })} />
+        </Field>
+        <Field label="递归处理顺序">
+          <Select value={props.data.simiuSetsScanOrder ?? "path"} onValueChange={(simiuSetsScanOrder) => props.patch({ simiuSetsScanOrder: simiuSetsScanOrder as CzkawkaCardState["simiuSetsScanOrder"] })}>
+            <SelectTrigger aria-label="simiu set scan order"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="path">路径顺序</SelectItem><SelectItem value="smallest-first">图片最少优先</SelectItem><SelectItem value="deepest-first">最深目录优先</SelectItem></SelectContent>
+          </Select>
+        </Field>
+      </> : null}
     </div>
   )
 }
@@ -118,7 +153,7 @@ function ResultTable(props: CzkawkaView) {
     setOpacity: props.setImageComparisonOpacity,
   } : undefined
   const table = <CzkawkaResultTable tool={props.tool} groups={props.filterResult.groups} running={props.running} phase={props.data.phase} statusMessage={props.data.progressText} filterText={props.filterText} externalFiltering selectedPaths={props.selectedPaths} musicCheckType={props.data.musicCheckType} musicMaximumDifference={props.data.musicMaximumDifference} musicMinimumFragmentDuration={props.data.musicMinimumFragmentDuration} musicCompareFingerprintsOnlyWithSimilarTitles={props.data.musicCompareFingerprintsOnlyWithSimilarTitles} previewPanelEnabled={props.previewPanelEnabled} thumbnailEnabled={props.thumbnailEnabled} reversePathDisplay={props.data.reversePathDisplay} wrapText={props.data.tableWrapText} getFileUrl={props.getFileUrl} imageComparison={imageComparison} onCopyText={props.copyText} onCopyFiles={props.copyFiles} onOpenPath={props.openPath} onRevealPath={props.revealPath} onFilterTextChange={props.setFilterText} onPreviewPanelEnabledChange={props.setPreviewPanelEnabled} onRetry={props.executeScan} onSelectionChange={props.setSelectedPaths} />
-  if (props.tool !== "similar-images") return table
+  if (props.tool !== "similar-images" || props.data.similarImagesMode === "simiu-sets") return table
   return <div className="flex min-h-0 min-w-0 flex-col gap-1"><Tabs value={props.similarImagesViewMode} onValueChange={(value) => props.setSimilarImagesViewMode(value as CzkawkaSimilarImagesViewMode)}><TabsList className="grid w-52 grid-cols-2"><TabsTrigger value="images">{props.t("views.images", "图片")}</TabsTrigger><TabsTrigger value="folders">{props.t("views.folders", "文件夹")} <Badge variant="outline">{props.result?.similarFolders?.length ?? 0}</Badge></TabsTrigger></TabsList></Tabs><div className="min-h-0 min-w-0 flex-1 overflow-hidden">{props.similarImagesViewMode === "folders" ? <CzkawkaSimilarFoldersView folders={props.result?.similarFolders ?? []} filterText={props.filterText} getFileUrl={props.getFileUrl} onCopyText={props.copyText} onOpenPath={props.openPath} onRevealPath={props.revealPath} /> : table}</div></div>
 }
 

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { cp, lstat, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises"
+import { cp, link, lstat, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, join, parse, relative } from "node:path"
 import { promisify } from "node:util"
 import { cancelCzkawkaScan, createExifCandidate, createVideoOptimizerCandidate, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles, scanVideoOptimizer, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type ExifScanOptions, type MediaScanOptions, type VideoOptimizerCandidateOptions, type VideoOptimizerScanOptions } from "@xiranite/czkawka-native"
@@ -176,9 +176,12 @@ export function createNodeCzkawkaRuntime(context: CzkawkaRuntimeContext = {}): C
     createVideoOptimizerCandidate: (item, input) => runNativeVideoOptimizerCandidate(item, input, runtime),
     replaceWithCandidate: (candidatePath, sourcePath) => replaceWithCandidate(candidatePath, sourcePath, context.fileOperations),
     pathExists,
+    listDirectory,
     removePath: (path, options) => removePath(path, options, context.fileOperations),
     copyPath,
     movePath,
+    linkPath,
+    readText: (path) => readFile(path, "utf8"),
     writeText: async (path, content) => { await writeFile(path, content, "utf8") },
     ensureDirectory: async (path) => { if (path) await mkdir(path, { recursive: true }) },
     join,
@@ -258,6 +261,11 @@ async function pathExists(path: string): Promise<boolean> {
   try { await lstat(path); return true } catch (error) { if (errorCode(error) === "ENOENT") return false; throw error }
 }
 
+async function listDirectory(path: string): Promise<Array<{ path: string; isDirectory: boolean; isFile: boolean }>> {
+  const entries = await readdir(path, { withFileTypes: true })
+  return entries.map((entry) => ({ path: join(path, entry.name), isDirectory: entry.isDirectory(), isFile: entry.isFile() }))
+}
+
 async function removePath(
   path: string,
   options?: { trash?: boolean; emptyFoldersOnly?: boolean },
@@ -296,6 +304,11 @@ async function movePath(source: string, target: string): Promise<void> {
     await copyPath(source, target)
     await rm(source, { recursive: true, force: true })
   }
+}
+
+async function linkPath(source: string, target: string): Promise<void> {
+  await mkdir(dirname(target), { recursive: true })
+  await link(source, target)
 }
 
 async function replaceWithCandidate(candidatePath: string, sourcePath: string, fileOperations?: CzkawkaRuntimeContext["fileOperations"]): Promise<void> {

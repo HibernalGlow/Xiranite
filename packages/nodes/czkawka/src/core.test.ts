@@ -11,7 +11,7 @@ function runtime(): CzkawkaRuntime {
     createExifCandidate: vi.fn(async () => ({ candidatePath: "D:/candidates/photo.jpg", removedTags: 1 })),
     createVideoOptimizerCandidate: vi.fn(async () => ({ candidatePath: "D:/candidates/video.mp4", originalSize: 40, candidateSize: 30 })),
     replaceWithCandidate: vi.fn(async () => undefined),
-    pathExists: vi.fn(async (path) => path.startsWith("D:/")), removePath: vi.fn(async () => undefined), copyPath: vi.fn(async () => undefined), movePath: vi.fn(async () => undefined), writeText: vi.fn(async () => undefined), ensureDirectory: vi.fn(async () => undefined),
+    pathExists: vi.fn(async (path) => path.startsWith("D:/")), listDirectory: vi.fn(async () => []), removePath: vi.fn(async () => undefined), copyPath: vi.fn(async () => undefined), movePath: vi.fn(async () => undefined), linkPath: vi.fn(async () => undefined), readText: vi.fn(async () => ""), writeText: vi.fn(async () => undefined), ensureDirectory: vi.fn(async () => undefined),
     join: (...parts) => parts.filter(Boolean).join("/"), dirname: (path) => path.slice(0, path.lastIndexOf("/")), basename: (path) => path.slice(path.lastIndexOf("/") + 1), relativeDirectoryFromRoot: (path) => path.slice(3, path.lastIndexOf("/")),
   }
 }
@@ -268,6 +268,25 @@ describe("czkawka TypeScript orchestration", () => {
     expect(result.data?.similarFolders).toEqual([{ path: "D:", count: 2, bytes: 41, groupCount: 1, previewPath: "D:/a.jpg" }])
     const hidden = await runCzkawka({ tool: "similar-images", includedDirectories: ["D:/"], similarImagesFolderThreshold: 3 }, runtime())
     expect(hidden.data?.similarFolders).toEqual([])
+  })
+
+  test("runs the Simiu set extension through directory-local native scans", async () => {
+    const adapter = runtime()
+    vi.mocked(adapter.pathExists).mockResolvedValue(false)
+    vi.mocked(adapter.listDirectory).mockImplementation(async (path) => path === "D:/library" ? [
+      { path: "D:/library/a.jpg", isFile: true, isDirectory: false },
+      { path: "D:/library/b.jpg", isFile: true, isDirectory: false },
+      { path: "D:/library/c.jpg", isFile: true, isDirectory: false },
+    ] : [])
+    vi.mocked(adapter.scanMedia).mockResolvedValue({ groups: [{ entries: [
+      { path: "D:/library/a.jpg", size: 20, modifiedDate: 1, width: 100, height: 80, similarity: "4" },
+      { path: "D:/library/b.jpg", size: 21, modifiedDate: 1, width: 100, height: 80, similarity: "4" },
+    ] }], messages: "ok", stopped: false })
+
+    const result = await runCzkawka({ tool: "similar-images", includedDirectories: ["D:/library"], simiuSetsEnabled: true, simiuSetsThreshold: 0.17 }, adapter)
+
+    expect(result).toMatchObject({ success: true, data: { groupCount: 1, simiuSets: { directoryCount: 1, imageCount: 3, operations: expect.arrayContaining([expect.objectContaining({ targetPath: "D:/library/simiu_set__set_001/a.jpg" })]) } } })
+    expect(adapter.scanMedia).toHaveBeenCalledWith(expect.objectContaining({ includedDirectories: ["D:/library"], recursive: false, similarity: 11 }), undefined)
   })
 
   test("keeps destructive actions dry-run by default", async () => {
