@@ -71,6 +71,7 @@ const FolderSelectionBar = lazy(() => import("./FolderSelectionBar"))
 const FolderContextActions = lazy(() => import("./FolderContextActions"))
 const FolderToolbarLazy = lazy(async () => ({ default: (await import("./FolderToolbar")).default }))
 const FolderInlineBranchPanel = lazy(() => import("./FolderInlineBranchPanel"))
+const FolderInlineBranchDrawer = lazy(async () => ({ default: (await import("./FolderInlineBranchDrawer")).FolderInlineBranchDrawer }))
 
 const SORT_LABELS: Record<ReaderDirectorySortFieldDto, string> = {
   name: "名称",
@@ -939,6 +940,26 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.mosaicSnapshot : undefined}
                         initialScrollTop={restoreState?.viewMode === viewMode ? restoreState.mosaicScrollTop : undefined}
                         initialIndex={shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.mosaicSnapshot ? restoreIndex : undefined}
+                        inlineBranchPath={inlineBranchPath}
+                        inlineBranch={inlineBranchPath ? (
+                          <Suspense fallback={<div className="h-32 animate-pulse border-t bg-muted/30" aria-label="正在加载展开文件夹" />}>
+                            <FolderInlineBranchPanel
+                              client={client}
+                              path={inlineBranchPath}
+                              viewMode={viewMode}
+                              filter={catalog.filter}
+                              sort={catalog.sort}
+                              showHiddenFolders={catalog.showHiddenFolders}
+                              hideMissingEfuEntries={catalog.hideMissingEfuEntries}
+                              previewGridEnabled={previewGridEnabled}
+                              previewCount={previewCount}
+                              disabled={disabled || loading}
+                              onActivate={activate}
+                              onEnterDirectory={enterRawDirectory}
+                              onClose={closeInlineBranch}
+                            />
+                          </Suspense>
+                        ) : undefined}
                         onRangeChange={requestRange}
                         onScrollTopChange={(scrollTop) => {
                           mosaicScrollTopRef.current = scrollTop
@@ -958,23 +979,27 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                     <div className="grid h-72 place-items-center text-xs text-muted-foreground">{loading ? "正在读取目录…" : "选择一个目录"}</div>
                   ) : null}
                   </div>
-                  {inlineBranchPath && catalog ? (
-                    <Suspense fallback={<div className="h-32 animate-pulse border-t bg-muted/30" aria-label="正在加载展开文件夹" />}>
-                      <FolderInlineBranchPanel
-                        client={client}
-                        path={inlineBranchPath}
-                        viewMode={viewMode}
-                        filter={catalog.filter}
-                        sort={catalog.sort}
-                        showHiddenFolders={catalog.showHiddenFolders}
-                        hideMissingEfuEntries={catalog.hideMissingEfuEntries}
-                        previewGridEnabled={previewGridEnabled}
-                        previewCount={previewCount}
-                        disabled={disabled || loading}
-                        onActivate={activate}
-                        onEnterDirectory={enterRawDirectory}
-                        onClose={closeInlineBranch}
-                      />
+                  {inlineBranchPath && catalog && !viewUsesMosaicGrid(viewMode) ? (
+                    <Suspense fallback={null}>
+                      <FolderInlineBranchDrawer fullWidth={viewUsesFixedGrid(viewMode)} path={inlineBranchPath} scopeRef={listHostRef}>
+                        <Suspense fallback={<div className="h-32 animate-pulse border-t bg-muted/30" aria-label="正在加载展开文件夹" />}>
+                          <FolderInlineBranchPanel
+                            client={client}
+                            path={inlineBranchPath}
+                            viewMode={viewMode}
+                            filter={catalog.filter}
+                            sort={catalog.sort}
+                            showHiddenFolders={catalog.showHiddenFolders}
+                            hideMissingEfuEntries={catalog.hideMissingEfuEntries}
+                            previewGridEnabled={previewGridEnabled}
+                            previewCount={previewCount}
+                            disabled={disabled || loading}
+                            onActivate={activate}
+                            onEnterDirectory={enterRawDirectory}
+                            onClose={closeInlineBranch}
+                          />
+                        </Suspense>
+                      </FolderInlineBranchDrawer>
                     </Suspense>
                   ) : null}
                 </div>

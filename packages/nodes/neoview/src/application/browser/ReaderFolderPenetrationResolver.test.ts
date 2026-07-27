@@ -81,6 +81,7 @@ describe("ReaderFolderPenetrationResolver", () => {
       terminal: { kind: "media-directory", path: "/artist" },
       reason: "mixed-media-directory",
       directMediaCount: 2,
+      directFileCount: 4,
       deferredDirectoryCount: 1,
     })
   })
@@ -92,9 +93,9 @@ describe("ReaderFolderPenetrationResolver", () => {
       "/branch": { path: "/branch", entries: [directory("/branch/one"), directory("/branch/two")] },
     }))
 
-    await expect(resolver.resolve("/many")).resolves.toMatchObject({ status: "branch", reason: "multiple-primary-items" })
-    await expect(resolver.resolve("/mixed")).resolves.toMatchObject({ status: "branch", reason: "multiple-primary-items" })
-    await expect(resolver.resolve("/branch")).resolves.toMatchObject({ status: "branch", directDirectoryCount: 2 })
+    await expect(resolver.resolve("/many")).resolves.toMatchObject({ status: "branch", reason: "multiple-primary-items", directDirectoryCount: 0, directFileCount: 2 })
+    await expect(resolver.resolve("/mixed")).resolves.toMatchObject({ status: "branch", reason: "multiple-primary-items", directDirectoryCount: 1, directFileCount: 1 })
+    await expect(resolver.resolve("/branch")).resolves.toMatchObject({ status: "branch", directDirectoryCount: 2, directFileCount: 0 })
   })
 
   it("[neoview.folder.penetration-safety] stops at exact depth and detects canonical cycles", async () => {

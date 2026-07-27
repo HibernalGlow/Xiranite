@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, type RefObject } from "react"
 import type { ReaderDirectoryEntryDto, ReaderFolderPenetrationConfig, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../../../registry"
 import { folderErrorMessage, type DirectoryCatalog } from "./DirectoryCatalog"
+import { canExpandPenetratedBranchInline } from "./FolderInlineBranchPolicy"
 
 const PENETRATION_CLICK_DELAY_MS = 180
 
@@ -95,7 +96,7 @@ export function useFolderEntryActivation({
           openReaderEntry({ path: resolution.terminal.path }, entry.path, mixedMedia)
           return
         }
-        if (resolution.status === "branch" && penetration.expandBranchesInline && (resolution.directDirectoryCount ?? 0) >= 2) {
+        if (canExpandPenetratedBranchInline(penetration, resolution)) {
           toggleInlineBranch(entry.path)
           return
         }

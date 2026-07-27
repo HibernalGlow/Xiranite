@@ -4,15 +4,19 @@ import { page } from "vitest/browser"
 import { render } from "vitest-browser-react"
 import { VirtuosoMockContext } from "react-virtuoso"
 
-import type { ReaderDirectoryPageDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { ReaderDirectoryPageDto, ReaderFolderViewMode, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import FolderMainCard from "../FolderMainCard"
 import { DEFAULT_FOLDER_VIEW } from "./FolderBrowserPane"
+import { inlineBranchViewportHeight } from "./FolderInlineBranchPanel"
 
-test("[neoview.folder.inline-branch-browser] expands a multi-directory branch below the File Card and releases its child session", async () => {
+test("[neoview.folder.inline-branch-browser] opens a branch drawer directly below the clicked folder and releases its child session", async () => {
   const root = directoryPage({
     path: "C:/books",
-    entries: [{ name: "series", path: "C:/books/series", kind: "directory", readerSupported: true }],
-    total: 1,
+    entries: [
+      { name: "series", path: "C:/books/series", kind: "directory", readerSupported: true },
+      { name: "later", path: "C:/books/later", kind: "directory", readerSupported: true },
+    ],
+    total: 2,
   })
   const child = directoryPage({
     sessionId: "browser-inline",
@@ -78,8 +82,18 @@ test("[neoview.folder.inline-branch-browser] expands a multi-directory branch be
   await expect.poll(() => resolveFolderPenetration).toHaveBeenCalledOnce()
   await expect.poll(() => document.querySelector('[data-folder-inline-branch="true"]')?.getAttribute("data-folder-inline-branch-path")).toBe("C:/books/series")
   expect(document.querySelector('[data-folder-inline-branch="true"]')?.getAttribute("data-folder-inline-view-mode")).toBe("cover-list")
+  const drawer = document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')
+  const branchElement = document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/series"]')
+  const laterElement = document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/later"]')
+  expect(drawer?.parentElement).toBe(branchElement?.parentElement)
+  expect(drawer?.compareDocumentPosition(laterElement!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   await expect.poll(() => document.body.textContent).toContain("chapter-one")
-  await expect.poll(() => (document.querySelector('[data-folder-inline-branch="true"]') as HTMLElement | null)?.style.height).toBe("194px")
+  await expect.poll(() => (document.querySelector('[data-folder-inline-branch="true"]') as HTMLElement | null)?.style.height).toBe("192px")
+  await expect.poll(() => {
+    const inlineDrawer = document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')
+    const laterEntry = document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/later"]')
+    return Boolean(inlineDrawer && laterEntry && laterEntry.getBoundingClientRect().top >= inlineDrawer.getBoundingClientRect().bottom)
+  }).toBe(true)
   expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
   expect(openDirectoryBrowser).toHaveBeenCalledWith("C:/books/series", expect.any(AbortSignal), "folder-inline-branch:C:/books/series")
   await expect.poll(() => registerLibraryThumbnails.mock.calls.find(([contextId]) => contextId.startsWith("folder:browser-inline:"))?.[2].map((item) => item.path)).toEqual([
@@ -141,6 +155,16 @@ test("[neoview.folder.inline-branch-setting-browser] enables the optional branch
   await expandBranchesInline.click()
   await expect.poll(() => onFolderView).toHaveBeenCalledWith({ penetration: { expandBranchesInline: true } })
   await expect.element(expandBranchesInline).toHaveAttribute("aria-checked", "true")
+  const maximumDirectories = page.getByRole("spinbutton", { name: "直属子文件夹上限" })
+  const maximumFiles = page.getByRole("spinbutton", { name: "直属文件上限" })
+  const maximumItems = page.getByRole("spinbutton", { name: "直属条目合计上限" })
+  await expect.element(maximumDirectories).toHaveValue(4)
+  await maximumDirectories.fill("3")
+  await expect.poll(() => onFolderView).toHaveBeenCalledWith({ penetration: { inlineBranchMaxDirectories: 3 } })
+  await maximumFiles.fill("5")
+  await expect.poll(() => onFolderView).toHaveBeenCalledWith({ penetration: { inlineBranchMaxFiles: 5 } })
+  await maximumItems.fill("6")
+  await expect.poll(() => onFolderView).toHaveBeenCalledWith({ penetration: { inlineBranchMaxItems: 6 } })
 })
 
 test("[neoview.folder.inline-branch-fallback-browser] enters the raw directory when branch expansion is disabled", async () => {
@@ -241,6 +265,161 @@ test("[neoview.folder.inline-branch-raw-browser] treats a double-click as raw di
   expect(resolveFolderPenetration).not.toHaveBeenCalled()
   expect(document.querySelector('[data-folder-inline-branch="true"]')).toBeNull()
 })
+
+test("[neoview.folder.inline-branch-limit-browser] enters the raw directory when the combined direct-entry limit is exceeded", async () => {
+  const root = directoryPage({
+    entries: [{ name: "series", path: "C:/books/series", kind: "directory", readerSupported: true }],
+    total: 1,
+  })
+  const rawDirectory = directoryPage({ path: "C:/books/series", parentPath: "C:/books", navigationEntryId: 2, generation: 2 })
+  const navigateDirectoryBrowser = vi.fn(async () => rawDirectory)
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => root),
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+    navigateDirectoryBrowser,
+    resolveFolderPenetration: vi.fn(async () => ({
+      status: "branch" as const,
+      originPath: "C:/books/series",
+      chain: [],
+      reason: "multiple-primary-items" as const,
+      directDirectoryCount: 2,
+      directFileCount: 3,
+    })),
+  } as unknown as ReaderHttpClient
+
+  const view = await render(
+    <div style={{ width: 960, height: 720 }}>
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 480, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+          folderView={{
+            ...DEFAULT_FOLDER_VIEW,
+            penetration: { ...DEFAULT_FOLDER_VIEW.penetration, enabled: true, expandBranchesInline: true },
+          }}
+        />
+      </VirtuosoMockContext.Provider>
+    </div>,
+  )
+
+  await view.getByTitle("C:/books/series").click()
+  await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
+    "browser-root",
+    { action: "path", path: "C:/books/series" },
+    expect.any(AbortSignal),
+    "C:/books/series",
+  )
+  expect(document.querySelector('[data-folder-inline-branch="true"]')).toBeNull()
+})
+
+test("[neoview.folder.inline-branch-cover-grid] gives the drawer an entire cover-grid row", async () => {
+  const view = await renderExpandedBranch("cover-grid", { width: 360, rootEntryCount: 7 })
+  const drawer = document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')
+  const drawerHost = drawer?.parentElement
+  const branch = document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/series"]')
+  const downstream = document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/later-6"]')
+
+  await expect.poll(() => Number.parseFloat(drawerHost?.style.width ?? "0")).toBeGreaterThan(branch?.getBoundingClientRect().width ?? 0)
+  await expect.poll(() => Boolean(drawer && downstream && downstream.getBoundingClientRect().top >= drawer.getBoundingClientRect().bottom)).toBe(true)
+  expect(view.getByTitle("C:/books/later-6")).toBeTruthy()
+})
+
+test("[neoview.folder.inline-branch-banner] keeps the banner renderer inside the drawer", async () => {
+  await renderExpandedBranch("mosaic-list")
+  await expect.poll(() => document.querySelector('[data-folder-inline-branch="true"] [data-preview-mode="mosaic-list"]')).not.toBeNull()
+})
+
+test("[neoview.folder.inline-branch-mosaic] reserves a full mosaic row for the drawer", async () => {
+  await renderExpandedBranch("mosaic-grid")
+  await expect.poll(() => document.querySelector('[data-folder-inline-branch="true"]')?.parentElement?.getAttribute("data-folder-inline-mosaic-drawer")).toBe("true")
+})
+
+test("[neoview.folder.inline-branch-height] uses the content height for a small expanded folder", async () => {
+  await renderExpandedBranch("details", { childEntryCount: 1 })
+  await expect.poll(() => (document.querySelector('[data-folder-inline-branch="true"]') as HTMLElement | null)?.style.height).toBe("82px")
+})
+
+test("[neoview.folder.inline-branch-height] caps a large expanded folder to the current card listing area", async () => {
+  await renderExpandedBranch("cover-list", { childEntryCount: 10 })
+  await expect.poll(() => {
+    const drawer = document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')
+    const host = drawer?.closest<HTMLElement>("[data-neoview-folder-list]")
+    const height = Number.parseFloat(drawer?.style.height ?? "0")
+    return Boolean(host && height > 0 && height <= host.getBoundingClientRect().height && height < inlineBranchViewportHeight(10, "cover-list"))
+  }).toBe(true)
+})
+
+async function renderExpandedBranch(
+  viewMode: ReaderFolderViewMode,
+  { width = 960, rootEntryCount = 2, childEntryCount = 2 }: { width?: number; rootEntryCount?: number; childEntryCount?: number } = {},
+) {
+  const rootEntries = [
+    { name: "series", path: "C:/books/series", kind: "directory" as const, readerSupported: true },
+    ...Array.from({ length: rootEntryCount - 1 }, (_, index) => ({
+      name: index === 0 ? "later" : `later-${index + 1}`,
+      path: index === 0 ? "C:/books/later" : `C:/books/later-${index + 1}`,
+      kind: "directory" as const,
+      readerSupported: true,
+    })),
+  ]
+  const childEntries = Array.from({ length: childEntryCount }, (_, index) => ({
+    name: index === 0 ? "chapter-one" : `chapter-${index + 1}`,
+    path: index === 0 ? "C:/books/series/chapter-one" : `C:/books/series/chapter-${index + 1}`,
+    kind: "directory" as const,
+    readerSupported: true,
+  }))
+  const root = directoryPage({
+    path: "C:/books",
+    entries: rootEntries,
+    total: rootEntries.length,
+  })
+  const child = directoryPage({
+    sessionId: "browser-inline",
+    navigationEntryId: 2,
+    path: "C:/books/series",
+    parentPath: "C:/books",
+    entries: childEntries,
+    total: childEntries.length,
+  })
+  const client = {
+    openDirectoryBrowser: vi.fn(async (path: string) => path === root.path ? root : child),
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+    resolveFolderPenetration: vi.fn(async () => ({
+      status: "branch" as const,
+      originPath: "C:/books/series",
+      chain: [],
+      reason: "multiple-primary-items" as const,
+      directDirectoryCount: 2,
+    })),
+  } as unknown as ReaderHttpClient
+
+  const view = await render(
+    <div style={{ width, height: 720 }}>
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 480, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+          folderView={{
+            ...DEFAULT_FOLDER_VIEW,
+            viewMode,
+            penetration: { ...DEFAULT_FOLDER_VIEW.penetration, enabled: true, expandBranchesInline: true },
+          }}
+        />
+      </VirtuosoMockContext.Provider>
+    </div>,
+  )
+
+  await expect.poll(() => document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/series"]')).not.toBeNull()
+  document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/series"]')?.click()
+  await expect.poll(() => document.querySelector('[data-folder-inline-branch="true"]')?.getAttribute("data-folder-inline-branch-path")).toBe("C:/books/series")
+  return view
+}
 
 function directoryPage(overrides: Partial<ReaderDirectoryPageDto> = {}): ReaderDirectoryPageDto {
   return {

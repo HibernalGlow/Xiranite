@@ -336,7 +336,7 @@ describe("parseNeoviewRuntimeConfig", () => {
       showHiddenFolders: false,
       hideMissingEfuEntries: false,
       tagDisplay: { tagMode: "collect", showRating: true, showCollectTagCount: true, showTags: true, maxTags: 3, showTooltips: true },
-      penetration: { enabled: true, expandBranchesInline: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
+      penetration: { enabled: true, expandBranchesInline: false, inlineBranchMaxDirectories: 4, inlineBranchMaxFiles: 4, inlineBranchMaxItems: 4, showInternalFiles: true, internalItemsMode: "single", maxDepth: 5, terminalTargets: ["archive", "media-directory"] },
       emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
       details: {
         columnOrder: ["name", "rating", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "tags"],
@@ -459,7 +459,7 @@ describe("parseNeoviewRuntimeConfig", () => {
     expect(() => parseNeoviewFolderViewPatch({ folderView: { showHiddenFolders: "yes" } })).toThrow("showHiddenFolders")
     expect(() => parseNeoviewFolderViewPatch({ folderView: { hideMissingEfuEntries: "yes" } })).toThrow("hideMissingEfuEntries")
     expect(parseNeoviewRuntimeConfig(undefined).folderView.penetration).toEqual({
-      enabled: false, expandBranchesInline: false,
+      enabled: false, expandBranchesInline: false, inlineBranchMaxDirectories: 4, inlineBranchMaxFiles: 4, inlineBranchMaxItems: 4,
       showInternalFiles: true,
       internalItemsMode: "single",
       maxDepth: 3,

@@ -44,6 +44,9 @@ export function useFolderPenetrationPipeline({
   const penetrationSyncKey = [
     configuredPenetration.enabled,
     configuredPenetration.expandBranchesInline,
+    configuredPenetration.inlineBranchMaxDirectories,
+    configuredPenetration.inlineBranchMaxFiles,
+    configuredPenetration.inlineBranchMaxItems,
     configuredPenetration.showInternalFiles,
     configuredPenetration.internalItemsMode ?? "",
     configuredPenetration.maxDepth,
@@ -56,6 +59,9 @@ export function useFolderPenetrationPipeline({
       if (
         current.enabled === next.enabled
         && current.expandBranchesInline === next.expandBranchesInline
+        && current.inlineBranchMaxDirectories === next.inlineBranchMaxDirectories
+        && current.inlineBranchMaxFiles === next.inlineBranchMaxFiles
+        && current.inlineBranchMaxItems === next.inlineBranchMaxItems
         && current.showInternalFiles === next.showInternalFiles
         && (current.internalItemsMode ?? "") === (next.internalItemsMode ?? "")
         && current.maxDepth === next.maxDepth

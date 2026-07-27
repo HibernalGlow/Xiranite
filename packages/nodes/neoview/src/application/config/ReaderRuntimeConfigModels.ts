@@ -15,6 +15,7 @@ import { parseNeoviewInputBindingsConfig } from "./ReaderInputBindingsConfig.js"
 import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
 import { parseReaderRadialMenuConfig, type ReaderRadialMenuConfig } from "./ReaderRadialMenuConfig.js"
 import { DEFAULT_READER_VOICE_CONTROL_CONFIG, type ReaderVoiceControlConfig } from "./ReaderVoiceControlConfig.js"
+import { createDefaultNeoviewFolderPenetrationConfig, NEOVIEW_FOLDER_PENETRATION_TARGETS, type NeoviewFolderPenetrationConfig, type NeoviewFolderPenetrationTarget } from "./ReaderFolderPenetrationConfig.js"
 import type { SuperResolutionCustomModelManifest } from "../../ports/SuperResolutionProvider.js"
 import { DEFAULT_NEOVIEW_IMAGE_PROCESSING_CONFIG, parseNeoviewImageProcessingConfig, type NeoviewImageProcessingConfig } from "./ReaderImageProcessingConfig.js"
 import { parseSuperResolutionPreferences, type SuperResolutionPreferences } from "../../domain/super-resolution/super-resolution-preferences.js"
@@ -225,17 +226,8 @@ export interface NeoviewFolderTabsConfig {
 
 export const NEOVIEW_FOLDER_TYPE_FILTERS = ["all", "library", "archive", "directory", "video", "image", "other"] as const
 export type NeoviewFolderTypeFilter = (typeof NEOVIEW_FOLDER_TYPE_FILTERS)[number]
-export const NEOVIEW_FOLDER_PENETRATION_TARGETS = ["archive", "document", "media-directory", "file"] as const
-export type NeoviewFolderPenetrationTarget = (typeof NEOVIEW_FOLDER_PENETRATION_TARGETS)[number]
-
-export interface NeoviewFolderPenetrationConfig {
-  enabled: boolean
-  expandBranchesInline: boolean
-  showInternalFiles: boolean
-  internalItemsMode: "single" | "all"
-  maxDepth: number
-  terminalTargets: NeoviewFolderPenetrationTarget[]
-}
+export { NEOVIEW_FOLDER_PENETRATION_TARGETS }
+export type { NeoviewFolderPenetrationConfig, NeoviewFolderPenetrationTarget }
 
 export interface NeoviewFolderTagDisplayConfig {
   tagMode: "all" | "collect" | "none"
@@ -807,14 +799,7 @@ export const DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG: NeoviewFolderViewConfig = {
     maxTags: 3,
     showTooltips: true,
   },
-  penetration: {
-    enabled: false,
-    expandBranchesInline: false,
-    showInternalFiles: true,
-    internalItemsMode: "single",
-    maxDepth: 3,
-    terminalTargets: [...NEOVIEW_FOLDER_PENETRATION_TARGETS],
-  },
+  penetration: createDefaultNeoviewFolderPenetrationConfig(),
   emptyArea: {
     singleClickAction: "none",
     doubleClickAction: "goUp",

@@ -121,7 +121,7 @@ export interface ReaderPanelContext {
   inputBindings?: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu?: ReaderRuntimeConfigDto["radialMenu"]
-  onRadialMenu?(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  onRadialMenu?(patch: ReaderRadialMenuPatch["radialMenu"], inputBindings?: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
   voiceControl?: ReaderRuntimeConfigDto["voiceControl"]
   onVoiceControl?(patch: ReaderVoiceControlPatch["voiceControl"]): Promise<NonNullable<ReaderRuntimeConfigDto["voiceControl"]>>
   preload?: ReaderRuntimeConfigDto["preload"]
@@ -191,7 +191,7 @@ export interface ReaderSettingsCardContext {
   inputBindings?: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings?(patch: { bindings?: ReaderRuntimeConfigDto["inputBindings"]["bindings"]; reset?: "defaults" }): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu?: ReaderRuntimeConfigDto["radialMenu"]
-  onRadialMenu?(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  onRadialMenu?(patch: ReaderRadialMenuPatch["radialMenu"], inputBindings?: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
   onMaterial?(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>

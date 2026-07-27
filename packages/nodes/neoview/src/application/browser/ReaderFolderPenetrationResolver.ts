@@ -50,6 +50,7 @@ export interface ReaderFolderPenetrationResolution {
   terminal?: { kind: ReaderFolderPenetrationTerminalKind; path: string }
   directMediaCount?: number
   directDirectoryCount?: number
+  directFileCount?: number
   deferredDirectoryCount?: number
   chain: readonly ReaderFolderPenetrationStep[]
   reason: ReaderFolderPenetrationReason
@@ -221,7 +222,14 @@ export class ReaderFolderPenetrationResolver {
         if (terminalFiles.length === 0 && classified.media.length === 0 && !hasBlockingFiles) {
           return result("empty", originPath, chain, "empty")
         }
-        return result("branch", originPath, chain, terminalFiles.length > 1 ? "multiple-primary-items" : "unsupported-content", classified.directories.length)
+        return result(
+          "branch",
+          originPath,
+          chain,
+          terminalFiles.length > 1 ? "multiple-primary-items" : "unsupported-content",
+          classified.directories.length,
+          directFileCount(listing.entries),
+        )
       }
 
       if (classified.media.length >= MINIMUM_MIXED_DIRECTORY_MEDIA && terminalFiles.length === 0 && !hasBlockingFiles
@@ -234,6 +242,7 @@ export class ReaderFolderPenetrationResolver {
           reason: "mixed-media-directory",
           directMediaCount: classified.media.length,
           directDirectoryCount: classified.directories.length,
+          directFileCount: directFileCount(listing.entries),
           deferredDirectoryCount: classified.directories.length,
         }
       }
@@ -243,7 +252,7 @@ export class ReaderFolderPenetrationResolver {
         currentPath = classified.directories[0]!.path
         continue
       }
-      return result("branch", originPath, chain, "multiple-primary-items", classified.directories.length)
+      return result("branch", originPath, chain, "multiple-primary-items", classified.directories.length, directFileCount(listing.entries))
     }
     return result("blocked", originPath, chain, "depth-limit")
   }
@@ -299,8 +308,20 @@ function result(
   chain: readonly ReaderFolderPenetrationStep[],
   reason: ReaderFolderPenetrationReason,
   directDirectoryCount?: number,
+  directFileCountValue?: number,
 ): ReaderFolderPenetrationResolution {
-  return { status, originPath, chain, reason, ...(directDirectoryCount === undefined ? {} : { directDirectoryCount }) }
+  return {
+    status,
+    originPath,
+    chain,
+    reason,
+    ...(directDirectoryCount === undefined ? {} : { directDirectoryCount }),
+    ...(directFileCountValue === undefined ? {} : { directFileCount: directFileCountValue }),
+  }
+}
+
+function directFileCount(entries: readonly ReaderDirectoryEntry[]): number {
+  return entries.filter((entry) => entry.kind === "file").length
 }
 
 function cloneResolution(resolution: ReaderFolderPenetrationResolution): ReaderFolderPenetrationResolution {

@@ -5,12 +5,15 @@ import {
   type VirtuosoHandle,
 } from "react-virtuoso"
 import {
+  Fragment,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
   type RefObject,
 } from "react"
 
@@ -61,6 +64,8 @@ export default function FolderMosaicWorkspace({
   restoreSnapshot,
   initialScrollTop,
   initialIndex,
+  inlineBranch,
+  inlineBranchPath,
   onRangeChange,
   onScrollTopChange,
   onSelect,
@@ -89,6 +94,8 @@ export default function FolderMosaicWorkspace({
   restoreSnapshot?: StateSnapshot
   initialScrollTop?: number
   initialIndex?: number
+  inlineBranch?: ReactNode
+  inlineBranchPath?: string
   onRangeChange(range: ListRange): void
   onScrollTopChange(scrollTop: number): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
@@ -187,6 +194,8 @@ export default function FolderMosaicWorkspace({
         <DirectoryMosaicGroup
           catalog={catalog}
           startIndex={groupIndex * FOLDER_MOSAIC_GROUP_SIZE}
+          inlineBranch={inlineBranch}
+          inlineBranchPath={inlineBranchPath}
           disabled={disabled}
           selectedPaths={selectedPaths}
           focusedIndex={focusedIndex}
@@ -216,6 +225,8 @@ export default function FolderMosaicWorkspace({
 function DirectoryMosaicGroup({
   catalog,
   startIndex,
+  inlineBranch,
+  inlineBranchPath,
   disabled,
   selectedPaths,
   focusedIndex,
@@ -239,6 +250,8 @@ function DirectoryMosaicGroup({
 }: {
   catalog: DirectoryCatalog
   startIndex: number
+  inlineBranch?: ReactNode
+  inlineBranchPath?: string
   disabled: boolean
   selectedPaths: ReadonlySet<string>
   focusedIndex?: number
@@ -274,36 +287,79 @@ function DirectoryMosaicGroup({
         if (!entry) return <div key={`${catalog.generation}:${index}`} className="min-h-0 animate-pulse rounded bg-muted/30" aria-hidden="true" />
         const measuredSpan = measuredSpans.get(entry.path)
         const span = measuredSpan ?? "square"
-        return (
-          <DirectoryMosaicItem
-            key={entry.path}
-            itemId={`${itemIdPrefix}-item-${index}`}
-            entry={entry}
-            index={index}
-            span={span}
-            previewReady={measuredSpan !== undefined}
-            columnCount={columnCount}
-            disabled={disabled}
-            selected={selectedPaths.has(entry.path)}
-            focused={index === focusedIndex}
-            showRating={catalog.metadataFields.includes("rating")}
-            showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
-            thumbnailStore={thumbnailStore}
-            thumbnailProbeEnabled={thumbnailProbeEnabled}
-            thumbnailUrl={thumbnailUrls.get(entry.path)}
-            thumbnailUrls={thumbnailUrlSets.get(entry.path)}
-            hoverPreviewEnabled={hoverPreviewEnabled}
-            hoverPreviewDelayMs={hoverPreviewDelayMs}
-            wrapTitle={wrapTitle}
-            penetrationFiles={penetrationFiles.get(entry.path)}
-            deleteMode={deleteMode}
-            deleteStrategy={deleteStrategy}
-            confirmDelete={confirmDelete}
-            onDimensions={onDimensions}
-            onSelect={onSelect}
-          />
-        )
+        const item = <DirectoryMosaicItem
+          key={entry.path}
+          itemId={`${itemIdPrefix}-item-${index}`}
+          entry={entry}
+          index={index}
+          span={span}
+          previewReady={measuredSpan !== undefined}
+          columnCount={columnCount}
+          disabled={disabled}
+          selected={selectedPaths.has(entry.path)}
+          focused={index === focusedIndex}
+          showRating={catalog.metadataFields.includes("rating")}
+          showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
+          thumbnailStore={thumbnailStore}
+          thumbnailProbeEnabled={thumbnailProbeEnabled}
+          thumbnailUrl={thumbnailUrls.get(entry.path)}
+          thumbnailUrls={thumbnailUrlSets.get(entry.path)}
+          hoverPreviewEnabled={hoverPreviewEnabled}
+          hoverPreviewDelayMs={hoverPreviewDelayMs}
+          wrapTitle={wrapTitle}
+          penetrationFiles={penetrationFiles.get(entry.path)}
+          deleteMode={deleteMode}
+          deleteStrategy={deleteStrategy}
+          confirmDelete={confirmDelete}
+          onDimensions={onDimensions}
+          onSelect={onSelect}
+        />
+        return entry.path === inlineBranchPath && inlineBranch ? (
+          <Fragment key={entry.path}>
+            {item}
+            <FolderMosaicInlineBranchDrawer tileSize={tileSize}>{inlineBranch}</FolderMosaicInlineBranchDrawer>
+          </Fragment>
+        ) : item
       })}
+    </div>
+  )
+}
+
+function FolderMosaicInlineBranchDrawer({ children, tileSize }: { children: ReactNode; tileSize: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [rowSpan, setRowSpan] = useState(1)
+
+  useLayoutEffect(() => {
+    const container = ref.current
+    if (!container) return
+    const measure = () => {
+      const child = container.firstElementChild as HTMLElement | null
+      const height = child?.getBoundingClientRect().height ?? container.scrollHeight
+      setRowSpan(Math.max(1, Math.ceil(height / tileSize)))
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(container)
+    for (const child of container.children) observer.observe(child)
+    const mutations = new MutationObserver(() => {
+      for (const child of container.children) observer.observe(child)
+      measure()
+    })
+    mutations.observe(container, { childList: true })
+    measure()
+    return () => {
+      observer.disconnect()
+      mutations.disconnect()
+    }
+  }, [tileSize])
+
+  return (
+    <div
+      ref={ref}
+      className="min-w-0"
+      style={{ gridColumn: "1 / -1", gridRow: `span ${rowSpan}` }}
+      data-folder-inline-mosaic-drawer="true"
+    >
+      {children}
     </div>
   )
 }
