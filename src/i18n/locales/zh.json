@@ -2625,9 +2625,25 @@
         "library": "库",
         "archiveResults": "Findz 归档结果",
         "lanes": {
+          "source": "来源",
+          "results": "结果",
+          "analysis": "分析",
           "query": "查询与筛选",
           "scope": "索引范围",
           "hierarchy": "归档层级"
+        },
+        "laneActions": {
+          "restoreSource": "恢复来源泳道",
+          "collapseSource": "折叠来源泳道",
+          "resizeSource": "调整来源泳道宽度",
+          "restoreResults": "恢复结果泳道",
+          "collapseResults": "折叠结果泳道",
+          "resizeResults": "调整结果泳道宽度",
+          "restoreAnalysis": "恢复分析泳道",
+          "collapseAnalysis": "折叠分析泳道",
+          "resizeAnalysis": "调整分析泳道宽度",
+          "enterSolo": "聚焦当前泳道",
+          "exitSolo": "显示全部泳道"
         },
         "header": {
           "rootLabel": "Findz 库根目录",
@@ -2676,8 +2692,8 @@
           "descending": "降序",
           "scanStates": { "corrupt": "归档损坏", "unsupported": "不支持的归档", "rejected": "已拒绝的归档" }
         },
-        "treemap": {
-          "title": "矩形图",
+        "treemap": "矩形图",
+        "treemapPanel": {
           "area": "面积",
           "empty": "当前视图没有已索引的归档面积。",
           "openArchive": "打开归档 {{name}}",

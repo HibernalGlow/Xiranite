@@ -41,8 +41,8 @@ export function FindzTreemap({ projection, selectedArchiveId, onSelectArchive, o
           dom.setAttribute("role", "button")
           dom.tabIndex = 0
           dom.setAttribute("aria-label", source.archiveId
-            ? t("workspace.treemap.openArchive", "Open archive {{name}}", { name: source.name })
-            : t("workspace.treemap.drillInto", "Drill into {{name}}", { name: source.name }))
+            ? t("workspace.treemapPanel.openArchive", "Open archive {{name}}", { name: source.name })
+            : t("workspace.treemapPanel.drillInto", "Drill into {{name}}", { name: source.name }))
           const select = () => {
             if (source.archiveId !== undefined) onSelectArchive(source.archiveId)
           }
@@ -82,7 +82,7 @@ export function FindzTreemap({ projection, selectedArchiveId, onSelectArchive, o
   }, [language, onDrill, onSelectArchive, projection, selectedArchiveId])
 
   if (!projection?.children?.length) {
-    return <div data-testid="findz-treemap-empty" className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">{t("workspace.treemap.empty", "No indexed archive area for this view.")}</div>
+    return <div data-testid="findz-treemap-empty" className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">{t("workspace.treemapPanel.empty", "No indexed archive area for this view.")}</div>
   }
   return <div ref={containerRef} data-testid="findz-treemap" className="findz-treemap relative min-h-56 flex-1 overflow-hidden" />
 }

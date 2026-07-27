@@ -6,7 +6,7 @@ import type { FindzData, FindzInput } from "@xiranite/node-findz/core"
 import type { FindzTask } from "@xiranite/findz-native"
 import { Component } from "./Component"
 import type { FindzCardState } from "./types"
-import { changeLanguage } from "@/i18n"
+import i18n, { changeLanguage } from "@/i18n"
 
 beforeEach(async () => { await changeLanguage("en") })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
@@ -21,6 +21,21 @@ test("opens a library and renders the synchronized archive table and treemap", a
   await expect.element(page.getByTestId("findz-archive-7")).toBeVisible()
   await expect.element(page.getByText("Watching")).toBeVisible()
   await expect.element(page.getByTestId("findz-treemap")).toBeVisible()
+})
+
+test("uses the shared swimlane controls and persists collapsed lane state", async () => {
+  const host = createHost({ libraryRoot: "D:/library" })
+
+  await render(<Component compId="findz-swimlane-browser" host={host} />)
+
+  await expect.element(page.getByTestId("findz-lane-board")).toBeVisible()
+  await expect.element(page.getByTestId("findz-lane-source")).toBeVisible()
+  await expect.element(page.getByTestId("findz-lane-results")).toBeVisible()
+  await expect.element(page.getByTestId("findz-lane-analysis")).toBeVisible()
+  await page.getByRole("button", { name: "Collapse Source lane" }).click()
+
+  await expect.poll(() => host.stateValue.workspace?.sourceCollapsed).toBe(true)
+  await expect.element(page.getByRole("button", { name: "Restore Source lane" })).toBeVisible()
 })
 
 test("selecting an archive loads its member rows through the structured query", async () => {
@@ -156,6 +171,7 @@ test("updates manual image-analysis controls through pause, resume, and cancel",
   await page.getByRole("button", { name: "Open library" }).click()
   await page.getByRole("button", { name: "Analyze image headers" }).click()
   await expect.element(page.getByRole("button", { name: "Pause task" })).toBeVisible()
+  await expect.element(page.getByTestId("findz-task-progressbar")).toBeVisible()
 
   await page.getByRole("button", { name: "Pause task" }).click()
   await expect.element(page.getByRole("button", { name: "Resume task" })).toBeVisible()
@@ -262,6 +278,7 @@ test("renders the workspace controls in Chinese after switching language", async
   await expect.element(page.getByTestId("findz-results-lane")).toBeVisible()
   await expect.element(page.getByTestId("findz-treemap-lane")).toBeVisible()
   await expect.element(page.getByRole("heading", { name: "矩形图" })).toBeVisible()
+  expect(i18n.t("findz.workspace.treemap", { ns: "module" })).toBe("矩形图")
 })
 
 type TestHost = NodeHostApi<FindzCardState, Partial<FindzCardState>> & {

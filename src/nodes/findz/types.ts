@@ -1,6 +1,7 @@
 import { RULE_TREE_FORMAT, type RuleTree } from "@xiranite/shared/rules"
 import type { FindzTask } from "@xiranite/findz-native"
 import type { RuleTreeField } from "@/nodes/shared/RuleTreeEditor"
+import type { FindzWorkspaceLayout } from "./workspace-layout"
 
 export type FindzAreaMetric = "archiveSize" | "totalImageSize" | "averageImageSize" | "averageBytesPerMegapixel" | "medianBytesPerMegapixel" | "anomalyCount" | "estimatedSavings"
 export type FindzArchiveSort = "relativePath" | "archiveSize" | "imageCount" | "analysisCoverage" | "totalImageSize" | "averageImageSize" | "averageBytesPerMegapixel" | "anomalyCount" | "estimatedSavings"
@@ -18,6 +19,7 @@ export interface FindzCardState {
   selectedArchiveId?: number
   taskId?: string
   pageCursor?: string
+  workspace?: FindzWorkspaceLayout
 }
 
 export function getFindzRuleFields(t: FindzT): readonly RuleTreeField[] {
