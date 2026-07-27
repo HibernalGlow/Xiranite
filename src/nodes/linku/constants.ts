@@ -5,6 +5,7 @@ import {
   Link2,
   ListChecks,
   RefreshCw,
+  RotateCcw,
   type LucideIcon,
 } from "lucide-react"
 import type { LinkuAction } from "@xiranite/node-linku/core"
@@ -64,6 +65,15 @@ export const ACTIONS: LinkuActionMeta[] = [
     shortLabel: "恢复",
     description: "按记录批量重建符号链接，统计成功与失败计数。",
     icon: RefreshCw,
+    needsTarget: false,
+    destructive: true,
+  },
+  {
+    value: "restore",
+    label: "还原链接",
+    shortLabel: "还原",
+    description: "校验已记录的链接后，将目标移回原路径，并删除对应链接记录。",
+    icon: RotateCcw,
     needsTarget: false,
     destructive: true,
   },

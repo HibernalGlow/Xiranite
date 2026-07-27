@@ -102,8 +102,12 @@ export function Component({ compId, host }: NodeComponentProps) {
     const current = { ...dataRef.current, ...override }
     const input = buildInput(nextAction, current)
 
-    if ((nextAction === "info" || nextAction === "create" || nextAction === "move_link") && !input.path) {
-      patch({ phase: "error", progress: 0, progressText: "请先输入源路径。" })
+    if ((nextAction === "info" || nextAction === "create" || nextAction === "move_link" || nextAction === "restore") && !input.path) {
+      patch({
+        phase: "error",
+        progress: 0,
+        progressText: nextAction === "restore" ? "请先输入已记录的原链接路径。" : "请先输入源路径。",
+      })
       return
     }
     if ((nextAction === "create" || nextAction === "move_link") && !input.target) {
@@ -529,7 +533,7 @@ function LinkTopology({ links }: { links: LinkuData["links"] }) {
 }
 
 function LinkuExecutionStats({ progress, result, t }: { progress: number; result: LinkuData | null; t: ViewProps["t"] }) {
-  const rows = [[t("stats.links", "关联"), result?.links.length ?? 0], [t("stats.created", "已创建"), result?.created ? 1 : 0], [t("stats.recovered", "已恢复"), result?.recoveredCount ?? 0], [t("stats.failed", "失败"), result?.failedCount ?? 0], [t("stats.progress", "进度"), `${progress}%`]] as const
+  const rows = [[t("stats.links", "关联"), result?.links.length ?? 0], [t("stats.created", "已创建"), result?.created ? 1 : 0], [t("stats.recovered", "已恢复"), result?.recoveredCount ?? 0], [t("stats.restored", "已还原"), result?.restoredCount ?? 0], [t("stats.failed", "失败"), result?.failedCount ?? 0], [t("stats.progress", "进度"), `${progress}%`]] as const
   return <div className="grid gap-1">{rows.map(([label, value]) => <div key={label} className="flex items-center justify-between border-b border-border/70 py-1.5 text-sm"><span className="text-muted-foreground">{label}</span><span className="font-mono font-semibold tabular-nums">{value}</span></div>)}</div>
 }
 
@@ -678,6 +682,7 @@ function resultLines(result: LinkuData | null): string[] {
   }
   if (result.created) lines.push("created yes")
   if (result.recoveredCount) lines.push(`recovered ${result.recoveredCount}`)
+  if (result.restoredCount) lines.push(`restored ${result.restoredCount}`)
   if (result.failedCount) lines.push(`failed ${result.failedCount}`)
   return lines
 }
