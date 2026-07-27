@@ -76,10 +76,20 @@ async function refreshPrebuilt(selectedBindings: readonly (typeof bindings)[numb
     const manifestPath = join(prebuiltRoot, "manifest.json")
     const existingManifest = JSON.parse(await readFile(manifestPath, "utf8")) as { schemaVersion: number; assets: Array<{ id: string; platform: string; arch: string }> }
     if (existingManifest.schemaVersion !== 1) throw new Error(`Unsupported native asset manifest schema: ${existingManifest.schemaVersion}`)
-    const existingAssets = existingManifest.assets.filter((asset) => !assets.some((replacement) => replacement.id === asset.id && replacement.platform === asset.platform && replacement.arch === asset.arch))
+    const replacementByKey = new Map(assets.map((asset) => [`${asset.id}:${asset.platform}:${asset.arch}`, asset]))
+    const existingKeys = new Set<string>()
+    const mergedAssets = existingManifest.assets.map((asset) => {
+      const key = `${asset.id}:${asset.platform}:${asset.arch}`
+      existingKeys.add(key)
+      return replacementByKey.get(key) ?? asset
+    })
+    for (const asset of assets) {
+      const key = `${asset.id}:${asset.platform}:${asset.arch}`
+      if (!existingKeys.has(key)) mergedAssets.push(asset)
+    }
     await mkdir(prebuiltRoot, { recursive: true })
     for (const [archiveName, archive] of archives) await writeFile(join(prebuiltRoot, archiveName), archive)
-    await writeFile(manifestPath, `${JSON.stringify({ schemaVersion: 1, assets: [...existingAssets, ...assets] }, null, 2)}\n`)
+    await writeFile(manifestPath, `${JSON.stringify({ schemaVersion: 1, assets: mergedAssets }, null, 2)}\n`)
     console.log(`Refreshed ${assets.length} native prebuilt asset(s) without replacing other assets: ${prebuiltRoot}`)
     return
   }
