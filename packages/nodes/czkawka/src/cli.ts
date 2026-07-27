@@ -45,6 +45,9 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
   let input: CzkawkaInput
   if (command === "scan" || CZKAWKA_TERMINAL_TOOLS.includes(command as typeof CZKAWKA_TERMINAL_TOOLS[number])) {
     const explicitTool = command === "scan" ? args[1] : command
+    if (command === "scan" && explicitTool && !explicitTool.startsWith("--") && !CZKAWKA_TERMINAL_TOOLS.includes(explicitTool as typeof CZKAWKA_TERMINAL_TOOLS[number])) {
+      throw new Error(`Unsupported Czkawka tool: ${explicitTool}`)
+    }
     const configuredTool = CZKAWKA_TERMINAL_TOOLS.includes(config?.tool as typeof CZKAWKA_TERMINAL_TOOLS[number]) ? config!.tool! : "duplicate-files"
     const tool = CZKAWKA_TERMINAL_TOOLS.includes(explicitTool as typeof CZKAWKA_TERMINAL_TOOLS[number]) ? explicitTool as CzkawkaTool : configuredTool
     const offset = command === "scan" ? 2 : 1
