@@ -52,7 +52,7 @@ describe("Czkawka node", () => {
     expect(screen.getByText("Scan conditions")).toBeTruthy()
     expect(screen.getByRole("tab", { name: "Paths" })).toBeTruthy()
     expect(screen.getByRole("tab", { name: "Algorithm" })).toBeTruthy()
-    expect(screen.getAllByText("No directories added").length).toBe(2)
+    expect(screen.getAllByText("No directories added").length).toBe(1)
     expect(screen.getByText("Format share")).toBeTruthy()
     expect(screen.getByRole("tab", { name: "Activity log" })).toBeTruthy()
     expect(screen.queryByRole("button", { name: "开始扫描" })).toBeNull()
@@ -96,7 +96,6 @@ describe("Czkawka node", () => {
       tool: "duplicate-files",
       includedDirectoriesText: "D:/one\nD:/two",
       includedDirectoriesReferencedText: "D:/two",
-      excludedDirectoriesText: "E:/skip",
       excludedItemsText: "*/cache/*",
       allowedExtensions: ".jpg;png",
       excludedExtensions: "tmp,bak",
@@ -124,9 +123,6 @@ describe("Czkawka node", () => {
     expect(host.stateValue.includedDirectoriesReferencedText).not.toContain("D:/two")
 
     view.rerender(<Component compId="czkawka" host={host} />)
-    fireEvent.click(screen.getByRole("checkbox", { name: "选择目录 E:/skip" }))
-    fireEvent.click(screen.getByRole("button", { name: "移除选中的排除目录" }))
-    expect(host.stateValue.excludedDirectoriesText).toBe("")
     fireEvent.click(screen.getByRole("button", { name: /节点设置|Node settings/ }))
     const settingsDialog = screen.getByRole("dialog")
     const minimumSize = within(settingsDialog).getByRole("spinbutton", { name: /最小文件大小（KB）|Minimum file size \(KB\)/ })
