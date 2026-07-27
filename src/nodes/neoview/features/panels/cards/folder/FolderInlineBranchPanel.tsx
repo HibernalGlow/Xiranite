@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react"
 import { ChevronDown, FolderInput, X } from "lucide-react"
 import { Virtuoso, VirtuosoGrid, type ListRange } from "react-virtuoso"
 
@@ -12,7 +12,7 @@ import {
   trimDirectoryPages,
   type DirectoryCatalog,
 } from "./DirectoryCatalog"
-import { DirectoryGridItem } from "./FolderGridWorkspace"
+import { DirectoryBannerItem, DirectoryGridItem } from "./FolderGridWorkspace"
 import { DirectoryListItem, folderEntryName } from "./FolderDirectoryListItem"
 import type { FolderPreviewCount } from "./FolderBrowserState"
 import { useFolderThumbnailPipeline } from "./useFolderThumbnailPipeline"
@@ -20,11 +20,36 @@ import { useFolderThumbnailPipeline } from "./useFolderThumbnailPipeline"
 const PAGE_SIZE = 128
 const MAX_CACHED_PAGES = 6
 const EMPTY_SELECTED_PATHS: ReadonlySet<string> = new Set()
+const INLINE_BRANCH_HEADER_HEIGHT = 40
+const INLINE_BRANCH_STATE_HEIGHT = 76
 
 export function inlineBranchViewportHeight(total: number, viewMode: ReaderFolderViewMode): number {
-  const rowHeight = viewMode === "compact" ? 34 : viewMode === "details" ? 42 : viewMode.endsWith("grid") ? 152 : 76
-  const rows = viewMode.endsWith("grid") ? Math.ceil(Math.max(total, 1) / 3) : Math.max(total, 1)
-  return Math.min(384, Math.max(116, 42 + rows * rowHeight))
+  const usesGrid = viewMode === "mosaic-list" || viewMode.endsWith("grid")
+  const rowHeight = viewMode === "compact" ? 34 : viewMode === "details" ? 42 : viewMode === "mosaic-list" ? 96 : viewMode.endsWith("grid") ? 152 : 76
+  const rows = usesGrid ? Math.ceil(Math.max(total, 1) / 3) : Math.max(total, 1)
+  return INLINE_BRANCH_HEADER_HEIGHT + rows * rowHeight
+}
+
+function useInlineBranchAvailableHeight(path: string) {
+  const panelRef = useRef<HTMLElement | null>(null)
+  const [availableHeight, setAvailableHeight] = useState<number>()
+
+  useLayoutEffect(() => {
+    const panel = panelRef.current
+    const host = panel?.closest<HTMLElement>("[data-neoview-folder-list]")
+    if (!host) return
+
+    const measure = () => {
+      const height = Math.floor(host.getBoundingClientRect().height)
+      if (height > 0) setAvailableHeight((current) => current === height ? current : height)
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(host)
+    measure()
+    return () => observer.disconnect()
+  }, [path])
+
+  return { panelRef, availableHeight }
 }
 
 export default function FolderInlineBranchPanel({
@@ -56,6 +81,7 @@ export default function FolderInlineBranchPanel({
   onEnterDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void
   onClose(): void
 }) {
+  const { panelRef, availableHeight } = useInlineBranchAvailableHeight(path)
   const catalogRef = useRef<DirectoryCatalog>()
   const pendingCursorsRef = useRef(new Set<number>())
   const listingRequestRef = useRef<AbortController>()
@@ -147,11 +173,17 @@ export default function FolderInlineBranchPanel({
     else onActivate(entry)
   }
 
-  const height = inlineBranchViewportHeight(catalog?.total ?? 1, viewMode)
+  const naturalHeight = catalog?.total && catalog.total > 0
+    ? inlineBranchViewportHeight(catalog.total, viewMode)
+    : INLINE_BRANCH_HEADER_HEIGHT + INLINE_BRANCH_STATE_HEIGHT
+  const height = availableHeight === undefined
+    ? naturalHeight
+    : Math.max(INLINE_BRANCH_HEADER_HEIGHT, Math.min(naturalHeight, availableHeight))
   return (
     <section
-      className="flex min-h-[7.25rem] shrink-0 flex-col border-t bg-muted/20"
-      style={{ height: `${height}px`, maxHeight: "min(50vh, 32rem)" }}
+      ref={panelRef}
+      className="flex shrink-0 flex-col border-t bg-muted/20"
+      style={{ height: `${height}px` }}
       data-folder-inline-branch="true"
       data-folder-inline-branch-path={path}
       data-folder-inline-view-mode={viewMode}
@@ -171,6 +203,20 @@ export default function FolderInlineBranchPanel({
       {!error && catalog?.total === 0 ? <div className="grid min-h-0 flex-1 place-items-center text-xs text-muted-foreground" role="status">此文件夹为空</div> : null}
       {!error && catalog && catalog.total > 0 && viewMode === "details" ? (
         <InlineDetailsList catalog={catalog} disabled={disabled} selectedPath={selectedPath} onRangeChange={requestRange} onSelect={selectEntry} />
+      ) : null}
+      {!error && catalog && catalog.total > 0 && viewMode === "mosaic-list" ? (
+        <VirtuosoGrid
+          style={{ height: "100%" }}
+          totalCount={catalog.total}
+          listClassName="grid gap-1 overflow-hidden p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),10rem),1fr))]"
+          itemClassName="min-w-0"
+          computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
+          rangeChanged={requestRange}
+          itemContent={(index) => {
+            const entry = directoryEntryAt(catalog, index)
+            return <DirectoryBannerItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={false} showCollectTagCount={false} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} hoverPreviewEnabled={false} hoverPreviewDelayMs={500} onSelect={selectEntry} />
+          }}
+        />
       ) : null}
       {!error && catalog && catalog.total > 0 && viewMode.endsWith("grid") ? (
         <VirtuosoGrid

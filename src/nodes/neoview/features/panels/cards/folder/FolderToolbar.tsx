@@ -69,9 +69,8 @@ import type {
   ReaderFolderTreeLayout,
   ReaderFolderViewMode,
 } from "../../../../adapters/reader-http-client"
-import {
-  viewUsesThumbnails,
-} from "./DirectoryCatalog"
+import { viewUsesThumbnails } from "./DirectoryCatalog"
+import { FolderInlineBranchLimitFields } from "./FolderInlineBranchLimitFields"
 import FolderTypeFilterPanel, { folderTypeFilterMeta } from "./FolderTypeFilterBar"
 import FolderTagDisplayMenu from "./FolderTagDisplayMenu"
 import FolderViewTitleWrapMenu from "./FolderViewTitleWrapMenu"
@@ -841,6 +840,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
                 onCheckedChange={(expandBranchesInline) => onUpdatePenetration({ expandBranchesInline })}
               />
             </Field>
+            <FolderInlineBranchLimitFields busy={busy} penetration={penetration} onUpdate={onUpdatePenetration} />
             <Field orientation="horizontal">
               <FieldLabel htmlFor="folder-penetration-show-internal-files">显示内部条目</FieldLabel>
               <Switch

@@ -240,7 +240,12 @@ function FolderDetailsTitle({
   wrapTitle: boolean
 }) {
   return (
-    <div className={`flex min-w-0 gap-2 ${wrapTitle ? "items-start py-1" : "items-center"}`} title={entry.path}>
+    <div
+      className={`flex min-w-0 gap-2 ${wrapTitle ? "items-start py-1" : "items-center"}`}
+      data-folder-entry="true"
+      data-folder-path={entry.path}
+      title={entry.path}
+    >
       {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} confirm={confirmDelete} /> : null}
       <FolderEntryIcon entry={entry} />
       <span className={folderTitleClassName(wrapTitle) + " text-xs font-medium"} data-folder-entry-title-wrap={wrapTitle || undefined}>{entry.name}</span>

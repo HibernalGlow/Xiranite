@@ -108,14 +108,14 @@ type ReaderFolderPenetrationResolution = {
 
 ## 分支文件夹就地展开
 
-File Card 的现有行为会在解析结果为 `branch` 时进入被点击的目录。本功能增加一个默认关闭的可选开关“分支文件夹就地展开”：启用穿透模式且启用该开关后，点击自身直接包含两个或以上子文件夹的分支目录，不改变主 browser session 的路径，而是在该条目下方展开该目录原本会进入的内容区域。
+File Card 的现有行为会在解析结果为 `branch` 时进入被点击的目录。本功能增加一个默认关闭的可选开关“分支文件夹就地展开”：启用穿透模式且启用该开关后，点击自身直接包含两个或以上子文件夹、并且直属条目数量未超过配置上限的分支目录，不改变主 browser session 的路径，而是在该条目下方展开该目录原本会进入的内容区域。
 
 它是 File Card 的局部浏览体验，不是递归显示、Folder Tree 的替代品，也不改变 Reader 的上一本/下一本遍历规则。History、Bookmark、Search 和 CLI/TUI 不继承此 GUI 专属布局行为。
 
 ### 适用条件与点击规则
 
-- 仅当 resolver 返回 `status = "branch"`，且入口目录直接子目录数至少为 2 时触发；多个压缩包、目录与压缩包混合、权限错误、空目录、深度上限和不支持内容仍沿用现有“进入文件夹”或错误反馈。
-- resolver 的返回 DTO 必须提供入口目录的 `directDirectoryCount`。这个数字来自已有的单层 listing，不得额外递归扫描来决定是否展开。
+- 仅当 resolver 返回 `status = "branch"`，入口目录直接子目录数至少为 2，且直属子文件夹数、直属文件数和两者合计都不大于各自配置上限时触发；任一超限时进入原目录。多个压缩包、目录与压缩包混合、权限错误、空目录、深度上限和不支持内容仍沿用现有“进入文件夹”或错误反馈。
+- resolver 的返回 DTO 必须提供入口目录的 `directDirectoryCount` 与 `directFileCount`。这两个数字来自已有的单层 listing；`directFileCount` 统计所有直属 `kind = "file"` 条目，不得额外递归扫描来决定是否展开。
 - 当前 File Card 的每个目录标签、每个当前目录最多保留一个展开项。点击另一个合资格分支时，先关闭并释放原展开项，再展开新项；再次点击已展开项时收起。
 - 双击、`Alt+Enter`、`ArrowRight`、右键“进入此文件夹”和触屏明确的进入按钮始终执行现有原始目录导航。单击的智能穿透解析与双击竞态仍按 `path + browser generation` 取消和丢弃迟到结果。
 - 关闭开关、关闭标签、切换到其他路径、刷新导致父目录 generation 失效、删除该目录或切换当前标签时，必须收起并关闭展开项。后退/前进恢复同一目录访问快照时可恢复展开的路径和滚动位置，但不能把展开状态写入 TOML。
@@ -142,14 +142,20 @@ internal_items_mode = "single"
 max_depth = 3
 terminal_targets = ["archive", "document", "media-directory", "file"]
 expand_branches_inline = false
+inline_branch_max_directories = 4
+inline_branch_max_files = 4
+inline_branch_max_items = 4
 ```
 
-Reader 配置协议使用 `folderView.penetration.expandBranchesInline`，并继续兼容旧的深层表、`config = { ... }` envelope 和迁移期混合格式；混合冲突时 `config` 优先。该持久化字段只控制功能是否启用。`expandedBranchPath`、子 browser session、子区域滚动与选择是瞬态标签状态，不能写入 `[nodes.neoview.folder.penetration]`。
+Reader 配置协议使用 `folderView.penetration.expandBranchesInline`、`inlineBranchMaxDirectories`、`inlineBranchMaxFiles` 与 `inlineBranchMaxItems`，并继续兼容旧的深层表、`config = { ... }` envelope 和迁移期混合格式；混合冲突时 `config` 优先。三个上限均为 `0..100` 的整数。`0` 表示该类直属条目不得存在；由于就地展开本身要求至少两个直属子文件夹，子文件夹上限设为 `0` 或 `1` 会等价于关闭就地展开。该持久化字段只控制功能是否启用。`expandedBranchPath`、子 browser session、子区域滚动与选择是瞬态标签状态，不能写入 `[nodes.neoview.folder.penetration]`。
+
+Reader 操作 `folder.toggle-inline-branch-expansion` 切换 `expandBranchesInline` 并通过同一 folder-view 写队列持久化。它由 GUI 操作绑定目录和轮盘编辑器共同提供；轮盘项目会保存为普通 `device = "radial"` 绑定，因此键盘、鼠标、手柄与轮盘触发具有相同的执行和失败语义。
 
 ### 验收
 
 - 开关默认关闭且关闭时，所有现有穿透点击、双击和键盘行为不变。
 - 开启后，含两个直接子文件夹的 `branch` 单击就地展开；点击同项收起，点击另一项替换展开项。
+- 默认的直属子文件夹、直属文件和直属条目合计上限均为 `4`；任何一项超过用户配置的上限时，单击进入原始目录而不展开。
 - 只有 archive、多个文件、权限错误、空目录、深度上限或不支持内容的目录不触发展开。
 - 展开区按 compact、cover-list、mosaic-list、cover-grid、mosaic-grid 和 details 的当前尺寸正确重新测量；小目录完整显示，大目录内部滚动并虚拟化。
 - 双击、`Alt+Enter`、`ArrowRight`、右键和触屏进入命令仍进入原始目录，且不会被在途解析结果反向打开 Reader 或展开区域。

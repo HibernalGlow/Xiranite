@@ -57,6 +57,7 @@ import {
 import { DEFAULT_READER_ANIMATED_VIDEO_KEYWORDS, normalizeReaderAnimatedVideoKeywords } from "../animated-video/ReaderAnimatedVideoMode.js"
 import { READER_MEDIA_PRIORITY_MODES, READER_PAGE_SORT_MODES, type ReaderMediaPriorityMode, type ReaderPageSortMode } from "../reader/ReaderPageOrder.js"
 import * as Models from "./ReaderRuntimeConfigModels.js"
+import { parseInlineBranchConfigPatch, readInlineBranchConfig } from "./ReaderInlineBranchConfigParser.js"
 
 const READER_CARD_MANIFEST_BY_ID = new Map(READER_CARD_MANIFEST.map((card) => [card.id as string, card]))
 export function parseNeoviewRuntimeConfig(value: unknown): Models.NeoviewRuntimeConfig {
@@ -1607,7 +1608,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   }
   if (folder.penetration !== undefined) {
     const penetration = requireRecord(folder.penetration, "reader folder view patch.penetration")
-    const allowedPenetration = new Set(["enabled", "expandBranchesInline", "showInternalFiles", "internalItemsMode", "maxDepth", "terminalTargets"])
+    const allowedPenetration = new Set(["enabled", "expandBranchesInline", "inlineBranchMaxDirectories", "inlineBranchMaxFiles", "inlineBranchMaxItems", "showInternalFiles", "internalItemsMode", "maxDepth", "terminalTargets"])
     const unknownPenetration = Object.keys(penetration).filter((key) => !allowedPenetration.has(key))
     if (unknownPenetration.length) throw new Error(`reader folder view patch.penetration contains unsupported fields: ${unknownPenetration.join(", ")}.`)
     const penetrationPatch: Partial<Models.NeoviewFolderPenetrationConfig> = {}
@@ -1616,10 +1617,9 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
       penetrationPatch.enabled = optionalBoolean(penetration.enabled, "reader folder view patch.penetration.enabled")
       penetrationToml.enabled = penetrationPatch.enabled
     }
-    if (penetration.expandBranchesInline !== undefined) {
-      penetrationPatch.expandBranchesInline = optionalBoolean(penetration.expandBranchesInline, "reader folder view patch.penetration.expandBranchesInline")
-      penetrationToml.expand_branches_inline = penetrationPatch.expandBranchesInline
-    }
+    const inlineBranchConfig = parseInlineBranchConfigPatch(penetration)
+    Object.assign(penetrationPatch, inlineBranchConfig.patch)
+    Object.assign(penetrationToml, inlineBranchConfig.tomlPatch)
     if (penetration.showInternalFiles !== undefined) {
       penetrationPatch.showInternalFiles = optionalBoolean(penetration.showInternalFiles, "reader folder view patch.penetration.showInternalFiles")
       penetrationToml.show_internal_files = penetrationPatch.showInternalFiles
@@ -1895,9 +1895,7 @@ function parseFolderViewConfig(value: Record<string, unknown> | undefined): Mode
     penetration: {
       enabled:
         optionalBoolean(penetration?.enabled, "[nodes.neoview.folder.penetration].enabled") ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.enabled,
-      expandBranchesInline:
-        optionalBoolean(penetration?.expand_branches_inline ?? penetration?.expandBranchesInline, "[nodes.neoview.folder.penetration].expand_branches_inline")
-        ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.expandBranchesInline,
+      ...readInlineBranchConfig(penetration, Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration),
       showInternalFiles:
         optionalBoolean(penetration?.show_internal_files ?? penetration?.showInternalFiles, "[nodes.neoview.folder.penetration].show_internal_files") ?? Models.DEFAULT_NEOVIEW_FOLDER_VIEW_CONFIG.penetration.showInternalFiles,
       internalItemsMode:
