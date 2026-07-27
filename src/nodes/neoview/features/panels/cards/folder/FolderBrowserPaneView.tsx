@@ -325,7 +325,6 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
       />
     </Suspense>
   ) : undefined
-
   return (
     <FolderEntryDisplayProvider value={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}>
       <div
@@ -925,6 +924,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.gridSnapshot : undefined}
                         initialScrollTop={restoreState?.viewMode === viewMode ? restoreState.gridScrollTop : undefined}
                         initialIndex={shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.gridSnapshot ? restoreIndex : undefined}
+                        inlineBranchPath={inlineBranchPath} inlineBranch={inlineBranchContent}
                         onRangeChange={requestRange}
                         onStateChange={(snapshot) => {
                           gridSnapshotRef.current = snapshot
@@ -982,9 +982,9 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                     <div className="grid h-72 place-items-center text-xs text-muted-foreground">{loading ? "正在读取目录…" : "选择一个目录"}</div>
                   ) : null}
                   </div>
-                  {inlineBranchPath && inlineBranchContent && !viewUsesMosaicGrid(viewMode) ? (
+                  {inlineBranchPath && inlineBranchContent && !viewUsesMosaicGrid(viewMode) && !viewUsesFixedGrid(viewMode) ? (
                     <Suspense fallback={null}>
-                      <FolderInlineBranchDrawer fullWidth={viewUsesFixedGrid(viewMode)} path={inlineBranchPath} scopeRef={listHostRef}>
+                      <FolderInlineBranchDrawer path={inlineBranchPath} scopeRef={listHostRef}>
                         {inlineBranchContent}
                       </FolderInlineBranchDrawer>
                     </Suspense>
