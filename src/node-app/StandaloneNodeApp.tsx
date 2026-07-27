@@ -13,14 +13,20 @@ import { useNodeAppState } from "./nodeAppState"
 interface Props {
   nodeId: string
   snapshotId: string
+  onHostReady?: (value: { entry: AppNodeEntry; host: NodeHostApi }) => void
 }
 
-export function StandaloneNodeApp({ nodeId, snapshotId }: Props) {
+export function StandaloneNodeApp({ nodeId, snapshotId, onHostReady }: Props) {
   const [entry, setEntry] = useState<AppNodeEntry | undefined>()
   const [error, setError] = useState<string | undefined>()
   const diagnostic = useNodeAppDiagnostic(nodeId, snapshotId)
   const closePrompt = useNodeAppClosePrompt()
   const standaloneHost = useStandaloneNodeHostApi(nodeId, snapshotId, entry?.schemas?.data, Boolean(entry))
+
+  useEffect(() => {
+    if (diagnostic.status !== "ready" || !entry || !standaloneHost.stateReady) return
+    onHostReady?.({ entry, host: standaloneHost.host })
+  }, [diagnostic.status, entry, onHostReady, standaloneHost.host, standaloneHost.stateReady])
 
   useEffect(() => {
     let cancelled = false

@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
 
 	"github.com/hibernalglow/xiranite/internal/nexusbridge"
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -27,6 +28,16 @@ func init() {
 }
 
 func main() {
+	if request, handled, err := parseExternalNodeLaunchInvocation(os.Args[1:]); handled {
+		if err != nil {
+			showExternalNodeLaunchError(err.Error())
+			return
+		}
+		if err := runExternalNodeLaunchHost(request); err != nil {
+			showExternalNodeLaunchError(err.Error())
+		}
+		return
+	}
 	if nodeAppID != "" {
 		runNodeApp()
 		return

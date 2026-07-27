@@ -11,6 +11,7 @@ export const def = {
   externalLaunch: {
     instancePolicy: "reuse",
     requiredHostCapabilities: ["contract", "state", "runner", "clipboard", "downloads", "localFiles", "config", "env"],
+    backendFeatures: ["reader"],
     intents: [{
       id: "open",
       targetKinds: ["file", "directory"],

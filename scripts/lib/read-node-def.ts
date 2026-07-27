@@ -28,6 +28,7 @@ export interface NodeDefLiteral {
 export interface ExternalLaunchDeclarationLiteral {
   instancePolicy: "reuse" | "new-window"
   requiredHostCapabilities: string[]
+  backendFeatures?: string[]
   intents: ExternalLaunchIntentDeclarationLiteral[]
 }
 
@@ -305,6 +306,7 @@ function parseExternalLaunchDeclaration(value: Expression): ExternalLaunchDeclar
   }
   const requiredHostCapabilities = stringArrayProperty(declaration, "requiredHostCapabilities")
   if (!requiredHostCapabilities) throw new Error("Node externalLaunch.requiredHostCapabilities must be a string array.")
+  const backendFeatures = stringArrayProperty(declaration, "backendFeatures")
 
   const intentsValue = propertyValue(declaration, "intents")
   const intentsExpression = intentsValue ? unwrapExpression(intentsValue) : undefined
@@ -335,6 +337,7 @@ function parseExternalLaunchDeclaration(value: Expression): ExternalLaunchDeclar
   return {
     instancePolicy,
     requiredHostCapabilities: [...new Set(requiredHostCapabilities)],
+    ...(backendFeatures?.length ? { backendFeatures: [...new Set(backendFeatures)] } : {}),
     intents,
   }
 }

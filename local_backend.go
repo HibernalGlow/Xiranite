@@ -188,8 +188,12 @@ func backendGatewayMiddleware(
 				return
 			}
 			config := publicConfig()
-			if req.Method == http.MethodGet && (req.URL.Path == "/" || req.URL.Path == "/index.html") && config != nil && config.BaseURL != "" {
-				data, err := assets.ReadFile("dist/index.html")
+			if req.Method == http.MethodGet && (req.URL.Path == "/" || req.URL.Path == "/index.html" || req.URL.Path == "/node-host.html") && config != nil && config.BaseURL != "" {
+				assetPath := "dist/index.html"
+				if req.URL.Path == "/node-host.html" {
+					assetPath = "dist/node-host.html"
+				}
+				data, err := assets.ReadFile(assetPath)
 				if err == nil {
 					rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 					_, _ = rw.Write([]byte(injectBackendConfig(string(data), config)))
