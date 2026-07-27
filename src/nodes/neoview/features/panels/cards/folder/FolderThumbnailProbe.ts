@@ -36,14 +36,14 @@ export async function probeFolderThumbnailUrls(
 
 export function retryFolderThumbnailProbe(failureCount: number, error: Error): boolean {
   if (!(error instanceof FolderThumbnailProbeError)) return failureCount < 2
-  if (error.kind === "generating") return true
+  if (error.kind === "generating") return failureCount < 3
   if (error.kind === "failed") return failureCount < 2
   return false
 }
 
 export function folderThumbnailProbeRetryDelay(attempt: number, error: Error): number {
   if (error instanceof FolderThumbnailProbeError && error.retryAfterMs !== undefined) {
-    return Math.max(250, Math.min(300_000, error.retryAfterMs))
+    return Math.max(250, Math.min(10_000, error.retryAfterMs))
   }
   return Math.min(30_000, 1_000 * (2 ** Math.min(attempt, 5)))
 }

@@ -34,6 +34,7 @@ export function useFolderThumbnailPipeline({
   previewCount,
   visibleRangeRef,
   selectedPaths,
+  retainContextWhenHidden = false,
 }: {
   client: ReaderHttpClient
   catalog: DirectoryCatalog | undefined
@@ -44,6 +45,7 @@ export function useFolderThumbnailPipeline({
   previewCount: FolderPreviewCount
   visibleRangeRef: RefObject<ListRange>
   selectedPaths: ReadonlySet<string>
+  retainContextWhenHidden?: boolean
 }) {
   const requestRef = useRef<AbortController>()
   const generationRef = useRef(0)
@@ -81,8 +83,9 @@ export function useFolderThumbnailPipeline({
 
   useEffect(() => {
     if (thumbnailsVisible) return
-    releaseContext()
-  }, [thumbnailsVisible])
+    if (retainContextWhenHidden) resetRegistration()
+    else releaseContext()
+  }, [retainContextWhenHidden, thumbnailsVisible])
 
   useEffect(() => {
     if (!thumbnailsVisible || !catalog || !viewUsesThumbnails(viewMode) || !client.listDirectoryBrowser || !client.prewarmLibraryThumbnails) return
