@@ -97,7 +97,7 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     id: "findz",
     packageName: "@xiranite/node-findz",
     bin: nodeCliName("findz"),
-    description: "Search files and archive members with SQL-like filters.",
+    description: "Incrementally index ZIP and CBZ libraries, then analyze image headers on demand.",
   },
   {
     id: "formatv",

@@ -507,7 +507,7 @@ func ruleFieldExpression(field string) (string, bool) {
 		return "member_count", true
 	case "imageCount":
 		return "image_member_count", true
-	case "analyzedImageCount":
+	case "analyzedImageCount", "analysisCoverage":
 		return "analyzed_image_count", true
 	case "totalImageSize":
 		return "compressed_image_bytes", true

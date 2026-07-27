@@ -5,9 +5,9 @@ import (
 	"bytes"
 	"fmt"
 	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
+	"image/gif"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"math"
 	"path/filepath"
@@ -340,16 +340,16 @@ func prefixBudgetForExtension(extension string) int64 {
 }
 
 func decodeImageDimensions(format string, prefix []byte) (int64, int64, error) {
-	if format == "gif" {
-		config, _, err := image.DecodeConfig(bytes.NewReader(prefix))
-		return int64(config.Width), int64(config.Height), err
+	switch format {
+	case "gif":
+		return decodeConfigDimensions(gif.DecodeConfig, prefix)
+	case "jpeg":
+		return decodeConfigDimensions(jpeg.DecodeConfig, prefix)
+	case "png":
+		return decodeConfigDimensions(png.DecodeConfig, prefix)
 	}
 	imageFormat := imagemeta.ImageFormatAuto
 	switch format {
-	case "jpeg":
-		imageFormat = imagemeta.JPEG
-	case "png":
-		imageFormat = imagemeta.PNG
 	case "webp":
 		imageFormat = imagemeta.WebP
 	case "avif":
@@ -367,6 +367,11 @@ func decodeImageDimensions(format string, prefix []byte) (int64, int64, error) {
 		return 0, 0, fmt.Errorf("image dimensions were not found")
 	}
 	return int64(result.ImageConfig.Width), int64(result.ImageConfig.Height), nil
+}
+
+func decodeConfigDimensions(decode func(io.Reader) (image.Config, error), prefix []byte) (int64, int64, error) {
+	config, err := decode(bytes.NewReader(prefix))
+	return int64(config.Width), int64(config.Height), err
 }
 
 func detectImageFormat(prefix []byte) string {

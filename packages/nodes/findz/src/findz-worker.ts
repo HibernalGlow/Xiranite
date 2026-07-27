@@ -1,11 +1,9 @@
 import { loadFindzNativeClient, type FindzLibraryOpenParams } from "@xiranite/findz-native"
 import type { FindzWorkerMethod, FindzWorkerRequest, FindzWorkerResponse } from "./worker-protocol.js"
-
-type ParcelEvent = { path: string; type: string }
-type ParcelSubscription = { unsubscribe(): Promise<void> }
+import { FindzLibraryWatch, type FindzWatcherEvent } from "./watcher-service.js"
 
 const nativeClient = loadFindzNativeClient()
-const watches = new Map<string, LibraryWatch>()
+const watches = new Map<string, FindzLibraryWatch>()
 const openLibraries = new Set<string>()
 
 globalThis.addEventListener("message", (event: MessageEvent<FindzWorkerRequest>) => {
@@ -38,7 +36,7 @@ async function handleRequest(request: FindzWorkerRequest): Promise<unknown> {
     case "scan.start":
       return await nativeClient.startScan((request.params as { libraryId: string }).libraryId)
     case "watcher.apply_changes": {
-      const params = request.params as { libraryId: string; changes: ParcelEvent[] }
+      const params = request.params as { libraryId: string; changes: FindzWatcherEvent[] }
       return await nativeClient.applyWatcherChanges(params.libraryId, params.changes)
     }
     case "analysis.start": {
@@ -87,14 +85,15 @@ async function startLibraryWatch(libraryId: string, root: string, summary: Await
   await stopLibraryWatch(libraryId)
   try {
     const watcher = await import("@parcel/watcher")
-    const watch = new LibraryWatch(libraryId, root)
-    watch.subscription = await watcher.subscribe(root, (error, events) => {
+    const watch = new FindzLibraryWatch(libraryId, root, nativeClient)
+    const subscription = await watcher.subscribe(root, (error, events) => {
       if (error) {
         void watch.degrade()
         return
       }
       watch.queue(events)
     })
+    watch.setSubscription(subscription)
     watches.set(libraryId, watch)
     return await nativeClient.setWatcherHealth(libraryId, "healthy")
   } catch {
@@ -107,47 +106,6 @@ async function stopLibraryWatch(libraryId: string): Promise<void> {
   if (!watch) return
   watches.delete(libraryId)
   await watch.close()
-}
-
-class LibraryWatch {
-  subscription: ParcelSubscription | undefined
-  private readonly changes = new Map<string, ParcelEvent>()
-  private flushTimer: ReturnType<typeof setTimeout> | undefined
-  private closed = false
-
-  constructor(readonly libraryId: string, readonly root: string) {}
-
-  queue(events: readonly ParcelEvent[]): void {
-    if (this.closed) return
-    for (const event of events) this.changes.set(event.path, event)
-    if (this.flushTimer) return
-    this.flushTimer = setTimeout(() => { void this.flush() }, 250)
-  }
-
-  async degrade(): Promise<void> {
-    if (!this.closed) await nativeClient.setWatcherHealth(this.libraryId, "degraded")
-  }
-
-  async close(): Promise<void> {
-    this.closed = true
-    if (this.flushTimer) clearTimeout(this.flushTimer)
-    this.flushTimer = undefined
-    this.changes.clear()
-    await this.subscription?.unsubscribe()
-  }
-
-  private async flush(): Promise<void> {
-    this.flushTimer = undefined
-    if (this.closed || !this.changes.size) return
-    const changes = [...this.changes.values()]
-    this.changes.clear()
-    try {
-      await nativeClient.applyWatcherChanges(this.libraryId, changes)
-      await nativeClient.setWatcherHealth(this.libraryId, "healthy")
-    } catch {
-      await this.degrade()
-    }
-  }
 }
 
 function post(response: FindzWorkerResponse): void {

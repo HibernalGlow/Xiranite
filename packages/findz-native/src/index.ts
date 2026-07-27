@@ -2,6 +2,7 @@ import { existsSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { resolveNativeBindingPath } from "@xiranite/native-loader"
+import { readFindzNativeResponse, type FindzNativePointer } from "./native-response.js"
 import {
   FINDZ_ABI_VERSION,
   FINDZ_REQUEST_VERSION,
@@ -32,7 +33,7 @@ type NativeLibrary = {
   close(): void
 }
 
-type Pointer = unknown
+type Pointer = FindzNativePointer
 
 type FindzFfi = {
   dlopen(path: string, symbols: Record<string, unknown>): NativeLibrary
@@ -80,7 +81,7 @@ function createFindzNativeClient(bindingPath: string): FindzNativeClient {
       const requestId = `findz-${++sequence}`
       const request = new TextEncoder().encode(JSON.stringify({ requestVersion: FINDZ_REQUEST_VERSION, requestId, method, params }))
       const responseLength = new BigUint64Array(1)
-      const response = readNativeResponse(ffi!, library, library.symbols.findz_call(ffi!.ptr(request), BigInt(request.byteLength), ffi!.ptr(responseLength)), responseLength)
+      const response = readFindzNativeResponse(ffi!, library.symbols, library.symbols.findz_call(ffi!.ptr(request), BigInt(request.byteLength), ffi!.ptr(responseLength)), responseLength)
       const parsed = parseNativeResponse<T>(response)
       if (!parsed.ok) throw new Error(`${parsed.error.code}: ${parsed.error.message}`)
       return parsed.result
@@ -105,7 +106,7 @@ function createFindzNativeClient(bindingPath: string): FindzNativeClient {
     }
     nativeLibrary = loaded
     const responseLength = new BigUint64Array(1)
-    const response = readNativeResponse(ffi, loaded, loaded.symbols.findz_api_info(ffi.ptr(responseLength)), responseLength)
+    const response = readFindzNativeResponse(ffi, loaded.symbols, loaded.symbols.findz_api_info(ffi.ptr(responseLength)), responseLength)
     const parsed = parseNativeResponse<FindzApiInfo>(response)
     if (!parsed.ok) {
       loaded.close()
@@ -147,19 +148,6 @@ function createFindzNativeClient(bindingPath: string): FindzNativeClient {
       nativeLibrary = undefined
       apiInfo = undefined
     },
-  }
-}
-
-function readNativeResponse(ffi: FindzFfi, library: NativeLibrary, responsePointer: Pointer, responseLength: BigUint64Array): string {
-  if (!responsePointer) throw new Error("Findz native core returned an empty response pointer.")
-  try {
-    const length = Number(responseLength[0])
-    if (!Number.isSafeInteger(length) || length <= 0) {
-      throw new Error("Findz native core returned an invalid response length.")
-    }
-    return new TextDecoder().decode(ffi.toArrayBuffer(responsePointer, 0, length))
-  } finally {
-    library.symbols.findz_free(responsePointer)
   }
 }
 
