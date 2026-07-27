@@ -65,6 +65,9 @@ controls without copying native option logic.
 ## Validation
 
 - Focused node unit tests cover all changed pure contracts.
+- Encodeb's platform test proves a high-confidence `chardet` Big5 candidate
+  is still subject to the lossless recoding gate, while clean names bypass the
+  detector entirely.
 - Czkawka's added mode is exercised through its existing package tests and a
   targeted Browser Mode component test for the user-visible mode and controls.
 - Package builds and Browser Mode run serially with one worker.

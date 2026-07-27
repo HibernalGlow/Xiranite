@@ -1,8 +1,8 @@
-import { describe, expect, test } from "vitest"
 import * as iconv from "iconv-lite"
+import { describe, expect, test } from "vitest"
 import { autoTranscodeName, decodeHashUnicodeEscapes, iconvTranscodeName } from "./platform.js"
 
-describe("encodeb platform transcoders", () => {
+describe("Encodeb automatic transcoding", () => {
   test("repairs Latin-1 UTF-8 mojibake", () => {
     expect(iconvTranscodeName("ã‚»ãƒ¼ãƒ©ãƒ¼ãƒ ãƒ¼ãƒ³.txt", "windows-1252", "utf8")).toBe("セーラームーン.txt")
   })
@@ -38,5 +38,26 @@ describe("encodeb platform transcoders", () => {
     }
     expect(autoTranscodeName("正常な日本語.txt")).toBe("正常な日本語.txt")
     expect(autoTranscodeName("normal-file.txt")).toBe("normal-file.txt")
+  })
+
+  test("uses high-confidence chardet candidates without bypassing safe recoding", () => {
+    const original = "繁體中文封面"
+    const mojibake = iconv.decode(iconv.encode(original, "big5"), "cp437")
+    let calls = 0
+
+    const recovered = autoTranscodeName(mojibake, (bytes) => {
+      calls += 1
+      expect(bytes).toEqual(iconv.encode(mojibake, "cp437"))
+      return [{ name: "Big5", confidence: 90 }]
+    })
+
+    expect(calls).toBe(1)
+    expect(recovered).toBe(original)
+  })
+
+  test("does not inspect clean filenames", () => {
+    expect(autoTranscodeName("already-normal-name.jpg", () => {
+      throw new Error("clean names must not reach chardet")
+    })).toBe("already-normal-name.jpg")
   })
 })
