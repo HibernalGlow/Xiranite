@@ -34,11 +34,26 @@ export interface ReaderVideoActionPort {
   toggleSeekMode(): boolean
 }
 
+export interface ReaderVideoPlaybackTarget {
+  readonly supportsSeeking: boolean
+  readonly paused: boolean
+  readonly ended: boolean
+  currentTime: number
+  readonly duration: number
+  volume: number
+  muted: boolean
+  playbackRate: number
+  loop: boolean
+  play(): Promise<void>
+  pause(): void
+  subscribe(listener: () => void, onEnded: () => void): () => void
+}
+
 interface Registration {
-  element: HTMLVideoElement
+  target: ReaderVideoPlaybackTarget
   onListEnded: () => void
-  ended: () => void
-  sync: () => void
+  unsubscribe: () => void
+  endedForCurrentPlayback: boolean
 }
 
 const DEFAULT_RUNTIME_CONFIG: ReaderVideoRuntimeConfig = {
@@ -88,26 +103,36 @@ export class ReaderVideoController implements ReaderVideoActionPort {
   }
 
   register(element: HTMLVideoElement, onListEnded: () => void): () => void {
-    const sync = () => this.#syncFrom(element)
+    return this.registerPlaybackTarget(videoPlaybackTarget(element), onListEnded)
+  }
+
+  registerPlaybackTarget(target: ReaderVideoPlaybackTarget, onListEnded: () => void): () => void {
     const registration: Registration = {
-      element,
+      target,
       onListEnded,
-      ended: () => {
-        if (this.#active() !== element || this.#loopMode !== "list") return
-        onListEnded()
-      },
-      sync,
+      unsubscribe: () => undefined,
+      endedForCurrentPlayback: false,
     }
+    const completeListPlayback = () => {
+      if (this.#active() !== target || this.#loopMode !== "list") return
+      onListEnded()
+    }
+    registration.unsubscribe = target.subscribe(() => {
+      if (this.#active() !== target) return
+      if (!target.ended) registration.endedForCurrentPlayback = false
+      if (target.ended && !registration.endedForCurrentPlayback) {
+        registration.endedForCurrentPlayback = true
+        completeListPlayback()
+      }
+      this.#syncFrom(target)
+    }, completeListPlayback)
     this.#registrations.push(registration)
-    element.addEventListener("ended", registration.ended)
-    for (const event of SYNC_EVENTS) element.addEventListener(event, sync)
-    this.#apply(element)
+    this.#apply(target)
     this.#publish()
     return () => {
       const index = this.#registrations.indexOf(registration)
       if (index < 0) return
-      element.removeEventListener("ended", registration.ended)
-      for (const event of SYNC_EVENTS) element.removeEventListener(event, sync)
+      registration.unsubscribe()
       this.#registrations.splice(index, 1)
       this.#apply(this.#active())
       this.#publish()
@@ -133,7 +158,7 @@ export class ReaderVideoController implements ReaderVideoActionPort {
 
   seek(direction: 1 | -1): boolean {
     const element = this.#active()
-    if (!element) return false
+    if (!element || !element.supportsSeeking) return false
     const maximum = Number.isFinite(element.duration) ? element.duration : Number.POSITIVE_INFINITY
     element.currentTime = clamp(element.currentTime + direction * 10, 0, maximum)
     this.#publish()
@@ -142,7 +167,7 @@ export class ReaderVideoController implements ReaderVideoActionPort {
 
   seekTo(time: number): boolean {
     const element = this.#active()
-    if (!element) return false
+    if (!element || !element.supportsSeeking) return false
     const maximum = Number.isFinite(element.duration) ? element.duration : Number.POSITIVE_INFINITY
     element.currentTime = clamp(time, 0, maximum)
     this.#publish()
@@ -234,18 +259,17 @@ export class ReaderVideoController implements ReaderVideoActionPort {
 
   dispose(): void {
     for (const registration of this.#registrations) {
-      registration.element.removeEventListener("ended", registration.ended)
-      for (const event of SYNC_EVENTS) registration.element.removeEventListener(event, registration.sync)
+      registration.unsubscribe()
     }
     this.#registrations = []
     this.#publish()
   }
 
-  #active(): HTMLVideoElement | undefined {
-    return this.#registrations.at(-1)?.element
+  #active(): ReaderVideoPlaybackTarget | undefined {
+    return this.#registrations.at(-1)?.target
   }
 
-  #apply(element: HTMLVideoElement | undefined): void {
+  #apply(element: ReaderVideoPlaybackTarget | undefined): void {
     if (!element) return
     element.volume = this.#volume
     element.muted = this.#muted
@@ -253,7 +277,7 @@ export class ReaderVideoController implements ReaderVideoActionPort {
     element.loop = this.#loopMode === "single"
   }
 
-  #syncFrom(element: HTMLVideoElement): void {
+  #syncFrom(element: ReaderVideoPlaybackTarget): void {
     if (this.#active() !== element) return
     this.#volume = element.volume
     this.#muted = element.muted
@@ -281,7 +305,36 @@ export class ReaderVideoController implements ReaderVideoActionPort {
   }
 }
 
-const SYNC_EVENTS = ["play", "pause", "timeupdate", "durationchange", "volumechange", "ratechange"] as const
+function videoPlaybackTarget(element: HTMLVideoElement): ReaderVideoPlaybackTarget {
+  return {
+    get supportsSeeking() { return true },
+    get paused() { return element.paused },
+    get ended() { return element.ended },
+    get currentTime() { return element.currentTime },
+    set currentTime(value) { element.currentTime = value },
+    get duration() { return element.duration },
+    get volume() { return element.volume },
+    set volume(value) { element.volume = value },
+    get muted() { return element.muted },
+    set muted(value) { element.muted = value },
+    get playbackRate() { return element.playbackRate },
+    set playbackRate(value) { element.playbackRate = value },
+    get loop() { return element.loop },
+    set loop(value) { element.loop = value },
+    play: () => element.play(),
+    pause: () => element.pause(),
+    subscribe(listener, onEnded) {
+      for (const event of VIDEO_SYNC_EVENTS) element.addEventListener(event, listener)
+      element.addEventListener("ended", onEnded)
+      return () => {
+        for (const event of VIDEO_SYNC_EVENTS) element.removeEventListener(event, listener)
+        element.removeEventListener("ended", onEnded)
+      }
+    },
+  }
+}
+
+const VIDEO_SYNC_EVENTS = ["play", "pause", "timeupdate", "durationchange", "volumechange", "ratechange"] as const
 
 function normalizeRuntime(runtime: ReaderVideoRuntimeConfig): ReaderVideoRuntimeConfig {
   const minimum = Math.max(0.05, runtime.videoMinPlaybackRate)

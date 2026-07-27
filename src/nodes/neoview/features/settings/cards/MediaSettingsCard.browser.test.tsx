@@ -37,6 +37,15 @@ test("[neoview.media-settings.custom-aliases] persists custom image and video su
   })
 })
 
+test("[neoview.media-settings.animated-video-mode] persists the animated-image playback switch", async () => {
+  const save = vi.fn()
+  await render(<MediaSettingsHarness onSave={save} />)
+
+  await page.getByRole("switch", { name: "动图视频模式" }).click()
+  await expect.poll(() => save.mock.calls.length).toBe(1)
+  expect(save.mock.calls[0]?.[0]).toEqual({ animatedVideoEnabled: true })
+})
+
 function MediaSettingsHarness({ onSave }: { onSave(patch: ReaderMediaPatchDto["media"]): void }) {
   const [media, setMedia] = useState<ReaderMediaConfigDto>(initialMedia())
   return (
