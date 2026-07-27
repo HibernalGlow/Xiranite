@@ -170,6 +170,12 @@ func (service *findzService) taskController(taskID string) *taskController {
 	return service.taskControls[taskID]
 }
 
+func (service *findzService) removeTaskController(taskID string) {
+	service.mu.Lock()
+	delete(service.taskControls, taskID)
+	service.mu.Unlock()
+}
+
 func (service *findzService) pauseTask(runtime *libraryRuntime, taskID string) (taskRecord, error) {
 	task, err := readTask(runtime, taskID)
 	if err != nil {

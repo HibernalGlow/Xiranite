@@ -2,8 +2,9 @@ import { RULE_TREE_FORMAT, type RuleTree } from "@xiranite/shared/rules"
 import type { FindzTask } from "@xiranite/findz-native"
 import type { RuleTreeField } from "@/nodes/shared/RuleTreeEditor"
 
-export type FindzAreaMetric = "archiveSize" | "totalImageSize" | "averageImageSize" | "averageBytesPerMegapixel" | "anomalyCount" | "estimatedSavings"
+export type FindzAreaMetric = "archiveSize" | "totalImageSize" | "averageImageSize" | "averageBytesPerMegapixel" | "medianBytesPerMegapixel" | "anomalyCount" | "estimatedSavings"
 export type FindzArchiveSort = "relativePath" | "archiveSize" | "imageCount" | "analysisCoverage" | "totalImageSize" | "averageImageSize" | "averageBytesPerMegapixel" | "anomalyCount" | "estimatedSavings"
+export type FindzT = (key: string, fallback: string, vars?: Record<string, unknown>) => string
 
 export interface FindzCardState {
   libraryRoot?: string
@@ -19,39 +20,64 @@ export interface FindzCardState {
   pageCursor?: string
 }
 
-export const FINDZ_RULE_FIELDS: readonly RuleTreeField[] = [
-  { name: "relativePath", label: "Archive path", type: "text" },
-  { name: "scanState", label: "Index state", type: "select", options: [{ name: "indexed", label: "Indexed" }, { name: "corrupt_archive", label: "Corrupt" }, { name: "unsupported_archive", label: "Unsupported" }] },
-  { name: "archiveSize", label: "Archive size", type: "number" },
-  { name: "memberCount", label: "Members", type: "number" },
-  { name: "imageCount", label: "Image candidates", type: "number" },
-  { name: "analysisCoverage", label: "Analyzed images", type: "number" },
-  { name: "totalImageSize", label: "Total image size", type: "number" },
-  { name: "averageBytesPerMegapixel", label: "Average bytes / MP", type: "number" },
-  { name: "anomalyCount", label: "Anomalies", type: "number" },
-  { name: "estimatedSavings", label: "Estimated savings", type: "number" },
-]
+export function getFindzRuleFields(t: FindzT): readonly RuleTreeField[] {
+  const field = (name: string, key: string, fallback: string, type: RuleTreeField["type"], options?: readonly { name: string; key: string; fallback: string }[]): RuleTreeField => ({
+    name,
+    label: t(`rules.fields.${key}`, fallback),
+    type,
+    ...(options ? { options: options.map((option) => ({ name: option.name, label: t(`rules.options.${option.key}`, option.fallback) })) } : {}),
+  })
+  return [
+    field("relativePath", "relativePath", "Archive path", "text"),
+    field("scanState", "scanState", "Index state", "select", [{ name: "indexed", key: "indexed", fallback: "Indexed" }, { name: "corrupt_archive", key: "corrupt", fallback: "Corrupt" }, { name: "unsupported_archive", key: "unsupported", fallback: "Unsupported" }, { name: "rejected_archive", key: "rejected", fallback: "Rejected" }]),
+    field("archiveSize", "archiveSize", "Archive size", "number"),
+    field("memberCount", "memberCount", "Members", "number"),
+    field("imageCount", "imageCount", "Image candidates", "number"),
+    field("memberPath", "memberPath", "Member path", "text"),
+    field("memberSize", "memberSize", "Member size", "number"),
+    field("extension", "extension", "Member extension", "text"),
+    field("actualFormat", "actualFormat", "Actual format", "text"),
+    field("width", "width", "Image width", "number"),
+    field("height", "height", "Image height", "number"),
+    field("pixels", "pixels", "Pixels", "number"),
+    field("bytesPerMegapixel", "bytesPerMegapixel", "Bytes / MP", "number"),
+    field("analysisStatus", "analysisStatus", "Analysis status", "select", [{ name: "complete", key: "complete", fallback: "Complete" }, { name: "metadata_budget_exceeded", key: "budgetExceeded", fallback: "Budget exceeded" }, { name: "unsupported_format", key: "unsupportedFormat", fallback: "Unsupported format" }, { name: "parser_failure", key: "parserFailure", fallback: "Parser failure" }, { name: "encrypted_member", key: "encrypted", fallback: "Encrypted" }]),
+    field("anomalyKind", "anomalyKind", "Anomaly kind", "select", [{ name: "bytes_per_megapixel_high", key: "highBytesPerMegapixel", fallback: "High bytes / MP" }, { name: "member_size_high", key: "largeMember", fallback: "Large member" }]),
+    field("anomalyScore", "anomalyScore", "Anomaly score", "number"),
+    field("memberEstimatedSavings", "memberEstimatedSavings", "Member estimated savings", "number"),
+    field("analysisCoverage", "analysisCoverage", "Analyzed images", "number"),
+    field("totalImageSize", "totalImageSize", "Total image size", "number"),
+    field("averageBytesPerMegapixel", "averageBytesPerMegapixel", "Average bytes / MP", "number"),
+    field("anomalyCount", "anomalyCount", "Anomalies", "number"),
+    field("estimatedSavings", "estimatedSavings", "Estimated savings", "number"),
+  ]
+}
 
-export const FINDZ_AREA_METRICS: ReadonlyArray<{ value: FindzAreaMetric; label: string }> = [
-  { value: "archiveSize", label: "Archive size" },
-  { value: "totalImageSize", label: "Total image size" },
-  { value: "averageImageSize", label: "Average image size" },
-  { value: "averageBytesPerMegapixel", label: "Average bytes / MP" },
-  { value: "anomalyCount", label: "Anomaly count" },
-  { value: "estimatedSavings", label: "Estimated savings" },
-]
+export function getFindzAreaMetrics(t: FindzT): ReadonlyArray<{ value: FindzAreaMetric; label: string }> {
+  return [
+    { value: "archiveSize", label: t("metrics.archiveSize", "Archive size") },
+    { value: "totalImageSize", label: t("metrics.totalImageSize", "Total image size") },
+    { value: "averageImageSize", label: t("metrics.averageImageSize", "Average image size") },
+    { value: "averageBytesPerMegapixel", label: t("metrics.averageBytesPerMegapixel", "Average bytes / MP") },
+    { value: "medianBytesPerMegapixel", label: t("metrics.medianBytesPerMegapixel", "Median bytes / MP") },
+    { value: "anomalyCount", label: t("metrics.anomalyCount", "Anomaly count") },
+    { value: "estimatedSavings", label: t("metrics.estimatedSavings", "Estimated savings") },
+  ]
+}
 
-export const FINDZ_ARCHIVE_SORTS: ReadonlyArray<{ value: FindzArchiveSort; label: string }> = [
-  { value: "relativePath", label: "Path" },
-  { value: "archiveSize", label: "Archive size" },
-  { value: "imageCount", label: "Image candidates" },
-  { value: "analysisCoverage", label: "Analysis coverage" },
-  { value: "totalImageSize", label: "Total image size" },
-  { value: "averageImageSize", label: "Average image size" },
-  { value: "averageBytesPerMegapixel", label: "Average bytes / MP" },
-  { value: "anomalyCount", label: "Anomalies" },
-  { value: "estimatedSavings", label: "Estimated savings" },
-]
+export function getFindzArchiveSorts(t: FindzT): ReadonlyArray<{ value: FindzArchiveSort; label: string }> {
+  return [
+    { value: "relativePath", label: t("sort.path", "Path") },
+    { value: "archiveSize", label: t("sort.archiveSize", "Archive size") },
+    { value: "imageCount", label: t("sort.imageCount", "Image candidates") },
+    { value: "analysisCoverage", label: t("sort.analysisCoverage", "Analysis coverage") },
+    { value: "totalImageSize", label: t("sort.totalImageSize", "Total image size") },
+    { value: "averageImageSize", label: t("sort.averageImageSize", "Average image size") },
+    { value: "averageBytesPerMegapixel", label: t("sort.averageBytesPerMegapixel", "Average bytes / MP") },
+    { value: "anomalyCount", label: t("sort.anomalyCount", "Anomalies") },
+    { value: "estimatedSavings", label: t("sort.estimatedSavings", "Estimated savings") },
+  ]
+}
 
 export function createFindzRuleTree(): RuleTree {
   return {

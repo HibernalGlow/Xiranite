@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/binary"
 	"image"
@@ -75,6 +76,25 @@ func TestFindzIndexesNestedAndEncryptedMembers(t *testing.T) {
 	}
 }
 
+func TestFindzValidatesZIPSafetyLimitsBeforeWritingMembers(t *testing.T) {
+	limits := zipSafetyLimits{maxEntries: 1, maxMemberPathBytes: 16}
+	if err := limits.validate([]*zip.File{{FileHeader: zip.FileHeader{Name: "first.png"}}, {FileHeader: zip.FileHeader{Name: "second.png"}}}); err == nil {
+		t.Fatal("expected entry-count safety failure")
+	} else if failure, ok := err.(*zipScanFailure); !ok || failure.code != "member_count_limit_exceeded" {
+		t.Fatalf("expected entry-count failure, got %#v", err)
+	}
+	if err := limits.validate([]*zip.File{{FileHeader: zip.FileHeader{Name: "this/member/path/is/too/long.png"}}}); err == nil {
+		t.Fatal("expected member-path safety failure")
+	} else if failure, ok := err.(*zipScanFailure); !ok || failure.code != "member_path_length_exceeded" {
+		t.Fatalf("expected member-path failure, got %#v", err)
+	}
+	if err := limits.validate([]*zip.File{{FileHeader: zip.FileHeader{Name: "../escape.png"}}}); err == nil {
+		t.Fatal("expected unsafe member-path failure")
+	} else if failure, ok := err.(*zipScanFailure); !ok || failure.code != "unsafe_member_path" {
+		t.Fatalf("expected unsafe path failure, got %#v", err)
+	}
+}
+
 func TestFindzWatcherReindexesChangedArchivesAndDeletesRemovedPaths(t *testing.T) {
 	root := t.TempDir()
 	archivePath := filepath.Join(root, "volume.cbz")
@@ -122,6 +142,36 @@ func TestFindzWatcherReindexesChangedArchivesAndDeletesRemovedPaths(t *testing.T
 	}
 	if archives.Total != 0 {
 		t.Fatalf("deleted archive remained indexed: %#v", archives)
+	}
+}
+
+func TestFindzQueuesAndCoalescesWatcherChangesBehindAnActiveScan(t *testing.T) {
+	root := t.TempDir()
+	service, runtime := openTestLibrary(t, root)
+	runtime.scanQueue.mu.Lock()
+	runtime.scanQueue.active = true
+	runtime.scanQueue.mu.Unlock()
+
+	first, err := service.applyWatcherChanges(runtime, []watcherChange{{Path: filepath.Join(root, "first.cbz"), Type: "create"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.applyWatcherChanges(runtime, []watcherChange{
+		{Path: filepath.Join(root, "first.cbz"), Type: "update"},
+		{Path: filepath.Join(root, "second.cbz"), Type: "delete"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("expected watcher events to share a queued task, got %s and %s", first.ID, second.ID)
+	}
+	var params watcherApplyParams
+	if err := readTaskParams(runtime, first.ID, &params); err != nil {
+		t.Fatal(err)
+	}
+	if len(params.Changes) != 2 || params.Changes[0].Type != "update" || params.Changes[1].Type != "delete" {
+		t.Fatalf("expected coalesced watcher changes, got %#v", params.Changes)
 	}
 }
 

@@ -18,6 +18,7 @@ type libraryRuntime struct {
 	root         string
 	databasePath string
 	db           *sql.DB
+	scanQueue    libraryScanQueue
 }
 
 func openLibraryDatabase(params libraryOpenParams) (*libraryRuntime, error) {

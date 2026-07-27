@@ -88,6 +88,35 @@ func TestFindzManualAnalysisReadsBoundedImageMetadata(t *testing.T) {
 	}
 }
 
+func TestFindzRecordsUnsupportedAndUnsafeZIPArchivesWithoutMembers(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "not-a-zip.zip"), []byte("not a ZIP"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	createZipFixture(t, filepath.Join(root, "unsafe.cbz"), []zipFixture{{name: "../outside.png", contents: pngFixture(t, 8, 8)}})
+
+	service, runtime := openTestLibrary(t, root)
+	task, err := service.startScan(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, task.ID)
+	archives, err := queryArchives(runtime, archiveQueryParams{LibraryID: runtime.id, Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	states := make(map[string]archiveRow)
+	for _, archive := range archives.Items {
+		states[archive.RelativePath] = archive
+	}
+	if archive := states["not-a-zip.zip"]; archive.ScanState != "unsupported_archive" || archive.ErrorCode != "unsupported_archive" || archive.MemberCount != 0 {
+		t.Fatalf("expected unsupported non-ZIP archive without members, got %#v", archive)
+	}
+	if archive := states["unsafe.cbz"]; archive.ScanState != "rejected_archive" || archive.ErrorCode != "unsafe_member_path" || archive.MemberCount != 0 {
+		t.Fatalf("expected rejected unsafe archive without members, got %#v", archive)
+	}
+}
+
 func TestFindzFiltersArchivesByTreemapPathPrefix(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "series"), 0o755); err != nil {
@@ -108,6 +137,40 @@ func TestFindzFiltersArchivesByTreemapPathPrefix(t *testing.T) {
 	}
 	if len(archives.Items) != 1 || archives.Items[0].RelativePath != "series/volume.cbz" {
 		t.Fatalf("unexpected prefix-filter result: %#v", archives.Items)
+	}
+}
+
+func TestFindzFiltersArchivesByStructuredMemberMetadata(t *testing.T) {
+	root := t.TempDir()
+	createZipFixture(t, filepath.Join(root, "pages.cbz"), []zipFixture{{name: "pages/cover.png", contents: pngFixture(t, 12, 7)}})
+	service, runtime := openTestLibrary(t, root)
+	scan, err := service.startScan(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, scan.ID)
+	analysis, err := service.startAnalysis(runtime, analysisScope{Kind: "all"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, analysis.ID)
+
+	for _, condition := range []ruleNode{
+		{ID: "format", Kind: "condition", Field: "actualFormat", Operator: "equal", Value: "png"},
+		{ID: "width", Kind: "condition", Field: "width", Operator: "greaterThanInclusive", Value: 12},
+		{ID: "path", Kind: "condition", Field: "memberPath", Operator: "contains", Value: "cover"},
+	} {
+		archives, err := queryArchives(runtime, archiveQueryParams{
+			LibraryID: runtime.id,
+			Rules:     ruleTree{Format: "xiranite-rule-tree/v1", Version: 1, Root: ruleGroup{ID: "root", Kind: "group", Combinator: "all", Children: []ruleNode{condition}}},
+			Page:      pageRequest{Limit: 10},
+		})
+		if err != nil {
+			t.Fatalf("filter %s failed: %v", condition.Field, err)
+		}
+		if len(archives.Items) != 1 || archives.Items[0].RelativePath != "pages.cbz" {
+			t.Fatalf("filter %s did not return the matching archive: %#v", condition.Field, archives.Items)
+		}
 	}
 }
 

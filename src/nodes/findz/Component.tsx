@@ -229,7 +229,7 @@ export function Component({ host }: FindzProps) {
           <FloatingWindowNodeHeader><div className="flex items-center gap-2"><BarChart3 className="size-4" /><h3 className="text-sm font-semibold">Findz</h3></div></FloatingWindowNodeHeader>
           <div className="min-w-48 flex-1"><Input aria-label="Search Findz index" value={card.text ?? ""} placeholder="Search archive and member paths" onChange={(event) => resetPage({ text: event.target.value })} /></div>
           <Select value={card.areaBy ?? "archiveSize"} onValueChange={(areaBy) => resetPage({ areaBy: areaBy as FindzCardState["areaBy"] })}>
-            <SelectTrigger size="sm" className="w-44"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Treemap area metric" size="sm" className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>{FINDZ_AREA_METRICS.map((metric) => <SelectItem key={metric.value} value={metric.value}>{metric.label}</SelectItem>)}</SelectContent>
           </Select>
           <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>

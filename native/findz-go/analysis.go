@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"fmt"
 	"image"
@@ -21,6 +22,7 @@ import (
 const (
 	standardImagePrefixBudget = 512 * 1024
 	isoImagePrefixBudget      = 4 * 1024 * 1024
+	metadataSniffBufferSize   = 4 * 1024
 )
 
 func (service *findzService) startAnalysis(runtime *libraryRuntime, scope analysisScope) (taskRecord, error) {
@@ -291,21 +293,35 @@ func analyzeZipMember(member *zip.File, extension string, compressedSize int64) 
 		return imageMetadataResult{status: "parser_failure", errorCode: "member_open_failed"}
 	}
 	defer reader.Close()
+	return analyzeImageStream(reader, extension, compressedSize)
+}
+
+func analyzeImageStream(reader io.Reader, extension string, compressedSize int64) imageMetadataResult {
 	budget := prefixBudgetForExtension(extension)
-	prefix, atBudget, err := readPrefix(reader, budget)
-	if err != nil {
-		return imageMetadataResult{status: "parser_failure", errorCode: "member_read_failed"}
-	}
-	format := detectImageFormat(prefix)
+	bounded := &metadataBudgetReader{reader: reader, remaining: budget}
+	buffered := bufio.NewReaderSize(bounded, metadataSniffBufferSize)
+	format := detectImageFormat(peekImageSignature(buffered))
 	if format == "jxl" {
 		return imageMetadataResult{actualFormat: format, status: "unsupported_format", errorCode: "unsupported_format", extensionMismatch: !extensionMatchesFormat(extension, format)}
 	}
 	if format == "" {
 		return imageMetadataResult{status: "unsupported_format", errorCode: "unsupported_format"}
 	}
-	width, height, err := decodeImageDimensions(format, prefix)
+
+	var width int64
+	var height int64
+	var err error
+	if isStreamingStandardFormat(format) {
+		width, height, err = decodeImageDimensionsFromReader(format, buffered)
+	} else {
+		prefix, _, readErr := readPrefix(buffered, budget)
+		if readErr != nil {
+			return imageMetadataResult{actualFormat: format, status: "parser_failure", errorCode: "member_read_failed", extensionMismatch: !extensionMatchesFormat(extension, format)}
+		}
+		width, height, err = decodeImageDimensions(format, prefix)
+	}
 	if err != nil {
-		if atBudget {
+		if bounded.exhausted {
 			return imageMetadataResult{actualFormat: format, status: "metadata_budget_exceeded", errorCode: "metadata_budget_exceeded", extensionMismatch: !extensionMatchesFormat(extension, format)}
 		}
 		return imageMetadataResult{actualFormat: format, status: "parser_failure", errorCode: "invalid_image_header", extensionMismatch: !extensionMatchesFormat(extension, format)}
@@ -318,6 +334,42 @@ func analyzeZipMember(member *zip.File, extension string, compressedSize int64) 
 		actualFormat: format, width: width, height: height, pixels: pixels,
 		bytesPerMegapixel: bytesPerMegapixel(compressedSize, pixels), status: "complete",
 		extensionMismatch: !extensionMatchesFormat(extension, format),
+	}
+}
+
+type metadataBudgetReader struct {
+	reader    io.Reader
+	remaining int64
+	exhausted bool
+}
+
+func (reader *metadataBudgetReader) Read(buffer []byte) (int, error) {
+	if reader.remaining <= 0 {
+		reader.exhausted = true
+		return 0, io.EOF
+	}
+	if int64(len(buffer)) > reader.remaining {
+		buffer = buffer[:reader.remaining]
+	}
+	read, err := reader.reader.Read(buffer)
+	reader.remaining -= int64(read)
+	if reader.remaining == 0 {
+		reader.exhausted = true
+	}
+	return read, err
+}
+
+func peekImageSignature(reader *bufio.Reader) []byte {
+	prefix, _ := reader.Peek(12)
+	return prefix
+}
+
+func isStreamingStandardFormat(format string) bool {
+	switch format {
+	case "gif", "jpeg", "png":
+		return true
+	default:
+		return false
 	}
 }
 
@@ -342,11 +394,11 @@ func prefixBudgetForExtension(extension string) int64 {
 func decodeImageDimensions(format string, prefix []byte) (int64, int64, error) {
 	switch format {
 	case "gif":
-		return decodeConfigDimensions(gif.DecodeConfig, prefix)
+		return decodeImageDimensionsFromReader(format, bytes.NewReader(prefix))
 	case "jpeg":
-		return decodeConfigDimensions(jpeg.DecodeConfig, prefix)
+		return decodeImageDimensionsFromReader(format, bytes.NewReader(prefix))
 	case "png":
-		return decodeConfigDimensions(png.DecodeConfig, prefix)
+		return decodeImageDimensionsFromReader(format, bytes.NewReader(prefix))
 	}
 	imageFormat := imagemeta.ImageFormatAuto
 	switch format {
@@ -369,8 +421,21 @@ func decodeImageDimensions(format string, prefix []byte) (int64, int64, error) {
 	return int64(result.ImageConfig.Width), int64(result.ImageConfig.Height), nil
 }
 
-func decodeConfigDimensions(decode func(io.Reader) (image.Config, error), prefix []byte) (int64, int64, error) {
-	config, err := decode(bytes.NewReader(prefix))
+func decodeImageDimensionsFromReader(format string, reader io.Reader) (int64, int64, error) {
+	switch format {
+	case "gif":
+		return decodeConfigDimensions(gif.DecodeConfig, reader)
+	case "jpeg":
+		return decodeConfigDimensions(jpeg.DecodeConfig, reader)
+	case "png":
+		return decodeConfigDimensions(png.DecodeConfig, reader)
+	default:
+		return 0, 0, fmt.Errorf("unsupported streaming image format")
+	}
+}
+
+func decodeConfigDimensions(decode func(io.Reader) (image.Config, error), reader io.Reader) (int64, int64, error) {
+	config, err := decode(reader)
 	return int64(config.Width), int64(config.Height), err
 }
 
