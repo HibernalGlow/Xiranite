@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { createZipFixture, type ZipFixture } from "../../../test/fixture-builders/create-zip-fixture.js"
 import { ReaderHttpController, type ReaderSessionDto } from "./ReaderHttpController.js"
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
+import { ZipArchiveProvider } from "../archives/zip/ZipArchiveProvider.js"
 
 const directories: string[] = []
 const archives: ZipFixture[] = []
@@ -88,6 +89,48 @@ describe("Reader page actions", () => {
       )))?.status).toBe(204)
       await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" }))
       expect(await readdir(tempDirectory)).toEqual([])
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.page-list.archive-entry-delete] requires confirmation, releases the session, and rewrites only a root ZIP entry", async () => {
+    const archive = await createZipFixture({
+      entries: [
+        { path: "pages/001.jpg", bytes: Uint8Array.of(1) },
+        { path: "pages/002.jpg", bytes: Uint8Array.of(2) },
+        { path: "notes.txt", bytes: Uint8Array.of(3) },
+      ],
+    })
+    archives.push(archive)
+    const controller = new ReaderHttpController({
+      baseUrl: "http://127.0.0.1:41000",
+      token: "reader-token",
+      allowArchiveEntryDeletion: true,
+    })
+    try {
+      const session = await open(controller, archive.path)
+      const page = session.visiblePages[0]!
+      const endpoint = `/reader/s/${session.sessionId}/pages/${encodeURIComponent(page.id)}/actions`
+
+      expect((await controller.handle(jsonRequest(endpoint, { action: "delete" })))?.status).toBe(400)
+      expect((await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`)))?.status).toBe(200)
+
+      const deleted = (await controller.handle(jsonRequest(endpoint, { action: "delete", confirmed: true })))!
+      expect(deleted.status).toBe(200)
+      await expect(deleted.json()).resolves.toMatchObject({
+        archivePath: archive.path,
+        deletedEntryPath: "pages/001.jpg",
+        remainingEntries: 2,
+      })
+      expect((await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`)))?.status).toBe(404)
+
+      const provider = new ZipArchiveProvider(archive.path)
+      try {
+        expect((await provider.list()).map((entry) => entry.path)).toEqual(["pages/002.jpg", "notes.txt"])
+      } finally {
+        await provider.close()
+      }
     } finally {
       await controller[Symbol.asyncDispose]()
     }
