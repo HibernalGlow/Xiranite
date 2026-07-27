@@ -16,13 +16,7 @@ function runtime(): SimiuSetRuntime {
         { path: "D:/library/child/e.jpg", isFile: true, isDirectory: false },
       ],
     }[path] ?? [])),
-    scanSimilarImages: vi.fn(async (directory) => ({
-      groups: directory.endsWith("child")
-        ? [{ entries: [media("D:/library/child/d.jpg"), media("D:/library/child/e.jpg")] }]
-        : [{ entries: [media("D:/library/a.jpg"), media("D:/library/b.jpg")] }],
-      messages: "ok",
-      stopped: false,
-    })),
+    extractSimiuFeatures: vi.fn(async (paths) => paths.map(feature)),
     pathExists: vi.fn(async () => false),
     ensureDirectory: vi.fn(async () => undefined),
     movePath: vi.fn(async () => undefined),
@@ -37,7 +31,18 @@ function runtime(): SimiuSetRuntime {
   }
 }
 
-function media(path: string) { return { path, modifiedDate: 1, size: 10, width: 100, height: 80, similarity: "4" } }
+function feature(path: string) {
+  return {
+    path,
+    modifiedDate: 1,
+    size: 10,
+    width: 100,
+    height: 80,
+    ratio: 1.25,
+    meanRgb: [10, 20, 30] as const,
+    phash: path.endsWith("c.jpg") ? "1".repeat(64) : "0".repeat(64),
+  }
+}
 
 describe("Simiu sets", () => {
   test("keeps groups directory-local and skips an all-in-one directory", async () => {
@@ -51,8 +56,8 @@ describe("Simiu sets", () => {
       "D:/library/sets__set_001/a.jpg",
       "D:/library/sets__set_001/b.jpg",
     ])
-    expect(adapter.scanSimilarImages).toHaveBeenCalledWith("D:/library")
-    expect(adapter.scanSimilarImages).toHaveBeenCalledWith("D:/library/child")
+    expect(adapter.extractSimiuFeatures).toHaveBeenCalledWith(["D:/library/a.jpg", "D:/library/b.jpg", "D:/library/c.jpg"], 0)
+    expect(adapter.extractSimiuFeatures).toHaveBeenCalledWith(["D:/library/child/d.jpg", "D:/library/child/e.jpg"], 0)
     expect(adapter.listDirectory).not.toHaveBeenCalledWith("D:/library/.simiu-old")
   })
 

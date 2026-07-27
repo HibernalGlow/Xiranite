@@ -31,8 +31,8 @@ contract to a UI framework. `registry-js` belongs behind the Windows adapter in
 `@xiranite/shell-integration`; no shared domain contract may import it.
 `sharp-phash` is MIT, has a narrow 64-bit pHash API, and declares `sharp` as
 a peer dependency. It is used only at the Czkawka node's Node runtime boundary
-to calculate Simiu's source-compatible hash feature; it does not change the
-existing Czkawka native scanner or its upgrade path.
+to calculate Simiu's pHash feature; it does not change the existing Czkawka
+native scanner or its upgrade path.
 
 `renamer` is intentionally not adopted. It is a batch-renaming CLI, whereas
 Formatv requires deterministic per-file `.nov` plans, Nameu preserves archive
@@ -64,10 +64,12 @@ The Czkawka node exposes an internal `SimiuFeatureExtractor` boundary. Its
 Node adapter decodes each supported image through `sharp`, derives the 64-bit
 pHash through `sharp-phash`, and returns width, height, RGB mean from a 32x32
 thumbnail, and filesystem byte length. A pure Simiu scorer then preserves the
-source weights exactly: `0.68` normalized pHash distance, `0.14` capped aspect
+source score equation: `0.68` normalized pHash distance, `0.14` capped aspect
 ratio distance, `0.10` normalized RGB distance, and `0.08` file-size distance.
 It applies the source's `0.20` aspect-ratio pruning and union-find clustering
-before the existing set planner receives groups.
+before the existing set planner receives groups. The pHash implementation is
+validated at the grouping level rather than claimed as a byte-for-byte OpenCV
+hash replacement.
 
 This keeps Czkawka as the user-facing workbench and file-operation host, while
 making the detector an explicit adapter that neither depends on Czkawka's

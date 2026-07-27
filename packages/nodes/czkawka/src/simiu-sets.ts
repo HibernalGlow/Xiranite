@@ -1,8 +1,6 @@
-/**
- * Simiu's workflow lives above the native scanner. Czkawka supplies visual
- * candidates; this module owns the directory-local set semantics and rollback
- * format so it can survive Czkawka upgrades unchanged.
- */
+import { clusterSimiuImagePaths, type SimiuImageFeature } from "./simiu-similarity.js"
+
+/** Simiu owns grouping and rollback above Czkawka's independent workbench UI. */
 export const SIMIU_SET_IMAGE_EXTENSIONS = new Set([
   ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".avif", ".jxl",
 ])
@@ -17,26 +15,11 @@ export interface SimiuSetDirectoryEntry {
   isFile: boolean
 }
 
-export interface SimiuSetMediaEntry {
-  path: string
-  modifiedDate: number
-  size: number
-  width?: number
-  height?: number
-  similarity?: string
-}
-
-export interface SimiuSetNativeResult {
-  groups: Array<{ entries: SimiuSetMediaEntry[] }>
-  messages: string
-  stopped: boolean
-}
-
 export interface SimiuSetGroup {
   root: string
   parentDirectory: string
   name: string
-  files: SimiuSetMediaEntry[]
+  files: SimiuImageFeature[]
 }
 
 export interface SimiuSetOperation {
@@ -52,6 +35,8 @@ export interface SimiuSetOptions {
   scanOrder: SimiuSetScanOrder
   namePrefix: string
   minimumGroupSize: number
+  threshold: number
+  maxWorkers: number
 }
 
 export interface SimiuSetScanResult {
@@ -70,7 +55,7 @@ export interface SimiuSetApplyResult {
 
 export interface SimiuSetRuntime {
   listDirectory(path: string): Promise<SimiuSetDirectoryEntry[]>
-  scanSimilarImages(directory: string, onProgress?: (progress: { stage: string; stageIndex: number; stageCount: number; entriesChecked: number; entriesTotal: number; bytesChecked: number; bytesTotal: number }) => void): Promise<SimiuSetNativeResult>
+  extractSimiuFeatures(paths: readonly string[], maxWorkers: number): Promise<SimiuImageFeature[]>
   pathExists(path: string): Promise<boolean>
   ensureDirectory(path: string): Promise<void>
   movePath(source: string, target: string): Promise<void>
@@ -91,7 +76,7 @@ type SimiuSetMutationRuntime = Pick<SimiuSetRuntime, "pathExists" | "ensureDirec
 interface SimiuSetDirectory {
   root: string
   path: string
-  imageCount: number
+  images: string[]
 }
 
 interface SimiuSetUndoOperation {
@@ -112,9 +97,11 @@ export function normalizeSimiuSetOptions(input: Partial<SimiuSetOptions>): Simiu
   return {
     roots: unique(input.roots ?? []),
     recursive: input.recursive ?? true,
-    scanOrder: oneOf(input.scanOrder, ["path", "smallest-first", "deepest-first"], "path"),
+    scanOrder: oneOf(input.scanOrder, ["path", "smallest-first", "deepest-first"], "smallest-first"),
     namePrefix: sanitizePrefix(input.namePrefix ?? "simiu_set"),
     minimumGroupSize: clamp(input.minimumGroupSize, 2, 10_000, 2),
+    threshold: clampDecimal(input.threshold, 0, 1, 0.17),
+    maxWorkers: clamp(input.maxWorkers, 0, 256, 0),
   }
 }
 
@@ -130,16 +117,16 @@ export async function scanSimiuSets(input: Partial<SimiuSetOptions>, runtime: Si
     await runtime.waitWhilePaused?.()
     if (runtime.isCancelled?.()) { stopped = true; break }
     const directory = directories[index]!
-    imageCount += directory.imageCount
+    imageCount += directory.images.length
     onProgress(Math.round((index / Math.max(1, directories.length)) * 96) + 2, `Scanning ${directory.path}`)
-    const native = await runtime.scanSimilarImages(directory.path)
-    if (native.messages) messages.push(native.messages)
-    const candidates = native.groups
-      .map((group) => group.entries.filter((entry) => sameDirectory(parentDirectory(entry.path), directory.path)))
+    const features = await runtime.extractSimiuFeatures(directory.images, options.maxWorkers)
+    if (runtime.isCancelled?.()) { stopped = true; break }
+    if (features.length < directory.images.length) messages.push(`${directory.path}: skipped ${directory.images.length - features.length} unreadable image(s).`)
+    const featureByPath = new Map(features.map((feature) => [feature.path, feature]))
+    const candidates = clusterSimiuImagePaths(directory.images, features, options.threshold)
+      .map((paths) => paths.map((path) => featureByPath.get(path)).filter((feature): feature is SimiuImageFeature => Boolean(feature)))
       .filter((entries) => entries.length >= options.minimumGroupSize)
-      .sort((left, right) => comparePaths(left[0]?.path ?? "", right[0]?.path ?? ""))
-    if (native.stopped || runtime.isCancelled?.()) { stopped = true; break }
-    if (candidates.length === 1 && candidates[0]?.length === directory.imageCount) continue
+    if (candidates.length === 1 && candidates[0]?.length === directory.images.length) continue
     const names = await resolveGroupNames(directory.path, candidates.length, options.namePrefix, runtime)
     candidates.forEach((files, groupIndex) => {
       const name = names[groupIndex]
@@ -163,8 +150,8 @@ export async function collectSimiuSetDirectories(input: SimiuSetOptions, runtime
     visited.add(key)
     if (shouldSkipSimiuSetDirectory(current.path, input.namePrefix)) continue
     const entries = await runtime.listDirectory(current.path)
-    const imageCount = entries.filter((entry) => entry.isFile && isSimiuSetImage(entry.path)).length
-    if (imageCount) directories.push({ ...current, imageCount })
+    const images = entries.filter((entry) => entry.isFile && isSimiuSetImage(entry.path)).map((entry) => entry.path).sort(comparePaths)
+    if (images.length) directories.push({ ...current, images })
     if (input.recursive) {
       for (const entry of entries) if (entry.isDirectory) pending.push({ root: current.root, path: entry.path })
     }
@@ -259,22 +246,11 @@ export function isSimiuSetImage(path: string): boolean {
   return dot >= 0 && SIMIU_SET_IMAGE_EXTENSIONS.has(path.slice(dot).toLocaleLowerCase())
 }
 
-/**
- * The original OpenCV pHash path compares 64 bits. Czkawka's native option is
- * an absolute Hamming distance, so persist Simiu's historical 0..1 value and
- * convert it at the adapter boundary rather than leaking native units into UI.
- */
-export function simiuSetThresholdToCzkawkaSimilarity(value: unknown): number {
-  const threshold = Number(value)
-  const normalized = Number.isFinite(threshold) ? Math.max(0, Math.min(1, threshold)) : 0.17
-  return Math.round(normalized * 64)
-}
-
 function sortSimiuSetDirectories(directories: SimiuSetDirectory[], order: SimiuSetScanOrder): SimiuSetDirectory[] {
   return [...directories].sort((left, right) => order === "smallest-first"
-    ? left.imageCount - right.imageCount || comparePaths(left.path, right.path)
+    ? left.images.length - right.images.length || comparePaths(left.path, right.path)
     : order === "deepest-first"
-      ? depth(right.path) - depth(left.path) || comparePaths(left.path, right.path)
+      ? depth(right.path) - depth(left.path) || left.images.length - right.images.length || comparePaths(left.path, right.path)
       : comparePaths(left.path, right.path))
 }
 
@@ -322,14 +298,13 @@ function addCreatedDirectory(target: Map<string, Set<string>>, root: string, dir
 }
 
 function sanitizePrefix(value: string): string { return value.trim().replace(/[<>:"/\\|?*]/g, "_") || "simiu_set" }
-function parentDirectory(path: string): string { const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")); return index < 0 ? "" : path.slice(0, index) }
-function sameDirectory(left: string, right: string): boolean { return normalizedDirectory(left) === normalizedDirectory(right) }
 function normalizedDirectory(path: string): string { return path.replace(/[\\/]+$/, "").replaceAll("\\", "/").toLocaleLowerCase() }
 function basename(path: string): string { const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")); return index < 0 ? path : path.slice(index + 1) }
 function splitExtension(path: string): { stem: string; extension: string } { const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")), dot = path.lastIndexOf("."); return dot > slash ? { stem: path.slice(0, dot), extension: path.slice(dot) } : { stem: path, extension: "" } }
 function depth(path: string): number { return path.replaceAll("\\", "/").split("/").filter(Boolean).length }
 function comparePaths(left: string, right: string): number { return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }) }
 function clamp(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.floor(parsed))) : fallback }
+function clampDecimal(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback }
 function oneOf<const Values extends readonly string[]>(value: unknown, values: Values, fallback: Values[number]): Values[number] { return values.includes(value as Values[number]) ? value as Values[number] : fallback }
 function unique(values: readonly string[]): string[] { return [...new Set(values.map((value) => value.trim()).filter(Boolean))] }
 function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error) }

@@ -1,5 +1,5 @@
 import type { NodeRunEvent } from "@xiranite/contract"
-import { applySimiuSetOperations, scanSimiuSets, simiuSetThresholdToCzkawkaSimilarity, undoSimiuSetLog } from "./simiu-sets.js"
+import { applySimiuSetOperations, scanSimiuSets, undoSimiuSetLog } from "./simiu-sets.js"
 import type { CzkawkaData, CzkawkaEntry, CzkawkaGroup, CzkawkaNormalizedInput, CzkawkaResult, CzkawkaRuntime } from "./core.js"
 
 export interface CzkawkaSimiuSetRunnerHelpers {
@@ -10,6 +10,7 @@ export interface CzkawkaSimiuSetRunnerHelpers {
 }
 
 export async function runCzkawkaSimiuSetScan(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void, helpers: CzkawkaSimiuSetRunnerHelpers): Promise<CzkawkaResult> {
+  if (!runtime.extractSimiuFeatures) return helpers.fail(value, "The configured Czkawka runtime does not provide Simiu feature extraction.")
   onEvent({ type: "progress", progress: 2, message: "Starting Simiu sets." })
   const scanned = await scanSimiuSets({
     roots: value.includedDirectories,
@@ -17,17 +18,11 @@ export async function runCzkawkaSimiuSetScan(value: CzkawkaNormalizedInput, runt
     scanOrder: value.simiuSetsScanOrder,
     namePrefix: value.simiuSetsNamePrefix,
     minimumGroupSize: value.simiuSetsMinimumGroupSize,
+    threshold: value.simiuSetsThreshold,
+    maxWorkers: value.threadCount,
   }, {
     listDirectory: runtime.listDirectory,
-    scanSimilarImages: (directory, onProgress) => runtime.scanMedia({
-      ...value,
-      action: "scan",
-      tool: "similar-images",
-      includedDirectories: [directory],
-      includedDirectoriesReferenced: [],
-      recursive: false,
-      similarity: simiuSetThresholdToCzkawkaSimilarity(value.simiuSetsThreshold),
-    }, onProgress),
+    extractSimiuFeatures: runtime.extractSimiuFeatures,
     pathExists: runtime.pathExists,
     ensureDirectory: runtime.ensureDirectory,
     movePath: runtime.movePath,
