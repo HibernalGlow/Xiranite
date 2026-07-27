@@ -232,7 +232,6 @@ function Full(props: CzkawkaView) {
           <div data-swimlane-reveal-trigger="right" className="absolute inset-y-10 right-0 z-30 w-2" onPointerEnter={() => scheduleReveal("right")} onPointerLeave={restoreReveal} />
         </> : null}
       </div>
-      <StatusBar {...props} />
       {floatingOpen ? <CzkawkaFloatingAnalysisPanel state={props.floatingAnalysisPanel} viewport={props.floatingViewport} layout={props.cardLayout} onStateChange={props.setFloatingAnalysisPanel} onLayoutChange={props.setCardLayout} renderCard={(id) => <CzkawkaCardContent id={id} props={props} />} /> : null}
     </div>
   )
@@ -313,7 +312,6 @@ function Compact(props: CzkawkaView) {
           <AnalysisPanel {...props} />
         )}
       </div>
-      <StatusBar {...props} />
     </div>
   )
 }
@@ -348,6 +346,7 @@ function Header(props: CzkawkaView) {
           <p className="truncate font-mono text-[11px] text-muted-foreground">FILE FORENSICS / 11 SCANNERS / TS CONTROL PLANE</p>
         </div>
       </div>
+      <div className="min-w-32 max-w-72 flex-1"><StatusBar {...props} /></div>
       <div className="flex items-center gap-2">
         {props.tool === "similar-images" || props.tool === "similar-videos" ? <CzkawkaSimilarityReferenceDialog t={props.t} /> : null}
         <Button
@@ -405,6 +404,7 @@ function CompactHeader(props: CzkawkaView) {
         </Button>
       </div>
       <div className="flex min-w-0 items-center gap-1">
+        <div className="min-w-0 flex-1"><StatusBar {...props} /></div>
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input aria-label={props.t("filters.global", "Czkawka 全局筛选")} className="h-8 w-full pl-7 pr-7 text-xs" placeholder={props.t("filters.search", "搜索结果")} value={props.filterText} onChange={(event) => props.setFilterText(event.currentTarget.value)} />
