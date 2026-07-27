@@ -1,7 +1,8 @@
 import { pageMediaType, pathExtension, type ReaderMediaTypeResolver } from "../../domain/page/media.js"
 import type { ReaderDirectoryEntry } from "../../ports/ReaderDirectoryListingProvider.js"
 
-const ARCHIVE_BOOK_EXTENSIONS = new Set(["zip", "cbz", "rar", "cbr", "7z", "cb7", "epub"])
+export const PLATFORM_READER_ARCHIVE_BOOK_EXTENSIONS = Object.freeze(["zip", "cbz", "rar", "cbr", "7z", "cb7", "epub"])
+const ARCHIVE_BOOK_EXTENSION_SET = new Set(PLATFORM_READER_ARCHIVE_BOOK_EXTENSIONS)
 
 export type PlatformReaderBookFileKind = "archive" | "video"
 
@@ -9,7 +10,7 @@ export function platformReaderBookFileKind(
   path: string,
   mediaFormats?: ReaderMediaTypeResolver,
 ): PlatformReaderBookFileKind | undefined {
-  if (ARCHIVE_BOOK_EXTENSIONS.has(pathExtension(path))) return "archive"
+  if (ARCHIVE_BOOK_EXTENSION_SET.has(pathExtension(path))) return "archive"
   return pageMediaType(path, mediaFormats)?.kind === "video" ? "video" : undefined
 }
 

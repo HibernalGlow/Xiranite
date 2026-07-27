@@ -29,12 +29,17 @@ export class ReaderSystemIntegrationService {
 
   explorerContextMenuStatus(signal?: AbortSignal): Promise<ReaderExplorerContextMenuStatus> {
     return this.provider.explorerContextMenu?.status(signal)
-      ?? Promise.resolve({ available: false, enabled: false, reason: "Explorer context-menu registration is unavailable." })
+      ?? Promise.resolve({ available: false, enabled: false, state: "unavailable", reason: "Explorer context-menu registration is unavailable." })
   }
 
   explorerContextMenuSetEnabled(enabled: boolean, signal?: AbortSignal): Promise<ReaderExplorerContextMenuStatus> {
     return this.provider.explorerContextMenu?.setEnabled(enabled, signal)
-      ?? Promise.resolve({ available: false, enabled: false, reason: "Explorer context-menu registration is unavailable." })
+      ?? Promise.resolve({ available: false, enabled: false, state: "unavailable", reason: "Explorer context-menu registration is unavailable." })
+  }
+
+  explorerContextMenuReconcile(signal?: AbortSignal): Promise<ReaderExplorerContextMenuStatus> {
+    return this.provider.explorerContextMenu?.reconcile?.(signal)
+      ?? this.explorerContextMenuStatus(signal)
   }
 }
 

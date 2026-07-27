@@ -9,6 +9,7 @@ import type { ReaderDirectoryPageDto, ReaderHttpClient } from "../../../adapters
 import FolderMainCard from "./FolderMainCard"
 import FolderDeleteButton from "./folder/FolderDeleteButton"
 import { DEFAULT_FOLDER_VIEW } from "./folder/FolderBrowserPane"
+import { publishFolderEntryRemoved } from "./folder/FolderNavigationEvents"
 
 test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu", async () => {
   const directory = directoryPage({ filter: "library", filterOptions: ["all", "library"] })
@@ -590,6 +591,56 @@ test("[neoview.folder.optimistic-delete-rollback-gui] restores the hidden entry 
   await expect.element(page.getByText("earlier.cbz", { exact: true })).toBeVisible()
   expect(restore).toHaveBeenCalledOnce()
   expect(commit).not.toHaveBeenCalled()
+})
+
+test("[neoview.folder.reader-delete-event-gui] removes the penetrated activation root after a Reader action and refreshes the File Card", async () => {
+  const opened = directoryPage({
+    entries: [
+      { name: "series", path: "C:/books/series", kind: "directory", readerSupported: true },
+      { name: "later.cbz", path: "C:/books/later.cbz", kind: "file", readerSupported: true },
+    ],
+    total: 2,
+  })
+  const refreshed = directoryPage({
+    generation: 2,
+    entries: [{ name: "later.cbz", path: "C:/books/later.cbz", kind: "file", readerSupported: true }],
+    total: 1,
+  })
+  const navigateDirectoryBrowser = vi.fn(async () => refreshed)
+  const folderNavigationEvents = new EventTarget()
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => opened),
+    navigateDirectoryBrowser,
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 900, height: 600 }}>
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books/series/inside/001.jpg"
+          browserOriginPath="C:/books"
+          folderNavigationEvents={folderNavigationEvents}
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+        />
+      </VirtuosoMockContext.Provider>
+    </div>,
+  )
+
+  await expect.element(page.getByText("series", { exact: true })).toBeVisible()
+  publishFolderEntryRemoved(folderNavigationEvents, "C:/books/series")
+
+  await expect.poll(() => document.querySelector('[data-folder-path="C:/books/series"]')).toBeNull()
+  await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
+    "browser-1",
+    { action: "refresh" },
+    expect.any(AbortSignal),
+    "C:/books/later.cbz",
+  )
+  await expect.element(page.getByText("later.cbz", { exact: true })).toBeVisible()
 })
 
 function directoryPage(overrides: Partial<ReaderDirectoryPageDto> = {}): ReaderDirectoryPageDto {

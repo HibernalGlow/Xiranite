@@ -70,6 +70,8 @@ import { useFolderThumbnailPipeline } from "./useFolderThumbnailPipeline"
 import { useFolderSelectionController } from "./useFolderSelectionController"
 import { useFolderPenetrationPipeline } from "./useFolderPenetrationPipeline"
 import { useFolderEntryActivation } from "./useFolderEntryActivation"
+import { useFolderNavigationEvents } from "./useFolderNavigationEvents"
+import { useFolderExternalDeletion } from "./useFolderExternalDeletion"
 import { FolderBrowserPaneView } from "./FolderBrowserPaneView"
 export { DirectoryListItem } from "./FolderDirectoryListItem"
 export { isSameFolderNavigationEntry } from "./FolderPathIdentity"
@@ -343,41 +345,35 @@ export function FolderBrowserPane({
     if (startupBrowserPathRef.current) void openBrowser(startupBrowserPathRef.current)
   }, [sourcePath])
 
-  useEffect(() => {
-    // Listen on the selected tab even when the File Card panel is hidden so
-    // History/Bookmark can reuse this browser session for browse + penetration.
-    if (!folderNavigationEvents || !navigationActive) return
-    const browse = (event: Event) => {
-      if (!(event instanceof CustomEvent)) return
-      const detail = event.detail as { path?: unknown; newTab?: unknown } | undefined
-      if (typeof detail?.path !== "string" || !detail.path.trim()) return
-      routeFolderTabBrowse({
-        policy: currentReplacementPolicy(),
-        forceNewTab: detail.newTab === true,
-        path: detail.path,
-        openInNewTab: onOpenInNewTab,
-        replaceCurrent: (path) => { void openBrowser(path) },
-      })
-    }
-    const activateFromLibrary = (event: Event) => {
-      if (!(event instanceof CustomEvent)) return
-      const detail = event.detail as { path?: unknown; handled?: boolean } | undefined
-      if (typeof detail?.path !== "string" || !detail.path.trim()) return
-      if (detail && typeof detail === "object") {
-        detail.handled = routeFolderTabActivation({
-          policy: currentReplacementPolicy(),
-          path: detail.path,
-          activateCurrent: (path) => { void activateLibraryFolder(path) },
-        })
-      }
-    }
-    folderNavigationEvents.addEventListener("browse", browse)
-    folderNavigationEvents.addEventListener("activate", activateFromLibrary)
-    return () => {
-      folderNavigationEvents.removeEventListener("browse", browse)
-      folderNavigationEvents.removeEventListener("activate", activateFromLibrary)
-    }
-  }, [currentFolderTabKind, folderNavigationEvents, navigationActive, onOpenInNewTab])
+  useFolderNavigationEvents({
+    events: folderNavigationEvents,
+    enabled: navigationActive,
+    onBrowse: (path, newTab) => routeFolderTabBrowse({
+      policy: currentReplacementPolicy(),
+      forceNewTab: newTab,
+      path,
+      openInNewTab: onOpenInNewTab,
+      replaceCurrent: (nextPath) => { void openBrowser(nextPath) },
+    }),
+    onActivate: (path) => routeFolderTabActivation({
+      policy: currentReplacementPolicy(),
+      path,
+      activateCurrent: (nextPath) => { void activateLibraryFolder(nextPath) },
+    }),
+  })
+  useFolderExternalDeletion({
+    events: folderNavigationEvents,
+    enabled: navigationActive,
+    catalogRef,
+    sourcePath,
+    focusedPath,
+    focusedIndexRef,
+    commitCatalog,
+    setFocusedIndex,
+    setFocusedPath,
+    setSelection,
+    navigate,
+  })
 
   useEffect(() => disposeBrowser, [])
 

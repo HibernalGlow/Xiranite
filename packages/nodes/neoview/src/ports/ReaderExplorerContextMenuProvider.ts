@@ -9,6 +9,8 @@ export interface ReaderExplorerContextMenuRegistration {
   arguments?: readonly string[]
   icon?: string
   scopes?: readonly ReaderExplorerContextMenuScope[]
+  /** File verbs are registered only for these extensions; omit for legacy *. */
+  extensions?: readonly string[]
   hives?: readonly ReaderExplorerContextMenuHive[]
 }
 
@@ -16,6 +18,7 @@ export interface ReaderExplorerContextMenuPlanItem {
   entryKey: string
   hive: ReaderExplorerContextMenuHive
   scope: ReaderExplorerContextMenuScope
+  extension?: string
   registryPath: string
   label: string
   icon: string
@@ -33,6 +36,7 @@ export interface ReaderExplorerContextMenuPreview {
 export interface ReaderExplorerContextMenuStatus {
   available: boolean
   enabled: boolean
+  state?: "disabled" | "registered" | "needs-repair" | "conflict" | "unavailable"
   reason?: string
 }
 
@@ -40,4 +44,5 @@ export interface ReaderExplorerContextMenuProvider {
   preview(signal?: AbortSignal): Promise<ReaderExplorerContextMenuPreview>
   status(signal?: AbortSignal): Promise<ReaderExplorerContextMenuStatus>
   setEnabled(enabled: boolean, signal?: AbortSignal): Promise<ReaderExplorerContextMenuStatus>
+  reconcile?(signal?: AbortSignal): Promise<ReaderExplorerContextMenuStatus>
 }

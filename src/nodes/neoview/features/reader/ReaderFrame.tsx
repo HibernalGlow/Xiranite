@@ -12,9 +12,11 @@ import {
   calculateReaderPageStretchScales,
   effectiveReaderRotation,
   rotatePresentationSize,
+  DEFAULT_READER_MOUSE_CURSOR_SETTINGS,
   type PresentationSize,
   type ReaderPresentation,
   type FramePage,
+  type ReaderMouseCursorSettings,
 } from "@xiranite/node-neoview/ui-core"
 import { DEFAULT_READER_IMAGE_TRIM, readerImageTrimEffectiveDimensions } from "@xiranite/node-neoview/ui-core"
 
@@ -28,13 +30,14 @@ import { ReaderPageTransitionLayer } from "../page-transition/ReaderPageTransiti
 import { PageMedia } from "./PageMedia"
 import { ReaderProgressLayer } from "./ReaderProgressLayer"
 import { useReaderHoverScroll } from "./useReaderHoverScroll"
+import { useReaderMouseCursorAutoHide } from "./useReaderMouseCursorAutoHide"
 import { useReaderUpscalePreload } from "./useReaderUpscalePreload"
 import { useReaderCurrentPageUpscale } from "./useReaderCurrentPageUpscale"
 import { ReaderMagnifierLayer } from "./ReaderMagnifierLayer"
 
 const LazyReaderPanoramaFrame = lazy(async () => ({ default: (await import("./ReaderPanoramaFrame")).ReaderPanoramaFrame }))
 
-export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, doublePageGap = 0, totalPages, anchorPageIndex, preloadGeneration, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, slideshowFade = false, videoController, sessionId, client, media, superResolution, speculativePreloadAllowed = true, viewerToggles, onSubtitleConfigChange, onVideoControlsPinnedChange, onVisiblePageChange, onVideoListEnded }: {
+export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, doublePageGap = 0, totalPages, anchorPageIndex, preloadGeneration, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, mouseCursor = DEFAULT_READER_MOUSE_CURSOR_SETTINGS, colorFilter, imageTrim, pageTransition, slideshowFade = false, videoController, sessionId, client, media, superResolution, speculativePreloadAllowed = true, viewerToggles, onSubtitleConfigChange, onVideoControlsPinnedChange, onVisiblePageChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   framePages?: readonly FramePage[]
   presentation: ReaderPresentation
@@ -50,6 +53,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
   magnifierEnabled?: boolean
   magnifierZoom?: number
   magnifierSize?: number
+  mouseCursor?: ReaderMouseCursorSettings
   colorFilter?: ReaderColorFilterPort
   imageTrim?: ReaderImageTrimPort
   pageTransition?: ReaderPageTransitionPort
@@ -122,6 +126,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
     ? pages.filter((page) => page.mediaKind !== "video").map((page) => page.id).join("\0") || undefined
     : undefined
   useReaderHoverScroll(viewportRef, { enabled: hoverScrollEnabled && !panorama, speed: hoverScrollSpeed, pageKey: hoverScrollPageKey })
+  useReaderMouseCursorAutoHide(viewportRef, mouseCursor)
   useReaderCurrentPageUpscale({ client, sessionId, pages, superResolution })
   const upscalePreload = useReaderUpscalePreload({
     client,
@@ -143,7 +148,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
     viewerToggles={viewerToggles}
     client={client}
   />
-  if (panorama) return <div className="relative h-full min-h-0 w-full"><ReaderPageTransitionLayer pageIndex={anchorPageIndex} slideshowFade={slideshowFade} slideshowTarget={slideshowTarget} fill><Suspense fallback={null}><LazyReaderPanoramaFrame key={`${sessionId}:${pageMode}:${direction}`} sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} doublePageGap={doublePageGap} hoverScrollEnabled={hoverScrollEnabled} hoverScrollSpeed={hoverScrollSpeed} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVideoControlsPinnedChange={onVideoControlsPinnedChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense></ReaderPageTransitionLayer>{progressLayer}</div>
+  if (panorama) return <div className="relative h-full min-h-0 w-full"><ReaderPageTransitionLayer pageIndex={anchorPageIndex} slideshowFade={slideshowFade} slideshowTarget={slideshowTarget} fill><Suspense fallback={null}><LazyReaderPanoramaFrame key={`${sessionId}:${pageMode}:${direction}`} sessionId={sessionId} totalPages={totalPages} anchorPageIndex={anchorPageIndex} currentPages={pages} presentation={presentation} direction={direction ?? "left-to-right"} pageMode={pageMode ?? "single"} doublePageGap={doublePageGap} hoverScrollEnabled={hoverScrollEnabled} hoverScrollSpeed={hoverScrollSpeed} mouseCursor={mouseCursor} colorFilter={colorFilter} imageTrim={imageTrim} videoController={videoController} client={client} media={media} superResolution={superResolution} onSubtitleConfigChange={onSubtitleConfigChange} onVideoControlsPinnedChange={onVideoControlsPinnedChange} onVisiblePageChange={onVisiblePageChange} onVideoListEnded={onVideoListEnded} /></Suspense></ReaderPageTransitionLayer>{progressLayer}</div>
   const frameOrientation = pages.length > 1 ? "horizontal" : presentation.orientation
   const dimensions = displayedPages.flatMap((page, index) => page.dimensions
     ? [readerImageTrimEffectiveDimensions(page.dimensions, DEFAULT_READER_IMAGE_TRIM, framePages?.[index]?.cropInsets)]
