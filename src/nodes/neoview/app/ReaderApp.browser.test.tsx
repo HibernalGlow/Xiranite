@@ -58,6 +58,43 @@ test("[neoview.workspace.startup-mode-gui] keeps the fallback swimlane usable wh
   expect(document.querySelector('[data-reader-workspace-loading="true"]')).toBeNull()
 })
 
+test("[neoview.viewer.cursor-auto-hide-config-gui] applies the configured keyboard wake behavior to the reader viewport", async () => {
+  const runtimeConfig = deleteNextRuntimeConfig()
+  runtimeConfig.viewDefaults = {
+    ...runtimeConfig.viewDefaults,
+    mouseCursor: {
+      autoHide: true,
+      hideDelay: 0,
+      showMovementThreshold: 26,
+      showOnButtonClick: false,
+      showOnKeyDown: true,
+      showOnWheel: false,
+    },
+  }
+  const config = vi.fn(async () => runtimeConfig)
+  const client = {
+    config,
+    open: vi.fn(async () => readerSession()),
+    close: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 1200, height: 800 }}>
+      <ReaderApp sessionScopeId="browser-cursor-auto-hide" initialPath="D:/books/demo.cbz" client={client} />
+    </div>,
+  )
+
+  await expect.poll(() => config).toHaveBeenCalledOnce()
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  await expect.element(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+  const viewport = document.querySelector<HTMLElement>("[data-reader-frame-viewport]")!
+
+  viewport.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true, clientX: 10, clientY: 10 }))
+  await expect.poll(() => viewport.dataset.readerCursorHidden).toBe("true")
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }))
+  expect(viewport.dataset.readerCursorHidden).toBeUndefined()
+})
+
 test("[neoview.workspace.startup-cache-gui] restores the cached layout before runtime config resolves", async () => {
   const cached = structuredClone(DEFAULT_NEOVIEW_SHELL_CONFIG)
   cached.workspace.mode = "edges"

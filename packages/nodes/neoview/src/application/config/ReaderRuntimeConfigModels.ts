@@ -1,5 +1,6 @@
 import { DEFAULT_READER_LAYOUT, type PageMode } from "../../domain/frame/frame.js"
 import type { TailOverflowBehavior } from "../../domain/navigation/navigation.js"
+import { DEFAULT_READER_MOUSE_CURSOR_SETTINGS, type ReaderMouseCursorSettings } from "../../domain/view/ReaderMouseCursor.js"
 import {
   DEFAULT_READER_PRESENTATION,
   type ReaderAutoRotation,
@@ -415,15 +416,14 @@ export interface NeoviewViewDefaults {
   hoverScrollEnabled: boolean
   hoverScrollSpeed: number
   magnifierZoom: number
-  magnifierSize: number
-  orientation?: ReaderOrientation
-  autoRotation?: ReaderAutoRotation
+  magnifierSize: number; mouseCursor: ReaderMouseCursorSettings
+  orientation?: ReaderOrientation; autoRotation?: ReaderAutoRotation
   widePageStretch?: ReaderWidePageStretch
   background: NeoviewBackgroundConfig
 }
 
 export interface NeoviewViewDefaultsPatch {
-  viewDefaults: Omit<Partial<NeoviewViewDefaults>, "background"> & { background?: NeoviewBackgroundPatch }
+  viewDefaults: Omit<Partial<NeoviewViewDefaults>, "background" | "mouseCursor"> & { background?: NeoviewBackgroundPatch; mouseCursor?: Partial<ReaderMouseCursorSettings> }
 }
 
 export type NeoviewBackgroundMode = "solid" | "auto" | "edge" | "ambient" | "aurora" | "spotlight"
@@ -752,7 +752,7 @@ export const DEFAULT_NEOVIEW_VIEW_DEFAULTS: NeoviewViewDefaults = {
   hoverScrollEnabled: true,
   hoverScrollSpeed: 2,
   magnifierZoom: 2,
-  magnifierSize: 200,
+  magnifierSize: 200, mouseCursor: DEFAULT_READER_MOUSE_CURSOR_SETTINGS,
   orientation: DEFAULT_READER_PRESENTATION.orientation,
   autoRotation: DEFAULT_READER_PRESENTATION.autoRotation,
   widePageStretch: DEFAULT_READER_PRESENTATION.widePageStretch,

@@ -7,6 +7,7 @@ import { neoviewDebug, noteNeoviewMount, noteNeoviewUnmount } from "./neoviewDeb
 export interface NeoViewCardState extends Record<string, unknown> {
   path?: string
   browserOriginPath?: string | null
+  activationRootPath?: string | null
   swimlaneSoloLaneId?: string | null
   readerViewFullscreen?: boolean
   keepAliveOnViewSwitch?: boolean
@@ -17,6 +18,7 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
   const initialState = host.state.getData()
   const initialPath = initialState?.path
   const initialBrowserOriginPath = initialState?.browserOriginPath ?? undefined
+  const initialActivationRootPath = initialState?.activationRootPath ?? undefined
   const initialSwimlaneSoloLaneId = initialState?.swimlaneSoloLaneId
   const initialReaderViewFullscreen = initialState?.readerViewFullscreen
   const [externalLaunch, setExternalLaunch] = useState<{ requestId: string; path: string }>()
@@ -47,7 +49,7 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
       if (!isNeoViewExternalLaunchRequest(request)) return
       try {
         const path = localPathFromExternalLaunchURI(request.targets[0]!.uri)
-        host.state.patchData({ path, browserOriginPath: null })
+        host.state.patchData({ path, browserOriginPath: null, activationRootPath: path })
         setExternalLaunch({ requestId: request.requestId, path })
         void acknowledgeExternalLaunch(request.requestId, true)
       } catch (cause) {
@@ -69,6 +71,7 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
       key={externalLaunch?.requestId ?? "initial"}
       initialPath={activePath}
       initialBrowserOriginPath={initialBrowserOriginPath}
+      initialActivationRootPath={externalLaunch?.path ?? initialActivationRootPath}
       initialSwimlaneSoloLaneId={initialSwimlaneSoloLaneId}
       initialReaderViewFullscreen={initialReaderViewFullscreen}
       pickFile={host.localFiles?.pickFiles
@@ -86,7 +89,11 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
         : undefined}
       copyText={host.clipboard?.writeText}
       copyFiles={host.clipboard?.writeFiles}
-      onPathCommitted={(path, browserOriginPath) => host.state.patchData({ path, browserOriginPath: browserOriginPath ?? null })}
+      onPathCommitted={(path, browserOriginPath, activationRootPath) => host.state.patchData({
+        path,
+        browserOriginPath: browserOriginPath ?? null,
+        activationRootPath: activationRootPath ?? (path || null),
+      })}
       onSwimlaneSoloLaneIdCommitted={(swimlaneSoloLaneId) => host.state.patchData({ swimlaneSoloLaneId })}
       onReaderViewFullscreenCommitted={(readerViewFullscreen) => host.state.patchData({ readerViewFullscreen })}
     />

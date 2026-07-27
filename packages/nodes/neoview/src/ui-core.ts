@@ -57,6 +57,10 @@ export {
 } from "./domain/color-filter/ReaderColorFilter.js"
 export type { ReadingDirection, TailOverflowBehavior } from "./domain/navigation/navigation.js"
 export {
+  DEFAULT_READER_MOUSE_CURSOR_SETTINGS,
+  type ReaderMouseCursorSettings,
+} from "./domain/view/ReaderMouseCursor.js"
+export {
   cloneReaderRadialMenuConfig,
   DEFAULT_READER_RADIAL_MENU_CONFIG,
   parseReaderRadialMenuConfig,

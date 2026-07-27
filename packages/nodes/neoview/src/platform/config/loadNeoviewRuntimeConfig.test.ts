@@ -49,6 +49,14 @@ describe("loadNeoviewSessionOptions", () => {
       hoverScrollSpeed: 2,
       magnifierZoom: 2,
       magnifierSize: 200,
+      mouseCursor: {
+        autoHide: true,
+        hideDelay: 0.8,
+        showMovementThreshold: 26,
+        showOnButtonClick: false,
+        showOnKeyDown: false,
+        showOnWheel: false,
+      },
       orientation: "horizontal",
       autoRotation: "none",
       widePageStretch: "uniform-height",
@@ -271,9 +279,39 @@ describe("loadNeoviewSessionOptions", () => {
       const viewPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },
-        body: JSON.stringify({ viewDefaults: { fitMode: "original", pageMode: "single", hoverScrollEnabled: false, hoverScrollSpeed: 4.5, magnifierZoom: 3.5, magnifierSize: 300 } }),
+        body: JSON.stringify({ viewDefaults: {
+          fitMode: "original",
+          pageMode: "single",
+          hoverScrollEnabled: false,
+          hoverScrollSpeed: 4.5,
+          magnifierZoom: 3.5,
+          magnifierSize: 300,
+          mouseCursor: {
+            autoHide: false,
+            hideDelay: 1.2,
+            showMovementThreshold: 40,
+            showOnButtonClick: true,
+            showOnKeyDown: true,
+            showOnWheel: true,
+          },
+        } }),
       }))
-      expect(await viewPatched?.json()).toMatchObject({ viewDefaults: { fitMode: "original", pageMode: "single", hoverScrollEnabled: false, hoverScrollSpeed: 4.5, magnifierZoom: 3.5, magnifierSize: 300 } })
+      expect(await viewPatched?.json()).toMatchObject({ viewDefaults: {
+        fitMode: "original",
+        pageMode: "single",
+        hoverScrollEnabled: false,
+        hoverScrollSpeed: 4.5,
+        magnifierZoom: 3.5,
+        magnifierSize: 300,
+        mouseCursor: {
+          autoHide: false,
+          hideDelay: 1.2,
+          showMovementThreshold: 40,
+          showOnButtonClick: true,
+          showOnKeyDown: true,
+          showOnWheel: true,
+        },
+      } })
       expect(await readFile(configPath, "utf8")).toContain("default_zoom_mode = \"original\"")
       expect(await readFile(configPath, "utf8")).toContain("double_page_view = false")
       expect(await readFile(configPath, "utf8")).toContain("hover_scroll_enabled = false")
@@ -281,6 +319,9 @@ describe("loadNeoviewSessionOptions", () => {
       expect(await readFile(configPath, "utf8")).toContain("[nodes.neoview.view.magnifier]")
       expect(await readFile(configPath, "utf8")).toContain("zoom = 3.5")
       expect(await readFile(configPath, "utf8")).toContain("size = 300")
+      expect(await readFile(configPath, "utf8")).toContain("[nodes.neoview.view.mouse_cursor]")
+      expect(await readFile(configPath, "utf8")).toContain("auto_hide = false")
+      expect(await readFile(configPath, "utf8")).toContain("show_movement_threshold = 40")
       const bookPatched = await controller.handle(new Request("http://127.0.0.1:43125/reader/config", {
         method: "PATCH",
         headers: { "content-type": "application/json", "x-xiranite-token": "runtime-token" },

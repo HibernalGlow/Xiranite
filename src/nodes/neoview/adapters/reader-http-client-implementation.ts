@@ -610,6 +610,13 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         }),
         signal,
       }),
+    repairExplorerContextMenu: (confirmed = false, signal) =>
+      request<Contract.ReaderExplorerContextMenuStatusDto>("/reader/system/explorer-context-menu/repair", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(confirmed ? { confirmed: true } : {}),
+        signal,
+      }),
     executeFileOperations: (operations, confirmed = false, signal) =>
       request<Contract.ReaderFileOperationBatchResultDto>("/reader/files/operations", {
         method: "POST",

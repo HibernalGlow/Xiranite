@@ -25,6 +25,11 @@ interface ReaderHoverScrollActionPort {
   update(patch: { enabled: boolean }): Promise<void>
 }
 
+interface ReaderCursorAutoHideActionPort {
+  getSnapshot(): { enabled: boolean }
+  update(patch: { enabled: boolean }): Promise<void>
+}
+
 export interface ReaderInputActionSession {
   pageCount: number
   pageIndex: number
@@ -65,6 +70,7 @@ export interface ReaderInputActionControls {
   switchToast?: ReaderSwitchToastActionPort
   infoOverlay?: ReaderInfoOverlayActionPort
   hoverScroll?: ReaderHoverScrollActionPort
+  cursorAutoHide?: ReaderCursorAutoHideActionPort
   slideshow: {
     toggle(): void
     stop(): void
@@ -144,6 +150,11 @@ export async function executeReaderInputAction(
       const settings = controls.hoverScroll?.getSnapshot()
       if (!settings || !controls.hoverScroll) return UNAVAILABLE
       return outcomeOf(controls.hoverScroll.update({ enabled: !settings.enabled }))
+    }
+    case "viewer.toggle-cursor-auto-hide": {
+      const settings = controls.cursorAutoHide?.getSnapshot()
+      if (!settings || !controls.cursorAutoHide) return UNAVAILABLE
+      return outcomeOf(controls.cursorAutoHide.update({ enabled: !settings.enabled }))
     }
     case "file.open": return outcomeOf(controls.openFile())
     case "file.close": return outcomeOf(controls.closeFile())
