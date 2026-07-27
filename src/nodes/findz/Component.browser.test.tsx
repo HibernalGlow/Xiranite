@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from "vitest"
+import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { page } from "vitest/browser"
 import { cleanup, render } from "vitest-browser-react"
 import type { NodeHostApi, NodeRunResult } from "@xiranite/contract"
@@ -9,7 +9,7 @@ import type { FindzCardState } from "./types"
 import { changeLanguage } from "@/i18n"
 
 beforeEach(async () => { await changeLanguage("en") })
-afterEach(() => cleanup())
+afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 test("opens a library and renders the synchronized archive table and treemap", async () => {
   const host = createHost({ libraryRoot: "D:/library" })
@@ -33,6 +33,33 @@ test("selecting an archive loads its member rows through the structured query", 
   await expect.poll(() => host.calls.some((call) => call.action === "query_members")).toBe(true)
   await expect.element(page.getByText("pages/cover.png")).toBeVisible()
   await expect.poll(() => host.stateValue.selectedArchiveId).toBe(7)
+})
+
+test("expands folder rows before revealing their archive hierarchy", async () => {
+  const host = createHost({ libraryRoot: "D:/library" })
+
+  await render(<Component compId="findz-folders-browser" host={host} />)
+  await page.getByRole("button", { name: "Open library" }).click()
+  const folder = page.getByTestId("findz-folder-series")
+  await expect.element(folder).toHaveAttribute("aria-expanded", "true")
+
+  await folder.click()
+  await expect.element(folder).toHaveAttribute("aria-expanded", "false")
+  await expect.element(page.getByTestId("findz-archive-7")).not.toBeInTheDocument()
+  await folder.click()
+  await expect.element(page.getByTestId("findz-archive-7")).toBeVisible()
+})
+
+test("scrolls the selected archive row into the hierarchy viewport", async () => {
+  const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView")
+  const host = createHost({ libraryRoot: "D:/library" })
+
+  await render(<Component compId="findz-scroll-browser" host={host} />)
+  await page.getByRole("button", { name: "Open library" }).click()
+  await page.getByTestId("findz-archive-7").click()
+
+  await expect.poll(() => scrollIntoView.mock.calls.length).toBeGreaterThan(0)
+  expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" })
 })
 
 test("moves through archive pages and resets the cursor when returning", async () => {
@@ -67,6 +94,44 @@ test("resets pagination when searching or changing the sort", async () => {
   await page.getByRole("button", { name: "Size" }).click()
   await expect.poll(() => host.calls.filter((call) => call.action === "query_archives").at(-1)?.query?.page?.cursor).toBeUndefined()
   await expect.poll(() => host.calls.filter((call) => call.action === "query_archives").at(-1)?.query?.sortDesc).toBe(true)
+})
+
+test("ignores an obsolete archive response after the visible query changes", async () => {
+  const host = createHost({ libraryRoot: "D:/library" })
+  const runner = host.runner!
+  const defaultRun = runner.run
+  let archiveQueryCount = 0
+  let resolveStaleQuery: (() => void) | undefined
+  runner.run = async <TInput, TData>(nodeId: string, input: TInput): Promise<NodeRunResult<TData>> => {
+    const request = input as FindzInput
+    if (request.action !== "query_archives") return await defaultRun(nodeId, input)
+    host.calls.push(request)
+    archiveQueryCount++
+    if (archiveQueryCount === 1) {
+      return await new Promise<NodeRunResult<TData>>((resolve) => {
+        resolveStaleQuery = () => resolve({ success: true, message: "ok", data: {
+          action: "query_archives",
+          archives: { total: 1, items: [archiveFixture(7, "series/stale.cbz")] },
+        } as TData })
+      })
+    }
+    return {
+      success: true,
+      message: "ok",
+      data: { action: "query_archives", archives: { total: 1, items: [archiveFixture(8, "fresh.cbz")] } } as TData,
+    }
+  }
+
+  await render(<Component compId="findz-stale-query-browser" host={host} />)
+  await page.getByRole("button", { name: "Open library" }).click()
+  await expect.poll(() => archiveQueryCount).toBe(1)
+  await page.getByRole("textbox", { name: "Search Findz index" }).fill("fresh")
+  await expect.poll(() => archiveQueryCount).toBe(2)
+  await expect.element(page.getByTestId("findz-archive-8")).toBeVisible()
+
+  resolveStaleQuery?.()
+  await expect.element(page.getByTestId("findz-archive-8")).toBeVisible()
+  await expect.element(page.getByTestId("findz-archive-7")).not.toBeInTheDocument()
 })
 
 test("updates manual image-analysis controls through pause, resume, and cancel", async () => {
@@ -132,17 +197,20 @@ test("changes the treemap area metric through the accessible selector", async ()
 
 test("synchronizes table selection with treemap nodes and drills into folder aggregates", async () => {
   const host = createHost({ libraryRoot: "D:/library" })
+  const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView")
 
   await render(<Component compId="findz-treemap-browser" host={host} />)
   await page.getByRole("button", { name: "Open library" }).click()
-  await page.getByTestId("findz-archive-7").click()
 
   const archiveNode = page.getByTestId("findz-treemap-node-archive-7")
-  await expect.element(archiveNode).toHaveAttribute("data-findz-selected", "true")
+  await expect.element(archiveNode).toHaveAttribute("data-findz-selected", "false")
   await archiveNode.click()
-  await expect.poll(() => host.calls.filter((call) => call.action === "query_members").length).toBeGreaterThan(1)
+  await expect.poll(() => host.calls.filter((call) => call.action === "query_members").length).toBeGreaterThan(0)
+  await expect.element(page.getByTestId("findz-archive-7")).toHaveAttribute("data-state", "selected")
+  await expect.element(archiveNode).toHaveAttribute("data-findz-zoomed", "true")
+  await expect.poll(() => scrollIntoView.mock.calls.length).toBeGreaterThan(0)
 
-  await page.getByTestId("findz-treemap-node-folder-series").dblClick()
+  await page.getByTestId("findz-treemap-caption-folder-series").dblClick()
   await expect.poll(() => host.stateValue.pathPrefix).toBe("series")
   await expect.poll(() => host.calls.filter((call) => call.action === "query_archives").at(-1)?.pathPrefix).toBe("series")
 })
@@ -217,13 +285,32 @@ function responseFor(input: FindzInput, host: TestHost, options: { empty?: boole
   if (input.action === "query_archives") {
     if (options.empty) return { action: input.action, archives: { total: 0, items: [] } }
     const secondPage = input.query?.page?.cursor === "page-2"
-    return { action: input.action, archives: { total: 2, nextCursor: secondPage ? undefined : "page-2", items: [{ id: secondPage ? 8 : 7, relativePath: secondPage ? "second.cbz" : "sample.cbz", size: 4_096, modifiedAt: "2026-07-27T00:00:00Z", scanState: options.unsupported ? "unsupported_archive" : "indexed", errorCode: options.unsupported ? "unsupported_archive" : "", memberCount: 1, imageMemberCount: 1, analyzedImageCount: 0, compressedImageBytes: 4_000, averageImageBytes: 0, averageBytesPerMegapixel: 0, medianBytesPerMegapixel: 0, anomalyCount: 0, estimatedSavingsBytes: 0 }] } }
+    return { action: input.action, archives: { total: 2, nextCursor: secondPage ? undefined : "page-2", items: [{ id: secondPage ? 8 : 7, relativePath: secondPage ? "second.cbz" : "series/sample.cbz", size: 4_096, modifiedAt: "2026-07-27T00:00:00Z", scanState: options.unsupported ? "unsupported_archive" : "indexed", errorCode: options.unsupported ? "unsupported_archive" : "", memberCount: 1, imageMemberCount: 1, analyzedImageCount: 0, compressedImageBytes: 4_000, averageImageBytes: 0, averageBytesPerMegapixel: 0, medianBytesPerMegapixel: 0, anomalyCount: 0, estimatedSavingsBytes: 0 }] } }
   }
-  if (input.action === "query_members") return { action: input.action, members: { total: 1, items: [{ id: 8, archiveId: 7, memberPath: "pages/cover.png", compressedSize: 4_000, uncompressedSize: 4_000, compressionMethod: 8, crc32: 1, extension: "png", imageCandidate: true, nestedArchive: false, metadataStatus: options.budgetExceeded ? "metadata_budget_exceeded" : undefined, metadataErrorCode: options.budgetExceeded ? "metadata_budget_exceeded" : undefined, estimatedSavingsBytes: 0 }] } }
+  if (input.action === "query_members") return { action: input.action, members: { total: 1, items: [{ id: 8, archiveId: 7, memberPath: "pages/cover.png", nestingDepth: 1, compressedSize: 4_000, uncompressedSize: 4_000, compressionMethod: 8, crc32: 1, extension: "png", imageCandidate: true, nestedArchive: false, metadataStatus: options.budgetExceeded ? "metadata_budget_exceeded" : undefined, metadataErrorCode: options.budgetExceeded ? "metadata_budget_exceeded" : undefined, estimatedSavingsBytes: 0 }] } }
   if (input.action === "treemap") return { action: input.action, treemap: { id: "root", name: "Library", value: 8_192, color: 0, children: options.empty ? [] : [{ id: "folder:series", name: "series", value: 4_096, color: 0, children: [{ id: "archive:7", name: "sample.cbz", value: 4_096, color: 0, archiveId: 7 }] }, { id: "archive:8", name: "second.cbz", value: 4_096, color: 0, archiveId: 8 }] } }
   return { action: input.action ?? "query_archives" }
 }
 
 function taskFixture(status: FindzTask["status"]): FindzTask {
   return { id: "task-1", libraryId: "library-1", kind: "analysis", status, totalArchives: 2, doneArchives: 1, totalMembers: 4, doneMembers: 2, skippedMembers: 0, failedMembers: 0, message: "Analyzing image headers." }
+}
+
+function archiveFixture(id: number, relativePath: string) {
+  return {
+    id,
+    relativePath,
+    size: 4_096,
+    modifiedAt: "2026-07-27T00:00:00Z",
+    scanState: "indexed",
+    memberCount: 1,
+    imageMemberCount: 1,
+    analyzedImageCount: 0,
+    compressedImageBytes: 4_000,
+    averageImageBytes: 0,
+    averageBytesPerMegapixel: 0,
+    medianBytesPerMegapixel: 0,
+    anomalyCount: 0,
+    estimatedSavingsBytes: 0,
+  }
 }
