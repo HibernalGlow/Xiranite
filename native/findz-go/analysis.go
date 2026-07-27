@@ -305,6 +305,7 @@ type imageMetadataResult struct {
 	width             int64
 	height            int64
 	pixels            int64
+	aspectRatio       float64
 	bytesPerMegapixel float64
 	animated          *bool
 	status            string
@@ -367,7 +368,7 @@ func analyzeImageStreamWithBudget(reader io.Reader, extension string, compressed
 	}
 	return imageMetadataResult{
 		actualFormat: format, width: width, height: height, pixels: pixels,
-		bytesPerMegapixel: bytesPerMegapixel(compressedSize, pixels), status: "complete",
+		aspectRatio: float64(width) / float64(height), bytesPerMegapixel: bytesPerMegapixel(compressedSize, pixels), status: "complete",
 		extensionMismatch: !extensionMatchesFormat(extension, format),
 	}
 }
@@ -560,14 +561,14 @@ func bytesPerMegapixel(bytes int64, pixels int64) float64 {
 func storeImageMetadata(runtime *libraryRuntime, taskID string, memberID int64, result imageMetadataResult) error {
 	_, err := runtime.db.Exec(`INSERT INTO image_metadata (
 		member_id, analysis_run_id, policy_revision, actual_format, width, height, pixels, bytes_per_megapixel,
-		animated, extension_mismatch, status, error_code, updated_at
-	) VALUES (?, ?, ?, ?, NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, 0), ?, ?, ?, ?, ?)
+		aspect_ratio, animated, extension_mismatch, status, error_code, updated_at
+	) VALUES (?, ?, ?, ?, NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, 0), ?, ?, ?, ?, ?)
 	ON CONFLICT(member_id) DO UPDATE SET analysis_run_id = excluded.analysis_run_id, policy_revision = excluded.policy_revision,
 		actual_format = excluded.actual_format, width = excluded.width, height = excluded.height, pixels = excluded.pixels,
-		bytes_per_megapixel = excluded.bytes_per_megapixel, animated = excluded.animated,
+		bytes_per_megapixel = excluded.bytes_per_megapixel, aspect_ratio = excluded.aspect_ratio, animated = excluded.animated,
 		extension_mismatch = excluded.extension_mismatch, status = excluded.status, error_code = excluded.error_code, updated_at = excluded.updated_at`,
 		memberID, taskID, defaultAnalysisPolicy, result.actualFormat, result.width, result.height, result.pixels, result.bytesPerMegapixel,
-		boolPointerToNullableInt(result.animated), boolToInt(result.extensionMismatch), result.status, result.errorCode, time.Now().UTC().Format(time.RFC3339Nano),
+		result.aspectRatio, boolPointerToNullableInt(result.animated), boolToInt(result.extensionMismatch), result.status, result.errorCode, time.Now().UTC().Format(time.RFC3339Nano),
 	)
 	if err != nil {
 		return fmt.Errorf("store image metadata: %w", err)

@@ -2,7 +2,10 @@ package main
 
 import (
 	"archive/zip"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,9 +40,10 @@ type zipScanFailure struct {
 }
 
 type scheduledScanWork struct {
-	taskID  string
-	kind    string
-	changes []watcherChange
+	taskID          string
+	kind            string
+	changes         []watcherChange
+	verifyUnchanged bool
 }
 
 type libraryScanQueue struct {
@@ -80,12 +84,20 @@ func isSafeZipMemberPath(memberPath string) bool {
 }
 
 func (service *findzService) startScan(runtime *libraryRuntime) (taskRecord, error) {
-	task, err := service.createTask(runtime, "scan", scanParams{LibraryID: runtime.id})
+	return service.startScanWithVerification(runtime, false)
+}
+
+func (service *findzService) startReconciliation(runtime *libraryRuntime) (taskRecord, error) {
+	return service.startScanWithVerification(runtime, true)
+}
+
+func (service *findzService) startScanWithVerification(runtime *libraryRuntime, verifyUnchanged bool) (taskRecord, error) {
+	task, err := service.createTask(runtime, "scan", scanParams{LibraryID: runtime.id, VerifyUnchanged: verifyUnchanged})
 	if err != nil {
 		return task, err
 	}
 	service.installTaskController(task.ID)
-	service.enqueueScanWork(runtime, scheduledScanWork{taskID: task.ID, kind: "scan"})
+	service.enqueueScanWork(runtime, scheduledScanWork{taskID: task.ID, kind: "scan", verifyUnchanged: verifyUnchanged})
 	return task, nil
 }
 
@@ -111,7 +123,7 @@ func (service *findzService) runScheduledScanWork(runtime *libraryRuntime, work 
 	}
 	switch work.kind {
 	case "scan":
-		service.runFullScan(runtime, work.taskID, controller)
+		service.runFullScan(runtime, work.taskID, controller, work.verifyUnchanged)
 	case "watcher":
 		service.runWatcherChanges(runtime, work.taskID, work.changes, controller)
 	}
@@ -132,7 +144,7 @@ func (service *findzService) finishScheduledScanWork(runtime *libraryRuntime, ta
 	go service.runScheduledScanWork(runtime, next)
 }
 
-func (service *findzService) runFullScan(runtime *libraryRuntime, taskID string, controller *taskController) {
+func (service *findzService) runFullScan(runtime *libraryRuntime, taskID string, controller *taskController, verifyUnchanged bool) {
 	if err := updateTask(runtime, taskID, "running", "Discovering ZIP and CBZ archives."); err != nil {
 		return
 	}
@@ -146,7 +158,7 @@ func (service *findzService) runFullScan(runtime *libraryRuntime, taskID string,
 		if !controller.waitUntilRunnable() {
 			return
 		}
-		if err := indexArchive(runtime, path, scanToken); err != nil {
+		if err := indexArchiveWithVerification(runtime, path, scanToken, verifyUnchanged); err != nil {
 			warnings++
 		}
 		done++
@@ -300,8 +312,12 @@ func (service *findzService) resumeStoredScan(runtime *libraryRuntime, task task
 		service.enqueueScanWork(runtime, scheduledScanWork{taskID: task.ID, kind: "watcher", changes: coalesceWatcherChanges(nil, params.Changes)})
 		return nil
 	}
+	var scan scanParams
+	if err := readTaskParams(runtime, task.ID, &scan); err != nil {
+		return err
+	}
 	service.installTaskController(task.ID)
-	service.enqueueScanWork(runtime, scheduledScanWork{taskID: task.ID, kind: "scan"})
+	service.enqueueScanWork(runtime, scheduledScanWork{taskID: task.ID, kind: "scan", verifyUnchanged: scan.VerifyUnchanged})
 	return nil
 }
 
@@ -328,6 +344,10 @@ func readTaskParams(runtime *libraryRuntime, taskID string, target interface{}) 
 }
 
 func indexArchive(runtime *libraryRuntime, fullPath string, scanToken string) error {
+	return indexArchiveWithVerification(runtime, fullPath, scanToken, false)
+}
+
+func indexArchiveWithVerification(runtime *libraryRuntime, fullPath string, scanToken string, verifyUnchanged bool) error {
 	info, err := os.Stat(fullPath)
 	if err != nil {
 		return err
@@ -344,10 +364,16 @@ func indexArchive(runtime *libraryRuntime, fullPath string, scanToken string) er
 
 	var existingID int64
 	var existingFingerprint string
-	err = runtime.db.QueryRow(`SELECT id, source_identity FROM archive WHERE relative_path = ?`, relativePath).Scan(&existingID, &existingFingerprint)
+	var existingDirectoryFingerprint string
+	err = runtime.db.QueryRow(`SELECT id, source_identity, central_directory_fingerprint FROM archive WHERE relative_path = ?`, relativePath).Scan(&existingID, &existingFingerprint, &existingDirectoryFingerprint)
 	if err == nil && existingFingerprint == fingerprint {
-		_, err = runtime.db.Exec(`UPDATE archive SET last_seen_scan = ?, updated_at = ? WHERE id = ?`, scanToken, time.Now().UTC().Format(time.RFC3339Nano), existingID)
-		return err
+		if !verifyUnchanged || existingDirectoryFingerprint == "" {
+			return markArchiveSeen(runtime, existingID, scanToken)
+		}
+		directoryFingerprint, fingerprintErr := zipDirectoryFingerprintForPath(fullPath)
+		if fingerprintErr == nil && directoryFingerprint == existingDirectoryFingerprint {
+			return markArchiveSeen(runtime, existingID, scanToken)
+		}
 	}
 	if err != nil && err != sql.ErrNoRows {
 		return fmt.Errorf("read indexed archive fingerprint: %w", err)
@@ -389,11 +415,12 @@ func indexArchive(runtime *libraryRuntime, fullPath string, scanToken string) er
 		}
 		return failure
 	}
+	directoryFingerprint := zipDirectoryFingerprint(reader.File)
 
 	statement, err := tx.Prepare(`INSERT INTO archive_member (
 		archive_id, entry_index, member_path, crc32, compressed_size, uncompressed_size, compression_method, modified_at, extension,
-		is_directory, is_image_candidate, is_nested_archive, is_encrypted
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		is_directory, is_image_candidate, is_nested_archive, is_encrypted, nesting_depth
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("prepare member insert: %w", err)
 	}
@@ -403,7 +430,7 @@ func indexArchive(runtime *libraryRuntime, fullPath string, scanToken string) er
 			return err
 		}
 	}
-	if _, err := tx.Exec(`UPDATE archive SET scan_state = 'indexed', error_code = '', updated_at = ? WHERE id = ?`, now, archiveID); err != nil {
+	if _, err := tx.Exec(`UPDATE archive SET scan_state = 'indexed', error_code = '', central_directory_fingerprint = ?, updated_at = ? WHERE id = ?`, directoryFingerprint, now, archiveID); err != nil {
 		return fmt.Errorf("mark indexed archive: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -416,7 +443,7 @@ func recordArchiveScanFailure(tx *sql.Tx, archiveID int64, state string, code st
 	if _, err := tx.Exec(`DELETE FROM archive_member WHERE archive_id = ?`, archiveID); err != nil {
 		return fmt.Errorf("clear rejected archive members: %w", err)
 	}
-	if _, err := tx.Exec(`UPDATE archive SET scan_state = ?, error_code = ?, updated_at = ? WHERE id = ?`, state, code, now, archiveID); err != nil {
+	if _, err := tx.Exec(`UPDATE archive SET scan_state = ?, error_code = ?, central_directory_fingerprint = '', updated_at = ? WHERE id = ?`, state, code, now, archiveID); err != nil {
 		return fmt.Errorf("record archive scan failure: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -426,10 +453,10 @@ func recordArchiveScanFailure(tx *sql.Tx, archiveID int64, state string, code st
 }
 
 func upsertArchive(tx *sql.Tx, relativePath string, fingerprint string, info os.FileInfo, scanToken string, now string) (int64, error) {
-	if _, err := tx.Exec(`INSERT INTO archive (relative_path, source_identity, size, mtime_ns, scan_state, last_seen_scan, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 'indexing', ?, ?, ?)
+	if _, err := tx.Exec(`INSERT INTO archive (relative_path, source_identity, size, mtime_ns, scan_state, last_seen_scan, central_directory_fingerprint, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 'indexing', ?, '', ?, ?)
 		ON CONFLICT(relative_path) DO UPDATE SET source_identity = excluded.source_identity, size = excluded.size,
-		mtime_ns = excluded.mtime_ns, scan_state = 'indexing', error_code = '', last_seen_scan = excluded.last_seen_scan,
+		mtime_ns = excluded.mtime_ns, scan_state = 'indexing', error_code = '', last_seen_scan = excluded.last_seen_scan, central_directory_fingerprint = '',
 		updated_at = excluded.updated_at`, relativePath, fingerprint, info.Size(), info.ModTime().UnixNano(), scanToken, now, now); err != nil {
 		return 0, fmt.Errorf("upsert archive: %w", err)
 	}
@@ -449,7 +476,7 @@ func insertArchiveMember(statement *sql.Stmt, archiveID int64, entryIndex int, m
 	_, err := statement.Exec(
 		archiveID, entryIndex, strings.TrimSuffix(filepath.ToSlash(member.Name), "/"), uint64(member.CRC32), int64(member.CompressedSize64), int64(member.UncompressedSize64),
 		member.Method, member.Modified.UTC().Format(time.RFC3339Nano), extension, boolToInt(isDirectory), boolToInt(!isDirectory && isImageExtension(extension)),
-		boolToInt(!isDirectory && isFindzArchivePath(member.Name)), boolToInt(member.Flags&zipEncryptionFlag != 0),
+		boolToInt(!isDirectory && isFindzArchivePath(member.Name)), boolToInt(member.Flags&zipEncryptionFlag != 0), 1,
 	)
 	if err != nil {
 		return fmt.Errorf("insert ZIP member %s: %w", member.Name, err)
@@ -499,4 +526,41 @@ func pathWithinRoot(root string, path string) bool {
 
 func sourceFingerprint(path string, info os.FileInfo) string {
 	return fmt.Sprintf("%s:%d:%d", fileIdentity(path), info.Size(), info.ModTime().UnixNano())
+}
+
+func markArchiveSeen(runtime *libraryRuntime, archiveID int64, scanToken string) error {
+	_, err := runtime.db.Exec(`UPDATE archive SET last_seen_scan = ?, updated_at = ? WHERE id = ?`, scanToken, time.Now().UTC().Format(time.RFC3339Nano), archiveID)
+	return err
+}
+
+func zipDirectoryFingerprintForPath(fullPath string) (string, error) {
+	reader, err := zip.OpenReader(fullPath)
+	if err != nil {
+		return "", err
+	}
+	defer reader.Close()
+	return zipDirectoryFingerprint(reader.File), nil
+}
+
+func zipDirectoryFingerprint(files []*zip.File) string {
+	hash := sha256.New()
+	var buffer [8]byte
+	for _, member := range files {
+		binary.BigEndian.PutUint64(buffer[:], uint64(len(member.Name)))
+		_, _ = hash.Write(buffer[:])
+		_, _ = hash.Write([]byte(member.Name))
+		binary.BigEndian.PutUint64(buffer[:], uint64(member.CRC32))
+		_, _ = hash.Write(buffer[:])
+		binary.BigEndian.PutUint64(buffer[:], member.CompressedSize64)
+		_, _ = hash.Write(buffer[:])
+		binary.BigEndian.PutUint64(buffer[:], member.UncompressedSize64)
+		_, _ = hash.Write(buffer[:])
+		binary.BigEndian.PutUint64(buffer[:], uint64(member.Method))
+		_, _ = hash.Write(buffer[:])
+		binary.BigEndian.PutUint64(buffer[:], uint64(member.Flags))
+		_, _ = hash.Write(buffer[:])
+		binary.BigEndian.PutUint64(buffer[:], uint64(member.Modified.UnixNano()))
+		_, _ = hash.Write(buffer[:])
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }

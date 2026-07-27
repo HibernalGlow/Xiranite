@@ -83,7 +83,7 @@ func TestFindzManualAnalysisReadsBoundedImageMetadata(t *testing.T) {
 	if member.ActualFormat != "png" || member.Width == nil || member.Height == nil || *member.Width != 12 || *member.Height != 7 {
 		t.Fatalf("unexpected analyzed member: %#v", member)
 	}
-	if member.MetadataStatus != "complete" || member.BytesPerMegapixel == nil {
+	if member.MetadataStatus != "complete" || member.BytesPerMegapixel == nil || member.AspectRatio == nil || *member.AspectRatio <= 0 {
 		t.Fatalf("image analysis did not complete: %#v", member)
 	}
 }

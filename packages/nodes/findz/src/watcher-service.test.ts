@@ -20,7 +20,7 @@ describe("FindzLibraryWatch", () => {
   it("coalesces queued events and restores healthy state after a successful flush", async () => {
     vi.useFakeTimers()
     const client = watcherClient()
-    const watch = new FindzLibraryWatch("library-1", "D:/library", client)
+    const watch = new FindzLibraryWatch("library-1", "D:/library", client, undefined, 250, missingPathInspector())
 
     watch.queue([{ path: "D:/library/a.cbz", type: "create" }])
     watch.queue([
@@ -39,13 +39,34 @@ describe("FindzLibraryWatch", () => {
   it("marks the library degraded when native incremental work fails", async () => {
     vi.useFakeTimers()
     const client = watcherClient({ apply: async () => { throw new Error("index unavailable") } })
-    const watch = new FindzLibraryWatch("library-1", "D:/library", client)
+    const watch = new FindzLibraryWatch("library-1", "D:/library", client, undefined, 250, missingPathInspector())
 
     watch.queue([{ path: "D:/library/a.cbz", type: "update" }])
     await vi.advanceTimersByTimeAsync(250)
 
     expect(client.setWatcherHealth).toHaveBeenCalledWith("library-1", "degraded")
-    expect(client.startScan).toHaveBeenCalledWith("library-1")
+    expect(client.reconcileScan).toHaveBeenCalledWith("library-1")
+  })
+
+  it("retries changed files until size and mtime are stable", async () => {
+    vi.useFakeTimers()
+    const client = watcherClient()
+    const inspector = pathInspector([
+      { size: 10, mtimeMs: 1 },
+      { size: 12, mtimeMs: 2 },
+      { size: 12, mtimeMs: 2 },
+    ])
+    const watch = new FindzLibraryWatch("library-1", "D:/library", client, undefined, 250, inspector)
+
+    watch.queue([{ path: "D:/library/copying.cbz", type: "update" }])
+    await vi.advanceTimersByTimeAsync(250)
+    expect(client.applyWatcherChanges).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(250)
+    expect(client.applyWatcherChanges).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(250)
+
+    expect(client.applyWatcherChanges).toHaveBeenCalledWith("library-1", [{ path: "D:/library/copying.cbz", type: "update" }])
+    expect(inspector.stat).toHaveBeenCalledTimes(3)
   })
 
   it("cancels queued work and does not write health after closing", async () => {
@@ -53,7 +74,7 @@ describe("FindzLibraryWatch", () => {
     let finishApply: (() => void) | undefined
     const client = watcherClient({ apply: async () => await new Promise<void>((resolve) => { finishApply = resolve }) })
     const unsubscribe = vi.fn(async () => undefined)
-    const watch = new FindzLibraryWatch("library-1", "D:/library", client)
+    const watch = new FindzLibraryWatch("library-1", "D:/library", client, undefined, 250, missingPathInspector())
     watch.setSubscription({ unsubscribe })
 
     watch.queue([{ path: "D:/library/a.cbz", type: "update" }])
@@ -76,11 +97,24 @@ describe("FindzLibraryWatch", () => {
 function watcherClient(overrides: { apply?: FindzWatcherClient["applyWatcherChanges"] } = {}): FindzWatcherClient & {
   applyWatcherChanges: ReturnType<typeof vi.fn>
   startScan: ReturnType<typeof vi.fn>
+  reconcileScan: ReturnType<typeof vi.fn>
   setWatcherHealth: ReturnType<typeof vi.fn>
 } {
   return {
     applyWatcherChanges: vi.fn(overrides.apply ?? (async () => undefined)),
     startScan: vi.fn(async () => undefined),
+    reconcileScan: vi.fn(async () => undefined),
     setWatcherHealth: vi.fn(async () => undefined),
   }
+}
+
+function pathInspector(values: Array<{ size: number; mtimeMs: number }>) {
+  let index = 0
+  return {
+    stat: vi.fn(async () => values[Math.min(index++, values.length - 1)]),
+  }
+}
+
+function missingPathInspector() {
+  return { stat: vi.fn(async () => undefined) }
 }

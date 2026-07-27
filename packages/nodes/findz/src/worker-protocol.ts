@@ -3,6 +3,7 @@ export type FindzWorkerMethod =
   | "library.open"
   | "library.close"
   | "scan.start"
+  | "scan.reconcile"
   | "watcher.apply_changes"
   | "analysis.start"
   | "task.get"

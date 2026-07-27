@@ -19,7 +19,8 @@ type librarySummary struct {
 }
 
 type scanParams struct {
-	LibraryID string `json:"libraryId"`
+	LibraryID       string `json:"libraryId"`
+	VerifyUnchanged bool   `json:"verifyUnchanged"`
 }
 
 type watcherChange struct {
@@ -140,6 +141,7 @@ type memberRow struct {
 	ID                    int64    `json:"id"`
 	ArchiveID             int64    `json:"archiveId"`
 	MemberPath            string   `json:"memberPath"`
+	NestingDepth          int64    `json:"nestingDepth"`
 	CompressedSize        int64    `json:"compressedSize"`
 	UncompressedSize      int64    `json:"uncompressedSize"`
 	CompressionMethod     int64    `json:"compressionMethod"`
@@ -152,7 +154,10 @@ type memberRow struct {
 	Width                 *int64   `json:"width,omitempty"`
 	Height                *int64   `json:"height,omitempty"`
 	Pixels                *int64   `json:"pixels,omitempty"`
+	AspectRatio           *float64 `json:"aspectRatio,omitempty"`
 	BytesPerMegapixel     *float64 `json:"bytesPerMegapixel,omitempty"`
+	Animated              *bool    `json:"animated,omitempty"`
+	FrameCount            *int64   `json:"frameCount,omitempty"`
 	MetadataStatus        string   `json:"metadataStatus,omitempty"`
 	MetadataErrorCode     string   `json:"metadataErrorCode,omitempty"`
 	AnomalyKind           string   `json:"anomalyKind,omitempty"`

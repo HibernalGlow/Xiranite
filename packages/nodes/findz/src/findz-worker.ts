@@ -35,6 +35,8 @@ async function handleRequest(request: FindzWorkerRequest): Promise<unknown> {
     }
     case "scan.start":
       return await nativeClient.startScan((request.params as { libraryId: string }).libraryId)
+    case "scan.reconcile":
+      return await nativeClient.reconcileScan((request.params as { libraryId: string }).libraryId)
     case "watcher.apply_changes": {
       const params = request.params as { libraryId: string; changes: FindzWatcherEvent[] }
       return await nativeClient.applyWatcherChanges(params.libraryId, params.changes)

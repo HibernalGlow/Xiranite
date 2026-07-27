@@ -136,7 +136,12 @@ func (service *findzService) dispatch(request requestEnvelope) responseEnvelope 
 		if err != nil {
 			return failure(request.RequestID, "library_not_open", err, false, nil)
 		}
-		task, err := service.startScan(runtime)
+		var task taskRecord
+		if request.Method == "scan.reconcile" {
+			task, err = service.startReconciliation(runtime)
+		} else {
+			task, err = service.startScan(runtime)
+		}
 		if err != nil {
 			return failure(request.RequestID, "scan_start_failed", err, true, nil)
 		}
