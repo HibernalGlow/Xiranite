@@ -68,6 +68,8 @@ export interface ExternalLaunchDeclaration {
   intents: readonly ExternalLaunchIntentDeclaration[]
   instancePolicy: ExternalLaunchInstancePolicy
   requiredHostCapabilities: readonly NodeCapabilityId[]
+  /** Backend feature slices that must be present before the host accepts. */
+  backendFeatures?: readonly NodeAppBackendFeature[]
 }
 
 export interface ExternalLaunchIntentDeclaration {

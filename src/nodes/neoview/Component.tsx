@@ -1,5 +1,5 @@
-import { useEffect } from "react"
-import type { NodeComponentProps } from "@xiranite/contract"
+import { useEffect, useState } from "react"
+import type { ExternalNodeLaunchRequest, NodeComponentProps } from "@xiranite/contract"
 
 import { ReaderApp } from "./app/ReaderApp"
 import { neoviewDebug, noteNeoviewMount, noteNeoviewUnmount } from "./neoviewDebug"
@@ -19,6 +19,8 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
   const initialBrowserOriginPath = initialState?.browserOriginPath ?? undefined
   const initialSwimlaneSoloLaneId = initialState?.swimlaneSoloLaneId
   const initialReaderViewFullscreen = initialState?.readerViewFullscreen
+  const [externalLaunch, setExternalLaunch] = useState<{ requestId: string; path: string }>()
+  const activePath = externalLaunch?.path ?? initialPath
 
   // Track true instance lifetime only. Do NOT depend on initialPath: openPath
   // commits path into host state and would fake unmount/remount mid-read.
@@ -40,6 +42,23 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
   }, [compId])
 
   useEffect(() => {
+    const onExternalLaunch = (event: Event) => {
+      const request = (event as CustomEvent<unknown>).detail
+      if (!isNeoViewExternalLaunchRequest(request)) return
+      try {
+        const path = localPathFromExternalLaunchURI(request.targets[0]!.uri)
+        host.state.patchData({ path, browserOriginPath: null })
+        setExternalLaunch({ requestId: request.requestId, path })
+        void acknowledgeExternalLaunch(request.requestId, true)
+      } catch (cause) {
+        void acknowledgeExternalLaunch(request.requestId, false, errorMessage(cause))
+      }
+    }
+    window.addEventListener("xiranite:external-node-launch", onExternalLaunch)
+    return () => window.removeEventListener("xiranite:external-node-launch", onExternalLaunch)
+  }, [host.state])
+
+  useEffect(() => {
     if (!initialPath) return
     neoviewDebug("component:path-committed", { compId, path: initialPath })
   }, [compId, initialPath])
@@ -47,7 +66,8 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
   return (
     <ReaderApp
       sessionScopeId={compId}
-      initialPath={initialPath}
+      key={externalLaunch?.requestId ?? "initial"}
+      initialPath={activePath}
       initialBrowserOriginPath={initialBrowserOriginPath}
       initialSwimlaneSoloLaneId={initialSwimlaneSoloLaneId}
       initialReaderViewFullscreen={initialReaderViewFullscreen}
@@ -71,4 +91,43 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
       onReaderViewFullscreenCommitted={(readerViewFullscreen) => host.state.patchData({ readerViewFullscreen })}
     />
   )
+}
+
+function isNeoViewExternalLaunchRequest(value: unknown): value is ExternalNodeLaunchRequest {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const request = value as Partial<ExternalNodeLaunchRequest>
+  return request.version === 1
+    && request.nodeId === "neoview"
+    && request.intent === "open"
+    && Array.isArray(request.targets)
+    && request.targets.length === 1
+    && (request.targets[0]?.kind === "file" || request.targets[0]?.kind === "directory")
+    && typeof request.targets[0]?.uri === "string"
+}
+
+function localPathFromExternalLaunchURI(uri: string): string {
+  const target = new URL(uri)
+  if (target.protocol !== "file:" || target.search || target.hash || target.username || target.password) {
+    throw new Error("NeoView external launch accepts only local file: targets.")
+  }
+  const path = decodeURIComponent(target.pathname)
+  if (!path) throw new Error("NeoView external launch target path is empty.")
+  if (target.hostname && target.hostname !== "localhost") {
+    return `\\\\${target.hostname}${path.replaceAll("/", "\\")}`
+  }
+  return /^\/[A-Za-z]:\//u.test(path) ? path.slice(1) : path
+}
+
+async function acknowledgeExternalLaunch(requestId: string, accepted: boolean, message?: string): Promise<void> {
+  if (typeof window === "undefined" || !window._wails) return
+  try {
+    const runtime = await import("@wailsio/runtime")
+    await runtime.Call.ByName("main.XiraniteService.AcknowledgeExternalNodeLaunch", { requestId, accepted, message })
+  } catch {
+    // Workspace and ordinary standalone hosts intentionally do not expose this method.
+  }
+}
+
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause)
 }

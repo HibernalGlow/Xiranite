@@ -35,6 +35,7 @@ type externalNodeLaunchDeclaration struct {
 	Intents                  []externalNodeLaunchIntentDeclaration
 	InstancePolicy           string
 	RequiredHostCapabilities []string
+	BackendFeatures          []string
 }
 
 type externalNodeLaunchIntentDeclaration struct {

@@ -6,6 +6,7 @@ var generatedExternalNodeLaunchDeclarations = map[string]externalNodeLaunchDecla
 	"neoview": {
 		InstancePolicy:           "reuse",
 		RequiredHostCapabilities: []string{"contract", "state", "runner", "clipboard", "downloads", "localFiles", "config", "env"},
+		BackendFeatures:          []string{"reader"},
 		Intents: []externalNodeLaunchIntentDeclaration{
 			{
 				ID:          "open",

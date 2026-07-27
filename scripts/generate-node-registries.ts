@@ -212,6 +212,7 @@ function generateExternalLaunchRegistry(nodes: NodePackage[]): string {
     return `  ${stringLiteral(node.id)}: {
     InstancePolicy: ${stringLiteral(declaration.instancePolicy)},
     RequiredHostCapabilities: []string{${declaration.requiredHostCapabilities.map(stringLiteral).join(", ")}},
+    BackendFeatures: []string{${(declaration.backendFeatures ?? []).map(stringLiteral).join(", ")}},
     Intents: []externalNodeLaunchIntentDeclaration{
       ${intents},
     },
@@ -265,7 +266,7 @@ function nodeDefLiteral(def: NodeDefLiteral): string {
   if (def.externalLaunch) {
     const declaration = def.externalLaunch
     const intents = declaration.intents.map((intent) => `{ id: ${stringLiteral(intent.id)}, targetKinds: [${intent.targetKinds.map(stringLiteral).join(", ")}], maxTargets: ${intent.maxTargets} }`)
-    lines.push(`externalLaunch: { instancePolicy: ${stringLiteral(declaration.instancePolicy)}, requiredHostCapabilities: [${declaration.requiredHostCapabilities.map(stringLiteral).join(", ")}], intents: [${intents.join(", ")}] }`)
+    lines.push(`externalLaunch: { instancePolicy: ${stringLiteral(declaration.instancePolicy)}, requiredHostCapabilities: [${declaration.requiredHostCapabilities.map(stringLiteral).join(", ")}], backendFeatures: [${(declaration.backendFeatures ?? []).map(stringLiteral).join(", ")}], intents: [${intents.join(", ")}] }`)
   }
   return `{ ${lines.join(", ")} }`
 }

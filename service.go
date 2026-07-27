@@ -20,16 +20,18 @@ import (
 )
 
 type XiraniteService struct {
-	storageMu         sync.Mutex
-	backendMu         sync.Mutex
-	backendRestartMu  sync.Mutex
-	componentWindowMu sync.Mutex
-	nodeAppMu         sync.RWMutex
-	userDataDir       string
-	storageFile       string
-	localBackend      *LocalBackend
-	trayManager       *desktopTrayManager
-	nodeAppRuntime    *nodeAppLifecycle
+	storageMu          sync.Mutex
+	backendMu          sync.Mutex
+	backendRestartMu   sync.Mutex
+	componentWindowMu  sync.Mutex
+	nodeAppMu          sync.RWMutex
+	externalLaunchMu   sync.RWMutex
+	userDataDir        string
+	storageFile        string
+	localBackend       *LocalBackend
+	trayManager        *desktopTrayManager
+	nodeAppRuntime     *nodeAppLifecycle
+	externalLaunchHost *externalNodeLaunchHostRuntime
 }
 
 type FsEntry struct {
@@ -226,6 +228,54 @@ func (s *XiraniteService) nodeAppLifecycle() *nodeAppLifecycle {
 	s.nodeAppMu.RLock()
 	defer s.nodeAppMu.RUnlock()
 	return s.nodeAppRuntime
+}
+
+func (s *XiraniteService) setExternalNodeLaunchHostRuntime(runtime *externalNodeLaunchHostRuntime) {
+	s.externalLaunchMu.Lock()
+	s.externalLaunchHost = runtime
+	s.externalLaunchMu.Unlock()
+}
+
+func (s *XiraniteService) externalNodeLaunchHostRuntime() *externalNodeLaunchHostRuntime {
+	s.externalLaunchMu.RLock()
+	defer s.externalLaunchMu.RUnlock()
+	return s.externalLaunchHost
+}
+
+// ExternalNodeLaunchHostInfo identifies a complete direct-node host. It is
+// unavailable to the workspace host and to frozen standalone node packages.
+func (s *XiraniteService) ExternalNodeLaunchHostInfo() *externalNodeLaunchHostInfo {
+	runtime := s.externalNodeLaunchHostRuntime()
+	if runtime == nil {
+		return nil
+	}
+	info := runtime.hostInfo()
+	return &info
+}
+
+// ExternalNodeLaunchInitial returns the first request held while WebView and
+// the declared node surface complete their capability handshake.
+func (s *XiraniteService) ExternalNodeLaunchInitial() *externalNodeLaunchRequest {
+	runtime := s.externalNodeLaunchHostRuntime()
+	if runtime == nil {
+		return nil
+	}
+	return runtime.initialRequest()
+}
+
+// AcknowledgeExternalNodeLaunch is deliberately the final step of an external
+// request. Process reuse reports success only after the declared node has
+// accepted or rejected the normalized target.
+func (s *XiraniteService) AcknowledgeExternalNodeLaunch(acknowledgement externalNodeLaunchAcknowledgement) externalNodeLaunchAcknowledgement {
+	runtime := s.externalNodeLaunchHostRuntime()
+	if runtime == nil {
+		return externalNodeLaunchAcknowledgement{
+			RequestID: acknowledgement.RequestID,
+			Accepted:  false,
+			Message:   "This desktop window is not an external node launch host.",
+		}
+	}
+	return runtime.acknowledge(acknowledgement)
 }
 
 // NodeAppContinueInBackground hides a standalone node window while preserving
