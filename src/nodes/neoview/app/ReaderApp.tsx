@@ -1,7 +1,6 @@
 import { lazy, startTransition, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
 import { BookOpen, ChevronRight, LoaderCircle, Pin, PinOff, X } from "lucide-react"
 import {
-  DEFAULT_NEOVIEW_SHELL_CONFIG,
   DEFAULT_READER_PRESENTATION,
   DEFAULT_READER_INPUT_BINDINGS,
   DEFAULT_READER_RADIAL_MENU_CONFIG,
@@ -93,6 +92,7 @@ import { createReaderImageTrimStore } from "../features/image-trim/ReaderImageTr
 import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCleanup"
 import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../features/workspace/ReaderSwimlaneWorkspace"
 import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
+import { createInitialReaderShellConfig, readerShellSnapshotsEqual } from "./ReaderShellSnapshot"
 import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
 
 function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConfigDto): boolean {
@@ -102,12 +102,6 @@ function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConf
   } catch {
     return false
   }
-}
-
-function initialReaderShellConfig(): ReaderShellConfigDto {
-  const shell = structuredClone(DEFAULT_NEOVIEW_SHELL_CONFIG)
-  shell.workspace.mode = "swimlane"
-  return shell
 }
 
 function readerWorkspaceWithSession(shell: ReaderShellConfigDto, session: SwimlaneWorkspaceSessionState | undefined): ReaderWorkspaceConfig {
@@ -434,7 +428,9 @@ export function ReaderApp({
   }))
   const [videoController] = useState(() => new ReaderVideoController())
   const [viewerToggles] = useState(() => new ReaderViewerToggleStore())
-  const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(() => initialReaderShellConfig())
+  const [shell, setShell] = useState<ReaderShellConfigDto | undefined>(() => createInitialReaderShellConfig(
+    useReaderWorkspaceRestoreStore.getState().shellSnapshot,
+  ))
   const [readerChromeReady, setReaderChromeReady] = useState(false)
   const [shellControlStore] = useState(() => createReaderShellControlStore({
     edges: {
@@ -569,6 +565,7 @@ export function ReaderApp({
     void loadReaderFrame().catch(() => undefined)
     const controller = new AbortController()
     const chromeFallbackTimer = window.setTimeout(() => setReaderChromeReady(true), 0)
+    const shellRequestGeneration = shellControlGenerationRef.current
     const configStartedAt = performance.now()
     neoviewDebug("reader:config:request", { sessionScopeId })
     void clientRef.current.config(controller.signal).then((config) => {
@@ -651,9 +648,12 @@ export function ReaderApp({
       })
       if (initialSwimlaneSoloLaneId === undefined) onSwimlaneSoloLaneIdCommitted?.(restoredSoloLaneId)
       if (initialReaderViewFullscreen === undefined) onReaderViewFullscreenCommitted?.(restoredReaderViewFullscreen)
-      shellRef.current = config.shell
-      setShell(config.shell)
-      shellControlStore.hydrate(shellControlHydration(config.shell))
+      if (shellControlGenerationRef.current === shellRequestGeneration) {
+        applyConfirmedShell(config.shell)
+        shellControlStore.hydrate(shellControlHydration(config.shell))
+      } else {
+        void enqueueShellMutation(async () => { await refreshLatestShell() })
+      }
       if (typeof localStorage !== "undefined") {
         void migrateLegacySidebarHeight({
           storage: localStorage,
@@ -667,8 +667,7 @@ export function ReaderApp({
                 shellControl: { sidebarInteraction: interaction },
               })
             }
-            shellRef.current = updated
-            setShell(updated)
+            applyConfirmedShell(updated)
             shellControlStore.hydrate(shellControlHydration(updated))
           },
         }).catch((cause) => setError(errorMessage(cause)))
@@ -1286,8 +1285,7 @@ export function ReaderApp({
     setInputBindings(config.inputBindings)
     setRadialMenu(config.radialMenu ?? structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
     setVoiceControl(config.voiceControl)
-    shellRef.current = config.shell
-    setShell(config.shell)
+    applyConfirmedShell(config.shell)
     return result
   }
 
@@ -1752,6 +1750,13 @@ export function ReaderApp({
     onSwimlaneSoloLaneIdCommitted?.(soloLaneId)
   }
 
+  function applyConfirmedShell(confirmed: ReaderShellConfigDto): void {
+    useReaderWorkspaceRestoreStore.getState().cacheShellSnapshot(confirmed)
+    if (readerShellSnapshotsEqual(shellRef.current, confirmed)) return
+    shellRef.current = confirmed
+    setShell(confirmed)
+  }
+
   function enqueueShellControl(
     patch: ReaderShellControlPatch["shellControl"],
     rollback?: ReaderShellControlSnapshot,
@@ -1770,6 +1775,7 @@ export function ReaderApp({
           (current, entry) => applyReaderWorkspacePatch(current, entry.patch),
           confirmed,
         )
+        useReaderWorkspaceRestoreStore.getState().cacheShellSnapshot(confirmed)
         shellRef.current = displayed
         setShell(displayed)
         if (generation === shellControlGenerationRef.current) shellControlStore.replace(shellControlSnapshot(confirmed))
@@ -1800,8 +1806,7 @@ export function ReaderApp({
     await enqueueShellMutation(async () => {
       try {
         const updated = await clientRef.current.updateSidebarLayout(patch)
-        shellRef.current = updated
-        setShell(updated)
+        applyConfirmedShell(updated)
       } catch (cause) {
         if (patch.pinned !== undefined) shellControlStore.replace(previousControl)
         setShell((current) => current ? { ...current, sidebars: { ...current.sidebars } } : current)
@@ -1827,8 +1832,7 @@ export function ReaderApp({
     await enqueueShellMutation(async () => {
       try {
         const updated = await clientRef.current.updateCardLayout(patch)
-        shellRef.current = updated
-        setShell(updated)
+        applyConfirmedShell(updated)
       } catch (cause) {
         setShell(previous)
         setError(errorMessage(cause))
@@ -1841,15 +1845,13 @@ export function ReaderApp({
       const request = { ...patch, expectedRevision: shellRef.current?.revision ?? patch.expectedRevision }
       try {
       const updated = await clientRef.current.updateBoardLayout(request)
-      shellRef.current = updated
-      setShell(updated)
+      applyConfirmedShell(updated)
     } catch (cause) {
       if (cause instanceof ReaderHttpError && cause.status === 409) {
         const latest = await refreshLatestShell()
         if (latest) {
           const updated = await clientRef.current.updateBoardLayout({ ...patch, expectedRevision: latest.revision ?? request.expectedRevision })
-          shellRef.current = updated
-          setShell(updated)
+          applyConfirmedShell(updated)
           return
         }
       }
@@ -1867,15 +1869,13 @@ export function ReaderApp({
       const request = { ...patch, expectedRevision: shellRef.current?.revision ?? patch.expectedRevision }
       try {
       const updated = await clientRef.current.updateBoardLayout(request)
-      shellRef.current = updated
-      setShell(updated)
+      applyConfirmedShell(updated)
     } catch (cause) {
       if (cause instanceof ReaderHttpError && cause.status === 409) {
         const latest = await refreshLatestShell()
         if (latest) {
           const updated = await clientRef.current.updateBoardLayout({ ...patch, expectedRevision: latest.revision ?? request.expectedRevision })
-          shellRef.current = updated
-          setShell(updated)
+          applyConfirmedShell(updated)
           return
         } else if (shellRef.current === nextShell) {
           shellRef.current = previous
@@ -1914,8 +1914,8 @@ export function ReaderApp({
   async function refreshLatestShell(): Promise<ReaderShellConfigDto | undefined> {
     const latest = await clientRef.current.config().catch(() => undefined)
     if (!latest) return undefined
-    shellRef.current = latest.shell
-    setShell(latest.shell)
+    applyConfirmedShell(latest.shell)
+    shellControlStore.hydrate(shellControlHydration(latest.shell))
     return latest.shell
   }
 
@@ -1934,15 +1934,14 @@ export function ReaderApp({
           expectedRevision: shellRef.current?.revision ?? 0,
           shellControl: { material },
         })
-        shellRef.current = updated
-        setShell(updated)
+        applyConfirmedShell(updated)
         resolveOperation(updated)
       } catch (cause) {
         if (cause instanceof ReaderHttpError && cause.status === 409) {
           const latest = await clientRef.current.config().catch(() => undefined)
           if (latest) {
-            shellRef.current = latest.shell
-            setShell(latest.shell)
+            applyConfirmedShell(latest.shell)
+            shellControlStore.hydrate(shellControlHydration(latest.shell))
           }
         }
         setError(errorMessage(cause))

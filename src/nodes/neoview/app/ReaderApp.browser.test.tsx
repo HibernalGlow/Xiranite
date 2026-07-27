@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vitest"
+import { beforeEach, expect, test, vi } from "vitest"
 import { page } from "vitest/browser"
 import { render } from "vitest-browser-react"
 
@@ -12,6 +12,12 @@ import {
 
 import type { ReaderHttpClient, ReaderRuntimeConfigDto, ReaderSessionDto } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
+import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
+
+beforeEach(() => {
+  localStorage.clear()
+  useReaderWorkspaceRestoreStore.getState().resetRestore()
+})
 
 test("[neoview.workspace.startup-mode-gui] renders swimlane before runtime config resolves", async () => {
   const config = vi.fn(() => new Promise<ReaderRuntimeConfigDto>(() => undefined))
@@ -50,6 +56,55 @@ test("[neoview.workspace.startup-mode-gui] keeps the fallback swimlane usable wh
   await expect.element(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
   expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).not.toBeNull()
   expect(document.querySelector('[data-reader-workspace-loading="true"]')).toBeNull()
+})
+
+test("[neoview.workspace.startup-cache-gui] restores the cached layout before runtime config resolves", async () => {
+  const cached = structuredClone(DEFAULT_NEOVIEW_SHELL_CONFIG)
+  cached.workspace.mode = "edges"
+  cached.sidebars.left.width = 417
+  useReaderWorkspaceRestoreStore.getState().cacheShellSnapshot(cached)
+  const client = { config: vi.fn(() => new Promise<ReaderRuntimeConfigDto>(() => undefined)) } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 1200, height: 800 }}>
+      <ReaderApp sessionScopeId="browser-startup-cached-edges" client={client} />
+    </div>,
+  )
+
+  await expect.poll(() => document.querySelector('[data-neoview-workspace-mode="edges"]')).not.toBeNull()
+  expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).toBeNull()
+  expect(document.querySelector('[data-reader-workspace-loading="true"]')).toBeNull()
+  await expect.element(page.getByRole("button", { name: "泳道模式" })).toBeVisible()
+})
+
+test("[neoview.workspace.startup-cache-race-gui] keeps a startup edit when the initial config response arrives late", async () => {
+  let resolveInitial!: (value: ReaderRuntimeConfigDto) => void
+  const cached = structuredClone(DEFAULT_NEOVIEW_SHELL_CONFIG)
+  cached.workspace.mode = "swimlane"
+  useReaderWorkspaceRestoreStore.getState().cacheShellSnapshot(cached)
+  const stale = { ...deleteNextRuntimeConfig(), shell: structuredClone(cached) }
+  const updatedShell = structuredClone(cached)
+  updatedShell.revision = 1
+  updatedShell.workspace.mode = "edges"
+  const config = vi.fn()
+    .mockImplementationOnce(() => new Promise<ReaderRuntimeConfigDto>((resolve) => { resolveInitial = resolve }))
+    .mockResolvedValue({ ...stale, shell: updatedShell })
+  const updateShellControl = vi.fn(async () => updatedShell)
+  const client = { config, updateShellControl } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 1200, height: 800 }}>
+      <ReaderApp sessionScopeId="browser-startup-cache-race" client={client} />
+    </div>,
+  )
+
+  await page.getByRole("button", { name: "四边栏模式" }).click()
+  await expect.poll(() => document.querySelector('[data-neoview-workspace-mode="edges"]')).not.toBeNull()
+  resolveInitial(stale)
+
+  await expect.poll(() => config).toHaveBeenCalledTimes(2)
+  expect(document.querySelector('[data-neoview-workspace-mode="edges"]')).not.toBeNull()
+  expect(useReaderWorkspaceRestoreStore.getState().shellSnapshot?.workspace?.mode).toBe("edges")
 })
 
 test("[neoview.bindings.file-delete-next-gui] keeps the adjacent book visible after deleting the current file", async () => {
