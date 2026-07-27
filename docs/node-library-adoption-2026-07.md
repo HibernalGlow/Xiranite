@@ -29,6 +29,12 @@ not make an unsafe conversion authoritative. `remark` supplies an mdast parser
 for structure-sensitive Markdown transforms without coupling the node's domain
 contract to a UI framework. `registry-js` belongs behind the Windows adapter in
 `@xiranite/shell-integration`; no shared domain contract may import it.
+It provides the direct Win32 `createKey` and `setValue` calls used during
+registration. Its API has no key-deletion operation, so unregister continues
+to use the existing `reg.exe delete` adapter and retains its idempotent
+"already absent" handling. The native addon is dynamically imported only by
+the Windows adapter, keeping previews and non-Windows hosts outside that load
+path.
 `sharp-phash` is MIT, has a narrow 64-bit pHash API, and declares `sharp` as
 a peer dependency. It is used only at the Czkawka node's Node runtime boundary
 to calculate Simiu's pHash feature; it does not change the existing Czkawka

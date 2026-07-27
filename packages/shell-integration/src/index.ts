@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
+import type * as RegistryJs from "registry-js"
 
 const execFileAsync = promisify(execFile)
 
@@ -19,8 +20,15 @@ export interface WindowsRegistryCommandResult {
   stderr: string
 }
 
+export interface WindowsRegistryTarget {
+  hive: WindowsRegistryHive
+  subkey: string
+}
+
 export interface WindowsRegistryAdapter {
-  run(args: readonly string[], signal?: AbortSignal): Promise<WindowsRegistryCommandResult>
+  createKey(target: WindowsRegistryTarget): Promise<void>
+  setStringValue(target: WindowsRegistryTarget, valueName: string, value: string): Promise<void>
+  deleteKey(registryPath: string, signal?: AbortSignal): Promise<WindowsRegistryCommandResult>
 }
 
 export interface WindowsShellApplyResult {
@@ -72,9 +80,21 @@ export async function applyWindowsShellPlan(
 
 export function createNodeWindowsRegistryAdapter(): WindowsRegistryAdapter {
   return {
-    async run(args, signal) {
+    async createKey(target) {
+      const registry = await loadRegistryJs()
+      if (!registry.createKey(registryHkey(registry, target.hive), target.subkey)) {
+        throw new Error(`registry-js could not create ${formatRegistryTarget(target)}`)
+      }
+    },
+    async setStringValue(target, valueName, value) {
+      const registry = await loadRegistryJs()
+      if (!registry.setValue(registryHkey(registry, target.hive), target.subkey, valueName, registry.RegistryValueType.REG_SZ, value)) {
+        throw new Error(`registry-js could not set ${formatRegistryTarget(target)}`)
+      }
+    },
+    async deleteKey(registryPath, signal) {
       try {
-        const result = await execFileAsync("reg.exe", [...args], { windowsHide: true, encoding: "utf8", signal })
+        const result = await execFileAsync("reg.exe", ["delete", registryPath, "/f"], { windowsHide: true, encoding: "utf8", signal })
         return { code: 0, stdout: result.stdout, stderr: result.stderr }
       } catch (cause) {
         const error = cause as NodeJS.ErrnoException & { stdout?: string; stderr?: string }
@@ -111,15 +131,41 @@ export function quoteWindowsCommandArgument(value: string): string {
 
 async function writeWindowsShellPlanItem(adapter: WindowsRegistryAdapter, item: WindowsShellPlanItem): Promise<void> {
   assertSafePlanItem(item)
-  await requireRegistrySuccess(await adapter.run(["add", item.registryPath, "/ve", "/d", item.label, "/f"]), item.registryPath)
-  await requireRegistrySuccess(await adapter.run(["add", item.registryPath, "/v", "Icon", "/d", item.icon, "/f"]), item.registryPath)
-  await requireRegistrySuccess(await adapter.run(["add", `${item.registryPath}\\command`, "/ve", "/d", item.command, "/f"]), item.registryPath)
+  const target = parseWindowsRegistryPath(item.registryPath)
+  await adapter.createKey(target)
+  await adapter.setStringValue(target, "", item.label)
+  await adapter.setStringValue(target, "Icon", item.icon)
+  const commandTarget = { ...target, subkey: `${target.subkey}\\command` }
+  await adapter.createKey(commandTarget)
+  await adapter.setStringValue(commandTarget, "", item.command)
 }
 
 async function deleteWindowsShellPlanItem(adapter: WindowsRegistryAdapter, item: WindowsShellPlanItem): Promise<void> {
-  const result = await adapter.run(["delete", item.registryPath, "/f"])
+  const result = await adapter.deleteKey(item.registryPath)
   if (result.code === 0 || isRegistryNotFound(result)) return
   requireRegistrySuccess(result, item.registryPath)
+}
+
+type RegistryJsModule = typeof RegistryJs
+
+async function loadRegistryJs(): Promise<RegistryJsModule> {
+  return import("registry-js")
+}
+
+function registryHkey(registry: RegistryJsModule, hive: WindowsRegistryHive): RegistryJs.HKEY {
+  if (hive === "HKCU") return registry.HKEY.HKEY_CURRENT_USER
+  if (hive === "HKCR") return registry.HKEY.HKEY_CLASSES_ROOT
+  return registry.HKEY.HKEY_LOCAL_MACHINE
+}
+
+function parseWindowsRegistryPath(registryPath: string): WindowsRegistryTarget {
+  const match = /^(HKCU|HKCR|HKLM)\\(.+)$/u.exec(registryPath)
+  if (!match || /[\r\n\0]/u.test(registryPath)) throw new Error("Shell registry path must target HKCU, HKCR, or HKLM.")
+  return { hive: match[1] as WindowsRegistryHive, subkey: match[2]! }
+}
+
+function formatRegistryTarget(target: WindowsRegistryTarget): string {
+  return `${target.hive}\\${target.subkey}`
 }
 
 function normalizeExecutable(value: string): string {
