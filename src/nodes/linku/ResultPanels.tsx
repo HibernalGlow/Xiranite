@@ -89,7 +89,7 @@ function LinksPanel(props: {
           ))}
         </div>
       ) : (
-        <PanelEmpty icon={Link2} title="暂无链接记录" description="创建链接或执行 list 后，这里会显示已记录的符号链接。" />
+        <PanelEmpty icon={Link2} title="暂无链接记录" description="创建、列出或还原链接后，这里会显示当前已记录的符号链接。" />
       )}
     </PanelFrame>
   )
@@ -149,7 +149,7 @@ function LogsPanel(props: {
           ))}
         </div>
       ) : (
-        <PanelEmpty icon={Archive} title="等待运行" description="查询、创建、移动、列出和恢复的事件会自动出现在这里。" />
+        <PanelEmpty icon={Archive} title="等待运行" description="查询、创建、移动、列出、恢复和还原的事件会自动出现在这里。" />
       )}
     </PanelFrame>
   )
@@ -251,12 +251,13 @@ export function StatsPanel(props: {
     ["链接", props.result?.links.length ?? 0],
     ["已创建", props.result?.created ? 1 : 0],
     ["已恢复", props.result?.recoveredCount ?? 0],
+    ["已还原", props.result?.restoredCount ?? 0],
     ["失败", props.result?.failedCount ?? 0],
     ["进度", `${props.progress}%`],
   ] as const
 
   return (
-    <div className="grid shrink-0 grid-cols-3 gap-1 @3xl/linku:grid-cols-5">
+    <div className="grid shrink-0 grid-cols-3 gap-1 @3xl/linku:grid-cols-6">
       {stats.map(([label, value]) => (
         <div key={label} className="min-w-0 rounded-md bg-muted/35 px-2 py-1.5 text-center">
           <div className="truncate text-[11px] text-muted-foreground">{label}</div>

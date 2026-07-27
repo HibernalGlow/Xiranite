@@ -237,7 +237,7 @@ async function restoreLink(linkPath: string, configPath: string, runtime: LinkuR
   }
 
   return success(`Restored ${record.target} to ${record.link} and removed its link record.`, {
-    links: [record],
+    links: [],
     created: false,
     recoveredCount: 0,
     restoredCount: 1,

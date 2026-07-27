@@ -78,7 +78,7 @@ export function PathField(props: {
   )
 }
 
-/** 横向 action 工具栏：info / create / move / list / recover */
+/** 横向 action 工具栏：info / create / move / list / recover / restore */
 export function ActionBar(props: {
   activeAction?: string
   disabled?: boolean

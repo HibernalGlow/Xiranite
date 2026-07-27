@@ -99,6 +99,7 @@ describe("linku core", () => {
 
     expect(result.success).toBe(true)
     expect(result.data?.restoredCount).toBe(1)
+    expect(result.data?.links).toEqual([])
     expect(calls).toEqual([`remove:${record.link}`, `move:${record.target}:${record.link}`])
     expect(parseLinkRecords(config)).toEqual([])
   })
