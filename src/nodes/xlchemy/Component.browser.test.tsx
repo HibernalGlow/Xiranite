@@ -110,6 +110,36 @@ describe("XLchemy EFU browser behavior", () => {
     await view.getByRole("button", { name: "开始重命名" }).click()
     await expect.poll(() => receivedInput).toMatchObject({ format: "dynar", animationDetectionFormats: ["webp"], filenameRules: expect.arrayContaining([expect.objectContaining({ prefix: "[#dyna]" })]) })
   })
+
+  test("removes all dynar inputs selected from the list table after adding a file and folder", async () => {
+    const host = createHost((path) => `local://${path}`)
+    host.cardState = { format: "dynar", inputViewMode: "list" }
+    host.localFiles!.pickFiles = async () => ["D:/images/loose.gif"]
+    host.localFiles!.pickDirectory = async () => "D:/images/folder"
+    host.localFiles!.list = async (path) => path === "D:/images/folder"
+      ? [{ name: "nested.webp", path: "D:/images/folder/nested.webp", isDirectory: false, sizeBytes: 2048, lastModified: 0, type: "image/webp" }]
+      : [{ name: "loose.gif", path, isDirectory: false, sizeBytes: 1024, lastModified: 0, type: "image/gif" }]
+    const view = await render(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+
+    await view.getByRole("button", { name: "添加文件", exact: true }).click()
+    await expect.poll(() => host.cardState.pathsText).toBe("D:/images/loose.gif")
+    await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+
+    await view.getByRole("button", { name: "添加输入" }).click()
+    await view.getByRole("menuitem", { name: "添加文件夹" }).click()
+    await expect.poll(() => host.cardState.pathsText).toBe("D:/images/loose.gif\nD:/images/folder/nested.webp")
+    await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+
+    await view.getByRole("checkbox", { name: "选择全部输入" }).click()
+    await expect.poll(() => host.cardState.selectedPaths).toEqual(["D:/images/loose.gif", "D:/images/folder/nested.webp"])
+    await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+    await view.getByRole("button", { name: "删除已选" }).click()
+
+    await expect.poll(() => host.cardState.pathsText).toBe("")
+    await expect.poll(() => host.cardState.selectedPaths).toEqual([])
+    await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+    await expect.element(view.getByTestId("xlchemy-input-empty")).toBeVisible()
+  })
 })
 
 type TestHost = NodeHostApi<XlchemyCardState, Partial<XlchemyCardState>> & { cardState: XlchemyCardState; savedConfig?: Partial<XlchemyCardState> }
