@@ -359,7 +359,7 @@ Recommended order:
 
 Do not expose a control before the runtime advertises its capability.
 
-Status: the similar-image, similar-video, broken-files, and empty-files GUI vertical slices are complete. CLI and OpenTUI retain their existing option surface and receive no new 12.0 controls or release-validation obligation.
+Status: the similar-image, similar-video, broken-files, empty-files, and temporary-files GUI vertical slices are complete. CLI and OpenTUI retain their existing option surface and receive no new 12.0 controls or release-validation obligation.
 
 Completed similar-video evidence:
 
@@ -379,6 +379,12 @@ Completed empty-files evidence:
 - The stable Rust and Node-API contracts map NUL-only and non-printable-content checks to `EmptyFilesParameters` without leaking upstream types above the native adapter.
 - `empty-files.content-checkers` keeps both GUI controls hidden until supported and rejects an explicitly enabled persisted checker before a legacy binding could silently ignore it. Both checks default to `false`, preserving the prior zero-length-only behavior.
 - Browser Mode covers capability visibility and persistence. The release-binding smoke finds both an NUL-only file and a whitespace-only file; embedded smoke loads the refreshed Czkawka ZIP and verifies the advertised capability.
+
+Completed temporary-files evidence:
+
+- The framework-neutral TypeScript contract preserves Czkawka's suffix semantics, including `#`, `.bak`, and `thumbs.db`, while normalizing custom entries without imposing generic-extension validation rules.
+- `temporary-files.custom-extensions` keeps the editable suffix field hidden until supported and rejects an explicitly customized persisted set before a legacy binding could silently use its built-in list. The stable default set remains compatible with the legacy behavior.
+- The native adapter turns the stable string into a `TemporaryParameters.extensions` vector only inside `upstream/basic.rs`. Release-binding smoke finds a custom `.xiranite-tmp` file, and embedded smoke loads the refreshed ZIP with the capability.
 
 ### Phase 4: Add missing tools behind safe operation contracts
 

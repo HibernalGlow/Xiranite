@@ -5,14 +5,16 @@ import type { NodeHelpField } from "@xiranite/contract"
 import type { CzkawkaAction, CzkawkaInput, CzkawkaTool } from "./core.js"
 import { resolveCzkawkaSimilarVideoCrop } from "./similar-video-crop.js"
 import { parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, serializeCzkawkaExtensionTokens } from "./source-inputs.js"
+import { DEFAULT_TEMPORARY_FILE_EXTENSIONS } from "./temporary-file-extensions.js"
 
 type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "threadCount" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun" | "similarVideosCropDetect">
 type OptionValue = string | number | boolean
+type OptionKind = "boolean" | "number" | "select" | "text"
 
 export interface CzkawkaOptionDefinition {
   id: OptionId
   tools: readonly CzkawkaTool[]
-  kind: "boolean" | "number" | "select"
+  kind: OptionKind
   label: { zh: string; en: string }
   defaultValue: OptionValue
   min?: number
@@ -30,6 +32,7 @@ const SIMILAR_VIDEOS = ["similar-videos"] as const
 const SIMILAR_MEDIA = ["similar-images", "similar-videos"] as const
 const MUSIC = ["duplicate-music"] as const
 const BROKEN = ["broken-files"] as const
+const TEMPORARY = ["temporary-files"] as const
 
 export const CZKAWKA_TOOL_OPTIONS: readonly CzkawkaOptionDefinition[] = [
   option("checkMethod", DUPLICATE, "select", "判断方式", "Duplicate check", "hash", "--check", [{ value: "hash", label: "Hash" }, { value: "name", label: "名称 / Name" }, { value: "size", label: "大小 / Size" }, { value: "size-and-name", label: "大小与名称 / Size and name" }]),
@@ -42,6 +45,7 @@ export const CZKAWKA_TOOL_OPTIONS: readonly CzkawkaOptionDefinition[] = [
   booleanOption("biggestFirst", BIG_FILES, "优先最大文件", "Biggest first", true, "--biggest-first"),
   guiBooleanOption("emptyFilesSearchZeroByteContent", ["empty-files"], "检查仅含 NUL 的文件", "Check NUL-only files", false, "empty-files.content-checkers"),
   guiBooleanOption("emptyFilesSearchNonPrintableContent", ["empty-files"], "检查仅含非打印字符的文件", "Check non-printable files", false, "empty-files.content-checkers"),
+  guiTextOption("temporaryFileExtensions", TEMPORARY, "临时文件扩展名", "Temporary extensions", DEFAULT_TEMPORARY_FILE_EXTENSIONS, "temporary-files.custom-extensions"),
   numberOption("similarity", SIMILAR_MEDIA, "最大差异", "Maximum difference", 10, "--similarity", 0, 40),
   option("similarImagesHashSize", SIMILAR_IMAGES, "select", "Hash 尺寸", "Hash size", 16, "--image-hash-size", ["8", "16", "32", "64"]),
   option("similarImagesHashAlgorithm", SIMILAR_IMAGES, "select", "Hash 算法", "Hash algorithm", "mean", "--image-hash", ["mean", "gradient", "blockhash", "vert-gradient", "double-gradient", "median"]),
@@ -207,17 +211,19 @@ export function parseCzkawkaCliOptions(args: string[]): Partial<CzkawkaInput> {
 
 export const CZKAWKA_CLI_VALUE_FLAGS = new Set([...terminalOptions().filter((definition) => definition.kind !== "boolean").map((definition) => definition.cliFlag!), "--video-crop"])
 
-function terminalOptions(): CzkawkaOptionDefinition[] { return CZKAWKA_TOOL_OPTIONS.filter((definition): definition is CzkawkaOptionDefinition & { cliFlag: string } => Boolean(definition.cliFlag)) }
-function option(id: OptionId, tools: readonly CzkawkaTool[], kind: CzkawkaOptionDefinition["kind"], zh: string, en: string, defaultValue: OptionValue, cliFlag: string, choices?: readonly (string | { value: string; label?: string })[]): CzkawkaOptionDefinition {
+type TerminalOptionDefinition = CzkawkaOptionDefinition & { cliFlag: string; kind: Exclude<OptionKind, "text"> }
+function terminalOptions(): TerminalOptionDefinition[] { return CZKAWKA_TOOL_OPTIONS.filter((definition): definition is TerminalOptionDefinition => Boolean(definition.cliFlag) && definition.kind !== "text") }
+function option(id: OptionId, tools: readonly CzkawkaTool[], kind: OptionKind, zh: string, en: string, defaultValue: OptionValue, cliFlag: string, choices?: readonly (string | { value: string; label?: string })[]): CzkawkaOptionDefinition {
   return { id, tools, kind, label: { zh, en }, defaultValue, cliFlag, choices: choices?.map((choice) => typeof choice === "string" ? { value: choice } : choice) }
 }
 function numberOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: number, cliFlag: string, min: number, max: number) { return { ...option(id, tools, "number", zh, en, defaultValue, cliFlag), min, max, step: 1 } }
 function booleanOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: boolean, cliFlag: string) { return option(id, tools, "boolean", zh, en, defaultValue, cliFlag) }
-function guiOption(id: OptionId, tools: readonly CzkawkaTool[], kind: CzkawkaOptionDefinition["kind"], zh: string, en: string, defaultValue: OptionValue, requiredNativeCapability: string, choices?: readonly (string | { value: string; label?: string })[]): CzkawkaOptionDefinition {
+function guiOption(id: OptionId, tools: readonly CzkawkaTool[], kind: OptionKind, zh: string, en: string, defaultValue: OptionValue, requiredNativeCapability: string, choices?: readonly (string | { value: string; label?: string })[]): CzkawkaOptionDefinition {
   return { id, tools, kind, label: { zh, en }, defaultValue, requiredNativeCapabilities: [requiredNativeCapability], choices: choices?.map((choice) => typeof choice === "string" ? { value: choice } : choice) }
 }
 function guiBooleanOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: boolean, requiredNativeCapability: string) { return guiOption(id, tools, "boolean", zh, en, defaultValue, requiredNativeCapability) }
 function guiNumberOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: number, min: number, max: number, step: number, requiredNativeCapability: string) { return { ...guiOption(id, tools, "number", zh, en, defaultValue, requiredNativeCapability), min, max, step } }
+function guiTextOption(id: OptionId, tools: readonly CzkawkaTool[], zh: string, en: string, defaultValue: string, requiredNativeCapability: string) { return guiOption(id, tools, "text", zh, en, defaultValue, requiredNativeCapability) }
 function coerceOptionValue(definition: CzkawkaOptionDefinition, value: unknown): OptionValue { const candidate = value ?? definition.defaultValue; return typeof definition.defaultValue === "number" ? Number(candidate) : typeof definition.defaultValue === "boolean" ? candidate !== false && candidate !== "false" : String(candidate) }
 function human(value: string) { return value.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ") }
 function lines(value: unknown): string[] { return Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : String(value ?? "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean) }

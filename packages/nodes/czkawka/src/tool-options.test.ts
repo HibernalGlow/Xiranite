@@ -21,6 +21,7 @@ describe("shared Czkawka option schema", () => {
     expect(interactionIds).not.toContain("brokenMarkup")
     expect(interactionIds).not.toContain("emptyFilesSearchZeroByteContent")
     expect(interactionIds).not.toContain("emptyFilesSearchNonPrintableContent")
+    expect(interactionIds).not.toContain("temporaryFileExtensions")
     expect(getCzkawkaGuiToolOptions("similar-images", new Set())).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "similarImagesIgnoreSameResolution" }),
       expect.objectContaining({ id: "similarImagesGeometricInvariance" }),
@@ -59,6 +60,12 @@ describe("shared Czkawka option schema", () => {
     expect(getCzkawkaGuiToolOptions("empty-files", new Set(["empty-files.content-checkers"]))).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "emptyFilesSearchZeroByteContent", defaultValue: false }),
       expect.objectContaining({ id: "emptyFilesSearchNonPrintableContent", defaultValue: false }),
+    ]))
+    expect(getCzkawkaGuiToolOptions("temporary-files", new Set())).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "temporaryFileExtensions" }),
+    ]))
+    expect(getCzkawkaGuiToolOptions("temporary-files", new Set(["temporary-files.custom-extensions"]))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "temporaryFileExtensions", kind: "text" }),
     ]))
     expect(CZKAWKA_TOOLS.every((tool) => getCzkawkaToolOptions(tool).length > 0 || ["empty-folders", "empty-files", "temporary-files", "invalid-symlinks", "bad-extensions"].includes(tool))).toBe(true)
   })
@@ -188,6 +195,17 @@ describe("shared Czkawka option schema", () => {
       includedDirectories: ["D:/Library"],
       emptyFilesSearchZeroByteContent: true,
       emptyFilesSearchNonPrintableContent: true,
+    })
+  })
+
+  test("builds the GUI-only temporary suffix contract without adding terminal flags", () => {
+    expect(createCzkawkaScanInput("temporary-files", {
+      includedDirectoriesText: "D:/Library",
+      temporaryFileExtensions: ".xiranite-tmp,#",
+    })).toMatchObject({
+      tool: "temporary-files",
+      includedDirectories: ["D:/Library"],
+      temporaryFileExtensions: ".xiranite-tmp,#",
     })
   })
 

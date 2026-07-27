@@ -93,6 +93,7 @@ export interface BasicScanOptions {
   biggestFirst?: boolean
   emptyFilesSearchZeroByteContent?: boolean
   emptyFilesSearchNonPrintableContent?: boolean
+  temporaryFileExtensions?: string
   scanId?: string
   threadCount?: number
 }

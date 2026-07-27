@@ -87,6 +87,7 @@ export interface CzkawkaCardState {
   brokenMarkup?: boolean
   emptyFilesSearchZeroByteContent?: boolean
   emptyFilesSearchNonPrintableContent?: boolean
+  temporaryFileExtensions?: string
   filterText?: string
   filterStatesByTool?: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
   filterPresets?: CzkawkaStoredFilterPreset[]

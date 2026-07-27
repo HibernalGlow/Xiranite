@@ -310,6 +310,21 @@ fn non_negative_u64(value: i64, name: &str) -> Result<u64> {
         .map_err(|_| Error::new(Status::InvalidArg, format!("{name} cannot be negative")))
 }
 
+fn parse_temporary_file_extensions(value: Option<&str>) -> Option<Vec<String>> {
+    let extensions = value?
+        .split(|character| matches!(character, ',' | ';' | '\r' | '\n'))
+        .map(str::trim)
+        .map(str::to_ascii_lowercase)
+        .filter(|extension| !extension.is_empty())
+        .fold(Vec::new(), |mut values, extension| {
+            if !values.contains(&extension) {
+                values.push(extension);
+            }
+            values
+        });
+    (!extensions.is_empty()).then_some(extensions)
+}
+
 fn bounded_f64(
     value: Option<f64>,
     default: f64,
@@ -350,6 +365,7 @@ pub struct BasicScanOptions {
     pub biggest_first: Option<bool>,
     pub empty_files_search_zero_byte_content: Option<bool>,
     pub empty_files_search_non_printable_content: Option<bool>,
+    pub temporary_file_extensions: Option<String>,
     pub scan_id: Option<String>,
     pub thread_count: Option<u32>,
 }
@@ -424,6 +440,8 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<AsyncTask<BasicScan
     core_options.empty_files_search_non_printable_content = options
         .empty_files_search_non_printable_content
         .unwrap_or(false);
+    core_options.temporary_file_extensions =
+        parse_temporary_file_extensions(options.temporary_file_extensions.as_deref());
     let session = ScanSession::create(options.scan_id);
     Ok(AsyncTask::new(BasicScanTask::new(
         core_options,

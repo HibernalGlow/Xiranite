@@ -202,6 +202,29 @@ test("persists every Czkawka 12 empty-file content checker in the browser", asyn
   })
 })
 
+test("hides Czkawka 12 temporary suffix controls until the native binding advertises their capability", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "temporary-files", includedDirectoriesText: "D:/media", sourceSettingsTab: "algorithm" }, [])
+
+  await render(<Component compId="czkawka-temporary-suffix-unavailable-browser" host={host} />)
+
+  await expect.element(page.getByText("Temporary extensions")).not.toBeInTheDocument()
+})
+
+test("persists custom Czkawka 12 temporary suffixes in the browser", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost(
+    { tool: "temporary-files", includedDirectoriesText: "D:/media", sourceSettingsTab: "algorithm" },
+    ["temporary-files.custom-extensions"],
+  )
+
+  await render(<Component compId="czkawka-temporary-suffix-browser" host={host} />)
+
+  await page.getByRole("textbox", { name: "Temporary extensions" }).fill(".xiranite-tmp,#")
+
+  await expect.poll(() => host.stateValue).toMatchObject({ temporaryFileExtensions: ".xiranite-tmp,#" })
+})
+
 test("renders Czkawka 12 video codec and frame-rate metadata in the browser", async () => {
   await i18n.changeLanguage("en")
   const host = createHost({ tool: "similar-videos", includedDirectoriesText: "D:/media", result: similarVideoResult })

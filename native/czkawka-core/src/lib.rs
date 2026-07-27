@@ -153,6 +153,7 @@ pub struct BasicScanOptions {
     pub biggest_first: bool,
     pub empty_files_search_zero_byte_content: bool,
     pub empty_files_search_non_printable_content: bool,
+    pub temporary_file_extensions: Option<Vec<String>>,
 }
 
 impl BasicScanOptions {
@@ -175,6 +176,7 @@ impl BasicScanOptions {
             biggest_first: true,
             empty_files_search_zero_byte_content: false,
             empty_files_search_non_printable_content: false,
+            temporary_file_extensions: None,
         }
     }
 }

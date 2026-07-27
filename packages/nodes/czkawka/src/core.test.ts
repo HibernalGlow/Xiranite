@@ -38,6 +38,7 @@ describe("czkawka TypeScript orchestration", () => {
     expect(value.brokenMarkup).toBe(false)
     expect(value.emptyFilesSearchZeroByteContent).toBe(false)
     expect(value.emptyFilesSearchNonPrintableContent).toBe(false)
+    expect(value.temporaryFileExtensions).toBe("#,thumbs.db,.bak,~,.tmp,.temp,.ds_store,.crdownload,.part,.cache,.dmp,.download,.partial")
     expect(value.saveAlsoAsJson).toBe(false)
     expect(value.deleteOutdatedCache).toBe(true)
     expect(value.duplicateMinimalHashCacheSizeKiB).toBe(256)
@@ -152,6 +153,22 @@ describe("czkawka TypeScript orchestration", () => {
     expect(adapter.scanBasic).not.toHaveBeenCalled()
 
     adapter.capabilities = ["empty-files.content-checkers"]
+    await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
+  })
+
+  test("normalizes temporary suffixes and rejects a persisted custom set without its capability", async () => {
+    const value = normalizeCzkawkaInput({
+      tool: "temporary-files",
+      temporaryFileExtensions: " .CUSTOM-TMP ; # ; .custom-tmp ",
+    })
+    expect(value.temporaryFileExtensions).toBe(".custom-tmp,#")
+
+    const adapter = runtime()
+    const result = await runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)
+    expect(result).toMatchObject({ success: false, message: expect.stringContaining("temporary-files.custom-extensions") })
+    expect(adapter.scanBasic).not.toHaveBeenCalled()
+
+    adapter.capabilities = ["temporary-files.custom-extensions"]
     await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
   })
 
