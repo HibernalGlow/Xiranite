@@ -101,7 +101,7 @@ async function startLibraryWatch(libraryId: string, root: string, summary: Await
   } catch {
     const degraded = await nativeClient.setWatcherHealth(libraryId, "degraded")
     try {
-      await nativeClient.startScan(libraryId)
+      await nativeClient.reconcileScan(libraryId)
     } catch {
       // Keep the degraded state visible when native reconciliation cannot start.
     }

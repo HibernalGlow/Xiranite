@@ -276,6 +276,11 @@ func TestFindzMigratesVersionOneIndexesWithoutDroppingExistingData(t *testing.T)
 		_ = tx.Rollback()
 		t.Fatal(err)
 	}
+	if _, err := tx.Exec(`INSERT INTO archive (relative_path, source_identity, size, mtime_ns, scan_state, last_seen_scan, created_at, updated_at)
+		VALUES ('legacy.cbz', 'legacy-source', 1, 1, 'indexed', 'legacy-scan', ?, ?)`, time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		_ = tx.Rollback()
+		t.Fatal(err)
+	}
 	if _, err := tx.Exec(`INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?)`, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 		_ = tx.Rollback()
 		t.Fatal(err)
@@ -310,6 +315,10 @@ func TestFindzMigratesVersionOneIndexesWithoutDroppingExistingData(t *testing.T)
 	}
 	if versionTwoCount != 1 {
 		t.Fatalf("expected migration 2 to be recorded once, got %d", versionTwoCount)
+	}
+	var preservedPath string
+	if err := runtime.db.QueryRow(`SELECT relative_path FROM archive WHERE relative_path = 'legacy.cbz'`).Scan(&preservedPath); err != nil {
+		t.Fatalf("migration removed legacy archive data: %v", err)
 	}
 }
 

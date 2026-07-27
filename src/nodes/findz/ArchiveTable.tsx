@@ -19,11 +19,12 @@ interface FolderNode {
   archives: FindzArchiveRow[]
 }
 
-export function FindzArchiveTable({ archives, members, pathPrefix, selectedArchiveId, sortBy, sortDesc, total, hasPreviousPage, hasNextPage, onSelectArchive, onDeepRetryMember, onDrillFolder, onSort, onPreviousPage, onNextPage }: {
+export function FindzArchiveTable({ archives, members, pathPrefix, selectedArchiveId, selectionRevision, sortBy, sortDesc, total, hasPreviousPage, hasNextPage, onSelectArchive, onDeepRetryMember, onDrillFolder, onSort, onPreviousPage, onNextPage }: {
   archives: FindzArchiveRow[]
   members?: FindzMemberRow[]
   pathPrefix?: string
   selectedArchiveId?: number
+  selectionRevision: number
   sortBy: FindzArchiveSort
   sortDesc: boolean
   total: number
@@ -42,9 +43,22 @@ export function FindzArchiveTable({ archives, members, pathPrefix, selectedArchi
   const hierarchy = buildArchiveHierarchy(archives, pathPrefix)
 
   useEffect(() => {
+    const selectedArchive = archives.find((archive) => archive.id === selectedArchiveId)
+    if (!selectedArchive) return
+    const ancestors = folderPathsForArchive(selectedArchive, pathPrefix)
+    if (!ancestors.length) return
+    setCollapsedFolders((current) => {
+      const next = new Set(current)
+      let changed = false
+      for (const folderPath of ancestors) changed = next.delete(folderPath) || changed
+      return changed ? next : current
+    })
+  }, [archives, pathPrefix, selectedArchiveId, selectionRevision])
+
+  useEffect(() => {
     if (selectedArchiveId === undefined) return
     archiveRows.current.get(selectedArchiveId)?.scrollIntoView({ block: "nearest" })
-  }, [selectedArchiveId])
+  }, [collapsedFolders, selectedArchiveId, selectionRevision])
 
   const setArchiveRow = useCallback((archiveId: number, row: HTMLTableRowElement | null) => {
     if (row) archiveRows.current.set(archiveId, row)
@@ -235,6 +249,20 @@ function buildArchiveHierarchy(archives: readonly FindzArchiveRow[], pathPrefix:
 
 function sortedFolders(node: FolderNode): FolderNode[] {
   return [...node.folders.values()].toSorted((left, right) => left.name.localeCompare(right.name))
+}
+
+function folderPathsForArchive(archive: FindzArchiveRow, pathPrefix: string | undefined): string[] {
+  const normalizedPrefix = pathPrefix?.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "") ?? ""
+  const relativePath = archive.relativePath.replaceAll("\\", "/")
+  const localPath = normalizedPrefix && relativePath.startsWith(`${normalizedPrefix}/`)
+    ? relativePath.slice(normalizedPrefix.length + 1)
+    : relativePath
+  const parts = localPath.split("/").filter(Boolean).slice(0, -1)
+  const pathParts = normalizedPrefix ? normalizedPrefix.split("/").filter(Boolean) : []
+  return parts.map((part) => {
+    pathParts.push(part)
+    return pathParts.join("/")
+  })
 }
 
 function testIdSegment(value: string): string {
