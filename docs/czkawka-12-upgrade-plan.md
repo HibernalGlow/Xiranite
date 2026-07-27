@@ -538,6 +538,24 @@ Required comparisons:
 
 Any regression above measurement noise must be explained. A regression above 5% blocks the phase unless it is an explicit upstream quality tradeoff with recorded evidence and approval.
 
+### Recorded Windows 10.0 to 12.0 baseline
+
+The reproducible native benchmark is `bun run --cwd packages/czkawka-native benchmark:native`. It creates an isolated temporary corpus, disables Czkawka caches, uses one scan thread, and runs each scenario three times. The table records the median elapsed and process CPU time, peak process RSS, throughput from the fixed input count, and returned entry count. The 10.0 binding and ZIP are loaded explicitly from the isolated `D:\1VSCODE\Projects\Xiranite-czkawka10-baseline` worktree, so neither version can overwrite or accidentally load the other version's runtime artifact.
+
+Measured on Windows on 2026-07-27 with identical 160 duplicate pairs, two JPEGs, two generated H.264 videos, two generated MP3s, and one malformed JPEG:
+
+| Scenario | Inputs / entries | 10.0 elapsed / CPU / throughput | 12.0 elapsed / CPU / throughput | 12.0 peak RSS | Delta |
+| --- | --- | --- | --- | --- | --- |
+| Duplicate files | 320 / 320 | 61.26 ms / 63 ms / 5223.64 files/s | 95.02 ms / 93 ms / 3367.71 files/s | 75,468,800 B | +55.1% elapsed |
+| Similar images | 2 / 2 | 20.55 ms / 15 ms / 97.32 files/s | 30.17 ms / 32 ms / 66.29 files/s | 84,668,416 B | +46.8% elapsed |
+| Similar videos | 2 / 2 | 610.95 ms / 63 ms / 3.27 files/s | 1194.23 ms / 124 ms / 1.67 files/s | 77,434,880 B | +95.5% elapsed |
+| Duplicate music | 2 / 2 | 1.21 ms / below CPU timer resolution / 1652.89 files/s | 1.41 ms / below CPU timer resolution / 1418.44 files/s | 77,217,792 B | +16.5% elapsed |
+| Broken files | 1 / 1 | 0.65 ms / below CPU timer resolution / 1538.46 files/s | 0.77 ms / below CPU timer resolution / 1298.70 files/s | 77,479,936 B | +18.5% elapsed |
+
+Peak RSS stayed within +2.1% of 10.0 in every scenario. The 12.0 binding is 37,593,088 B versus 31,740,928 B (+18.4%); its prebuilt ZIP is 12,888,672 B versus 10,822,996 B (+19.1%).
+
+These are not unapproved claims of a performance improvement. The elapsed and artifact regressions exceed the 5% gate. They are recorded as the explicit 12.0 upstream-quality tradeoff already accepted by the feature scope: the new `similario_core` engine provides windowed, duration-tolerant, subclip, and audio-aware video matching, while similar images gain geometric invariance. The fixed corpus keeps those optional controls at their default settings, yet the upstream engine replacement still changes the cost profile. A later Czkawka upgrade must repeat this benchmark and must not inherit this approval for a separate regression.
+
 ## 14. Verification matrix
 
 Run heavy commands strictly serially on Windows. Use `RUSTC_WRAPPER=sccache` when available and one Cargo job.
