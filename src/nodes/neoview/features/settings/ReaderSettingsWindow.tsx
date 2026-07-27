@@ -22,6 +22,7 @@ import type {
 import { lazyReaderSettingsCard, settingsCardsForSection } from "../panels/registry"
 import type { ReaderWorkspacePatch } from "../workspace/ReaderWorkspaceLayout"
 import { SettingsUnavailableNote } from "./SettingsCardShell"
+import { ExplorerIntegrationSettingsCard, type ExplorerIntegrationActions } from "./cards/ExplorerIntegrationSettingsCard"
 
 export function ReaderSettingsWindow({
   shell,
@@ -45,6 +46,7 @@ export function ReaderSettingsWindow({
   onLegacySettingsImport,
   onMaterial,
   onWorkspace,
+  explorerIntegration,
   portalContainer,
 }: {
   shell: ReaderShellConfigDto
@@ -68,6 +70,7 @@ export function ReaderSettingsWindow({
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
   onWorkspace?(patch: ReaderWorkspacePatch): void
+  explorerIntegration?: ExplorerIntegrationActions
   portalContainer?: HTMLElement | null
 }) {
   const [active, setActive] = useState<SettingsSectionId>("layout")
@@ -137,6 +140,7 @@ export function ReaderSettingsWindow({
               onLegacySettingsImport={onLegacySettingsImport}
               onMaterial={onMaterial}
               onWorkspace={onWorkspace}
+              explorerIntegration={explorerIntegration}
             />
           </div>
         </div>
@@ -167,6 +171,7 @@ function SettingsSection({
   onLegacySettingsImport,
   onMaterial,
   onWorkspace,
+  explorerIntegration,
 }: {
   sectionId: SettingsSectionId
   shell: ReaderShellConfigDto
@@ -189,15 +194,19 @@ function SettingsSection({
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
   onWorkspace?(patch: ReaderWorkspacePatch): void
+  explorerIntegration?: ExplorerIntegrationActions
 }) {
   const definitions = settingsCardsForSection(sectionId)
-  if (!definitions.length) {
+  if (!definitions.length && !(sectionId === "system" && explorerIntegration)) {
     const unavailable = UNAVAILABLE_SECTIONS[sectionId]
     if (unavailable) return <SettingsUnavailableNote title={unavailable.title} reason={unavailable.reason} />
     return <SettingsUnavailableNote title={SETTINGS_SECTIONS.find((section) => section.id === sectionId)?.label ?? "设置"} reason="该分类尚未接入 XR 配置面。" />
   }
 
   const cards: ReactNode[] = []
+  if (sectionId === "system" && explorerIntegration) {
+    cards.push(<ExplorerIntegrationSettingsCard key="explorer-integration" actions={explorerIntegration} />)
+  }
   for (const definition of definitions) {
     const Card = lazyReaderSettingsCard(definition.id)
     if (!Card) continue

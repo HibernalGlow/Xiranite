@@ -75,6 +75,7 @@ import type {
 } from "./platform/thumbnails/SqliteLegacyThumbnailDatabaseMaintenance.js"
 
 export type { PlatformReaderBookLoaderOptions } from "./platform/books/PlatformReaderBookLoader.js"
+export { createReaderSystemIntegrationService } from "./platform/filesystem/createReaderSystemIntegrationService.js"
 export {
   OllamaTranslationClient,
   renderPrompt as renderOllamaTranslationPrompt,
@@ -385,6 +386,9 @@ export async function createReaderHttpController(
   const { ReaderLibraryService } = await import("./application/library/ReaderLibraryService.js")
   const { loadNeoviewRuntimeConfig } = await import("./platform/config/loadNeoviewRuntimeConfig.js")
   const runtimeConfig = await loadNeoviewRuntimeConfig(options)
+  let explorerMediaConfig = runtimeConfig.media
+  const explorerContextMenu = options.explorerContextMenu ?? (await import("./platform/windows/createPersistedWindowsReaderExplorerContextMenuProvider.js"))
+    .createPersistedWindowsReaderExplorerContextMenuProvider({ ...options, media: () => explorerMediaConfig })
   const updateFileTreeExclusions = async (paths: readonly string[]) => {
     const { commitNeoviewFileTreeExclusions } = await import("./platform/config/NeoviewFileTreeConfigStore.js")
     return commitNeoviewFileTreeExclusions(paths, options)
@@ -571,6 +575,7 @@ export async function createReaderHttpController(
     fileTree: runtimeConfig.fileTree,
     slideshow: runtimeConfig.slideshow,
     media: runtimeConfig.media,
+    explorerContextMenu,
     imageProcessing: options.imageProcessing ?? runtimeConfig.imageProcessing,
     colorFilter: runtimeConfig.colorFilter,
     pageTransition: runtimeConfig.pageTransition,
@@ -640,7 +645,9 @@ export async function createReaderHttpController(
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
       const { parseNeoviewRuntimeConfig } = await import("./application/config/ReaderRuntimeConfig.js")
       const committed = await commitNeoviewConfig(tomlPatch, { ...options, strategy: "merge" })
-      return parseNeoviewRuntimeConfig(committed.nodeConfig).media
+      const media = parseNeoviewRuntimeConfig(committed.nodeConfig).media
+      explorerMediaConfig = media
+      return media
     },
     updateImageProcessing: async (_patch, tomlPatch) => {
       const { commitNeoviewConfig } = await import("./platform/config/NeoviewConfigStore.js")
@@ -960,16 +967,6 @@ export async function createReaderFileOperationService(options: {
     journal,
     disposeJournal: () => journal.close(),
   })
-}
-
-export async function createReaderSystemIntegrationService(resourceScheduler?: ResourceScheduler) {
-  const { ReaderSystemIntegrationService } = await import("./application/files/ReaderSystemIntegrationService.js")
-  const { PlatformReaderSystemIntegrationProvider } = await import("./platform/filesystem/PlatformReaderSystemIntegrationProvider.js")
-  const { WindowsReaderExplorerContextMenuProvider } = await import("./platform/windows/WindowsReaderExplorerContextMenuProvider.js")
-  return new ReaderSystemIntegrationService(new PlatformReaderSystemIntegrationProvider({
-    scheduler: resourceScheduler,
-    explorerContextMenu: new WindowsReaderExplorerContextMenuProvider({ resourceScheduler }),
-  }))
 }
 
 export async function createReaderLibraryHeadlessController(

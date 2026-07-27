@@ -4,6 +4,7 @@ const MAX_BODY_BYTES = 64 * 1024
 const EXPLORER_PREVIEW_PATH = "/reader/system/explorer-context-menu/preview"
 const EXPLORER_STATUS_PATH = "/reader/system/explorer-context-menu/status"
 const EXPLORER_SET_ENABLED_PATH = "/reader/system/explorer-context-menu"
+const EXPLORER_REPAIR_PATH = "/reader/system/explorer-context-menu/repair"
 const OPEN_EXTERNAL_URL_PATH = "/reader/system/open-external-url"
 
 export class ReaderSystemIntegrationHttpController {
@@ -37,6 +38,11 @@ export class ReaderSystemIntegrationHttpController {
     return service.explorerContextMenuSetEnabled(enabled, signal)
   }
 
+  async reconcileExplorerContextMenu(signal?: AbortSignal) {
+    const service = await (this.#service ??= this.loadService())
+    return service.explorerContextMenuReconcile(signal)
+  }
+
   async handle(request: Request): Promise<Response | undefined> {
     const path = new URL(request.url).pathname
     if (path === EXPLORER_PREVIEW_PATH) {
@@ -64,6 +70,17 @@ export class ReaderSystemIntegrationHttpController {
       if (body.confirmed !== true) return jsonResponse({ error: "Explorer context-menu changes require confirmed=true" }, 409)
       try {
         return jsonResponse(await this.setExplorerContextMenuEnabled(body.enabled, request.signal))
+      } catch (error) {
+        if (request.signal.aborted) throw error
+        return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400)
+      }
+    }
+    if (path === EXPLORER_REPAIR_PATH) {
+      if (request.method !== "POST") return methodNotAllowed("POST")
+      const body = await readBody(request)
+      if (!body || body.confirmed !== true) return jsonResponse({ error: "Explorer context-menu changes require confirmed=true" }, 409)
+      try {
+        return jsonResponse(await this.reconcileExplorerContextMenu(request.signal))
       } catch (error) {
         if (request.signal.aborted) throw error
         return jsonResponse({ error: error instanceof Error ? error.message : String(error) }, 400)

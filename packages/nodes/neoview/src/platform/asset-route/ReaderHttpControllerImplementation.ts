@@ -624,15 +624,13 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#systemIntegration = new ReaderSystemIntegrationHttpController(async () => {
       const { ReaderSystemIntegrationService } = await import("../../application/files/ReaderSystemIntegrationService.js")
       const { PlatformReaderSystemIntegrationProvider } = await import("../filesystem/PlatformReaderSystemIntegrationProvider.js")
-      const { WindowsReaderExplorerContextMenuProvider } = await import("../windows/WindowsReaderExplorerContextMenuProvider.js")
+      const { createWindowsReaderExplorerContextMenuProvider } = await import("../windows/createWindowsReaderExplorerContextMenuProvider.js")
       return new ReaderSystemIntegrationService(
         new PlatformReaderSystemIntegrationProvider({
           scheduler: resourceScheduler,
           explorerContextMenu:
             options.explorerContextMenu ??
-            new WindowsReaderExplorerContextMenuProvider({
-              resourceScheduler: resourceScheduler,
-            }),
+            createWindowsReaderExplorerContextMenuProvider({ resourceScheduler, media: () => this.#media }),
         }),
       )
     })
@@ -1372,6 +1370,7 @@ export class ReaderHttpController implements AsyncDisposable {
         updated = await this.#updateMedia!(parsed.patch, parsed.tomlPatch)
         this.#media = updated
         this.#mediaFormats.replace(updated)
+        await this.#systemIntegration.reconcileExplorerContextMenu()
       })
       this.#configUpdateQueue = operation.catch(() => undefined)
       try {

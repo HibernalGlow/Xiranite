@@ -6,7 +6,9 @@ import {
   calculateReaderPageStretchScales,
   effectiveReaderRotation,
   rotatePresentationSize,
+  DEFAULT_READER_MOUSE_CURSOR_SETTINGS,
   type FrameSnapshot,
+  type ReaderMouseCursorSettings,
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
 
@@ -16,6 +18,7 @@ import type { ReaderImageTrimPort } from "../image-trim/ReaderImageTrimStore"
 import type { ReaderVideoController } from "../video/ReaderVideoController"
 import { PageMedia } from "./PageMedia"
 import { useReaderHoverScroll } from "./useReaderHoverScroll"
+import { useReaderMouseCursorAutoHide } from "./useReaderMouseCursorAutoHide"
 
 const PAGE_LIST_BATCH_SIZE = 32
 const FRAME_WINDOW_BATCH_SIZE = 16
@@ -31,6 +34,7 @@ export function ReaderPanoramaFrame({
   presentation,
   hoverScrollEnabled = false,
   hoverScrollSpeed = 2,
+  mouseCursor = DEFAULT_READER_MOUSE_CURSOR_SETTINGS,
   colorFilter,
   imageTrim,
   videoController,
@@ -52,6 +56,7 @@ export function ReaderPanoramaFrame({
   presentation: ReaderPresentation
   hoverScrollEnabled?: boolean
   hoverScrollSpeed?: number
+  mouseCursor?: ReaderMouseCursorSettings
   colorFilter?: ReaderColorFilterPort
   imageTrim?: ReaderImageTrimPort
   videoController: ReaderVideoController
@@ -84,6 +89,7 @@ export function ReaderPanoramaFrame({
     speed: hoverScrollSpeed,
     pageKey: `${sessionId}:${anchorPageIndex}:${presentation.orientation}:${pageMode}:${direction}`,
   })
+  useReaderMouseCursorAutoHide(hostRef, mouseCursor)
 
   useEffect(() => () => abortRequests(requestsRef.current), [])
 

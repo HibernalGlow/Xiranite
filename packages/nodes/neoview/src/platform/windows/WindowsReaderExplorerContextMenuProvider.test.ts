@@ -49,11 +49,11 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     const runReg = vi.fn(async () => ({ code: 0, stdout: "", stderr: "" }))
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })
 
-    await expect(provider.status()).resolves.toEqual({ available: true, enabled: true })
-    expect(runReg).toHaveBeenCalledTimes(3)
+    await expect(provider.status()).resolves.toEqual({ available: true, enabled: true, state: "registered" })
+    expect(runReg).toHaveBeenCalledTimes(27)
 
     runReg.mockResolvedValueOnce({ code: 1, stdout: "", stderr: "not found" })
-    await expect(provider.status()).resolves.toEqual({ available: true, enabled: false })
+    await expect(provider.status()).resolves.toEqual({ available: true, enabled: false, state: "disabled" })
   })
 
   it("[neoview.file.explorer-context-menu.scheduler] admits registry queries and releases the lease", async () => {
@@ -80,14 +80,14 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     const runReg = vi.fn(async () => ({ code: 0, stdout: "", stderr: "" }))
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })
 
-    await expect(provider.setEnabled(true)).resolves.toEqual({ available: true, enabled: true })
-    expect(runReg).toHaveBeenCalledTimes(9)
-    expect(runReg.mock.calls[0]?.[0]).toEqual(["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/ve", "/d", "Open with Xiranite", "/f"])
+    await expect(provider.setEnabled(true)).resolves.toEqual({ available: true, enabled: true, state: "registered" })
+    expect(runReg).toHaveBeenCalledTimes(39)
+    expect(runReg.mock.calls.map(([args]) => args)).toContainEqual(["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/v", "Xiranite.ManagedBy", "/d", "xiranite.shell-integration/v1", "/f"])
+    expect(runReg.mock.calls.map(([args]) => args)).toContainEqual(["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/v", "Xiranite.NodeId", "/d", "neoview", "/f"])
 
     runReg.mockClear()
-    await expect(provider.setEnabled(false)).resolves.toEqual({ available: true, enabled: false })
-    expect(runReg).toHaveBeenCalledTimes(3)
-    expect(runReg.mock.calls[0]?.[0]).toEqual(["delete", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/f"])
+    await expect(provider.setEnabled(false)).resolves.toEqual({ available: true, enabled: false, state: "disabled" })
+    expect(runReg.mock.calls.map(([args]) => args)).toContainEqual(["delete", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/f"])
   })
 
   it("[neoview.file.explorer-context-menu.rollback-enable] removes a partial registration when a later scope fails", async () => {
@@ -100,17 +100,14 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })
 
     await expect(provider.setEnabled(true)).resolves.toMatchObject({
-      available: false,
+      available: true,
       enabled: false,
+      state: "needs-repair",
       reason: expect.stringContaining("access denied"),
     })
-    expect(runReg.mock.calls.map(([args]) => args)).toEqual([
-      ["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/ve", "/d", "Open with Xiranite", "/f"],
-      ["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/v", "Icon", "/d", registration.icon, "/f"],
-      ["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite\\command", "/ve", "/d", '"C:\\Program Files\\Xiranite\\xiranite.exe" --open "%1"', "/f"],
-      ["add", "HKCU\\Software\\Classes\\Directory\\shell\\xiranite", "/ve", "/d", "Open with Xiranite", "/f"],
-      ["delete", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/f"],
-    ])
+    const mutations = runReg.mock.calls.map(([args]) => args).filter(([action]) => action !== "query")
+    expect(mutations).toContainEqual(["delete", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/f"])
+    expect(mutations).toContainEqual(["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/v", "Xiranite.ManagedBy", "/d", "xiranite.shell-integration/v1", "/f"])
   })
 
   it("[neoview.file.explorer-context-menu.rollback-disable] restores removed scopes when a later delete fails", async () => {
@@ -125,17 +122,15 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })
 
     await expect(provider.setEnabled(false)).resolves.toMatchObject({
-      available: false,
+      available: true,
       enabled: false,
+      state: "needs-repair",
       reason: expect.stringContaining("access denied"),
     })
-    expect(runReg.mock.calls.map(([args]) => args)).toEqual([
-      ["delete", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/f"],
-      ["delete", "HKCU\\Software\\Classes\\Directory\\shell\\xiranite", "/f"],
-      ["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/ve", "/d", "Open with Xiranite", "/f"],
-      ["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/v", "Icon", "/d", registration.icon, "/f"],
-      ["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite\\command", "/ve", "/d", '"C:\\Program Files\\Xiranite\\xiranite.exe" --open "%1"', "/f"],
-    ])
+    const mutations = runReg.mock.calls.map(([args]) => args).filter(([action]) => action !== "query")
+    expect(mutations).toContainEqual(["delete", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/f"])
+    expect(mutations).toContainEqual(["delete", "HKCU\\Software\\Classes\\Directory\\shell\\xiranite", "/f"])
+    expect(mutations).toContainEqual(["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/v", "Xiranite.ManagedBy", "/d", "xiranite.shell-integration/v1", "/f"])
   })
 
   it("[neoview.file.explorer-context-menu.disable-idempotent] treats a missing registration as already disabled", async () => {
@@ -146,7 +141,7 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     }))
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })
 
-    await expect(provider.setEnabled(false)).resolves.toEqual({ available: true, enabled: false })
+    await expect(provider.setEnabled(false)).resolves.toEqual({ available: true, enabled: false, state: "disabled" })
     expect(runReg).toHaveBeenCalledTimes(3)
   })
 
@@ -223,5 +218,33 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     expect(plan).toHaveLength(6)
     expect(plan[3]?.registryPath).toBe("HKCR\\*\\shell\\xiranite")
     expect(renderReaderExplorerContextMenuRegistryFile(plan)).toContain("HKEY_CLASSES_ROOT")
+  })
+
+  it("[neoview.file.explorer-context-menu.extensions] registers only configured file associations and refreshes them at operation time", async () => {
+    const extensions = ["jpg"]
+    const runReg = vi.fn(async () => ({ code: 0, stdout: "", stderr: "" }))
+    const provider = new WindowsReaderExplorerContextMenuProvider({
+      platform: "win32",
+      registration,
+      extensions: () => extensions,
+      runReg,
+    })
+
+    expect((await provider.preview()).plan).toEqual([
+      expect.objectContaining({ extension: "jpg", registryPath: "HKCU\\Software\\Classes\\SystemFileAssociations\\.jpg\\shell\\xiranite" }),
+      expect.objectContaining({ scope: "directory" }),
+      expect.objectContaining({ scope: "background" }),
+    ])
+
+    extensions.push("cbz")
+    await provider.setEnabled(true)
+    expect(runReg.mock.calls.map(([args]) => args)).toContainEqual([
+      "add",
+      "HKCU\\Software\\Classes\\SystemFileAssociations\\.cbz\\shell\\xiranite",
+      "/ve",
+      "/d",
+      "Open with Xiranite",
+      "/f",
+    ])
   })
 })

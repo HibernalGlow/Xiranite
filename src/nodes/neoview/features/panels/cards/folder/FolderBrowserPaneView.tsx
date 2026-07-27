@@ -21,12 +21,9 @@ import type {
 import type { ReaderPanelContext } from "../../registry"
 import {
   directoryEntryAt,
-  directoryEntryIndex,
   folderErrorMessage,
   isEditableKeyboardEvent,
   isVerticalFolderRegion,
-  nearestLoadedDirectoryEntry,
-  removeDirectoryCatalogEntry,
   thumbnailPixelSize,
   viewUsesBanner,
   viewUsesFixedGrid,
@@ -54,6 +51,7 @@ import { DirectoryListItem } from "./FolderDirectoryListItem"
 import type { FolderThumbnailStore } from "./FolderThumbnailStore"
 import type { FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import type { FolderSearchListingUpdate } from "./FolderSearchPanel"
+import { removeFolderCatalogEntry } from "./FolderCatalogRemoval"
 import type { FolderSearchTabSnapshot } from "./search/folderSearchModel"
 import { isVirtualSearchPath } from "./search/folderSearchModel"
 import { DEFAULT_FOLDER_TITLE_WRAP, FOLDER_VIEW_PRESENTATION_OPTIONS, resolveFolderTitleWrap } from "./FolderViewPresentation"
@@ -423,21 +421,13 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
               onDeleteStarted={(entry) => {
                 const current = catalogRef.current
                 if (!current) return
-                const removedIndex = directoryEntryIndex(current, entry.path)
-                if (removedIndex === undefined) return
-                const next = removeDirectoryCatalogEntry(current, entry.path)
-                commitCatalog(next)
-                let nextIndex = sourcePath ? directoryEntryIndex(next, sourcePath) : undefined
-                if (nextIndex === undefined && focusedPath) nextIndex = directoryEntryIndex(next, focusedPath)
-                const nearestEntry = nextIndex === undefined ? nearestLoadedDirectoryEntry(next, removedIndex) : undefined
-                nextIndex ??= nearestEntry?.index
-                const nextEntry = nearestEntry?.entry ?? (nextIndex === undefined ? undefined : directoryEntryAt(next, nextIndex))
-                focusedIndexRef.current = nextIndex
-                setFocusedIndex(nextIndex)
-                setFocusedPath(nextEntry?.path)
-                setSelection(nextEntry && nextIndex !== undefined
-                  ? selectDirectorySingle(next.generation, nextEntry.path, nextIndex)
-                  : createDirectorySelection(next.generation))
+                const removal = removeFolderCatalogEntry({ catalog: current, targetPath: entry.path, sourcePath, focusedPath })
+                if (!removal) return
+                commitCatalog(removal.catalog)
+                focusedIndexRef.current = removal.focusedIndex
+                setFocusedIndex(removal.focusedIndex)
+                setFocusedPath(removal.focusedPath)
+                setSelection(removal.selection)
               }}
               onDeleteFailed={(entry) =>
                 navigate(
