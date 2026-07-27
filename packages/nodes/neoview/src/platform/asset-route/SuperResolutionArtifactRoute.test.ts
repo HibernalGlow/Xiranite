@@ -193,6 +193,32 @@ describe("SuperResolutionArtifactRoute", () => {
     await store.close()
   })
 
+  it("[neoview.super-resolution.artifact-rejection-http] preserves an actionable cache rejection in the 507 body", async () => {
+    const store = createStore()
+    const route = new SuperResolutionArtifactRoute(
+      readerService(readerPage()),
+      port(vi.fn(async () => ({
+        status: "rejected" as const,
+        rejectionCode: "low-disk" as const,
+        error: "Super-resolution artifact cache has insufficient free space. Choose another upscale cache directory.",
+      }))),
+      store,
+      { baseUrl: BASE_URL, token: TOKEN },
+    )
+
+    const response = (await route.handle(authorized(
+      "/reader/s/session-1/pages/page-1/upscale-artifact",
+      { method: "POST" },
+    )))!
+    expect(response.status).toBe(507)
+    await expect(response.json()).resolves.toEqual({
+      status: "rejected",
+      rejectionCode: "low-disk",
+      error: "Super-resolution artifact cache has insufficient free space. Choose another upscale cache directory.",
+    })
+    await store.close()
+  })
+
   it("[neoview.super-resolution.http-composition-lazy] creates no cache directory or runtime work before first demand", async () => {
     const configPath = join(root, "xiranite.config.toml")
     const cacheRoot = join(root, "artifacts")

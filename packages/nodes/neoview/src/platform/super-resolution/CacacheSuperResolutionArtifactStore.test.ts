@@ -35,7 +35,7 @@ describe("CacacheSuperResolutionArtifactStore", () => {
     abort.abort(new DOMException("caller left", "AbortError"))
     await expect(second).rejects.toMatchObject({ name: "AbortError" })
     gate.resolve()
-    await expect(first).resolves.toBe(true)
+    await expect(first).resolves.toEqual({ status: "published" })
     expect(producer).toHaveBeenCalledOnce()
     await store.close()
   })
@@ -65,7 +65,7 @@ describe("CacacheSuperResolutionArtifactStore", () => {
   it("[neoview.super-resolution.artifact-stream-lease] streams a verified artifact and defers invalidation until release", async () => {
     const store = createStore()
     const cacheKey = key("leased")
-    expect(await store.publish(cacheKey, metadata, (path) => writeFile(path, PNG_HEADER))).toBe(true)
+    expect(await store.publish(cacheKey, metadata, (path) => writeFile(path, PNG_HEADER))).toEqual({ status: "published" })
     const lease = await store.acquire(cacheKey)
     expect(lease).toMatchObject({ key: cacheKey, size: PNG_HEADER.length, metadata: { bookKey: "book:one" } })
     await store.invalidate(cacheKey)
@@ -80,8 +80,23 @@ describe("CacacheSuperResolutionArtifactStore", () => {
 
   it("[neoview.super-resolution.artifact-corrupt] rejects malformed image output without publishing an index entry", async () => {
     const store = createStore()
-    expect(await store.publish(key("bad"), metadata, (path) => writeFile(path, Buffer.from("not png")))).toBe(false)
+    expect(await store.publish(key("bad"), metadata, (path) => writeFile(path, Buffer.from("not png")))).toMatchObject({
+      status: "rejected",
+      code: "invalid-output",
+    })
     expect(await store.snapshot()).toMatchObject({ entries: 0, writes: 0, rejectedWrites: 1 })
+    await store.close()
+  })
+
+  it("[neoview.super-resolution.artifact-low-disk] reports the cache path and required reserve", async () => {
+    const store = createStore({ minFreeBytes: 1024, availableBytes: async () => 512 })
+    const result = await store.publish(key("low-disk"), metadata, (path) => writeFile(path, PNG_HEADER))
+    expect(result).toMatchObject({
+      status: "rejected",
+      code: "low-disk",
+      error: expect.stringContaining("choose another upscale cache directory"),
+    })
+    expect(result).toMatchObject({ error: expect.stringContaining(root) })
     await store.close()
   })
 
@@ -109,7 +124,7 @@ describe("CacacheSuperResolutionArtifactStore", () => {
     expect(producerPath).not.toContain(join(root, "tmp"))
     await (await import("cacache")).verify(root)
     release.resolve()
-    await expect(publication).resolves.toBe(true)
+    await expect(publication).resolves.toEqual({ status: "published" })
     await expect(readdir(join(root, "staging-v1"))).resolves.toEqual([])
     const lease = await store.acquire(key("verify-race"))
     expect(lease).toMatchObject({ size: PNG_HEADER.length })
@@ -122,7 +137,7 @@ describe("CacacheSuperResolutionArtifactStore", () => {
     const fileName = `${cacheKey.slice(cacheKey.lastIndexOf(":") + 1)}.png`
     const imagePath = join(root, "images-v1", fileName)
     const first = createStore()
-    expect(await first.publish(cacheKey, metadata, (path) => writeFile(path, PNG_HEADER))).toBe(true)
+    expect(await first.publish(cacheKey, metadata, (path) => writeFile(path, PNG_HEADER))).toEqual({ status: "published" })
     expect(await readdir(join(root, "images-v1"))).toEqual([fileName])
     expect(await readFile(imagePath)).toEqual(PNG_HEADER)
     await first.close()
@@ -192,7 +207,7 @@ describe("CacacheSuperResolutionArtifactStore", () => {
       }
       stream.end()
       await once(stream, "close")
-    })).toBe(true)
+    })).toEqual({ status: "published" })
     const lease = await store.acquire(key("large"))
     let read = 0
     for await (const chunk of lease!.openStream()) read += Buffer.byteLength(chunk)

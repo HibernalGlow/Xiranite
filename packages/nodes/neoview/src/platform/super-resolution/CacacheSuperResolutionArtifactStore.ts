@@ -9,6 +9,8 @@ import type {
   SuperResolutionArtifactCleanupResult,
   SuperResolutionArtifactLease,
   SuperResolutionArtifactMetadata,
+  SuperResolutionArtifactPublishRejectionCode,
+  SuperResolutionArtifactPublishResult,
   SuperResolutionArtifactProducer,
   SuperResolutionArtifactStore,
   SuperResolutionArtifactStoreSnapshot,
@@ -47,7 +49,7 @@ interface LeaseState {
 }
 
 interface PublishFlight {
-  promise: Promise<boolean>
+  promise: Promise<SuperResolutionArtifactPublishResult>
   controller: AbortController
   waiters: number
   settled: boolean
@@ -186,18 +188,28 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     }
   }
 
-  publish(key: string, metadata: SuperResolutionArtifactMetadata, producer: SuperResolutionArtifactProducer, signal?: AbortSignal): Promise<boolean> {
+  publish(
+    key: string,
+    metadata: SuperResolutionArtifactMetadata,
+    producer: SuperResolutionArtifactProducer,
+    signal?: AbortSignal,
+  ): Promise<SuperResolutionArtifactPublishResult> {
     requireKey(key)
     requireMetadata(metadata)
     signal?.throwIfAborted()
     if (this.#closed) {
       this.#rejectedWrites += 1
-      return Promise.resolve(false)
+      return Promise.resolve(rejection("closed", "Super-resolution artifact cache is closed."))
     }
     let flight = this.#publishFlights.get(key)
     if (!flight) {
       const controller = new AbortController()
-      flight = { controller, waiters: 0, settled: false, promise: undefined as unknown as Promise<boolean> }
+      flight = {
+        controller,
+        waiters: 0,
+        settled: false,
+        promise: undefined as unknown as Promise<SuperResolutionArtifactPublishResult>,
+      }
       flight.promise = this.#publishOne(key, metadata, producer, controller.signal).finally(() => {
         flight!.settled = true
         if (this.#publishFlights.get(key) === flight) this.#publishFlights.delete(key)
@@ -275,7 +287,7 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     metadata: SuperResolutionArtifactMetadata,
     producer: SuperResolutionArtifactProducer,
     signal: AbortSignal,
-  ): Promise<boolean> {
+  ): Promise<SuperResolutionArtifactPublishResult> {
     await this.#api()
     this.#activeStaging += 1
     let producerCompleted = false
@@ -290,12 +302,24 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
       const file = await stat(stagingPath)
       if (!file.isFile() || file.size <= 0 || file.size > this.#maxEntryBytes) {
         this.#rejectedWrites += 1
-        return false
+        return rejection(
+          "invalid-output",
+          `Super-resolution output must be a non-empty file no larger than ${formatBytes(this.#maxEntryBytes)}; received ${formatBytes(file.size)}.`,
+        )
       }
-      await validateImage(stagingPath, metadata.contentType)
-      if (!await this.#ensureCapacity(file.size)) {
+      try {
+        await validateImage(stagingPath, metadata.contentType)
+      } catch (error) {
         this.#rejectedWrites += 1
-        return false
+        return rejection(
+          "invalid-output",
+          `Super-resolution output is not a valid ${metadata.contentType} image: ${errorMessage(error)}`,
+        )
+      }
+      const capacityRejection = await this.#capacityRejection(file.size)
+      if (capacityRejection) {
+        this.#rejectedWrites += 1
+        return capacityRejection
       }
       const integrity = await hashFile(stagingPath, signal)
       const contentPath = cacacheContentPath(this.#root, integrity)
@@ -309,11 +333,11 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
       indexed = true
       this.#visibleReady.add(key)
       this.#writes += 1
-      return true
+      return { status: "published" }
     } catch (error) {
       this.#rejectedWrites += 1
       if (!producerCompleted) throw error
-      return false
+      return rejection("storage", `Super-resolution output was generated but could not be stored: ${errorMessage(error)}`)
     } finally {
       if (stagingPath) await rm(stagingPath, { force: true }).catch(() => undefined)
       if (visiblePath && !indexed) await rm(visiblePath, { force: true }).catch(() => undefined)
@@ -338,18 +362,29 @@ export class CacacheSuperResolutionArtifactStore implements SuperResolutionArtif
     this.#cleanupTimer.unref?.()
   }
 
-  async #ensureCapacity(incomingBytes: number): Promise<boolean> {
+  async #capacityRejection(
+    incomingBytes: number,
+  ): Promise<Extract<SuperResolutionArtifactPublishResult, { status: "rejected" }> | undefined> {
     const free = await this.#availableBytes(this.#root)
     if (free !== undefined && free < this.#minFreeBytes + incomingBytes) {
       await this.#cleanupSerialized("low-disk")
       const refreshed = await this.#availableBytes(this.#root)
-      if (refreshed !== undefined && refreshed < this.#minFreeBytes + incomingBytes) return false
+      if (refreshed !== undefined && refreshed < this.#minFreeBytes + incomingBytes) {
+        return rejection(
+          "low-disk",
+          `Super-resolution artifact cache has insufficient free space at ${this.#root}: ${formatBytes(refreshed)} available, ${formatBytes(this.#minFreeBytes + incomingBytes)} required (${formatBytes(this.#minFreeBytes)} reserve plus ${formatBytes(incomingBytes)} artifact). Free disk space or choose another upscale cache directory.`,
+        )
+      }
     }
     let snapshot = await this.snapshot()
-    if (snapshot.bytes + incomingBytes <= this.#maxBytes) return true
+    if (snapshot.bytes + incomingBytes <= this.#maxBytes) return undefined
     await this.#cleanupSerialized("budget", undefined, false, Math.max(0, this.#maxBytes - incomingBytes))
     snapshot = await this.snapshot()
-    return snapshot.bytes + incomingBytes <= this.#maxBytes
+    if (snapshot.bytes + incomingBytes <= this.#maxBytes) return undefined
+    return rejection(
+      "budget",
+      `Super-resolution artifact cache budget is exhausted: ${formatBytes(snapshot.bytes)} stored plus ${formatBytes(incomingBytes)} incoming exceeds ${formatBytes(this.#maxBytes)}.`,
+    )
   }
 
   async #cleanupSerialized(
@@ -611,6 +646,29 @@ function positiveInteger(value: number, name: string): number {
 function nonNegativeInteger(value: number, name: string): number {
   if (!Number.isSafeInteger(value) || value < 0) throw new RangeError(`${name} must be a non-negative safe integer`)
   return value
+}
+
+function rejection(
+  code: SuperResolutionArtifactPublishRejectionCode,
+  error: string,
+): Extract<SuperResolutionArtifactPublishResult, { status: "rejected" }> {
+  return { status: "rejected", code, error }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const units = ["KiB", "MiB", "GiB", "TiB"]
+  let value = bytes / 1024
+  let unit = units[0]!
+  for (let index = 1; index < units.length && value >= 1024; index += 1) {
+    value /= 1024
+    unit = units[index]!
+  }
+  return `${value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2)} ${unit}`
 }
 
 async function availableBytes(path: string): Promise<number | undefined> {

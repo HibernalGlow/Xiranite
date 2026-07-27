@@ -21,6 +21,21 @@ export type SuperResolutionArtifactProducer = (
   signal: AbortSignal,
 ) => void | Promise<void>
 
+export type SuperResolutionArtifactPublishRejectionCode =
+  | "closed"
+  | "invalid-output"
+  | "low-disk"
+  | "budget"
+  | "storage"
+
+export type SuperResolutionArtifactPublishResult =
+  | { status: "published" }
+  | {
+      status: "rejected"
+      code: SuperResolutionArtifactPublishRejectionCode
+      error: string
+    }
+
 export interface SuperResolutionArtifactStoreSnapshot {
   entries: number
   bytes: number
@@ -48,7 +63,7 @@ export interface SuperResolutionArtifactStore {
     metadata: SuperResolutionArtifactMetadata,
     producer: SuperResolutionArtifactProducer,
     signal?: AbortSignal,
-  ): Promise<boolean>
+  ): Promise<SuperResolutionArtifactPublishResult>
   invalidate(key: string): Promise<void>
   clearBook(bookKey: string): Promise<SuperResolutionArtifactCleanupResult>
   cleanup(reason?: "age" | "budget" | "explicit" | "low-disk"): Promise<SuperResolutionArtifactCleanupResult>
