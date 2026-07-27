@@ -719,7 +719,7 @@ function parsePageTransitionConfig(value: Record<string, unknown> | undefined): 
     enabled: value.enabled,
     type: value.type,
     duration: value.duration,
-    easing: value.easing,
+    easing: value.easing, renderEveryRepeatedPage: value.render_every_repeated_page ?? value.renderEveryRepeatedPage,
   })
 }
 
@@ -1412,9 +1412,9 @@ function pageTransitionToml(value: ReaderPageTransitionPatch): Record<string, un
   if (value.type !== undefined) toml.type = value.type
   if (value.duration !== undefined) toml.duration = value.duration
   if (value.easing !== undefined) toml.easing = value.easing
+  if (value.renderEveryRepeatedPage !== undefined) toml.render_every_repeated_page = value.renderEveryRepeatedPage
   return toml
 }
-
 function colorFilterToml(value: ReaderColorFilterPatch): Record<string, unknown> {
   const toml: Record<string, unknown> = {}
   if (value.colorizeEnabled !== undefined) toml.colorize_enabled = value.colorizeEnabled

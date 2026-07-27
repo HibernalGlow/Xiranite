@@ -1112,17 +1112,17 @@ describe("parseNeoviewRuntimeConfig", () => {
       enabled: true,
       type: "slideUp",
       duration: 750,
-      easing: "easeOutCubic",
+      easing: "easeOutCubic", render_every_repeated_page: false,
       future_field: "preserved-on-disk",
     } } }).pageTransition).toEqual({
       enabled: true,
       type: "slideUp",
       duration: 750,
-      easing: "easeOutCubic",
+      easing: "easeOutCubic", renderEveryRepeatedPage: false,
     })
-    expect(parseNeoviewPageTransitionPatch({ pageTransition: { enabled: true, type: "flip", duration: 320 } })).toEqual({
-      patch: { pageTransition: { enabled: true, type: "flip", duration: 320 } },
-      tomlPatch: { image: { page_transition: { enabled: true, type: "flip", duration: 320 } } },
+    expect(parseNeoviewPageTransitionPatch({ pageTransition: { enabled: true, type: "flip", duration: 320, renderEveryRepeatedPage: false } })).toEqual({
+      patch: { pageTransition: { enabled: true, type: "flip", duration: 320, renderEveryRepeatedPage: false } },
+      tomlPatch: { image: { page_transition: { enabled: true, type: "flip", duration: 320, render_every_repeated_page: false } } },
     })
     expect(() => parseNeoviewPageTransitionPatch({ pageTransition: { duration: 501 } })).toThrow("duration")
     expect(() => parseNeoviewPageTransitionPatch({ pageTransition: { type: "fold" } })).toThrow("type")
@@ -1137,7 +1137,7 @@ describe("parseNeoviewRuntimeConfig", () => {
         enabled: false,
         type: "none",
         duration: 0,
-        easing: "easeOutQuad",
+        easing: "easeOutQuad", render_every_repeated_page: true,
       } } },
     })
     expect(() => parseNeoviewPageTransitionPatch({ pageTransition: { reset: "defaults", enabled: true } }))

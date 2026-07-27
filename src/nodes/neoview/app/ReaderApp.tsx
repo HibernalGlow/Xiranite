@@ -78,7 +78,7 @@ import { executeReaderInputAction } from "../features/input/ReaderInputActionExe
 import { readerCurrentFileDeleteConfirmation } from "../features/input/ReaderCurrentFileDeleteConfirmation"
 import { createReaderColorFilterStore } from "../features/color-filter/ReaderColorFilterStore"
 import { migrateLegacyReaderColorFilter } from "../features/color-filter/LegacyReaderColorFilterMigration"
-import { createReaderPageTransitionStore } from "../features/page-transition/ReaderPageTransitionStore"
+import { commitReaderNavigation, createReaderPageTransitionStore } from "../features/page-transition/ReaderPageTransitionStore"
 import { ReaderVideoController } from "../features/video/ReaderVideoController"
 import { ReaderViewerToggleStore } from "../features/viewer/ReaderViewerToggleStore"
 import { migrateLegacyReaderPageTransition } from "../features/page-transition/LegacyReaderPageTransitionMigration"
@@ -912,7 +912,7 @@ export function ReaderApp({
     folderNavigationEvents.dispatchEvent(new CustomEvent("browse", { detail: { path: nextPath, newTab: true } }))
   }
 
-  async function navigate(action: "next" | "previous", slideshowAction = false): Promise<boolean> {
+  async function navigate(action: "next" | "previous", slideshowAction = false, presentEachPage = false): Promise<boolean> {
     const current = slideshowSessionRef.current
     const atBoundary = action === "next" ? current?.frame.atEnd : current?.frame.atStart
     // Continuous-book overflow is resolved here, not on the hot page-turn path:
@@ -933,14 +933,14 @@ export function ReaderApp({
     if (atBoundary && !slideshowAction && switchToast.getSnapshot().enableBoundaryToast) {
       switchToast.show({ title: action === "next" ? "已是最后一页" : "已是第一页" })
     }
-    const updated = await updateNavigation((sessionId, signal) => clientRef.current.navigate(sessionId, action, signal), slideshowAction)
+    const updated = await updateNavigation((sessionId, signal) => clientRef.current.navigate(sessionId, action, signal), slideshowAction, presentEachPage)
     if (updated && !slideshowAction) slideshow.resetOnUserAction()
     return updated
   }
 
-  async function goTo(pageIndex: number, slideshowAction = false): Promise<boolean> {
+  async function goTo(pageIndex: number, slideshowAction = false, presentEachPage = false): Promise<boolean> {
     if (pageIndex === slideshowSessionRef.current?.frame.anchorPageIndex) return false
-    const updated = await updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal), slideshowAction)
+    const updated = await updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal), slideshowAction, presentEachPage)
     if (updated && !slideshowAction) slideshow.resetOnUserAction()
     return updated
   }
@@ -1006,7 +1006,7 @@ export function ReaderApp({
 
   async function updateNavigation(
     request: (sessionId: string, signal: AbortSignal) => Promise<ReaderNavigationDto>,
-    slideshowAction = false,
+    slideshowAction = false, presentEachPage = false,
   ): Promise<boolean> {
     const sessionId = sessionRef.current
     if (!sessionId || busy || navigationPendingRef.current) return false
@@ -1021,7 +1021,7 @@ export function ReaderApp({
         setSlideshowFadeFrame(slideshowAction && slideshowConfigRef.current.fadeTransition
           ? `${sessionId}:${result.frame.generation}`
           : undefined)
-        setSession((current) => current ? applyNavigation(current, result) : current)
+        await commitReaderNavigation(() => setSession((current) => current ? applyNavigation(current, result) : current), pageTransition.getSnapshot(), presentEachPage)
       }
       return !controller.signal.aborted
     } catch (cause) {
@@ -1302,8 +1302,8 @@ export function ReaderApp({
       } : undefined,
       presentation: () => presentation,
       setPresentation: applyInputPresentation,
-      navigate,
-      goTo,
+      navigate: (direction) => navigate(direction, false, true),
+      goTo: (pageIndex) => goTo(pageIndex, false, true),
       switchBook: switchAdjacentBook,
       updatePageMode,
       updateReadingDirection: updateCurrentBookReadingDirection,

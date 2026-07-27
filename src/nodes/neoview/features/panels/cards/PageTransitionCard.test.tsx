@@ -11,6 +11,7 @@ describe("PageTransitionCard", () => {
     const store = createReaderPageTransitionStore({ persist: async (settings) => settings })
     const view = render(<PageTransitionCard store={store} />)
     expect(screen.getByRole("switch", { name: "启用翻页动画" }).hasAttribute("disabled")).toBe(false)
+    expect(screen.getByRole("switch", { name: "连续翻页逐页呈现" }).getAttribute("data-state")).toBe("checked")
     fireEvent.click(screen.getByRole("switch", { name: "启用翻页动画" }))
     expect(screen.getByLabelText("动画类型")).toBeTruthy()
     expect(Array.from(view.container.querySelectorAll("[data-reader-card-control-group]"), (group) => group.getAttribute("data-reader-card-control-group"))).toEqual([
