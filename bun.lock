@@ -77,7 +77,6 @@
         "@xiranite/node-repacku": "workspace:*",
         "@xiranite/node-samea": "workspace:*",
         "@xiranite/node-seriex": "workspace:*",
-        "@xiranite/node-simiu": "workspace:*",
         "@xiranite/node-sleept": "workspace:*",
         "@xiranite/node-smartzip": "workspace:*",
         "@xiranite/node-snf": "workspace:*",
@@ -1138,23 +1137,6 @@
       "devDependencies": {
         "@types/node": "^24.12.0",
         "typescript": "^7.0.2",
-      },
-    },
-    "packages/nodes/simiu": {
-      "name": "@xiranite/node-simiu",
-      "version": "0.1.0",
-      "bin": {
-        "xsimiu": "./dist/cli.js",
-      },
-      "dependencies": {
-        "@xiranite/cli-runtime": "workspace:*",
-        "@xiranite/config": "workspace:*",
-        "@xiranite/contract": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/node": "^24.12.0",
-        "typescript": "^7.0.2",
-        "vitest": "^4.1.10",
       },
     },
     "packages/nodes/sleept": {
@@ -2764,8 +2746,6 @@
     "@xiranite/node-scoolp": ["@xiranite/node-scoolp@workspace:packages/nodes/scoolp"],
 
     "@xiranite/node-seriex": ["@xiranite/node-seriex@workspace:packages/nodes/seriex"],
-
-    "@xiranite/node-simiu": ["@xiranite/node-simiu@workspace:packages/nodes/simiu"],
 
     "@xiranite/node-sleept": ["@xiranite/node-sleept@workspace:packages/nodes/sleept"],
 

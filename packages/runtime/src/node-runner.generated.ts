@@ -276,13 +276,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-seriex/platform"), { nodeId: "seriex", entry: "platform" }),
     createRuntime: "createNodeSeriexRuntime",
   },
-  simiu: {
-    packageName: "@xiranite/node-simiu",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-simiu/core"), { nodeId: "simiu", entry: "core" }),
-    run: "runSimiu",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-simiu/platform"), { nodeId: "simiu", entry: "platform" }),
-    createRuntime: "createNodeSimiuRuntime",
-  },
   sleept: {
     packageName: "@xiranite/node-sleept",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-sleept/core"), { nodeId: "sleept", entry: "core" }),

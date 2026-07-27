@@ -232,12 +232,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Detect related archive files, plan series folders, and move them safely.",
   },
   {
-    id: "simiu",
-    packageName: "@xiranite/node-simiu",
-    bin: nodeCliName("simiu"),
-    description: "Scan image folders and group similar files into managed sets.",
-  },
-  {
     id: "sleept",
     packageName: "@xiranite/node-sleept",
     bin: nodeCliName("sleept"),
