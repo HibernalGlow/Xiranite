@@ -33,7 +33,6 @@ import { DynamicIsland, DynamicIslandProvider } from "@/components/ui/dynamic-is
 import { useDynamicIslandSize } from "@/components/ui/dynamic-island-context"
 import { useLocalBackendStatus } from "@/hooks/useLocalBackendStatus"
 import { localBackendFileUrl } from "@/backend/localBackendConfig"
-import { getActiveCustomTheme, THEME_PRESET_OPTIONS } from "@/lib/appearance"
 import { cn } from "@/lib/utils"
 import { startupDebug, startupDebugAsync } from "@/lib/startupDebug"
 import { createLogger } from "@/lib/logger"
@@ -469,10 +468,7 @@ function useTopBarMusicIslandVariant(): MelodeckIslandVariant {
 
 function MelodeckIsland({ variant }: { variant: MelodeckIslandVariant }) {
   const dock = useMelodeck()
-  const { isDaylight, setDaylight } = useMelodeckThemeMode()
-  const theme = useWorkspaceStore((state) => state.theme)
-  const themeSelection = useWorkspaceStore((state) => state.themeSelections[isDaylight ? "light" : "dark"])
-  const customThemes = useWorkspaceStore((state) => state.customThemes)
+  const { isDaylight } = useMelodeckThemeMode()
   const islandRef = useRef<HTMLDivElement>(null)
   const { state, setSize } = useDynamicIslandSize()
   const expanded = state.size === "compact"
@@ -487,29 +483,7 @@ function MelodeckIsland({ variant }: { variant: MelodeckIslandVariant }) {
       ? "后台待机"
       : dock.mode === "bottom" ? "底栏显示" : "浮窗显示"
   const stateLabel = dock.playback.supportLine?.trim() || fallbackStateLabel
-  const activePresetKey = themeSelection.kind === "preset" ? themeSelection.name : theme
-  const activePreset = THEME_PRESET_OPTIONS.find((preset) => preset.key === activePresetKey) ?? THEME_PRESET_OPTIONS[0]
-  const activeCustomTheme = themeSelection.kind === "custom"
-    ? getActiveCustomTheme(customThemes, themeSelection.name)
-    : null
-  const activeCustomColors = activeCustomTheme
-    ? (isDaylight ? activeCustomTheme.cssVars.light : activeCustomTheme.cssVars.dark ?? activeCustomTheme.cssVars.light)
-    : null
-  const islandPaletteColor = activeCustomTheme
-    ? activeCustomColors?.accent
-      ?? activeCustomColors?.["--accent"]
-      ?? activeCustomTheme.cssVars.theme?.accent
-      ?? activeCustomTheme.cssVars.theme?.["--accent"]
-      ?? "var(--accent)"
-    : activePreset.palette[3] ?? "var(--accent)"
-  const islandPaletteForeground = activeCustomTheme
-    ? activeCustomColors?.["accent-foreground"]
-      ?? activeCustomColors?.["--accent-foreground"]
-      ?? activeCustomTheme.cssVars.theme?.["accent-foreground"]
-      ?? activeCustomTheme.cssVars.theme?.["--accent-foreground"]
-      ?? "var(--accent-foreground)"
-    : "var(--background)"
-  const islandGlassBackground = `color-mix(in oklch, ${islandPaletteColor} 44%, transparent)`
+  const gridMapBackground = isDaylight ? "rgba(250, 249, 246, 0.95)" : "rgba(9, 9, 11, 0.95)"
 
   useEffect(() => {
     if (!expanded) return
@@ -566,14 +540,12 @@ function MelodeckIsland({ variant }: { variant: MelodeckIslandVariant }) {
         {!expanded && (
           <div
             data-melodeck-island-collapsed-shell
-            data-melodeck-island-palette-scheme={isDaylight ? "light" : "dark"}
-            data-melodeck-island-palette-slot="4"
             aria-hidden="true"
             className={cn(
-              "pointer-events-none absolute inset-0 z-0 rounded-[inherit] border border-border/55 ring-1 ring-border/25 backdrop-blur-3xl backdrop-saturate-150",
+              "pointer-events-none absolute inset-0 z-0 rounded-[inherit] border border-border/55 bg-background/78 ring-1 ring-border/25 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-background/62",
               !dock.collapsed && "ring-primary/16",
             )}
-            style={{ backgroundColor: islandGlassBackground }}
+            style={{ backgroundColor: gridMapBackground }}
           />
         )}
         {expanded ? (
@@ -641,7 +613,6 @@ function MelodeckIsland({ variant }: { variant: MelodeckIslandVariant }) {
                 : "h-full w-full gap-1.5 px-1 hover:bg-muted/35",
             )}
             onClick={() => setSize("compact")}
-            style={{ color: islandPaletteForeground }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.12, duration: 0.14, ease: "easeOut" }}
