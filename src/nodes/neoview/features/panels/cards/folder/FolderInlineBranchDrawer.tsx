@@ -1,19 +1,16 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react"
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react"
 import { createPortal } from "react-dom"
 
 export function FolderInlineBranchDrawer({
   children,
-  fullWidth = false,
   path,
   scopeRef,
 }: {
   children: ReactNode
-  fullWidth?: boolean
   path: string
   scopeRef: RefObject<HTMLElement | null>
 }) {
   const [target, setTarget] = useState<HTMLElement>()
-  const [fullWidthStyle, setFullWidthStyle] = useState<CSSProperties>()
   const targetRef = useRef<HTMLElement>()
 
   useLayoutEffect(() => {
@@ -26,7 +23,7 @@ export function FolderInlineBranchDrawer({
     const updateTarget = () => {
       if (disposed) return
       const scope = scopeRef.current
-      if (scope && targetRef.current && scope.contains(targetRef.current)) return
+      if (scope && targetRef.current && scope.contains(targetRef.current) && targetContainsBranch(targetRef.current, path)) return
       const next = scope ? findBranchDrawerTarget(scope, path) : undefined
       targetRef.current = next
       setTarget((current) => current === next ? current : next)
@@ -47,31 +44,8 @@ export function FolderInlineBranchDrawer({
     }
   }, [path, scopeRef])
 
-  useLayoutEffect(() => {
-    if (!fullWidth || !target) {
-      setFullWidthStyle(undefined)
-      return
-    }
-    const scope = scopeRef.current
-    if (!scope) return
-    const updateGeometry = () => {
-      const scopeRect = scope.getBoundingClientRect()
-      const targetRect = target.getBoundingClientRect()
-      setFullWidthStyle({
-        marginLeft: `${Math.round(scopeRect.left - targetRect.left)}px`,
-        width: `${Math.round(scope.clientWidth)}px`,
-      })
-    }
-    const observer = new ResizeObserver(updateGeometry)
-    observer.observe(scope)
-    observer.observe(target)
-    updateGeometry()
-    return () => observer.disconnect()
-  }, [fullWidth, scopeRef, target])
-
   if (!target) return null
-  const content = fullWidth ? <div className="relative z-10 min-w-0" style={fullWidthStyle}>{children}</div> : children
-  return createPortal(content, target)
+  return createPortal(children, target)
 }
 
 function findBranchDrawerTarget(scope: HTMLElement, path: string): HTMLElement | undefined {
@@ -79,4 +53,8 @@ function findBranchDrawerTarget(scope: HTMLElement, path: string): HTMLElement |
     if (entry.dataset.folderPath === path) return entry.parentElement ?? undefined
   }
   return undefined
+}
+
+function targetContainsBranch(target: HTMLElement, path: string): boolean {
+  return Array.from(target.querySelectorAll<HTMLElement>("[data-folder-entry][data-folder-path]")).some((entry) => entry.dataset.folderPath === path)
 }

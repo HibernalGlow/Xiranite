@@ -338,9 +338,24 @@ test("[neoview.folder.inline-branch-cover-grid] gives the drawer an entire cover
   const branch = document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/series"]')
   const downstream = document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/later-6"]')
 
-  await expect.poll(() => Number.parseFloat(drawerHost?.style.width ?? "0")).toBeGreaterThan(branch?.getBoundingClientRect().width ?? 0)
+  await expect.poll(() => drawerHost?.getAttribute("data-folder-inline-grid-drawer")).toBe("true")
+  await expect.poll(() => (drawerHost?.getBoundingClientRect().width ?? 0)).toBeGreaterThan(branch?.getBoundingClientRect().width ?? 0)
   await expect.poll(() => Boolean(drawer && downstream && downstream.getBoundingClientRect().top >= drawer.getBoundingClientRect().bottom)).toBe(true)
   expect(view.getByTitle("C:/books/later-6")).toBeTruthy()
+})
+
+test("[neoview.folder.inline-branch-cover-grid] keeps the drawer mounted while its virtual grid scrolls", async () => {
+  await renderExpandedBranch("cover-grid", { width: 360, rootEntryCount: 48 })
+  const drawer = document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')
+  const grid = drawer?.closest<HTMLElement>('[data-folder-navigation-entry-id="1"]')
+  if (!drawer || !grid) throw new Error("Expected an inline branch drawer inside the cover-grid scroller")
+
+  const initialTop = grid.scrollTop
+  grid.scrollTop = initialTop + 48
+  grid.dispatchEvent(new Event("scroll", { bubbles: true }))
+  await expect.poll(() => grid.scrollTop).toBeGreaterThan(initialTop)
+  await expect.poll(() => document.querySelector('[data-folder-inline-branch="true"]')).toBe(drawer)
+  expect(drawer.parentElement?.getAttribute("data-folder-inline-grid-drawer")).toBe("true")
 })
 
 test("[neoview.folder.inline-branch-banner] keeps the banner renderer inside the drawer", async () => {
