@@ -32,6 +32,8 @@ const VIDEO_MIME_TYPES: Readonly<Record<string, string>> = {
   wmv: "video/x-ms-wmv",
 }
 
+const DISGUISED_MEDIA_SUFFIXES = new Set(["wbp", "nov"])
+
 export const DEFAULT_READER_IMAGE_FORMATS = Object.freeze(Object.keys(IMAGE_MIME_TYPES))
 export const DEFAULT_READER_VIDEO_FORMATS = Object.freeze(Object.keys(VIDEO_MIME_TYPES))
 
@@ -88,7 +90,11 @@ export class ReaderMediaFormatRegistry {
   }
 
   resolve(path: string): PageMediaType | undefined {
-    return this.#formats.get(pathExtension(path))
+    for (const extension of mediaExtensionCandidates(path)) {
+      const media = this.#formats.get(extension)
+      if (media) return media
+    }
+    return undefined
   }
 
   supports(path: string): boolean {
@@ -133,6 +139,16 @@ export function pathExtension(path: string): string {
   const filename = path.replaceAll("\\", "/").split("/").at(-1) ?? ""
   const index = filename.lastIndexOf(".")
   return index > 0 ? filename.slice(index + 1).toLowerCase() : ""
+}
+
+function mediaExtensionCandidates(path: string): readonly string[] {
+  const filename = path.replaceAll("\\", "/").split("/").at(-1) ?? ""
+  const suffix = pathExtension(filename)
+  if (!DISGUISED_MEDIA_SUFFIXES.has(suffix)) return [suffix]
+
+  const suffixStart = filename.length - suffix.length - 1
+  const originalExtension = pathExtension(filename.slice(0, suffixStart))
+  return originalExtension ? [originalExtension, suffix] : [suffix]
 }
 
 function normalizeFormatList(values: readonly string[], label: string): string[] {
