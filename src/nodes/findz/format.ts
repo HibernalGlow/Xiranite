@@ -6,8 +6,8 @@ export function formatBytes(value: number | undefined): string {
   return `${rounded >= 100 || index === 0 ? Math.round(rounded) : rounded.toFixed(1)} ${units[index]}`
 }
 
-export function formatDensity(value: number | undefined): string {
-  if (!value) return "Pending"
+export function formatDensity(value: number | undefined, pendingLabel = "Pending"): string {
+  if (!value) return pendingLabel
   return `${Math.round(value).toLocaleString()} B / MP`
 }
 

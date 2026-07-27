@@ -2624,8 +2624,11 @@
         "exportCsv": "导出过滤后的归档 CSV",
         "library": "库",
         "archiveResults": "Findz 归档结果",
-        "treemap": "矩阵图",
-        "area": "面积",
+        "lanes": {
+          "query": "查询与筛选",
+          "scope": "索引范围",
+          "hierarchy": "归档层级"
+        },
         "header": {
           "rootLabel": "Findz 库根目录",
           "rootPlaceholder": "本地 ZIP / CBZ 库根目录",
@@ -2652,14 +2655,30 @@
           "expandArchive": "展开归档",
           "columns": { "archive": "归档", "size": "大小", "images": "图像", "analyzed": "已分析", "density": "密度", "anomalies": "异常", "savings": "节省" },
           "empty": "打开库后运行 ZIP 扫描以填充索引。",
+          "folderArchiveCount": "{{count}} 个归档",
           "loadingMembers": "正在加载归档成员……",
           "noMembers": "此归档没有已索引的成员。",
           "pending": "待处理",
+          "deepRetry": "使用更深读取重试元数据",
+          "deepRetryTooltip": "以更大的读取预算重试",
+          "metadataStatuses": {
+            "complete": "完成",
+            "budgetExceeded": "超出读取预算",
+            "unsupportedFormat": "不支持的格式",
+            "parserFailure": "解析失败",
+            "encrypted": "已加密"
+          },
+          "anomalyKinds": {
+            "highBytesPerMegapixel": "每 MP 字节偏高",
+            "largeMember": "成员大小偏高"
+          },
           "ascending": "升序",
           "descending": "降序",
           "scanStates": { "corrupt": "归档损坏", "unsupported": "不支持的归档", "rejected": "已拒绝的归档" }
         },
         "treemap": {
+          "title": "矩形图",
+          "area": "面积",
           "empty": "当前视图没有已索引的归档面积。",
           "openArchive": "打开归档 {{name}}",
           "drillInto": "进入 {{name}}"

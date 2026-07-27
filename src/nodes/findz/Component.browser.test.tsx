@@ -257,6 +257,11 @@ test("renders the workspace controls in Chinese after switching language", async
   await render(<Component compId="findz-zh-browser" host={host} />)
   await expect.element(page.getByRole("button", { name: "打开库" })).toBeVisible()
   await expect.element(page.getByPlaceholder("本地 ZIP / CBZ 库根目录")).toBeVisible()
+  await expect.element(page.getByTestId("findz-query-lane")).toHaveAccessibleName("查询与筛选")
+  await expect.element(page.getByTestId("findz-scope-lane")).toHaveAccessibleName("索引范围")
+  await expect.element(page.getByTestId("findz-results-lane")).toBeVisible()
+  await expect.element(page.getByTestId("findz-treemap-lane")).toBeVisible()
+  await expect.element(page.getByRole("heading", { name: "矩形图" })).toBeVisible()
 })
 
 type TestHost = NodeHostApi<FindzCardState, Partial<FindzCardState>> & {

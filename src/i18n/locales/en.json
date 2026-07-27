@@ -2626,8 +2626,11 @@
         "exportCsv": "Export filtered archives as CSV",
         "library": "Library",
         "archiveResults": "Findz archive results",
-        "treemap": "Treemap",
-        "area": "Area",
+        "lanes": {
+          "query": "Search and filters",
+          "scope": "Library scope",
+          "hierarchy": "Archive hierarchy"
+        },
         "header": {
           "rootLabel": "Findz library root",
           "rootPlaceholder": "Local ZIP / CBZ library root",
@@ -2654,14 +2657,30 @@
           "expandArchive": "Expand archive",
           "columns": { "archive": "Archive", "size": "Size", "images": "Images", "analyzed": "Analyzed", "density": "Density", "anomalies": "Anomalies", "savings": "Savings" },
           "empty": "Open a library, then run a ZIP scan to populate the index.",
+          "folderArchiveCount": "{{count}} archives",
           "loadingMembers": "Loading archive members...",
           "noMembers": "This archive has no indexed members.",
           "pending": "Pending",
+          "deepRetry": "Retry metadata with a deeper read",
+          "deepRetryTooltip": "Retry with a larger read budget",
+          "metadataStatuses": {
+            "complete": "Complete",
+            "budgetExceeded": "Read budget exceeded",
+            "unsupportedFormat": "Unsupported format",
+            "parserFailure": "Parser failure",
+            "encrypted": "Encrypted"
+          },
+          "anomalyKinds": {
+            "highBytesPerMegapixel": "High bytes / MP",
+            "largeMember": "Large member"
+          },
           "ascending": "ascending",
           "descending": "descending",
           "scanStates": { "corrupt": "Corrupt archive", "unsupported": "Unsupported archive", "rejected": "Rejected archive" }
         },
         "treemap": {
+          "title": "Treemap",
+          "area": "Area",
           "empty": "No indexed archive area for this view.",
           "openArchive": "Open archive {{name}}",
           "drillInto": "Drill into {{name}}"
