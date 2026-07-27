@@ -19,7 +19,7 @@ interface FolderNode {
   archives: FindzArchiveRow[]
 }
 
-export function FindzArchiveTable({ archives, members, pathPrefix, selectedArchiveId, selectionRevision, sortBy, sortDesc, total, hasPreviousPage, hasNextPage, onSelectArchive, onDeepRetryMember, onDrillFolder, onSort, onPreviousPage, onNextPage }: {
+export function FindzArchiveTable({ archives, members, pathPrefix, selectedArchiveId, selectionRevision, sortBy, sortDesc, total, hasPreviousPage, hasNextPage, onSelectArchive, onDeepRetryMember, onDrillFolder, onSort, onPreviousPage, onNextPage, className }: {
   archives: FindzArchiveRow[]
   members?: FindzMemberRow[]
   pathPrefix?: string
@@ -36,6 +36,7 @@ export function FindzArchiveTable({ archives, members, pathPrefix, selectedArchi
   onSort(sort: FindzArchiveSort): void
   onPreviousPage(): void
   onNextPage(): void
+  className?: string
 }) {
   const { t } = useNodeI18n("findz")
   const [collapsedFolders, setCollapsedFolders] = useState<ReadonlySet<string>>(() => new Set())
@@ -75,7 +76,7 @@ export function FindzArchiveTable({ archives, members, pathPrefix, selectedArchi
   }, [])
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col border bg-background">
+    <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)}>
       <div className="flex shrink-0 items-center justify-between gap-3 border-b px-3 py-2">
         <div className="text-xs text-muted-foreground">{t("workspace.table.indexedSummary", "{{visible}} of {{total}} indexed archives", { visible: archives.length, total })}</div>
         <div className="flex items-center gap-1">
@@ -212,7 +213,7 @@ function ArchiveRows({ archive, depth, expanded, members, onSelect, onDeepRetryM
       <TableCell className="text-right tabular-nums">{formatBytes(archive.size)}</TableCell>
       <TableCell className="text-right tabular-nums">{archive.imageMemberCount}</TableCell>
       <TableCell className="text-right tabular-nums">{archive.analyzedImageCount}/{archive.imageMemberCount}</TableCell>
-      <TableCell className="text-right tabular-nums text-muted-foreground">{formatDensity(archive.averageBytesPerMegapixel)}</TableCell>
+      <TableCell className="text-right tabular-nums text-muted-foreground">{formatDensity(archive.averageBytesPerMegapixel, t("workspace.table.pending", "Pending"))}</TableCell>
       <TableCell className="text-right"><AnomalyBadge count={archive.anomalyCount} /></TableCell>
       <TableCell className="text-right tabular-nums text-muted-foreground">{formatBytes(archive.estimatedSavingsBytes)}</TableCell>
     </TableRow>
@@ -290,9 +291,9 @@ function MemberRows({ members, onDeepRetryMember, t }: { members?: FindzMemberRo
       <TableCell className="max-w-72 truncate pl-7 font-mono text-[11px]" title={member.memberPath}>{member.memberPath}</TableCell>
       <TableCell className="text-right tabular-nums text-muted-foreground">{formatBytes(member.compressedSize)}</TableCell>
       <TableCell className="text-right">{member.imageCandidate && <Image className="ml-auto size-3.5 text-muted-foreground" />}</TableCell>
-      <TableCell className="text-right tabular-nums text-muted-foreground">{member.width && member.height ? `${member.width}x${member.height}` : member.metadataStatus || t("workspace.table.pending", "Pending")}</TableCell>
-      <TableCell className="text-right tabular-nums text-muted-foreground">{formatDensity(member.bytesPerMegapixel)}</TableCell>
-      <TableCell className="text-right">{member.anomalyKind && <Badge variant="outline" className="max-w-28 truncate text-[10px]">{member.anomalyKind}</Badge>}</TableCell>
+      <TableCell className="text-right tabular-nums text-muted-foreground">{member.width && member.height ? `${member.width}x${member.height}` : metadataStatusLabel(member.metadataStatus, t)}</TableCell>
+      <TableCell className="text-right tabular-nums text-muted-foreground">{formatDensity(member.bytesPerMegapixel, t("workspace.table.pending", "Pending"))}</TableCell>
+      <TableCell className="text-right">{member.anomalyKind && <Badge variant="outline" className="max-w-28 truncate text-[10px]">{anomalyKindLabel(member.anomalyKind, t)}</Badge>}</TableCell>
       <TableCell className="text-right tabular-nums text-muted-foreground">
         <div className="flex items-center justify-end gap-1">
           {formatBytes(member.estimatedSavingsBytes)}
@@ -301,6 +302,27 @@ function MemberRows({ members, onDeepRetryMember, t }: { members?: FindzMemberRo
       </TableCell>
     </TableRow>)}
   </>
+}
+
+function metadataStatusLabel(status: string | undefined, t: ReturnType<typeof useNodeI18n>["t"]): string {
+  const keys: Record<string, string> = {
+    complete: "complete",
+    metadata_budget_exceeded: "budgetExceeded",
+    unsupported_format: "unsupportedFormat",
+    parser_failure: "parserFailure",
+    encrypted_member: "encrypted",
+  }
+  const key = status ? keys[status] : undefined
+  return key ? t(`workspace.table.metadataStatuses.${key}`, status) : t("workspace.table.pending", "Pending")
+}
+
+function anomalyKindLabel(kind: string, t: ReturnType<typeof useNodeI18n>["t"]): string {
+  const keys: Record<string, string> = {
+    bytes_per_megapixel_high: "highBytesPerMegapixel",
+    member_size_high: "largeMember",
+  }
+  const key = keys[kind]
+  return key ? t(`workspace.table.anomalyKinds.${key}`, kind) : kind
 }
 
 function SortableHead({ label, active, descending, onClick, className, t }: { label: string; active: boolean; descending: boolean; onClick(): void; className?: string; t: ReturnType<typeof useNodeI18n>["t"] }) {
