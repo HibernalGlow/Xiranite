@@ -20,6 +20,7 @@ The following dependency boundaries are adopted:
 | Encodeb | `chardet` | mojibake safety checks, explicit codec transforms, rename/copy policy |
 | Marku | `remark` | module choice, text transformations, diffs, history, and undo |
 | Owithu | `registry-js` | shell-entry validation, plan creation, and per-item error reporting |
+| Czkawka Simiu mode | `sharp` + `sharp-phash` | feature weighting, clustering, directory policy, operations, and undo |
 
 `@zip.js/zip.js` is already a maintained workspace dependency for NeoView and
 is suitable for Coveru's ZIP listing and extraction. `chardet` is already
@@ -28,6 +29,10 @@ not make an unsafe conversion authoritative. `remark` supplies an mdast parser
 for structure-sensitive Markdown transforms without coupling the node's domain
 contract to a UI framework. `registry-js` belongs behind the Windows adapter in
 `@xiranite/shell-integration`; no shared domain contract may import it.
+`sharp-phash` is MIT, has a narrow 64-bit pHash API, and declares `sharp` as
+a peer dependency. It is used only at the Czkawka node's Node runtime boundary
+to calculate Simiu's source-compatible hash feature; it does not change the
+existing Czkawka native scanner or its upgrade path.
 
 `renamer` is intentionally not adopted. It is a batch-renaming CLI, whereas
 Formatv requires deterministic per-file `.nov` plans, Nameu preserves archive
@@ -49,18 +54,26 @@ source, not the simplified standalone TypeScript node. Its contract is:
 - retain an undoable record of applied operations.
 
 `simiu-sets` is an Xiranite extension mode, not an upstream Czkawka tool. The
-extension will own folder traversal, same-directory grouping, group-folder
-naming, operation planning, and undo records. It will request image groups
-through the stable `CzkawkaRuntime.scanMedia` contract with
-`tool: "similar-images"` and `recursive: false` for each source directory.
-The only native dependency is that established result DTO. A Czkawka upgrade
-therefore changes the existing wrapper mapping in one place, rather than
-requiring Simiu-specific Rust patches or a fork of Czkawka core.
+extension owns folder traversal, same-directory grouping, group-folder naming,
+operation planning, and undo records. Its detector is deliberately independent
+of `CzkawkaRuntime.scanMedia`: upstream Czkawka exposes Mean/Gradient-family
+hashes and a maximum-distance option, while the source algorithm has a
+different, weighted score.
 
-The historical `phash_threshold` is mapped explicitly to Czkawka's maximum
-hash-distance option and tested at the adapter boundary. The UI labels this as
-the Simiu set threshold, while exposing the existing Czkawka image algorithm
-controls without copying native option logic.
+The Czkawka node exposes an internal `SimiuFeatureExtractor` boundary. Its
+Node adapter decodes each supported image through `sharp`, derives the 64-bit
+pHash through `sharp-phash`, and returns width, height, RGB mean from a 32x32
+thumbnail, and filesystem byte length. A pure Simiu scorer then preserves the
+source weights exactly: `0.68` normalized pHash distance, `0.14` capped aspect
+ratio distance, `0.10` normalized RGB distance, and `0.08` file-size distance.
+It applies the source's `0.20` aspect-ratio pruning and union-find clustering
+before the existing set planner receives groups.
+
+This keeps Czkawka as the user-facing workbench and file-operation host, while
+making the detector an explicit adapter that neither depends on Czkawka's
+native result DTO nor leaks its image-hash controls into Simiu. A future
+Czkawka upgrade can therefore retain this mode unchanged unless its host or
+operation contracts change.
 
 ## Validation
 
@@ -68,6 +81,12 @@ controls without copying native option logic.
 - Encodeb's platform test proves a high-confidence `chardet` Big5 candidate
   is still subject to the lossless recoding gate, while clean names bypass the
   detector entirely.
+- Marku's AST tests prove headings and images in fenced code remain untouched,
+  while the corresponding parsed Markdown nodes still transform as requested.
+- Simiu fixture tests prove the four weighted feature terms, ratio pruning,
+  transitive union-find grouping, all-in-one-folder skip, and operation/undo
+  behavior. They also prove that changing Czkawka's native image settings does
+  not change Simiu groups.
 - Czkawka's added mode is exercised through its existing package tests and a
   targeted Browser Mode component test for the user-visible mode and controls.
 - Package builds and Browser Mode run serially with one worker.
