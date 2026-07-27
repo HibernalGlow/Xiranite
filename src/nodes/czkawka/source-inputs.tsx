@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { NodeLocalFilesCapability } from "@xiranite/contract"
 import { addCzkawkaPaths, addCzkawkaPathsWithReferences, isValidCzkawkaExcludedItem, isValidCzkawkaExtensionToken, parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, removeCzkawkaPaths, serializeCzkawkaExtensionTokens, serializeCzkawkaPaths, setAllCzkawkaReferences, toggleCzkawkaReference } from "@xiranite/node-czkawka/source-inputs"
-import { CheckCheck, FolderMinus, FolderPlus, Plus, RotateCcw, Star, Trash2, X } from "lucide-react"
+import { CheckCheck, FilePlus2, FolderMinus, FolderPlus, Plus, RotateCcw, Star, Trash2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -13,6 +13,7 @@ import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 interface DirectoryEditorProps {
   kind: "included" | "excluded"
   label: string
+  pickFiles?: NodeLocalFilesCapability["pickFiles"]
   pickDirectory?: NodeLocalFilesCapability["pickDirectory"]
   pickDirectories?: NodeLocalFilesCapability["pickDirectories"]
   referenceKeywords?: string
@@ -22,7 +23,7 @@ interface DirectoryEditorProps {
   onReferenceChange?: (value: string) => void
 }
 
-export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, pickDirectories, referenceKeywords = "", referenceValue = "", value = "", onChange, onReferenceChange }: DirectoryEditorProps) {
+export function CzkawkaDirectoryEditor({ kind, label, pickFiles, pickDirectory, pickDirectories, referenceKeywords = "", referenceValue = "", value = "", onChange, onReferenceChange }: DirectoryEditorProps) {
   const { t } = useNodeI18n("czkawka")
   const [manual, setManual] = useState("")
   const [manualOpen, setManualOpen] = useState(false)
@@ -52,9 +53,14 @@ export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, pickDirecto
     setManualOpen(false)
   }
 
-  async function browse() {
+  async function browseDirectories() {
     const selected = pickDirectories ? await pickDirectories() : [await pickDirectory?.()].filter((path): path is string => Boolean(path))
     if (selected.length) add(selected)
+  }
+
+  async function browseFiles() {
+    const selected = await pickFiles?.({ title: t("sources.pickFiles", "选择要扫描的文件") })
+    if (selected?.length) add(selected)
   }
 
   function remove(removed: Iterable<string>) {
@@ -66,7 +72,8 @@ export function CzkawkaDirectoryEditor({ kind, label, pickDirectory, pickDirecto
   return <section aria-label={label} data-kind={kind} className="grid gap-2 rounded-md border bg-background/40 p-2">
     <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-xs font-medium"><span>{label}</span><Badge variant="outline">{paths.length}</Badge></div><div className="flex items-center gap-1">
       {onReferenceChange ? <Button aria-label={allReferences ? t("sources.cancelAllReferences", "取消全部参考目录") : t("sources.setAllReferences", "全部设为参考目录")} size="icon-sm" variant={allReferences ? "secondary" : "ghost"} onClick={() => onReferenceChange(serializeCzkawkaPaths(setAllCzkawkaReferences(paths, !allReferences)))}><CheckCheck /></Button> : null}
-      <Button aria-label={t("sources.browseAdd", "浏览添加{{label}}", { label })} disabled={!pickDirectories && !pickDirectory} size="icon-sm" variant="outline" onClick={() => void browse()}><FolderPlus /></Button>
+      <Button aria-label={t("sources.browseAdd", "浏览添加{{label}}", { label })} disabled={!pickDirectories && !pickDirectory} size="icon-sm" variant="outline" onClick={() => void browseDirectories()}><FolderPlus /></Button>
+      {kind === "included" ? <Button aria-label={t("sources.browseAddFiles", "添加文件到{{label}}", { label })} disabled={!pickFiles} size="icon-sm" variant="outline" onClick={() => void browseFiles()}><FilePlus2 /></Button> : null}
       <Button aria-label={t("sources.openManualAdd", "手动添加{{label}}", { label })} size="icon-sm" variant={manualOpen ? "secondary" : "outline"} onClick={() => setManualOpen((open) => !open)}><Plus /></Button>
       <Button aria-label={t("sources.removeSelected", "移除选中的{{label}}", { label })} disabled={!selectedSet.size} size="icon-sm" variant="outline" onClick={() => remove(selectedSet)}><Trash2 /></Button>
       <Button aria-label={t("sources.clear", "清空{{label}}", { label })} disabled={!paths.length} size="icon-sm" variant="ghost" onClick={() => remove(paths)}><FolderMinus /></Button>
@@ -97,8 +104,8 @@ export function CzkawkaTokenEditor({ kind, label, placeholder, value = "", onCha
     onChange(kind === "extensions" ? serializeCzkawkaExtensionTokens(next) : serializeCzkawkaPaths(next))
   }
   return <section aria-label={label} className="grid gap-1.5">
-    <div className="flex items-center justify-between gap-2"><span className="text-xs font-medium">{label}</span><Button aria-label={t("sources.reset", "重置{{label}}", { label })} disabled={!tokens.length} size="icon-sm" variant="ghost" onClick={() => onChange("")}><RotateCcw /></Button></div>
+    <div className="flex items-center justify-between gap-2"><span className="text-xs font-medium">{label}</span><div className="flex items-center gap-1">{kind === "rules" ? <Button aria-label={t("sources.addTrashPreset", "添加 $TRASH 排除预设")} disabled={tokens.includes("$TRASH")} size="icon-sm" variant="outline" onClick={() => onChange(serializeCzkawkaPaths(addCzkawkaPaths(tokens, "$TRASH", false)))}><Trash2 /></Button> : null}<Button aria-label={t("sources.reset", "重置{{label}}", { label })} disabled={!tokens.length} size="icon-sm" variant="ghost" onClick={() => onChange("")}><RotateCcw /></Button></div></div>
     <Textarea aria-label={t("sources.input", "{{label}}输入", { label })} className="min-h-16 resize-y font-mono text-xs" placeholder={placeholder} value={value} onChange={(event) => onChange(event.currentTarget.value)} />
-    {tokens.length ? <div className="flex flex-wrap gap-1">{tokens.map((token) => { const invalid = kind === "extensions" ? !isValidCzkawkaExtensionToken(token) : !isValidCzkawkaExcludedItem(token); return <Badge key={token} variant={invalid ? "destructive" : "secondary"} className="gap-1 font-mono" title={invalid ? kind === "rules" ? t("sources.invalidRule", "Czkawka 排除规则必须包含 *，或使用 DEFAULT") : t("sources.invalidExtension", "扩展名不能包含点号或空格") : undefined}><span>{token}</span><button type="button" aria-label={t("sources.removeToken", "移除 {{token}}", { token })} onClick={() => remove(token)}><X className="size-3" /></button></Badge> })}</div> : null}
+    {tokens.length ? <div className="flex flex-wrap gap-1">{tokens.map((token) => { const invalid = kind === "extensions" ? !isValidCzkawkaExtensionToken(token) : !isValidCzkawkaExcludedItem(token); return <Badge key={token} variant={invalid ? "destructive" : "secondary"} className="gap-1 font-mono" title={invalid ? kind === "rules" ? t("sources.invalidRule", "Czkawka 排除规则必须包含 *，或使用 DEFAULT/$TRASH") : t("sources.invalidExtension", "扩展名不能包含点号或空格") : undefined}><span>{token}</span><button type="button" aria-label={t("sources.removeToken", "移除 {{token}}", { token })} onClick={() => remove(token)}><X className="size-3" /></button></Badge> })}</div> : null}
   </section>
 }

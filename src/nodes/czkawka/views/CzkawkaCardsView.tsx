@@ -42,7 +42,7 @@ function SourceSettingsCard(props: CzkawkaView) {
       </TabsList>
       <TabsContent value="paths" className="mt-0 grid gap-3">
         <ScanPresetManager {...props} />
-        <CzkawkaDirectoryEditor kind="included" label={props.t("sources.included", "包含目录")} value={props.data.includedDirectoriesText} referenceValue={props.data.includedDirectoriesReferencedText} referenceKeywords={props.data.referencePathKeywords ?? "#compare"} pickDirectory={props.pickDirectory} pickDirectories={props.pickDirectories} onChange={(includedDirectoriesText) => props.patch({ includedDirectoriesText })} onReferenceChange={(includedDirectoriesReferencedText) => props.patch({ includedDirectoriesReferencedText })} />
+        <CzkawkaDirectoryEditor kind="included" label={props.t("sources.included", "包含目录")} value={props.data.includedDirectoriesText} referenceValue={props.data.includedDirectoriesReferencedText} referenceKeywords={props.data.referencePathKeywords ?? "#compare"} pickFiles={props.pickFiles} pickDirectory={props.pickDirectory} pickDirectories={props.pickDirectories} onChange={(includedDirectoriesText) => props.patch({ includedDirectoriesText })} onReferenceChange={(includedDirectoriesReferencedText) => props.patch({ includedDirectoriesReferencedText })} />
         <CzkawkaDirectoryEditor kind="excluded" label={props.t("sources.excluded", "排除目录")} value={props.data.excludedDirectoriesText} pickDirectory={props.pickDirectory} pickDirectories={props.pickDirectories} onChange={(excludedDirectoriesText) => props.patch({ excludedDirectoriesText })} />
       </TabsContent>
       <TabsContent value="algorithm" className="mt-0 grid gap-3">

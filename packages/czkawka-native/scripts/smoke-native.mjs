@@ -30,7 +30,7 @@ try {
     throw new Error(`Unexpected duplicate result: ${JSON.stringify(result)}`)
   }
   console.log(JSON.stringify({ duplicateGroups: result.groups.length }))
-  const basic = await scanBasicFiles({ tool: "empty-files", includedDirectories: [directory], minimumFileSize: 0, useCache: false })
+  const basic = await scanBasicFiles({ tool: "empty-files", includedDirectories: [join(directory, "empty.bin")], minimumFileSize: 0, useCache: false })
   if (!basic.entries.some((entry) => entry.path.endsWith("empty.bin"))) {
     throw new Error(`Unexpected basic result: ${JSON.stringify(basic)}`)
   }

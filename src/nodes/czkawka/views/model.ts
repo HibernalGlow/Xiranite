@@ -1,3 +1,4 @@
+import type { NodeLocalFilesCapability } from "@xiranite/contract"
 import type { CzkawkaAction, CzkawkaData, CzkawkaInput, CzkawkaSelectionStrategy, CzkawkaTool } from "@xiranite/node-czkawka/core"
 import { createCzkawkaScanInput } from "@xiranite/node-czkawka/tool-options"
 import type { CzkawkaActivityLogEntry } from "@xiranite/node-czkawka/activity-log"
@@ -41,6 +42,7 @@ export interface CzkawkaView {
   t: (key: string, fallback: string, vars?: Record<string, unknown>) => string
   language: "zh" | "en"
   getFileUrl?: (path: string) => string
+  pickFiles?: NodeLocalFilesCapability["pickFiles"]
   pickDirectory?: () => Promise<string | undefined>
   pickDirectories?: () => Promise<string[]>
   copyText?: (text: string) => Promise<void>

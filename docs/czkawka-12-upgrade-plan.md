@@ -359,7 +359,7 @@ Recommended order:
 
 Do not expose a control before the runtime advertises its capability.
 
-Status: the similar-image, similar-video, broken-files, empty-files, and temporary-files GUI vertical slices are complete. CLI and OpenTUI retain their existing option surface and receive no new 12.0 controls or release-validation obligation.
+Status: the similar-image, similar-video, broken-files, empty-files, temporary-files, and shared-input GUI vertical slices are complete. CLI and OpenTUI retain their existing option surface and receive no new 12.0 controls or release-validation obligation.
 
 Completed similar-video evidence:
 
@@ -385,6 +385,12 @@ Completed temporary-files evidence:
 - The framework-neutral TypeScript contract preserves Czkawka's suffix semantics, including `#`, `.bak`, and `thumbs.db`, while normalizing custom entries without imposing generic-extension validation rules.
 - `temporary-files.custom-extensions` keeps the editable suffix field hidden until supported and rejects an explicitly customized persisted set before a legacy binding could silently use its built-in list. The stable default set remains compatible with the legacy behavior.
 - The native adapter turns the stable string into a `TemporaryParameters.extensions` vector only inside `upstream/basic.rs`. Release-binding smoke finds a custom `.xiranite-tmp` file, and embedded smoke loads the refreshed ZIP with the capability.
+
+Completed shared-input evidence:
+
+- The framework-neutral list contract preserves individual included paths and accepts Czkawka's `$TRASH` exclusion macro alongside `DEFAULT` and wildcard rules.
+- The GUI exposes a native file-picker action only for included paths and writes selected files through the existing reference-aware list model. The rules editor provides an accessible `$TRASH` preset action without adding a terminal-only option surface.
+- Browser Mode verifies both persisted GUI interactions. The release-binding smoke scans a single included empty file, proving that the upstream path adapter handles files as well as directories.
 
 ### Phase 4: Add missing tools behind safe operation contracts
 

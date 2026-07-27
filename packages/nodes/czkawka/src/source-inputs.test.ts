@@ -37,5 +37,6 @@ describe("Czkawka source input model", () => {
     expect(isValidCzkawkaExcludedItem("cache")).toBe(false)
     expect(isValidCzkawkaExcludedItem("*/cache/*")).toBe(true)
     expect(isValidCzkawkaExcludedItem("DEFAULT")).toBe(true)
+    expect(isValidCzkawkaExcludedItem("$TRASH")).toBe(true)
   })
 })
