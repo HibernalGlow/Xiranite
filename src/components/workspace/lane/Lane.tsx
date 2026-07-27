@@ -257,6 +257,7 @@ export function Lane({ lane, components, active = false, solo = false, soloWidth
       {/* 内容区：card 列表 */}
       <div
         data-lane-drop-zone={lane.id}
+        data-scrollbar="hidden"
         className={cn(
           "flex-1 overflow-y-auto p-2 space-y-2 min-h-0 transition-colors",
           isModuleOver ? "bg-primary/10 ring-1 ring-inset ring-primary/40" : undefined,
