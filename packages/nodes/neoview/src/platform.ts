@@ -396,11 +396,18 @@ export async function createReaderHttpController(
   )
   const useDefaultDataStore = options.legacyThumbnailDatabasePath !== false
     && (typeof options.legacyThumbnailDatabasePath === "string" || options.useDefaultLegacyProgressStore)
-  const dataStore = useDefaultDataStore
-    ? await createSqliteReaderDataStore(await legacyNeoViewDatabasePath(
-        typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined,
-      ))
+  const readerDatabasePath = useDefaultDataStore
+    ? await legacyNeoViewDatabasePath(typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined)
     : undefined
+  const dataStore = readerDatabasePath
+    ? await createSqliteReaderDataStore(readerDatabasePath)
+    : undefined
+  const startupStateStore = options.startupStateStore ?? (readerDatabasePath
+    ? await createSqliteReaderStartupStateStore(readerDatabasePath)
+    : undefined)
+  const disposeStartupStateStore = options.disposeStartupStateStore ?? (startupStateStore && startupStateStore !== options.startupStateStore
+    ? () => startupStateStore.close()
+    : undefined)
   const { LegacyEmmDataLocator } = await import("./application/data/LegacyEmmDataLocator.js")
   const { openReadonlyLegacyEmmRecordStore, probeReadonlyLegacyEmmDatabases } = await import("./platform/emm/ReadonlyLegacyEmmRecordStore.js")
   const { ReloadableReadonlyLegacyEmmStore } = await import("./platform/emm/ReloadableReadonlyLegacyEmmStore.js")
@@ -748,6 +755,8 @@ export async function createReaderHttpController(
         : typeof options.legacyThumbnailDatabasePath === "string" ? options.legacyThumbnailDatabasePath : undefined,
     }),
     thumbnailStore,
+    startupStateStore,
+    disposeStartupStateStore,
     disposeThumbnailStore: async () => {
       try {
         await disposeThumbnailStore?.()
@@ -1249,6 +1258,11 @@ function isReaderFileTreeDataStore(store: ReaderSearchHistoryStore | undefined):
 async function createSqliteReaderDataStore(databasePath: string): Promise<ReaderDataStore & ReaderDirectorySortPreferenceStore & ReaderDirectoryEmmRecordStore & ReaderEmmTagCatalogStore & ReaderEmmOverrideStore> {
   const { SqliteReaderDataStore } = await import("./platform/persistence/SqliteReaderDataStore.js")
   return SqliteReaderDataStore.open(databasePath)
+}
+
+async function createSqliteReaderStartupStateStore(databasePath: string): Promise<import("./ports/ReaderStartupStateStore.js").ReaderStartupStateStore> {
+  const { SqliteReaderStartupStateStore } = await import("./platform/persistence/SqliteReaderStartupStateStore.js")
+  return SqliteReaderStartupStateStore.open(databasePath)
 }
 
 async function createDefaultPresentationDiskCache(

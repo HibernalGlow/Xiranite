@@ -27,6 +27,7 @@ import type { ReaderProgressStore } from "../../ports/ReaderProgressStore.js"
 import type { ReaderMediaProgressStore } from "../../ports/ReaderMediaProgressStore.js"
 import type { ReaderSearchHistoryStore } from "../../ports/ReaderSearchHistoryStore.js"
 import type { ReaderFileUndoJournalStore } from "../../ports/ReaderFileUndoJournalStore.js"
+import type { ReaderStartupStateStore } from "../../ports/ReaderStartupStateStore.js"
 import type { ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStore.js"
 import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
@@ -259,6 +260,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     fileUndoJournalStore?: ReaderFileUndoJournalStore
     fileOperationService?: import("../../application/files/ReaderFileOperationService.js").ReaderFileOperationService
     allowArchiveEntryDeletion?: boolean
+    startupStateStore?: ReaderStartupStateStore
+    disposeStartupStateStore?: () => void | Promise<void>
     folderRatingService?: ReaderFolderRatingService
     disposeLibraryService?: boolean
     presentationDiskCache?: ReaderPresentationDiskCache
