@@ -1,11 +1,9 @@
-import { inflateRaw } from "node:zlib"
-import { copyFile, mkdir, open, readdir, stat, writeFile } from "node:fs/promises"
+import { copyFile, mkdir, readdir, stat, writeFile } from "node:fs/promises"
 import { basename, dirname, extname, join, resolve } from "node:path"
-import { promisify } from "node:util"
+import { Uint8ArrayWriter, ZipReader, type Entry, type FileEntry } from "@zip.js/zip.js/index-native.js"
 import type { CoveruArchiveEntry, CoveruRuntime } from "./core.js"
 import { isSupportedCoveruArchive } from "./core.js"
-
-const inflateRawAsync = promisify(inflateRaw)
+import { CoveruZipFileReader } from "./zip-file-reader.js"
 
 export function createNodeCoveruRuntime(): CoveruRuntime {
   return {
@@ -43,75 +41,39 @@ async function listDir(path: string) {
 
 async function listArchiveEntries(path: string): Promise<CoveruArchiveEntry[]> {
   if (!isSupportedCoveruArchive(path)) return []
-  return readZipCentralDirectory(path)
+  return await withZipEntries(path, async (entries) => entries.flatMap((entry) => {
+    if (entry.directory || !entry.filename) return []
+    return [{
+      name: basename(entry.filename),
+      path: entry.filename,
+      size: entry.uncompressedSize,
+      compressedSize: entry.compressedSize,
+      method: entry.compressionMethod,
+    }]
+  }))
 }
 
 async function extractArchiveEntry(archivePath: string, entryPath: string, outputPath: string): Promise<void> {
-  const entries = await readZipCentralDirectory(archivePath)
-  const entry = entries.find((item) => item.path === entryPath)
-  if (!entry) throw new Error(`Archive entry not found: ${entryPath}`)
-  const data = await readZipEntryData(archivePath, entry)
+  const data = await withZipEntries(archivePath, async (entries) => {
+    const entry = entries.find((item): item is FileEntry => !item.directory && item.filename === entryPath)
+    if (!entry) throw new Error(`Archive entry not found: ${entryPath}`)
+    return await entry.getData(new Uint8ArrayWriter(), {
+      checkSignature: true,
+      useCompressionStream: true,
+      useWebWorkers: false,
+    })
+  })
   await mkdir(dirname(outputPath), { recursive: true })
   await writeFile(outputPath, data)
 }
 
-async function readZipCentralDirectory(path: string): Promise<Array<CoveruArchiveEntry & { localHeaderOffset: number }>> {
-  const handle = await open(path, "r")
+async function withZipEntries<T>(path: string, action: (entries: readonly Entry[]) => Promise<T>): Promise<T> {
+  const fileReader = new CoveruZipFileReader(path)
+  const zipReader = new ZipReader(fileReader, { useCompressionStream: true, useWebWorkers: false })
   try {
-    const info = await handle.stat()
-    const tailLength = Math.min(info.size, 66000)
-    const tail = Buffer.alloc(tailLength)
-    await handle.read(tail, 0, tailLength, info.size - tailLength)
-    const eocd = findLastSignature(tail, 0x06054b50)
-    if (eocd < 0) return []
-    const centralOffset = tail.readUInt32LE(eocd + 16)
-    const centralSize = tail.readUInt32LE(eocd + 12)
-    const central = Buffer.alloc(centralSize)
-    await handle.read(central, 0, centralSize, centralOffset)
-    const entries: Array<CoveruArchiveEntry & { localHeaderOffset: number }> = []
-    let offset = 0
-    while (offset <= central.length - 46 && central.readUInt32LE(offset) === 0x02014b50) {
-      const method = central.readUInt16LE(offset + 10)
-      const compressedSize = central.readUInt32LE(offset + 20)
-      const size = central.readUInt32LE(offset + 24)
-      const nameLength = central.readUInt16LE(offset + 28)
-      const extraLength = central.readUInt16LE(offset + 30)
-      const commentLength = central.readUInt16LE(offset + 32)
-      const localHeaderOffset = central.readUInt32LE(offset + 42)
-      const name = central.subarray(offset + 46, offset + 46 + nameLength).toString("utf8")
-      if (name && !name.endsWith("/")) {
-        entries.push({ name: basename(name), path: name, size, compressedSize, method, localHeaderOffset })
-      }
-      offset += 46 + nameLength + extraLength + commentLength
-    }
-    return entries
+    return await action(await zipReader.getEntries())
   } finally {
-    await handle.close()
+    await zipReader.close().catch(() => undefined)
+    await fileReader.close().catch(() => undefined)
   }
-}
-
-async function readZipEntryData(path: string, entry: CoveruArchiveEntry & { localHeaderOffset: number }): Promise<Buffer> {
-  const handle = await open(path, "r")
-  try {
-    const header = Buffer.alloc(30)
-    await handle.read(header, 0, 30, entry.localHeaderOffset)
-    if (header.readUInt32LE(0) !== 0x04034b50) throw new Error(`Invalid local header for ${entry.path}`)
-    const nameLength = header.readUInt16LE(26)
-    const extraLength = header.readUInt16LE(28)
-    const dataOffset = entry.localHeaderOffset + 30 + nameLength + extraLength
-    const compressed = Buffer.alloc(entry.compressedSize)
-    await handle.read(compressed, 0, entry.compressedSize, dataOffset)
-    if (entry.method === 0) return compressed
-    if (entry.method === 8) return await inflateRawAsync(compressed)
-    throw new Error(`Unsupported zip compression method ${entry.method} for ${entry.path}`)
-  } finally {
-    await handle.close()
-  }
-}
-
-function findLastSignature(buffer: Buffer, signature: number): number {
-  for (let index = buffer.length - 4; index >= 0; index -= 1) {
-    if (buffer.readUInt32LE(index) === signature) return index
-  }
-  return -1
 }
