@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, test } from "vitest"
 import { randomUUID } from "node:crypto"
-import { lstat, mkdir, rm, writeFile } from "node:fs/promises"
+import { lstat, mkdir, rm, symlink, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { join, resolve } from "node:path"
 import type { CliHost } from "@xiranite/cli-runtime"
 import { runProgram } from "./cli.js"
-import type { LinkuResult } from "./core.js"
+import { dumpLinkRecords, type LinkuResult } from "./core.js"
 
 const RUN_ROOT = resolve("artifacts/test-runs/linku-cli")
 const cases = new Set<string>()
@@ -67,18 +67,57 @@ describe("linku CLI", () => {
     expect(list.data?.links[0]?.link).toBe(fixture.link)
     expect(list.data?.links[0]?.target).toBe(fixture.source)
   })
+
+  test("imports only real legacy links by default", async () => {
+    const fixture = await createFixture("legacy-import")
+    await symlink(fixture.source, fixture.link, process.platform === "win32" ? "junction" : "dir")
+    await writeFile(fixture.legacyConfig, dumpLinkRecords([
+      { link: fixture.link, target: fixture.source, type: "directory", createdAt: "valid" },
+      { link: join(fixture.root, "missing-link"), target: join(fixture.root, "missing-target"), type: "directory", createdAt: "invalid" },
+    ]), "utf8")
+    const host = createHost()
+
+    await runProgram(["import", "--path", fixture.legacyConfig, "--configPath", fixture.config, "--json"], host)
+
+    const result = JSON.parse(host.stdoutText()) as LinkuResult
+    expect(result.success).toBe(true)
+    expect(result.data?.importedCount).toBe(1)
+    expect(result.data?.skippedCount).toBe(1)
+
+    const listHost = createHost()
+    await runProgram(["list", "--configPath", fixture.config, "--json"], listHost)
+    const list = JSON.parse(listHost.stdoutText()) as LinkuResult
+    expect(list.data?.links).toEqual([
+      expect.objectContaining({ link: fixture.link, target: fixture.source }),
+    ])
+  })
+
+  test("imports invalid legacy records when --includeInvalid is set", async () => {
+    const fixture = await createFixture("legacy-import-invalid")
+    const missing = { link: join(fixture.root, "missing-link"), target: join(fixture.root, "missing-target"), type: "directory", createdAt: "invalid" }
+    await writeFile(fixture.legacyConfig, dumpLinkRecords([missing]), "utf8")
+    const host = createHost()
+
+    await runProgram(["import", "--path", fixture.legacyConfig, "--configPath", fixture.config, "--includeInvalid", "--json"], host)
+
+    const result = JSON.parse(host.stdoutText()) as LinkuResult
+    expect(result.success).toBe(true)
+    expect(result.data?.importedCount).toBe(1)
+    expect(result.data?.skippedCount).toBe(0)
+  })
 })
 
-async function createFixture(name: string): Promise<{ root: string; source: string; link: string; config: string; file: string }> {
+async function createFixture(name: string): Promise<{ root: string; source: string; link: string; config: string; legacyConfig: string; file: string }> {
   const root = resolve(RUN_ROOT, `${name}-${randomUUID()}`)
   const source = join(root, "source")
   const link = join(root, "linked")
   const config = join(root, "linku.toml")
+  const legacyConfig = join(root, "legacy-linku.toml")
   const file = join(source, "file.txt")
   await mkdir(source, { recursive: true })
   await writeFile(file, "hello", "utf8")
   cases.add(root)
-  return { root, source, link, config, file }
+  return { root, source, link, config, legacyConfig, file }
 }
 
 function createHost(): CliHost & { stdoutText: () => string; stderrText: () => string } {

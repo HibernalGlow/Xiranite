@@ -1,6 +1,6 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
-export type LinkuAction = "info" | "create" | "move_link" | "list" | "recover"
+export type LinkuAction = "info" | "create" | "move_link" | "list" | "recover" | "import"
 export type LinkuPathKind = "file" | "dir" | "missing" | "other"
 
 export interface LinkuInput {
@@ -8,6 +8,7 @@ export interface LinkuInput {
   path?: string
   target?: string
   configPath?: string
+  includeInvalid?: boolean
 }
 
 export interface LinkRecord {
@@ -34,10 +35,13 @@ export interface LinkuData {
   created: boolean
   recoveredCount: number
   failedCount: number
+  importedCount: number
+  skippedCount: number
 }
 
 export interface LinkuRuntime {
   pathInfo: (path: string) => Promise<LinkPathInfo>
+  isLiveLinkRecord?: (record: LinkRecord) => Promise<boolean>
   createSymlink: (source: string, link: string) => Promise<void>
   movePath: (source: string, target: string) => Promise<void>
   readConfig: (path?: string) => Promise<string | null>
@@ -52,6 +56,7 @@ export function normalizeLinkuInput(input: LinkuInput): Required<LinkuInput> {
     path: normalizePath(input.path),
     target: normalizePath(input.target),
     configPath: normalizePath(input.configPath),
+    includeInvalid: input.includeInvalid ?? false,
   }
 }
 
@@ -141,6 +146,11 @@ export async function runLinku(
     return success(`Found ${links.length} link record(s).`, { links, created: false, recoveredCount: 0, failedCount: 0 })
   }
 
+  if (normalized.action === "import") {
+    if (!normalized.path) return failure("Legacy Linku TOML path is required.")
+    return importLinkRecords(normalized.path, normalized.configPath, normalized.includeInvalid, runtime)
+  }
+
   if (normalized.action === "create") {
     if (!normalized.path || !normalized.target) return failure("Source and link paths are required.")
     const sourceInfo = await runtime.pathInfo(normalized.path)
@@ -187,6 +197,75 @@ export async function runLinku(
   return success(`Recovery completed: ${recoveredCount} recovered, ${failedCount} failed.`, { links, created: false, recoveredCount, failedCount })
 }
 
+async function importLinkRecords(
+  legacyPath: string,
+  configPath: string,
+  includeInvalid: boolean,
+  runtime: LinkuRuntime,
+): Promise<LinkuResult> {
+  const content = await runtime.readConfig(legacyPath)
+  if (content === null) return failure(`Legacy Linku TOML was not found: ${legacyPath}`)
+
+  const legacyRecords = parseLinkRecords(content)
+  const imported: LinkRecord[] = []
+  let skippedCount = 0
+
+  for (const record of legacyRecords) {
+    if (includeInvalid || await isLiveLinkRecord(record, runtime)) {
+      imported.push(record)
+    } else {
+      skippedCount += 1
+    }
+  }
+
+  if (imported.length) {
+    let merged = parseLinkRecords(await runtime.readConfig(configPath))
+    for (const record of imported) merged = upsertLinkRecord(merged, record)
+    await runtime.writeConfig(dumpLinkRecords(merged), configPath)
+  }
+
+  const skipped = skippedCount ? `; skipped ${skippedCount} invalid record(s)` : ""
+  return success(`Imported ${imported.length} link record(s) from ${legacyPath}${skipped}.`, {
+    links: imported,
+    created: false,
+    recoveredCount: 0,
+    failedCount: 0,
+    importedCount: imported.length,
+    skippedCount,
+  })
+}
+
+async function isLiveLinkRecord(record: LinkRecord, runtime: LinkuRuntime): Promise<boolean> {
+  if (runtime.isLiveLinkRecord) return runtime.isLiveLinkRecord(record)
+
+  try {
+    const [linkInfo, targetInfo] = await Promise.all([
+      runtime.pathInfo(record.link),
+      runtime.pathInfo(record.target),
+    ])
+    return linkInfo.exists
+      && linkInfo.isSymlink
+      && linkInfo.targetExists === true
+      && targetInfo.exists
+      && linkInfo.linkTarget !== undefined
+      && pathsMatch(linkInfo.linkTarget, record.target)
+  } catch {
+    return false
+  }
+}
+
+function pathsMatch(left: string, right: string): boolean {
+  return normalizeComparablePath(left) === normalizeComparablePath(right)
+}
+
+function normalizeComparablePath(path: string): string {
+  return normalizePath(path)
+    .replace(/^\\\\\?\\/, "")
+    .replace(/\//g, "\\")
+    .replace(/\\+$/, "")
+    .toLowerCase()
+}
+
 async function recordLink(runtime: LinkuRuntime, configPath: string, link: string, target: string, kind: string) {
   const records = parseLinkRecords(await runtime.readConfig(configPath))
   const next = upsertLinkRecord(records, {
@@ -202,7 +281,7 @@ function success(message: string, data: Partial<LinkuData>): LinkuResult {
   return {
     success: true,
     message,
-    data: { links: [], created: false, recoveredCount: 0, failedCount: 0, ...data },
+    data: { links: [], created: false, recoveredCount: 0, failedCount: 0, importedCount: 0, skippedCount: 0, ...data },
   }
 }
 
@@ -210,7 +289,7 @@ function failure(message: string): LinkuResult {
   return {
     success: false,
     message,
-    data: { links: [], created: false, recoveredCount: 0, failedCount: 0 },
+    data: { links: [], created: false, recoveredCount: 0, failedCount: 0, importedCount: 0, skippedCount: 0 },
   }
 }
 

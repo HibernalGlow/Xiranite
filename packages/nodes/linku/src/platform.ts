@@ -10,7 +10,7 @@ import {
   stripBom,
   updateNodeConfigFile,
 } from "@xiranite/config"
-import type { LinkPathInfo, LinkuRuntime } from "./core.js"
+import type { LinkPathInfo, LinkRecord, LinkuRuntime } from "./core.js"
 
 interface LinkuNodeConfig {
   enabled?: boolean
@@ -21,6 +21,7 @@ export function createNodeLinkuRuntime(configPath?: string): LinkuRuntime {
   const resolvedConfigPath = configPath ?? resolveXiraniteConfigPath()
   return {
     pathInfo,
+    isLiveLinkRecord,
     createSymlink,
     movePath,
     readConfig: async (path) => readLinkuConfig(path || resolvedConfigPath),
@@ -165,6 +166,41 @@ async function pathInfo(path: string): Promise<LinkPathInfo> {
   const kind = stat.isDirectory() ? "dir" : stat.isFile() ? "file" : "other"
   const extra = kind === "dir" ? await directoryStats(resolved) : kind === "file" ? { sizeMb: stat.size / 1024 / 1024 } : {}
   return { path: resolved, exists: true, kind, isSymlink, linkTarget, targetExists, ...extra }
+}
+
+async function isLiveLinkRecord(record: LinkRecord): Promise<boolean> {
+  const linkPath = resolve(record.link)
+  let linkStat
+  try {
+    linkStat = await lstat(linkPath)
+  } catch {
+    return false
+  }
+  if (!linkStat.isSymbolicLink()) return false
+
+  let actualTarget
+  try {
+    const { readlink } = await import("node:fs/promises")
+    actualTarget = resolve(dirname(linkPath), await readlink(linkPath))
+  } catch {
+    return false
+  }
+
+  const expectedTarget = resolve(record.target)
+  if (!pathsMatch(actualTarget, expectedTarget)) return false
+  return await exists(actualTarget) && await exists(expectedTarget)
+}
+
+function pathsMatch(left: string, right: string): boolean {
+  return left
+    .replace(/^\\\\\?\\/, "")
+    .replace(/\//g, "\\")
+    .replace(/\\+$/, "")
+    .toLowerCase() === right
+      .replace(/^\\\\\?\\/, "")
+      .replace(/\//g, "\\")
+      .replace(/\\+$/, "")
+      .toLowerCase()
 }
 
 async function createSymlink(source: string, link: string): Promise<void> {
