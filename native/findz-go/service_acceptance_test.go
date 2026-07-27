@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"image"
 	"image/color"
 	"image/gif"
@@ -276,6 +277,57 @@ func TestFindzProtocolErrorsUseStructuredEnvelopes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFindzCachesSuccessfulMutatingRequestsByID(t *testing.T) {
+	root := t.TempDir()
+	createZipFixture(t, filepath.Join(root, "sample.cbz"), []zipFixture{{name: "page.png", contents: pngFixture(t, 8, 8)}})
+	service := newFindzService()
+	libraryID := "idempotency-library"
+	databasePath := filepath.Join(t.TempDir(), "findz.sqlite")
+
+	openResponse := service.handle(marshalTestRequest(t, "open-once", "library.open", libraryOpenParams{LibraryID: libraryID, Root: root, DatabasePath: databasePath}))
+	if !openResponse.OK {
+		t.Fatalf("open library request failed: %#v", openResponse)
+	}
+	t.Cleanup(func() { _ = service.closeLibrary(libraryID) })
+
+	request := marshalTestRequest(t, "scan-once", "scan.start", scanParams{LibraryID: libraryID})
+	first := service.handle(request)
+	second := service.handle(request)
+	if !first.OK || !second.OK {
+		t.Fatalf("expected cached scan response, got %#v then %#v", first, second)
+	}
+	firstTask, firstOK := first.Result.(taskRecord)
+	secondTask, secondOK := second.Result.(taskRecord)
+	if !firstOK || !secondOK || firstTask.ID == "" || firstTask.ID != secondTask.ID {
+		t.Fatalf("expected the duplicate request to return its original task, got %#v then %#v", first.Result, second.Result)
+	}
+
+	runtime, err := service.library(libraryID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var taskCount int
+	if err := runtime.db.QueryRow(`SELECT COUNT(*) FROM task WHERE kind = 'scan'`).Scan(&taskCount); err != nil {
+		t.Fatal(err)
+	}
+	if taskCount != 1 {
+		t.Fatalf("expected one scan task after a duplicate request, got %d", taskCount)
+	}
+}
+
+func marshalTestRequest(t *testing.T, requestID string, method string, params interface{}) []byte {
+	t.Helper()
+	paramsJSON, err := json.Marshal(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := json.Marshal(requestEnvelope{RequestVersion: findzRequestVersion, RequestID: requestID, Method: method, Params: paramsJSON})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return request
 }
 
 func markZipMemberEncrypted(t *testing.T, path string, memberName string) {

@@ -156,6 +156,17 @@ test("renders a direct unsupported archive state", async () => {
   await expect.element(page.getByText("Unsupported archive")).toBeVisible()
 })
 
+test("retries a selected budget-exceeded member with the deep analysis scope", async () => {
+  const host = createHost({ libraryRoot: "D:/library" }, { budgetExceeded: true })
+
+  await render(<Component compId="findz-deep-retry-browser" host={host} />)
+  await page.getByRole("button", { name: "Open library" }).click()
+  await page.getByTestId("findz-archive-7").click()
+  await page.getByRole("button", { name: "Retry metadata with a deeper read" }).click()
+
+  await expect.poll(() => host.calls.filter((call) => call.action === "analyze").at(-1)?.analysisScope).toEqual({ kind: "members", memberIds: [8], deepRetry: true })
+})
+
 test("renders the workspace controls in Chinese after switching language", async () => {
   await changeLanguage("zh")
   const host = createHost({ libraryRoot: "D:/library" })
@@ -171,7 +182,7 @@ type TestHost = NodeHostApi<FindzCardState, Partial<FindzCardState>> & {
   task?: FindzTask
 }
 
-function createHost(initial: FindzCardState, options: { empty?: boolean; unsupported?: boolean; failActions?: FindzInput["action"][] } = {}): TestHost {
+function createHost(initial: FindzCardState, options: { empty?: boolean; unsupported?: boolean; budgetExceeded?: boolean; failActions?: FindzInput["action"][] } = {}): TestHost {
   const host = {
     stateValue: { ...initial },
     calls: [] as FindzInput[],
@@ -192,7 +203,7 @@ function createHost(initial: FindzCardState, options: { empty?: boolean; unsuppo
   return host as unknown as TestHost
 }
 
-function responseFor(input: FindzInput, host: TestHost, options: { empty?: boolean; unsupported?: boolean }): FindzData {
+function responseFor(input: FindzInput, host: TestHost, options: { empty?: boolean; unsupported?: boolean; budgetExceeded?: boolean }): FindzData {
   if (input.action === "open_library") return { action: input.action, library: { libraryId: "library-1", root: "D:/library", databasePath: "D:/index.sqlite", archiveCount: options.empty ? 0 : 1, memberCount: options.empty ? 0 : 1, watcherHealth: "healthy", analysisPolicy: "image-header-v1" } }
   if (input.action === "analyze") {
     host.task = taskFixture("running")
@@ -208,7 +219,7 @@ function responseFor(input: FindzInput, host: TestHost, options: { empty?: boole
     const secondPage = input.query?.page?.cursor === "page-2"
     return { action: input.action, archives: { total: 2, nextCursor: secondPage ? undefined : "page-2", items: [{ id: secondPage ? 8 : 7, relativePath: secondPage ? "second.cbz" : "sample.cbz", size: 4_096, modifiedAt: "2026-07-27T00:00:00Z", scanState: options.unsupported ? "unsupported_archive" : "indexed", errorCode: options.unsupported ? "unsupported_archive" : "", memberCount: 1, imageMemberCount: 1, analyzedImageCount: 0, compressedImageBytes: 4_000, averageImageBytes: 0, averageBytesPerMegapixel: 0, medianBytesPerMegapixel: 0, anomalyCount: 0, estimatedSavingsBytes: 0 }] } }
   }
-  if (input.action === "query_members") return { action: input.action, members: { total: 1, items: [{ id: 8, archiveId: 7, memberPath: "pages/cover.png", compressedSize: 4_000, uncompressedSize: 4_000, compressionMethod: 8, crc32: 1, extension: "png", imageCandidate: true, nestedArchive: false, encrypted: false, estimatedSavingsBytes: 0 }] } }
+  if (input.action === "query_members") return { action: input.action, members: { total: 1, items: [{ id: 8, archiveId: 7, memberPath: "pages/cover.png", compressedSize: 4_000, uncompressedSize: 4_000, compressionMethod: 8, crc32: 1, extension: "png", imageCandidate: true, nestedArchive: false, metadataStatus: options.budgetExceeded ? "metadata_budget_exceeded" : undefined, metadataErrorCode: options.budgetExceeded ? "metadata_budget_exceeded" : undefined, estimatedSavingsBytes: 0 }] } }
   if (input.action === "treemap") return { action: input.action, treemap: { id: "root", name: "Library", value: 8_192, color: 0, children: options.empty ? [] : [{ id: "folder:series", name: "series", value: 4_096, color: 0, children: [{ id: "archive:7", name: "sample.cbz", value: 4_096, color: 0, archiveId: 7 }] }, { id: "archive:8", name: "second.cbz", value: 4_096, color: 0, archiveId: 8 }] } }
   return { action: input.action ?? "query_archives" }
 }

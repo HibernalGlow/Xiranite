@@ -3,7 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
+)
+
+const (
+	maximumRequestIDBytes   = 256
+	maximumMutationReceipts = 1_024
 )
 
 type findzService struct {
@@ -11,12 +17,16 @@ type findzService struct {
 	libraries               map[string]*libraryRuntime
 	taskControls            map[string]*taskController
 	activeImageAnalysisTask string
+	mutationMu              sync.Mutex
+	mutationReceipts        map[string]responseEnvelope
+	mutationReceiptOrder    []string
 }
 
 func newFindzService() *findzService {
 	return &findzService{
-		libraries:    make(map[string]*libraryRuntime),
-		taskControls: make(map[string]*taskController),
+		libraries:        make(map[string]*libraryRuntime),
+		taskControls:     make(map[string]*taskController),
+		mutationReceipts: make(map[string]responseEnvelope),
 	}
 }
 
@@ -31,7 +41,49 @@ func (service *findzService) handle(raw []byte) responseEnvelope {
 	if request.Method == "" {
 		return failure(request.RequestID, "invalid_request", fmt.Errorf("request method is required"), false, nil)
 	}
+	if len(request.RequestID) > maximumRequestIDBytes {
+		return failure("", "invalid_request", fmt.Errorf("request id exceeds %d bytes", maximumRequestIDBytes), false, nil)
+	}
+	if isMutationMethod(request.Method) {
+		if strings.TrimSpace(request.RequestID) == "" {
+			return failure("", "invalid_request", fmt.Errorf("request id is required for mutating method %s", request.Method), false, nil)
+		}
+		return service.dispatchMutation(request)
+	}
 	return service.dispatch(request)
+}
+
+func (service *findzService) dispatchMutation(request requestEnvelope) responseEnvelope {
+	service.mutationMu.Lock()
+	defer service.mutationMu.Unlock()
+	if cached, found := service.mutationReceipts[request.RequestID]; found {
+		return cached
+	}
+	response := service.dispatch(request)
+	if response.OK {
+		service.rememberMutation(request.RequestID, response)
+	}
+	return response
+}
+
+func (service *findzService) rememberMutation(requestID string, response responseEnvelope) {
+	service.mutationReceipts[requestID] = response
+	service.mutationReceiptOrder = append(service.mutationReceiptOrder, requestID)
+	if len(service.mutationReceiptOrder) <= maximumMutationReceipts {
+		return
+	}
+	oldest := service.mutationReceiptOrder[0]
+	service.mutationReceiptOrder = service.mutationReceiptOrder[1:]
+	delete(service.mutationReceipts, oldest)
+}
+
+func isMutationMethod(method string) bool {
+	switch method {
+	case "library.open", "library.close", "scan.start", "scan.reconcile", "watcher.apply_changes", "watcher.set_health", "analysis.start", "task.pause", "task.resume", "task.cancel":
+		return true
+	default:
+		return false
+	}
 }
 
 func (service *findzService) dispatch(request requestEnvelope) responseEnvelope {

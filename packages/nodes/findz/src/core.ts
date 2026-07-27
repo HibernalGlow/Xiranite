@@ -1,6 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type {
   FindzApiInfo,
+  FindzAnalysisScope,
   FindzArchiveQuery,
   FindzArchiveRow,
   FindzLibraryOpenParams,
@@ -38,7 +39,7 @@ export interface FindzInput {
   pathPrefix?: string
   areaBy?: string
   query?: Omit<FindzArchiveQuery, "libraryId">
-  analysisScope?: { kind: "all" | "archives"; archiveIds?: number[] }
+  analysisScope?: FindzAnalysisScope
 }
 
 export interface FindzData {

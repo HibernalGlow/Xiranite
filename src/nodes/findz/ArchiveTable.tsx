@@ -1,15 +1,16 @@
 import type { FindzArchiveRow, FindzMemberRow } from "@xiranite/findz-native"
-import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Image, TriangleAlert } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Image, RefreshCw, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { formatBytes, formatDensity } from "./format"
 import type { FindzArchiveSort } from "./types"
 
-export function FindzArchiveTable({ archives, members, selectedArchiveId, sortBy, sortDesc, total, hasPreviousPage, hasNextPage, onSelectArchive, onSort, onPreviousPage, onNextPage }: {
+export function FindzArchiveTable({ archives, members, selectedArchiveId, sortBy, sortDesc, total, hasPreviousPage, hasNextPage, onSelectArchive, onDeepRetryMember, onSort, onPreviousPage, onNextPage }: {
   archives: FindzArchiveRow[]
   members?: FindzMemberRow[]
   selectedArchiveId?: number
@@ -19,6 +20,7 @@ export function FindzArchiveTable({ archives, members, selectedArchiveId, sortBy
   hasPreviousPage: boolean
   hasNextPage: boolean
   onSelectArchive(archiveId: number): void
+  onDeepRetryMember(memberId: number): void
   onSort(sort: FindzArchiveSort): void
   onPreviousPage(): void
   onNextPage(): void
@@ -54,6 +56,7 @@ export function FindzArchiveTable({ archives, members, selectedArchiveId, sortBy
               expanded={selectedArchiveId === archive.id}
               members={selectedArchiveId === archive.id ? members : undefined}
               onSelect={onSelectArchive}
+              onDeepRetryMember={onDeepRetryMember}
               t={t}
             />)}
             {!archives.length && <TableRow><TableCell colSpan={8} className="h-28 text-center text-sm text-muted-foreground">{t("workspace.table.empty", "Open a library, then run a ZIP scan to populate the index.")}</TableCell></TableRow>}
@@ -64,7 +67,7 @@ export function FindzArchiveTable({ archives, members, selectedArchiveId, sortBy
   )
 }
 
-function ArchiveRows({ archive, expanded, members, onSelect, t }: { archive: FindzArchiveRow; expanded: boolean; members?: FindzMemberRow[]; onSelect(archiveId: number): void; t: ReturnType<typeof useNodeI18n>["t"] }) {
+function ArchiveRows({ archive, expanded, members, onSelect, onDeepRetryMember, t }: { archive: FindzArchiveRow; expanded: boolean; members?: FindzMemberRow[]; onSelect(archiveId: number): void; onDeepRetryMember(memberId: number): void; t: ReturnType<typeof useNodeI18n>["t"] }) {
   return <>
     <TableRow
       aria-selected={expanded}
@@ -89,7 +92,7 @@ function ArchiveRows({ archive, expanded, members, onSelect, t }: { archive: Fin
       <TableCell className="text-right"><AnomalyBadge count={archive.anomalyCount} /></TableCell>
       <TableCell className="text-right tabular-nums text-muted-foreground">{formatBytes(archive.estimatedSavingsBytes)}</TableCell>
     </TableRow>
-    {expanded && <MemberRows members={members} t={t} />}
+    {expanded && <MemberRows members={members} onDeepRetryMember={onDeepRetryMember} t={t} />}
   </>
 }
 
@@ -105,7 +108,7 @@ function ArchiveScanState({ archive }: { archive: FindzArchiveRow }) {
   return <Badge variant="outline" className="shrink-0 text-[10px]" title={archive.errorCode || archive.scanState}>{label}</Badge>
 }
 
-function MemberRows({ members, t }: { members?: FindzMemberRow[]; t: ReturnType<typeof useNodeI18n>["t"] }) {
+function MemberRows({ members, onDeepRetryMember, t }: { members?: FindzMemberRow[]; onDeepRetryMember(memberId: number): void; t: ReturnType<typeof useNodeI18n>["t"] }) {
   if (!members) return <TableRow><TableCell colSpan={8} className="py-3 pl-12 text-xs text-muted-foreground">{t("workspace.table.loadingMembers", "Loading archive members...")}</TableCell></TableRow>
   if (!members.length) return <TableRow><TableCell colSpan={8} className="py-3 pl-12 text-xs text-muted-foreground">{t("workspace.table.noMembers", "This archive has no indexed members.")}</TableCell></TableRow>
   return <>
@@ -117,7 +120,12 @@ function MemberRows({ members, t }: { members?: FindzMemberRow[]; t: ReturnType<
       <TableCell className="text-right tabular-nums text-muted-foreground">{member.width && member.height ? `${member.width}x${member.height}` : member.metadataStatus || t("workspace.table.pending", "Pending")}</TableCell>
       <TableCell className="text-right tabular-nums text-muted-foreground">{formatDensity(member.bytesPerMegapixel)}</TableCell>
       <TableCell className="text-right">{member.anomalyKind && <Badge variant="outline" className="max-w-28 truncate text-[10px]">{member.anomalyKind}</Badge>}</TableCell>
-      <TableCell className="text-right tabular-nums text-muted-foreground">{formatBytes(member.estimatedSavingsBytes)}</TableCell>
+      <TableCell className="text-right tabular-nums text-muted-foreground">
+        <div className="flex items-center justify-end gap-1">
+          {formatBytes(member.estimatedSavingsBytes)}
+          {member.metadataStatus === "metadata_budget_exceeded" && <Tooltip><TooltipTrigger asChild><Button aria-label={t("workspace.table.deepRetry", "Retry metadata with a deeper read")} title={t("workspace.table.deepRetry", "Retry metadata with a deeper read")} variant="ghost" size="xs" className="size-6 p-0" onClick={() => onDeepRetryMember(member.id)}><RefreshCw /></Button></TooltipTrigger><TooltipContent>{t("workspace.table.deepRetryTooltip", "Retry with a larger read budget")}</TooltipContent></Tooltip>}
+        </div>
+      </TableCell>
     </TableRow>)}
   </>
 }

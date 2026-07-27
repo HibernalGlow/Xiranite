@@ -20,6 +20,24 @@ func TestFindzReadsPNGDimensionsWithoutConsumingThePrefixBudget(t *testing.T) {
 	}
 }
 
+func TestFindzAppliesTheDetectedFormatBudgetAfterTheExtensionHint(t *testing.T) {
+	if got := prefixBudgetForAnalysis("jpg", false); got != standardImagePrefixBudget {
+		t.Fatalf("expected a JPEG extension to start at the standard budget, got %d", got)
+	}
+	if got := prefixBudgetForFormat("avif", false); got != isoImagePrefixBudget {
+		t.Fatalf("expected an AVIF signature to receive the ISO budget, got %d", got)
+	}
+	if got := prefixBudgetForFormat("heif", true); got != deepISOImagePrefixBudget {
+		t.Fatalf("expected deep HEIF retry to receive the deep ISO budget, got %d", got)
+	}
+
+	reader := &metadataBudgetReader{remaining: standardImagePrefixBudget - metadataSniffBufferSize}
+	reader.setTotalBudget(standardImagePrefixBudget, isoImagePrefixBudget)
+	if want := int64(isoImagePrefixBudget - metadataSniffBufferSize); reader.remaining != want {
+		t.Fatalf("expected signature upgrade to preserve %d bytes of total ISO budget, got %d", want, reader.remaining)
+	}
+}
+
 type countingReader struct {
 	reader    io.Reader
 	bytesRead int64
