@@ -28,6 +28,12 @@ function branch(directDirectoryCount: number, directFileCount: number): ReaderFo
 }
 
 describe("canExpandPenetratedBranchInline", () => {
+  it("[neoview.folder.inline-branch-files] expands branches made of files or mixed direct items", () => {
+    expect(canExpandPenetratedBranchInline(penetration, branch(0, 2))).toBe(true)
+    expect(canExpandPenetratedBranchInline(penetration, branch(1, 1))).toBe(true)
+    expect(canExpandPenetratedBranchInline(penetration, branch(0, 1))).toBe(false)
+  })
+
   it("[neoview.folder.inline-branch-limits] rejects any configured direct-entry limit that is exceeded", () => {
     expect(canExpandPenetratedBranchInline(penetration, branch(2, 2))).toBe(true)
     expect(canExpandPenetratedBranchInline(penetration, branch(5, 0))).toBe(false)
