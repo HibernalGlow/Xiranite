@@ -32,4 +32,49 @@ describe("linku core", () => {
     expect(result.success).toBe(true)
     expect(parseLinkRecords(config)[0]?.link).toBe("link")
   })
+
+  test("imports only live legacy links by default", async () => {
+    const live = { link: "C:/linked", target: "D:/target", type: "directory", createdAt: "live" }
+    const missing = { link: "C:/missing", target: "D:/missing", type: "directory", createdAt: "missing" }
+    let currentConfig = ""
+    const runtime: LinkuRuntime = {
+      pathInfo: async (path) => {
+        if (path === live.link) {
+          return { path, exists: true, kind: "other", isSymlink: true, linkTarget: "d:/TARGET", targetExists: true }
+        }
+        if (path === live.target) return { path, exists: true, kind: "dir", isSymlink: false }
+        return { path, exists: false, kind: "missing", isSymlink: false }
+      },
+      createSymlink: async () => {},
+      movePath: async () => {},
+      readConfig: async (path) => path === "legacy.toml" ? dumpLinkRecords([live, missing]) : currentConfig,
+      writeConfig: async (content) => { currentConfig = content },
+    }
+
+    const result = await runLinku({ action: "import", path: "legacy.toml" }, runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data?.importedCount).toBe(1)
+    expect(result.data?.skippedCount).toBe(1)
+    expect(parseLinkRecords(currentConfig)).toEqual([live])
+  })
+
+  test("can retain invalid legacy links when explicitly requested", async () => {
+    const missing = { link: "C:/missing", target: "D:/missing", type: "directory", createdAt: "missing" }
+    let currentConfig = ""
+    const runtime: LinkuRuntime = {
+      pathInfo: async (path) => ({ path, exists: false, kind: "missing", isSymlink: false }),
+      createSymlink: async () => {},
+      movePath: async () => {},
+      readConfig: async (path) => path === "legacy.toml" ? dumpLinkRecords([missing]) : currentConfig,
+      writeConfig: async (content) => { currentConfig = content },
+    }
+
+    const result = await runLinku({ action: "import", path: "legacy.toml", includeInvalid: true }, runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data?.importedCount).toBe(1)
+    expect(result.data?.skippedCount).toBe(0)
+    expect(parseLinkRecords(currentConfig)).toEqual([missing])
+  })
 })

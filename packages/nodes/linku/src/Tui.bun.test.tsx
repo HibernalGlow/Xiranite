@@ -22,6 +22,8 @@ test("LinkU renders topology and lists in one click", async () => {
               created: false,
               recoveredCount: 0,
               failedCount: 0,
+              importedCount: 0,
+              skippedCount: 0,
             },
           }
         },

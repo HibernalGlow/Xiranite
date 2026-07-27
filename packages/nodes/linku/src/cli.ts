@@ -39,6 +39,7 @@ interface LinkuCliOptions {
   path?: string
   target?: string
   configPath?: string
+  includeInvalid?: boolean
   json?: boolean
 }
 
@@ -195,6 +196,19 @@ function createProgram(host: CliHost = createDefaultHost()) {
           await runAction({ action: "list", ...inputFromArgs(opts, defaults) }, Boolean(opts.json), host)
         },
       }),
+      import: defineCommand({
+        meta: { name: "import", description: "Import legacy linku.toml records; invalid links are skipped by default." },
+        args: commonArgs(),
+        async run({ args }) {
+          const opts = await resolveLinkuPathArgs(args as LinkuCliOptions, host)
+          await runAction({
+            action: "import",
+            path: opts.path,
+            configPath: opts.configPath,
+            includeInvalid: Boolean(opts.includeInvalid),
+          }, Boolean(opts.json), host)
+        },
+      }),
       recover: defineCommand({
         meta: { name: "recover", description: "Recover missing or incorrect recorded symlinks." },
         args: commonArgs(),
@@ -219,6 +233,7 @@ function commonArgs() {
     path: { type: "string", description: "Source path." },
     target: { type: "string", description: "Target path or symlink path." },
     configPath: { type: "string", description: "xiranite.config.toml path (defaults to XIRANITE_CONFIG_PATH / XIRANITE_DATA_DIR / system dir)." },
+    includeInvalid: { type: "boolean", description: "Import invalid or missing legacy records (default: false)." },
     json: { type: "boolean", description: "Print JSON result." },
   } as const
 }
@@ -432,6 +447,12 @@ function writeLinkuSummary(host: CliHost, result: LinkuResult): void {
     writeRichPanel(host, "Recovery Summary", [
       `${rich(host, "恢复", "green")}: ${data.recoveredCount}  ${rich(host, "失败", "red")}: ${data.failedCount}`,
     ], { color: data.failedCount ? "yellow" : "green", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+  }
+
+  if (data.importedCount > 0 || data.skippedCount > 0) {
+    writeRichPanel(host, "Import Summary", [
+      `${rich(host, "导入", "green")}: ${data.importedCount}  ${rich(host, "跳过", "yellow")}: ${data.skippedCount}`,
+    ], { color: data.skippedCount ? "yellow" : "green", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   }
 }
 
