@@ -42,6 +42,9 @@ func main() {
 		runNodeApp()
 		return
 	}
+	if err := registerExternalNodeLaunchProtocolForCurrentUser(); err != nil {
+		log.Printf("Xiranite URL protocol registration is unavailable: %v", err)
+	}
 	localBackend, err := StartLocalBackend()
 	if err != nil {
 		log.Printf("Xiranite local backend is unavailable: %v", err)

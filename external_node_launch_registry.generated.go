@@ -3,16 +3,16 @@
 package main
 
 var generatedExternalNodeLaunchDeclarations = map[string]externalNodeLaunchDeclaration{
-	"neoview": {
-		InstancePolicy:           "reuse",
-		RequiredHostCapabilities: []string{"contract", "state", "runner", "clipboard", "downloads", "localFiles", "config", "env"},
-		BackendFeatures:          []string{"reader"},
-		Intents: []externalNodeLaunchIntentDeclaration{
-			{
-				ID:          "open",
-				TargetKinds: []string{"file", "directory"},
-				MaxTargets:  1,
-			},
-		},
-	},
+  "neoview": {
+    InstancePolicy: "reuse",
+    RequiredHostCapabilities: []string{"contract", "state", "runner", "clipboard", "downloads", "localFiles", "config", "env"},
+    BackendFeatures: []string{"reader"},
+    Intents: []externalNodeLaunchIntentDeclaration{
+      {
+      ID: "open",
+      TargetKinds: []string{"file", "directory"},
+      MaxTargets: 1,
+    },
+    },
+  },
 }

@@ -58,6 +58,7 @@
     "@xiranite/file-operations": "workspace:*",
     "@xiranite/shared": "workspace:*",
     "@xiranite/services": "workspace:*",
+    "@xiranite/shell-integration": "workspace:*",
     "@zip.js/zip.js": "^2.8.26",
     "cacache": "20.0.1",
     "fast-xml-parser": "5.3.6",
