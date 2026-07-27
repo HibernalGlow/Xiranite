@@ -1,6 +1,6 @@
 import type { InteractionField, InteractionValues, TerminalInteractionSchema } from "@xiranite/cli-runtime/interaction"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
-import { CZKAWKA_TOOLS, type CzkawkaInput, type CzkawkaResult, type CzkawkaTool } from "./core.js"
+import { CZKAWKA_TERMINAL_TOOLS, type CzkawkaInput, type CzkawkaResult, type CzkawkaTool } from "./core.js"
 import { createCzkawkaOperationInput, createCzkawkaOptionFields, createCzkawkaScanInput, czkawkaOptionDefaults } from "./tool-options.js"
 import { buildCzkawkaAnalysis } from "./analysis.js"
 
@@ -50,6 +50,7 @@ const LABELS_ZH: Record<CzkawkaTool, string> = {
   "broken-files": "损坏文件",
   "bad-extensions": "不正确扩展名",
   "bad-names": "坏文件名",
+  "exif-remover": "EXIF 清理",
 }
 
 export function createCzkawkaInteractionSchema(defaults: Partial<CzkawkaInteractionValues> = {}, language: TerminalLanguage = "zh"): TerminalInteractionSchema<CzkawkaInput, CzkawkaResult> {
@@ -57,7 +58,7 @@ export function createCzkawkaInteractionSchema(defaults: Partial<CzkawkaInteract
   const initialValues = { action: "scan", tool: "duplicate-files", includedDirectoriesText: "", includedDirectoriesReferencedText: "", excludedDirectoriesText: "", excludedItemsText: "", allowedExtensions: "", excludedExtensions: "", minimumFileSize: 1, maximumFileSize: Number.MAX_SAFE_INTEGER, recursive: true, useCache: true, saveAlsoAsJson: false, deleteOutdatedCache: true, cacheFolderPath: "", configFolderPath: "", duplicateMinimalHashCacheSizeKiB: 256, duplicateMinimalPrehashCacheSizeKiB: 256, threadCount: 0, filterText: "", selectedPathsText: "", destinationDirectory: "", deleteMode: "trash", copyMode: false, preserveStructure: false, conflictPolicy: "skip", outputPath: "", exportScope: "selected", renameItemsText: "", dryRun: true, ...czkawkaOptionDefaults(), ...defined(defaults) } as CzkawkaInteractionValues
   const fields: InteractionField[] = [
     { id: "action", label: zh ? "命令" : "Command", kind: "select", role: "action", options: [{ value: "scan", label: zh ? "⌕ 扫描" : "⌕ Scan" }, { value: "delete", label: zh ? "♲ 删除" : "♲ Delete" }, { value: "move", label: zh ? "⇄ 移动/复制" : "⇄ Move/copy" }, { value: "rename", label: zh ? "✎ 修正扩展名" : "✎ Fix extension" }, { value: "save", label: zh ? "⇩ 导出" : "⇩ Export" }] },
-    { id: "tool", label: zh ? "扫描工具" : "Scanner", kind: "select", options: CZKAWKA_TOOLS.map((tool) => ({ value: tool, label: zh ? LABELS_ZH[tool] : human(tool) })) },
+    { id: "tool", label: zh ? "扫描工具" : "Scanner", kind: "select", options: CZKAWKA_TERMINAL_TOOLS.map((tool) => ({ value: tool, label: zh ? LABELS_ZH[tool] : human(tool) })) },
     { id: "includedDirectoriesText", label: zh ? "包含目录" : "Included directories", kind: "path-list", lines: 4, visibleWhen: scanOnly },
     { id: "includedDirectoriesReferencedText", label: zh ? "参考目录" : "Reference directories", kind: "path-list", lines: 3, visibleWhen: scanOnly },
     { id: "excludedDirectoriesText", label: zh ? "排除目录" : "Excluded directories", kind: "path-list", lines: 3, visibleWhen: scanOnly },

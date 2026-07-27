@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { AlertTriangle, ArchiveX, AudioLines, Copy, Ellipsis, FileQuestion, FileText, FileX2, FolderOpen, FolderSearch2, FolderX, HardDrive, Image, Link2Off, Maximize2, Minimize2, MoveRight, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, PanelTopOpen, Play, RotateCcw, Save, Search, Settings2, TableProperties, Trash2, Video, X } from "lucide-react"
+import { AlertTriangle, ArchiveX, AudioLines, Copy, Ellipsis, Eraser, FileQuestion, FileText, FileX2, FolderOpen, FolderSearch2, FolderX, HardDrive, Image, Link2Off, Maximize2, Minimize2, MoveRight, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, PanelTopOpen, Play, RotateCcw, Save, Search, Settings2, TableProperties, Trash2, Video, X } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import { CzkawkaSelectionAssistant } from "../selection-assistant"
 import { CzkawkaSimilarityReferenceDialog } from "../similarity-reference-dialog"
 import { CzkawkaDirectoryEditor } from "../source-inputs"
 import { createBadNameRenamePlan } from "@xiranite/node-czkawka/bad-names"
+import { createExifCleanupPlan } from "@xiranite/node-czkawka/exif"
 import { AlgorithmFields } from "./CzkawkaPanelsView"
 import type { CzkawkaCardId } from "@xiranite/node-czkawka/card-layout"
 import { buildCzkawkaGroupOrganizePlan } from "@xiranite/node-czkawka/operations"
@@ -223,6 +224,10 @@ function OperationsCard(props: CzkawkaView) {
   const badNameRenameItems = props.tool === "bad-names"
     ? createBadNameRenamePlan(props.result?.entries ?? [], props.selectedPaths)
     : []
+  const exifItems = props.tool === "exif-remover"
+    ? createExifCleanupPlan(props.result?.entries ?? [], props.selectedPaths)
+    : []
+  const canCreateExifCandidate = props.nativeCapabilities.has("operation.exif.candidate")
   return (
     <div className="grid gap-3">
       <div className="text-xs text-muted-foreground">{props.t("operations.dryRunHint", "删除、移动和改名默认只生成可检查的逐项计划。")}</div>
@@ -409,6 +414,43 @@ function OperationsCard(props: CzkawkaView) {
                 }
               >
                 {props.t("operations.confirmBadNames", "确认改名")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
+      {props.tool === "exif-remover" ? (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button disabled={!exifItems.length || !canCreateExifCandidate || props.running} size="sm" variant="outline" title={canCreateExifCandidate ? undefined : props.t("operations.exifCandidateUnavailable", "当前原生绑定无法安全创建 EXIF 清理候选文件。")}>
+              <Eraser />
+              {props.t("operations.cleanExif", "清理 EXIF（{{count}}）", { count: exifItems.length })}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{(props.data.dryRun ?? true) ? props.t("operations.planExifTitle", "生成 EXIF 清理计划？") : props.t("operations.executeExifTitle", "清理 EXIF 元数据？")}</AlertDialogTitle>
+              <AlertDialogDescription>{(props.data.dryRun ?? true) ? props.t("operations.exifDryRunDescription", "将预览 {{count}} 项的元数据清理；不会修改文件。", { count: exifItems.length }) : props.t("operations.exifLiveDescription", "每个源文件会先移入系统回收站，再用已清理的临时候选文件替换。替换失败时，候选文件会保留，原文件可从回收站恢复。", { count: exifItems.length })}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="grid max-h-48 gap-1 overflow-auto rounded-md border p-2 text-xs">
+              {exifItems.slice(0, 12).map((item) => (
+                <div key={item.path} className="grid">
+                  <span className="truncate font-mono">{item.path}</span>
+                  <span className="truncate text-muted-foreground">{props.t("operations.exifTagCount", "移除 {{count}} 个 EXIF 标签", { count: item.tags.length })}</span>
+                </div>
+              ))}
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{props.t("common.cancel", "取消")}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() =>
+                  void props.executeOperation("clean-exif", {
+                    exifItems,
+                    selectedPaths: exifItems.map((item) => item.path)
+                  })
+                }
+              >
+                {props.t("operations.confirmExif", "确认清理 EXIF")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

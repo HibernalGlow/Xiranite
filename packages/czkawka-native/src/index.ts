@@ -112,6 +112,53 @@ export interface BasicScanResult {
   stopped: boolean
 }
 
+export interface ExifScanOptions {
+  includedDirectories: string[]
+  referenceDirectories?: string[]
+  excludedDirectories?: string[]
+  excludedItems?: string[]
+  allowedExtensions?: string
+  excludedExtensions?: string
+  recursive?: boolean
+  minimumFileSize?: number
+  maximumFileSize?: number
+  useCache?: boolean
+  saveAlsoAsJson?: boolean
+  deleteOutdatedCache?: boolean
+  ignoredTags?: string[]
+  scanId?: string
+  threadCount?: number
+}
+
+export interface ExifTag {
+  name: string
+  code: number
+  group: string
+}
+
+export interface ExifEntry {
+  path: string
+  size: number
+  modifiedDate: number
+  tags: ExifTag[]
+}
+
+export interface ExifScanResult {
+  entries: ExifEntry[]
+  messages: string
+  stopped: boolean
+}
+
+export interface ExifCandidateOptions {
+  sourcePath: string
+  tags: ExifTag[]
+}
+
+export interface ExifCandidate {
+  candidatePath: string
+  removedTags: number
+}
+
 export type CzkawkaMediaTool = "similar-images" | "similar-videos" | "duplicate-music" | "broken-files" | "bad-extensions"
 
 export interface MediaScanOptions {
@@ -217,6 +264,8 @@ export interface CzkawkaBinding {
   restoreTrashItem(receipt: TrashItemReceipt): Promise<void>
   scanDuplicateFiles(options: DuplicateScanOptions): Promise<DuplicateScanResult>
   scanBasicFiles(options: BasicScanOptions): Promise<BasicScanResult>
+  scanExifFiles(options: ExifScanOptions): Promise<ExifScanResult>
+  createExifCandidate(options: ExifCandidateOptions): Promise<ExifCandidate>
   scanMediaFiles(options: MediaScanOptions): Promise<MediaScanResult>
   cancelCzkawkaScan?(scanId: string): boolean
   getCzkawkaScanProgress?(scanId: string): CzkawkaScanProgress | undefined
@@ -248,6 +297,10 @@ export const scanDuplicateFiles = (options: DuplicateScanOptions): Promise<Dupli
   loadCzkawkaBinding().scanDuplicateFiles(options)
 export const scanBasicFiles = (options: BasicScanOptions): Promise<BasicScanResult> =>
   loadCzkawkaBinding().scanBasicFiles(options)
+export const scanExifFiles = (options: ExifScanOptions): Promise<ExifScanResult> =>
+  loadCzkawkaBinding().scanExifFiles(options)
+export const createExifCandidate = (options: ExifCandidateOptions): Promise<ExifCandidate> =>
+  loadCzkawkaBinding().createExifCandidate(options)
 export const scanMediaFiles = (options: MediaScanOptions): Promise<MediaScanResult> =>
   loadCzkawkaBinding().scanMediaFiles(options)
 export const cancelCzkawkaScan = (scanId: string): boolean => loadCzkawkaBinding().cancelCzkawkaScan?.(scanId) ?? false

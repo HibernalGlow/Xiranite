@@ -2,6 +2,7 @@ pub(crate) mod basic;
 pub(crate) mod basic_bad_names;
 pub(crate) mod common;
 pub(crate) mod duplicate;
+pub(crate) mod exif_remover;
 pub(crate) mod media;
 pub(crate) mod media_bad_extensions;
 pub(crate) mod media_broken_files;

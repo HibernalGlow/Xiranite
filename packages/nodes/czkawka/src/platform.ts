@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { cp, lstat, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, join, parse, relative } from "node:path"
 import { promisify } from "node:util"
-import { cancelCzkawkaScan, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
+import { cancelCzkawkaScan, createExifCandidate, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type ExifScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { toNativeVideoCropDetect } from "./similar-video-crop.js"
 import type { CzkawkaNativeProgress, CzkawkaNormalizedInput, CzkawkaRuntime, CzkawkaRuntimeInfo } from "./core.js"
@@ -56,6 +56,23 @@ export function toBasicScanOptions(input: NormalizedInput): BasicScanOptions {
     emptyFilesSearchZeroByteContent: input.emptyFilesSearchZeroByteContent,
     emptyFilesSearchNonPrintableContent: input.emptyFilesSearchNonPrintableContent,
     temporaryFileExtensions: input.temporaryFileExtensions,
+  }
+}
+
+export function toExifScanOptions(input: NormalizedInput): ExifScanOptions {
+  return {
+    includedDirectories: input.includedDirectories,
+    referenceDirectories: input.includedDirectoriesReferenced,
+    excludedDirectories: input.excludedDirectories,
+    excludedItems: input.excludedItems,
+    allowedExtensions: input.allowedExtensions,
+    excludedExtensions: input.excludedExtensions,
+    recursive: input.recursive,
+    minimumFileSize: input.minimumFileSize,
+    maximumFileSize: input.maximumFileSize,
+    useCache: input.useCache,
+    saveAlsoAsJson: input.saveAlsoAsJson,
+    deleteOutdatedCache: input.deleteOutdatedCache,
   }
 }
 
@@ -129,7 +146,10 @@ export function createNodeCzkawkaRuntime(context: CzkawkaRuntimeContext = {}): C
     capabilities: nativeInfo.capabilities,
     scanDuplicates: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toDuplicateScanOptions(input), input.threadCount, runtime, onProgress, scanDuplicateFiles) },
     scanBasic: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toBasicScanOptions(input), input.threadCount, runtime, onProgress, scanBasicFiles) },
+    scanExif: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toExifScanOptions(input), input.threadCount, runtime, onProgress, scanExifFiles) },
     scanMedia: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toMediaScanOptions(input), input.threadCount, runtime, onProgress, scanMediaFiles) },
+    createExifCandidate: (sourcePath, tags) => createExifCandidate({ sourcePath, tags }),
+    replaceWithCandidate: (candidatePath, sourcePath) => replaceWithCandidate(candidatePath, sourcePath, context.fileOperations),
     pathExists,
     removePath: (path, options) => removePath(path, options, context.fileOperations),
     copyPath,
@@ -224,6 +244,23 @@ async function movePath(source: string, target: string): Promise<void> {
     await copyPath(source, target)
     await rm(source, { recursive: true, force: true })
   }
+}
+
+async function replaceWithCandidate(candidatePath: string, sourcePath: string, fileOperations?: CzkawkaRuntimeContext["fileOperations"]): Promise<void> {
+  if (!fileOperations) {
+    await trashPath(sourcePath)
+    await movePath(candidatePath, sourcePath)
+    return
+  }
+  const result = await fileOperations.execute({
+    operations: [
+      { kind: "trash", sourcePath },
+      { kind: "move", sourcePath: candidatePath, destinationPath: sourcePath },
+    ],
+    concurrency: 1,
+  })
+  const failure = result.results.find((entry) => entry.status !== "succeeded")
+  if (failure) throw new Error(failure.error ?? `File operation failed: ${failure.operation.kind}`)
 }
 
 function errorCode(error: unknown): string | undefined { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : undefined }

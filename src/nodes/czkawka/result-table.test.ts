@@ -14,6 +14,7 @@ describe("Czkawka result table model", () => {
     expect(CZKAWKA_RESULT_COLUMNS["invalid-symlinks"].map((item) => item.id)).toEqual(expect.arrayContaining(["target", "error"]))
     expect(CZKAWKA_RESULT_COLUMNS["bad-extensions"].map((item) => item.id)).toEqual(expect.arrayContaining(["currentExtension", "properExtension"]))
     expect(CZKAWKA_RESULT_COLUMNS["bad-names"].map((item) => item.id)).toEqual(expect.arrayContaining(["path", "target"]))
+    expect(CZKAWKA_RESULT_COLUMNS["exif-remover"].map((item) => item.id)).toEqual(expect.arrayContaining(["path", "exifTags"]))
   })
 
   test("sorts through the active tool column definition", () => {

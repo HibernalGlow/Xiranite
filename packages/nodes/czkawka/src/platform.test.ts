@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { CZKAWKA_TOOLS, normalizeCzkawkaInput, type CzkawkaTool } from "./core.js"
-import { createNodeCzkawkaRuntime, toBasicScanOptions, toDuplicateScanOptions, toMediaScanOptions } from "./platform.js"
+import { createNodeCzkawkaRuntime, toBasicScanOptions, toDuplicateScanOptions, toExifScanOptions, toMediaScanOptions } from "./platform.js"
 import { createCzkawkaScanInput } from "./tool-options.js"
 
 describe("Czkawka native DTO mapping", () => {
@@ -46,6 +46,8 @@ describe("Czkawka native DTO mapping", () => {
     expect(toBasicScanOptions(basic)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
     const media = normalizeCzkawkaInput({ tool: "similar-images", saveAlsoAsJson: true, deleteOutdatedCache: false })
     expect(toMediaScanOptions(media)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
+    const exif = normalizeCzkawkaInput({ tool: "exif-remover", saveAlsoAsJson: true, deleteOutdatedCache: false })
+    expect(toExifScanOptions(exif)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
   })
 
   test("maps every Czkawka 12 empty-file content checker into the native basic DTO", () => {
@@ -269,10 +271,32 @@ describe("Czkawka native DTO mapping", () => {
       concurrency: 1,
     })
   })
+
+  test("replaces an EXIF candidate through ordered scoped file operations", async () => {
+    const execute = vi.fn(async (request) => ({
+      results: request.operations.map((operation, index) => ({ index, operation, status: "succeeded" as const })),
+      succeeded: request.operations.length,
+      failed: 0,
+      cancelled: 0,
+      undoable: 1,
+    }))
+    const runtime = createNodeCzkawkaRuntime({ fileOperations: { execute } })
+
+    await runtime.replaceWithCandidate("D:/temp/photo-cleaned.jpg", "D:/photos/photo.jpg")
+
+    expect(execute).toHaveBeenCalledWith({
+      operations: [
+        { kind: "trash", sourcePath: "D:/photos/photo.jpg" },
+        { kind: "move", sourcePath: "D:/temp/photo-cleaned.jpg", destinationPath: "D:/photos/photo.jpg" },
+      ],
+      concurrency: 1,
+    })
+  })
 })
 
 function nativeOptions(tool: CzkawkaTool, input: ReturnType<typeof normalizeCzkawkaInput>) {
   if (tool === "duplicate-files") return toDuplicateScanOptions(input)
+  if (tool === "exif-remover") return toExifScanOptions(input)
   if (["empty-folders", "big-files", "empty-files", "temporary-files", "invalid-symlinks", "bad-names"].includes(tool)) return toBasicScanOptions(input)
   return toMediaScanOptions(input)
 }

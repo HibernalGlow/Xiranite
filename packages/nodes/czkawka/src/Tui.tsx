@@ -22,12 +22,12 @@ import {
 import { createTerminalTranslator } from "@xiranite/cli-runtime/i18n"
 import type { TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import {
-  CZKAWKA_TOOLS,
+  CZKAWKA_TERMINAL_TOOLS,
   smartSelect,
   type CzkawkaEntry,
   type CzkawkaInput,
   type CzkawkaResult,
-  type CzkawkaTool,
+  type CzkawkaTerminalTool,
 } from "./core.js"
 import { czkawkaToolLabel } from "./interaction.js"
 import { getCzkawkaTerminalToolOptions } from "./tool-options.js"
@@ -93,9 +93,9 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
     />
   )
 
-  const tool = session.values.tool as CzkawkaTool
+  const tool = session.values.tool as CzkawkaTerminalTool
   const action = String(session.values.action ?? "scan")
-  const toolIndex = Math.max(0, CZKAWKA_TOOLS.indexOf(tool))
+  const toolIndex = Math.max(0, CZKAWKA_TERMINAL_TOOLS.indexOf(tool))
   const entries = data?.entries ?? []
   const activeEntry = entries.find((entry) => entry.path === activePath) ?? entries[0]
   const activeIndex = Math.max(0, activeEntry ? entries.indexOf(activeEntry) : 0)
@@ -127,7 +127,7 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
     if (next) setActivePath(next.path)
   }
 
-  function selectTool(next: CzkawkaTool) {
+  function selectTool(next: CzkawkaTerminalTool) {
     if (running) return
     setResultFocused(false)
     session.setField("tool", next)
@@ -135,7 +135,7 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
   }
 
   function cycleTool(delta: number) {
-    const next = CZKAWKA_TOOLS[(toolIndex + delta + CZKAWKA_TOOLS.length) % CZKAWKA_TOOLS.length]!
+    const next = CZKAWKA_TERMINAL_TOOLS[(toolIndex + delta + CZKAWKA_TERMINAL_TOOLS.length) % CZKAWKA_TERMINAL_TOOLS.length]!
     selectTool(next)
   }
 
@@ -228,11 +228,11 @@ function Workbench({ definition, language, onExit }: TerminalUiScreenProps<Czkaw
             <b>{l("⌕ 扫描工具", "⌕ SCANNERS")}</b>
           </text>
           <text fg={theme.colors.mutedForeground}>
-            {l(`[ ] 切换 · ${toolIndex + 1}/${CZKAWKA_TOOLS.length}`, `[ ] cycle · ${toolIndex + 1}/${CZKAWKA_TOOLS.length}`)}
+            {l(`[ ] 切换 · ${toolIndex + 1}/${CZKAWKA_TERMINAL_TOOLS.length}`, `[ ] cycle · ${toolIndex + 1}/${CZKAWKA_TERMINAL_TOOLS.length}`)}
           </text>
         </box>
         <box id="czkawka-tool-palette" flexGrow={1} flexDirection="row" flexWrap="wrap" alignItems="center">
-          {CZKAWKA_TOOLS.map((value) => {
+          {CZKAWKA_TERMINAL_TOOLS.map((value) => {
             const selected = value === tool
             return (
               <ClickTarget
@@ -569,9 +569,9 @@ function entryDetails(entry: CzkawkaEntry, language: TerminalLanguage): Array<[s
 }
 
 /** Compact palette labels so 11 scanners fit without a second tool list. */
-function shortToolLabel(tool: CzkawkaTool, language: TerminalLanguage): string {
+function shortToolLabel(tool: CzkawkaTerminalTool, language: TerminalLanguage): string {
   if (language === "zh") {
-    const labels: Record<CzkawkaTool, string> = {
+    const labels: Record<CzkawkaTerminalTool, string> = {
       "duplicate-files": "重复文件",
       "empty-folders": "空文件夹",
       "big-files": "大文件",
@@ -583,11 +583,10 @@ function shortToolLabel(tool: CzkawkaTool, language: TerminalLanguage): string {
       "invalid-symlinks": "无效链接",
       "broken-files": "损坏文件",
       "bad-extensions": "错误扩展名",
-      "bad-names": "坏文件名",
     }
     return labels[tool]
   }
-  const labels: Record<CzkawkaTool, string> = {
+  const labels: Record<CzkawkaTerminalTool, string> = {
     "duplicate-files": "Duplicates",
     "empty-folders": "Empty dirs",
     "big-files": "Big files",
@@ -599,7 +598,6 @@ function shortToolLabel(tool: CzkawkaTool, language: TerminalLanguage): string {
     "invalid-symlinks": "Symlinks",
     "broken-files": "Broken",
     "bad-extensions": "Bad ext",
-    "bad-names": "Bad names",
   }
   return labels[tool]
 }

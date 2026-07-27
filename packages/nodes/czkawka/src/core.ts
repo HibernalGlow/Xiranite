@@ -18,10 +18,27 @@ export const CZKAWKA_TOOLS = [
   "broken-files",
   "bad-extensions",
   "bad-names",
+  "exif-remover",
 ] as const
 
 export type CzkawkaTool = typeof CZKAWKA_TOOLS[number]
-export type CzkawkaAction = "scan" | "delete" | "move" | "rename" | "save"
+
+/** New safe-operation scanners are GUI-only until terminal contracts are designed and verified. */
+export const CZKAWKA_TERMINAL_TOOLS = [
+  "duplicate-files",
+  "empty-folders",
+  "big-files",
+  "empty-files",
+  "temporary-files",
+  "similar-images",
+  "similar-videos",
+  "duplicate-music",
+  "invalid-symlinks",
+  "broken-files",
+  "bad-extensions",
+] as const satisfies readonly CzkawkaTool[]
+export type CzkawkaTerminalTool = typeof CZKAWKA_TERMINAL_TOOLS[number]
+export type CzkawkaAction = "scan" | "delete" | "move" | "rename" | "clean-exif" | "save"
 export type CzkawkaCheckMethod = "name" | "size" | "size-and-name" | "hash"
 export type CzkawkaHashType = "crc32" | "xxh3" | "blake3"
 export type CzkawkaImageHashAlgorithm = "mean" | "gradient" | "blockhash" | "vert-gradient" | "double-gradient" | "median"
@@ -32,9 +49,11 @@ export type CzkawkaSort = "path" | "size" | "modified"
 export type CzkawkaSelectionStrategy = "all-except-first" | "all-except-newest" | "all-except-oldest" | "all-except-biggest" | "all-except-smallest"
 export type CzkawkaDeleteMode = "trash" | "permanent"
 export type CzkawkaConflictPolicy = "skip" | "overwrite" | "rename" | "error"
-export type CzkawkaOperationStatus = "planned" | "deleted" | "trashed" | "moved" | "copied" | "renamed" | "saved" | "skipped" | "error"
+export type CzkawkaOperationStatus = "planned" | "deleted" | "trashed" | "moved" | "copied" | "renamed" | "cleaned" | "saved" | "skipped" | "error"
 export interface CzkawkaDestinationItem { path: string; destination: string }
 export interface CzkawkaRenameItem { path: string; properExtension?: string; targetName?: string }
+export interface CzkawkaExifTag { name: string; code: number; group: string }
+export interface CzkawkaExifItem { path: string; tags: CzkawkaExifTag[] }
 export type CzkawkaExportScope = "selected" | "visible" | "all"
 
 export interface CzkawkaInput {
@@ -114,6 +133,7 @@ export interface CzkawkaInput {
   destinationDirectory?: string
   destinationItems?: CzkawkaDestinationItem[]
   renameItems?: CzkawkaRenameItem[]
+  exifItems?: CzkawkaExifItem[]
   deleteMode?: CzkawkaDeleteMode
   copyMode?: boolean
   preserveStructure?: boolean
@@ -135,6 +155,12 @@ export interface NativeBasicResult {
   messages: string
   stopped: boolean
 }
+export interface NativeExifResult {
+  entries: Array<{ path: string; modifiedDate: number; size: number; tags: CzkawkaExifTag[] }>
+  messages: string
+  stopped: boolean
+}
+export interface NativeExifCandidate { candidatePath: string; removedTags: number }
 export interface NativeMediaResult {
   groups: Array<{ entries: Array<{ path: string; modifiedDate: number; size: number; width?: number; height?: number; fps?: number; codec?: string; similarity?: string; title?: string; artist?: string; year?: string; length?: string; genre?: string; bitrate?: number; isReference?: boolean; detail?: string; properExtension?: string }> }>
   messages: string
@@ -147,7 +173,10 @@ export interface CzkawkaRuntime {
   capabilities?: readonly string[]
   scanDuplicates: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeDuplicateResult>
   scanBasic: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeBasicResult>
+  scanExif: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeExifResult>
   scanMedia: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeMediaResult>
+  createExifCandidate: (sourcePath: string, tags: CzkawkaExifTag[]) => Promise<NativeExifCandidate>
+  replaceWithCandidate: (candidatePath: string, sourcePath: string) => Promise<void>
   pathExists: (path: string) => Promise<boolean>
   removePath: (path: string, options?: { trash?: boolean; emptyFoldersOnly?: boolean }) => Promise<void>
   copyPath: (source: string, target: string) => Promise<void>
@@ -181,6 +210,7 @@ export interface CzkawkaEntry {
   secondaryPath?: string
   detail?: string
   properExtension?: string
+  exifTags?: CzkawkaExifTag[]
   width?: number
   height?: number
   fps?: number
@@ -194,7 +224,7 @@ export interface CzkawkaEntry {
   bitrate?: number
   isReference?: boolean
   status?: CzkawkaOperationStatus
-  operation?: "delete" | "trash" | "move" | "copy" | "rename" | "save"
+  operation?: "delete" | "trash" | "move" | "copy" | "rename" | "clean-exif" | "save"
   conflictPolicy?: CzkawkaConflictPolicy
   error?: string
 }
@@ -230,6 +260,7 @@ const MEDIA_TOOLS = new Set<CzkawkaTool>(["similar-images", "similar-videos", "d
 export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInput {
   const destinationItems = normalizeDestinationItems(input.destinationItems)
   const renameItems = normalizeRenameItems(input.renameItems)
+  const exifItems = normalizeExifItems(input.exifItems)
   const exportEntries = input.exportEntries?.map((entry) => ({ ...entry })) ?? []
   const similarVideoCrop = resolveCzkawkaSimilarVideoCrop(input)
   return {
@@ -303,10 +334,11 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInp
     filterText: clean(input.filterText),
     sortBy: input.sortBy ?? "path",
     descending: input.descending ?? false,
-    selectedPaths: unique([...(input.selectedPaths ?? []), ...destinationItems.map((item) => item.path), ...renameItems.map((item) => item.path), ...exportEntries.map((entry) => entry.path)]),
+    selectedPaths: unique([...(input.selectedPaths ?? []), ...destinationItems.map((item) => item.path), ...renameItems.map((item) => item.path), ...exifItems.map((item) => item.path), ...exportEntries.map((entry) => entry.path)]),
     destinationDirectory: clean(input.destinationDirectory),
     destinationItems,
     renameItems,
+    exifItems,
     deleteMode: oneOf(input.deleteMode, ["trash", "permanent"] as const, "trash"),
     copyMode: input.copyMode ?? false,
     preserveStructure: input.preserveStructure ?? false,
@@ -332,6 +364,11 @@ export async function runCzkawka(input: CzkawkaInput, runtime: CzkawkaRuntime, o
     if (value.action === "rename") {
       if (!value.renameItems.length) return fail(value, "At least one path and rename target are required.")
       return await mutate(value, runtime, "rename", onEvent)
+    }
+    if (value.action === "clean-exif") {
+      if (!value.exifItems.length) return fail(value, "At least one path and EXIF tag are required.")
+      if (!(runtime.capabilities ?? []).includes("operation.exif.candidate")) return fail(value, "Czkawka binding is missing: operation.exif.candidate.")
+      return await cleanExif(value, runtime, onEvent)
     }
     if (!value.outputPath) return fail(value, "An output path is required.")
     return await save(value, runtime, onEvent)
@@ -360,6 +397,16 @@ async function scan(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEv
   } else if (BASIC_TOOLS.has(value.tool)) {
     const native = await runtime.scanBasic(value, onProgress)
     groups = native.entries.length ? [makeGroup(0, native.entries.map((entry) => ({ ...entry, name: runtime.basename(entry.path) })), runtime, false)] : []
+    messages = native.messages
+    stopped = native.stopped
+  } else if (value.tool === "exif-remover") {
+    const native = await runtime.scanExif(value, onProgress)
+    groups = native.entries.length ? [makeGroup(0, native.entries.map((entry) => ({
+      ...entry,
+      name: runtime.basename(entry.path),
+      exifTags: entry.tags,
+      detail: `${entry.tags.length} EXIF tag(s)`,
+    })), runtime, false)] : []
     messages = native.messages
     stopped = native.stopped
   } else if (MEDIA_TOOLS.has(value.tool)) {
@@ -402,6 +449,7 @@ function missingNativeCapabilities(value: CzkawkaNormalizedInput, capabilities: 
     required.push("temporary-files.custom-extensions")
   }
   if (value.tool === "bad-names") required.push("scan.bad-names")
+  if (value.tool === "exif-remover") required.push("scan.exif-remover")
   if (!required.length) return []
   const available = new Set(capabilities ?? [])
   return required.filter((capability) => !available.has(capability))
@@ -501,6 +549,32 @@ async function mutate(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, ac
   return { success: data.errorCount === 0, message: value.dryRun ? `Planned ${data.affectedCount} operation(s); ${entries.filter((entry) => entry.status === "skipped").length} skipped.` : `Completed ${data.affectedCount} operation(s).`, data }
 }
 
+async function cleanExif(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void): Promise<CzkawkaResult> {
+  const items = new Map(value.exifItems.map((item) => [item.path, item]))
+  const entries: CzkawkaEntry[] = []
+  for (let index = 0; index < value.selectedPaths.length; index += 1) {
+    const path = value.selectedPaths[index]!
+    const item = items.get(path)
+    const base: CzkawkaEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, exifTags: item?.tags, operation: "clean-exif" }
+    onEvent({ type: "progress", progress: Math.round((index / value.selectedPaths.length) * 100), message: `clean EXIF ${runtime.basename(path)}` })
+    try {
+      if (!item?.tags.length) throw new Error("No EXIF tags were selected for this path.")
+      if (!await runtime.pathExists(path)) throw new Error("Source path no longer exists.")
+      if (value.dryRun) { entries.push({ ...base, secondaryPath: path, status: "planned", detail: `Remove ${item.tags.length} EXIF tag(s).` }); continue }
+      const candidate = await runtime.createExifCandidate(path, item.tags)
+      try {
+        await runtime.replaceWithCandidate(candidate.candidatePath, path)
+      } catch (error) {
+        entries.push({ ...base, secondaryPath: candidate.candidatePath, status: "error", error: errorMessage(error), detail: `Candidate retained at ${candidate.candidatePath}.` })
+        continue
+      }
+      entries.push({ ...base, secondaryPath: path, status: "cleaned", detail: `Removed ${candidate.removedTags} EXIF tag(s).` })
+    } catch (error) { entries.push({ ...base, secondaryPath: path, status: "error", error: errorMessage(error) }) }
+  }
+  const data = summarize(value, [makeGroup(0, entries, runtime, false)], "", false)
+  return { success: data.errorCount === 0, message: value.dryRun ? `Planned EXIF cleanup for ${data.affectedCount} path(s).` : `Cleaned EXIF metadata for ${data.affectedCount} path(s).`, data }
+}
+
 function renameTarget(source: string, item: CzkawkaRenameItem | undefined, runtime: Pick<CzkawkaRuntime, "basename" | "dirname" | "join">): string {
   const targetName = clean(item?.targetName)
   if (targetName) {
@@ -550,7 +624,7 @@ async function save(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEv
 
 function summarize(value: CzkawkaNormalizedInput, groups: CzkawkaGroup[], messages: string, stopped: boolean): CzkawkaData {
   const entries = groups.flatMap((group) => group.entries)
-  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "renamed", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length, similarFolders: value.action === "scan" && value.tool === "similar-images" ? buildCzkawkaSimilarFolders(groups, value.similarImagesFolderThreshold) : undefined }
+  return { action: value.action, tool: value.tool, groups, entries, messages, stopped, groupCount: groups.length, fileCount: entries.length, totalBytes: groups.reduce((sum, group) => sum + group.totalBytes, 0), reclaimableBytes: groups.reduce((sum, group) => sum + group.reclaimableBytes, 0), affectedCount: entries.filter((entry) => ["deleted", "trashed", "moved", "copied", "renamed", "cleaned", "saved", "planned"].includes(entry.status ?? "")).length, errorCount: entries.filter((entry) => entry.status === "error").length, similarFolders: value.action === "scan" && value.tool === "similar-images" ? buildCzkawkaSimilarFolders(groups, value.similarImagesFolderThreshold) : undefined }
 }
 
 function isGroupedTool(tool: CzkawkaTool): boolean { return ["duplicate-files", "similar-images", "similar-videos", "duplicate-music"].includes(tool) }
@@ -558,6 +632,7 @@ function fail(value: CzkawkaNormalizedInput, message: string): CzkawkaResult { r
 function unique(values: string[]): string[] { return [...new Set(values.map(clean).filter(Boolean))] }
 function normalizeDestinationItems(items: CzkawkaDestinationItem[] | undefined): CzkawkaDestinationItem[] { const result = new Map<string, string>(); for (const item of items ?? []) { const path = clean(item.path), destination = clean(item.destination); if (path && destination) result.set(path, destination) } return [...result].map(([path, destination]) => ({ path, destination })) }
 function normalizeRenameItems(items: CzkawkaRenameItem[] | undefined): CzkawkaRenameItem[] { const result = new Map<string, CzkawkaRenameItem>(); for (const item of items ?? []) { const path = clean(item.path), properExtension = clean(item.properExtension).replace(/^\.+/, ""), targetName = clean(item.targetName); if (!path || (!properExtension && !targetName)) continue; result.set(path, { path, ...(targetName ? { targetName } : { properExtension }) }) } return [...result.values()] }
+function normalizeExifItems(items: CzkawkaExifItem[] | undefined): CzkawkaExifItem[] { const result = new Map<string, CzkawkaExifItem>(); for (const item of items ?? []) { const path = clean(item.path); const tags = (item.tags ?? []).map((tag) => ({ name: clean(tag.name), code: Math.trunc(Number(tag.code)), group: clean(tag.group) })).filter((tag) => tag.name && tag.group && Number.isInteger(tag.code) && tag.code >= 0 && tag.code <= 0xffff); if (path && tags.length) result.set(path, { path, tags }) } return [...result.values()] }
 function clean(value: unknown): string { return String(value ?? "").trim() }
 function clamp(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.round(parsed))) : fallback }
 function clampDecimal(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback }

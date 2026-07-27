@@ -24,7 +24,7 @@ import type { CzkawkaPhase } from "./types"
 import { CzkawkaNikoResultTable } from "./niko-result-table"
 import type { CzkawkaImageComparisonMode, CzkawkaImageComparisonState } from "@xiranite/node-czkawka/image-comparison"
 
-export type CzkawkaResultColumnId = "name" | "path" | "size" | "groupSize" | "modified" | "similarity" | "dimensions" | "fps" | "codec" | "title" | "artist" | "year" | "bitrate" | "length" | "target" | "error" | "currentExtension" | "properExtension"
+export type CzkawkaResultColumnId = "name" | "path" | "size" | "groupSize" | "modified" | "similarity" | "dimensions" | "fps" | "codec" | "title" | "artist" | "year" | "bitrate" | "length" | "target" | "error" | "currentExtension" | "properExtension" | "exifTags"
 
 export interface CzkawkaResultColumn {
   id: CzkawkaResultColumnId
@@ -53,6 +53,7 @@ const TARGET = column("target", "目标路径", (entry) => entry.secondaryPath ?
 const ERROR = column("error", "错误类型", (entry) => entry.detail ?? "")
 const CURRENT_EXTENSION = column("currentExtension", "当前扩展名", (entry) => extension(entry.name))
 const PROPER_EXTENSION = column("properExtension", "正确扩展名", (entry) => entry.properExtension ?? "")
+const EXIF_TAGS = column("exifTags", "EXIF 标签", (entry) => entry.exifTags?.map((tag) => tag.name).join(", ") ?? "")
 
 export const CZKAWKA_RESULT_COLUMNS: Record<CzkawkaTool, readonly CzkawkaResultColumn[]> = {
   "duplicate-files": [SIZE, GROUP_SIZE, NAME, PATH, MODIFIED],
@@ -67,6 +68,7 @@ export const CZKAWKA_RESULT_COLUMNS: Record<CzkawkaTool, readonly CzkawkaResultC
   "broken-files": [NAME, PATH, ERROR, SIZE, MODIFIED],
   "bad-extensions": [NAME, PATH, CURRENT_EXTENSION, PROPER_EXTENSION, MODIFIED],
   "bad-names": [NAME, PATH, TARGET, MODIFIED],
+  "exif-remover": [NAME, PATH, EXIF_TAGS, SIZE, MODIFIED],
 }
 
 type SortState = { id: CzkawkaResultColumnId; descending: boolean }
