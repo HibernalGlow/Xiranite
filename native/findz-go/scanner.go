@@ -64,8 +64,9 @@ func (limits zipSafetyLimits) validate(files []*zip.File) error {
 		if len(member.Name) > limits.maxMemberPathBytes {
 			return &zipScanFailure{code: "member_path_length_exceeded", err: fmt.Errorf("ZIP member path exceeds the %d byte limit", limits.maxMemberPathBytes)}
 		}
-		if !isSafeZipMemberPath(member.Name) {
-			return &zipScanFailure{code: "unsafe_member_path", err: fmt.Errorf("ZIP member path is unsafe: %s", member.Name)}
+		memberName := displayZipMemberName(member)
+		if !isSafeZipMemberPath(memberName) {
+			return &zipScanFailure{code: "unsafe_member_path", err: fmt.Errorf("ZIP member path is unsafe: %s", memberName)}
 		}
 	}
 	return nil
@@ -471,12 +472,13 @@ func insertArchiveMember(statement *sql.Stmt, archiveID int64, entryIndex int, m
 	if member.CompressedSize64 > math.MaxInt64 || member.UncompressedSize64 > math.MaxInt64 {
 		return fmt.Errorf("ZIP member exceeds SQLite integer range: %s", member.Name)
 	}
-	isDirectory := member.FileInfo().IsDir() || strings.HasSuffix(member.Name, "/")
-	extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(member.Name)), ".")
+	memberName := displayZipMemberName(member)
+	isDirectory := member.FileInfo().IsDir() || strings.HasSuffix(memberName, "/")
+	extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(memberName)), ".")
 	_, err := statement.Exec(
-		archiveID, entryIndex, strings.TrimSuffix(filepath.ToSlash(member.Name), "/"), uint64(member.CRC32), int64(member.CompressedSize64), int64(member.UncompressedSize64),
+		archiveID, entryIndex, strings.TrimSuffix(filepath.ToSlash(memberName), "/"), uint64(member.CRC32), int64(member.CompressedSize64), int64(member.UncompressedSize64),
 		member.Method, member.Modified.UTC().Format(time.RFC3339Nano), extension, boolToInt(isDirectory), boolToInt(!isDirectory && isImageExtension(extension)),
-		boolToInt(!isDirectory && isFindzArchivePath(member.Name)), boolToInt(member.Flags&zipEncryptionFlag != 0), 1,
+		boolToInt(!isDirectory && isFindzArchivePath(memberName)), boolToInt(member.Flags&zipEncryptionFlag != 0), 1,
 	)
 	if err != nil {
 		return fmt.Errorf("insert ZIP member %s: %w", member.Name, err)
