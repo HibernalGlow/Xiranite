@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { close, open, rename, rm, stat, type FileHandle } from "node:fs/promises"
+import { open, rename, rm, stat, type FileHandle } from "node:fs/promises"
 import { basename, dirname, extname, join } from "node:path"
 import {
   type Entry,

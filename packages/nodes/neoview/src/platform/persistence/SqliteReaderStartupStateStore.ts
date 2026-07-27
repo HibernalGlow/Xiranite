@@ -76,10 +76,11 @@ export class SqliteReaderStartupStateStore implements ReaderStartupStateStore {
 }
 
 function parseFolderState(row: Record<string, unknown>): ReaderStartupFolderState {
-  if (typeof row.path !== "string" || !Number.isSafeInteger(row.updated_at) || row.updated_at < 0) {
+  const updatedAt = row.updated_at
+  if (typeof row.path !== "string" || typeof updatedAt !== "number" || !Number.isSafeInteger(updatedAt) || updatedAt < 0) {
     throw new Error("Reader startup folder state is invalid.")
   }
-  return { path: normalizePath(row.path), updatedAt: row.updated_at }
+  return { path: normalizePath(row.path), updatedAt }
 }
 
 function normalizePath(path: string): string {
