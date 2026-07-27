@@ -85,6 +85,8 @@ export interface CzkawkaCardState {
   brokenVideoFfmpeg?: boolean
   brokenFont?: boolean
   brokenMarkup?: boolean
+  emptyFilesSearchZeroByteContent?: boolean
+  emptyFilesSearchNonPrintableContent?: boolean
   filterText?: string
   filterStatesByTool?: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
   filterPresets?: CzkawkaStoredFilterPreset[]

@@ -53,6 +53,8 @@ export function toBasicScanOptions(input: NormalizedInput): BasicScanOptions {
     deleteOutdatedCache: input.deleteOutdatedCache,
     numberOfFiles: input.numberOfFiles,
     biggestFirst: input.biggestFirst,
+    emptyFilesSearchZeroByteContent: input.emptyFilesSearchZeroByteContent,
+    emptyFilesSearchNonPrintableContent: input.emptyFilesSearchNonPrintableContent,
   }
 }
 

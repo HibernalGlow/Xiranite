@@ -174,6 +174,34 @@ test("persists every Czkawka 12 broken-file checker in the browser", async () =>
   })
 })
 
+test("hides Czkawka 12 empty-file content checkers until the native binding advertises their capability", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "empty-files", includedDirectoriesText: "D:/media", sourceSettingsTab: "algorithm" }, [])
+
+  await render(<Component compId="czkawka-empty-content-unavailable-browser" host={host} />)
+
+  await expect.element(page.getByText("Check NUL-only files")).not.toBeInTheDocument()
+  await expect.element(page.getByText("Check non-printable files")).not.toBeInTheDocument()
+})
+
+test("persists every Czkawka 12 empty-file content checker in the browser", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost(
+    { tool: "empty-files", includedDirectoriesText: "D:/media", sourceSettingsTab: "algorithm" },
+    ["empty-files.content-checkers"],
+  )
+
+  await render(<Component compId="czkawka-empty-content-browser" host={host} />)
+
+  await page.getByRole("switch", { name: "Check NUL-only files" }).click()
+  await page.getByRole("switch", { name: "Check non-printable files" }).click()
+
+  await expect.poll(() => host.stateValue).toMatchObject({
+    emptyFilesSearchZeroByteContent: true,
+    emptyFilesSearchNonPrintableContent: true,
+  })
+})
+
 test("renders Czkawka 12 video codec and frame-rate metadata in the browser", async () => {
   await i18n.changeLanguage("en")
   const host = createHost({ tool: "similar-videos", includedDirectoriesText: "D:/media", result: similarVideoResult })

@@ -8,14 +8,16 @@ use napi::{Env, Status};
 use napi_derive::napi;
 use xiranite_czkawka_core as core;
 
+mod basic_task;
 mod trash_api;
+pub use basic_task::BasicScanTask;
 pub use trash_api::*;
 
 #[cfg(target_os = "windows")]
 mod windows_trash;
 
 #[derive(Clone)]
-struct ScanSession {
+pub(crate) struct ScanSession {
     id: String,
     stop: Arc<AtomicBool>,
     progress: Arc<Mutex<Option<core::ScanProgress>>>,
@@ -25,7 +27,7 @@ fn scan_sessions() -> &'static Mutex<HashMap<String, ScanSession>> {
     SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 impl ScanSession {
-    fn create(id: Option<String>) -> Option<Self> {
+    pub(crate) fn create(id: Option<String>) -> Option<Self> {
         let id = id?.trim().to_owned();
         if id.is_empty() {
             return None;
@@ -44,7 +46,7 @@ impl ScanSession {
         }
         Some(session)
     }
-    fn finish(&self) {
+    pub(crate) fn finish(&self) {
         let mut sessions = scan_sessions()
             .lock()
             .expect("scan session registry poisoned");
@@ -99,7 +101,7 @@ pub fn get_czkawka_scan_progress(scan_id: String) -> Option<CzkawkaScanProgress>
         bytes_total: saturating_i64(progress.bytes_total),
     })
 }
-fn run_controlled<T>(
+pub(crate) fn run_controlled<T>(
     session: &Option<ScanSession>,
     scan: impl FnOnce(&core::ScanControl) -> std::result::Result<T, core::CzkawkaError>,
 ) -> Result<T> {
@@ -325,7 +327,7 @@ fn bounded_f64(
     Ok(value.clamp(minimum, maximum))
 }
 
-fn saturating_i64(value: u64) -> i64 {
+pub(crate) fn saturating_i64(value: u64) -> i64 {
     value.min(i64::MAX as u64) as i64
 }
 
@@ -346,6 +348,8 @@ pub struct BasicScanOptions {
     pub delete_outdated_cache: Option<bool>,
     pub number_of_files: Option<u32>,
     pub biggest_first: Option<bool>,
+    pub empty_files_search_zero_byte_content: Option<bool>,
+    pub empty_files_search_non_printable_content: Option<bool>,
     pub scan_id: Option<String>,
     pub thread_count: Option<u32>,
 }
@@ -364,12 +368,6 @@ pub struct BasicScanResult {
     pub entries: Vec<BasicEntry>,
     pub messages: String,
     pub stopped: bool,
-}
-
-pub struct BasicScanTask {
-    options: core::BasicScanOptions,
-    session: Option<ScanSession>,
-    thread_count: usize,
 }
 
 #[napi]
@@ -420,44 +418,18 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<AsyncTask<BasicScan
     core_options.delete_outdated_cache = options.delete_outdated_cache.unwrap_or(true);
     core_options.number_of_files = options.number_of_files.unwrap_or(50).max(1) as usize;
     core_options.biggest_first = options.biggest_first.unwrap_or(true);
+    core_options.empty_files_search_zero_byte_content = options
+        .empty_files_search_zero_byte_content
+        .unwrap_or(false);
+    core_options.empty_files_search_non_printable_content = options
+        .empty_files_search_non_printable_content
+        .unwrap_or(false);
     let session = ScanSession::create(options.scan_id);
-    Ok(AsyncTask::new(BasicScanTask {
-        options: core_options,
+    Ok(AsyncTask::new(BasicScanTask::new(
+        core_options,
         session,
-        thread_count: options.thread_count.unwrap_or(0) as usize,
-    }))
-}
-
-impl Task for BasicScanTask {
-    type Output = core::BasicScanResult;
-    type JsValue = BasicScanResult;
-
-    fn compute(&mut self) -> Result<Self::Output> {
-        core::initialize_threads(self.thread_count);
-        run_controlled(&self.session, |control| {
-            core::scan_basic_files_controlled(self.options.clone(), control)
-        })
-    }
-
-    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
-        Ok(BasicScanResult {
-            entries: output
-                .entries
-                .into_iter()
-                .map(|entry| BasicEntry {
-                    path: entry.path.to_string_lossy().into_owned(),
-                    size: saturating_i64(entry.size),
-                    modified_date: saturating_i64(entry.modified_date),
-                    secondary_path: entry
-                        .secondary_path
-                        .map(|path| path.to_string_lossy().into_owned()),
-                    detail: entry.detail,
-                })
-                .collect(),
-            messages: output.messages,
-            stopped: output.stopped,
-        })
-    }
+        options.thread_count.unwrap_or(0) as usize,
+    )))
 }
 
 #[napi(object)]

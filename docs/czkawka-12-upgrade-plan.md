@@ -359,7 +359,7 @@ Recommended order:
 
 Do not expose a control before the runtime advertises its capability.
 
-Status: the similar-image, similar-video, and broken-files GUI vertical slices are complete. CLI and OpenTUI retain their existing option surface and receive no new 12.0 controls or release-validation obligation.
+Status: the similar-image, similar-video, broken-files, and empty-files GUI vertical slices are complete. CLI and OpenTUI retain their existing option surface and receive no new 12.0 controls or release-validation obligation.
 
 Completed similar-video evidence:
 
@@ -373,6 +373,12 @@ Completed broken-files evidence:
 - The stable Rust and Node-API contracts map `ffprobe`, full `ffmpeg` decode, font, and markup checkers to the upstream `CheckedTypes` bitset without exposing upstream types above the native adapter.
 - `broken-files.multi-checker` keeps the four GUI controls hidden until supported and rejects an explicitly enabled persisted checker before a legacy binding could silently ignore it. The new checks default to `false`, so older bindings retain their prior four-checker behavior.
 - Browser Mode covers capability visibility and persistence for every new checker. The native smoke loads the release binding, verifies the advertised capability, and finds a malformed JSON file through the Markup checker; embedded smoke extracts the refreshed prebuilt ZIP before loading it.
+
+Completed empty-files evidence:
+
+- The stable Rust and Node-API contracts map NUL-only and non-printable-content checks to `EmptyFilesParameters` without leaking upstream types above the native adapter.
+- `empty-files.content-checkers` keeps both GUI controls hidden until supported and rejects an explicitly enabled persisted checker before a legacy binding could silently ignore it. Both checks default to `false`, preserving the prior zero-length-only behavior.
+- Browser Mode covers capability visibility and persistence. The release-binding smoke finds both an NUL-only file and a whitespace-only file; embedded smoke loads the refreshed Czkawka ZIP and verifies the advertised capability.
 
 ### Phase 4: Add missing tools behind safe operation contracts
 

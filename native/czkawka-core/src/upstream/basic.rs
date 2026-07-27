@@ -49,7 +49,7 @@ pub(crate) fn scan_basic_files_controlled(
             Ok(basic_result(&tool, entries))
         }
         BasicTool::EmptyFiles => {
-            let mut tool = EmptyFiles::new(EmptyFilesParameters::default());
+            let mut tool = EmptyFiles::new(empty_files_parameters(&options));
             configure_tool(&mut tool, &options);
             search_with_control(&mut tool, control);
             let entries = tool
@@ -119,6 +119,13 @@ pub(crate) fn scan_basic_files_controlled(
     }
 }
 
+fn empty_files_parameters(options: &BasicScanOptions) -> EmptyFilesParameters {
+    EmptyFilesParameters {
+        search_zero_byte_content_files: options.empty_files_search_zero_byte_content,
+        search_non_printable_content_files: options.empty_files_search_non_printable_content,
+    }
+}
+
 fn configure_tool<T: CommonData>(tool: &mut T, options: &BasicScanOptions) {
     tool.set_included_paths(options.included_directories.clone());
     if !options.reference_directories.is_empty() {
@@ -144,5 +151,22 @@ fn basic_result<T: CommonData>(tool: &T, mut entries: Vec<BasicEntry>) -> BasicS
             .get_text_messages()
             .create_messages_text(MessageLimit::NoLimit),
         stopped: tool.get_stopped_search(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::empty_files_parameters;
+    use crate::{BasicScanOptions, BasicTool};
+
+    #[test]
+    fn maps_empty_file_content_checkers_to_the_upstream_parameters() {
+        let mut options = BasicScanOptions::new(BasicTool::EmptyFiles, Vec::new());
+        options.empty_files_search_zero_byte_content = true;
+        options.empty_files_search_non_printable_content = true;
+
+        let parameters = empty_files_parameters(&options);
+        assert!(parameters.search_zero_byte_content_files);
+        assert!(parameters.search_non_printable_content_files);
     }
 }

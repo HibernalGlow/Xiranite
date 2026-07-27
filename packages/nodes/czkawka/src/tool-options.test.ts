@@ -19,6 +19,8 @@ describe("shared Czkawka option schema", () => {
     expect(interactionIds).not.toContain("brokenVideoFfmpeg")
     expect(interactionIds).not.toContain("brokenFont")
     expect(interactionIds).not.toContain("brokenMarkup")
+    expect(interactionIds).not.toContain("emptyFilesSearchZeroByteContent")
+    expect(interactionIds).not.toContain("emptyFilesSearchNonPrintableContent")
     expect(getCzkawkaGuiToolOptions("similar-images", new Set())).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "similarImagesIgnoreSameResolution" }),
       expect.objectContaining({ id: "similarImagesGeometricInvariance" }),
@@ -49,6 +51,14 @@ describe("shared Czkawka option schema", () => {
       expect.objectContaining({ id: "brokenVideoFfmpeg", defaultValue: false }),
       expect.objectContaining({ id: "brokenFont", defaultValue: false }),
       expect.objectContaining({ id: "brokenMarkup", defaultValue: false }),
+    ]))
+    expect(getCzkawkaGuiToolOptions("empty-files", new Set())).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "emptyFilesSearchZeroByteContent" }),
+      expect.objectContaining({ id: "emptyFilesSearchNonPrintableContent" }),
+    ]))
+    expect(getCzkawkaGuiToolOptions("empty-files", new Set(["empty-files.content-checkers"]))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "emptyFilesSearchZeroByteContent", defaultValue: false }),
+      expect.objectContaining({ id: "emptyFilesSearchNonPrintableContent", defaultValue: false }),
     ]))
     expect(CZKAWKA_TOOLS.every((tool) => getCzkawkaToolOptions(tool).length > 0 || ["empty-folders", "empty-files", "temporary-files", "invalid-symlinks", "bad-extensions"].includes(tool))).toBe(true)
   })
@@ -165,6 +175,19 @@ describe("shared Czkawka option schema", () => {
       brokenVideoFfmpeg: true,
       brokenFont: true,
       brokenMarkup: true,
+    })
+  })
+
+  test("builds the GUI-only empty-file content scan contract without adding terminal flags", () => {
+    expect(createCzkawkaScanInput("empty-files", {
+      includedDirectoriesText: "D:/Library",
+      emptyFilesSearchZeroByteContent: true,
+      emptyFilesSearchNonPrintableContent: true,
+    })).toMatchObject({
+      tool: "empty-files",
+      includedDirectories: ["D:/Library"],
+      emptyFilesSearchZeroByteContent: true,
+      emptyFilesSearchNonPrintableContent: true,
     })
   })
 

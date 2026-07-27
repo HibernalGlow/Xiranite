@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { cancelCzkawkaScan, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles } from "../dist/index.js"
 
 const info = getCzkawkaInfo()
-const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio", "broken-files.multi-checker"]
+const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio", "broken-files.multi-checker", "empty-files.content-checkers"]
 const missingCapabilities = requiredCapabilities.filter((capability) => !info.capabilities.includes(capability))
 if (info.apiVersion !== 5 || missingCapabilities.length) {
   throw new Error(`Unexpected Czkawka info: ${JSON.stringify(info)}`)
@@ -19,6 +19,9 @@ try {
     writeFile(join(directory, "two.bin"), "same-content"),
     writeFile(join(directory, "different.bin"), "different-content"),
     writeFile(join(directory, "empty.bin"), ""),
+    writeFile(join(directory, "nul-only.bin"), new Uint8Array([0, 0, 0])),
+    writeFile(join(directory, "non-printable.txt"), " \t\r\n"),
+    writeFile(join(directory, "printable.txt"), "visible"),
     writeFile(join(directory, "broken.json"), '{"broken":'),
   ])
   const result = await scanDuplicateFiles({ includedDirectories: [directory], useCache: false })
@@ -30,6 +33,27 @@ try {
   if (!basic.entries.some((entry) => entry.path.endsWith("empty.bin"))) {
     throw new Error(`Unexpected basic result: ${JSON.stringify(basic)}`)
   }
+  const zeroByteContent = await scanBasicFiles({
+    tool: "empty-files",
+    includedDirectories: [directory],
+    minimumFileSize: 0,
+    useCache: false,
+    emptyFilesSearchZeroByteContent: true,
+  })
+  if (!zeroByteContent.entries.some((entry) => entry.path.endsWith("nul-only.bin"))) {
+    throw new Error(`Zero-byte content checker did not report the NUL-only file: ${JSON.stringify(zeroByteContent)}`)
+  }
+  const nonPrintableContent = await scanBasicFiles({
+    tool: "empty-files",
+    includedDirectories: [directory],
+    minimumFileSize: 0,
+    useCache: false,
+    emptyFilesSearchNonPrintableContent: true,
+  })
+  if (!nonPrintableContent.entries.some((entry) => entry.path.endsWith("non-printable.txt"))) {
+    throw new Error(`Non-printable content checker did not report the whitespace-only file: ${JSON.stringify(nonPrintableContent)}`)
+  }
+  console.log(JSON.stringify({ zeroByteContentFiles: zeroByteContent.entries.length, nonPrintableContentFiles: nonPrintableContent.entries.length }))
   const media = await scanMediaFiles({
     tool: "bad-extensions",
     includedDirectories: [directory],

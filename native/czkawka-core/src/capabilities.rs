@@ -18,6 +18,7 @@ pub const CAPABILITIES: &[&str] = &[
     "similar-videos.same-resolution-exclusion",
     "similar-videos.audio",
     "broken-files.multi-checker",
+    "empty-files.content-checkers",
     "operation.trash.list",
     "operation.trash.restore",
 ];

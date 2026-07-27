@@ -102,6 +102,8 @@ export interface CzkawkaInput {
   brokenVideoFfmpeg?: boolean
   brokenFont?: boolean
   brokenMarkup?: boolean
+  emptyFilesSearchZeroByteContent?: boolean
+  emptyFilesSearchNonPrintableContent?: boolean
   filterText?: string
   sortBy?: CzkawkaSort
   descending?: boolean
@@ -292,6 +294,8 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInp
     brokenVideoFfmpeg: input.brokenVideoFfmpeg ?? false,
     brokenFont: input.brokenFont ?? false,
     brokenMarkup: input.brokenMarkup ?? false,
+    emptyFilesSearchZeroByteContent: input.emptyFilesSearchZeroByteContent ?? false,
+    emptyFilesSearchNonPrintableContent: input.emptyFilesSearchNonPrintableContent ?? false,
     filterText: clean(input.filterText),
     sortBy: input.sortBy ?? "path",
     descending: input.descending ?? false,
@@ -387,6 +391,9 @@ function missingNativeCapabilities(value: CzkawkaNormalizedInput, capabilities: 
   if (value.tool === "broken-files" && (
     value.brokenVideoFfprobe || value.brokenVideoFfmpeg || value.brokenFont || value.brokenMarkup
   )) required.push("broken-files.multi-checker")
+  if (value.tool === "empty-files" && (
+    value.emptyFilesSearchZeroByteContent || value.emptyFilesSearchNonPrintableContent
+  )) required.push("empty-files.content-checkers")
   if (!required.length) return []
   const available = new Set(capabilities ?? [])
   return required.filter((capability) => !available.has(capability))
