@@ -21,6 +21,7 @@ test("LinkU renders topology and lists in one click", async () => {
               links: [{ link: "D:/links/config", target: "D:/config/system", type: "directory", createdAt: "2026-07-10T19:00:00Z" }],
               created: false,
               recoveredCount: 0,
+              restoredCount: 0,
               failedCount: 0,
               importedCount: 0,
               skippedCount: 0,

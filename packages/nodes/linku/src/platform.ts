@@ -22,6 +22,7 @@ export function createNodeLinkuRuntime(configPath?: string): LinkuRuntime {
   return {
     pathInfo,
     isLiveLinkRecord,
+    removeSymlink,
     createSymlink,
     movePath,
     readConfig: async (path) => readLinkuConfig(path || resolvedConfigPath),
@@ -201,6 +202,18 @@ function pathsMatch(left: string, right: string): boolean {
       .replace(/\//g, "\\")
       .replace(/\\+$/, "")
       .toLowerCase()
+}
+
+async function removeSymlink(path: string): Promise<void> {
+  const linkPath = resolve(path)
+  let stat
+  try {
+    stat = await lstat(linkPath)
+  } catch {
+    throw new Error(`Link path does not exist: ${path}`)
+  }
+  if (!stat.isSymbolicLink()) throw new Error(`Link path is not a symbolic link: ${path}`)
+  await rm(linkPath, { force: false })
 }
 
 async function createSymlink(source: string, link: string): Promise<void> {

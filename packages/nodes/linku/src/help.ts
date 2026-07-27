@@ -2,8 +2,8 @@ import type { NodeHelp } from "@xiranite/contract"
 
 export const help = {
   "title": "Linku",
-  "short": "Create, move, import, list, and recover symlink records.",
-  "description": "Create, move, import, list, and recover symlink records.",
+  "short": "Create, move, import, restore, list, and recover symlink records.",
+  "description": "Create, move, import, restore, list, and recover symlink records.",
   "whenToUse": [
     "Use Linku when you need this node's file workflow from either the workspace UI or CLI."
   ],
@@ -48,6 +48,11 @@ export const help = {
           "description": "Import only records whose current link and target are valid. Add --includeInvalid to retain invalid historical records."
         },
         {
+          "label": "Restore a recorded link",
+          "command": "xiranite linku restore --path C:\\path\\to\\original",
+          "description": "Validate the live link, move its target back to the original path, then remove the record."
+        },
+        {
           "label": "Shared help",
           "command": "xiranite help linku",
           "description": "Render this shared help entry in the root CLI."
@@ -65,8 +70,8 @@ export const help = {
   "translations": {
     "zh-CN": {
       "title": "Linku",
-      "short": "创建、移动、导入、列出并恢复符号链接记录。",
-      "description": "创建、移动、导入、列出并恢复符号链接记录。",
+      "short": "创建、移动、导入、还原、列出并恢复符号链接记录。",
+      "description": "创建、移动、导入、还原、列出并恢复符号链接记录。",
       "whenToUse": [
         "当需要从工作区 UI 或 CLI 使用该节点的文件工作流时，使用 Linku。"
       ],
@@ -109,6 +114,11 @@ export const help = {
               "label": "导入旧记录",
               "command": "xiranite linku import --path C:\\path\\to\\linku.toml",
               "description": "只导入当前链接和目标均有效的记录；添加 --includeInvalid 可保留失效历史记录。"
+            },
+            {
+              "label": "还原已记录链接",
+              "command": "xiranite linku restore --path C:\\path\\to\\original",
+              "description": "校验当前链接后将目标移回原路径，并删除对应记录。"
             },
             {
               "label": "共享帮助",

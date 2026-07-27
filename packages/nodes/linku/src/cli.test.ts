@@ -105,6 +105,27 @@ describe("linku CLI", () => {
     expect(result.data?.importedCount).toBe(1)
     expect(result.data?.skippedCount).toBe(0)
   })
+
+  test("restores a moved directory and removes its record", async () => {
+    const fixture = await createFixture("restore")
+    const relocated = join(fixture.root, "relocated")
+    const moveHost = createHost()
+    await runProgram(["move", "--path", fixture.source, "--target", relocated, "--configPath", fixture.config, "--json"], moveHost)
+    expect((JSON.parse(moveHost.stdoutText()) as LinkuResult).success).toBe(true)
+
+    const restoreHost = createHost()
+    await runProgram(["restore", "--path", fixture.source, "--configPath", fixture.config, "--json"], restoreHost)
+
+    const result = JSON.parse(restoreHost.stdoutText()) as LinkuResult
+    expect(result.success).toBe(true)
+    expect(result.data?.restoredCount).toBe(1)
+    expect((await lstat(fixture.source)).isDirectory()).toBe(true)
+    expect(existsSync(relocated)).toBe(false)
+
+    const listHost = createHost()
+    await runProgram(["list", "--configPath", fixture.config, "--json"], listHost)
+    expect((JSON.parse(listHost.stdoutText()) as LinkuResult).data?.links).toEqual([])
+  })
 })
 
 async function createFixture(name: string): Promise<{ root: string; source: string; link: string; config: string; legacyConfig: string; file: string }> {
