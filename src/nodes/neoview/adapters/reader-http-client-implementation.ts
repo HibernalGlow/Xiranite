@@ -1,4 +1,5 @@
 import { resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
+import { createReaderExplorerContextMenuClient } from "./reader-http-explorer-context-menu-client"
 import type * as Contract from "./reader-http-contract"
 export class ReaderHttpError extends Error {
   constructor(
@@ -598,25 +599,7 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         body: JSON.stringify({ url }),
         signal,
       }),
-    explorerContextMenuPreview: (signal) => request<Contract.ReaderExplorerContextMenuPreviewDto>("/reader/system/explorer-context-menu/preview", { signal }),
-    explorerContextMenuStatus: (signal) => request<Contract.ReaderExplorerContextMenuStatusDto>("/reader/system/explorer-context-menu/status", { signal }),
-    setExplorerContextMenuEnabled: (enabled, confirmed = false, signal) =>
-      request<Contract.ReaderExplorerContextMenuStatusDto>("/reader/system/explorer-context-menu", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          enabled,
-          ...(confirmed ? { confirmed: true } : {}),
-        }),
-        signal,
-      }),
-    repairExplorerContextMenu: (confirmed = false, signal) =>
-      request<Contract.ReaderExplorerContextMenuStatusDto>("/reader/system/explorer-context-menu/repair", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(confirmed ? { confirmed: true } : {}),
-        signal,
-      }),
+    ...createReaderExplorerContextMenuClient(request),
     executeFileOperations: (operations, confirmed = false, signal) =>
       request<Contract.ReaderFileOperationBatchResultDto>("/reader/files/operations", {
         method: "POST",
