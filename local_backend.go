@@ -63,6 +63,9 @@ func startLocalBackend(restartToken string) (*LocalBackend, error) {
 	if err := prepareEmbeddedNativeAssets(); err != nil {
 		return nil, fmt.Errorf("prepare embedded native assets: %w", err)
 	}
+	if executable, executableErr := os.Executable(); executableErr == nil && executable != "" {
+		_ = os.Setenv("XIRANITE_DESKTOP_EXECUTABLE", executable)
+	}
 
 	command, args, cwd, err := resolveLocalBackendCommand()
 	if err != nil {

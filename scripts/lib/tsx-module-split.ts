@@ -189,7 +189,7 @@ export function splitTsxModule(
     const declaration = declarationByName.get(name)!
     return declaration.exportKind === "default" && !declaration.typeOnly
   })
-  const moduleSpecifier = `./${targetFile.slice(dirname(targetFile).length + 1).replace(/\.[^.]+$/u, "")}`.replaceAll("\\", "/")
+  const moduleSpecifier = `./${targetFile.slice(dirname(targetFile).length + 1).replace(/\.[^.]+$/u, "")}.js`.replaceAll("\\", "/")
   const sourceBridge = [
     sourceDefaultValueImport ? `import ${sourceDefaultValueImport} from ${JSON.stringify(moduleSpecifier)}` : "",
     sourceDefaultTypeImport ? `import type ${sourceDefaultTypeImport} from ${JSON.stringify(moduleSpecifier)}` : "",

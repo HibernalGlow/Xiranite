@@ -1,10 +1,8 @@
 import { execFile } from "node:child_process"
 import { readFile } from "node:fs/promises"
-import { promisify } from "node:util"
 import type { NodeRunEvent } from "@xiranite/contract"
+import { applyWindowsShellPlan, createNodeWindowsRegistryAdapter } from "@xiranite/shell-integration"
 import type { OwithuAction, OwithuApplyResult, OwithuRegistryPlanItem, OwithuRuntime } from "./core.js"
-
-const execFileAsync = promisify(execFile)
 
 export function createNodeOwithuRuntime(): OwithuRuntime {
   return {
@@ -68,37 +66,15 @@ async function applyRegistryPlan(
   }
 
   const errors: string[] = []
-  let successCount = 0
-  for (let index = 0; index < plan.length; index += 1) {
-    const item = plan[index]
+  const result = await applyWindowsShellPlan(createNodeWindowsRegistryAdapter(), plan, action, (index, item) => {
     onEvent({ type: "progress", progress: Math.round((index / Math.max(plan.length, 1)) * 100), message: `${action} ${item.registryPath}` })
-    try {
-      if (action === "register") await registerItem(item)
-      else await deleteKey(item.registryPath)
-      successCount += 1
-    } catch (error) {
-      errors.push(`${item.registryPath}: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
+  })
+  errors.push(...result.errors)
   onEvent({ type: "progress", progress: 100, message: `${action} completed.` })
 
   return {
-    successCount,
-    failedCount: errors.length,
+    successCount: result.successCount,
+    failedCount: result.failedCount,
     errors,
   }
-}
-
-async function registerItem(item: OwithuRegistryPlanItem): Promise<void> {
-  await reg(["add", item.registryPath, "/ve", "/d", item.label, "/f"])
-  await reg(["add", item.registryPath, "/v", "Icon", "/d", item.icon, "/f"])
-  await reg(["add", `${item.registryPath}\\command`, "/ve", "/d", item.command, "/f"])
-}
-
-async function deleteKey(path: string): Promise<void> {
-  await reg(["delete", path, "/f"])
-}
-
-async function reg(args: string[]): Promise<void> {
-  await execFileAsync("reg.exe", args, { windowsHide: true })
 }

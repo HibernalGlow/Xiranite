@@ -1,4 +1,5 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { buildWindowsShellCommand, legacyWindowsShellRegistryPath } from "@xiranite/shell-integration"
 import { parse } from "smol-toml"
 
 export type OwithuAction = "preview" | "register" | "unregister"
@@ -194,22 +195,11 @@ export async function runOwithu(
 }
 
 export function buildCommand(exe: string, args: string[]): string {
-  const exePart = exe.startsWith("\"") ? exe : `"${exe}"`
-  const argPart = args.map(quoteArg).join(" ")
-  return argPart ? `${exePart} ${argPart}` : exePart
+  return buildWindowsShellCommand(exe, args)
 }
 
 export function registryPath(hive: RegistryHive, entryKey: string, scope: OwithuScope): string {
-  const scopedPath =
-    scope === "file"
-      ? `*\\shell\\${entryKey}`
-      : scope === "directory"
-        ? `Directory\\shell\\${entryKey}`
-        : `Directory\\Background\\shell\\${entryKey}`
-
-  if (hive === "HKCU") return `HKCU\\Software\\Classes\\${scopedPath}`
-  if (hive === "HKLM") return `HKLM\\Software\\Classes\\${scopedPath}`
-  return `HKCR\\${scopedPath}`
+  return legacyWindowsShellRegistryPath(hive, entryKey, scope)
 }
 
 function normalizeEntry(raw: Record<string, unknown>, vars: Record<string, string>, defaults: OwithuDefaults, index: number): OwithuEntry {
@@ -257,12 +247,6 @@ function readHiveArray(value: unknown): RegistryHive[] {
     out.push(hive)
   }
   return [...new Set(out)]
-}
-
-function quoteArg(arg: string): string {
-  if (arg === "%1" || arg === "%V") return `"${arg}"`
-  if ((arg.startsWith("\"") && arg.endsWith("\"")) || !/\s/.test(arg)) return arg
-  return `"${arg}"`
 }
 
 function formatTemplate(value: string, vars: Record<string, string>): string {
