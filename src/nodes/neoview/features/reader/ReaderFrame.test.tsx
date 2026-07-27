@@ -129,6 +129,32 @@ describe("ReaderFrame", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(200) })
     expect(startUpscalePreload).toHaveBeenCalledWith("reader", "nearby", expect.any(AbortSignal))
   })
+
+  it("[neoview.super-resolution.background-preload] keeps background work paused until the reader budget admits it", async () => {
+    vi.useFakeTimers()
+    const startUpscalePreload = vi.fn(async () => [])
+    const client = { startUpscalePreload, upscalePreloadSnapshots: vi.fn(async () => []) } as unknown as ReaderHttpClient
+    const props = {
+      pages: [page(0)],
+      presentation: DEFAULT_READER_PRESENTATION,
+      totalPages: 1,
+      anchorPageIndex: 0,
+      sessionId: "reader",
+      client,
+      videoController: {} as ReaderVideoController,
+      superResolution: { provider: "opencomic-system" as const, preferences: { autoUpscaleEnabled: true, preUpscaleEnabled: true } },
+      onSubtitleConfigChange: vi.fn(),
+      onVideoListEnded: vi.fn(),
+    }
+
+    const view = render(<ReaderFrame {...props} speculativePreloadAllowed={false} />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000) })
+    expect(startUpscalePreload).not.toHaveBeenCalled()
+
+    view.rerender(<ReaderFrame {...props} speculativePreloadAllowed />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+    expect(startUpscalePreload).toHaveBeenCalledWith("reader", "nearby", expect.any(AbortSignal))
+  })
 })
 
 function page(index: number, dimensions = { width: 1200, height: 1800 }): ReaderPageDto {

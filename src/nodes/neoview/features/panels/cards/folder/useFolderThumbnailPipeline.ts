@@ -23,6 +23,8 @@ import {
 
 const MAX_THUMBNAILS = 24
 const MAX_CACHED_THUMBNAIL_URLS = 256
+const FOLDER_COMPILE_IDLE_DELAY_MS = 3_000
+const FOLDER_COMPILE_IDLE_TIMEOUT_MS = 1_000
 
 export function useFolderThumbnailPipeline({
   client,
@@ -97,7 +99,17 @@ export function useFolderThumbnailPipeline({
     if (compileKeysRef.current.has(compileKey)) return
     const controller = new AbortController()
     let completed = false
-    const timer = setTimeout(() => {
+    let idleHandle: number | undefined
+    let timer: ReturnType<typeof window.setTimeout> | undefined
+    const cancelPendingStart = () => {
+      if (timer !== undefined) window.clearTimeout(timer)
+      if (idleHandle !== undefined && typeof cancelIdleCallback === "function") cancelIdleCallback(idleHandle)
+      timer = undefined
+      idleHandle = undefined
+    }
+    const startCompilation = () => {
+      idleHandle = undefined
+      if (controller.signal.aborted) return
       compileKeysRef.current.add(compileKey)
       while (compileKeysRef.current.size > 50) {
         compileKeysRef.current.delete(compileKeysRef.current.keys().next().value as string)
@@ -112,9 +124,26 @@ export function useFolderThumbnailPipeline({
         .catch(() => {
           compileKeysRef.current.delete(compileKey)
         })
-    }, 1_000)
+    }
+    const scheduleCompilation = () => {
+      cancelPendingStart()
+      timer = window.setTimeout(() => {
+        if (typeof requestIdleCallback === "function") {
+          idleHandle = requestIdleCallback(startCompilation, { timeout: FOLDER_COMPILE_IDLE_TIMEOUT_MS })
+        } else {
+          startCompilation()
+        }
+      }, FOLDER_COMPILE_IDLE_DELAY_MS)
+    }
+    scheduleCompilation()
+    window.addEventListener("pointerdown", scheduleCompilation, true)
+    window.addEventListener("keydown", scheduleCompilation, true)
+    window.addEventListener("wheel", scheduleCompilation, true)
     return () => {
-      clearTimeout(timer)
+      window.removeEventListener("pointerdown", scheduleCompilation, true)
+      window.removeEventListener("keydown", scheduleCompilation, true)
+      window.removeEventListener("wheel", scheduleCompilation, true)
+      cancelPendingStart()
       controller.abort(new DOMException("Folder thumbnail compilation superseded.", "AbortError"))
       if (!completed) compileKeysRef.current.delete(compileKey)
     }
