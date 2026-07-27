@@ -240,6 +240,24 @@ test("adds individual files and the Czkawka $TRASH exclusion preset in the brows
   await expect.poll(() => host.stateValue.excludedItemsText).toBe("$TRASH")
 })
 
+test("persists outdated cache cleanup separately for the current Czkawka scanner", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({
+    tool: "duplicate-files",
+    includedDirectoriesText: "D:/media",
+    deleteOutdatedCacheByTool: { "similar-images": false },
+  })
+
+  await render(<Component compId="czkawka-cache-cleanup-browser" host={host} />)
+
+  await page.getByRole("button", { name: "Node settings" }).click()
+  await page.getByRole("switch", { name: "Delete outdated entries for the current scanner" }).click()
+  await expect.poll(() => host.stateValue.deleteOutdatedCacheByTool).toEqual({
+    "duplicate-files": false,
+    "similar-images": false,
+  })
+})
+
 test("renders Czkawka 12 video codec and frame-rate metadata in the browser", async () => {
   await i18n.changeLanguage("en")
   const host = createHost({ tool: "similar-videos", includedDirectoriesText: "D:/media", result: similarVideoResult })
