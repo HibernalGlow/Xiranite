@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { cp, lstat, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, join, parse, relative } from "node:path"
 import { promisify } from "node:util"
-import { cancelCzkawkaScan, createExifCandidate, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type ExifScanOptions, type MediaScanOptions } from "@xiranite/czkawka-native"
+import { cancelCzkawkaScan, createExifCandidate, createVideoOptimizerCandidate, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles, scanVideoOptimizer, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type ExifScanOptions, type MediaScanOptions, type VideoOptimizerCandidateOptions, type VideoOptimizerScanOptions } from "@xiranite/czkawka-native"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
 import { toNativeVideoCropDetect } from "./similar-video-crop.js"
 import type { CzkawkaNativeProgress, CzkawkaNormalizedInput, CzkawkaRuntime, CzkawkaRuntimeInfo } from "./core.js"
@@ -73,6 +73,29 @@ export function toExifScanOptions(input: NormalizedInput): ExifScanOptions {
     useCache: input.useCache,
     saveAlsoAsJson: input.saveAlsoAsJson,
     deleteOutdatedCache: input.deleteOutdatedCache,
+  }
+}
+
+export function toVideoOptimizerScanOptions(input: NormalizedInput): VideoOptimizerScanOptions {
+  return {
+    mode: input.videoOptimizerMode,
+    includedDirectories: input.includedDirectories,
+    referenceDirectories: input.includedDirectoriesReferenced,
+    excludedDirectories: input.excludedDirectories,
+    excludedItems: input.excludedItems,
+    allowedExtensions: input.allowedExtensions,
+    excludedExtensions: input.excludedExtensions,
+    recursive: input.recursive,
+    minimumFileSize: input.minimumFileSize,
+    maximumFileSize: input.maximumFileSize,
+    useCache: input.useCache,
+    saveAlsoAsJson: input.saveAlsoAsJson,
+    deleteOutdatedCache: input.deleteOutdatedCache,
+    excludedCodecs: input.videoOptimizerExcludedCodecs,
+    blackPixelThreshold: input.videoOptimizerBlackPixelThreshold,
+    blackBarMinPercentage: input.videoOptimizerBlackBarMinPercentage,
+    maxSamples: input.videoOptimizerMaxSamples,
+    minCropSize: input.videoOptimizerMinCropSize,
   }
 }
 
@@ -147,8 +170,10 @@ export function createNodeCzkawkaRuntime(context: CzkawkaRuntimeContext = {}): C
     scanDuplicates: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toDuplicateScanOptions(input), input.threadCount, runtime, onProgress, scanDuplicateFiles) },
     scanBasic: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toBasicScanOptions(input), input.threadCount, runtime, onProgress, scanBasicFiles) },
     scanExif: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toExifScanOptions(input), input.threadCount, runtime, onProgress, scanExifFiles) },
+    scanVideoOptimizer: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toVideoOptimizerScanOptions(input), input.threadCount, runtime, onProgress, scanVideoOptimizer) },
     scanMedia: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toMediaScanOptions(input), input.threadCount, runtime, onProgress, scanMediaFiles) },
     createExifCandidate: (sourcePath, tags) => createExifCandidate({ sourcePath, tags }),
+    createVideoOptimizerCandidate: (item, input) => runNativeVideoOptimizerCandidate(item, input, runtime),
     replaceWithCandidate: (candidatePath, sourcePath) => replaceWithCandidate(candidatePath, sourcePath, context.fileOperations),
     pathExists,
     removePath: (path, options) => removePath(path, options, context.fileOperations),
@@ -185,6 +210,33 @@ async function runNativeScan<TOptions extends object, TResult>(options: TOptions
     if (runtime.isCancelled?.()) cancelCzkawkaScan(scanId)
     return await pending
   } finally { publish(); clearInterval(timer) }
+}
+
+async function runNativeVideoOptimizerCandidate(item: Parameters<CzkawkaRuntime["createVideoOptimizerCandidate"]>[0], input: NormalizedInput, runtime: CzkawkaRuntime) {
+  const scanId = randomUUID()
+  const timer = setInterval(() => { if (runtime.isCancelled?.()) cancelCzkawkaScan(scanId) }, 100)
+  timer.unref()
+  const options: VideoOptimizerCandidateOptions = {
+    sourcePath: item.path,
+    mode: input.videoOptimizerMode,
+    targetCodec: input.videoOptimizerTargetCodec,
+    quality: input.videoOptimizerQuality,
+    failIfNotSmaller: input.videoOptimizerFailIfNotSmaller,
+    limitVideoSize: input.videoOptimizerLimitVideoSize,
+    maximumWidth: input.videoOptimizerMaximumWidth,
+    maximumHeight: input.videoOptimizerMaximumHeight,
+    noiseReduction: input.videoOptimizerNoiseReduction,
+    noiseReductionStrength: input.videoOptimizerNoiseReductionStrength,
+    cropLeft: item.cropRect?.left,
+    cropTop: item.cropRect?.top,
+    cropRight: item.cropRect?.right,
+    cropBottom: item.cropRect?.bottom,
+    cropTranscode: input.videoOptimizerCropTranscode,
+    currentCodec: item.codec,
+    scanId,
+  }
+  try { return await createVideoOptimizerCandidate(options) }
+  finally { clearInterval(timer) }
 }
 
 export function configureCzkawkaCacheEnvironment(input: { cacheFolderPath?: string; configFolderPath?: string }): void {

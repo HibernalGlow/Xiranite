@@ -13,6 +13,8 @@ pub const CAPABILITIES: &[&str] = &[
     "scan.bad-names",
     "scan.exif-remover",
     "operation.exif.candidate",
+    "scan.video-optimizer",
+    "operation.video-optimizer.candidate",
     "scan.progress.v2",
     "scan.cancel",
     "similar-images.geometric-invariance",

@@ -6,8 +6,10 @@ function runtime(): CzkawkaRuntime {
     scanDuplicates: vi.fn(async () => ({ groups: [{ files: [{ path: "D:/a.bin", size: 12, modifiedDate: 1, hash: "x" }, { path: "D:/b.bin", size: 12, modifiedDate: 2, hash: "x" }] }], messages: "ok", stopped: false })),
     scanBasic: vi.fn(async () => ({ entries: [{ path: "D:/empty.tmp", size: 0, modifiedDate: 1 }], messages: "ok", stopped: false })),
     scanExif: vi.fn(async () => ({ entries: [{ path: "D:/photo.jpg", size: 20, modifiedDate: 1, tags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }], messages: "ok", stopped: false })),
+    scanVideoOptimizer: vi.fn(async () => ({ entries: [{ path: "D:/video.mp4", size: 40, modifiedDate: 1, codec: "h264", width: 1920, height: 1080, duration: 12 }], messages: "ok", stopped: false })),
     scanMedia: vi.fn(async () => ({ groups: [{ entries: [{ path: "D:/a.jpg", size: 20, modifiedDate: 1, width: 100, height: 80 }, { path: "D:/b.jpg", size: 21, modifiedDate: 1, width: 100, height: 80 }] }], messages: "ok", stopped: false })),
     createExifCandidate: vi.fn(async () => ({ candidatePath: "D:/candidates/photo.jpg", removedTags: 1 })),
+    createVideoOptimizerCandidate: vi.fn(async () => ({ candidatePath: "D:/candidates/video.mp4", originalSize: 40, candidateSize: 30 })),
     replaceWithCandidate: vi.fn(async () => undefined),
     pathExists: vi.fn(async (path) => path.startsWith("D:/")), removePath: vi.fn(async () => undefined), copyPath: vi.fn(async () => undefined), movePath: vi.fn(async () => undefined), writeText: vi.fn(async () => undefined), ensureDirectory: vi.fn(async () => undefined),
     join: (...parts) => parts.filter(Boolean).join("/"), dirname: (path) => path.slice(0, path.lastIndexOf("/")), basename: (path) => path.slice(path.lastIndexOf("/") + 1), relativeDirectoryFromRoot: (path) => path.slice(3, path.lastIndexOf("/")),
@@ -42,6 +44,11 @@ describe("czkawka TypeScript orchestration", () => {
     expect(value.emptyFilesSearchZeroByteContent).toBe(false)
     expect(value.emptyFilesSearchNonPrintableContent).toBe(false)
     expect(value.temporaryFileExtensions).toBe("#,thumbs.db,.bak,~,.tmp,.temp,.ds_store,.crdownload,.part,.cache,.dmp,.download,.partial")
+    expect(value.videoOptimizerMode).toBe("transcode")
+    expect(value.videoOptimizerExcludedCodecs).toBe("h265,av1,vp9")
+    expect(value.videoOptimizerFailIfNotSmaller).toBe(true)
+    expect(value.videoOptimizerNoiseReduction).toBe("none")
+    expect(value.videoOptimizerNoiseReductionStrength).toBe(5)
     expect(value.saveAlsoAsJson).toBe(false)
     expect(value.deleteOutdatedCache).toBe(true)
     expect(value.duplicateMinimalHashCacheSizeKiB).toBe(256)
@@ -388,6 +395,35 @@ describe("czkawka TypeScript orchestration", () => {
     }, adapter)
 
     expect(result).toMatchObject({ success: false, data: { entries: [expect.objectContaining({ status: "error", secondaryPath: "D:/candidates/photo.jpg", detail: "Candidate retained at D:/candidates/photo.jpg." })] } })
+  })
+
+  test("capability-gates video optimizer scans and keeps live replacement behind a candidate", async () => {
+    const adapter = runtime()
+    const scanned = await runCzkawka({ tool: "video-optimizer", includedDirectories: ["D:/videos"] }, adapter)
+    expect(scanned).toMatchObject({ success: false, message: expect.stringContaining("scan.video-optimizer") })
+    expect(adapter.scanVideoOptimizer).not.toHaveBeenCalled()
+
+    adapter.capabilities = ["scan.video-optimizer", "operation.video-optimizer.candidate"]
+    await expect(runCzkawka({ tool: "video-optimizer", includedDirectories: ["D:/videos"] }, adapter)).resolves.toMatchObject({ success: true, data: { entries: [expect.objectContaining({ codec: "h264" })] } })
+
+    const item = { path: "D:/video.mp4", codec: "h264" }
+    const options = { action: "optimize-video" as const, tool: "video-optimizer" as const, videoOptimizerItems: [item], videoOptimizerNoiseReduction: "hqdn3d" as const, videoOptimizerNoiseReductionStrength: 7 }
+    const planned = await runCzkawka(options, adapter)
+    expect(planned.data?.entries[0]).toMatchObject({ operation: "optimize-video", status: "planned", detail: "Transcode as h265 at quality 23 with HQDN3D strength 7" })
+    expect(adapter.createVideoOptimizerCandidate).not.toHaveBeenCalled()
+
+    const executed = await runCzkawka({ ...options, dryRun: false }, adapter)
+    expect(executed.data?.entries[0]).toMatchObject({ operation: "optimize-video", status: "optimized", secondaryPath: "D:/video.mp4" })
+    expect(adapter.createVideoOptimizerCandidate).toHaveBeenCalledWith(item, expect.objectContaining({ videoOptimizerTargetCodec: "h265", videoOptimizerFailIfNotSmaller: true, videoOptimizerNoiseReduction: "hqdn3d", videoOptimizerNoiseReductionStrength: 7 }))
+    expect(adapter.replaceWithCandidate).toHaveBeenCalledWith("D:/candidates/video.mp4", "D:/video.mp4")
+  })
+
+  test("requires a scanned crop rectangle before planning a crop candidate", async () => {
+    const adapter = runtime()
+    adapter.capabilities = ["operation.video-optimizer.candidate"]
+    const result = await runCzkawka({ action: "optimize-video", tool: "video-optimizer", videoOptimizerMode: "crop", videoOptimizerItems: [{ path: "D:/video.mp4", codec: "h264" }] }, adapter)
+    expect(result.data?.entries[0]).toMatchObject({ status: "error", error: "No scanned crop rectangle is available for this path." })
+    expect(adapter.createVideoOptimizerCandidate).not.toHaveBeenCalled()
   })
 
   test("reports extension target conflicts and invalid extensions per item", async () => {

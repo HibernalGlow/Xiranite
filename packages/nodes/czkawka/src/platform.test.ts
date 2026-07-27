@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { CZKAWKA_TOOLS, normalizeCzkawkaInput, type CzkawkaTool } from "./core.js"
-import { createNodeCzkawkaRuntime, toBasicScanOptions, toDuplicateScanOptions, toExifScanOptions, toMediaScanOptions } from "./platform.js"
+import { createNodeCzkawkaRuntime, toBasicScanOptions, toDuplicateScanOptions, toExifScanOptions, toMediaScanOptions, toVideoOptimizerScanOptions } from "./platform.js"
 import { createCzkawkaScanInput } from "./tool-options.js"
 
 describe("Czkawka native DTO mapping", () => {
@@ -48,6 +48,8 @@ describe("Czkawka native DTO mapping", () => {
     expect(toMediaScanOptions(media)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
     const exif = normalizeCzkawkaInput({ tool: "exif-remover", saveAlsoAsJson: true, deleteOutdatedCache: false })
     expect(toExifScanOptions(exif)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
+    const optimizer = normalizeCzkawkaInput({ tool: "video-optimizer", saveAlsoAsJson: true, deleteOutdatedCache: false })
+    expect(toVideoOptimizerScanOptions(optimizer)).toMatchObject({ mode: "transcode", saveAlsoAsJson: true, deleteOutdatedCache: false })
   })
 
   test("maps every Czkawka 12 empty-file content checker into the native basic DTO", () => {
@@ -117,6 +119,7 @@ describe("Czkawka native DTO mapping", () => {
     ["invalid-symlinks", {}, { tool: "invalid-symlinks" }],
     ["broken-files", { brokenAudio: false, brokenPdf: true, brokenArchive: false, brokenImage: true }, { tool: "broken-files", brokenAudio: false, brokenPdf: true, brokenArchive: false, brokenImage: true }],
     ["bad-extensions", {}, { tool: "bad-extensions" }],
+    ["video-optimizer", { videoOptimizerMode: "crop", videoOptimizerExcludedCodecs: "h264,hevc", videoOptimizerBlackPixelThreshold: 20, videoOptimizerBlackBarMinPercentage: 88, videoOptimizerMaxSamples: 80, videoOptimizerMinCropSize: 9 }, { mode: "crop", excludedCodecs: "h264,h265", blackPixelThreshold: 20, blackBarMinPercentage: 88, maxSamples: 80, minCropSize: 9 }],
   ] as const)("maps the complete %s contract into its native family DTO", (tool, values, expected) => {
     const input = normalizeCzkawkaInput(createCzkawkaScanInput(tool, { includedDirectories: ["D:/library"], ...values }))
     expect(nativeOptions(tool, input)).toMatchObject(expected)
@@ -297,6 +300,7 @@ describe("Czkawka native DTO mapping", () => {
 function nativeOptions(tool: CzkawkaTool, input: ReturnType<typeof normalizeCzkawkaInput>) {
   if (tool === "duplicate-files") return toDuplicateScanOptions(input)
   if (tool === "exif-remover") return toExifScanOptions(input)
+  if (tool === "video-optimizer") return toVideoOptimizerScanOptions(input)
   if (["empty-folders", "big-files", "empty-files", "temporary-files", "invalid-symlinks", "bad-names"].includes(tool)) return toBasicScanOptions(input)
   return toMediaScanOptions(input)
 }

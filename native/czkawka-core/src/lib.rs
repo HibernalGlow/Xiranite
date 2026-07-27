@@ -294,6 +294,161 @@ pub fn create_exif_candidate(
     upstream::exif_remover::create_candidate(source, tags)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VideoOptimizerMode {
+    #[default]
+    Transcode,
+    Crop,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VideoOptimizerCodec {
+    H264,
+    #[default]
+    H265,
+    Av1,
+    Vp9,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VideoOptimizerNoiseReduction {
+    #[default]
+    None,
+    Hqdn3d,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VideoOptimizerCropMechanism {
+    #[default]
+    BlackBars,
+    StaticContent,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VideoOptimizerCropRect {
+    pub left: u32,
+    pub top: u32,
+    pub right: u32,
+    pub bottom: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct VideoOptimizerScanOptions {
+    pub mode: VideoOptimizerMode,
+    pub included_directories: Vec<PathBuf>,
+    pub reference_directories: Vec<PathBuf>,
+    pub excluded_directories: Vec<PathBuf>,
+    pub excluded_items: Vec<String>,
+    pub allowed_extensions: String,
+    pub excluded_extensions: String,
+    pub recursive: bool,
+    pub minimum_file_size: u64,
+    pub maximum_file_size: u64,
+    pub use_cache: bool,
+    pub save_also_as_json: bool,
+    pub delete_outdated_cache: bool,
+    pub excluded_codecs: Vec<String>,
+    pub black_pixel_threshold: u8,
+    pub black_bar_min_percentage: u8,
+    pub max_samples: usize,
+    pub min_crop_size: u32,
+}
+
+impl VideoOptimizerScanOptions {
+    pub fn new(mode: VideoOptimizerMode, included_directories: Vec<PathBuf>) -> Self {
+        Self {
+            mode,
+            included_directories,
+            reference_directories: Vec::new(),
+            excluded_directories: Vec::new(),
+            excluded_items: Vec::new(),
+            allowed_extensions: String::new(),
+            excluded_extensions: String::new(),
+            recursive: true,
+            minimum_file_size: 1,
+            maximum_file_size: u64::MAX,
+            use_cache: true,
+            save_also_as_json: false,
+            delete_outdated_cache: true,
+            excluded_codecs: vec!["hevc".into(), "h265".into(), "av1".into(), "vp9".into()],
+            black_pixel_threshold: 32,
+            black_bar_min_percentage: 90,
+            max_samples: 20,
+            min_crop_size: 5,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct VideoOptimizerEntry {
+    pub path: PathBuf,
+    pub size: u64,
+    pub modified_date: u64,
+    pub codec: String,
+    pub width: u32,
+    pub height: u32,
+    pub duration: f64,
+    pub crop_rect: Option<VideoOptimizerCropRect>,
+}
+
+#[derive(Debug, Clone)]
+pub struct VideoOptimizerScanResult {
+    pub entries: Vec<VideoOptimizerEntry>,
+    pub messages: String,
+    pub stopped: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct VideoOptimizerCandidateOptions {
+    pub source: PathBuf,
+    pub mode: VideoOptimizerMode,
+    pub target_codec: VideoOptimizerCodec,
+    pub quality: u32,
+    pub fail_if_not_smaller: bool,
+    pub limit_video_size: bool,
+    pub maximum_width: u32,
+    pub maximum_height: u32,
+    pub noise_reduction: VideoOptimizerNoiseReduction,
+    pub noise_reduction_strength: u32,
+    pub crop_rect: Option<VideoOptimizerCropRect>,
+    pub crop_mechanism: VideoOptimizerCropMechanism,
+    pub crop_transcode: bool,
+    pub current_codec: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct VideoOptimizerCandidate {
+    pub path: PathBuf,
+    pub original_size: u64,
+    pub candidate_size: u64,
+}
+
+pub fn scan_video_optimizer(
+    options: VideoOptimizerScanOptions,
+) -> Result<VideoOptimizerScanResult, CzkawkaError> {
+    scan_video_optimizer_controlled(options, &ScanControl::detached())
+}
+
+pub fn scan_video_optimizer_controlled(
+    options: VideoOptimizerScanOptions,
+    control: &ScanControl,
+) -> Result<VideoOptimizerScanResult, CzkawkaError> {
+    upstream::video_optimizer::scan(options, control)
+}
+
+pub fn create_video_optimizer_candidate(
+    options: VideoOptimizerCandidateOptions,
+) -> Result<VideoOptimizerCandidate, CzkawkaError> {
+    upstream::video_optimizer::create_candidate(options, &ScanControl::detached())
+}
+
+pub fn create_video_optimizer_candidate_controlled(
+    options: VideoOptimizerCandidateOptions,
+    control: &ScanControl,
+) -> Result<VideoOptimizerCandidate, CzkawkaError> {
+    upstream::video_optimizer::create_candidate(options, control)
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum MediaTool {
     SimilarImages,

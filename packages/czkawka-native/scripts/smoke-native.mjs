@@ -2,10 +2,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { cancelCzkawkaScan, createExifCandidate, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles } from "../dist/index.js"
+import { cancelCzkawkaScan, createExifCandidate, createVideoOptimizerCandidate, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles, scanVideoOptimizer } from "../dist/index.js"
 
 const info = getCzkawkaInfo()
-const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "scan.bad-names", "scan.exif-remover", "operation.exif.candidate", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio", "broken-files.multi-checker", "empty-files.content-checkers", "temporary-files.custom-extensions"]
+const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "scan.bad-names", "scan.exif-remover", "operation.exif.candidate", "scan.video-optimizer", "operation.video-optimizer.candidate", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio", "broken-files.multi-checker", "empty-files.content-checkers", "temporary-files.custom-extensions"]
 const missingCapabilities = requiredCapabilities.filter((capability) => !info.capabilities.includes(capability))
 if (info.apiVersion !== 5 || missingCapabilities.length) {
   throw new Error(`Unexpected Czkawka info: ${JSON.stringify(info)}`)
@@ -14,6 +14,8 @@ console.log(JSON.stringify(info))
 
 const directory = await mkdtemp(join(tmpdir(), "xiranite-czkawka-native-"))
 let exifCandidatePath
+let videoCandidatePath
+let cropCandidatePath
 try {
   await Promise.all([
     writeFile(join(directory, "one.bin"), "same-content"),
@@ -92,6 +94,77 @@ try {
   await rm(exifCandidatePath, { force: true })
   exifCandidatePath = undefined
   console.log(JSON.stringify({ exifTags: exifEntry.tags.length, removedExifTags: candidate.removedTags }))
+
+  const videoPath = join(directory, "source-h264.mp4")
+  await createH264Video(videoPath)
+  const videoOptimizer = await scanVideoOptimizer({
+    mode: "transcode",
+    includedDirectories: [directory],
+    useCache: false,
+  })
+  const videoEntry = videoOptimizer.entries.find((entry) => entry.path.endsWith("source-h264.mp4"))
+  if (!videoEntry) {
+    throw new Error(`Video optimizer did not report the H.264 fixture: ${JSON.stringify(videoOptimizer)}`)
+  }
+  const videoSource = await readFile(videoPath)
+  const videoCandidate = await createVideoOptimizerCandidate({
+    sourcePath: videoEntry.path,
+    mode: "transcode",
+    targetCodec: "h265",
+    quality: 35,
+    failIfNotSmaller: false,
+    limitVideoSize: false,
+    maximumWidth: 1920,
+    maximumHeight: 1080,
+    noiseReduction: "none",
+    noiseReductionStrength: 5,
+    currentCodec: videoEntry.codec,
+  })
+  videoCandidatePath = videoCandidate.candidatePath
+  if (videoCandidate.candidateSize < 1 || Buffer.compare(videoSource, await readFile(videoPath)) !== 0) {
+    throw new Error(`Video optimizer changed the source or produced no candidate: ${JSON.stringify(videoCandidate)}`)
+  }
+  await rm(videoCandidatePath, { force: true })
+  videoCandidatePath = undefined
+  console.log(JSON.stringify({ videoOptimizerEntries: videoOptimizer.entries.length, videoCandidateBytes: videoCandidate.candidateSize }))
+
+  const cropVideoPath = join(directory, "source-black-bars.mp4")
+  await createBlackBarH264Video(cropVideoPath)
+  const cropOptimizer = await scanVideoOptimizer({
+    mode: "crop",
+    includedDirectories: [directory],
+    useCache: false,
+  })
+  const cropEntry = cropOptimizer.entries.find((entry) => entry.path.endsWith("source-black-bars.mp4"))
+  if (!cropEntry || cropEntry.cropLeft === undefined || cropEntry.cropTop === undefined || cropEntry.cropRight === undefined || cropEntry.cropBottom === undefined) {
+    throw new Error(`Video optimizer did not report a crop rectangle for the black-bar fixture: ${JSON.stringify(cropOptimizer)}`)
+  }
+  const cropSource = await readFile(cropVideoPath)
+  const cropCandidate = await createVideoOptimizerCandidate({
+    sourcePath: cropEntry.path,
+    mode: "crop",
+    targetCodec: "h265",
+    quality: 35,
+    failIfNotSmaller: false,
+    limitVideoSize: false,
+    maximumWidth: 1920,
+    maximumHeight: 1080,
+    noiseReduction: "none",
+    noiseReductionStrength: 5,
+    cropLeft: cropEntry.cropLeft,
+    cropTop: cropEntry.cropTop,
+    cropRight: cropEntry.cropRight,
+    cropBottom: cropEntry.cropBottom,
+    cropTranscode: false,
+    currentCodec: cropEntry.codec,
+  })
+  cropCandidatePath = cropCandidate.candidatePath
+  if (cropCandidate.candidateSize < 1 || Buffer.compare(cropSource, await readFile(cropVideoPath)) !== 0) {
+    throw new Error(`Video crop changed the source or produced no candidate: ${JSON.stringify(cropCandidate)}`)
+  }
+  await rm(cropCandidatePath, { force: true })
+  cropCandidatePath = undefined
+  console.log(JSON.stringify({ videoCropEntries: cropOptimizer.entries.length, videoCropCandidateBytes: cropCandidate.candidateSize }))
   const media = await scanMediaFiles({
     tool: "bad-extensions",
     includedDirectories: [directory],
@@ -160,7 +233,29 @@ try {
   console.log(JSON.stringify({ progressStage: progress.stage, cancelled: cancelled.stopped }))
 } finally {
   if (exifCandidatePath) await rm(exifCandidatePath, { force: true })
+  if (videoCandidatePath) await rm(videoCandidatePath, { force: true })
+  if (cropCandidatePath) await rm(cropCandidatePath, { force: true })
   await rm(directory, { recursive: true, force: true })
+}
+
+async function createH264Video(path) {
+  const process = Bun.spawn([
+    "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=64x48:rate=1", "-t", "1",
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", path,
+  ], { stdout: "pipe", stderr: "pipe" })
+  if (await process.exited !== 0) {
+    throw new Error(`FFmpeg could not create the Video Optimizer fixture: ${await new Response(process.stderr).text()}`)
+  }
+}
+
+async function createBlackBarH264Video(path) {
+  const process = Bun.spawn([
+    "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30", "-vf", "pad=320:240:0:30:black", "-t", "3",
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", path,
+  ], { stdout: "pipe", stderr: "pipe" })
+  if (await process.exited !== 0) {
+    throw new Error(`FFmpeg could not create the Video Optimizer crop fixture: ${await new Response(process.stderr).text()}`)
+  }
 }
 
 async function jpegWithImageDescription() {

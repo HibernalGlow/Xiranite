@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { AlertTriangle, ArchiveX, AudioLines, Copy, Ellipsis, Eraser, FileQuestion, FileText, FileX2, FolderOpen, FolderSearch2, FolderX, HardDrive, Image, Link2Off, Maximize2, Minimize2, MoveRight, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, PanelTopOpen, Play, RotateCcw, Save, Search, Settings2, TableProperties, Trash2, Video, X } from "lucide-react"
+import { AlertTriangle, ArchiveX, AudioLines, Copy, Ellipsis, Eraser, FileQuestion, FileText, FileX2, FolderOpen, FolderSearch2, FolderX, HardDrive, Image, Link2Off, Maximize2, Minimize2, MoveRight, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRight, PanelRightClose, PanelRightOpen, PanelTopOpen, Play, RotateCcw, Save, Search, Settings2, TableProperties, Trash2, Video, WandSparkles, X } from "lucide-react"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,7 @@ import { CzkawkaSimilarityReferenceDialog } from "../similarity-reference-dialog
 import { CzkawkaDirectoryEditor } from "../source-inputs"
 import { createBadNameRenamePlan } from "@xiranite/node-czkawka/bad-names"
 import { createExifCleanupPlan } from "@xiranite/node-czkawka/exif"
+import { createVideoOptimizationPlan } from "@xiranite/node-czkawka/video-optimizer"
 import { AlgorithmFields } from "./CzkawkaPanelsView"
 import type { CzkawkaCardId } from "@xiranite/node-czkawka/card-layout"
 import { buildCzkawkaGroupOrganizePlan } from "@xiranite/node-czkawka/operations"
@@ -227,7 +228,12 @@ function OperationsCard(props: CzkawkaView) {
   const exifItems = props.tool === "exif-remover"
     ? createExifCleanupPlan(props.result?.entries ?? [], props.selectedPaths)
     : []
+  const videoOptimizerItems = props.tool === "video-optimizer"
+    ? createVideoOptimizationPlan(props.result?.entries ?? [], props.selectedPaths, props.data.videoOptimizerMode ?? "transcode")
+    : []
   const canCreateExifCandidate = props.nativeCapabilities.has("operation.exif.candidate")
+  const canCreateVideoOptimizerCandidate = props.nativeCapabilities.has("operation.video-optimizer.candidate")
+  const videoOptimizerMode = props.data.videoOptimizerMode ?? "transcode"
   return (
     <div className="grid gap-3">
       <div className="text-xs text-muted-foreground">{props.t("operations.dryRunHint", "删除、移动和改名默认只生成可检查的逐项计划。")}</div>
@@ -455,6 +461,61 @@ function OperationsCard(props: CzkawkaView) {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      ) : null}
+      {props.tool === "video-optimizer" ? (
+        <div className="grid gap-2 rounded-md border p-2">
+          <Field label={props.t("operations.videoTargetCodec", "目标编码")}>
+            <Select value={props.data.videoOptimizerTargetCodec ?? "h265"} onValueChange={(videoOptimizerTargetCodec) => props.patch({ videoOptimizerTargetCodec: videoOptimizerTargetCodec as CzkawkaCardState["videoOptimizerTargetCodec"] })}>
+              <SelectTrigger aria-label={props.t("operations.videoTargetCodec", "Target codec")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="h264">H.264</SelectItem>
+                <SelectItem value="h265">H.265 / HEVC</SelectItem>
+                <SelectItem value="av1">AV1</SelectItem>
+                <SelectItem value="vp9">VP9</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={props.t("operations.videoQuality", "编码质量")}>
+            <Input aria-label={props.t("operations.videoQuality", "Encoding quality")} type="number" min={0} max={51} value={props.data.videoOptimizerQuality ?? "23"} onChange={(event) => props.patch({ videoOptimizerQuality: event.currentTarget.value })} />
+          </Field>
+          <SwitchLine label={props.t("operations.videoFailIfNotSmaller", "结果不更小时保留源文件")} checked={props.data.videoOptimizerFailIfNotSmaller ?? true} onChange={(videoOptimizerFailIfNotSmaller) => props.patch({ videoOptimizerFailIfNotSmaller })} />
+          {videoOptimizerMode === "crop" ? <SwitchLine label={props.t("operations.videoCropTranscode", "裁剪时重新编码")} checked={props.data.videoOptimizerCropTranscode ?? false} onChange={(videoOptimizerCropTranscode) => props.patch({ videoOptimizerCropTranscode })} /> : null}
+          {videoOptimizerMode === "transcode" ? <>
+            <Field label={props.t("operations.videoNoiseReduction", "降噪")}>
+              <Select value={props.data.videoOptimizerNoiseReduction ?? "none"} onValueChange={(videoOptimizerNoiseReduction) => props.patch({ videoOptimizerNoiseReduction: videoOptimizerNoiseReduction as CzkawkaCardState["videoOptimizerNoiseReduction"] })}>
+                <SelectTrigger aria-label={props.t("operations.videoNoiseReduction", "Noise reduction")}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{props.t("operations.videoNoiseReductionNone", "无")}</SelectItem>
+                  <SelectItem value="hqdn3d">{props.t("operations.videoNoiseReductionHqdn3d", "HQDN3D")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            {props.data.videoOptimizerNoiseReduction === "hqdn3d" ? <Field label={props.t("operations.videoNoiseReductionStrength", "降噪强度")}><Input aria-label={props.t("operations.videoNoiseReductionStrength", "Noise reduction strength")} type="number" min={1} max={10} value={props.data.videoOptimizerNoiseReductionStrength ?? "5"} onChange={(event) => props.patch({ videoOptimizerNoiseReductionStrength: event.currentTarget.value })} /></Field> : null}
+            <SwitchLine label={props.t("operations.videoLimitSize", "限制最大分辨率")} checked={props.data.videoOptimizerLimitVideoSize ?? false} onChange={(videoOptimizerLimitVideoSize) => props.patch({ videoOptimizerLimitVideoSize })} />
+            {(props.data.videoOptimizerLimitVideoSize ?? false) ? <div className="grid grid-cols-2 gap-2"><Field label={props.t("operations.videoMaximumWidth", "最大宽度")}><Input aria-label={props.t("operations.videoMaximumWidth", "Maximum width")} type="number" min={1} max={16384} value={props.data.videoOptimizerMaximumWidth ?? "1920"} onChange={(event) => props.patch({ videoOptimizerMaximumWidth: event.currentTarget.value })} /></Field><Field label={props.t("operations.videoMaximumHeight", "最大高度")}><Input aria-label={props.t("operations.videoMaximumHeight", "Maximum height")} type="number" min={1} max={16384} value={props.data.videoOptimizerMaximumHeight ?? "1080"} onChange={(event) => props.patch({ videoOptimizerMaximumHeight: event.currentTarget.value })} /></Field></div> : null}
+          </> : null}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={!videoOptimizerItems.length || !canCreateVideoOptimizerCandidate || props.running} size="sm" variant="outline" title={canCreateVideoOptimizerCandidate ? undefined : props.t("operations.videoCandidateUnavailable", "当前原生绑定无法安全创建视频优化候选文件。")}>
+                <WandSparkles />
+                {props.t("operations.optimizeVideos", "优化视频（{{count}}）", { count: videoOptimizerItems.length })}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{(props.data.dryRun ?? true) ? props.t("operations.planVideoOptimizeTitle", "生成视频优化计划？") : props.t("operations.executeVideoOptimizeTitle", "优化视频？")}</AlertDialogTitle>
+                <AlertDialogDescription>{(props.data.dryRun ?? true) ? props.t("operations.videoOptimizeDryRunDescription", "将预览 {{count}} 项视频优化；不会修改文件。", { count: videoOptimizerItems.length }) : props.t("operations.videoOptimizeLiveDescription", "每个源文件会先移入系统回收站，再用临时候选文件替换。替换失败时，候选文件会保留，原文件可从回收站恢复。")}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="grid max-h-48 gap-1 overflow-auto rounded-md border p-2 text-xs">
+                {videoOptimizerItems.slice(0, 12).map((item) => <div key={item.path} className="grid"><span className="truncate font-mono">{item.path}</span><span className="truncate text-muted-foreground">{item.cropRect ? `${item.codec} -> crop ${item.cropRect.left},${item.cropRect.top},${item.cropRect.right},${item.cropRect.bottom}` : `${item.codec} -> ${props.data.videoOptimizerTargetCodec ?? "h265"}`}</span></div>)}
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{props.t("common.cancel", "取消")}</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void props.executeOperation("optimize-video", { videoOptimizerItems, selectedPaths: videoOptimizerItems.map((item) => item.path) })}>{props.t("operations.confirmVideoOptimize", "确认优化")}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       ) : null}
       <Field label={props.t("operations.exportResults", "导出结果")}>
         <div className="grid gap-1">

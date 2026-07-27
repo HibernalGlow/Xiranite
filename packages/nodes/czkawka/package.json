@@ -14,6 +14,7 @@
     "./analysis": { "types": "./dist/analysis.d.ts", "default": "./dist/analysis.js" },
     "./bad-names": { "types": "./dist/bad-names.d.ts", "default": "./dist/bad-names.js" },
     "./exif": { "types": "./dist/exif.d.ts", "default": "./dist/exif.js" },
+    "./video-optimizer": { "types": "./dist/video-optimizer.d.ts", "default": "./dist/video-optimizer.js" },
     "./activity-log": { "types": "./dist/activity-log.d.ts", "default": "./dist/activity-log.js" },
     "./card-layout": { "types": "./dist/card-layout.d.ts", "default": "./dist/card-layout.js" },
     "./floating-panel": { "types": "./dist/floating-panel.d.ts", "default": "./dist/floating-panel.js" },

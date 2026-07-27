@@ -7,7 +7,7 @@ import { resolveCzkawkaSimilarVideoCrop } from "./similar-video-crop.js"
 import { parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, serializeCzkawkaExtensionTokens } from "./source-inputs.js"
 import { DEFAULT_TEMPORARY_FILE_EXTENSIONS } from "./temporary-file-extensions.js"
 
-type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "threadCount" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "exifItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun" | "similarVideosCropDetect">
+type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "threadCount" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "exifItems" | "videoOptimizerItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun" | "similarVideosCropDetect">
 type OptionValue = string | number | boolean
 type OptionKind = "boolean" | "number" | "select" | "text"
 
@@ -33,6 +33,7 @@ const SIMILAR_MEDIA = ["similar-images", "similar-videos"] as const
 const MUSIC = ["duplicate-music"] as const
 const BROKEN = ["broken-files"] as const
 const TEMPORARY = ["temporary-files"] as const
+const VIDEO_OPTIMIZER = ["video-optimizer"] as const
 
 export const CZKAWKA_TOOL_OPTIONS: readonly CzkawkaOptionDefinition[] = [
   option("checkMethod", DUPLICATE, "select", "判断方式", "Duplicate check", "hash", "--check", [{ value: "hash", label: "Hash" }, { value: "name", label: "名称 / Name" }, { value: "size", label: "大小 / Size" }, { value: "size-and-name", label: "大小与名称 / Size and name" }]),
@@ -83,6 +84,12 @@ export const CZKAWKA_TOOL_OPTIONS: readonly CzkawkaOptionDefinition[] = [
   guiBooleanOption("brokenVideoFfmpeg", BROKEN, "完整解码检查视频 (FFmpeg)", "Full video decode (FFmpeg)", false, "broken-files.multi-checker"),
   guiBooleanOption("brokenFont", BROKEN, "检查字体", "Check fonts", false, "broken-files.multi-checker"),
   guiBooleanOption("brokenMarkup", BROKEN, "检查标记文件", "Check markup files", false, "broken-files.multi-checker"),
+  guiOption("videoOptimizerMode", VIDEO_OPTIMIZER, "select", "优化模式", "Optimization mode", "transcode", "scan.video-optimizer", [{ value: "transcode", label: "转码 / Transcode" }, { value: "crop", label: "裁剪黑边 / Crop" }]),
+  guiTextOption("videoOptimizerExcludedCodecs", VIDEO_OPTIMIZER, "跳过视频编码", "Excluded video codecs", "h265,av1,vp9", "scan.video-optimizer"),
+  guiNumberOption("videoOptimizerBlackPixelThreshold", VIDEO_OPTIMIZER, "黑色像素阈值", "Black pixel threshold", 32, 0, 128, 1, "scan.video-optimizer"),
+  guiNumberOption("videoOptimizerBlackBarMinPercentage", VIDEO_OPTIMIZER, "黑边最小比例（%）", "Black bar minimum (%)", 90, 50, 100, 1, "scan.video-optimizer"),
+  guiNumberOption("videoOptimizerMaxSamples", VIDEO_OPTIMIZER, "最大采样数", "Maximum samples", 20, 5, 1000, 1, "scan.video-optimizer"),
+  guiNumberOption("videoOptimizerMinCropSize", VIDEO_OPTIMIZER, "最小裁剪边距", "Minimum crop margin", 5, 1, 1000, 1, "scan.video-optimizer"),
 ]
 
 export function getCzkawkaToolOptions(tool: CzkawkaTool): readonly CzkawkaOptionDefinition[] {
