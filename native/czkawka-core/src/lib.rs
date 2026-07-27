@@ -151,6 +151,8 @@ pub struct BasicScanOptions {
     pub delete_outdated_cache: bool,
     pub number_of_files: usize,
     pub biggest_first: bool,
+    pub empty_files_search_zero_byte_content: bool,
+    pub empty_files_search_non_printable_content: bool,
 }
 
 impl BasicScanOptions {
@@ -171,6 +173,8 @@ impl BasicScanOptions {
             delete_outdated_cache: true,
             number_of_files: 50,
             biggest_first: true,
+            empty_files_search_zero_byte_content: false,
+            empty_files_search_non_printable_content: false,
         }
     }
 }

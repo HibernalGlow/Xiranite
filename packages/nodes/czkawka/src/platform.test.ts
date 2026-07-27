@@ -48,6 +48,19 @@ describe("Czkawka native DTO mapping", () => {
     expect(toMediaScanOptions(media)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
   })
 
+  test("maps every Czkawka 12 empty-file content checker into the native basic DTO", () => {
+    const input = normalizeCzkawkaInput({
+      tool: "empty-files",
+      emptyFilesSearchZeroByteContent: true,
+      emptyFilesSearchNonPrintableContent: true,
+    })
+    expect(toBasicScanOptions(input)).toMatchObject({
+      tool: "empty-files",
+      emptyFilesSearchZeroByteContent: true,
+      emptyFilesSearchNonPrintableContent: true,
+    })
+  })
+
   test("maps every Czkawka 12 broken-file checker into the native media DTO", () => {
     const input = normalizeCzkawkaInput({
       tool: "broken-files",

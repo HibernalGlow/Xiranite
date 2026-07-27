@@ -91,6 +91,8 @@ export interface BasicScanOptions {
   deleteOutdatedCache?: boolean
   numberOfFiles?: number
   biggestFirst?: boolean
+  emptyFilesSearchZeroByteContent?: boolean
+  emptyFilesSearchNonPrintableContent?: boolean
   scanId?: string
   threadCount?: number
 }

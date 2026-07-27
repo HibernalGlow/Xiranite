@@ -40,6 +40,8 @@ export const CZKAWKA_TOOL_OPTIONS: readonly CzkawkaOptionDefinition[] = [
   booleanOption("usePrehash", DUPLICATE, "使用预哈希", "Use prehash", true, "--prehash"),
   numberOption("numberOfFiles", BIG_FILES, "结果数量", "Result count", 50, "--count", 1, 100_000),
   booleanOption("biggestFirst", BIG_FILES, "优先最大文件", "Biggest first", true, "--biggest-first"),
+  guiBooleanOption("emptyFilesSearchZeroByteContent", ["empty-files"], "检查仅含 NUL 的文件", "Check NUL-only files", false, "empty-files.content-checkers"),
+  guiBooleanOption("emptyFilesSearchNonPrintableContent", ["empty-files"], "检查仅含非打印字符的文件", "Check non-printable files", false, "empty-files.content-checkers"),
   numberOption("similarity", SIMILAR_MEDIA, "最大差异", "Maximum difference", 10, "--similarity", 0, 40),
   option("similarImagesHashSize", SIMILAR_IMAGES, "select", "Hash 尺寸", "Hash size", 16, "--image-hash-size", ["8", "16", "32", "64"]),
   option("similarImagesHashAlgorithm", SIMILAR_IMAGES, "select", "Hash 算法", "Hash algorithm", "mean", "--image-hash", ["mean", "gradient", "blockhash", "vert-gradient", "double-gradient", "median"]),

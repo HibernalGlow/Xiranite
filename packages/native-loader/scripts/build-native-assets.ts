@@ -8,7 +8,10 @@ import { zipSync } from "fflate"
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const workspaceRoot = resolve(packageRoot, "..", "..")
 const platformId = `${process.platform}-${process.arch}`
-const artifactRoot = join(workspaceRoot, "native", "artifacts", platformId)
+const artifactRoot = join(
+  process.env.XIRANITE_NATIVE_ARTIFACT_ROOT?.trim() || join(workspaceRoot, "native", "artifacts"),
+  platformId,
+)
 const prebuiltRoot = join(workspaceRoot, "native", "prebuilt", platformId)
 const outputRoot = join(workspaceRoot, "build", "wails", "native-assets")
 

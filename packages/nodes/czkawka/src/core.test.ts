@@ -36,6 +36,8 @@ describe("czkawka TypeScript orchestration", () => {
     expect(value.brokenVideoFfmpeg).toBe(false)
     expect(value.brokenFont).toBe(false)
     expect(value.brokenMarkup).toBe(false)
+    expect(value.emptyFilesSearchZeroByteContent).toBe(false)
+    expect(value.emptyFilesSearchNonPrintableContent).toBe(false)
     expect(value.saveAlsoAsJson).toBe(false)
     expect(value.deleteOutdatedCache).toBe(true)
     expect(value.duplicateMinimalHashCacheSizeKiB).toBe(256)
@@ -130,6 +132,26 @@ describe("czkawka TypeScript orchestration", () => {
     expect(adapter.scanMedia).not.toHaveBeenCalled()
 
     adapter.capabilities = ["broken-files.multi-checker"]
+    await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
+  })
+
+  test("normalizes and capability-gates Czkawka 12 empty-file content checkers", async () => {
+    const value = normalizeCzkawkaInput({
+      tool: "empty-files",
+      emptyFilesSearchZeroByteContent: true,
+      emptyFilesSearchNonPrintableContent: true,
+    })
+    expect(value).toMatchObject({
+      emptyFilesSearchZeroByteContent: true,
+      emptyFilesSearchNonPrintableContent: true,
+    })
+
+    const adapter = runtime()
+    const result = await runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)
+    expect(result).toMatchObject({ success: false, message: expect.stringContaining("empty-files.content-checkers") })
+    expect(adapter.scanBasic).not.toHaveBeenCalled()
+
+    adapter.capabilities = ["empty-files.content-checkers"]
     await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
   })
 
