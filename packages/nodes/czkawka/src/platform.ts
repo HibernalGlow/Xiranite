@@ -104,6 +104,10 @@ export function toMediaScanOptions(input: NormalizedInput): MediaScanOptions {
     brokenPdf: input.brokenPdf,
     brokenArchive: input.brokenArchive,
     brokenImage: input.brokenImage,
+    brokenVideoFfprobe: input.brokenVideoFfprobe,
+    brokenVideoFfmpeg: input.brokenVideoFfmpeg,
+    brokenFont: input.brokenFont,
+    brokenMarkup: input.brokenMarkup,
   }
 }
 

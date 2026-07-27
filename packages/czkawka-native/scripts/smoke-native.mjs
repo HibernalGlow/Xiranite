@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { cancelCzkawkaScan, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles } from "../dist/index.js"
 
 const info = getCzkawkaInfo()
-const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio"]
+const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio", "broken-files.multi-checker"]
 const missingCapabilities = requiredCapabilities.filter((capability) => !info.capabilities.includes(capability))
 if (info.apiVersion !== 5 || missingCapabilities.length) {
   throw new Error(`Unexpected Czkawka info: ${JSON.stringify(info)}`)
@@ -19,6 +19,7 @@ try {
     writeFile(join(directory, "two.bin"), "same-content"),
     writeFile(join(directory, "different.bin"), "different-content"),
     writeFile(join(directory, "empty.bin"), ""),
+    writeFile(join(directory, "broken.json"), '{"broken":'),
   ])
   const result = await scanDuplicateFiles({ includedDirectories: [directory], useCache: false })
   if (result.groups.length !== 1 || result.groups[0]?.files.length !== 2) {
@@ -57,6 +58,24 @@ try {
   })
   if (!Array.isArray(media.groups)) throw new Error(`Unexpected media result: ${JSON.stringify(media)}`)
   console.log(JSON.stringify({ emptyFiles: basic.entries.length, mediaGroups: media.groups.length }))
+
+  const broken = await scanMediaFiles({
+    tool: "broken-files",
+    includedDirectories: [directory],
+    useCache: false,
+    brokenAudio: false,
+    brokenPdf: false,
+    brokenArchive: false,
+    brokenImage: false,
+    brokenVideoFfprobe: false,
+    brokenVideoFfmpeg: false,
+    brokenFont: false,
+    brokenMarkup: true,
+  })
+  if (!broken.groups.some((group) => group.entries.some((entry) => entry.path.endsWith("broken.json")))) {
+    throw new Error(`Markup checker did not report the malformed JSON: ${JSON.stringify(broken)}`)
+  }
+  console.log(JSON.stringify({ brokenMarkupFiles: broken.groups.flatMap((group) => group.entries).length }))
 
   const progressDirectory = join(directory, "progress")
   await mkdir(progressDirectory)

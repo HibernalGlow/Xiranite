@@ -15,6 +15,10 @@ describe("shared Czkawka option schema", () => {
     expect(interactionIds).not.toContain("similarImagesGeometricInvariance")
     expect(interactionIds).not.toContain("similarVideosWindowCount")
     expect(interactionIds).not.toContain("similarVideosCheckAudioContent")
+    expect(interactionIds).not.toContain("brokenVideoFfprobe")
+    expect(interactionIds).not.toContain("brokenVideoFfmpeg")
+    expect(interactionIds).not.toContain("brokenFont")
+    expect(interactionIds).not.toContain("brokenMarkup")
     expect(getCzkawkaGuiToolOptions("similar-images", new Set())).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "similarImagesIgnoreSameResolution" }),
       expect.objectContaining({ id: "similarImagesGeometricInvariance" }),
@@ -33,6 +37,18 @@ describe("shared Czkawka option schema", () => {
       expect.objectContaining({ id: "similarVideosWindowCount", step: 1 }),
       expect.objectContaining({ id: "similarVideosMinMatchingWindows", step: 0.05 }),
       expect.objectContaining({ id: "similarVideosCheckAudioContent" }),
+    ]))
+    expect(getCzkawkaGuiToolOptions("broken-files", new Set())).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "brokenVideoFfprobe" }),
+      expect.objectContaining({ id: "brokenVideoFfmpeg" }),
+      expect.objectContaining({ id: "brokenFont" }),
+      expect.objectContaining({ id: "brokenMarkup" }),
+    ]))
+    expect(getCzkawkaGuiToolOptions("broken-files", new Set(["broken-files.multi-checker"]))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "brokenVideoFfprobe", defaultValue: false }),
+      expect.objectContaining({ id: "brokenVideoFfmpeg", defaultValue: false }),
+      expect.objectContaining({ id: "brokenFont", defaultValue: false }),
+      expect.objectContaining({ id: "brokenMarkup", defaultValue: false }),
     ]))
     expect(CZKAWKA_TOOLS.every((tool) => getCzkawkaToolOptions(tool).length > 0 || ["empty-folders", "empty-files", "temporary-files", "invalid-symlinks", "bad-extensions"].includes(tool))).toBe(true)
   })
@@ -132,6 +148,23 @@ describe("shared Czkawka option schema", () => {
       similarVideosMinMatchingWindows: 0.75,
       similarVideosSubclipMinMatch: 0.4,
       similarVideosCheckAudioContent: true,
+    })
+  })
+
+  test("builds the GUI-only broken-file scan contract without adding terminal flags", () => {
+    expect(createCzkawkaScanInput("broken-files", {
+      includedDirectoriesText: "D:/Library",
+      brokenVideoFfprobe: true,
+      brokenVideoFfmpeg: true,
+      brokenFont: true,
+      brokenMarkup: true,
+    })).toMatchObject({
+      tool: "broken-files",
+      includedDirectories: ["D:/Library"],
+      brokenVideoFfprobe: true,
+      brokenVideoFfmpeg: true,
+      brokenFont: true,
+      brokenMarkup: true,
     })
   })
 

@@ -11,6 +11,7 @@ fn advertises_czkawka_12_media_capabilities() {
     assert!(CAPABILITIES.contains(&"similar-videos.similario"));
     assert!(CAPABILITIES.contains(&"similar-videos.same-resolution-exclusion"));
     assert!(CAPABILITIES.contains(&"similar-videos.audio"));
+    assert!(CAPABILITIES.contains(&"broken-files.multi-checker"));
 }
 
 #[test]

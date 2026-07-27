@@ -73,6 +73,10 @@ export const CZKAWKA_TOOL_OPTIONS: readonly CzkawkaOptionDefinition[] = [
   booleanOption("brokenPdf", BROKEN, "检查 PDF", "Check PDF", true, "--broken-pdf"),
   booleanOption("brokenArchive", BROKEN, "检查压缩包", "Check archives", true, "--broken-archive"),
   booleanOption("brokenImage", BROKEN, "检查图片", "Check images", true, "--broken-image"),
+  guiBooleanOption("brokenVideoFfprobe", BROKEN, "快速检查视频 (FFprobe)", "Fast video check (FFprobe)", false, "broken-files.multi-checker"),
+  guiBooleanOption("brokenVideoFfmpeg", BROKEN, "完整解码检查视频 (FFmpeg)", "Full video decode (FFmpeg)", false, "broken-files.multi-checker"),
+  guiBooleanOption("brokenFont", BROKEN, "检查字体", "Check fonts", false, "broken-files.multi-checker"),
+  guiBooleanOption("brokenMarkup", BROKEN, "检查标记文件", "Check markup files", false, "broken-files.multi-checker"),
 ]
 
 export function getCzkawkaToolOptions(tool: CzkawkaTool): readonly CzkawkaOptionDefinition[] {

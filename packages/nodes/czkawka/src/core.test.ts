@@ -32,6 +32,10 @@ describe("czkawka TypeScript orchestration", () => {
     expect(value).not.toHaveProperty("similarVideosCropDetect")
     expect(value.musicCheckType).toBe("tags")
     expect(value.brokenImage).toBe(true)
+    expect(value.brokenVideoFfprobe).toBe(false)
+    expect(value.brokenVideoFfmpeg).toBe(false)
+    expect(value.brokenFont).toBe(false)
+    expect(value.brokenMarkup).toBe(false)
     expect(value.saveAlsoAsJson).toBe(false)
     expect(value.deleteOutdatedCache).toBe(true)
     expect(value.duplicateMinimalHashCacheSizeKiB).toBe(256)
@@ -102,6 +106,30 @@ describe("czkawka TypeScript orchestration", () => {
     expect(adapter.scanMedia).not.toHaveBeenCalled()
 
     adapter.capabilities = ["similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio"]
+    await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
+  })
+
+  test("normalizes and capability-gates Czkawka 12 broken-file checkers", async () => {
+    const value = normalizeCzkawkaInput({
+      tool: "broken-files",
+      brokenVideoFfprobe: true,
+      brokenVideoFfmpeg: true,
+      brokenFont: true,
+      brokenMarkup: true,
+    })
+    expect(value).toMatchObject({
+      brokenVideoFfprobe: true,
+      brokenVideoFfmpeg: true,
+      brokenFont: true,
+      brokenMarkup: true,
+    })
+
+    const adapter = runtime()
+    const result = await runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)
+    expect(result).toMatchObject({ success: false, message: expect.stringContaining("broken-files.multi-checker") })
+    expect(adapter.scanMedia).not.toHaveBeenCalled()
+
+    adapter.capabilities = ["broken-files.multi-checker"]
     await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
   })
 

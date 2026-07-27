@@ -508,6 +508,10 @@ pub struct MediaScanOptions {
     pub broken_pdf: Option<bool>,
     pub broken_archive: Option<bool>,
     pub broken_image: Option<bool>,
+    pub broken_video_ffprobe: Option<bool>,
+    pub broken_video_ffmpeg: Option<bool>,
+    pub broken_font: Option<bool>,
+    pub broken_markup: Option<bool>,
     pub scan_id: Option<String>,
     pub thread_count: Option<u32>,
 }
@@ -728,6 +732,10 @@ pub fn scan_media_files(options: MediaScanOptions) -> Result<AsyncTask<MediaScan
     core_options.broken_pdf = options.broken_pdf.unwrap_or(true);
     core_options.broken_archive = options.broken_archive.unwrap_or(true);
     core_options.broken_image = options.broken_image.unwrap_or(true);
+    core_options.broken_video_ffprobe = options.broken_video_ffprobe.unwrap_or(false);
+    core_options.broken_video_ffmpeg = options.broken_video_ffmpeg.unwrap_or(false);
+    core_options.broken_font = options.broken_font.unwrap_or(false);
+    core_options.broken_markup = options.broken_markup.unwrap_or(false);
     let session = ScanSession::create(options.scan_id);
     Ok(AsyncTask::new(MediaScanTask {
         options: core_options,

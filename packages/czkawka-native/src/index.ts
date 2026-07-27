@@ -158,6 +158,10 @@ export interface MediaScanOptions {
   brokenPdf?: boolean
   brokenArchive?: boolean
   brokenImage?: boolean
+  brokenVideoFfprobe?: boolean
+  brokenVideoFfmpeg?: boolean
+  brokenFont?: boolean
+  brokenMarkup?: boolean
   scanId?: string
   threadCount?: number
 }
