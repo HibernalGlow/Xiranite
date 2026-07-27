@@ -1,6 +1,6 @@
 # External Node Launch Design
 
-**Status:** accepted design, implementation pending
+**Status:** implemented
 
 **Decision record:** [ADR 0054](adr/0054-route-external-node-launches-through-declared-node-hosts.md)
 
