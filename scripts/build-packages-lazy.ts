@@ -3,12 +3,13 @@ import { access, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "n
 import { dirname, join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { spawn } from "node:child_process"
+import { getDefaultDisabledNodeIds } from "./lib/default-disabled-nodes.js"
 
 const repoRoot = resolve(import.meta.dirname, "..")
 const verbose = process.argv.includes("--verbose")
 const skipFailedNodes = process.argv.includes("--skip-failed-nodes")
 const skipCli = process.argv.includes("--skip-cli")
-const excludedNodeIds = parseNodeIds(optionValue("--exclude-nodes"))
+const excludedNodeIds = [...new Set([...getDefaultDisabledNodeIds(), ...parseNodeIds(optionValue("--exclude-nodes"))])]
 const onlyNodeIds = parseNodeIds(optionValue("--only-nodes"))
 const failuresFile = optionValue("--failures-file")
 

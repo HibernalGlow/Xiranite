@@ -158,13 +158,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-kavvka/platform"), { nodeId: "kavvka", entry: "platform" }),
     createRuntime: "createNodeKavvkaRuntime",
   },
-  lata: {
-    packageName: "@xiranite/node-lata",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-lata/core"), { nodeId: "lata", entry: "core" }),
-    run: "runLata",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-lata/platform"), { nodeId: "lata", entry: "platform" }),
-    createRuntime: "createNodeLataRuntime",
-  },
   linedup: {
     packageName: "@xiranite/node-linedup",
     loadCore: createNodeModuleLoader(() => import("@xiranite/node-linedup/core"), { nodeId: "linedup", entry: "core" }),
@@ -275,13 +268,6 @@ export const generatedNodeSpecs: Record<string, NodeSpec> = {
     run: "runSamea",
     loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-samea/platform"), { nodeId: "samea", entry: "platform" }),
     createRuntime: "createNodeSameaRuntime",
-  },
-  scoolp: {
-    packageName: "@xiranite/node-scoolp",
-    loadCore: createNodeModuleLoader(() => import("@xiranite/node-scoolp/core"), { nodeId: "scoolp", entry: "core" }),
-    run: "runScoolp",
-    loadPlatform: createNodeModuleLoader(() => import("@xiranite/node-scoolp/platform"), { nodeId: "scoolp", entry: "platform" }),
-    createRuntime: "createNodeScoolpRuntime",
   },
   seriex: {
     packageName: "@xiranite/node-seriex",
