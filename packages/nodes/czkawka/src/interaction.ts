@@ -49,6 +49,7 @@ const LABELS_ZH: Record<CzkawkaTool, string> = {
   "invalid-symlinks": "无效符号链接",
   "broken-files": "损坏文件",
   "bad-extensions": "不正确扩展名",
+  "bad-names": "坏文件名",
 }
 
 export function createCzkawkaInteractionSchema(defaults: Partial<CzkawkaInteractionValues> = {}, language: TerminalLanguage = "zh"): TerminalInteractionSchema<CzkawkaInput, CzkawkaResult> {

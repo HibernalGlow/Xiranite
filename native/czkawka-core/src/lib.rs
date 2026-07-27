@@ -132,6 +132,7 @@ pub enum BasicTool {
     EmptyFolders,
     TemporaryFiles,
     InvalidSymlinks,
+    BadNames,
 }
 
 #[derive(Debug, Clone)]

@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { cancelCzkawkaScan, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles } from "../dist/index.js"
 
 const info = getCzkawkaInfo()
-const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio", "broken-files.multi-checker", "empty-files.content-checkers", "temporary-files.custom-extensions"]
+const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "scan.bad-names", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio", "broken-files.multi-checker", "empty-files.content-checkers", "temporary-files.custom-extensions"]
 const missingCapabilities = requiredCapabilities.filter((capability) => !info.capabilities.includes(capability))
 if (info.apiVersion !== 5 || missingCapabilities.length) {
   throw new Error(`Unexpected Czkawka info: ${JSON.stringify(info)}`)
@@ -24,6 +24,7 @@ try {
     writeFile(join(directory, "printable.txt"), "visible"),
     writeFile(join(directory, "custom-temporary.xiranite-tmp"), "temporary"),
     writeFile(join(directory, "broken.json"), '{"broken":'),
+    writeFile(join(directory, "report-🙂.TXT"), "report"),
   ])
   const result = await scanDuplicateFiles({ includedDirectories: [directory], useCache: false })
   if (result.groups.length !== 1 || result.groups[0]?.files.length !== 2) {
@@ -65,6 +66,11 @@ try {
     throw new Error(`Custom temporary extension did not report the matching file: ${JSON.stringify(temporary)}`)
   }
   console.log(JSON.stringify({ customTemporaryFiles: temporary.entries.length }))
+  const badNames = await scanBasicFiles({ tool: "bad-names", includedDirectories: [directory], useCache: false })
+  if (!badNames.entries.some((entry) => entry.path.endsWith("report-🙂.TXT") && entry.secondaryPath?.endsWith("report-.txt"))) {
+    throw new Error(`Bad-name scanner did not return the proposed same-directory target: ${JSON.stringify(badNames)}`)
+  }
+  console.log(JSON.stringify({ badNameFiles: badNames.entries.length }))
   const media = await scanMediaFiles({
     tool: "bad-extensions",
     includedDirectories: [directory],

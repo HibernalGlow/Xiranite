@@ -17,6 +17,7 @@ export const CZKAWKA_TOOLS = [
   "invalid-symlinks",
   "broken-files",
   "bad-extensions",
+  "bad-names",
 ] as const
 
 export type CzkawkaTool = typeof CZKAWKA_TOOLS[number]
@@ -33,7 +34,7 @@ export type CzkawkaDeleteMode = "trash" | "permanent"
 export type CzkawkaConflictPolicy = "skip" | "overwrite" | "rename" | "error"
 export type CzkawkaOperationStatus = "planned" | "deleted" | "trashed" | "moved" | "copied" | "renamed" | "saved" | "skipped" | "error"
 export interface CzkawkaDestinationItem { path: string; destination: string }
-export interface CzkawkaRenameItem { path: string; properExtension: string }
+export interface CzkawkaRenameItem { path: string; properExtension?: string; targetName?: string }
 export type CzkawkaExportScope = "selected" | "visible" | "all"
 
 export interface CzkawkaInput {
@@ -223,7 +224,7 @@ export interface CzkawkaData {
 
 export type CzkawkaResult = NodeRunResult<CzkawkaData>
 
-const BASIC_TOOLS = new Set<CzkawkaTool>(["empty-folders", "big-files", "empty-files", "temporary-files", "invalid-symlinks"])
+const BASIC_TOOLS = new Set<CzkawkaTool>(["empty-folders", "big-files", "empty-files", "temporary-files", "invalid-symlinks", "bad-names"])
 const MEDIA_TOOLS = new Set<CzkawkaTool>(["similar-images", "similar-videos", "duplicate-music", "broken-files", "bad-extensions"])
 
 export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInput {
@@ -329,7 +330,7 @@ export async function runCzkawka(input: CzkawkaInput, runtime: CzkawkaRuntime, o
       return await mutate(value, runtime, "move", onEvent)
     }
     if (value.action === "rename") {
-      if (!value.renameItems.length) return fail(value, "At least one path and proper extension are required.")
+      if (!value.renameItems.length) return fail(value, "At least one path and rename target are required.")
       return await mutate(value, runtime, "rename", onEvent)
     }
     if (!value.outputPath) return fail(value, "An output path is required.")
@@ -400,6 +401,7 @@ function missingNativeCapabilities(value: CzkawkaNormalizedInput, capabilities: 
   if (value.tool === "temporary-files" && !isDefaultTemporaryFileExtensions(value.temporaryFileExtensions)) {
     required.push("temporary-files.custom-extensions")
   }
+  if (value.tool === "bad-names") required.push("scan.bad-names")
   if (!required.length) return []
   const available = new Set(capabilities ?? [])
   return required.filter((capability) => !available.has(capability))
@@ -462,17 +464,17 @@ async function mutate(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, ac
   const entries: CzkawkaEntry[] = []
   const claimedTargets = new Set<string>()
   const destinations = new Map(value.destinationItems.map((item) => [item.path, item.destination]))
-  const extensions = new Map(value.renameItems.map((item) => [item.path, item.properExtension]))
+  const renameItems = new Map(value.renameItems.map((item) => [item.path, item]))
   for (let index = 0; index < value.selectedPaths.length; index += 1) {
     const path = value.selectedPaths[index]!
     const operation: NonNullable<CzkawkaEntry["operation"]> = action === "delete" ? value.deleteMode === "trash" ? "trash" : "delete" : action === "rename" ? "rename" : value.copyMode ? "copy" : "move"
     let target = action === "move" ? operationTarget(value, runtime, path, destinations.get(path)) : undefined
-    const base: CzkawkaEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, properExtension: extensions.get(path), operation, conflictPolicy: action === "move" || action === "rename" ? value.conflictPolicy : undefined }
+    const base: CzkawkaEntry = { id: `op:${index}`, groupId: 0, path, name: runtime.basename(path), size: 0, modifiedDate: 0, properExtension: renameItems.get(path)?.properExtension, operation, conflictPolicy: action === "move" || action === "rename" ? value.conflictPolicy : undefined }
     onEvent({ type: "progress", progress: Math.round((index / value.selectedPaths.length) * 100), message: `${operation} ${runtime.basename(path)}` })
     try {
-      if (action === "rename") target = renameTarget(path, extensions.get(path), runtime)
+      if (action === "rename") target = renameTarget(path, renameItems.get(path), runtime)
       if (!await runtime.pathExists(path)) throw new Error("Source path no longer exists.")
-      if (target === path) { entries.push({ ...base, secondaryPath: target, status: "skipped", error: "Path already uses the proper extension." }); continue }
+      if (target === path) { entries.push({ ...base, secondaryPath: target, status: "skipped", error: "Path already uses the requested name." }); continue }
       const claimed = target ? claimedTargets.has(target.toLocaleLowerCase()) : false
       if (target && (claimed || await runtime.pathExists(target))) {
         if (claimed && value.conflictPolicy === "overwrite") throw new Error("Another selected item uses the same target path.")
@@ -499,13 +501,22 @@ async function mutate(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, ac
   return { success: data.errorCount === 0, message: value.dryRun ? `Planned ${data.affectedCount} operation(s); ${entries.filter((entry) => entry.status === "skipped").length} skipped.` : `Completed ${data.affectedCount} operation(s).`, data }
 }
 
-function renameTarget(source: string, extension: string | undefined, runtime: Pick<CzkawkaRuntime, "basename" | "dirname" | "join">): string {
-  const properExtension = clean(extension).replace(/^\.+/, "")
+function renameTarget(source: string, item: CzkawkaRenameItem | undefined, runtime: Pick<CzkawkaRuntime, "basename" | "dirname" | "join">): string {
+  const targetName = clean(item?.targetName)
+  if (targetName) {
+    if (!isValidTargetName(targetName)) throw new Error("Invalid target name.")
+    return runtime.join(runtime.dirname(source), targetName)
+  }
+  const properExtension = clean(item?.properExtension).replace(/^\.+/, "")
   if (!properExtension || /[\\/:*?"<>|]/.test(properExtension)) throw new Error("Invalid proper extension.")
   const filename = runtime.basename(source)
   const dot = filename.lastIndexOf(".")
   const stem = dot > 0 ? filename.slice(0, dot) : filename
   return runtime.join(runtime.dirname(source), `${stem}.${properExtension}`)
+}
+
+function isValidTargetName(value: string): boolean {
+  return value !== "." && value !== ".." && !/[\\/:*?"<>|\u0000-\u001F]/.test(value)
 }
 
 function operationTarget(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, source: string, itemDestination?: string): string {
@@ -546,7 +557,7 @@ function isGroupedTool(tool: CzkawkaTool): boolean { return ["duplicate-files", 
 function fail(value: CzkawkaNormalizedInput, message: string): CzkawkaResult { return { success: false, message, data: summarize(value, [], message, false) } }
 function unique(values: string[]): string[] { return [...new Set(values.map(clean).filter(Boolean))] }
 function normalizeDestinationItems(items: CzkawkaDestinationItem[] | undefined): CzkawkaDestinationItem[] { const result = new Map<string, string>(); for (const item of items ?? []) { const path = clean(item.path), destination = clean(item.destination); if (path && destination) result.set(path, destination) } return [...result].map(([path, destination]) => ({ path, destination })) }
-function normalizeRenameItems(items: CzkawkaRenameItem[] | undefined): CzkawkaRenameItem[] { const result = new Map<string, string>(); for (const item of items ?? []) { const path = clean(item.path), properExtension = clean(item.properExtension).replace(/^\.+/, ""); if (path && properExtension) result.set(path, properExtension) } return [...result].map(([path, properExtension]) => ({ path, properExtension })) }
+function normalizeRenameItems(items: CzkawkaRenameItem[] | undefined): CzkawkaRenameItem[] { const result = new Map<string, CzkawkaRenameItem>(); for (const item of items ?? []) { const path = clean(item.path), properExtension = clean(item.properExtension).replace(/^\.+/, ""), targetName = clean(item.targetName); if (!path || (!properExtension && !targetName)) continue; result.set(path, { path, ...(targetName ? { targetName } : { properExtension }) }) } return [...result.values()] }
 function clean(value: unknown): string { return String(value ?? "").trim() }
 function clamp(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.round(parsed))) : fallback }
 function clampDecimal(value: unknown, min: number, max: number, fallback: number): number { const parsed = Number(value); return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback }

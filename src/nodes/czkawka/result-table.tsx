@@ -66,6 +66,7 @@ export const CZKAWKA_RESULT_COLUMNS: Record<CzkawkaTool, readonly CzkawkaResultC
   "invalid-symlinks": [NAME, PATH, TARGET, ERROR, MODIFIED],
   "broken-files": [NAME, PATH, ERROR, SIZE, MODIFIED],
   "bad-extensions": [NAME, PATH, CURRENT_EXTENSION, PROPER_EXTENSION, MODIFIED],
+  "bad-names": [NAME, PATH, TARGET, MODIFIED],
 }
 
 type SortState = { id: CzkawkaResultColumnId; descending: boolean }

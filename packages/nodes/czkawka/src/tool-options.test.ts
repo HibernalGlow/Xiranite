@@ -67,7 +67,7 @@ describe("shared Czkawka option schema", () => {
     expect(getCzkawkaGuiToolOptions("temporary-files", new Set(["temporary-files.custom-extensions"]))).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "temporaryFileExtensions", kind: "text" }),
     ]))
-    expect(CZKAWKA_TOOLS.every((tool) => getCzkawkaToolOptions(tool).length > 0 || ["empty-folders", "empty-files", "temporary-files", "invalid-symlinks", "bad-extensions"].includes(tool))).toBe(true)
+    expect(CZKAWKA_TOOLS.every((tool) => getCzkawkaToolOptions(tool).length > 0 || ["empty-folders", "empty-files", "temporary-files", "invalid-symlinks", "bad-extensions", "bad-names"].includes(tool))).toBe(true)
   })
 
   test("parses legacy pipe CLI flags without taking ownership of Czkawka 12 GUI flags", () => {

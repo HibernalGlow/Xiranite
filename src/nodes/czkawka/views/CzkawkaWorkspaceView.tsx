@@ -429,7 +429,7 @@ function ToolSelector({ compact = false, props }: { compact?: boolean; props: Cz
   return (
     <Select value={props.tool} onValueChange={(tool) => props.patch({ tool: tool as CzkawkaTool })}>
       <SelectTrigger aria-label={props.t("tools.select", "选择扫描工具")} className={cn("h-8 text-xs", compact ? "w-40" : "w-52")}><SelectValue /></SelectTrigger>
-      <SelectContent>{CZKAWKA_TOOL_META.map((definition) => { const tool = getCzkawkaToolMeta(definition.id, props.t); return <SelectItem key={tool.id} value={tool.id}><span className="flex items-center gap-2"><tool.icon className="size-3.5" />{tool.label}</span></SelectItem> })}</SelectContent>
+      <SelectContent>{CZKAWKA_TOOL_META.filter((definition) => !definition.requiredNativeCapability || props.nativeCapabilities.has(definition.requiredNativeCapability)).map((definition) => { const tool = getCzkawkaToolMeta(definition.id, props.t); return <SelectItem key={tool.id} value={tool.id}><span className="flex items-center gap-2"><tool.icon className="size-3.5" />{tool.label}</span></SelectItem> })}</SelectContent>
     </Select>
   )
 }

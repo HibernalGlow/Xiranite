@@ -12,6 +12,7 @@
     "./filters": { "types": "./dist/filters.d.ts", "default": "./dist/filters.js" },
     "./selection-assistant": { "types": "./dist/selection-assistant.d.ts", "default": "./dist/selection-assistant.js" },
     "./analysis": { "types": "./dist/analysis.d.ts", "default": "./dist/analysis.js" },
+    "./bad-names": { "types": "./dist/bad-names.d.ts", "default": "./dist/bad-names.js" },
     "./activity-log": { "types": "./dist/activity-log.d.ts", "default": "./dist/activity-log.js" },
     "./card-layout": { "types": "./dist/card-layout.d.ts", "default": "./dist/card-layout.js" },
     "./floating-panel": { "types": "./dist/floating-panel.d.ts", "default": "./dist/floating-panel.js" },

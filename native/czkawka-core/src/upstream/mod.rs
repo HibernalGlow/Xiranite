@@ -1,4 +1,5 @@
 pub(crate) mod basic;
+pub(crate) mod basic_bad_names;
 pub(crate) mod common;
 pub(crate) mod duplicate;
 pub(crate) mod media;

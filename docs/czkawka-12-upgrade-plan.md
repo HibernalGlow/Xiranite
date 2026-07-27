@@ -406,6 +406,8 @@ Add the current missing tools:
 - EXIF remover.
 - Video optimizer.
 
+Status: the Bad Names source slice and isolated release-binding smoke are complete. Its shared Windows prebuilt ZIP is pending the concurrent asset owner's refresh; EXIF remover and video optimizer remain pending.
+
 For each tool:
 
 1. Deliver scan and preview first.
@@ -413,6 +415,13 @@ For each tool:
 3. Require explicit confirmation for live execution.
 4. Preserve Xiranite activity logs, conflict handling, cancellation, and result status.
 5. Route final filesystem replacement, rename, trash, and recovery through Xiranite's file-operation services.
+
+Bad names implementation evidence:
+
+- The native `BadNames` adapter is scan-only: it maps Czkawka's suggested filename to the stable `secondaryPath` result field and never calls the upstream mutator that renames files directly. The focused Rust test verifies that the source remains present and that the suggestion stays in the same directory despite upstream Windows path-case normalization.
+- `createBadNameRenamePlan` is a framework-neutral TypeScript boundary that accepts only selected, same-directory suggestions and emits a restricted `targetName`. The existing operation runner then supplies dry-run results, conflict policies, activity status, cancellation checks, and the host `movePath` operation for an explicitly confirmed live rename.
+- The GUI hides Bad Names until `scan.bad-names` is advertised, previews proposed targets in the result table, and requires the normal operation confirmation dialog before invoking the shared rename contract. Browser Mode covers both capability hiding and dry-run preview.
+- The release-binding native smoke advertises `scan.bad-names` and finds `report-🙂.TXT` with a `report-.txt` proposal. Publication of the refreshed Windows prebuilt ZIP remains deferred to the concurrent task that owns `native/prebuilt/win32-x64`; the capability gate keeps that older asset from exposing this tool prematurely.
 
 Video optimizer and EXIF processing may remain native performance work, but native code should produce an output candidate rather than silently replacing the source. If the upstream API cannot provide a safe output boundary, keep live execution disabled until an adapter can enforce it.
 

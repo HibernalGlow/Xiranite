@@ -10,6 +10,7 @@ pub const CAPABILITIES: &[&str] = &[
     "scan.duplicate",
     "scan.basic",
     "scan.media",
+    "scan.bad-names",
     "scan.progress.v2",
     "scan.cancel",
     "similar-images.geometric-invariance",

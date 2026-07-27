@@ -116,6 +116,7 @@ pub(crate) fn scan_basic_files_controlled(
                 .collect();
             Ok(basic_result(&tool, entries))
         }
+        BasicTool::BadNames => super::basic_bad_names::scan(options, control),
     }
 }
 
@@ -138,7 +139,7 @@ fn temporary_parameters(options: &BasicScanOptions) -> TemporaryParameters {
     parameters
 }
 
-fn configure_tool<T: CommonData>(tool: &mut T, options: &BasicScanOptions) {
+pub(crate) fn configure_tool<T: CommonData>(tool: &mut T, options: &BasicScanOptions) {
     tool.set_included_paths(options.included_directories.clone());
     if !options.reference_directories.is_empty() {
         tool.set_reference_paths(options.reference_directories.clone());
@@ -155,7 +156,10 @@ fn configure_tool<T: CommonData>(tool: &mut T, options: &BasicScanOptions) {
     tool.set_delete_outdated_cache(options.delete_outdated_cache);
 }
 
-fn basic_result<T: CommonData>(tool: &T, mut entries: Vec<BasicEntry>) -> BasicScanResult {
+pub(crate) fn basic_result<T: CommonData>(
+    tool: &T,
+    mut entries: Vec<BasicEntry>,
+) -> BasicScanResult {
     entries.sort_unstable_by(|left, right| left.path.cmp(&right.path));
     BasicScanResult {
         entries,
