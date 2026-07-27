@@ -1,6 +1,6 @@
 # Czkawka 12.0 upgrade and maintenance plan
 
-Status: implementation in progress; core upgrade and boundary refactor are complete, GUI feature slices are ongoing
+Status: implementation in progress; core upgrade, boundary refactor, GUI feature slices, and Czkawka Windows prebuilt refresh are complete. Final compatibility and performance evidence remains in progress.
 
 Target: Windows/Wails production path
 
@@ -412,7 +412,12 @@ Add the current missing tools:
 - EXIF remover.
 - Video optimizer.
 
-Status: the Bad Names, EXIF remover, and Video Optimizer source and GUI slices are complete. The current local release binding validates all three through native smoke. `native/prebuilt/win32-x64` remains deliberately unrefreshed, so its embedded Windows ZIP advertises none of these newer capabilities and must remain capability-gated rather than treated as this slice's publication.
+Status: the Bad Names, EXIF remover, and Video Optimizer source and GUI slices are complete. The release binding and the refreshed `native/prebuilt/win32-x64` Czkawka ZIP validate all three through native and embedded smoke. Capability gates remain required for older installed assets.
+
+Published native asset evidence:
+
+- `bun packages/native-loader/scripts/build-native-assets.ts --refresh --no-build --only czkawka` refreshed only the Czkawka archive and its manifest hashes, preserving ArcThumb and Findz archives and manifest order.
+- `bun run --cwd packages/native-loader smoke:embedded` extracted the refreshed archive and confirmed all three scan/operation capability pairs from the packaged binding.
 
 For each tool:
 
@@ -427,21 +432,21 @@ Bad names implementation evidence:
 - The native `BadNames` adapter is scan-only: it maps Czkawka's suggested filename to the stable `secondaryPath` result field and never calls the upstream mutator that renames files directly. The focused Rust test verifies that the source remains present and that the suggestion stays in the same directory despite upstream Windows path-case normalization.
 - `createBadNameRenamePlan` is a framework-neutral TypeScript boundary that accepts only selected, same-directory suggestions and emits a restricted `targetName`. The existing operation runner then supplies dry-run results, conflict policies, activity status, cancellation checks, and the host `movePath` operation for an explicitly confirmed live rename.
 - The GUI hides Bad Names until `scan.bad-names` is advertised, previews proposed targets in the result table, and requires the normal operation confirmation dialog before invoking the shared rename contract. Browser Mode covers both capability hiding and dry-run preview.
-- The release-binding native smoke advertises `scan.bad-names` and finds `report-🙂.TXT` with a `report-.txt` proposal. Publication of the refreshed Windows prebuilt ZIP remains deferred to the concurrent task that owns `native/prebuilt/win32-x64`; the capability gate keeps that older asset from exposing this tool prematurely.
+- The release-binding native smoke advertises `scan.bad-names` and finds `report-🙂.TXT` with a `report-.txt` proposal. Embedded smoke loads the refreshed Windows prebuilt ZIP and confirms the same capability is published.
 
 EXIF remover implementation evidence:
 
 - The native adapter scans stable `ExifTag` DTOs only. For a live operation it copies the source to a reserved system-temporary candidate, invokes Czkawka 12's public EXIF cleanup API only on that candidate, and never lets upstream overwrite the original source.
 - `createExifCleanupPlan` is a framework-neutral TypeScript boundary over selected scan entries. Dry-run creates only itemized plans. A confirmed live operation delegates replacement to Xiranite's ordered file-operation service: trash the source, then move the candidate into the original path. If replacement fails, operation details retain the candidate path and the original is recoverable from the system trash.
 - The GUI gates the scanner on `scan.exif-remover` and the live command on `operation.exif.candidate`; it displays returned tag names, previews selected tag counts, and requires the existing confirmation dialog. The terminal CLI and OpenTUI use their fixed terminal-tool list, so neither gains Bad Names or EXIF controls implicitly.
-- A Rust fixture copies an existing repository JPEG and injects a minimal `ImageDescription` EXIF segment. It proves scan detection, source-byte preservation, candidate tag removal, and Windows path-case tolerance. The package test suite, Browser Mode, typecheck, source-size gate, and strict Clippy pass. The local release Node-API binding now links and its native smoke validates the EXIF capability and candidate path; embedded smoke still confirms the unrefreshed ZIP lacks both `scan.bad-names` and EXIF capabilities.
+- A Rust fixture copies an existing repository JPEG and injects a minimal `ImageDescription` EXIF segment. It proves scan detection, source-byte preservation, candidate tag removal, and Windows path-case tolerance. The package test suite, Browser Mode, typecheck, source-size gate, and strict Clippy pass. The release Node-API binding and refreshed embedded ZIP both advertise the EXIF scan and candidate capabilities.
 
 Video optimizer implementation evidence:
 
 - The native adapter exposes stable scan and candidate DTOs for transcode and black-bar crop modes. It keeps Czkawka types inside `native/czkawka-core/src/upstream/video_optimizer.rs`, discards the upstream `(0, 0, 0, 0)` no-crop sentinel, copies the source to a reserved temporary input, and only returns a non-empty candidate; it never lets the upstream processor overwrite the source path.
 - Framework-neutral TypeScript normalizes codec, crop, quality, resize, HQDN3D, and safety defaults. `createVideoOptimizationPlan` accepts only selected scan entries, and dry-run reports the exact crop or transcode plan before a candidate is created. Crop mode rejects entries without a scanned crop rectangle.
 - A confirmed live operation creates the candidate first, then delegates replacement to Xiranite's ordered file-operation service. Replacement moves the source to trash before moving the candidate into its place; a failed replacement retains the candidate and reports its path. The GUI gates scan and live controls by `scan.video-optimizer` and `operation.video-optimizer.candidate`, persists scanner and HQDN3D settings, and renders default persisted mode as transcode consistently with the TypeScript normalizer.
-- Browser Mode covers capability hiding, scan settings, HQDN3D selection and strength, and crop dry-run preview. A local release-binding smoke generates a temporary H.264 fixture for transcode plus a three-second, 30 FPS H.264 fixture with black bars for crop, scans both, creates their candidates, and proves the original bytes remain unchanged. It also verifies the two Video Optimizer capabilities; the temporary fixtures and candidates are removed in `finally`. The embedded ZIP remains intentionally unrefreshed and does not advertise either capability.
+- Browser Mode covers capability hiding, scan settings, HQDN3D selection and strength, and crop dry-run preview. A local release-binding smoke generates a temporary H.264 fixture for transcode plus a three-second, 30 FPS H.264 fixture with black bars for crop, scans both, creates their candidates, and proves the original bytes remain unchanged. It also verifies the two Video Optimizer capabilities; the temporary fixtures and candidates are removed in `finally`. Embedded smoke confirms the refreshed ZIP advertises both capabilities.
 
 ### Phase 5: Add four-mode image comparison UX
 
