@@ -71,7 +71,7 @@ function SimiuSetsFields(props: CzkawkaView) {
         </Select>
       </Field>
       {enabled ? <>
-        <Field label="Simiu 阈值">
+        <Field label="Simiu 加权相似阈值">
           <Input aria-label="simiu set threshold" type="number" min="0" max="1" step="0.01" value={props.data.simiuSetsThreshold ?? "0.17"} onChange={(event) => props.patch({ simiuSetsThreshold: event.currentTarget.value })} />
         </Field>
         <Field label="集合目录前缀">
@@ -81,7 +81,7 @@ function SimiuSetsFields(props: CzkawkaView) {
           <Input aria-label="simiu set minimum group size" type="number" min="2" value={props.data.simiuSetsMinimumGroupSize ?? "2"} onChange={(event) => props.patch({ simiuSetsMinimumGroupSize: event.currentTarget.value })} />
         </Field>
         <Field label="递归处理顺序">
-          <Select value={props.data.simiuSetsScanOrder ?? "path"} onValueChange={(simiuSetsScanOrder) => props.patch({ simiuSetsScanOrder: simiuSetsScanOrder as CzkawkaCardState["simiuSetsScanOrder"] })}>
+          <Select value={props.data.simiuSetsScanOrder ?? "smallest-first"} onValueChange={(simiuSetsScanOrder) => props.patch({ simiuSetsScanOrder: simiuSetsScanOrder as CzkawkaCardState["simiuSetsScanOrder"] })}>
             <SelectTrigger aria-label="simiu set scan order"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="path">路径顺序</SelectItem><SelectItem value="smallest-first">图片最少优先</SelectItem><SelectItem value="deepest-first">最深目录优先</SelectItem></SelectContent>
           </Select>

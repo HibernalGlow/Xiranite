@@ -45,7 +45,9 @@
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
     "@xiranite/czkawka-native": "workspace:*",
-    "@xiranite/file-operations": "workspace:*"
+    "@xiranite/file-operations": "workspace:*",
+    "sharp": "0.35.3",
+    "sharp-phash": "2.2.0"
   },
   "devDependencies": {
     "@types/node": "^24.12.0",
