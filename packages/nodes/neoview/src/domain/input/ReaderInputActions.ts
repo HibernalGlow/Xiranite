@@ -86,6 +86,7 @@ const LEGACY_READER_INPUT_ACTION_DEFINITIONS = [
 
 const XR_READER_INPUT_ACTION_DEFINITIONS = [
   action("reader.reset-view", undefined, "重置视图", "view"),
+  action("folder.toggle-inline-branch-expansion", undefined, "分支文件夹就地展开", "view"),
   action("reader.open-settings", undefined, "打开设置", "session"),
   action("workspace.toggle-layout-mode", undefined, "切换四边栏/泳道", "view"),
   action("workspace.focus-reader", undefined, "聚焦 Reader 泳道", "view"),

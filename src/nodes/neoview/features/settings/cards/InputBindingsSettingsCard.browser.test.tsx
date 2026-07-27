@@ -57,3 +57,24 @@ test("[neoview.bindings.action-sequence-editor] edits, reorders and persists fol
     followUpActions: ["reader.first-page", "reader.next-book"],
   })] })
 })
+
+test("[neoview.bindings.radial-action-editor] shows a radial binding with its action sequence", async () => {
+  await render(
+    <div style={{ width: 960 }}>
+      <InputBindingsEditor
+        value={{ bindings: [{
+          id: "radial-delete-next",
+          action: "file.delete-current",
+          followUpActions: ["reader.next-book"],
+          context: "reader",
+          enabled: true,
+          input: { device: "radial", menuId: "default", itemId: "delete" },
+        }] }}
+        onSave={vi.fn(async ({ bindings }) => ({ bindings: bindings ?? [] }))}
+      />
+    </div>,
+  )
+
+  await expect.element(page.getByText("轮盘 default / delete").first()).toBeVisible()
+  await expect.element(page.getByRole("combobox", { name: "后续动作 1" })).toHaveValue("reader.next-book")
+})

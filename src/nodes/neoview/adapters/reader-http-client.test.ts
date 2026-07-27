@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-
 import { createReaderHttpClient, READER_FOLDER_DETAIL_DEFAULT_WIDTHS, ReaderHttpError } from "./reader-http-client"
 
 afterEach(() => {
@@ -121,6 +120,7 @@ describe("reader-http-client", () => {
     expect(new Headers(init?.headers).get("content-type")).toBe("application/json")
     expect(JSON.parse(String(init?.body))).toEqual({ inputBindings })
   })
+
 
   it("[neoview.page-order.client] updates session ordering and canonical book locks through authenticated routes", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/reader/config")

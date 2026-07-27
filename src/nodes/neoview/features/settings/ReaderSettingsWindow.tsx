@@ -63,7 +63,7 @@ export function ReaderSettingsWindow({
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
-  onRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  onRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"], inputBindings?: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>
@@ -184,7 +184,7 @@ function SettingsSection({
   inputBindings: ReaderRuntimeConfigDto["inputBindings"]
   onInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["inputBindings"]>
   radialMenu: ReaderRuntimeConfigDto["radialMenu"]
-  onRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
+  onRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"], inputBindings?: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRuntimeConfigDto["radialMenu"]>
   onLegacySettingsInspect?(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection>
   onLegacySettingsImport?(content: string, strategy?: "merge" | "overwrite", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult>
   onMaterial(patch: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto>

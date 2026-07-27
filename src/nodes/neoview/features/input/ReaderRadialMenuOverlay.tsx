@@ -8,11 +8,17 @@ export interface ReaderRadialMenuOpenRequest {
   y: number
 }
 
+export interface ReaderRadialMenuSelection {
+  menuId: string
+  itemId: string
+  legacyAction?: ReaderInputAction
+}
+
 export interface ReaderRadialMenuOverlayProps {
   config: ReaderRadialMenuConfig
   request: ReaderRadialMenuOpenRequest
   onClose(): void
-  onSelect(action: ReaderInputAction): void
+  onSelect(selection: ReaderRadialMenuSelection): void
 }
 
 export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: ReaderRadialMenuOverlayProps) {
@@ -60,8 +66,11 @@ export function ReaderRadialMenuOverlay({ config, request, onClose, onSelect }: 
       return true
     }
     const handleSelect = (event: Event) => {
-      const action = (event as CustomEvent<NeoViewRayMenuItem>).detail.action
-      if (action) onSelectRef.current(action as ReaderInputAction)
+      const selected = (event as CustomEvent<NeoViewRayMenuItem>).detail
+      const menu = configRef.current.menus.find((candidate) => candidate.id === activeMenuId)
+      const item = menu ? findItem(menu.layers.flat(), selected.id) : undefined
+      if (!item || item.moveToMenuId) return
+      onSelectRef.current({ menuId: activeMenuId, itemId: item.id, ...(item.action ? { legacyAction: item.action } : {}) })
     }
     const handleMoveTo = (event: Event) => {
       const menuId = (event as CustomEvent<{ menuId: string }>).detail.menuId
@@ -110,11 +119,20 @@ function toRayItem(item: ReaderRadialMenuItem): NeoViewRayMenuItem {
   return {
     id: item.id,
     label: item.label,
-    action: item.action,
+    action: item.action ?? null,
     moveToMenuId: item.moveToMenuId,
     slotIndex: item.slotIndex,
     disabled: item.disabled,
     selectable: item.disabled || item.moveToMenuId ? false : undefined,
     children: item.children?.map(toRayItem),
   }
+}
+
+function findItem(items: readonly ReaderRadialMenuItem[], id: string): ReaderRadialMenuItem | undefined {
+  for (const item of items) {
+    if (item.id === id) return item
+    const child = item.children ? findItem(item.children, id) : undefined
+    if (child) return child
+  }
+  return undefined
 }

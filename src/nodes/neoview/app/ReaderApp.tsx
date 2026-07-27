@@ -64,6 +64,8 @@ import {
   type ReaderSwimlaneId,
 } from "../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
+import { mergeReaderFolderViewPatch } from "./ReaderFolderViewPersistence"
+import { persistReaderRadialMenu } from "./ReaderRadialMenuPersistence"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
 import { watchReaderSourceChanges } from "../features/reader/watchReaderSourceChanges"
 import { neoviewDebug, neoviewDebugAsync } from "../neoviewDebug"
@@ -208,7 +210,7 @@ const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
   showHiddenFolders: false,
   hideMissingEfuEntries: false,
   confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
-  penetration: { enabled: false, expandBranchesInline: false, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
+  penetration: { enabled: false, expandBranchesInline: false, inlineBranchMaxDirectories: 4, inlineBranchMaxFiles: 4, inlineBranchMaxItems: 4, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
   emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
   details: {
     columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
@@ -1257,12 +1259,11 @@ export function ReaderApp({
     setInputBindings(updated)
     return updated
   }
-
-  async function persistRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"]): Promise<ReaderRadialMenuConfig> {
-    if (!clientRef.current.updateRadialMenu) throw new Error("当前 Reader 后端不支持轮盘设置。")
-    const updated = await clientRef.current.updateRadialMenu({ radialMenu: patch })
-    setRadialMenu(updated)
-    return updated
+  async function persistRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"], inputBindingsPatch?: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRadialMenuConfig> {
+    return await persistReaderRadialMenu(clientRef.current, patch, inputBindingsPatch, (updated) => {
+      inputBindingsRef.current = updated
+      setInputBindings(updated)
+    }, setRadialMenu)
   }
 
   async function persistVoiceControl(patch: ReaderVoiceControlPatch["voiceControl"]): Promise<ReaderVoiceControlConfig> {
@@ -1314,6 +1315,7 @@ export function ReaderApp({
       toggleShellEdge,
       toggleShellPin,
       toggleSidebarControl,
+      toggleInlineBranchExpansion: () => persistFolderView({ penetration: { expandBranchesInline: !folderViewRef.current.penetration.expandBranchesInline } }),
       workspace: {
         toggleLayoutMode: toggleWorkspaceMode,
         focusReader: () => commitWorkspace({ mode: "swimlane", activeLane: "reader" }),
@@ -1482,39 +1484,7 @@ export function ReaderApp({
   }
 
   async function persistFolderView(patch: ReaderFolderViewPatch["folderView"]) {
-    const next: ReaderFolderViewConfig = {
-      ...folderViewRef.current,
-      ...patch,
-      details: {
-        ...folderViewRef.current.details,
-        ...patch.details,
-        columnWidths: {
-          ...folderViewRef.current.details.columnWidths,
-          ...patch.details?.columnWidths,
-        },
-      },
-      search: {
-        ...folderViewRef.current.search,
-        ...patch.search,
-      },
-      emptyArea: {
-        ...folderViewRef.current.emptyArea,
-        ...patch.emptyArea,
-      },
-      titleWrap: { ...folderViewRef.current.titleWrap, ...patch.titleWrap },
-      confirmations: {
-        ...folderViewRef.current.confirmations,
-        ...patch.confirmations,
-      },
-      tree: {
-        ...folderViewRef.current.tree,
-        ...patch.tree,
-      },
-      tabs: {
-        ...(folderViewRef.current.tabs ?? DEFAULT_FOLDER_VIEW.tabs),
-        ...patch.tabs,
-      },
-    }
+    const next = mergeReaderFolderViewPatch(folderViewRef.current, patch, INITIAL_FOLDER_VIEW_CONFIG)
     folderViewRef.current = next
     setFolderView(next)
     if (!clientRef.current.updateFolderView) {
@@ -2361,7 +2331,7 @@ export function ReaderApp({
           />
         </Suspense>
       ) : null}
-      {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={(action) => executeInputAction(action)} /></Suspense> : null}
+      {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={({ menuId, itemId, legacyAction }) => { if (!inputRouter.dispatch({ device: "radial", menuId, itemId }, null) && legacyAction) void executeInputAction(legacyAction) }} /></Suspense> : null}
       {!session ? (
         <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
           <div>

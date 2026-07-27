@@ -11,9 +11,10 @@ describe("ReaderInputBindingsConfig", () => {
       { id: "touch", action: "reader.next-page", context: "reader", enabled: true, input: { device: "touch", gesture: "long-press", fingers: 1, durationMs: 700, moveTolerancePx: 10 } },
       { id: "pad", action: "reader.next-page", context: "reader", enabled: true, input: { device: "gamepad", button: 5 } },
       { id: "area", action: "reader.open-settings", context: "reader", enabled: true, input: { device: "area", area: "bottom-right", button: 2, action: "double-click" } },
+      { id: "radial", action: "reader.next-page", context: "reader", enabled: true, input: { device: "radial", menuId: "default", itemId: "next" } },
       { id: "shell", action: "shell.toggle-top-toolbar-pin", context: "shell", enabled: true, input: { device: "keyboard", code: "KeyT" } },
     ]
-    expect(parseNeoviewInputBindingsConfig({ items: bindings }).bindings).toHaveLength(8)
+    expect(parseNeoviewInputBindingsConfig({ items: bindings }).bindings).toHaveLength(9)
     expect(parseNeoviewInputBindingsPatch({ inputBindings: { bindings } })).toEqual({
       patch: { inputBindings: { bindings } },
       tomlPatch: { bindings: { items: bindings } },
@@ -83,6 +84,9 @@ describe("ReaderInputBindingsConfig", () => {
       { id: "bad", action: "system.delete-files", context: "reader", enabled: true, input: same },
     ] } })).toThrow("action")
     expect(() => parseNeoviewInputBindingsPatch({ inputBindings: { bindings: [], command: "rm" } })).toThrow("unsupported")
+    expect(() => parseNeoviewInputBindingsPatch({ inputBindings: { bindings: [
+      { id: "wrong-context", action: "reader.next-page", context: "global", enabled: true, input: { device: "radial", menuId: "default", itemId: "next" } },
+    ] } })).toThrow("must be reader")
   })
 
   it("[neoview.bindings.reset] emits one canonical defaults patch and tolerates opaque legacy keys on read", () => {

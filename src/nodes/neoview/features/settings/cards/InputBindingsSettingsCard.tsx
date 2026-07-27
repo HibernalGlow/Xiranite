@@ -149,7 +149,7 @@ export function InputBindingsSettingsCard({ inputBindings, onInputBindings, radi
         <TabsContent value="radial" className="mt-0 outline-none">
           {radialMenu && onRadialMenu ? (
             <Suspense fallback={null}>
-              <LazyRadialMenuSettingsEditor value={radialMenu} onSave={onRadialMenu} />
+              <LazyRadialMenuSettingsEditor value={radialMenu} inputBindings={inputBindings} onSave={onRadialMenu} />
             </Suspense>
           ) : (
             <p className="py-8 text-center text-sm text-muted-foreground">当前 Reader 未暴露轮盘配置接口。</p>
@@ -645,6 +645,7 @@ function BindingRow({
   onDuplicateToContext(context: ReaderInputContext): void
 }) {
   const DeviceIcon = deviceIcon(binding.input.device)
+  const radial = binding.input.device === "radial"
   const contextVisual = CONTEXT_VISUAL[binding.context]
   const ContextIcon = contextVisual.icon
   const summary = `${READER_INPUT_CONTEXT_LABELS[binding.context]} · ${formatInputSummary(binding.input)}`
@@ -691,14 +692,14 @@ function BindingRow({
               id={`binding-context-${binding.id}`}
               className="h-8 appearance-none rounded-md border border-input bg-background py-0 pl-7 pr-6 text-xs"
               value={binding.context}
-              disabled={disabled}
+              disabled={disabled || radial}
               onChange={(event) => onChange({ ...binding, context: event.currentTarget.value as ReaderInputBinding["context"] })}
               aria-label="上下文"
             >
               {READER_INPUT_CONTEXTS.map((item) => <option key={item} value={item}>{READER_INPUT_CONTEXT_LABELS[item]}</option>)}
             </select>
           </div>
-          <Button type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={onRemove} title="删除绑定" aria-label={`删除${READER_INPUT_ACTION_LABELS[binding.action]}绑定`}><Trash2 /></Button>
+          {!radial ? <Button type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={onRemove} title="删除绑定" aria-label={`删除${READER_INPUT_ACTION_LABELS[binding.action]}绑定`}><Trash2 /></Button> : null}
         </div>
       </div>
 
@@ -710,7 +711,7 @@ function BindingRow({
             <Switch checked={Boolean(binding.ignoreRepeat)} disabled={disabled} onCheckedChange={(ignoreRepeat) => onChange({ ...binding, ignoreRepeat: ignoreRepeat || undefined })} aria-label="忽略重复输入" />
           </label>
           <BindingActionSequenceEditor actions={binding.followUpActions} disabled={disabled} onChange={(followUpActions) => onChange({ ...binding, followUpActions })} />
-          <div className="flex flex-wrap items-center gap-2">
+          {!radial ? <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Copy className="size-3" />复制到</span>
             {READER_INPUT_CONTEXTS.filter((context) => context !== binding.context).map((context) => {
               const visual = CONTEXT_VISUAL[context]
@@ -722,7 +723,7 @@ function BindingRow({
                 </Button>
               )
             })}
-          </div>
+          </div> : null}
         </div>
       ) : null}
     </div>
@@ -736,6 +737,9 @@ function InputDescriptorEditor({ input, disabled, recording, onRecord, onChange 
   onRecord(event: MouseEvent<HTMLButtonElement>): void
   onChange(input: ReaderInputDescriptor): void
 }) {
+  if (input.device === "radial") {
+    return <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/20 px-2.5 py-2 text-xs text-muted-foreground"><CircleDot className="size-3.5" />轮盘 {input.menuId} / {input.itemId}</div>
+  }
   const DeviceIcon = deviceIcon(input.device)
   return (
     <div className="grid min-w-0 gap-2 sm:grid-cols-[auto_minmax(0,1fr)]">
@@ -856,6 +860,7 @@ function defaultInput(device: ReaderInputDescriptor["device"]): ReaderInputDescr
   if (device === "wheel") return { device, direction: "down" }
   if (device === "touch") return { device, gesture: "swipe-left", fingers: 1 }
   if (device === "gamepad") return { device, button: 5 }
+  if (device === "radial") throw new Error("轮盘输入由轮盘设置管理。")
   return { device, area: "middle-center", button: 0, action: "click" }
 }
 
@@ -875,10 +880,12 @@ function deviceLabel(device: RecordableReaderDevice): string {
 }
 
 function deviceOptionLabel(device: DeviceKind): string {
+  if (device === "radial") return "轮盘"
   return DEVICE_OPTIONS.find((option) => option.value === device)?.label ?? device
 }
 
 function deviceIcon(device: DeviceKind): LucideIcon {
+  if (device === "radial") return CircleDot
   return DEVICE_OPTIONS.find((option) => option.value === device)?.icon ?? Keyboard
 }
 
@@ -909,6 +916,8 @@ function formatInputSummary(input: ReaderInputDescriptor): string {
       return `手柄 ${input.button}`
     case "area":
       return `区域 ${areaLabel(input.area)}`
+    case "radial":
+      return `轮盘 ${input.menuId} / ${input.itemId}`
   }
 }
 
@@ -928,6 +937,8 @@ function formatInputChip(input: ReaderInputDescriptor): string {
       return `G${input.button}`
     case "area":
       return "▣"
+    case "radial":
+      return "轮盘"
   }
 }
 

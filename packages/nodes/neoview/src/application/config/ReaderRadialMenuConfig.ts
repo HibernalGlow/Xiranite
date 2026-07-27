@@ -5,7 +5,8 @@ export type ReaderRadialMenuVariant = "slice" | "bubble"
 export interface ReaderRadialMenuItem {
   id: string
   label: string
-  action: ReaderInputAction | null
+  /** Legacy-only direct action. New items dispatch through a radial input binding. */
+  action?: ReaderInputAction | null
   slotIndex: number
   moveToMenuId?: string
   icon?: string
@@ -49,17 +50,17 @@ export const DEFAULT_READER_RADIAL_MENU_CONFIG: ReaderRadialMenuConfig = {
     name: "默认轮盘",
     layers: [
       [
-        { id: "radial-temp-fit", label: "临时适应窗口", action: "reader.toggle-temporary-fit", slotIndex: 1 },
-        { id: "radial-auto-upscale", label: "自动超分开关", action: "upscale.toggle-auto", slotIndex: 2 },
-        { id: "radial-temp-fit-alt", label: "临时适应窗口", action: "reader.toggle-temporary-fit", slotIndex: 3 },
-        { id: "radial-rotate-180", label: "旋转180度", action: "reader.rotate-180", slotIndex: 4 },
-        { id: "radial-fullscreen", label: "全屏", action: "reader.fullscreen", slotIndex: 6 },
-        { id: "radial-page-toast", label: "翻页提示开关", action: "viewer.toggle-page-switch-toast", slotIndex: 7 },
+        { id: "radial-temp-fit", label: "临时适应窗口", slotIndex: 1 },
+        { id: "radial-auto-upscale", label: "自动超分开关", slotIndex: 2 },
+        { id: "radial-temp-fit-alt", label: "临时适应窗口", slotIndex: 3 },
+        { id: "radial-rotate-180", label: "旋转180度", slotIndex: 4 },
+        { id: "radial-fullscreen", label: "全屏", slotIndex: 6 },
+        { id: "radial-page-toast", label: "翻页提示开关", slotIndex: 7 },
       ],
       [
-        { id: "radial-next-page", label: "下一页", action: "reader.next-page", slotIndex: 0 },
-        { id: "radial-last-page", label: "最后一页", action: "reader.last-page", slotIndex: 2 },
-        { id: "radial-bottom-thumb-pin", label: "固定底部缩略图栏", action: "shell.toggle-bottom-thumbnail-pin", slotIndex: 3 },
+        { id: "radial-next-page", label: "下一页", slotIndex: 0 },
+        { id: "radial-last-page", label: "最后一页", slotIndex: 2 },
+        { id: "radial-bottom-thumb-pin", label: "固定底部缩略图栏", slotIndex: 3 },
       ],
       [],
     ],
@@ -151,7 +152,7 @@ function parseItem(value: unknown, label: string, depth: number): ReaderRadialMe
   return {
     id: identifier(source.id, `${label}.id`),
     label: text(source.label, `${label}.label`, 80),
-    action,
+    ...(action ? { action } : {}),
     slotIndex: integer(source.slotIndex ?? 0, 0, 63, `${label}.slotIndex`),
     ...(moveToMenuId ? { moveToMenuId } : {}),
     ...(source.icon === undefined ? {} : { icon: text(source.icon, `${label}.icon`, 80) }),

@@ -105,6 +105,20 @@ describe("ReaderInputRouter", () => {
     await waitFor(() => expect(execute.mock.calls.map(([action]) => action)).toEqual(["file.delete-current", "reader.next-book"]))
   })
 
+  it("[neoview.bindings.radial-action-sequence] dispatches a radial selection through the same action sequence", async () => {
+    const execute = vi.fn()
+    render(<Harness config={{ bindings: [{
+      id: "radial-next-book",
+      action: "file.delete-current",
+      followUpActions: ["reader.next-book"],
+      context: "reader",
+      enabled: true,
+      input: { device: "radial", menuId: "default", itemId: "delete" },
+    }] }} execute={execute} />)
+    fireEvent.click(screen.getByRole("button", { name: "轮盘选择" }))
+    await waitFor(() => expect(execute.mock.calls.map(([action]) => action)).toEqual(["file.delete-current", "reader.next-book"]))
+  })
+
   it("[neoview.bindings.mouse-runtime] routes configured pointer buttons without stealing unbound or interactive clicks", () => {
     const execute = vi.fn()
     render(<Harness config={{ bindings: [
@@ -190,6 +204,7 @@ function Harness({ config, execute }: { config: ReaderInputBindingsConfig; execu
       <input aria-label="editor" />
       <div data-testid="shell-chrome" data-input-context="shell" tabIndex={-1}>toolbar chrome</div>
       <button type="button">toolbar action</button>
+      <button type="button" onClick={() => router.dispatch({ device: "radial", menuId: "default", itemId: "delete" }, null)}>轮盘选择</button>
       <button type="button" role="switch" aria-checked="false" aria-label="着色" />
       <input type="range" aria-label="亮度" min={50} max={150} defaultValue={100} />
     </div>

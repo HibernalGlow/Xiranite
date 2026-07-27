@@ -33,6 +33,7 @@ export const GUI_READER_INPUT_ACTIONS = [
   "reader.rotate-180",
   "reader.toggle-single-panorama",
   "reader.reset-view",
+  "folder.toggle-inline-branch-expansion",
   "viewer.toggle-sidebar-control",
   "viewer.toggle-progress-bar",
   "viewer.toggle-page-info",

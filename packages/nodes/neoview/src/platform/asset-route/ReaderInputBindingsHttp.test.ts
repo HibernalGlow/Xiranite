@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { ReaderHttpController } from "./ReaderHttpController.js"
 import type { ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
+import { DEFAULT_READER_RADIAL_MENU_CONFIG, type ReaderRadialMenuConfig } from "../../application/config/ReaderRadialMenuConfig.js"
 
 describe("Reader input bindings HTTP", () => {
   it("[neoview.bindings.http] authenticates, validates and publishes one canonical update", async () => {
@@ -30,6 +31,22 @@ describe("Reader input bindings HTTP", () => {
       expect(response?.status).toBe(200)
       await expect(response!.json()).resolves.toMatchObject({ inputBindings: updated.inputBindings })
       expect(updateInputBindings).toHaveBeenCalledWith(updated, { bindings: { items: updated.inputBindings.bindings } })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
+  it("[neoview.bindings.radial-http] atomically writes a radial layout with its action bindings", async () => {
+    const inputBindings: ReaderInputBindingsConfig = { bindings: [{ id: "radial-next", action: "reader.next-page", context: "reader", enabled: true, input: { device: "radial", menuId: "default", itemId: "next" } }] }
+    const radialMenu: ReaderRadialMenuConfig = { ...structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG), layerCount: 1, menus: [{ id: "default", name: "默认轮盘", layers: [[{ id: "next", label: "下一页", slotIndex: 0 }], [], []] }] }
+    const updateInputBindings = vi.fn(async (patch: { inputBindings: { bindings?: ReaderInputBindingsConfig["bindings"] } }) => ({ bindings: patch.inputBindings.bindings ?? [] }))
+    const controller = new ReaderHttpController({ baseUrl: "http://127.0.0.1:41000", token: "reader-token", inputBindings: { bindings: [] }, radialMenu, updateInputBindings })
+    try {
+      const body = { inputBindings, radialMenu: { config: radialMenu } }
+      const response = await controller.handle(request(body))
+      expect(response?.status).toBe(200)
+      await expect(response!.json()).resolves.toMatchObject({ inputBindings, radialMenu })
+      expect(updateInputBindings).toHaveBeenCalledWith({ inputBindings }, { bindings: { items: inputBindings.bindings, radial_menus: radialMenu } })
     } finally {
       await controller[Symbol.asyncDispose]()
     }
