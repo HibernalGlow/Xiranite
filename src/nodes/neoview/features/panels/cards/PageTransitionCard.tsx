@@ -84,6 +84,12 @@ export function PageTransitionCard({ store, disabled = false, dataPanelActive = 
           disabled={disabled}
           onCheckedChange={(enabled) => update({ enabled })}
         />
+        <ReaderSettingsToggle
+          label="连续翻页逐页呈现"
+          checked={settings.renderEveryRepeatedPage}
+          disabled={disabled}
+          onCheckedChange={(renderEveryRepeatedPage) => update({ renderEveryRepeatedPage })}
+        />
       </ReaderSettingsSection>
 
       {settings.enabled ? (

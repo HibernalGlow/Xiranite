@@ -35,10 +35,11 @@ describe("ReaderPageTransition", () => {
 
   it("[neoview.page-transition.bounds] normalizes imported values to 0..1000 but strictly bounds GUI patches to 0..500", () => {
     expect(normalizeReaderPageTransition({ enabled: true, type: "slide", duration: 2_000, easing: "ease" })).toEqual({
-      enabled: true, type: "slide", duration: 1_000, easing: "ease",
+      enabled: true, type: "slide", duration: 1_000, easing: "ease", renderEveryRepeatedPage: true,
     })
     expect(normalizeReaderPageTransition({ duration: -5 }).duration).toBe(0)
     expect(parseReaderPageTransitionPatch({ duration: 500 })).toEqual({ duration: 500 })
+    expect(parseReaderPageTransitionPatch({ renderEveryRepeatedPage: false })).toEqual({ renderEveryRepeatedPage: false })
     expect(parseReaderPageTransitionPatch({ duration: 10.5 })).toEqual({ duration: 10.5 })
     expect(() => parseReaderPageTransitionPatch({ duration: 501 })).toThrow(RangeError)
     expect(() => parseReaderPageTransitionPatch({ duration: Number.NaN })).toThrow(RangeError)
@@ -46,7 +47,7 @@ describe("ReaderPageTransition", () => {
   })
 
   it("[neoview.page-transition.config] [neoview.page-transition.reset] preserves exact defaults", () => {
-    expect(DEFAULT_READER_PAGE_TRANSITION).toEqual({ enabled: false, type: "none", duration: 0, easing: "easeOutQuad" })
+    expect(DEFAULT_READER_PAGE_TRANSITION).toEqual({ enabled: false, type: "none", duration: 0, easing: "easeOutQuad", renderEveryRepeatedPage: true })
     expect(normalizeReaderPageTransition(undefined)).toEqual(DEFAULT_READER_PAGE_TRANSITION)
   })
 

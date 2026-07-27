@@ -56,6 +56,7 @@ export interface ReaderPageTransitionSettings {
   type: ReaderPageTransitionType
   duration: number
   easing: ReaderPageTransitionEasing
+  renderEveryRepeatedPage: boolean
 }
 
 export type ReaderPageTransitionPatch = Partial<ReaderPageTransitionSettings>
@@ -78,9 +79,10 @@ export const DEFAULT_READER_PAGE_TRANSITION: ReaderPageTransitionSettings = {
   type: "none",
   duration: 0,
   easing: "easeOutQuad",
+  renderEveryRepeatedPage: true,
 }
 
-const PATCH_KEYS = new Set<keyof ReaderPageTransitionSettings>(["enabled", "type", "duration", "easing"])
+const PATCH_KEYS = new Set<keyof ReaderPageTransitionSettings>(["enabled", "type", "duration", "easing", "renderEveryRepeatedPage"])
 
 export function normalizeReaderPageTransition(value: unknown): ReaderPageTransitionSettings {
   const source = isRecord(value) ? value : {}
@@ -89,6 +91,7 @@ export function normalizeReaderPageTransition(value: unknown): ReaderPageTransit
     type: isReaderPageTransitionType(source.type) ? source.type : DEFAULT_READER_PAGE_TRANSITION.type,
     duration: normalizeImportedDuration(source.duration),
     easing: isReaderPageTransitionEasing(source.easing) ? source.easing : DEFAULT_READER_PAGE_TRANSITION.easing,
+    renderEveryRepeatedPage: typeof source.renderEveryRepeatedPage === "boolean" ? source.renderEveryRepeatedPage : DEFAULT_READER_PAGE_TRANSITION.renderEveryRepeatedPage,
   }
 }
 
@@ -118,6 +121,10 @@ export function parseReaderPageTransitionPatch(value: unknown): ReaderPageTransi
   if ("easing" in value) {
     if (!isReaderPageTransitionEasing(value.easing)) throw new RangeError("easing must be a known page transition easing")
     patch.easing = value.easing
+  }
+  if ("renderEveryRepeatedPage" in value) {
+    if (typeof value.renderEveryRepeatedPage !== "boolean") throw new TypeError("renderEveryRepeatedPage must be a boolean")
+    patch.renderEveryRepeatedPage = value.renderEveryRepeatedPage
   }
   return patch
 }

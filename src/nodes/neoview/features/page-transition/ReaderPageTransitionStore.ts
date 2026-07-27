@@ -15,6 +15,8 @@ import {
   type ReaderOptimisticSettingsPort,
 } from "../settings/ReaderOptimisticSettingsStore"
 
+export { commitReaderNavigation, commitReaderNavigationForPresentation } from "./ReaderNavigationPresentationGate"
+
 export type ReaderPageTransitionPort = ReaderOptimisticSettingsPort<ReaderPageTransitionSettings, ReaderPageTransitionPatch>
 
 export interface ReaderPageTransitionStoreOptions {
@@ -38,4 +40,5 @@ function sameSettings(left: ReaderPageTransitionSettings, right: ReaderPageTrans
     && left.type === right.type
     && left.duration === right.duration
     && left.easing === right.easing
+    && left.renderEveryRepeatedPage === right.renderEveryRepeatedPage
 }
