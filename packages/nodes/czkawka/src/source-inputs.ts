@@ -60,7 +60,7 @@ export function isValidCzkawkaExtensionToken(token: string): boolean {
 }
 
 export function isValidCzkawkaExcludedItem(rule: string): boolean {
-  return rule === "DEFAULT" || rule.includes("*")
+  return rule === "DEFAULT" || rule === "$TRASH" || rule.includes("*")
 }
 
 function clean(value: string): string {

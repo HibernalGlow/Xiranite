@@ -225,6 +225,21 @@ test("persists custom Czkawka 12 temporary suffixes in the browser", async () =>
   await expect.poll(() => host.stateValue).toMatchObject({ temporaryFileExtensions: ".xiranite-tmp,#" })
 })
 
+test("adds individual files and the Czkawka $TRASH exclusion preset in the browser", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "empty-files", includedDirectoriesText: "D:/media" })
+  host.localFiles.pickFiles = async () => ["D:/media/empty.bin", "E:/library/nul-only.bin"]
+
+  await render(<Component compId="czkawka-shared-input-browser" host={host} />)
+
+  await page.getByRole("button", { name: "Add files to Included directories" }).click()
+  await expect.poll(() => host.stateValue.includedDirectoriesText).toBe("D:/media/empty.bin\nE:/library/nul-only.bin\nD:/media")
+
+  await page.getByRole("button", { name: "Node settings" }).click()
+  await page.getByRole("button", { name: "Add $TRASH exclusion preset" }).click()
+  await expect.poll(() => host.stateValue.excludedItemsText).toBe("$TRASH")
+})
+
 test("renders Czkawka 12 video codec and frame-rate metadata in the browser", async () => {
   await i18n.changeLanguage("en")
   const host = createHost({ tool: "similar-videos", includedDirectoriesText: "D:/media", result: similarVideoResult })

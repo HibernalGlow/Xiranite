@@ -230,6 +230,7 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
     t,
     language,
     getFileUrl: host.localFiles?.getUrl,
+    pickFiles: host.localFiles?.pickFiles,
     pickDirectory: host.localFiles?.pickDirectory,
     pickDirectories: host.localFiles?.pickDirectories,
     copyText: host.clipboard?.writeText,
