@@ -339,6 +339,7 @@ export function LaneView() {
       <div ref={workspaceRef} className="relative flex-1 ws-canvas-bg flex min-w-0 overflow-hidden" data-testid="lane-drop-target">
         <div
           ref={laneScrollRef}
+          data-scrollbar="hidden"
           className="relative min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
           onPointerDown={onMarqueePointerDown}
           onPointerMove={onMarqueePointerMove}

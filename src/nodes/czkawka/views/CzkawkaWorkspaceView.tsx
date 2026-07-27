@@ -163,7 +163,7 @@ function Full(props: CzkawkaView) {
     <div data-testid="czkawka-full-view" className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2">
       <Header {...props} />
       <div ref={workspaceRef} className="relative flex min-h-0 flex-1 overflow-hidden">
-        <div ref={boardRef} data-testid="czkawka-lane-board" className="flex min-h-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden border-l border-border/40">
+        <div ref={boardRef} data-testid="czkawka-lane-board" data-scrollbar="hidden" className="flex min-h-0 flex-1 items-stretch overflow-x-auto overflow-y-hidden border-l border-border/40">
           {visibleLaneOrder.map((id) => <CzkawkaSwimlane
           key={id}
           {...lanes[id]}
@@ -285,7 +285,7 @@ function CzkawkaSwimlane({ children, active, collapsed, collapsedLabel, defaultW
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">{children}</div>
+      <div data-scrollbar="hidden" className="min-h-0 flex-1 overflow-y-auto p-2">{children}</div>
       <LaneResizer label={resizeLabel} className="absolute inset-y-0 right-0 z-20 w-2 translate-x-1" onReset={() => onWidthChange(defaultWidth)} onResize={(deltaRatio) => { widthRef.current += deltaRatio * 320; onWidthChange(widthRef.current) }} />
     </section>
   )
