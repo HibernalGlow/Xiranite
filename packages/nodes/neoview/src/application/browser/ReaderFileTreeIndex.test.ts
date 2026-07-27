@@ -81,6 +81,16 @@ describe("ReaderFileTreeIndex", () => {
       [resolved("/library/first"), resolved("/library/second")],
     ])
   })
+
+  it("[neoview.folder.tree-default-system-exclusions] excludes system paths unless explicitly disabled", () => {
+    const provider = providerOf({})
+    const defaultTree = new ReaderFileTreeIndex(provider)
+    const inclusiveTree = new ReaderFileTreeIndex(provider, { excludeSystemPaths: false })
+    const systemPath = process.env.SystemRoot ?? process.env.WINDIR ?? "C:\\Windows"
+
+    expect(defaultTree.isExcluded(systemPath)).toBe(process.platform === "win32")
+    expect(inclusiveTree.isExcluded(systemPath)).toBe(false)
+  })
 })
 
 function providerOf(listings: Record<string, ReaderDirectoryListing>): ReaderDirectoryListingProvider & { read: ReturnType<typeof vi.fn> } {

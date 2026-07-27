@@ -2,6 +2,7 @@ import { dirname, isAbsolute, relative, resolve } from "node:path"
 
 import { LRUCache } from "lru-cache"
 
+import { defaultReaderSystemExcludedPaths, isDefaultReaderSystemPath } from "./ReaderSystemPathExclusion.js"
 import type {
   ReaderDirectoryEntry,
   ReaderDirectoryListing,
@@ -15,6 +16,7 @@ const MAXIMUM_EXCLUDED_PATHS = 256
 
 export interface ReaderFileTreeIndexOptions {
   excludedPaths?: readonly string[]
+  excludeSystemPaths?: boolean
   maximumCacheEntries?: number
   cacheTtlMs?: number
   updateExcludedPaths?: (paths: readonly string[]) => Promise<readonly string[]>
@@ -37,6 +39,7 @@ export type ReaderFileTreeExclusionCommand = {
 export class ReaderFileTreeIndex {
   readonly #cache: LRUCache<string, ReaderDirectoryListing, string>
   readonly #updateExcludedPaths?: ReaderFileTreeIndexOptions["updateExcludedPaths"]
+  readonly #excludeSystemPaths: boolean
   #excludedPaths: string[]
   #generation = 1
   #updateQueue: Promise<void> = Promise.resolve()
@@ -46,6 +49,7 @@ export class ReaderFileTreeIndex {
     options: ReaderFileTreeIndexOptions = {},
   ) {
     this.#excludedPaths = normalizeExcludedPaths(options.excludedPaths ?? [])
+    this.#excludeSystemPaths = options.excludeSystemPaths ?? true
     this.#updateExcludedPaths = options.updateExcludedPaths
     this.#cache = new LRUCache<string, ReaderDirectoryListing, string>({
       max: boundedInteger(options.maximumCacheEntries, 1, 4_096, DEFAULT_MAXIMUM_CACHE_ENTRIES),
@@ -128,13 +132,17 @@ export class ReaderFileTreeIndex {
 
   isExcluded(path: string): boolean {
     const candidate = pathKey(path)
-    return this.#excludedPaths.some((excluded) => isSameOrDescendant(candidate, pathKey(excluded)))
+    return (this.#excludeSystemPaths && isDefaultReaderSystemPath(path))
+      || this.#excludedPaths.some((excluded) => isSameOrDescendant(candidate, pathKey(excluded)))
   }
 
   exclusionPatterns(rootPath: string): string[] {
     const root = resolve(requirePath(rootPath))
     const patterns: string[] = []
-    for (const excludedPath of this.#excludedPaths) {
+    const excludedPaths = this.#excludeSystemPaths
+      ? [...this.#excludedPaths, ...defaultReaderSystemExcludedPaths(root)]
+      : this.#excludedPaths
+    for (const excludedPath of excludedPaths) {
       const child = relative(root, resolve(excludedPath))
       if (!child) return ["**"]
       if (isAbsolute(child) || child === ".." || child.startsWith(`..${separatorFor(child)}`)) continue
