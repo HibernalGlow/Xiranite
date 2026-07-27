@@ -1,6 +1,6 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 
-export type LinkuAction = "info" | "create" | "move_link" | "list" | "recover" | "import"
+export type LinkuAction = "info" | "create" | "move_link" | "list" | "recover" | "import" | "restore"
 export type LinkuPathKind = "file" | "dir" | "missing" | "other"
 
 export interface LinkuInput {
@@ -34,6 +34,7 @@ export interface LinkuData {
   links: LinkRecord[]
   created: boolean
   recoveredCount: number
+  restoredCount: number
   failedCount: number
   importedCount: number
   skippedCount: number
@@ -42,6 +43,7 @@ export interface LinkuData {
 export interface LinkuRuntime {
   pathInfo: (path: string) => Promise<LinkPathInfo>
   isLiveLinkRecord?: (record: LinkRecord) => Promise<boolean>
+  removeSymlink: (path: string) => Promise<void>
   createSymlink: (source: string, link: string) => Promise<void>
   movePath: (source: string, target: string) => Promise<void>
   readConfig: (path?: string) => Promise<string | null>
@@ -129,6 +131,11 @@ export function upsertLinkRecord(records: LinkRecord[], next: LinkRecord): LinkR
   return replaced ? updated : [...updated, next]
 }
 
+export function removeLinkRecord(records: LinkRecord[], linkPath: string): LinkRecord[] {
+  const key = normalizeComparablePath(linkPath)
+  return records.filter((record) => normalizeComparablePath(record.link) !== key)
+}
+
 export async function runLinku(
   input: LinkuInput,
   runtime: LinkuRuntime,
@@ -149,6 +156,11 @@ export async function runLinku(
   if (normalized.action === "import") {
     if (!normalized.path) return failure("Legacy Linku TOML path is required.")
     return importLinkRecords(normalized.path, normalized.configPath, normalized.includeInvalid, runtime)
+  }
+
+  if (normalized.action === "restore") {
+    if (!normalized.path) return failure("Recorded link path is required.")
+    return restoreLink(normalized.path, normalized.configPath, runtime)
   }
 
   if (normalized.action === "create") {
@@ -195,6 +207,71 @@ export async function runLinku(
     }
   }
   return success(`Recovery completed: ${recoveredCount} recovered, ${failedCount} failed.`, { links, created: false, recoveredCount, failedCount })
+}
+
+async function restoreLink(linkPath: string, configPath: string, runtime: LinkuRuntime): Promise<LinkuResult> {
+  const records = parseLinkRecords(await runtime.readConfig(configPath))
+  const record = records.find((candidate) => normalizeComparablePath(candidate.link) === normalizeComparablePath(linkPath))
+  if (!record) return failure(`No recorded link found for: ${linkPath}`)
+  if (!await isLiveLinkRecord(record, runtime)) {
+    return failure(`Restore aborted because the recorded link is not valid: ${record.link}`)
+  }
+
+  try {
+    await runtime.removeSymlink(record.link)
+    try {
+      await runtime.movePath(record.target, record.link)
+    } catch (error) {
+      await restoreSymlinkIfPossible(record, runtime)
+      return failure(`Restore failed while moving ${record.target} back to ${record.link}: ${messageFrom(error)}`)
+    }
+  } catch (error) {
+    return failure(`Restore failed for ${record.link}: ${messageFrom(error)}`)
+  }
+
+  try {
+    await runtime.writeConfig(dumpLinkRecords(removeLinkRecord(records, record.link)), configPath)
+  } catch (error) {
+    const rollbackMessage = await rollbackRestore(record, runtime)
+    return failure(`Restored ${record.link}, but could not remove its record: ${messageFrom(error)}${rollbackMessage}`)
+  }
+
+  return success(`Restored ${record.target} to ${record.link} and removed its link record.`, {
+    links: [record],
+    created: false,
+    recoveredCount: 0,
+    restoredCount: 1,
+    failedCount: 0,
+  })
+}
+
+async function restoreSymlinkIfPossible(record: LinkRecord, runtime: LinkuRuntime): Promise<void> {
+  try {
+    const [linkInfo, targetInfo] = await Promise.all([
+      runtime.pathInfo(record.link),
+      runtime.pathInfo(record.target),
+    ])
+    if (!linkInfo.exists && targetInfo.exists) await runtime.createSymlink(record.target, record.link)
+  } catch {
+    // The primary error explains the failed restore; this best-effort rollback must not hide it.
+  }
+}
+
+async function rollbackRestore(record: LinkRecord, runtime: LinkuRuntime): Promise<string> {
+  try {
+    const [linkInfo, targetInfo] = await Promise.all([
+      runtime.pathInfo(record.link),
+      runtime.pathInfo(record.target),
+    ])
+    if (linkInfo.exists && !linkInfo.isSymlink && !targetInfo.exists) {
+      await runtime.movePath(record.link, record.target)
+      await runtime.createSymlink(record.target, record.link)
+      return " The filesystem restore was rolled back."
+    }
+  } catch {
+    return " The filesystem was restored, but the link-record rollback failed."
+  }
+  return " The filesystem was restored, but the link record remains stale."
 }
 
 async function importLinkRecords(
@@ -281,7 +358,7 @@ function success(message: string, data: Partial<LinkuData>): LinkuResult {
   return {
     success: true,
     message,
-    data: { links: [], created: false, recoveredCount: 0, failedCount: 0, importedCount: 0, skippedCount: 0, ...data },
+    data: { links: [], created: false, recoveredCount: 0, restoredCount: 0, failedCount: 0, importedCount: 0, skippedCount: 0, ...data },
   }
 }
 
@@ -289,7 +366,7 @@ function failure(message: string): LinkuResult {
   return {
     success: false,
     message,
-    data: { links: [], created: false, recoveredCount: 0, failedCount: 0, importedCount: 0, skippedCount: 0 },
+    data: { links: [], created: false, recoveredCount: 0, restoredCount: 0, failedCount: 0, importedCount: 0, skippedCount: 0 },
   }
 }
 
@@ -301,4 +378,8 @@ function unquoteTomlString(value: string): string {
   const trimmed = value.trim()
   const unquoted = trimmed.startsWith('"') && trimmed.endsWith('"') ? trimmed.slice(1, -1) : trimmed
   return unquoted.replace(/\\"/g, '"').replace(/\\\\/g, "\\")
+}
+
+function messageFrom(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

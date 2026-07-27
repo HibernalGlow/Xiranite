@@ -209,6 +209,14 @@ function createProgram(host: CliHost = createDefaultHost()) {
           }, Boolean(opts.json), host)
         },
       }),
+      restore: defineCommand({
+        meta: { name: "restore", description: "Move a recorded live link target back to its original path and remove the record." },
+        args: commonArgs(),
+        async run({ args }) {
+          const opts = await resolveLinkuPathArgs(args as LinkuCliOptions, host)
+          await runAction({ action: "restore", path: opts.path, configPath: opts.configPath }, Boolean(opts.json), host)
+        },
+      }),
       recover: defineCommand({
         meta: { name: "recover", description: "Recover missing or incorrect recorded symlinks." },
         args: commonArgs(),
@@ -447,6 +455,12 @@ function writeLinkuSummary(host: CliHost, result: LinkuResult): void {
     writeRichPanel(host, "Recovery Summary", [
       `${rich(host, "恢复", "green")}: ${data.recoveredCount}  ${rich(host, "失败", "red")}: ${data.failedCount}`,
     ], { color: data.failedCount ? "yellow" : "green", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
+  }
+
+  if (data.restoredCount > 0) {
+    writeRichPanel(host, "Restore Summary", [
+      `${rich(host, "已还原", "green")}: ${data.restoredCount}`,
+    ], { color: "green", maxWidth: columns - 2, minWidth: Math.min(76, columns - 6) })
   }
 
   if (data.importedCount > 0 || data.skippedCount > 0) {

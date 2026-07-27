@@ -284,6 +284,7 @@ const linkuData: LinkuData = {
   ],
   created: true,
   recoveredCount: 0,
+  restoredCount: 0,
   failedCount: 0,
   importedCount: 0,
   skippedCount: 0,

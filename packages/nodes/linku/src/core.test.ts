@@ -21,6 +21,7 @@ describe("linku core", () => {
     let config = ""
     const runtime: LinkuRuntime = {
       pathInfo: async (path) => ({ path, exists: path === "source", kind: path === "source" ? "dir" : "missing", isSymlink: false }),
+      removeSymlink: async () => {},
       createSymlink: async () => {},
       movePath: async () => {},
       readConfig: async () => config,
@@ -45,6 +46,7 @@ describe("linku core", () => {
         if (path === live.target) return { path, exists: true, kind: "dir", isSymlink: false }
         return { path, exists: false, kind: "missing", isSymlink: false }
       },
+      removeSymlink: async () => {},
       createSymlink: async () => {},
       movePath: async () => {},
       readConfig: async (path) => path === "legacy.toml" ? dumpLinkRecords([live, missing]) : currentConfig,
@@ -64,6 +66,7 @@ describe("linku core", () => {
     let currentConfig = ""
     const runtime: LinkuRuntime = {
       pathInfo: async (path) => ({ path, exists: false, kind: "missing", isSymlink: false }),
+      removeSymlink: async () => {},
       createSymlink: async () => {},
       movePath: async () => {},
       readConfig: async (path) => path === "legacy.toml" ? dumpLinkRecords([missing]) : currentConfig,
@@ -76,5 +79,46 @@ describe("linku core", () => {
     expect(result.data?.importedCount).toBe(1)
     expect(result.data?.skippedCount).toBe(0)
     expect(parseLinkRecords(currentConfig)).toEqual([missing])
+  })
+
+  test("restores a live record and removes it from configuration", async () => {
+    const record = { link: "C:/original", target: "D:/relocated", type: "directory", createdAt: "now" }
+    let config = dumpLinkRecords([record])
+    const calls: string[] = []
+    const runtime: LinkuRuntime = {
+      pathInfo: async (path) => ({ path, exists: true, kind: "dir", isSymlink: path === record.link }),
+      isLiveLinkRecord: async () => true,
+      removeSymlink: async (path) => { calls.push(`remove:${path}`) },
+      createSymlink: async () => {},
+      movePath: async (source, target) => { calls.push(`move:${source}:${target}`) },
+      readConfig: async () => config,
+      writeConfig: async (content) => { config = content },
+    }
+
+    const result = await runLinku({ action: "restore", path: record.link }, runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data?.restoredCount).toBe(1)
+    expect(calls).toEqual([`remove:${record.link}`, `move:${record.target}:${record.link}`])
+    expect(parseLinkRecords(config)).toEqual([])
+  })
+
+  test("does not alter an invalid recorded link during restore", async () => {
+    const record = { link: "C:/original", target: "D:/relocated", type: "directory", createdAt: "now" }
+    const config = dumpLinkRecords([record])
+    const runtime: LinkuRuntime = {
+      pathInfo: async (path) => ({ path, exists: false, kind: "missing", isSymlink: false }),
+      isLiveLinkRecord: async () => false,
+      removeSymlink: async () => { throw new Error("must not remove") },
+      createSymlink: async () => {},
+      movePath: async () => {},
+      readConfig: async () => config,
+      writeConfig: async () => { throw new Error("must not write") },
+    }
+
+    const result = await runLinku({ action: "restore", path: record.link }, runtime)
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain("not valid")
   })
 })
