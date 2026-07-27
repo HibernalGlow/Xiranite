@@ -31,6 +31,7 @@ export const DEFAULT_FOLDER_VIEW: ReaderFolderViewConfig = {
   penetration: {
     enabled: false,
     expandBranchesInline: false,
+    inlineBranchLimitsEnabled: true,
     inlineBranchMaxDirectories: 4,
     inlineBranchMaxFiles: 4,
     inlineBranchMaxItems: 4,

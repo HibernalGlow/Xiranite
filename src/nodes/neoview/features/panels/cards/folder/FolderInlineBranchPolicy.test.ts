@@ -6,6 +6,7 @@ import { canExpandPenetratedBranchInline } from "./FolderInlineBranchPolicy"
 const penetration: ReaderFolderPenetrationConfig = {
   enabled: true,
   expandBranchesInline: true,
+  inlineBranchLimitsEnabled: true,
   inlineBranchMaxDirectories: 4,
   inlineBranchMaxFiles: 4,
   inlineBranchMaxItems: 4,
@@ -32,5 +33,9 @@ describe("canExpandPenetratedBranchInline", () => {
     expect(canExpandPenetratedBranchInline(penetration, branch(5, 0))).toBe(false)
     expect(canExpandPenetratedBranchInline(penetration, branch(2, 5))).toBe(false)
     expect(canExpandPenetratedBranchInline(penetration, branch(3, 2))).toBe(false)
+  })
+
+  it("[neoview.folder.inline-branch-limits] ignores the stored limits when their switch is off", () => {
+    expect(canExpandPenetratedBranchInline({ ...penetration, inlineBranchLimitsEnabled: false }, branch(12, 8))).toBe(true)
   })
 })

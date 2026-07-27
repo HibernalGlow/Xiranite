@@ -2,7 +2,7 @@ import type { NeoviewFolderPenetrationConfig } from "./ReaderFolderPenetrationCo
 
 type InlineBranchConfig = Pick<
   NeoviewFolderPenetrationConfig,
-  "expandBranchesInline" | "inlineBranchMaxDirectories" | "inlineBranchMaxFiles" | "inlineBranchMaxItems"
+  "expandBranchesInline" | "inlineBranchLimitsEnabled" | "inlineBranchMaxDirectories" | "inlineBranchMaxFiles" | "inlineBranchMaxItems"
 >
 
 export function parseInlineBranchConfigPatch(penetration: Record<string, unknown>): {
@@ -15,6 +15,10 @@ export function parseInlineBranchConfigPatch(penetration: Record<string, unknown
     patch.expandBranchesInline = optionalBoolean(penetration.expandBranchesInline, "reader folder view patch.penetration.expandBranchesInline")
     tomlPatch.expand_branches_inline = patch.expandBranchesInline
   }
+  if (penetration.inlineBranchLimitsEnabled !== undefined) {
+    patch.inlineBranchLimitsEnabled = optionalBoolean(penetration.inlineBranchLimitsEnabled, "reader folder view patch.penetration.inlineBranchLimitsEnabled")
+    tomlPatch.inline_branch_limits_enabled = patch.inlineBranchLimitsEnabled
+  }
   addLimit(penetration.inlineBranchMaxDirectories, "inlineBranchMaxDirectories", "inline_branch_max_directories", patch, tomlPatch)
   addLimit(penetration.inlineBranchMaxFiles, "inlineBranchMaxFiles", "inline_branch_max_files", patch, tomlPatch)
   addLimit(penetration.inlineBranchMaxItems, "inlineBranchMaxItems", "inline_branch_max_items", patch, tomlPatch)
@@ -24,6 +28,7 @@ export function parseInlineBranchConfigPatch(penetration: Record<string, unknown
 export function readInlineBranchConfig(source: Record<string, unknown> | undefined, defaults: InlineBranchConfig): InlineBranchConfig {
   return {
     expandBranchesInline: readBoolean(source, "expand_branches_inline", "expandBranchesInline", defaults.expandBranchesInline),
+    inlineBranchLimitsEnabled: readBoolean(source, "inline_branch_limits_enabled", "inlineBranchLimitsEnabled", defaults.inlineBranchLimitsEnabled),
     inlineBranchMaxDirectories: readLimit(source, "inline_branch_max_directories", "inlineBranchMaxDirectories", defaults.inlineBranchMaxDirectories),
     inlineBranchMaxFiles: readLimit(source, "inline_branch_max_files", "inlineBranchMaxFiles", defaults.inlineBranchMaxFiles),
     inlineBranchMaxItems: readLimit(source, "inline_branch_max_items", "inlineBranchMaxItems", defaults.inlineBranchMaxItems),
@@ -32,7 +37,7 @@ export function readInlineBranchConfig(source: Record<string, unknown> | undefin
 
 function addLimit(
   value: unknown,
-  property: Exclude<keyof InlineBranchConfig, "expandBranchesInline">,
+  property: Exclude<keyof InlineBranchConfig, "expandBranchesInline" | "inlineBranchLimitsEnabled">,
   tomlProperty: string,
   patch: Partial<InlineBranchConfig>,
   tomlPatch: Record<string, boolean | number>,

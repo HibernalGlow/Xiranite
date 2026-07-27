@@ -42,6 +42,7 @@ test("[neoview.folder.inline-branch-browser] opens a branch drawer directly belo
   }))
   const releaseLibraryThumbnailContext = vi.fn(async () => undefined)
   const navigateDirectoryBrowser = vi.fn(async () => root)
+  const onFolderView = vi.fn()
   const resolveFolderPenetration = vi.fn(async () => ({
     status: "branch" as const,
     originPath: "C:/books/series",
@@ -65,6 +66,7 @@ test("[neoview.folder.inline-branch-browser] opens a branch drawer directly belo
           client={client}
           disabled={false}
           sourcePath="C:/books"
+          onFolderView={onFolderView}
           onOpen={vi.fn()}
           onGoTo={vi.fn()}
           folderView={{
@@ -100,6 +102,13 @@ test("[neoview.folder.inline-branch-browser] opens a branch drawer directly belo
     "C:/books/series/chapter-one",
     "C:/books/series/chapter-two",
   ])
+  await page.getByRole("button", { name: "设置就地展开上限" }).click()
+  const maximumDirectories = page.getByRole("spinbutton", { name: "直属子文件夹上限" })
+  await maximumDirectories.fill("3")
+  await expect.poll(() => onFolderView).toHaveBeenCalledWith({ penetration: { inlineBranchMaxDirectories: 3 } })
+  const limitsEnabled = page.getByRole("switch", { name: "启用就地展开上限" })
+  await limitsEnabled.click()
+  await expect.poll(() => onFolderView).toHaveBeenCalledWith({ penetration: { inlineBranchLimitsEnabled: false } })
 
   await view.getByRole("button", { name: "收起文件夹" }).click()
   await expect.poll(() => closeDirectoryBrowser).toHaveBeenCalledWith("browser-inline")
@@ -155,9 +164,16 @@ test("[neoview.folder.inline-branch-setting-browser] enables the optional branch
   await expandBranchesInline.click()
   await expect.poll(() => onFolderView).toHaveBeenCalledWith({ penetration: { expandBranchesInline: true } })
   await expect.element(expandBranchesInline).toHaveAttribute("aria-checked", "true")
+  const inlineBranchLimitsEnabled = page.getByRole("switch", { name: "启用就地展开上限" })
+  await expect.element(inlineBranchLimitsEnabled).toHaveAttribute("aria-checked", "true")
+  await inlineBranchLimitsEnabled.click()
+  await expect.poll(() => onFolderView).toHaveBeenCalledWith({ penetration: { inlineBranchLimitsEnabled: false } })
   const maximumDirectories = page.getByRole("spinbutton", { name: "直属子文件夹上限" })
   const maximumFiles = page.getByRole("spinbutton", { name: "直属文件上限" })
   const maximumItems = page.getByRole("spinbutton", { name: "直属条目合计上限" })
+  await expect.element(maximumDirectories).toBeDisabled()
+  await inlineBranchLimitsEnabled.click()
+  await expect.poll(() => onFolderView).toHaveBeenCalledWith({ penetration: { inlineBranchLimitsEnabled: true } })
   await expect.element(maximumDirectories).toHaveValue(4)
   await maximumDirectories.fill("3")
   await expect.poll(() => onFolderView).toHaveBeenCalledWith({ penetration: { inlineBranchMaxDirectories: 3 } })

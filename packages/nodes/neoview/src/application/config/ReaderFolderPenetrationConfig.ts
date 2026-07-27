@@ -4,6 +4,7 @@ export type NeoviewFolderPenetrationTarget = (typeof NEOVIEW_FOLDER_PENETRATION_
 export interface NeoviewFolderPenetrationConfig {
   enabled: boolean
   expandBranchesInline: boolean
+  inlineBranchLimitsEnabled: boolean
   inlineBranchMaxDirectories: number
   inlineBranchMaxFiles: number
   inlineBranchMaxItems: number
@@ -17,6 +18,7 @@ export function createDefaultNeoviewFolderPenetrationConfig(): NeoviewFolderPene
   return {
     enabled: false,
     expandBranchesInline: false,
+    inlineBranchLimitsEnabled: true,
     inlineBranchMaxDirectories: 4,
     inlineBranchMaxFiles: 4,
     inlineBranchMaxItems: 4,

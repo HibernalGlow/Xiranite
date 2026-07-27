@@ -3,6 +3,7 @@ export type ReaderFolderPenetrationTerminalKindDto = "archive" | "document" | "m
 export interface ReaderFolderPenetrationConfig {
   enabled: boolean
   expandBranchesInline: boolean
+  inlineBranchLimitsEnabled: boolean
   inlineBranchMaxDirectories: number
   inlineBranchMaxFiles: number
   inlineBranchMaxItems: number

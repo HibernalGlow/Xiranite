@@ -1608,7 +1608,7 @@ export function parseNeoviewFolderViewPatch(value: unknown): {
   }
   if (folder.penetration !== undefined) {
     const penetration = requireRecord(folder.penetration, "reader folder view patch.penetration")
-    const allowedPenetration = new Set(["enabled", "expandBranchesInline", "inlineBranchMaxDirectories", "inlineBranchMaxFiles", "inlineBranchMaxItems", "showInternalFiles", "internalItemsMode", "maxDepth", "terminalTargets"])
+    const allowedPenetration = new Set(["enabled", "expandBranchesInline", "inlineBranchLimitsEnabled", "inlineBranchMaxDirectories", "inlineBranchMaxFiles", "inlineBranchMaxItems", "showInternalFiles", "internalItemsMode", "maxDepth", "terminalTargets"])
     const unknownPenetration = Object.keys(penetration).filter((key) => !allowedPenetration.has(key))
     if (unknownPenetration.length) throw new Error(`reader folder view patch.penetration contains unsupported fields: ${unknownPenetration.join(", ")}.`)
     const penetrationPatch: Partial<Models.NeoviewFolderPenetrationConfig> = {}
