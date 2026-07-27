@@ -56,7 +56,7 @@ export class SuperResolutionArtifactPageService {
 
     let pageResult: SuperResolutionPageResult | undefined
     let producerRan = false
-    const published = await this.artifacts.publish(
+    const publication = await this.artifacts.publish(
       artifactDescriptor.key,
       artifactDescriptor.metadata,
       async (destinationPath, signal) => {
@@ -79,9 +79,13 @@ export class SuperResolutionArtifactPageService {
     if (pageResult && pageResult.decision.kind !== "run") {
       return { status: "skipped", decision: pageResult.decision }
     }
-    if (!published) {
-      if (pageResult?.result) return { status: "rejected", execution: publicExecution(pageResult.result) }
-      return { status: "rejected" }
+    if (publication.status === "rejected") {
+      return {
+        status: "rejected",
+        rejectionCode: publication.code,
+        error: publication.error,
+        ...(pageResult?.result ? { execution: publicExecution(pageResult.result) } : {}),
+      }
     }
     const artifact = await this.artifacts.acquire(artifactDescriptor.key, context.signal)
     if (!artifact) throw new Error(`Published super-resolution artifact is unavailable: ${artifactDescriptor.key}`)
@@ -99,7 +103,12 @@ export class SuperResolutionArtifactPageService {
     if (result.status === "skipped") return { status: result.status, decision: result.decision }
     if (result.status === "bypassed") return { status: result.status, decision: result.decision }
     return result.status === "rejected"
-      ? { status: result.status, ...(result.execution ? { execution: result.execution } : {}) }
+      ? {
+          status: result.status,
+          ...(result.execution ? { execution: result.execution } : {}),
+          ...(result.rejectionCode ? { rejectionCode: result.rejectionCode } : {}),
+          ...(result.error ? { error: result.error } : {}),
+        }
       : { status: result.status }
   }
 }

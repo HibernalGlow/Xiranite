@@ -9,6 +9,7 @@ import type {
   SuperResolutionArtifactCleanupResult,
   SuperResolutionArtifactLease,
   SuperResolutionArtifactMetadata,
+  SuperResolutionArtifactPublishResult,
   SuperResolutionArtifactStore,
   SuperResolutionArtifactStoreSnapshot,
 } from "../../ports/SuperResolutionArtifactStore.js"
@@ -95,6 +96,8 @@ describe("SuperResolutionArtifactPageService", () => {
     const service = new SuperResolutionArtifactPageService(new SuperResolutionPageService(runner, runPolicy()), store)
     await expect(service.warm(artifactInput("low-disk"))).resolves.toMatchObject({
       status: "rejected",
+      rejectionCode: "low-disk",
+      error: "Super-resolution artifact cache has insufficient free space.",
       execution: { modelId: "model", scale: 2 },
     })
     expect(await store.snapshot()).toMatchObject({ entries: 0, rejectedWrites: 1 })
@@ -197,7 +200,7 @@ interface TestArtifactStoreOptions {
 
 class MemoryArtifactStore implements SuperResolutionArtifactStore {
   readonly #entries = new Map<string, { bytes: Buffer; metadata: SuperResolutionArtifactMetadata }>()
-  readonly #publishes = new Map<string, Promise<boolean>>()
+  readonly #publishes = new Map<string, Promise<SuperResolutionArtifactPublishResult>>()
   readonly #root: string
   readonly #options: TestArtifactStoreOptions
   #activeLeases = 0
@@ -243,7 +246,7 @@ class MemoryArtifactStore implements SuperResolutionArtifactStore {
     metadata: SuperResolutionArtifactMetadata,
     producer: (destinationPath: string, signal: AbortSignal) => void | Promise<void>,
     signal?: AbortSignal,
-  ): Promise<boolean> {
+  ): Promise<SuperResolutionArtifactPublishResult> {
     const existing = this.#publishes.get(key)
     if (existing) return existing
     const operation = this.#publish(key, metadata, producer, signal)
@@ -256,7 +259,7 @@ class MemoryArtifactStore implements SuperResolutionArtifactStore {
     metadata: SuperResolutionArtifactMetadata,
     producer: (destinationPath: string, signal: AbortSignal) => void | Promise<void>,
     signal?: AbortSignal,
-  ): Promise<boolean> {
+  ): Promise<SuperResolutionArtifactPublishResult> {
     signal?.throwIfAborted()
     const destinationPath = join(this.#root, `artifact-${this.#nextFile++}.tmp`)
     try {
@@ -265,11 +268,11 @@ class MemoryArtifactStore implements SuperResolutionArtifactStore {
       const availableBytes = await this.#options.availableBytes?.()
       if (availableBytes !== undefined && availableBytes < (this.#options.minFreeBytes ?? 0)) {
         this.#rejectedWrites += 1
-        return false
+        return { status: "rejected", code: "low-disk", error: "Super-resolution artifact cache has insufficient free space." }
       }
       this.#entries.set(key, { bytes, metadata })
       this.#writes += 1
-      return true
+      return { status: "published" }
     } finally {
       await rm(destinationPath, { force: true })
     }

@@ -3,6 +3,7 @@ import type { ResourcePriority } from "./ResourceScheduler.js"
 import type {
   SuperResolutionArtifactLease,
   SuperResolutionArtifactMetadata,
+  SuperResolutionArtifactPublishRejectionCode,
 } from "./SuperResolutionArtifactStore.js"
 import type { SuperResolutionExecutionContext, SuperResolutionResult } from "./SuperResolutionProvider.js"
 import type { SuperResolutionPolicyDecision, SuperResolutionPolicyTrigger } from "./SuperResolutionPolicy.js"
@@ -52,12 +53,19 @@ export type SuperResolutionArtifactPageResult =
   | {
       status: "rejected"
       execution?: SuperResolutionArtifactExecution
+      rejectionCode?: SuperResolutionArtifactPublishRejectionCode
+      error?: string
     }
 
 export type SuperResolutionArtifactWarmResult =
   | { status: "hit" | "shared" }
   | { status: "generated"; execution: SuperResolutionArtifactExecution }
-  | { status: "rejected"; execution?: SuperResolutionArtifactExecution }
+  | {
+      status: "rejected"
+      execution?: SuperResolutionArtifactExecution
+      rejectionCode?: SuperResolutionArtifactPublishRejectionCode
+      error?: string
+    }
   | { status: "skipped"; decision: Exclude<SuperResolutionPolicyDecision, { kind: "run" }> }
   | { status: "bypassed"; decision: SuperResolutionArtifactRunDecision }
 
