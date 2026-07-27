@@ -32,6 +32,7 @@ export function Component({ host }: FindzProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [selectionRevision, setSelectionRevision] = useState(0)
   const queryGeneration = useRef(0)
   const memberRequestGeneration = useRef(0)
   const deferredText = useDeferredValue(card.text ?? "")
@@ -128,6 +129,7 @@ export function Component({ host }: FindzProps) {
     if (!card.libraryId) return
     const requestGeneration = ++memberRequestGeneration.current
     patch({ selectedArchiveId: archiveId })
+    setSelectionRevision((current) => current + 1)
     setMembers(undefined)
     try {
       const data = await invoke({ action: "query_members", libraryId: card.libraryId, archiveId, text: deferredText })
@@ -268,7 +270,7 @@ export function Component({ host }: FindzProps) {
         {error && <div role="alert" className="flex shrink-0 items-center gap-2 border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"><TriangleAlert className="size-4" />{error}</div>}
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(180px,1.25fr)_minmax(160px,0.9fr)] gap-3">
           <section aria-label={t("workspace.archiveResults", "Findz archive results")} className="min-h-0 overflow-hidden">
-            <FindzArchiveTable archives={archives} members={members} pathPrefix={card.pathPrefix} selectedArchiveId={card.selectedArchiveId} sortBy={card.sortBy ?? "archiveSize"} sortDesc={card.sortDesc ?? true} total={archivePage.total} hasPreviousPage={pageTrail.length > 0} hasNextPage={Boolean(archivePage.nextCursor)} onSelectArchive={(archiveId) => void selectArchive(archiveId)} onDeepRetryMember={(memberId) => void startTask("analyze", { kind: "members", memberIds: [memberId], deepRetry: true })} onDrillFolder={drill} onSort={changeSort} onPreviousPage={previousPage} onNextPage={nextPage} />
+            <FindzArchiveTable archives={archives} members={members} pathPrefix={card.pathPrefix} selectedArchiveId={card.selectedArchiveId} selectionRevision={selectionRevision} sortBy={card.sortBy ?? "archiveSize"} sortDesc={card.sortDesc ?? true} total={archivePage.total} hasPreviousPage={pageTrail.length > 0} hasNextPage={Boolean(archivePage.nextCursor)} onSelectArchive={(archiveId) => void selectArchive(archiveId)} onDeepRetryMember={(memberId) => void startTask("analyze", { kind: "members", memberIds: [memberId], deepRetry: true })} onDrillFolder={drill} onSort={changeSort} onPreviousPage={previousPage} onNextPage={nextPage} />
           </section>
           <section aria-label={t("workspace.treemap", "Findz treemap")} className="flex min-h-0 flex-col border bg-background">
             <div className="flex shrink-0 items-center justify-between border-b px-3 py-2"><span className="text-xs font-medium">{t("workspace.treemap", "Treemap")}</span><span className="text-xs text-muted-foreground">{t("workspace.area", "Area")}: {areaMetrics.find((metric) => metric.value === (card.areaBy ?? "archiveSize"))?.label}</span></div>

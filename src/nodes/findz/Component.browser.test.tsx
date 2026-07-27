@@ -50,6 +50,21 @@ test("expands folder rows before revealing their archive hierarchy", async () =>
   await expect.element(page.getByTestId("findz-archive-7")).toBeVisible()
 })
 
+test("reopens collapsed folder ancestors for an archive selected from the treemap", async () => {
+  const host = createHost({ libraryRoot: "D:/library" })
+
+  await render(<Component compId="findz-treemap-reveal-browser" host={host} />)
+  await page.getByRole("button", { name: "Open library" }).click()
+  await page.getByTestId("findz-archive-7").click()
+  const folder = page.getByTestId("findz-folder-series")
+  await folder.click()
+  await expect.element(page.getByTestId("findz-archive-7")).not.toBeInTheDocument()
+
+  await page.getByTestId("findz-treemap-node-archive-7").click()
+  await expect.element(folder).toHaveAttribute("aria-expanded", "true")
+  await expect.element(page.getByTestId("findz-archive-7")).toHaveAttribute("data-state", "selected")
+})
+
 test("scrolls the selected archive row into the hierarchy viewport", async () => {
   const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView")
   const host = createHost({ libraryRoot: "D:/library" })
