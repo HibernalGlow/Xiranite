@@ -316,6 +316,7 @@ describe("Czkawka node", () => {
   })
 
   test("builds a selected bad-name rename plan without invoking the upstream mutator", async () => {
+    await i18n.changeLanguage("zh")
     const entry = { id: "bad-name", groupId: 0, path: "D:/report-🙂.TXT", name: "report-🙂.TXT", size: 10, modifiedDate: 1, secondaryPath: "D:/report-.txt" }
     const result: CzkawkaData = { ...sample, tool: "bad-names", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
     const host = createHost({ tool: "bad-names", result, dryRun: true, analysisPanelTab: "operations" })
@@ -328,13 +329,16 @@ describe("Czkawka node", () => {
   })
 
   test("builds a selected EXIF cleanup plan through the safe candidate contract", async () => {
+    await i18n.changeLanguage("zh")
     const entry = { id: "exif", groupId: 0, path: "D:/photo.jpg", name: "photo.jpg", size: 10, modifiedDate: 1, exifTags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }
     const result: CzkawkaData = { ...sample, tool: "exif-remover", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
     const host = createHost({ tool: "exif-remover", result, dryRun: true, analysisPanelTab: "operations" }, () => ({ ...sample, action: "clean-exif", tool: "exif-remover" }), ["scan.exif-remover", "operation.exif.candidate"])
     render(<Component compId="czkawka" host={host} />)
     fireEvent.click(screen.getByRole("checkbox", { name: "选择 photo.jpg" }))
-    fireEvent.click(screen.getByRole("button", { name: "清理 EXIF（1）" }))
-    expect(screen.getByText(/移除 1 个 EXIF 标签/)).toBeTruthy()
+    const cleanExif = screen.getByRole("button", { name: "清理 EXIF（1）" }) as HTMLButtonElement
+    await waitFor(() => expect(cleanExif.disabled).toBe(false))
+    fireEvent.click(cleanExif)
+    expect(await screen.findByText(/移除 1 个 EXIF 标签/)).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "确认清理 EXIF" }))
     await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "clean-exif", tool: "exif-remover", selectedPaths: ["D:/photo.jpg"], exifItems: [{ path: "D:/photo.jpg", tags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }], dryRun: true }))
   })
