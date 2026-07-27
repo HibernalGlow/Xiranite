@@ -267,7 +267,7 @@ describe("app-owned xlchemy Component", () => {
     expect(screen.getByRole("button", { name: "开始转换" })).toBeTruthy()
   })
 
-  test("uses native local pickers and keeps selected paths after the host rerenders", async () => {
+  test("uses native local pickers without implicitly selecting newly queued paths", async () => {
     const host = createHost({})
     host.localFiles = {
       getUrl: (path) => `local://${path}`,
@@ -287,7 +287,7 @@ describe("app-owned xlchemy Component", () => {
     await user.click(screen.getByRole("menuitem", { name: "添加文件夹" }))
     await waitFor(() => expect(host.cardState.pathsText).toContain("D:/images/folder/nested.jp2"))
     view.rerender(<Component compId="xlchemy-card" host={host} />)
-    expect(host.cardState.selectedPaths).toEqual(["D:/images/alpha.png", "D:/images/beta.jpg", "D:/images/folder/nested.jp2"])
+    expect(host.cardState.selectedPaths).toEqual([])
   })
 
   test("keeps imported EFU paths out of the table while streaming a bounded analysis", async () => {
