@@ -214,7 +214,6 @@
     "@xiranite/node-repacku": "workspace:*",
     "@xiranite/node-samea": "workspace:*",
     "@xiranite/node-seriex": "workspace:*",
-    "@xiranite/node-simiu": "workspace:*",
     "@xiranite/node-sleept": "workspace:*",
     "@xiranite/node-smartzip": "workspace:*",
     "@xiranite/node-snf": "workspace:*",
