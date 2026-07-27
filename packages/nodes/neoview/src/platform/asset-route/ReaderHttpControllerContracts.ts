@@ -258,6 +258,7 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     searchHistoryStore?: ReaderSearchHistoryStore
     fileUndoJournalStore?: ReaderFileUndoJournalStore
     fileOperationService?: import("../../application/files/ReaderFileOperationService.js").ReaderFileOperationService
+    allowArchiveEntryDeletion?: boolean
     folderRatingService?: ReaderFolderRatingService
     disposeLibraryService?: boolean
     presentationDiskCache?: ReaderPresentationDiskCache

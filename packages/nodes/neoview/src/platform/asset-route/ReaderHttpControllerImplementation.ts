@@ -86,6 +86,7 @@ import { ReaderLibraryHttpController } from "./ReaderLibraryHttpController.js"
 import { ReaderAiHttpController } from "./ReaderAiHttpController.js"
 import { ReaderOpdsHttpController, type ReaderOpdsCatalogReader } from "./ReaderOpdsHttpController.js"
 import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpController.js"
+import { ReaderArchiveEntryDeleteHttpController } from "./ReaderArchiveEntryDeleteHttpController.js"
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
 import { ReaderBookSettingsMigrationHttpController } from "./ReaderBookSettingsMigrationHttpController.js"
@@ -275,6 +276,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #thumbnailMaintenance: ThumbnailMaintenanceRoute
   readonly #directoryBrowser: ReaderDirectoryBrowserRoute
   readonly #fileOperations: ReaderFileOperationHttpController
+  readonly #archiveEntryDeletion: ReaderArchiveEntryDeleteHttpController
   readonly #systemIntegration: ReaderSystemIntegrationHttpController
   readonly #settingsMigration?: ReaderSettingsMigrationHttpController
   readonly #bookSettingsMigration?: ReaderBookSettingsMigrationHttpController
@@ -603,6 +605,13 @@ export class ReaderHttpController implements AsyncDisposable {
       (results, undo, signal) => this.#directoryBrowser.reconcileFileOperations(results, undo, signal),
       !options.fileOperationService,
     )
+    this.#archiveEntryDeletion = new ReaderArchiveEntryDeleteHttpController({
+      enabled: options.allowArchiveEntryDeletion === true,
+      releaseSession: async (session) => {
+        await this.#releaseSession(session)
+        await this.#hibernateIfIdle()
+      },
+    })
     this.#systemIntegration = new ReaderSystemIntegrationHttpController(async () => {
       const { ReaderSystemIntegrationService } = await import("../../application/files/ReaderSystemIntegrationService.js")
       const { PlatformReaderSystemIntegrationProvider } = await import("../filesystem/PlatformReaderSystemIntegrationProvider.js")
@@ -2197,9 +2206,10 @@ export class ReaderHttpController implements AsyncDisposable {
     const page = pageId ? session.getPage(pageId) : undefined
     if (!page) return jsonResponse({ error: "Reader page not found" }, 404)
     const body = await readControlJson(request)
-    if (!body || (body.action !== "copy" && body.action !== "reveal" && body.action !== "open")) {
+    if (!body || (body.action !== "copy" && body.action !== "reveal" && body.action !== "open" && body.action !== "delete")) {
       return jsonResponse({ error: "action must be copy, reveal or open" }, 400)
     }
+    if (body.action === "delete") return this.#archiveEntryDeletion.delete(session, page, body, request.signal)
     try {
       if (body.action === "copy") {
         if (!page.entryPath) return jsonResponse({ path: page.sourcePath })
