@@ -115,7 +115,7 @@ describe("ReaderInputActionExecutor", () => {
     expect(controls.switchBook).not.toHaveBeenCalled()
   })
 
-  it("[neoview.bindings.viewer-toggle-provider] routes persistent toast and info overlay toggles", async () => {
+  it("[neoview.bindings.viewer-toggle-provider] routes persistent toast, overlay and cursor toggles", async () => {
     const switchToast = {
       getSnapshot: vi.fn(() => ({ enableBook: false, enablePage: true, enableBoundaryToast: true })),
       update: vi.fn(async (_patch: { enableBook?: boolean; enablePage?: boolean; enableBoundaryToast?: boolean }) => undefined),
@@ -128,22 +128,28 @@ describe("ReaderInputActionExecutor", () => {
       getSnapshot: vi.fn(() => ({ enabled: true })),
       update: vi.fn(async (_patch: { enabled: boolean }) => undefined),
     }
-    const controls = fixture({ switchToast, infoOverlay, hoverScroll })
+    const cursorAutoHide = {
+      getSnapshot: vi.fn(() => ({ enabled: true })),
+      update: vi.fn(async (_patch: { enabled: boolean }) => undefined),
+    }
+    const controls = fixture({ switchToast, infoOverlay, hoverScroll, cursorAutoHide })
 
     await expect(executeReaderInputAction("viewer.toggle-page-switch-toast", controls)).resolves.toEqual({ status: "succeeded" })
     await expect(executeReaderInputAction("viewer.toggle-book-switch-toast", controls)).resolves.toEqual({ status: "succeeded" })
     await expect(executeReaderInputAction("viewer.toggle-boundary-toast", controls)).resolves.toEqual({ status: "succeeded" })
     await expect(executeReaderInputAction("viewer.toggle-info-overlay", controls)).resolves.toEqual({ status: "succeeded" })
     await expect(executeReaderInputAction("viewer.toggle-hover-scroll", controls)).resolves.toEqual({ status: "succeeded" })
+    await expect(executeReaderInputAction("viewer.toggle-cursor-auto-hide", controls)).resolves.toEqual({ status: "succeeded" })
     expect(switchToast.update).toHaveBeenNthCalledWith(1, { enablePage: false })
     expect(switchToast.update).toHaveBeenNthCalledWith(2, { enableBook: true })
     expect(switchToast.update).toHaveBeenNthCalledWith(3, { enableBoundaryToast: false })
     expect(infoOverlay.update).toHaveBeenCalledWith({ enabled: false })
     expect(hoverScroll.update).toHaveBeenCalledWith({ enabled: false })
+    expect(cursorAutoHide.update).toHaveBeenCalledWith({ enabled: false })
   })
 })
 
-function fixture(overrides: Partial<Pick<ReaderInputActionControls, "switchToast" | "infoOverlay" | "hoverScroll">> = {}): ReaderInputActionControls & Record<"navigate" | "goTo" | "switchBook" | "setPresentation" | "toggleShellEdge", ReturnType<typeof vi.fn>> {
+function fixture(overrides: Partial<Pick<ReaderInputActionControls, "switchToast" | "infoOverlay" | "hoverScroll" | "cursorAutoHide">> = {}): ReaderInputActionControls & Record<"navigate" | "goTo" | "switchBook" | "setPresentation" | "toggleShellEdge", ReturnType<typeof vi.fn>> {
   const presentation = { ...DEFAULT_READER_PRESENTATION }
   return {
     session: () => ({ pageCount: 100, pageIndex: 10, direction: "right-to-left", pageMode: "single" }),

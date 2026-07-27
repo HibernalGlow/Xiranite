@@ -349,11 +349,11 @@ describe("ReaderApp", () => {
     await waitFor(() => expect(committed).toHaveBeenLastCalledWith("D:/books/Book 2.cbz", "D:/books"))
   })
 
-  it("[neoview.bindings.file-delete-react] releases and trashes the current file through its configured action", async () => {
+  it("[neoview.bindings.file-delete-activation-root] releases the Reader terminal and trashes its selected activation root", async () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
     const close = vi.fn(async () => undefined)
     const executeFileOperations = vi.fn(async () => ({
-      results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/books/demo.cbz" }, status: "succeeded" as const }],
+      results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/books/series" }, status: "succeeded" as const }],
       succeeded: 1,
       failed: 0,
       cancelled: 0,
@@ -363,10 +363,7 @@ describe("ReaderApp", () => {
     const client: ReaderHttpClient = {
       config: vi.fn(async () => ({
         ...runtimeConfig(),
-        folderView: {
-          ...runtimeConfig().folderView,
-          confirmations: { ...runtimeConfig().folderView.confirmations, trash: true },
-        },
+        folderView: { ...runtimeConfig().folderView, confirmations: { ...runtimeConfig().folderView.confirmations, trash: true } },
         inputBindings: { bindings: [{
           id: "delete-current-file",
           action: "file.delete-current",
@@ -388,7 +385,7 @@ describe("ReaderApp", () => {
       executeFileOperations,
       close,
     }
-    render(<ContextMenuProvider><ReaderApp initialPath="D:/books/demo.cbz" client={client} /></ContextMenuProvider>)
+    render(<ContextMenuProvider><ReaderApp initialPath="D:/books/series/inside/001.jpg" initialBrowserOriginPath="D:/books" initialActivationRootPath="D:/books/series" client={client} /></ContextMenuProvider>)
 
     fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
@@ -397,7 +394,7 @@ describe("ReaderApp", () => {
     fireEvent.click(await screen.findByRole("button", { name: "移到回收站" }))
 
     await waitFor(() => expect(executeFileOperations).toHaveBeenCalledWith(
-      [{ kind: "trash", sourcePath: "D:/books/demo.cbz" }],
+      [{ kind: "trash", sourcePath: "D:/books/series" }],
       true,
       expect.any(AbortSignal),
     ))

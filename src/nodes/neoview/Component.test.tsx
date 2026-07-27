@@ -20,11 +20,11 @@ it("[neoview.book-information.host-clipboard] passes only the host clipboard wri
   expect(readerProps.current).not.toHaveProperty("host")
 })
 
-it("[neoview.folder.penetration-browser-origin-state] restores and persists the File Card browser origin separately from the Reader path", () => {
+it("[neoview.folder.penetration-browser-origin-state] restores and persists the File Card browser origin and activation root separately from the Reader path", () => {
   const patchData = vi.fn()
   const host = {
     state: {
-      getData: () => ({ path: "D:/books/series/volume", browserOriginPath: "D:/books" }),
+      getData: () => ({ path: "D:/books/series/volume", browserOriginPath: "D:/books", activationRootPath: "D:/books/series" }),
       patchData,
     },
     clipboard: {},
@@ -35,11 +35,16 @@ it("[neoview.folder.penetration-browser-origin-state] restores and persists the 
   expect(readerProps.current).toMatchObject({
     initialPath: "D:/books/series/volume",
     initialBrowserOriginPath: "D:/books",
+    initialActivationRootPath: "D:/books/series",
   })
 
-  const onPathCommitted = readerProps.current?.onPathCommitted as (path: string, browserOriginPath?: string) => void
-  onPathCommitted("D:/books/series/volume-2", "D:/books")
-  expect(patchData).toHaveBeenCalledWith({ path: "D:/books/series/volume-2", browserOriginPath: "D:/books" })
+  const onPathCommitted = readerProps.current?.onPathCommitted as (path: string, browserOriginPath?: string, activationRootPath?: string) => void
+  onPathCommitted("D:/books/series/volume-2", "D:/books", "D:/books/series")
+  expect(patchData).toHaveBeenCalledWith({
+    path: "D:/books/series/volume-2",
+    browserOriginPath: "D:/books",
+    activationRootPath: "D:/books/series",
+  })
 })
 
 it("persists the two fullscreen states independently in the NeoView Card state", () => {

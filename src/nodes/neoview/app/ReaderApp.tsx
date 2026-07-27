@@ -1,316 +1,77 @@
-import { lazy, startTransition, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEventHandler } from "react"
-import { BookOpen, ChevronRight, LoaderCircle, Pin, PinOff, X } from "lucide-react"
+import { startTransition, useEffect, useMemo, useRef, useState, type PointerEventHandler } from "react"
 import {
   DEFAULT_READER_PRESENTATION,
   DEFAULT_READER_INPUT_BINDINGS,
   DEFAULT_READER_RADIAL_MENU_CONFIG,
-  READER_INPUT_ACTION_LABELS,
   ReaderSlideshow,
   type ReaderPresentation,
-  type ReaderInputAction,
-  type ReaderInputActionExecutionContext,
-  type ReaderInputActionOutcome,
   type ReaderInputBindingsConfig,
   type ReaderRadialMenuConfig,
   type ReaderVoiceControlConfig,
 } from "@xiranite/node-neoview/ui-core"
 
-import { Button } from "@/components/ui/button"
 import { useContextMenu } from "@/components/context-menu"
-import { cn } from "@/lib/utils"
-import { FloatingWindowCaptionControls, FloatingWindowTitlebarReservation, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
+import { useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 import { useNodeSurface } from "@/nodes/shared/useNodeSurface"
 import { useSwimlaneSessionStore } from "@/store/swimlaneSessionStore"
-import type { SwimlaneWorkspaceSessionState } from "@xiranite/shared/swimlane"
 import {
   createReaderHttpClient,
-  READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
-  ReaderHttpError,
   type ReaderHttpClient,
   type ReaderBookmarkListPreferencesDto,
-  type ReaderBookmarkListPreferencesPatch,
   type ReaderHistoryListPreferencesDto,
-  type ReaderHistoryListPreferencesPatch,
-  type ReaderNavigationDto,
-  type ReaderBookSettingsUpdateDto,
   type ReaderBookDefaultsDto,
-  type ReaderPageOrderDto,
   type ReaderRuntimeConfigDto,
   type ReaderMediaConfigDto,
-  type ReaderMediaPatchDto,
   type ReaderImageProcessingConfigDto,
-  type ReaderSubtitleConfigDto,
   type ReaderPageListPreferencesDto,
   type ReaderSessionDto,
   type ReaderShellConfigDto,
-  type ReaderSidebarLayoutPatch,
-  type ReaderCardLayoutPatch,
-  type ReaderBoardLayoutPatch,
-  type ReaderViewDefaultsPatch,
   type ReaderFolderViewConfig,
-  type ReaderFolderViewPatch,
   type ReaderSlideshowConfig,
-  type ReaderSlideshowPatch,
   type ReaderShellControlPatch,
-  type ReaderShellMaterialPatch,
   type ReaderShellEdge,
   type ReaderShellLockMode,
-  type ReaderInputBindingsPatch,
-  type ReaderRadialMenuPatch,
-  type ReaderVoiceControlPatch,
-  type ReaderSettingsMigrationImportResult,
-  type ReaderSettingsMigrationInspection,
-  type ReaderSwimlaneId,
 } from "../adapters/reader-http-client"
-import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderSpeculativePreloadGate } from "../features/reader/useReaderSpeculativePreloadGate"
-import { mergeReaderFolderViewPatch } from "./ReaderFolderViewPersistence"
-import { persistReaderRadialMenu } from "./ReaderRadialMenuPersistence"
+import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
 import { watchReaderSourceChanges } from "../features/reader/watchReaderSourceChanges"
 import { neoviewDebug, neoviewDebugAsync } from "../neoviewDebug"
-import { ReaderControlledEdgeShell, type ReaderControlledEdgeSlot } from "../features/shell/ReaderControlledEdgeShell"
-import { createReaderShellControlStore, type ReaderShellControlHydration, type ReaderShellControlSnapshot } from "../features/shell/ReaderShellControlStore"
+import { createReaderShellControlStore, type ReaderShellControlSnapshot } from "../features/shell/ReaderShellControlStore"
 import type { ReaderShellControlPort } from "../features/shell/ReaderShellControlPort"
-import { ReaderWindowBar } from "../features/shell/ReaderWindowBar"
-import { ThumbnailStrip } from "../features/thumbnails/ThumbnailStrip"
 import { useReaderInputRouter } from "../features/input/ReaderInputRouter"
-import { executeReaderInputAction } from "../features/input/ReaderInputActionExecutor"
-import { readerCurrentFileDeleteConfirmation } from "../features/input/ReaderCurrentFileDeleteConfirmation"
 import { createReaderColorFilterStore } from "../features/color-filter/ReaderColorFilterStore"
 import { migrateLegacyReaderColorFilter } from "../features/color-filter/LegacyReaderColorFilterMigration"
-import { commitReaderNavigation, createReaderPageTransitionStore } from "../features/page-transition/ReaderPageTransitionStore"
+import { createReaderPageTransitionStore } from "../features/page-transition/ReaderPageTransitionStore"
 import { ReaderVideoController } from "../features/video/ReaderVideoController"
 import { ReaderViewerToggleStore } from "../features/viewer/ReaderViewerToggleStore"
 import { migrateLegacyReaderPageTransition } from "../features/page-transition/LegacyReaderPageTransitionMigration"
 import { migrateLegacySidebarHeight } from "../features/panels/cards/LegacySidebarHeightMigration"
-import { applyReaderFilePresentationOverridePatch } from "../features/panels/readerFilePresentation"
-import { ReaderPanelDndProvider } from "../features/panels/ReaderPanelDnd"
-import { readerShellMaterialDraft, readerShellMaterialStyle } from "../features/material/ReaderShellMaterial"
 import { createReaderSwitchToastStore } from "../features/switch-toast/ReaderSwitchToastStore"
 import { createReaderInfoOverlayStore } from "../features/info-overlay/ReaderInfoOverlayStore"
 import { createReaderImageTrimStore } from "../features/image-trim/ReaderImageTrimStore"
 import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCleanup"
-import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../features/workspace/ReaderSwimlaneWorkspace"
-import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
-import { createInitialReaderShellConfig, readerShellSnapshotsEqual } from "./ReaderShellSnapshot"
+import { readerWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
+import { createInitialReaderShellConfig } from "./ReaderShellSnapshot"
 import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
-
-function workspaceConfigEqual(left: ReaderShellConfigDto, right: ReaderShellConfigDto): boolean {
-  // Compare normalized workspace views — shell object identity always changes on patch.
-  try {
-    return JSON.stringify(readerWorkspaceConfig(left)) === JSON.stringify(readerWorkspaceConfig(right))
-  } catch {
-    return false
-  }
-}
-
-function readerWorkspaceWithSession(shell: ReaderShellConfigDto, session: SwimlaneWorkspaceSessionState | undefined): ReaderWorkspaceConfig {
-  const workspace = readerWorkspaceConfig(shell)
-  const laneOrder = workspace.swimlane.laneOrder
-  const configuredSoloLaneId = workspace.swimlane.soloLaneId ?? (workspace.swimlane.readerSolo ? "reader" : undefined)
-  const activeLane = session?.activeLaneId && laneOrder.includes(session.activeLaneId)
-    ? session.activeLaneId as ReaderSwimlaneId
-    : workspace.swimlane.activeLane
-  const sessionHasSoloLane = session !== undefined && Object.hasOwn(session, "soloLaneId")
-  const requestedSoloLaneId = sessionHasSoloLane ? session.soloLaneId ?? undefined : configuredSoloLaneId
-  const soloLaneId = requestedSoloLaneId && laneOrder.includes(requestedSoloLaneId)
-    ? requestedSoloLaneId as ReaderSwimlaneId
-    : undefined
-  const { soloLaneId: _configuredSoloLaneId, ...configuredSwimlane } = workspace.swimlane
-  return {
-    ...workspace,
-    swimlane: {
-      ...configuredSwimlane,
-      activeLane,
-      readerSolo: soloLaneId === "reader",
-      ...(soloLaneId ? { soloLaneId } : {}),
-    },
-  }
-}
-
-function splitReaderWorkspacePatch(
-  patch: ReaderWorkspacePatch,
-  current: ReaderWorkspaceConfig,
-): { sessionPatch?: SwimlaneWorkspaceSessionState; persistentPatch?: ReaderWorkspacePatch } {
-  const { activeLane, readerSolo, soloLaneId, ...persistentPatch } = patch
-  let nextSoloLaneId = current.swimlane.soloLaneId ?? (current.swimlane.readerSolo ? "reader" : null)
-  if (soloLaneId !== undefined) nextSoloLaneId = soloLaneId
-  if (readerSolo === true) nextSoloLaneId = "reader"
-  if (readerSolo === false && nextSoloLaneId === "reader") nextSoloLaneId = null
-  const sessionPatch = activeLane !== undefined || readerSolo !== undefined || soloLaneId !== undefined
-    ? {
-        ...(activeLane !== undefined ? { activeLaneId: activeLane } : {}),
-        ...(readerSolo !== undefined || soloLaneId !== undefined ? { soloLaneId: nextSoloLaneId } : {}),
-      }
-    : undefined
-  return {
-    sessionPatch,
-    ...(Object.keys(persistentPatch).length ? { persistentPatch } : {}),
-  }
-}
-
-type ReaderSidebarModule = typeof import("../features/panels/ReaderSidebar")
-const INITIAL_VIEW_DEFAULTS = {
-  fitMode: DEFAULT_READER_PRESENTATION.fitMode,
-  pageMode: "single",
-  doublePageGap: 0,
-  splitWidePages: false,
-  hoverScrollEnabled: true,
-  hoverScrollSpeed: 2,
-  magnifierZoom: 2,
-  magnifierSize: 200,
-  background: {
-    color: "#000000",
-    mode: "solid",
-    ambient: { style: "vibrant", speed: 8, blur: 80, opacity: 0.8 },
-    aurora: { showRadialGradient: true },
-    spotlight: { color: "white" },
-  },
-} satisfies ReaderRuntimeConfigDto["viewDefaults"]
-const INITIAL_HISTORY_LIST_PREFERENCES: ReaderHistoryListPreferencesDto = {
-  viewMode: "compact",
-  viewOverrides: {},
-}
-const INITIAL_BOOKMARK_LIST_PREFERENCES: ReaderBookmarkListPreferencesDto = {
-  activeListId: "all",
-  viewOverrides: {},
-}
-const INITIAL_PAGE_LIST_PREFERENCES: ReaderPageListPreferencesDto = {
-  viewMode: "list",
-  followProgress: true,
-}
-const INITIAL_BOOK_DEFAULTS: ReaderBookDefaultsDto = {
-  lockedSortMode: null,
-  lockedMediaPriority: null,
-  lockedReadingDirection: null,
-}
-const INITIAL_SLIDESHOW_CONFIG: ReaderSlideshowConfig = {
-  intervalSeconds: 5,
-  loop: false,
-  random: false,
-  fadeTransition: true,
-}
-const INITIAL_PRELOAD_CONFIG = { maxCandidatePages: 4, browserPredecodeEnabled: true, browserPredecodePages: 1 } satisfies ReaderRuntimeConfigDto["preload"]
-const INITIAL_FOLDER_VIEW_CONFIG: ReaderFolderViewConfig = {
-  homePath: "",
-  viewMode: "compact",
-  previewCount: 4,
-  thumbnailWidthPercent: 20,
-  bannerWidthPercent: 50,
-  hoverPreviewEnabled: true,
-  hoverPreviewDelayMs: 500,
-  titleWrap: { compact: false, "cover-list": false, "mosaic-list": false, details: false, "cover-grid": true, "mosaic-grid": false },
-  typeFilter: "library",
-  showHiddenFolders: false,
-  hideMissingEfuEntries: false,
-  confirmations: { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
-  penetration: { enabled: false, expandBranchesInline: false, inlineBranchLimitsEnabled: true, inlineBranchMaxDirectories: 4, inlineBranchMaxFiles: 4, inlineBranchMaxItems: 4, showInternalFiles: true, internalItemsMode: "single", maxDepth: 3, terminalTargets: ["archive", "document", "media-directory", "file"] },
-  emptyArea: { singleClickAction: "none", doubleClickAction: "goUp", showBackButton: false },
-  details: {
-    columnOrder: ["name", "path", "type", "extension", "size", "modifiedAt", "dimensions", "pageCount", "rating", "tags"],
-    hiddenColumns: [],
-    pinnedLeft: ["name"],
-    pinnedRight: [],
-    columnWidths: READER_FOLDER_DETAIL_DEFAULT_WIDTHS,
-  },
-  search: {
-    includeSubfolders: true,
-    showHistoryOnFocus: true,
-    searchInPath: false,
-  },
-  tree: { visible: false, layout: "left", size: 200, pinnedPaths: [] },
-  tabs: { pinned: [], layout: "top", width: 160, breadcrumbPosition: "top", toolbarPosition: "top" },
-}
-let readerSidebarModule: Promise<ReaderSidebarModule> | undefined
-function loadReaderSidebar(): Promise<ReaderSidebarModule> {
-  if (!readerSidebarModule) {
-    const startedAt = performance.now()
-    neoviewDebug("sidebar:chunk:load:begin")
-    readerSidebarModule = import("../features/panels/ReaderSidebar").then((module) => {
-      neoviewDebug("sidebar:chunk:load:end", {
-        durationMs: Math.round((performance.now() - startedAt) * 10) / 10,
-      })
-      return module
-    })
-  }
-  return readerSidebarModule
-}
-const LazyReaderSidebar = lazy(async () => ({ default: (await loadReaderSidebar()).ReaderSidebar }))
-const LazyReaderGestureInputRuntime = lazy(async () => ({
-  default: (await import("../features/input/ReaderGestureInputRuntime")).ReaderGestureInputRuntime,
-}))
-const LazyReaderRadialMenuOverlay = lazy(async () => ({
-  default: (await import("../features/input/ReaderRadialMenuOverlay")).ReaderRadialMenuOverlay,
-}))
-
-type ReaderSettingsWindowModule = typeof import("../features/settings/ReaderSettingsWindow")
-let readerSettingsWindowModule: Promise<ReaderSettingsWindowModule> | undefined
-function loadReaderSettingsWindow(): Promise<ReaderSettingsWindowModule> {
-  readerSettingsWindowModule ??= import("../features/settings/ReaderSettingsWindow")
-  return readerSettingsWindowModule
-}
-const LazyReaderSettingsWindow = lazy(async () => ({ default: (await loadReaderSettingsWindow()).ReaderSettingsWindow }))
-
-type ReaderFrameModule = typeof import("../features/reader/ReaderFrame")
-let readerFrameModule: Promise<ReaderFrameModule> | undefined
-function loadReaderFrame(): Promise<ReaderFrameModule> {
-  if (!readerFrameModule) {
-    const startedAt = performance.now()
-    neoviewDebug("reader:frame-chunk:load:begin")
-    readerFrameModule = import("../features/reader/ReaderFrame").then((module) => {
-      neoviewDebug("reader:frame-chunk:load:end", {
-        durationMs: Math.round((performance.now() - startedAt) * 10) / 10,
-      })
-      return module
-    })
-  }
-  return readerFrameModule
-}
-const LazyReaderFrame = lazy(async () => ({ default: (await loadReaderFrame()).ReaderFrame }))
-const LazyReaderBackgroundLayer = lazy(async () => ({ default: (await import("../features/reader/ReaderBackgroundLayer")).ReaderBackgroundLayer }))
-
-type ReaderViewToolbarModule = typeof import("../features/reader/ReaderViewToolbar")
-let readerViewToolbarModule: Promise<ReaderViewToolbarModule> | undefined
-function loadReaderViewToolbar(): Promise<ReaderViewToolbarModule> {
-  readerViewToolbarModule ??= import("../features/reader/ReaderViewToolbar")
-  return readerViewToolbarModule
-}
-const LazyReaderViewToolbar = lazy(async () => ({ default: (await loadReaderViewToolbar()).ReaderViewToolbar }))
-
-const LazySidebarFloatingController = lazy(() => import("../features/shell/SidebarFloatingController"))
-const LazyReaderSwitchToastRuntime = lazy(async () => ({
-  default: (await import("../features/switch-toast/ReaderSwitchToastRuntime")).ReaderSwitchToastRuntime,
-}))
-const LazyReaderInfoOverlayRuntime = lazy(async () => ({
-  default: (await import("../features/info-overlay/ReaderInfoOverlayRuntime")).ReaderInfoOverlayRuntime,
-}))
-
-function loadReaderPresentation(): Promise<unknown> {
-  return Promise.all([loadReaderFrame(), loadReaderViewToolbar()])
-}
-
-export interface ReaderAppProps {
-  sessionScopeId?: string
-  initialPath?: string
-  initialBrowserOriginPath?: string
-  initialSwimlaneSoloLaneId?: string | null
-  initialReaderViewFullscreen?: boolean
-  client?: ReaderHttpClient
-  pickFile?: () => Promise<string | undefined>
-  pickDirectory?: () => Promise<string | undefined>
-  pickEfuFile?: () => Promise<string | undefined>
-  copyText?: (text: string) => Promise<void>
-  copyFiles?: (paths: string[]) => Promise<void>
-  onPathCommitted?: (path: string, browserOriginPath?: string) => void
-  onSwimlaneSoloLaneIdCommitted?: (laneId: string | null) => void
-  onReaderViewFullscreenCommitted?: (fullscreen: boolean) => void
-}
+import { workspaceConfigEqual, readerWorkspaceWithSession, splitReaderWorkspacePatch, INITIAL_VIEW_DEFAULTS, INITIAL_HISTORY_LIST_PREFERENCES, INITIAL_BOOKMARK_LIST_PREFERENCES, INITIAL_PAGE_LIST_PREFERENCES, INITIAL_BOOK_DEFAULTS, INITIAL_SLIDESHOW_CONFIG, INITIAL_PRELOAD_CONFIG, INITIAL_FOLDER_VIEW_CONFIG, loadReaderSidebar, LazyReaderSidebar, LazyReaderGestureInputRuntime, LazyReaderRadialMenuOverlay, LazyReaderSettingsWindow, loadReaderFrame, LazyReaderFrame, LazyReaderBackgroundLayer, LazyReaderViewToolbar, LazyReaderSwitchToastRuntime, LazyReaderInfoOverlayRuntime, loadReaderPresentation, DeferredSidebarFloatingController, shellControlHydration, shellControlSnapshot, defaultShellControlSnapshot, edgeSurfaceStyle, readerPathSegments, fileMutationContainsSource, applyNavigation, waitForReaderOperationIdle, errorMessage } from "./ReaderAppModules"
+import type { ReaderAppProps } from "./ReaderAppModules"
+import { createReaderAppSettingsActions } from "./ReaderAppSettingsActions"
+import { createReaderAppFileActions } from "./ReaderAppFileActions"
+import { createReaderAppWorkspaceActions } from "./ReaderAppWorkspaceActions"
+import { createReaderAppInputActions } from "./ReaderAppInputActions"
+import { ReaderAppView } from "./ReaderAppView"
+import { useReaderSwimlaneSidebarDeferral } from "./useReaderSwimlaneSidebarDeferral"
+import type { ReaderAppActivationRootProps } from "./ReaderActivationRoot"
+import { useReaderActivationRoot } from "./useReaderActivationRoot"
+import { useReaderFolderNavigationEvents } from "./useReaderFolderNavigationEvents"
+export { fileMutationContainsSource } from "./ReaderAppModules"
+export type { ReaderAppProps } from "./ReaderAppModules"
 
 export function ReaderApp({
   sessionScopeId = "standalone",
   initialPath = "",
-  initialBrowserOriginPath,
+  initialBrowserOriginPath, initialActivationRootPath,
   initialSwimlaneSoloLaneId,
   initialReaderViewFullscreen,
   client: injectedClient,
@@ -322,7 +83,7 @@ export function ReaderApp({
   onPathCommitted,
   onSwimlaneSoloLaneIdCommitted,
   onReaderViewFullscreenCommitted,
-}: ReaderAppProps) {
+}: Omit<ReaderAppProps, "onPathCommitted"> & ReaderAppActivationRootProps) {
   const surface = useNodeSurface()
   const floatingFrame = useFloatingWindowFrame()
   const contextMenu = useContextMenu()
@@ -346,7 +107,9 @@ export function ReaderApp({
   const operationRef = useRef<AbortController | undefined>(undefined)
   const openOperationRef = useRef<AbortController | undefined>(undefined)
   const activeSourcePathRef = useRef(initialPath.trim())
+  const readerActivation = useReaderActivationRoot({ initialPath, initialActivationRootPath, onPathCommitted })
   const navigationPendingRef = useRef(false)
+  const adjacentBookPendingRef = useRef(false)
   const slideshowSessionRef = useRef<ReaderSessionDto | undefined>(undefined)
   const [slideshow] = useState(() => new ReaderSlideshow({
     readPosition: () => {
@@ -856,12 +619,13 @@ export function ReaderApp({
       sessionRef.current = opened.sessionId
       presentationTouchedRef.current = false
       const nextBrowserOriginPath = provenance?.browserOriginPath ?? browserOriginPath
+      const nextActivationRootPath = readerActivation.activationRootForOpen(normalizedPath, provenance)
       // Path chrome can update urgently; session/frame work is transitioned so the
       // main thread is not monopolized by LazyReaderFrame + decode in one turn.
       setPath(normalizedPath)
       activeSourcePathRef.current = normalizedPath
       setBrowserOriginPath(nextBrowserOriginPath)
-      onPathCommitted?.(normalizedPath, nextBrowserOriginPath)
+      readerActivation.commitOpenedPath(normalizedPath, nextBrowserOriginPath, nextActivationRootPath)
       startTransition(() => {
         setSlideshowFadeFrame(undefined)
         setSession(opened)
@@ -902,21 +666,7 @@ export function ReaderApp({
     }
   }
 
-  const folderNavigationEvents = useMemo(() => new EventTarget(), [])
-
-  function browsePath(nextPath: string) {
-    folderNavigationEvents.dispatchEvent(new CustomEvent("browse", { detail: { path: nextPath, newTab: false } }))
-  }
-
-  function activateInFolderCard(nextPath: string): boolean {
-    const detail = { path: nextPath, handled: false }
-    folderNavigationEvents.dispatchEvent(new CustomEvent("activate", { detail }))
-    return detail.handled === true
-  }
-
-  function openFolderPathInNewTab(nextPath: string) {
-    folderNavigationEvents.dispatchEvent(new CustomEvent("browse", { detail: { path: nextPath, newTab: true } }))
-  }
+  const { folderNavigationEvents, browsePath, activateInFolderCard, openFolderPathInNewTab } = useReaderFolderNavigationEvents()
 
   async function navigate(action: "next" | "previous", slideshowAction = false, presentEachPage = false): Promise<boolean> {
     const current = slideshowSessionRef.current
@@ -951,697 +701,245 @@ export function ReaderApp({
     return updated
   }
 
-  async function persistSubtitleConfig(patch: Partial<ReaderSubtitleConfigDto>): Promise<void> {
-    if (!client.updateMedia) return
-    const updated = await client.updateMedia({ media: { subtitle: patch } })
-    setMedia(updated)
-    videoController.configure(updated)
+  const actionContext: any = {
+    sessionScopeId, pickFile, pickDirectory, pickEfuFile, copyText, copyFiles, onPathCommitted, onSwimlaneSoloLaneIdCommitted, onReaderViewFullscreenCommitted, surface, floatingFrame, contextMenu,
+    swimlaneSessionScopeId, swimlaneSession, patchSwimlaneSession,
+    readerBootedAtRef, client, clientRef,
+    shellRef, readerInteractionRef, sessionRef,
+    operationRef, openOperationRef, activeSourcePathRef, activationRootPathRef: readerActivation.activationRootPathRef, commitPath: readerActivation.commitPath,
+    navigationPendingRef, adjacentBookPendingRef, slideshowSessionRef, slideshow,
+    viewDefaultsRef, confirmedViewDefaultsRef, tailOverflowRef,
+    viewDefaultsWriteQueueRef, viewDefaultsGenerationRef, pageListPreferencesRef,
+    confirmedPageListPreferencesRef, pageListPreferencesWriteQueueRef, pageListPreferencesGenerationRef,
+    bookmarkListPreferencesGenerationRef, historyListPreferencesGenerationRef, slideshowConfigRef,
+    confirmedSlideshowConfigRef, slideshowWriteQueueRef, slideshowGenerationRef,
+    folderViewRef, confirmedFolderViewRef, folderViewWriteQueueRef,
+    folderViewGenerationRef, inputBindingsRef, lastInputPointRef,
+    temporaryFitPresentationRef, shellControlWriteQueueRef, shellControlGenerationRef,
+    pendingWorkspaceWritesRef, presentationTouchedRef, path,
+    setPath, browserOriginPath, setBrowserOriginPath,
+    session, setSession, busy,
+    setBusy, error, setError,
+    colorFilter, pageTransition, switchToast,
+    infoOverlay, imageTrim, videoController,
+    viewerToggles, shell, setShell,
+    readerChromeReady, setReaderChromeReady, shellControlStore,
+    shellControl, viewDefaults, setViewDefaults,
+    bookDefaults, setBookDefaults, pageListPreferences,
+    setPageListPreferences, bookmarkListPreferences, setBookmarkListPreferences,
+    historyListPreferences, setHistoryListPreferences, folderView,
+    setFolderView, inputBindings, setInputBindings,
+    radialMenu, setRadialMenu, voiceControl,
+    setVoiceControl, media, setMedia,
+    imageProcessing, setImageProcessing, slideshowConfig,
+    setSlideshowConfig, preloadConfig, setPreloadConfig,
+    slideshowFadeFrame, setSlideshowFadeFrame, superResolution,
+    setSuperResolution, radialMenuRequest, setRadialMenuRequest,
+    settingsOpen, setSettingsOpen, presentation,
+    setPresentation, magnifierEnabled, setMagnifierEnabled,
+    readerViewFullscreen, setReaderViewFullscreen, swimlaneSidebarsReady,
+    setSwimlaneSidebarsReady, swimlaneRightSidebarReady, setSwimlaneRightSidebarReady,
+    readerFrameAllowed, setReaderFrameAllowed, browserPredecodeEnabled,
+    prefetchController, speculativePreloadAllowed, cancelledPreloadFrame,
+    setCancelledPreloadFrame, openPath, folderNavigationEvents,
+    browsePath, activateInFolderCard, openFolderPathInNewTab,
+    navigate, goTo, requestShellEdgeOpen,
+    setShellEdgePinned, cycleShellEdgeLock, setShellEdgeLock,
+    setShellFloatingControl, setShellEdgeTriggerSize, resetShellControl,
+    persistShellControl,
   }
 
-  async function persistVideoControlsPinned(videoControlsPinned: boolean): Promise<void> {
-    if (!client.updateMedia) return
-    const updated = await client.updateMedia({ media: { videoControlsPinned } })
-    setMedia(updated)
-    videoController.configure(updated)
-  }
+  const {
+    persistSubtitleConfig,
+    persistVideoControlsPinned,
+    persistAnimatedVideoMode,
+    explorerContextMenuPreview,
+    explorerContextMenuStatus,
+    setExplorerContextMenuEnabled,
+    repairExplorerContextMenu,
+    persistSuperResolutionConfig,
+    persistSuperResolution,
+    runPreloadAction,
+    updateNavigation,
+    applyBookSettingsUpdate,
+    updatePresentation,
+    updatePageMode,
+    updateSessionLayout,
+    updateReadingDirection,
+    updateReadingDirectionLock,
+    updateCurrentPageOrder,
+    updatePageOrderLocks,
+    updateCurrentBookPageMode,
+    updateCurrentBookReadingDirection,
+    persistHistoryListPreferences,
+    persistBookmarkListPreferences,
+    persistPageListPreferences,
+    persistViewDefaults,
+    applyConfiguredViewDefaults,
+    persistInputBindings,
+    persistRadialMenu,
+    persistVoiceControl,
+    inspectLegacySettings,
+    importLegacySettings,
+  } = createReaderAppSettingsActions(actionContext)
 
-  async function persistAnimatedVideoMode(patch: ReaderMediaPatchDto["media"]): Promise<ReaderMediaConfigDto> {
-    if (!client.updateMedia) return media ?? {
-      supportedImageFormats: [],
-      videoFormats: [],
-      mediaMimeTypes: {},
-      autoPlayAnimatedImages: true,
-      animatedVideoEnabled: false,
-      animatedVideoKeywords: ["[#dyna]"],
-      videoControlsPinned: false,
-      videoMinPlaybackRate: 0.25,
-      videoMaxPlaybackRate: 16,
-      videoPlaybackRateStep: 0.25,
-      subtitle: { fontSize: 1, color: "#ffffff", backgroundOpacity: 0.7, bottomPercent: 5 },
-    }
-    const updated = await client.updateMedia({ media: patch })
-    setMedia(updated)
-    videoController.configure(updated)
-    return updated
-  }
+  Object.assign(actionContext, {
+    persistSubtitleConfig,
+    persistVideoControlsPinned,
+    persistAnimatedVideoMode,
+    explorerContextMenuPreview,
+    explorerContextMenuStatus,
+    setExplorerContextMenuEnabled,
+    repairExplorerContextMenu,
+    persistSuperResolutionConfig,
+    persistSuperResolution,
+    runPreloadAction,
+    updateNavigation,
+    applyBookSettingsUpdate,
+    updatePresentation,
+    updatePageMode,
+    updateSessionLayout,
+    updateReadingDirection,
+    updateReadingDirectionLock,
+    updateCurrentPageOrder,
+    updatePageOrderLocks,
+    updateCurrentBookPageMode,
+    updateCurrentBookReadingDirection,
+    persistHistoryListPreferences,
+    persistBookmarkListPreferences,
+    persistPageListPreferences,
+    persistViewDefaults,
+    applyConfiguredViewDefaults,
+    persistInputBindings,
+    persistRadialMenu,
+    persistVoiceControl,
+    inspectLegacySettings,
+    importLegacySettings,
+  })
 
-  async function persistSuperResolutionConfig(patch: Parameters<NonNullable<ReaderHttpClient["updateSuperResolution"]>>[0]["superResolution"]) {
-    if (!client.updateSuperResolution) throw new Error("当前 Reader 不支持超分配置写入")
-    const updated = await client.updateSuperResolution({ superResolution: patch })
-    setSuperResolution(updated)
-    return updated
-  }
+  const {
+    persistSlideshow,
+    persistFolderView,
+    closeSession,
+    prepareFileMutation,
+    requestDeleteCurrentFile,
+    deleteCurrentFile,
+  } = createReaderAppFileActions(actionContext)
 
-  function persistSuperResolution(patch: NonNullable<ReaderRuntimeConfigDto["superResolution"]>["preferences"]) {
-    return persistSuperResolutionConfig({ preferences: patch })
-  }
+  Object.assign(actionContext, {
+    persistSlideshow,
+    persistFolderView,
+    closeSession,
+    prepareFileMutation,
+    requestDeleteCurrentFile,
+    deleteCurrentFile,
+  })
 
-  async function runPreloadAction(action: "cancel-speculative" | "release-retained", signal?: AbortSignal) {
-    const activeSession = session
-    if (!activeSession || !client.runPreloadAction) throw new Error("当前后端不支持预加载控制")
-    const result = await client.runPreloadAction(activeSession.sessionId, action, signal)
-    if (sessionRef.current !== activeSession.sessionId) throw new Error("Reader 会话已切换")
-    if (action === "cancel-speculative") {
-      prefetchController.cancel()
-      setCancelledPreloadFrame({ sessionId: activeSession.sessionId, generation: activeSession.frame.generation })
-    } else {
-      prefetchController.releaseRetained(new Set(activeSession.visiblePages.map((page) => page.assetUrl)))
-    }
-    return result
-  }
+  const {
+    toggleWorkspaceMode,
+    focusAdjacentWorkspaceLane,
+    toggleActiveWorkspaceLaneFullscreen,
+    fitWorkspaceLanes,
+    commitWorkspace,
+    currentReaderWorkspace,
+    commitSwimlaneSessionPatch,
+    applyConfirmedShell,
+    enqueueShellControl,
+    commitSidebarLayout,
+    commitCardLayout,
+    commitBoardLayout,
+    commitDraggedPanelLayout,
+    persistImageProcessing,
+    persistPreload,
+    enqueueShellMutation,
+    refreshLatestShell,
+    commitShellMaterial,
+  } = createReaderAppWorkspaceActions(actionContext)
 
-  async function updateNavigation(
-    request: (sessionId: string, signal: AbortSignal) => Promise<ReaderNavigationDto>,
-    slideshowAction = false, presentEachPage = false,
-  ): Promise<boolean> {
-    const sessionId = sessionRef.current
-    if (!sessionId || busy || navigationPendingRef.current) return false
-    const controller = new AbortController()
-    operationRef.current?.abort()
-    operationRef.current = controller
-    navigationPendingRef.current = true
-    setError(undefined)
-    try {
-      const result = await request(sessionId, controller.signal)
-      if (!controller.signal.aborted) {
-        setSlideshowFadeFrame(slideshowAction && slideshowConfigRef.current.fadeTransition
-          ? `${sessionId}:${result.frame.generation}`
-          : undefined)
-        await commitReaderNavigation(() => setSession((current) => current ? applyNavigation(current, result) : current), pageTransition.getSnapshot(), presentEachPage)
-      }
-      return !controller.signal.aborted
-    } catch (cause) {
-      if (!controller.signal.aborted) setError(errorMessage(cause))
-      return false
-    } finally {
-      if (operationRef.current === controller) operationRef.current = undefined
-      navigationPendingRef.current = false
-    }
-  }
+  Object.assign(actionContext, {
+    toggleWorkspaceMode,
+    focusAdjacentWorkspaceLane,
+    toggleActiveWorkspaceLaneFullscreen,
+    fitWorkspaceLanes,
+    commitWorkspace,
+    currentReaderWorkspace,
+    commitSwimlaneSessionPatch,
+    applyConfirmedShell,
+    enqueueShellControl,
+    commitSidebarLayout,
+    commitCardLayout,
+    commitBoardLayout,
+    commitDraggedPanelLayout,
+    persistImageProcessing,
+    persistPreload,
+    enqueueShellMutation,
+    refreshLatestShell,
+    commitShellMaterial,
+  })
 
-  function applyBookSettingsUpdate(sessionId: string, update: ReaderBookSettingsUpdateDto) {
-    if (sessionRef.current !== sessionId) return
-    setSession((current) => current?.sessionId === sessionId ? applyNavigation(current, update) : current)
-  }
+  const {
+    executeInputAction,
+    applyInputPresentation,
+    switchAdjacentBook,
+    toggleTemporaryFit,
+    toggleSinglePanorama,
+    syncPanoramaVisiblePage,
+    toggleFullscreen,
+    toggleShellEdge,
+    toggleShellPin,
+    toggleSidebarControl,
+    openRadialMenu,
+  } = createReaderAppInputActions(actionContext)
 
-  function updatePresentation(next: ReaderPresentation) {
-    const defaultsPatch: ReaderViewDefaultsPatch["viewDefaults"] = {}
-    if (next.fitMode !== presentation.fitMode) defaultsPatch.fitMode = next.fitMode
-    if (next.orientation !== presentation.orientation) defaultsPatch.orientation = next.orientation
-    if (next.autoRotation !== presentation.autoRotation) defaultsPatch.autoRotation = next.autoRotation
-    if (next.widePageStretch !== presentation.widePageStretch) defaultsPatch.widePageStretch = next.widePageStretch
-    presentationTouchedRef.current = true
-    setPresentation(next)
-    if (Object.keys(defaultsPatch).length) void persistViewDefaults(defaultsPatch)
-  }
-
-  async function updatePageMode(pageMode: "single" | "double") {
-    if (pageMode === session?.frame.layout.pageMode) return
-    const updated = await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(
-      sessionId,
-      { layout: { pageMode } },
-      signal,
-    ))
-    if (updated) void persistViewDefaults({ pageMode })
-  }
-
-  async function updateSessionLayout(layout: Partial<NonNullable<typeof session>["frame"]["layout"]>) {
-    const current = session?.frame.layout
-    if (!current || Object.entries(layout).every(([key, value]) => current[key as keyof typeof current] === value)) return
-    const updated = await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(
-      sessionId,
-      { layout },
-      signal,
-    ))
-    if (updated && layout.pageMode) void persistViewDefaults({ pageMode: layout.pageMode })
-    if (updated && layout.splitWidePages !== undefined) void persistViewDefaults({ splitWidePages: layout.splitWidePages })
-  }
-
-  async function updateReadingDirection(direction: "left-to-right" | "right-to-left") {
-    if (direction === session?.frame.direction) return
-    await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(sessionId, { direction }, signal))
-  }
-
-  async function updateReadingDirectionLock(direction: "left-to-right" | "right-to-left" | null) {
-    if (!clientRef.current.updateBookDefaults) throw new Error("当前 Reader 不支持阅读方向锁定")
-    setError(undefined)
-    try {
-      const updated = await clientRef.current.updateBookDefaults({
-        book: { ...bookDefaults, lockedReadingDirection: direction },
-      })
-      setBookDefaults(updated)
-    } catch (cause) {
-      setError(errorMessage(cause))
-    }
-  }
-
-  async function updateCurrentPageOrder(patch: Partial<ReaderPageOrderDto>) {
-    if (!clientRef.current.updatePageOrder) throw new Error("当前 Reader 不支持页面排序")
-    await updateNavigation((sessionId, signal) => clientRef.current.updatePageOrder!(sessionId, patch, signal))
-  }
-
-  async function updatePageOrderLocks(next: ReaderBookDefaultsDto) {
-    if (!clientRef.current.updateBookDefaults) throw new Error("当前 Reader 不支持排序锁定")
-    setError(undefined)
-    try {
-      const updated = await clientRef.current.updateBookDefaults({ book: next })
-      setBookDefaults(updated)
-    } catch (cause) {
-      setError(errorMessage(cause))
-    }
-  }
-
-  async function updateCurrentBookPageMode(pageMode: "single" | "double") {
-    if (pageMode === session?.frame.layout.pageMode) return
-    await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(
-      sessionId,
-      { layout: { pageMode } },
-      signal,
-    ))
-  }
-
-  async function updateCurrentBookReadingDirection(direction: "left-to-right" | "right-to-left") {
-    if (direction === session?.frame.direction) return
-    await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(
-      sessionId,
-      { direction },
-      signal,
-    ))
-  }
-
-  async function persistHistoryListPreferences(patch: ReaderHistoryListPreferencesPatch["historyList"]): Promise<ReaderHistoryListPreferencesDto> {
-    const generation = ++historyListPreferencesGenerationRef.current
-    const next = {
-      ...historyListPreferences,
-      ...patch,
-      viewOverrides: patch.viewOverrides
-        ? applyReaderFilePresentationOverridePatch(historyListPreferences.viewOverrides, patch.viewOverrides)
-        : historyListPreferences.viewOverrides,
-    }
-    if (!clientRef.current.updateHistoryList) {
-      setHistoryListPreferences(next)
-      return next
-    }
-    const updated = await clientRef.current.updateHistoryList({ historyList: patch })
-    if (generation === historyListPreferencesGenerationRef.current) setHistoryListPreferences(updated)
-    return updated
-  }
-
-  async function persistBookmarkListPreferences(patch: ReaderBookmarkListPreferencesPatch["bookmarkList"]): Promise<ReaderBookmarkListPreferencesDto> {
-    const generation = ++bookmarkListPreferencesGenerationRef.current
-    const next = {
-      ...bookmarkListPreferences,
-      ...patch,
-      viewOverrides: patch.viewOverrides
-        ? applyReaderFilePresentationOverridePatch(bookmarkListPreferences.viewOverrides, patch.viewOverrides)
-        : bookmarkListPreferences.viewOverrides,
-    }
-    if (!clientRef.current.updateBookmarkList) {
-      setBookmarkListPreferences(next)
-      return next
-    }
-    const updated = await clientRef.current.updateBookmarkList({ bookmarkList: patch })
-    if (generation === bookmarkListPreferencesGenerationRef.current) setBookmarkListPreferences(updated)
-    return updated
-  }
-
-  async function persistPageListPreferences(patch: Partial<ReaderPageListPreferencesDto>) {
-    const next = { ...pageListPreferencesRef.current, ...patch }
-    pageListPreferencesRef.current = next
-    setPageListPreferences(next)
-    if (!clientRef.current.updatePageList) {
-      confirmedPageListPreferencesRef.current = next
-      return
-    }
-    const generation = ++pageListPreferencesGenerationRef.current
-    const write = pageListPreferencesWriteQueueRef.current.then(async () => {
-      try {
-        const updated = await clientRef.current.updatePageList!({ pageList: patch })
-        confirmedPageListPreferencesRef.current = updated
-        if (generation === pageListPreferencesGenerationRef.current) {
-          pageListPreferencesRef.current = updated
-          setPageListPreferences(updated)
-        }
-      } catch (cause) {
-        if (generation === pageListPreferencesGenerationRef.current) {
-          const confirmed = confirmedPageListPreferencesRef.current
-          pageListPreferencesRef.current = confirmed
-          setPageListPreferences(confirmed)
-        }
-        throw cause
-      }
-    })
-    pageListPreferencesWriteQueueRef.current = write.catch(() => undefined)
-    await write
-  }
-
-  async function persistViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
-    const current = viewDefaultsRef.current
-    const next = {
-      ...current,
-      ...patch,
-      ...(patch.background ? {
-        background: {
-          ...(current.background ?? INITIAL_VIEW_DEFAULTS.background),
-          ...patch.background,
-          ...(patch.background.ambient ? { ambient: { ...(current.background ?? INITIAL_VIEW_DEFAULTS.background).ambient, ...patch.background.ambient } } : {}),
-          ...(patch.background.aurora ? { aurora: { ...(current.background ?? INITIAL_VIEW_DEFAULTS.background).aurora, ...patch.background.aurora } } : {}),
-          ...(patch.background.spotlight ? { spotlight: { ...(current.background ?? INITIAL_VIEW_DEFAULTS.background).spotlight, ...patch.background.spotlight } } : {}),
-        },
-      } : {}),
-    }
-    viewDefaultsRef.current = next
-    setViewDefaults(next)
-    const generation = ++viewDefaultsGenerationRef.current
-    const write = viewDefaultsWriteQueueRef.current.then(async () => {
-      try {
-        const updated = await clientRef.current.updateViewDefaults({ viewDefaults: patch })
-        confirmedViewDefaultsRef.current = updated
-        if (generation === viewDefaultsGenerationRef.current) {
-          viewDefaultsRef.current = updated
-          setViewDefaults(updated)
-        }
-      } catch (cause) {
-        if (generation === viewDefaultsGenerationRef.current) {
-          const confirmed = confirmedViewDefaultsRef.current
-          viewDefaultsRef.current = confirmed
-          setViewDefaults(confirmed)
-        }
-        setError(errorMessage(cause))
-      }
-    })
-    viewDefaultsWriteQueueRef.current = write
-    await write
-  }
-
-  async function applyConfiguredViewDefaults(patch: ReaderViewDefaultsPatch["viewDefaults"]) {
-    if (!Object.keys(patch).length) return
-    const presentationPatch = {
-      ...(patch.fitMode ? { fitMode: patch.fitMode, manualScale: 1 } : {}),
-      ...(patch.orientation ? { orientation: patch.orientation } : {}),
-      ...(patch.autoRotation ? { autoRotation: patch.autoRotation } : {}),
-      ...(patch.widePageStretch ? { widePageStretch: patch.widePageStretch } : {}),
-    }
-    if (Object.keys(presentationPatch).length) {
-      presentationTouchedRef.current = true
-      setPresentation((current) => ({ ...current, ...presentationPatch }))
-    }
-    if (patch.pageMode && sessionRef.current && patch.pageMode !== session?.frame.layout.pageMode) {
-      const updated = await updateNavigation((sessionId, signal) => clientRef.current.updateSessionOptions(
-        sessionId,
-        { layout: { pageMode: patch.pageMode } },
-        signal,
-      ))
-      if (!updated) return
-    }
-    await persistViewDefaults(patch)
-  }
-
-  async function persistInputBindings(patch: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderInputBindingsConfig> {
-    if (!clientRef.current.updateInputBindings) throw new Error("当前 Reader 后端不支持操作绑定设置。")
-    const updated = await clientRef.current.updateInputBindings({ inputBindings: patch })
-    inputBindingsRef.current = updated
-    setInputBindings(updated)
-    return updated
-  }
-  async function persistRadialMenu(patch: ReaderRadialMenuPatch["radialMenu"], inputBindingsPatch?: ReaderInputBindingsPatch["inputBindings"]): Promise<ReaderRadialMenuConfig> {
-    return await persistReaderRadialMenu(clientRef.current, patch, inputBindingsPatch, (updated) => {
-      inputBindingsRef.current = updated
-      setInputBindings(updated)
-    }, setRadialMenu)
-  }
-
-  async function persistVoiceControl(patch: ReaderVoiceControlPatch["voiceControl"]): Promise<ReaderVoiceControlConfig> {
-    if (!clientRef.current.updateVoiceControl) throw new Error("当前 Reader 后端不支持语音控制设置。")
-    const updated = await clientRef.current.updateVoiceControl({ voiceControl: patch })
-    setVoiceControl(updated)
-    return updated
-  }
-
-  async function inspectLegacySettings(content: string, modules?: readonly string[]): Promise<ReaderSettingsMigrationInspection> {
-    if (!clientRef.current.inspectLegacySettings) throw new Error("褰撳墠 Reader 鍚庣涓嶆敮鎸佹棫璁剧疆瀵煎叆銆")
-    return clientRef.current.inspectLegacySettings(content, modules)
-  }
-
-  async function importLegacySettings(content: string, strategy: "merge" | "overwrite" = "merge", modules?: readonly string[]): Promise<ReaderSettingsMigrationImportResult> {
-    if (!clientRef.current.importLegacySettings) throw new Error("褰撳墠 Reader 鍚庣涓嶆敮鎸佹棫璁剧疆瀵煎叆銆")
-    const result = await clientRef.current.importLegacySettings(content, strategy, modules)
-    const config = await clientRef.current.config()
-    inputBindingsRef.current = config.inputBindings
-    setInputBindings(config.inputBindings)
-    setRadialMenu(config.radialMenu ?? structuredClone(DEFAULT_READER_RADIAL_MENU_CONFIG))
-    setVoiceControl(config.voiceControl)
-    applyConfirmedShell(config.shell)
-    return result
-  }
-
-  function executeInputAction(action: ReaderInputAction, context: ReaderInputActionExecutionContext): Promise<ReaderInputActionOutcome> {
-    if (switchToast.getSnapshot().enableAction) {
-      switchToast.show({ title: `操作：${READER_INPUT_ACTION_LABELS[action]}` })
-    }
-    return executeReaderInputAction(action, {
-      session: () => session ? {
-        pageCount: session.book.pageCount,
-        pageIndex: session.frame.anchorPageIndex,
-        direction: session.frame.direction,
-        pageMode: session.frame.layout.pageMode,
-      } : undefined,
-      presentation: () => presentation,
-      setPresentation: applyInputPresentation,
-      navigate: (direction) => navigate(direction, false, true),
-      goTo: (pageIndex) => goTo(pageIndex, false, true),
-      switchBook: switchAdjacentBook,
-      updatePageMode,
-      updateReadingDirection: updateCurrentBookReadingDirection,
-      toggleTemporaryFit,
-      toggleSinglePanorama,
-      toggleFullscreen,
-      toggleShellEdge,
-      toggleShellPin,
-      toggleSidebarControl,
-      toggleInlineBranchExpansion: () => persistFolderView({ penetration: { expandBranchesInline: !folderViewRef.current.penetration.expandBranchesInline } }),
-      workspace: {
-        toggleLayoutMode: toggleWorkspaceMode,
-        focusReader: () => commitWorkspace({ mode: "swimlane", activeLane: "reader" }),
-        focusAdjacent: focusAdjacentWorkspaceLane,
-        toggleActiveLaneFullscreen: toggleActiveWorkspaceLaneFullscreen,
-        fitLanes: fitWorkspaceLanes,
-      },
-      openFile: () => choose("file"),
-      closeFile: closeSession,
-      deleteCurrentFile: client.executeFileOperations ? requestDeleteCurrentFile : undefined,
-      openSettings: () => setSettingsOpen(true),
-      openRadialMenu,
-      video: videoController,
-      viewerToggles,
-      switchToast,
-      infoOverlay,
-      hoverScroll: {
-        getSnapshot: () => ({ enabled: viewDefaultsRef.current.hoverScrollEnabled ?? true }),
-        update: ({ enabled }) => persistViewDefaults({ hoverScrollEnabled: enabled }),
-      },
-      slideshow: {
-        toggle: () => slideshow.toggle(),
-        stop: () => slideshow.stop(),
-        skip: async () => { await navigate("next", true); slideshow.resetOnUserAction() },
-      },
-    }, context)
-  }
-
-  function applyInputPresentation(next: ReaderPresentation): void {
-    temporaryFitPresentationRef.current = undefined
-    presentationTouchedRef.current = true
-    setPresentation(next)
-  }
-
-  async function switchAdjacentBook(direction: "next" | "previous"): Promise<boolean> {
-    const sessionId = sessionRef.current
-    const openAdjacentBook = clientRef.current.openAdjacentBook
-    // Prefer refs over React `busy` state so concurrent key handlers from the
-    // same render cannot both enter the adjacent-book path.
-    if (!sessionId || !openAdjacentBook || busy || navigationPendingRef.current) return false
-    slideshow.stop()
-    operationRef.current?.abort()
-    const controller = new AbortController()
-    operationRef.current = controller
-    navigationPendingRef.current = true
-    setBusy(true)
-    setError(undefined)
-    try {
-      const replacement = await openAdjacentBook(sessionId, direction, controller.signal)
-      if (!replacement || controller.signal.aborted) return false
-      sessionRef.current = replacement.sessionId
-      setSlideshowFadeFrame(undefined)
-      setSession(replacement)
-      setPresentation({ ...DEFAULT_READER_PRESENTATION, ...viewDefaultsRef.current })
-      presentationTouchedRef.current = false
-      void clientRef.current.metadata?.(replacement.sessionId, controller.signal).then((metadata) => {
-        if (sessionRef.current !== replacement.sessionId) return
-        setPath(metadata.book.sourcePath)
-        activeSourcePathRef.current = metadata.book.sourcePath
-        onPathCommitted?.(metadata.book.sourcePath, browserOriginPath)
-      }).catch(() => undefined)
-      // Book-switch toast is owned by ReaderSwitchToastRuntime via book.id change.
-      return true
-    } catch (cause) {
-      if (!controller.signal.aborted) setError(errorMessage(cause))
-      return false
-    } finally {
-      if (operationRef.current === controller) operationRef.current = undefined
-      navigationPendingRef.current = false
-      if (!controller.signal.aborted) setBusy(false)
-    }
-  }
-
-  function toggleTemporaryFit(): void {
-    const previous = temporaryFitPresentationRef.current
-    if (previous) {
-      temporaryFitPresentationRef.current = undefined
-      presentationTouchedRef.current = true
-      setPresentation(previous)
-      return
-    }
-    temporaryFitPresentationRef.current = presentation
-    presentationTouchedRef.current = true
-    setPresentation({ ...presentation, fitMode: "fit", manualScale: 1 })
-  }
-
-  function toggleSinglePanorama(): void {
-    const current = session?.frame.layout
-    if (!current) return
-    void updateSessionLayout({ panorama: !current.panorama })
-  }
-
-  function syncPanoramaVisiblePage(pageIndex: number): void {
-    setSession((current) => {
-      if (!current || !current.frame.layout.panorama || current.frame.anchorPageIndex === pageIndex) return current
-      const bounded = Math.max(0, Math.min(current.book.pageCount - 1, pageIndex))
-      return { ...current, frame: { ...current.frame, anchorPageIndex: bounded, atStart: bounded === 0, atEnd: bounded >= current.book.pageCount - 1 } }
-    })
-  }
-
-  async function toggleFullscreen(): Promise<void> {
-    const element = surface.ref.current
-    if (!element) return
-    if (document.fullscreenElement) await document.exitFullscreen?.()
-    else await element.requestFullscreen?.()
-  }
-
-  function toggleShellEdge(edge: "left" | "right"): void {
-    const current = shellControlStore.getSnapshot().edges[edge]
-    setShellEdgePinned(edge, !current.open)
-  }
-
-  function toggleShellPin(edge: "top" | "bottom"): void {
-    const current = shellControlStore.getSnapshot().edges[edge]
-    setShellEdgePinned(edge, !current.pinned)
-  }
-
-  function toggleSidebarControl(): void {
-    const current = shellControlStore.getSnapshot().floating
-    setShellFloatingControl({ enabled: !current.enabled })
-  }
-
-  function openRadialMenu(): void {
-    if (!radialMenu.enabled || !radialMenu.menus.length) return
-    const point = lastInputPointRef.current ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
-    setRadialMenuRequest((current) => ({ id: (current?.id ?? 0) + 1, ...point }))
-  }
+  Object.assign(actionContext, {
+    executeInputAction,
+    applyInputPresentation,
+    switchAdjacentBook,
+    toggleTemporaryFit,
+    toggleSinglePanorama,
+    syncPanoramaVisiblePage,
+    toggleFullscreen,
+    toggleShellEdge,
+    toggleShellPin,
+    toggleSidebarControl,
+    openRadialMenu,
+  })
 
   const inputRouter = useReaderInputRouter({ config: inputBindings, disabled: busy, execute: executeInputAction })
+
+  const runtimeWorkspace = shell ? readerWorkspaceWithSession(shell, swimlaneSession) : undefined
+  const runtimeWorkspaceMode = runtimeWorkspace?.mode
+  const shellPresent = Boolean(shell)
+  useReaderSwimlaneSidebarDeferral({
+    readerChromeReady,
+    sessionScopeId,
+    shellPresent,
+    workspaceMode: runtimeWorkspaceMode,
+    setLeftReady: setSwimlaneSidebarsReady,
+    setRightReady: setSwimlaneRightSidebarReady,
+  })
+
+  useReaderAdjacentPagePreloader({
+    client,
+    sessionId: session?.sessionId,
+    activePageIndex: session?.frame.anchorPageIndex,
+    totalPages: session?.book.pageCount,
+    plan: session?.preload,
+    enabled: browserPredecodeEnabled && readerFrameAllowed && speculativePreloadAllowed && (
+      !session
+      || cancelledPreloadFrame?.sessionId !== session.sessionId
+      || cancelledPreloadFrame.generation !== session.frame.generation
+    ),
+    preload: prefetchController.preload,
+    cancel: prefetchController.cancel,
+  })
 
   const handleInputPointerDown: PointerEventHandler<HTMLElement> = (event) => {
     lastInputPointRef.current = { x: event.clientX, y: event.clientY }
     inputRouter.onPointerDown(event)
   }
 
-  async function persistSlideshow(patch: ReaderSlideshowPatch["slideshow"]) {
-    slideshow.configure(patch)
-    const normalizedPatch = patch.intervalSeconds === undefined
-      ? patch
-      : { ...patch, intervalSeconds: slideshow.getSnapshot().intervalSeconds }
-    const next = { ...slideshowConfigRef.current, ...normalizedPatch }
-    slideshowConfigRef.current = next
-    setSlideshowConfig(next)
-    const generation = ++slideshowGenerationRef.current
-    const write = slideshowWriteQueueRef.current.then(async () => {
-      try {
-        const updated = await clientRef.current.updateSlideshow({ slideshow: normalizedPatch })
-        confirmedSlideshowConfigRef.current = updated
-        if (generation === slideshowGenerationRef.current) {
-          slideshowConfigRef.current = updated
-          setSlideshowConfig(updated)
-          slideshow.configure(updated)
-        }
-      } catch (cause) {
-        if (generation === slideshowGenerationRef.current) {
-          const confirmed = confirmedSlideshowConfigRef.current
-          slideshowConfigRef.current = confirmed
-          setSlideshowConfig(confirmed)
-          slideshow.configure(confirmed)
-        }
-        setError(errorMessage(cause))
-      }
-    })
-    slideshowWriteQueueRef.current = write
-    await write
-  }
-
-  async function persistFolderView(patch: ReaderFolderViewPatch["folderView"]) {
-    const next = mergeReaderFolderViewPatch(folderViewRef.current, patch, INITIAL_FOLDER_VIEW_CONFIG)
-    folderViewRef.current = next
-    setFolderView(next)
-    if (!clientRef.current.updateFolderView) {
-      confirmedFolderViewRef.current = next
-      return
-    }
-    const generation = ++folderViewGenerationRef.current
-    const write = folderViewWriteQueueRef.current.then(async () => {
-      try {
-        const updated = await clientRef.current.updateFolderView!({ folderView: patch })
-        confirmedFolderViewRef.current = updated
-        if (generation === folderViewGenerationRef.current) {
-          folderViewRef.current = updated
-          setFolderView(updated)
-        }
-      } catch (cause) {
-        if (generation === folderViewGenerationRef.current) {
-          const confirmed = confirmedFolderViewRef.current
-          folderViewRef.current = confirmed
-          setFolderView(confirmed)
-        }
-        setError(errorMessage(cause))
-      }
-    })
-    folderViewWriteQueueRef.current = write
-    await write
-  }
-
-  async function closeSession() {
-    slideshow.stop()
-    operationRef.current?.abort()
-    operationRef.current = undefined
-    const sessionId = sessionRef.current
-    sessionRef.current = undefined
-    setSession(undefined)
-    setSlideshowFadeFrame(undefined)
-    setMagnifierEnabled(false)
-    setBusy(false)
-    if (sessionId) await clientRef.current.close(sessionId).catch(() => undefined)
-  }
-
-  async function prepareFileMutation(targetPath: string, signal?: AbortSignal): Promise<import("../features/panels/registry").ReaderFileMutationPreparation | undefined> {
-    signal?.throwIfAborted()
-    const sessionId = sessionRef.current
-    const sourcePath = activeSourcePathRef.current.trim()
-    if (!sessionId || !sourcePath || !fileMutationContainsSource(targetPath, sourcePath)) return undefined
-
-    slideshow.stop()
-    await clientRef.current.close(sessionId)
-    if (sessionRef.current !== sessionId) return undefined
-
-    sessionRef.current = undefined
-    setSession(undefined)
-    setSlideshowFadeFrame(undefined)
-    setMagnifierEnabled(false)
-    let settled = false
-    return {
-      commit: () => {
-        if (settled || sessionRef.current) return
-        settled = true
-        activeSourcePathRef.current = ""
-        setPath("")
-        onPathCommitted?.("", browserOriginPath)
-      },
-      restore: async () => {
-        if (settled || sessionRef.current) return
-        settled = true
-        const reopened = await clientRef.current.open(sourcePath)
-        if (sessionRef.current) {
-          void clientRef.current.close(reopened.sessionId).catch(() => undefined)
-          return
-        }
-        sessionRef.current = reopened.sessionId
-        activeSourcePathRef.current = sourcePath
-        setPath(sourcePath)
-        setSession(reopened)
-        onPathCommitted?.(sourcePath, browserOriginPath)
-      },
-    }
-  }
-  async function requestDeleteCurrentFile(adjacentDirection?: "next" | "previous"): Promise<ReaderInputActionOutcome> {
-    const sessionId = sessionRef.current
-    const sourcePath = path.trim()
-    if (!sessionId || !sourcePath || operationRef.current || !clientRef.current.executeFileOperations) return { status: "unavailable" }
-    const confirmTrash = folderViewRef.current.confirmations.trash
-    if (confirmTrash && !contextMenu) {
-      setError("当前界面无法打开删除确认框，文件未删除。")
-      return { status: "unavailable" }
-    }
-    const confirmed = !confirmTrash || await contextMenu!.confirm(readerCurrentFileDeleteConfirmation(sourcePath))
-    if (!confirmed) return { status: "cancelled" }
-    const switched = adjacentDirection ? await switchAdjacentBook(adjacentDirection) : false
-    const consumedAction = switched ? adjacentDirection === "next" ? "reader.next-book" : "reader.previous-book" : undefined
-    return deleteCurrentFile(sessionId, sourcePath, consumedAction, switched ? sessionRef.current : undefined)
-  }
-  async function deleteCurrentFile(sessionId: string, sourcePath: string, consumedAction?: ReaderInputAction, replacementSessionId?: string): Promise<ReaderInputActionOutcome> {
-    const execute = clientRef.current.executeFileOperations
-    if (!execute || sessionRef.current !== (replacementSessionId ?? sessionId) || operationRef.current) return { status: "unavailable" }
-    slideshow.stop()
-    const controller = new AbortController()
-    operationRef.current = controller
-    setBusy(true)
-    setError(undefined)
-    let released = Boolean(replacementSessionId)
-    try {
-      if (!replacementSessionId) {
-        await clientRef.current.close(sessionId)
-        released = true
-        controller.signal.throwIfAborted()
-        if (sessionRef.current !== sessionId) return { status: "cancelled" }
-        sessionRef.current = undefined
-        setSession(undefined)
-        setSlideshowFadeFrame(undefined)
-        setMagnifierEnabled(false)
-      }
-      const result = await execute([{ kind: "trash", sourcePath }], true, controller.signal)
-      const failed = result.results.find((item) => item.status !== "succeeded")
-      if (result.succeeded !== 1 || failed) {
-        throw new Error(failed?.error ?? failed?.errorCode ?? "移动到回收站失败")
-      }
-      if (!replacementSessionId) {
-        setPath("")
-        activeSourcePathRef.current = ""
-      }
-      switchToast.show({ title: "已移到回收站", description: sourcePath })
-      return { status: "succeeded", ...(consumedAction ? { consumedAction } : {}) }
-    } catch (cause) {
-      if (controller.signal.aborted) return { status: "cancelled" }
-      if (released) {
-        try {
-          if (replacementSessionId && sessionRef.current === replacementSessionId) {
-            await clientRef.current.close(replacementSessionId)
-            sessionRef.current = undefined
-            setSession(undefined)
-          }
-          if (sessionRef.current) throw new Error("Reader session changed during delete recovery.")
-          const reopened = await clientRef.current.open(sourcePath, controller.signal)
-          sessionRef.current = reopened.sessionId
-          setSession(reopened)
-          setPath(sourcePath)
-          activeSourcePathRef.current = sourcePath
-        } catch {
-          // Preserve the original operation error; reopening is best-effort recovery.
-        }
-      }
-      setError(errorMessage(cause))
-      return { status: "failed", error: cause }
-    } finally {
-      if (operationRef.current === controller) operationRef.current = undefined
-      if (!controller.signal.aborted) setBusy(false)
-    }
-  }
-  function requestShellEdgeOpen(edge: ReaderShellEdge, open: boolean) {
+function requestShellEdgeOpen(edge: ReaderShellEdge, open: boolean) {
     const previous = shellControlStore.getSnapshot()
     shellControlStore.requestOpen(edge, open)
     const next = shellControlStore.getSnapshot().edges[edge]
@@ -1694,917 +992,6 @@ export function ReaderApp({
     if (Object.keys(persistent).length > 0) enqueueShellControl(persistent)
   }
 
-  function toggleWorkspaceMode(): void {
-    const current = shellRef.current
-    if (!current) return
-    const workspace = currentReaderWorkspace(current)
-    commitWorkspace({ mode: workspace.mode === "swimlane" ? "edges" : "swimlane" })
-  }
-
-  function focusAdjacentWorkspaceLane(direction: "previous" | "next"): void {
-    const current = shellRef.current
-    if (!current) return
-    const workspace = currentReaderWorkspace(current)
-    const order = workspace.swimlane.laneOrder
-    const index = Math.max(0, order.indexOf(workspace.swimlane.activeLane))
-    const offset = direction === "previous" ? -1 : 1
-    const activeLane = order[(index + offset + order.length) % order.length] ?? "reader"
-    commitWorkspace({ mode: "swimlane", activeLane })
-  }
-
-  function toggleActiveWorkspaceLaneFullscreen(): void {
-    const current = shellRef.current
-    if (!current) return
-    const workspace = currentReaderWorkspace(current)
-    const activeLane = workspace.swimlane.activeLane
-    const currentSoloLane = workspace.swimlane.soloLaneId ?? (workspace.swimlane.readerSolo ? "reader" : undefined)
-    commitWorkspace({ mode: "swimlane", activeLane, soloLaneId: currentSoloLane === activeLane ? null : activeLane })
-  }
-
-  function fitWorkspaceLanes(): void {
-    const current = shellRef.current
-    if (!current) return
-    const workspace = currentReaderWorkspace(current)
-    const viewportWidth = document.querySelector<HTMLElement>('[data-reader-swimlane-viewport="true"]')?.clientWidth ?? window.innerWidth
-    commitWorkspace({ mode: "swimlane", ...fitReaderSwimlanesToViewport(viewportWidth, workspace.swimlane) })
-  }
-
-  function commitWorkspace(patch: ReaderWorkspacePatch): void {
-    const current = shellRef.current
-    if (!current) return
-    const { sessionPatch, persistentPatch } = splitReaderWorkspacePatch(patch, currentReaderWorkspace(current))
-    if (sessionPatch) commitSwimlaneSessionPatch(sessionPatch)
-    if (!persistentPatch) return
-    const optimistic = applyReaderWorkspacePatch(current, persistentPatch)
-    // Skip pure no-ops (e.g. auto-fit re-emitting the same widths). Otherwise
-    // setShell every cycle thrashs the tree into Maximum update depth exceeded.
-    if (workspaceConfigEqual(current, optimistic)) return
-    shellRef.current = optimistic
-    setShell(optimistic)
-    enqueueShellControl({ workspace: persistentPatch }, undefined, current)
-  }
-
-  function currentReaderWorkspace(current: ReaderShellConfigDto): ReaderWorkspaceConfig {
-    return readerWorkspaceWithSession(current, useSwimlaneSessionStore.getState().sessions[swimlaneSessionScopeId])
-  }
-
-  function commitSwimlaneSessionPatch(patch: SwimlaneWorkspaceSessionState): void {
-    patchSwimlaneSession(swimlaneSessionScopeId, patch)
-    if (!Object.hasOwn(patch, "soloLaneId")) return
-    const soloLaneId = patch.soloLaneId ?? null
-    useReaderWorkspaceRestoreStore.getState().patchRestore({ lastSoloLaneId: soloLaneId })
-    onSwimlaneSoloLaneIdCommitted?.(soloLaneId)
-  }
-
-  function applyConfirmedShell(confirmed: ReaderShellConfigDto): void {
-    useReaderWorkspaceRestoreStore.getState().cacheShellSnapshot(confirmed)
-    if (readerShellSnapshotsEqual(shellRef.current, confirmed)) return
-    shellRef.current = confirmed
-    setShell(confirmed)
-  }
-
-  function enqueueShellControl(
-    patch: ReaderShellControlPatch["shellControl"],
-    rollback?: ReaderShellControlSnapshot,
-    workspaceBase?: ReaderShellConfigDto,
-  ) {
-    const generation = ++shellControlGenerationRef.current
-    if (patch.workspace && shellRef.current) {
-      pendingWorkspaceWritesRef.current.push({ generation, patch: patch.workspace, base: workspaceBase ?? shellRef.current })
-    }
-    shellControlWriteQueueRef.current = shellControlWriteQueueRef.current.then(async () => {
-      const update = clientRef.current.updateShellControl
-      if (!update) return
-      const reconcile = (confirmed: ReaderShellConfigDto) => {
-        pendingWorkspaceWritesRef.current = pendingWorkspaceWritesRef.current.filter((entry) => entry.generation !== generation)
-        const displayed = pendingWorkspaceWritesRef.current.reduce(
-          (current, entry) => applyReaderWorkspacePatch(current, entry.patch),
-          confirmed,
-        )
-        useReaderWorkspaceRestoreStore.getState().cacheShellSnapshot(confirmed)
-        shellRef.current = displayed
-        setShell(displayed)
-        if (generation === shellControlGenerationRef.current) shellControlStore.replace(shellControlSnapshot(confirmed))
-      }
-      try {
-        let updated: ReaderShellConfigDto
-        try {
-          updated = await update({ expectedRevision: shellRef.current?.revision ?? 0, shellControl: patch })
-        } catch (cause) {
-          if (!(cause instanceof ReaderHttpError) || cause.status !== 409) throw cause
-          const latest = await clientRef.current.config()
-          updated = await update({ expectedRevision: latest.shell.revision ?? 0, shellControl: patch })
-        }
-        reconcile(updated)
-      } catch (cause) {
-        if (generation === shellControlGenerationRef.current && rollback) shellControlStore.replace(rollback)
-        const failed = pendingWorkspaceWritesRef.current.find((entry) => entry.generation === generation)
-        const latest = await clientRef.current.config().catch(() => undefined)
-        if (failed || latest) reconcile(latest?.shell ?? failed!.base)
-        setError(errorMessage(cause))
-      }
-    })
-  }
-
-  async function commitSidebarLayout(patch: ReaderSidebarLayoutPatch) {
-    const previousControl = shellControlStore.getSnapshot()
-    if (patch.pinned !== undefined) shellControlStore.setPinned(patch.side, patch.pinned)
-    await enqueueShellMutation(async () => {
-      try {
-        const updated = await clientRef.current.updateSidebarLayout(patch)
-        applyConfirmedShell(updated)
-      } catch (cause) {
-        if (patch.pinned !== undefined) shellControlStore.replace(previousControl)
-        setShell((current) => current ? { ...current, sidebars: { ...current.sidebars } } : current)
-        setError(errorMessage(cause))
-      }
-    })
-  }
-
-  async function commitCardLayout(patch: ReaderCardLayoutPatch) {
-    const previous = shell
-    const { cardId, ...changes } = patch
-    if (previous) {
-      const current = previous.cardLayout[cardId]
-      if (current) {
-        const next = { ...current, ...changes }
-        if (changes.height === null) delete next.height
-        setShell({
-          ...previous,
-          cardLayout: { ...previous.cardLayout, [cardId]: next },
-        })
-      }
-    }
-    await enqueueShellMutation(async () => {
-      try {
-        const updated = await clientRef.current.updateCardLayout(patch)
-        applyConfirmedShell(updated)
-      } catch (cause) {
-        setShell(previous)
-        setError(errorMessage(cause))
-      }
-    })
-  }
-
-  async function commitBoardLayout(patch: ReaderBoardLayoutPatch) {
-    await enqueueShellMutation(async () => {
-      const request = { ...patch, expectedRevision: shellRef.current?.revision ?? patch.expectedRevision }
-      try {
-      const updated = await clientRef.current.updateBoardLayout(request)
-      applyConfirmedShell(updated)
-    } catch (cause) {
-      if (cause instanceof ReaderHttpError && cause.status === 409) {
-        const latest = await refreshLatestShell()
-        if (latest) {
-          const updated = await clientRef.current.updateBoardLayout({ ...patch, expectedRevision: latest.revision ?? request.expectedRevision })
-          applyConfirmedShell(updated)
-          return
-        }
-      }
-      setError(errorMessage(cause))
-      throw cause
-      }
-    })
-  }
-
-  async function commitDraggedPanelLayout(nextShell: ReaderShellConfigDto, patch: ReaderBoardLayoutPatch): Promise<void> {
-    const previous = shellRef.current
-    shellRef.current = nextShell
-    setShell(nextShell)
-    await enqueueShellMutation(async () => {
-      const request = { ...patch, expectedRevision: shellRef.current?.revision ?? patch.expectedRevision }
-      try {
-      const updated = await clientRef.current.updateBoardLayout(request)
-      applyConfirmedShell(updated)
-    } catch (cause) {
-      if (cause instanceof ReaderHttpError && cause.status === 409) {
-        const latest = await refreshLatestShell()
-        if (latest) {
-          const updated = await clientRef.current.updateBoardLayout({ ...patch, expectedRevision: latest.revision ?? request.expectedRevision })
-          applyConfirmedShell(updated)
-          return
-        } else if (shellRef.current === nextShell) {
-          shellRef.current = previous
-          setShell(previous)
-        }
-      } else if (shellRef.current === nextShell) {
-        shellRef.current = previous
-        setShell(previous)
-      }
-      setError(errorMessage(cause))
-      throw cause
-      }
-    })
-  }
-
-  async function persistImageProcessing(patch: Partial<ReaderImageProcessingConfigDto>): Promise<ReaderImageProcessingConfigDto> {
-    if (!client.updateImageProcessing) throw new Error("当前 Reader 不支持图像处理配置写入")
-    const updated = await client.updateImageProcessing({ imageProcessing: patch })
-    setImageProcessing(updated)
-    return updated
-  }
-
-  async function persistPreload(patch: Partial<ReaderRuntimeConfigDto["preload"]>): Promise<ReaderRuntimeConfigDto["preload"]> {
-    if (!client.updatePreload) throw new Error("当前 Reader 不支持预读配置写入")
-    const updated = await client.updatePreload({ preload: patch })
-    setPreloadConfig(updated)
-    return updated
-  }
-
-  function enqueueShellMutation(operation: () => Promise<void>): Promise<void> {
-    const queued = shellControlWriteQueueRef.current.then(operation)
-    shellControlWriteQueueRef.current = queued.then(() => undefined, () => undefined)
-    return queued
-  }
-
-  async function refreshLatestShell(): Promise<ReaderShellConfigDto | undefined> {
-    const latest = await clientRef.current.config().catch(() => undefined)
-    if (!latest) return undefined
-    applyConfirmedShell(latest.shell)
-    shellControlStore.hydrate(shellControlHydration(latest.shell))
-    return latest.shell
-  }
-
-  async function commitShellMaterial(material: ReaderShellMaterialPatch): Promise<ReaderShellConfigDto> {
-    const update = clientRef.current.updateShellControl
-    if (!update) throw new Error("Reader shell material config is read-only.")
-    let resolveOperation!: (value: ReaderShellConfigDto) => void
-    let rejectOperation!: (reason?: unknown) => void
-    const result = new Promise<ReaderShellConfigDto>((resolve, reject) => {
-      resolveOperation = resolve
-      rejectOperation = reject
-    })
-    shellControlWriteQueueRef.current = shellControlWriteQueueRef.current.then(async () => {
-      try {
-        const updated = await update({
-          expectedRevision: shellRef.current?.revision ?? 0,
-          shellControl: { material },
-        })
-        applyConfirmedShell(updated)
-        resolveOperation(updated)
-      } catch (cause) {
-        if (cause instanceof ReaderHttpError && cause.status === 409) {
-          const latest = await clientRef.current.config().catch(() => undefined)
-          if (latest) {
-            applyConfirmedShell(latest.shell)
-            shellControlStore.hydrate(shellControlHydration(latest.shell))
-          }
-        }
-        setError(errorMessage(cause))
-        rejectOperation(cause)
-      }
-    })
-    return result
-  }
-
-  async function choose(source: "file" | "directory") {
-    const selected = source === "file" ? await pickFile?.() : await pickDirectory?.()
-    if (selected) {
-      setPath(selected)
-      await openPath(selected)
-    }
-  }
-
-  const compact = surface.mode === "collapsed" || surface.mode === "compact" || surface.mode === "portrait"
-  const frame = session?.frame
-  const pathSegments = readerPathSegments(path)
-  const workspace = shell ? readerWorkspaceWithSession(shell, swimlaneSession) : undefined
-  // Bootstrap with the complete swimlane shell so a failed config request
-  // cannot strand the compiled app on the workspace loading screen.
-  const workspaceMode = workspace?.mode
-  const workspaceLayoutPending = workspaceMode === undefined
-  const readerOwnsSoloViewport = workspace?.swimlane.soloLaneId === "reader"
-    || workspace?.swimlane.readerSolo === true
-
-  // First paint only the swimlane chrome + reader canvas. Mounting both sidebars
-  // (and every docked card inside them) on the same frame as setShell freezes the UI.
-  //
-  // Deps must stay mode/shell-presence only:
-  // - including shell object re-tore sidebars after openPath
-  // - including swimlaneSidebarsReady re-ran cleanup when left became ready and
-  //   cleared the right-side timeout, so the right rail never mounted
-  const shellPresent = Boolean(shell)
-  useEffect(() => {
-    if (workspaceMode !== "swimlane" || !shellPresent || !readerChromeReady) {
-      setSwimlaneSidebarsReady(false)
-      setSwimlaneRightSidebarReady(false)
-      return
-    }
-
-    let cancelled = false
-    let outerRaf = 0
-    let innerRaf = 0
-    let idleHandle: number | undefined
-    let timeoutHandle: number | undefined
-    let rightTimeout: number | undefined
-    const startedAt = performance.now()
-    neoviewDebug("reader:swimlane-shell:schedule-sidebars", { sessionScopeId })
-    outerRaf = requestAnimationFrame(() => {
-      innerRaf = requestAnimationFrame(() => {
-        if (cancelled) return
-        neoviewDebug("reader:swimlane-shell:first-paint", {
-          sessionScopeId,
-          sinceScheduleMs: Math.round((performance.now() - startedAt) * 10) / 10,
-        })
-        const revealLeft = () => {
-          if (cancelled) return
-          neoviewDebug("reader:swimlane-sidebars:left-ready", {
-            sessionScopeId,
-            sinceScheduleMs: Math.round((performance.now() - startedAt) * 10) / 10,
-          })
-          setSwimlaneSidebarsReady(true)
-          rightTimeout = window.setTimeout(() => {
-            if (cancelled) return
-            neoviewDebug("reader:swimlane-sidebars:right-ready", {
-              sessionScopeId,
-              sinceScheduleMs: Math.round((performance.now() - startedAt) * 10) / 10,
-            })
-            setSwimlaneRightSidebarReady(true)
-          }, 120)
-        }
-        if (typeof requestIdleCallback === "function") {
-          idleHandle = requestIdleCallback(revealLeft, { timeout: 400 })
-        } else {
-          timeoutHandle = window.setTimeout(revealLeft, 50)
-        }
-      })
-    })
-    return () => {
-      cancelled = true
-      cancelAnimationFrame(outerRaf)
-      cancelAnimationFrame(innerRaf)
-      if (idleHandle !== undefined && typeof cancelIdleCallback === "function") cancelIdleCallback(idleHandle)
-      if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle)
-      if (rightTimeout !== undefined) window.clearTimeout(rightTimeout)
-    }
-  }, [readerChromeReady, sessionScopeId, shellPresent, workspaceMode])
-  const toggleReaderViewFullscreen = () => {
-    const next = !readerViewFullscreen
-    setReaderViewFullscreen(next)
-    useReaderWorkspaceRestoreStore.getState().patchRestore({ readerViewFullscreen: next })
-    onReaderViewFullscreenCommitted?.(next)
-    commitWorkspace(next
-      ? { activeLane: "reader", readerSolo: true, soloLaneId: "reader", lanes: { reader: { collapsed: false } } }
-      : { readerSolo: false, soloLaneId: null })
-  }
-  const readerTopbarLeadingControls = (
-    <ReaderWindowBar
-      control={shellControl}
-      disabled={!shell}
-      mode={workspaceMode}
-      onModeChange={(mode) => commitWorkspace({ mode })}
-      onOpenSettings={() => setSettingsOpen(true)}
-      part="leading"
-    />
-  )
-  const readerTopbarTrailingControls = (
-    <ReaderWindowBar
-      control={shellControl}
-      disabled={!shell}
-      mode={workspaceMode}
-      readerViewFullscreen={readerViewFullscreen}
-      onModeChange={(mode) => commitWorkspace({ mode })}
-      onReaderViewFullscreenChange={toggleReaderViewFullscreen}
-      onOpenSettings={() => setSettingsOpen(true)}
-      windowControls={workspaceMode === "edges" || readerOwnsSoloViewport ? <FloatingWindowCaptionControls integrated /> : undefined}
-      part="trailing"
-    />
-  )
-  useReaderAdjacentPagePreloader({
-    client,
-    sessionId: session?.sessionId,
-    activePageIndex: frame?.anchorPageIndex,
-    totalPages: session?.book.pageCount,
-    plan: session?.preload,
-    // Wait until the visible frame is allowed to mount — adjacent preload on the
-    // same turn as setSession was part of the full-window freeze after open.
-    enabled: browserPredecodeEnabled && readerFrameAllowed && speculativePreloadAllowed && (
-      !session
-      || cancelledPreloadFrame?.sessionId !== session.sessionId
-      || cancelledPreloadFrame.generation !== session.frame.generation
-    ),
-    preload: prefetchController.preload,
-    cancel: prefetchController.cancel,
-  })
-  const topEdge: ReaderControlledEdgeSlot = {
-    ariaLabel: "NeoView 顶部工具栏",
-    triggerSize: shell?.edges.top.triggerSize,
-    triggerRect: workspace?.swimlane.edgeRevealZones.top,
-    showDelayMs: shell?.showDelayMs,
-    hideDelayMs: shell?.hideDelayMs,
-    render: () => (
-      <div
-        className="border-b border-border/55 bg-background/94 text-foreground shadow-[0_10px_30px_rgb(0_0_0/0.22)] backdrop-blur-xl"
-        data-reader-edge-chrome="top"
-        style={edgeSurfaceStyle(shell, "top")}
-      >
-        <div
-          className={cn("xiranite-app-region-drag min-h-11 select-none border-b border-border/45", compact ? "pl-1" : "pl-2")}
-          data-reader-breadcrumb-bar="true"
-          onDoubleClick={floatingFrame?.handleTitlebarDoubleClick}
-        >
-          {/* Idle and reading share the same three-column chrome; only the
-              session-specific affordances (close/reopen, page index) change. */}
-          <div className="grid min-h-11 grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)] items-center gap-1.5">
-            <div className="xiranite-app-region-no-drag flex min-w-0 items-center justify-self-start">
-              {session ? (
-                <Button className="border border-transparent bg-transparent text-foreground/80 shadow-none" aria-label="关闭书籍" type="button" size="icon-sm" variant="ghost" onClick={() => void closeSession()}><X /></Button>
-              ) : path.trim() && readerChromeReady ? (
-                <Button
-                  className="border border-transparent bg-transparent text-foreground/80 shadow-none"
-                  aria-label="打开书籍"
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => void openPath()}
-                >
-                  {busy ? <LoaderCircle className="animate-spin" /> : <BookOpen />}
-                </Button>
-              ) : null}
-              {readerTopbarLeadingControls}
-            </div>
-            <nav
-              className="flex min-w-0 items-center justify-center gap-1 overflow-hidden text-center"
-              aria-label={session ? "当前书籍路径" : pathSegments.length ? "最近书籍路径" : "NeoView"}
-              data-reader-breadcrumb-path="true"
-            >
-              {pathSegments.length ? pathSegments.map((segment, index) => (
-                <span className="contents" key={`${segment}-${index}`}>
-                  {index > 0 ? <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/65" aria-hidden="true" /> : null}
-                  <span className={cn("truncate text-xs", index === pathSegments.length - 1 ? "font-medium text-foreground" : "text-muted-foreground")}>{segment}</span>
-                </span>
-              )) : (
-                <span className="truncate text-xs text-muted-foreground">NeoView</span>
-              )}
-            </nav>
-            <div className="xiranite-app-region-no-drag flex min-w-0 items-stretch justify-self-end">
-              {session ? (
-                <span className="hidden shrink-0 items-center px-1.5 text-[11px] tabular-nums text-muted-foreground lg:flex">{(frame?.anchorPageIndex ?? 0) + 1} / {session.book.pageCount}</span>
-              ) : null}
-              {readerTopbarTrailingControls}
-            </div>
-          </div>
-        </div>
-        {session ? (
-          <Suspense fallback={null}>
-            <LazyReaderViewToolbar
-              disabled={busy}
-              layout={frame?.layout ?? session.frame.layout}
-              direction={frame?.direction ?? session.frame.direction}
-              presentation={presentation}
-              onChange={updatePresentation}
-              onLayoutChange={(layout) => void updateSessionLayout(layout)}
-              onDirectionChange={(direction) => void updateReadingDirection(direction)}
-              lockedReadingDirection={bookDefaults.lockedReadingDirection}
-              onDirectionLockChange={(direction) => void updateReadingDirectionLock(direction)}
-              pageOrder={session.pageOrder ?? { sortMode: "fileName", mediaPriority: "none" }}
-              lockedSortMode={bookDefaults.lockedSortMode}
-              lockedMediaPriority={bookDefaults.lockedMediaPriority}
-              onPageOrderChange={updateCurrentPageOrder}
-              onPageOrderLockChange={updatePageOrderLocks}
-              hoverScrollEnabled={viewDefaults.hoverScrollEnabled ?? true}
-              hoverScrollSpeed={viewDefaults.hoverScrollSpeed ?? 2}
-              onHoverScrollChange={(patch) => persistViewDefaults({
-                ...(patch.enabled === undefined ? {} : { hoverScrollEnabled: patch.enabled }),
-                ...(patch.speed === undefined ? {} : { hoverScrollSpeed: patch.speed }),
-              })}
-              magnifierEnabled={magnifierEnabled}
-              magnifierZoom={viewDefaults.magnifierZoom ?? 2}
-              magnifierSize={viewDefaults.magnifierSize ?? 200}
-              onMagnifierEnabledChange={setMagnifierEnabled}
-              onMagnifierConfigChange={(patch) => persistViewDefaults({
-                ...(patch.zoom === undefined ? {} : { magnifierZoom: patch.zoom }),
-                ...(patch.size === undefined ? {} : { magnifierSize: patch.size }),
-              })}
-              slideshow={slideshow}
-              onSlideshowChange={persistSlideshow}
-            
-            />
-          </Suspense>
-        ) : null}
-        {error ? <div role="alert" className="border-t border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div> : null}
-      </div>
-    ),
-  }
-
-  const bottomEdge: ReaderControlledEdgeSlot | undefined = shell?.edges.bottom.enabled ? {
-    ariaLabel: "NeoView 底部缩略图与导航栏",
-    triggerSize: shell?.edges.bottom.triggerSize,
-    triggerRect: workspace?.swimlane.edgeRevealZones.bottom,
-    showDelayMs: shell?.showDelayMs,
-    hideDelayMs: shell?.hideDelayMs,
-    render: () => (
-      <div
-        className="min-w-0 max-w-full overflow-x-hidden border-t border-border/55 bg-background/94 shadow-[0_-12px_30px_rgb(0_0_0/0.24)] backdrop-blur-xl"
-        data-reader-edge-chrome="bottom"
-        style={edgeSurfaceStyle(shell, "bottom")}
-      >
-        {session ? (
-          <ThumbnailStrip
-            sessionId={session.sessionId}
-            totalPages={session.book.pageCount}
-            activePageIndex={session.frame.anchorPageIndex}
-            direction={session.frame.direction}
-            currentPages={session.visiblePages}
-            client={client}
-            compact={compact}
-            disabled={busy}
-            pinned={shell.edges.bottom.pinned}
-            onPinnedChange={(pinned) => shellControl.setPinned("bottom", pinned)}
-            viewerToggles={viewerToggles}
-            onSelect={goTo}
-          />
-        ) : (
-          <div className="flex min-h-10 items-center justify-center gap-2 px-2 py-1" data-reader-bottom-bar="true" data-reader-bottom-empty="true">
-            <Button type="button" size="sm" variant={shell.edges.bottom.pinned ? "default" : "ghost"} aria-label={shell.edges.bottom.pinned ? "取消钉住底栏" : "钉住底栏"} aria-pressed={shell.edges.bottom.pinned} onClick={() => shellControl.setPinned("bottom", !shell.edges.bottom.pinned)}>
-              {shell.edges.bottom.pinned ? <Pin /> : <PinOff />}<span className="text-xs">{shell.edges.bottom.pinned ? "已钉住" : "钉住"}</span>
-            </Button>
-            <span className="text-xs text-muted-foreground">未打开书籍</span>
-          </div>
-        )}
-      </div>
-    ),
-  } : undefined
-
-  const panelContext = {
-    client,
-    disabled: busy,
-    onGoTo: goTo,
-    onBookSettingsUpdated: applyBookSettingsUpdate,
-    onInputAction: executeInputAction,
-    bookmarkListPreferences,
-    onBookmarkListPreferences: persistBookmarkListPreferences,
-    historyListPreferences,
-    onHistoryListPreferences: persistHistoryListPreferences,
-    pageListPreferences,
-    onPageListPreferences: persistPageListPreferences,
-    onPageModeChange: updateCurrentBookPageMode,
-    onReadingDirectionChange: updateCurrentBookReadingDirection,
-    onPreloadAction: runPreloadAction,
-    sourcePath: path,
-    browserOriginPath,
-    pickDirectory,
-    pickEfuFile,
-    systemActions: {
-      copyText,
-      copyFiles,
-      revealPath: client.revealSystemPath,
-    },
-    onOpen: openPath,
-    onBrowsePath: browsePath,
-    onPrepareFileMutation: prepareFileMutation,
-    onActivateInFolderCard: activateInFolderCard,
-    onOpenInNewTab: openFolderPathInNewTab,
-    folderNavigationEvents,
-    shell,
-    shellControl,
-    colorFilter,
-    pageTransition,
-    switchToast,
-    infoOverlay,
-    imageTrim,
-    media,
-    onMediaChange: persistAnimatedVideoMode,
-    imageProcessing,
-    onImageProcessingChange: persistImageProcessing,
-    preload: preloadConfig,
-    onPreload: persistPreload,
-    slideshow: slideshowConfig,
-    onSlideshow: persistSlideshow,
-    inputBindings,
-    onInputBindings: persistInputBindings,
-    radialMenu,
-    onRadialMenu: persistRadialMenu,
-    voiceControl,
-    onVoiceControl: persistVoiceControl,
-    onMaterial: commitShellMaterial,
-    onLegacySettingsInspect: inspectLegacySettings,
-    onLegacySettingsImport: importLegacySettings,
-    superResolution,
-    onSuperResolutionChange: persistSuperResolution,
-    onSuperResolutionConfigChange: persistSuperResolutionConfig,
-    onSidebarLayout: commitSidebarLayout,
-    onBoardLayout: commitBoardLayout,
-    viewDefaults,
-    onViewDefaults: applyConfiguredViewDefaults,
-    folderView,
-    onFolderView: persistFolderView,
-    presentation,
-    ...(session ? { session } : {}),
-  }
-  const leftEdge: ReaderControlledEdgeSlot | undefined = shell && shell.edges.left.enabled ? {
-    ariaLabel: "NeoView 左侧面板",
-    showDelayMs: shell?.showDelayMs ?? 80,
-    hideDelayMs: shell?.hideDelayMs,
-    triggerSize: shell?.edges.left.triggerSize,
-    preload: () => void loadReaderSidebar(),
-    render: (active) => (
-      <Suspense fallback={<div className="h-full w-80 animate-pulse border-r border-border/70 bg-background/85" aria-label="正在加载左侧面板" />}>
-        <LazyReaderSidebar side="left" context={panelContext} shell={shell} active={active} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} onCardLayoutCommit={(patch) => void commitCardLayout(patch)} />
-      </Suspense>
-    ),
-  } : undefined
-  const rightEdge: ReaderControlledEdgeSlot | undefined = shell && shell.edges.right.enabled ? {
-    ariaLabel: "NeoView 右侧面板",
-    showDelayMs: shell?.showDelayMs ?? 80,
-    hideDelayMs: shell?.hideDelayMs,
-    triggerSize: shell?.edges.right.triggerSize,
-    preload: () => void loadReaderSidebar(),
-    render: (active) => (
-      <Suspense fallback={<div className="h-full w-80 animate-pulse border-l border-border/70 bg-background/85" aria-label="正在加载右侧面板" />}>
-        <LazyReaderSidebar side="right" context={panelContext} shell={shell} active={active} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} onCardLayoutCommit={(patch) => void commitCardLayout(patch)} />
-      </Suspense>
-    ),
-  } : undefined
-  const readerCanvas = (
-    <div
-      ref={readerInteractionRef}
-      className="relative h-full min-h-0 overflow-hidden"
-      style={{ backgroundColor: (viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background).mode === "solid" ? (viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background).color : "#000000" }}
-      data-reader-interaction-scope="true"
-      data-input-context="reader"
-      onPointerDown={handleInputPointerDown}
-      onPointerUp={inputRouter.onPointerUp}
-      onContextMenu={(event) => { if (radialMenuRequest) event.preventDefault() }}
-    >
-      {(viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background).mode !== "solid" && readerFrameAllowed ? (
-        <Suspense fallback={null}>
-          <LazyReaderBackgroundLayer
-            config={viewDefaults.background ?? INITIAL_VIEW_DEFAULTS.background}
-            imageSrc={session?.visiblePages.find((page) => page.mediaKind === "image")?.assetUrl}
-          />
-        </Suspense>
-      ) : null}
-      {radialMenuRequest ? <Suspense fallback={null}><LazyReaderRadialMenuOverlay config={radialMenu} request={radialMenuRequest} onClose={() => setRadialMenuRequest(undefined)} onSelect={({ menuId, itemId, legacyAction }) => { if (!inputRouter.dispatch({ device: "radial", menuId, itemId }, null) && legacyAction) void executeInputAction(legacyAction) }} /></Suspense> : null}
-      {!session ? (
-        <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55">
-          <div>
-            <BookOpen className="mx-auto mb-3 size-8 opacity-60" />
-            <p>从文件夹、历史记录或播放列表打开漫画</p>
-          </div>
-        </div>
-      ) : !readerFrameAllowed ? (
-        <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55" data-reader-frame-deferred="true">
-          <div>
-            <LoaderCircle className="mx-auto mb-3 size-8 animate-spin opacity-70" />
-            <p>正在准备页面…</p>
-          </div>
-        </div>
-      ) : (
-        <Suspense fallback={
-          <div className="grid h-full place-items-center p-6 text-center text-sm text-white/55" data-reader-frame-loading="true">
-            <LoaderCircle className="mx-auto size-8 animate-spin opacity-70" />
-          </div>
-        }>
-          <LazyReaderFrame
-            pages={session.visiblePages}
-            framePages={session.frame.pages}
-            presentation={presentation}
-            panorama={session.frame.layout.panorama}
-            pageMode={session.frame.layout.pageMode}
-            doublePageGap={viewDefaults.doublePageGap ?? 0}
-            direction={session.frame.direction}
-            totalPages={session.book.pageCount}
-            anchorPageIndex={session.frame.anchorPageIndex}
-            preloadGeneration={session.preload?.generation}
-            hoverScrollEnabled={viewDefaults.hoverScrollEnabled ?? true}
-            hoverScrollSpeed={viewDefaults.hoverScrollSpeed ?? 2}
-            magnifierEnabled={magnifierEnabled}
-            magnifierZoom={viewDefaults.magnifierZoom ?? 2}
-            magnifierSize={viewDefaults.magnifierSize ?? 200}
-            colorFilter={colorFilter}
-            pageTransition={pageTransition}
-            slideshowFade={slideshowFadeFrame === `${session.sessionId}:${session.frame.generation}`}
-            videoController={videoController}
-            sessionId={session.sessionId}
-            client={client}
-            media={media}
-            superResolution={superResolution}
-            speculativePreloadAllowed={speculativePreloadAllowed}
-            viewerToggles={viewerToggles}
-            onSubtitleConfigChange={persistSubtitleConfig}
-            onVideoControlsPinnedChange={persistVideoControlsPinned}
-            onVisiblePageChange={syncPanoramaVisiblePage}
-            imageTrim={imageTrim}
-            onVideoListEnded={() => void navigate("next")}
-          />
-        </Suspense>
-      )}
-      {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}
-      {workspaceMode === "edges" && shell ? <DeferredSidebarFloatingController control={shellControl} shell={shell} disabled={busy} /> : null}
-    </div>
-  )
-
-  return (
-    <div
-      ref={surface.ref}
-      data-reader-app="true"
-      data-input-context="reader"
-      data-context-menu-stop=""
-      className="relative flex h-full min-h-0 w-full min-w-0 max-w-full touch-none flex-col overflow-hidden overscroll-none bg-background text-foreground outline-none [contain:layout_paint]"
-      tabIndex={0}
-    >
-      <Suspense fallback={null}>
-        <LazyReaderGestureInputRuntime config={inputBindings} disabled={busy} target={readerInteractionRef} claimPointer={inputRouter.claimPointer} dispatch={inputRouter.dispatch} />
-      </Suspense>
-      <Suspense fallback={null}>
-        <LazyReaderSwitchToastRuntime port={switchToast} session={session} sourcePath={path} />
-      </Suspense>
-      <Suspense fallback={null}>
-        <LazyReaderInfoOverlayRuntime port={infoOverlay} session={session} sourcePath={path} />
-      </Suspense>
-      <FloatingWindowTitlebarReservation />
-      {workspaceLayoutPending ? (
-        <div className="grid min-h-0 flex-1 place-items-center bg-background" data-neoview-workspace-mode="pending" data-reader-workspace-loading="true">
-          <LoaderCircle className="size-5 animate-spin text-muted-foreground" aria-label="正在恢复阅读器布局" />
-        </div>
-      ) : (
-      <div className="min-h-0 flex-1 overflow-hidden" data-neoview-workspace-mode={workspaceMode}>
-        <ReaderPanelDndProvider shell={shell} onMove={commitDraggedPanelLayout}>
-          {workspaceMode === "swimlane" && shell && workspace ? (
-            <ReaderSwimlaneErrorBoundary resetKey={`${workspaceMode}:${shell.revision ?? 0}`} onReturnToEdges={() => commitWorkspace({ mode: "edges" })}>
-              <ReaderSwimlaneWorkspace
-                shell={shell}
-                workspace={workspace}
-                disabled={!shell}
-                readerViewFullscreen={readerViewFullscreen}
-                onReaderViewFullscreenChange={toggleReaderViewFullscreen}
-                windowChrome={floatingFrame && !readerOwnsSoloViewport ? {
-                  controls: <FloatingWindowCaptionControls integrated density="compact" />,
-                  onTitlebarDoubleClick: floatingFrame.handleTitlebarDoubleClick,
-                } : undefined}
-                onWorkspaceChange={commitWorkspace}
-                onOpenSettings={() => setSettingsOpen(true)}
-                reader={(
-                  <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, bottom: bottomEdge }}>
-                    {readerCanvas}
-                  </ReaderControlledEdgeShell>
-                )}
-                left={swimlaneSidebarsReady ? (
-                  <Suspense fallback={<div className="h-full w-full animate-pulse bg-background/85" aria-label="正在加载左侧泳道" data-sidebar-deferred="left-loading" />}>
-                    <LazyReaderSidebar
-                      side="left"
-                      presentation="lane"
-                      context={panelContext}
-                      shell={shell}
-                      selectedPanelId={workspace.swimlane.lanes.left.activePanelId}
-                      onSelectedPanelChange={(activePanelId) => commitWorkspace({ lanes: { left: { activePanelId } } })}
-                      onPanelBarChange={(patch) => commitWorkspace({ lanes: { left: patch } })}
-                      onCardLayoutCommit={(patch) => void commitCardLayout(patch)}
-                    />
-                  </Suspense>
-                ) : (
-                  <div className="h-full w-full animate-pulse bg-background/70" aria-label="左侧泳道待加载" data-sidebar-deferred="left" />
-                )}
-                right={swimlaneRightSidebarReady ? (
-                  <Suspense fallback={<div className="h-full w-full animate-pulse bg-background/85" aria-label="正在加载右侧泳道" data-sidebar-deferred="right-loading" />}>
-                    <LazyReaderSidebar
-                      side="right"
-                      presentation="lane"
-                      context={panelContext}
-                      shell={shell}
-                      selectedPanelId={workspace.swimlane.lanes.right.activePanelId}
-                      onSelectedPanelChange={(activePanelId) => commitWorkspace({ lanes: { right: { activePanelId } } })}
-                      onPanelBarChange={(patch) => commitWorkspace({ lanes: { right: patch } })}
-                      onCardLayoutCommit={(patch) => void commitCardLayout(patch)}
-                    />
-                  </Suspense>
-                ) : (
-                  <div className="h-full w-full animate-pulse bg-background/70" aria-label="右侧泳道待加载" data-sidebar-deferred="right" />
-                )}
-              />
-            </ReaderSwimlaneErrorBoundary>
-          ) : (
-            <ReaderControlledEdgeShell store={shellControlStore} edges={{ top: topEdge, right: rightEdge, bottom: bottomEdge, left: leftEdge }}>
-              {readerCanvas}
-            </ReaderControlledEdgeShell>
-          )}
-        </ReaderPanelDndProvider>
-      </div>
-      )}
-      {settingsOpen && shell ? (
-        <Suspense fallback={null}>
-          <LazyReaderSettingsWindow
-            portalContainer={surface.ref.current}
-            shell={shell}
-            viewDefaults={viewDefaults}
-            slideshow={slideshowConfig}
-            media={media}
-            imageProcessing={imageProcessing}
-            preload={preloadConfig}
-            inputBindings={inputBindings}
-            radialMenu={radialMenu}
-            onClose={() => setSettingsOpen(false)}
-            onBoardLayout={commitBoardLayout}
-            onViewDefaults={applyConfiguredViewDefaults}
-            onSlideshow={persistSlideshow}
-            onMedia={persistAnimatedVideoMode}
-            onImageProcessing={persistImageProcessing}
-            onPreload={persistPreload}
-            onInputBindings={persistInputBindings}
-            onRadialMenu={persistRadialMenu}
-            onLegacySettingsInspect={inspectLegacySettings}
-            onLegacySettingsImport={importLegacySettings}
-            onMaterial={commitShellMaterial}
-            onWorkspace={commitWorkspace}
-          />
-        </Suspense>
-      ) : null}
-    </div>
-  )
-}
-
-function DeferredSidebarFloatingController({ control, shell, disabled }: { control: ReaderShellControlPort; shell: ReaderShellConfigDto; disabled: boolean }) {
-  const enabled = useSyncExternalStore(
-    control.store.subscribe,
-    () => control.store.getSnapshot().floating.enabled,
-    () => control.store.getSnapshot().floating.enabled,
-  )
-  return enabled ? (
-    <Suspense fallback={null}>
-      <LazySidebarFloatingController control={control} disabled={disabled} materialStyle={readerShellMaterialStyle(readerShellMaterialDraft(shell), "sidebar")} />
-    </Suspense>
-  ) : null
-}
-
-function shellControlHydration(shell: ReaderShellConfigDto): ReaderShellControlHydration {
-  return {
-    edges: Object.fromEntries((Object.keys(shell.edges) as ReaderShellEdge[]).map((edge) => [edge, {
-      open: shell.edges[edge].initialVisible,
-      pinned: shell.edges[edge].pinned,
-      lockMode: shell.edges[edge].lockMode ?? "auto",
-    }])) as ReaderShellControlHydration["edges"],
-    floating: shell.floatingControl ?? { enabled: true, position: { x: 100, y: 100 } },
-  }
-}
-
-function shellControlSnapshot(shell: ReaderShellConfigDto): ReaderShellControlSnapshot {
-  return shellControlHydration(shell) as ReaderShellControlSnapshot
-}
-
-function defaultShellControlSnapshot(): ReaderShellControlSnapshot {
-  return {
-    edges: {
-      top: { open: true, pinned: false, lockMode: "auto" },
-      right: { open: false, pinned: false, lockMode: "auto" },
-      bottom: { open: false, pinned: false, lockMode: "auto" },
-      left: { open: true, pinned: true, lockMode: "auto" },
-    },
-    floating: { enabled: true, position: { x: 100, y: 100 } },
-  }
-}
-
-function edgeSurfaceStyle(shell: ReaderShellConfigDto | undefined, edge: "top" | "bottom"): React.CSSProperties | undefined {
-  if (!shell) return undefined
-  return readerShellMaterialStyle(readerShellMaterialDraft(shell), edge)
-}
-
-function readerPathSegments(path: string): string[] {
-  const segments = path.split(/[\\/]+/).filter(Boolean)
-  return segments.length ? segments : ["未选择"]
-}
-
-export function fileMutationContainsSource(targetPath: string, sourcePath: string): boolean {
-  const target = normalizeFileMutationPath(targetPath)
-  const source = normalizeFileMutationPath(sourcePath)
-  return Boolean(target && source && (target === source || source.startsWith(`${target}/`)))
-}
-
-function normalizeFileMutationPath(path: string): string {
-  const normalized = path.trim().replaceAll("\\", "/").replace(/\/+$/u, "")
-  return /^[a-z]:\//iu.test(normalized) || normalized.startsWith("//")
-    ? normalized.toLocaleLowerCase()
-    : normalized
-}
-
-function applyNavigation(session: ReaderSessionDto, navigation: ReaderNavigationDto): ReaderSessionDto {
-  return {
-    ...session,
-    frame: navigation.frame,
-    visiblePages: navigation.visiblePages,
-    pageOrder: navigation.pageOrder ?? session.pageOrder,
-    preload: navigation.preload ?? session.preload,
-  }
-}
-
-function waitForReaderOperationIdle(signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const finish = () => {
-      signal.removeEventListener("abort", abort)
-      resolve()
-    }
-    const abort = () => {
-      clearTimeout(timer)
-      signal.removeEventListener("abort", abort)
-      reject(signal.reason ?? new DOMException("The operation was aborted", "AbortError"))
-    }
-    const timer = setTimeout(finish, 25)
-    signal.addEventListener("abort", abort, { once: true })
-    if (signal.aborted) abort()
-  })
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  Object.assign(actionContext, { inputRouter, handleInputPointerDown })
+  return <ReaderAppView context={actionContext} />
 }

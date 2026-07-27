@@ -16,6 +16,14 @@ hover_scroll_speed = 2.0
 zoom = 2.0
 size = 200
 
+[nodes.neoview.view.mouse_cursor]
+auto_hide = true
+hide_delay = 0.8
+show_movement_threshold = 26
+show_on_button_click = false
+show_on_key_down = false
+show_on_wheel = false
+
 [nodes.neoview.reader.subtitle]
 font_size = 24
 color = "#ffffff"
