@@ -668,3 +668,7 @@ The 12.0 program is complete when:
 - Four-mode image comparison is implemented and tested independently from the core upgrade.
 - Windows native, embedded asset, staged node app, and Wails production paths are verified.
 - Performance and artifact measurements show no unapproved regression.
+
+### Final Windows status
+
+Status: complete. The final rendered gate, `bun run test:browser -- src/nodes/czkawka/Component.browser.test.tsx`, passes all 28 scenarios. The two progress-layout mounts run as independent browser tests so React and Radix own normal unmounting; the suite does not manually remove portal DOM nodes between tests. `bun run check:source-size` and `bun run audit:node-architecture` also pass. The native, embedded asset, staged node app, and Wails evidence recorded above remains valid because this closing change modifies only browser-test lifecycle and this plan.

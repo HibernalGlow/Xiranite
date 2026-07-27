@@ -17,24 +17,16 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
 
 afterEach(async () => {
   cleanup()
-  clearDetachedRadixPortals()
   Object.assign(surface, { width: 1440, height: 860, mode: "workspace" })
   await i18n.changeLanguage("zh")
 })
 
-function clearDetachedRadixPortals(): void {
-  document.body.querySelectorAll('[data-slot="dialog-overlay"], [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]').forEach((element) => element.remove())
-  document.body.removeAttribute("data-scroll-locked")
-  document.body.style.pointerEvents = ""
-}
-
-test("renders scan progress in the same title-bar row as search", async () => {
-  await i18n.changeLanguage("en")
-
-  for (const view of [
-    { mode: "workspace", width: 1440 },
-    { mode: "compact", width: 480 },
-  ] as const) {
+for (const view of [
+  { mode: "workspace", width: 1440 },
+  { mode: "compact", width: 480 },
+] as const) {
+  test(`renders scan progress in the same title-bar row as search in ${view.mode} mode`, async () => {
+    await i18n.changeLanguage("en")
     Object.assign(surface, { width: view.width, height: 860, mode: view.mode })
     const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", progress: 37, progressText: "Hashing files" })
 
@@ -49,10 +41,8 @@ test("renders scan progress in the same title-bar row as search", async () => {
     expect(progress?.getAttribute("aria-valuenow")).toBe("37")
     expect(Math.abs(((progressRect?.top ?? 0) + (progressRect?.bottom ?? 0)) / 2 - ((searchRect?.top ?? 0) + (searchRect?.bottom ?? 0)) / 2)).toBeLessThanOrEqual(1)
     await expect.element(page.getByText("Hashing files")).toBeVisible()
-
-    cleanup()
-  }
-})
+  })
+}
 
 test("resets a fixed navigator from the source lane menu in the browser", async () => {
   await i18n.changeLanguage("en")
