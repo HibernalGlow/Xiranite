@@ -6,9 +6,10 @@ export function canExpandPenetratedBranchInline(
 ): boolean {
   const directDirectoryCount = resolution.directDirectoryCount ?? 0
   const directFileCount = resolution.directFileCount ?? 0
+  const directItemCount = directDirectoryCount + directFileCount
   return resolution.status === "branch"
     && penetration.expandBranchesInline
-    && directDirectoryCount >= 2
+    && directItemCount >= 2
     && (!penetration.inlineBranchLimitsEnabled || (
       directDirectoryCount <= penetration.inlineBranchMaxDirectories
       && directFileCount <= penetration.inlineBranchMaxFiles
