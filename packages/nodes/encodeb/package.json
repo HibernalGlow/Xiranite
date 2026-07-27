@@ -46,6 +46,7 @@
     "@xiranite/cli-runtime": "workspace:*",
     "@xiranite/config": "workspace:*",
     "@xiranite/contract": "workspace:*",
+    "chardet": "^2.2.0",
     "iconv-lite": "^0.7.0"
   },
   "devDependencies": {

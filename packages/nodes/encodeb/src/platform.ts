@@ -1,9 +1,25 @@
 import { execFile } from "node:child_process"
 import { copyFile, lstat, mkdir, readdir, rename } from "node:fs/promises"
 import { basename, dirname, extname, join, resolve } from "node:path"
+import { analyse, type Match } from "chardet"
 import * as iconv from "iconv-lite"
 import type { EncodebEntry, EncodebInput, EncodebMapping, EncodebRuntime, NameTranscoder } from "./core.js"
 import { createEncodebMappings, sortReplaceMappings } from "./core.js"
+
+export type NameEncodingDetector = (bytes: Uint8Array) => readonly Pick<Match, "name" | "confidence">[]
+
+const CHARDET_TARGET_ENCODINGS: Readonly<Record<string, string>> = {
+  Big5: "big5",
+  "EUC-JP": "euc-jp",
+  "EUC-KR": "cp949",
+  GB18030: "cp936",
+  "ISO-2022-JP": "iso-2022-jp",
+  Shift_JIS: "cp932",
+  "UTF-8": "utf8",
+  "windows-1252": "windows-1252",
+}
+
+const MIN_CHARDET_CONFIDENCE = 45
 
 export function createNodeEncodebRuntime(): EncodebRuntime {
   return {
@@ -62,7 +78,7 @@ export const iconvTranscodeName: NameTranscoder = (name, srcEncoding, dstEncodin
   return safelyRecodeName(name, srcEncoding, dstEncoding)
 }
 
-export function autoTranscodeName(name: string): string {
+export function autoTranscodeName(name: string, detectEncodings: NameEncodingDetector = analyse): string {
   const escaped = decodeHashUnicodeEscapes(name)
   if (escaped !== name) return escaped
 
@@ -85,16 +101,15 @@ export function autoTranscodeName(name: string): string {
     if (value !== name && kana >= 2) candidates.push({ value, score: 30 + kana })
   }
 
+  addChardetCandidates(candidates, name, detectEncodings)
+
   return candidates.sort((left, right) => right.score - left.score)[0]?.value ?? name
 }
 
 function safelyRecodeName(name: string, srcEncoding: string, dstEncoding: string): string {
-
   try {
-    const encoded = iconv.encode(name, srcEncoding)
-    // iconv-lite silently substitutes unrepresentable characters. Refuse a
-    // conversion unless the source-side round trip is lossless.
-    if (iconv.decode(encoded, srcEncoding) !== name) return name
+    const encoded = encodeNameLosslessly(name, srcEncoding)
+    if (!encoded) return name
 
     const decoded = decodeBytes(encoded, dstEncoding)
     if (!decoded || replacementCount(decoded) > replacementCount(name) || hasUnsafeControls(decoded)) return name
@@ -102,6 +117,38 @@ function safelyRecodeName(name: string, srcEncoding: string, dstEncoding: string
   } catch {
     return name
   }
+}
+
+function addChardetCandidates(
+  candidates: Array<{ value: string; score: number }>,
+  name: string,
+  detectEncodings: NameEncodingDetector,
+): void {
+  for (const sourceEncoding of chardetSourceEncodings(name)) {
+    const bytes = encodeNameLosslessly(name, sourceEncoding)
+    if (!bytes) continue
+    for (const detection of detectEncodings(bytes)) {
+      if (detection.confidence < MIN_CHARDET_CONFIDENCE) continue
+      const targetEncoding = CHARDET_TARGET_ENCODINGS[detection.name]
+      if (!targetEncoding || targetEncoding === sourceEncoding) continue
+      addAutoCandidate(candidates, name, sourceEncoding, targetEncoding, Math.floor(detection.confidence / 10))
+    }
+  }
+}
+
+function chardetSourceEncodings(name: string): string[] {
+  const sources: string[] = []
+  if (/[ÃÂâã]\S/.test(name)) sources.push("windows-1252")
+  if (hasDosMojibake(name)) sources.push("cp437")
+  if (/[僋儖儞僗僥僼傾偺丄]/.test(name)) sources.push("cp936")
+  return sources
+}
+
+function encodeNameLosslessly(name: string, encoding: string): Buffer | undefined {
+  const encoded = iconv.encode(name, encoding)
+  // iconv-lite silently substitutes unrepresentable characters. A detector
+  // must never receive substituted bytes and promote an unsafe conversion.
+  return iconv.decode(encoded, encoding) === name ? encoded : undefined
 }
 
 function addAutoCandidate(
