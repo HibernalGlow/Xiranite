@@ -144,7 +144,11 @@ describe("Reader media runtime config", () => {
       })
 
       const customPath = join(root, "cover.comicimage")
+      const wbpPath = join(root, "cover.wbp")
+      const novPath = join(root, "clip.nov")
       await writeFile(customPath, Uint8Array.of(1, 2, 3))
+      await writeFile(wbpPath, Uint8Array.of(4, 5, 6))
+      await writeFile(novPath, Uint8Array.of(7, 8, 9))
       const current = await (await request(controller, "GET")).json() as { media: {
         supportedImageFormats: string[]
         videoFormats: string[]
@@ -170,6 +174,26 @@ describe("Reader media runtime config", () => {
       const pages = await readerRequest(controller, `/reader/s/${encodeURIComponent(openedBody.sessionId)}/pages`, "GET")
       expect(await pages.json()).toMatchObject({ pages: [{ name: "cover.comicimage", mimeType: "image/webp" }] })
       await readerRequest(controller, `/reader/s/${encodeURIComponent(openedBody.sessionId)}`, "DELETE")
+
+      const wbpOpened = await readerRequest(controller, "/reader/sessions", "POST", { path: wbpPath })
+      expect(wbpOpened.status).toBe(201)
+      const wbpSession = await wbpOpened.json() as { sessionId: string }
+      const wbpPages = await readerRequest(controller, `/reader/s/${encodeURIComponent(wbpSession.sessionId)}/pages`, "GET")
+      const wbpPage = (await wbpPages.json() as { pages: Array<{ name: string; mediaKind: string; mimeType: string; assetUrl: string }> }).pages[0]!
+      expect(wbpPage).toMatchObject({ name: "cover.wbp", mediaKind: "image", mimeType: "image/webp" })
+      const wbpAsset = await controller.handle(new Request(wbpPage.assetUrl))
+      expect(wbpAsset?.headers.get("content-type")).toBe("image/webp")
+      await readerRequest(controller, `/reader/s/${encodeURIComponent(wbpSession.sessionId)}`, "DELETE")
+
+      const novOpened = await readerRequest(controller, "/reader/sessions", "POST", { path: novPath })
+      expect(novOpened.status).toBe(201)
+      const novSession = await novOpened.json() as { sessionId: string }
+      const novPages = await readerRequest(controller, `/reader/s/${encodeURIComponent(novSession.sessionId)}/pages`, "GET")
+      const novPage = (await novPages.json() as { pages: Array<{ name: string; mediaKind: string; mimeType: string; assetUrl: string }> }).pages[0]!
+      expect(novPage).toMatchObject({ name: "clip.nov", mediaKind: "video", mimeType: "video/mp4" })
+      const novAsset = await controller.handle(new Request(novPage.assetUrl))
+      expect(novAsset?.headers.get("content-type")).toBe("video/mp4")
+      await readerRequest(controller, `/reader/s/${encodeURIComponent(novSession.sessionId)}`, "DELETE")
     } finally {
       await controller[Symbol.asyncDispose]()
     }
