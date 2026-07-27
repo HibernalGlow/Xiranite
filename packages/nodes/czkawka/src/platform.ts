@@ -55,6 +55,7 @@ export function toBasicScanOptions(input: NormalizedInput): BasicScanOptions {
     biggestFirst: input.biggestFirst,
     emptyFilesSearchZeroByteContent: input.emptyFilesSearchZeroByteContent,
     emptyFilesSearchNonPrintableContent: input.emptyFilesSearchNonPrintableContent,
+    temporaryFileExtensions: input.temporaryFileExtensions,
   }
 }
 

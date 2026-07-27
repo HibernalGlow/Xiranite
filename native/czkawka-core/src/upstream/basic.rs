@@ -83,7 +83,7 @@ pub(crate) fn scan_basic_files_controlled(
             Ok(basic_result(&tool, entries))
         }
         BasicTool::TemporaryFiles => {
-            let mut tool = Temporary::new(TemporaryParameters::new());
+            let mut tool = Temporary::new(temporary_parameters(&options));
             configure_tool(&mut tool, &options);
             search_with_control(&mut tool, control);
             let entries = tool
@@ -126,6 +126,18 @@ fn empty_files_parameters(options: &BasicScanOptions) -> EmptyFilesParameters {
     }
 }
 
+fn temporary_parameters(options: &BasicScanOptions) -> TemporaryParameters {
+    let mut parameters = TemporaryParameters::new();
+    if let Some(extensions) = options
+        .temporary_file_extensions
+        .as_ref()
+        .filter(|extensions| !extensions.is_empty())
+    {
+        parameters.extensions = extensions.clone();
+    }
+    parameters
+}
+
 fn configure_tool<T: CommonData>(tool: &mut T, options: &BasicScanOptions) {
     tool.set_included_paths(options.included_directories.clone());
     if !options.reference_directories.is_empty() {
@@ -156,7 +168,7 @@ fn basic_result<T: CommonData>(tool: &T, mut entries: Vec<BasicEntry>) -> BasicS
 
 #[cfg(test)]
 mod tests {
-    use super::empty_files_parameters;
+    use super::{empty_files_parameters, temporary_parameters};
     use crate::{BasicScanOptions, BasicTool};
 
     #[test]
@@ -168,5 +180,16 @@ mod tests {
         let parameters = empty_files_parameters(&options);
         assert!(parameters.search_zero_byte_content_files);
         assert!(parameters.search_non_printable_content_files);
+    }
+
+    #[test]
+    fn maps_custom_temporary_file_extensions_to_the_upstream_parameters() {
+        let mut options = BasicScanOptions::new(BasicTool::TemporaryFiles, Vec::new());
+        options.temporary_file_extensions = Some(vec![".partial".into(), "#".into()]);
+
+        assert_eq!(
+            temporary_parameters(&options).extensions,
+            vec![".partial", "#"]
+        );
     }
 }

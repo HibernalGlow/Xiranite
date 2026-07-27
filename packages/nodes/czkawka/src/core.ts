@@ -1,6 +1,7 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { buildCzkawkaSimilarFolders, type CzkawkaSimilarFolderStat } from "./similar-folders.js"
 import { resolveCzkawkaSimilarVideoCrop } from "./similar-video-crop.js"
+import { isDefaultTemporaryFileExtensions, normalizeTemporaryFileExtensions } from "./temporary-file-extensions.js"
 export type { CzkawkaVideoCropDetect } from "./similar-video-crop.js"
 import type { CzkawkaVideoCropDetect } from "./similar-video-crop.js"
 
@@ -104,6 +105,7 @@ export interface CzkawkaInput {
   brokenMarkup?: boolean
   emptyFilesSearchZeroByteContent?: boolean
   emptyFilesSearchNonPrintableContent?: boolean
+  temporaryFileExtensions?: string
   filterText?: string
   sortBy?: CzkawkaSort
   descending?: boolean
@@ -296,6 +298,7 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInp
     brokenMarkup: input.brokenMarkup ?? false,
     emptyFilesSearchZeroByteContent: input.emptyFilesSearchZeroByteContent ?? false,
     emptyFilesSearchNonPrintableContent: input.emptyFilesSearchNonPrintableContent ?? false,
+    temporaryFileExtensions: normalizeTemporaryFileExtensions(input.temporaryFileExtensions),
     filterText: clean(input.filterText),
     sortBy: input.sortBy ?? "path",
     descending: input.descending ?? false,
@@ -394,6 +397,9 @@ function missingNativeCapabilities(value: CzkawkaNormalizedInput, capabilities: 
   if (value.tool === "empty-files" && (
     value.emptyFilesSearchZeroByteContent || value.emptyFilesSearchNonPrintableContent
   )) required.push("empty-files.content-checkers")
+  if (value.tool === "temporary-files" && !isDefaultTemporaryFileExtensions(value.temporaryFileExtensions)) {
+    required.push("temporary-files.custom-extensions")
+  }
   if (!required.length) return []
   const available = new Set(capabilities ?? [])
   return required.filter((capability) => !available.has(capability))

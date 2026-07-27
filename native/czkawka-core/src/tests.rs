@@ -13,6 +13,7 @@ fn advertises_czkawka_12_media_capabilities() {
     assert!(CAPABILITIES.contains(&"similar-videos.audio"));
     assert!(CAPABILITIES.contains(&"broken-files.multi-checker"));
     assert!(CAPABILITIES.contains(&"empty-files.content-checkers"));
+    assert!(CAPABILITIES.contains(&"temporary-files.custom-extensions"));
 }
 
 #[test]

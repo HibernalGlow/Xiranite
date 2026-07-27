@@ -77,6 +77,16 @@ function SchemaOptionField({ data, definition, patch, language }: CzkawkaView & 
         />
       </Field>
     )
+  if (definition.kind === "text")
+    return (
+      <Field label={label}>
+        <Input
+          aria-label={label}
+          value={String(value)}
+          onChange={(event) => patch({ [definition.id]: event.currentTarget.value } as Partial<CzkawkaCardState>)}
+        />
+      </Field>
+    )
   return (
     <Field label={label}>
       <Select value={String(value)} onValueChange={(next) => patch({ [definition.id]: next } as Partial<CzkawkaCardState>)}>

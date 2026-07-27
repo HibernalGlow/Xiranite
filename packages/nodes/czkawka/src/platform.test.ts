@@ -61,6 +61,14 @@ describe("Czkawka native DTO mapping", () => {
     })
   })
 
+  test("maps Czkawka 12 custom temporary suffixes into the native basic DTO", () => {
+    const input = normalizeCzkawkaInput({ tool: "temporary-files", temporaryFileExtensions: ".xiranite-tmp,#" })
+    expect(toBasicScanOptions(input)).toMatchObject({
+      tool: "temporary-files",
+      temporaryFileExtensions: ".xiranite-tmp,#",
+    })
+  })
+
   test("maps every Czkawka 12 broken-file checker into the native media DTO", () => {
     const input = normalizeCzkawkaInput({
       tool: "broken-files",

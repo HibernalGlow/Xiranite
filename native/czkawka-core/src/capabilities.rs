@@ -19,6 +19,7 @@ pub const CAPABILITIES: &[&str] = &[
     "similar-videos.audio",
     "broken-files.multi-checker",
     "empty-files.content-checkers",
+    "temporary-files.custom-extensions",
     "operation.trash.list",
     "operation.trash.restore",
 ];

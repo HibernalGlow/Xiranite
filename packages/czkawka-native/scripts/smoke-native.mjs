@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { cancelCzkawkaScan, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles } from "../dist/index.js"
 
 const info = getCzkawkaInfo()
-const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio", "broken-files.multi-checker", "empty-files.content-checkers"]
+const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio", "broken-files.multi-checker", "empty-files.content-checkers", "temporary-files.custom-extensions"]
 const missingCapabilities = requiredCapabilities.filter((capability) => !info.capabilities.includes(capability))
 if (info.apiVersion !== 5 || missingCapabilities.length) {
   throw new Error(`Unexpected Czkawka info: ${JSON.stringify(info)}`)
@@ -22,6 +22,7 @@ try {
     writeFile(join(directory, "nul-only.bin"), new Uint8Array([0, 0, 0])),
     writeFile(join(directory, "non-printable.txt"), " \t\r\n"),
     writeFile(join(directory, "printable.txt"), "visible"),
+    writeFile(join(directory, "custom-temporary.xiranite-tmp"), "temporary"),
     writeFile(join(directory, "broken.json"), '{"broken":'),
   ])
   const result = await scanDuplicateFiles({ includedDirectories: [directory], useCache: false })
@@ -54,6 +55,16 @@ try {
     throw new Error(`Non-printable content checker did not report the whitespace-only file: ${JSON.stringify(nonPrintableContent)}`)
   }
   console.log(JSON.stringify({ zeroByteContentFiles: zeroByteContent.entries.length, nonPrintableContentFiles: nonPrintableContent.entries.length }))
+  const temporary = await scanBasicFiles({
+    tool: "temporary-files",
+    includedDirectories: [directory],
+    useCache: false,
+    temporaryFileExtensions: ".xiranite-tmp",
+  })
+  if (!temporary.entries.some((entry) => entry.path.endsWith("custom-temporary.xiranite-tmp"))) {
+    throw new Error(`Custom temporary extension did not report the matching file: ${JSON.stringify(temporary)}`)
+  }
+  console.log(JSON.stringify({ customTemporaryFiles: temporary.entries.length }))
   const media = await scanMediaFiles({
     tool: "bad-extensions",
     includedDirectories: [directory],
