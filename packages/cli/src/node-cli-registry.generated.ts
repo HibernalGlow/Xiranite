@@ -130,12 +130,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     description: "Prepare image folders for Czkawka comparison by scanning, moving siblings, and generating include paths.",
   },
   {
-    id: "lata",
-    packageName: "@xiranite/node-lata",
-    bin: nodeCliName("lata"),
-    description: "List, plan, and execute Taskfile tasks.",
-  },
-  {
     id: "linedup",
     packageName: "@xiranite/node-linedup",
     bin: nodeCliName("linedup"),
@@ -230,12 +224,6 @@ export const GENERATED_NODE_CLI_REGISTRY = [
     packageName: "@xiranite/node-samea",
     bin: nodeCliName("samea"),
     description: "Extract artist metadata from archive names and organize matching archives.",
-  },
-  {
-    id: "scoolp",
-    packageName: "@xiranite/node-scoolp",
-    bin: nodeCliName("scoolp"),
-    description: "Manage Scoop status, packages, bucket sync, and cache cleanup.",
   },
   {
     id: "seriex",

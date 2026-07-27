@@ -2,6 +2,7 @@
 import { access, readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { getDefaultDisabledNodeIds } from "./lib/default-disabled-nodes.js"
 import { readNodeDef, type NodeDefLiteral } from "./lib/read-node-def.js"
 
 interface NodePackageJson {
@@ -67,7 +68,7 @@ console.log(`Generated node registries for ${nodes.length} node package(s).${ski
 
 function resolveNodeFilter(discovered: NodePackage[]): Set<string> {
   const only = parseNodeIds(process.env.XIRANITE_BUILD_ONLY_NODES)
-  const excluded = new Set(parseNodeIds(process.env.XIRANITE_BUILD_EXCLUDE_NODES))
+  const excluded = new Set([...getDefaultDisabledNodeIds(), ...parseNodeIds(process.env.XIRANITE_BUILD_EXCLUDE_NODES)])
   const known = new Set(discovered.map((node) => node.id))
 
   for (const id of [...only, ...excluded]) {
