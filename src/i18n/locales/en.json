@@ -2627,9 +2627,25 @@
         "library": "Library",
         "archiveResults": "Findz archive results",
         "lanes": {
+          "source": "Source",
+          "results": "Results",
+          "analysis": "Analysis",
           "query": "Search and filters",
           "scope": "Library scope",
           "hierarchy": "Archive hierarchy"
+        },
+        "laneActions": {
+          "restoreSource": "Restore Source lane",
+          "collapseSource": "Collapse Source lane",
+          "resizeSource": "Resize Source lane",
+          "restoreResults": "Restore Results lane",
+          "collapseResults": "Collapse Results lane",
+          "resizeResults": "Resize Results lane",
+          "restoreAnalysis": "Restore Analysis lane",
+          "collapseAnalysis": "Collapse Analysis lane",
+          "resizeAnalysis": "Resize Analysis lane",
+          "enterSolo": "Focus current lane",
+          "exitSolo": "Show all lanes"
         },
         "header": {
           "rootLabel": "Findz library root",
@@ -2678,8 +2694,8 @@
           "descending": "descending",
           "scanStates": { "corrupt": "Corrupt archive", "unsupported": "Unsupported archive", "rejected": "Rejected archive" }
         },
-        "treemap": {
-          "title": "Treemap",
+        "treemap": "Treemap",
+        "treemapPanel": {
           "area": "Area",
           "empty": "No indexed archive area for this view.",
           "openArchive": "Open archive {{name}}",

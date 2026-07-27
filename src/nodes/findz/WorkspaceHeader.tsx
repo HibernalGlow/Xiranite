@@ -23,7 +23,6 @@ export function FindzWorkspaceHeader({ root, library, task, busy, onRootChange, 
 }) {
   const { t } = useNodeI18n("findz")
   const taskActive = task && !isTerminal(task)
-  const progress = task ? taskProgressPercent(task) : 0
   return <header className="flex shrink-0 flex-col gap-2 border-b px-3 py-2.5">
     <div className="flex min-w-0 flex-col gap-2 xl:flex-row xl:items-center">
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -45,8 +44,17 @@ export function FindzWorkspaceHeader({ root, library, task, busy, onRootChange, 
       </div>
       {task && <span className="shrink-0 tabular-nums">{t(`workspace.taskKinds.${task.kind}`, task.kind)} · {t(`workspace.taskStatus.${task.status}`, task.status)}</span>}
     </div>
-    {taskActive && <div className="flex items-center gap-2"><Progress value={progress} className="h-1.5 flex-1" /><span className="w-9 text-right text-[11px] tabular-nums text-muted-foreground">{progress}%</span></div>}
   </header>
+}
+
+export function FindzTaskProgressBar({ task }: { task: FindzTask }) {
+  const { t } = useNodeI18n("findz")
+  const progress = taskProgressPercent(task)
+  return <div className="flex shrink-0 items-center gap-3 border-b bg-muted/20 px-3 py-1.5" data-testid="findz-task-progressbar">
+    <span className="shrink-0 text-xs text-muted-foreground">{t(`workspace.taskKinds.${task.kind}`, task.kind)} · {t(`workspace.taskStatus.${task.status}`, task.status)}</span>
+    <Progress value={progress} className="h-1.5 min-w-0 flex-1" />
+    <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">{progress}%</span>
+  </div>
 }
 
 function TaskControls({ task, onPause, onResume, onCancel }: { task: FindzTask; onPause(): void; onResume(): void; onCancel(): void }) {
