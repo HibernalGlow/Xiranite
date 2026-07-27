@@ -16,6 +16,18 @@ import type { ReaderPageTransitionPatch, ReaderPageTransitionSettings } from "@x
 import type { ReaderSwitchToastPatch, ReaderSwitchToastSettings } from "@xiranite/node-neoview/ui-core"
 import type { ReaderInfoOverlayPatch, ReaderInfoOverlaySettings } from "@xiranite/node-neoview/ui-core"
 import type { ReaderImageTrimPatch, ReaderImageTrimSettings } from "@xiranite/node-neoview/ui-core"
+import type {
+  ReaderMediaConfigDto,
+  ReaderMediaPatchDto,
+  ReaderMediaProgressDto,
+} from "./reader-media-http-contract"
+
+export type {
+  ReaderMediaConfigDto,
+  ReaderMediaPatchDto,
+  ReaderMediaProgressDto,
+  ReaderSubtitleConfigDto,
+} from "./reader-media-http-contract"
 
 export interface ReaderPageDto {
   id: string
@@ -1446,44 +1458,6 @@ export interface ReaderUpscaleCacheCleanupDto extends ReaderUpscaleCacheSnapshot
   reason: "age" | "budget" | "book" | "explicit" | "low-disk"
   removedEntries: number
   removedBytes: number
-}
-
-export interface ReaderSubtitleConfigDto {
-  fontSize: number
-  color: string
-  backgroundOpacity: number
-  bottomPercent: number
-}
-
-export interface ReaderMediaConfigDto {
-  supportedImageFormats: readonly string[]
-  videoFormats: readonly string[]
-  mediaMimeTypes: Readonly<Record<string, string>>
-  autoPlayAnimatedImages: boolean
-  animatedVideoEnabled: boolean
-  animatedVideoKeywords: readonly string[]
-  videoControlsPinned: boolean
-  videoMinPlaybackRate: number
-  videoMaxPlaybackRate: number
-  videoPlaybackRateStep: number
-  subtitle: ReaderSubtitleConfigDto
-}
-
-export interface ReaderMediaPatchDto {
-  media: {
-    autoPlayAnimatedImages?: boolean
-    animatedVideoEnabled?: boolean
-    animatedVideoKeywords?: readonly string[]
-    videoControlsPinned?: boolean
-    subtitle?: Partial<ReaderSubtitleConfigDto>
-  }
-}
-
-export interface ReaderMediaProgressDto {
-  position: number
-  duration: number
-  completed: boolean
-  updatedAt: number
 }
 
 export interface ReaderSubtitleTrackDto {

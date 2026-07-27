@@ -7,8 +7,9 @@ import {
 } from "./media.js"
 
 describe("ReaderMediaFormatRegistry", () => {
-  it("[neoview.media.format-registry] preserves the default image, video and NOV aliases", () => {
+  it("[neoview.media.format-registry] preserves the default image, video and disguised-suffix aliases", () => {
     expect(DEFAULT_READER_MEDIA_FORMAT_REGISTRY.resolve("cover.JXL")).toEqual({ kind: "image", mimeType: "image/jxl" })
+    expect(pageMediaType("cover.wbp")).toEqual({ kind: "image", mimeType: "image/webp" })
     expect(pageMediaType("animation.gif")).toEqual({ kind: "animated-image", mimeType: "image/gif" })
     expect(pageMediaType("clip.nov")).toEqual({ kind: "video", mimeType: "video/mp4" })
   })

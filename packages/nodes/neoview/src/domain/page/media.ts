@@ -10,6 +10,7 @@ const IMAGE_MIME_TYPES: Readonly<Record<string, string>> = {
   png: "image/png",
   tif: "image/tiff",
   tiff: "image/tiff",
+  wbp: "image/webp",
   webp: "image/webp",
 }
 

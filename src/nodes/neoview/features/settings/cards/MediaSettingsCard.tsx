@@ -1,9 +1,11 @@
 /**
  * Global media defaults. Runtime-only animated-video refinements stay on the sidebar card.
  */
-import { Image as ImageIcon } from "lucide-react"
+import { Image as ImageIcon, Plus, X } from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react"
 
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import type {
   ReaderImageProcessingConfigDto,
@@ -27,14 +29,16 @@ export function MediaSettingsCard({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string>()
 
-  async function commit(patch: ReaderMediaPatchDto["media"]) {
-    if (saving) return
+  async function commit(patch: ReaderMediaPatchDto["media"]): Promise<boolean> {
+    if (saving) return false
     setSaving(true)
     setError(undefined)
     try {
       await onMedia(patch)
+      return true
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
+      return false
     } finally {
       setSaving(false)
     }
@@ -58,10 +62,7 @@ export function MediaSettingsCard({
           description="启用后 GIF/APNG 可走视频播放器（倍速/循环）。更细的关键词在侧栏卡片。"
           control={<Switch checked={media.animatedVideoEnabled} disabled={saving} onCheckedChange={(value) => void commit({ animatedVideoEnabled: value })} aria-label="动图视频模式" />}
         />
-        <div className="rounded-md border bg-background/60 px-3 py-2 text-xs">
-          <div className="font-medium text-sm">当前图片格式</div>
-          <p className="mt-1 text-muted-foreground">{media.supportedImageFormats.join(", ") || "（空）"}</p>
-        </div>
+        <MediaFormatAliasesSettings media={media} kind="image" disabled={saving} onCommit={commit} />
       </SettingsCardSection>
 
       {imageProcessing && onImageProcessing ? (
@@ -83,11 +84,8 @@ export function MediaSettingsCard({
         />
       ) : null}
 
-      <SettingsCardSection title="视频" description="扩展名与播放速率边界由节点配置驱动，此处只读。">
-        <div className="rounded-md border bg-background/60 px-3 py-2 text-xs">
-          <div className="font-medium text-sm">当前视频格式</div>
-          <p className="mt-1 text-muted-foreground">{media.videoFormats.join(", ") || "（空）"}</p>
-        </div>
+      <SettingsCardSection title="视频" description="为伪装后缀指定实际视频 MIME 类型；新会话会按这里的类型交给播放器打开。">
+        <MediaFormatAliasesSettings media={media} kind="video" disabled={saving} onCommit={commit} />
         <div className="grid gap-2 sm:grid-cols-3">
           <ReadonlyMetric label="最小倍速" value={String(media.videoMinPlaybackRate)} />
           <ReadonlyMetric label="最大倍速" value={String(media.videoMaxPlaybackRate)} />
@@ -153,6 +151,136 @@ export function MediaSettingsCard({
     </SettingsCardShell>
   )
 }
+
+type MediaFormatKind = "image" | "video"
+
+function MediaFormatAliasesSettings({
+  media,
+  kind,
+  disabled,
+  onCommit,
+}: {
+  media: ReaderMediaConfigDto
+  kind: MediaFormatKind
+  disabled: boolean
+  onCommit(patch: ReaderMediaPatchDto["media"]): Promise<boolean>
+}) {
+  const isImage = kind === "image"
+  const formatLabel = isImage ? "图片" : "视频"
+  const formats = isImage ? media.supportedImageFormats : media.videoFormats
+  const otherFormats = isImage ? media.videoFormats : media.supportedImageFormats
+  const [extension, setExtension] = useState("")
+  const [mimeType, setMimeType] = useState(isImage ? "image/webp" : "video/mp4")
+  const [validationError, setValidationError] = useState<string>()
+
+  async function addFormat() {
+    const normalizedExtension = extension.trim().replace(/^\.+/u, "").toLowerCase()
+    const normalizedMimeType = mimeType.trim().toLowerCase()
+    if (!normalizedExtension || !normalizedMimeType) {
+      setValidationError("请填写伪装后缀和实际 MIME 类型。")
+      return
+    }
+    if (!normalizedMimeType.startsWith(`${kind}/`)) {
+      setValidationError(`实际 MIME 类型必须以 ${kind}/ 开头。`)
+      return
+    }
+    if (formats.includes(normalizedExtension)) {
+      setValidationError(`.${normalizedExtension} 已在${formatLabel}格式中。`)
+      return
+    }
+    if (otherFormats.includes(normalizedExtension)) {
+      setValidationError(`.${normalizedExtension} 已属于另一种媒体类型。`)
+      return
+    }
+    setValidationError(undefined)
+    const mediaMimeTypes = { ...media.mediaMimeTypes, [normalizedExtension]: normalizedMimeType }
+    const saved = await onCommit(isImage
+      ? { supportedImageFormats: [...formats, normalizedExtension], mediaMimeTypes }
+      : { videoFormats: [...formats, normalizedExtension], mediaMimeTypes })
+    if (saved) setExtension("")
+  }
+
+  async function removeFormat(extensionToRemove: string) {
+    const mediaMimeTypes: Record<string, string> = { ...media.mediaMimeTypes }
+    delete mediaMimeTypes[extensionToRemove]
+    await onCommit(isImage
+      ? { supportedImageFormats: formats.filter((format) => format !== extensionToRemove), mediaMimeTypes }
+      : { videoFormats: formats.filter((format) => format !== extensionToRemove), mediaMimeTypes })
+  }
+
+  const suggestionId = `${kind}-mime-suggestions`
+  return (
+    <div className="grid gap-2 rounded-md border bg-background/60 p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div className="text-sm font-medium">当前{formatLabel}格式</div>
+        <p className="text-[11px] text-muted-foreground">自定义后缀以指定的真实 MIME 交给阅读器。</p>
+      </div>
+      {formats.length ? (
+        <div className="flex flex-wrap gap-1.5" aria-label={`当前${formatLabel}格式`}>
+          {formats.map((format) => (
+            <div key={format} className="flex h-7 items-center gap-1 rounded-md border bg-card px-1.5 text-xs">
+              <span className="font-mono">.{format}</span>
+              {media.mediaMimeTypes[format] ? <span className="text-muted-foreground">{media.mediaMimeTypes[format]}</span> : <span className="text-muted-foreground">内置映射</span>}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                title={`移除 .${format}`}
+                aria-label={`移除${formatLabel}格式 .${format}`}
+                disabled={disabled}
+                onClick={() => void removeFormat(format)}
+              >
+                <X />
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : <p className="text-xs text-muted-foreground">尚未配置。</p>}
+      <div className="grid gap-2 border-t pt-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_auto] sm:items-end">
+        <label className="grid gap-1 text-xs">
+          <span>伪装后缀</span>
+          <Input
+            value={extension}
+            disabled={disabled}
+            aria-label={`添加${formatLabel}伪装后缀`}
+            placeholder={isImage ? "wbp" : "nov"}
+            onChange={(event) => setExtension(event.currentTarget.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") void addFormat() }}
+          />
+        </label>
+        <label className="grid gap-1 text-xs">
+          <span>实际 MIME 类型</span>
+          <Input
+            value={mimeType}
+            disabled={disabled}
+            list={suggestionId}
+            aria-label={`添加${formatLabel}实际 MIME 类型`}
+            placeholder={isImage ? "image/webp" : "video/mp4"}
+            onChange={(event) => setMimeType(event.currentTarget.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") void addFormat() }}
+          />
+        </label>
+        <Button
+          type="button"
+          size="icon"
+          title={`添加${formatLabel}格式`}
+          aria-label={`添加${formatLabel}格式`}
+          disabled={disabled}
+          onClick={() => void addFormat()}
+        >
+          <Plus />
+        </Button>
+        <datalist id={suggestionId}>
+          {(isImage ? IMAGE_MIME_SUGGESTIONS : VIDEO_MIME_SUGGESTIONS).map((value) => <option key={value} value={value} />)}
+        </datalist>
+      </div>
+      {validationError ? <p role="alert" className="text-xs text-destructive">{validationError}</p> : null}
+    </div>
+  )
+}
+
+const IMAGE_MIME_SUGGESTIONS = ["image/avif", "image/bmp", "image/gif", "image/jpeg", "image/jxl", "image/png", "image/tiff", "image/webp"]
+const VIDEO_MIME_SUGGESTIONS = ["video/mp4", "video/webm", "video/x-matroska", "video/quicktime", "video/x-msvideo", "video/mpeg"]
 
 function ImageProcessingSettings({
   config,
