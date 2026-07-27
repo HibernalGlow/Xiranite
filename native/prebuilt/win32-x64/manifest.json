@@ -42,11 +42,11 @@
       "arch": "x64",
       "archive": "findz.win32-x64.zip",
       "binding": "findz.dll",
-      "sha256": "a0aae0893cdb612a2123f56d9db927f69bcdb3d60d0c0f0ac078520c4529dab5",
+      "sha256": "f69ba0cef31a0a776c86ca4cd7eba525adb46f6dd85fb730f1737fbb3ed1ca5d",
       "files": [
         {
           "name": "findz.dll",
-          "sha256": "0ad520ce7ccd2eb40e3068d9e94fc4f45d1da2ba327eea6674b9d2af34212153"
+          "sha256": "3848e16aa15c9d3c34291e488a3f9a3868ee93b2eb7e1ea724512c3d338db3fe"
         }
       ]
     }

@@ -6,6 +6,7 @@ require (
 	github.com/bep/imagemeta v0.17.3
 	github.com/laktak/zfind v0.4.7
 	github.com/mattn/go-sqlite3 v1.14.32
+	golang.org/x/text v0.34.0
 )
 
 require (
@@ -21,5 +22,4 @@ require (
 	github.com/spf13/afero v1.14.0 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
-	golang.org/x/text v0.34.0 // indirect
 )

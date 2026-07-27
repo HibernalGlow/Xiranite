@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 func TestFindzIndexesDuplicateMembersAndCorruptArchives(t *testing.T) {
@@ -51,6 +54,32 @@ func TestFindzIndexesDuplicateMembersAndCorruptArchives(t *testing.T) {
 	}
 	if len(members.Items) != 2 {
 		t.Fatalf("expected 2 duplicate members, got %d", len(members.Items))
+	}
+}
+
+func TestFindzIndexesLegacyGBKMemberNames(t *testing.T) {
+	root := t.TempDir()
+	memberPath := "\u9875\u9762/\u5c01\u9762.png"
+	archivePath := filepath.Join(root, "legacy.cbz")
+	createLegacyGBKZipFixture(t, archivePath, memberPath, pngFixture(t, 8, 8))
+
+	service, runtime := openTestLibrary(t, root)
+	task, err := service.startScan(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForTask(t, runtime, task.ID)
+
+	archives, err := queryArchives(runtime, archiveQueryParams{LibraryID: runtime.id, Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	members, err := queryMembers(runtime, memberQueryParams{LibraryID: runtime.id, ArchiveID: archives.Items[0].ID, Text: "\u5c01\u9762", Page: pageRequest{Limit: 10}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(members.Items) != 1 || members.Items[0].MemberPath != memberPath {
+		t.Fatalf("expected decoded CP936 member path %q, got %#v", memberPath, members.Items)
 	}
 }
 
@@ -292,6 +321,32 @@ func createZipFixture(t testing.TB, path string, files []zipFixture) {
 		if _, err := entry.Write(fixture.contents); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func createLegacyGBKZipFixture(t testing.TB, path string, memberPath string, contents []byte) {
+	t.Helper()
+	rawName, _, err := transform.String(simplifiedchinese.GBK.NewEncoder(), memberPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer := zip.NewWriter(file)
+	entry, err := writer.CreateHeader(&zip.FileHeader{Name: rawName, Method: zip.Deflate, NonUTF8: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := entry.Write(contents); err != nil {
+		t.Fatal(err)
 	}
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
