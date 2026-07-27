@@ -1,4 +1,5 @@
 import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
+import { transformContentDedup, transformImagePaths, transformMarkt, transformTitles } from "./markdown-transforms.js"
 
 export type MarkuAction = "run" | "text" | "history" | "undo"
 export type MarkuModuleId =
@@ -227,31 +228,6 @@ export function createUnifiedDiff(original: string, processed: string, filename 
   ].join("")
 }
 
-function transformMarkt(text: string, config: Record<string, unknown>): string {
-  const mode = stringConfig(config.mode, "h2l")
-  const bullet = stringConfig(config.bullet, "- ")
-  const indent = numberConfig(config.indent, 2)
-  if (mode === "l2h") {
-    const startLevel = numberConfig(config.start_level ?? config.startLevel, 1)
-    return text.replace(/^(\s*)([-*+]|\d+[.)])\s+(.+)$/gm, (_, spaces: string, _marker: string, title: string) => {
-      const level = Math.min(6, startLevel + Math.floor(spaces.length / Math.max(indent, 1)))
-      return `${"#".repeat(level)} ${title.trim()}`
-    })
-  }
-  const ordered = booleanConfig(config.ordered, false)
-  const counters: number[] = []
-  return text.replace(/^(#{1,6})\s+(.+)$/gm, (_, hashes: string, title: string) => {
-    const level = hashes.length
-    const padding = " ".repeat((level - 1) * indent)
-    if (ordered) {
-      counters[level] = (counters[level] ?? 0) + 1
-      counters.length = level + 1
-      return `${padding}${counters[level]}. ${title.trim()}`
-    }
-    return `${padding}${bullet}${title.trim()}`
-  })
-}
-
 function transformConsecutiveHeaders(text: string, config: Record<string, unknown>): string {
   const mode = stringConfig(config.processing_mode ?? config.mode, "remove")
   const lines = text.split(/\n/)
@@ -268,36 +244,6 @@ function transformConsecutiveHeaders(text: string, config: Record<string, unknow
   return output.join("\n")
 }
 
-function transformContentDedup(text: string, config: Record<string, unknown>): string {
-  const dedupTitles = booleanConfig(config.dedup_titles ?? config.dedupTitles, true)
-  const dedupImages = booleanConfig(config.dedup_images ?? config.dedupImages, true)
-  const dedupParagraphs = booleanConfig(config.dedup_paragraphs ?? config.dedupParagraphs, false)
-  const seenTitles = new Set<string>()
-  const seenImages = new Set<string>()
-  const seenParagraphs = new Set<string>()
-  const output: string[] = []
-  for (const line of text.split(/\n/)) {
-    const trimmed = line.trim()
-    if (dedupTitles && /^#{1,6}\s+/.test(trimmed)) {
-      const key = trimmed.toLowerCase()
-      if (seenTitles.has(key)) continue
-      seenTitles.add(key)
-    }
-    if (dedupImages && /^!\[[^\]]*]\([^)]+\)/.test(trimmed)) {
-      const key = trimmed.toLowerCase()
-      if (seenImages.has(key)) continue
-      seenImages.add(key)
-    }
-    if (dedupParagraphs && trimmed && !/^([#>*\-+]|\d+[.)]|\|)/.test(trimmed)) {
-      const key = trimmed.toLowerCase()
-      if (seenParagraphs.has(key)) continue
-      seenParagraphs.add(key)
-    }
-    output.push(line)
-  }
-  return output.join("\n")
-}
-
 function transformHtmlTables(text: string): string {
   return text.replace(/<table[\s\S]*?<\/table>/gi, (table) => {
     const rows = [...table.matchAll(/<tr[\s\S]*?<\/tr>/gi)].map((row) => {
@@ -308,14 +254,6 @@ function transformHtmlTables(text: string): string {
     const normalized = rows.map((row) => [...row, ...Array.from({ length: width - row.length }, () => "")])
     const [head, ...body] = normalized
     return [`| ${head.join(" | ")} |`, `| ${head.map(() => "---").join(" | ")} |`, ...body.map((row) => `| ${row.join(" | ")} |`)].join("\n")
-  })
-}
-
-function transformTitles(text: string, config: Record<string, unknown>): string {
-  const offset = numberConfig(config.levels ?? config.offset, 0)
-  return text.replace(/^(#{1,6})\s*(.+)$/gm, (_, hashes: string, title: string) => {
-    const level = Math.min(6, Math.max(1, hashes.length + offset))
-    return `${"#".repeat(level)} ${title.trim().replace(/\s+/g, " ")}`
   })
 }
 
@@ -341,17 +279,6 @@ function transformSingleOrderList(text: string): string {
     if (/^\s*\d+[.)]\s+/.test(prev) || /^\s*\d+[.)]\s+/.test(next)) return line
     return line.replace(/^(\s*)\d+[.)]\s+/, "$1")
   }).join("\n")
-}
-
-function transformImagePaths(text: string, config: Record<string, unknown>): string {
-  const baseUrl = stringConfig(config.base_url ?? config.baseUrl, "")
-  const relativePattern = stringConfig(config.relative_pattern ?? config.relativePattern, "")
-  return text.replace(/!\[([^\]]*)]\(([^)]+)\)/g, (_, alt: string, path: string) => {
-    let next = path.trim()
-    if (relativePattern && next.startsWith(relativePattern)) next = next.slice(relativePattern.length).replace(/^[/\\]+/, "")
-    if (baseUrl && !/^[a-z]+:\/\//i.test(next) && !next.startsWith("#")) next = `${baseUrl.replace(/\/$/, "")}/${next.replace(/^[/\\]+/, "")}`
-    return `![${alt}](${next})`
-  })
 }
 
 function transformTableToList(text: string): string {
