@@ -10,15 +10,17 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { RuleTreeEditor } from "@/nodes/shared/RuleTreeEditor"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { cn } from "@/lib/utils"
 import { FindzArchiveTable } from "./ArchiveTable"
 import { FindzTreemap } from "./Treemap"
-import { FINDZ_ARCHIVE_SORTS, FINDZ_AREA_METRICS, FINDZ_RULE_FIELDS, createFindzRuleTree, isTerminalTask, type FindzArchiveSort, type FindzCardState } from "./types"
+import { createFindzRuleTree, getFindzAreaMetrics, getFindzRuleFields, isTerminalTask, type FindzArchiveSort, type FindzCardState } from "./types"
 import { FindzWorkspaceHeader } from "./WorkspaceHeader"
 
 type FindzProps = NodeComponentProps<FindzCardState, Partial<FindzCardState>>
 
 export function Component({ host }: FindzProps) {
+  const { t } = useNodeI18n("findz")
   const [card, setCard] = useState<FindzCardState>(() => host.state.getData() ?? {})
   const [library, setLibrary] = useState<FindzLibrarySummary>()
   const [archives, setArchives] = useState<FindzArchiveRow[]>([])
@@ -32,6 +34,8 @@ export function Component({ host }: FindzProps) {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const deferredText = useDeferredValue(card.text ?? "")
   const rules = card.rules ?? createFindzRuleTree()
+  const areaMetrics = getFindzAreaMetrics(t)
+  const ruleFields = getFindzRuleFields(t)
 
   const patch = useCallback((next: Partial<FindzCardState>) => {
     setCard((current) => {
@@ -72,7 +76,7 @@ export function Component({ host }: FindzProps) {
     setError(undefined)
     try {
       const data = await invoke({ action: "open_library", library: { root } })
-      if (!data.library) throw new Error("Findz did not return a library.")
+      if (!data.library) throw new Error(t("errors.libraryMissing", "Findz did not return a library."))
       setLibrary(data.library)
       patch({ libraryRoot: root, libraryId: data.library.libraryId, pathPrefix: undefined, selectedArchiveId: undefined, pageCursor: undefined })
       setPageTrail([])
@@ -91,7 +95,7 @@ export function Component({ host }: FindzProps) {
     setError(undefined)
     try {
       const data = await invoke({ action, libraryId: card.libraryId })
-      if (!data.task) throw new Error("Findz did not create a task.")
+      if (!data.task) throw new Error(t("errors.taskMissing", "Findz did not create a task."))
       setTask(data.task)
       patch({ taskId: data.task.id })
     } catch (cause) {
@@ -226,32 +230,32 @@ export function Component({ host }: FindzProps) {
       />
       <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <FloatingWindowNodeHeader><div className="flex items-center gap-2"><BarChart3 className="size-4" /><h3 className="text-sm font-semibold">Findz</h3></div></FloatingWindowNodeHeader>
-          <div className="min-w-48 flex-1"><Input aria-label="Search Findz index" value={card.text ?? ""} placeholder="Search archive and member paths" onChange={(event) => resetPage({ text: event.target.value })} /></div>
+          <FloatingWindowNodeHeader><div className="flex items-center gap-2"><BarChart3 className="size-4" /><h3 className="text-sm font-semibold">{t("workspace.title", "Findz")}</h3></div></FloatingWindowNodeHeader>
+          <div className="min-w-48 flex-1"><Input aria-label={t("workspace.searchLabel", "Search Findz index")} value={card.text ?? ""} placeholder={t("workspace.searchPlaceholder", "Search archive and member paths")} onChange={(event) => resetPage({ text: event.target.value })} /></div>
           <Select value={card.areaBy ?? "archiveSize"} onValueChange={(areaBy) => resetPage({ areaBy: areaBy as FindzCardState["areaBy"] })}>
-            <SelectTrigger aria-label="Treemap area metric" size="sm" className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>{FINDZ_AREA_METRICS.map((metric) => <SelectItem key={metric.value} value={metric.value}>{metric.label}</SelectItem>)}</SelectContent>
+            <SelectTrigger aria-label={t("workspace.areaMetricLabel", "Treemap area metric")} size="sm" className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>{areaMetrics.map((metric) => <SelectItem key={metric.value} value={metric.value}>{metric.label}</SelectItem>)}</SelectContent>
           </Select>
           <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <CollapsibleTrigger asChild><Button aria-label="Advanced filters" size="sm" variant={filtersOpen ? "secondary" : "outline"}><Filter />Filters<ChevronDown className={cn("transition-transform", filtersOpen && "rotate-180")} /></Button></CollapsibleTrigger>
+            <CollapsibleTrigger asChild><Button aria-label={t("workspace.advancedFilters", "Advanced filters")} size="sm" variant={filtersOpen ? "secondary" : "outline"}><Filter />{t("workspace.filters", "Filters")}<ChevronDown className={cn("transition-transform", filtersOpen && "rotate-180")} /></Button></CollapsibleTrigger>
             <CollapsibleContent className="absolute right-3 top-32 z-20 w-[min(42rem,calc(100vw-2rem))] border bg-popover p-3 shadow-lg">
-              <RuleTreeEditor value={rules} fields={FINDZ_RULE_FIELDS} onValueChange={(next) => resetPage({ rules: next })} />
+              <RuleTreeEditor value={rules} fields={ruleFields} t={t} onValueChange={(next) => resetPage({ rules: next })} />
             </CollapsibleContent>
           </Collapsible>
-          <Button aria-label="Export filtered archives as JSON" size="sm" variant="outline" disabled={!card.libraryId || busy} onClick={() => void exportArchives("json")}><Download />JSON</Button>
-          <Button aria-label="Export filtered archives as CSV" size="sm" variant="outline" disabled={!card.libraryId || busy} onClick={() => void exportArchives("csv")}><Download />CSV</Button>
+          <Button aria-label={t("workspace.exportJson", "Export filtered archives as JSON")} size="sm" variant="outline" disabled={!card.libraryId || busy} onClick={() => void exportArchives("json")}><Download />JSON</Button>
+          <Button aria-label={t("workspace.exportCsv", "Export filtered archives as CSV")} size="sm" variant="outline" disabled={!card.libraryId || busy} onClick={() => void exportArchives("csv")}><Download />CSV</Button>
         </div>
         <div className="flex shrink-0 items-center gap-1 overflow-x-auto text-xs text-muted-foreground">
-          <Button size="xs" variant={breadcrumb.length ? "ghost" : "secondary"} onClick={() => card.libraryId && drill("")}>Library</Button>
+          <Button size="xs" variant={breadcrumb.length ? "ghost" : "secondary"} onClick={() => card.libraryId && drill("")}>{t("workspace.library", "Library")}</Button>
           {breadcrumb.map((segment, index) => <span key={`${segment}-${index}`} className="flex items-center gap-1"><span>/</span><Button size="xs" variant={index === breadcrumb.length - 1 ? "secondary" : "ghost"} onClick={() => card.libraryId && drill(breadcrumb.slice(0, index + 1).join("/"))}>{segment}</Button></span>)}
         </div>
         {error && <div role="alert" className="flex shrink-0 items-center gap-2 border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"><TriangleAlert className="size-4" />{error}</div>}
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(180px,1.25fr)_minmax(160px,0.9fr)] gap-3">
-          <section aria-label="Findz archive results" className="min-h-0 overflow-hidden">
+          <section aria-label={t("workspace.archiveResults", "Findz archive results")} className="min-h-0 overflow-hidden">
             <FindzArchiveTable archives={archives} members={members} selectedArchiveId={card.selectedArchiveId} sortBy={card.sortBy ?? "archiveSize"} sortDesc={card.sortDesc ?? true} total={archivePage.total} hasPreviousPage={pageTrail.length > 0} hasNextPage={Boolean(archivePage.nextCursor)} onSelectArchive={(archiveId) => void selectArchive(archiveId)} onSort={changeSort} onPreviousPage={previousPage} onNextPage={nextPage} />
           </section>
-          <section aria-label="Findz treemap" className="flex min-h-0 flex-col border bg-background">
-            <div className="flex shrink-0 items-center justify-between border-b px-3 py-2"><span className="text-xs font-medium">Treemap</span><span className="text-xs text-muted-foreground">Area: {FINDZ_AREA_METRICS.find((metric) => metric.value === (card.areaBy ?? "archiveSize"))?.label}</span></div>
+          <section aria-label={t("workspace.treemap", "Findz treemap")} className="flex min-h-0 flex-col border bg-background">
+            <div className="flex shrink-0 items-center justify-between border-b px-3 py-2"><span className="text-xs font-medium">{t("workspace.treemap", "Treemap")}</span><span className="text-xs text-muted-foreground">{t("workspace.area", "Area")}: {areaMetrics.find((metric) => metric.value === (card.areaBy ?? "archiveSize"))?.label}</span></div>
             <FindzTreemap projection={treemap} selectedArchiveId={card.selectedArchiveId} onSelectArchive={(archiveId) => void selectArchive(archiveId)} onDrill={drill} />
           </section>
         </div>

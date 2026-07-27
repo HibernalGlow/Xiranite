@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import { render, type WebTreemapNode } from "webtreemap-cdt/build/index.js"
 import type { FindzTreemapNode } from "@xiranite/findz-native"
+import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import "./treemap.css"
 
 interface RenderNode extends WebTreemapNode {
@@ -14,6 +15,7 @@ export function FindzTreemap({ projection, selectedArchiveId, onSelectArchive, o
   onSelectArchive(archiveId: number): void
   onDrill(pathPrefix: string): void
 }) {
+  const { t, language } = useNodeI18n("findz")
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -35,7 +37,9 @@ export function FindzTreemap({ projection, selectedArchiveId, onSelectArchive, o
           dom.dataset.testid = `findz-treemap-node-${source.id.replaceAll(/[^a-zA-Z0-9]+/g, "-")}`
           dom.setAttribute("role", "button")
           dom.tabIndex = 0
-          dom.setAttribute("aria-label", source.archiveId ? `Open archive ${source.name}` : `Drill into ${source.name}`)
+          dom.setAttribute("aria-label", source.archiveId
+            ? t("workspace.treemap.openArchive", "Open archive {{name}}", { name: source.name })
+            : t("workspace.treemap.drillInto", "Drill into {{name}}", { name: source.name }))
           const select = () => {
             if (source.archiveId !== undefined) onSelectArchive(source.archiveId)
           }
@@ -57,10 +61,10 @@ export function FindzTreemap({ projection, selectedArchiveId, onSelectArchive, o
     const observer = new ResizeObserver(paint)
     observer.observe(container)
     return () => observer.disconnect()
-  }, [onDrill, onSelectArchive, projection, selectedArchiveId])
+  }, [language, onDrill, onSelectArchive, projection, selectedArchiveId])
 
   if (!projection?.children?.length) {
-    return <div data-testid="findz-treemap-empty" className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">No indexed archive area for this view.</div>
+    return <div data-testid="findz-treemap-empty" className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">{t("workspace.treemap.empty", "No indexed archive area for this view.")}</div>
   }
   return <div ref={containerRef} data-testid="findz-treemap" className="findz-treemap relative min-h-56 flex-1 overflow-hidden" />
 }
