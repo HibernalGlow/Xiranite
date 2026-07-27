@@ -18,6 +18,7 @@
     "build:native": "bun scripts/build-native.ts",
     "generate:binding-dts": "bun scripts/generate-binding-dts.ts",
     "check:binding-dts": "bun scripts/generate-binding-dts.ts --check",
+    "benchmark:native": "bun scripts/benchmark-native.mjs",
     "smoke:native": "bun run build && bun scripts/smoke-native.mjs",
     "smoke:trash": "bun run build && bun scripts/smoke-trash.mjs",
     "smoke:embedded": "bun run build && bun scripts/smoke-embedded.mjs"
