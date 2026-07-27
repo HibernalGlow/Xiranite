@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react"
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import type { NodeComponentProps } from "@xiranite/contract"
 import type { FindzAnalysisScope, FindzArchiveRow, FindzLibrarySummary, FindzMemberRow, FindzTask, FindzTreemapNode } from "@xiranite/findz-native"
 import type { FindzData, FindzInput } from "@xiranite/node-findz/core"
@@ -32,12 +32,15 @@ export function Component({ host }: FindzProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const queryGeneration = useRef(0)
+  const memberRequestGeneration = useRef(0)
   const deferredText = useDeferredValue(card.text ?? "")
   const rules = card.rules ?? createFindzRuleTree()
   const areaMetrics = getFindzAreaMetrics(t)
   const ruleFields = getFindzRuleFields(t)
 
   const patch = useCallback((next: Partial<FindzCardState>) => {
+    if (changesQueryState(next)) queryGeneration.current++
     setCard((current) => {
       const merged = { ...current, ...next }
       host.state.patchData(next)
@@ -53,6 +56,7 @@ export function Component({ host }: FindzProps) {
   }, [host])
 
   const refresh = useCallback(async (libraryId: string, override: Partial<FindzCardState> = {}) => {
+    const generation = ++queryGeneration.current
     const queryState = { ...card, ...override }
     const query = {
       rules: (queryState.rules ?? createFindzRuleTree()) as never,
@@ -60,13 +64,18 @@ export function Component({ host }: FindzProps) {
       sortDesc: queryState.sortDesc ?? true,
       page: { cursor: queryState.pageCursor, limit: 200 },
     }
-    const [archiveData, treemapData] = await Promise.all([
-      invoke({ action: "query_archives", libraryId, text: override.text ?? deferredText, pathPrefix: queryState.pathPrefix, query }),
-      invoke({ action: "treemap", libraryId, text: override.text ?? deferredText, pathPrefix: queryState.pathPrefix, areaBy: queryState.areaBy ?? "archiveSize", query }),
-    ])
-    setArchives(archiveData.archives?.items ?? [])
-    setArchivePage({ total: archiveData.archives?.total ?? 0, nextCursor: archiveData.archives?.nextCursor })
-    setTreemap(treemapData.treemap)
+    try {
+      const [archiveData, treemapData] = await Promise.all([
+        invoke({ action: "query_archives", libraryId, text: override.text ?? deferredText, pathPrefix: queryState.pathPrefix, query }),
+        invoke({ action: "treemap", libraryId, text: override.text ?? deferredText, pathPrefix: queryState.pathPrefix, areaBy: queryState.areaBy ?? "archiveSize", query }),
+      ])
+      if (queryGeneration.current !== generation) return
+      setArchives(archiveData.archives?.items ?? [])
+      setArchivePage({ total: archiveData.archives?.total ?? 0, nextCursor: archiveData.archives?.nextCursor })
+      setTreemap(treemapData.treemap)
+    } catch (cause) {
+      if (queryGeneration.current === generation) setError(errorMessage(cause))
+    }
   }, [card, deferredText, invoke])
 
   const openLibrary = useCallback(async () => {
@@ -117,13 +126,15 @@ export function Component({ host }: FindzProps) {
 
   const selectArchive = useCallback(async (archiveId: number) => {
     if (!card.libraryId) return
+    const requestGeneration = ++memberRequestGeneration.current
     patch({ selectedArchiveId: archiveId })
     setMembers(undefined)
     try {
       const data = await invoke({ action: "query_members", libraryId: card.libraryId, archiveId, text: deferredText })
+      if (memberRequestGeneration.current !== requestGeneration) return
       setMembers(data.members?.items ?? [])
     } catch (cause) {
-      setError(errorMessage(cause))
+      if (memberRequestGeneration.current === requestGeneration) setError(errorMessage(cause))
     }
   }, [card.libraryId, deferredText, invoke, patch])
 
@@ -194,6 +205,11 @@ export function Component({ host }: FindzProps) {
     return () => window.clearTimeout(timeout)
   }, [card.libraryId, card.pathPrefix, card.pageCursor, card.rules, card.sortBy, card.sortDesc, card.areaBy, deferredText, refresh])
 
+  useEffect(() => () => {
+    queryGeneration.current++
+    memberRequestGeneration.current++
+  }, [])
+
   useEffect(() => {
     if (!task || isTerminalTask(task) || !card.libraryId) return
     let cancelled = false
@@ -252,7 +268,7 @@ export function Component({ host }: FindzProps) {
         {error && <div role="alert" className="flex shrink-0 items-center gap-2 border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"><TriangleAlert className="size-4" />{error}</div>}
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(180px,1.25fr)_minmax(160px,0.9fr)] gap-3">
           <section aria-label={t("workspace.archiveResults", "Findz archive results")} className="min-h-0 overflow-hidden">
-            <FindzArchiveTable archives={archives} members={members} selectedArchiveId={card.selectedArchiveId} sortBy={card.sortBy ?? "archiveSize"} sortDesc={card.sortDesc ?? true} total={archivePage.total} hasPreviousPage={pageTrail.length > 0} hasNextPage={Boolean(archivePage.nextCursor)} onSelectArchive={(archiveId) => void selectArchive(archiveId)} onDeepRetryMember={(memberId) => void startTask("analyze", { kind: "members", memberIds: [memberId], deepRetry: true })} onSort={changeSort} onPreviousPage={previousPage} onNextPage={nextPage} />
+            <FindzArchiveTable archives={archives} members={members} pathPrefix={card.pathPrefix} selectedArchiveId={card.selectedArchiveId} sortBy={card.sortBy ?? "archiveSize"} sortDesc={card.sortDesc ?? true} total={archivePage.total} hasPreviousPage={pageTrail.length > 0} hasNextPage={Boolean(archivePage.nextCursor)} onSelectArchive={(archiveId) => void selectArchive(archiveId)} onDeepRetryMember={(memberId) => void startTask("analyze", { kind: "members", memberIds: [memberId], deepRetry: true })} onDrillFolder={drill} onSort={changeSort} onPreviousPage={previousPage} onNextPage={nextPage} />
           </section>
           <section aria-label={t("workspace.treemap", "Findz treemap")} className="flex min-h-0 flex-col border bg-background">
             <div className="flex shrink-0 items-center justify-between border-b px-3 py-2"><span className="text-xs font-medium">{t("workspace.treemap", "Treemap")}</span><span className="text-xs text-muted-foreground">{t("workspace.area", "Area")}: {areaMetrics.find((metric) => metric.value === (card.areaBy ?? "archiveSize"))?.label}</span></div>
@@ -266,6 +282,10 @@ export function Component({ host }: FindzProps) {
 
 function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause)
+}
+
+function changesQueryState(patch: Partial<FindzCardState>): boolean {
+  return "libraryRoot" in patch || "libraryId" in patch || "pathPrefix" in patch || "text" in patch || "rules" in patch || "sortBy" in patch || "sortDesc" in patch || "areaBy" in patch || "pageCursor" in patch
 }
 
 function downloadArchiveExport(rows: readonly FindzArchiveRow[], format: "json" | "csv"): void {

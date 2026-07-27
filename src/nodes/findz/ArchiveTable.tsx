@@ -1,5 +1,6 @@
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { FindzArchiveRow, FindzMemberRow } from "@xiranite/findz-native"
-import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Image, RefreshCw, TriangleAlert } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Folder, Image, RefreshCw, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -10,9 +11,18 @@ import { useNodeI18n } from "@/nodes/shared/useNodeI18n"
 import { formatBytes, formatDensity } from "./format"
 import type { FindzArchiveSort } from "./types"
 
-export function FindzArchiveTable({ archives, members, selectedArchiveId, sortBy, sortDesc, total, hasPreviousPage, hasNextPage, onSelectArchive, onDeepRetryMember, onSort, onPreviousPage, onNextPage }: {
+interface FolderNode {
+  path: string
+  name: string
+  archiveCount: number
+  folders: Map<string, FolderNode>
+  archives: FindzArchiveRow[]
+}
+
+export function FindzArchiveTable({ archives, members, pathPrefix, selectedArchiveId, sortBy, sortDesc, total, hasPreviousPage, hasNextPage, onSelectArchive, onDeepRetryMember, onDrillFolder, onSort, onPreviousPage, onNextPage }: {
   archives: FindzArchiveRow[]
   members?: FindzMemberRow[]
+  pathPrefix?: string
   selectedArchiveId?: number
   sortBy: FindzArchiveSort
   sortDesc: boolean
@@ -21,11 +31,35 @@ export function FindzArchiveTable({ archives, members, selectedArchiveId, sortBy
   hasNextPage: boolean
   onSelectArchive(archiveId: number): void
   onDeepRetryMember(memberId: number): void
+  onDrillFolder(pathPrefix: string): void
   onSort(sort: FindzArchiveSort): void
   onPreviousPage(): void
   onNextPage(): void
 }) {
   const { t } = useNodeI18n("findz")
+  const [collapsedFolders, setCollapsedFolders] = useState<ReadonlySet<string>>(() => new Set())
+  const archiveRows = useRef(new Map<number, HTMLTableRowElement>())
+  const hierarchy = buildArchiveHierarchy(archives, pathPrefix)
+
+  useEffect(() => {
+    if (selectedArchiveId === undefined) return
+    archiveRows.current.get(selectedArchiveId)?.scrollIntoView({ block: "nearest" })
+  }, [selectedArchiveId])
+
+  const setArchiveRow = useCallback((archiveId: number, row: HTMLTableRowElement | null) => {
+    if (row) archiveRows.current.set(archiveId, row)
+    else archiveRows.current.delete(archiveId)
+  }, [])
+
+  const toggleFolder = useCallback((folderPath: string) => {
+    setCollapsedFolders((current) => {
+      const next = new Set(current)
+      if (next.has(folderPath)) next.delete(folderPath)
+      else next.add(folderPath)
+      return next
+    })
+  }, [])
+
   return (
     <div className="flex min-h-0 flex-1 flex-col border bg-background">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b px-3 py-2">
@@ -50,15 +84,19 @@ export function FindzArchiveTable({ archives, members, selectedArchiveId, sortBy
             </TableRow>
           </TableHeader>
           <TableBody>
-            {archives.map((archive) => <ArchiveRows
-              key={archive.id}
-              archive={archive}
-              expanded={selectedArchiveId === archive.id}
-              members={selectedArchiveId === archive.id ? members : undefined}
-              onSelect={onSelectArchive}
+            <HierarchyRows
+              node={hierarchy}
+              depth={0}
+              collapsedFolders={collapsedFolders}
+              selectedArchiveId={selectedArchiveId}
+              members={members}
+              onToggleFolder={toggleFolder}
+              onDrillFolder={onDrillFolder}
+              onSelectArchive={onSelectArchive}
               onDeepRetryMember={onDeepRetryMember}
+              setArchiveRow={setArchiveRow}
               t={t}
-            />)}
+            />
             {!archives.length && <TableRow><TableCell colSpan={8} className="h-28 text-center text-sm text-muted-foreground">{t("workspace.table.empty", "Open a library, then run a ZIP scan to populate the index.")}</TableCell></TableRow>}
           </TableBody>
         </Table>
@@ -67,20 +105,92 @@ export function FindzArchiveTable({ archives, members, selectedArchiveId, sortBy
   )
 }
 
-function ArchiveRows({ archive, expanded, members, onSelect, onDeepRetryMember, t }: { archive: FindzArchiveRow; expanded: boolean; members?: FindzMemberRow[]; onSelect(archiveId: number): void; onDeepRetryMember(memberId: number): void; t: ReturnType<typeof useNodeI18n>["t"] }) {
+function HierarchyRows({ node, depth, collapsedFolders, selectedArchiveId, members, onToggleFolder, onDrillFolder, onSelectArchive, onDeepRetryMember, setArchiveRow, t }: {
+  node: FolderNode
+  depth: number
+  collapsedFolders: ReadonlySet<string>
+  selectedArchiveId?: number
+  members?: FindzMemberRow[]
+  onToggleFolder(path: string): void
+  onDrillFolder(path: string): void
+  onSelectArchive(archiveId: number): void
+  onDeepRetryMember(memberId: number): void
+  setArchiveRow(archiveId: number, row: HTMLTableRowElement | null): void
+  t: ReturnType<typeof useNodeI18n>["t"]
+}) {
+  return <>
+    {sortedFolders(node).map((folder) => {
+      const collapsed = collapsedFolders.has(folder.path)
+      return <FolderRows key={folder.path} folder={folder} depth={depth} collapsed={collapsed} onToggle={onToggleFolder} onDrill={onDrillFolder} t={t}>
+        {!collapsed && <HierarchyRows
+          node={folder}
+          depth={depth + 1}
+          collapsedFolders={collapsedFolders}
+          selectedArchiveId={selectedArchiveId}
+          members={members}
+          onToggleFolder={onToggleFolder}
+          onDrillFolder={onDrillFolder}
+          onSelectArchive={onSelectArchive}
+          onDeepRetryMember={onDeepRetryMember}
+          setArchiveRow={setArchiveRow}
+          t={t}
+        />}
+      </FolderRows>
+    })}
+    {node.archives.map((archive) => <ArchiveRows
+      key={archive.id}
+      archive={archive}
+      depth={depth}
+      expanded={selectedArchiveId === archive.id}
+      members={selectedArchiveId === archive.id ? members : undefined}
+      onSelect={onSelectArchive}
+      onDeepRetryMember={onDeepRetryMember}
+      rowRef={(row) => setArchiveRow(archive.id, row)}
+      t={t}
+    />)}
+  </>
+}
+
+function FolderRows({ folder, depth, collapsed, onToggle, onDrill, t, children }: { folder: FolderNode; depth: number; collapsed: boolean; onToggle(path: string): void; onDrill(path: string): void; t: ReturnType<typeof useNodeI18n>["t"]; children?: ReactNode }) {
+  const activate = () => onToggle(folder.path)
+  return <>
+    <TableRow
+      aria-expanded={!collapsed}
+      className="cursor-pointer bg-muted/30 hover:bg-muted/45"
+      data-testid={`findz-folder-${testIdSegment(folder.path)}`}
+      tabIndex={0}
+      onClick={activate}
+      onDoubleClick={() => onDrill(folder.path)}
+      onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate() } }}
+    >
+      <TableCell className="w-8 px-2"><ChevronRight className={cn("size-3.5 transition-transform", !collapsed && "rotate-90")} /></TableCell>
+      <TableCell colSpan={7}>
+        <div className="flex min-w-0 items-center gap-2" style={{ paddingInlineStart: `${depth * 16}px` }}>
+          <Folder className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="truncate font-medium">{folder.name}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">{t("workspace.table.folderArchiveCount", "{{count}} archives", { count: folder.archiveCount })}</span>
+        </div>
+      </TableCell>
+    </TableRow>
+    {children}
+  </>
+}
+
+function ArchiveRows({ archive, depth, expanded, members, onSelect, onDeepRetryMember, rowRef, t }: { archive: FindzArchiveRow; depth: number; expanded: boolean; members?: FindzMemberRow[]; onSelect(archiveId: number): void; onDeepRetryMember(memberId: number): void; rowRef(row: HTMLTableRowElement | null): void; t: ReturnType<typeof useNodeI18n>["t"] }) {
   return <>
     <TableRow
       aria-selected={expanded}
       className={cn("cursor-pointer data-[state=selected]:bg-accent/60", expanded && "bg-accent/50")}
       data-testid={`findz-archive-${archive.id}`}
       data-state={expanded ? "selected" : undefined}
+      ref={rowRef}
       tabIndex={0}
       onClick={() => onSelect(archive.id)}
       onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(archive.id) }}
     >
       <TableCell className="w-8 px-2">{expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}</TableCell>
       <TableCell className="max-w-72">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2" style={{ paddingInlineStart: `${depth * 16}px` }}>
           <span className="truncate font-medium" title={archive.relativePath}>{archive.relativePath}</span>
           <ArchiveScanState archive={archive} />
         </div>
@@ -94,6 +204,41 @@ function ArchiveRows({ archive, expanded, members, onSelect, onDeepRetryMember, 
     </TableRow>
     {expanded && <MemberRows members={members} onDeepRetryMember={onDeepRetryMember} t={t} />}
   </>
+}
+
+function buildArchiveHierarchy(archives: readonly FindzArchiveRow[], pathPrefix: string | undefined): FolderNode {
+  const normalizedPrefix = pathPrefix?.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "") ?? ""
+  const root: FolderNode = { path: normalizedPrefix, name: "", archiveCount: archives.length, folders: new Map(), archives: [] }
+  for (const archive of archives) {
+    const relativePath = archive.relativePath.replaceAll("\\", "/")
+    const localPath = normalizedPrefix && relativePath.startsWith(`${normalizedPrefix}/`)
+      ? relativePath.slice(normalizedPrefix.length + 1)
+      : relativePath
+    const segments = localPath.split("/").filter(Boolean)
+    let current = root
+    const pathSegments = normalizedPrefix ? normalizedPrefix.split("/").filter(Boolean) : []
+    for (const segment of segments.slice(0, -1)) {
+      pathSegments.push(segment)
+      const folderPath = pathSegments.join("/")
+      let folder = current.folders.get(folderPath)
+      if (!folder) {
+        folder = { path: folderPath, name: segment, archiveCount: 0, folders: new Map(), archives: [] }
+        current.folders.set(folderPath, folder)
+      }
+      folder.archiveCount++
+      current = folder
+    }
+    current.archives.push(archive)
+  }
+  return root
+}
+
+function sortedFolders(node: FolderNode): FolderNode[] {
+  return [...node.folders.values()].toSorted((left, right) => left.name.localeCompare(right.name))
+}
+
+function testIdSegment(value: string): string {
+  return value.replaceAll(/[^a-zA-Z0-9]+/g, "-")
 }
 
 function ArchiveScanState({ archive }: { archive: FindzArchiveRow }) {
