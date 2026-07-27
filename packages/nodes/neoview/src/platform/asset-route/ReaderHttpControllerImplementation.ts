@@ -87,6 +87,7 @@ import { ReaderAiHttpController } from "./ReaderAiHttpController.js"
 import { ReaderOpdsHttpController, type ReaderOpdsCatalogReader } from "./ReaderOpdsHttpController.js"
 import { ReaderFileOperationHttpController } from "./ReaderFileOperationHttpController.js"
 import { ReaderArchiveEntryDeleteHttpController } from "./ReaderArchiveEntryDeleteHttpController.js"
+import { ReaderStartupStateHttpController } from "./ReaderStartupStateHttpController.js"
 import { ReaderSystemIntegrationHttpController } from "./ReaderSystemIntegrationHttpController.js"
 import { ReaderSettingsMigrationHttpController } from "./ReaderSettingsMigrationHttpController.js"
 import { ReaderBookSettingsMigrationHttpController } from "./ReaderBookSettingsMigrationHttpController.js"
@@ -277,6 +278,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #directoryBrowser: ReaderDirectoryBrowserRoute
   readonly #fileOperations: ReaderFileOperationHttpController
   readonly #archiveEntryDeletion: ReaderArchiveEntryDeleteHttpController
+  readonly #startupState: ReaderStartupStateHttpController
   readonly #systemIntegration: ReaderSystemIntegrationHttpController
   readonly #settingsMigration?: ReaderSettingsMigrationHttpController
   readonly #bookSettingsMigration?: ReaderBookSettingsMigrationHttpController
@@ -314,6 +316,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #disposeThumbnailStore?: () => void | Promise<void>
   readonly #disposeSuperResolutionArtifacts?: () => void | Promise<void>
   readonly #disposeEmmResources?: () => void | Promise<void>
+  readonly #disposeStartupStateStore?: () => void | Promise<void>
   #shellOptions: NeoviewShellConfig
   #shellRevision = 0
   #viewDefaults: NeoviewViewDefaults
@@ -605,6 +608,7 @@ export class ReaderHttpController implements AsyncDisposable {
       (results, undo, signal) => this.#directoryBrowser.reconcileFileOperations(results, undo, signal),
       !options.fileOperationService,
     )
+    this.#libraryService = options.libraryService
     this.#archiveEntryDeletion = new ReaderArchiveEntryDeleteHttpController({
       enabled: options.allowArchiveEntryDeletion === true,
       releaseSession: async (session) => {
@@ -612,6 +616,11 @@ export class ReaderHttpController implements AsyncDisposable {
         await this.#hibernateIfIdle()
       },
     })
+    this.#startupState = new ReaderStartupStateHttpController({
+      library: this.#libraryService,
+      store: options.startupStateStore,
+    })
+    this.#disposeStartupStateStore = options.disposeStartupStateStore
     this.#systemIntegration = new ReaderSystemIntegrationHttpController(async () => {
       const { ReaderSystemIntegrationService } = await import("../../application/files/ReaderSystemIntegrationService.js")
       const { PlatformReaderSystemIntegrationProvider } = await import("../filesystem/PlatformReaderSystemIntegrationProvider.js")
@@ -638,7 +647,6 @@ export class ReaderHttpController implements AsyncDisposable {
       ? new ReaderBookSettingsMigrationHttpController(options.loadBookSettingsMigrationService)
       : undefined
     this.#folderRatings = options.folderRatingService ? new ReaderFolderRatingHttpController(options.folderRatingService, (operation) => this.#runConfigMutation(operation)) : undefined
-    this.#libraryService = options.libraryService
     this.#library = options.libraryService
       ? new ReaderLibraryHttpController(
           options.libraryService,
@@ -833,6 +841,7 @@ export class ReaderHttpController implements AsyncDisposable {
     if (url.pathname === "/reader/config" && request.method === "GET") {
       return jsonResponse(this.#configDto())
     }
+    if (url.pathname === "/reader/startup-state") return this.#startupState.handle(request)
     if (url.pathname === "/reader/emm/config/probe" && request.method === "POST") {
       return this.#probeEmmConnection(request)
     }
@@ -964,6 +973,11 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     try {
       await this.#archivePreloadDemand.close()
+    } catch (error) {
+      errors.push(error)
+    }
+    try {
+      await this.#disposeStartupStateStore?.()
     } catch (error) {
       errors.push(error)
     }
