@@ -21,6 +21,32 @@ afterEach(async () => {
   await i18n.changeLanguage("zh")
 })
 
+test("renders scan progress in the same title-bar row as search", async () => {
+  await i18n.changeLanguage("en")
+
+  for (const view of [
+    { mode: "workspace", width: 1440 },
+    { mode: "compact", width: 480 },
+  ] as const) {
+    Object.assign(surface, { width: view.width, height: 860, mode: view.mode })
+    const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media", progress: 37, progressText: "Hashing files" })
+
+    await render(<Component compId={`czkawka-progress-${view.mode}-browser`} host={host} />)
+
+    const header = document.querySelector("header")
+    const progress = header?.querySelector<HTMLElement>('[role="progressbar"]')
+    const search = header?.querySelector<HTMLInputElement>("input")
+    const progressRect = progress?.getBoundingClientRect()
+    const searchRect = search?.getBoundingClientRect()
+    expect(header?.contains(progress ?? null)).toBe(true)
+    expect(progress?.getAttribute("aria-valuenow")).toBe("37")
+    expect(Math.abs(((progressRect?.top ?? 0) + (progressRect?.bottom ?? 0)) / 2 - ((searchRect?.top ?? 0) + (searchRect?.bottom ?? 0)) / 2)).toBeLessThanOrEqual(1)
+    await expect.element(page.getByText("Hashing files")).toBeVisible()
+
+    cleanup()
+  }
+})
+
 test("resets a fixed navigator from the source lane menu in the browser", async () => {
   await i18n.changeLanguage("en")
   const host = createHost({
@@ -309,6 +335,75 @@ test("shows an EXIF cleanup dry-run plan without creating a candidate", async ()
   await expect.element(page.getByText("Preview metadata cleanup for 1 items; no files will change.")).toBeVisible()
 })
 
+test("hides the video optimizer until the native binding advertises it", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" }, [])
+
+  await render(<Component compId="czkawka-video-optimizer-unavailable-browser" host={host} />)
+
+  await page.getByRole("combobox", { name: "Select scanner" }).click()
+  await expect.element(page.getByRole("option", { name: "Video Optimizer" })).not.toBeInTheDocument()
+})
+
+test("persists video optimizer scan controls in the browser", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost(
+    { tool: "video-optimizer", includedDirectoriesText: "D:/media", sourceSettingsTab: "algorithm" },
+    ["scan.video-optimizer"],
+  )
+
+  await render(<Component compId="czkawka-video-optimizer-controls-browser" host={host} />)
+
+  await page.getByRole("combobox", { name: "Optimization mode" }).click()
+  await page.getByRole("option", { name: /Crop/ }).click()
+  await page.getByRole("spinbutton", { name: "Black pixel threshold" }).fill("24")
+  await expect.poll(() => host.stateValue).toMatchObject({ videoOptimizerMode: "crop", videoOptimizerBlackPixelThreshold: "24" })
+})
+
+test("persists video optimizer noise reduction selection in the browser", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost(
+    { tool: "video-optimizer", includedDirectoriesText: "D:/media", result: videoOptimizerResult, analysisPanelTab: "operations" },
+    ["scan.video-optimizer", "operation.video-optimizer.candidate"],
+  )
+
+  await render(<Component compId="czkawka-video-optimizer-noise-reduction-browser" host={host} />)
+
+  await page.getByRole("combobox", { name: "Noise reduction" }).click()
+  await page.getByRole("option", { name: "HQDN3D" }).click()
+  await expect.poll(() => host.stateValue.videoOptimizerNoiseReduction).toBe("hqdn3d")
+})
+
+test("persists video optimizer HQDN3D strength in the browser", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost(
+    { tool: "video-optimizer", videoOptimizerNoiseReduction: "hqdn3d", includedDirectoriesText: "D:/media", result: videoOptimizerResult, analysisPanelTab: "operations" },
+    ["scan.video-optimizer", "operation.video-optimizer.candidate"],
+  )
+
+  await render(<Component compId="czkawka-video-optimizer-noise-strength-browser" host={host} />)
+
+  await page.getByRole("spinbutton", { name: "Noise reduction strength" }).fill("7")
+  await expect.poll(() => host.stateValue.videoOptimizerNoiseReductionStrength).toBe("7")
+})
+
+test("previews a selected video optimizer crop candidate dry run", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost(
+    { tool: "video-optimizer", videoOptimizerMode: "crop", includedDirectoriesText: "D:/media", result: videoOptimizerResult, analysisPanelTab: "operations" },
+    ["scan.video-optimizer", "operation.video-optimizer.candidate"],
+  )
+
+  await render(<Component compId="czkawka-video-optimizer-crop-browser" host={host} />)
+
+  const cropCheckbox = page.getByRole("checkbox", { name: "Select crop.mp4" })
+  await cropCheckbox.click()
+  await expect.element(cropCheckbox).toHaveAttribute("data-state", "checked")
+  await page.getByRole("button", { name: "Optimize videos (1)" }).click()
+  await expect.element(page.getByText("h264 -> crop 0,120,1920,960")).toBeVisible()
+  await expect.element(page.getByText("Preview 1 video optimizations; no files will change.")).toBeVisible()
+})
+
 test("renders Czkawka 12 video codec and frame-rate metadata in the browser", async () => {
   await i18n.changeLanguage("en")
   const host = createHost({ tool: "similar-videos", includedDirectoriesText: "D:/media", result: similarVideoResult })
@@ -489,6 +584,16 @@ const exifResult: CzkawkaData = {
   tool: "exif-remover",
   groups: [{ id: 0, entries: [{ id: "photo.jpg", groupId: 0, path: "D:/photo.jpg", name: "photo.jpg", size: 12, modifiedDate: 1, exifTags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }], totalBytes: 12, reclaimableBytes: 0 }],
   entries: [{ id: "photo.jpg", groupId: 0, path: "D:/photo.jpg", name: "photo.jpg", size: 12, modifiedDate: 1, exifTags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }],
+  groupCount: 1,
+  fileCount: 1,
+  totalBytes: 12,
+}
+
+const videoOptimizerResult: CzkawkaData = {
+  ...sample,
+  tool: "video-optimizer",
+  groups: [{ id: 0, entries: [{ id: "crop.mp4", groupId: 0, path: "D:/crop.mp4", name: "crop.mp4", size: 12, modifiedDate: 1, codec: "h264", videoCropRect: { left: 0, top: 120, right: 1920, bottom: 960 } }], totalBytes: 12, reclaimableBytes: 0 }],
+  entries: [{ id: "crop.mp4", groupId: 0, path: "D:/crop.mp4", name: "crop.mp4", size: 12, modifiedDate: 1, codec: "h264", videoCropRect: { left: 0, top: 120, right: 1920, bottom: 960 } }],
   groupCount: 1,
   fileCount: 1,
   totalBytes: 12,

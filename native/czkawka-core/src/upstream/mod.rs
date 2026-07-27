@@ -9,3 +9,4 @@ pub(crate) mod media_broken_files;
 pub(crate) mod media_same_music;
 pub(crate) mod media_similar_images;
 pub(crate) mod media_similar_videos;
+pub(crate) mod video_optimizer;

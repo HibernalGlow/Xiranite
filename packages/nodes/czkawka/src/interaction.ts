@@ -51,6 +51,7 @@ const LABELS_ZH: Record<CzkawkaTool, string> = {
   "bad-extensions": "不正确扩展名",
   "bad-names": "坏文件名",
   "exif-remover": "EXIF 清理",
+  "video-optimizer": "视频优化",
 }
 
 export function createCzkawkaInteractionSchema(defaults: Partial<CzkawkaInteractionValues> = {}, language: TerminalLanguage = "zh"): TerminalInteractionSchema<CzkawkaInput, CzkawkaResult> {

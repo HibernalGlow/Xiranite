@@ -69,6 +69,7 @@ export const CZKAWKA_RESULT_COLUMNS: Record<CzkawkaTool, readonly CzkawkaResultC
   "bad-extensions": [NAME, PATH, CURRENT_EXTENSION, PROPER_EXTENSION, MODIFIED],
   "bad-names": [NAME, PATH, TARGET, MODIFIED],
   "exif-remover": [NAME, PATH, EXIF_TAGS, SIZE, MODIFIED],
+  "video-optimizer": [SIZE, DIMENSIONS, CODEC, LENGTH, NAME, PATH, MODIFIED],
 }
 
 type SortState = { id: CzkawkaResultColumnId; descending: boolean }

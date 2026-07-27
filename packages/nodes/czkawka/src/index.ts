@@ -25,5 +25,6 @@ export * from "./operations.js"
 export * from "./scan-presets.js"
 export * from "./similar-video-crop.js"
 export * from "./image-comparison.js"
+export * from "./video-optimizer.js"
 export * from "./workbench.js"
 export default entry

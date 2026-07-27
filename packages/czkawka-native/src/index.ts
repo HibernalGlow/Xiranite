@@ -159,6 +159,79 @@ export interface ExifCandidate {
   removedTags: number
 }
 
+export type VideoOptimizerMode = "transcode" | "crop"
+export type VideoOptimizerCodec = "h264" | "h265" | "av1" | "vp9"
+export type VideoOptimizerNoiseReduction = "none" | "hqdn3d"
+
+export interface VideoOptimizerScanOptions {
+  mode: VideoOptimizerMode
+  includedDirectories: string[]
+  referenceDirectories?: string[]
+  excludedDirectories?: string[]
+  excludedItems?: string[]
+  allowedExtensions?: string
+  excludedExtensions?: string
+  recursive?: boolean
+  minimumFileSize?: number
+  maximumFileSize?: number
+  useCache?: boolean
+  saveAlsoAsJson?: boolean
+  deleteOutdatedCache?: boolean
+  excludedCodecs?: string
+  blackPixelThreshold?: number
+  blackBarMinPercentage?: number
+  maxSamples?: number
+  minCropSize?: number
+  scanId?: string
+  threadCount?: number
+}
+
+export interface VideoOptimizerEntry {
+  path: string
+  size: number
+  modifiedDate: number
+  codec: string
+  width: number
+  height: number
+  duration: number
+  cropLeft?: number
+  cropTop?: number
+  cropRight?: number
+  cropBottom?: number
+}
+
+export interface VideoOptimizerScanResult {
+  entries: VideoOptimizerEntry[]
+  messages: string
+  stopped: boolean
+}
+
+export interface VideoOptimizerCandidateOptions {
+  sourcePath: string
+  mode: VideoOptimizerMode
+  targetCodec: VideoOptimizerCodec
+  quality: number
+  failIfNotSmaller?: boolean
+  limitVideoSize?: boolean
+  maximumWidth?: number
+  maximumHeight?: number
+  noiseReduction?: VideoOptimizerNoiseReduction
+  noiseReductionStrength?: number
+  cropLeft?: number
+  cropTop?: number
+  cropRight?: number
+  cropBottom?: number
+  cropTranscode?: boolean
+  currentCodec: string
+  scanId?: string
+}
+
+export interface VideoOptimizerCandidate {
+  candidatePath: string
+  originalSize: number
+  candidateSize: number
+}
+
 export type CzkawkaMediaTool = "similar-images" | "similar-videos" | "duplicate-music" | "broken-files" | "bad-extensions"
 
 export interface MediaScanOptions {
@@ -266,6 +339,8 @@ export interface CzkawkaBinding {
   scanBasicFiles(options: BasicScanOptions): Promise<BasicScanResult>
   scanExifFiles(options: ExifScanOptions): Promise<ExifScanResult>
   createExifCandidate(options: ExifCandidateOptions): Promise<ExifCandidate>
+  scanVideoOptimizer(options: VideoOptimizerScanOptions): Promise<VideoOptimizerScanResult>
+  createVideoOptimizerCandidate(options: VideoOptimizerCandidateOptions): Promise<VideoOptimizerCandidate>
   scanMediaFiles(options: MediaScanOptions): Promise<MediaScanResult>
   cancelCzkawkaScan?(scanId: string): boolean
   getCzkawkaScanProgress?(scanId: string): CzkawkaScanProgress | undefined
@@ -301,6 +376,10 @@ export const scanExifFiles = (options: ExifScanOptions): Promise<ExifScanResult>
   loadCzkawkaBinding().scanExifFiles(options)
 export const createExifCandidate = (options: ExifCandidateOptions): Promise<ExifCandidate> =>
   loadCzkawkaBinding().createExifCandidate(options)
+export const scanVideoOptimizer = (options: VideoOptimizerScanOptions): Promise<VideoOptimizerScanResult> =>
+  loadCzkawkaBinding().scanVideoOptimizer(options)
+export const createVideoOptimizerCandidate = (options: VideoOptimizerCandidateOptions): Promise<VideoOptimizerCandidate> =>
+  loadCzkawkaBinding().createVideoOptimizerCandidate(options)
 export const scanMediaFiles = (options: MediaScanOptions): Promise<MediaScanResult> =>
   loadCzkawkaBinding().scanMediaFiles(options)
 export const cancelCzkawkaScan = (scanId: string): boolean => loadCzkawkaBinding().cancelCzkawkaScan?.(scanId) ?? false

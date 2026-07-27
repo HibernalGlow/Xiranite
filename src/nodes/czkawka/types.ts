@@ -1,4 +1,4 @@
-import type { CzkawkaCheckMethod, CzkawkaConflictPolicy, CzkawkaData, CzkawkaDeleteMode, CzkawkaExportScope, CzkawkaHashType, CzkawkaImageGeometricInvariance, CzkawkaImageHashAlgorithm, CzkawkaImageResizeAlgorithm, CzkawkaMusicCheckType, CzkawkaSort, CzkawkaTool, CzkawkaVideoCropDetect } from "@xiranite/node-czkawka/core"
+import type { CzkawkaCheckMethod, CzkawkaConflictPolicy, CzkawkaData, CzkawkaDeleteMode, CzkawkaExportScope, CzkawkaHashType, CzkawkaImageGeometricInvariance, CzkawkaImageHashAlgorithm, CzkawkaImageResizeAlgorithm, CzkawkaMusicCheckType, CzkawkaSort, CzkawkaTool, CzkawkaVideoCropDetect, CzkawkaVideoOptimizerCodec, CzkawkaVideoOptimizerMode, CzkawkaVideoOptimizerNoiseReduction } from "@xiranite/node-czkawka/core"
 import type { CzkawkaImageComparisonMode } from "@xiranite/node-czkawka/image-comparison"
 import type { CzkawkaFilterState, CzkawkaStoredFilterPreset } from "@xiranite/node-czkawka/filters"
 import type { CzkawkaSelectionAssistantConfig } from "@xiranite/node-czkawka/selection-assistant"
@@ -88,6 +88,21 @@ export interface CzkawkaCardState {
   emptyFilesSearchZeroByteContent?: boolean
   emptyFilesSearchNonPrintableContent?: boolean
   temporaryFileExtensions?: string
+  videoOptimizerMode?: CzkawkaVideoOptimizerMode
+  videoOptimizerExcludedCodecs?: string
+  videoOptimizerBlackPixelThreshold?: string
+  videoOptimizerBlackBarMinPercentage?: string
+  videoOptimizerMaxSamples?: string
+  videoOptimizerMinCropSize?: string
+  videoOptimizerTargetCodec?: CzkawkaVideoOptimizerCodec
+  videoOptimizerQuality?: string
+  videoOptimizerFailIfNotSmaller?: boolean
+  videoOptimizerLimitVideoSize?: boolean
+  videoOptimizerMaximumWidth?: string
+  videoOptimizerMaximumHeight?: string
+  videoOptimizerNoiseReduction?: CzkawkaVideoOptimizerNoiseReduction
+  videoOptimizerNoiseReductionStrength?: string
+  videoOptimizerCropTranscode?: boolean
   filterText?: string
   filterStatesByTool?: Partial<Record<CzkawkaTool, CzkawkaFilterState>>
   filterPresets?: CzkawkaStoredFilterPreset[]
