@@ -11,6 +11,7 @@ import { smartSelect, type CzkawkaAction, type CzkawkaInput, type CzkawkaRuntime
 
 import { CZKAWKA_STATE_VERSION, czkawkaStateMigrationPatch, normalizeCzkawkaCardState } from "./state"
 import type { CzkawkaCardState, CzkawkaSimilarImagesViewMode } from "./types"
+import { useCzkawkaNodeConfig } from "./use-czkawka-node-config"
 import { scanInput, type CzkawkaView } from "./views/model"
 
 type Host = NodeComponentProps<CzkawkaCardState>["host"]
@@ -27,10 +28,15 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
   const rawData = getData(host, compId)
   const data = normalizeCzkawkaCardState(rawData)
   const tool = data.tool ?? "duplicate-files"
-  const patch = useCallback((next: Partial<CzkawkaCardState>) => {
+  const applyCardStatePatch = useCallback((next: Partial<CzkawkaCardState>) => {
     if (host.state?.patchData) host.state.patchData(next)
     else host.patchData(compId, next)
   }, [compId, host])
+  const persistNodeConfigPatch = useCzkawkaNodeConfig({ host, applyCardStatePatch })
+  const patch = useCallback((next: Partial<CzkawkaCardState>) => {
+    applyCardStatePatch(next)
+    persistNodeConfigPatch(next)
+  }, [applyCardStatePatch, persistNodeConfigPatch])
   const persistWorkbenchPatch = useCallback((next: CzkawkaWorkbenchPersistencePatch) => {
     const { cacheRegeneration, imageComparison, ...cardPatch } = next
     patch({
@@ -91,6 +97,22 @@ export function useCzkawkaWorkbench({ compId, host, surface, t, language }: UseC
   const [filterNow] = useState(Date.now)
   const [similarImagesViewMode, setSimilarImagesViewModeState] = useState<CzkawkaSimilarImagesViewMode>(() => data.similarImagesViewMode ?? "images")
   const [nativeCapabilities, setNativeCapabilities] = useState<ReadonlySet<string>>(() => new Set())
+
+  // These values are rendered from local state, so copy their TOML-backed values
+  // after the asynchronous node-config read updates the card state.
+  useEffect(() => {
+    setFilterPresetsState(data.filterPresets ?? [])
+    setSelectionConfigState(data.selectionAssistantConfig ?? createDefaultCzkawkaSelectionAssistantConfig())
+    setPreviewPanelEnabledByTool(data.previewPanelEnabledByTool ?? {})
+    setThumbnailEnabledByTool(data.thumbnailEnabledByTool ?? {})
+    setSimilarImagesViewModeState(data.similarImagesViewMode ?? "images")
+  }, [
+    data.filterPresets,
+    data.previewPanelEnabledByTool,
+    data.selectionAssistantConfig,
+    data.similarImagesViewMode,
+    data.thumbnailEnabledByTool,
+  ])
 
   useEffect(() => {
     let active = true
