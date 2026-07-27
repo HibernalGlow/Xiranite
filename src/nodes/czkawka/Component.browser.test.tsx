@@ -283,6 +283,32 @@ test("shows a dry-run bad-name correction plan from the native target preview", 
   await expect.element(page.getByText("Rename 1 items to the scan's proposed names.")).toBeVisible()
 })
 
+test("hides the EXIF remover until the native binding advertises it", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" }, [])
+
+  await render(<Component compId="czkawka-exif-unavailable-browser" host={host} />)
+
+  await page.getByRole("combobox", { name: "Select scanner" }).click()
+  await expect.element(page.getByRole("option", { name: "EXIF Remover" })).not.toBeInTheDocument()
+})
+
+test("shows an EXIF cleanup dry-run plan without creating a candidate", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost(
+    { tool: "exif-remover", includedDirectoriesText: "D:/media", result: exifResult, analysisPanelTab: "operations" },
+    ["scan.exif-remover", "operation.exif.candidate"],
+  )
+
+  await render(<Component compId="czkawka-exif-browser" host={host} />)
+
+  await expect.element(page.getByText("ImageDescription").first()).toBeVisible()
+  await page.getByRole("checkbox", { name: "Select photo.jpg" }).click()
+  await page.getByRole("button", { name: "Clean EXIF (1)" }).click()
+  await expect.element(page.getByText("Remove 1 EXIF tags")).toBeVisible()
+  await expect.element(page.getByText("Preview metadata cleanup for 1 items; no files will change.")).toBeVisible()
+})
+
 test("renders Czkawka 12 video codec and frame-rate metadata in the browser", async () => {
   await i18n.changeLanguage("en")
   const host = createHost({ tool: "similar-videos", includedDirectoriesText: "D:/media", result: similarVideoResult })
@@ -453,6 +479,16 @@ const badNameResult: CzkawkaData = {
   tool: "bad-names",
   groups: [{ id: 0, entries: [{ id: "report-🙂.TXT", groupId: 0, path: "D:/report-🙂.TXT", name: "report-🙂.TXT", size: 12, modifiedDate: 1, secondaryPath: "D:/report-.txt" }], totalBytes: 12, reclaimableBytes: 0 }],
   entries: [{ id: "report-🙂.TXT", groupId: 0, path: "D:/report-🙂.TXT", name: "report-🙂.TXT", size: 12, modifiedDate: 1, secondaryPath: "D:/report-.txt" }],
+  groupCount: 1,
+  fileCount: 1,
+  totalBytes: 12,
+}
+
+const exifResult: CzkawkaData = {
+  ...sample,
+  tool: "exif-remover",
+  groups: [{ id: 0, entries: [{ id: "photo.jpg", groupId: 0, path: "D:/photo.jpg", name: "photo.jpg", size: 12, modifiedDate: 1, exifTags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }], totalBytes: 12, reclaimableBytes: 0 }],
+  entries: [{ id: "photo.jpg", groupId: 0, path: "D:/photo.jpg", name: "photo.jpg", size: 12, modifiedDate: 1, exifTags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }],
   groupCount: 1,
   fileCount: 1,
   totalBytes: 12,

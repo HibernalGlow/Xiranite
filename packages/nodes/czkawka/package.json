@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": false,
-  "description": "Czkawka file analysis workbench with eleven native scanners and TypeScript orchestration.",
+  "description": "Czkawka file analysis workbench with safe TypeScript orchestration.",
   "license": "MIT",
   "bin": { "xczkawka": "./dist/cli.js" },
   "exports": {
@@ -13,6 +13,7 @@
     "./selection-assistant": { "types": "./dist/selection-assistant.d.ts", "default": "./dist/selection-assistant.js" },
     "./analysis": { "types": "./dist/analysis.d.ts", "default": "./dist/analysis.js" },
     "./bad-names": { "types": "./dist/bad-names.d.ts", "default": "./dist/bad-names.js" },
+    "./exif": { "types": "./dist/exif.d.ts", "default": "./dist/exif.js" },
     "./activity-log": { "types": "./dist/activity-log.d.ts", "default": "./dist/activity-log.js" },
     "./card-layout": { "types": "./dist/card-layout.d.ts", "default": "./dist/card-layout.js" },
     "./floating-panel": { "types": "./dist/floating-panel.d.ts", "default": "./dist/floating-panel.js" },

@@ -8,7 +8,7 @@ import type { CzkawkaFloatingPanelState, CzkawkaFloatingViewport } from "@xirani
 import type { CzkawkaImageComparisonMode, CzkawkaImageComparisonState } from "@xiranite/node-czkawka/image-comparison"
 import type { CzkawkaSelectionAssistantConfig, CzkawkaSelectionHistory, CzkawkaSelectionResult, CzkawkaSelectionStats } from "@xiranite/node-czkawka/selection-assistant"
 import type { CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
-import { ArchiveX, AudioLines, Copy, FileQuestion, FileText, FileX2, FolderX, HardDrive, Image, Link2Off, Video } from "lucide-react"
+import { ArchiveX, AudioLines, Copy, FileQuestion, FileText, FileX2, FolderX, HardDrive, Image, Link2Off, Tags, Video } from "lucide-react"
 
 import type { CzkawkaCardState, CzkawkaPanel, CzkawkaSimilarImagesViewMode } from "../types"
 
@@ -105,6 +105,7 @@ export const CZKAWKA_TOOL_META = [
   { id: "broken-files", labelKey: "tools.brokenFiles", label: "损坏文件", shortKey: "tools.short.brokenFiles", short: "损坏", icon: FileQuestion },
   { id: "bad-extensions", labelKey: "tools.badExtensions", label: "不正确扩展名", shortKey: "tools.short.badExtensions", short: "扩展名", icon: ArchiveX },
   { id: "bad-names", labelKey: "tools.badNames", label: "坏文件名", shortKey: "tools.short.badNames", short: "坏名称", icon: FileText, requiredNativeCapability: "scan.bad-names" },
+  { id: "exif-remover", labelKey: "tools.exifRemover", label: "EXIF 清理", shortKey: "tools.short.exifRemover", short: "EXIF", icon: Tags, requiredNativeCapability: "scan.exif-remover" },
 ] as const satisfies ReadonlyArray<CzkawkaToolMeta>
 
 export function getCzkawkaToolMeta(tool: CzkawkaTool, t?: CzkawkaView["t"]) {

@@ -7,7 +7,7 @@ import { resolveCzkawkaSimilarVideoCrop } from "./similar-video-crop.js"
 import { parseCzkawkaExtensionTokens, parseCzkawkaList, reconcileCzkawkaReferences, serializeCzkawkaExtensionTokens } from "./source-inputs.js"
 import { DEFAULT_TEMPORARY_FILE_EXTENSIONS } from "./temporary-file-extensions.js"
 
-type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "threadCount" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun" | "similarVideosCropDetect">
+type OptionId = Exclude<keyof CzkawkaInput, "action" | "tool" | "includedDirectories" | "includedDirectoriesReferenced" | "excludedDirectories" | "excludedItems" | "allowedExtensions" | "excludedExtensions" | "minimumFileSize" | "maximumFileSize" | "recursive" | "useCache" | "threadCount" | "filterText" | "sortBy" | "descending" | "selectedPaths" | "destinationDirectory" | "destinationItems" | "renameItems" | "exifItems" | "deleteMode" | "copyMode" | "preserveStructure" | "conflictPolicy" | "outputPath" | "outputFormat" | "exportScope" | "exportEntries" | "dryRun" | "similarVideosCropDetect">
 type OptionValue = string | number | boolean
 type OptionKind = "boolean" | "number" | "select" | "text"
 

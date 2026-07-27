@@ -331,6 +331,18 @@ describe("Czkawka node", () => {
     await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "rename", tool: "bad-names", selectedPaths: ["D:/report-🙂.TXT"], renameItems: [{ path: "D:/report-🙂.TXT", targetName: "report-.txt" }], dryRun: true }))
   })
 
+  test("builds a selected EXIF cleanup plan through the safe candidate contract", async () => {
+    const entry = { id: "exif", groupId: 0, path: "D:/photo.jpg", name: "photo.jpg", size: 10, modifiedDate: 1, exifTags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }
+    const result: CzkawkaData = { ...sample, tool: "exif-remover", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
+    const host = createHost({ tool: "exif-remover", result, dryRun: true, analysisPanelTab: "operations" }, () => ({ ...sample, action: "clean-exif", tool: "exif-remover" }), ["scan.exif-remover", "operation.exif.candidate"])
+    render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择 photo.jpg" }))
+    fireEvent.click(screen.getByRole("button", { name: "清理 EXIF（1）" }))
+    expect(screen.getByText(/移除 1 个 EXIF 标签/)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "确认清理 EXIF" }))
+    await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "clean-exif", tool: "exif-remover", selectedPaths: ["D:/photo.jpg"], exifItems: [{ path: "D:/photo.jpg", tags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }], dryRun: true }))
+  })
+
   test("creates, overwrites, exports, deletes, and reimports persistent scan presets", () => {
     const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/photos", similarity: "7" })
     const view = render(<Component compId="czkawka" host={host} />)
@@ -643,7 +655,7 @@ describe("Czkawka node", () => {
 })
 
 type TestHost = NodeHostApi<CzkawkaCardState, Partial<CzkawkaCardState>> & { stateValue: CzkawkaCardState; calls: Array<{ nodeId: string; input: CzkawkaInput }>; cancelCalls: number; pickedDirectory?: string; pickedDirectories?: string[] }
-function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInput) => CzkawkaData = () => sample): TestHost {
+function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInput) => CzkawkaData = () => sample, nativeCapabilities = ["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"]): TestHost {
   const host: TestHost = {
     stateValue: initial,
     calls: [],
@@ -652,7 +664,7 @@ function createHost(initial: CzkawkaCardState, resultFactory: (input: CzkawkaInp
     env: { theme: "light", platform: "web" },
     localFiles: { getUrl: (path) => `local://${path}`, pickDirectory: async () => host.pickedDirectory, pickDirectories: async () => host.pickedDirectories ?? (host.pickedDirectory ? [host.pickedDirectory] : []) },
     state: { getData: () => host.stateValue, patchData: (patch) => { host.stateValue = { ...host.stateValue, ...patch } } },
-    runner: { getInfo: async <TInfo,>() => ({ apiVersion: 5, sourceVersion: "12.0.0", capabilities: ["similar-images.geometric-invariance", "similar-images.same-resolution-exclusion"] }) as TInfo, run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as CzkawkaInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 1 item(s).", data: resultFactory(input as CzkawkaInput) as TData } }, cancelCurrent: async () => { host.cancelCalls += 1; return true } },
+    runner: { getInfo: async <TInfo,>() => ({ apiVersion: 5, sourceVersion: "12.0.0", capabilities: nativeCapabilities }) as TInfo, run: async <TInput, TData>(nodeId: string, input: TInput, onEvent?: (event: NodeRunEvent) => void): Promise<NodeRunResult<TData>> => { host.calls.push({ nodeId, input: input as CzkawkaInput }); onEvent?.({ type: "progress", progress: 50, message: "Scanning" }); return { success: true, message: "Found 1 item(s).", data: resultFactory(input as CzkawkaInput) as TData } }, cancelCurrent: async () => { host.cancelCalls += 1; return true } },
     getData: <T,>() => host.stateValue as T,
     patchData: (_id, patch) => { host.stateValue = { ...host.stateValue, ...patch } },
     listComponents: () => [],

@@ -5,7 +5,7 @@ import { resolveInteractionPreferences, type CliInteractionPreferencesSource } f
 import { runInteractionCli, runTerminalUi, type TerminalPreferenceController, type TerminalPreferenceValues } from "@xiranite/cli-runtime/terminal"
 import { resolveTerminalLanguage, type TerminalLanguage } from "@xiranite/cli-runtime/i18n"
 import { loadNodeConfigWithHints, updateNodeConfigFile } from "@xiranite/config"
-import { CZKAWKA_TOOLS, runCzkawka, type CzkawkaInput, type CzkawkaResult, type CzkawkaTool } from "./core.js"
+import { CZKAWKA_TERMINAL_TOOLS, runCzkawka, type CzkawkaInput, type CzkawkaResult, type CzkawkaTool } from "./core.js"
 import { createNodeCzkawkaRuntime, openCzkawkaPath } from "./platform.js"
 import { createCzkawkaInteractionSchema } from "./interaction.js"
 import { help } from "./help.js"
@@ -43,9 +43,10 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
   const command = args[0] ?? "scan", json = args.includes("--json"), language = resolveTerminalLanguage(valueFor(args, "--lang"), host.env)
   const { config } = await loadNodeConfigWithHints<CzkawkaConfig>("czkawka", { env: host.env, cwd: host.cwd, hintSink: { stderr: host.stderr }, jsonMode: json })
   let input: CzkawkaInput
-  if (command === "scan" || CZKAWKA_TOOLS.includes(command as CzkawkaTool)) {
+  if (command === "scan" || CZKAWKA_TERMINAL_TOOLS.includes(command as typeof CZKAWKA_TERMINAL_TOOLS[number])) {
     const explicitTool = command === "scan" ? args[1] : command
-    const tool = CZKAWKA_TOOLS.includes(explicitTool as CzkawkaTool) ? explicitTool as CzkawkaTool : config?.tool ?? "duplicate-files"
+    const configuredTool = CZKAWKA_TERMINAL_TOOLS.includes(config?.tool as typeof CZKAWKA_TERMINAL_TOOLS[number]) ? config!.tool! : "duplicate-files"
+    const tool = CZKAWKA_TERMINAL_TOOLS.includes(explicitTool as typeof CZKAWKA_TERMINAL_TOOLS[number]) ? explicitTool as CzkawkaTool : configuredTool
     const offset = command === "scan" ? 2 : 1
     let roots = positional(args.slice(offset), SCAN_VALUE_FLAGS)
     if (roots.includes("-")) roots = roots.filter((path) => path !== "-").concat(await readStdinLines(host.stdin))
@@ -69,11 +70,12 @@ async function runPipe(args: string[], host: CliHost): Promise<void> {
 }
 
 function createDefinition(defaults: CzkawkaConfig, language: TerminalLanguage) {
+  const tool = CZKAWKA_TERMINAL_TOOLS.includes(defaults.tool as typeof CZKAWKA_TERMINAL_TOOLS[number]) ? defaults.tool : "duplicate-files"
   const activePreset = defaults.scan_presets?.find((preset) => preset.id === defaults.active_scan_preset_id)
   const presetValues = activePreset ? czkawkaScanPresetToValues(activePreset) as Partial<CzkawkaInteractionValues> : {}
   let cancelled = false
   const platform = createNodeCzkawkaRuntime()
-  return { schema: createCzkawkaInteractionSchema({ tool: defaults.tool, recursive: defaults.recursive, useCache: defaults.use_cache, hashType: defaults.hash_type, checkMethod: defaults.check_method, similarity: defaults.similarity, ...presetValues }, language), run: (input: CzkawkaInput, onEvent: Parameters<typeof runCzkawka>[2]) => { cancelled = false; return runCzkawka(input, { ...platform, isCancelled: () => cancelled }, onEvent) }, cancel: async () => { cancelled = true }, openPath: openCzkawkaPath }
+  return { schema: createCzkawkaInteractionSchema({ tool, recursive: defaults.recursive, useCache: defaults.use_cache, hashType: defaults.hash_type, checkMethod: defaults.check_method, similarity: defaults.similarity, ...presetValues }, language), run: (input: CzkawkaInput, onEvent: Parameters<typeof runCzkawka>[2]) => { cancelled = false; return runCzkawka(input, { ...platform, isCancelled: () => cancelled }, onEvent) }, cancel: async () => { cancelled = true }, openPath: openCzkawkaPath }
 }
 
 function preferences(host: CliHost, current: TerminalPreferenceValues): TerminalPreferenceController {
@@ -108,6 +110,6 @@ function valuesFor(args: string[], flag: string): string[] { return args.flatMap
 function listFor(args: string[], flag: string): string[] { return valuesFor(args, flag).flatMap((value) => parseCzkawkaList(value)).filter((value, index, all) => all.indexOf(value) === index) }
 function extensionsFor(args: string[], flag: string): string | undefined { const values = valuesFor(args, flag).flatMap((value) => parseCzkawkaExtensionTokens(value)); return values.length ? serializeCzkawkaExtensionTokens(values) : undefined }
 function numberFor(args: string[], flag: string): number | undefined { const value = valueFor(args, flag); if (value === undefined) return undefined; const parsed = Number(value); return Number.isFinite(parsed) ? parsed : undefined }
-function operationToolFor(args: string[]): CzkawkaTool | undefined { const value = valueFor(args, "--tool"); if (value === undefined) return undefined; if (!CZKAWKA_TOOLS.includes(value as CzkawkaTool)) throw new Error(`Unsupported Czkawka tool: ${value}`); return value as CzkawkaTool }
+function operationToolFor(args: string[]): CzkawkaTool | undefined { const value = valueFor(args, "--tool"); if (value === undefined) return undefined; if (!CZKAWKA_TERMINAL_TOOLS.includes(value as typeof CZKAWKA_TERMINAL_TOOLS[number])) throw new Error(`Unsupported Czkawka tool: ${value}`); return value as CzkawkaTool }
 const defaultHost = (): CliHost => ({ cwd: process.cwd(), env: process.env, stdin: process.stdin, stdout: process.stdout, stderr: process.stderr })
 if (process.argv[1] && /\bcli\.[jt]s$/.test(process.argv[1].replace(/\\/g, "/"))) await runProgram()

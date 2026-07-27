@@ -5,7 +5,10 @@ function runtime(): CzkawkaRuntime {
   return {
     scanDuplicates: vi.fn(async () => ({ groups: [{ files: [{ path: "D:/a.bin", size: 12, modifiedDate: 1, hash: "x" }, { path: "D:/b.bin", size: 12, modifiedDate: 2, hash: "x" }] }], messages: "ok", stopped: false })),
     scanBasic: vi.fn(async () => ({ entries: [{ path: "D:/empty.tmp", size: 0, modifiedDate: 1 }], messages: "ok", stopped: false })),
+    scanExif: vi.fn(async () => ({ entries: [{ path: "D:/photo.jpg", size: 20, modifiedDate: 1, tags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }], messages: "ok", stopped: false })),
     scanMedia: vi.fn(async () => ({ groups: [{ entries: [{ path: "D:/a.jpg", size: 20, modifiedDate: 1, width: 100, height: 80 }, { path: "D:/b.jpg", size: 21, modifiedDate: 1, width: 100, height: 80 }] }], messages: "ok", stopped: false })),
+    createExifCandidate: vi.fn(async () => ({ candidatePath: "D:/candidates/photo.jpg", removedTags: 1 })),
+    replaceWithCandidate: vi.fn(async () => undefined),
     pathExists: vi.fn(async (path) => path.startsWith("D:/")), removePath: vi.fn(async () => undefined), copyPath: vi.fn(async () => undefined), movePath: vi.fn(async () => undefined), writeText: vi.fn(async () => undefined), ensureDirectory: vi.fn(async () => undefined),
     join: (...parts) => parts.filter(Boolean).join("/"), dirname: (path) => path.slice(0, path.lastIndexOf("/")), basename: (path) => path.slice(path.lastIndexOf("/") + 1), relativeDirectoryFromRoot: (path) => path.slice(3, path.lastIndexOf("/")),
   }
@@ -183,6 +186,18 @@ describe("czkawka TypeScript orchestration", () => {
     expect(adapter.scanBasic).toHaveBeenCalledOnce()
   })
 
+  test("requires the EXIF scanner capability before entering the native adapter", async () => {
+    const adapter = runtime()
+    const rejected = await runCzkawka({ tool: "exif-remover", includedDirectories: ["D:/"] }, adapter)
+    expect(rejected).toMatchObject({ success: false, message: expect.stringContaining("scan.exif-remover") })
+    expect(adapter.scanExif).not.toHaveBeenCalled()
+
+    adapter.capabilities = ["scan.exif-remover"]
+    const scanned = await runCzkawka({ tool: "exif-remover", includedDirectories: ["D:/"] }, adapter)
+    expect(scanned).toMatchObject({ success: true, data: { entries: [expect.objectContaining({ exifTags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] })] } })
+    expect(adapter.scanExif).toHaveBeenCalledOnce()
+  })
+
   test("clamps cache thresholds and trims custom folders", () => {
     const value = normalizeCzkawkaInput({ cacheFolderPath: "  D:/cache  ", configFolderPath: " D:/config ", duplicateMinimalHashCacheSizeKiB: 0, duplicateMinimalPrehashCacheSizeKiB: 2_000_000 })
     expect(value.cacheFolderPath).toBe("D:/cache")
@@ -343,6 +358,36 @@ describe("czkawka TypeScript orchestration", () => {
     const executed = await runCzkawka({ action: "rename", tool: "bad-names", renameItems: [{ path: "D:/report-🙂.TXT", targetName: "report-.txt" }], dryRun: false }, adapter)
     expect(executed.data?.entries[0]?.status).toBe("renamed")
     expect(adapter.movePath).toHaveBeenCalledWith("D:/report-🙂.TXT", "D:/report-.txt")
+  })
+
+  test("plans EXIF cleanup before creating a candidate, then delegates safe replacement", async () => {
+    const adapter = runtime()
+    adapter.capabilities = ["operation.exif.candidate"]
+    const exifItems = [{ path: "D:/photo.jpg", tags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }]
+
+    const planned = await runCzkawka({ action: "clean-exif", tool: "exif-remover", exifItems }, adapter)
+    expect(planned.data?.entries[0]).toMatchObject({ operation: "clean-exif", status: "planned", secondaryPath: "D:/photo.jpg" })
+    expect(adapter.createExifCandidate).not.toHaveBeenCalled()
+
+    const executed = await runCzkawka({ action: "clean-exif", tool: "exif-remover", exifItems, dryRun: false }, adapter)
+    expect(executed.data?.entries[0]).toMatchObject({ operation: "clean-exif", status: "cleaned", secondaryPath: "D:/photo.jpg" })
+    expect(adapter.createExifCandidate).toHaveBeenCalledWith("D:/photo.jpg", exifItems[0]!.tags)
+    expect(adapter.replaceWithCandidate).toHaveBeenCalledWith("D:/candidates/photo.jpg", "D:/photo.jpg")
+  })
+
+  test("retains the EXIF candidate path in the operation detail when replacement fails", async () => {
+    const adapter = runtime()
+    adapter.capabilities = ["operation.exif.candidate"]
+    vi.mocked(adapter.replaceWithCandidate).mockRejectedValueOnce(new Error("move failed"))
+
+    const result = await runCzkawka({
+      action: "clean-exif",
+      tool: "exif-remover",
+      dryRun: false,
+      exifItems: [{ path: "D:/photo.jpg", tags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }],
+    }, adapter)
+
+    expect(result).toMatchObject({ success: false, data: { entries: [expect.objectContaining({ status: "error", secondaryPath: "D:/candidates/photo.jpg", detail: "Candidate retained at D:/candidates/photo.jpg." })] } })
   })
 
   test("reports extension target conflicts and invalid extensions per item", async () => {

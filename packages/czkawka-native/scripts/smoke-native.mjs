@@ -1,11 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { cancelCzkawkaScan, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanMediaFiles } from "../dist/index.js"
+import { cancelCzkawkaScan, createExifCandidate, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles } from "../dist/index.js"
 
 const info = getCzkawkaInfo()
-const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "scan.bad-names", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio", "broken-files.multi-checker", "empty-files.content-checkers", "temporary-files.custom-extensions"]
+const requiredCapabilities = ["scan.duplicate", "scan.progress.v2", "scan.cancel", "scan.bad-names", "scan.exif-remover", "operation.exif.candidate", "similar-videos.similario", "similar-videos.same-resolution-exclusion", "similar-videos.audio", "broken-files.multi-checker", "empty-files.content-checkers", "temporary-files.custom-extensions"]
 const missingCapabilities = requiredCapabilities.filter((capability) => !info.capabilities.includes(capability))
 if (info.apiVersion !== 5 || missingCapabilities.length) {
   throw new Error(`Unexpected Czkawka info: ${JSON.stringify(info)}`)
@@ -13,6 +13,7 @@ if (info.apiVersion !== 5 || missingCapabilities.length) {
 console.log(JSON.stringify(info))
 
 const directory = await mkdtemp(join(tmpdir(), "xiranite-czkawka-native-"))
+let exifCandidatePath
 try {
   await Promise.all([
     writeFile(join(directory, "one.bin"), "same-content"),
@@ -25,6 +26,7 @@ try {
     writeFile(join(directory, "custom-temporary.xiranite-tmp"), "temporary"),
     writeFile(join(directory, "broken.json"), '{"broken":'),
     writeFile(join(directory, "report-🙂.TXT"), "report"),
+    writeFile(join(directory, "photo.jpg"), await jpegWithImageDescription()),
   ])
   const result = await scanDuplicateFiles({ includedDirectories: [directory], useCache: false })
   if (result.groups.length !== 1 || result.groups[0]?.files.length !== 2) {
@@ -71,6 +73,25 @@ try {
     throw new Error(`Bad-name scanner did not return the proposed same-directory target: ${JSON.stringify(badNames)}`)
   }
   console.log(JSON.stringify({ badNameFiles: badNames.entries.length }))
+  const photoPath = join(directory, "photo.jpg")
+  const sourceBefore = await readFile(photoPath)
+  const exif = await scanExifFiles({ includedDirectories: [photoPath], useCache: false })
+  const exifEntry = exif.entries.find((entry) => entry.path.endsWith("photo.jpg"))
+  if (!exifEntry?.tags.some((tag) => tag.code === 270 && tag.group === "GENERIC")) {
+    throw new Error(`EXIF scan did not report the injected ImageDescription tag: ${JSON.stringify(exif)}`)
+  }
+  const candidate = await createExifCandidate({ sourcePath: photoPath, tags: exifEntry.tags })
+  exifCandidatePath = candidate.candidatePath
+  if (candidate.removedTags < 1 || Buffer.compare(sourceBefore, await readFile(photoPath)) !== 0) {
+    throw new Error(`EXIF candidate changed the source or removed no metadata: ${JSON.stringify(candidate)}`)
+  }
+  const cleanedExif = await scanExifFiles({ includedDirectories: [candidate.candidatePath], useCache: false })
+  if (cleanedExif.entries.length) {
+    throw new Error(`EXIF candidate still has metadata: ${JSON.stringify(cleanedExif)}`)
+  }
+  await rm(exifCandidatePath, { force: true })
+  exifCandidatePath = undefined
+  console.log(JSON.stringify({ exifTags: exifEntry.tags.length, removedExifTags: candidate.removedTags }))
   const media = await scanMediaFiles({
     tool: "bad-extensions",
     includedDirectories: [directory],
@@ -138,5 +159,18 @@ try {
   if (getCzkawkaScanProgress(scanId) !== undefined) throw new Error("Finished native scan session was not released")
   console.log(JSON.stringify({ progressStage: progress.stage, cancelled: cancelled.stopped }))
 } finally {
+  if (exifCandidatePath) await rm(exifCandidatePath, { force: true })
   await rm(directory, { recursive: true, force: true })
+}
+
+async function jpegWithImageDescription() {
+  const base = await readFile(new URL("../../../vendor/folia-major/assets/placeholder_cover.jpg", import.meta.url))
+  const exifSegment = new Uint8Array([
+    0xff, 0xe1, 0x00, 0x28, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0x49, 0x49,
+    0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x0e, 0x01, 0x02, 0x00,
+    0x06, 0x00, 0x00, 0x00, 0x1a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x00,
+  ])
+  if (base[0] !== 0xff || base[1] !== 0xd8) throw new Error("EXIF smoke fixture is not a JPEG")
+  return Buffer.concat([base.subarray(0, 2), exifSegment, base.subarray(2)])
 }

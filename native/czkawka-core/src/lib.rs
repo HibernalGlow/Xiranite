@@ -19,6 +19,8 @@ pub fn initialize_threads(thread_count: usize) -> usize {
 pub enum CzkawkaError {
     #[error("invalid option: {0}")]
     InvalidOption(String),
+    #[error("operation failed: {0}")]
+    Operation(String),
 }
 
 pub fn czkawka_info() -> CzkawkaInfo {
@@ -207,6 +209,89 @@ pub fn scan_basic_files_controlled(
     control: &ScanControl,
 ) -> Result<BasicScanResult, CzkawkaError> {
     upstream::basic::scan_basic_files_controlled(options, control)
+}
+
+#[derive(Debug, Clone)]
+pub struct ExifScanOptions {
+    pub included_directories: Vec<PathBuf>,
+    pub reference_directories: Vec<PathBuf>,
+    pub excluded_directories: Vec<PathBuf>,
+    pub excluded_items: Vec<String>,
+    pub allowed_extensions: String,
+    pub excluded_extensions: String,
+    pub recursive: bool,
+    pub minimum_file_size: u64,
+    pub maximum_file_size: u64,
+    pub use_cache: bool,
+    pub save_also_as_json: bool,
+    pub delete_outdated_cache: bool,
+    pub ignored_tags: Vec<String>,
+}
+
+impl ExifScanOptions {
+    pub fn new(included_directories: Vec<PathBuf>) -> Self {
+        Self {
+            included_directories,
+            reference_directories: Vec::new(),
+            excluded_directories: Vec::new(),
+            excluded_items: Vec::new(),
+            allowed_extensions: String::new(),
+            excluded_extensions: String::new(),
+            recursive: true,
+            minimum_file_size: 1,
+            maximum_file_size: u64::MAX,
+            use_cache: true,
+            save_also_as_json: false,
+            delete_outdated_cache: true,
+            ignored_tags: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExifTag {
+    pub name: String,
+    pub code: u16,
+    pub group: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExifEntry {
+    pub path: PathBuf,
+    pub size: u64,
+    pub modified_date: u64,
+    pub tags: Vec<ExifTag>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExifScanResult {
+    pub entries: Vec<ExifEntry>,
+    pub messages: String,
+    pub stopped: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExifCandidate {
+    pub path: PathBuf,
+    pub removed_tags: u32,
+}
+
+pub fn scan_exif_files(options: ExifScanOptions) -> Result<ExifScanResult, CzkawkaError> {
+    scan_exif_files_controlled(options, &ScanControl::detached())
+}
+
+pub fn scan_exif_files_controlled(
+    options: ExifScanOptions,
+    control: &ScanControl,
+) -> Result<ExifScanResult, CzkawkaError> {
+    upstream::exif_remover::scan(options, control)
+}
+
+pub fn create_exif_candidate(
+    source: PathBuf,
+    tags: Vec<ExifTag>,
+) -> Result<ExifCandidate, CzkawkaError> {
+    upstream::exif_remover::create_candidate(source, tags)
 }
 
 #[derive(Debug, Clone, Copy)]

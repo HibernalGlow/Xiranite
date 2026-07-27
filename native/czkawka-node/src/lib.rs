@@ -9,8 +9,10 @@ use napi_derive::napi;
 use xiranite_czkawka_core as core;
 
 mod basic_task;
+mod exif_api;
 mod trash_api;
 pub use basic_task::BasicScanTask;
+pub use exif_api::{create_exif_candidate, scan_exif_files};
 pub use trash_api::*;
 
 #[cfg(target_os = "windows")]
