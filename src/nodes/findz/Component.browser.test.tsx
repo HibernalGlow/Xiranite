@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "vitest"
+import { afterEach, beforeEach, expect, test } from "vitest"
 import { page } from "vitest/browser"
 import { cleanup, render } from "vitest-browser-react"
 import type { NodeHostApi, NodeRunResult } from "@xiranite/contract"
@@ -6,7 +6,9 @@ import type { FindzData, FindzInput } from "@xiranite/node-findz/core"
 import type { FindzTask } from "@xiranite/findz-native"
 import { Component } from "./Component"
 import type { FindzCardState } from "./types"
+import { changeLanguage } from "@/i18n"
 
+beforeEach(async () => { await changeLanguage("en") })
 afterEach(() => cleanup())
 
 test("opens a library and renders the synchronized archive table and treemap", async () => {
@@ -152,6 +154,15 @@ test("renders a direct unsupported archive state", async () => {
   await page.getByRole("button", { name: "Open library" }).click()
 
   await expect.element(page.getByText("Unsupported archive")).toBeVisible()
+})
+
+test("renders the workspace controls in Chinese after switching language", async () => {
+  await changeLanguage("zh")
+  const host = createHost({ libraryRoot: "D:/library" })
+
+  await render(<Component compId="findz-zh-browser" host={host} />)
+  await expect.element(page.getByRole("button", { name: "打开库" })).toBeVisible()
+  await expect.element(page.getByPlaceholder("本地 ZIP / CBZ 库根目录")).toBeVisible()
 })
 
 type TestHost = NodeHostApi<FindzCardState, Partial<FindzCardState>> & {

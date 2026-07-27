@@ -1251,7 +1251,7 @@
       "views": { "images": "图片", "folders": "文件夹" },
       "comparison": { "title": "图片对比", "modes": "对比模式", "single": "单张图片", "sideBySide": "并排对比", "swipe": "滑动分割", "onionSkin": "洋葱皮叠加", "colorCoding": "差异着色", "targets": "对比目标", "compareWith": "与 {{name}} 对比", "source": "当前图片", "target": "对比图片", "swipePosition": "分割位置", "onionOpacity": "叠加透明度", "close": "关闭图片对比" },
       "metrics": { "files": "文件", "groups": "分组", "totalSize": "总大小", "reclaimable": "可回收" },
-      "sources": { "included": "包含目录", "excluded": "排除目录", "excludedItems": "排除项目", "excludedItemsPlaceholder": "*/cache/*; *.part；每条规则需包含 *", "allowedExtensions": "允许扩展名", "excludedExtensions": "排除扩展名", "allowedPriority": "Czkawka core 在允许列表非空时优先使用允许列表；排除扩展名暂不参与匹配。", "minimumSize": "最小文件大小（B）", "maximumSize": "最大文件大小（B）", "threads": "扫描线程（0 = 自动）", "threadsHint": "线程池在本进程首次 native 扫描时初始化；修改后请重启桌面端再扫描。", "recursive": "递归扫描", "useCache": "使用缓存", "referencePathKeywords": "参考路径关键词", "referencePathKeywordsHint": "新增目录包含任一关键词时自动标记为参考；多个关键词用逗号、分号或换行分隔。", "reversePathDisplay": "反向显示路径", "tableWrapText": "表格文字折行", "cancelAllReferences": "取消全部参考目录", "setAllReferences": "全部设为参考目录", "browseAdd": "浏览添加{{label}}", "removeSelected": "移除选中的{{label}}", "clear": "清空{{label}}", "selectDirectory": "选择目录 {{path}}", "cancelReference": "取消参考 {{path}}", "setReference": "设为参考 {{path}}", "removeDirectory": "移除目录 {{path}}", "empty": "尚未添加目录", "pasteMany": "批量粘贴{{label}}", "pasteHint": "可粘贴多行、逗号或分号分隔路径\n也可拖放目录", "addPasted": "添加粘贴的{{label}}", "reset": "重置{{label}}", "input": "{{label}}输入", "invalidRule": "Czkawka 排除规则必须包含 *，或使用 DEFAULT", "invalidExtension": "扩展名不能包含点号或空格", "removeToken": "移除 {{token}}" },
+      "sources": { "included": "包含目录", "excluded": "排除目录", "excludedItems": "排除项目", "excludedItemsPlaceholder": "*/cache/*; *.part；每条规则需包含 *", "allowedExtensions": "允许扩展名", "excludedExtensions": "排除扩展名", "allowedPriority": "Czkawka core 在允许列表非空时优先使用允许列表；排除扩展名暂不参与匹配。", "minimumSize": "最小文件大小（B）", "maximumSize": "最大文件大小（B）", "threads": "扫描线程（0 = 自动）", "threadsHint": "线程池在本进程首次 native 扫描时初始化；修改后请重启桌面端再扫描。", "recursive": "递归扫描", "useCache": "使用缓存", "referencePathKeywords": "参考路径关键词", "referencePathKeywordsHint": "新增目录包含任一关键词时自动标记为参考；多个关键词用逗号、分号或换行分隔。", "reversePathDisplay": "反向显示路径", "tableWrapText": "表格文字折行", "cancelAllReferences": "取消全部参考目录", "setAllReferences": "全部设为参考目录", "browseAdd": "浏览添加{{label}}", "browseAddFiles": "添加文件到{{label}}", "pickFiles": "选择要扫描的文件", "removeSelected": "移除选中的{{label}}", "clear": "清空{{label}}", "selectDirectory": "选择目录 {{path}}", "cancelReference": "取消参考 {{path}}", "setReference": "设为参考 {{path}}", "removeDirectory": "移除目录 {{path}}", "empty": "尚未添加目录", "pasteMany": "批量粘贴{{label}}", "pasteHint": "可粘贴多行、逗号或分号分隔路径\n也可拖放目录", "addPasted": "添加粘贴的{{label}}", "addTrashPreset": "添加 $TRASH 排除预设", "reset": "重置{{label}}", "input": "{{label}}输入", "invalidRule": "Czkawka 排除规则必须包含 *，或使用 DEFAULT/$TRASH", "invalidExtension": "扩展名不能包含点号或空格", "removeToken": "移除 {{token}}" },
       "similarityReference": { "open": "打开相似度速查表", "title": "相似度与 Hash Size 速查表", "description": "差异值越小，文件越相似；范围与 Czkawka Core 使用的阈值一致。", "level": "等级" },
       "common": { "unlimited": "不限", "cancel": "取消" },
       "presets": { "title": "扫描配置预设", "active": "活动预设", "choose": "选择预设", "name": "预设名称", "create": "新建", "overwrite": "覆盖", "delete": "删除", "transfer": "导入 / 导出 JSON", "export": "导出", "importMerge": "导入合并", "persistHint": "活动预设及已应用字段随节点状态持久化，重新打开时自动恢复。" },
@@ -2612,6 +2612,105 @@
         "whereFilter": "findz SQL 过滤器",
         "advancedOptions": "findz 高级选项",
         "defaults": "findz 默认配置"
+      },
+      "workspace": {
+        "title": "Findz",
+        "searchLabel": "搜索 Findz 索引",
+        "searchPlaceholder": "搜索归档和成员路径",
+        "areaMetricLabel": "矩阵图面积指标",
+        "filters": "过滤器",
+        "advancedFilters": "高级过滤器",
+        "exportJson": "导出过滤后的归档 JSON",
+        "exportCsv": "导出过滤后的归档 CSV",
+        "library": "库",
+        "archiveResults": "Findz 归档结果",
+        "treemap": "矩阵图",
+        "area": "面积",
+        "header": {
+          "rootLabel": "Findz 库根目录",
+          "rootPlaceholder": "本地 ZIP / CBZ 库根目录",
+          "openLibrary": "打开库",
+          "scanLibrary": "扫描库",
+          "scanTooltip": "扫描 ZIP 中央目录",
+          "analyzeHeaders": "分析图像头信息",
+          "analyzeTooltip": "按需分析图像头信息",
+          "watching": "监视中",
+          "watcherDegraded": "监视器已降级",
+          "noLibrary": "未打开库",
+          "librarySummary": "{{archives}} 个归档 · {{members}} 个成员",
+          "openLibraryHint": "打开本地库以创建独立的 Findz 索引。",
+          "resumeTask": "继续任务",
+          "pauseTask": "暂停任务",
+          "cancelTask": "取消任务"
+        },
+        "taskKinds": { "scan": "扫描", "analysis": "分析" },
+        "taskStatus": { "running": "运行中", "paused": "已暂停", "completed": "完成", "completed_with_warnings": "完成但有警告", "cancelled": "已取消", "failed": "失败" },
+        "table": {
+          "indexedSummary": "{{visible}} / {{total}} 个已索引归档",
+          "previousPage": "上一页归档",
+          "nextPage": "下一页归档",
+          "expandArchive": "展开归档",
+          "columns": { "archive": "归档", "size": "大小", "images": "图像", "analyzed": "已分析", "density": "密度", "anomalies": "异常", "savings": "节省" },
+          "empty": "打开库后运行 ZIP 扫描以填充索引。",
+          "loadingMembers": "正在加载归档成员……",
+          "noMembers": "此归档没有已索引的成员。",
+          "pending": "待处理",
+          "ascending": "升序",
+          "descending": "降序",
+          "scanStates": { "corrupt": "归档损坏", "unsupported": "不支持的归档", "rejected": "已拒绝的归档" }
+        },
+        "treemap": {
+          "empty": "当前视图没有已索引的归档面积。",
+          "openArchive": "打开归档 {{name}}",
+          "drillInto": "进入 {{name}}"
+        }
+      },
+      "metrics": {
+        "archiveSize": "归档大小",
+        "totalImageSize": "图像总大小",
+        "averageImageSize": "平均图像大小",
+        "averageBytesPerMegapixel": "平均字节 / MP",
+        "medianBytesPerMegapixel": "中位数字节 / MP",
+        "anomalyCount": "异常数量",
+        "estimatedSavings": "预计节省"
+      },
+      "sort": {
+        "path": "路径",
+        "archiveSize": "归档大小",
+        "imageCount": "图像候选",
+        "analysisCoverage": "分析覆盖率",
+        "totalImageSize": "图像总大小",
+        "averageImageSize": "平均图像大小",
+        "averageBytesPerMegapixel": "平均字节 / MP",
+        "anomalyCount": "异常",
+        "estimatedSavings": "预计节省"
+      },
+      "rules": {
+        "select": "选择",
+        "true": "是",
+        "false": "否",
+        "addCondition": "+ 条件",
+        "addConditionTitle": "添加条件",
+        "addGroup": "+ 分组",
+        "addGroupTitle": "添加条件组",
+        "removeCondition": "移除条件",
+        "removeGroup": "移除条件组",
+        "cloneCondition": "克隆条件",
+        "cloneGroup": "克隆条件组",
+        "drag": "拖动以重新排序",
+        "not": "非",
+        "notTitle": "反转此分组",
+        "all": "全部满足",
+        "any": "任一满足",
+        "operators": { "equal": "是", "notEqual": "不是", "contains": "包含", "doesNotContain": "不包含", "startsWith": "以……开头", "endsWith": "以……结尾", "in": "属于其中之一", "notIn": "不属于其中之一", "lessThan": "小于", "lessThanInclusive": "不大于", "greaterThan": "大于", "greaterThanInclusive": "不小于", "isEmpty": "为空", "isNotEmpty": "不为空" },
+        "fields": {
+          "relativePath": "归档路径", "scanState": "索引状态", "archiveSize": "归档大小", "memberCount": "成员数", "imageCount": "图像候选", "memberPath": "成员路径", "memberSize": "成员大小", "extension": "成员扩展名", "actualFormat": "实际格式", "width": "图像宽度", "height": "图像高度", "pixels": "像素数", "bytesPerMegapixel": "字节 / MP", "analysisStatus": "分析状态", "anomalyKind": "异常类型", "anomalyScore": "异常分数", "memberEstimatedSavings": "成员预计节省", "analysisCoverage": "已分析图像", "totalImageSize": "图像总大小", "averageBytesPerMegapixel": "平均字节 / MP", "anomalyCount": "异常数", "estimatedSavings": "预计节省"
+        },
+        "options": { "indexed": "已索引", "corrupt": "损坏", "unsupported": "不支持", "rejected": "已拒绝", "complete": "完成", "budgetExceeded": "超出预算", "unsupportedFormat": "不支持的格式", "parserFailure": "解析器失败", "encrypted": "已加密", "highBytesPerMegapixel": "高字节 / MP", "largeMember": "成员过大" }
+      },
+      "errors": {
+        "libraryMissing": "Findz 未返回库信息。",
+        "taskMissing": "Findz 未创建任务。"
       }
     },
     "formatv": {

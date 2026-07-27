@@ -1252,7 +1252,7 @@
       "comparison": { "title": "Image comparison", "modes": "Comparison modes", "single": "Single image", "sideBySide": "Side by side", "swipe": "Swipe divider", "onionSkin": "Onion skin overlay", "colorCoding": "Color coding", "targets": "Comparison targets", "compareWith": "Compare with {{name}}", "source": "Current image", "target": "Comparison image", "swipePosition": "Swipe position", "onionOpacity": "Overlay opacity", "close": "Close image comparison" },
       "metrics": { "files": "Files", "groups": "Groups", "totalSize": "Total size", "reclaimable": "Reclaimable" },
       "settings": { "open": "Node settings", "title": "Czkawka node settings", "description": "Directory filters, cache, and performance settings shared by all scanners.", "general": "General settings", "cachePerformance": "Cache and performance", "other": "Other" },
-      "sources": { "tabs": { "paths": "Paths", "algorithm": "Algorithm" }, "included": "Included directories", "excluded": "Excluded directories", "excludedItems": "Excluded items", "excludedItemsPlaceholder": "*/cache/*; *.part; each rule must contain *", "allowedExtensions": "Allowed extensions", "excludedExtensions": "Excluded extensions", "allowedPriority": "When the allow list is not empty, Czkawka core gives it priority; excluded extensions do not participate in matching.", "fileSizeKiB": "File size (KB)", "minimumSizeKiB": "Minimum file size (KB)", "maximumSizeKiB": "Maximum file size (KB)", "minimumSize": "Minimum file size (B)", "maximumSize": "Maximum file size (B)", "threads": "Thread count", "threadsHint": "The thread pool initializes on the first native scan in this process; restart the desktop app after changing it.", "recursive": "Recursive scan", "useCache": "Use cache", "referencePathKeywords": "Reference path keywords", "referencePathKeywordsHint": "Paths containing these keywords are automatically marked as references; separate keywords with commas.", "reversePathDisplay": "Reverse path display", "tableWrapText": "Wrap table text", "cancelAllReferences": "Clear all reference directories", "setAllReferences": "Set all as reference directories", "browseAdd": "Browse and add {{label}}", "removeSelected": "Remove selected {{label}}", "clear": "Clear {{label}}", "selectDirectory": "Select directory {{path}}", "cancelReference": "Clear reference {{path}}", "setReference": "Set as reference {{path}}", "removeDirectory": "Remove directory {{path}}", "empty": "No directories added", "pasteMany": "Paste multiple {{label}}", "pasteHint": "Paste paths on separate lines or separated by commas/semicolons\nDirectories can also be dropped here", "addPasted": "Add pasted {{label}}", "reset": "Reset {{label}}", "input": "{{label}} input", "invalidRule": "Czkawka exclusion rules must contain * or use DEFAULT", "invalidExtension": "Extensions cannot contain dots or spaces", "removeToken": "Remove {{token}}" },
+      "sources": { "tabs": { "paths": "Paths", "algorithm": "Algorithm" }, "included": "Included directories", "excluded": "Excluded directories", "excludedItems": "Excluded items", "excludedItemsPlaceholder": "*/cache/*; *.part; each rule must contain *", "allowedExtensions": "Allowed extensions", "excludedExtensions": "Excluded extensions", "allowedPriority": "When the allow list is not empty, Czkawka core gives it priority; excluded extensions do not participate in matching.", "fileSizeKiB": "File size (KB)", "minimumSizeKiB": "Minimum file size (KB)", "maximumSizeKiB": "Maximum file size (KB)", "minimumSize": "Minimum file size (B)", "maximumSize": "Maximum file size (B)", "threads": "Thread count", "threadsHint": "The thread pool initializes on the first native scan in this process; restart the desktop app after changing it.", "recursive": "Recursive scan", "useCache": "Use cache", "referencePathKeywords": "Reference path keywords", "referencePathKeywordsHint": "Paths containing these keywords are automatically marked as references; separate keywords with commas.", "reversePathDisplay": "Reverse path display", "tableWrapText": "Wrap table text", "cancelAllReferences": "Clear all reference directories", "setAllReferences": "Set all as reference directories", "browseAdd": "Browse and add {{label}}", "browseAddFiles": "Add files to {{label}}", "pickFiles": "Choose files to scan", "removeSelected": "Remove selected {{label}}", "clear": "Clear {{label}}", "selectDirectory": "Select directory {{path}}", "cancelReference": "Clear reference {{path}}", "setReference": "Set as reference {{path}}", "removeDirectory": "Remove directory {{path}}", "empty": "No directories added", "pasteMany": "Paste multiple {{label}}", "pasteHint": "Paste paths on separate lines or separated by commas/semicolons\nDirectories can also be dropped here", "addPasted": "Add pasted {{label}}", "addTrashPreset": "Add $TRASH exclusion preset", "reset": "Reset {{label}}", "input": "{{label}} input", "invalidRule": "Czkawka exclusion rules must contain * or use DEFAULT/$TRASH", "invalidExtension": "Extensions cannot contain dots or spaces", "removeToken": "Remove {{token}}" },
       "cache": { "cacheFolder": "Cache folder path", "configFolder": "Config folder path", "systemDefault": "System default", "saveJson": "Also save the cache as JSON", "deleteOutdated": "Delete outdated entries for the current scanner", "restartHint": "Cache and configuration directories initialize on the first native scan; restart the desktop backend after changing them.", "minHash": "Minimum cached file size - hash (KB)", "minPrehash": "Minimum cached file size - prehash (KB)", "openFolder": "Open cache folder" },
       "similarityReference": { "open": "Open similarity quick reference", "title": "Similarity and Hash Size quick reference", "description": "Smaller difference values mean more similar files; these ranges use the same thresholds as Czkawka Core.", "level": "Level" },
       "common": { "unlimited": "Unlimited", "cancel": "Cancel", "browse": "Browse" },
@@ -2614,6 +2614,105 @@
         "whereFilter": "findz SQL filter",
         "advancedOptions": "findz advanced options",
         "defaults": "findz defaults"
+      },
+      "workspace": {
+        "title": "Findz",
+        "searchLabel": "Search Findz index",
+        "searchPlaceholder": "Search archive and member paths",
+        "areaMetricLabel": "Treemap area metric",
+        "filters": "Filters",
+        "advancedFilters": "Advanced filters",
+        "exportJson": "Export filtered archives as JSON",
+        "exportCsv": "Export filtered archives as CSV",
+        "library": "Library",
+        "archiveResults": "Findz archive results",
+        "treemap": "Treemap",
+        "area": "Area",
+        "header": {
+          "rootLabel": "Findz library root",
+          "rootPlaceholder": "Local ZIP / CBZ library root",
+          "openLibrary": "Open library",
+          "scanLibrary": "Scan library",
+          "scanTooltip": "Scan ZIP central directories",
+          "analyzeHeaders": "Analyze image headers",
+          "analyzeTooltip": "Analyze image headers on demand",
+          "watching": "Watching",
+          "watcherDegraded": "Watcher degraded",
+          "noLibrary": "No library",
+          "librarySummary": "{{archives}} archives · {{members}} members",
+          "openLibraryHint": "Open a local library to create its separate Findz index.",
+          "resumeTask": "Resume task",
+          "pauseTask": "Pause task",
+          "cancelTask": "Cancel task"
+        },
+        "taskKinds": { "scan": "Scan", "analysis": "Analysis" },
+        "taskStatus": { "running": "Running", "paused": "Paused", "completed": "Done", "completed_with_warnings": "Done with warnings", "cancelled": "Cancelled", "failed": "Failed" },
+        "table": {
+          "indexedSummary": "{{visible}} of {{total}} indexed archives",
+          "previousPage": "Previous archive page",
+          "nextPage": "Next archive page",
+          "expandArchive": "Expand archive",
+          "columns": { "archive": "Archive", "size": "Size", "images": "Images", "analyzed": "Analyzed", "density": "Density", "anomalies": "Anomalies", "savings": "Savings" },
+          "empty": "Open a library, then run a ZIP scan to populate the index.",
+          "loadingMembers": "Loading archive members...",
+          "noMembers": "This archive has no indexed members.",
+          "pending": "Pending",
+          "ascending": "ascending",
+          "descending": "descending",
+          "scanStates": { "corrupt": "Corrupt archive", "unsupported": "Unsupported archive", "rejected": "Rejected archive" }
+        },
+        "treemap": {
+          "empty": "No indexed archive area for this view.",
+          "openArchive": "Open archive {{name}}",
+          "drillInto": "Drill into {{name}}"
+        }
+      },
+      "metrics": {
+        "archiveSize": "Archive size",
+        "totalImageSize": "Total image size",
+        "averageImageSize": "Average image size",
+        "averageBytesPerMegapixel": "Average bytes / MP",
+        "medianBytesPerMegapixel": "Median bytes / MP",
+        "anomalyCount": "Anomaly count",
+        "estimatedSavings": "Estimated savings"
+      },
+      "sort": {
+        "path": "Path",
+        "archiveSize": "Archive size",
+        "imageCount": "Image candidates",
+        "analysisCoverage": "Analysis coverage",
+        "totalImageSize": "Total image size",
+        "averageImageSize": "Average image size",
+        "averageBytesPerMegapixel": "Average bytes / MP",
+        "anomalyCount": "Anomalies",
+        "estimatedSavings": "Estimated savings"
+      },
+      "rules": {
+        "select": "Select",
+        "true": "True",
+        "false": "False",
+        "addCondition": "+ Condition",
+        "addConditionTitle": "Add condition",
+        "addGroup": "+ Group",
+        "addGroupTitle": "Add condition group",
+        "removeCondition": "Remove condition",
+        "removeGroup": "Remove condition group",
+        "cloneCondition": "Clone condition",
+        "cloneGroup": "Clone condition group",
+        "drag": "Drag to reorder",
+        "not": "Not",
+        "notTitle": "Invert this group",
+        "all": "All",
+        "any": "Any",
+        "operators": { "equal": "is", "notEqual": "is not", "contains": "contains", "doesNotContain": "does not contain", "startsWith": "starts with", "endsWith": "ends with", "in": "is one of", "notIn": "is not one of", "lessThan": "is less than", "lessThanInclusive": "is at most", "greaterThan": "is greater than", "greaterThanInclusive": "is at least", "isEmpty": "is empty", "isNotEmpty": "is not empty" },
+        "fields": {
+          "relativePath": "Archive path", "scanState": "Index state", "archiveSize": "Archive size", "memberCount": "Members", "imageCount": "Image candidates", "memberPath": "Member path", "memberSize": "Member size", "extension": "Member extension", "actualFormat": "Actual format", "width": "Image width", "height": "Image height", "pixels": "Pixels", "bytesPerMegapixel": "Bytes / MP", "analysisStatus": "Analysis status", "anomalyKind": "Anomaly kind", "anomalyScore": "Anomaly score", "memberEstimatedSavings": "Member estimated savings", "analysisCoverage": "Analyzed images", "totalImageSize": "Total image size", "averageBytesPerMegapixel": "Average bytes / MP", "anomalyCount": "Anomalies", "estimatedSavings": "Estimated savings"
+        },
+        "options": { "indexed": "Indexed", "corrupt": "Corrupt", "unsupported": "Unsupported", "rejected": "Rejected", "complete": "Complete", "budgetExceeded": "Budget exceeded", "unsupportedFormat": "Unsupported format", "parserFailure": "Parser failure", "encrypted": "Encrypted", "highBytesPerMegapixel": "High bytes / MP", "largeMember": "Large member" }
+      },
+      "errors": {
+        "libraryMissing": "Findz did not return a library.",
+        "taskMissing": "Findz did not create a task."
       }
     },
     "formatv": {

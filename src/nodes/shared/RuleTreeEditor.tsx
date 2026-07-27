@@ -102,7 +102,7 @@ const DEFAULT_OPERATORS: Record<RuleTreeFieldType, readonly RuleOperator[]> = {
 
 export function RuleTreeEditor(props: RuleTreeEditorProps) {
   const translate = props.t ?? ((_key: string, fallback: string) => fallback)
-  const fields = props.fields.map(queryBuilderField)
+  const fields = props.fields.map((field) => queryBuilderField(field, translate))
   const query = ruleTreeToQueryBuilder(props.value)
   return <div className={props.className} data-testid="rule-tree-editor" data-theme-surface="semantic">
     <QueryBuilderDnD dnd={dndAdapter}>
@@ -259,18 +259,18 @@ function isQueryGroup(value: RuleType | RuleGroupType): value is RuleGroupType {
   return Array.isArray((value as RuleGroupType).rules)
 }
 
-function queryBuilderField(field: RuleTreeField): Field {
-  const operators = (field.operators ?? DEFAULT_OPERATORS[field.type]).map(queryBuilderOperator)
+function queryBuilderField(field: RuleTreeField, translate: (key: string, fallback: string) => string): Field {
+  const operators = (field.operators ?? DEFAULT_OPERATORS[field.type]).map((operator) => queryBuilderOperator(operator, translate))
   const common = { name: field.name, label: field.label, operators, defaultOperator: operators[0]?.name }
   if (field.type === "number") return { ...common, inputType: "number" }
-  if (field.type === "boolean") return { ...common, valueEditorType: "select", values: [{ name: "true", label: "True" }, { name: "false", label: "False" }] }
+  if (field.type === "boolean") return { ...common, valueEditorType: "select", values: [{ name: "true", label: translate("rules.true", "True") }, { name: "false", label: translate("rules.false", "False") }] }
   if (field.type === "select") return { ...common, valueEditorType: (operator) => operator === "in" || operator === "notIn" ? "multiselect" : "select", values: field.options ?? [] }
   if (field.type === "multiselect") return { ...common, valueEditorType: "select", values: field.options ?? [] }
   return common
 }
 
-function queryBuilderOperator(operator: RuleOperator): Operator {
-  return { name: operator, label: OPERATOR_LABELS[operator], ...(operator === "isEmpty" || operator === "isNotEmpty" ? { arity: "unary" as const } : {}) }
+function queryBuilderOperator(operator: RuleOperator, translate: (key: string, fallback: string) => string): Operator {
+  return { name: operator, label: translate(`rules.operators.${operator}`, OPERATOR_LABELS[operator]), ...(operator === "isEmpty" || operator === "isNotEmpty" ? { arity: "unary" as const } : {}) }
 }
 
 function normalizeQueryValue(value: unknown, type: RuleTreeFieldType): RuleValue {
