@@ -79,7 +79,7 @@ export type { SavedDirectoryState, FolderBrowserCloneSnapshot, FolderBrowserClon
 
 const PAGE_SIZE = 128
 const MAX_CACHED_PAGES = 12
-const INITIAL_THUMBNAIL_DEMAND = 24
+const INITIAL_THUMBNAIL_DEMAND = 8
 const EMPTY_SELECTED_PATHS: ReadonlySet<string> = new Set()
 const DETAILS_METADATA_FIELDS: readonly ReaderDirectoryMetadataFieldDto[] = ["date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "tags"]
 

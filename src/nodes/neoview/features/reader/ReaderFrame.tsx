@@ -34,7 +34,7 @@ import { ReaderMagnifierLayer } from "./ReaderMagnifierLayer"
 
 const LazyReaderPanoramaFrame = lazy(async () => ({ default: (await import("./ReaderPanoramaFrame")).ReaderPanoramaFrame }))
 
-export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, doublePageGap = 0, totalPages, anchorPageIndex, preloadGeneration, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, slideshowFade = false, videoController, sessionId, client, media, superResolution, viewerToggles, onSubtitleConfigChange, onVideoControlsPinnedChange, onVisiblePageChange, onVideoListEnded }: {
+export function ReaderFrame({ pages, framePages, presentation, panorama, direction, pageMode, doublePageGap = 0, totalPages, anchorPageIndex, preloadGeneration, hoverScrollEnabled = false, hoverScrollSpeed = 2, magnifierEnabled = false, magnifierZoom = 2, magnifierSize = 200, colorFilter, imageTrim, pageTransition, slideshowFade = false, videoController, sessionId, client, media, superResolution, speculativePreloadAllowed = true, viewerToggles, onSubtitleConfigChange, onVideoControlsPinnedChange, onVisiblePageChange, onVideoListEnded }: {
   pages: ReaderPageDto[]
   framePages?: readonly FramePage[]
   presentation: ReaderPresentation
@@ -59,6 +59,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
   client: ReaderHttpClient
   media?: ReaderMediaConfigDto
   superResolution?: ReaderSuperResolutionConfigDto
+  speculativePreloadAllowed?: boolean
   viewerToggles?: ReaderViewerTogglePort
   onSubtitleConfigChange(patch: Partial<ReaderSubtitleConfigDto>): Promise<void>
   onVideoControlsPinnedChange?(pinned: boolean): Promise<void>
@@ -127,7 +128,7 @@ export function ReaderFrame({ pages, framePages, presentation, panorama, directi
     sessionId,
     preloadGeneration,
     currentPageIndex: anchorPageIndex,
-    superResolution: upscalePreloadEnabled ? superResolution : undefined,
+    superResolution: upscalePreloadEnabled && speculativePreloadAllowed ? superResolution : undefined,
   })
   const currentPageId = pages.find((page) => page.index === anchorPageIndex)?.id ?? pages[0]?.id
   const progressLayer = <ReaderProgressLayer

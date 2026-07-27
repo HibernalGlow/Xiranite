@@ -119,6 +119,7 @@ describe("useReaderAdjacentPagePreloader", () => {
 
   it("[neoview.preload.cancel-session] aborts discovery and stays idle while speculative work is disabled", () => {
     const signals: AbortSignal[] = []
+    const cancel = vi.fn()
     const client = clientWith({
       listPages: vi.fn((_sessionId, _cursor, _limit, signal) => {
         signals.push(signal!)
@@ -132,11 +133,13 @@ describe("useReaderAdjacentPagePreloader", () => {
       totalPages: 20,
       enabled,
       preload: vi.fn(),
+      cancel,
     }), { initialProps: { enabled: true } })
 
     view.rerender({ enabled: false })
 
     expect(signals[0]?.aborted).toBe(true)
+    expect(cancel).toHaveBeenCalledOnce()
     expect(client.listPages).toHaveBeenCalledTimes(1)
   })
 })

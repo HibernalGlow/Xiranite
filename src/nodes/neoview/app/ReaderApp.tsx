@@ -63,6 +63,7 @@ import {
   type ReaderSwimlaneId,
 } from "../adapters/reader-http-client"
 import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdjacentPagePreloader"
+import { useReaderSpeculativePreloadGate } from "../features/reader/useReaderSpeculativePreloadGate"
 import { mergeReaderFolderViewPatch } from "./ReaderFolderViewPersistence"
 import { persistReaderRadialMenu } from "./ReaderRadialMenuPersistence"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
@@ -484,6 +485,7 @@ export function ReaderApp({
   const prefetchController = useReaderImagePreloader(session?.sessionId, client.reportPreloadEvents
     ? (sessionId, generation, events) => void client.reportPreloadEvents!(sessionId, generation, events).catch(() => undefined)
     : undefined, browserPredecodeEnabled, preloadConfig.browserPredecodePages)
+  const speculativePreloadAllowed = useReaderSpeculativePreloadGate({ sessionId: session?.sessionId, frameGeneration: session?.frame.generation, enabled: browserPredecodeEnabled && readerFrameAllowed })
   const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
   shellRef.current = shell
@@ -779,7 +781,11 @@ export function ReaderApp({
       const signal = request.signal
       const focused = document.visibilityState !== "hidden" && (typeof document.hasFocus !== "function" || document.hasFocus())
       const mode = panorama ? "continuous" : "paged"
-      void client.updatePreloadContext!(sessionId, { mode, focused }, signal).then((preload) => {
+      void client.updatePreloadContext!(sessionId, {
+        mode,
+        focused,
+        stableForMs: speculativePreloadAllowed ? 1_000 : 0,
+      }, signal).then((preload) => {
         if (!signal.aborted && sessionRef.current === sessionId) {
           setSession((current) => current?.sessionId === sessionId ? { ...current, preload } : current)
         }
@@ -795,7 +801,7 @@ export function ReaderApp({
       window.removeEventListener("blur", update)
       document.removeEventListener("visibilitychange", update)
     }
-  }, [client, session?.frame?.layout?.panorama, session?.sessionId])
+  }, [client, session?.frame?.generation, session?.frame?.layout?.panorama, session?.sessionId, speculativePreloadAllowed])
 
   async function openPath(nextPath = path, provenance?: import("../adapters/reader-http-client").ReaderActivationProvenanceDto) {
     const normalizedPath = nextPath.trim()
@@ -2072,7 +2078,7 @@ export function ReaderApp({
     plan: session?.preload,
     // Wait until the visible frame is allowed to mount — adjacent preload on the
     // same turn as setSession was part of the full-window freeze after open.
-    enabled: browserPredecodeEnabled && readerFrameAllowed && (
+    enabled: browserPredecodeEnabled && readerFrameAllowed && speculativePreloadAllowed && (
       !session
       || cancelledPreloadFrame?.sessionId !== session.sessionId
       || cancelledPreloadFrame.generation !== session.frame.generation
@@ -2375,6 +2381,7 @@ export function ReaderApp({
             client={client}
             media={media}
             superResolution={superResolution}
+            speculativePreloadAllowed={speculativePreloadAllowed}
             viewerToggles={viewerToggles}
             onSubtitleConfigChange={persistSubtitleConfig}
             onVideoControlsPinnedChange={persistVideoControlsPinned}

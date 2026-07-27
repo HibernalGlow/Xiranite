@@ -22,7 +22,10 @@ export function useReaderAdjacentPagePreloader({
   cancel?(): void
 }): void {
   useEffect(() => {
-    if (!enabled || !sessionId || activePageIndex === undefined || !totalPages || totalPages < 2) return
+    if (!enabled || !sessionId || activePageIndex === undefined || !totalPages || totalPages < 2) {
+      if (!enabled) cancel?.()
+      return
+    }
     if (plan?.admission === "paused") {
       cancel?.()
       return
