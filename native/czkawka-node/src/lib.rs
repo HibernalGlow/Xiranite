@@ -312,7 +312,7 @@ fn non_negative_u64(value: i64, name: &str) -> Result<u64> {
 
 fn parse_temporary_file_extensions(value: Option<&str>) -> Option<Vec<String>> {
     let extensions = value?
-        .split(|character| matches!(character, ',' | ';' | '\r' | '\n'))
+        .split([',', ';', '\r', '\n'])
         .map(str::trim)
         .map(str::to_ascii_lowercase)
         .filter(|extension| !extension.is_empty())
@@ -394,6 +394,7 @@ pub fn scan_basic_files(options: BasicScanOptions) -> Result<AsyncTask<BasicScan
         "empty-folders" | "emptyFolders" => core::BasicTool::EmptyFolders,
         "temporary-files" | "temporaryFiles" => core::BasicTool::TemporaryFiles,
         "invalid-symlinks" | "invalidSymlinks" => core::BasicTool::InvalidSymlinks,
+        "bad-names" | "badNames" => core::BasicTool::BadNames,
         value => {
             return Err(Error::new(
                 Status::InvalidArg,

@@ -172,6 +172,17 @@ describe("czkawka TypeScript orchestration", () => {
     await expect(runCzkawka({ ...value, includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
   })
 
+  test("requires the bad-name scanner capability before entering the native adapter", async () => {
+    const adapter = runtime()
+    const rejected = await runCzkawka({ tool: "bad-names", includedDirectories: ["D:/"] }, adapter)
+    expect(rejected).toMatchObject({ success: false, message: expect.stringContaining("scan.bad-names") })
+    expect(adapter.scanBasic).not.toHaveBeenCalled()
+
+    adapter.capabilities = ["scan.bad-names"]
+    await expect(runCzkawka({ tool: "bad-names", includedDirectories: ["D:/"] }, adapter)).resolves.toMatchObject({ success: true })
+    expect(adapter.scanBasic).toHaveBeenCalledOnce()
+  })
+
   test("clamps cache thresholds and trims custom folders", () => {
     const value = normalizeCzkawkaInput({ cacheFolderPath: "  D:/cache  ", configFolderPath: " D:/config ", duplicateMinimalHashCacheSizeKiB: 0, duplicateMinimalPrehashCacheSizeKiB: 2_000_000 })
     expect(value.cacheFolderPath).toBe("D:/cache")
@@ -320,6 +331,18 @@ describe("czkawka TypeScript orchestration", () => {
     const executed = await runCzkawka({ action: "rename", renameItems: [{ path: "D:/photo.bin", properExtension: "jpg" }], dryRun: false }, adapter)
     expect(executed.data?.entries[0]?.status).toBe("renamed")
     expect(adapter.movePath).toHaveBeenCalledWith("D:/photo.bin", "D:/photo.jpg")
+  })
+
+  test("plans and executes proposed bad-name corrections through the shared rename contract", async () => {
+    const adapter = runtime()
+    vi.mocked(adapter.pathExists).mockImplementation(async (path) => path === "D:/report-🙂.TXT")
+
+    const planned = await runCzkawka({ action: "rename", tool: "bad-names", renameItems: [{ path: "D:/report-🙂.TXT", targetName: "report-.txt" }] }, adapter)
+    expect(planned.data?.entries[0]).toMatchObject({ secondaryPath: "D:/report-.txt", operation: "rename", status: "planned" })
+
+    const executed = await runCzkawka({ action: "rename", tool: "bad-names", renameItems: [{ path: "D:/report-🙂.TXT", targetName: "report-.txt" }], dryRun: false }, adapter)
+    expect(executed.data?.entries[0]?.status).toBe("renamed")
+    expect(adapter.movePath).toHaveBeenCalledWith("D:/report-🙂.TXT", "D:/report-.txt")
   })
 
   test("reports extension target conflicts and invalid extensions per item", async () => {

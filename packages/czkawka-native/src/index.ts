@@ -73,7 +73,7 @@ export interface DuplicateScanResult {
   stopped: boolean
 }
 
-export type CzkawkaBasicTool = "big-files" | "empty-files" | "empty-folders" | "temporary-files" | "invalid-symlinks"
+export type CzkawkaBasicTool = "big-files" | "empty-files" | "empty-folders" | "temporary-files" | "invalid-symlinks" | "bad-names"
 
 export interface BasicScanOptions {
   tool: CzkawkaBasicTool

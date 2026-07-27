@@ -14,6 +14,7 @@ fn advertises_czkawka_12_media_capabilities() {
     assert!(CAPABILITIES.contains(&"broken-files.multi-checker"));
     assert!(CAPABILITIES.contains(&"empty-files.content-checkers"));
     assert!(CAPABILITIES.contains(&"temporary-files.custom-extensions"));
+    assert!(CAPABILITIES.contains(&"scan.bad-names"));
 }
 
 #[test]

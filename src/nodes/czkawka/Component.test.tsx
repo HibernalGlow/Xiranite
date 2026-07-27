@@ -319,6 +319,18 @@ describe("Czkawka node", () => {
     await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "rename", selectedPaths: ["D:/photo.bin"], renameItems: [{ path: "D:/photo.bin", properExtension: "jpg" }], dryRun: true }))
   })
 
+  test("builds a selected bad-name rename plan without invoking the upstream mutator", async () => {
+    const entry = { id: "bad-name", groupId: 0, path: "D:/report-🙂.TXT", name: "report-🙂.TXT", size: 10, modifiedDate: 1, secondaryPath: "D:/report-.txt" }
+    const result: CzkawkaData = { ...sample, tool: "bad-names", groups: [{ id: 0, entries: [entry], totalBytes: 10, reclaimableBytes: 0 }], entries: [entry], groupCount: 1, fileCount: 1, totalBytes: 10 }
+    const host = createHost({ tool: "bad-names", result, dryRun: true, analysisPanelTab: "operations" })
+    render(<Component compId="czkawka" host={host} />)
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择 report-🙂.TXT" }))
+    fireEvent.click(screen.getByRole("button", { name: "修正文件名（1）" }))
+    expect(screen.getByText(/扫描建议/)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "确认改名" }))
+    await waitFor(() => expect(host.calls.at(-1)?.input).toMatchObject({ action: "rename", tool: "bad-names", selectedPaths: ["D:/report-🙂.TXT"], renameItems: [{ path: "D:/report-🙂.TXT", targetName: "report-.txt" }], dryRun: true }))
+  })
+
   test("creates, overwrites, exports, deletes, and reimports persistent scan presets", () => {
     const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/photos", similarity: "7" })
     const view = render(<Component compId="czkawka" host={host} />)

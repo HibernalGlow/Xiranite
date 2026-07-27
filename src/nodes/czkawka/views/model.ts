@@ -8,7 +8,7 @@ import type { CzkawkaFloatingPanelState, CzkawkaFloatingViewport } from "@xirani
 import type { CzkawkaImageComparisonMode, CzkawkaImageComparisonState } from "@xiranite/node-czkawka/image-comparison"
 import type { CzkawkaSelectionAssistantConfig, CzkawkaSelectionHistory, CzkawkaSelectionResult, CzkawkaSelectionStats } from "@xiranite/node-czkawka/selection-assistant"
 import type { CzkawkaWorkspaceLayout } from "@xiranite/node-czkawka/workspace-layout"
-import { ArchiveX, AudioLines, Copy, FileQuestion, FileX2, FolderX, HardDrive, Image, Link2Off, Video } from "lucide-react"
+import { ArchiveX, AudioLines, Copy, FileQuestion, FileText, FileX2, FolderX, HardDrive, Image, Link2Off, Video } from "lucide-react"
 
 import type { CzkawkaCardState, CzkawkaPanel, CzkawkaSimilarImagesViewMode } from "../types"
 
@@ -82,6 +82,16 @@ export interface CzkawkaView {
   applySmartSelection: (strategy: CzkawkaSelectionStrategy) => void
 }
 
+interface CzkawkaToolMeta {
+  id: CzkawkaTool
+  labelKey: string
+  label: string
+  shortKey: string
+  short: string
+  icon: typeof Copy
+  requiredNativeCapability?: string
+}
+
 export const CZKAWKA_TOOL_META = [
   { id: "duplicate-files", labelKey: "tools.duplicateFiles", label: "重复文件", shortKey: "tools.short.duplicateFiles", short: "重复", icon: Copy },
   { id: "empty-folders", labelKey: "tools.emptyFolders", label: "空文件夹", shortKey: "tools.short.emptyFolders", short: "空夹", icon: FolderX },
@@ -94,7 +104,8 @@ export const CZKAWKA_TOOL_META = [
   { id: "invalid-symlinks", labelKey: "tools.invalidSymlinks", label: "无效符号链接", shortKey: "tools.short.invalidSymlinks", short: "链接", icon: Link2Off },
   { id: "broken-files", labelKey: "tools.brokenFiles", label: "损坏文件", shortKey: "tools.short.brokenFiles", short: "损坏", icon: FileQuestion },
   { id: "bad-extensions", labelKey: "tools.badExtensions", label: "不正确扩展名", shortKey: "tools.short.badExtensions", short: "扩展名", icon: ArchiveX },
-] as const satisfies ReadonlyArray<{ id: CzkawkaTool; labelKey: string; label: string; shortKey: string; short: string; icon: typeof Copy }>
+  { id: "bad-names", labelKey: "tools.badNames", label: "坏文件名", shortKey: "tools.short.badNames", short: "坏名称", icon: FileText, requiredNativeCapability: "scan.bad-names" },
+] as const satisfies ReadonlyArray<CzkawkaToolMeta>
 
 export function getCzkawkaToolMeta(tool: CzkawkaTool, t?: CzkawkaView["t"]) {
   const meta = CZKAWKA_TOOL_META.find((item) => item.id === tool) ?? CZKAWKA_TOOL_META[0]

@@ -108,6 +108,7 @@ describe("Czkawka native DTO mapping", () => {
     ["big-files", { numberOfFiles: 321, biggestFirst: false }, { tool: "big-files", numberOfFiles: 321, biggestFirst: false }],
     ["empty-files", {}, { tool: "empty-files" }],
     ["temporary-files", {}, { tool: "temporary-files" }],
+    ["bad-names", {}, { tool: "bad-names" }],
     ["similar-images", { similarity: 7, similarImagesHashSize: 64, similarImagesHashAlgorithm: "double-gradient", similarImagesResizeAlgorithm: "catmull-rom", similarImagesIgnoreSameSize: true, similarImagesIgnoreSameResolution: true, similarImagesGeometricInvariance: "mirror-flip", similarImagesFolderThreshold: 5 }, { tool: "similar-images", similarity: 7, imageHashSize: 64, imageHashAlgorithm: "double-gradient", imageResizeAlgorithm: "catmull-rom", imageIgnoreSameSize: true, imageIgnoreSameResolution: true, imageGeometricInvariance: "mirror-flip" }],
     ["similar-videos", { similarity: 8, similarVideosIgnoreSameSize: true, similarVideosIgnoreSameResolution: true, similarVideosSkipForward: 45, similarVideosHashDuration: 20, similarVideosLetterboxCrop: false, similarVideosWindowCount: 12, similarVideosDurationTolerancePct: 35, similarVideosMinMatchingWindows: 0.75, similarVideosSubclipMinMatch: 0.4, similarVideosCheckAudioContent: true }, { tool: "similar-videos", similarity: 8, videoIgnoreSameSize: true, videoIgnoreSameResolution: true, videoSkipForward: 45, videoHashDuration: 20, videoCropDetect: "none", videoWindowCount: 12, videoDurationTolerancePct: 35, videoMinMatchingWindows: 0.75, videoSubclipMinMatch: 0.4, videoCheckAudioContent: true }],
     ["duplicate-music", { musicCheckType: "fingerprint", musicApproximateComparison: false, musicCompareTitle: false, musicCompareArtist: true, musicCompareBitrate: true, musicCompareGenre: true, musicCompareYear: true, musicCompareLength: true, musicMaximumDifference: 4, musicMinimumFragmentDuration: 30, musicCompareFingerprintsOnlyWithSimilarTitles: false }, { tool: "duplicate-music", musicCheckType: "fingerprint", musicApproximateComparison: false, musicCompareTitle: false, musicCompareArtist: true, musicCompareBitrate: true, musicCompareGenre: true, musicCompareYear: true, musicCompareLength: true, musicMaximumDifference: 4, musicMinimumFragmentDuration: 30, musicCompareFingerprintsOnlyWithSimilarTitles: false }],
@@ -272,6 +273,6 @@ describe("Czkawka native DTO mapping", () => {
 
 function nativeOptions(tool: CzkawkaTool, input: ReturnType<typeof normalizeCzkawkaInput>) {
   if (tool === "duplicate-files") return toDuplicateScanOptions(input)
-  if (["empty-folders", "big-files", "empty-files", "temporary-files", "invalid-symlinks"].includes(tool)) return toBasicScanOptions(input)
+  if (["empty-folders", "big-files", "empty-files", "temporary-files", "invalid-symlinks", "bad-names"].includes(tool)) return toBasicScanOptions(input)
   return toMediaScanOptions(input)
 }

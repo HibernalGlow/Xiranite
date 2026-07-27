@@ -17,6 +17,7 @@ import { CzkawkaCardStack } from "../card-layout"
 import { CzkawkaSelectionAssistant } from "../selection-assistant"
 import { CzkawkaSimilarityReferenceDialog } from "../similarity-reference-dialog"
 import { CzkawkaDirectoryEditor } from "../source-inputs"
+import { createBadNameRenamePlan } from "@xiranite/node-czkawka/bad-names"
 import { AlgorithmFields } from "./CzkawkaPanelsView"
 import type { CzkawkaCardId } from "@xiranite/node-czkawka/card-layout"
 import { buildCzkawkaGroupOrganizePlan } from "@xiranite/node-czkawka/operations"
@@ -219,6 +220,9 @@ function OperationsCard(props: CzkawkaView) {
       path: entry.path,
       properExtension: entry.properExtension!
     }))
+  const badNameRenameItems = props.tool === "bad-names"
+    ? createBadNameRenamePlan(props.result?.entries ?? [], props.selectedPaths)
+    : []
   return (
     <div className="grid gap-3">
       <div className="text-xs text-muted-foreground">{props.t("operations.dryRunHint", "删除、移动和改名默认只生成可检查的逐项计划。")}</div>
@@ -369,6 +373,42 @@ function OperationsCard(props: CzkawkaView) {
                 }
               >
                 {props.t("operations.confirmRename", "确认改名")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
+      {props.tool === "bad-names" ? (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button disabled={!badNameRenameItems.length || props.running} size="sm" variant="outline">
+              <FileText />
+              {props.t("operations.fixBadNames", "修正文件名（{{count}}）", { count: badNameRenameItems.length })}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{(props.data.dryRun ?? true) ? props.t("operations.planBadNamesTitle", "生成文件名修正计划？") : props.t("operations.executeBadNamesTitle", "修正文件名？")}</AlertDialogTitle>
+              <AlertDialogDescription>{props.t("operations.badNamesDescription", "将按扫描建议重命名 {{count}} 项。执行后请根据操作详情中的源和目标路径反向改名以撤销。", { count: badNameRenameItems.length })}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="grid max-h-48 gap-1 overflow-auto rounded-md border p-2 text-xs">
+              {badNameRenameItems.slice(0, 12).map((item) => (
+                <div key={item.path} className="font-mono">
+                  {item.path} → {item.targetName}
+                </div>
+              ))}
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{props.t("common.cancel", "取消")}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() =>
+                  void props.executeOperation("rename", {
+                    renameItems: badNameRenameItems,
+                    selectedPaths: badNameRenameItems.map((item) => item.path)
+                  })
+                }
+              >
+                {props.t("operations.confirmBadNames", "确认改名")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

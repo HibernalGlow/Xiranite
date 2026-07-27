@@ -258,6 +258,31 @@ test("persists outdated cache cleanup separately for the current Czkawka scanner
   })
 })
 
+test("hides the bad-name scanner until the native binding advertises it", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "duplicate-files", includedDirectoriesText: "D:/media" }, [])
+
+  await render(<Component compId="czkawka-bad-names-unavailable-browser" host={host} />)
+
+  await page.getByRole("combobox", { name: "Select scanner" }).click()
+  await expect.element(page.getByRole("option", { name: "Bad Names" })).not.toBeInTheDocument()
+})
+
+test("shows a dry-run bad-name correction plan from the native target preview", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost(
+    { tool: "bad-names", includedDirectoriesText: "D:/media", result: badNameResult, analysisPanelTab: "operations" },
+    ["scan.bad-names"],
+  )
+
+  await render(<Component compId="czkawka-bad-names-browser" host={host} />)
+
+  await page.getByRole("checkbox", { name: "Select report-🙂.TXT" }).click()
+  await page.getByRole("button", { name: "Fix names (1)" }).click()
+  await expect.element(page.getByText("D:/report-🙂.TXT → report-.txt")).toBeVisible()
+  await expect.element(page.getByText("Rename 1 items to the scan's proposed names.")).toBeVisible()
+})
+
 test("renders Czkawka 12 video codec and frame-rate metadata in the browser", async () => {
   await i18n.changeLanguage("en")
   const host = createHost({ tool: "similar-videos", includedDirectoriesText: "D:/media", result: similarVideoResult })
@@ -421,4 +446,14 @@ const similarVideoResult: CzkawkaData = {
   fileCount: 2,
   totalBytes: 22,
   reclaimableBytes: 12,
+}
+
+const badNameResult: CzkawkaData = {
+  ...sample,
+  tool: "bad-names",
+  groups: [{ id: 0, entries: [{ id: "report-🙂.TXT", groupId: 0, path: "D:/report-🙂.TXT", name: "report-🙂.TXT", size: 12, modifiedDate: 1, secondaryPath: "D:/report-.txt" }], totalBytes: 12, reclaimableBytes: 0 }],
+  entries: [{ id: "report-🙂.TXT", groupId: 0, path: "D:/report-🙂.TXT", name: "report-🙂.TXT", size: 12, modifiedDate: 1, secondaryPath: "D:/report-.txt" }],
+  groupCount: 1,
+  fileCount: 1,
+  totalBytes: 12,
 }

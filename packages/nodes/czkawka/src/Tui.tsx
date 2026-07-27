@@ -583,6 +583,7 @@ function shortToolLabel(tool: CzkawkaTool, language: TerminalLanguage): string {
       "invalid-symlinks": "无效链接",
       "broken-files": "损坏文件",
       "bad-extensions": "错误扩展名",
+      "bad-names": "坏文件名",
     }
     return labels[tool]
   }
@@ -598,6 +599,7 @@ function shortToolLabel(tool: CzkawkaTool, language: TerminalLanguage): string {
     "invalid-symlinks": "Symlinks",
     "broken-files": "Broken",
     "bad-extensions": "Bad ext",
+    "bad-names": "Bad names",
   }
   return labels[tool]
 }
