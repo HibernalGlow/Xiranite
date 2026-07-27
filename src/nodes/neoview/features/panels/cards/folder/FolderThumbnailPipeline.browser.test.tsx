@@ -86,6 +86,7 @@ test("[neoview.folder.thumbnail-self-check-gui] retries a generating visible ass
 
   await expect.poll(() => fetch).toHaveBeenCalledTimes(2)
   await expect.poll(() => document.querySelector("[data-thumbnail-availability]")?.textContent).toBe("generating")
+  expect(document.querySelector("[data-thumbnail-availability]")?.getAttribute("data-thumbnail-url")).toBe(thumbnailUrl)
   finishGeneration?.()
 
   await expect.poll(() => document.querySelector("[data-thumbnail-availability]")?.textContent).toBe("ready")
@@ -181,7 +182,7 @@ function createPixelThumbnailRegistration() {
 
 function ThumbnailAvailability({ store, path }: { store: FolderThumbnailStore; path: string }) {
   const thumbnail = useFolderThumbnail(store, path)
-  return <span data-thumbnail-availability={thumbnail.availability}>{thumbnail.availability}</span>
+  return <span data-thumbnail-availability={thumbnail.availability} data-thumbnail-url={thumbnail.thumbnailUrl}>{thumbnail.availability}</span>
 }
 
 function ThumbnailDemandHarness({ client, page }: { client: ReaderHttpClient; page: ReaderDirectoryPageDto }) {

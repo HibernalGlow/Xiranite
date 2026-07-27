@@ -9,6 +9,7 @@ export interface ReaderThumbnailSurfaceProps {
   kind?: "file" | "folder" | "page"
   fit?: "cover" | "contain"
   loading?: boolean
+  retryKey?: string | number
   imageLoading?: "eager" | "lazy"
   className?: string
   imageClassName?: string
@@ -23,6 +24,7 @@ export function ReaderThumbnailSurface({
   kind = "page",
   fit = "cover",
   loading = false,
+  retryKey,
   imageLoading = "lazy",
   className,
   imageClassName,
@@ -39,7 +41,7 @@ export function ReaderThumbnailSurface({
   const columns = Math.max(1, Math.ceil(Math.sqrt(visibleUrls.length)))
   const rows = Math.max(1, Math.ceil(visibleUrls.length / columns))
 
-  useEffect(() => setFailedUrls(new Set()), [candidateKey])
+  useEffect(() => setFailedUrls(new Set()), [candidateKey, retryKey])
 
   function reportDimensions(event: SyntheticEvent<HTMLImageElement>) {
     const image = event.currentTarget

@@ -156,7 +156,7 @@ export interface FolderBrowserPaneViewProps {
     restoreState?: SavedDirectoryState
     restoreIndex?: number
     shouldLocateRestore: boolean
-    thumbnailStore: FolderThumbnailStore
+    thumbnailStore: FolderThumbnailStore; thumbnailProbesEnabled: boolean
     thumbnailRefreshPending: boolean
     loading: boolean
     error?: string
@@ -255,7 +255,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     contentWidthPercent, thumbnailWidthPercent, bannerWidthPercent, hoverPreviewEnabled,
     hoverPreviewDelayMs, penetration, penetrationDescriptions, multiSelectMode, chainSelectMode,
     checkModeClickBehavior, deleteMode, deleteStrategy, activeDeleteConfirmation, confirmations,
-    restoreState, restoreIndex, shouldLocateRestore, thumbnailStore,
+    restoreState, restoreIndex, shouldLocateRestore, thumbnailStore, thumbnailProbesEnabled,
     thumbnailRefreshPending, loading, error, searchOpen, treeOpen, inlineTreeOpen, treeLayout,
     treeSize, renameRequest, focusedPath, focusedIndex, focusedItemId, itemIdPrefix, clipboard, canRetry,
     sessionId, searchRootPath, pendingSearchSnapshot, inlineBranchPath,
@@ -836,7 +836,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                             showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
                             visualMode={viewMode}
                             wrapTitle={wrapTitle}
-                            thumbnailStore={thumbnailStore}
+                            thumbnailStore={thumbnailStore} thumbnailProbeEnabled={thumbnailProbesEnabled}
                             contentWidthPercent={contentWidthPercent}
                             hoverPreviewEnabled={active && hoverPreviewEnabled}
                             hoverPreviewDelayMs={hoverPreviewDelayMs}
@@ -891,7 +891,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         selectedPaths={selectedPaths}
                         focusedIndex={focusedIndex}
                         itemIdPrefix={itemIdPrefix}
-                        thumbnailStore={thumbnailStore}
+                        thumbnailStore={thumbnailStore} thumbnailProbeEnabled={thumbnailProbesEnabled}
                         hoverPreviewEnabled={active && hoverPreviewEnabled}
                         hoverPreviewDelayMs={hoverPreviewDelayMs}
                         penetrationFiles={penetrationDescriptions}
@@ -925,7 +925,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         selectedPaths={selectedPaths}
                         focusedIndex={focusedIndex}
                         itemIdPrefix={itemIdPrefix}
-                        thumbnailStore={thumbnailStore}
+                        thumbnailStore={thumbnailStore} thumbnailProbeEnabled={thumbnailProbesEnabled}
                         tileSize={thumbnailPixelSize(thumbnailWidthPercent)}
                         wrapTitle={wrapTitle}
                         hoverPreviewEnabled={active && hoverPreviewEnabled}

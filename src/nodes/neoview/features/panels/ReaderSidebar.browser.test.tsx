@@ -22,6 +22,9 @@ test("[neoview.folder.panel-thumbnail-keepalive-gui] keeps every File Card thumb
   const opened = directoryPage({ entries, total: entries.length })
   const thumbnails = createPixelThumbnailRegistration()
   onTestFinished(thumbnails.dispose)
+  const probeThumbnail = vi.fn(async () => new Response(null, { status: 200 }))
+  vi.stubGlobal("fetch", probeThumbnail)
+  onTestFinished(() => vi.unstubAllGlobals())
   const openDirectoryBrowser = vi.fn(async () => opened)
   const releaseLibraryThumbnailContext = vi.fn(async () => undefined)
   const client = {
@@ -49,6 +52,8 @@ test("[neoview.folder.panel-thumbnail-keepalive-gui] keeps every File Card thumb
 
   await expect.poll(() => openDirectoryBrowser).toHaveBeenCalledOnce()
   await expect.poll(folderThumbnailCount).toBe(entries.length)
+  await expect.poll(() => probeThumbnail).toHaveBeenCalledTimes(entries.length)
+  const probesBeforePanelSwitch = probeThumbnail.mock.calls.length
   const folderCard = document.querySelector<HTMLElement>('[data-neoview-folder-card="true"]')
   expect(folderCard).toBeTruthy()
 
@@ -57,7 +62,9 @@ test("[neoview.folder.panel-thumbnail-keepalive-gui] keeps every File Card thumb
   await expect.poll(() => document.querySelector('[data-reader-panel-cache="folder"]')?.getAttribute("data-reader-panel-active")).toBe("false")
   expect(folderCard?.isConnected).toBe(true)
   expect(folderThumbnailCount()).toBe(entries.length)
-  await expect.poll(() => releaseLibraryThumbnailContext).toHaveBeenCalledOnce()
+  expect(releaseLibraryThumbnailContext).not.toHaveBeenCalled()
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  expect(probeThumbnail).toHaveBeenCalledTimes(probesBeforePanelSwitch)
 
   await page.getByRole("button", { name: "文件夹", exact: true }).click()
 
@@ -65,10 +72,12 @@ test("[neoview.folder.panel-thumbnail-keepalive-gui] keeps every File Card thumb
   await expect.poll(folderThumbnailCount).toBe(entries.length)
   expect(document.querySelector('[data-neoview-folder-card="true"]')).toBe(folderCard)
   expect(openDirectoryBrowser).toHaveBeenCalledOnce()
+  expect(probeThumbnail).toHaveBeenCalledTimes(probesBeforePanelSwitch)
+  expect(releaseLibraryThumbnailContext).not.toHaveBeenCalled()
 })
 
 function folderThumbnailCount(): number {
-  return document.querySelectorAll('[data-reader-panel-cache="folder"] [data-folder-entry="true"] img').length
+  return document.querySelectorAll('[data-reader-panel-cache="folder"] [data-folder-entry="true"] img[src^="blob:"]').length
 }
 
 function directoryPage(overrides: Partial<ReaderDirectoryPageDto> = {}): ReaderDirectoryPageDto {
@@ -135,7 +144,8 @@ function createPixelThumbnailRegistration() {
           Uint8Array.from(atob("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="), (character) => character.charCodeAt(0)),
         ], { type: "image/gif" }))
         urls.add(thumbnailUrl)
-        return { id: item.id, thumbnailUrl, contentVersion: item.path }
+        const managedUrl = `http://127.0.0.1:41000/reader/library/t/${item.id}?version=${encodeURIComponent(item.path)}&token=test`
+        return { id: item.id, thumbnailUrl, thumbnailUrls: [managedUrl, thumbnailUrl], contentVersion: item.path }
       }),
     })),
     dispose: () => {

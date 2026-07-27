@@ -45,6 +45,15 @@ describe("ReaderThumbnailSurface", () => {
     expect(view.container.querySelector("img")).toBeNull()
   })
 
+  it("retries a failed image when its readiness key advances", () => {
+    const view = render(<ReaderThumbnailSurface url="/generating.webp" retryKey={0} />)
+    fireEvent.error(view.container.querySelector("img")!)
+    expect(view.container.querySelector("img")).toBeNull()
+
+    view.rerender(<ReaderThumbnailSurface url="/generating.webp" retryKey={1} />)
+    expect(view.container.querySelector<HTMLImageElement>("img")?.src).toContain("/generating.webp")
+  })
+
   it("allows virtualized visible thumbnails to bypass native lazy-load scheduling", () => {
     const view = render(<ReaderThumbnailSurface url="/visible.webp" imageLoading="eager" />)
     expect(view.container.querySelector("img")?.getAttribute("loading")).toBe("eager")

@@ -23,6 +23,7 @@ export function DirectoryListItem({
   thumbnailStore,
   thumbnailUrl,
   thumbnailUrls,
+  thumbnailProbeEnabled = true,
   contentWidthPercent,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
@@ -37,6 +38,7 @@ export function DirectoryListItem({
   thumbnailStore?: FolderThumbnailStore
   thumbnailUrl?: string
   thumbnailUrls?: readonly string[]
+  thumbnailProbeEnabled?: boolean
   contentWidthPercent: number
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
@@ -48,7 +50,7 @@ export function DirectoryListItem({
 }) {
   const rich = visualMode !== "compact"
   const thumbnailEligible = Boolean(rich && entry && (entry.kind === "directory" || entry.readerSupported))
-  const storedThumbnail = useFolderThumbnail(thumbnailStore, entry?.path, thumbnailEligible)
+  const storedThumbnail = useFolderThumbnail(thumbnailStore, entry?.path, thumbnailEligible, thumbnailProbeEnabled)
   const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
   const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
   const thumbnailLoading = Boolean(thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
@@ -90,7 +92,8 @@ export function DirectoryListItem({
                   kind={entry.kind === "directory" ? "folder" : "file"}
                   fit="contain"
                   imageLoading="eager"
-                  loading={thumbnailLoading}
+                  loading={thumbnailLoading && !resolvedThumbnailUrl}
+                  retryKey={storedThumbnail.availability === "ready" ? storedThumbnail.revision : undefined}
                   className="size-full rounded-none bg-transparent"
                 />
               ) : entry.kind === "directory" ? null : (

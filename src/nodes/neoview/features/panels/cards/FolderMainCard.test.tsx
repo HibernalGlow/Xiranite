@@ -599,7 +599,7 @@ describe("FolderMainCard", () => {
     view.unmount()
   })
 
-  it("[neoview.folder.panel-resident] retains rendered thumbnails while releasing hidden panel demand", async () => {
+  it("[neoview.folder.panel-resident] retains rendered thumbnails and their context while the panel is hidden", async () => {
     const opened = page({ entries: [{ name: "book.cbz", path: "C:/books/book.cbz", kind: "file", readerSupported: true }], total: 1 })
     const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly { id: string }[]) => ({
       contextId,
@@ -634,13 +634,13 @@ describe("FolderMainCard", () => {
       expect(current).toBeTruthy()
       return current
     })
-
     view.rerender(renderCard(false))
-    await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledOnce())
+    expect(releaseLibraryThumbnailContext).not.toHaveBeenCalled()
     expect(view.container.querySelector('img[src="/thumbnail/book.webp"]')).toBe(image)
     view.rerender(renderCard(true))
     expect(view.container.querySelector('img[src="/thumbnail/book.webp"]')).toBe(image)
     expect(registerLibraryThumbnails).toHaveBeenCalledOnce()
+    view.unmount(); await waitFor(() => expect(releaseLibraryThumbnailContext).toHaveBeenCalledOnce())
   })
 
   it("[neoview.folder.same-directory-open] keeps the directory session when the active book changes in place", async () => {

@@ -45,6 +45,7 @@ export default function FolderMosaicWorkspace({
   focusedIndex,
   itemIdPrefix,
   thumbnailStore,
+  thumbnailProbeEnabled = true,
   thumbnailUrls = EMPTY_THUMBNAIL_URLS,
   thumbnailUrlSets = EMPTY_THUMBNAIL_URL_SETS,
   tileSize,
@@ -72,6 +73,7 @@ export default function FolderMosaicWorkspace({
   focusedIndex?: number
   itemIdPrefix?: string
   thumbnailStore?: FolderThumbnailStore
+  thumbnailProbeEnabled?: boolean
   thumbnailUrls?: ReadonlyMap<string, string>
   thumbnailUrlSets?: ReadonlyMap<string, readonly string[]>
   tileSize: number
@@ -190,11 +192,13 @@ export default function FolderMosaicWorkspace({
           focusedIndex={focusedIndex}
           itemIdPrefix={itemIdPrefix}
           thumbnailStore={thumbnailStore}
+          thumbnailProbeEnabled={thumbnailProbeEnabled}
           thumbnailUrls={thumbnailUrls}
           thumbnailUrlSets={thumbnailUrlSets}
           measuredSpans={measuredSpans}
           tileSize={tileSize}
           columnCount={columnCount}
+          wrapTitle={wrapTitle}
           hoverPreviewEnabled={hoverPreviewEnabled}
           hoverPreviewDelayMs={hoverPreviewDelayMs}
           penetrationFiles={penetrationFiles}
@@ -217,11 +221,13 @@ function DirectoryMosaicGroup({
   focusedIndex,
   itemIdPrefix,
   thumbnailStore,
+  thumbnailProbeEnabled,
   thumbnailUrls,
   thumbnailUrlSets,
   measuredSpans,
   tileSize,
   columnCount,
+  wrapTitle,
   hoverPreviewEnabled,
   hoverPreviewDelayMs,
   penetrationFiles,
@@ -238,11 +244,13 @@ function DirectoryMosaicGroup({
   focusedIndex?: number
   itemIdPrefix?: string
   thumbnailStore?: FolderThumbnailStore
+  thumbnailProbeEnabled: boolean
   thumbnailUrls: ReadonlyMap<string, string>
   thumbnailUrlSets: ReadonlyMap<string, readonly string[]>
   measuredSpans: ReadonlyMap<string, FolderMosaicSpan>
   tileSize: number
   columnCount: number
+  wrapTitle: boolean
   hoverPreviewEnabled: boolean
   hoverPreviewDelayMs: number
   penetrationFiles: ReadonlyMap<string, readonly FolderPenetrationFileName[]>
@@ -281,6 +289,7 @@ function DirectoryMosaicGroup({
             showRating={catalog.metadataFields.includes("rating")}
             showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
             thumbnailStore={thumbnailStore}
+            thumbnailProbeEnabled={thumbnailProbeEnabled}
             thumbnailUrl={thumbnailUrls.get(entry.path)}
             thumbnailUrls={thumbnailUrlSets.get(entry.path)}
             hoverPreviewEnabled={hoverPreviewEnabled}
@@ -312,6 +321,7 @@ export function DirectoryMosaicItem({
   showRating,
   showCollectTagCount,
   thumbnailStore,
+  thumbnailProbeEnabled = true,
   thumbnailUrl,
   thumbnailUrls,
   hoverPreviewEnabled,
@@ -336,6 +346,7 @@ export function DirectoryMosaicItem({
   showRating: boolean
   showCollectTagCount: boolean
   thumbnailStore?: FolderThumbnailStore
+  thumbnailProbeEnabled?: boolean
   thumbnailUrl?: string
   thumbnailUrls?: readonly string[]
   hoverPreviewEnabled: boolean
@@ -349,7 +360,7 @@ export function DirectoryMosaicItem({
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }) {
   const thumbnailEligible = entry.kind === "directory" || entry.readerSupported
-  const storedThumbnail = useFolderThumbnail(thumbnailStore, entry.path, thumbnailEligible)
+  const storedThumbnail = useFolderThumbnail(thumbnailStore, entry.path, thumbnailEligible, thumbnailProbeEnabled)
   const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
   const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
   const thumbnailLoading = Boolean(thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
@@ -391,7 +402,8 @@ export function DirectoryMosaicItem({
                 kind={entry.kind === "directory" ? "folder" : "file"}
                 fit="contain"
                 imageLoading="eager"
-                loading={thumbnailLoading}
+                loading={thumbnailLoading && !resolvedThumbnailUrl}
+                retryKey={storedThumbnail.availability === "ready" ? storedThumbnail.revision : undefined}
                 className="size-full rounded-none bg-transparent"
                 onDimensions={(width, height) => onDimensions(entry.path, width, height)}
               />

@@ -17,14 +17,16 @@ describe("FolderThumbnailProbe", () => {
     expect(fetch).toHaveBeenCalledWith(URL, expect.objectContaining({ method: "HEAD", cache: "no-store" }))
   })
 
-  it("maps backend cooldowns to an indefinitely retryable generating error", async () => {
+  it("maps backend cooldowns to a bounded generating retry", async () => {
     const fetch = vi.fn(async () => new Response(null, { status: 429, headers: { "retry-after": "2" } }))
 
     const error = await probeFolderThumbnailUrls([URL], new AbortController().signal, fetch).catch((cause) => cause)
 
     expect(error).toMatchObject({ kind: "generating", retryAfterMs: 2_000 })
-    expect(retryFolderThumbnailProbe(100, error)).toBe(true)
+    expect(retryFolderThumbnailProbe(2, error)).toBe(true)
+    expect(retryFolderThumbnailProbe(3, error)).toBe(false)
     expect(folderThumbnailProbeRetryDelay(0, error)).toBe(2_000)
+    expect(folderThumbnailProbeRetryDelay(0, new FolderThumbnailProbeError("generating", 60_000))).toBe(10_000)
   })
 
   it.each([

@@ -280,7 +280,7 @@ export function FolderBrowserPane({
     previewGridEnabled,
     previewCount,
     visibleRangeRef,
-    selectedPaths,
+    selectedPaths, retainContextWhenHidden: navigationActive,
   })
   const {
     thumbnailStore,
@@ -1330,7 +1330,7 @@ export function FolderBrowserPane({
         restoreState,
         restoreIndex,
         shouldLocateRestore,
-        thumbnailStore,
+        thumbnailStore, thumbnailProbesEnabled: thumbnailsVisible,
         thumbnailRefreshPending,
         loading,
         error,
