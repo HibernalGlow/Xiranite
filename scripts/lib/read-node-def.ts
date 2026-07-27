@@ -22,6 +22,19 @@ export interface NodeDefLiteral {
   description: string
   icon: string
   keywords?: string[]
+  externalLaunch?: ExternalLaunchDeclarationLiteral
+}
+
+export interface ExternalLaunchDeclarationLiteral {
+  instancePolicy: "reuse" | "new-window"
+  requiredHostCapabilities: string[]
+  intents: ExternalLaunchIntentDeclarationLiteral[]
+}
+
+export interface ExternalLaunchIntentDeclarationLiteral {
+  id: string
+  targetKinds: Array<"file" | "directory">
+  maxTargets: number
 }
 
 export interface NodeAppLiteral {
@@ -238,9 +251,17 @@ function numberProperty(object: ObjectExpression, name: string): number | undefi
   return undefined
 }
 
+function propertyValue(object: ObjectExpression, name: string): Expression | undefined {
+  for (const property of object.properties) {
+    if (property.type === "Property" && propertyKey(property.key) === name) return property.value
+  }
+  return undefined
+}
+
 function parseNodeDefLiteral(object: ObjectExpression): NodeDefLiteral | undefined {
   const strings = new Map<string, string>()
   let keywords: string[] | undefined
+  let externalLaunch: ExternalLaunchDeclarationLiteral | undefined
 
   for (const property of object.properties) {
     if (property.type !== "Property") continue
@@ -254,6 +275,8 @@ function parseNodeDefLiteral(object: ObjectExpression): NodeDefLiteral | undefin
       keywords = (value as ArrayExpression).elements
         .map((element) => (element && isStringLiteral(element) ? element.value : undefined))
         .filter((item): item is string => typeof item === "string")
+    } else if (name === "externalLaunch") {
+      externalLaunch = parseExternalLaunchDeclaration(value)
     }
   }
 
@@ -268,6 +291,51 @@ function parseNodeDefLiteral(object: ObjectExpression): NodeDefLiteral | undefin
     description: strings.get("description")!,
     icon: strings.get("icon")!,
     ...(keywords?.length ? { keywords } : {}),
+    ...(externalLaunch ? { externalLaunch } : {}),
+  }
+}
+
+function parseExternalLaunchDeclaration(value: Expression): ExternalLaunchDeclarationLiteral {
+  const declaration = objectLiteralFromExpression(value)
+  if (!declaration) throw new Error("Node externalLaunch must be an object literal.")
+
+  const instancePolicy = stringProperty(declaration, "instancePolicy")
+  if (instancePolicy !== "reuse" && instancePolicy !== "new-window") {
+    throw new Error("Node externalLaunch.instancePolicy must be reuse or new-window.")
+  }
+  const requiredHostCapabilities = stringArrayProperty(declaration, "requiredHostCapabilities")
+  if (!requiredHostCapabilities) throw new Error("Node externalLaunch.requiredHostCapabilities must be a string array.")
+
+  const intentsValue = propertyValue(declaration, "intents")
+  const intentsExpression = intentsValue ? unwrapExpression(intentsValue) : undefined
+  if (!intentsExpression || intentsExpression.type !== "ArrayExpression") {
+    throw new Error("Node externalLaunch.intents must be an array.")
+  }
+  const intents = intentsExpression.elements.map((element, index) => {
+    const intent = element ? objectLiteralFromExpression(element as Expression) : undefined
+    if (!intent) throw new Error(`Node externalLaunch.intents[${index}] must be an object literal.`)
+    const id = stringProperty(intent, "id")
+    const targetKinds = stringArrayProperty(intent, "targetKinds")
+    const maxTargets = numberProperty(intent, "maxTargets")
+    if (!id || !/^[a-z][a-z0-9-]{0,63}$/u.test(id)) {
+      throw new Error(`Node externalLaunch.intents[${index}].id is invalid.`)
+    }
+    if (!targetKinds?.length || targetKinds.some((kind) => kind !== "file" && kind !== "directory")) {
+      throw new Error(`Node externalLaunch.intents[${index}].targetKinds must contain file and/or directory.`)
+    }
+    if (!maxTargets || maxTargets < 1) {
+      throw new Error(`Node externalLaunch.intents[${index}].maxTargets must be a positive integer.`)
+    }
+    return { id, targetKinds: [...new Set(targetKinds)] as Array<"file" | "directory">, maxTargets }
+  })
+  if (!intents.length) throw new Error("Node externalLaunch.intents must not be empty.")
+  if (new Set(intents.map((intent) => intent.id)).size !== intents.length) {
+    throw new Error("Node externalLaunch intent ids must be unique.")
+  }
+  return {
+    instancePolicy,
+    requiredHostCapabilities: [...new Set(requiredHostCapabilities)],
+    intents,
   }
 }
 

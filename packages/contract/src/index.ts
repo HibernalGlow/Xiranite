@@ -35,6 +35,50 @@ export interface NodeDef {
   description: string
   icon: string
   keywords?: string[]
+  /**
+   * Opt-in declaration for requests received from Windows Explorer, a
+   * xiranite:// URL, or another external caller. A missing declaration means
+   * the desktop launcher must reject the request before starting a node host.
+   */
+  externalLaunch?: ExternalLaunchDeclaration
+}
+
+export type ExternalLaunchTargetKind = "file" | "directory"
+export type ExternalLaunchSource = "argv" | "explorer" | "url"
+export type ExternalLaunchInstancePolicy = "reuse" | "new-window"
+
+/** Platform-neutral, normalized input delivered to a declared node host. */
+export interface ExternalNodeLaunchRequest {
+  version: 1
+  requestId: string
+  source: ExternalLaunchSource
+  nodeId: string
+  intent: string
+  targets: readonly ExternalLaunchTarget[]
+}
+
+export interface ExternalLaunchTarget {
+  /** Canonical local or UNC file: URI. */
+  uri: string
+  kind: ExternalLaunchTargetKind
+}
+
+/** Serializable node metadata used by generated desktop registries. */
+export interface ExternalLaunchDeclaration {
+  intents: readonly ExternalLaunchIntentDeclaration[]
+  instancePolicy: ExternalLaunchInstancePolicy
+  requiredHostCapabilities: readonly NodeCapabilityId[]
+}
+
+export interface ExternalLaunchIntentDeclaration {
+  id: string
+  targetKinds: readonly ExternalLaunchTargetKind[]
+  maxTargets: number
+}
+
+export interface ExternalNodeLaunchResult {
+  accepted: boolean
+  message?: string
 }
 
 /**
