@@ -250,8 +250,7 @@ class WailsWindowRuntime implements WindowRuntime {
   async controlMain(action: MainWindowAction): Promise<WindowCommandResult> {
     const runtime = await loadRuntime()
     if (action === "minimize") {
-      await runtime.Window.Minimise()
-      return { success: true, supported: true, message: "Window minimised.", state: "minimized" }
+      return await callGo<WindowCommandResult>("WindowControlMain", action)
     }
     if (action === "maximize") {
       await runtime.Window.ToggleMaximise()
@@ -277,8 +276,7 @@ class WailsWindowRuntime implements WindowRuntime {
       await runtime.Window.Restore()
       return { success: true, supported: true, message: "Window restored.", state: "normal" }
     }
-    await runtime.Window.Close()
-    return { success: true, supported: true, message: "Window closed.", state: "closed" }
+    return await callGo<WindowCommandResult>("WindowControlMain", action)
   }
 
   async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {

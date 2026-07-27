@@ -51,25 +51,30 @@ type desktopTrayManager struct {
 	quitting   bool
 }
 
+const mainTrayStorageKey = "xiranite:desktop:main-tray-enabled"
+
 type managedTray struct {
 	tray        *application.SystemTray
 	iconDataURL string
 }
 
-func newDesktopTrayManager(app *application.App, mainWindow *application.WebviewWindow) *desktopTrayManager {
+func newDesktopTrayManager(app *application.App, mainWindow *application.WebviewWindow, mainEnabled bool) *desktopTrayManager {
 	manager := &desktopTrayManager{
 		app:        app,
 		mainWindow: mainWindow,
 		standalone: make(map[string]managedTray),
-		mainEnable: true,
+		mainEnable: mainEnabled,
 	}
 	manager.mainTray = manager.newTray("Xiranite", nil)
 	manager.mainTray.OnClick(manager.showMainWindow)
 	manager.mainTray.SetMenu(manager.mainMenu(nil))
+	if !mainEnabled {
+		manager.mainTray.Hide()
+	}
 
 	mainWindow.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
 		manager.mu.Lock()
-		keepRunning := manager.mainEnable && !manager.quitting
+		keepRunning := manager.shouldKeepRunningLocked()
 		manager.mu.Unlock()
 		if keepRunning {
 			event.Cancel()
@@ -77,6 +82,16 @@ func newDesktopTrayManager(app *application.App, mainWindow *application.Webview
 		}
 	})
 	return manager
+}
+
+func (m *desktopTrayManager) shouldKeepRunningLocked() bool {
+	return m.mainEnable && !m.quitting
+}
+
+func (m *desktopTrayManager) shouldKeepRunning() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.shouldKeepRunningLocked()
 }
 
 func (s *XiraniteService) TrayCapabilities() TrayCapabilities {
@@ -92,6 +107,13 @@ func (s *XiraniteService) TraySetMainEnabled(enabled bool) {
 	if s.trayManager != nil {
 		s.trayManager.setMainEnabled(enabled)
 	}
+}
+
+func (s *XiraniteService) WindowControlMain(action string) WindowCommandResult {
+	if s.trayManager == nil {
+		return WindowCommandResult{Success: false, Supported: false, Message: "Main window controls are unavailable."}
+	}
+	return s.trayManager.controlMain(action)
 }
 
 func (s *XiraniteService) TraySync(payloadJSON string) error {
@@ -114,6 +136,27 @@ func (m *desktopTrayManager) setMainEnabled(enabled bool) {
 		tray.Show()
 	} else {
 		tray.Hide()
+	}
+}
+
+func (m *desktopTrayManager) controlMain(action string) WindowCommandResult {
+	switch action {
+	case "minimize":
+		if m.shouldKeepRunning() {
+			m.mainWindow.Hide()
+			return WindowCommandResult{Success: true, Supported: true, Message: "Window hidden to the system tray.", State: "minimized"}
+		}
+		m.mainWindow.Minimise()
+		return WindowCommandResult{Success: true, Supported: true, Message: "Window minimised.", State: "minimized"}
+	case "close":
+		if m.shouldKeepRunning() {
+			m.mainWindow.Hide()
+			return WindowCommandResult{Success: true, Supported: true, Message: "Window hidden to the system tray.", State: "minimized"}
+		}
+		m.mainWindow.Close()
+		return WindowCommandResult{Success: true, Supported: true, Message: "Window closed.", State: "closed"}
+	default:
+		return WindowCommandResult{Success: false, Supported: true, Message: fmt.Sprintf("Unsupported main window action %q.", action)}
 	}
 }
 
