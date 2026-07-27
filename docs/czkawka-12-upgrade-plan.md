@@ -320,6 +320,12 @@ Exit criteria:
 - Current 10.0 behavior and baseline performance remain intact.
 - Every touched production source file passes `bun run check:source-size`.
 
+Completed Node-API declaration boundary evidence:
+
+- `@napi-rs/cli@3.7.4` (MIT, development-only) generates `packages/czkawka-native/generated/binding.generated.d.ts` directly from the current Rust exports.
+- `packages/czkawka-native/src/index.ts` now owns only loading, legacy capability fallback, and Xiranite's stable domain narrowing. It imports native object fields, results, and exports from the generated declaration instead of maintaining a second DTO mirror; `generated/` is included with the package because `dist/index.d.ts` references it.
+- `bun run --cwd packages/czkawka-native generate:binding-dts` regenerates the committed declaration. Its `check:binding-dts` counterpart builds into an isolated temporary directory and fails on content drift. Both use the absolute `native/target` directory, one Cargo job, the existing Windows dav1d path, and `sccache` when present.
+
 ### Phase 2: Upgrade the core to 12.0 in compatibility mode
 
 Purpose: update the native engine while preserving the current product surface.

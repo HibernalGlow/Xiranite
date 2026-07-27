@@ -3,348 +3,86 @@ import { createRequire } from "node:module"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { prependNativeLibraryPath } from "@xiranite/native-loader"
+import type * as Generated from "../generated/binding.generated.js"
 import { resolveCzkawkaBindingPath } from "./native-asset.js"
 
-export interface CzkawkaInfo {
-  apiVersion: number
-  sourceVersion: string
-  capabilities: string[]
-}
-
-interface CzkawkaBindingInfo extends Omit<CzkawkaInfo, "capabilities"> {
-  capabilities?: string[]
-}
-
-export interface TrashCapabilities {
-  deleteToTrash: boolean
-  list: boolean
-  restore: boolean
-  provider: "trash-rs"
-  providerVersion: string
-}
-
-export interface TrashItemReceipt {
-  id: string
-  name: string
-  originalParent: string
-  timeDeleted: number
-}
-
-export interface TrashPathResult {
-  trashed: true
-  receipt?: TrashItemReceipt
-}
-
-export interface DuplicateScanOptions {
-  includedDirectories: string[]
-  referenceDirectories?: string[]
-  excludedDirectories?: string[]
-  excludedItems?: string[]
-  allowedExtensions?: string
-  excludedExtensions?: string
-  minimumFileSize?: number
-  maximumFileSize?: number
-  recursive?: boolean
-  useCache?: boolean
-  saveAlsoAsJson?: boolean
-  deleteOutdatedCache?: boolean
-  minimalCacheFileSize?: number
-  minimalPrehashCacheFileSize?: number
-  ignoreHardLinks?: boolean
-  usePrehash?: boolean
-  caseSensitiveNames?: boolean
-  checkMethod?: "name" | "size" | "size-and-name" | "sizeAndName" | "hash"
-  hashType?: "crc32" | "xxh3" | "blake3"
-  scanId?: string
-  threadCount?: number
-}
-
-export interface DuplicateFile {
-  path: string
-  modifiedDate: number
-  size: number
-  hash: string
-  isReference: boolean
-}
-
-export interface DuplicateScanResult {
-  groups: Array<{ files: DuplicateFile[] }>
-  messages: string
-  stopped: boolean
-}
+export type CzkawkaInfo = Generated.CzkawkaInfo
+export type TrashCapabilities = Generated.TrashCapabilities
+export type TrashItemReceipt = Generated.TrashItemReceipt
+export type TrashPathResult = Generated.TrashPathResult
+export type DuplicateFile = Generated.DuplicateFile
+export type DuplicateScanResult = Generated.DuplicateScanResult
+export type BasicEntry = Generated.BasicEntry
+export type BasicScanResult = Generated.BasicScanResult
+export type ExifTag = Generated.ExifTag
+export type ExifEntry = Generated.ExifEntry
+export type ExifScanResult = Generated.ExifScanResult
+export type ExifCandidate = Generated.ExifCandidate
+export type MediaEntry = Generated.MediaEntry
+export type MediaGroup = Generated.MediaGroup
+export type MediaScanResult = Generated.MediaScanResult
+export type CzkawkaScanProgress = Generated.CzkawkaScanProgress
+export type VideoOptimizerEntry = Generated.VideoOptimizerEntry
+export type VideoOptimizerScanResult = Generated.VideoOptimizerScanResult
+export type VideoOptimizerCandidate = Generated.VideoOptimizerCandidate
+export type ExifCandidateOptions = Generated.ExifCandidateOptions
 
 export type CzkawkaBasicTool = "big-files" | "empty-files" | "empty-folders" | "temporary-files" | "invalid-symlinks" | "bad-names"
-
-export interface BasicScanOptions {
-  tool: CzkawkaBasicTool
-  includedDirectories: string[]
-  referenceDirectories?: string[]
-  excludedDirectories?: string[]
-  excludedItems?: string[]
-  allowedExtensions?: string
-  excludedExtensions?: string
-  recursive?: boolean
-  minimumFileSize?: number
-  maximumFileSize?: number
-  useCache?: boolean
-  saveAlsoAsJson?: boolean
-  deleteOutdatedCache?: boolean
-  numberOfFiles?: number
-  biggestFirst?: boolean
-  emptyFilesSearchZeroByteContent?: boolean
-  emptyFilesSearchNonPrintableContent?: boolean
-  temporaryFileExtensions?: string
-  scanId?: string
-  threadCount?: number
-}
-
-export interface BasicEntry {
-  path: string
-  size: number
-  modifiedDate: number
-  secondaryPath?: string
-  detail?: string
-}
-
-export interface BasicScanResult {
-  entries: BasicEntry[]
-  messages: string
-  stopped: boolean
-}
-
-export interface ExifScanOptions {
-  includedDirectories: string[]
-  referenceDirectories?: string[]
-  excludedDirectories?: string[]
-  excludedItems?: string[]
-  allowedExtensions?: string
-  excludedExtensions?: string
-  recursive?: boolean
-  minimumFileSize?: number
-  maximumFileSize?: number
-  useCache?: boolean
-  saveAlsoAsJson?: boolean
-  deleteOutdatedCache?: boolean
-  ignoredTags?: string[]
-  scanId?: string
-  threadCount?: number
-}
-
-export interface ExifTag {
-  name: string
-  code: number
-  group: string
-}
-
-export interface ExifEntry {
-  path: string
-  size: number
-  modifiedDate: number
-  tags: ExifTag[]
-}
-
-export interface ExifScanResult {
-  entries: ExifEntry[]
-  messages: string
-  stopped: boolean
-}
-
-export interface ExifCandidateOptions {
-  sourcePath: string
-  tags: ExifTag[]
-}
-
-export interface ExifCandidate {
-  candidatePath: string
-  removedTags: number
-}
-
+export type CzkawkaMediaTool = "similar-images" | "similar-videos" | "duplicate-music" | "broken-files" | "bad-extensions"
+export type DuplicateCheckMethod = "name" | "size" | "size-and-name" | "sizeAndName" | "hash"
+export type DuplicateHashType = "crc32" | "xxh3" | "blake3"
+export type ImageHashAlgorithm = "mean" | "gradient" | "blockhash" | "vert-gradient" | "double-gradient" | "median"
+export type ImageResizeAlgorithm = "lanczos3" | "gaussian" | "catmull-rom" | "triangle" | "nearest"
+export type ImageGeometricInvariance = "off" | "mirror-flip" | "mirror-flip-rotate-90"
+export type VideoCropDetect = "letterbox" | "motion" | "none"
+export type MusicCheckType = "tags" | "fingerprint"
 export type VideoOptimizerMode = "transcode" | "crop"
 export type VideoOptimizerCodec = "h264" | "h265" | "av1" | "vp9"
 export type VideoOptimizerNoiseReduction = "none" | "hqdn3d"
 
-export interface VideoOptimizerScanOptions {
+export type DuplicateScanOptions = Omit<Generated.DuplicateScanOptions, "checkMethod" | "hashType"> & {
+  checkMethod?: DuplicateCheckMethod
+  hashType?: DuplicateHashType
+}
+
+export type BasicScanOptions = Omit<Generated.BasicScanOptions, "tool"> & {
+  tool: CzkawkaBasicTool
+}
+
+export type ExifScanOptions = Generated.ExifScanOptions
+
+export type VideoOptimizerScanOptions = Omit<Generated.VideoOptimizerScanOptions, "mode"> & {
   mode: VideoOptimizerMode
-  includedDirectories: string[]
-  referenceDirectories?: string[]
-  excludedDirectories?: string[]
-  excludedItems?: string[]
-  allowedExtensions?: string
-  excludedExtensions?: string
-  recursive?: boolean
-  minimumFileSize?: number
-  maximumFileSize?: number
-  useCache?: boolean
-  saveAlsoAsJson?: boolean
-  deleteOutdatedCache?: boolean
-  excludedCodecs?: string
-  blackPixelThreshold?: number
-  blackBarMinPercentage?: number
-  maxSamples?: number
-  minCropSize?: number
-  scanId?: string
-  threadCount?: number
 }
 
-export interface VideoOptimizerEntry {
-  path: string
-  size: number
-  modifiedDate: number
-  codec: string
-  width: number
-  height: number
-  duration: number
-  cropLeft?: number
-  cropTop?: number
-  cropRight?: number
-  cropBottom?: number
-}
-
-export interface VideoOptimizerScanResult {
-  entries: VideoOptimizerEntry[]
-  messages: string
-  stopped: boolean
-}
-
-export interface VideoOptimizerCandidateOptions {
-  sourcePath: string
+export type VideoOptimizerCandidateOptions = Omit<Generated.VideoOptimizerCandidateOptions, "mode" | "targetCodec" | "noiseReduction"> & {
   mode: VideoOptimizerMode
   targetCodec: VideoOptimizerCodec
-  quality: number
-  failIfNotSmaller?: boolean
-  limitVideoSize?: boolean
-  maximumWidth?: number
-  maximumHeight?: number
   noiseReduction?: VideoOptimizerNoiseReduction
-  noiseReductionStrength?: number
-  cropLeft?: number
-  cropTop?: number
-  cropRight?: number
-  cropBottom?: number
-  cropTranscode?: boolean
-  currentCodec: string
-  scanId?: string
 }
 
-export interface VideoOptimizerCandidate {
-  candidatePath: string
-  originalSize: number
-  candidateSize: number
-}
-
-export type CzkawkaMediaTool = "similar-images" | "similar-videos" | "duplicate-music" | "broken-files" | "bad-extensions"
-
-export interface MediaScanOptions {
+export type MediaScanOptions = Omit<Generated.MediaScanOptions,
+  "tool" | "imageHashAlgorithm" | "imageResizeAlgorithm" | "imageGeometricInvariance" | "videoCropDetect" | "musicCheckType"
+> & {
   tool: CzkawkaMediaTool
-  includedDirectories: string[]
-  referenceDirectories?: string[]
-  excludedDirectories?: string[]
-  excludedItems?: string[]
-  allowedExtensions?: string
-  excludedExtensions?: string
-  recursive?: boolean
-  minimumFileSize?: number
-  maximumFileSize?: number
-  useCache?: boolean
-  saveAlsoAsJson?: boolean
-  deleteOutdatedCache?: boolean
-  ignoreHardLinks?: boolean
-  similarity?: number
-  imageHashSize?: number
-  imageHashAlgorithm?: "mean" | "gradient" | "blockhash" | "vert-gradient" | "double-gradient" | "median"
-  imageResizeAlgorithm?: "lanczos3" | "gaussian" | "catmull-rom" | "triangle" | "nearest"
-  imageIgnoreSameSize?: boolean
-  imageIgnoreSameResolution?: boolean
-  imageGeometricInvariance?: "off" | "mirror-flip" | "mirror-flip-rotate-90"
-  videoIgnoreSameSize?: boolean
-  videoIgnoreSameResolution?: boolean
-  videoSkipForward?: number
-  videoHashDuration?: number
-  videoCropDetect?: "letterbox" | "motion" | "none"
-  videoWindowCount?: number
-  videoDurationTolerancePct?: number
-  videoMinMatchingWindows?: number
-  videoSubclipMinMatch?: number
-  videoCheckAudioContent?: boolean
-  musicCheckType?: "tags" | "fingerprint"
-  musicApproximateComparison?: boolean
-  musicCompareTitle?: boolean
-  musicCompareArtist?: boolean
-  musicCompareBitrate?: boolean
-  musicCompareGenre?: boolean
-  musicCompareYear?: boolean
-  musicCompareLength?: boolean
-  musicMaximumDifference?: number
-  musicMinimumFragmentDuration?: number
-  musicCompareFingerprintsOnlyWithSimilarTitles?: boolean
-  brokenAudio?: boolean
-  brokenPdf?: boolean
-  brokenArchive?: boolean
-  brokenImage?: boolean
-  brokenVideoFfprobe?: boolean
-  brokenVideoFfmpeg?: boolean
-  brokenFont?: boolean
-  brokenMarkup?: boolean
-  scanId?: string
-  threadCount?: number
+  imageHashAlgorithm?: ImageHashAlgorithm
+  imageResizeAlgorithm?: ImageResizeAlgorithm
+  imageGeometricInvariance?: ImageGeometricInvariance
+  videoCropDetect?: VideoCropDetect
+  musicCheckType?: MusicCheckType
 }
 
-export interface MediaEntry {
-  path: string
-  size: number
-  modifiedDate: number
-  width?: number
-  height?: number
-  fps?: number
-  codec?: string
-  similarity?: string
-  title?: string
-  artist?: string
-  year?: string
-  length?: string
-  genre?: string
-  bitrate?: number
-  isReference: boolean
-  detail?: string
-  properExtension?: string
+type CzkawkaBindingInfo = Omit<CzkawkaInfo, "capabilities"> & {
+  capabilities?: string[]
 }
 
-export interface MediaGroup {
-  entries: MediaEntry[]
-}
+type GeneratedBinding = typeof import("../generated/binding.generated.js")
 
-export interface MediaScanResult {
-  groups: MediaGroup[]
-  messages: string
-  stopped: boolean
-}
-
-export interface CzkawkaScanProgress {
-  stage: string
-  stageIndex: number
-  stageCount: number
-  entriesChecked: number
-  entriesTotal: number
-  bytesChecked: number
-  bytesTotal: number
-}
-
-export interface CzkawkaBinding {
+export type CzkawkaBinding = Omit<GeneratedBinding,
+  "getCzkawkaInfo" | "cancelCzkawkaScan" | "getCzkawkaScanProgress"
+> & {
   getCzkawkaInfo(): CzkawkaBindingInfo
-  getTrashCapabilities(): TrashCapabilities
-  trashPath(path: string): Promise<TrashPathResult>
-  listTrashItems(): Promise<TrashItemReceipt[]>
-  restoreTrashItem(receipt: TrashItemReceipt): Promise<void>
-  scanDuplicateFiles(options: DuplicateScanOptions): Promise<DuplicateScanResult>
-  scanBasicFiles(options: BasicScanOptions): Promise<BasicScanResult>
-  scanExifFiles(options: ExifScanOptions): Promise<ExifScanResult>
-  createExifCandidate(options: ExifCandidateOptions): Promise<ExifCandidate>
-  scanVideoOptimizer(options: VideoOptimizerScanOptions): Promise<VideoOptimizerScanResult>
-  createVideoOptimizerCandidate(options: VideoOptimizerCandidateOptions): Promise<VideoOptimizerCandidate>
-  scanMediaFiles(options: MediaScanOptions): Promise<MediaScanResult>
-  cancelCzkawkaScan?(scanId: string): boolean
-  getCzkawkaScanProgress?(scanId: string): CzkawkaScanProgress | undefined
-}
+} & Partial<Pick<GeneratedBinding, "cancelCzkawkaScan" | "getCzkawkaScanProgress">>
 
 let cachedBinding: CzkawkaBinding | undefined
 
@@ -364,24 +102,26 @@ export const getCzkawkaInfo = (): CzkawkaInfo => {
   const info = loadCzkawkaBinding().getCzkawkaInfo()
   return { ...info, capabilities: info.capabilities ?? [] }
 }
+
+// napi-rs emits AsyncTask completions as Promise<unknown>; their object shapes stay generator-owned above.
 export const getTrashCapabilities = (): TrashCapabilities => loadCzkawkaBinding().getTrashCapabilities()
-export const trashPath = (path: string): Promise<TrashPathResult> => loadCzkawkaBinding().trashPath(path)
-export const listTrashItems = (): Promise<TrashItemReceipt[]> => loadCzkawkaBinding().listTrashItems()
-export const restoreTrashItem = (receipt: TrashItemReceipt): Promise<void> => loadCzkawkaBinding().restoreTrashItem(receipt)
+export const trashPath = (path: string): Promise<TrashPathResult> => loadCzkawkaBinding().trashPath(path) as Promise<TrashPathResult>
+export const listTrashItems = (): Promise<TrashItemReceipt[]> => loadCzkawkaBinding().listTrashItems() as Promise<TrashItemReceipt[]>
+export const restoreTrashItem = (receipt: TrashItemReceipt): Promise<void> => loadCzkawkaBinding().restoreTrashItem(receipt) as Promise<void>
 export const scanDuplicateFiles = (options: DuplicateScanOptions): Promise<DuplicateScanResult> =>
-  loadCzkawkaBinding().scanDuplicateFiles(options)
+  loadCzkawkaBinding().scanDuplicateFiles(options) as Promise<DuplicateScanResult>
 export const scanBasicFiles = (options: BasicScanOptions): Promise<BasicScanResult> =>
-  loadCzkawkaBinding().scanBasicFiles(options)
+  loadCzkawkaBinding().scanBasicFiles(options) as Promise<BasicScanResult>
 export const scanExifFiles = (options: ExifScanOptions): Promise<ExifScanResult> =>
-  loadCzkawkaBinding().scanExifFiles(options)
+  loadCzkawkaBinding().scanExifFiles(options) as Promise<ExifScanResult>
 export const createExifCandidate = (options: ExifCandidateOptions): Promise<ExifCandidate> =>
-  loadCzkawkaBinding().createExifCandidate(options)
+  loadCzkawkaBinding().createExifCandidate(options) as Promise<ExifCandidate>
 export const scanVideoOptimizer = (options: VideoOptimizerScanOptions): Promise<VideoOptimizerScanResult> =>
-  loadCzkawkaBinding().scanVideoOptimizer(options)
+  loadCzkawkaBinding().scanVideoOptimizer(options) as Promise<VideoOptimizerScanResult>
 export const createVideoOptimizerCandidate = (options: VideoOptimizerCandidateOptions): Promise<VideoOptimizerCandidate> =>
-  loadCzkawkaBinding().createVideoOptimizerCandidate(options)
+  loadCzkawkaBinding().createVideoOptimizerCandidate(options) as Promise<VideoOptimizerCandidate>
 export const scanMediaFiles = (options: MediaScanOptions): Promise<MediaScanResult> =>
-  loadCzkawkaBinding().scanMediaFiles(options)
+  loadCzkawkaBinding().scanMediaFiles(options) as Promise<MediaScanResult>
 export const cancelCzkawkaScan = (scanId: string): boolean => loadCzkawkaBinding().cancelCzkawkaScan?.(scanId) ?? false
 export const getCzkawkaScanProgress = (scanId: string): CzkawkaScanProgress | undefined => loadCzkawkaBinding().getCzkawkaScanProgress?.(scanId) ?? undefined
 

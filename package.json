@@ -287,6 +287,7 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
+    "@napi-rs/cli": "3.7.4",
     "@opentui/core": "0.4.5",
     "@opentui/react": "0.4.5",
     "@oxc-project/types": "^0.139.0",

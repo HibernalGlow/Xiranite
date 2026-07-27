@@ -11,11 +11,13 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": ["dist", "generated"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "build:native": "bun scripts/build-native.ts",
+    "generate:binding-dts": "bun scripts/generate-binding-dts.ts",
+    "check:binding-dts": "bun scripts/generate-binding-dts.ts --check",
     "smoke:native": "bun run build && bun scripts/smoke-native.mjs",
     "smoke:trash": "bun run build && bun scripts/smoke-trash.mjs",
     "smoke:embedded": "bun run build && bun scripts/smoke-embedded.mjs"
