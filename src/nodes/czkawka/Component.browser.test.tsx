@@ -17,9 +17,16 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
 
 afterEach(async () => {
   cleanup()
+  clearDetachedRadixPortals()
   Object.assign(surface, { width: 1440, height: 860, mode: "workspace" })
   await i18n.changeLanguage("zh")
 })
+
+function clearDetachedRadixPortals(): void {
+  document.body.querySelectorAll('[data-slot="dialog-overlay"], [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]').forEach((element) => element.remove())
+  document.body.removeAttribute("data-scroll-locked")
+  document.body.style.pointerEvents = ""
+}
 
 test("renders scan progress in the same title-bar row as search", async () => {
   await i18n.changeLanguage("en")
