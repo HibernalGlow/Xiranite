@@ -98,6 +98,10 @@ export interface CzkawkaInput {
   brokenPdf?: boolean
   brokenArchive?: boolean
   brokenImage?: boolean
+  brokenVideoFfprobe?: boolean
+  brokenVideoFfmpeg?: boolean
+  brokenFont?: boolean
+  brokenMarkup?: boolean
   filterText?: string
   sortBy?: CzkawkaSort
   descending?: boolean
@@ -284,6 +288,10 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInp
     brokenPdf: input.brokenPdf ?? true,
     brokenArchive: input.brokenArchive ?? true,
     brokenImage: input.brokenImage ?? true,
+    brokenVideoFfprobe: input.brokenVideoFfprobe ?? false,
+    brokenVideoFfmpeg: input.brokenVideoFfmpeg ?? false,
+    brokenFont: input.brokenFont ?? false,
+    brokenMarkup: input.brokenMarkup ?? false,
     filterText: clean(input.filterText),
     sortBy: input.sortBy ?? "path",
     descending: input.descending ?? false,
@@ -376,6 +384,9 @@ function missingNativeCapabilities(value: CzkawkaNormalizedInput, capabilities: 
     ) required.push("similar-videos.similario")
     if (value.similarVideosCheckAudioContent) required.push("similar-videos.audio")
   }
+  if (value.tool === "broken-files" && (
+    value.brokenVideoFfprobe || value.brokenVideoFfmpeg || value.brokenFont || value.brokenMarkup
+  )) required.push("broken-files.multi-checker")
   if (!required.length) return []
   const available = new Set(capabilities ?? [])
   return required.filter((capability) => !available.has(capability))

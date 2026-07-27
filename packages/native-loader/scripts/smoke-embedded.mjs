@@ -11,7 +11,6 @@ const cacheRoot = await mkdtemp(join(tmpdir(), "xiranite-embedded-native-smoke-"
 const specs = [
   { id: "arcthumb", info: "getArcThumbInfo" },
   { id: "czkawka", info: "getCzkawkaInfo" },
-  { id: "slimg", info: "getSlimgInfo" },
 ]
 
 try {

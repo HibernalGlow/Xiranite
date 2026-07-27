@@ -303,6 +303,10 @@ pub struct MediaScanOptions {
     pub broken_pdf: bool,
     pub broken_archive: bool,
     pub broken_image: bool,
+    pub broken_video_ffprobe: bool,
+    pub broken_video_ffmpeg: bool,
+    pub broken_font: bool,
+    pub broken_markup: bool,
 }
 
 impl MediaScanOptions {
@@ -354,6 +358,10 @@ impl MediaScanOptions {
             broken_pdf: true,
             broken_archive: true,
             broken_image: true,
+            broken_video_ffprobe: false,
+            broken_video_ffmpeg: false,
+            broken_font: false,
+            broken_markup: false,
         }
     }
 }

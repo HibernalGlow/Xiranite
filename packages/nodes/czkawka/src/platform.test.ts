@@ -48,6 +48,31 @@ describe("Czkawka native DTO mapping", () => {
     expect(toMediaScanOptions(media)).toMatchObject({ saveAlsoAsJson: true, deleteOutdatedCache: false })
   })
 
+  test("maps every Czkawka 12 broken-file checker into the native media DTO", () => {
+    const input = normalizeCzkawkaInput({
+      tool: "broken-files",
+      brokenAudio: false,
+      brokenPdf: false,
+      brokenArchive: false,
+      brokenImage: false,
+      brokenVideoFfprobe: true,
+      brokenVideoFfmpeg: true,
+      brokenFont: true,
+      brokenMarkup: true,
+    })
+    expect(toMediaScanOptions(input)).toMatchObject({
+      tool: "broken-files",
+      brokenAudio: false,
+      brokenPdf: false,
+      brokenArchive: false,
+      brokenImage: false,
+      brokenVideoFfprobe: true,
+      brokenVideoFfmpeg: true,
+      brokenFont: true,
+      brokenMarkup: true,
+    })
+  })
+
   test("locks native cache/config environment after first scan configuration", async () => {
     const first = normalizeCzkawkaInput({ cacheFolderPath: "D:/cache-a", configFolderPath: "D:/config-a" })
     const second = normalizeCzkawkaInput({ cacheFolderPath: "D:/cache-b", configFolderPath: "D:/config-b" })

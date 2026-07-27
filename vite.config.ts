@@ -288,6 +288,11 @@ export default defineConfig(({ command }) => ({
     setupFiles: [path.resolve(__dirname, "./src/test/setup-i18n.ts")],
     include: ["src/**/*.test.{ts,tsx}"],
     exclude: ["src/**/*.browser.test.{ts,tsx}", "**/dist/**", "**/artifacts/**", "**/build/**", "**/vendor/**", "**/ref/**", "**/tests/e2e/**"],
+    server: {
+      deps: {
+        inline: ["zod"],
+      },
+    },
   },
   build: {
     rolldownOptions: {

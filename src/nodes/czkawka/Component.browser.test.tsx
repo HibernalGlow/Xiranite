@@ -140,6 +140,40 @@ test("persists every Czkawka 12 similario control in the browser", async () => {
   })
 })
 
+test("hides Czkawka 12 broken-file controls until the native binding advertises their capability", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost({ tool: "broken-files", includedDirectoriesText: "D:/media", sourceSettingsTab: "algorithm" }, [])
+
+  await render(<Component compId="czkawka-broken-checkers-unavailable-browser" host={host} />)
+
+  await expect.element(page.getByText("Fast video check (FFprobe)")).not.toBeInTheDocument()
+  await expect.element(page.getByText("Full video decode (FFmpeg)")).not.toBeInTheDocument()
+  await expect.element(page.getByText("Check fonts")).not.toBeInTheDocument()
+  await expect.element(page.getByText("Check markup files")).not.toBeInTheDocument()
+})
+
+test("persists every Czkawka 12 broken-file checker in the browser", async () => {
+  await i18n.changeLanguage("en")
+  const host = createHost(
+    { tool: "broken-files", includedDirectoriesText: "D:/media", sourceSettingsTab: "algorithm" },
+    ["broken-files.multi-checker"],
+  )
+
+  await render(<Component compId="czkawka-broken-checkers-browser" host={host} />)
+
+  await page.getByRole("switch", { name: "Fast video check (FFprobe)" }).click()
+  await page.getByRole("switch", { name: "Full video decode (FFmpeg)" }).click()
+  await page.getByRole("switch", { name: "Check fonts" }).click()
+  await page.getByRole("switch", { name: "Check markup files" }).click()
+
+  await expect.poll(() => host.stateValue).toMatchObject({
+    brokenVideoFfprobe: true,
+    brokenVideoFfmpeg: true,
+    brokenFont: true,
+    brokenMarkup: true,
+  })
+})
+
 test("renders Czkawka 12 video codec and frame-rate metadata in the browser", async () => {
   await i18n.changeLanguage("en")
   const host = createHost({ tool: "similar-videos", includedDirectoriesText: "D:/media", result: similarVideoResult })
