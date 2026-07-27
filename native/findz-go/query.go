@@ -42,7 +42,7 @@ func queryArchives(runtime *libraryRuntime, params archiveQueryParams) (pagedRes
 		if params.SortDesc {
 			comparison = "<"
 		}
-		where += fmt.Sprintf(" AND (%s %s ? OR (%s = ? AND id > ?))", sort.column, comparison, sort.column)
+		where += fmt.Sprintf(" AND (archive_metrics.%s %s ? OR (archive_metrics.%s = ? AND archive_metrics.id > ?))", sort.column, comparison, sort.column)
 		args = append(args, cursor.Value, cursor.Value, cursor.ID)
 	}
 	order := "ASC"
@@ -50,9 +50,9 @@ func queryArchives(runtime *libraryRuntime, params archiveQueryParams) (pagedRes
 		order = "DESC"
 	}
 	query := archiveMetricsCTE + `
-		SELECT id, relative_path, size, mtime_ns, scan_state, error_code, member_count, image_member_count, analyzed_image_count,
-		compressed_image_bytes, average_image_bytes, average_bytes_per_megapixel, anomaly_count, estimated_savings_bytes, ` + sort.column + ` AS sort_value
-		FROM metrics WHERE ` + where + ` ORDER BY ` + sort.column + ` ` + order + `, id ASC LIMIT ?`
+		SELECT archive_metrics.id, archive_metrics.relative_path, archive_metrics.size, archive_metrics.mtime_ns, archive_metrics.scan_state, archive_metrics.error_code, archive_metrics.member_count, archive_metrics.image_member_count, archive_metrics.analyzed_image_count,
+		archive_metrics.compressed_image_bytes, archive_metrics.average_image_bytes, archive_metrics.average_bytes_per_megapixel, archive_metrics.anomaly_count, archive_metrics.estimated_savings_bytes, archive_metrics.` + sort.column + ` AS sort_value
+		FROM metrics AS archive_metrics WHERE ` + where + ` ORDER BY archive_metrics.` + sort.column + ` ` + order + `, archive_metrics.id ASC LIMIT ?`
 	args = append(args, page.Limit+1)
 	rows, err := runtime.db.Query(query, args...)
 	if err != nil {
@@ -79,7 +79,7 @@ func queryArchives(runtime *libraryRuntime, params archiveQueryParams) (pagedRes
 	if err := rows.Err(); err != nil {
 		return result, fmt.Errorf("read archive query rows: %w", err)
 	}
-	if err := runtime.db.QueryRow(archiveMetricsCTE+` SELECT COUNT(*) FROM metrics WHERE `+countWhere, countArgs...).Scan(&result.Total); err != nil {
+	if err := runtime.db.QueryRow(archiveMetricsCTE+` SELECT COUNT(*) FROM metrics AS archive_metrics WHERE `+countWhere, countArgs...).Scan(&result.Total); err != nil {
 		return result, fmt.Errorf("count archive query rows: %w", err)
 	}
 	if err := populateArchiveMedians(runtime, result.Items); err != nil {
@@ -352,12 +352,12 @@ func archiveFilters(text string, pathPrefix string, rules ruleTree) (string, []i
 	where := "1 = 1"
 	args := make([]interface{}, 0)
 	if strings.TrimSpace(text) != "" {
-		where += " AND (LOWER(relative_path) LIKE LOWER(?) OR id IN (SELECT archive_id FROM archive_member WHERE LOWER(member_path) LIKE LOWER(?)))"
+		where += " AND (LOWER(archive_metrics.relative_path) LIKE LOWER(?) OR archive_metrics.id IN (SELECT archive_id FROM archive_member WHERE LOWER(member_path) LIKE LOWER(?)))"
 		needle := "%" + strings.TrimSpace(text) + "%"
 		args = append(args, needle, needle)
 	}
 	if normalizedPrefix := strings.Trim(strings.ReplaceAll(pathPrefix, "\\", "/"), "/"); normalizedPrefix != "" {
-		where += " AND relative_path LIKE ?"
+		where += " AND archive_metrics.relative_path LIKE ?"
 		args = append(args, normalizedPrefix+"/%")
 	}
 	if rules.Format == "" {
@@ -420,10 +420,30 @@ func compileRuleCondition(condition ruleNode) (string, []interface{}, error) {
 	if condition.Kind != "condition" {
 		return "", nil, fmt.Errorf("invalid rule node")
 	}
-	expression, numeric := ruleFieldExpression(condition.Field)
+	expression, numeric, memberField := ruleFieldExpression(condition.Field)
 	if expression == "" {
 		return "", nil, fmt.Errorf("unsupported Findz filter field: %s", condition.Field)
 	}
+	if memberField {
+		return compileMemberRuleCondition(condition, expression, numeric)
+	}
+	return compileRulePredicate(condition, expression, numeric)
+}
+
+func compileMemberRuleCondition(condition ruleNode, expression string, numeric bool) (string, []interface{}, error) {
+	predicate, args, err := compileRulePredicate(condition, expression, numeric)
+	if err != nil {
+		return "", nil, err
+	}
+	return `EXISTS (
+		SELECT 1 FROM archive_member AS member_filter
+		LEFT JOIN image_metadata AS metadata_filter ON metadata_filter.member_id = member_filter.id AND metadata_filter.policy_revision = '` + defaultAnalysisPolicy + `'
+		LEFT JOIN anomaly AS anomaly_filter ON anomaly_filter.member_id = member_filter.id AND anomaly_filter.policy_revision = '` + defaultAnalysisPolicy + `'
+		WHERE member_filter.archive_id = archive_metrics.id AND (` + predicate + `)
+	)`, args, nil
+}
+
+func compileRulePredicate(condition ruleNode, expression string, numeric bool) (string, []interface{}, error) {
 	operator := condition.Operator
 	if operator == "isEmpty" {
 		return "(" + expression + " IS NULL OR " + expression + " = '')", nil, nil
@@ -495,32 +515,56 @@ func compileRuleCondition(condition ruleNode) (string, []interface{}, error) {
 	}
 }
 
-func ruleFieldExpression(field string) (string, bool) {
+func ruleFieldExpression(field string) (string, bool, bool) {
 	switch field {
 	case "relativePath", "archivePath", "name":
-		return "relative_path", false
+		return "archive_metrics.relative_path", false, false
 	case "scanState", "status":
-		return "scan_state", false
+		return "archive_metrics.scan_state", false, false
 	case "archiveSize", "size":
-		return "size", true
+		return "archive_metrics.size", true, false
 	case "memberCount":
-		return "member_count", true
+		return "archive_metrics.member_count", true, false
 	case "imageCount":
-		return "image_member_count", true
+		return "archive_metrics.image_member_count", true, false
 	case "analyzedImageCount", "analysisCoverage":
-		return "analyzed_image_count", true
+		return "archive_metrics.analyzed_image_count", true, false
 	case "totalImageSize":
-		return "compressed_image_bytes", true
+		return "archive_metrics.compressed_image_bytes", true, false
 	case "averageImageSize":
-		return "average_image_bytes", true
+		return "archive_metrics.average_image_bytes", true, false
 	case "averageBytesPerMegapixel":
-		return "average_bytes_per_megapixel", true
+		return "archive_metrics.average_bytes_per_megapixel", true, false
 	case "anomalyCount":
-		return "anomaly_count", true
+		return "archive_metrics.anomaly_count", true, false
 	case "estimatedSavings":
-		return "estimated_savings_bytes", true
+		return "archive_metrics.estimated_savings_bytes", true, false
+	case "memberPath":
+		return "member_filter.member_path", false, true
+	case "memberSize":
+		return "member_filter.compressed_size", true, true
+	case "extension":
+		return "member_filter.extension", false, true
+	case "actualFormat":
+		return "metadata_filter.actual_format", false, true
+	case "width":
+		return "metadata_filter.width", true, true
+	case "height":
+		return "metadata_filter.height", true, true
+	case "pixels":
+		return "metadata_filter.pixels", true, true
+	case "bytesPerMegapixel":
+		return "metadata_filter.bytes_per_megapixel", true, true
+	case "analysisStatus":
+		return "metadata_filter.status", false, true
+	case "anomalyKind":
+		return "anomaly_filter.kind", false, true
+	case "anomalyScore":
+		return "anomaly_filter.score", true, true
+	case "memberEstimatedSavings":
+		return "anomaly_filter.estimated_savings_bytes", true, true
 	default:
-		return "", false
+		return "", false, false
 	}
 }
 

@@ -26,4 +26,19 @@ describe("runFindzWithGateway", () => {
     expect(result.success).toBe(false)
     expect(result.message).toContain("libraryId is required")
   })
+
+  it("routes task cancellation through the Worker boundary", async () => {
+    const calls: Array<{ method: string; params: unknown }> = []
+    const gateway: FindzWorkerGateway = {
+      async call(method, params) {
+        calls.push({ method, params })
+        return { id: "task-7", libraryId: "library-a", kind: "analysis", status: "cancelled" } as never
+      },
+    }
+
+    const result = await runFindzWithGateway({ action: "cancel", libraryId: "library-a", taskId: "task-7" }, gateway)
+
+    expect(result).toMatchObject({ success: true, data: { action: "cancel", task: { id: "task-7", status: "cancelled" } } })
+    expect(calls).toEqual([{ method: "task.cancel", params: { libraryId: "library-a", taskId: "task-7" } }])
+  })
 })

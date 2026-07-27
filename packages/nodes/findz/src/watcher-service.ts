@@ -5,6 +5,7 @@ export interface FindzWatcherEvent {
 
 export interface FindzWatcherClient {
   applyWatcherChanges(libraryId: string, changes: FindzWatcherEvent[]): Promise<unknown>
+  startScan(libraryId: string): Promise<unknown>
   setWatcherHealth(libraryId: string, health: "healthy" | "degraded"): Promise<unknown>
 }
 
@@ -32,6 +33,7 @@ export class FindzLibraryWatch {
   private readonly changes = new Map<string, FindzWatcherEvent>()
   private flushTimer: ReturnType<typeof setTimeout> | undefined
   private closed = false
+  private reconciliationQueued = false
   private subscription: FindzWatcherSubscription | undefined
 
   constructor(
@@ -58,7 +60,15 @@ export class FindzLibraryWatch {
   }
 
   async degrade(): Promise<void> {
-    if (!this.closed) await this.client.setWatcherHealth(this.libraryId, "degraded")
+    if (this.closed) return
+    await this.client.setWatcherHealth(this.libraryId, "degraded")
+    if (this.reconciliationQueued || this.closed) return
+    this.reconciliationQueued = true
+    try {
+      await this.client.startScan(this.libraryId)
+    } catch {
+      // The degraded state remains visible even when reconciliation cannot start.
+    }
   }
 
   async close(): Promise<void> {
@@ -78,7 +88,10 @@ export class FindzLibraryWatch {
     this.changes.clear()
     try {
       await this.client.applyWatcherChanges(this.libraryId, changes)
-      if (!this.closed) await this.client.setWatcherHealth(this.libraryId, "healthy")
+      if (!this.closed) {
+        this.reconciliationQueued = false
+        await this.client.setWatcherHealth(this.libraryId, "healthy")
+      }
     } catch {
       await this.degrade()
     }

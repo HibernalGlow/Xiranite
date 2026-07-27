@@ -4,12 +4,15 @@ import (
 	"archive/zip"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/laktak/zfind/filter"
@@ -18,14 +21,115 @@ import (
 
 const zipEncryptionFlag = 1
 
+var defaultZipSafetyLimits = zipSafetyLimits{
+	maxEntries:         100_000,
+	maxMemberPathBytes: 4_096,
+}
+
+type zipSafetyLimits struct {
+	maxEntries         int
+	maxMemberPathBytes int
+}
+
+type zipScanFailure struct {
+	code string
+	err  error
+}
+
+type scheduledScanWork struct {
+	taskID  string
+	kind    string
+	changes []watcherChange
+}
+
+type libraryScanQueue struct {
+	mu      sync.Mutex
+	active  bool
+	pending []scheduledScanWork
+}
+
+func (failure *zipScanFailure) Error() string {
+	return failure.err.Error()
+}
+
+func (limits zipSafetyLimits) validate(files []*zip.File) error {
+	if len(files) > limits.maxEntries {
+		return &zipScanFailure{code: "member_count_limit_exceeded", err: fmt.Errorf("ZIP contains %d members; Findz allows at most %d", len(files), limits.maxEntries)}
+	}
+	for _, member := range files {
+		if len(member.Name) > limits.maxMemberPathBytes {
+			return &zipScanFailure{code: "member_path_length_exceeded", err: fmt.Errorf("ZIP member path exceeds the %d byte limit", limits.maxMemberPathBytes)}
+		}
+		if !isSafeZipMemberPath(member.Name) {
+			return &zipScanFailure{code: "unsafe_member_path", err: fmt.Errorf("ZIP member path is unsafe: %s", member.Name)}
+		}
+	}
+	return nil
+}
+
+func isSafeZipMemberPath(memberPath string) bool {
+	normalized := filepath.ToSlash(memberPath)
+	if normalized == "" || strings.ContainsRune(normalized, 0) || path.IsAbs(normalized) {
+		return false
+	}
+	if len(normalized) >= 2 && normalized[1] == ':' {
+		return false
+	}
+	cleaned := path.Clean(normalized)
+	return cleaned != "." && cleaned != ".." && !strings.HasPrefix(cleaned, "../")
+}
+
 func (service *findzService) startScan(runtime *libraryRuntime) (taskRecord, error) {
 	task, err := service.createTask(runtime, "scan", scanParams{LibraryID: runtime.id})
 	if err != nil {
 		return task, err
 	}
-	controller := service.installTaskController(task.ID)
-	go service.runFullScan(runtime, task.ID, controller)
+	service.installTaskController(task.ID)
+	service.enqueueScanWork(runtime, scheduledScanWork{taskID: task.ID, kind: "scan"})
 	return task, nil
+}
+
+func (service *findzService) enqueueScanWork(runtime *libraryRuntime, work scheduledScanWork) {
+	queue := &runtime.scanQueue
+	queue.mu.Lock()
+	if queue.active {
+		queue.pending = append(queue.pending, work)
+		queue.mu.Unlock()
+		_ = updateTask(runtime, work.taskID, "queued", "Waiting for the active library scan.")
+		return
+	}
+	queue.active = true
+	queue.mu.Unlock()
+	go service.runScheduledScanWork(runtime, work)
+}
+
+func (service *findzService) runScheduledScanWork(runtime *libraryRuntime, work scheduledScanWork) {
+	defer service.finishScheduledScanWork(runtime, work.taskID)
+	controller := service.taskController(work.taskID)
+	if controller == nil || !controller.waitUntilRunnable() {
+		return
+	}
+	switch work.kind {
+	case "scan":
+		service.runFullScan(runtime, work.taskID, controller)
+	case "watcher":
+		service.runWatcherChanges(runtime, work.taskID, work.changes, controller)
+	}
+}
+
+func (service *findzService) finishScheduledScanWork(runtime *libraryRuntime, taskID string) {
+	service.removeTaskController(taskID)
+	queue := &runtime.scanQueue
+	queue.mu.Lock()
+	if len(queue.pending) == 0 {
+		queue.active = false
+		queue.mu.Unlock()
+		return
+	}
+	next := queue.pending[0]
+	queue.pending = queue.pending[1:]
+	queue.mu.Unlock()
+	go service.runScheduledScanWork(runtime, next)
 }
 
 func (service *findzService) runFullScan(runtime *libraryRuntime, taskID string, controller *taskController) {
@@ -106,13 +210,45 @@ func discoverArchivesWithZfind(root string) ([]string, []error) {
 }
 
 func (service *findzService) applyWatcherChanges(runtime *libraryRuntime, changes []watcherChange) (taskRecord, error) {
+	queue := &runtime.scanQueue
+	queue.mu.Lock()
+	if pendingCount := len(queue.pending); pendingCount > 0 && queue.pending[pendingCount-1].kind == "watcher" {
+		pending := &queue.pending[pendingCount-1]
+		pending.changes = coalesceWatcherChanges(pending.changes, changes)
+		taskID := pending.taskID
+		mergedChanges := append([]watcherChange(nil), pending.changes...)
+		queue.mu.Unlock()
+		if err := updateTaskParams(runtime, taskID, watcherApplyParams{LibraryID: runtime.id, Changes: mergedChanges}); err != nil {
+			return taskRecord{}, err
+		}
+		return readTask(runtime, taskID)
+	}
+	queue.mu.Unlock()
+
 	task, err := service.createTask(runtime, "watcher", watcherApplyParams{LibraryID: runtime.id, Changes: changes})
 	if err != nil {
 		return task, err
 	}
-	controller := service.installTaskController(task.ID)
-	go service.runWatcherChanges(runtime, task.ID, changes, controller)
+	service.installTaskController(task.ID)
+	service.enqueueScanWork(runtime, scheduledScanWork{taskID: task.ID, kind: "watcher", changes: coalesceWatcherChanges(nil, changes)})
 	return task, nil
+}
+
+func coalesceWatcherChanges(existing []watcherChange, incoming []watcherChange) []watcherChange {
+	merged := append([]watcherChange(nil), existing...)
+	byPath := make(map[string]int, len(merged)+len(incoming))
+	for index, change := range merged {
+		byPath[change.Path] = index
+	}
+	for _, change := range incoming {
+		if index, exists := byPath[change.Path]; exists {
+			merged[index] = change
+			continue
+		}
+		byPath[change.Path] = len(merged)
+		merged = append(merged, change)
+	}
+	return merged
 }
 
 func (service *findzService) runWatcherChanges(runtime *libraryRuntime, taskID string, changes []watcherChange, controller *taskController) {
@@ -160,18 +296,23 @@ func (service *findzService) resumeStoredScan(runtime *libraryRuntime, task task
 		if err := readTaskParams(runtime, task.ID, &params); err != nil {
 			return err
 		}
-		controller := service.installTaskController(task.ID)
-		if err := updateTask(runtime, task.ID, "running", "Resumed watcher update."); err != nil {
-			return err
-		}
-		go service.runWatcherChanges(runtime, task.ID, params.Changes, controller)
+		service.installTaskController(task.ID)
+		service.enqueueScanWork(runtime, scheduledScanWork{taskID: task.ID, kind: "watcher", changes: coalesceWatcherChanges(nil, params.Changes)})
 		return nil
 	}
-	controller := service.installTaskController(task.ID)
-	if err := updateTask(runtime, task.ID, "running", "Resumed scan."); err != nil {
-		return err
+	service.installTaskController(task.ID)
+	service.enqueueScanWork(runtime, scheduledScanWork{taskID: task.ID, kind: "scan"})
+	return nil
+}
+
+func updateTaskParams(runtime *libraryRuntime, taskID string, params interface{}) error {
+	raw, err := json.Marshal(params)
+	if err != nil {
+		return fmt.Errorf("encode Findz task params: %w", err)
 	}
-	go service.runFullScan(runtime, task.ID, controller)
+	if _, err := runtime.db.Exec(`UPDATE task SET params_json = ? WHERE id = ?`, string(raw), taskID); err != nil {
+		return fmt.Errorf("update Findz task params: %w", err)
+	}
 	return nil
 }
 
@@ -228,15 +369,26 @@ func indexArchive(runtime *libraryRuntime, fullPath string, scanToken string) er
 
 	reader, err := zip.OpenReader(fullPath)
 	if err != nil {
-		if _, updateErr := tx.Exec(`UPDATE archive SET scan_state = 'corrupt_archive', error_code = ?, updated_at = ? WHERE id = ?`, "corrupt_archive", now, archiveID); updateErr != nil {
-			return fmt.Errorf("record corrupt archive: %w", updateErr)
+		state := "corrupt_archive"
+		if errors.Is(err, zip.ErrFormat) {
+			state = "unsupported_archive"
 		}
-		if commitErr := tx.Commit(); commitErr != nil {
-			return fmt.Errorf("commit corrupt archive: %w", commitErr)
+		if recordErr := recordArchiveScanFailure(tx, archiveID, state, state, now); recordErr != nil {
+			return recordErr
 		}
 		return fmt.Errorf("open ZIP central directory: %w", err)
 	}
 	defer reader.Close()
+	if err := defaultZipSafetyLimits.validate(reader.File); err != nil {
+		failure, ok := err.(*zipScanFailure)
+		if !ok {
+			return err
+		}
+		if recordErr := recordArchiveScanFailure(tx, archiveID, "rejected_archive", failure.code, now); recordErr != nil {
+			return recordErr
+		}
+		return failure
+	}
 
 	statement, err := tx.Prepare(`INSERT INTO archive_member (
 		archive_id, entry_index, member_path, crc32, compressed_size, uncompressed_size, compression_method, modified_at, extension,
@@ -256,6 +408,19 @@ func indexArchive(runtime *libraryRuntime, fullPath string, scanToken string) er
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit archive index: %w", err)
+	}
+	return nil
+}
+
+func recordArchiveScanFailure(tx *sql.Tx, archiveID int64, state string, code string, now string) error {
+	if _, err := tx.Exec(`DELETE FROM archive_member WHERE archive_id = ?`, archiveID); err != nil {
+		return fmt.Errorf("clear rejected archive members: %w", err)
+	}
+	if _, err := tx.Exec(`UPDATE archive SET scan_state = ?, error_code = ?, updated_at = ? WHERE id = ?`, state, code, now, archiveID); err != nil {
+		return fmt.Errorf("record archive scan failure: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit archive scan failure: %w", err)
 	}
 	return nil
 }

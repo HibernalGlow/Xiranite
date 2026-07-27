@@ -45,6 +45,7 @@ describe("FindzLibraryWatch", () => {
     await vi.advanceTimersByTimeAsync(250)
 
     expect(client.setWatcherHealth).toHaveBeenCalledWith("library-1", "degraded")
+    expect(client.startScan).toHaveBeenCalledWith("library-1")
   })
 
   it("cancels queued work and does not write health after closing", async () => {
@@ -74,10 +75,12 @@ describe("FindzLibraryWatch", () => {
 
 function watcherClient(overrides: { apply?: FindzWatcherClient["applyWatcherChanges"] } = {}): FindzWatcherClient & {
   applyWatcherChanges: ReturnType<typeof vi.fn>
+  startScan: ReturnType<typeof vi.fn>
   setWatcherHealth: ReturnType<typeof vi.fn>
 } {
   return {
     applyWatcherChanges: vi.fn(overrides.apply ?? (async () => undefined)),
+    startScan: vi.fn(async () => undefined),
     setWatcherHealth: vi.fn(async () => undefined),
   }
 }

@@ -32,11 +32,23 @@ export function FindzTreemap({ projection, selectedArchiveId, onSelectArchive, o
           dom.dataset.findzNodeId = source.id
           dom.dataset.findzSelected = String(source.archiveId === selectedArchiveId)
           dom.dataset.findzAnomaly = anomalyBand(source.color)
-          dom.addEventListener("click", () => {
-            if (source.archiveId) onSelectArchive(source.archiveId)
-          })
-          dom.addEventListener("dblclick", () => {
+          dom.dataset.testid = `findz-treemap-node-${source.id.replaceAll(/[^a-zA-Z0-9]+/g, "-")}`
+          dom.setAttribute("role", "button")
+          dom.tabIndex = 0
+          dom.setAttribute("aria-label", source.archiveId ? `Open archive ${source.name}` : `Drill into ${source.name}`)
+          const select = () => {
+            if (source.archiveId !== undefined) onSelectArchive(source.archiveId)
+          }
+          const drill = () => {
             if (source.id.startsWith("folder:")) onDrill(source.id.slice("folder:".length))
+          }
+          dom.addEventListener("click", select)
+          dom.addEventListener("dblclick", drill)
+          dom.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return
+            event.preventDefault()
+            if (source.archiveId !== undefined) select()
+            else drill()
           })
         },
       })

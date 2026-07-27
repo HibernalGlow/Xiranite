@@ -73,7 +73,12 @@ function ArchiveRows({ archive, expanded, members, onSelect }: { archive: FindzA
       onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onSelect(archive.id) }}
     >
       <TableCell className="w-8 px-2">{expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}</TableCell>
-      <TableCell className="max-w-72 truncate font-medium" title={archive.relativePath}>{archive.relativePath}</TableCell>
+      <TableCell className="max-w-72">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-medium" title={archive.relativePath}>{archive.relativePath}</span>
+          <ArchiveScanState archive={archive} />
+        </div>
+      </TableCell>
       <TableCell className="text-right tabular-nums">{formatBytes(archive.size)}</TableCell>
       <TableCell className="text-right tabular-nums">{archive.imageMemberCount}</TableCell>
       <TableCell className="text-right tabular-nums">{archive.analyzedImageCount}/{archive.imageMemberCount}</TableCell>
@@ -83,6 +88,17 @@ function ArchiveRows({ archive, expanded, members, onSelect }: { archive: FindzA
     </TableRow>
     {expanded && <MemberRows members={members} />}
   </>
+}
+
+function ArchiveScanState({ archive }: { archive: FindzArchiveRow }) {
+  const labels: Record<string, string> = {
+    corrupt_archive: "Corrupt archive",
+    unsupported_archive: "Unsupported archive",
+    rejected_archive: "Rejected archive",
+  }
+  const label = labels[archive.scanState]
+  if (!label) return null
+  return <Badge variant="outline" className="shrink-0 text-[10px]" title={archive.errorCode || archive.scanState}>{label}</Badge>
 }
 
 function MemberRows({ members }: { members?: FindzMemberRow[] }) {
