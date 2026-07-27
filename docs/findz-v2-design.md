@@ -169,9 +169,9 @@ The metadata path uses header/config APIs and a bounded forward-seeking adapter 
 
 A selected result may be retried by an explicit **deep retry** command with a user-visible larger budget. Deep retry is never part of base scans or automatic watcher work. The core runs at most one image-analysis task across all open Libraries and applies bounded worker concurrency so file handles, decompression, and CPU use remain controlled.
 
-The implementation benchmark gate is:
+The implementation benchmark gate is evaluated against the same durable-index control path, not against a bare ZIP reader that performs no persistence:
 
-- base scan time must be no more than 5% slower than the equivalent ZIP central-directory scan with analysis disabled;
+- base scan control-path time must add no more than 5% over the same durable-index benchmark with image analysis disabled; the bare central-directory loop is reported only as a reference;
 - a supported metadata adapter must add no more than 20% over reading the same bounded ZIP prefix without parsing;
 - benchmark reports include cold and warmed runs, archive/member counts, bytes read, skipped/budget-exceeded counts, and concurrency.
 

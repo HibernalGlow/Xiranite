@@ -41,7 +41,7 @@
     "build": "tsc -p tsconfig.json",
     "build:tsc": "tsc -p tsconfig.json",
     "smoke:worker": "bun run build && bun scripts/smoke-worker.ts",
-    "test": "vitest run src --exclude src/Tui.bun.test.tsx --exclude src/cli.visual.test.ts"
+    "test": "vitest run src --environment node --maxWorkers=1 --exclude src/Tui.bun.test.tsx --exclude src/cli.visual.test.ts"
   },
   "dependencies": {
     "@parcel/watcher": "^2.5.6",

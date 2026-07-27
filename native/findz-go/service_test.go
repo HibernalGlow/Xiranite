@@ -170,7 +170,7 @@ type zipFixture struct {
 	contents []byte
 }
 
-func createZipFixture(t *testing.T, path string, files []zipFixture) {
+func createZipFixture(t testing.TB, path string, files []zipFixture) {
 	t.Helper()
 	file, err := os.Create(path)
 	if err != nil {
@@ -194,7 +194,7 @@ func createZipFixture(t *testing.T, path string, files []zipFixture) {
 	}
 }
 
-func pngFixture(t *testing.T, width int, height int) []byte {
+func pngFixture(t testing.TB, width int, height int) []byte {
 	t.Helper()
 	imageValue := image.NewRGBA(image.Rect(0, 0, width, height))
 	imageValue.Set(0, 0, color.RGBA{R: 64, G: 128, B: 255, A: 255})

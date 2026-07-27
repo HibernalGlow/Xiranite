@@ -16,6 +16,7 @@ export interface FindzCardState {
   areaBy?: FindzAreaMetric
   selectedArchiveId?: number
   taskId?: string
+  pageCursor?: string
 }
 
 export const FINDZ_RULE_FIELDS: readonly RuleTreeField[] = [

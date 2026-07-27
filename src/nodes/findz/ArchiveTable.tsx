@@ -1,5 +1,5 @@
 import type { FindzArchiveRow, FindzMemberRow } from "@xiranite/findz-native"
-import { ChevronDown, ChevronRight, Image, TriangleAlert } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Image, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -8,20 +8,28 @@ import { cn } from "@/lib/utils"
 import { formatBytes, formatDensity } from "./format"
 import type { FindzArchiveSort } from "./types"
 
-export function FindzArchiveTable({ archives, members, selectedArchiveId, sortBy, sortDesc, onSelectArchive, onSort }: {
+export function FindzArchiveTable({ archives, members, selectedArchiveId, sortBy, sortDesc, total, hasPreviousPage, hasNextPage, onSelectArchive, onSort, onPreviousPage, onNextPage }: {
   archives: FindzArchiveRow[]
   members?: FindzMemberRow[]
   selectedArchiveId?: number
   sortBy: FindzArchiveSort
   sortDesc: boolean
+  total: number
+  hasPreviousPage: boolean
+  hasNextPage: boolean
   onSelectArchive(archiveId: number): void
   onSort(sort: FindzArchiveSort): void
+  onPreviousPage(): void
+  onNextPage(): void
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col border bg-background">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b px-3 py-2">
-        <div className="text-xs text-muted-foreground">{archives.length} indexed archives in this page</div>
-        <div className="text-xs text-muted-foreground">Select an archive to inspect its members</div>
+        <div className="text-xs text-muted-foreground">{archives.length} of {total} indexed archives</div>
+        <div className="flex items-center gap-1">
+          <Button aria-label="Previous archive page" disabled={!hasPreviousPage} onClick={onPreviousPage} size="xs" variant="ghost"><ChevronLeft /></Button>
+          <Button aria-label="Next archive page" disabled={!hasNextPage} onClick={onNextPage} size="xs" variant="ghost"><ChevronRight /></Button>
+        </div>
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <Table className="text-xs">
@@ -96,7 +104,7 @@ function MemberRows({ members }: { members?: FindzMemberRow[] }) {
 
 function SortableHead({ label, active, descending, onClick, className }: { label: string; active: boolean; descending: boolean; onClick(): void; className?: string }) {
   return <TableHead className={className}>
-    <Button variant="ghost" size="xs" className="h-6 px-1 text-[11px] font-medium" onClick={onClick}>{label}{active && <span aria-label={descending ? "descending" : "ascending"}>{descending ? " ↓" : " ↑"}</span>}</Button>
+    <Button variant="ghost" size="xs" className="h-6 px-1 text-[11px] font-medium" onClick={onClick}>{label}{active && <span aria-label={descending ? "descending" : "ascending"}>{descending ? <ArrowDown /> : <ArrowUp />}</span>}</Button>
   </TableHead>
 }
 

@@ -16,6 +16,7 @@ export const findzDataSchema = z
     areaBy: z.string().optional(),
     selectedArchiveId: z.number().int().positive().optional(),
     taskId: z.string().optional(),
+    pageCursor: z.string().optional(),
   })
   .passthrough()
 

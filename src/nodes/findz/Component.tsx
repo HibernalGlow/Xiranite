@@ -25,6 +25,8 @@ export function Component({ host }: FindzProps) {
   const [members, setMembers] = useState<FindzMemberRow[]>()
   const [treemap, setTreemap] = useState<FindzTreemapNode>()
   const [task, setTask] = useState<FindzTask>()
+  const [archivePage, setArchivePage] = useState<{ total: number; nextCursor?: string }>({ total: 0 })
+  const [pageTrail, setPageTrail] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -52,12 +54,14 @@ export function Component({ host }: FindzProps) {
       rules: (queryState.rules ?? createFindzRuleTree()) as never,
       sortBy: queryState.sortBy ?? "archiveSize",
       sortDesc: queryState.sortDesc ?? true,
+      page: { cursor: queryState.pageCursor, limit: 200 },
     }
     const [archiveData, treemapData] = await Promise.all([
       invoke({ action: "query_archives", libraryId, text: override.text ?? deferredText, pathPrefix: queryState.pathPrefix, query }),
       invoke({ action: "treemap", libraryId, text: override.text ?? deferredText, pathPrefix: queryState.pathPrefix, areaBy: queryState.areaBy ?? "archiveSize", query }),
     ])
     setArchives(archiveData.archives?.items ?? [])
+    setArchivePage({ total: archiveData.archives?.total ?? 0, nextCursor: archiveData.archives?.nextCursor })
     setTreemap(treemapData.treemap)
   }, [card, deferredText, invoke])
 
@@ -70,7 +74,8 @@ export function Component({ host }: FindzProps) {
       const data = await invoke({ action: "open_library", library: { root } })
       if (!data.library) throw new Error("Findz did not return a library.")
       setLibrary(data.library)
-      patch({ libraryRoot: root, libraryId: data.library.libraryId, pathPrefix: undefined, selectedArchiveId: undefined })
+      patch({ libraryRoot: root, libraryId: data.library.libraryId, pathPrefix: undefined, selectedArchiveId: undefined, pageCursor: undefined })
+      setPageTrail([])
       setMembers(undefined)
       await refresh(data.library.libraryId, { libraryRoot: root, libraryId: data.library.libraryId, pathPrefix: undefined })
     } catch (cause) {
@@ -119,17 +124,39 @@ export function Component({ host }: FindzProps) {
   }, [card.libraryId, deferredText, invoke, patch])
 
   const changeSort = useCallback((sortBy: FindzArchiveSort) => {
-    const next = { sortBy, sortDesc: card.sortBy === sortBy ? !card.sortDesc : true }
+    const next = { sortBy, sortDesc: card.sortBy === sortBy ? !card.sortDesc : true, pageCursor: undefined }
+    setPageTrail([])
     patch(next)
     if (card.libraryId) void refresh(card.libraryId, next)
   }, [card.libraryId, card.sortBy, card.sortDesc, patch, refresh])
 
   const drill = useCallback((pathPrefix: string) => {
     if (!card.libraryId) return
-    patch({ pathPrefix, selectedArchiveId: undefined })
+    patch({ pathPrefix, selectedArchiveId: undefined, pageCursor: undefined })
+    setPageTrail([])
     setMembers(undefined)
     void refresh(card.libraryId, { pathPrefix, selectedArchiveId: undefined })
   }, [card.libraryId, patch, refresh])
+
+  const nextPage = useCallback(() => {
+    if (!archivePage.nextCursor) return
+    setPageTrail((trail) => [...trail, card.pageCursor ?? ""])
+    patch({ pageCursor: archivePage.nextCursor, selectedArchiveId: undefined })
+    setMembers(undefined)
+  }, [archivePage.nextCursor, card.pageCursor, patch])
+
+  const previousPage = useCallback(() => {
+    if (!pageTrail.length) return
+    const previousCursor = pageTrail[pageTrail.length - 1]
+    setPageTrail((trail) => trail.slice(0, -1))
+    patch({ pageCursor: previousCursor || undefined, selectedArchiveId: undefined })
+    setMembers(undefined)
+  }, [pageTrail, patch])
+
+  const resetPage = useCallback((next: Partial<FindzCardState>) => {
+    setPageTrail([])
+    patch({ ...next, pageCursor: undefined })
+  }, [patch])
 
   const exportArchives = useCallback(async (format: "json" | "csv") => {
     if (!card.libraryId) return
@@ -161,7 +188,7 @@ export function Component({ host }: FindzProps) {
     if (!card.libraryId) return
     const timeout = window.setTimeout(() => { void refresh(card.libraryId!) }, 180)
     return () => window.clearTimeout(timeout)
-  }, [card.libraryId, card.pathPrefix, card.rules, card.sortBy, card.sortDesc, card.areaBy, deferredText, refresh])
+  }, [card.libraryId, card.pathPrefix, card.pageCursor, card.rules, card.sortBy, card.sortDesc, card.areaBy, deferredText, refresh])
 
   useEffect(() => {
     if (!task || isTerminalTask(task) || !card.libraryId) return
@@ -200,15 +227,15 @@ export function Component({ host }: FindzProps) {
       <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <FloatingWindowNodeHeader><div className="flex items-center gap-2"><BarChart3 className="size-4" /><h3 className="text-sm font-semibold">Findz</h3></div></FloatingWindowNodeHeader>
-          <div className="min-w-48 flex-1"><Input aria-label="Search Findz index" value={card.text ?? ""} placeholder="Search archive and member paths" onChange={(event) => patch({ text: event.target.value })} /></div>
-          <Select value={card.areaBy ?? "archiveSize"} onValueChange={(areaBy) => patch({ areaBy: areaBy as FindzCardState["areaBy"] })}>
+          <div className="min-w-48 flex-1"><Input aria-label="Search Findz index" value={card.text ?? ""} placeholder="Search archive and member paths" onChange={(event) => resetPage({ text: event.target.value })} /></div>
+          <Select value={card.areaBy ?? "archiveSize"} onValueChange={(areaBy) => resetPage({ areaBy: areaBy as FindzCardState["areaBy"] })}>
             <SelectTrigger size="sm" className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>{FINDZ_AREA_METRICS.map((metric) => <SelectItem key={metric.value} value={metric.value}>{metric.label}</SelectItem>)}</SelectContent>
           </Select>
           <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
             <CollapsibleTrigger asChild><Button aria-label="Advanced filters" size="sm" variant={filtersOpen ? "secondary" : "outline"}><Filter />Filters<ChevronDown className={cn("transition-transform", filtersOpen && "rotate-180")} /></Button></CollapsibleTrigger>
             <CollapsibleContent className="absolute right-3 top-32 z-20 w-[min(42rem,calc(100vw-2rem))] border bg-popover p-3 shadow-lg">
-              <RuleTreeEditor value={rules} fields={FINDZ_RULE_FIELDS} onValueChange={(next) => patch({ rules: next })} />
+              <RuleTreeEditor value={rules} fields={FINDZ_RULE_FIELDS} onValueChange={(next) => resetPage({ rules: next })} />
             </CollapsibleContent>
           </Collapsible>
           <Button aria-label="Export filtered archives as JSON" size="sm" variant="outline" disabled={!card.libraryId || busy} onClick={() => void exportArchives("json")}><Download />JSON</Button>
@@ -221,7 +248,7 @@ export function Component({ host }: FindzProps) {
         {error && <div role="alert" className="flex shrink-0 items-center gap-2 border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"><TriangleAlert className="size-4" />{error}</div>}
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(180px,1.25fr)_minmax(160px,0.9fr)] gap-3">
           <section aria-label="Findz archive results" className="min-h-0 overflow-hidden">
-            <FindzArchiveTable archives={archives} members={members} selectedArchiveId={card.selectedArchiveId} sortBy={card.sortBy ?? "archiveSize"} sortDesc={card.sortDesc ?? true} onSelectArchive={(archiveId) => void selectArchive(archiveId)} onSort={changeSort} />
+            <FindzArchiveTable archives={archives} members={members} selectedArchiveId={card.selectedArchiveId} sortBy={card.sortBy ?? "archiveSize"} sortDesc={card.sortDesc ?? true} total={archivePage.total} hasPreviousPage={pageTrail.length > 0} hasNextPage={Boolean(archivePage.nextCursor)} onSelectArchive={(archiveId) => void selectArchive(archiveId)} onSort={changeSort} onPreviousPage={previousPage} onNextPage={nextPage} />
           </section>
           <section aria-label="Findz treemap" className="flex min-h-0 flex-col border bg-background">
             <div className="flex shrink-0 items-center justify-between border-b px-3 py-2"><span className="text-xs font-medium">Treemap</span><span className="text-xs text-muted-foreground">Area: {FINDZ_AREA_METRICS.find((metric) => metric.value === (card.areaBy ?? "archiveSize"))?.label}</span></div>
