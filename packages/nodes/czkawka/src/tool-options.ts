@@ -183,6 +183,7 @@ export function createCzkawkaScanInput(tool: CzkawkaTool, values: Record<string,
 
 export function createCzkawkaOperationInput(action: Exclude<CzkawkaAction, "scan">, values: Record<string, unknown>): CzkawkaInput {
   const outputPath = text(values.outputPath)
+  const simiuAction = action === "simiu-apply" || action === "simiu-undo"
   return {
     action,
     tool: values.tool as CzkawkaTool | undefined,
@@ -198,10 +199,12 @@ export function createCzkawkaOperationInput(action: Exclude<CzkawkaAction, "scan
     outputFormat: outputPath?.toLowerCase().endsWith(".csv") || values.outputFormat === "csv" ? "csv" : "json",
     exportScope: ["selected", "visible", "all"].includes(String(values.exportScope)) ? values.exportScope as NonNullable<CzkawkaInput["exportScope"]> : "selected",
     exportEntries: Array.isArray(values.exportEntries) ? values.exportEntries as NonNullable<CzkawkaInput["exportEntries"]> : [],
-    simiuSetsOperationMode: values.simiuSetsOperationMode as CzkawkaInput["simiuSetsOperationMode"],
-    simiuSetsOperations: Array.isArray(values.simiuSetsOperations) ? values.simiuSetsOperations as NonNullable<CzkawkaInput["simiuSetsOperations"]> : [],
-    simiuSetsUndoLogPath: text(values.simiuSetsUndoLogPath),
-    simiuSetsCleanEmptyDirectories: values.simiuSetsCleanEmptyDirectories !== false,
+    ...(simiuAction ? {
+      simiuSetsOperationMode: values.simiuSetsOperationMode as CzkawkaInput["simiuSetsOperationMode"],
+      simiuSetsOperations: Array.isArray(values.simiuSetsOperations) ? values.simiuSetsOperations as NonNullable<CzkawkaInput["simiuSetsOperations"]> : [],
+      simiuSetsUndoLogPath: text(values.simiuSetsUndoLogPath),
+      simiuSetsCleanEmptyDirectories: values.simiuSetsCleanEmptyDirectories !== false,
+    } : {}),
     dryRun: action === "save" ? false : values.dryRun !== false,
   }
 }

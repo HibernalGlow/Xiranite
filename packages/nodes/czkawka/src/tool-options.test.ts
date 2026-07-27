@@ -257,6 +257,23 @@ describe("shared Czkawka option schema", () => {
     })
   })
 
+  test("limits Simiu operation fields to Simiu actions", () => {
+    const values = {
+      tool: "similar-images",
+      simiuSetsOperationMode: "link",
+      simiuSetsOperations: [{ root: "D:/library", sourcePath: "D:/library/a.jpg", targetPath: "D:/library/set/a.jpg", mode: "link" }],
+      simiuSetsCleanEmptyDirectories: false,
+    }
+
+    expect(createCzkawkaOperationInput("simiu-apply", values)).toMatchObject({
+      action: "simiu-apply",
+      simiuSetsOperationMode: "link",
+      simiuSetsOperations: [{ root: "D:/library", sourcePath: "D:/library/a.jpg", targetPath: "D:/library/set/a.jpg", mode: "link" }],
+      simiuSetsCleanEmptyDirectories: false,
+    })
+    expect(createCzkawkaOperationInput("delete", values)).not.toHaveProperty("simiuSetsOperations")
+  })
+
   test("exposes safe operations through the shared guided and TUI schema", () => {
     const schema = createCzkawkaInteractionSchema({}, "zh")
     const values = { ...schema.initialValues, action: "delete", selectedPathsText: "D:/old.tmp", deleteMode: "trash", dryRun: true }

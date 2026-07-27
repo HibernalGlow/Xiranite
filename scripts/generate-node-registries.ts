@@ -68,10 +68,14 @@ console.log(`Generated node registries for ${nodes.length} node package(s).${ski
 
 function resolveNodeFilter(discovered: NodePackage[]): Set<string> {
   const only = parseNodeIds(process.env.XIRANITE_BUILD_ONLY_NODES)
-  const excluded = new Set([...getDefaultDisabledNodeIds(), ...parseNodeIds(process.env.XIRANITE_BUILD_EXCLUDE_NODES)])
+  const defaultExcluded = getDefaultDisabledNodeIds()
+  const requestedExcluded = parseNodeIds(process.env.XIRANITE_BUILD_EXCLUDE_NODES)
+  const excluded = new Set([...defaultExcluded, ...requestedExcluded])
   const known = new Set(discovered.map((node) => node.id))
 
-  for (const id of [...only, ...excluded]) {
+  // Default-disabled packages may be intentionally absent from a frozen node-app snapshot.
+  // Explicit build filters remain strict so misspelled node IDs fail before a release build.
+  for (const id of [...only, ...requestedExcluded]) {
     if (!known.has(id)) throw new Error(`Unknown node id in build filter: ${id}`)
   }
 

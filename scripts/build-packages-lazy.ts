@@ -9,7 +9,9 @@ const repoRoot = resolve(import.meta.dirname, "..")
 const verbose = process.argv.includes("--verbose")
 const skipFailedNodes = process.argv.includes("--skip-failed-nodes")
 const skipCli = process.argv.includes("--skip-cli")
-const excludedNodeIds = [...new Set([...getDefaultDisabledNodeIds(), ...parseNodeIds(optionValue("--exclude-nodes"))])]
+const defaultExcludedNodeIds = getDefaultDisabledNodeIds()
+const requestedExcludedNodeIds = parseNodeIds(optionValue("--exclude-nodes"))
+const excludedNodeIds = [...new Set([...defaultExcludedNodeIds, ...requestedExcludedNodeIds])]
 const onlyNodeIds = parseNodeIds(optionValue("--only-nodes"))
 const failuresFile = optionValue("--failures-file")
 
@@ -221,7 +223,7 @@ function parseNodeIds(value: string | undefined): string[] {
 const discoveredNodePackages = await discoverNodePackages()
 const excluded = new Set(excludedNodeIds)
 const only = new Set(onlyNodeIds)
-for (const id of [...excluded, ...only]) {
+for (const id of [...requestedExcludedNodeIds, ...only]) {
   if (!discoveredNodePackages.some((pkg) => pkg.id === id)) throw new Error(`Unknown node id in build filter: ${id}`)
 }
 const nodePackages = discoveredNodePackages.filter((pkg) => (only.size === 0 || only.has(pkg.id)) && !excluded.has(pkg.id))
