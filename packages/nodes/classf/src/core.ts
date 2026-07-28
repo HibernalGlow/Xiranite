@@ -9,7 +9,7 @@ export { extractSameaArtistKeywords, mergeClassfBlacklistKeywords, parseSameaArt
 
 export type ClassfAction = "plan" | "classify"
 export type ClassfTransferMode = "move" | "copy"
-export type ClassfClassifyMode = "off" | "auto" | "only"
+export type ClassfClassifyMode = "off" | "auto" | "only" | "del"
 export type ClassfPlacementMode = "local" | "root"
 export type ClassfExistingPolicy = "merge" | "skip"
 export type ClassfWorkItemMode = "files" | "folders" | "mixed"
@@ -111,7 +111,7 @@ export async function runClassf(input: ClassfInput, runtime: ClassfRuntime, onEv
     emitCompletedItems(completedAlready.data, "already", baseDir ?? "", runtime, onEvent)
     const completedWait = await runTransferGroups(transfers.filter((item) => item.stage === "wait"), normalized.transferMode, normalized, runtime, (event) => forwardMigrate(event, 80, 10, "wait", items, runtime, onEvent))
     emitCompletedItems(completedWait.data, "wait", baseDir ?? "", runtime, onEvent)
-    const grouped = normalized.sameaGroupEnabled
+    const grouped = normalized.sameaGroupEnabled && normalized.classifyMode !== "del"
       ? await runPostTransferSamea(sameaPaths, transfers, normalized, runtime, onEvent)
       : {}
     const completedItems = transferItems([...completedDel.plan, ...completedAlready.plan, ...completedWait.plan], transfers, sameaPaths, normalized, runtime)
@@ -255,6 +255,7 @@ function buildFileTransfers(files: ClassfDirEntry[], roots: string[], samea: Sam
       ? "already"
       : artist && isClassfBlacklistedArtist(artist, input.blacklistKeywords) ? "del" : "wait"
     if (input.classifyMode === "only" && stage === "wait") continue
+    if (input.classifyMode === "del" && stage !== "del") continue
     const targetDir = input.placementMode === "local"
       ? runtime.join(runtime.dirname(file.path), stage)
       : rootTargetDirectory(file.path, roots, input.targetDir!, stage, runtime)

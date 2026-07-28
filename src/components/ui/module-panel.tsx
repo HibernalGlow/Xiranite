@@ -56,7 +56,7 @@ export function ModulePanel({ badge, children, className, contentClassName, fill
         </span>
       </Badge>
     </header>
-    <div data-slot="module-panel-content" className={cn("flex min-h-0 flex-col gap-2.5", fill && "flex-1 overflow-hidden", contentClassName)}>{children}</div>
+    <div data-slot="module-panel-content" className={cn("flex min-h-0 flex-col gap-2.5", fill && "flex-1 overflow-y-auto overscroll-contain", contentClassName)}>{children}</div>
   </section>
   </div>
 }

@@ -1,6 +1,6 @@
-import { useState } from "react"
-import { DEFAULT_CLASSF_BLACKLIST_KEYWORDS, extractSameaArtistKeywords, splitSameaArtistAndCircleKeywords, stripOuterKeywordBrackets } from "@xiranite/node-classf/core"
-import { Brackets, ShieldAlert, Split, WandSparkles } from "lucide-react"
+import { lazy, Suspense, useState } from "react"
+import { DEFAULT_CLASSF_BLACKLIST_KEYWORDS, extractSameaArtistKeywords, mergeClassfBlacklistKeywords, splitSameaArtistAndCircleKeywords, stripOuterKeywordBrackets } from "@xiranite/node-classf/core"
+import { Brackets, FileUp, ShieldAlert, Split, WandSparkles } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,11 +8,15 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ClassfCardState } from "./types"
+import type { ClassfDeletionHistoryImport } from "./ClassfDeletionHistoryDialog"
 
-export function BlacklistKeywordsEditor(props: { data: ClassfCardState; disabled?: boolean; t: Translate; onPatch: (patch: Partial<ClassfCardState>) => void }) {
+const ClassfDeletionHistoryDialog = lazy(() => import("./ClassfDeletionHistoryDialog"))
+
+export function BlacklistKeywordsEditor(props: { data: ClassfCardState; disabled?: boolean; t: Translate; onImportDeletionHistory?: () => Promise<ClassfDeletionHistoryImport | undefined>; onPatch: (patch: Partial<ClassfCardState>) => void }) {
   const keywords = props.data.blacklistKeywords ?? DEFAULT_CLASSF_BLACKLIST_KEYWORDS
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState("")
+  const [historyOpen, setHistoryOpen] = useState(false)
   const title = props.t("fields.blacklistKeywords", "黑名单作者")
   const replaceKeywords = (next: string[]) => setDraft(next.join("\n"))
   const draftKeywords = splitLines(draft)
@@ -41,6 +45,7 @@ export function BlacklistKeywordsEditor(props: { data: ClassfCardState; disabled
         </DialogHeader>
         <div className="grid min-h-0 flex-1 gap-1.5">
           <div className="flex items-center justify-end gap-1">
+            <EditorIconButton disabled={props.disabled || !props.onImportDeletionHistory} icon={FileUp} label={props.t("blacklist.importDeletionHistory", "导入删除历史")} onClick={() => setHistoryOpen(true)} />
             <EditorIconButton disabled={props.disabled || !draftKeywords.length} icon={WandSparkles} label={props.t("blacklist.extractSamea", "提取 SameA 标签")} onClick={() => replaceKeywords(extractSameaArtistKeywords(draftKeywords))} />
             <EditorIconButton disabled={props.disabled || !draftKeywords.length} icon={Brackets} label={props.t("blacklist.stripOuterBrackets", "去除最外层括号")} onClick={() => replaceKeywords(draftKeywords.map(stripOuterKeywordBrackets).filter(Boolean))} />
             <EditorIconButton disabled={props.disabled || !draftKeywords.length} icon={Split} label={props.t("blacklist.splitArtistCircle", "拆分社团与作者")} onClick={() => replaceKeywords(splitSameaArtistAndCircleKeywords(draftKeywords))} />
@@ -52,6 +57,14 @@ export function BlacklistKeywordsEditor(props: { data: ClassfCardState; disabled
           <Button disabled={props.disabled} size="sm" onClick={save}>{props.t("common.done", "完成")}</Button>
         </DialogFooter>
       </DialogContent>
+      {historyOpen ? <Suspense fallback={null}><ClassfDeletionHistoryDialog
+        minimumOccurrences={props.data.blacklistHistoryMinDeletions ?? 3}
+        t={props.t}
+        onAddCandidates={(candidates) => replaceKeywords(mergeClassfBlacklistKeywords(draftKeywords, candidates))}
+        onClose={() => setHistoryOpen(false)}
+        onImport={props.onImportDeletionHistory}
+        onMinimumOccurrencesChange={(blacklistHistoryMinDeletions) => props.onPatch({ blacklistHistoryMinDeletions })}
+      /></Suspense> : null}
     </Dialog>
   )
 }

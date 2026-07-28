@@ -21,6 +21,43 @@ describe("classf pipeline", () => {
     expect(result.data?.delCount).toBe(0)
   })
 
+  test("Del-only mode transfers only blacklisted artists, while already and wait stay untouched", async () => {
+    const calls: Call[] = []
+    const runtime = fakeRuntime(calls)
+    const originalRunSamea = runtime.runSamea
+    runtime.listDir = async (path) => path === "/archives"
+      ? [{ name: "[Artist] A.zip", path: "/archives/[Artist] A.zip", isFile: true, isDirectory: false }, { name: "nested", path: "/archives/nested", isFile: false, isDirectory: true }]
+      : path === "/archives/nested"
+        ? [{ name: "blacklisted.zip", path: "/archives/nested/blacklisted.zip", isFile: true, isDirectory: false }, { name: "wait.zip", path: "/archives/nested/wait.zip", isFile: true, isDirectory: false }]
+        : []
+    runtime.runSamea = async (input, onEvent) => {
+      const result = await originalRunSamea(input, onEvent)
+      if (!result.data) return result
+      const artist = result.data.items[0]!
+      const group = result.data.groups[0]!
+      return {
+        ...result,
+        data: {
+          ...result.data,
+          items: [...result.data.items, { ...artist, sourcePath: "/archives/nested/blacklisted.zip", sourceName: "blacklisted.zip", targetPath: "/archives/nested/[Blacklisted Artist]/blacklisted.zip", artistKey: "blacklisted-artist", artistName: "[Blacklisted Artist]" }],
+          groups: [...result.data.groups, { ...group, key: "blacklisted-artist", name: "[Blacklisted Artist]", targetDir: "/archives/nested/[Blacklisted Artist]" }],
+        },
+      }
+    }
+
+    const result = await runClassf({ action: "classify", classifyMode: "del", placementMode: "local", blacklistKeywords: ["[Artist]", "[Blacklisted Artist]"], dryRun: false, sameaGroupEnabled: true }, runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data?.items).toEqual([
+      expect.objectContaining({ sourcePath: "/archives/nested/blacklisted.zip", stage: "del", status: "moved", targetPath: "/archives/nested/del/blacklisted.zip" }),
+    ])
+    expect(calls.filter((call) => call.stage === "migratef").map((call) => call.input)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ action: "plan", sourcePaths: ["/archives/nested/blacklisted.zip"], targetPath: "/archives/nested/del" }),
+      expect.objectContaining({ action: "move", sourcePaths: ["/archives/nested/blacklisted.zip"], targetPath: "/archives/nested/del" }),
+    ]))
+    expect(calls.filter((call) => call.stage === "samea")).toHaveLength(1)
+  })
+
   test("places every file in already or wait beside its current directory", async () => {
     const calls: Call[] = []
     const result = await runClassf({ action: "plan", classifyMode: "auto", placementMode: "local" }, fakeRuntime(calls))
