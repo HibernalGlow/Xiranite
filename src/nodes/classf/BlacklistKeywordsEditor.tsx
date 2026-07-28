@@ -1,5 +1,6 @@
-import { DEFAULT_CLASSF_BLACKLIST_KEYWORDS, splitSameaArtistAndCircleKeywords, stripOuterKeywordBrackets } from "@xiranite/node-classf/core"
-import { Brackets, ShieldAlert, Split } from "lucide-react"
+import { useState } from "react"
+import { DEFAULT_CLASSF_BLACKLIST_KEYWORDS, extractSameaArtistKeywords, splitSameaArtistAndCircleKeywords, stripOuterKeywordBrackets } from "@xiranite/node-classf/core"
+import { Brackets, ShieldAlert, Split, WandSparkles } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,10 +11,23 @@ import type { ClassfCardState } from "./types"
 
 export function BlacklistKeywordsEditor(props: { data: ClassfCardState; disabled?: boolean; t: Translate; onPatch: (patch: Partial<ClassfCardState>) => void }) {
   const keywords = props.data.blacklistKeywords ?? DEFAULT_CLASSF_BLACKLIST_KEYWORDS
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState("")
   const title = props.t("fields.blacklistKeywords", "黑名单作者")
-  const replaceKeywords = (next: string[]) => props.onPatch({ blacklistKeywords: next })
+  const replaceKeywords = (next: string[]) => setDraft(next.join("\n"))
+  const draftKeywords = splitLines(draft)
+
+  function setEditorOpen(nextOpen: boolean) {
+    if (nextOpen) setDraft(keywords.join("\n"))
+    setOpen(nextOpen)
+  }
+
+  function save() {
+    props.onPatch({ blacklistKeywords: draftKeywords })
+    setOpen(false)
+  }
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setEditorOpen}>
       <DialogTrigger asChild>
         <Button aria-label={title} className="w-full justify-between" disabled={props.disabled} size="sm" variant="outline">
           <span className="flex min-w-0 items-center gap-1.5"><ShieldAlert className="size-4 text-destructive" /><span className="truncate text-xs">{title}</span></span>
@@ -27,13 +41,15 @@ export function BlacklistKeywordsEditor(props: { data: ClassfCardState; disabled
         </DialogHeader>
         <div className="grid min-h-0 flex-1 gap-1.5">
           <div className="flex items-center justify-end gap-1">
-            <EditorIconButton disabled={props.disabled || !keywords.length} icon={Brackets} label={props.t("blacklist.stripOuterBrackets", "去除最外层括号")} onClick={() => replaceKeywords(keywords.map(stripOuterKeywordBrackets).filter(Boolean))} />
-            <EditorIconButton disabled={props.disabled || !keywords.length} icon={Split} label={props.t("blacklist.splitArtistCircle", "拆分社团与作者")} onClick={() => replaceKeywords(splitSameaArtistAndCircleKeywords(keywords))} />
+            <EditorIconButton disabled={props.disabled || !draftKeywords.length} icon={WandSparkles} label={props.t("blacklist.extractSamea", "提取 SameA 标签")} onClick={() => replaceKeywords(extractSameaArtistKeywords(draftKeywords))} />
+            <EditorIconButton disabled={props.disabled || !draftKeywords.length} icon={Brackets} label={props.t("blacklist.stripOuterBrackets", "去除最外层括号")} onClick={() => replaceKeywords(draftKeywords.map(stripOuterKeywordBrackets).filter(Boolean))} />
+            <EditorIconButton disabled={props.disabled || !draftKeywords.length} icon={Split} label={props.t("blacklist.splitArtistCircle", "拆分社团与作者")} onClick={() => replaceKeywords(splitSameaArtistAndCircleKeywords(draftKeywords))} />
           </div>
-          <Textarea aria-label="classf blacklist keywords" className="h-[min(48vh,360px)] min-h-28 resize-y font-mono text-xs" disabled={props.disabled} placeholder={props.t("placeholders.blacklistKeywords", "每行一个 SameA 作者标签，例如 [画师] 或 [社团 (画师)]")} value={keywords.join("\n")} onChange={(event) => replaceKeywords(splitLines(event.currentTarget.value))} />
+          <Textarea aria-label="classf blacklist keywords" className="h-[min(48vh,360px)] min-h-28 resize-y font-mono text-xs" disabled={props.disabled} placeholder={props.t("placeholders.blacklistKeywords", "每行一个 SameA 作者标签，例如 [画师] 或 [社团 (画师)]")} value={draft} onChange={(event) => setDraft(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Enter") event.stopPropagation() }} />
         </div>
         <DialogFooter>
-          <DialogClose asChild><Button size="sm">{props.t("common.done", "完成")}</Button></DialogClose>
+          <DialogClose asChild><Button size="sm" variant="outline">{props.t("common.cancel", "取消")}</Button></DialogClose>
+          <Button disabled={props.disabled} size="sm" onClick={save}>{props.t("common.done", "完成")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

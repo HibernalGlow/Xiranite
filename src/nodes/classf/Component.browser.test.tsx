@@ -12,7 +12,7 @@ vi.mock("@/nodes/shared/useNodeSurface", () => ({
   useNodeSurface: () => ({ ref: { current: null }, ...surface }),
 }))
 
-test("edits the blacklist dialog, splits SameA labels, and saves its TOML default", async () => {
+test("edits multiline blacklist drafts, splits SameA labels, and saves only after confirmation", async () => {
   const host = createHost()
   await render(<Harness compId="classf-blacklist-browser" host={host} />)
 
@@ -22,16 +22,18 @@ test("edits the blacklist dialog, splits SameA labels, and saves its TOML defaul
   await page.getByRole("button", { name: "黑名单作者" }).click()
   const keywords = page.getByRole("textbox", { name: "classf blacklist keywords" })
   await expect.element(keywords).toBeVisible()
-  await keywords.fill("[きゅうりのふかづめ (しぐれに)]")
-  await expect.poll(() => host.state.blacklistKeywords).toEqual(["[きゅうりのふかづめ (しぐれに)]"])
+  await keywords.fill("[きゅうりのふかづめ (しぐれに)]\n[another artist]")
+  await expect.element(keywords).toHaveValue("[きゅうりのふかづめ (しぐれに)]\n[another artist]")
+  expect(host.state.blacklistKeywords).toBeUndefined()
 
   await page.getByRole("button", { name: "拆分社团与作者" }).click()
-  await expect.poll(() => host.state.blacklistKeywords).toEqual(["[きゅうりのふかづめ]", "[しぐれに]"])
+  await expect.element(keywords).toHaveValue("[きゅうりのふかづめ]\n[しぐれに]\n[another artist]")
 
   await page.getByRole("button", { name: "完成" }).click()
+  await expect.poll(() => host.state.blacklistKeywords).toEqual(["[きゅうりのふかづめ]", "[しぐれに]", "[another artist]"])
   await page.getByRole("button", { name: "配置管理" }).click()
   await page.getByRole("button", { name: "保存为默认" }).click()
-  await expect.poll(() => host.savedConfig?.blacklistKeywords).toEqual(["[きゅうりのふかづめ]", "[しぐれに]"])
+  await expect.poll(() => host.savedConfig?.blacklistKeywords).toEqual(["[きゅうりのふかづめ]", "[しぐれに]", "[another artist]"])
 })
 
 type TestHost = NodeComponentProps<ClassfCardState>["host"] & {

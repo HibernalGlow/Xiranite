@@ -4210,7 +4210,7 @@
       "classifyModes": { "auto": "自动分类", "only": "仅 already", "off": "指定目标" },
       "transferModes": { "move": "移动", "copy": "复制" },
       "fields": { "sameaRoots": "SameA 归档来源", "target": "目标目录", "dryRun": "预演模式", "blacklistKeywords": "黑名单作者" },
-      "blacklist": { "stripOuterBrackets": "去除最外层括号", "splitArtistCircle": "拆分社团与作者" },
+      "blacklist": { "extractSamea": "提取 SameA 标签", "stripOuterBrackets": "去除最外层括号", "splitArtistCircle": "拆分社团与作者" },
       "placeholders": {
         "sameaRoots": "每行一个文件或文件夹\nD:/set/reviewed.zip",
         "crashuSources": "CrashU 来源目录，每行一个；留空使用默认库",
@@ -4241,7 +4241,7 @@
         "stage": { "samea": "正在分析并整理来源…", "crashu": "正在匹配分类目录…", "del": "正在生成 del 队列…", "already": "正在生成 already 队列…", "wait": "正在生成 wait 队列…" }
       },
       "confirm": { "title": "确认执行已预览的分类计划？", "description": "ClassF 将按中央矩阵中已确认的目标移动或复制文件；黑名单项目会进入 del，冲突项会跳过。", "action": "确认执行" },
-      "common": { "cancel": "取消" },
+      "common": { "cancel": "取消", "done": "完成" },
       "config": {
         "trigger": "配置管理",
         "title": "配置管理",

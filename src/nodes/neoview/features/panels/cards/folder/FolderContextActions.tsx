@@ -1,4 +1,4 @@
-import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderInput, FolderOpen, PanelsTopLeft, Pencil, Pin, PinOff, RefreshCw, Scissors, Tags, Trash2, Undo2 } from "lucide-react"
+import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderInput, FolderOpen, PanelsTopLeft, Pencil, Pin, PinOff, RefreshCw, Scissors, ShieldAlert, Tags, Trash2, Undo2 } from "lucide-react"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 
 import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
@@ -15,6 +15,7 @@ import { createOptimisticFolderDeletion } from "./FolderOptimisticDeletion"
 
 const FolderRenameDialog = lazy(() => import("./FolderRenameDialog"))
 const FolderEmmEditor = lazy(() => import("./FolderEmmEditor"))
+const ClassfBlacklistQuickAddDialog = lazy(() => import("@/nodes/classf/ClassfBlacklistQuickAddDialog"))
 
 export interface FolderContextEntry {
   index: number
@@ -93,6 +94,7 @@ export default function FolderContextActions({
   const [feedback, setFeedback] = useState<{ kind: "status" | "alert"; text: string }>()
   const [renameEntry, setRenameEntry] = useState<FolderContextEntry>()
   const [emmEntry, setEmmEntry] = useState<FolderContextEntry>()
+  const [classfBlacklistEntry, setClassfBlacklistEntry] = useState<FolderContextEntry>()
 
   useEffect(() => () => operationRef.current?.abort(), [])
 
@@ -104,6 +106,10 @@ export default function FolderContextActions({
     }
     if (action === "edit-metadata") {
       setEmmEntry(entry)
+      return
+    }
+    if (action === "add-classf-blacklist") {
+      setClassfBlacklistEntry(entry)
       return
     }
     if (action === "enter-raw") {
@@ -392,6 +398,20 @@ export default function FolderContextActions({
           />
         </Suspense>
       ) : null}
+      {classfBlacklistEntry ? (
+        <Suspense fallback={null}>
+          <ClassfBlacklistQuickAddDialog
+            sourceName={classfBlacklistEntry.name}
+            copySourceName={copyText}
+            onClose={() => setClassfBlacklistEntry(undefined)}
+            onSaved={({ addedCount, totalCount }) => {
+              const message = addedCount ? `已加入 ${addedCount} 个 ClassF 黑名单关键词` : "ClassF 黑名单关键词已存在"
+              setFeedback({ kind: "status", text: `${message}（共 ${totalCount} 个）` })
+              switchToast?.show({ title: message })
+            }}
+          />
+        </Suspense>
+      ) : null}
     </>
   )
 }
@@ -410,6 +430,7 @@ type FolderContextAction =
   | "copy-name"
   | "toggle-bookmark"
   | "edit-metadata"
+  | "add-classf-blacklist"
   | "rename"
   | "trash"
   | "delete"
@@ -583,6 +604,13 @@ export function buildFolderContextMenuItems(
       icon: <Tags />,
       disabled: unavailable || !options.canEditMetadata,
       onSelect: () => options.onAction("edit-metadata", entry),
+    },
+    {
+      id: "neoview-folder-add-classf-blacklist",
+      label: "加入 ClassF 黑名单",
+      icon: <ShieldAlert />,
+      disabled: unavailable,
+      onSelect: () => options.onAction("add-classf-blacklist", entry),
     },
     ...(options.canPinTree
       ? [{

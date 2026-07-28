@@ -4202,7 +4202,7 @@
       "classifyModes": { "auto": "Auto", "only": "Already only", "off": "Target" },
       "transferModes": { "move": "Move", "copy": "Copy" },
       "fields": { "sameaRoots": "SameA archive roots", "target": "Target folder", "dryRun": "Preview mode", "blacklistKeywords": "Blacklisted authors" },
-      "blacklist": { "stripOuterBrackets": "Remove outer brackets", "splitArtistCircle": "Split circle and artist" },
+      "blacklist": { "extractSamea": "Extract SameA tag", "stripOuterBrackets": "Remove outer brackets", "splitArtistCircle": "Split circle and artist" },
       "placeholders": { "sameaRoots": "One file or folder per line\nD:/set/reviewed.zip", "crashuSources": "One CrashU source directory per line; blank uses the default library", "targetRequired": "Required in target mode", "targetOptional": "Optional; defaults to already", "blacklistKeywords": "One SameA artist label per line, for example [artist] or [circle (artist)]" },
       "tabs": { "plan": "Plan", "matrix": "Classification matrix", "tree": "File tree", "issues": "Issues", "logs": "Logs" },
       "tree": { "empty": "Waiting for a classification plan", "emptyDescription": "Build a plan to preview the exact target directory structure here.", "targetRoot": "Target folder", "source": "Source", "toggle": "Expand/collapse" },
@@ -4215,7 +4215,7 @@
       "summary": { "items": "{{count}} items", "result": "{{count}} items / ready {{ready}} / del {{del}} / wait {{wait}}", "selected": "{{count}} selected" },
       "progress": { "buildingPlan": "Building the complete classification plan…", "executing": "Applying the reviewed classification plan…", "planReady": "Plan ready: {{count}} executable items.", "completed": "Execution complete: {{count}} items processed.", "planVisible": "The complete plan is ready. Review every target in the matrix.", "itemRunning": "Processing: {{name}}", "itemCompleted": "Updated: {{name}}", "stage": { "samea": "Analyzing and organizing sources…", "crashu": "Matching classification directories…", "del": "Building the del queue…", "already": "Building the already queue…", "wait": "Building the wait queue…" } },
       "confirm": { "title": "Apply the reviewed classification plan?", "description": "ClassF moves or copies items to their reviewed targets; blacklisted items go to del and conflicts are skipped.", "action": "Confirm execution" },
-      "common": { "cancel": "Cancel" },
+      "common": { "cancel": "Cancel", "done": "Done" },
       "config": {
         "trigger": "Configuration",
         "title": "Configuration",
