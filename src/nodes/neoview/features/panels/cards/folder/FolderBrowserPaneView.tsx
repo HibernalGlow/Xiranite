@@ -22,7 +22,6 @@ import type { ReaderPanelContext } from "../../registry"
 import {
   directoryEntryAt,
   folderErrorMessage,
-  isEditableKeyboardEvent,
   isVerticalFolderRegion,
   thumbnailPixelSize,
   viewUsesBanner,
@@ -167,7 +166,6 @@ export interface FolderBrowserPaneViewProps {
     renameRequest?: FolderContextEntry
     focusedPath?: string
     focusedIndex?: number
-    focusedItemId?: string
     itemIdPrefix?: string
     clipboard: FolderClipboardState
     canRetry: boolean
@@ -237,7 +235,6 @@ export interface FolderBrowserPaneViewProps {
     applySearchListing(update: FolderSearchListingUpdate): void
     closeSearchChrome(): void
     requestRange(range: ListRange): void
-    handleDirectoryKeyDown: React.KeyboardEventHandler<HTMLDivElement>
     selectEntry: React.ComponentProps<typeof DirectoryListItem>["onSelect"]
     emptyAreaHandlers: ReturnType<typeof useFolderEmptyAreaNavigation>
   }
@@ -256,7 +253,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     checkModeClickBehavior, deleteMode, deleteStrategy, activeDeleteConfirmation, confirmations,
     restoreState, restoreIndex, shouldLocateRestore, thumbnailStore, thumbnailProbesEnabled,
     thumbnailRefreshPending, loading, error, searchOpen, treeOpen, inlineTreeOpen, treeLayout,
-    treeSize, renameRequest, focusedPath, focusedIndex, focusedItemId, itemIdPrefix, clipboard, canRetry,
+    treeSize, renameRequest, focusedPath, focusedIndex, itemIdPrefix, clipboard, canRetry,
     sessionId, searchRootPath, pendingSearchSnapshot, inlineBranchPath,
   } = state
   const {
@@ -273,7 +270,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     setDeleteStrategy, updateSortPreference, refreshVisibleThumbnails, refreshSelectedThumbnails,
     cancelThumbnailRefresh, setSelection, setFocusedIndex, setFocusedPath, setChainSelectMode, setCheckModeClickBehavior,
     setMultiSelectMode, retryLastOperation, commitTreeSize, applySearchListing, closeSearchChrome,
-    requestRange, handleDirectoryKeyDown, selectEntry, emptyAreaHandlers,
+    requestRange, selectEntry, emptyAreaHandlers,
   } = actions
   const selectedCount = catalog ? directorySelectionCount(selection, catalog.total) : 0
   const rootRef = useRef<HTMLDivElement>(null)
@@ -353,14 +350,6 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
           setFocusedIndex(index)
           setFocusedPath(path)
           setSelection(selectDirectorySingle(catalog.generation, path, index))
-        }}
-        onKeyDownCapture={(event) => {
-          if (isEditableKeyboardEvent(event)) return
-          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
-            event.preventDefault()
-            event.stopPropagation()
-            setSearchOpen(true)
-          }
         }}
       >
         {active && catalog?.watching && client.watchDirectoryBrowser ? (
@@ -787,11 +776,9 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                     className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     data-neoview-folder-list="true"
                     data-focused-index={focusedIndex}
-                    role={inlineTreeVisible ? undefined : "listbox"}
+                    role={undefined}
                     aria-label={searchListingActive ? "搜索结果" : "文件项目"}
-                    aria-activedescendant={inlineTreeVisible ? undefined : focusedItemId}
-                    tabIndex={inlineTreeVisible ? -1 : 0}
-                    onKeyDown={inlineTreeVisible ? undefined : handleDirectoryKeyDown}
+                    tabIndex={-1}
                     {...(inlineTreeVisible ? {} : emptyAreaHandlers)}
                   >
                   {inlineTreeVisible && sessionId && catalog ? (

@@ -16,7 +16,7 @@
 
 ## 文件浏览器 `folderMain`
 
-共 74 项：`pending=11`，`partial=55`，`complete=8`。以下是完整验收项，不是自然排序或单列表的缩减版。
+共 74 项：`pending=11`，`partial=53`，`complete=10`。以下是完整验收项，不是自然排序或单列表的缩减版。
 
 ### 旧版源码 UI/控件库存（19 组，325 项）
 
@@ -750,20 +750,20 @@
 
 ### keyboard（2）
 
-- [ ] `folder.keyboard.navigation` 键盘焦点与方向导航
-  - 六维：`core=N/A transport=N/A gui=P cli=N/A tui=P evidence=P`；阻塞：`gui`、`tui`、`evidence`
-  - 目标：ArrowUp/Down/Left/Right、Home/End、PageUp/PageDown 根据 list/grid 几何移动焦点并滚入视口；补齐原版未完成的上下箭头遗留。
+- [x] `folder.keyboard.navigation` 键盘浏览已关闭
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：File Card 不提供键盘浏览。ArrowUp/Down/Left/Right、Home/End、PageUp/PageDown 不移动卡片焦点或阻止事件冒泡，这些按键保留给全局用户输入绑定。
   - 源码：`utils/keyboardHandler.ts`、`components/FolderList.svelte`
-  - 测试：`neoview.folder.keyboard-navigation`
+  - 测试：`neoview.folder.keyboard-passthrough-gui`
   - 计划测试：无
-  - 备注：list/details 使用稳定行高计算 PageUp/PageDown 步长，响应式 grid 根据当前容器列数处理四方向与整页移动；Home/End 可直接定位稀疏全局索引并按需请求目标页。真实 100K Chromium 滚动和 TUI 对等命令仍待迁移。
-- [ ] `folder.keyboard.commands` 打开、返回、刷新、搜索、删除快捷键
-  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=P evidence=P`；阻塞：`tui`、`evidence`
-  - 目标：Enter 打开、Backspace 后退、F5 刷新、Delete 按删除策略、Ctrl/Cmd+A 全选、Ctrl/Cmd+F 搜索、Escape 取消多选。
+  - 备注：这是用户要求的 GUI 偏离：File Card 不再占用导航键，也不保留可聚焦的 listbox 焦点面。鼠标选择、点击打开、右键菜单和工具栏命令保持不变；全局输入绑定可处理任意文件卡区域中冒泡的键盘事件。
+- [x] `folder.keyboard.commands` 卡片快捷键已关闭
+  - 六维：`core=N/A transport=N/A gui=C cli=N/A tui=N/A evidence=C`；阻塞：无
+  - 目标：File Card 不处理 Enter、Backspace、F5、Delete、Ctrl/Cmd+A、Ctrl/Cmd+F、Escape、ContextMenu 或 Shift+F10；这些按键保留给全局用户输入绑定。
   - 源码：`utils/keyboardHandler.ts`
-  - 测试：`neoview.folder.keyboard-navigation`、`neoview.folder.keyboard-trash`、`neoview.folder.selection-focus-identity`、`neoview.folder.search-shortcut`、`neoview.react.cbz-e2e`、`neoview.folder.context-actions-e2e`
+  - 测试：`neoview.folder.keyboard-passthrough-gui`
   - 计划测试：无
-  - 备注：Card 列表焦点面已支持 Enter、Backspace、F5、Ctrl/Cmd+A、Ctrl/Cmd+F 和 Escape；Delete 仅在当前全局焦点索引已有真实加载 file/directory 条目时复用单项系统回收站确认与执行链，稀疏未加载焦点、输入/可编辑区域和搜索面不会触发。搜索快捷键及 Delete 回收站链已在真实 Chromium 中验证。多选 Delete、可配置永久删除策略与 TUI 对等命令仍待迁移。
+  - 备注：这是用户要求的 GUI 偏离：文件卡不注册或拦截任何卡片级键盘命令。文件操作继续通过鼠标、右键菜单和工具栏提供；全局输入绑定在文件卡上获得优先权。
 
 ### search（3）
 

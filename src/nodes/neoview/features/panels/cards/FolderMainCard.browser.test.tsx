@@ -11,6 +11,56 @@ import FolderDeleteButton from "./folder/FolderDeleteButton"
 import { DEFAULT_FOLDER_VIEW } from "./folder/FolderBrowserPane"
 import { publishFolderEntryRemoved } from "./folder/FolderNavigationEvents"
 
+test("[neoview.folder.keyboard-passthrough-gui] leaves file-card keys available to global bindings", async () => {
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => directoryPage({
+      entries: [
+        { name: "first.cbz", path: "C:/books/first.cbz", kind: "file", readerSupported: true },
+        { name: "second.cbz", path: "C:/books/second.cbz", kind: "file", readerSupported: true },
+      ],
+      total: 2,
+    })),
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+  const receivedByGlobalBinding = vi.fn()
+  document.addEventListener("keydown", receivedByGlobalBinding)
+  try {
+    await render(
+      <div style={{ width: 900, height: 600 }}>
+        <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+          <FolderMainCard
+            client={client}
+            disabled={false}
+            sourcePath="C:/books"
+            folderView={{ ...DEFAULT_FOLDER_VIEW, viewMode: "cover-list" }}
+            onOpen={vi.fn()}
+            onGoTo={vi.fn()}
+          />
+        </VirtuosoMockContext.Provider>
+      </div>,
+    )
+
+    await expect.element(page.getByText("first.cbz", { exact: true })).toBeVisible()
+    const list = document.querySelector<HTMLElement>("[data-neoview-folder-list='true']")!
+    const entry = list.querySelector<HTMLElement>("[data-folder-entry='true']")!
+    const focusedIndexBefore = list.dataset.focusedIndex
+    expect(list.getAttribute("role")).toBeNull()
+    expect(list.tabIndex).toBe(-1)
+
+    entry.focus()
+    const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "ArrowDown", code: "ArrowDown" })
+    entry.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(receivedByGlobalBinding).toHaveBeenCalledOnce()
+    expect(receivedByGlobalBinding.mock.calls[0]?.[0]?.defaultPrevented).toBe(false)
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    expect(list.dataset.focusedIndex).toBe(focusedIndexBefore)
+  } finally {
+    document.removeEventListener("keydown", receivedByGlobalBinding)
+  }
+})
+
 test("[neoview.folder.efu-gui] imports an EFU list from the File Card More menu", async () => {
   const directory = directoryPage({ filter: "library", filterOptions: ["all", "library"] })
   const efu = directoryPage({
@@ -239,7 +289,7 @@ test("[neoview.folder.search-sort-gui] sorts the active search-result list witho
   const input = page.getByRole("textbox", { name: "搜索文件" })
   await input.fill("deep")
   document.querySelector<HTMLInputElement>('input[aria-label="搜索文件"]')?.closest("form")?.requestSubmit()
-  await expect.element(page.getByRole("listbox", { name: "搜索结果" })).toBeVisible()
+  await expect.poll(() => document.querySelector<HTMLElement>("[data-neoview-folder-list-shell='true']")?.dataset.folderSearchListing).toBe("true")
   await expect.element(page.getByText("alpha.cbz", { exact: true })).toBeVisible()
   await expect.poll(() => thumbnails.registerLibraryThumbnails.mock.calls.some(([, , items]) => items.map((item) => item.path).join("|") === [
     "C:/books/deep/alpha.cbz",
