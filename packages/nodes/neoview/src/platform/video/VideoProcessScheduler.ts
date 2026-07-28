@@ -24,6 +24,7 @@ export class VideoProcessScheduler implements ResourceScheduler, AsyncDisposable
     this.#scheduler = new PriorityResourceScheduler({
       maxConcurrent: this.#maxConcurrent,
       reservedInteractive: options.reservedInteractive ?? 0,
+      reservedInteractiveWeight: options.reservedInteractive ?? 0,
     })
   }
 
