@@ -136,6 +136,47 @@ test("[neoview.folder.thumbnail-self-check-batch-gui] drains more than one backe
   await expect.poll(() => document.querySelectorAll('[data-thumbnail-availability="ready"]').length).toBe(entries.length)
 })
 
+test("[neoview.folder.thumbnail-context-release-gui] replaces released managed URLs without probing them again", async () => {
+  const path = "C:/books/released.cbz"
+  const opened = directoryPage({
+    entries: [{ name: "released.cbz", path, kind: "file", readerSupported: true }],
+    total: 1,
+  })
+  const managedUrls = [
+    "http://127.0.0.1:41000/reader/library/t/context-one?token=test",
+    "http://127.0.0.1:41000/reader/library/t/context-two?token=test",
+  ]
+  let registration = 0
+  const registerLibraryThumbnails = vi.fn(async (contextId: string, generation: number, items: readonly { id: string }[]) => {
+    const thumbnailUrl = managedUrls[Math.min(registration, managedUrls.length - 1)]!
+    registration += 1
+    return { contextId, generation, items: items.map((item) => ({ id: item.id, thumbnailUrl })) }
+  })
+  const releaseLibraryThumbnailContext = vi.fn(async () => undefined)
+  const fetchMock = vi.fn(async () => new Response(null, { status: 200 }))
+  vi.stubGlobal("fetch", fetchMock)
+  onTestFinished(() => vi.unstubAllGlobals())
+  const client = { registerLibraryThumbnails, releaseLibraryThumbnailContext } as unknown as ReaderHttpClient
+
+  await render(<ThumbnailContextReleaseHarness client={client} page={opened} />)
+
+  await expect.poll(() => registerLibraryThumbnails).toHaveBeenCalledTimes(1)
+  await expect.poll(() => document.querySelector("[data-thumbnail-availability]")?.getAttribute("data-thumbnail-url")).toBe(managedUrls[0])
+  await expect.poll(() => fetchMock).toHaveBeenCalledTimes(1)
+
+  document.querySelector<HTMLButtonElement>('button[aria-label="释放缩略图上下文"]')!.click()
+
+  await expect.poll(() => releaseLibraryThumbnailContext).toHaveBeenCalledTimes(1)
+  await expect.poll(() => registerLibraryThumbnails).toHaveBeenCalledTimes(2)
+  await expect.poll(() => document.querySelector("[data-thumbnail-availability]")?.getAttribute("data-thumbnail-url")).toBe(managedUrls[1])
+  await expect.poll(() => fetchMock).toHaveBeenCalledTimes(2)
+  expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual(managedUrls)
+  expect(registerLibraryThumbnails.mock.calls.map(([contextId]) => contextId)).toEqual([
+    "folder:browser-1:1",
+    "folder:browser-1:2",
+  ])
+})
+
 function directoryPage(overrides: Partial<ReaderDirectoryPageDto> = {}): ReaderDirectoryPageDto {
   return {
     sessionId: "browser-1",
@@ -203,6 +244,27 @@ function ThumbnailDemandHarness({ client, page }: { client: ReaderHttpClient; pa
   return <>{page.entries.map((entry) => (
     <ThumbnailAvailability key={entry.path} store={pipeline.thumbnailStore} path={entry.path} />
   ))}</>
+}
+
+function ThumbnailContextReleaseHarness({ client, page }: { client: ReaderHttpClient; page: ReaderDirectoryPageDto }) {
+  const [catalog] = useState(() => createDirectoryCatalog(page))
+  const catalogRef = useRef<DirectoryCatalog | undefined>(catalog)
+  const visibleRangeRef = useRef({ startIndex: 0, endIndex: 0 })
+  const pipeline = useFolderThumbnailPipeline({
+    client,
+    catalog,
+    catalogRef,
+    thumbnailsVisible: true,
+    viewMode: "cover-list",
+    previewGridEnabled: false,
+    previewCount: 4,
+    visibleRangeRef,
+    selectedPaths: new Set(),
+  })
+  return <>
+    <button type="button" aria-label="释放缩略图上下文" onClick={pipeline.releaseContext} />
+    <ThumbnailAvailability store={pipeline.thumbnailStore} path={page.entries[0]?.path} />
+  </>
 }
 
 function thumbnailSnapshot(path: string, thumbnailUrl: string) {

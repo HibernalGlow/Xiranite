@@ -370,7 +370,7 @@ export function useFolderThumbnailPipeline({
   function releaseContext(): void {
     resetRegistration()
     thumbnailStore.stop()
-    thumbnailStore.invalidateManagedEntries()
+    thumbnailStore.clearManagedEntries()
     const contextId = contextRef.current
     contextRef.current = undefined
     if (contextId) void client.releaseLibraryThumbnailContext?.(contextId).catch(() => undefined)

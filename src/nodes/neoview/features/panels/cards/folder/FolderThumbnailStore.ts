@@ -183,17 +183,30 @@ export class FolderThumbnailStore {
     this.#staleRecoveries.clear()
   }
 
-  invalidateManagedEntries(): void {
+  clearManagedEntries(): void {
+    const thumbnailUrls = new Map(this.#snapshot.thumbnailUrls)
+    const thumbnailUrlSets = new Map(this.#snapshot.thumbnailUrlSets)
+    const thumbnailProfiles = new Map(this.#snapshot.thumbnailProfiles)
     const paths = new Set([
       ...this.#snapshot.thumbnailUrls.keys(),
       ...this.#snapshot.thumbnailUrlSets.keys(),
     ])
+    let changed = false
     for (const path of paths) {
-      if (!this.#managedUrls(path).length) continue
-      this.#staleRecoveries.delete(path)
-      this.#incrementRevision(path)
-      this.#setAvailability(path, "checking")
+      const candidates = this.#candidateUrls(path)
+      const retained = candidates.filter((url) => !isManagedFolderThumbnailUrl(url))
+      if (retained.length === candidates.length) continue
+      changed = true
+      thumbnailProfiles.delete(path)
+      if (retained.length) {
+        thumbnailUrls.set(path, retained[0]!)
+        thumbnailUrlSets.set(path, retained)
+      } else {
+        thumbnailUrls.delete(path)
+        thumbnailUrlSets.delete(path)
+      }
     }
+    if (changed) this.replace({ thumbnailUrls, thumbnailUrlSets, thumbnailProfiles })
   }
 
   #activatePath(path: string): void {

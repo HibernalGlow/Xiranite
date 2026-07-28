@@ -37,7 +37,7 @@ import {
   selectDirectorySingle,
   type DirectorySelectionModel,
 } from "./DirectorySelection"
-import { FolderEntryDisplayProvider } from "./FolderEntryPresentation"
+import { DEFAULT_FOLDER_TAG_DISPLAY, FolderEntryDisplayProvider } from "./FolderEntryPresentation"
 import { runFolderNavigation, useFolderEmptyAreaNavigation } from "./FolderEmptyAreaBehavior"
 import type { FolderClipboardState } from "./FolderClipboard"
 import type { FolderContextEntry } from "./FolderContextActions"
