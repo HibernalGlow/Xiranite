@@ -31,7 +31,11 @@ export function useFolderEntryActivation({
     browserOriginTraversalFrames?: readonly ReaderActivationTraversalFrameDto[],
   ): void
   enterRawDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void
-  toggleInlineBranch(path?: string, traversalFrames?: readonly ReaderActivationTraversalFrameDto[]): void
+  toggleInlineBranch(
+    path?: string,
+    traversalFrames?: readonly ReaderActivationTraversalFrameDto[],
+    preserveAnchor?: boolean,
+  ): void
   reportError(message: string): void
 }) {
   const pendingRef = useRef<{
@@ -119,7 +123,7 @@ export function useFolderEntryActivation({
           return
         }
         if (canExpandPenetratedBranchInline(penetration, resolution)) {
-          toggleInlineBranch(entry.path, traversalFrames)
+          toggleInlineBranch(entry.path, traversalFrames, Boolean(inlineParentFrames?.length))
           return
         }
         if (resolution.status === "blocked" && (resolution.reason === "permission" || resolution.reason === "cycle")) {

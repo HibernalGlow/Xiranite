@@ -169,7 +169,7 @@ export interface FolderBrowserPaneViewProps {
     sessionId?: string
     searchRootPath?: string
     pendingSearchSnapshot?: FolderSearchTabSnapshot
-    inlineBranchPath?: string
+    inlineBranchAnchorPath?: string; inlineBranchContentPath?: string
     inlineBranchTraversalFrames?: readonly ReaderActivationTraversalFrameDto[]
   }
   refs: {
@@ -256,7 +256,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     restoreState, restoreIndex, shouldLocateRestore, thumbnailStore,
     thumbnailRefreshPending, loading, error, searchOpen, treeOpen, inlineTreeOpen, treeLayout,
     treeSize, renameRequest, focusedPath, focusedIndex, itemIdPrefix, clipboard, canRetry,
-    sessionId, searchRootPath, pendingSearchSnapshot, inlineBranchPath, inlineBranchTraversalFrames,
+    sessionId, searchRootPath, pendingSearchSnapshot, inlineBranchAnchorPath, inlineBranchContentPath, inlineBranchTraversalFrames,
   } = state
   const {
     catalogRef, focusedIndexRef, chainAnchorIndexRef, listRef, gridRef, mosaicRef, listHostRef,
@@ -302,15 +302,15 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
       }),
   }
   const breadcrumbNode = <FolderBrowserBreadcrumb path={catalog?.path ?? sourcePath ?? ""} disabled={disabled} loading={loading} vertical={isVerticalFolderRegion(tabLayout.breadcrumbPosition)} canGoBack={catalog?.canGoBack} canGoForward={catalog?.canGoForward} canGoUp={Boolean(catalog?.parentPath)} client={client} sessionId={catalog?.sessionId} canCreateTab={!tabBar && folderTabCount < maxFolderTabs} onCreateTab={onCreateTab} onNavigate={(path) => { void navigate({ action: "path", path }) }} onNavigateAction={(action) => { void navigate({ action }) }} onCopyPath={systemActions?.copyText} />
-  const inlineBranchContent = inlineBranchPath && catalog ? (
+  const inlineBranchContent = inlineBranchContentPath && catalog ? (
     <Suspense fallback={<div className="h-32 animate-pulse border-t bg-muted/30" aria-label="正在加载展开文件夹" />}>
       <FolderInlineBranchPanel
         client={client}
-        path={inlineBranchPath} filter={catalog.filter} sort={catalog.sort}
+        path={inlineBranchContentPath} filter={catalog.filter} sort={catalog.sort}
         showHiddenFolders={catalog.showHiddenFolders} hideMissingEfuEntries={catalog.hideMissingEfuEntries}
         penetration={penetration} viewSpec={entryViewSpec}
         disabled={disabled || loading}
-        onActivate={(entry) => activate(entry, false, inlineBranchTraversalFrames)}
+        onActivate={(entry, rawDirectory) => activate(entry, rawDirectory, inlineBranchTraversalFrames)}
         onEnterDirectory={enterRawDirectory}
         onUpdateView={(patch) => void onFolderView?.(patch)}
         onClose={closeInlineBranch}
@@ -783,7 +783,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         thumbnailStore={thumbnailStore} penetrationFiles={penetrationDescriptions}
                         listRef={listRef} gridRef={gridRef} mosaicRef={mosaicRef}
                         restoreState={restoreState} restoreIndex={restoreIndex} shouldLocateRestore={shouldLocateRestore}
-                        inlineBranchPath={inlineBranchPath} inlineBranch={inlineBranchContent}
+                        inlineBranchPath={inlineBranchAnchorPath} inlineBranch={inlineBranchContent}
                         showReturnFooter={showReturnFooter} returnFooterContext={returnFooterContext}
                         onRangeChange={requestRange}
                         onDetailsScrollTopChange={(scrollTop) => { detailsScrollTopRef.current = scrollTop }}
@@ -806,9 +806,9 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                     <div className="grid h-72 place-items-center text-xs text-muted-foreground">{loading ? "正在读取目录…" : "选择一个目录"}</div>
                   ) : null}
                   </div>
-                  {inlineBranchPath && inlineBranchContent && !viewUsesMosaicGrid(viewMode) && !viewUsesFixedGrid(viewMode) ? (
+                  {inlineBranchAnchorPath && inlineBranchContent && !viewUsesMosaicGrid(viewMode) && !viewUsesFixedGrid(viewMode) ? (
                     <Suspense fallback={null}>
-                      <FolderInlineBranchDrawer path={inlineBranchPath} scopeRef={listHostRef}>
+                      <FolderInlineBranchDrawer path={inlineBranchAnchorPath} scopeRef={listHostRef}>
                         {inlineBranchContent}
                       </FolderInlineBranchDrawer>
                     </Suspense>

@@ -138,7 +138,10 @@ export default function FolderInlineBranchPanel({
   penetration: ReaderFolderPenetrationConfig
   viewSpec: FolderEntryViewSpec
   disabled: boolean
-  onActivate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported">): void
+  onActivate(
+    entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported">,
+    rawDirectory?: boolean,
+  ): void
   onEnterDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void
   onUpdateView(patch: ReaderFolderViewPatch["folderView"]): void
   onClose(): void
@@ -165,7 +168,7 @@ export default function FolderInlineBranchPanel({
     gridRef,
     mosaicRef,
     interaction,
-    activate: (entry) => entry.kind === "directory" ? onEnterDirectory(entry) : onActivate(entry),
+    activate: onActivate,
   })
   const {
     selection: branchSelection,

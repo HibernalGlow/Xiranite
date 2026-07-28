@@ -228,7 +228,6 @@ export function FolderBrowserPane({
   const { inlineBranch, closeInlineBranch, toggleInlineBranch } = useFolderInlineBranchState(
     active && penetration.enabled && penetration.expandBranchesInline,
   )
-  const inlineBranchPath = inlineBranch?.path
   const { activate, cancelPendingActivation } = useFolderEntryActivation({
     client,
     catalogRef,
@@ -1264,7 +1263,8 @@ export function FolderBrowserPane({
         hoverPreviewDelayMs,
         penetration,
         penetrationDescriptions,
-        inlineBranchPath,
+        inlineBranchAnchorPath: inlineBranch?.anchorPath,
+        inlineBranchContentPath: inlineBranch?.contentPath,
         inlineBranchTraversalFrames: inlineBranch?.traversalFrames,
         multiSelectMode,
         chainSelectMode,
