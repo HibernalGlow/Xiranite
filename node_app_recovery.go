@@ -36,6 +36,11 @@ type nodeAppBackendRecovery struct {
 	status  NodeAppBackendRuntimeStatus
 }
 
+type nodeAppBackendExpectation struct {
+	NodeID     string
+	SnapshotID string
+}
+
 func newNodeAppBackendRecovery(health func() error, restart func() error, notify func(NodeAppBackendRuntimeStatus)) *nodeAppBackendRecovery {
 	return &nodeAppBackendRecovery{
 		health:  health,
@@ -45,9 +50,9 @@ func newNodeAppBackendRecovery(health func() error, restart func() error, notify
 	}
 }
 
-func startNodeAppBackendRecovery(service *XiraniteService, notify func(NodeAppBackendRuntimeStatus)) func() {
+func startNodeAppBackendRecovery(service *XiraniteService, expected nodeAppBackendExpectation, notify func(NodeAppBackendRuntimeStatus)) func() {
 	recovery := newNodeAppBackendRecovery(
-		func() error { return nodeAppBackendHealthError(service.InternalBackendConfig()) },
+		func() error { return nodeAppBackendHealthError(service.InternalBackendConfig(), expected) },
 		func() error {
 			result, err := service.RestartLocalBackend()
 			if err != nil {
@@ -158,13 +163,16 @@ func (r *nodeAppBackendRecovery) update(update func(*NodeAppBackendRuntimeStatus
 	}
 }
 
-func nodeAppBackendHealthy(config *LocalBackendConfig) bool {
-	return nodeAppBackendHealthError(config) == nil
+func nodeAppBackendHealthy(config *LocalBackendConfig, expected nodeAppBackendExpectation) bool {
+	return nodeAppBackendHealthError(config, expected) == nil
 }
 
-func nodeAppBackendHealthError(config *LocalBackendConfig) error {
+func nodeAppBackendHealthError(config *LocalBackendConfig, expected nodeAppBackendExpectation) error {
 	if config == nil || config.BaseURL == "" {
 		return errors.New("bundled backend is unavailable")
+	}
+	if expected.NodeID == "" || expected.SnapshotID == "" {
+		return errors.New("bundled backend identity expectation is unavailable")
 	}
 	context, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -190,8 +198,8 @@ func nodeAppBackendHealthError(config *LocalBackendConfig) error {
 	if err := json.NewDecoder(response.Body).Decode(&health); err != nil {
 		return fmt.Errorf("decode bundled backend health: %w", err)
 	}
-	if health.NodeID != nodeAppID || health.SnapshotID != nodeAppSnapshotID {
-		return fmt.Errorf("bundled backend health belongs to %s/%s, expected %s/%s", health.NodeID, health.SnapshotID, nodeAppID, nodeAppSnapshotID)
+	if health.NodeID != expected.NodeID || health.SnapshotID != expected.SnapshotID {
+		return fmt.Errorf("bundled backend health belongs to %s/%s, expected %s/%s", health.NodeID, health.SnapshotID, expected.NodeID, expected.SnapshotID)
 	}
 
 	capabilityRequest, err := http.NewRequestWithContext(context, http.MethodGet, config.BaseURL+"/node-app/capabilities", nil)
@@ -217,8 +225,8 @@ func nodeAppBackendHealthError(config *LocalBackendConfig) error {
 	if err := json.NewDecoder(capabilityResponse.Body).Decode(&handshake); err != nil {
 		return fmt.Errorf("decode bundled backend capabilities: %w", err)
 	}
-	if handshake.NodeID != nodeAppID || handshake.SnapshotID != nodeAppSnapshotID {
-		return fmt.Errorf("bundled backend capability handshake belongs to another snapshot")
+	if handshake.NodeID != expected.NodeID || handshake.SnapshotID != expected.SnapshotID {
+		return fmt.Errorf("bundled backend capability handshake belongs to %s/%s, expected %s/%s", handshake.NodeID, handshake.SnapshotID, expected.NodeID, expected.SnapshotID)
 	}
 	available := make(map[string]bool, len(handshake.Capabilities))
 	for _, capability := range handshake.Capabilities {

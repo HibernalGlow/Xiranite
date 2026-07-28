@@ -120,7 +120,10 @@ func runNodeApp() {
 	service.setNodeAppLifecycle(lifecycle)
 	defer lifecycle.Close()
 	if dataContractErr == nil {
-		stopRecovery := startNodeAppBackendRecovery(service, lifecycle.setRuntimeStatus)
+		stopRecovery := startNodeAppBackendRecovery(service, nodeAppBackendExpectation{
+			NodeID:     nodeAppID,
+			SnapshotID: nodeAppSnapshotID,
+		}, lifecycle.setRuntimeStatus)
 		defer stopRecovery()
 	} else {
 		lifecycle.setRuntimeStatus(NodeAppBackendRuntimeStatus{

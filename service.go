@@ -245,6 +245,7 @@ func (s *XiraniteService) externalNodeLaunchHostRuntime() *externalNodeLaunchHos
 // ExternalNodeLaunchHostInfo identifies a complete direct-node host. It is
 // unavailable to the workspace host and to frozen standalone node packages.
 func (s *XiraniteService) ExternalNodeLaunchHostInfo() *externalNodeLaunchHostInfo {
+	recordExternalNodeLaunchSmokeHostCall("ExternalNodeLaunchHostInfo")
 	runtime := s.externalNodeLaunchHostRuntime()
 	if runtime == nil {
 		return nil
@@ -253,20 +254,28 @@ func (s *XiraniteService) ExternalNodeLaunchHostInfo() *externalNodeLaunchHostIn
 	return &info
 }
 
-// ExternalNodeLaunchInitial returns the first request held while WebView and
-// the declared node surface complete their capability handshake.
+// ExternalNodeLaunchInitial returns the oldest unacknowledged request. The
+// direct host polls it as a fallback when a desktop event cannot be delivered.
 func (s *XiraniteService) ExternalNodeLaunchInitial() *externalNodeLaunchRequest {
 	runtime := s.externalNodeLaunchHostRuntime()
 	if runtime == nil {
+		recordExternalNodeLaunchSmokeHostCall("ExternalNodeLaunchInitial")
 		return nil
 	}
-	return runtime.initialRequest()
+	request := runtime.nextPendingRequest()
+	if request == nil {
+		recordExternalNodeLaunchSmokeHostCall("ExternalNodeLaunchInitial")
+	} else {
+		recordExternalNodeLaunchSmokeHostCall("ExternalNodeLaunchInitial:" + request.RequestID)
+	}
+	return request
 }
 
 // AcknowledgeExternalNodeLaunch is deliberately the final step of an external
 // request. Process reuse reports success only after the declared node has
 // accepted or rejected the normalized target.
 func (s *XiraniteService) AcknowledgeExternalNodeLaunch(acknowledgement externalNodeLaunchAcknowledgement) externalNodeLaunchAcknowledgement {
+	recordExternalNodeLaunchSmokeHostCall("AcknowledgeExternalNodeLaunch")
 	runtime := s.externalNodeLaunchHostRuntime()
 	if runtime == nil {
 		return externalNodeLaunchAcknowledgement{

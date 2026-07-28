@@ -8,6 +8,7 @@ type HostInfo = { nodeId: string; snapshotId: string }
 type HostAcknowledgement = { requestId: string; accepted: boolean; message?: string }
 
 const externalNodeLaunchEvent = "xiranite:external-node-launch"
+const externalNodeLaunchPollIntervalMs = 250
 
 export function ExternalNodeLaunchHost() {
   const [info, setInfo] = useState<HostInfo>()
@@ -15,29 +16,39 @@ export function ExternalNodeLaunchHost() {
   const [nodeHost, setNodeHost] = useState<{ entry: AppNodeEntry; host: NodeHostApi }>()
   const [error, setError] = useState<string>()
 
+  const receiveLaunch = useCallback((next: ExternalNodeLaunchRequest) => {
+    setRequest((current) => current?.requestId === next.requestId ? current : next)
+  }, [])
+
   useEffect(() => {
-    let active = true
-    let unsubscribe: (() => void) | undefined
-    void loadHostInfo().then(async (next) => {
-      if (!active) return
+	let active = true
+	let unsubscribe: (() => void) | undefined
+	let poll: number | undefined
+	const loadPendingLaunch = async () => {
+		const pending = await callHost<ExternalNodeLaunchRequest | null>("ExternalNodeLaunchInitial")
+		if (active && pending) receiveLaunch(pending)
+	}
+	void loadHostInfo().then(async (next) => {
+		if (!active) return
       if (!next) {
         setError("This window was not started as an external node host.")
         return
-      }
-      setInfo(next)
-      const initial = await callHost<ExternalNodeLaunchRequest | null>("ExternalNodeLaunchInitial")
-      if (active && initial) setRequest(initial)
-    }).catch((cause: unknown) => {
-      if (active) setError(messageOf(cause))
-    })
-    void subscribeToLaunches((next) => {
-      if (active) setRequest(next)
-    }).then((stop) => { unsubscribe = stop }).catch(() => undefined)
-    return () => {
-      active = false
-      unsubscribe?.()
-    }
-  }, [])
+		}
+		setInfo(next)
+		await loadPendingLaunch()
+		if (active) poll = window.setInterval(() => { void loadPendingLaunch().catch(() => undefined) }, externalNodeLaunchPollIntervalMs)
+	}).catch((cause: unknown) => {
+		if (active) setError(messageOf(cause))
+	})
+	void subscribeToLaunches((next) => {
+		if (active) receiveLaunch(next)
+	}).then((stop) => { unsubscribe = stop }).catch(() => undefined)
+	return () => {
+		active = false
+		if (poll !== undefined) window.clearInterval(poll)
+		unsubscribe?.()
+	}
+	}, [receiveLaunch])
 
   const onHostReady = useCallback((next: { entry: AppNodeEntry; host: NodeHostApi }) => {
     setNodeHost(next)
@@ -95,7 +106,9 @@ async function subscribeToLaunches(onLaunch: (request: ExternalNodeLaunchRequest
 async function callHost<T>(method: string, argument?: unknown): Promise<T> {
   if (typeof window === "undefined" || !window._wails) throw new Error("The Xiranite desktop host is unavailable.")
   const runtime = await import("@wailsio/runtime")
-  return await runtime.Call.ByName(`main.XiraniteService.${method}`, argument) as T
+  return argument === undefined
+    ? await runtime.Call.ByName(`main.XiraniteService.${method}`) as T
+    : await runtime.Call.ByName(`main.XiraniteService.${method}`, argument) as T
 }
 
 function isExternalNodeLaunchRequest(value: unknown): value is ExternalNodeLaunchRequest {

@@ -2,6 +2,10 @@
 
 package main
 
-func embeddedLocalBackendScript() []byte {
-	return nil
+func embeddedLocalBackendBundle() embeddedLocalBackendRuntimeBundle {
+	return embeddedLocalBackendRuntimeBundle{}
+}
+
+func embeddedNodeAppBackendBundle() embeddedLocalBackendRuntimeBundle {
+	return embeddedLocalBackendRuntimeBundle{}
 }
