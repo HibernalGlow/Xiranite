@@ -50,7 +50,7 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })
 
     await expect(provider.status()).resolves.toEqual({ available: true, enabled: true, state: "registered" })
-    expect(runReg).toHaveBeenCalledTimes(27)
+    expect(runReg).toHaveBeenCalledTimes(30)
 
     runReg.mockResolvedValueOnce({ code: 1, stdout: "", stderr: "not found" })
     await expect(provider.status()).resolves.toEqual({ available: true, enabled: false, state: "disabled" })
@@ -81,7 +81,7 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })
 
     await expect(provider.setEnabled(true)).resolves.toEqual({ available: true, enabled: true, state: "registered" })
-    expect(runReg).toHaveBeenCalledTimes(39)
+    expect(runReg).toHaveBeenCalledTimes(42)
     expect(runReg.mock.calls.map(([args]) => args)).toContainEqual(["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/v", "Xiranite.ManagedBy", "/d", "xiranite.shell-integration/v1", "/f"])
     expect(runReg.mock.calls.map(([args]) => args)).toContainEqual(["add", "HKCU\\Software\\Classes\\*\\shell\\xiranite", "/v", "Xiranite.NodeId", "/d", "neoview", "/f"])
 
@@ -142,7 +142,7 @@ describe("WindowsReaderExplorerContextMenuProvider", () => {
     const provider = new WindowsReaderExplorerContextMenuProvider({ platform: "win32", registration, runReg })
 
     await expect(provider.setEnabled(false)).resolves.toEqual({ available: true, enabled: false, state: "disabled" })
-    expect(runReg).toHaveBeenCalledTimes(3)
+    expect(runReg).toHaveBeenCalledTimes(6)
   })
 
   it("[neoview.file.explorer-context-menu.cancel-after-command] does not report success after cancellation", async () => {
