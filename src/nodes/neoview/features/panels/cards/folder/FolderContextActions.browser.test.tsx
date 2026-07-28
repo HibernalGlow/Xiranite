@@ -4,6 +4,7 @@ import { render } from "vitest-browser-react"
 import { useRef } from "react"
 
 import { ContextMenuProvider } from "@/components/context-menu"
+import { runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
 import type {
   ReaderDirectoryNavigationDto,
   ReaderDirectoryPageDto,
@@ -16,6 +17,8 @@ import FolderSelectionBar from "./FolderSelectionBar"
 import { createDirectoryCatalog, type DirectoryCatalog } from "./DirectoryCatalog"
 import { publishFolderEntryRemoved, publishFolderEntryRestored } from "./FolderNavigationEvents"
 import { useFolderExternalDeletion } from "./useFolderExternalDeletion"
+
+vi.mock("@/backend/nodeRpcClient", () => ({ runNodeOnLocalBackend: vi.fn() }))
 
 test("[neoview.folder.current-delete-binding-gui] routes every File Card deletion through bindings", async () => {
   const executeFileOperations = vi.fn(async () => ({
@@ -56,6 +59,44 @@ test("[neoview.folder.current-delete-binding-gui] routes every File Card deletio
   await page.getByRole("button", { name: "移到回收站：other.cbz" }).click()
   await expect.poll(() => onDeleteThroughBinding).toHaveBeenNthCalledWith(3, other.path, "trash")
   expect(executeFileOperations).not.toHaveBeenCalled()
+})
+
+test("[neoview.folder.dissolve-directory-gui] confirms and runs the dissolve action for the selected folder", async () => {
+  const onRefreshDirectory = vi.fn(async () => undefined)
+  const entry = { index: 0, path: "D:/library/series", name: "series", kind: "directory" as const, readerSupported: true }
+  vi.mocked(runNodeOnLocalBackend).mockResolvedValueOnce({ success: true, message: "Dissolved." })
+
+  await render(
+    <ContextMenuProvider>
+      <FolderContextActions
+        client={{} as ReaderHttpClient}
+        disabled={false}
+        onActivate={vi.fn()}
+        onOpenInNewTab={vi.fn()}
+        onRefreshDirectory={onRefreshDirectory}
+      />
+      <button
+        data-context-menu="neoview-folder-entry"
+        data-folder-index={entry.index}
+        data-folder-path={entry.path}
+        data-folder-name={entry.name}
+        data-folder-kind={entry.kind}
+        data-folder-reader-supported="true"
+      >series</button>
+    </ContextMenuProvider>,
+  )
+
+  await page.getByRole("button", { name: "series" }).click({ button: "right" })
+  await page.getByRole("menuitem", { name: "解散当前文件夹" }).click()
+  await page.getByRole("button", { name: "解散当前文件夹", exact: true }).click()
+
+  await expect.poll(() => runNodeOnLocalBackend).toHaveBeenCalledWith("dissolvef", {
+    action: "direct",
+    path: entry.path,
+    preview: false,
+  })
+  await expect.poll(() => onRefreshDirectory).toHaveBeenCalledOnce()
+  await expect.element(page.getByRole("status")).toHaveTextContent("已解散 series")
 })
 
 test("[neoview.folder.optimistic-bound-delete-gui] removes the entry before a delayed binding settles", async () => {
