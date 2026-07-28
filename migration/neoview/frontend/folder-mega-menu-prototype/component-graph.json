@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "generator": {
+    "name": "@xiranite/svelte-migrate",
+    "version": "0.1.0"
+  },
+  "sourceRevision": {
+    "vcs": "git",
+    "commit": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+    "dirty": true,
+    "dirtyDiffHash": "sha256:2ddd0edc04e9bc1407e7e7879723020b0cd45804e4483d0122768a1119f26aab"
+  },
+  "sourceRoot": "src/lib/components/panels/folderPanel/components/FolderToolbar",
+  "summary": {
+    "sourceFiles": 16,
+    "components": 13,
+    "modules": 3,
+    "stores": 0,
+    "graphEdges": 10,
+    "unresolvedComponentImports": 0,
+    "tauriFiles": 1,
+    "tauriCalls": 1,
+    "unmappedComponents": 3,
+    "unmappedModules": 2,
+    "dispositions": {
+      "converted": 0,
+      "adapter-needed": 0,
+      "manual": 13,
+      "replaced": 0,
+      "blocked": 0
+    },
+    "moduleDispositions": {
+      "converted": 3,
+      "adapter-needed": 0,
+      "manual": 0,
+      "replaced": 0,
+      "blocked": 0
+    },
+    "reactScaffolds": 4
+  },
+  "graph": {
+    "nodes": [
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/ActionButtons.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/CleanupOptionsDialog.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/MoreSettingsTabs.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/SortPanel.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/ActionTab.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/DisplayTab.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/OtherTab.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/TreePanel.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/TypeFilterBar.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/ViewModeButtons.svelte",
+      "src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte"
+    ],
+    "entries": [],
+    "edges": [
+      {
+        "from": "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte",
+        "to": "src/lib/components/panels/folderPanel/components/FolderToolbar/ActionButtons.svelte",
+        "specifier": "./ActionButtons.svelte",
+        "kind": "static"
+      },
+      {
+        "from": "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte",
+        "to": "src/lib/components/panels/folderPanel/components/FolderToolbar/MoreSettingsTabs.svelte",
+        "specifier": "./MoreSettingsTabs.svelte",
+        "kind": "static"
+      },
+      {
+        "from": "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte",
+        "to": "src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte",
+        "specifier": "./NavigationButtons.svelte",
+        "kind": "static"
+      },
+      {
+        "from": "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte",
+        "to": "src/lib/components/panels/folderPanel/components/FolderToolbar/SortPanel.svelte",
+        "specifier": "./SortPanel.svelte",
+        "kind": "static"
+      },
+      {
+        "from": "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte",
+        "to": "src/lib/components/panels/folderPanel/components/FolderToolbar/TreePanel.svelte",
+        "specifier": "./TreePanel.svelte",
+        "kind": "static"
+      },
+      {
+        "from": "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte",
+        "to": "src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte",
+        "specifier": "./ViewPanel.svelte",
+        "kind": "static"
+      },
+      {
+        "from": "src/lib/components/panels/folderPanel/components/FolderToolbar/MoreSettingsTabs.svelte",
+        "to": "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/ActionTab.svelte",
+        "specifier": "./tabs/ActionTab.svelte",
+        "kind": "static"
+      },
+      {
+        "from": "src/lib/components/panels/folderPanel/components/FolderToolbar/MoreSettingsTabs.svelte",
+        "to": "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/DisplayTab.svelte",
+        "specifier": "./tabs/DisplayTab.svelte",
+        "kind": "static"
+      },
+      {
+        "from": "src/lib/components/panels/folderPanel/components/FolderToolbar/MoreSettingsTabs.svelte",
+        "to": "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/OtherTab.svelte",
+        "specifier": "./tabs/OtherTab.svelte",
+        "kind": "static"
+      },
+      {
+        "from": "src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte",
+        "to": "src/lib/components/panels/folderPanel/components/FolderToolbar/CleanupOptionsDialog.svelte",
+        "specifier": "./CleanupOptionsDialog.svelte",
+        "kind": "static"
+      }
+    ],
+    "cycles": []
+  }
+}

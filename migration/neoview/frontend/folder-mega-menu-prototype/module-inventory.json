@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "generator": {
+    "name": "@xiranite/svelte-migrate",
+    "version": "0.1.0"
+  },
+  "sourceRevision": {
+    "vcs": "git",
+    "commit": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+    "dirty": true,
+    "dirtyDiffHash": "sha256:2ddd0edc04e9bc1407e7e7879723020b0cd45804e4483d0122768a1119f26aab"
+  },
+  "sourceRoot": "src/lib/components/panels/folderPanel/components/FolderToolbar",
+  "summary": {
+    "sourceFiles": 16,
+    "components": 13,
+    "modules": 3,
+    "stores": 0,
+    "graphEdges": 10,
+    "unresolvedComponentImports": 0,
+    "tauriFiles": 1,
+    "tauriCalls": 1,
+    "unmappedComponents": 3,
+    "unmappedModules": 2,
+    "dispositions": {
+      "converted": 0,
+      "adapter-needed": 0,
+      "manual": 13,
+      "replaced": 0,
+      "blocked": 0
+    },
+    "moduleDispositions": {
+      "converted": 3,
+      "adapter-needed": 0,
+      "manual": 0,
+      "replaced": 0,
+      "blocked": 0
+    },
+    "reactScaffolds": 4
+  },
+  "modules": [
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/index.ts",
+      "hash": "sha256:23123026eea40e28aa2ded86f2abeb8bf8c02fe5e8b4c3b56b7ac4b0f1e0ef8f",
+      "kind": "utility",
+      "featureIds": [],
+      "featureMappingSource": "unmapped",
+      "imports": [],
+      "exports": [
+        "ActionButtons",
+        "FolderToolbar",
+        "MoreSettingsTabs",
+        "NavigationButtons",
+        "SortPanel",
+        "TreePanel",
+        "ViewModeButtons",
+        "ViewPanel",
+        "default"
+      ],
+      "runes": [],
+      "storePrimitives": [],
+      "subscriptions": [],
+      "storageKeys": [],
+      "writes": [],
+      "tauriCalls": [],
+      "disposition": "converted",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "structurally convertible; requires review"
+      ],
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/index.ts",
+      "hash": "sha256:1331f763411adb1316e8785faf709f326f35460f2935693ef6aad5ffc0e2cc7f",
+      "kind": "utility",
+      "featureIds": [],
+      "featureMappingSource": "unmapped",
+      "imports": [],
+      "exports": [
+        "ActionTab",
+        "DisplayTab",
+        "OtherTab"
+      ],
+      "runes": [],
+      "storePrimitives": [],
+      "subscriptions": [],
+      "storageKeys": [],
+      "writes": [],
+      "tauriCalls": [],
+      "disposition": "converted",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "structurally convertible; requires review"
+      ],
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/types.ts",
+      "hash": "sha256:12d5e0922756e547a80823d125adda19125c911bee4ff1af50a7fa79ee0071fe",
+      "kind": "utility",
+      "featureIds": [
+        "folder-mega-menu"
+      ],
+      "featureMappingSource": "consumer-propagated",
+      "imports": [
+        {
+          "source": "../../stores/folderPanelStore",
+          "names": [
+            "FolderSortField",
+            "FolderViewStyle"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "$lib/stores/virtualPanelSettings.svelte",
+          "names": [
+            "TreePosition"
+          ],
+          "typeOnly": true
+        }
+      ],
+      "exports": [
+        "FolderTreeConfig",
+        "SortConfig",
+        "SortFieldDef",
+        "SortLockSettings",
+        "ViewStyleDef",
+        "VirtualMode"
+      ],
+      "runes": [],
+      "storePrimitives": [],
+      "subscriptions": [],
+      "storageKeys": [],
+      "writes": [],
+      "tauriCalls": [],
+      "disposition": "converted",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "structurally convertible; requires review"
+      ],
+      "parseErrors": []
+    }
+  ]
+}

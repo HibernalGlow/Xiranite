@@ -602,7 +602,7 @@
         "components/FolderToolbar/tabs/OtherTab.svelte"
       ],
       "acceptanceItems": [
-        "快捷操作/显示设置/其他 三页",
+        "一次展开的 File Card mega menu：显示与筛选、布局与预览、浏览行为、数据与维护三至四个纵向语义列；不使用标签页（见 folder-mega-menu-compatibility.json）",
         "显示当前文件数",
         "工具栏 tooltip 开关",
         "单击空白 none/goUp/goBack",
