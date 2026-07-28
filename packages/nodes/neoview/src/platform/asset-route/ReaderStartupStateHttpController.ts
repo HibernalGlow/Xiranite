@@ -1,9 +1,11 @@
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
+import type { ReaderPathStatusProvider } from "../../ports/ReaderPathStatusProvider.js"
 import type { ReaderStartupStateStore } from "../../ports/ReaderStartupStateStore.js"
 import { jsonResponse, readControlJson } from "./ReaderHttpControllerHelpers.js"
 
 export interface ReaderStartupStateHttpControllerOptions {
   library?: Pick<ReaderLibraryService, "listRecent">
+  pathStatus?: ReaderPathStatusProvider
   store?: ReaderStartupStateStore
 }
 
@@ -12,11 +14,18 @@ export class ReaderStartupStateHttpController {
 
   async handle(request: Request): Promise<Response> {
     if (request.method === "GET") {
-      const [lastFolder, lastBook] = await Promise.all([
+      const [lastFolder, recentBooks] = await Promise.all([
         this.options.store?.getLastFolder(),
         this.options.library?.listRecent({ limit: 1, offset: 0 }),
       ])
-      return jsonResponse({ lastFolder: lastFolder ?? null, lastBook: lastBook?.[0] ?? null })
+      const lastBook = recentBooks?.[0]
+      const pathStatus = lastBook && this.options.pathStatus
+        ? await this.options.pathStatus.check(lastBook.source.path, request.signal)
+        : undefined
+      return jsonResponse({
+        lastFolder: lastFolder ?? null,
+        lastBook: pathStatus === "missing" ? null : lastBook ?? null,
+      })
     }
     if (request.method !== "PATCH") return new Response(null, { status: 405, headers: { allow: "GET, PATCH" } })
     if (!this.options.store) return jsonResponse({ error: "Reader startup folder state is unavailable." }, 501)
