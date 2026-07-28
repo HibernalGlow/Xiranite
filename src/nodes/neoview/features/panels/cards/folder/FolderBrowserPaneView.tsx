@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, type CSSProperties, type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react"
-import { Virtuoso, type GridStateSnapshot, type ListRange, type VirtuosoGridHandle, type VirtuosoHandle } from "react-virtuoso"
+import { type GridStateSnapshot, type ListRange, type VirtuosoGridHandle, type VirtuosoHandle } from "react-virtuoso"
 import { GalleryHorizontalEnd, Grid2X2, LayoutGrid, List, RefreshCw, Rows3, TableProperties, type LucideIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -21,14 +21,10 @@ import type {
 } from "../../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../../registry"
 import {
-  directoryEntryAt,
   folderErrorMessage,
   isVerticalFolderRegion,
-  thumbnailPixelSize,
-  viewUsesBanner,
   viewUsesFixedGrid,
   viewUsesMosaicGrid,
-  viewUsesVirtuosoList,
   type DirectoryCatalog,
 } from "./DirectoryCatalog"
 import {
@@ -41,25 +37,24 @@ import {
   selectDirectorySingle,
   type DirectorySelectionModel,
 } from "./DirectorySelection"
-import { DEFAULT_FOLDER_TAG_DISPLAY, FolderEntryDisplayProvider } from "./FolderEntryPresentation"
-import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_LIST_COMPONENTS, runFolderNavigation, useFolderEmptyAreaNavigation } from "./FolderEmptyAreaBehavior"
+import { FolderEntryDisplayProvider } from "./FolderEntryPresentation"
+import { runFolderNavigation, useFolderEmptyAreaNavigation } from "./FolderEmptyAreaBehavior"
 import type { FolderClipboardState } from "./FolderClipboard"
 import type { FolderContextEntry } from "./FolderContextActions"
 import type { FolderDeleteStrategy } from "./FolderDeleteButton"
 import { DEFAULT_FOLDER_VIEW, type FolderPreviewCount, type FolderViewMode, type SavedDirectoryState } from "./FolderBrowserState"
-import { DirectoryListItem } from "./FolderDirectoryListItem"
+import type { FolderEntryViewportProps } from "./FolderEntryViewport"
 import type { FolderThumbnailStore } from "./FolderThumbnailStore"
 import type { FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import type { FolderSearchListingUpdate } from "./FolderSearchPanel"
 import { removeFolderCatalogEntry } from "./FolderCatalogRemoval"
 import type { FolderSearchTabSnapshot } from "./search/folderSearchModel"
 import { isVirtualSearchPath } from "./search/folderSearchModel"
+import { createFolderEntryViewSpec, folderEntryGridWidthPercent } from "./FolderEntryViewSpec"
 import { DEFAULT_FOLDER_TITLE_WRAP, FOLDER_VIEW_PRESENTATION_OPTIONS, resolveFolderTitleWrap } from "./FolderViewPresentation"
 import FolderBrowserBreadcrumb from "./FolderBrowserBreadcrumb"
 
-const FolderDetailsView = lazy(() => import("./FolderDetailsView"))
-const FolderGridWorkspace = lazy(() => import("./FolderGridWorkspace"))
-const FolderMosaicWorkspace = lazy(() => import("./FolderMosaicWorkspace"))
+const FolderEntryViewport = lazy(() => import("./FolderEntryViewport"))
 const FolderSearchPanel = lazy(() => import("./FolderSearchPanel"))
 const FolderTreeWorkspace = lazy(() => import("./FolderTreeWorkspace"))
 const FolderTreePanel = lazy(() => import("./FolderTreePanel"))
@@ -242,7 +237,7 @@ export interface FolderBrowserPaneViewProps {
     applySearchListing(update: FolderSearchListingUpdate): void
     closeSearchChrome(): void
     requestRange(range: ListRange): void
-    selectEntry: React.ComponentProps<typeof DirectoryListItem>["onSelect"]
+    selectEntry: FolderEntryViewportProps["onSelect"]
     emptyAreaHandlers: ReturnType<typeof useFolderEmptyAreaNavigation>
   }
 }
@@ -258,7 +253,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     contentWidthPercent, thumbnailWidthPercent, bannerWidthPercent, hoverPreviewEnabled,
     hoverPreviewDelayMs, penetration, penetrationDescriptions, multiSelectMode, chainSelectMode,
     checkModeClickBehavior, deleteMode, deleteStrategy, activeDeleteConfirmation, confirmations,
-    restoreState, restoreIndex, shouldLocateRestore, thumbnailStore, thumbnailProbesEnabled,
+    restoreState, restoreIndex, shouldLocateRestore, thumbnailStore,
     thumbnailRefreshPending, loading, error, searchOpen, treeOpen, inlineTreeOpen, treeLayout,
     treeSize, renameRequest, focusedPath, focusedIndex, itemIdPrefix, clipboard, canRetry,
     sessionId, searchRootPath, pendingSearchSnapshot, inlineBranchPath, inlineBranchTraversalFrames,
@@ -298,6 +293,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
   const showReturnFooter = folderView.emptyArea.showBackButton && !searchListingActive
   const folderTitleWrap = folderView.titleWrap ?? DEFAULT_FOLDER_TITLE_WRAP
   const wrapTitle = resolveFolderTitleWrap(folderTitleWrap, viewMode)
+  const entryViewSpec = createFolderEntryViewSpec(state, active, wrapTitle)
   const returnFooterContext = {
     disabled: disabled || loading || !catalog || (!catalog.canGoBack && !catalog.parentPath),
     onReturn: () =>
@@ -310,22 +306,19 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     <Suspense fallback={<div className="h-32 animate-pulse border-t bg-muted/30" aria-label="正在加载展开文件夹" />}>
       <FolderInlineBranchPanel
         client={client}
-        path={inlineBranchPath} viewMode={viewMode} filter={catalog.filter} sort={catalog.sort}
+        path={inlineBranchPath} filter={catalog.filter} sort={catalog.sort}
         showHiddenFolders={catalog.showHiddenFolders} hideMissingEfuEntries={catalog.hideMissingEfuEntries}
-        previewGridEnabled={previewGridEnabled} previewCount={previewCount} penetration={penetration}
-        thumbnailProbeEnabled={thumbnailProbesEnabled} contentWidthPercent={contentWidthPercent} wrapTitle={wrapTitle}
-        hoverPreviewEnabled={active && hoverPreviewEnabled} hoverPreviewDelayMs={hoverPreviewDelayMs}
-        deleteMode={deleteMode} deleteStrategy={deleteStrategy} confirmDelete={activeDeleteConfirmation}
+        penetration={penetration} viewSpec={entryViewSpec}
         disabled={disabled || loading}
         onActivate={(entry) => activate(entry, false, inlineBranchTraversalFrames)}
         onEnterDirectory={enterRawDirectory}
-        onUpdatePenetration={(patch) => void updatePenetration(patch)}
+        onUpdateView={(patch) => void onFolderView?.(patch)}
         onClose={closeInlineBranch}
       />
     </Suspense>
   ) : undefined
   return (
-    <FolderEntryDisplayProvider value={folderView.tagDisplay ?? DEFAULT_FOLDER_TAG_DISPLAY}>
+    <FolderEntryDisplayProvider value={entryViewSpec.config.tagDisplay}>
       <div
         ref={rootRef}
         className="relative flex h-full min-h-0 min-w-0 w-full flex-1 gap-2"
@@ -725,7 +718,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                   style={
                     {
                       order: treeVisible && (treeLayout === "right" || treeLayout === "bottom") ? 0 : 1,
-                      "--folder-grid-width": `${viewUsesBanner(viewMode) ? bannerWidthPercent : thumbnailWidthPercent}%`,
+                      "--folder-grid-width": `${folderEntryGridWidthPercent(entryViewSpec)}%`,
                     } as CSSProperties
                   }
                   data-neoview-folder-list-shell="true"
@@ -782,151 +775,22 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                       />
                     </Suspense>
                   ) : null}
-                  {!inlineTreeVisible && catalog && catalog.total > 0 && viewUsesVirtuosoList(viewMode) ? (
-                    <Virtuoso
-                      key={virtualKey}
-                      ref={listRef}
-                      style={{ height: "100%" }}
-                      totalCount={catalog.total}
-                      components={showReturnFooter ? FOLDER_LIST_COMPONENTS : EMPTY_VIRTUOSO_COMPONENTS}
-                      context={showReturnFooter ? returnFooterContext : undefined}
-                      fixedItemHeight={wrapTitle ? undefined : viewMode === "compact" ? 34 : 76}
-                      increaseViewportBy={{
-                        top: viewMode === "compact" ? 68 : 152,
-                        bottom: viewMode === "compact" ? 136 : 304,
-                      }}
-                      computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
-                      rangeChanged={requestRange}
-                      restoreStateFrom={restoreState?.viewMode === viewMode ? restoreState.listSnapshot : undefined}
-                      initialTopMostItemIndex={
-                        shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.listSnapshot && restoreIndex !== undefined
-                          ? { index: restoreIndex, align: "center" }
-                          : undefined
-                      }
-                      itemContent={(index) => {
-                        const entry = directoryEntryAt(catalog, index)
-                        return (
-                          <DirectoryListItem
-                            itemId={`${itemIdPrefix}-item-${index}`}
-                            entry={entry}
-                            index={index}
-                            disabled={disabled}
-                            selected={Boolean(entry && selectedPaths.has(entry.path))}
-                            focused={index === focusedIndex}
-                            showRating={catalog.metadataFields.includes("rating")}
-                            showCollectTagCount={catalog.metadataFields.includes("collectTagCount")}
-                            visualMode={viewMode}
-                            wrapTitle={wrapTitle}
-                            thumbnailStore={thumbnailStore} thumbnailProbeEnabled={thumbnailProbesEnabled}
-                            contentWidthPercent={contentWidthPercent}
-                            hoverPreviewEnabled={active && hoverPreviewEnabled}
-                            hoverPreviewDelayMs={hoverPreviewDelayMs}
-                            penetrationFiles={entry ? penetrationDescriptions.get(entry.path) : undefined}
-                            deleteMode={deleteMode}
-                            deleteStrategy={deleteStrategy}
-                            confirmDelete={activeDeleteConfirmation}
-                            onSelect={selectEntry}
-                          />
-                        )
-                      }}
-                    />
-                  ) : null}
-                  {!inlineTreeVisible && catalog && viewMode === "details" ? (
-                    <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载详细信息视图" />}>
-                      <FolderDetailsView
-                        key={virtualKey}
-                        catalog={catalog}
-                        disabled={disabled}
-                        selectedPaths={selectedPaths}
-                        initialIndex={
-                          focusedIndex ?? (restoreState?.viewMode === "details" ? (restoreState.focusedIndex ?? restoreState.anchorIndex) : undefined)
-                        }
-                        initialScrollTop={restoreState?.viewMode === "details" ? restoreState.detailsScrollTop : undefined}
-                        layout={folderView.details}
-                        wrapTitle={wrapTitle}
-                        deleteMode={deleteMode}
-                        deleteStrategy={deleteStrategy}
-                        confirmDelete={activeDeleteConfirmation}
-                        onRangeChange={requestRange}
-                        onScrollTopChange={(scrollTop) => {
-                          detailsScrollTopRef.current = scrollTop
-                        }}
-                        onSelect={selectEntry}
-                        onLayoutChange={(details) => {
-                          void onFolderView?.({ details })
-                        }}
-                        showReturnFooter={showReturnFooter}
-                        returnFooterContext={returnFooterContext}
-                      />
-                    </Suspense>
-                  ) : null}
-                  {!inlineTreeVisible && catalog && catalog.total > 0 && viewUsesFixedGrid(viewMode) ? (
-                    <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载网格视图" />}>
-                      <FolderGridWorkspace
-                        virtualKey={virtualKey}
-                        gridRef={gridRef}
-                        catalog={catalog}
-                        viewMode={viewMode}
-                        wrapTitle={wrapTitle}
-                        disabled={disabled}
-                        selectedPaths={selectedPaths}
-                        focusedIndex={focusedIndex}
-                        itemIdPrefix={itemIdPrefix}
-                        thumbnailStore={thumbnailStore} thumbnailProbeEnabled={thumbnailProbesEnabled}
-                        hoverPreviewEnabled={active && hoverPreviewEnabled}
-                        hoverPreviewDelayMs={hoverPreviewDelayMs}
-                        penetrationFiles={penetrationDescriptions}
-                        deleteMode={deleteMode}
-                        deleteStrategy={deleteStrategy}
-                        confirmDelete={activeDeleteConfirmation}
-                        showReturnFooter={showReturnFooter}
-                        returnFooterContext={returnFooterContext}
-                        restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.gridSnapshot : undefined}
-                        initialScrollTop={restoreState?.viewMode === viewMode ? restoreState.gridScrollTop : undefined}
-                        initialIndex={shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.gridSnapshot ? restoreIndex : undefined}
+                  {!inlineTreeVisible && catalog ? (
+                    <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载文件视图" />}>
+                      <FolderEntryViewport
+                        catalog={catalog} viewSpec={entryViewSpec} virtualKey={virtualKey} disabled={disabled}
+                        selectedPaths={selectedPaths} focusedIndex={focusedIndex} itemIdPrefix={itemIdPrefix}
+                        thumbnailStore={thumbnailStore} penetrationFiles={penetrationDescriptions}
+                        listRef={listRef} gridRef={gridRef} mosaicRef={mosaicRef}
+                        restoreState={restoreState} restoreIndex={restoreIndex} shouldLocateRestore={shouldLocateRestore}
                         inlineBranchPath={inlineBranchPath} inlineBranch={inlineBranchContent}
+                        showReturnFooter={showReturnFooter} returnFooterContext={returnFooterContext}
                         onRangeChange={requestRange}
-                        onStateChange={(snapshot) => {
-                          gridSnapshotRef.current = snapshot
-                        }}
-                        onScrollTopChange={(scrollTop) => {
-                          gridScrollTopRef.current = scrollTop
-                        }}
-                        onSelect={selectEntry}
-                      />
-                    </Suspense>
-                  ) : null}
-                  {!inlineTreeVisible && catalog && catalog.total > 0 && viewUsesMosaicGrid(viewMode) ? (
-                    <Suspense fallback={<div className="h-72 animate-pulse bg-muted/30" aria-label="正在加载自由缩略图视图" />}>
-                      <FolderMosaicWorkspace
-                        key={virtualKey}
-                        virtualKey={virtualKey}
-                        mosaicRef={mosaicRef}
-                        catalog={catalog}
-                        disabled={disabled}
-                        selectedPaths={selectedPaths}
-                        focusedIndex={focusedIndex}
-                        itemIdPrefix={itemIdPrefix}
-                        thumbnailStore={thumbnailStore} thumbnailProbeEnabled={thumbnailProbesEnabled}
-                        tileSize={thumbnailPixelSize(thumbnailWidthPercent)}
-                        wrapTitle={wrapTitle}
-                        hoverPreviewEnabled={active && hoverPreviewEnabled}
-                        hoverPreviewDelayMs={hoverPreviewDelayMs}
-                        penetrationFiles={penetrationDescriptions}
-                        deleteMode={deleteMode}
-                        deleteStrategy={deleteStrategy}
-                        confirmDelete={activeDeleteConfirmation}
-                        showReturnFooter={showReturnFooter}
-                        returnFooterContext={returnFooterContext}
-                        restoreSnapshot={restoreState?.viewMode === viewMode ? restoreState.mosaicSnapshot : undefined}
-                        initialScrollTop={restoreState?.viewMode === viewMode ? restoreState.mosaicScrollTop : undefined}
-                        initialIndex={shouldLocateRestore && restoreState?.viewMode === viewMode && !restoreState.mosaicSnapshot ? restoreIndex : undefined}
-                        inlineBranchPath={inlineBranchPath}
-                        inlineBranch={inlineBranchContent}
-                        onRangeChange={requestRange}
-                        onScrollTopChange={(scrollTop) => {
-                          mosaicScrollTopRef.current = scrollTop
-                        }}
+                        onDetailsScrollTopChange={(scrollTop) => { detailsScrollTopRef.current = scrollTop }}
+                        onDetailsLayoutChange={(details) => { void onFolderView?.({ details }) }}
+                        onGridStateChange={(snapshot) => { gridSnapshotRef.current = snapshot }}
+                        onGridScrollTopChange={(scrollTop) => { gridScrollTopRef.current = scrollTop }}
+                        onMosaicScrollTopChange={(scrollTop) => { mosaicScrollTopRef.current = scrollTop }}
                         onSelect={selectEntry}
                       />
                     </Suspense>

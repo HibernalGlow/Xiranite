@@ -87,6 +87,7 @@ export function DirectoryListItem({
             <span
               className="grid h-16 shrink-0 place-items-center overflow-hidden rounded bg-muted/30"
               style={{ width: `${contentWidthPercent}%`, maxWidth: "70%" }}
+              data-folder-thumbnail="true"
             >
               {directoryEmpty ? <FolderEntryIcon entry={entry} className="size-7" /> : resolvedThumbnailUrl || thumbnailLoading ? (
                 <ReaderThumbnailSurface
