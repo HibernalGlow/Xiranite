@@ -1,7 +1,7 @@
 /// <reference types="vitest/config" />
 import path from "path"
 import { readFile, mkdir, writeFile } from "node:fs/promises"
-import { request as httpRequest } from "node:http"
+import { request as httpRequest, type ClientRequest, type IncomingMessage, type ServerResponse } from "node:http"
 import { request as httpsRequest } from "node:https"
 import tailwindcss from "@tailwindcss/vite"
 import { Scanner } from "@tailwindcss/oxide"
@@ -97,36 +97,98 @@ export function backendGatewayPlugin(
           return
         }
 
-        void readBackendGatewayTarget(targetPath).then((target) => {
-          const destination = backendGatewayTargetUrl(request.url ?? "/", target.baseUrl)
-          if (!destination) {
-            next()
-            return
-          }
-          const send = destination.protocol === "https:" ? httpsRequest : httpRequest
-          const proxyRequest = send(destination, {
-            method: request.method,
-            headers: { ...request.headers, connection: "close" },
-            agent: false,
-          }, (proxyResponse) => {
-            response.writeHead(proxyResponse.statusCode ?? 502, backendGatewayResponseHeaders(proxyResponse.headers))
-            proxyResponse.pipe(response)
-          })
-          proxyRequest.on("error", (error) => {
-            if (response.headersSent || response.writableEnded) return
-            response.writeHead(502, { "content-type": "text/plain; charset=utf-8" })
-            response.end(`Xiranite backend gateway failed: ${error.message}`)
-          })
-          request.on("aborted", () => proxyRequest.destroy())
-          request.pipe(proxyRequest)
-        }).catch((error: unknown) => {
-          if (response.headersSent || response.writableEnded) return
-          response.writeHead(503, { "content-type": "text/plain; charset=utf-8", "retry-after": "1" })
-          response.end(`Xiranite backend gateway is unavailable: ${error instanceof Error ? error.message : String(error)}`)
-        })
+        void proxyBackendGatewayRequest(request, response, next, targetPath)
       })
     },
   }
+}
+
+const BACKEND_GATEWAY_RETRY_WINDOW_MS = 2_000
+const BACKEND_GATEWAY_RETRY_DELAY_MS = 50
+
+async function proxyBackendGatewayRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+  next: () => void,
+  targetPath: string,
+): Promise<void> {
+  const retryable = request.method === "GET" || request.method === "HEAD"
+  const deadline = Date.now() + BACKEND_GATEWAY_RETRY_WINDOW_MS
+  let activeRequest: ClientRequest | undefined
+  let lastTargetError: unknown
+  let lastProxyError: Error | undefined
+  request.once("aborted", () => activeRequest?.destroy())
+
+  while (!request.aborted && !response.headersSent && !response.writableEnded) {
+    let target
+    try {
+      target = await readBackendGatewayTarget(targetPath)
+      lastTargetError = undefined
+    } catch (error) {
+      lastTargetError = error
+      if (!retryable || Date.now() >= deadline) break
+      await backendGatewayRetryDelay()
+      continue
+    }
+    const destination = backendGatewayTargetUrl(request.url ?? "/", target.baseUrl)
+    if (!destination) {
+      next()
+      return
+    }
+    try {
+      lastProxyError = await forwardBackendGatewayRequest(request, response, destination, (current) => {
+        activeRequest = current
+      })
+    } catch (error) {
+      lastProxyError = error instanceof Error ? error : new Error(errorMessage(error))
+    }
+    if (!lastProxyError) return
+    activeRequest = undefined
+    if (!retryable || Date.now() >= deadline) break
+    await backendGatewayRetryDelay()
+  }
+
+  if (request.aborted || response.headersSent || response.writableEnded) return
+  if (lastTargetError) {
+    response.writeHead(503, { "content-type": "text/plain; charset=utf-8", "retry-after": "1" })
+    response.end(`Xiranite backend gateway is unavailable: ${errorMessage(lastTargetError)}`)
+    return
+  }
+  response.writeHead(502, { "content-type": "text/plain; charset=utf-8" })
+  response.end(`Xiranite backend gateway failed: ${lastProxyError?.message ?? "backend connection failed"}`)
+}
+
+function forwardBackendGatewayRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+  destination: URL,
+  onRequest: (request: ClientRequest) => void,
+): Promise<Error | undefined> {
+  return new Promise((resolve) => {
+    const send = destination.protocol === "https:" ? httpsRequest : httpRequest
+    const proxyRequest = send(destination, {
+      method: request.method,
+      headers: { ...request.headers, connection: "close" },
+      agent: false,
+    })
+    onRequest(proxyRequest)
+    proxyRequest.once("response", (proxyResponse) => {
+      response.writeHead(proxyResponse.statusCode ?? 502, backendGatewayResponseHeaders(proxyResponse.headers))
+      proxyResponse.pipe(response)
+      resolve(undefined)
+    })
+    proxyRequest.once("error", resolve)
+    if (request.method === "GET" || request.method === "HEAD") proxyRequest.end()
+    else request.pipe(proxyRequest)
+  })
+}
+
+function backendGatewayRetryDelay(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, BACKEND_GATEWAY_RETRY_DELAY_MS))
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function backendGatewayResponseHeaders(
