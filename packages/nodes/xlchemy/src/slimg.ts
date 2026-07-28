@@ -15,6 +15,7 @@ interface PoolWorker {
 }
 
 const IDLE_WORKER_TIMEOUT_MS = 10_000
+export const SLIMG_MAX_WORKERS = 16
 
 export function probeSlimg(): Promise<XlchemyToolStatus> {
   return probeSlimgCffi()
@@ -25,7 +26,7 @@ class SlimgWorkerPool {
   private readonly workers: PoolWorker[] = []
   private sequence = 0
 
-  constructor(private readonly maximumWorkers = Math.max(1, availableParallelism())) {}
+  constructor(private readonly maximumWorkers = Math.max(1, Math.min(SLIMG_MAX_WORKERS, availableParallelism()))) {}
 
   convert(source: string, target: string, quality: number): Promise<void> {
     return new Promise((resolve, reject) => {

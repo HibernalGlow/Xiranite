@@ -186,33 +186,30 @@ describe("app-owned xlchemy Component", () => {
     const view = render(<Component compId="xlchemy-card" host={host} />)
     const user = userEvent.setup()
     await user.click(screen.getByRole("button", { name: "配置管理" }))
-    await user.click(screen.getByRole("button", { name: "新建预设" }))
+    await user.click(screen.getByRole("tab", { name: "预设" }))
+    await user.click(screen.getByRole("button", { name: "新建" }))
     await user.type(screen.getByLabelText("预设名称"), "Archive")
-    await user.click(screen.getByRole("button", { name: "创建" }))
+    fireEvent.click(screen.getByRole("button", { name: "保存" }))
     await waitFor(() => expect(host.presets).toMatchObject([{ name: "Archive", values: { format: "WebP", quality: 77, effort: 5 } }]))
 
-    await user.click(screen.getByRole("combobox", { name: "预设" }))
-    await user.click(screen.getByRole("option", { name: "Archive" }))
     expect(host.cardState.selectedPreset).toBe(host.presets[0]?.id)
     host.cardState = { ...host.cardState, quality: 25 }
     view.rerender(<Component compId="xlchemy-card" host={host} />)
-    await user.click(screen.getByRole("button", { name: "应用预设" }))
+    await user.click(screen.getByRole("button", { name: "应用" }))
     expect(host.cardState.quality).toBe(77)
-    await user.click(screen.getByRole("button", { name: "查看预设配置" }))
     expect(screen.getByText(/"quality": 77/)).toBeTruthy()
-    await user.keyboard("{Escape}")
-    await user.click(screen.getAllByRole("button", { name: "重命名" }).at(-1)!)
+    await user.click(screen.getByRole("button", { name: "重命名" }))
     const nameInput = screen.getByLabelText("预设名称")
     await user.clear(nameInput)
     await user.type(nameInput, "Archive v2")
-    await user.click(screen.getAllByRole("button", { name: "重命名" }).at(-1)!)
+    fireEvent.click(screen.getByRole("button", { name: "保存" }))
     await waitFor(() => expect(host.presets[0]?.name).toBe("Archive v2"))
 
-    await user.click(screen.getByRole("button", { name: "保存当前到预设" }))
-    await user.click(screen.getAllByRole("button", { name: "保存当前到预设" }).at(-1)!)
+    await user.click(screen.getByRole("button", { name: "覆盖" }))
+    await user.click(screen.getAllByRole("button", { name: "覆盖" }).at(-1)!)
     await waitFor(() => expect(host.presets[0]?.values.quality).toBe(77))
-    await user.click(screen.getByRole("button", { name: "删除预设" }))
-    await user.click(screen.getAllByRole("button", { name: "删除预设" }).at(-1)!)
+    await user.click(screen.getByRole("button", { name: "删除" }))
+    await user.click(screen.getAllByRole("button", { name: "删除" }).at(-1)!)
     await waitFor(() => expect(host.presets).toEqual([]))
   })
 
@@ -224,6 +221,7 @@ describe("app-owned xlchemy Component", () => {
     render(<Component compId="xlchemy-card" host={host} />)
     const user = userEvent.setup()
     await user.click(screen.getByRole("button", { name: "配置管理" }))
+    await user.click(screen.getByRole("tab", { name: "预设" }))
     await user.click(screen.getByRole("button", { name: "导出预设" }))
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce())
     expect(JSON.parse(String(writeText.mock.calls[0]?.[0]))).toMatchObject({ nodeId: "xlchemy", presets: [{ name: "Archive", values: { quality: 77, downscaleEnabled: true } }] })
@@ -239,13 +237,9 @@ describe("app-owned xlchemy Component", () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole("button", { name: "配置管理" }))
 
-    const viewConfig = screen.getByRole("button", { name: "查看配置" })
     const restore = screen.getByRole("button", { name: "恢复默认" })
-    expect(viewConfig.hasAttribute("disabled")).toBe(false)
     expect(restore.hasAttribute("disabled")).toBe(false)
-    await user.click(viewConfig)
     expect(screen.getByText(/"quality": 60/)).toBeTruthy()
-    await user.keyboard("{Escape}")
     await user.click(restore)
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(host.cardState).toMatchObject({ format: "JPEG XL", quality: 60, recursive: true })
@@ -282,10 +276,12 @@ describe("app-owned xlchemy Component", () => {
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(screen.getByText("alpha.png")).toBeTruthy()
     expect(screen.getByText("beta.jpg")).toBeTruthy()
-    expect(within(screen.getByTestId("xlchemy-input-workbench")).getByText("246 B")).toBeTruthy()
+    await waitFor(() => expect(within(screen.getByTestId("xlchemy-input-workbench")).getByText("246 B")).toBeTruthy())
     await user.click(screen.getByRole("button", { name: "添加输入" }))
     await user.click(screen.getByRole("menuitem", { name: "添加文件夹" }))
-    await waitFor(() => expect(host.cardState.pathsText).toContain("D:/images/folder/nested.jp2"))
+    await waitFor(() => expect(host.cardState.pathsText).toContain("D:/images/folder"))
+    expect(host.cardState.pathsText).not.toContain("nested.jp2")
+    expect(host.cardState.inputDirectoryPaths).toEqual(["D:/images/folder"])
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(host.cardState.selectedPaths).toEqual([])
   })
@@ -518,7 +514,7 @@ describe("app-owned xlchemy Component", () => {
     view.rerender(<Component compId="xlchemy-card" host={host} />)
     expect(screen.getByText("slimg DLL")).toBeTruthy()
     expect(screen.getByText("jpegtran")).toBeTruthy()
-    expect(host.cardState.environment).toHaveLength(13)
+    expect(host.cardState.environment).toHaveLength(14)
   })
 
   test("supports direct and wheel thread editing and reports CPU, task threads, and encoder", async () => {
@@ -536,7 +532,7 @@ describe("app-owned xlchemy Component", () => {
     await userEvent.setup().click(within(screen.getByTestId("xlchemy-operations-tabs")).getByRole("tab", { name: "环境" }))
     expect(screen.getByText(/CPU .*线程/)).toBeTruthy()
     expect(screen.getByText("任务 13 线程")).toBeTruthy()
-    expect(screen.getByText("slimg")).toBeTruthy()
+    expect(screen.getAllByText("slimg DLL")).toHaveLength(2)
   })
 
   test("renders colorful searchable log levels with independent filtering", async () => {
@@ -646,6 +642,32 @@ describe("app-owned xlchemy Component", () => {
     expect(host.cardState.currentFile).toBe("still.webp")
     expect(host.cardState.pathsText).toBe("D:/images/still.webp")
     expect(host.cardState.selectedPaths).toEqual(["D:/images/still.webp"])
+  })
+
+  test("automatically clears a fully successful large source when retained details are truncated", async () => {
+    const host = createHost({ pathsText: "D:/images", inputDirectoryPaths: ["D:/images"], selectedPaths: [], efuFiles: ["D:/lists/images.efu"], autoClearCompleted: true })
+    host.runner!.run = async <TInput, TData>() => ({
+      success: true,
+      message: "Converted 10000 of 10000 image(s).",
+      data: {
+        ...result,
+        files: [{ sourcePath: "D:/images/9999.png", outputPath: "D:/output/9999.avif", status: "converted" }],
+        inputCount: 10_000,
+        convertedCount: 10_000,
+        renamedCount: 0,
+        skippedCount: 0,
+        errorCount: 0,
+        detailsTruncated: true,
+      } as TData,
+    })
+
+    render(<Component compId="xlchemy-card" host={host} />)
+    await userEvent.setup().click(screen.getByRole("button", { name: "开始转换" }))
+    await waitFor(() => expect(host.cardState.phase).toBe("completed"))
+    expect(host.cardState.pathsText).toBe("")
+    expect(host.cardState.inputDirectoryPaths).toEqual([])
+    expect(host.cardState.selectedPaths).toEqual([])
+    expect(host.cardState.efuFiles).toEqual([])
   })
 
   test("previews, compares and explicitly copies a clipboard conversion from one workbench", async () => {

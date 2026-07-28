@@ -111,14 +111,15 @@ describe("XLchemy EFU browser behavior", () => {
     await expect.poll(() => receivedInput).toMatchObject({ format: "dynar", animationDetectionFormats: ["webp"], filenameRules: expect.arrayContaining([expect.objectContaining({ prefix: "[#dyna]" })]) })
   })
 
-  test("removes all dynar inputs selected from the list table after adding a file and folder", async () => {
+  test("keeps a folder as one streaming source and removes selected file and folder roots", async () => {
     const host = createHost((path) => `local://${path}`)
     host.cardState = { format: "dynar", inputViewMode: "list" }
     host.localFiles!.pickFiles = async () => ["D:/images/loose.gif"]
     host.localFiles!.pickDirectory = async () => "D:/images/folder"
-    host.localFiles!.list = async (path) => path === "D:/images/folder"
+    const listFiles = vi.fn(async (path: string) => path === "D:/images/folder"
       ? [{ name: "nested.webp", path: "D:/images/folder/nested.webp", isDirectory: false, sizeBytes: 2048, lastModified: 0, type: "image/webp" }]
-      : [{ name: "loose.gif", path, isDirectory: false, sizeBytes: 1024, lastModified: 0, type: "image/gif" }]
+      : [{ name: "loose.gif", path, isDirectory: false, sizeBytes: 1024, lastModified: 0, type: "image/gif" }])
+    host.localFiles!.list = listFiles
     const view = await render(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
 
     await view.getByRole("button", { name: "添加文件", exact: true }).click()
@@ -127,11 +128,13 @@ describe("XLchemy EFU browser behavior", () => {
 
     await view.getByRole("button", { name: "添加输入" }).click()
     await view.getByRole("menuitem", { name: "添加文件夹" }).click()
-    await expect.poll(() => host.cardState.pathsText).toBe("D:/images/loose.gif\nD:/images/folder/nested.webp")
+    await expect.poll(() => host.cardState.pathsText).toBe("D:/images/loose.gif\nD:/images/folder")
+    await expect.poll(() => host.cardState.inputDirectoryPaths).toEqual(["D:/images/folder"])
+    expect(listFiles).not.toHaveBeenCalledWith("D:/images/folder", expect.anything())
     await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
 
     await view.getByRole("checkbox", { name: "选择全部输入" }).click()
-    await expect.poll(() => host.cardState.selectedPaths).toEqual(["D:/images/loose.gif", "D:/images/folder/nested.webp"])
+    await expect.poll(() => host.cardState.selectedPaths).toEqual(["D:/images/loose.gif", "D:/images/folder"])
     await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
     await view.getByRole("button", { name: "删除已选" }).click()
 
@@ -139,6 +142,32 @@ describe("XLchemy EFU browser behavior", () => {
     await expect.poll(() => host.cardState.selectedPaths).toEqual([])
     await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
     await expect.element(view.getByTestId("xlchemy-input-empty")).toBeVisible()
+  })
+
+  test("submits a directory root without enumerating it in React", async () => {
+    const host = createHost((path) => `local://${path}`)
+    host.cardState = { format: "AVIF", avifEncoder: "slimg", inputViewMode: "list" }
+    host.localFiles!.pickDirectory = async () => "D:/bulk/200000-images"
+    const listFiles = vi.fn(async () => { throw new Error("React must not enumerate a directory source.") })
+    host.localFiles!.list = listFiles
+    let receivedInput: unknown
+    host.runner!.run = async <TInput, TData>(_nodeId: string, input: TInput): Promise<NodeRunResult<TData>> => {
+      receivedInput = input
+      return { success: true, message: "Planned.", data: { files: [], inputCount: 0, convertedCount: 0, skippedCount: 0, errorCount: 0, inputBytes: 0, outputBytes: 0, errors: [] } as XlchemyData as TData }
+    }
+    const view = await render(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+
+    await view.getByRole("button", { name: "添加输入" }).click()
+    await view.getByRole("menuitem", { name: "添加文件夹" }).click()
+    await expect.poll(() => host.cardState.pathsText).toBe("D:/bulk/200000-images")
+    await expect.poll(() => host.cardState.inputDirectoryPaths).toEqual(["D:/bulk/200000-images"])
+    expect(listFiles).not.toHaveBeenCalled()
+
+    await view.rerender(<div className="h-[900px] w-[1400px]"><Component compId="xlchemy-card" host={host} /></div>)
+    await expect.element(view.getByText("目录源 · 后端流式扫描", { exact: true })).toBeVisible()
+    await view.getByRole("button", { name: "预览计划" }).click()
+    await expect.poll(() => receivedInput).toMatchObject({ action: "plan", paths: ["D:/bulk/200000-images"] })
+    expect(listFiles).not.toHaveBeenCalled()
   })
 })
 
