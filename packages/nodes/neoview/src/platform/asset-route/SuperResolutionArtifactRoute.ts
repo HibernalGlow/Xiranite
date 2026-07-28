@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 import { Readable } from "node:stream"
+import { appendUrlPath } from "@xiranite/shared"
 
 import type { ReaderService, ReaderSessionId } from "../../application/reader/contracts.js"
 import type { SuperResolutionArtifactPageInput, SuperResolutionArtifactRunDecision } from "../../application/super-resolution/SuperResolutionArtifactPageService.js"
@@ -326,10 +327,7 @@ export class SuperResolutionArtifactRoute {
     if (!key.startsWith(ARTIFACT_KEY_PREFIX)) throw new Error("Super-resolution artifact key has an unsupported schema.")
     const digest = key.slice(ARTIFACT_KEY_PREFIX.length)
     if (!/^[A-Za-z0-9_-]{43}$/u.test(digest)) throw new Error("Super-resolution artifact key is invalid.")
-    const url = new URL(
-      `/reader/s/${encodeURIComponent(sessionId)}/upscale-artifact/${digest}`,
-      this.#baseUrl,
-    )
+    const url = appendUrlPath(this.#baseUrl, `/reader/s/${encodeURIComponent(sessionId)}/upscale-artifact/${digest}`)
     url.searchParams.set("version", integrity)
     url.searchParams.set("token", this.#token)
     return url.href

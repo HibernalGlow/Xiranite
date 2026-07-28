@@ -1,9 +1,9 @@
 import type { NexusCaptureDTO } from "@xiranite/shared"
-import { resolveLocalBackendConfig } from "./localBackendConfig"
+import { localBackendUrl, resolveLocalBackendConfig } from "./localBackendConfig"
 
 export async function listNexusCaptures(targetNodeId: string): Promise<NexusCaptureDTO[]> {
   const config = resolveLocalBackendConfig()
-  const url = new URL("/nexus/captures", config.baseUrl)
+  const url = localBackendUrl("/nexus/captures", config)
   url.searchParams.set("targetNodeId", targetNodeId)
   const response = await fetch(url, {
     cache: "no-store",
@@ -16,7 +16,7 @@ export async function listNexusCaptures(targetNodeId: string): Promise<NexusCapt
 
 export async function removeNexusCapture(id: string): Promise<boolean> {
   const config = resolveLocalBackendConfig()
-  const url = new URL(`/nexus/captures/${encodeURIComponent(id)}`, config.baseUrl)
+  const url = localBackendUrl(`/nexus/captures/${encodeURIComponent(id)}`, config)
   const response = await fetch(url, {
     method: "DELETE",
     cache: "no-store",

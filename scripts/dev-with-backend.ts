@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto"
-import { backendGatewayTargetPath, removeBackendGatewayTarget, writeBackendGatewayTarget } from "./backend-gateway"
+import { backendGatewayPublicUrl, backendGatewayTargetPath, removeBackendGatewayTarget, writeBackendGatewayTarget } from "./backend-gateway"
 import { consumeDevSessionStopRequest, removeDevSession, writeDevSession } from "./dev-session"
 import { managedViteCacheDir, resolveManagedFrontendUrl } from "./dev-frontend-url"
 import { formatFrontendReadyLog, formatFrontendWaitLog, waitForFrontendReady } from "./frontend-readiness"
@@ -20,6 +20,7 @@ const [{ startBackend }, { invalidateDevelopmentSourceModules }] = await Promise
   import("../packages/runtime/src/node-runner"),
 ])
 const frontendUrl = await resolveManagedFrontendUrl()
+const publicBackendUrl = backendGatewayPublicUrl(frontendUrl)
 const frontend = new URL(frontendUrl)
 const frontendPort = frontend.port || (frontend.protocol === "https:" ? "443" : "80")
 const viteCacheDir = managedViteCacheDir(frontendUrl)
@@ -36,7 +37,7 @@ let scheduledRestart: ReturnType<typeof setTimeout> | undefined
 async function startManagedBackend(): Promise<DevBackend> {
   return await startBackend({
     token: backendToken,
-    publicBaseUrl: frontendUrl,
+    publicBaseUrl: publicBackendUrl,
     system: {
       restartBackend: scheduleBackendRestartFromHttp,
     },
@@ -58,7 +59,7 @@ async function restartBackendFromDevScript() {
       restarted: true,
       supported: true,
       message: "Local backend restarted by the dev supervisor.",
-      config: { baseUrl: frontendUrl, token: backendToken },
+      config: { baseUrl: publicBackendUrl, token: backendToken },
     }
   })
   restartQueue = restart.then(() => undefined, () => undefined)
@@ -78,7 +79,7 @@ async function scheduleBackendRestartFromHttp() {
     restarted: false,
     supported: true,
     message: "Local backend restart scheduled by the dev supervisor.",
-    config: { baseUrl: frontendUrl, token: backendToken },
+    config: { baseUrl: publicBackendUrl, token: backendToken },
   }
 }
 
@@ -105,7 +106,7 @@ const vite = spawnManagedVite([
   stderr: "inherit",
   env: {
     ...viteDevelopmentEnvironment(viteMode),
-    VITE_XIRANITE_BACKEND_URL: frontendUrl,
+    VITE_XIRANITE_BACKEND_URL: publicBackendUrl,
     VITE_XIRANITE_BACKEND_TOKEN: backendToken,
     XIRANITE_BACKEND_GATEWAY_TARGET: gatewayTargetPath,
     VITE_XIRANITE_FRONTEND_DEV_URL: frontendUrl,

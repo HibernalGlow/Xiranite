@@ -7,7 +7,17 @@ export interface BackendGatewayTarget {
   token?: string
 }
 
+export const BACKEND_GATEWAY_PATH_PREFIX = "/_xiranite/backend"
+
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+
+export function backendGatewayPublicUrl(frontendUrl: string): string {
+  const url = new URL(frontendUrl)
+  url.pathname = BACKEND_GATEWAY_PATH_PREFIX
+  url.search = ""
+  url.hash = ""
+  return url.href.replace(/\/$/u, "")
+}
 
 export function backendGatewayTargetPath(frontendUrl: string): string {
   const frontend = new URL(frontendUrl)
@@ -41,26 +51,23 @@ export async function removeBackendGatewayTarget(frontendUrl: string): Promise<v
 }
 
 export function isBackendGatewayPath(pathname: string): boolean {
-  if (FRONTEND_CONFIG_ASSET_PATHS.has(pathname)) return false
-  return BACKEND_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+  return backendGatewayRoutePath(pathname) !== undefined
 }
 
-const FRONTEND_CONFIG_ASSET_PATHS = new Set([
-  "/config/webview2-flags.json",
-])
+export function backendGatewayTargetUrl(requestUrl: string, targetBaseUrl: string): URL | undefined {
+  const request = new URL(requestUrl, "http://xiranite.local")
+  const targetPath = backendGatewayRoutePath(request.pathname)
+  if (!targetPath) return undefined
 
-const BACKEND_ROUTE_PREFIXES = [
-  "/config",
-  "/health",
-  "/local-files",
-  "/logs",
-  "/melodeck",
-  "/nexus",
-  "/node-operations",
-  "/node-run-history",
-  "/nodes",
-  "/reader",
-  "/runtime-history",
-  "/system",
-  "/workspace",
-] as const
+  const target = new URL(targetBaseUrl)
+  target.pathname = `${target.pathname.replace(/\/+$/u, "")}${targetPath}`
+  target.search = request.search
+  target.hash = ""
+  return target
+}
+
+function backendGatewayRoutePath(pathname: string): string | undefined {
+  if (pathname === BACKEND_GATEWAY_PATH_PREFIX) return "/"
+  if (!pathname.startsWith(`${BACKEND_GATEWAY_PATH_PREFIX}/`)) return undefined
+  return pathname.slice(BACKEND_GATEWAY_PATH_PREFIX.length)
+}

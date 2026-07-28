@@ -12,7 +12,7 @@ import { defineConfig, type ViteDevServer } from "vite"
 import { LUCIDE_TRANSFORM_IMPORT_OPTIONS } from "./scripts/lucide-deep-imports"
 import { reactCompilerModeForCommand } from "./scripts/react-compiler-mode"
 import { VITE_EAGER_DEPENDENCIES, VITE_EXCLUDED_DEPENDENCIES } from "./scripts/vite-dependency-policy"
-import { isBackendGatewayPath, readBackendGatewayTarget } from "./scripts/backend-gateway"
+import { backendGatewayTargetUrl, isBackendGatewayPath, readBackendGatewayTarget } from "./scripts/backend-gateway"
 
 const appSrc = path.resolve(__dirname, "./src")
 const oceanSrc = path.resolve(__dirname, "./vendor/ocean-dataview/src")
@@ -98,7 +98,11 @@ export function backendGatewayPlugin(
         }
 
         void readBackendGatewayTarget(targetPath).then((target) => {
-          const destination = new URL(request.url ?? "/", target.baseUrl)
+          const destination = backendGatewayTargetUrl(request.url ?? "/", target.baseUrl)
+          if (!destination) {
+            next()
+            return
+          }
           const send = destination.protocol === "https:" ? httpsRequest : httpRequest
           const proxyRequest = send(destination, {
             method: request.method,

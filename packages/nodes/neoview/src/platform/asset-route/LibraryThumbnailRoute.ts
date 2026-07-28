@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto"
 import type { ThumbnailAsset, ThumbnailLease } from "@xiranite/services/thumbnail-coordinator"
+import { appendUrlPath } from "@xiranite/shared"
 import pMap from "p-map"
 
 import {
@@ -347,7 +348,7 @@ export class LibraryThumbnailRoute {
   }
 
   #assetUrl(record: LibraryAssetRecord): string {
-    const url = new URL(`/reader/library/t/${encodeURIComponent(record.assetId)}`, this.#baseUrl)
+    const url = appendUrlPath(this.#baseUrl, `/reader/library/t/${encodeURIComponent(record.assetId)}`)
     url.searchParams.set("version", record.source.contentVersion)
     url.searchParams.set("token", this.#token)
     return url.href

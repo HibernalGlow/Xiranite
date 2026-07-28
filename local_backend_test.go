@@ -91,7 +91,7 @@ func TestInjectBackendConfig(t *testing.T) {
 	if !strings.Contains(result, `window.__XIRANITE_BACKEND__`) {
 		t.Fatalf("expected backend config script to be injected: %s", result)
 	}
-	if !strings.Contains(result, `"baseUrl":"http://wails.localhost"`) {
+	if !strings.Contains(result, `"baseUrl":"http://wails.localhost/_xiranite/backend"`) {
 		t.Fatalf("expected baseUrl in injected config: %s", result)
 	}
 	if !strings.Contains(result, `"token":"secret"`) {
@@ -124,7 +124,7 @@ func TestBackendGatewayProxiesBinaryResponsesAndSwitchesTargets(t *testing.T) {
 		},
 	)(http.NotFoundHandler())
 
-	request := httptest.NewRequest(http.MethodGet, "http://wails.localhost/reader/page?token=secret", nil)
+	request := httptest.NewRequest(http.MethodGet, wailsBackendPublicURL+"/reader/page?token=secret", nil)
 	request.Header.Set("Range", "bytes=0-3")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -137,7 +137,7 @@ func TestBackendGatewayProxiesBinaryResponsesAndSwitchesTargets(t *testing.T) {
 
 	current = &LocalBackendConfig{BaseURL: second.URL, Token: "secret"}
 	replacement := httptest.NewRecorder()
-	handler.ServeHTTP(replacement, httptest.NewRequest(http.MethodGet, "http://wails.localhost/health", nil))
+	handler.ServeHTTP(replacement, httptest.NewRequest(http.MethodGet, wailsBackendPublicURL+"/health", nil))
 	if replacement.Body.String() != "second" {
 		t.Fatalf("expected replacement backend response, got %q", replacement.Body.String())
 	}
@@ -204,7 +204,7 @@ func TestBackendGatewayPreservesJSONRequestBodies(t *testing.T) {
 				},
 			)(http.NotFoundHandler())
 
-			request := httptest.NewRequest(test.method, "http://wails.localhost"+test.path, strings.NewReader(test.body))
+			request := httptest.NewRequest(test.method, wailsBackendPublicURL+test.path, strings.NewReader(test.body))
 			request.Header.Set("Content-Type", "application/json")
 			// Wails reconstructs requests from a WebView2 stream without populating
 			// http.Request.ContentLength, so exercise that exact proxy shape.
@@ -218,16 +218,35 @@ func TestBackendGatewayPreservesJSONRequestBodies(t *testing.T) {
 	}
 }
 
-func TestBackendGatewayLeavesWailsRuntimeAndAssetsAlone(t *testing.T) {
-	for _, path := range []string{"/", "/assets/app.js", "/wails/runtime"} {
-		if isBackendGatewayPath(path) {
+func TestBackendGatewayOwnsOnlyItsReservedNamespace(t *testing.T) {
+	for _, path := range []string{"/", "/assets/app.js", "/wails/runtime", "/health", "/reader/s/1/page/2", "/file-deletions"} {
+		if _, ok := backendGatewayTargetPath(path); ok {
 			t.Fatalf("expected %s to remain owned by Wails", path)
 		}
 	}
-	for _, path := range []string{"/health", "/reader/s/1/page/2", "/workspace/snapshot", "/config", "/melodeck/library", "/melodeck/metadata"} {
-		if !isBackendGatewayPath(path) {
-			t.Fatalf("expected %s to be owned by backend gateway", path)
+	tests := map[string]string{
+		backendGatewayPathPrefix:                        "/",
+		backendGatewayPathPrefix + "/health":            "/health",
+		backendGatewayPathPrefix + "/file-deletions":    "/file-deletions",
+		backendGatewayPathPrefix + "/future-capability": "/future-capability",
+	}
+	for path, expected := range tests {
+		if target, ok := backendGatewayTargetPath(path); !ok || target != expected {
+			t.Fatalf("backendGatewayTargetPath(%q) = %q, %v; want %q, true", path, target, ok, expected)
 		}
+	}
+}
+
+func TestRewriteBackendGatewayPathPreservesEscapedPathAndQuery(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, wailsBackendPublicURL+"/reader/s/session%2F1?page=2", nil)
+	if !rewriteBackendGatewayPath(request.URL) {
+		t.Fatal("expected reserved namespace to be rewritten")
+	}
+	if request.URL.Path != "/reader/s/session/1" || request.URL.RawPath != "/reader/s/session%2F1" {
+		t.Fatalf("unexpected rewritten path: path=%q rawPath=%q", request.URL.Path, request.URL.RawPath)
+	}
+	if request.URL.RawQuery != "page=2" {
+		t.Fatalf("expected query to be preserved, got %q", request.URL.RawQuery)
 	}
 }
 

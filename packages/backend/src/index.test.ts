@@ -843,7 +843,7 @@ describe("backend", () => {
     const dataDir = await createTempDataDir()
     const bookDir = await mkdtemp(join(RUN_ROOT, "neoview-gateway-book-"))
     await writeFile(join(bookDir, "001.jpg"), ONE_PIXEL_PNG)
-    const publicBaseUrl = "http://wails.localhost"
+    const publicBaseUrl = "http://wails.localhost/_xiranite/backend"
     const backend = await startBackend({
       token: "stable-token",
       publicBaseUrl,
@@ -859,7 +859,7 @@ describe("backend", () => {
       })
       const session = await opened.json() as { visiblePages: Array<{ assetUrl: string }> }
       const publicAssetUrl = new URL(session.visiblePages[0]!.assetUrl)
-      expect(publicAssetUrl.origin).toBe(publicBaseUrl)
+      expect(publicAssetUrl.href).toMatch(/^http:\/\/wails\.localhost\/_xiranite\/backend\/reader\/s\//u)
       expect(publicAssetUrl.protocol).toBe("http:")
       expect(publicAssetUrl.searchParams.get("token")).toBe("stable-token")
     } finally {

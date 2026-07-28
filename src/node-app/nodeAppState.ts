@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { NodeSchema } from "@xiranite/contract"
-import { resolveLocalBackendConfig } from "@/backend/localBackendConfig"
+import { localBackendUrl, resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
 
 export function useNodeAppState(dataSchema: NodeSchema<Record<string, unknown>> | undefined, enabled: boolean) {
   const [data, setData] = useState<Record<string, unknown>>({})
@@ -45,7 +45,7 @@ export function useNodeAppState(dataSchema: NodeSchema<Record<string, unknown>> 
 
 async function requestState(dataSchema?: NodeSchema<Record<string, unknown>>): Promise<ParsedNodeAppState> {
   const config = resolveLocalBackendConfig()
-  const response = await fetch(endpoint(config.baseUrl, config.token), {
+  const response = await fetch(endpoint(config), {
     cache: "no-store",
     headers: config.token ? { "x-xiranite-token": config.token } : undefined,
   })
@@ -56,7 +56,7 @@ async function requestState(dataSchema?: NodeSchema<Record<string, unknown>>): P
 
 async function patchState(patch: Record<string, unknown>): Promise<Record<string, unknown>> {
   const config = resolveLocalBackendConfig()
-  const response = await fetch(endpoint(config.baseUrl, config.token), {
+  const response = await fetch(endpoint(config), {
     method: "PATCH",
     cache: "no-store",
     headers: { "content-type": "application/json", ...(config.token ? { "x-xiranite-token": config.token } : {}) },
@@ -69,7 +69,7 @@ async function patchState(patch: Record<string, unknown>): Promise<Record<string
 
 async function replaceState(data: Record<string, unknown>): Promise<Record<string, unknown>> {
   const config = resolveLocalBackendConfig()
-  const response = await fetch(endpoint(config.baseUrl, config.token), {
+  const response = await fetch(endpoint(config), {
     method: "PUT",
     cache: "no-store",
     headers: { "content-type": "application/json", ...(config.token ? { "x-xiranite-token": config.token } : {}) },
@@ -80,9 +80,9 @@ async function replaceState(data: Record<string, unknown>): Promise<Record<strin
   return isRecord(body.data) ? body.data : {}
 }
 
-function endpoint(baseUrl: string, token?: string): string {
-  const url = new URL("/node-app/state", baseUrl)
-  if (token) url.searchParams.set("token", token)
+function endpoint(config: LocalBackendConfig): string {
+  const url = localBackendUrl("/node-app/state", config)
+  if (config.token) url.searchParams.set("token", config.token)
   return url.href
 }
 

@@ -3,7 +3,7 @@ import type { AppNodeEntry, NodeHostApi, NodeRunEvent, NodeRunResult, NodeSchema
 import { NODE_HOST_CONTRACT_VERSION } from "@xiranite/contract"
 import { packageModuleLoaders } from "@/components/modules/packageModules.generated"
 import { useTheme } from "@/components/use-theme"
-import { hydrateLocalBackendConfig, localBackendFileUrl, type LocalBackendConfig } from "@/backend/localBackendConfig"
+import { hydrateLocalBackendConfig, localBackendFileUrl, localBackendUrl, type LocalBackendConfig } from "@/backend/localBackendConfig"
 import { copyLocalFilesToClipboard, listLocalFiles, pickLocalPaths, stageLocalFiles } from "@/backend/localFilesClient"
 import { cancelNodeOperationOnLocalBackend, runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
 import { getNodeConfigFromBackend, getNodePresetsFromBackend, getNodeUiConfigFromBackend, saveNodeConfigToBackend, saveNodeUiConfigToBackend } from "@/backend/configRpcClient"
@@ -146,7 +146,7 @@ async function checkNodeAppBackend(nodeId: string, snapshotId: string): Promise<
 }
 
 async function requestNodeAppHealth(config: LocalBackendConfig): Promise<{ nodeId?: string; snapshotId?: string }> {
-  const response = await fetch(new URL("/health", config.baseUrl), {
+  const response = await fetch(localBackendUrl("/health", config), {
     cache: "no-store",
     headers: config.token ? { "x-xiranite-token": config.token } : undefined,
   })
