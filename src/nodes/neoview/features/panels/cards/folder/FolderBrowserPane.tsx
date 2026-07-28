@@ -69,6 +69,7 @@ import type { FolderViewMode, FolderPreviewCount, SavedDirectoryState, FolderBro
 import { sameFolderPath, isSameFolderNavigationEntry, resolveFolderStartupPath, sameFolderOrChild } from "./FolderPathIdentity"
 import { folderEntryName } from "./FolderDirectoryListItem"
 import { useFolderThumbnailPipeline } from "./useFolderThumbnailPipeline"
+import { useFolderInlineBranchState } from "./useFolderInlineBranchState"
 import { useFolderSelectionController } from "./useFolderSelectionController"
 import { useFolderPenetrationPipeline } from "./useFolderPenetrationPipeline"
 import { useFolderEntryActivation } from "./useFolderEntryActivation"
@@ -209,11 +210,6 @@ export function FolderBrowserPane({
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
-  const [inlineBranch, setInlineBranch] = useState<{
-    path: string
-    traversalFrames: readonly ReaderActivationTraversalFrameDto[]
-  }>()
-  const inlineBranchPath = inlineBranch?.path
   const {
     penetration,
     descriptions: penetrationDescriptions,
@@ -229,6 +225,10 @@ export function FolderBrowserPane({
     viewMode,
     reportError: setError,
   })
+  const { inlineBranch, closeInlineBranch, toggleInlineBranch } = useFolderInlineBranchState(
+    active && penetration.enabled && penetration.expandBranchesInline,
+  )
+  const inlineBranchPath = inlineBranch?.path
   const { activate, cancelPendingActivation } = useFolderEntryActivation({
     client,
     catalogRef,
@@ -239,9 +239,6 @@ export function FolderBrowserPane({
     toggleInlineBranch,
     reportError: setError,
   })
-  useEffect(() => {
-    if (!active || !penetration.enabled || !penetration.expandBranchesInline) setInlineBranch(undefined)
-  }, [active, penetration.enabled, penetration.expandBranchesInline])
   const selectionController = useFolderSelectionController({
     catalog,
     catalogRef,
@@ -1051,14 +1048,8 @@ export function FolderBrowserPane({
 
   function enterRawDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void {
     cancelPendingActivation()
-    setInlineBranch(undefined)
+    closeInlineBranch()
     void navigate({ action: "path", path: entry.path }, { focusPath: entry.path })
-  }
-
-  function toggleInlineBranch(path?: string, traversalFrames?: readonly ReaderActivationTraversalFrameDto[]): void {
-    setInlineBranch((current) => path === undefined || sameFolderPath(current?.path ?? "", path) || !traversalFrames?.length
-      ? undefined
-      : { path, traversalFrames: traversalFrames.map((frame) => ({ ...frame })) })
   }
 
   /**
@@ -1101,7 +1092,7 @@ export function FolderBrowserPane({
 
   function beginNavigation(): number {
     cancelPendingActivation()
-    setInlineBranch(undefined)
+    closeInlineBranch()
     navigationRequestRef.current?.abort()
     catalogRequestRef.current?.abort()
     navigationRequestRef.current = new AbortController()
@@ -1207,7 +1198,7 @@ export function FolderBrowserPane({
   function disposeBrowser() {
     navigationGenerationRef.current += 1
     cancelPendingActivation()
-    setInlineBranch(undefined)
+    closeInlineBranch()
     navigationRequestRef.current?.abort()
     catalogRequestRef.current?.abort()
     releaseThumbnailContext()
@@ -1343,7 +1334,7 @@ export function FolderBrowserPane({
         updateHiddenFolders,
         updateMissingEfuEntries,
         updatePenetration,
-        closeInlineBranch: () => setInlineBranch(undefined),
+        closeInlineBranch,
         toggleTree,
         switchTreeLayout,
         toggleInlineTree,
