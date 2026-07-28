@@ -17,7 +17,7 @@ import type {
   ReaderDirectorySortPreferenceCommandDto,
   ReaderFolderTreeLayout,
 } from "../../../../adapters/reader-http-client"
-import type { ReaderPanelContext } from "../../registry"
+import type { ReaderFolderExternalOpenRequest, ReaderFolderExternalOpenResult, ReaderPanelContext } from "../../registry"
 import {
   createSearchDirectoryPage,
   isVirtualSearchPath,
@@ -72,6 +72,8 @@ import { useFolderPenetrationPipeline } from "./useFolderPenetrationPipeline"
 import { useFolderEntryActivation } from "./useFolderEntryActivation"
 import { useFolderNavigationEvents } from "./useFolderNavigationEvents"
 import { useFolderExternalDeletion } from "./useFolderExternalDeletion"
+import { openFolderBrowser } from "./FolderBrowserOpen"
+import { useFolderExternalOpenRequest } from "./useFolderExternalOpenRequest"
 import { FolderBrowserPaneView } from "./FolderBrowserPaneView"
 export { DirectoryListItem } from "./FolderDirectoryListItem"
 export { isSameFolderNavigationEntry } from "./FolderPathIdentity"
@@ -127,6 +129,8 @@ export function FolderBrowserPane({
   onOpenSearchInNewTab,
   currentFolderTabKind,
   onCloneProvider,
+  externalOpenRequest,
+  onExternalOpenResult,
 }: ReaderPanelContext & {
   active: boolean
   /** Selected folder tab, even when the File Card panel itself is hidden. */
@@ -149,6 +153,8 @@ export function FolderBrowserPane({
   initialClone?: FolderBrowserCloneSnapshot
   initialSearchSnapshot?: FolderSearchTabSnapshot
   onCloneProvider(provider?: FolderBrowserCloneProvider): void
+  externalOpenRequest?: ReaderFolderExternalOpenRequest
+  onExternalOpenResult?(result: ReaderFolderExternalOpenResult): void
 }) {
   const thumbnailsVisible = active && (panelVisible ?? true)
   const clipboard = useFolderClipboard()
@@ -431,52 +437,26 @@ export function FolderBrowserPane({
     }
   }, [catalog?.sessionId, catalog?.generation, restoreIndex, restoreState, viewMode])
 
-  async function openBrowser(path: string) {
-    const normalized = normalizeFolderNavigationPath(path)
-    if (!normalized || !client.openDirectoryBrowser) return
-    clearSearchSession()
-    setSearchOpen(false)
-    setTreeOpen(false)
-    const generation = beginNavigation()
-    setLoading(true)
-    setError(undefined)
-    retryOperationRef.current = { kind: "open", path: normalized }
-    try {
-      let opened = await client.openDirectoryBrowser(normalized, navigationRequestRef.current?.signal, undefined, true)
-      if (generation !== navigationGenerationRef.current) {
-        void client.closeDirectoryBrowser?.(opened.sessionId).catch(() => undefined)
-        return
-      }
-      const previous = sessionIdRef.current
-      if (previous && previous !== opened.sessionId) releaseThumbnailContext()
-      sessionIdRef.current = opened.sessionId
-      applyPage(opened)
-      retryOperationRef.current = undefined
-      if (previous && previous !== opened.sessionId) void client.closeDirectoryBrowser?.(previous).catch(() => undefined)
-      const preferredFilter = folderView.typeFilter ?? "library"
-      const showHiddenFolders = folderView.showHiddenFolders ?? false
-      const hideMissingEfuEntries = folderView.hideMissingEfuEntries ?? false
-      if (
-        client.filterDirectoryBrowser
-        && (preferredFilter !== opened.filter || showHiddenFolders || (opened.sourceKind === "efu" && hideMissingEfuEntries))
-      ) {
-        opened = await client.filterDirectoryBrowser(
-          opened.sessionId,
-          preferredFilter,
-          undefined,
-          navigationRequestRef.current?.signal,
-          showHiddenFolders,
-          hideMissingEfuEntries,
-        )
-        if (generation !== navigationGenerationRef.current) return
-        applyPage(opened)
-      }
-    } catch (cause) {
-      if (generation === navigationGenerationRef.current && !navigationRequestRef.current?.signal.aborted) setError(folderErrorMessage(cause))
-    } finally {
-      if (generation === navigationGenerationRef.current) setLoading(false)
-    }
-  }
+  const openBrowser = (path: string) => openFolderBrowser(path, {
+    client,
+    folderView,
+    clearSearchSession,
+    beginNavigation,
+    isCurrentGeneration: (generation) => generation === navigationGenerationRef.current,
+    navigationSignal: () => navigationRequestRef.current?.signal,
+    setSearchOpen,
+    setTreeOpen,
+    setLoading,
+    setError,
+    setOpenRetry: (retryPath) => { retryOperationRef.current = { kind: "open", path: retryPath } },
+    clearRetry: () => { retryOperationRef.current = undefined },
+    currentSessionId: () => sessionIdRef.current,
+    replaceSessionId: (sessionId) => { sessionIdRef.current = sessionId },
+    releaseThumbnailContext,
+    applyPage,
+  })
+
+  useFolderExternalOpenRequest(externalOpenRequest, openBrowser, onExternalOpenResult)
 
   function restoreClonedBrowser(snapshot: FolderBrowserCloneSnapshot) {
     navigationStatesRef.current = new Map(snapshot.navigationStates)

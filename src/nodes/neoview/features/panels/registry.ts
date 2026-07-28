@@ -63,6 +63,17 @@ export interface ReaderFileMutationPreparation {
   restore(): Promise<void>
 }
 
+export interface ReaderFolderExternalOpenRequest {
+  requestId: string
+  path: string
+}
+
+export interface ReaderFolderExternalOpenResult {
+  requestId: string
+  opened: boolean
+  message?: string
+}
+
 export interface ReaderPanelContext {
   session?: ReaderSessionDto
   client: ReaderHttpClient
@@ -91,6 +102,9 @@ export interface ReaderPanelContext {
   onActivateInFolderCard?(path: string): boolean | void
   onOpenInNewTab?(path: string): void
   folderNavigationEvents?: EventTarget
+  /** A launch request that Folder must acknowledge only after its own session opens. */
+  externalFolderOpenRequest?: ReaderFolderExternalOpenRequest
+  onExternalFolderOpenResult?(result: ReaderFolderExternalOpenResult): void
   pickDirectory?: () => Promise<string | undefined>
   pickEfuFile?: () => Promise<string | undefined>
   systemActions?: {

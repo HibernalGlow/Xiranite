@@ -10,7 +10,7 @@ import {
   DEFAULT_READER_RADIAL_MENU_CONFIG,
 } from "@xiranite/node-neoview/ui-core"
 
-import type { ReaderHttpClient, ReaderRuntimeConfigDto, ReaderSessionDto } from "../adapters/reader-http-client"
+import type { ReaderDirectoryPageDto, ReaderHttpClient, ReaderRuntimeConfigDto, ReaderSessionDto } from "../adapters/reader-http-client"
 import { ReaderApp } from "./ReaderApp"
 import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
 
@@ -56,6 +56,120 @@ test("[neoview.workspace.startup-mode-gui] keeps the fallback swimlane usable wh
   await expect.element(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
   expect(document.querySelector('[data-neoview-workspace-mode="swimlane"]')).not.toBeNull()
   expect(document.querySelector('[data-reader-workspace-loading="true"]')).toBeNull()
+})
+
+test("[neoview.external-launch.gui] opens an external target and reports the accepted request only after Reader opens it", async () => {
+  const open = vi.fn(async () => readerSession())
+  const onExternalOpenResult = vi.fn()
+  const client = {
+    config: vi.fn(async () => deleteNextRuntimeConfig()),
+    open,
+    close: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 1200, height: 800 }}>
+      <ReaderApp
+        sessionScopeId="browser-external-launch"
+        client={client}
+        externalOpenRequest={{ requestId: "launch-1", path: "D:/books/external.cbz", kind: "file" }}
+        onExternalOpenResult={onExternalOpenResult}
+      />
+    </div>,
+  )
+
+  await expect.poll(() => open).toHaveBeenCalledWith("D:/books/external.cbz", expect.any(AbortSignal), undefined)
+  await expect.element(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+  await expect.poll(() => onExternalOpenResult).toHaveBeenCalledWith({ requestId: "launch-1", opened: true })
+})
+
+test("[neoview.external-launch.gui] routes an external directory to Folder without creating a Reader session", async () => {
+  const open = vi.fn(async () => readerSession())
+  const directory = deferred<ReaderDirectoryPageDto>()
+  const openDirectoryBrowser = vi.fn(() => directory.promise)
+  const onExternalOpenResult = vi.fn()
+  const client = {
+    config: vi.fn(async () => deleteNextRuntimeConfig()),
+    open,
+    openDirectoryBrowser,
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+    close: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 1200, height: 800 }}>
+      <ReaderApp
+        sessionScopeId="browser-external-directory"
+        client={client}
+        externalOpenRequest={{ requestId: "launch-directory", path: "D:/books/library", kind: "directory" }}
+        onExternalOpenResult={onExternalOpenResult}
+      />
+    </div>,
+  )
+
+  await expect.poll(() => openDirectoryBrowser).toHaveBeenCalledWith(
+    "D:/books/library",
+    expect.any(AbortSignal),
+    undefined,
+    true,
+  )
+  expect(onExternalOpenResult).not.toHaveBeenCalled()
+  directory.resolve(directoryPage({ path: "D:/books/library" }))
+  await expect.poll(() => onExternalOpenResult).toHaveBeenCalledWith({ requestId: "launch-directory", opened: true })
+  expect(open).not.toHaveBeenCalled()
+})
+
+test("[neoview.external-launch.gui] opens an external directory after Reader is already displaying a file", async () => {
+  const directory = deferred<ReaderDirectoryPageDto>()
+  const open = vi.fn(async () => readerSession())
+  const openDirectoryBrowser = vi.fn(() => directory.promise)
+  const onExternalOpenResult = vi.fn()
+  const runtimeConfig = deleteNextRuntimeConfig()
+  runtimeConfig.shell.workspace.swimlane.lanes.left.activePanelId = "pageList"
+  const client = {
+    config: vi.fn(async () => runtimeConfig),
+    open,
+    openDirectoryBrowser,
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+    close: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  const view = await render(
+    <div style={{ width: 1200, height: 800 }}>
+      <ReaderApp
+        sessionScopeId="browser-external-directory-after-reader"
+        initialPath="D:/books/current.cbz"
+        client={client}
+        onExternalOpenResult={onExternalOpenResult}
+      />
+    </div>,
+  )
+
+  await page.getByRole("button", { name: "打开书籍" }).click()
+  await expect.element(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+
+  await view.rerender(
+    <div style={{ width: 1200, height: 800 }}>
+      <ReaderApp
+        sessionScopeId="browser-external-directory-after-reader"
+        initialPath="D:/books/current.cbz"
+        client={client}
+        externalOpenRequest={{ requestId: "launch-directory-after-reader", path: "D:/books/next-library", kind: "directory" }}
+        onExternalOpenResult={onExternalOpenResult}
+      />
+    </div>,
+  )
+
+  await expect.poll(() => openDirectoryBrowser).toHaveBeenCalledWith(
+    "D:/books/next-library",
+    expect.any(AbortSignal),
+    undefined,
+    true,
+  )
+  expect(onExternalOpenResult).not.toHaveBeenCalled()
+  directory.resolve(directoryPage({ path: "D:/books/next-library" }))
+  await expect.poll(() => onExternalOpenResult).toHaveBeenCalledWith({ requestId: "launch-directory-after-reader", opened: true })
+  expect(open).toHaveBeenCalledOnce()
 })
 
 test("[neoview.viewer.cursor-auto-hide-config-gui] applies the configured keyboard wake behavior to the reader viewport", async () => {
@@ -231,6 +345,35 @@ function readerSession({
       assetUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
     }],
   }
+}
+
+function directoryPage(overrides: Partial<ReaderDirectoryPageDto> = {}): ReaderDirectoryPageDto {
+  return {
+    sessionId: "browser-directory-1",
+    navigationEntryId: 1,
+    path: "D:/books/library",
+    entries: [],
+    cursor: 0,
+    total: 0,
+    canGoBack: false,
+    canGoForward: false,
+    generation: 1,
+    sort: { field: "name", order: "asc", directoriesFirst: true },
+    sortFields: ["name", "date", "size", "type", "random", "path"],
+    metadataFields: [],
+    sortSource: "global-default",
+    sortTemporary: false,
+    globalDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
+    tabDefaultSort: { field: "name", order: "asc", directoriesFirst: true },
+    watching: false,
+    ...overrides,
+  }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => { resolve = nextResolve })
+  return { promise, resolve }
 }
 
 function deleteNextRuntimeConfig(): ReaderRuntimeConfigDto {

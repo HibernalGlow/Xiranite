@@ -197,6 +197,8 @@ export interface ReaderAppProps {
   sessionScopeId?: string
   initialPath?: string
   initialBrowserOriginPath?: string
+  externalOpenRequest?: ReaderExternalOpenRequest
+  onExternalOpenResult?: (result: ReaderExternalOpenResult) => void
   initialSwimlaneSoloLaneId?: string | null
   initialReaderViewFullscreen?: boolean
   client?: ReaderHttpClient
@@ -208,6 +210,18 @@ export interface ReaderAppProps {
   onPathCommitted?: (path: string, browserOriginPath?: string) => void
   onSwimlaneSoloLaneIdCommitted?: (laneId: string | null) => void
   onReaderViewFullscreenCommitted?: (fullscreen: boolean) => void
+}
+
+export interface ReaderExternalOpenRequest {
+  requestId: string
+  path: string
+  kind: "file" | "directory"
+}
+
+export interface ReaderExternalOpenResult {
+  requestId?: string
+  opened: boolean
+  message?: string
 }
 export function DeferredSidebarFloatingController({ control, shell, disabled }: { control: ReaderShellControlPort; shell: ReaderShellConfigDto; disabled: boolean }) {
   const enabled = useSyncExternalStore(

@@ -114,6 +114,16 @@ export function ReaderSidebar({
       : new Set([...current, activePanel as LegacyPanelId])))
   }, [activePanel])
 
+  // An external directory launch must reach Folder even when its panel is not
+  // active. Keep the panel visually hidden so this does not alter the user's
+  // workspace selection, while allowing Folder to acknowledge the request.
+  useEffect(() => {
+    if (side !== "left" || !context.externalFolderOpenRequest) return
+    setMountedPanels((current) => (current.has("folder")
+      ? current
+      : new Set([...current, "folder"])))
+  }, [context.externalFolderOpenRequest?.requestId, side])
+
   // Control panel can ship 8+ expanded cards. Never use an idle timeout here:
   // that turns a busy reader frame into a forced burst of lazy card mounts.
   const activeCards = useMemo(
@@ -258,7 +268,9 @@ export function ReaderSidebar({
               {cards.map((card, cardIndex) => {
                 const Card = lazyReaderCard(card.id)
                 const cardLayout = shell?.cardLayout[card.id]
-                const expanded = cardLayout?.expanded ?? true
+                const expanded = card.id === "folder-main" && context.externalFolderOpenRequest
+                  ? true
+                  : cardLayout?.expanded ?? true
                 if (!Card) return null
                 if (expanded && !exclusive && !mountedCardIds.has(card.id)) {
                   return (

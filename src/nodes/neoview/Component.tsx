@@ -21,8 +21,8 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
   const initialActivationRootPath = initialState?.activationRootPath ?? undefined
   const initialSwimlaneSoloLaneId = initialState?.swimlaneSoloLaneId
   const initialReaderViewFullscreen = initialState?.readerViewFullscreen
-  const [externalLaunch, setExternalLaunch] = useState<{ requestId: string; path: string }>()
-  const activePath = externalLaunch?.path ?? initialPath
+  const [externalLaunches, setExternalLaunches] = useState<Array<{ requestId: string; path: string; kind: "file" | "directory" }>>([])
+  const externalLaunch = externalLaunches[0]
 
   // Track true instance lifetime only. Do NOT depend on initialPath: openPath
   // commits path into host state and would fake unmount/remount mid-read.
@@ -49,9 +49,7 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
       if (!isNeoViewExternalLaunchRequest(request)) return
       try {
         const path = localPathFromExternalLaunchURI(request.targets[0]!.uri)
-        host.state.patchData({ path, browserOriginPath: null, activationRootPath: path })
-        setExternalLaunch({ requestId: request.requestId, path })
-        void acknowledgeExternalLaunch(request.requestId, true)
+        setExternalLaunches((pending) => [...pending, { requestId: request.requestId, path, kind: request.targets[0]!.kind }])
       } catch (cause) {
         void acknowledgeExternalLaunch(request.requestId, false, errorMessage(cause))
       }
@@ -68,10 +66,14 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
   return (
     <ReaderApp
       sessionScopeId={compId}
-      key={externalLaunch?.requestId ?? "initial"}
-      initialPath={activePath}
+      initialPath={initialPath}
       initialBrowserOriginPath={initialBrowserOriginPath}
-      initialActivationRootPath={externalLaunch?.path ?? initialActivationRootPath}
+      initialActivationRootPath={initialActivationRootPath}
+      externalOpenRequest={externalLaunch}
+      onExternalOpenResult={(result) => {
+        void acknowledgeExternalLaunch(result.requestId!, result.opened, result.message)
+        setExternalLaunches((pending) => pending.filter((launch) => launch.requestId !== result.requestId))
+      }}
       initialSwimlaneSoloLaneId={initialSwimlaneSoloLaneId}
       initialReaderViewFullscreen={initialReaderViewFullscreen}
       pickFile={host.localFiles?.pickFiles
