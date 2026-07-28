@@ -177,6 +177,7 @@ export interface FolderBrowserPaneViewProps {
     focusedIndexRef: RefObject<number | undefined>
     chainAnchorIndexRef: RefObject<number | undefined>
     listRef: RefObject<VirtuosoHandle | null>
+    listScrollerRef: RefObject<HTMLElement | null>
     gridRef: RefObject<VirtuosoGridHandle | null>
     mosaicRef: RefObject<VirtuosoHandle | null>
     listHostRef: RefObject<HTMLDivElement | null>
@@ -241,7 +242,6 @@ export interface FolderBrowserPaneViewProps {
     emptyAreaHandlers: ReturnType<typeof useFolderEmptyAreaNavigation>
   }
 }
-
 export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderBrowserPaneViewProps) {
   const {
     client, disabled, active, sourcePath, browserPath, tabBar, folderTabCount, maxFolderTabs,
@@ -259,7 +259,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     sessionId, searchRootPath, pendingSearchSnapshot, inlineBranchAnchorPath, inlineBranchContentPath, inlineBranchTraversalFrames,
   } = state
   const {
-    catalogRef, focusedIndexRef, chainAnchorIndexRef, listRef, gridRef, mosaicRef, listHostRef,
+    catalogRef, focusedIndexRef, chainAnchorIndexRef, listRef, listScrollerRef, gridRef, mosaicRef, listHostRef,
     detailsScrollTopRef, gridSnapshotRef, gridScrollTopRef, mosaicScrollTopRef,
   } = refs
   const {
@@ -781,7 +781,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         catalog={catalog} viewSpec={entryViewSpec} virtualKey={virtualKey} disabled={disabled}
                         selectedPaths={selectedPaths} focusedIndex={focusedIndex} itemIdPrefix={itemIdPrefix}
                         thumbnailStore={thumbnailStore} penetrationFiles={penetrationDescriptions}
-                        listRef={listRef} gridRef={gridRef} mosaicRef={mosaicRef}
+                        listRef={listRef} listScrollerRef={listScrollerRef} gridRef={gridRef} mosaicRef={mosaicRef}
                         restoreState={restoreState} restoreIndex={restoreIndex} shouldLocateRestore={shouldLocateRestore}
                         inlineBranchPath={inlineBranchAnchorPath} inlineBranch={inlineBranchContent}
                         showReturnFooter={showReturnFooter} returnFooterContext={returnFooterContext}

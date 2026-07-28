@@ -433,6 +433,72 @@ test("[neoview.folder.open-keeps-scroll-gui] keeps the File Card viewport when o
   expect(scroller!.scrollTop).toBe(scrollTopBeforeOpen)
 })
 
+test("[neoview.folder.reader-navigation-refresh-keeps-scroll-gui] keeps the File Card viewport when a watched deletion follows Reader navigation", async () => {
+  const entries = Array.from({ length: 100 }, (_, index) => ({
+    name: `item-${index}.cbz`,
+    path: `C:/books/item-${index}.cbz`,
+    kind: "file" as const,
+    readerSupported: true,
+  }))
+  const opened = directoryPage({ entries, total: entries.length, watching: true })
+  const waits: Array<{ resolve(page: ReaderDirectoryPageDto): void; signal: AbortSignal }> = []
+  const watchDirectoryBrowser = vi.fn((_sessionId: string, _generation: number, _focusPath?: string, signal?: AbortSignal) => (
+    new Promise<ReaderDirectoryPageDto>((resolve) => waits.push({ resolve, signal: signal! }))
+  ))
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => opened),
+    watchDirectoryBrowser,
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+  let advanceReader!: () => void
+
+  function Harness() {
+    const [sourcePath, setSourcePath] = useState("C:/books")
+    advanceReader = () => setSourcePath("C:/books/item-2.cbz")
+    return (
+      <FolderMainCard
+        client={client}
+        disabled={false}
+        sourcePath={sourcePath}
+        onOpen={vi.fn()}
+        onGoTo={vi.fn()}
+      />
+    )
+  }
+
+  await render(
+    <div style={{ width: 900, height: 600 }}>
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <Harness />
+      </VirtuosoMockContext.Provider>
+    </div>,
+  )
+
+  await expect.element(page.getByText("item-0.cbz", { exact: true })).toBeVisible()
+  await expect.poll(() => waits).toHaveLength(1)
+  advanceReader()
+  await expect.poll(() => document.querySelector('[data-folder-path="C:/books/item-2.cbz"]')?.getAttribute("data-focused")).toBe("true")
+
+  const scroller = document.querySelector<HTMLElement>('[data-testid="virtuoso-scroller"]')
+  expect(scroller).not.toBeNull()
+  scroller!.scrollTo({ top: 34 * 40 })
+  await expect.poll(() => scroller!.scrollTop).toBeGreaterThan(1_000)
+  const scrollTopBeforeRefresh = scroller!.scrollTop
+
+  waits[0]!.resolve(directoryPage({
+    entries: entries.slice(0, -1),
+    total: entries.length - 1,
+    generation: 2,
+    watching: true,
+    suggestedSelection: { path: "C:/books/item-2.cbz", index: 2 },
+  }))
+
+  await expect.poll(() => document.querySelector('[data-neoview-folder-card="true"]')?.getAttribute("data-selection-total")).toBe("99")
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  expect(document.querySelector<HTMLElement>('[data-testid="virtuoso-scroller"]')).toBe(scroller)
+  expect(scroller!.scrollTop).toBe(scrollTopBeforeRefresh)
+})
+
 test("[neoview.folder.delete-sibling-keeps-reader-gui] deleting an earlier sibling through bindings keeps the current reader file focused", async () => {
   const opened = directoryPage({
     entries: [
