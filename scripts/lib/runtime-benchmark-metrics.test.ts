@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 
-import { EventLoopDelaySampler, ProcessResourceSampler, summarize } from "./runtime-benchmark-metrics"
+import { EventLoopDelaySampler, ProcessResourceSampler, ProcessTreeSampler, summarize } from "./runtime-benchmark-metrics"
 
 describe("runtime benchmark metrics", () => {
   it("summarizes latency percentiles deterministically", () => {
@@ -28,5 +28,35 @@ describe("runtime benchmark metrics", () => {
     expect(eventLoopSummary.max).toBeGreaterThanOrEqual(0)
     expect(processSummary.elapsedMs).toBeGreaterThan(0)
     expect(processSummary.rssPeakMiB).toBeGreaterThan(0)
+    expect(processResources.samples().length).toBeGreaterThan(1)
+    expect(processResources.samples()[0]).toMatchObject({
+      timestampMs: expect.any(Number),
+      rssBytes: expect.any(Number),
+      heapUsedBytes: expect.any(Number),
+      externalBytes: expect.any(Number),
+      arrayBuffersBytes: expect.any(Number),
+    })
+  })
+
+  it("streams Windows process-tree samples without one-shot sampling gaps", async () => {
+    if (process.platform !== "win32") return
+    const sampler = new ProcessTreeSampler(process.pid, 500, { refreshTreeIntervalMs: 0 })
+    let stopped = false
+    sampler.start()
+    try {
+      await sampler.waitForFirstSample()
+      await Bun.sleep(1_800)
+      const summary = await sampler.stop()
+      stopped = true
+      const samples = sampler.samples()
+      const gaps = samples.slice(1).map((sample, index) => sample.timestampMs - samples[index]!.timestampMs)
+      expect(summary.available).toBe(true)
+      expect(samples.length).toBeGreaterThanOrEqual(3)
+      expect(Math.max(...gaps)).toBeLessThanOrEqual(1_000)
+      expect(summary.peakPrivateMiB).toBeGreaterThan(0)
+      expect(samples.every((sample) => sample.rootPrivateBytes > 0)).toBe(true)
+    } finally {
+      if (!stopped) await sampler.stop()
+    }
   })
 })
