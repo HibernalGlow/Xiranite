@@ -1,4 +1,4 @@
-import { ArrowRightLeft, ClipboardList, Copy, FolderCheck, FolderInput, FolderSymlink, MoveRight, Play, Workflow } from "lucide-react"
+import { ArrowRightLeft, ClipboardList, Copy, FolderCheck, FolderInput, FolderSymlink, MoveRight, Play, Trash2, Workflow } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { ClassfAction, ClassfClassifyMode, ClassfPlacementMode, ClassfTransferMode } from "@xiranite/node-classf/core"
 
@@ -55,6 +55,12 @@ export const CLASSIFY_MODES: ClassfModeMeta[] = [
     label: "Already only",
     description: "Selected items go to already, without wait candidates.",
     icon: FolderCheck,
+  },
+  {
+    value: "del",
+    label: "Del only",
+    description: "Only blacklisted artists are routed to del.",
+    icon: Trash2,
   },
 ]
 

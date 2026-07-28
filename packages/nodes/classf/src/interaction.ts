@@ -17,7 +17,7 @@ export function createClassfInteractionSchema(defaults: Partial<ClassfInteractio
       { id: "placementMode", label: text("放置位置", "Placement"), kind: "select", options: [{ value: "local", label: text("文件所在目录", "Beside each file") }, { value: "root", label: text("给定根目录（保留相对路径）", "Target root (preserve paths)") }] },
       { id: "targetDir", label: text("分流目标根目录", "Classification target root"), kind: "text" },
       { id: "transferMode", label: text("迁移方式", "Transfer mode"), kind: "select", options: [{ value: "move", label: text("移动", "Move") }, { value: "copy", label: text("复制", "Copy") }] },
-      { id: "classifyMode", label: text("分类模式", "Classify mode"), kind: "select", options: [{ value: "auto", label: text("already + wait", "Already + wait") }, { value: "only", label: text("仅 already", "Already only") }] },
+      { id: "classifyMode", label: text("分类模式", "Classify mode"), kind: "select", options: [{ value: "auto", label: text("already + wait", "Already + wait") }, { value: "only", label: text("仅 already", "Already only") }, { value: "del", label: text("仅 del", "Del only") }] },
       { id: "existingPolicy", label: text("现有项目策略", "Existing policy"), kind: "select", options: [{ value: "merge", label: text("合并", "Merge") }, { value: "skip", label: text("跳过", "Skip") }] },
       { id: "workItemMode", label: text("作品类型", "Work item type"), kind: "select", options: [{ value: "files", label: text("压缩包文件", "Archive files") }, { value: "folders", label: text("已解压文件夹", "Extracted folders") }, { value: "mixed", label: text("压缩包 + 文件夹", "Archives + folders") }] },
       { id: "blacklistKeywordsText", label: text("黑名单作者", "Blacklisted authors"), kind: "multiline", lines: 5 },

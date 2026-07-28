@@ -33,6 +33,8 @@ import { CONFIG_FIELDS } from "./types"
 import { BlacklistKeywordsEditor } from "./BlacklistKeywordsEditor"
 import { analyzeClassfPlan } from "./planAnalysis"
 
+const SINGLE_LINE_PATH_TEXTAREA = { minHeight: 36, maxHeight: 36 }
+
 export function Component({ compId, host }: NodeComponentProps<ClassfCardState>) {
   "use no memo"
   const surface = useNodeSurface()
@@ -90,7 +92,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
   useEffect(() => {
     if (!defaults) return
     setConfigDirty(CONFIG_FIELDS.some((field) => String(data[field] ?? "") !== String(defaults[field] ?? "")))
-  }, [data.pathsText, data.targetDir, data.transferMode, data.classifyMode, data.placementMode, data.existingPolicy, data.workItemMode, data.blacklistKeywords, data.dryRun, data.sameaGroupEnabled, data.sameaGroupMinOccurrences, data.sameaGroupCentralize, defaults])
+  }, [data.pathsText, data.targetDir, data.transferMode, data.classifyMode, data.placementMode, data.existingPolicy, data.workItemMode, data.blacklistKeywords, data.blacklistHistoryMinDeletions, data.dryRun, data.sameaGroupEnabled, data.sameaGroupMinOccurrences, data.sameaGroupCentralize, defaults])
 
   function patch(patchData: Partial<ClassfCardState>) {
     dataRef.current = { ...dataRef.current, ...patchData }
@@ -105,6 +107,19 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
   async function pastePaths() {
     const text = await host.clipboard?.readText?.()
     if (text) patch({ pathsText: text.trim() })
+  }
+
+  async function importDeletionHistoryCsv() {
+    const localFiles = host.localFiles
+    if (!localFiles?.pickFiles) throw new Error(tNode("blacklist.historyImportUnsupported", "当前宿主不支持选择本地 CSV 文件。"))
+    const [path] = await localFiles.pickFiles({
+      title: tNode("blacklist.pickDeletionHistory", "选择删除历史 CSV"),
+      filters: [{ displayName: "Xiranite deletion history (*.csv)", pattern: "*.csv" }],
+    })
+    if (!path) return undefined
+    const response = await fetch(localFiles.getUrl(path), { cache: "no-store" })
+    if (!response.ok) throw new Error(tNode("blacklist.historyReadFailed", "无法读取 {{path}}：HTTP {{status}}", { path, status: response.status }))
+    return { path, csv: await response.text() }
   }
 
   async function copyResults() {
@@ -199,6 +214,7 @@ export function Component({ compId, host }: NodeComponentProps<ClassfCardState>)
     onCopyLogs: copyLogs,
     onCopyResults: copyResults,
     onExecute: execute,
+    onImportDeletionHistory: importDeletionHistoryCsv,
     onPastePaths: pastePaths,
     onPatch: patch,
     onReset: reset,
@@ -242,6 +258,7 @@ interface ViewProps {
   onCopyLogs: () => void
   onCopyResults: () => void
   onExecute: (action?: ClassfAction) => void
+  onImportDeletionHistory: () => Promise<{ path: string; csv: string } | undefined>
   onPastePaths: () => void
   onPatch: (patch: Partial<ClassfCardState>) => void
   onReset: () => void
@@ -275,7 +292,7 @@ function CompactView(props: ViewProps) {
       <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 pb-3">
         <ActionMode value={props.action} disabled={props.running} t={props.tNode} onChange={props.onActionChange} />
         <ModeToggle value={props.data.classifyMode ?? "auto"} disabled={props.running} t={props.tNode} onChange={(classifyMode) => props.onPatch({ classifyMode })} />
-        <PathInput compact data={props.data} disabled={props.running} t={props.tNode} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+        <PathInput compact data={props.data} disabled={props.running} t={props.tNode} onImportDeletionHistory={props.onImportDeletionHistory} onPaste={props.onPastePaths} onPatch={props.onPatch} />
         <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} planCurrent={props.planCurrent} result={props.result} runningItem={props.data.runningItem} t={props.tNode} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
       </div>
     </div>
@@ -287,7 +304,7 @@ function PortraitView(props: ViewProps) {
     <div data-testid="classf-portrait-view" className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col gap-2 p-2">
       <div className="flex shrink-0 items-start justify-between gap-2"><HeaderLine status={props.status} subtitle={props.data.progressText || summaryText(props)} /><RunButton compact props={props} /></div>
       <ActionMode value={props.action} disabled={props.running} t={props.tNode} onChange={props.onActionChange} />
-      <PathInput compact data={props.data} disabled={props.running} t={props.tNode} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+      <PathInput compact data={props.data} disabled={props.running} t={props.tNode} onImportDeletionHistory={props.onImportDeletionHistory} onPaste={props.onPastePaths} onPatch={props.onPatch} />
       <ModeToggle value={props.data.classifyMode ?? "auto"} disabled={props.running} t={props.tNode} onChange={(classifyMode) => props.onPatch({ classifyMode })} />
       <TargetField compact data={props.data} disabled={props.running} t={props.tNode} onPatch={props.onPatch} />
       <div className="min-h-0 flex-1"><ResultTabs compact logs={props.logs} planCurrent={props.planCurrent} result={props.result} runningItem={props.data.runningItem} t={props.tNode} onCopyLogs={props.onCopyLogs} onCopyResults={props.onCopyResults} /></div>
@@ -299,7 +316,7 @@ function FullView(props: ViewProps) {
   const sourcesPanel = (
     <div data-testid="classf-scan-sources" className="h-full min-h-0">
       <ModulePanel fill icon={FolderInput} title={props.tNode("sections.scanSources", "Scan sources")}>
-        <PathInput data={props.data} disabled={props.running} t={props.tNode} onPaste={props.onPastePaths} onPatch={props.onPatch} />
+        <PathInput data={props.data} disabled={props.running} t={props.tNode} onImportDeletionHistory={props.onImportDeletionHistory} onPaste={props.onPastePaths} onPatch={props.onPatch} />
         <ModeToggle value={props.data.classifyMode ?? "auto"} disabled={props.running} t={props.tNode} onChange={(classifyMode) => props.onPatch({ classifyMode })} />
         <TargetField data={props.data} disabled={props.running} t={props.tNode} onPatch={props.onPatch} />
       </ModulePanel>
@@ -383,7 +400,7 @@ function ActionMode(props: { disabled?: boolean; value: ClassfAction; t: ViewPro
 
 function ModeToggle(props: { disabled?: boolean; value: ClassfClassifyMode; t: ViewProps["tNode"]; onChange: (value: ClassfClassifyMode) => void }) {
   return (
-    <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as ClassfClassifyMode)} className="grid grid-cols-2" size="sm">
+    <ToggleGroup type="single" value={props.value} disabled={props.disabled} onValueChange={(value) => value && props.onChange(value as ClassfClassifyMode)} className="grid grid-cols-3" size="sm">
       {CLASSIFY_MODES.map((item) => <ToggleGroupItem key={item.value} value={item.value} className="min-w-0 gap-1"><item.icon /><span className="truncate text-xs">{props.t(`classifyModes.${item.value}`, item.label)}</span></ToggleGroupItem>)}
     </ToggleGroup>
   )
@@ -397,7 +414,7 @@ function TransferToggle(props: { disabled?: boolean; value: ClassfTransferMode; 
   )
 }
 
-function PathInput(props: { compact?: boolean; data: ClassfCardState; disabled?: boolean; t: ViewProps["tNode"]; onPaste: () => void; onPatch: (patch: Partial<ClassfCardState>) => void }) {
+function PathInput(props: { compact?: boolean; data: ClassfCardState; disabled?: boolean; t: ViewProps["tNode"]; onImportDeletionHistory: ViewProps["onImportDeletionHistory"]; onPaste: () => void; onPatch: (patch: Partial<ClassfCardState>) => void }) {
   return (
     <div className="grid gap-1.5">
       {!props.compact && <Label htmlFor="classf-paths" className="text-xs">{props.t("fields.sameaRoots", "SameA 归档来源")}</Label>}
@@ -407,11 +424,11 @@ function PathInput(props: { compact?: boolean; data: ClassfCardState; disabled?:
         <ToggleGroupItem value="mixed" className="gap-1"><Layers3 /><span className="text-xs">{props.t("workItemModes.mixed", "混合")}</span></ToggleGroupItem>
       </ToggleGroup>
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-        <PathTextarea id="classf-paths" aria-label="classf paths" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-14" : "h-28")} disabled={props.disabled} placeholder={props.t("placeholders.sameaRoots", "每行一个文件或文件夹\nD:/set/reviewed.zip")} value={props.data.pathsText ?? ""} onValueChange={(pathsText) => props.onPatch({ pathsText })} />
+        <PathTextarea id="classf-paths" aria-label="classf paths" autoResize={SINGLE_LINE_PATH_TEXTAREA} className="h-9 min-h-9 max-h-9 resize-none font-mono text-xs" disabled={props.disabled} placeholder={props.t("placeholders.sameaRoots", "例如 D:/set/reviewed.zip")} value={props.data.pathsText ?? ""} onValueChange={(pathsText) => props.onPatch({ pathsText })} />
         <div className="grid content-start gap-1.5"><IconButton disabled={props.disabled} icon={Clipboard} label={props.t("actions.paste", "粘贴路径")} onClick={props.onPaste} /><IconButton disabled={props.disabled || !props.data.pathsText} icon={Trash2} label={props.t("actions.clearPaths", "清空路径")} onClick={() => props.onPatch({ pathsText: "" })} /></div>
       </div>
-      <Textarea aria-label="classf crashu sources" className={cn("min-h-0 resize-none font-mono text-xs", props.compact ? "h-12" : "h-20")} disabled={props.disabled} placeholder={props.t("placeholders.crashuSources", "CrashU 来源目录，每行一个；留空使用默认库")} value={props.data.crashuSourcesText ?? ""} onChange={(event) => props.onPatch({ crashuSourcesText: event.currentTarget.value })} />
-      <BlacklistKeywordsEditor data={props.data} disabled={props.disabled} t={props.t} onPatch={props.onPatch} />
+      <Textarea aria-label="classf crashu sources" className="h-9 min-h-9 max-h-9 resize-none overflow-y-auto font-mono text-xs" disabled={props.disabled} placeholder={props.t("placeholders.crashuSources", "CrashU 来源目录，每行一个；留空使用默认库")} rows={1} value={props.data.crashuSourcesText ?? ""} onChange={(event) => props.onPatch({ crashuSourcesText: event.currentTarget.value })} />
+      <BlacklistKeywordsEditor data={props.data} disabled={props.disabled} t={props.t} onImportDeletionHistory={props.onImportDeletionHistory} onPatch={props.onPatch} />
       <div className="grid gap-1.5">
         <SwitchRow checked={props.data.sameaGroupEnabled ?? false} disabled={props.disabled} icon={FolderTree} label={props.t("fields.sameaGroup", "already / wait 画师分组")} onCheckedChange={(sameaGroupEnabled) => props.onPatch({ sameaGroupEnabled })} />
         {props.data.sameaGroupEnabled && <div className="flex items-center justify-between gap-2 rounded-md border bg-card px-2 py-1.5"><Label htmlFor="classf-samea-group-min" className="text-xs text-muted-foreground">{props.t("fields.sameaGroupMin", "画师最少文件数")}</Label><Input id="classf-samea-group-min" aria-label="classf samea group minimum" type="number" min={1} max={100} className="h-7 w-20 text-xs" disabled={props.disabled} value={props.data.sameaGroupMinOccurrences ?? 1} onChange={(event) => props.onPatch({ sameaGroupMinOccurrences: Math.max(1, Number(event.currentTarget.value) || 1) })} /></div>}

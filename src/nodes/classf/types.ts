@@ -14,6 +14,7 @@ export interface ClassfCardState {
   dryRun?: boolean
   workItemMode?: ClassfWorkItemMode
   blacklistKeywords?: string[]
+  blacklistHistoryMinDeletions?: number
   sameaGroupEnabled?: boolean
   sameaGroupMinOccurrences?: number
   sameaGroupCentralize?: boolean
@@ -45,6 +46,7 @@ export const CONFIG_FIELDS = [
   "dryRun",
   "workItemMode",
   "blacklistKeywords",
+  "blacklistHistoryMinDeletions",
   "sameaGroupEnabled",
   "sameaGroupMinOccurrences",
   "sameaGroupCentralize",
