@@ -90,7 +90,7 @@ test("[neoview.folder.inline-branch-browser] opens a branch drawer directly belo
   expect(drawer?.parentElement).toBe(branchElement?.parentElement)
   expect(drawer?.compareDocumentPosition(laterElement!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   await expect.poll(() => document.body.textContent).toContain("chapter-one")
-  await expect.poll(() => (document.querySelector('[data-folder-inline-branch="true"]') as HTMLElement | null)?.style.height).toBe("192px")
+  await expect.poll(() => (document.querySelector('[data-folder-inline-branch="true"]') as HTMLElement | null)?.style.height).toBe("194px")
   await expect.poll(() => {
     const inlineDrawer = document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')
     const laterEntry = document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/later"]')
@@ -358,6 +358,50 @@ test("[neoview.folder.inline-branch-cover-grid] keeps the drawer mounted while i
   expect(drawer.parentElement?.getAttribute("data-folder-inline-grid-drawer")).toBe("true")
 })
 
+test("[neoview.folder.inline-branch-cover-grid] does not return to the top after scrolling beyond the drawer", async () => {
+  await renderExpandedBranch("cover-grid", { width: 360, rootEntryCount: 48 })
+  const grid = document.querySelector<HTMLElement>('[data-folder-navigation-entry-id="1"]')
+  if (!grid) throw new Error("Expected the cover-grid scroller")
+
+  const expectedScrollTop = Math.min(1_400, grid.scrollHeight - grid.clientHeight)
+  expect(expectedScrollTop).toBeGreaterThan(480)
+  grid.scrollTop = expectedScrollTop
+  grid.dispatchEvent(new Event("scroll", { bubbles: true }))
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  await expect.poll(() => grid.scrollTop).toBe(expectedScrollTop)
+})
+
+test("[neoview.folder.inline-branch-cover-grid] preserves the current scroll position when the drawer opens", async () => {
+  const expectedScrollTop = 1_400
+  let branchBeforeExpansion: HTMLElement | undefined
+  await renderExpandedBranch("cover-grid", {
+    width: 360,
+    rootEntryCount: 48,
+    branchIndex: 24,
+    initialScrollTop: expectedScrollTop,
+    beforeExpand: (branch) => { branchBeforeExpansion = branch },
+  })
+  const drawer = document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')
+  const grid = drawer?.closest<HTMLElement>('[data-folder-navigation-entry-id="1"]')
+  const branchAfterExpansion = document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/series"]')
+
+  await expect.poll(() => grid?.scrollTop).toBe(expectedScrollTop)
+  expect(branchAfterExpansion).toBe(branchBeforeExpansion)
+})
+
+test("[neoview.folder.inline-branch-cover-list] preserves the current scroll position when the drawer opens", async () => {
+  const expectedScrollTop = 1_400
+  await renderExpandedBranch("cover-list", {
+    rootEntryCount: 48,
+    branchIndex: 24,
+    initialScrollTop: expectedScrollTop,
+  })
+  const drawer = document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')
+  const list = drawer?.closest<HTMLElement>('[data-testid="virtuoso-scroller"]')
+
+  await expect.poll(() => list?.scrollTop).toBe(expectedScrollTop)
+})
+
 test("[neoview.folder.inline-branch-banner] keeps the banner renderer inside the drawer", async () => {
   await renderExpandedBranch("mosaic-list")
   await expect.poll(() => document.querySelector('[data-folder-inline-branch="true"] [data-preview-mode="mosaic-list"]')).not.toBeNull()
@@ -373,6 +417,17 @@ test("[neoview.folder.inline-branch-height] uses the content height for a small 
   await expect.poll(() => (document.querySelector('[data-folder-inline-branch="true"]') as HTMLElement | null)?.style.height).toBe("82px")
 })
 
+test("[neoview.folder.inline-branch-height] adapts grid height to the number of rows at the current width", async () => {
+  const narrowView = await renderExpandedBranch("cover-grid", { width: 360, childEntryCount: 8 })
+  const narrowHeight = Number.parseFloat(document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')?.style.height ?? "0")
+  await narrowView.unmount()
+
+  await renderExpandedBranch("cover-grid", { width: 960, childEntryCount: 8 })
+  const wideHeight = Number.parseFloat(document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')?.style.height ?? "0")
+
+  expect(narrowHeight).toBeGreaterThan(wideHeight)
+})
+
 test("[neoview.folder.inline-branch-height] caps a large expanded folder to the current card listing area", async () => {
   await renderExpandedBranch("cover-list", { childEntryCount: 10 })
   await expect.poll(() => {
@@ -385,7 +440,21 @@ test("[neoview.folder.inline-branch-height] caps a large expanded folder to the 
 
 async function renderExpandedBranch(
   viewMode: ReaderFolderViewMode,
-  { width = 960, rootEntryCount = 2, childEntryCount = 2 }: { width?: number; rootEntryCount?: number; childEntryCount?: number } = {},
+  {
+    width = 960,
+    rootEntryCount = 2,
+    childEntryCount = 2,
+    branchIndex = 0,
+    initialScrollTop = 0,
+    beforeExpand,
+  }: {
+    width?: number
+    rootEntryCount?: number
+    childEntryCount?: number
+    branchIndex?: number
+    initialScrollTop?: number
+    beforeExpand?(branch: HTMLElement): void
+  } = {},
 ) {
   const rootEntries = [
     { name: "series", path: "C:/books/series", kind: "directory" as const, readerSupported: true },
@@ -396,6 +465,10 @@ async function renderExpandedBranch(
       readerSupported: true,
     })),
   ]
+  if (branchIndex > 0) {
+    const [branch] = rootEntries.splice(0, 1)
+    if (branch) rootEntries.splice(Math.min(branchIndex, rootEntries.length), 0, branch)
+  }
   const childEntries = Array.from({ length: childEntryCount }, (_, index) => ({
     name: index === 0 ? "chapter-one" : `chapter-${index + 1}`,
     path: index === 0 ? "C:/books/series/chapter-one" : `C:/books/series/chapter-${index + 1}`,
@@ -446,9 +519,26 @@ async function renderExpandedBranch(
     </div>,
   )
 
+  if (initialScrollTop > 0) {
+    const scrollerSelector = viewMode === "mosaic-list" || viewMode.endsWith("grid")
+      ? '[data-folder-navigation-entry-id="1"]'
+      : '[data-testid="virtuoso-scroller"]'
+    await expect.poll(() => document.querySelector<HTMLElement>(scrollerSelector)).not.toBeNull()
+    const scroller = document.querySelector<HTMLElement>(scrollerSelector)
+    if (!scroller) throw new Error("Expected the expandable folder inside a virtual scroller")
+    await expect.poll(() => scroller.scrollHeight > scroller.clientHeight, { timeout: 3_000 }).toBe(true)
+    scroller.scrollTop = initialScrollTop
+    scroller.dispatchEvent(new Event("scroll", { bubbles: true }))
+    await expect.poll(() => scroller.scrollTop).toBe(initialScrollTop)
+  }
   await expect.poll(() => document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/series"]')).not.toBeNull()
-  document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/series"]')?.click()
+  const branch = document.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/series"]')
+  if (!branch) throw new Error("Expected the expandable folder entry")
+  beforeExpand?.(branch)
+  branch.click()
   await expect.poll(() => document.querySelector('[data-folder-inline-branch="true"]')?.getAttribute("data-folder-inline-branch-path")).toBe("C:/books/series")
+  await expect.poll(() => document.body.textContent).toContain("chapter-one")
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
   return view
 }
 
