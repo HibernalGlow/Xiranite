@@ -1,6 +1,11 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useSyncExternalStore } from "react"
 import type { ExternalNodeLaunchRequest, NodeComponentProps } from "@xiranite/contract"
 
+import {
+  completeExternalNodeLaunch,
+  externalNodeLaunchSnapshot,
+  subscribeToExternalNodeLaunches,
+} from "@/external-node-host/externalNodeLaunchDelivery"
 import { ReaderApp } from "./app/ReaderApp"
 import { neoviewDebug, noteNeoviewMount, noteNeoviewUnmount } from "./neoviewDebug"
 
@@ -21,8 +26,23 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
   const initialActivationRootPath = initialState?.activationRootPath ?? undefined
   const initialSwimlaneSoloLaneId = initialState?.swimlaneSoloLaneId
   const initialReaderViewFullscreen = initialState?.readerViewFullscreen
-  const [externalLaunches, setExternalLaunches] = useState<Array<{ requestId: string; path: string; kind: "file" | "directory" }>>([])
-  const externalLaunch = externalLaunches[0]
+  const externalRequest = useSyncExternalStore(
+    subscribeToExternalNodeLaunches,
+    externalNodeLaunchSnapshot,
+    externalNodeLaunchSnapshot,
+  )
+  const externalLaunch = useMemo(() => {
+    if (!externalRequest || !isNeoViewExternalLaunchRequest(externalRequest)) return undefined
+    try {
+      return {
+        requestId: externalRequest.requestId,
+        path: localPathFromExternalLaunchURI(externalRequest.targets[0]!.uri),
+        kind: externalRequest.targets[0]!.kind,
+      }
+    } catch {
+      return undefined
+    }
+  }, [externalRequest])
 
   // Track true instance lifetime only. Do NOT depend on initialPath: openPath
   // commits path into host state and would fake unmount/remount mid-read.
@@ -44,19 +64,10 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
   }, [compId])
 
   useEffect(() => {
-    const onExternalLaunch = (event: Event) => {
-      const request = (event as CustomEvent<unknown>).detail
-      if (!isNeoViewExternalLaunchRequest(request)) return
-      try {
-        const path = localPathFromExternalLaunchURI(request.targets[0]!.uri)
-        setExternalLaunches((pending) => [...pending, { requestId: request.requestId, path, kind: request.targets[0]!.kind }])
-      } catch (cause) {
-        void acknowledgeExternalLaunch(request.requestId, false, errorMessage(cause))
-      }
-    }
-    window.addEventListener("xiranite:external-node-launch", onExternalLaunch)
-    return () => window.removeEventListener("xiranite:external-node-launch", onExternalLaunch)
-  }, [host.state])
+    if (!externalRequest || externalLaunch) return
+    void acknowledgeExternalLaunch(externalRequest.requestId, false, "NeoView external launch accepts only local file: targets.")
+    completeExternalNodeLaunch(externalRequest.requestId)
+  }, [externalLaunch, externalRequest])
 
   useEffect(() => {
     if (!initialPath) return
@@ -72,7 +83,7 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
       externalOpenRequest={externalLaunch}
       onExternalOpenResult={(result) => {
         void acknowledgeExternalLaunch(result.requestId!, result.opened, result.message)
-        setExternalLaunches((pending) => pending.filter((launch) => launch.requestId !== result.requestId))
+        completeExternalNodeLaunch(result.requestId!)
       }}
       initialSwimlaneSoloLaneId={initialSwimlaneSoloLaneId}
       initialReaderViewFullscreen={initialReaderViewFullscreen}
@@ -135,8 +146,4 @@ async function acknowledgeExternalLaunch(requestId: string, accepted: boolean, m
   } catch {
     // Workspace and ordinary standalone hosts intentionally do not expose this method.
   }
-}
-
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause)
 }

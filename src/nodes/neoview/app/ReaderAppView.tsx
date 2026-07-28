@@ -278,6 +278,7 @@ export function ReaderAppView({ context }: { context: any }) {
     persistFolderView,
     closeSession,
     prepareFileMutation,
+    deleteThroughInputBinding,
     requestDeleteCurrentFile,
     deleteCurrentFile,
     toggleWorkspaceMode,
@@ -530,6 +531,7 @@ export function ReaderAppView({ context }: { context: any }) {
       onOpen: openPath,
       onBrowsePath: browsePath,
       onPrepareFileMutation: prepareFileMutation,
+      onDeleteThroughBinding: deleteThroughInputBinding,
       onActivateInFolderCard: activateInFolderCard,
       onOpenInNewTab: openFolderPathInNewTab,
       folderNavigationEvents,
@@ -571,7 +573,8 @@ export function ReaderAppView({ context }: { context: any }) {
       presentation,
       ...(session ? { session } : {}),
     }
-    const leftEdge: ReaderControlledEdgeSlot | undefined = shell && shell.edges.left.enabled ? {
+    const externalFolderLaunchActive = Boolean(externalFolderOpenRequest)
+    const leftEdge: ReaderControlledEdgeSlot | undefined = shell && (shell.edges.left.enabled || externalFolderLaunchActive) ? {
       ariaLabel: "NeoView 左侧面板",
       showDelayMs: shell?.showDelayMs ?? 80,
       hideDelayMs: shell?.hideDelayMs,
@@ -579,7 +582,7 @@ export function ReaderAppView({ context }: { context: any }) {
       preload: () => void loadReaderSidebar(),
       render: (active) => (
         <Suspense fallback={<div className="h-full w-80 animate-pulse border-r border-border/70 bg-background/85" aria-label="正在加载左侧面板" />}>
-          <LazyReaderSidebar side="left" context={panelContext} shell={shell} active={active} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} onCardLayoutCommit={(patch) => void commitCardLayout(patch)} />
+          <LazyReaderSidebar side="left" context={panelContext} shell={shell} active={active} selectedPanelId={externalFolderLaunchActive ? "folder" : undefined} onLayoutCommit={(patch) => void commitSidebarLayout(patch)} onCardLayoutCommit={(patch) => void commitCardLayout(patch)} />
         </Suspense>
       ),
     } : undefined
@@ -727,7 +730,7 @@ export function ReaderAppView({ context }: { context: any }) {
                         presentation="lane"
                         context={panelContext}
                         shell={shell}
-                        selectedPanelId={workspace.swimlane.lanes.left.activePanelId}
+                        selectedPanelId={externalFolderLaunchActive ? "folder" : workspace.swimlane.lanes.left.activePanelId}
                         onSelectedPanelChange={(activePanelId) => commitWorkspace({ lanes: { left: { activePanelId } } })}
                         onPanelBarChange={(patch) => commitWorkspace({ lanes: { left: patch } })}
                         onCardLayoutCommit={(patch) => void commitCardLayout(patch)}

@@ -6,9 +6,13 @@ const readerProps = vi.hoisted(() => ({ current: undefined as Record<string, unk
 const acknowledge = vi.hoisted(() => vi.fn(async () => undefined))
 vi.mock("./app/ReaderApp", () => ({ ReaderApp: (props: Record<string, unknown>) => { readerProps.current = props; return null } }))
 vi.mock("@wailsio/runtime", () => ({ Call: { ByName: acknowledge } }))
+import { publishExternalNodeLaunch, resetExternalNodeLaunchDeliveryForTests } from "@/external-node-host/externalNodeLaunchDelivery"
 import { Component, type NeoViewCardState } from "./Component"
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  resetExternalNodeLaunchDeliveryForTests()
+})
 
 it("[neoview.book-information.host-clipboard] passes only the host clipboard writer into ReaderApp", () => {
   const writeText = vi.fn(async () => undefined)
@@ -75,7 +79,7 @@ it("persists the two fullscreen states independently in the NeoView Card state",
   expect(patchData).toHaveBeenCalledWith({ readerViewFullscreen: false })
 })
 
-it("queues an external launch and acknowledges the Reader result instead of accepting before the target opens", async () => {
+it("keeps a reused external launch available across a NeoView subtree recreation", async () => {
   const patchData = vi.fn()
   const host = {
     state: { getData: () => ({ path: "D:/books/current.cbz" }), patchData },
@@ -85,17 +89,16 @@ it("queues an external launch and acknowledges the Reader result instead of acce
   Object.assign(window, { _wails: {} })
   acknowledge.mockClear()
 
-  render(<Component compId="neoview-external" host={host} />)
+  const first = render(<Component compId="neoview-external" host={host} />)
   await act(async () => {
-    window.dispatchEvent(new CustomEvent("xiranite:external-node-launch", {
-      detail: {
-        version: 1,
-        requestId: "external-1",
-        nodeId: "neoview",
-        intent: "open",
-        targets: [{ kind: "file", uri: "file:///D:/books/external.cbz" }],
-      },
-    }))
+    publishExternalNodeLaunch({
+      version: 1,
+      requestId: "external-1",
+      source: "explorer",
+      nodeId: "neoview",
+      intent: "open",
+      targets: [{ kind: "file", uri: "file:///D:/books/external.cbz" }],
+    })
   })
 
   expect(readerProps.current).toMatchObject({
@@ -111,4 +114,27 @@ it("queues an external launch and acknowledges the Reader result instead of acce
     { requestId: "external-1", accepted: false, message: "Unsupported file type." },
   ))
   expect(patchData).not.toHaveBeenCalled()
+
+  await act(async () => {
+    publishExternalNodeLaunch({
+      version: 1,
+      requestId: "external-directory",
+      source: "explorer",
+      nodeId: "neoview",
+      intent: "open",
+      targets: [{ kind: "directory", uri: "file:///D:/books/library" }],
+    })
+  })
+  first.unmount()
+  render(<Component compId="neoview-external" host={host} />)
+  expect(readerProps.current).toMatchObject({
+    externalOpenRequest: { requestId: "external-directory", path: "D:/books/library", kind: "directory" },
+  })
+
+  const onDirectoryResult = readerProps.current?.onExternalOpenResult as (result: { requestId: string; opened: boolean; message?: string }) => void
+  await act(async () => onDirectoryResult({ requestId: "external-directory", opened: true }))
+  await waitFor(() => expect(acknowledge).toHaveBeenCalledWith(
+    "main.XiraniteService.AcknowledgeExternalNodeLaunch",
+    { requestId: "external-directory", accepted: true, message: undefined },
+  ))
 })

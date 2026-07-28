@@ -119,6 +119,40 @@ test("[neoview.external-launch.gui] routes an external directory to Folder witho
   expect(open).not.toHaveBeenCalled()
 })
 
+test("[neoview.external-launch.gui] mounts Folder for an external directory even when the left edge is disabled", async () => {
+  const directory = deferred<ReaderDirectoryPageDto>()
+  const openDirectoryBrowser = vi.fn(() => directory.promise)
+  const onExternalOpenResult = vi.fn()
+  const runtimeConfig = deleteNextRuntimeConfig()
+  runtimeConfig.shell.edges.left.enabled = false
+  runtimeConfig.shell.workspace.mode = "edges"
+  const client = {
+    config: vi.fn(async () => runtimeConfig),
+    openDirectoryBrowser,
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 1200, height: 800 }}>
+      <ReaderApp
+        sessionScopeId="browser-external-directory-closed-left-edge"
+        client={client}
+        externalOpenRequest={{ requestId: "launch-directory-closed-left-edge", path: "D:/books/library", kind: "directory" }}
+        onExternalOpenResult={onExternalOpenResult}
+      />
+    </div>,
+  )
+
+  await expect.poll(() => openDirectoryBrowser).toHaveBeenCalledWith(
+    "D:/books/library",
+    expect.any(AbortSignal),
+    undefined,
+    true,
+  )
+  directory.resolve(directoryPage({ path: "D:/books/library" }))
+  await expect.poll(() => onExternalOpenResult).toHaveBeenCalledWith({ requestId: "launch-directory-closed-left-edge", opened: true })
+})
+
 test("[neoview.external-launch.gui] opens an external directory after Reader is already displaying a file", async () => {
   const directory = deferred<ReaderDirectoryPageDto>()
   const open = vi.fn(async () => readerSession())
