@@ -1,4 +1,4 @@
-import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderOpen, PanelsTopLeft, Pencil, Pin, PinOff, RefreshCw, Scissors, Tags, Trash2, Undo2 } from "lucide-react"
+import { BookOpen, BookmarkPlus, ClipboardPaste, Copy, ExternalLink, FileText, FolderInput, FolderOpen, PanelsTopLeft, Pencil, Pin, PinOff, RefreshCw, Scissors, Tags, Trash2, Undo2 } from "lucide-react"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 
 import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
@@ -10,6 +10,7 @@ import type { ReaderPanelContext } from "../../registry"
 import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
 import { useFolderClipboard } from "./FolderClipboard"
 import type { FolderCatalogUpdater } from "./FolderEmmEditor"
+import { runDissolvefFolder } from "./FolderDissolvefAction"
 import { createOptimisticFolderDeletion } from "./FolderOptimisticDeletion"
 
 const FolderRenameDialog = lazy(() => import("./FolderRenameDialog"))
@@ -152,6 +153,25 @@ export default function FolderContextActions({
         await onUndoFileDeletion()
       } catch (error) {
         setFeedback({ kind: "alert", text: errorMessage(error) })
+      } finally {
+        setPending(false)
+      }
+      return
+    }
+    if (action === "dissolve") {
+      if (entry.kind !== "directory") return
+      setPending(true)
+      setFeedback(undefined)
+      try {
+        await runDissolvefFolder(entry.path)
+        await onRefreshDirectory?.()
+        const message = `已解散 ${entry.name}`
+        setFeedback({ kind: "status", text: message })
+        switchToast?.show({ title: message })
+      } catch (error) {
+        const message = `解散文件夹失败：${errorMessage(error)}`
+        setFeedback({ kind: "alert", text: message })
+        switchToast?.show({ title: message })
       } finally {
         setPending(false)
       }
@@ -394,6 +414,7 @@ type FolderContextAction =
   | "trash"
   | "delete"
   | "undo-delete"
+  | "dissolve"
   | "refresh"
   | "reload-thumbnail"
 
@@ -570,6 +591,21 @@ export function buildFolderContextMenuItems(
           icon: options.treePinned ? <PinOff /> : <Pin />,
           disabled: unavailable,
           onSelect: options.onToggleTreePin,
+        } satisfies ContextMenuItemDef]
+      : []),
+    ...(entry.kind === "directory"
+      ? [{
+          id: "neoview-folder-dissolve",
+          label: "解散当前文件夹",
+          icon: <FolderInput />,
+          disabled: unavailable,
+          confirm: {
+            title: "解散当前文件夹？",
+            description: `“${entry.name}”中的内容将移到上级目录，随后删除该文件夹。可通过 Dissolvef 操作历史撤销。`,
+            confirmLabel: "解散当前文件夹",
+            cancelLabel: "取消",
+          },
+          onSelect: () => options.onAction("dissolve", entry),
         } satisfies ContextMenuItemDef]
       : []),
     { type: "separator" },
