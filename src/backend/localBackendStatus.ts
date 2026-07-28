@@ -1,6 +1,6 @@
 import { createXiraniteSystemClient } from "@xiranite/api/client"
 import { getRuntimeConnectionInfo, type RuntimeConnectionInfo } from "./runtimeConnectionInfo"
-import { hydrateLocalBackendConfig, resolveLocalBackendConfig, type LocalBackendConfig } from "./localBackendConfig"
+import { hydrateLocalBackendConfig, resolveLocalBackendConfig, setLocalBackendConfig, type LocalBackendConfig } from "./localBackendConfig"
 
 export type LocalBackendStatusKind = "ready" | "missing-config" | "unreachable"
 
@@ -30,7 +30,10 @@ export async function checkLocalBackendStatus(timeoutMs = DEFAULT_HEALTH_TIMEOUT
 
   try {
     const health = await checkHealth(config, timeoutMs)
-    if (health.instanceId) config = { ...config, instanceId: health.instanceId }
+    if (health.instanceId) {
+      config = { ...config, instanceId: health.instanceId }
+      setLocalBackendConfig(config)
+    }
     return { status: "ready", runtime, config }
   } catch (error) {
     return unreachable(runtime, config, error)

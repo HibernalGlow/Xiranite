@@ -1,5 +1,6 @@
 import { localBackendUrl, resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
 import { createReaderExplorerContextMenuClient } from "./reader-http-explorer-context-menu-client"
+import { readerShellMutationCoordinator } from "./reader-shell-mutation-coordinator"
 import type * as Contract from "./reader-http-contract"
 export class ReaderHttpError extends Error {
   constructor(
@@ -11,8 +12,7 @@ export class ReaderHttpError extends Error {
   }
 }
 export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig = resolveLocalBackendConfig): Contract.ReaderHttpClient {
-  const request = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
-    const config = resolveConfig()
+  const requestWithConfig = async <T>(config: LocalBackendConfig, path: string, init: RequestInit = {}): Promise<T> => {
     const url = localBackendUrl(path, config)
     const headers = new Headers(init.headers)
     if (config.token) headers.set("x-xiranite-token", config.token)
@@ -21,36 +21,35 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
     if (response.status === 204) return undefined as T
     return (await response.json()) as T
   }
+  const request = <T>(path: string, init: RequestInit = {}): Promise<T> => requestWithConfig<T>(resolveConfig(), path, init)
+  const readConfig = (signal?: AbortSignal): Promise<Contract.ReaderRuntimeConfigDto> => {
+    const config = resolveConfig()
+    return shellCoordinator(config).read(
+      () => requestWithConfig<Contract.ReaderRuntimeConfigDto>(config, "/reader/config", { signal }),
+      signal,
+    )
+  }
+  const updateShell = (
+    patch: Contract.ReaderSidebarLayoutPatch | Contract.ReaderCardLayoutPatch | Contract.ReaderBoardLayoutPatch | Contract.ReaderShellControlPatch,
+    requiresRevision: boolean,
+    signal?: AbortSignal,
+  ): Promise<Contract.ReaderShellConfigDto> => {
+    const config = resolveConfig()
+    const load = () => requestWithConfig<Contract.ReaderRuntimeConfigDto>(config, "/reader/config", { signal })
+    return shellCoordinator(config).write(requiresRevision, load, (revision) => {
+      const body = "expectedRevision" in patch && revision !== undefined ? { ...patch, expectedRevision: revision } : patch
+      return requestWithConfig<{ shell: Contract.ReaderShellConfigDto }>(config, "/reader/config", {
+        method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal,
+      }).then((value) => value.shell)
+    }, signal)
+  }
+  const shellCoordinator = (config: LocalBackendConfig) => readerShellMutationCoordinator(`${localBackendUrl("/reader/config", config)}\n${config.token ?? ""}\n${config.instanceId ?? ""}`)
   return {
-    config: (signal) => request<Contract.ReaderRuntimeConfigDto>("/reader/config", { signal }), startupState: (signal) => request<Contract.ReaderStartupStateDto>("/reader/startup-state", { signal }),
-    updateSidebarLayout: (patch, signal) =>
-      request<{ shell: Contract.ReaderShellConfigDto }>("/reader/config", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(patch),
-        signal,
-      }).then((value) => value.shell),
-    updateCardLayout: (patch, signal) =>
-      request<{ shell: Contract.ReaderShellConfigDto }>("/reader/config", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(patch),
-        signal,
-      }).then((value) => value.shell),
-    updateBoardLayout: (patch, signal) =>
-      request<{ shell: Contract.ReaderShellConfigDto }>("/reader/config", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(patch),
-        signal,
-      }).then((value) => value.shell),
-    updateShellControl: (patch, signal) =>
-      request<{ shell: Contract.ReaderShellConfigDto }>("/reader/config", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(patch),
-        signal,
-      }).then((value) => value.shell),
+    config: readConfig, startupState: (signal) => request<Contract.ReaderStartupStateDto>("/reader/startup-state", { signal }),
+    updateSidebarLayout: (patch, signal) => updateShell(patch, false, signal),
+    updateCardLayout: (patch, signal) => updateShell(patch, false, signal),
+    updateBoardLayout: (patch, signal) => updateShell(patch, true, signal),
+    updateShellControl: (patch, signal) => updateShell(patch, true, signal),
     updateViewDefaults: (patch, signal) =>
       request<Contract.ReaderRuntimeConfigDto>("/reader/config", {
         method: "PATCH",
