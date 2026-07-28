@@ -237,22 +237,15 @@ export function FolderBrowserPane({
     if (!active || !penetration.enabled || !penetration.expandBranchesInline) setInlineBranchPath(undefined)
   }, [active, penetration.enabled, penetration.expandBranchesInline])
   const selectionController = useFolderSelectionController({
-    client,
     catalog,
     catalogRef,
     visibleRangeRef,
     viewMode,
-    disabled,
-    loading,
     penetrationEnabled: penetration.enabled,
     listRef,
     gridRef,
     mosaicRef,
-    listHostRef,
-    requestRange,
-    navigate,
     activate,
-    setSearchOpen,
   })
   const {
     selection,
@@ -271,12 +264,9 @@ export function FolderBrowserPane({
     setFocusedIndex,
     focusedIndexRef,
     chainAnchorIndexRef,
-    pendingKeyboardCommandRef,
     toggleMultiSelectMode,
     selectEntry,
     scrollToDirectoryIndex,
-    handleDirectoryKeyDown,
-    runFocusedKeyboardEntry,
   } = selectionController
   const selectedPaths = useMemo(() => (catalog ? selectedLoadedDirectoryPaths(selection, catalog.pages) : EMPTY_SELECTED_PATHS), [catalog, selection])
   const thumbnailPipeline = useFolderThumbnailPipeline({
@@ -309,10 +299,6 @@ export function FolderBrowserPane({
     releaseContext: releaseThumbnailContext,
   } = thumbnailPipeline
   const itemIdPrefix = catalog?.sessionId
-  const focusedItemId =
-    catalog && focusedIndex !== undefined && viewMode !== "details" && directoryEntryAt(catalog, focusedIndex)
-      ? `${itemIdPrefix}-item-${focusedIndex}`
-      : undefined
   const emptyAreaHandlers = useFolderEmptyAreaNavigation(folderView.emptyArea, (action) => {
     runFolderNavigation(action, catalogRef.current, (command) => {
       void navigate(command)
@@ -826,19 +812,6 @@ export function FolderBrowserPane({
             const center = Math.floor((visibleRangeRef.current.startIndex + visibleRangeRef.current.endIndex) / 2)
             commitCatalog(trimDirectoryPages(merged, center, MAX_CACHED_PAGES))
             requestPenetrationDescriptions(visibleRangeRef.current, merged)
-            const pending = pendingKeyboardCommandRef.current
-            if (pending && pending.generation === merged.generation && pending.index >= 0) {
-              const pendingEntry = directoryEntryAt(merged, pending.index)
-              if (pendingEntry) {
-                pendingKeyboardCommandRef.current = undefined
-                queueMicrotask(() => {
-                  const latest = catalogRef.current
-                  if (latest?.generation === pending.generation) {
-                    runFocusedKeyboardEntry(pending.kind, latest, pending.index)
-                  }
-                })
-              }
-            }
             queueMicrotask(registerVisibleThumbnails)
           })
           .catch((cause) => {
@@ -1119,7 +1092,6 @@ export function FolderBrowserPane({
     catalogRequestRef.current?.abort()
     navigationRequestRef.current = new AbortController()
     pendingCursorsRef.current.clear()
-    pendingKeyboardCommandRef.current = undefined
     navigationGenerationRef.current += 1
     return navigationGenerationRef.current
   }
@@ -1318,7 +1290,6 @@ export function FolderBrowserPane({
         renameRequest,
         focusedPath,
         focusedIndex,
-        focusedItemId,
         itemIdPrefix,
         clipboard,
         canRetry: Boolean(retryOperationRef.current),
@@ -1387,7 +1358,6 @@ export function FolderBrowserPane({
         applySearchListing,
         closeSearchChrome,
         requestRange,
-        handleDirectoryKeyDown,
         selectEntry,
         emptyAreaHandlers,
       }}
