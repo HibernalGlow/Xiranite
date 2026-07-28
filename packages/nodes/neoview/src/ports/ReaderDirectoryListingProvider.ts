@@ -13,7 +13,7 @@ export interface ReaderDirectoryEntry {
   width?: number
   height?: number
   pageCount?: number
-  /** True only after a direct child-entry probe confirms the directory is empty. */
+  /** True only after a full directory-tree probe confirms it has no non-directory entries. */
   directoryEmpty?: boolean
   tags?: readonly string[]
   collectTags?: readonly string[]

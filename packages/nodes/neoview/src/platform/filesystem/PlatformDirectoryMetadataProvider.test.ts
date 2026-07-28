@@ -29,24 +29,33 @@ describe("PlatformDirectoryMetadataProvider", () => {
     expect(entries[1]?.size).toBeUndefined()
   })
 
-  it("[neoview.folder.empty-directory] checks only the direct contents of visible directory entries", async () => {
+  it("[neoview.folder.empty-directory] recognizes recursively empty trees and stops at nested content", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-folder-empty-"))
     directories.push(root)
     const empty = join(root, "empty")
+    const recursivelyEmpty = join(root, "recursively-empty")
     const populated = join(root, "populated")
+    const nestedContent = join(root, "nested-content")
     await mkdir(empty)
+    await mkdir(join(recursivelyEmpty, "one", "two", "three"), { recursive: true })
     await mkdir(populated)
+    await mkdir(join(nestedContent, "one", "two", "three"), { recursive: true })
     await writeFile(join(populated, "cover.jpg"), "image")
+    await writeFile(join(nestedContent, "one", "two", "three", "cover.jpg"), "image")
     const provider = new PlatformDirectoryMetadataProvider()
 
     const entries = await provider.hydrate([
       { name: "empty", path: empty, kind: "directory", readerSupported: true },
+      { name: "recursively-empty", path: recursivelyEmpty, kind: "directory", readerSupported: true },
       { name: "populated", path: populated, kind: "directory", readerSupported: true },
+      { name: "nested-content", path: nestedContent, kind: "directory", readerSupported: true },
     ], new Set(["directoryEmpty"]))
 
     expect(entries).toEqual([
       expect.objectContaining({ path: empty, directoryEmpty: true }),
+      expect.objectContaining({ path: recursivelyEmpty, directoryEmpty: true }),
       expect.objectContaining({ path: populated, directoryEmpty: false }),
+      expect.objectContaining({ path: nestedContent, directoryEmpty: false }),
     ])
   })
 
