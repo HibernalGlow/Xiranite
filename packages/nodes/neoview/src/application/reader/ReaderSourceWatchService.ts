@@ -107,10 +107,13 @@ export class ReaderSourceWatchService implements AsyncDisposable {
         source,
         onChanges,
         onError,
-      ).then((subscription) => {
-        if (this.#states.get(sessionId) === state && !state.failed) state.subscription = subscription
-        else return subscription.close()
-      }).finally(() => {
+      ).then(
+        (subscription) => {
+          if (this.#states.get(sessionId) === state && !state.failed) state.subscription = subscription
+          else return closeQuietly(subscription)
+        },
+        () => this.#handleError(sessionId, state, attemptId),
+      ).finally(() => {
         state.opening = undefined
       })
     }

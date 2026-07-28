@@ -193,6 +193,64 @@ describe("SuperResolutionArtifactRoute", () => {
     await store.close()
   })
 
+  it("[neoview.super-resolution.preload-probe-fallback] treats a failed optional lookup as a miss without hiding generation failures", async () => {
+    const store = createStore()
+    const acquireOrGenerate = vi.fn(async () => {
+      throw new Error("artifact generation failed")
+    })
+    const acquireExisting = vi.fn(async () => {
+      throw new Error("artifact cache lookup failed")
+    })
+    const route = new SuperResolutionArtifactRoute(
+      readerService(readerPage()),
+      port(acquireOrGenerate, acquireExisting),
+      store,
+      { baseUrl: BASE_URL, token: TOKEN },
+    )
+
+    const probe = await route.handle(authorized(
+      "/reader/s/session-1/pages/page-1/upscale-artifact?trigger=automatic-current&probe=true",
+    ))
+    expect(probe?.status).toBe(200)
+    await expect(probe?.json()).resolves.toEqual({ status: "miss" })
+
+    const generation = await route.handle(authorized(
+      "/reader/s/session-1/pages/page-1/upscale-artifact?trigger=automatic-current",
+      { method: "POST" },
+    ))
+    expect(generation?.status).toBe(500)
+    await expect(generation?.json()).resolves.toEqual({ error: "artifact generation failed" })
+    await store.close()
+  })
+
+  it("[neoview.super-resolution.preload-probe-cancel] preserves request cancellation during an optional lookup", async () => {
+    const store = createStore()
+    const started = deferred()
+    const acquireExisting = vi.fn(async (_input, context) => {
+      started.resolve()
+      await new Promise<never>((_resolve, reject) => {
+        const abort = () => reject(context?.signal?.reason)
+        context?.signal?.addEventListener("abort", abort, { once: true })
+      })
+    })
+    const route = new SuperResolutionArtifactRoute(
+      readerService(readerPage()),
+      port(vi.fn(), acquireExisting),
+      store,
+      { baseUrl: BASE_URL, token: TOKEN },
+    )
+    const controller = new AbortController()
+    const probe = route.handle(authorized(
+      "/reader/s/session-1/pages/page-1/upscale-artifact?trigger=automatic-current&probe=true",
+      { signal: controller.signal },
+    ))
+
+    await started.promise
+    controller.abort(new DOMException("Reader page changed", "AbortError"))
+    await expect(probe).rejects.toMatchObject({ name: "AbortError" })
+    await store.close()
+  })
+
   it("[neoview.super-resolution.artifact-rejection-http] preserves an actionable cache rejection in the 507 body", async () => {
     const store = createStore()
     const route = new SuperResolutionArtifactRoute(

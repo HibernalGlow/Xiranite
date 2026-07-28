@@ -143,6 +143,7 @@ export class SuperResolutionArtifactRoute {
       }
     } catch (error) {
       if (operation.signal.aborted) throw error
+      if (probe) return jsonResponse({ status: "miss" })
       const message = error instanceof Error ? error.message : String(error)
       const unavailable = message.includes("runtime is unavailable") || message.includes("artifact cache is unavailable")
       return jsonResponse({ error: message }, unavailable ? 503 : 500)
