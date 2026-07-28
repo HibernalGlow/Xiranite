@@ -50,7 +50,8 @@ await run([process.execPath, "x", "vite", "build"], {
 })
 await rename(join(root, "dist", "node-app.html"), join(root, "dist", "index.html"))
 await copyFile(manifestPath, join(root, "dist", "node-app-manifest.json"))
-await run([process.execPath, "build", "packages/backend/src/nodeApp.ts", "--target", "bun", "--outfile", "build/wails/xiranite-backend.js"])
+await run([process.execPath, "scripts/build-backend-js.ts"])
+await copyFile(join(root, "build", "wails", "xiranite-node-app-backend.js"), join(root, "build", "wails", "xiranite-backend.js"))
 await run([process.execPath, "run", "build:native-assets"])
 await run([process.execPath, "run", "wails:syso"])
 
@@ -121,6 +122,7 @@ async function prepareStagedWorkspace(root: string, nodeId: string, backendFeatu
     "packages/repository",
     "packages/runtime",
     "packages/services",
+    "packages/shell-integration",
     "packages/shared",
     `packages/nodes/${nodeId}`,
     "vendor/folia-major/packages/player",

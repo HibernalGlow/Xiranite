@@ -9,12 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -285,6 +287,16 @@ type backendReadyResult struct {
 	err    error
 }
 
+type embeddedLocalBackendRuntimeBundle struct {
+	files      fs.FS
+	entrypoint string
+}
+
+type embeddedLocalBackendFile struct {
+	relativePath string
+	contents     []byte
+}
+
 func readBackendReady(stdout io.Reader, ready chan<- backendReadyResult) {
 	reader := bufio.NewReader(stdout)
 	line, err := reader.ReadString('\n')
@@ -329,25 +341,43 @@ func resolveLocalBackendCommand() (string, []string, string, error) {
 		return bun, []string{script}, "", nil
 	}
 
-	// A packaged node app must always run its embedded, node-scoped backend.
-	// Falling back to a checkout's build/wails bundle would couple the snapshot
-	// to unrelated source changes whenever it is launched from a repository.
-	if strings.TrimSpace(os.Getenv("XIRANITE_NODE_APP_ID")) == "" {
-		for _, candidate := range localBackendScriptCandidates() {
-			if fileExists(candidate) {
-				if bunErr != nil {
-					return "", nil, "", fmt.Errorf("found Xiranite local backend JS but Bun runtime is unavailable: %w", bunErr)
-				}
-				return bun, []string{candidate}, "", nil
+	if nodeID := strings.TrimSpace(os.Getenv("XIRANITE_NODE_APP_ID")); nodeID != "" {
+		if embedded := embeddedNodeAppBackendBundle(); embedded.available() {
+			if bunErr != nil {
+				return "", nil, "", fmt.Errorf("embedded node application backend requires Bun runtime: %w", bunErr)
 			}
+			script, err := extractEmbeddedLocalBackendBundle(embedded)
+			if err != nil {
+				return "", nil, "", err
+			}
+			return bun, []string{script}, "", nil
+		}
+
+		root := findProjectRoot()
+		source := filepath.Join(root, "packages", "backend", "src", "nodeApp.ts")
+		if fileExists(source) {
+			if bunErr != nil {
+				return "", nil, "", fmt.Errorf("node application backend source requires Bun runtime: %w", bunErr)
+			}
+			return bun, []string{source}, root, nil
+		}
+		return "", nil, "", fmt.Errorf("could not find a node application backend for %q", nodeID)
+	}
+
+	for _, candidate := range localBackendScriptCandidates() {
+		if fileExists(candidate) {
+			if bunErr != nil {
+				return "", nil, "", fmt.Errorf("found Xiranite local backend JS but Bun runtime is unavailable: %w", bunErr)
+			}
+			return bun, []string{candidate}, "", nil
 		}
 	}
 
-	if embedded := embeddedLocalBackendScript(); len(embedded) > 0 {
+	if embedded := embeddedLocalBackendBundle(); embedded.available() {
 		if bunErr != nil {
 			return "", nil, "", fmt.Errorf("embedded Xiranite local backend JS requires Bun runtime: %w", bunErr)
 		}
-		script, err := extractEmbeddedLocalBackendScript(embedded)
+		script, err := extractEmbeddedLocalBackendBundle(embedded)
 		if err != nil {
 			return "", nil, "", err
 		}
@@ -365,26 +395,90 @@ func resolveLocalBackendCommand() (string, []string, string, error) {
 	return "", nil, "", errors.New("could not find Xiranite local backend JS bundle or Bun runtime")
 }
 
-func extractEmbeddedLocalBackendScript(script []byte) (string, error) {
+func (bundle embeddedLocalBackendRuntimeBundle) available() bool {
+	return bundle.files != nil && bundle.entrypoint != ""
+}
+
+func extractEmbeddedLocalBackendBundle(bundle embeddedLocalBackendRuntimeBundle) (string, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil || cacheDir == "" {
 		cacheDir = os.TempDir()
 	}
+	return extractEmbeddedLocalBackendBundleTo(bundle, filepath.Join(cacheDir, "Xiranite", "runtime"))
+}
 
-	sum := sha256.Sum256(script)
-	targetDir := filepath.Join(cacheDir, "Xiranite", "runtime")
-	target := filepath.Join(targetDir, fmt.Sprintf("xiranite-backend-%x.js", sum[:8]))
-	if fileExists(target) {
+func extractEmbeddedLocalBackendBundleTo(bundle embeddedLocalBackendRuntimeBundle, cacheDirectory string) (string, error) {
+	if !bundle.available() {
+		return "", errors.New("embedded Xiranite local backend bundle is unavailable")
+	}
+	files, err := collectEmbeddedLocalBackendFiles(bundle)
+	if err != nil {
+		return "", err
+	}
+
+	hash := sha256.New()
+	for _, file := range files {
+		_, _ = hash.Write([]byte(file.relativePath))
+		_, _ = hash.Write(file.contents)
+	}
+	targetDir := filepath.Join(cacheDirectory, fmt.Sprintf("backend-%x", hash.Sum(nil)[:8]))
+	target := filepath.Join(targetDir, filepath.FromSlash(path.Base(bundle.entrypoint)))
+	if embeddedLocalBackendFilesExist(targetDir, files) {
 		return target, nil
 	}
 
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create Xiranite runtime cache: %w", err)
 	}
-	if err := os.WriteFile(target, script, 0o644); err != nil {
-		return "", fmt.Errorf("failed to extract embedded Xiranite local backend: %w", err)
+	for _, file := range files {
+		targetFile := filepath.Join(targetDir, filepath.FromSlash(file.relativePath))
+		if err := os.MkdirAll(filepath.Dir(targetFile), 0o755); err != nil {
+			return "", fmt.Errorf("failed to create Xiranite runtime asset directory: %w", err)
+		}
+		if err := os.WriteFile(targetFile, file.contents, 0o644); err != nil {
+			return "", fmt.Errorf("failed to extract embedded Xiranite local backend asset: %w", err)
+		}
 	}
 	return target, nil
+}
+
+func collectEmbeddedLocalBackendFiles(bundle embeddedLocalBackendRuntimeBundle) ([]embeddedLocalBackendFile, error) {
+	bundleDirectory := path.Dir(bundle.entrypoint)
+	files := make([]embeddedLocalBackendFile, 0, 2)
+	err := fs.WalkDir(bundle.files, bundleDirectory, func(name string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		relativePath := strings.TrimPrefix(name, bundleDirectory+"/")
+		if relativePath == name || relativePath == "" || strings.HasPrefix(relativePath, "../") {
+			return fmt.Errorf("invalid embedded Xiranite local backend asset path %q", name)
+		}
+		contents, err := fs.ReadFile(bundle.files, name)
+		if err != nil {
+			return err
+		}
+		files = append(files, embeddedLocalBackendFile{relativePath: relativePath, contents: contents})
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read embedded Xiranite local backend bundle: %w", err)
+	}
+	if len(files) == 0 {
+		return nil, errors.New("embedded Xiranite local backend bundle has no files")
+	}
+	return files, nil
+}
+
+func embeddedLocalBackendFilesExist(targetDirectory string, files []embeddedLocalBackendFile) bool {
+	for _, file := range files {
+		if !fileExists(filepath.Join(targetDirectory, filepath.FromSlash(file.relativePath))) {
+			return false
+		}
+	}
+	return true
 }
 
 func resolveBunCommand() (string, error) {

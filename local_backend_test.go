@@ -4,8 +4,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func TestStartLocalBackendSkipsDevProxyWithoutExternalBackend(t *testing.T) {
@@ -18,6 +21,63 @@ func TestStartLocalBackendSkipsDevProxyWithoutExternalBackend(t *testing.T) {
 	}
 	if backend != nil {
 		t.Fatalf("expected no local backend in dev proxy attach mode, got %#v", backend)
+	}
+}
+
+func TestResolveLocalBackendCommandUsesNodeAppEntrypointForDirectNodeHost(t *testing.T) {
+	t.Setenv("XIRANITE_BACKEND_BIN", "")
+	t.Setenv("XIRANITE_BACKEND_JS", "")
+	t.Setenv("XIRANITE_NODE_APP_ID", "neoview")
+	originalMinimumBunVersion := nodeAppMinimumBunVersion
+	nodeAppMinimumBunVersion = "1.3.0"
+	t.Cleanup(func() { nodeAppMinimumBunVersion = originalMinimumBunVersion })
+
+	command, args, cwd, err := resolveLocalBackendCommand()
+	if err != nil {
+		t.Fatalf("resolve direct node host backend: %v", err)
+	}
+	if command == "" || len(args) != 1 {
+		t.Fatalf("expected one Bun node application backend command, got command=%q args=%#v", command, args)
+	}
+	if embeddedNodeAppBackendBundle().available() {
+		if filepath.Base(args[0]) != "xiranite-node-app-backend.js" {
+			t.Fatalf("expected embedded node application backend entrypoint, got %q", args[0])
+		}
+		if cwd != "" {
+			t.Fatalf("expected embedded node application backend to avoid a repository cwd, got %q", cwd)
+		}
+	} else {
+		if !strings.HasSuffix(filepath.ToSlash(args[0]), "/packages/backend/src/nodeApp.ts") {
+			t.Fatalf("expected node application backend entrypoint, got %q", args[0])
+		}
+		if cwd != findProjectRoot() {
+			t.Fatalf("expected node application backend cwd %q, got %q", findProjectRoot(), cwd)
+		}
+	}
+}
+
+func TestExtractEmbeddedLocalBackendBundlePreservesRelativeRuntimeAssets(t *testing.T) {
+	bundle := embeddedLocalBackendRuntimeBundle{
+		files: fstest.MapFS{
+			"build/wails/xiranite-backend.js":                &fstest.MapFile{Data: []byte(`require("./backend-assets/sharp.node")`)},
+			"build/wails/backend-assets/sharp.node":          &fstest.MapFile{Data: []byte("native-sharp")},
+			"build/wails/backend-assets/reader-runtime.wasm": &fstest.MapFile{Data: []byte("reader-runtime")},
+		},
+		entrypoint: "build/wails/xiranite-backend.js",
+	}
+
+	script, err := extractEmbeddedLocalBackendBundleTo(bundle, t.TempDir())
+	if err != nil {
+		t.Fatalf("extract embedded backend bundle: %v", err)
+	}
+	contents, err := os.ReadFile(script)
+	if err != nil || string(contents) != `require("./backend-assets/sharp.node")` {
+		t.Fatalf("extracted backend script = %q, %v", contents, err)
+	}
+	for _, asset := range []string{"sharp.node", "reader-runtime.wasm"} {
+		if _, err := os.Stat(filepath.Join(filepath.Dir(script), "backend-assets", asset)); err != nil {
+			t.Fatalf("relative runtime asset %q was not extracted: %v", asset, err)
+		}
 	}
 }
 

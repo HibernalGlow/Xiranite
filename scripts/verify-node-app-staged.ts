@@ -28,6 +28,7 @@ if (!nodeId || !manifestPath) throw new Error("--node-id and --manifest are requ
 const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Manifest
 if (manifest.node.id !== nodeId) throw new Error(`Manifest node ${manifest.node.id} does not match ${nodeId}.`)
 
+await verifyExternalNodeHostAsset()
 await verifyBackendHandshake(manifest)
 if (manifest.node.nativeProbe) {
   const nativeAssetRoot = join(process.cwd(), "build", "wails", "native-assets")
@@ -43,6 +44,16 @@ if (manifest.node.nativeProbe) {
 }
 
 console.log(`[node-app] Release gates passed for ${nodeId}`)
+
+async function verifyExternalNodeHostAsset(): Promise<void> {
+  const hostPage = join(process.cwd(), "dist", "node-host.html")
+  const contents = await readFile(hostPage, "utf8").catch((error) => {
+    throw new Error(`Node app build is missing the external node host page (${hostPage}): ${String(error)}`)
+  })
+  if (!/<script\b[^>]*\bsrc=["']\/assets\/[^"']+\.js["']/u.test(contents)) {
+    throw new Error(`External node host page does not load a bundled module entrypoint: ${hostPage}`)
+  }
+}
 
 async function verifyBackendHandshake(snapshot: Manifest): Promise<void> {
   const dataRoot = await mkdtemp(join(tmpdir(), "xiranite-node-app-gate-"))

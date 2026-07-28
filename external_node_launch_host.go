@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,20 +26,27 @@ type externalNodeLaunchAcknowledgement struct {
 }
 
 type externalNodeLaunchHostRuntime struct {
-	mu      sync.Mutex
-	app     *application.App
-	info    externalNodeLaunchHostInfo
-	initial *externalNodeLaunchRequest
-	pending map[string]chan externalNodeLaunchAcknowledgement
+	mu           sync.Mutex
+	app          *application.App
+	info         externalNodeLaunchHostInfo
+	pending      map[string]externalNodeLaunchPending
+	pendingOrder []string
+}
+
+type externalNodeLaunchPending struct {
+	request  externalNodeLaunchRequest
+	response chan externalNodeLaunchAcknowledgement
 }
 
 func newExternalNodeLaunchHostRuntime(app *application.App, request externalNodeLaunchRequest) *externalNodeLaunchHostRuntime {
 	copy := request
 	return &externalNodeLaunchHostRuntime{
-		app:     app,
-		info:    externalNodeLaunchHostInfo{NodeID: request.NodeID, SnapshotID: externalNodeLaunchHostSnapshotID},
-		initial: &copy,
-		pending: map[string]chan externalNodeLaunchAcknowledgement{request.RequestID: make(chan externalNodeLaunchAcknowledgement, 1)},
+		app:  app,
+		info: externalNodeLaunchHostInfo{NodeID: request.NodeID, SnapshotID: externalNodeLaunchHostSnapshotID},
+		pending: map[string]externalNodeLaunchPending{
+			request.RequestID: {request: copy, response: make(chan externalNodeLaunchAcknowledgement, 1)},
+		},
+		pendingOrder: []string{request.RequestID},
 	}
 }
 
@@ -46,21 +54,27 @@ func (r *externalNodeLaunchHostRuntime) hostInfo() externalNodeLaunchHostInfo {
 	return r.info
 }
 
-func (r *externalNodeLaunchHostRuntime) initialRequest() *externalNodeLaunchRequest {
+func (r *externalNodeLaunchHostRuntime) nextPendingRequest() *externalNodeLaunchRequest {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.initial == nil {
-		return nil
+	for _, requestID := range r.pendingOrder {
+		pending, found := r.pending[requestID]
+		if !found {
+			continue
+		}
+		copy := pending.request
+		return &copy
 	}
-	copy := *r.initial
-	return &copy
+	return nil
 }
 
 func (r *externalNodeLaunchHostRuntime) queue(request externalNodeLaunchRequest) <-chan externalNodeLaunchAcknowledgement {
 	r.mu.Lock()
 	response := make(chan externalNodeLaunchAcknowledgement, 1)
-	r.pending[request.RequestID] = response
+	r.pending[request.RequestID] = externalNodeLaunchPending{request: request, response: response}
+	r.pendingOrder = append(r.pendingOrder, request.RequestID)
 	r.mu.Unlock()
+	recordExternalNodeLaunchSmokeHostCall("QueuedExternalNodeLaunch:" + request.RequestID)
 	if r.app != nil {
 		r.app.Event.Emit("external-node-launch", request)
 	}
@@ -69,12 +83,10 @@ func (r *externalNodeLaunchHostRuntime) queue(request externalNodeLaunchRequest)
 
 func (r *externalNodeLaunchHostRuntime) acknowledge(acknowledgement externalNodeLaunchAcknowledgement) externalNodeLaunchAcknowledgement {
 	r.mu.Lock()
-	response, found := r.pending[acknowledgement.RequestID]
+	pending, found := r.pending[acknowledgement.RequestID]
 	if found {
 		delete(r.pending, acknowledgement.RequestID)
-		if r.initial != nil && r.initial.RequestID == acknowledgement.RequestID {
-			r.initial = nil
-		}
+		r.pendingOrder = removeExternalNodeLaunchRequestID(r.pendingOrder, acknowledgement.RequestID)
 	}
 	r.mu.Unlock()
 	if !found {
@@ -87,19 +99,29 @@ func (r *externalNodeLaunchHostRuntime) acknowledge(acknowledgement externalNode
 	if acknowledgement.Message == "" {
 		acknowledgement.Message = "Node accepted the external launch request."
 	}
-	response <- acknowledgement
+	recordExternalNodeLaunchSmokeAcknowledgement(acknowledgement)
+	pending.response <- acknowledgement
 	return acknowledgement
 }
 
 func (r *externalNodeLaunchHostRuntime) rejectPending(message string) {
 	r.mu.Lock()
 	pending := r.pending
-	r.pending = map[string]chan externalNodeLaunchAcknowledgement{}
-	r.initial = nil
+	r.pending = map[string]externalNodeLaunchPending{}
+	r.pendingOrder = nil
 	r.mu.Unlock()
-	for requestID, response := range pending {
-		response <- externalNodeLaunchAcknowledgement{RequestID: requestID, Accepted: false, Message: message}
+	for requestID, request := range pending {
+		request.response <- externalNodeLaunchAcknowledgement{RequestID: requestID, Accepted: false, Message: message}
 	}
+}
+
+func removeExternalNodeLaunchRequestID(requestIDs []string, requestID string) []string {
+	for index, value := range requestIDs {
+		if value == requestID {
+			return append(requestIDs[:index:index], requestIDs[index+1:]...)
+		}
+	}
+	return requestIDs
 }
 
 func runExternalNodeLaunchHost(request externalNodeLaunchRequest) error {
@@ -177,8 +199,14 @@ func runExternalNodeLaunchHost(request externalNodeLaunchRequest) error {
 			return externalNodeLaunchAcknowledgement{RequestID: next.RequestID, Accepted: false, Message: "Timed out waiting for the node launch acknowledgement."}
 		}
 	})
-	stopRecovery := startNodeAppBackendRecovery(service, lifecycle.setRuntimeStatus)
+	stopRecovery := startNodeAppBackendRecovery(service, nodeAppBackendExpectation{
+		NodeID:     request.NodeID,
+		SnapshotID: externalNodeLaunchHostSnapshotID,
+	}, lifecycle.setRuntimeStatus)
 	defer stopRecovery()
+	writeExternalNodeLaunchSmokeMarker(localBackend, request.NodeID)
+	stopSmokeShutdown := startExternalNodeLaunchSmokeShutdown(App)
+	defer stopSmokeShutdown()
 	if err := App.Run(); err != nil {
 		runtime.rejectPending(fmt.Sprintf("External node host stopped: %v", err))
 		return err
@@ -188,13 +216,23 @@ func runExternalNodeLaunchHost(request externalNodeLaunchRequest) error {
 }
 
 func configureExternalNodeLaunchHostEnvironment(nodeID string, declaration externalNodeLaunchDeclaration) error {
+	if strings.TrimSpace(nodeAppMinimumBunVersion) == "" {
+		nodeAppMinimumBunVersion = "1.3.0"
+	}
+	if strings.TrimSpace(nodeAppBuildBunVersion) == "" {
+		nodeAppBuildBunVersion = nodeAppMinimumBunVersion
+	}
+	dataContractVersion := strconv.Itoa(nodeAppCurrentDataContractVersion)
+	if _, err := checkNodeAppDataContract(dataContractVersion, dataContractVersion); err != nil {
+		return fmt.Errorf("verify complete %s node host data contract: %w", nodeID, err)
+	}
 	if err := os.Setenv("XIRANITE_NODE_APP_ID", nodeID); err != nil {
 		return fmt.Errorf("configure node host id: %w", err)
 	}
 	if err := os.Setenv("XIRANITE_NODE_APP_SNAPSHOT_ID", externalNodeLaunchHostSnapshotID); err != nil {
 		return fmt.Errorf("configure node host snapshot: %w", err)
 	}
-	if err := os.Setenv("XIRANITE_NODE_APP_DATA_CONTRACT_VERSION", "1"); err != nil {
+	if err := os.Setenv("XIRANITE_NODE_APP_DATA_CONTRACT_VERSION", dataContractVersion); err != nil {
 		return fmt.Errorf("configure node host data contract: %w", err)
 	}
 	if containsExternalLaunchFeature(declaration.BackendFeatures, "reader") {

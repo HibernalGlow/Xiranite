@@ -2,6 +2,9 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -85,5 +88,29 @@ func TestNodeAppBackendRecoveryReturnsReadyAfterHealthCheck(t *testing.T) {
 	}
 	if restarts != 0 {
 		t.Fatalf("restarts = %d, want 0", restarts)
+	}
+}
+
+func TestNodeAppBackendHealthErrorUsesHostSpecificIdentityExpectation(t *testing.T) {
+	expected := nodeAppBackendExpectation{NodeID: "neoview", SnapshotID: externalNodeLaunchHostSnapshotID}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("content-type", "application/json")
+		switch request.URL.Path {
+		case "/health":
+			_, _ = fmt.Fprintf(writer, `{"nodeId":%q,"snapshotId":%q}`, expected.NodeID, expected.SnapshotID)
+		case "/node-app/capabilities":
+			_, _ = fmt.Fprintf(writer, `{"nodeId":%q,"snapshotId":%q,"capabilities":["health","node-api","state","operations","history"]}`, expected.NodeID, expected.SnapshotID)
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer server.Close()
+
+	config := &LocalBackendConfig{BaseURL: server.URL}
+	if err := nodeAppBackendHealthError(config, expected); err != nil {
+		t.Fatalf("host-specific identity health check failed: %v", err)
+	}
+	if nodeAppBackendHealthy(config, nodeAppBackendExpectation{NodeID: "neoview", SnapshotID: "wrong-snapshot"}) {
+		t.Fatal("health check accepted a backend that belongs to a different host snapshot")
 	}
 }

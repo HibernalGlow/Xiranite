@@ -299,7 +299,7 @@ export default defineConfig(({ command }) => ({
   build: {
     rolldownOptions: {
       input: process.env.XIRANITE_NODE_APP_ID
-        ? nodeAppHtml
+        ? { "node-app": nodeAppHtml, "node-host": externalNodeHostHtml }
         : { index: mainAppHtml, "node-host": externalNodeHostHtml },
       output: {
         codeSplitting: {
