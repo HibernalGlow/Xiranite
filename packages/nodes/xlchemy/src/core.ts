@@ -2,6 +2,9 @@ import type { NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import { DEFAULT_RAM_OPTIMIZER_RULES, isRamOptimizerNecessary, optimizedEncoderThreads, parseRamOptimizationRules } from "./ram-optimizer.js"
 import { applyFilenameRules, DEFAULT_FILENAME_RULES, normalizeFilenameRule, type XlchemyFilenameRule } from "./filename-rules.js"
 import { appendXlchemyAnalysis, createXlchemyAnalysisSummary, INPUT_ANALYSIS_FOLDER_LIMIT, INPUT_ANALYSIS_SAMPLE_LIMIT, xlchemyAnalysisData, type XlchemyAnalysisSummary, type XlchemyInputAnalysis, type XlchemyOutputAnalysis } from "./analysis.js"
+import { observeAcceptedSourceStream } from "./source-stream-observer.js"
+import { createDirectorySourcePolicy, streamDiscoveredImages, type DirectorySourcePolicy } from "./source-discovery.js"
+import { createBoundedDirectoryEnsurer } from "./output-directory-cache.js"
 export { DEFAULT_RAM_OPTIMIZER_RULES } from "./ram-optimizer.js"
 export { DEFAULT_FILENAME_RULES } from "./filename-rules.js"
 export type { XlchemyFilenameMatchTarget, XlchemyFilenameMatcher, XlchemyFilenameRule } from "./filename-rules.js"
@@ -13,7 +16,6 @@ export type XlchemyExistingPolicy = "replace" | "skip" | "rename"
 export type XlchemyAnimationFormat = "png" | "webp" | "avif" | "jxl"
 export type XlchemyDownscaleMode = "resolution" | "percent" | "file-size" | "shortest-side" | "longest-side" | "megapixels"
 export interface XlchemyDownscaleSettings { enabled: boolean; mode: XlchemyDownscaleMode; width: number; height: number; percent: number; fileSizeKb: number; shortestSide: number; longestSide: number; megapixels: number; resample: string }
-
 export interface XlchemyInput {
   action?: XlchemyAction
   paths: string[]
@@ -91,7 +93,6 @@ export interface XlchemyToolStatus {
   version?: string
   detail?: string
 }
-
 export interface XlchemyData {
   files: XlchemyFileResult[]
   inputCount: number
@@ -271,20 +272,26 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       return XL_IMAGE_EXTENSIONS.has(runtime.extname(path).toLowerCase()) && !excluded.has(extension)
     }
     const roots = await sourceRoots(options.paths, runtime)
+    const outputPath = options.outputDir ? (await runtime.pathInfo(options.outputDir)).path : undefined
+    const directorySourcePolicy = createDirectorySourcePolicy({ action: options.action ?? "plan", outputMode: options.outputMode, outputDir: outputPath, sourceRoots: roots, generatedExtensions: generatedImageExtensions(options.format), extname: runtime.extname, relative: runtime.relative })
+    if (directorySourcePolicy.description) onEvent({ type: "log", message: `Directory stream guard: ${directorySourcePolicy.description}.` })
     const totalInputCount = await knownDirectInputCount(options, runtime, accepts)
     const animationDetectionFormats = new Set(options.animationDetectionFormats)
     const summary = createSummary()
     let lastLiveResultAt = 0
     let activeWorkers = 0
     let peakActiveWorkers = 0
+    let activeEncoders = 0
+    let peakActiveEncoders = 0
     const inputDiagnostics: InputStreamDiagnostics = { efuRead: 0, efuAccepted: 0, efuFiltered: 0, filteredExtensions: new Map() }
-    const sourceStream = streamInputSources(options.paths, options.recursive, options.efuFiles ?? [], runtime, accepts, onEvent, () => activeWorkers, inputDiagnostics)
+    const sourceStream = streamInputSources(options.paths, options.recursive, options.efuFiles ?? [], runtime, accepts, directorySourcePolicy, onEvent, () => activeWorkers, inputDiagnostics)
     const orderedSources = orderSourceStream(sourceStream, options.processingOrder, runtime)
     onEvent({ type: "log", message: `Input scheduler: single-pass streaming with bounded backpressure; ${totalInputCount === undefined ? "total finalized at EOF" : `${totalInputCount} direct input(s)`}.` })
     if (requiresWindowedOrder(options.processingOrder)) onEvent({ type: "log", message: `Processing order ${options.processingOrder} is applied in bounded windows of ${STREAM_ORDER_WINDOW_SIZE} files to preserve streaming.` })
     const targetReservations = new Set<string>()
     const targetLocks = new Map<string, Promise<void>>()
     const planningLocks = new Map<string, Promise<void>>()
+    const ensureOutputDirectory = createBoundedDirectoryEnsurer(runtime.ensureDir)
     const planSource = (source: string) => options.existingPolicy === "rename"
       ? withTargetLock("batch-planning", planningLocks, () => planFile(source, roots, options, runtime, targetReservations))
       : planFile(source, roots, options, runtime)
@@ -335,7 +342,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
               if (emitFileProgress) lastFileProgressAt = now
               if (workerInput.format === "dynar") {
                 if (emitFileProgress) onEvent({ type: "progress", progress: progressPercent(summary.inputCount, totalInputCount), message: `Renaming ${runtime.basename(plannedItem.sourcePath)}.`, data: progressCount(summary.inputCount, totalInputCount) })
-                return renameAnimatedFile(plannedItem, workerInput, runtime)
+                return renameAnimatedFile(plannedItem, workerInput, runtime, ensureOutputDirectory)
               }
               const lease = await runtime.acquireWorker?.(
                 workerInput.threads,
@@ -349,9 +356,12 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
                 type: "log",
                 message: `Worker #${workerIndex + 1} received ${lease.threads}/${workerInput.threads} CPU thread unit(s) from the global scheduler.`,
               })
+              activeEncoders += 1
+              peakActiveEncoders = Math.max(peakActiveEncoders, activeEncoders)
               try {
-                return await convertFileWithProgress(plannedItem, scheduledInput, runtime, onEvent, summary.inputCount, totalInputCount, emitFileProgress)
+                return await convertFileWithProgress(plannedItem, scheduledInput, runtime, onEvent, summary.inputCount, totalInputCount, emitFileProgress, ensureOutputDirectory)
               } finally {
+                activeEncoders -= 1
                 lease?.release()
               }
             })
@@ -365,7 +375,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
           const elapsedSeconds = (Date.now() - itemStarted) / 1_000
           const completed = summary.inputCount
           const throughput = completed / Math.max((Date.now() - started) / 1_000, 0.001)
-          onEvent({ type: "log", message: `Worker #${workerIndex + 1} ${result.status} ${runtime.basename(source)} in ${elapsedSeconds.toFixed(2)}s; active workers ${activeWorkers - 1}; completed ${totalInputCount === undefined ? completed : `${completed}/${totalInputCount}`}; ${throughput.toFixed(2)} images/s.` })
+          onEvent({ type: "log", message: `Worker #${workerIndex + 1} ${result.status} ${runtime.basename(source)} in ${elapsedSeconds.toFixed(2)}s; active files ${activeWorkers - 1}; active encoders ${activeEncoders}; completed ${totalInputCount === undefined ? completed : `${completed}/${totalInputCount}`}; ${throughput.toFixed(2)} images/s.` })
           lastDiagnosticLogAt = now
         }
       } finally {
@@ -414,7 +424,7 @@ async function runXlchemyFiles(input: XlchemyInput, runtime: XlchemyRuntime, onE
       return success(`Xlchemy planned ${data.inputCount} image(s).`, data)
     }
     const renamedCount = data.renamedCount ?? 0
-    onEvent({ type: "log", message: `Batch completed in ${((Date.now() - started) / 1_000).toFixed(2)}s; peak active workers ${peakActiveWorkers}; throughput ${(data.inputCount / Math.max((Date.now() - started) / 1_000, 0.001)).toFixed(2)} images/s; converted ${data.convertedCount}, renamed ${renamedCount}, skipped ${data.skippedCount}, errors ${data.errorCount}.` })
+    onEvent({ type: "log", message: `Batch completed in ${((Date.now() - started) / 1_000).toFixed(2)}s; peak active files ${peakActiveWorkers}; peak active encoders ${peakActiveEncoders}; throughput ${(data.inputCount / Math.max((Date.now() - started) / 1_000, 0.001)).toFixed(2)} images/s; converted ${data.convertedCount}, renamed ${renamedCount}, skipped ${data.skippedCount}, errors ${data.errorCount}.` })
     const completedMessage = options.format === "dynar" ? `Renamed ${renamedCount} animated image(s).` : `Converted ${data.convertedCount} image(s).`
     onEvent({ type: "progress", progress: 100, message: completedMessage })
     return success(`Xlchemy ${options.format === "dynar" ? "renamed" : "converted"} ${options.format === "dynar" ? renamedCount : data.convertedCount} of ${data.inputCount} image(s).`, data)
@@ -430,9 +440,9 @@ function animationFormat(extension: string): XlchemyAnimationFormat {
   return normalized === "apng" ? "png" : normalized as XlchemyAnimationFormat
 }
 
-async function convertFileWithProgress(item: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void, completed: number, total?: number, emitProgress = true) {
+async function convertFileWithProgress(item: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void, completed: number, total: number | undefined, emitProgress: boolean, ensureOutputDirectory: (path: string) => Promise<void>) {
   if (emitProgress) onEvent({ type: "progress", progress: progressPercent(completed, total), message: `Converting ${runtime.basename(item.sourcePath)}.`, data: progressCount(completed, total) })
-  return await convertFile(item, input, runtime, onEvent)
+  return await convertFile(item, input, runtime, onEvent, ensureOutputDirectory)
 }
 
 async function* streamInputSources(
@@ -441,11 +451,14 @@ async function* streamInputSources(
   efuFiles: string[],
   runtime: XlchemyRuntime,
   accepts: (path: string) => boolean,
+  directorySourcePolicy: DirectorySourcePolicy,
   onEvent: (event: NodeRunEvent) => void,
   activeWorkers: () => number,
   diagnostics: InputStreamDiagnostics,
 ): AsyncGenerator<string> {
-  for await (const source of streamDiscoveredImages(paths, recursive, runtime)) if (accepts(source)) yield source
+  yield* observeAcceptedSourceStream(streamDiscoveredImages(paths, recursive, runtime, XL_IMAGE_EXTENSIONS, directorySourcePolicy), accepts, {
+    label: "Direct source stream", sourceCount: paths.length, activeWorkers, onLog: (message) => onEvent({ type: "log", message }),
+  })
   for (const efuFile of efuFiles) {
     const started = Date.now()
     let read = 0
@@ -463,6 +476,7 @@ async function* streamInputSources(
         if (accepts(source)) {
           accepted += 1
           diagnostics.efuAccepted += 1
+          if (accepted === 1) onEvent({ type: "log", message: `EFU stream ${runtime.basename(efuFile)} first accepted input after ${formatElapsed(started)}.` })
           yield source
         } else {
           filtered += 1
@@ -632,7 +646,6 @@ function emitLiveResult(onEvent: (event: NodeRunEvent) => void, summary: Xlchemy
 
 function progressCount(completed: number, total?: number) { return { kind: "xlchemy-progress-count", completed, ...(total === undefined ? {} : { total }) } }
 function progressPercent(completed: number, total?: number) { return total && total > 0 ? Math.min(99.99, Math.round(completed / total * 10_000) / 100) : 0 }
-
 function batchWorkerThreads(total: number | undefined, input: XlchemyInput): number[] {
   const threadBudget = Math.max(1, input.threads)
   if (input.format === "dynar") {
@@ -643,8 +656,8 @@ function batchWorkerThreads(total: number | undefined, input: XlchemyInput): num
     const workerCount = input.processingOrder === "sequential"
       ? 1
       : total === undefined
-        ? threadBudget
-        : Math.min(total, threadBudget)
+        ? Math.min(threadBudget, XLCHEMY_MAX_CONCURRENT_FILES)
+        : Math.min(total, threadBudget, XLCHEMY_MAX_CONCURRENT_FILES)
     return Array.from({ length: workerCount }, () => 1)
   }
   if ((total !== undefined && total <= 1) || input.processingOrder === "sequential") return [threadBudget]
@@ -784,7 +797,7 @@ export async function diagnoseXlchemyEnvironment(runtime: XlchemyRuntime, onEven
 
 export async function discoverImages(paths: string[], recursive: boolean, runtime: XlchemyRuntime): Promise<string[]> {
   const output: string[] = []
-  for await (const path of streamDiscoveredImages(paths, recursive, runtime)) output.push(path)
+  for await (const path of streamDiscoveredImages(paths, recursive, runtime, XL_IMAGE_EXTENSIONS)) output.push(path)
   return [...new Set(output)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))
 }
 
@@ -801,36 +814,13 @@ export function estimateXlchemyWorkerMemoryMiB(input: Pick<XlchemyInput, "format
   if (input.format === "Smallest Lossless") return Math.min(4_096, 384 + threads * 32)
   return Math.min(4_096, 192 + threads * 24)
 }
-
 const XLCHEMY_MAX_CONCURRENT_FILES = 16
 
-async function* streamDiscoveredImages(paths: string[], recursive: boolean, runtime: XlchemyRuntime): AsyncGenerator<string> {
-  for (const path of paths) {
-    runtime.checkMemory?.()
-    if (runtime.isCancelled?.()) return
-    const info = await runtime.pathInfo(path)
-    if (!info.exists) continue
-    if (info.isFile && XL_IMAGE_EXTENSIONS.has(runtime.extname(info.path).toLowerCase())) {
-      yield info.path
-      continue
-    }
-    if (info.isDirectory) {
-      for await (const entry of streamDirectoryEntries(info.path, runtime)) {
-        runtime.checkMemory?.()
-        if (runtime.isCancelled?.()) return
-        if (entry.isFile && XL_IMAGE_EXTENSIONS.has(runtime.extname(entry.path).toLowerCase())) yield entry.path
-        else if (recursive && entry.isDirectory) yield* streamDiscoveredImages([entry.path], true, runtime)
-      }
-    }
-  }
-}
-
-async function* streamDirectoryEntries(path: string, runtime: XlchemyRuntime): AsyncGenerator<XlchemyDirEntry> {
-  if (runtime.streamDir) {
-    yield* runtime.streamDir(path)
-    return
-  }
-  for (const entry of await runtime.listDir(path)) yield entry
+function generatedImageExtensions(format: XlchemyFormat): string[] {
+  if (format === "Smallest Lossless") return [".png", ".webp", ".jxl"]
+  if (format === "JPEG Reconstruction") return [".jpg", ".png"]
+  const extension = FORMAT_EXTENSIONS[format]
+  return XL_IMAGE_EXTENSIONS.has(extension) ? [extension] : []
 }
 
 async function sourceRoots(paths: string[], runtime: XlchemyRuntime): Promise<string[]> {
@@ -867,10 +857,12 @@ async function planFile(sourcePath: string, roots: string[], input: XlchemyInput
   const dynarExtension = input.format === "dynar" && !outputStem.toLowerCase().endsWith(".wbp") ? ".wbp" : ""
   let outputPath = runtime.join(targetRoot, relativeDir === "." ? "" : relativeDir, `${outputStem}${extension}${dynarExtension}`)
   if (input.format === "dynar" && outputPath.toLocaleLowerCase("en-US") === source.path.toLocaleLowerCase("en-US")) return { sourcePath: source.path, outputPath, sourceBytes: source.size, status: "skipped", error: "name_unchanged" }
-  const existing = await runtime.pathInfo(outputPath)
-  const reserved = reservations?.has(outputPath.toLocaleLowerCase("en-US")) ?? false
-  if (existing.exists && input.existingPolicy === "skip") return { sourcePath: source.path, outputPath, sourceBytes: source.size, status: "skipped", error: "target_exists" }
-  if ((existing.exists || reserved) && input.existingPolicy === "rename") outputPath = await uniqueTarget(outputPath, runtime, reservations)
+  if (input.existingPolicy !== "replace") {
+    const existing = await runtime.pathInfo(outputPath)
+    const reserved = reservations?.has(outputPath.toLocaleLowerCase("en-US")) ?? false
+    if (existing.exists && input.existingPolicy === "skip") return { sourcePath: source.path, outputPath, sourceBytes: source.size, status: "skipped", error: "target_exists" }
+    if ((existing.exists || reserved) && input.existingPolicy === "rename") outputPath = await uniqueTarget(outputPath, runtime, reservations)
+  }
   if (input.existingPolicy === "rename" && reservations) addBoundedReservation(reservations, outputPath.toLocaleLowerCase("en-US"))
   return { sourcePath: source.path, outputPath, sourceBytes: source.size, status: "planned" }
 }
@@ -901,10 +893,10 @@ async function jpegReconstructionExtension(source: string, input: XlchemyInput, 
   throw new Error("JPEG reconstruction data was not found. Enable PNG fallback to decode this JPEG XL image.")
 }
 
-async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void): Promise<XlchemyFileResult> {
+async function convertFile(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, onEvent: (event: NodeRunEvent) => void, ensureOutputDirectory: (path: string) => Promise<void>): Promise<XlchemyFileResult> {
   const layeredArtifacts: string[] = []
   try {
-    await runtime.ensureDir(runtime.dirname(plan.outputPath))
+    await ensureOutputDirectory(runtime.dirname(plan.outputPath))
     const prepared = await prepareLayeredSource(plan.sourcePath, plan.outputPath, runtime)
     layeredArtifacts.push(...prepared.artifacts)
     let encoderSource = prepared.sourcePath
@@ -1050,9 +1042,9 @@ async function convertSmallestLossless(plan: XlchemyFileResult, input: XlchemyIn
   }
 }
 
-async function renameAnimatedFile(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime): Promise<XlchemyFileResult> {
+async function renameAnimatedFile(plan: XlchemyFileResult, input: XlchemyInput, runtime: XlchemyRuntime, ensureOutputDirectory: (path: string) => Promise<void>): Promise<XlchemyFileResult> {
   try {
-    await runtime.ensureDir(runtime.dirname(plan.outputPath))
+    await ensureOutputDirectory(runtime.dirname(plan.outputPath))
     if (input.existingPolicy === "replace" && (await runtime.pathInfo(plan.outputPath)).exists) await runtime.removeFile(plan.outputPath)
     await runtime.renameFile(plan.sourcePath, plan.outputPath)
     return { ...plan, status: "renamed", outputBytes: plan.sourceBytes, error: undefined }

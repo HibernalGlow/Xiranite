@@ -75,6 +75,18 @@ describe("xlchemy core contract", () => {
     expect(result.data?.files.map((file) => file.outputPath)).toEqual(["/output/a.avif", "/output/events/b.avif"])
   })
 
+  test("does not stat every output path when replace policy makes existence irrelevant", async () => {
+    const runtime = fakeRuntime()
+    const pathInfo = vi.fn(runtime.pathInfo)
+    runtime.pathInfo = pathInfo
+
+    const result = await runXlchemy(normalizeXlchemyInput({ action: "plan", paths: ["/photos/a.png"], format: "WebP", existingPolicy: "replace", excludedFormats: [] }), runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data?.files[0]).toMatchObject({ outputPath: "/photos/a.webp", status: "planned" })
+    expect(pathInfo).not.toHaveBeenCalledWith("/photos/a.webp")
+  })
+
   test("skips animated WebP while keeping static WebP in the same plan", async () => {
     const runtime = fakeRuntime()
     const inputs = new Set(["/photos/still.webp", "/photos/motion.webp", "/photos/still.png"])
@@ -345,6 +357,63 @@ describe("xlchemy core contract", () => {
     expect(firstEncodeAtYield).toBeLessThan(128)
   })
 
+  test("does not feed source-mode outputs or internal artifacts back into an open directory stream", async () => {
+    const runtime = fakeRuntime()
+    const originalPathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => path === "/source-loop"
+      ? { path, exists: true, isFile: false, isDirectory: true, size: 0, atimeMs: 0, mtimeMs: 0 }
+      : path === "/source-loop/a.png"
+        ? { path, exists: true, isFile: true, isDirectory: false, size: 100, atimeMs: 0, mtimeMs: 0 }
+        : originalPathInfo(path)
+    runtime.listDir = vi.fn(async () => { throw new Error("materialized directory listing used") })
+    runtime.streamDir = async function* () {
+      yield { path: "/source-loop/a.png", name: "a.png", isFile: true, isDirectory: false }
+      yield { path: "/source-loop/a.avif", name: "a.avif", isFile: true, isDirectory: false }
+      yield { path: "/source-loop/a.avif.xlchemy-input.png", name: "a.avif.xlchemy-input.png", isFile: true, isDirectory: false }
+    }
+
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert", paths: ["/source-loop"], format: "AVIF", avifEncoder: "slimg",
+      threads: 4, outputMode: "source", excludedFormats: [], overwrite: true, preserveMetadata: false,
+    }), runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data).toMatchObject({ inputCount: 1, convertedCount: 1, errorCount: 0 })
+    expect(runtime.commands).toEqual([{ command: "slimg-cffi", args: ["/source-loop/a.png", "/source-loop/a.avif", "60"] }])
+    expect(runtime.listDir).not.toHaveBeenCalled()
+  })
+
+  test("does not recurse into a generated output directory nested below an input root", async () => {
+    const runtime = fakeRuntime()
+    const originalPathInfo = runtime.pathInfo
+    runtime.pathInfo = async (path) => path === "/nested-source"
+      ? { path, exists: true, isFile: false, isDirectory: true, size: 0, atimeMs: 0, mtimeMs: 0 }
+      : path === "/nested-source/a.png"
+        ? { path, exists: true, isFile: true, isDirectory: false, size: 100, atimeMs: 0, mtimeMs: 0 }
+        : originalPathInfo(path)
+    const openedDirectories: string[] = []
+    runtime.listDir = vi.fn(async () => { throw new Error("materialized directory listing used") })
+    runtime.streamDir = async function* (path) {
+      openedDirectories.push(path)
+      if (path === "/nested-source") {
+        yield { path: "/nested-source/a.png", name: "a.png", isFile: true, isDirectory: false }
+        yield { path: "/nested-source/output", name: "output", isFile: false, isDirectory: true }
+      } else if (path === "/nested-source/output") {
+        yield { path: "/nested-source/output/a.avif", name: "a.avif", isFile: true, isDirectory: false }
+      }
+    }
+
+    const result = await runXlchemy(normalizeXlchemyInput({
+      action: "convert", paths: ["/nested-source"], format: "AVIF", avifEncoder: "slimg",
+      threads: 4, outputMode: "directory", outputDir: "/nested-source/output", excludedFormats: [], overwrite: true, preserveMetadata: false,
+    }), runtime)
+
+    expect(result.success).toBe(true)
+    expect(result.data).toMatchObject({ inputCount: 1, convertedCount: 1, errorCount: 0 })
+    expect(openedDirectories).toEqual(["/nested-source"])
+    expect(runtime.listDir).not.toHaveBeenCalled()
+  })
+
   test("diagnoses PATH tools without requiring input files or leaking probe arguments", async () => {
     const runtime = fakeRuntime()
     runtime.resolveCommand = async (candidates) => candidates[0] === "oxipng" ? undefined : `/bin/${candidates[0]}`
@@ -517,14 +586,16 @@ describe("xlchemy core contract", () => {
     expect(result.success).toBe(true)
     expect(peakActiveEncoders).toBe(3)
     expect(runtime.commands.filter((item) => item.command.endsWith("avifenc"))).toHaveLength(3)
+    expect(runtime.commands.some((item) => item.command === "slimg-cffi")).toBe(false)
     expect(runtime.commands.filter((item) => item.command.endsWith("avifenc")).every((item) => item.args.includes("2"))).toBe(true)
     expect(events.find((event) => event.message.startsWith("Batch scheduler:"))?.message).toContain("3 worker(s); CPU thread budget 6; encoder threads 2 each")
-    expect(events.find((event) => event.message.startsWith("Batch completed"))?.message).toContain("peak active workers 3")
+    expect(events.find((event) => event.message.startsWith("Batch completed"))?.message).toContain("peak active files 3")
   })
 
   test("runs one single-threaded slimg DLL call per CPU unit", async () => {
     const runtime = fakeRuntime()
     const inputs = Array.from({ length: 30 }, (_, index) => `/slimg/${index}.png`)
+    runtime.ensureDir = vi.fn(runtime.ensureDir)
     const originalPathInfo = runtime.pathInfo
     runtime.pathInfo = async (path) => inputs.includes(path)
       ? { path, exists: true, isFile: true, isDirectory: false, size: 1_000, atimeMs: 0, mtimeMs: 0 }
@@ -560,12 +631,14 @@ describe("xlchemy core contract", () => {
 
     const commands = runtime.commands.filter((item) => item.command === "slimg-cffi")
     expect(result.success).toBe(true)
-    expect(peakActiveEncoders).toBe(22)
+    expect(peakActiveEncoders).toBe(16)
     expect(acquireWorker).toHaveBeenCalledTimes(30)
     expect(acquireWorker.mock.calls.every(([threads]) => threads === 1)).toBe(true)
     expect(commands).toHaveLength(30)
-    expect(events.find((event) => event.message.startsWith("Batch scheduler:"))?.message).toContain("22 worker(s); CPU thread budget 22; encoder threads 1 each")
-    expect(events.find((event) => event.message.startsWith("Batch completed"))?.message).toContain("peak active workers 22")
+    expect(runtime.ensureDir).toHaveBeenCalledOnce()
+    expect(runtime.ensureDir).toHaveBeenCalledWith("/slimg")
+    expect(events.find((event) => event.message.startsWith("Batch scheduler:"))?.message).toContain("16 worker(s); CPU thread budget 22; encoder threads 1 each")
+    expect(events.find((event) => event.message.startsWith("Batch completed"))?.message).toContain("peak active files 16; peak active encoders 16")
     expect(release).toHaveBeenCalledTimes(30)
   })
 
@@ -651,6 +724,7 @@ describe("xlchemy core contract", () => {
     const result = await runXlchemy(normalizeXlchemyInput({ action: "convert", paths: ["/photos/a.png"], format: "AVIF", avifEncoder: "svt", quality: 60, effort: 7, threads: 4, outputMode: "source", overwrite: true, preserveMetadata: false }), runtime)
     expect(result.success).toBe(true)
     expect(runtime.commands.at(-1)).toEqual({ command: "/bin/ffmpeg", args: ["-hide_banner", "-loglevel", "error", "-y", "-i", "/photos/a.png", "-frames:v", "1", "-c:v", "libsvtav1", "-preset", "4", "-crf", "25", "-threads", "4", "-pix_fmt", "yuv420p", "-f", "avif", "/photos/a.avif"] })
+    expect(runtime.commands.some((item) => item.command === "slimg-cffi")).toBe(false)
   })
 
   test("passes AVIF chroma subsampling through to the SVT pixel format", async () => {

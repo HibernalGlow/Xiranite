@@ -15,6 +15,8 @@ export interface XlchemyEfuAnalysis {
 export interface XlchemyCardState {
   action?: XlchemyAction
   pathsText?: string
+  /** Directory roots stay as source descriptors and are enumerated only by the backend. */
+  inputDirectoryPaths?: string[]
   /** Native EFU paths are streamed by the backend instead of expanded into card state. */
   efuFiles?: string[]
   /** Fixed-size summaries used by input analysis; individual EFU rows stay out of React state. */

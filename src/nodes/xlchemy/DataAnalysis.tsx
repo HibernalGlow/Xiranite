@@ -8,8 +8,8 @@ import type { XlchemyEfuAnalysis } from "./types"
 type InputEntry = { ext: string; folder: string; size: number }
 type Distribution = { key: string; count: number; size: number }
 
-export function DataAnalysis(props: { paths: string[]; fileSizes?: ReadonlyMap<string, number>; efuAnalyses?: XlchemyEfuAnalysis[]; result: XlchemyData | null; activeTab?: "input" | "output"; onTabChange?: (tab: "input" | "output") => void }) {
-  const input = buildInputStats(props.paths, props.fileSizes, props.efuAnalyses ?? [], props.result)
+export function DataAnalysis(props: { paths: string[]; directSourceCount?: number; fileSizes?: ReadonlyMap<string, number>; efuAnalyses?: XlchemyEfuAnalysis[]; result: XlchemyData | null; activeTab?: "input" | "output"; onTabChange?: (tab: "input" | "output") => void }) {
+  const input = buildInputStats(props.paths, props.directSourceCount ?? props.paths.length, props.fileSizes, props.efuAnalyses ?? [], props.result)
   const output = buildOutputStats(props.result)
   return <Tabs defaultValue="input" value={props.activeTab} className="flex min-h-0 flex-col gap-2" data-testid="xlchemy-data-analysis" onValueChange={(tab) => props.onTabChange?.(tab as "input" | "output")}>
     <TabsList className="grid w-full grid-cols-2">
@@ -35,18 +35,16 @@ export function DataAnalysis(props: { paths: string[]; fileSizes?: ReadonlyMap<s
   </Tabs>
 }
 
-function buildInputStats(paths: string[], fileSizes: ReadonlyMap<string, number> | undefined, efuAnalyses: XlchemyEfuAnalysis[], result: XlchemyData | null) {
+function buildInputStats(paths: string[], directSourceCount: number, fileSizes: ReadonlyMap<string, number> | undefined, efuAnalyses: XlchemyEfuAnalysis[], result: XlchemyData | null) {
   const sizes = new Map([...(fileSizes ?? [])].map(([path, size]) => [normalizePath(path), size] as const))
   for (const file of result?.files ?? []) if (file.sourceBytes !== undefined) sizes.set(normalizePath(file.sourcePath), file.sourceBytes)
-  const expectedFiles = paths.length + efuAnalyses.reduce((sum, item) => sum + item.totalFiles, 0)
-  const knownDirectFiles = paths.filter((path) => sizes.has(normalizePath(path))).length
-  if (result?.inputAnalysis && result.inputAnalysis.totalFiles === expectedFiles && knownDirectFiles < paths.length) return { ...result.inputAnalysis, avgSize: result.inputAnalysis.totalFiles ? Math.round(result.inputAnalysis.totalSize / result.inputAnalysis.totalFiles) : 0 }
+  if (result?.inputAnalysis) return { ...result.inputAnalysis, avgSize: result.inputAnalysis.totalFiles ? Math.round(result.inputAnalysis.totalSize / result.inputAnalysis.totalFiles) : 0 }
   const entries: InputEntry[] = paths.map((path) => {
     const normalized = normalizePath(path), name = normalized.split("/").at(-1) ?? normalized, directory = normalized.includes("/") ? normalized.slice(0, normalized.lastIndexOf("/")) : "", dot = name.lastIndexOf(".")
     return { ext: dot > 0 ? name.slice(dot + 1).toLowerCase() : "unknown", folder: directory.split("/").filter(Boolean).at(-1) ?? "/", size: sizes.get(normalized) ?? 0 }
   })
   const directSize = entries.reduce((sum, entry) => sum + entry.size, 0), sortedSizes = entries.map((entry) => entry.size).sort((a, b) => a - b)
-  const totalFiles = entries.length + efuAnalyses.reduce((sum, item) => sum + item.totalFiles, 0)
+  const totalFiles = directSourceCount + efuAnalyses.reduce((sum, item) => sum + item.totalFiles, 0)
   const totalSize = directSize + efuAnalyses.reduce((sum, item) => sum + item.totalSize, 0)
   const directFormats = distribute(entries, "ext"), directFolders = distribute(entries, "folder")
   return {

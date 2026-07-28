@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import type { NodeComponentProps, NodeRunEvent, NodeRunResult } from "@xiranite/contract"
 import type { XlchemyAction, XlchemyData, XlchemyFormat, XlchemyInput } from "@xiranite/node-xlchemy/core"
 import { DEFAULT_FILENAME_RULES, DEFAULT_RAM_OPTIMIZER_RULES, normalizeXlchemyInput } from "@xiranite/node-xlchemy/core"
@@ -35,6 +35,7 @@ import { ClipboardConvertDialog, type ClipboardConversionResult, type ClipboardI
 import { XlchemyFormatField, XlchemySliderField } from "./ConversionControls"
 import { analyzeEfuUrl } from "./efu"
 import { enabledXlchemyInputExtensions, XLCHEMY_INPUT_EXTENSIONS } from "./input-format-policy"
+import { parseXlchemyInputPaths, summarizeXlchemyInputPaths, XLCHEMY_INPUT_SIZE_CACHE_LIMIT } from "./input-source-model"
 import { FloatingWindowCaptionControls, useFloatingWindowFrame } from "@/components/workspace/FloatingWindowFrame"
 
 export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>) {
@@ -59,13 +60,27 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   const [configDirty, setConfigDirty] = useState(false)
   const [inputFileSizes, setInputFileSizes] = useState<Map<string, number>>(() => new Map())
   const recordInputFileSizes = useCallback((entries: Array<[string, number]>) => {
-    setInputFileSizes((current) => new Map([...current, ...entries]))
+    setInputFileSizes((current) => {
+      const next = new Map(current)
+      for (const [path, size] of entries) {
+        if (next.has(path) || next.size < XLCHEMY_INPUT_SIZE_CACHE_LIMIT) next.set(path, size)
+      }
+      return next
+    })
   }, [])
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const configSaveQueueRef = useRef<Promise<void>>(Promise.resolve())
   const persistedConfigSignatureRef = useRef("")
 
-  const paths = splitLines(data.pathsText)
+  const inputPathSummary = useMemo(() => summarizeXlchemyInputPaths(data.pathsText), [data.pathsText])
+  const paths = inputPathSummary.previewPaths
+  useEffect(() => {
+    const retained = new Set(paths)
+    setInputFileSizes((current) => {
+      if ([...current.keys()].every((path) => retained.has(path))) return current
+      return new Map([...current].filter(([path]) => retained.has(path)))
+    })
+  }, [paths])
   const result = data.result ?? null
   const progress = data.progress ?? 0
   const format = data.format ?? "JPEG XL"
@@ -269,9 +284,18 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
         const sizeChange = lastFile?.sourceBytes !== undefined && lastFile.outputBytes !== undefined ? `${formatCompactBytes(lastFile.sourceBytes)} → ${formatCompactBytes(lastFile.outputBytes)}` : undefined
         const next: Partial<XlchemyCardState> = { phase: cancelled ? "cancelled" : response.success ? "completed" : "error", progress: response.success ? 100 : cancelled ? dataRef.current.progress ?? 0 : 0, processedCount: response.data?.inputCount ?? dataRef.current.processedCount, runInputCount: response.data?.inputCount ?? dataRef.current.runInputCount, progressText: sizeChange ? `${response.message} · ${sizeChange}` : response.message, ...(lastFile ? { currentFile: baseName(lastFile.sourcePath) } : {}), result: response.data ?? null }
         if (response.success && nextAction === "convert" && dataRef.current.autoClearCompleted && response.data) {
-          const completed = new Set(response.data.files.filter((file) => file.status === "converted" || file.status === "renamed").map((file) => file.sourcePath))
-          const remaining = splitLines(dataRef.current.pathsText).filter((path) => !completed.has(path))
-          next.pathsText = remaining.join("\n"); next.selectedPaths = remaining
+          const completedCount = response.data.convertedCount + (response.data.renamedCount ?? 0)
+          const allSubmittedCompleted = response.data.inputCount === completedCount && response.data.errorCount === 0 && response.data.skippedCount === 0
+          const completed = new Set(allSubmittedCompleted
+            ? input.paths
+            : response.data.files.filter((file) => file.status === "converted" || file.status === "renamed").map((file) => file.sourcePath))
+          const currentPaths = parseXlchemyInputPaths(dataRef.current.pathsText)
+          const remaining = currentPaths.filter((path) => !completed.has(path))
+          const remainingSet = new Set(remaining)
+          next.pathsText = remaining.join("\n")
+          next.selectedPaths = (dataRef.current.selectedPaths ?? currentPaths).filter((path) => !completed.has(path))
+          next.inputDirectoryPaths = (dataRef.current.inputDirectoryPaths ?? []).filter((path) => remainingSet.has(path))
+          if (allSubmittedCompleted) next.efuFiles = (dataRef.current.efuFiles ?? []).filter((path) => !input.efuFiles?.includes(path))
         }
         patch(next)
         if (response.success && nextAction === "convert" && dataRef.current.playSoundOnFinish !== false) playCompletionTone(dataRef.current.playSoundVolume ?? 0.5)
@@ -349,7 +373,7 @@ export function Component({ compId, host }: NodeComponentProps<XlchemyCardState>
   }
 
   const props: ViewProps = {
-    cancelling, configDirty, configPath, customPresets, data, defaults, format, inputFileSizes, paths, portalContainer: surfaceElement, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onInputFileSizesDiscovered: recordInputFileSizes, onListFiles: host.localFiles?.list, onPickFiles: pickInputFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
+    cancelling, configDirty, configPath, customPresets, data, defaults, format, inputFileSizes, inputPathCount: inputPathSummary.totalCount, inputPathsTruncated: inputPathSummary.truncated, paths, portalContainer: surfaceElement, progress, result, running, surfaceMode: surface.mode, t, getFileUrl: host.localFiles?.getUrl, onInputFileSizesDiscovered: recordInputFileSizes, onListFiles: host.localFiles?.list, onPickFiles: pickInputFiles, onPickDirectory: host.localFiles?.pickDirectory, onSubscribeDrops: host.localFiles?.subscribeDrops,
     onCancel: cancelCurrentRun, onClipboardRead: readClipboardImage, onClipboardConvert: convertClipboardImage, onClipboardCopy: copyClipboardImage, onExecute: execute, onImportEfu: importEfuLists, onPatch: patch, onSelectPreset: selectPreset,
     onReloadDefaults: reloadDefaults, onRestoreDefaults: () => patch(defaults ?? XL_FACTORY_DEFAULTS), onSaveDefaults: saveDefaults,
     onOpenConfig: host.config?.openFile ?? host.openConfigFile, onCopyText: (text) => host.clipboard?.writeText?.(text), onCreatePreset: createCustomPreset, onDeletePreset: deleteCustomPreset, onOverwritePreset: overwriteCustomPreset, onRenamePreset: renameCustomPreset, onExportPresets: exportCustomPresets, onImportPresets: importCustomPresets,
@@ -431,7 +455,7 @@ function normalizeCustomPreset(candidate: unknown): XlchemyCustomPreset | undefi
 }
 
 interface ViewProps {
-  alwaysShowQuality?: boolean; cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; inputFileSizes: ReadonlyMap<string, number>; paths: string[]; portalContainer?: HTMLElement | null; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
+  alwaysShowQuality?: boolean; cancelling: boolean; configDirty: boolean; configPath?: string; customPresets: XlchemyCustomPreset[]; data: XlchemyCardState; defaults?: Partial<XlchemyCardState>; format: XlchemyFormat; inputFileSizes: ReadonlyMap<string, number>; inputPathCount: number; inputPathsTruncated: boolean; paths: string[]; portalContainer?: HTMLElement | null; progress: number; result: XlchemyData | null; running: boolean; surfaceMode: ReturnType<typeof useNodeSurface>["mode"]; t: NodeT; getFileUrl?: (path: string) => string; onPickFiles?: () => Promise<string[]>; onPickDirectory?: () => Promise<string | undefined>
   onCancel: () => void; onClipboardRead: () => Promise<ClipboardImageData>; onClipboardConvert: (source: ClipboardImageData) => Promise<ClipboardConversionResult>; onClipboardCopy: (output: ClipboardImageData) => Promise<void>; onExecute: (action: XlchemyAction) => void; onImportEfu: () => Promise<void>; onInputFileSizesDiscovered: (entries: Array<[string, number]>) => void; onPatch: (patch: Partial<XlchemyCardState>) => void; onSelectPreset: (presetId: string) => void; onReloadDefaults: () => Promise<void>; onRestoreDefaults: () => void; onSaveDefaults: () => Promise<void>; onOpenConfig?: () => Promise<void> | void; onCopyText: (text: string) => Promise<void> | void | undefined; onCreatePreset: (name: string) => Promise<void>; onDeletePreset: (id: string) => Promise<void>; onOverwritePreset: (id: string) => Promise<void>; onRenamePreset: (id: string, name: string) => Promise<void>; onExportPresets: () => Promise<void>; onImportPresets: (serialized: string) => Promise<void>; onListFiles?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["list"]; onSubscribeDrops?: NonNullable<NodeComponentProps<XlchemyCardState>["host"]["localFiles"]>["subscribeDrops"]
 }
 
@@ -440,7 +464,7 @@ function CollapsedView(props: ViewProps) {
 }
 
 function CompactView(props: ViewProps & { portrait: boolean }) {
-  return <div data-testid={props.portrait ? "xlchemy-portrait-view" : "xlchemy-compact-view"} className="flex min-h-0 flex-1 flex-col gap-2 p-2"><Header props={props} /><ScrollArea className="min-h-0 flex-1"><div className="flex flex-col gap-2 pr-2"><WorkbenchCard title={props.t("sections.input", "输入文件")} grow><InputWorkbench props={props} /></WorkbenchCard><ConfigurationCard props={props} /><OperationsCard props={props} /><WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} fileSizes={props.inputFileSizes} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard><WorkbenchCard title="转换结果"><ResultPanel props={props} /></WorkbenchCard></div></ScrollArea></div>
+  return <div data-testid={props.portrait ? "xlchemy-portrait-view" : "xlchemy-compact-view"} className="flex min-h-0 flex-1 flex-col gap-2 p-2"><Header props={props} /><ScrollArea className="min-h-0 flex-1"><div className="flex flex-col gap-2 pr-2"><WorkbenchCard title={props.t("sections.input", "输入文件")} grow><InputWorkbench props={props} /></WorkbenchCard><ConfigurationCard props={props} /><OperationsCard props={props} /><WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} directSourceCount={props.inputPathCount} fileSizes={props.inputFileSizes} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard><WorkbenchCard title="转换结果"><ResultPanel props={props} /></WorkbenchCard></div></ScrollArea></div>
 }
 
 function FullView(props: ViewProps) {
@@ -452,7 +476,7 @@ function FullView(props: ViewProps) {
         <ScrollArea className="min-h-0 @2xl/xlchemy:h-full"><div className="flex flex-col gap-2 pr-2">
             <WorkbenchCard icon={FolderInput} title={props.t("sections.input", "输入文件")} grow><InputWorkbench props={props} /></WorkbenchCard>
             <OperationsCard props={props} />
-            <WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} fileSizes={props.inputFileSizes} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard>
+            <WorkbenchCard title="数据分析"><DataAnalysis paths={props.paths} directSourceCount={props.inputPathCount} fileSizes={props.inputFileSizes} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></WorkbenchCard>
         </div></ScrollArea>
         <ScrollArea className="min-h-0 @2xl/xlchemy:h-full"><div className="flex flex-col gap-2 pr-2">
             <ConfigurationCard props={props} />
@@ -471,7 +495,7 @@ function WorkspaceWorkbench({ props }: { props: ViewProps }) {
         <WorkbenchCard fill grow icon={FolderInput} title={props.t("sections.input", "输入文件")}><InputWorkbench props={props} /></WorkbenchCard>
         <div className="grid min-h-0 grid-cols-[minmax(0,1.15fr)_minmax(240px,0.85fr)] gap-2">
           <OperationsCard fill props={props} />
-          <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} fileSizes={props.inputFileSizes} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
+          <WorkbenchCard fill title="数据分析"><ScrollArea className="h-full"><div className="pr-2"><DataAnalysis paths={props.paths} directSourceCount={props.inputPathCount} fileSizes={props.inputFileSizes} efuAnalyses={selectedEfuAnalyses(props.data)} result={props.result} activeTab={props.data.analysisTab} onTabChange={(analysisTab) => props.onPatch({ analysisTab })} /></div></ScrollArea></WorkbenchCard>
         </div>
       </div>
       <div data-testid="xlchemy-workspace-right-column" className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(220px,1fr)] gap-2">
@@ -498,7 +522,7 @@ function ConfigurationCard({ props }: { props: ViewProps }) {
 }
 
 function OperationsCard({ fill = false, props }: { fill?: boolean; props: ViewProps }) {
-  return <WorkbenchCard fill={fill} title="任务与维护"><div className="@container/xlchemy-operations flex min-h-0 flex-1 flex-col"><Tabs defaultValue="progress" className="flex min-h-0 flex-1 flex-col" data-testid="xlchemy-operations-tabs"><TabsList layout="fill"><TabsTrigger aria-label="进度" value="progress"><Activity /><span className="hidden @sm/xlchemy-operations:inline">进度</span></TabsTrigger><TabsTrigger aria-label="ExifTool" value="exiftool"><Tags /><span className="hidden @sm/xlchemy-operations:inline">ExifTool</span></TabsTrigger><TabsTrigger aria-label="高级" value="advanced"><SlidersHorizontal /><span className="hidden @sm/xlchemy-operations:inline">高级</span></TabsTrigger><TabsTrigger aria-label="环境" value="environment"><Wrench /><span className="hidden @sm/xlchemy-operations:inline">环境</span></TabsTrigger></TabsList><TabsContent value="progress" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><ProgressWorkbench data={props.data} format={props.format} paths={props.paths} progress={props.progress} result={props.result} running={props.running} onPatch={props.onPatch} /></div></ScrollArea></TabsContent><TabsContent value="exiftool" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><ExifToolSettings props={props} /></div></ScrollArea></TabsContent><TabsContent value="advanced" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><AdvancedSettings props={props} /></div></ScrollArea></TabsContent><TabsContent value="environment" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><EnvironmentSettings props={props} /></div></ScrollArea></TabsContent></Tabs></div></WorkbenchCard>
+  return <WorkbenchCard fill={fill} title="任务与维护"><div className="@container/xlchemy-operations flex min-h-0 flex-1 flex-col"><Tabs defaultValue="progress" className="flex min-h-0 flex-1 flex-col" data-testid="xlchemy-operations-tabs"><TabsList layout="fill"><TabsTrigger aria-label="进度" value="progress"><Activity /><span className="hidden @sm/xlchemy-operations:inline">进度</span></TabsTrigger><TabsTrigger aria-label="ExifTool" value="exiftool"><Tags /><span className="hidden @sm/xlchemy-operations:inline">ExifTool</span></TabsTrigger><TabsTrigger aria-label="高级" value="advanced"><SlidersHorizontal /><span className="hidden @sm/xlchemy-operations:inline">高级</span></TabsTrigger><TabsTrigger aria-label="环境" value="environment"><Wrench /><span className="hidden @sm/xlchemy-operations:inline">环境</span></TabsTrigger></TabsList><TabsContent value="progress" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><ProgressWorkbench data={props.data} format={props.format} sourceCount={props.inputPathCount} progress={props.progress} result={props.result} running={props.running} onPatch={props.onPatch} /></div></ScrollArea></TabsContent><TabsContent value="exiftool" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><ExifToolSettings props={props} /></div></ScrollArea></TabsContent><TabsContent value="advanced" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><AdvancedSettings props={props} /></div></ScrollArea></TabsContent><TabsContent value="environment" className="min-h-0 flex-1 pt-1"><ScrollArea className={cn(fill && "h-full")}><div className="pr-2"><EnvironmentSettings props={props} /></div></ScrollArea></TabsContent></Tabs></div></WorkbenchCard>
 }
 
 function Header({ props }: { props: ViewProps }) {
@@ -540,7 +564,7 @@ function InputWorkbench({ props }: { props: ViewProps }) {
       })
     },
   }
-  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog autoCopy={props.data.clipboardAutoCopy ?? false} configuration={<ConfigurationCard props={clipboardProps} />} disabled={props.running} portalContainer={props.portalContainer} onAutoCopyChange={(clipboardAutoCopy) => props.onPatch({ clipboardAutoCopy })} onRead={props.onClipboardRead} onConvert={props.onClipboardConvert} onCopy={props.onClipboardCopy} />} data={props.data} disabled={props.running} inputFileSizes={props.inputFileSizes} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onInputFileSizesDiscovered={props.onInputFileSizesDiscovered} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
+  return <InputFilesWorkbench clipboardAction={<ClipboardConvertDialog autoCopy={props.data.clipboardAutoCopy ?? false} configuration={<ConfigurationCard props={clipboardProps} />} disabled={props.running} portalContainer={props.portalContainer} onAutoCopyChange={(clipboardAutoCopy) => props.onPatch({ clipboardAutoCopy })} onRead={props.onClipboardRead} onConvert={props.onClipboardConvert} onCopy={props.onClipboardCopy} />} data={props.data} disabled={props.running} inputFileSizes={props.inputFileSizes} inputPathCount={props.inputPathCount} inputPaths={props.paths} inputPathsTruncated={props.inputPathsTruncated} getFileUrl={props.getFileUrl} result={props.result} onCopyPath={(path) => void props.onCopyText(path)} onImportEfu={props.onImportEfu} onInputFileSizesDiscovered={props.onInputFileSizesDiscovered} onPatch={props.onPatch} onPickFiles={props.onPickFiles ?? (async () => [])} onPickDirectory={props.onPickDirectory ?? (async () => undefined)} onListFiles={props.onListFiles} onSubscribeDrops={props.onSubscribeDrops} />
 }
 
 function FormatControls({ props }: { props: ViewProps }) {
@@ -690,7 +714,6 @@ function WorkbenchCard({ badge, children, fill = false, grow = false, icon: Icon
   return <ModulePanel badge={badge} fill={fill} grow={grow} icon={Icon} title={title} titleClassName="!border-transparent !bg-transparent !text-foreground px-0" contentClassName="pt-1">{children}</ModulePanel>
 }
 
-function splitLines(value?: string) { return String(value ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean) }
 function readLiveResult(value: unknown): XlchemyData | undefined {
   if (!value || typeof value !== "object" || (value as { kind?: unknown }).kind !== "xlchemy-live-result") return undefined
   const result = (value as { result?: unknown }).result
@@ -709,15 +732,15 @@ function baseName(path: string) { return path.replace(/\\/g, "/").split("/").fil
 function formatCompactBytes(bytes: number) { if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`; return `${(bytes / 1024 ** 2).toFixed(1)} MB` }
 function formatExtension(format: XlchemyFormat) { return FORMATS.find((item) => item.value === format)?.extension ?? "" }
 function statusLabel(props: ViewProps) { if (props.running || props.data.phase === "running") return "运行中"; if (props.data.phase === "completed") return "完成"; if (props.data.phase === "cancelled") return "已取消"; if (props.data.phase === "error") return "错误"; return "在线" }
-function buildInput(action: XlchemyAction, data: XlchemyCardState): XlchemyInput { const normalized = normalizeXlchemyInput({ action, paths: splitLines(data.pathsText), efuFiles: data.efuFiles, format: data.format, lossless: data.lossless, quality: data.quality, effort: data.effort, maxCompression: data.maxCompression, threads: data.threads, outputMode: data.outputMode, outputDir: data.outputDir, preserveMetadata: data.preserveMetadata, preserveStructure: data.preserveStructure, preserveTimestamps: data.preserveTimestamps, overwrite: data.overwrite, existingPolicy: data.existingPolicy, recursive: data.recursive, deleteOriginal: data.deleteOriginal, deleteOriginalMode: data.deleteOriginalMode, intelligentEffort: data.intelligentEffort, jxlModular: data.jxlModular, jxlVerify: data.jxlVerify, jxlPngFallback: data.jxlPngFallback, jxlNormalize: data.jxlNormalize, jxlNormalizeWhen: data.jxlNormalizeWhen, chromaSubsampling: data.chromaSubsampling, metadataMode: data.metadataMode, keepIfLarger: data.keepIfLarger, copyIfLarger: data.copyIfLarger, animationDetectionFormats: animationDetectionFormats(data), smallestFormatPool: { png: data.smallestPng ?? true, webp: data.smallestWebp ?? true, jxl: data.smallestJxl ?? true }, jpegEncoder: data.jpegEncoder, avifEncoder: data.avifEncoder, slimgBackend: data.slimgBackend, avifBitDepth: data.avifBitDepth, avifAomIqTune: data.avifAomIqTune, disableProgressiveJpegli: data.disableProgressiveJpegli, autoLosslessJpeg: data.autoLosslessJpeg, enableCustomArgs: data.enableCustomArgs, cjxlArgs: data.cjxlArgs, avifencArgs: data.avifencArgs, cjpegliArgs: data.cjpegliArgs, imageMagickArgs: data.imageMagickArgs, ramOptimizer: data.ramOptimizer, ramOptimizerRules: data.ramOptimizerRules, exiftoolWipeArgs: data.exiftoolWipeArgs, exiftoolPreserveArgs: data.exiftoolPreserveArgs, exiftoolUnsafeWipeArgs: data.exiftoolUnsafeWipeArgs, exiftoolCustomArgs: data.exiftoolCustomArgs, processingOrder: data.processingOrder, excludedFormats: String(data.excludedFormatsText ?? "avif,jxl,webp,gif").split(/[,;\s]+/).filter(Boolean), downscale: { enabled: data.downscaleEnabled ?? false, mode: data.downscaleMode ?? "resolution", width: data.downscaleWidth ?? 1920, height: data.downscaleHeight ?? 1080, percent: data.downscalePercent ?? 50, fileSizeKb: data.downscaleFileSizeKb ?? 500, shortestSide: data.downscaleShortestSide ?? 1080, longestSide: data.downscaleLongestSide ?? 1920, megapixels: data.downscaleMegapixels ?? 2.1, resample: data.downscaleResample ?? "default" } }); normalized.efuFiles = [...new Set(data.efuFiles ?? [])]; return normalized }
+function buildInput(action: XlchemyAction, data: XlchemyCardState): XlchemyInput { const normalized = normalizeXlchemyInput({ action, paths: parseXlchemyInputPaths(data.pathsText), efuFiles: data.efuFiles, format: data.format, lossless: data.lossless, quality: data.quality, effort: data.effort, maxCompression: data.maxCompression, threads: data.threads, outputMode: data.outputMode, outputDir: data.outputDir, preserveMetadata: data.preserveMetadata, preserveStructure: data.preserveStructure, preserveTimestamps: data.preserveTimestamps, overwrite: data.overwrite, existingPolicy: data.existingPolicy, recursive: data.recursive, deleteOriginal: data.deleteOriginal, deleteOriginalMode: data.deleteOriginalMode, intelligentEffort: data.intelligentEffort, jxlModular: data.jxlModular, jxlVerify: data.jxlVerify, jxlPngFallback: data.jxlPngFallback, jxlNormalize: data.jxlNormalize, jxlNormalizeWhen: data.jxlNormalizeWhen, chromaSubsampling: data.chromaSubsampling, metadataMode: data.metadataMode, keepIfLarger: data.keepIfLarger, copyIfLarger: data.copyIfLarger, animationDetectionFormats: animationDetectionFormats(data), smallestFormatPool: { png: data.smallestPng ?? true, webp: data.smallestWebp ?? true, jxl: data.smallestJxl ?? true }, jpegEncoder: data.jpegEncoder, avifEncoder: data.avifEncoder, slimgBackend: data.slimgBackend, avifBitDepth: data.avifBitDepth, avifAomIqTune: data.avifAomIqTune, disableProgressiveJpegli: data.disableProgressiveJpegli, autoLosslessJpeg: data.autoLosslessJpeg, enableCustomArgs: data.enableCustomArgs, cjxlArgs: data.cjxlArgs, avifencArgs: data.avifencArgs, cjpegliArgs: data.cjpegliArgs, imageMagickArgs: data.imageMagickArgs, ramOptimizer: data.ramOptimizer, ramOptimizerRules: data.ramOptimizerRules, exiftoolWipeArgs: data.exiftoolWipeArgs, exiftoolPreserveArgs: data.exiftoolPreserveArgs, exiftoolUnsafeWipeArgs: data.exiftoolUnsafeWipeArgs, exiftoolCustomArgs: data.exiftoolCustomArgs, processingOrder: data.processingOrder, excludedFormats: String(data.excludedFormatsText ?? "avif,jxl,webp,gif").split(/[,;\s]+/).filter(Boolean), downscale: { enabled: data.downscaleEnabled ?? false, mode: data.downscaleMode ?? "resolution", width: data.downscaleWidth ?? 1920, height: data.downscaleHeight ?? 1080, percent: data.downscalePercent ?? 50, fileSizeKb: data.downscaleFileSizeKb ?? 500, shortestSide: data.downscaleShortestSide ?? 1080, longestSide: data.downscaleLongestSide ?? 1920, megapixels: data.downscaleMegapixels ?? 2.1, resample: data.downscaleResample ?? "default" } }); normalized.efuFiles = [...new Set(data.efuFiles ?? [])]; return normalized }
 
 function animationDetectionFormats(data: XlchemyCardState): NonNullable<XlchemyInput["animationDetectionFormats"]> {
   if (data.format !== "dynar" && data.skipAnimatedImages === false) return []
   return [data.detectAnimatedPng === true && "png", data.detectAnimatedWebp !== false && "webp", data.detectAnimatedAvif === true && "avif", data.detectAnimatedJxl === true && "jxl"].filter((format): format is NonNullable<XlchemyInput["animationDetectionFormats"]>[number] => Boolean(format))
 }
 
-function hasInputSources(props: Pick<ViewProps, "data" | "paths">) { return props.paths.length > 0 || Boolean(props.data.efuFiles?.length) }
-function inputSourceLabel(props: Pick<ViewProps, "data" | "paths">) { const efuCount = props.data.efuFiles?.length ?? 0, efuItems = selectedEfuAnalyses(props.data).reduce((sum, item) => sum + item.totalFiles, 0); return efuCount ? `${(props.paths.length + efuItems).toLocaleString()} 项 · ${efuCount} EFU` : `${props.paths.length} 项` }
+function hasInputSources(props: Pick<ViewProps, "data" | "inputPathCount">) { return props.inputPathCount > 0 || Boolean(props.data.efuFiles?.length) }
+function inputSourceLabel(props: Pick<ViewProps, "data" | "inputPathCount">) { const efuCount = props.data.efuFiles?.length ?? 0, efuItems = selectedEfuAnalyses(props.data).reduce((sum, item) => sum + item.totalFiles, 0); return efuCount ? `${(props.inputPathCount + efuItems).toLocaleString()} 项 · ${efuCount} EFU` : `${props.inputPathCount.toLocaleString()} 项` }
 function playCompletionTone(volume: number) { const AudioContextCtor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext; if (!AudioContextCtor) return; const context = new AudioContextCtor(), oscillator = context.createOscillator(), gain = context.createGain(); oscillator.frequency.value = 660; gain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)) * 0.12, context.currentTime); gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22); oscillator.connect(gain).connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.22); oscillator.addEventListener("ended", () => void context.close()) }
 function getHostData(host: NodeComponentProps<XlchemyCardState>["host"], compId: string): XlchemyCardState { return host.state?.getData?.() ?? host.getData<XlchemyCardState>(compId) ?? {} }
 

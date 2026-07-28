@@ -70,11 +70,11 @@ function telemetryWave(activity: number, errors: number, progress: number): stri
   return path
 }
 
-export function ProgressWorkbench(props: { data: XlchemyCardState; format: string; paths: string[]; progress: number; result: XlchemyData | null; running: boolean; onPatch: (patch: Partial<XlchemyCardState>) => void }) {
+export function ProgressWorkbench(props: { data: XlchemyCardState; format: string; sourceCount: number; progress: number; result: XlchemyData | null; running: boolean; onPatch: (patch: Partial<XlchemyCardState>) => void }) {
   const [startedAt, setStartedAt] = useState(() => Date.now()), [now, setNow] = useState(() => Date.now())
   useEffect(() => { if (!props.running) return; setStartedAt(Date.now()); const timer = window.setInterval(() => setNow(Date.now()), 500); return () => window.clearInterval(timer) }, [props.running])
-  const hasUnknownEfuTotal = props.running && Boolean(props.data.efuFiles?.length) && props.data.runInputCount === undefined
-  const total = props.data.runInputCount ?? props.result?.inputCount ?? props.paths.length
+  const hasUnknownEfuTotal = props.running && Boolean(props.data.efuFiles?.length || props.data.inputDirectoryPaths?.length) && props.data.runInputCount === undefined
+  const total = props.data.runInputCount ?? props.result?.inputCount ?? props.sourceCount
   const completed = props.data.processedCount ?? props.result?.inputCount ?? Math.round(total * props.progress / 100)
   const elapsedMs = props.running ? now - startedAt : props.result?.elapsedMs ?? 0
   const etaMs = props.running && !hasUnknownEfuTotal && completed > 0 ? elapsedMs / completed * Math.max(0, total - completed) : 0, speed = elapsedMs > 0 && completed > 0 ? completed / (elapsedMs / 1000) : 0

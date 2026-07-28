@@ -5,6 +5,32 @@ import type { XlchemyToolStatus } from "./core.js"
 const DEFAULT_SLIMG_DLL = "C:\\Windows\\System32\\slimg_cffi.dll"
 const AVIF_FORMAT = 3
 
+interface SlimgSymbols {
+  slimg_decode_file(path: Pointer): Pointer | null
+  slimg_convert(data: Pointer, length: bigint, width: number, height: number, format: number, quality: number): Pointer | null
+  slimg_free_buffer_ptr(buffer: Pointer): void
+}
+
+interface SlimgLibrary {
+  symbols: SlimgSymbols
+  close(): void
+}
+
+interface SlimgFfi {
+  dlopen(path: string, symbols: Record<string, unknown>): SlimgLibrary
+  ptr(value: Uint8Array): Pointer
+  read: {
+    ptr(pointer: Pointer, byteOffset?: number): Pointer | null
+    u64(pointer: Pointer, byteOffset?: number): bigint
+    u32(pointer: Pointer, byteOffset?: number): number
+  }
+  toArrayBuffer(pointer: Pointer, byteOffset: number, length: number): ArrayBuffer
+}
+
+interface SlimgSession { ffi: SlimgFfi; library: SlimgLibrary }
+
+let sessionPromise: Promise<SlimgSession> | undefined
+
 export async function probeSlimgCffi(): Promise<XlchemyToolStatus> {
   const path = slimgDllPath()
   try {
@@ -35,12 +61,8 @@ export async function probeSlimgCffi(): Promise<XlchemyToolStatus> {
 }
 
 export async function convertWithSlimgCffi(source: string, target: string, quality: number): Promise<void> {
-  const { dlopen, ptr, read, toArrayBuffer } = await import("bun:ffi")
-  const library = dlopen(slimgDllPath(), {
-    slimg_decode_file: { args: ["ptr"], returns: "ptr" },
-    slimg_convert: { args: ["ptr", "u64", "u32", "u32", "i32", "u8"], returns: "ptr" },
-    slimg_free_buffer_ptr: { args: ["ptr"], returns: "void" },
-  })
+  const { ffi, library } = await slimgSession()
+  const { ptr, read, toArrayBuffer } = ffi
   let decodedPointer: Pointer | null = null
   let convertedPointer: Pointer | null = null
   try {
@@ -61,8 +83,27 @@ export async function convertWithSlimgCffi(source: string, target: string, quali
   } finally {
     if (convertedPointer) library.symbols.slimg_free_buffer_ptr(convertedPointer)
     if (decodedPointer) library.symbols.slimg_free_buffer_ptr(decodedPointer)
-    library.close()
   }
+}
+
+function slimgSession(): Promise<SlimgSession> {
+  if (!sessionPromise) {
+    sessionPromise = openSlimgSession().catch((error) => {
+      sessionPromise = undefined
+      throw error
+    })
+  }
+  return sessionPromise
+}
+
+async function openSlimgSession(): Promise<SlimgSession> {
+  const ffi = await import("bun:ffi") as unknown as SlimgFfi
+  const library = ffi.dlopen(slimgDllPath(), {
+    slimg_decode_file: { args: ["ptr"], returns: "ptr" },
+    slimg_convert: { args: ["ptr", "u64", "u32", "u32", "i32", "u8"], returns: "ptr" },
+    slimg_free_buffer_ptr: { args: ["ptr"], returns: "void" },
+  })
+  return { ffi, library }
 }
 
 function slimgDllPath() {
