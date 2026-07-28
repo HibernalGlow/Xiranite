@@ -116,6 +116,35 @@ describe("ReaderSourceWatchService", () => {
     await service[Symbol.asyncDispose]()
   })
 
+  it("[neoview.control.source-watch-open-error] reports an initial subscription failure and retries on the next poll", async () => {
+    const close = vi.fn(async () => undefined)
+    const publish: Array<Parameters<ReaderSourceWatcher["subscribe"]>[1]> = []
+    const watcher: ReaderSourceWatcher = {
+      subscribe: vi.fn(async (_source, onChanges) => {
+        publish.push(onChanges)
+        if (publish.length === 1) throw new Error("cannot watch D:/private/library")
+        return { close, [Symbol.asyncDispose]: close }
+      }),
+    }
+    const service = new ReaderSourceWatchService(watcher, 5_000)
+    const source = { kind: "directory" as const, path: "D:/private" }
+
+    await expect(service.waitForChange("reader-1", source, 0)).resolves.toEqual({
+      revision: 1,
+      state: "unavailable",
+      kinds: [],
+      count: 0,
+    })
+
+    const recovered = service.waitForChange("reader-1", source, 1)
+    await vi.waitFor(() => expect(watcher.subscribe).toHaveBeenCalledTimes(2))
+    publish[1]!([{ kind: "update" }])
+    await expect(recovered).resolves.toEqual({ revision: 2, state: "changed", kinds: ["update"], count: 1 })
+
+    await service[Symbol.asyncDispose]()
+    expect(close).toHaveBeenCalledOnce()
+  })
+
   it("[neoview.control.source-watch-error-recovery] rebuilds a failed subscription once and receives the next change", async () => {
     const closeFirst = vi.fn(async () => undefined)
     const closeSecond = vi.fn(async () => undefined)
