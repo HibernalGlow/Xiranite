@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest"
 import {
   applyWindowsShellPlan,
+  buildWindowsManagedShellPlan,
   buildWindowsShellCommand,
+  inspectWindowsManagedShellPlan,
   legacyWindowsShellRegistryPath,
   quoteWindowsCommandArgument,
+  setWindowsManagedShellPlanEnabled,
   type WindowsRegistryAdapter,
 } from "./index.js"
 
@@ -95,5 +98,73 @@ describe("Windows Shell Integration", () => {
     }], "unregister")
 
     expect(result).toEqual({ successCount: 1, failedCount: 0, errors: [] })
+  })
+
+  it("builds a managed plan for effective extensions plus directory scopes", () => {
+    const plan = buildWindowsManagedShellPlan({
+      registrationId: "xiranite.neoview.open",
+      nodeId: "neoview",
+      intent: "open",
+      key: "Xiranite.NeoView.Open",
+      label: "Open with NeoView",
+      executable: "C:\\Xiranite.exe",
+      arguments: ["--launch-node", "neoview", "--", "%1"],
+      extensions: ["jpg", ".cbz", "jpg"],
+      scopes: ["file", "directory", "background"],
+      hives: ["HKCU"],
+    })
+
+    expect(plan).toEqual([
+      expect.objectContaining({ extension: "jpg", registryPath: "HKCU\\Software\\Classes\\SystemFileAssociations\\.jpg\\shell\\Xiranite.NeoView.Open" }),
+      expect.objectContaining({ extension: "cbz", registryPath: "HKCU\\Software\\Classes\\SystemFileAssociations\\.cbz\\shell\\Xiranite.NeoView.Open" }),
+      expect.objectContaining({ scope: "directory", command: "C:\\Xiranite.exe --launch-node neoview -- \"%V\"" }),
+      expect.objectContaining({ scope: "background", command: "C:\\Xiranite.exe --launch-node neoview -- \"%V\"" }),
+    ])
+  })
+
+  it("preserves an unmarked visible verb as a conflict", async () => {
+    const [item] = buildWindowsManagedShellPlan({
+      registrationId: "xiranite.neoview.open",
+      nodeId: "neoview",
+      intent: "open",
+      key: "Xiranite.NeoView.Open",
+      label: "Open with NeoView",
+      executable: "C:\\Xiranite.exe",
+      hives: ["HKCU"],
+    })
+    const runner = async (args: readonly string[]) => {
+      if (args[0] === "query") return { code: 0, stdout: "External registration", stderr: "" }
+      return { code: 1, stdout: "", stderr: "not found" }
+    }
+
+    await expect(inspectWindowsManagedShellPlan(runner, [item!])).resolves.toEqual({
+      state: "conflict",
+      reason: `${item!.registryPath} is owned by another registration and cannot be repaired automatically.`,
+    })
+  })
+
+  it("rolls back already-created managed keys when a later write fails", async () => {
+    const plan = buildWindowsManagedShellPlan({
+      registrationId: "xiranite.neoview.open",
+      nodeId: "neoview",
+      intent: "open",
+      key: "Xiranite.NeoView.Open",
+      label: "Open with NeoView",
+      executable: "C:\\Xiranite.exe",
+      scopes: ["file", "directory"],
+      hives: ["HKCU"],
+    })
+    const calls: readonly string[][] = []
+    const runner = async (args: readonly string[]) => {
+      calls.push([...args])
+      if (args[0] === "add" && args[1] === plan[1]?.registryPath) return { code: 1, stdout: "", stderr: "access denied" }
+      return { code: 0, stdout: "", stderr: "" }
+    }
+
+    await expect(setWindowsManagedShellPlanEnabled(runner, plan, true)).resolves.toMatchObject({
+      state: "needs-repair",
+      reason: expect.stringContaining("access denied"),
+    })
+    expect(calls).toContainEqual(["delete", plan[0]!.registryPath, "/f"])
   })
 })

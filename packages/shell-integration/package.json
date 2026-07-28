@@ -6,7 +6,11 @@
   "description": "Shared Windows Shell registration planning and platform adapter.",
   "license": "UNLICENSED",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "browser": { "types": "./dist/browser.d.ts", "default": "./dist/browser.js" },
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "files": ["dist"],
   "scripts": {
