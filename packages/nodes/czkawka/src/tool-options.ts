@@ -175,7 +175,6 @@ export function createCzkawkaScanInput(tool: CzkawkaTool, values: Record<string,
     simiuSetsScanOrder: values.simiuSetsScanOrder as CzkawkaInput["simiuSetsScanOrder"],
     simiuSetsNamePrefix: text(values.simiuSetsNamePrefix),
     simiuSetsMinimumGroupSize: optionalNumber(values.simiuSetsMinimumGroupSize),
-    simiuSetsThreshold: optionalNumber(values.simiuSetsThreshold),
     simiuSetsOperationMode: values.simiuSetsOperationMode as CzkawkaInput["simiuSetsOperationMode"],
     similarVideosLetterboxCrop: resolveCzkawkaSimilarVideoCrop(values).letterboxCrop,
   }

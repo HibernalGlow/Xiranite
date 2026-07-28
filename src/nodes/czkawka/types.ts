@@ -54,7 +54,6 @@ export interface CzkawkaCardState {
   simiuSetsScanOrder?: SimiuSetScanOrder
   simiuSetsNamePrefix?: string
   simiuSetsMinimumGroupSize?: string
-  simiuSetsThreshold?: string
   simiuSetsOperationMode?: SimiuSetApplyMode
   simiuSetsCleanEmptyDirectories?: boolean
   similarImagesViewMode?: CzkawkaSimilarImagesViewMode

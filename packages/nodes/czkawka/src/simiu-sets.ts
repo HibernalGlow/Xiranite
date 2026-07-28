@@ -1,6 +1,4 @@
-import { clusterSimiuImagePaths, type SimiuImageFeature } from "./simiu-similarity.js"
-
-/** Simiu owns grouping and rollback above Czkawka's independent workbench UI. */
+/** Simiu owns directory-local planning and rollback above Czkawka's detector. */
 export const SIMIU_SET_IMAGE_EXTENSIONS = new Set([
   ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".avif", ".jxl",
 ])
@@ -15,11 +13,24 @@ export interface SimiuSetDirectoryEntry {
   isFile: boolean
 }
 
+export interface SimiuSetImage {
+  path: string
+  modifiedDate: number
+  size: number
+  width?: number
+  height?: number
+  similarity?: string
+}
+
+export interface SimiuSetSimilarityGroup {
+  entries: readonly SimiuSetImage[]
+}
+
 export interface SimiuSetGroup {
   root: string
   parentDirectory: string
   name: string
-  files: SimiuImageFeature[]
+  files: SimiuSetImage[]
 }
 
 export interface SimiuSetOperation {
@@ -35,8 +46,6 @@ export interface SimiuSetOptions {
   scanOrder: SimiuSetScanOrder
   namePrefix: string
   minimumGroupSize: number
-  threshold: number
-  maxWorkers: number
 }
 
 export interface SimiuSetScanResult {
@@ -55,7 +64,6 @@ export interface SimiuSetApplyResult {
 
 export interface SimiuSetRuntime {
   listDirectory(path: string): Promise<SimiuSetDirectoryEntry[]>
-  extractSimiuFeatures(paths: readonly string[], maxWorkers: number): Promise<SimiuImageFeature[]>
   pathExists(path: string): Promise<boolean>
   ensureDirectory(path: string): Promise<void>
   movePath(source: string, target: string): Promise<void>
@@ -100,14 +108,18 @@ export function normalizeSimiuSetOptions(input: Partial<SimiuSetOptions>): Simiu
     scanOrder: oneOf(input.scanOrder, ["path", "smallest-first", "deepest-first"], "smallest-first"),
     namePrefix: sanitizePrefix(input.namePrefix ?? "simiu_set"),
     minimumGroupSize: clamp(input.minimumGroupSize, 2, 10_000, 2),
-    threshold: clampDecimal(input.threshold, 0, 1, 0.17),
-    maxWorkers: clamp(input.maxWorkers, 0, 256, 0),
   }
 }
 
-export async function scanSimiuSets(input: Partial<SimiuSetOptions>, runtime: SimiuSetRuntime, onProgress: (progress: number, message: string) => void = () => {}): Promise<SimiuSetScanResult> {
+export async function scanSimiuSets(
+  input: Partial<SimiuSetOptions>,
+  similarityGroups: readonly SimiuSetSimilarityGroup[],
+  runtime: SimiuSetRuntime,
+  onProgress: (progress: number, message: string) => void = () => {},
+): Promise<SimiuSetScanResult> {
   const options = normalizeSimiuSetOptions(input)
   const directories = await collectSimiuSetDirectories(options, runtime)
+  const candidatesByDirectory = partitionSimiuSimilarityGroups(directories, similarityGroups, options.minimumGroupSize)
   const groups: SimiuSetGroup[] = []
   const messages: string[] = []
   let imageCount = 0
@@ -118,14 +130,8 @@ export async function scanSimiuSets(input: Partial<SimiuSetOptions>, runtime: Si
     if (runtime.isCancelled?.()) { stopped = true; break }
     const directory = directories[index]!
     imageCount += directory.images.length
-    onProgress(Math.round((index / Math.max(1, directories.length)) * 96) + 2, `Scanning ${directory.path}`)
-    const features = await runtime.extractSimiuFeatures(directory.images, options.maxWorkers)
-    if (runtime.isCancelled?.()) { stopped = true; break }
-    if (features.length < directory.images.length) messages.push(`${directory.path}: skipped ${directory.images.length - features.length} unreadable image(s).`)
-    const featureByPath = new Map(features.map((feature) => [feature.path, feature]))
-    const candidates = clusterSimiuImagePaths(directory.images, features, options.threshold)
-      .map((paths) => paths.map((path) => featureByPath.get(path)).filter((feature): feature is SimiuImageFeature => Boolean(feature)))
-      .filter((entries) => entries.length >= options.minimumGroupSize)
+    onProgress(Math.round((index / Math.max(1, directories.length)) * 4) + 96, `Planning Simiu sets in ${directory.path}`)
+    const candidates = candidatesByDirectory.get(normalizedDirectory(directory.path)) ?? []
     if (candidates.length === 1 && candidates[0]?.length === directory.images.length) continue
     const names = await resolveGroupNames(directory.path, candidates.length, options.namePrefix, runtime)
     candidates.forEach((files, groupIndex) => {
@@ -137,6 +143,41 @@ export async function scanSimiuSets(input: Partial<SimiuSetOptions>, runtime: Si
   const operations = await planSimiuSetOperations(groups, "move", runtime)
   onProgress(stopped ? 99 : 100, stopped ? "Stopped Simiu sets." : "Finished Simiu sets.")
   return { groups, operations, directoryCount: directories.length, imageCount, messages, stopped }
+}
+
+function partitionSimiuSimilarityGroups(
+  directories: readonly SimiuSetDirectory[],
+  similarityGroups: readonly SimiuSetSimilarityGroup[],
+  minimumGroupSize: number,
+): Map<string, SimiuSetImage[][]> {
+  const directoryByImage = new Map<string, string>()
+  for (const directory of directories) {
+    const directoryKey = normalizedDirectory(directory.path)
+    for (const image of directory.images) directoryByImage.set(normalizedFile(image), directoryKey)
+  }
+
+  const candidatesByDirectory = new Map<string, SimiuSetImage[][]>()
+  for (const group of similarityGroups) {
+    const membersByDirectory = new Map<string, SimiuSetImage[]>()
+    for (const image of group.entries) {
+      const directoryKey = directoryByImage.get(normalizedFile(image.path))
+      if (!directoryKey) continue
+      const members = membersByDirectory.get(directoryKey) ?? []
+      members.push(image)
+      membersByDirectory.set(directoryKey, members)
+    }
+    for (const [directoryKey, members] of membersByDirectory) {
+      if (members.length < minimumGroupSize) continue
+      const candidates = candidatesByDirectory.get(directoryKey) ?? []
+      candidates.push([...members].sort((left, right) => comparePaths(left.path, right.path)))
+      candidatesByDirectory.set(directoryKey, candidates)
+    }
+  }
+
+  for (const candidates of candidatesByDirectory.values()) {
+    candidates.sort((left, right) => right.length - left.length || comparePaths(left[0]?.path ?? "", right[0]?.path ?? ""))
+  }
+  return candidatesByDirectory
 }
 
 export async function collectSimiuSetDirectories(input: SimiuSetOptions, runtime: Pick<SimiuSetRuntime, "listDirectory">): Promise<SimiuSetDirectory[]> {
@@ -299,6 +340,7 @@ function addCreatedDirectory(target: Map<string, Set<string>>, root: string, dir
 
 function sanitizePrefix(value: string): string { return value.trim().replace(/[<>:"/\\|?*]/g, "_") || "simiu_set" }
 function normalizedDirectory(path: string): string { return path.replace(/[\\/]+$/, "").replaceAll("\\", "/").toLocaleLowerCase() }
+function normalizedFile(path: string): string { return path.replaceAll("\\", "/").toLocaleLowerCase() }
 function basename(path: string): string { const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")); return index < 0 ? path : path.slice(index + 1) }
 function splitExtension(path: string): { stem: string; extension: string } { const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")), dot = path.lastIndexOf("."); return dot > slash ? { stem: path.slice(0, dot), extension: path.slice(dot) } : { stem: path, extension: "" } }
 function depth(path: string): number { return path.replaceAll("\\", "/").split("/").filter(Boolean).length }

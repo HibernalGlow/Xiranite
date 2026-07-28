@@ -39,7 +39,6 @@ export const CZKAWKA_NODE_CONFIG_KEYS = [
   "simiuSetsScanOrder",
   "simiuSetsNamePrefix",
   "simiuSetsMinimumGroupSize",
-  "simiuSetsThreshold",
   "simiuSetsOperationMode",
   "simiuSetsCleanEmptyDirectories",
   "similarImagesViewMode",

@@ -3,7 +3,6 @@ import { buildCzkawkaSimilarFolders, type CzkawkaSimilarFolderStat } from "./sim
 import { resolveCzkawkaSimilarVideoCrop } from "./similar-video-crop.js"
 import { runCzkawkaSimiuSetApply, runCzkawkaSimiuSetScan, runCzkawkaSimiuSetUndo } from "./simiu-sets-runner.js"
 import type { SimiuSetApplyMode, SimiuSetOperation, SimiuSetScanOrder, SimiuSetGroup } from "./simiu-sets.js"
-import type { SimiuImageFeature } from "./simiu-similarity.js"
 import { isDefaultTemporaryFileExtensions, normalizeTemporaryFileExtensions } from "./temporary-file-extensions.js"
 export type { CzkawkaVideoCropDetect } from "./similar-video-crop.js"
 import type { CzkawkaVideoCropDetect } from "./similar-video-crop.js"
@@ -105,7 +104,6 @@ export interface CzkawkaInput {
   simiuSetsScanOrder?: SimiuSetScanOrder
   simiuSetsNamePrefix?: string
   simiuSetsMinimumGroupSize?: number
-  simiuSetsThreshold?: number
   simiuSetsOperationMode?: SimiuSetApplyMode
   simiuSetsOperations?: SimiuSetOperation[]
   simiuSetsUndoLogPath?: string
@@ -216,7 +214,6 @@ export interface CzkawkaRuntime {
   scanExif: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeExifResult>
   scanVideoOptimizer: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeVideoOptimizerResult>
   scanMedia: (input: CzkawkaNormalizedInput, onProgress?: (progress: CzkawkaNativeProgress) => void) => Promise<NativeMediaResult>
-  extractSimiuFeatures?: (paths: readonly string[], maxWorkers: number) => Promise<SimiuImageFeature[]>
   createExifCandidate: (sourcePath: string, tags: CzkawkaExifTag[]) => Promise<NativeExifCandidate>
   createVideoOptimizerCandidate: (item: CzkawkaVideoOptimizerItem, input: CzkawkaNormalizedInput) => Promise<NativeVideoOptimizerCandidate>
   replaceWithCandidate: (candidatePath: string, sourcePath: string) => Promise<void>
@@ -358,7 +355,6 @@ export function normalizeCzkawkaInput(input: CzkawkaInput): CzkawkaNormalizedInp
     simiuSetsScanOrder: oneOf(input.simiuSetsScanOrder, ["path", "smallest-first", "deepest-first"] as const, "smallest-first"),
     simiuSetsNamePrefix: clean(input.simiuSetsNamePrefix) || "simiu_set",
     simiuSetsMinimumGroupSize: clamp(input.simiuSetsMinimumGroupSize, 2, 10_000, 2),
-    simiuSetsThreshold: clampDecimal(input.simiuSetsThreshold, 0, 1, 0.17),
     simiuSetsOperationMode: oneOf(input.simiuSetsOperationMode, ["move", "copy", "link"] as const, "move"),
     simiuSetsOperations: normalizeSimiuSetOperations(input.simiuSetsOperations),
     simiuSetsUndoLogPath: clean(input.simiuSetsUndoLogPath),

@@ -16,7 +16,6 @@ function runtime(): SimiuSetRuntime {
         { path: "D:/library/child/e.jpg", isFile: true, isDirectory: false },
       ],
     }[path] ?? [])),
-    extractSimiuFeatures: vi.fn(async (paths) => paths.map(feature)),
     pathExists: vi.fn(async () => false),
     ensureDirectory: vi.fn(async () => undefined),
     movePath: vi.fn(async () => undefined),
@@ -31,23 +30,25 @@ function runtime(): SimiuSetRuntime {
   }
 }
 
-function feature(path: string) {
+function image(path: string) {
   return {
     path,
     modifiedDate: 1,
     size: 10,
     width: 100,
     height: 80,
-    ratio: 1.25,
-    meanRgb: [10, 20, 30] as const,
-    phash: path.endsWith("c.jpg") ? "1".repeat(64) : "0".repeat(64),
   }
 }
 
 describe("Simiu sets", () => {
   test("keeps groups directory-local and skips an all-in-one directory", async () => {
     const adapter = runtime()
-    const result = await scanSimiuSets({ roots: ["D:/library"], recursive: true, namePrefix: "sets" }, adapter)
+    const result = await scanSimiuSets({ roots: ["D:/library"], recursive: true, namePrefix: "sets" }, [
+      { entries: [
+        image("D:/library/a.jpg"), image("D:/library/b.jpg"),
+        image("D:/library/child/d.jpg"), image("D:/library/child/e.jpg"),
+      ] },
+    ], adapter)
 
     expect(result.directoryCount).toBe(2)
     expect(result.imageCount).toBe(5)
@@ -56,8 +57,6 @@ describe("Simiu sets", () => {
       "D:/library/sets__set_001/a.jpg",
       "D:/library/sets__set_001/b.jpg",
     ])
-    expect(adapter.extractSimiuFeatures).toHaveBeenCalledWith(["D:/library/a.jpg", "D:/library/b.jpg", "D:/library/c.jpg"], 0)
-    expect(adapter.extractSimiuFeatures).toHaveBeenCalledWith(["D:/library/child/d.jpg", "D:/library/child/e.jpg"], 0)
     expect(adapter.listDirectory).not.toHaveBeenCalledWith("D:/library/.simiu-old")
   })
 

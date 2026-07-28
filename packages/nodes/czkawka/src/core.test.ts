@@ -8,7 +8,6 @@ function runtime(): CzkawkaRuntime {
     scanExif: vi.fn(async () => ({ entries: [{ path: "D:/photo.jpg", size: 20, modifiedDate: 1, tags: [{ name: "ImageDescription", code: 270, group: "GENERIC" }] }], messages: "ok", stopped: false })),
     scanVideoOptimizer: vi.fn(async () => ({ entries: [{ path: "D:/video.mp4", size: 40, modifiedDate: 1, codec: "h264", width: 1920, height: 1080, duration: 12 }], messages: "ok", stopped: false })),
     scanMedia: vi.fn(async () => ({ groups: [{ entries: [{ path: "D:/a.jpg", size: 20, modifiedDate: 1, width: 100, height: 80 }, { path: "D:/b.jpg", size: 21, modifiedDate: 1, width: 100, height: 80 }] }], messages: "ok", stopped: false })),
-    extractSimiuFeatures: vi.fn(async (paths) => paths.map((path) => ({ path, size: 20, modifiedDate: 1, width: 100, height: 80, ratio: 1.25, meanRgb: [10, 20, 30] as const, phash: path.endsWith("c.jpg") ? "1".repeat(64) : "0".repeat(64) }))),
     createExifCandidate: vi.fn(async () => ({ candidatePath: "D:/candidates/photo.jpg", removedTags: 1 })),
     createVideoOptimizerCandidate: vi.fn(async () => ({ candidatePath: "D:/candidates/video.mp4", originalSize: 40, candidateSize: 30 })),
     replaceWithCandidate: vi.fn(async () => undefined),
@@ -271,7 +270,7 @@ describe("czkawka TypeScript orchestration", () => {
     expect(hidden.data?.similarFolders).toEqual([])
   })
 
-  test("runs the Simiu set extension through its independent feature extractor", async () => {
+  test("runs the Simiu set extension through Czkawka's image scanner", async () => {
     const adapter = runtime()
     vi.mocked(adapter.pathExists).mockResolvedValue(false)
     vi.mocked(adapter.listDirectory).mockImplementation(async (path) => path === "D:/library" ? [
@@ -279,18 +278,31 @@ describe("czkawka TypeScript orchestration", () => {
       { path: "D:/library/b.jpg", isFile: true, isDirectory: false },
       { path: "D:/library/c.jpg", isFile: true, isDirectory: false },
     ] : [])
+    vi.mocked(adapter.scanMedia).mockResolvedValue({
+      groups: [{ entries: [
+        { path: "D:/library/a.jpg", size: 20, modifiedDate: 1, width: 100, height: 80 },
+        { path: "D:/library/b.jpg", size: 21, modifiedDate: 1, width: 100, height: 80 },
+      ] }],
+      messages: "ok",
+      stopped: false,
+    })
     const result = await runCzkawka({
       tool: "similar-images",
       includedDirectories: ["D:/library"],
       simiuSetsEnabled: true,
-      simiuSetsThreshold: 0.17,
       similarImagesHashAlgorithm: "double-gradient",
       similarity: 40,
     }, adapter)
 
     expect(result).toMatchObject({ success: true, data: { groupCount: 1, simiuSets: { directoryCount: 1, imageCount: 3, operations: expect.arrayContaining([expect.objectContaining({ targetPath: "D:/library/simiu_set__set_001/a.jpg" })]) } } })
-    expect(adapter.extractSimiuFeatures).toHaveBeenCalledWith(["D:/library/a.jpg", "D:/library/b.jpg", "D:/library/c.jpg"], 0)
-    expect(adapter.scanMedia).not.toHaveBeenCalled()
+    expect(adapter.scanMedia).toHaveBeenCalledWith(expect.objectContaining({
+      tool: "similar-images",
+      includedDirectories: ["D:/library"],
+      recursive: false,
+      similarity: 40,
+      similarImagesHashAlgorithm: "double-gradient",
+    }), expect.any(Function))
+    expect(adapter.scanMedia).toHaveBeenCalledTimes(1)
   })
 
   test("keeps destructive actions dry-run by default", async () => {
