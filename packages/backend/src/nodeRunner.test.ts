@@ -4,7 +4,7 @@ import { resolveNodeMemoryProtectionPolicy } from "@xiranite/services"
 import { createBackendNodeMemoryProtection, createBackendNodeMemoryProtectionController } from "./nodeRunner.js"
 
 describe("backend node memory protection", () => {
-  test("applies a stricter XLchemy policy and accepts environment overrides", () => {
+  test("applies the XLchemy-specific policy and accepts environment overrides", () => {
     const defaults = createBackendNodeMemoryProtection({})
     const defaultPolicy = resolveNodeMemoryProtectionPolicy(defaults, "repacku")
     const xlchemyPolicy = resolveNodeMemoryProtectionPolicy(defaults, "xlchemy")
@@ -16,7 +16,7 @@ describe("backend node memory protection", () => {
       sampleIntervalMs: 250,
     })
     expect(xlchemyPolicy).toMatchObject({
-      maxRssGrowthBytes: 4_096 * 1024 * 1024,
+      maxRssGrowthBytes: 16_384 * 1024 * 1024,
       maxHeapGrowthBytes: 2_048 * 1024 * 1024,
       maxRetainedEvents: 256,
       sampleIntervalMs: 100,

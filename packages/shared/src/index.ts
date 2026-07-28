@@ -228,7 +228,7 @@ export const DEFAULT_NODE_MEMORY_PROTECTION_SETTINGS: NodeMemoryProtectionSettin
   },
   nodePolicies: {
     xlchemy: {
-      maxRssGrowthMiB: 4_096,
+      maxRssGrowthMiB: 16_384,
       maxHeapGrowthMiB: 2_048,
       maxRetainedEvents: 256,
       sampleIntervalMs: 100,

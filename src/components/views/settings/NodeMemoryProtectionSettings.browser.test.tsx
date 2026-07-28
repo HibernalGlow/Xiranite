@@ -17,7 +17,7 @@ describe("NodeMemoryProtectionSettings browser behavior", () => {
       },
       nodePolicies: {
         xlchemy: {
-          maxRssGrowthMiB: 4_096,
+          maxRssGrowthMiB: 16_384,
           maxHeapGrowthMiB: 2_048,
           maxRetainedEvents: 256,
           sampleIntervalMs: 100,
@@ -38,7 +38,7 @@ describe("NodeMemoryProtectionSettings browser behavior", () => {
 
     await expect.element(screen.getByRole("heading", { name: "Node memory protection" })).toBeVisible()
     const xlchemyRss = screen.getByRole("spinbutton", { name: /XLchemy limits.*RSS growth limit/ })
-    await expect.element(xlchemyRss).toHaveValue(4_096)
+    await expect.element(xlchemyRss).toHaveValue(16_384)
     await xlchemyRss.fill("3072")
 
     const apply = screen.getByRole("button", { name: "Apply settings" })
