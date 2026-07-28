@@ -1,0 +1,1718 @@
+{
+  "schemaVersion": 1,
+  "generator": {
+    "name": "@xiranite/svelte-migrate",
+    "version": "0.1.0"
+  },
+  "sourceRevision": {
+    "vcs": "git",
+    "commit": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+    "dirty": true,
+    "dirtyDiffHash": "sha256:2ddd0edc04e9bc1407e7e7879723020b0cd45804e4483d0122768a1119f26aab"
+  },
+  "sourceRoot": "src/lib/components/panels/folderPanel/components/FolderToolbar",
+  "summary": {
+    "sourceFiles": 16,
+    "components": 13,
+    "modules": 3,
+    "stores": 0,
+    "graphEdges": 10,
+    "unresolvedComponentImports": 0,
+    "tauriFiles": 1,
+    "tauriCalls": 1,
+    "unmappedComponents": 3,
+    "unmappedModules": 2,
+    "dispositions": {
+      "converted": 0,
+      "adapter-needed": 0,
+      "manual": 13,
+      "replaced": 0,
+      "blocked": 0
+    },
+    "moduleDispositions": {
+      "converted": 3,
+      "adapter-needed": 0,
+      "manual": 0,
+      "replaced": 0,
+      "blocked": 0
+    },
+    "reactScaffolds": 4
+  },
+  "components": [
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/ActionButtons.svelte",
+      "hash": "sha256:7f07eb18e3d2ebf045df555711f68efa943abe47d9d5f19f8dc5a7b658258f66",
+      "featureIds": [
+        "folder-mega-menu"
+      ],
+      "featureMappingSource": "dependency-derived",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "structurally convertible; requires review",
+        "React scaffold unsupported: template node ConstTag"
+      ],
+      "imports": [
+        {
+          "source": "../../stores/folderPanelStore",
+          "names": [
+            "FolderSortField",
+            "FolderViewStyle"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "./types",
+          "names": [
+            "FolderTreeConfig",
+            "SortConfig",
+            "SortLockSettings",
+            "VirtualMode"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "@lucide/svelte",
+          "names": [
+            "ALargeSmall",
+            "ArrowDown",
+            "ArrowUp",
+            "Calendar",
+            "CheckSquare",
+            "ClipboardPaste",
+            "CornerDownRight",
+            "FileType",
+            "Film",
+            "Filter",
+            "Folder",
+            "FolderTree",
+            "Grid3x3",
+            "HardDrive",
+            "Heart",
+            "Image",
+            "LayoutGrid",
+            "List",
+            "ListTree",
+            "Package",
+            "Pin",
+            "Search",
+            "Settings2",
+            "Shuffle",
+            "Star",
+            "Tags",
+            "Trash2"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/button",
+          "names": [
+            "Button"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/tooltip",
+          "names": [
+            "Tooltip"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/virtualPanelSettings.svelte",
+          "names": [
+            "VirtualItemTypeFilter"
+          ],
+          "typeOnly": true
+        }
+      ],
+      "componentImports": [],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$props"
+      ],
+      "props": [
+        "deleteMode",
+        "deleteStrategy",
+        "folderTreeConfig",
+        "inlineTreeMode",
+        "itemTypeFilter",
+        "multiSelectMode",
+        "onToggleDeleteMode",
+        "onToggleDeleteStrategy",
+        "onToggleFolderTree",
+        "onToggleMoreSettings",
+        "onToggleMultiSelectMode",
+        "onTogglePenetrateMode",
+        "onToggleRandomTagBar",
+        "onToggleShowMigrationBar",
+        "onToggleShowPenetrateSettingsBar",
+        "onToggleShowSearchBar",
+        "onToggleSortLock",
+        "onToggleSortPanel",
+        "onToggleTreePanel",
+        "onToggleTypeFilterBar",
+        "onToggleViewPanel",
+        "openInNewTabMode",
+        "penetrateMode",
+        "showMigrationBar",
+        "showMoreSettings",
+        "showRandomTagBar",
+        "showSearchBar",
+        "showToolbarTooltip",
+        "sortConfig",
+        "sortLockSettings",
+        "sortPanelExpanded",
+        "treePanelExpanded",
+        "typeFilterBarExpanded",
+        "vertical",
+        "viewPanelExpanded",
+        "viewStyle",
+        "virtualMode"
+      ],
+      "events": [
+        "click",
+        "contextmenu"
+      ],
+      "contexts": [],
+      "subscriptions": [],
+      "registrations": [],
+      "templateFeatures": {
+        "Component": 59
+      },
+      "templateNodeTypes": [
+        "ArrowFunctionExpression",
+        "Attribute",
+        "BinaryExpression",
+        "BlockStatement",
+        "CallExpression",
+        "ChainExpression",
+        "Comment",
+        "Component",
+        "ConditionalExpression",
+        "ConstTag",
+        "ExpressionStatement",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "IfBlock",
+        "Literal",
+        "LogicalExpression",
+        "MemberExpression",
+        "RegularElement",
+        "TSTypeAnnotation",
+        "TSTypeReference",
+        "Text",
+        "UnaryExpression",
+        "VariableDeclaration",
+        "VariableDeclarator"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/CleanupOptionsDialog.svelte",
+      "hash": "sha256:05a6f7256602fff6eedf09292ff4366e3da2b8ea4ae5a31974f89c4426c85a40",
+      "featureIds": [],
+      "featureMappingSource": "unmapped",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "uses Tauri API and requires a host adapter",
+        "complex template behavior: BindDirective",
+        "state/reactivity requires React review: $bindable, $state"
+      ],
+      "imports": [
+        {
+          "source": "@lucide/svelte",
+          "names": [
+            "Calendar",
+            "FolderOpen",
+            "Hash",
+            "Trash2"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "@tauri-apps/plugin-dialog",
+          "names": [
+            "open as openTauriDialog"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/button",
+          "names": [
+            "Button"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/ConfirmDialog.svelte",
+          "names": [
+            "ConfirmDialog"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/dialog",
+          "names": [
+            "Dialog"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/input",
+          "names": [
+            "Input"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/label",
+          "names": [
+            "Label"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/bookmark.svelte",
+          "names": [
+            "bookmarkStore"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/unifiedHistory.svelte",
+          "names": [
+            "unifiedHistoryStore"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/utils/toast",
+          "names": [
+            "showSuccessToast"
+          ],
+          "typeOnly": false
+        }
+      ],
+      "componentImports": [],
+      "dynamicComponentImports": [],
+      "tauriCalls": [
+        {
+          "api": "open",
+          "importedFrom": "@tauri-apps/plugin-dialog",
+          "command": null,
+          "line": 35
+        }
+      ],
+      "runes": [
+        "$bindable",
+        "$props",
+        "$state"
+      ],
+      "props": [
+        "onRefresh",
+        "open",
+        "virtualMode"
+      ],
+      "events": [
+        "click"
+      ],
+      "contexts": [],
+      "subscriptions": [],
+      "registrations": [],
+      "templateFeatures": {
+        "BindDirective": 5,
+        "Component": 22
+      },
+      "templateNodeTypes": [
+        "Attribute",
+        "BinaryExpression",
+        "BindDirective",
+        "Comment",
+        "Component",
+        "ConditionalExpression",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "Literal",
+        "RegularElement",
+        "Text",
+        "UnaryExpression"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/FolderToolbar.svelte",
+      "hash": "sha256:cb8a7e348a871361f4b00eab713a9f4b9877dc769e6694e6afe434bd0f45e393",
+      "featureIds": [
+        "folder-mega-menu"
+      ],
+      "featureMappingSource": "dependency-derived",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "state/reactivity requires React review: $derived, $effect, $state",
+        "store coordination: tabBannerWidthPercent, tabCanGoBack, tabCanGoBackTab, tabCanGoForward, tabCanGoForwardTab, tabCanGoUp, tabDeleteMode, tabDeleteStrategy, tabFolderTreeConfig, tabInlineTreeMode, tabItemCount, tabMultiSelectMode, tabOpenInNewTabMode, tabPenetrateMode, tabShowMigrationBar, tabShowSearchBar, tabSortConfig, tabThumbnailWidthPercent, tabViewStyle"
+      ],
+      "imports": [
+        {
+          "source": "../../stores/folderPanelStore",
+          "names": [
+            "FolderSortField",
+            "FolderViewStyle"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "../../stores/folderTabStore",
+          "names": [
+            "folderTabActions",
+            "tabBannerWidthPercent",
+            "tabCanGoBack",
+            "tabCanGoBackTab",
+            "tabCanGoForward",
+            "tabCanGoForwardTab",
+            "tabCanGoUp",
+            "tabDeleteMode",
+            "tabDeleteStrategy",
+            "tabFolderTreeConfig",
+            "tabInlineTreeMode",
+            "tabItemCount",
+            "tabMultiSelectMode",
+            "tabOpenInNewTabMode",
+            "tabPenetrateMode",
+            "tabShowMigrationBar",
+            "tabShowPenetrateSettingsBar",
+            "tabShowSearchBar",
+            "tabSortConfig",
+            "tabThumbnailWidthPercent",
+            "tabViewStyle"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "./ActionButtons.svelte",
+          "names": [
+            "ActionButtons"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "./MoreSettingsTabs.svelte",
+          "names": [
+            "MoreSettingsTabs"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "./NavigationButtons.svelte",
+          "names": [
+            "NavigationButtons"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "./SortPanel.svelte",
+          "names": [
+            "SortPanel"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "./TreePanel.svelte",
+          "names": [
+            "TreePanel"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "./types",
+          "names": [
+            "FolderTreeConfig",
+            "SortConfig",
+            "SortLockSettings",
+            "VirtualMode"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "./ViewPanel.svelte",
+          "names": [
+            "ViewPanel"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/panels/folderPanel/components/FolderToolbar/TypeFilterBar.svelte",
+          "names": [
+            "TypeFilterBar"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/virtualPanelSettings.svelte",
+          "names": [
+            "TreePosition",
+            "VirtualItemTypeFilter",
+            "virtualPanelSettingsStore"
+          ],
+          "typeOnly": false
+        }
+      ],
+      "componentImports": [
+        "./ActionButtons.svelte",
+        "./MoreSettingsTabs.svelte",
+        "./NavigationButtons.svelte",
+        "./SortPanel.svelte",
+        "./TreePanel.svelte",
+        "./ViewPanel.svelte"
+      ],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$derived",
+        "$effect",
+        "$props",
+        "$state"
+      ],
+      "props": [
+        "onGoBack",
+        "onGoForward",
+        "onGoHome",
+        "onGoUp",
+        "onRefresh",
+        "onSetHome",
+        "onToggleDeleteStrategy",
+        "onToggleFolderTree",
+        "onToggleInlineTree",
+        "onToggleRandomTagBar",
+        "showRandomTagBar",
+        "vertical",
+        "virtualMode"
+      ],
+      "events": [],
+      "contexts": [],
+      "subscriptions": [
+        "tabBannerWidthPercent",
+        "tabCanGoBack",
+        "tabCanGoBackTab",
+        "tabCanGoForward",
+        "tabCanGoForwardTab",
+        "tabCanGoUp",
+        "tabDeleteMode",
+        "tabDeleteStrategy",
+        "tabFolderTreeConfig",
+        "tabInlineTreeMode",
+        "tabItemCount",
+        "tabMultiSelectMode",
+        "tabOpenInNewTabMode",
+        "tabPenetrateMode",
+        "tabShowMigrationBar",
+        "tabShowSearchBar",
+        "tabSortConfig",
+        "tabThumbnailWidthPercent",
+        "tabViewStyle"
+      ],
+      "registrations": [],
+      "templateFeatures": {
+        "Component": 7
+      },
+      "templateNodeTypes": [
+        "ArrowFunctionExpression",
+        "Attribute",
+        "CallExpression",
+        "ChainExpression",
+        "Comment",
+        "Component",
+        "ConditionalExpression",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "IfBlock",
+        "Literal",
+        "LogicalExpression",
+        "RegularElement",
+        "Text"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/MoreSettingsTabs.svelte",
+      "hash": "sha256:05a7a9a12f95aa609d55bca6d5abe9d2a3da2fae7315ed47e7b330ae09849482",
+      "featureIds": [
+        "folder-mega-menu"
+      ],
+      "featureMappingSource": "direct",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "state/reactivity requires React review: $state"
+      ],
+      "imports": [
+        {
+          "source": "./tabs/ActionTab.svelte",
+          "names": [
+            "ActionTab"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "./tabs/DisplayTab.svelte",
+          "names": [
+            "DisplayTab"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "./tabs/OtherTab.svelte",
+          "names": [
+            "OtherTab"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "./types",
+          "names": [
+            "VirtualMode"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "$lib/components/ui/tabs",
+          "names": [
+            "Tabs"
+          ],
+          "typeOnly": false
+        }
+      ],
+      "componentImports": [
+        "./tabs/ActionTab.svelte",
+        "./tabs/DisplayTab.svelte",
+        "./tabs/OtherTab.svelte"
+      ],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$props",
+        "$state"
+      ],
+      "props": [
+        "bannerWidthPercent",
+        "itemCount",
+        "multiSelectMode",
+        "onRefresh",
+        "onSetBannerWidthPercent",
+        "onSetThumbnailWidthPercent",
+        "onToggleShowToolbarTooltip",
+        "showToolbarTooltip",
+        "thumbnailWidthPercent",
+        "virtualMode"
+      ],
+      "events": [],
+      "contexts": [],
+      "subscriptions": [],
+      "registrations": [],
+      "templateFeatures": {
+        "Component": 11
+      },
+      "templateNodeTypes": [
+        "ArrowFunctionExpression",
+        "AssignmentExpression",
+        "Attribute",
+        "Component",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "RegularElement",
+        "TSAsExpression",
+        "TSTypeQuery",
+        "Text"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/NavigationButtons.svelte",
+      "hash": "sha256:22ba72e05e2d0e8712ab2c54043e2133b528dbfafd7197a465e59d2b08adc4da",
+      "featureIds": [
+        "folder-mega-menu"
+      ],
+      "featureMappingSource": "dependency-derived",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "complex template behavior: BindDirective",
+        "state/reactivity requires React review: $state"
+      ],
+      "imports": [
+        {
+          "source": "./CleanupOptionsDialog.svelte",
+          "names": [
+            "CleanupOptionsDialog"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "./types",
+          "names": [
+            "VirtualMode"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "@lucide/svelte",
+          "names": [
+            "ChevronLeft",
+            "ChevronRight",
+            "ChevronUp",
+            "FilterX",
+            "FolderSync",
+            "Home",
+            "RefreshCw"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/button",
+          "names": [
+            "Button"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/ConfirmDialog.svelte",
+          "names": [
+            "ConfirmDialog"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/dropdown-menu",
+          "names": [
+            "DropdownMenu"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/tooltip",
+          "names": [
+            "Tooltip"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/bookmark.svelte",
+          "names": [
+            "bookmarkStore"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/historySettings.svelte",
+          "names": [
+            "historySettingsStore"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/unifiedHistory.svelte",
+          "names": [
+            "unifiedHistoryStore"
+          ],
+          "typeOnly": false
+        }
+      ],
+      "componentImports": [
+        "./CleanupOptionsDialog.svelte"
+      ],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$props",
+        "$state"
+      ],
+      "props": [
+        "canGoBack",
+        "canGoForward",
+        "canGoUp",
+        "onGoBack",
+        "onGoForward",
+        "onGoHome",
+        "onGoUp",
+        "onRefresh",
+        "onSetHome",
+        "showToolbarTooltip",
+        "vertical",
+        "virtualMode"
+      ],
+      "events": [
+        "click",
+        "contextmenu"
+      ],
+      "contexts": [],
+      "subscriptions": [],
+      "registrations": [],
+      "templateFeatures": {
+        "BindDirective": 2,
+        "Component": 44
+      },
+      "templateNodeTypes": [
+        "ArrowFunctionExpression",
+        "AssignmentExpression",
+        "Attribute",
+        "BinaryExpression",
+        "BindDirective",
+        "BlockStatement",
+        "CallExpression",
+        "ChainExpression",
+        "Comment",
+        "Component",
+        "ConditionalExpression",
+        "ExpressionStatement",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "IfBlock",
+        "IfStatement",
+        "Literal",
+        "LogicalExpression",
+        "MemberExpression",
+        "RegularElement",
+        "TSAsExpression",
+        "TSLiteralType",
+        "TSTypeAnnotation",
+        "TSTypeReference",
+        "TSUnionType",
+        "Text",
+        "UnaryExpression"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/SortPanel.svelte",
+      "hash": "sha256:b815083c7805eed8330c1105dbf2449b79a24987c996e9ef8047b50bdb0d1fa4",
+      "featureIds": [
+        "folder-mega-menu"
+      ],
+      "featureMappingSource": "dependency-derived",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "complex template behavior: BindDirective",
+        "state/reactivity requires React review: $derived, $state"
+      ],
+      "imports": [
+        {
+          "source": "../../stores/folderPanelStore",
+          "names": [
+            "FolderSortField"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "./types",
+          "names": [
+            "SortConfig",
+            "SortFieldDef",
+            "SortLockSettings",
+            "VirtualMode"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "@lucide/svelte",
+          "names": [
+            "ALargeSmall",
+            "ArrowDown",
+            "ArrowUp",
+            "Calendar",
+            "Database",
+            "FileType",
+            "FolderTree",
+            "Gauge",
+            "Globe",
+            "HardDrive",
+            "Heart",
+            "PanelLeftOpen",
+            "Pin",
+            "PinOff",
+            "Settings2",
+            "Shuffle",
+            "Star"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/badge",
+          "names": [
+            "Badge"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/button",
+          "names": [
+            "Button"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/dialog",
+          "names": [
+            "Dialog"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/table",
+          "names": [
+            "Table"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/tooltip",
+          "names": [
+            "Tooltip"
+          ],
+          "typeOnly": false
+        }
+      ],
+      "componentImports": [],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$derived",
+        "$props",
+        "$state"
+      ],
+      "props": [
+        "onClearFolderSortMemory",
+        "onSetCurrentSortAsDefault",
+        "onSetDefaultSortScope",
+        "onSetSort",
+        "onSetSortLocked",
+        "onToggleSortOrder",
+        "sortConfig",
+        "sortLockSettings",
+        "virtualMode"
+      ],
+      "events": [
+        "click"
+      ],
+      "contexts": [],
+      "subscriptions": [],
+      "registrations": [],
+      "templateFeatures": {
+        "BindDirective": 1,
+        "Component": 59
+      },
+      "templateNodeTypes": [
+        "ArrowFunctionExpression",
+        "AssignmentExpression",
+        "Attribute",
+        "BinaryExpression",
+        "BindDirective",
+        "CallExpression",
+        "Comment",
+        "Component",
+        "ConditionalExpression",
+        "ConstTag",
+        "EachBlock",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "IfBlock",
+        "Literal",
+        "LogicalExpression",
+        "MemberExpression",
+        "RegularElement",
+        "Text",
+        "UnaryExpression",
+        "VariableDeclaration",
+        "VariableDeclarator"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/ActionTab.svelte",
+      "hash": "sha256:7de44077433611ca76e35aac095891751fcb9df7eb07b025311ff8caf64ae61e",
+      "featureIds": [
+        "folder-mega-menu"
+      ],
+      "featureMappingSource": "direct",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "state/reactivity requires React review: $state",
+        "store coordination: currentPathStore"
+      ],
+      "imports": [
+        {
+          "source": "../../../stores/folderTabStore",
+          "names": [
+            "folderTabActions",
+            "tabCurrentPath",
+            "tabItems",
+            "tabSelectedItems"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "../../../utils/directoryTreeCache",
+          "names": [
+            "directoryTreeCache"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "@lucide/svelte",
+          "names": [
+            "Flame",
+            "RefreshCw",
+            "Trash2"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/button",
+          "names": [
+            "Button"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/progress",
+          "names": [
+            "Progress"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/excludedPaths.svelte",
+          "names": [
+            "addExcludedPath",
+            "isPathExcluded",
+            "removeExcludedPath"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/unifiedThumbnailStore.svelte",
+          "names": [
+            "ThumbnailRequest",
+            "ThumbnailSource",
+            "generateThumbKey",
+            "unifiedThumbnailStore"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/utils/thumbnail",
+          "names": [
+            "WarmupProgress",
+            "folderThumbnailLoader"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/utils/toast",
+          "names": [
+            "showErrorToast",
+            "showSuccessToast"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "svelte/store",
+          "names": [
+            "get"
+          ],
+          "typeOnly": false
+        }
+      ],
+      "componentImports": [],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$props",
+        "$state"
+      ],
+      "props": [
+        "multiSelectMode",
+        "onRefresh"
+      ],
+      "events": [
+        "click"
+      ],
+      "contexts": [],
+      "subscriptions": [
+        "currentPathStore"
+      ],
+      "registrations": [],
+      "templateFeatures": {
+        "Component": 14
+      },
+      "templateNodeTypes": [
+        "ArrowFunctionExpression",
+        "Attribute",
+        "BinaryExpression",
+        "CallExpression",
+        "Comment",
+        "Component",
+        "ConditionalExpression",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "IfBlock",
+        "Literal",
+        "LogicalExpression",
+        "MemberExpression",
+        "RegularElement",
+        "TemplateElement",
+        "TemplateLiteral",
+        "Text",
+        "UnaryExpression"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/DisplayTab.svelte",
+      "hash": "sha256:04d5473f3644d6c754368996f7bc0b1d2854cdffcfaff979cc4219226581d8dc",
+      "featureIds": [
+        "folder-mega-menu"
+      ],
+      "featureMappingSource": "direct",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "store coordination: fileBrowserStore, hoverPreviewDelayMs, hoverPreviewEnabled"
+      ],
+      "imports": [
+        {
+          "source": "@lucide/svelte",
+          "names": [
+            "Eye",
+            "Grid3x3",
+            "Image",
+            "LayoutGrid"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/button",
+          "names": [
+            "Button"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/fileBrowser.svelte",
+          "names": [
+            "fileBrowserStore"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/hoverPreviewSettings.svelte",
+          "names": [
+            "hoverPreviewDelayMs",
+            "hoverPreviewEnabled",
+            "hoverPreviewSettings"
+          ],
+          "typeOnly": false
+        }
+      ],
+      "componentImports": [],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$props"
+      ],
+      "props": [
+        "bannerWidthPercent",
+        "onSetBannerWidthPercent",
+        "onSetThumbnailWidthPercent",
+        "thumbnailWidthPercent"
+      ],
+      "events": [
+        "change",
+        "click",
+        "input"
+      ],
+      "contexts": [],
+      "subscriptions": [
+        "fileBrowserStore",
+        "hoverPreviewDelayMs",
+        "hoverPreviewEnabled"
+      ],
+      "registrations": [],
+      "templateFeatures": {
+        "Component": 6
+      },
+      "templateNodeTypes": [
+        "ArrowFunctionExpression",
+        "Attribute",
+        "BinaryExpression",
+        "CallExpression",
+        "Comment",
+        "Component",
+        "ConditionalExpression",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "IfBlock",
+        "Literal",
+        "MemberExpression",
+        "RegularElement",
+        "TSAsExpression",
+        "TSTypeReference",
+        "Text",
+        "UnaryExpression"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/OtherTab.svelte",
+      "hash": "sha256:fc5db3e3e2e941966aec5fc77c03d0ed9b62bea1134d0791ca34cce92653cb41",
+      "featureIds": [
+        "folder-mega-menu"
+      ],
+      "featureMappingSource": "direct",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "store coordination: fileBrowserStore"
+      ],
+      "imports": [
+        {
+          "source": "../types",
+          "names": [
+            "VirtualMode"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "@lucide/svelte",
+          "names": [
+            "ChevronUp",
+            "FolderSync",
+            "MousePointerClick",
+            "Settings2",
+            "Star"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/button",
+          "names": [
+            "Button"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/emm/storage",
+          "names": [
+            "getDefaultRating",
+            "saveDefaultRating"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/fileBrowser.svelte",
+          "names": [
+            "fileBrowserStore"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/historySettings.svelte",
+          "names": [
+            "historySettingsStore"
+          ],
+          "typeOnly": false
+        }
+      ],
+      "componentImports": [],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$props"
+      ],
+      "props": [
+        "onToggleShowToolbarTooltip",
+        "showToolbarTooltip",
+        "virtualMode"
+      ],
+      "events": [
+        "change",
+        "click"
+      ],
+      "contexts": [],
+      "subscriptions": [
+        "fileBrowserStore"
+      ],
+      "registrations": [],
+      "templateFeatures": {
+        "Component": 10
+      },
+      "templateNodeTypes": [
+        "ArrayExpression",
+        "ArrowFunctionExpression",
+        "Attribute",
+        "BinaryExpression",
+        "BlockStatement",
+        "CallExpression",
+        "Comment",
+        "Component",
+        "ConditionalExpression",
+        "EachBlock",
+        "ExpressionStatement",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "IfBlock",
+        "IfStatement",
+        "Literal",
+        "LogicalExpression",
+        "MemberExpression",
+        "RegularElement",
+        "TSAsExpression",
+        "TSLiteralType",
+        "TSTypeReference",
+        "TSUnionType",
+        "Text",
+        "UnaryExpression",
+        "VariableDeclaration",
+        "VariableDeclarator"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/TreePanel.svelte",
+      "hash": "sha256:9ea967ba822aec87a4a0710d963f502410503e5f02b971e626358d4f77b20996",
+      "featureIds": [
+        "folder-mega-menu"
+      ],
+      "featureMappingSource": "dependency-derived",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "structurally convertible; requires review",
+        "React scaffold unsupported: template node ConstTag"
+      ],
+      "imports": [
+        {
+          "source": "./types",
+          "names": [
+            "FolderTreeConfig"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "@lucide/svelte",
+          "names": [
+            "ListTree",
+            "PanelBottom",
+            "PanelLeft",
+            "PanelRight",
+            "PanelTop"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/button",
+          "names": [
+            "Button"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/tooltip",
+          "names": [
+            "Tooltip"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/virtualPanelSettings.svelte",
+          "names": [
+            "TreePosition"
+          ],
+          "typeOnly": true
+        }
+      ],
+      "componentImports": [],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$props"
+      ],
+      "props": [
+        "folderTreeConfig",
+        "inlineTreeMode",
+        "onSetFolderTreeLayout",
+        "onToggleInlineTree"
+      ],
+      "events": [
+        "click"
+      ],
+      "contexts": [],
+      "subscriptions": [],
+      "registrations": [],
+      "templateFeatures": {
+        "Component": 10
+      },
+      "templateNodeTypes": [
+        "ArrayPattern",
+        "ArrowFunctionExpression",
+        "Attribute",
+        "BinaryExpression",
+        "CallExpression",
+        "ChainExpression",
+        "Component",
+        "ConditionalExpression",
+        "ConstTag",
+        "EachBlock",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "Literal",
+        "MemberExpression",
+        "RegularElement",
+        "TSAsExpression",
+        "TSTypeReference",
+        "Text",
+        "VariableDeclaration",
+        "VariableDeclarator"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/TypeFilterBar.svelte",
+      "hash": "sha256:cb483908a66c5bf783ea3d50638cd8cbbfc4af429308e13c7627ce67e2190cf5",
+      "featureIds": [],
+      "featureMappingSource": "unmapped",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "structurally convertible; requires review",
+        "React scaffold unsupported: template node ConstTag"
+      ],
+      "imports": [
+        {
+          "source": "@lucide/svelte",
+          "names": [
+            "Film",
+            "Filter",
+            "Folder",
+            "Package"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/button",
+          "names": [
+            "Button"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/tooltip",
+          "names": [
+            "Tooltip"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/virtualPanelSettings.svelte",
+          "names": [
+            "VirtualItemTypeFilter"
+          ],
+          "typeOnly": true
+        }
+      ],
+      "componentImports": [],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$props"
+      ],
+      "props": [
+        "itemTypeFilter",
+        "onSetItemTypeFilter"
+      ],
+      "events": [
+        "click"
+      ],
+      "contexts": [],
+      "subscriptions": [],
+      "registrations": [],
+      "templateFeatures": {
+        "Component": 5
+      },
+      "templateNodeTypes": [
+        "ArrowFunctionExpression",
+        "Attribute",
+        "BinaryExpression",
+        "CallExpression",
+        "Component",
+        "ConditionalExpression",
+        "ConstTag",
+        "EachBlock",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "Literal",
+        "MemberExpression",
+        "RegularElement",
+        "Text",
+        "VariableDeclaration",
+        "VariableDeclarator"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/ViewModeButtons.svelte",
+      "hash": "sha256:8c0cfc692584ad0739c763e2889a6b15db5d1c738bf95a4529d3b732d5930a8c",
+      "featureIds": [],
+      "featureMappingSource": "unmapped",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "structurally convertible; requires review",
+        "React scaffold unsupported: instance export, template node ConstTag"
+      ],
+      "imports": [
+        {
+          "source": "../../stores/folderPanelStore",
+          "names": [
+            "FolderViewStyle"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "@lucide/svelte",
+          "names": [
+            "Grid3x3",
+            "Image",
+            "LayoutGrid",
+            "List"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/button",
+          "names": [
+            "Button"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/tooltip",
+          "names": [
+            "Tooltip"
+          ],
+          "typeOnly": false
+        }
+      ],
+      "componentImports": [],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$props"
+      ],
+      "props": [
+        "onSetViewStyle",
+        "onToggleViewPanel",
+        "showToolbarTooltip",
+        "viewPanelExpanded",
+        "viewStyle"
+      ],
+      "events": [
+        "click"
+      ],
+      "contexts": [],
+      "subscriptions": [],
+      "registrations": [],
+      "templateFeatures": {
+        "Component": 5
+      },
+      "templateNodeTypes": [
+        "Attribute",
+        "CallExpression",
+        "Comment",
+        "Component",
+        "ConditionalExpression",
+        "ConstTag",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "Literal",
+        "RegularElement",
+        "Text",
+        "UnaryExpression",
+        "VariableDeclaration",
+        "VariableDeclarator"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    },
+    {
+      "file": "src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte",
+      "hash": "sha256:9ca2a87c42567ef8ad52c1e7f1037117960bea28230be1fa5e4e52b63d2dc4d5",
+      "featureIds": [
+        "folder-mega-menu"
+      ],
+      "featureMappingSource": "dependency-derived",
+      "disposition": "manual",
+      "classificationSource": "heuristic",
+      "classificationReasons": [
+        "store coordination: fileBrowserStore"
+      ],
+      "imports": [
+        {
+          "source": "../../stores/folderPanelStore",
+          "names": [
+            "FolderViewStyle"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "./types",
+          "names": [
+            "ViewStyleDef"
+          ],
+          "typeOnly": true
+        },
+        {
+          "source": "@lucide/svelte",
+          "names": [
+            "Grid3x3",
+            "Image",
+            "LayoutGrid",
+            "List"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/button",
+          "names": [
+            "Button"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/components/ui/tooltip",
+          "names": [
+            "Tooltip"
+          ],
+          "typeOnly": false
+        },
+        {
+          "source": "$lib/stores/fileBrowser.svelte",
+          "names": [
+            "fileBrowserStore"
+          ],
+          "typeOnly": false
+        }
+      ],
+      "componentImports": [],
+      "dynamicComponentImports": [],
+      "tauriCalls": [],
+      "runes": [
+        "$props"
+      ],
+      "props": [
+        "onSetViewStyle",
+        "viewStyle"
+      ],
+      "events": [
+        "change",
+        "click"
+      ],
+      "contexts": [],
+      "subscriptions": [
+        "fileBrowserStore"
+      ],
+      "registrations": [],
+      "templateFeatures": {
+        "Component": 5
+      },
+      "templateNodeTypes": [
+        "ArrowFunctionExpression",
+        "Attribute",
+        "BinaryExpression",
+        "CallExpression",
+        "Component",
+        "ConditionalExpression",
+        "ConstTag",
+        "EachBlock",
+        "ExpressionTag",
+        "Fragment",
+        "Identifier",
+        "IfBlock",
+        "Literal",
+        "MemberExpression",
+        "RegularElement",
+        "Text",
+        "VariableDeclaration",
+        "VariableDeclarator"
+      ],
+      "scriptLanguages": [
+        "ts"
+      ],
+      "styleBlocks": 0,
+      "parseErrors": []
+    }
+  ]
+}

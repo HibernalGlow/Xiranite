@@ -1,0 +1,15 @@
+{
+  "sourceRoot": "src/lib/components/panels/folderPanel/components/FolderToolbar",
+  "scaffoldPatterns": [
+    "MoreSettingsTabs\\.svelte$",
+    "tabs/(ActionTab|DisplayTab|OtherTab)\\.svelte$"
+  ],
+  "featureMappings": [
+    {
+      "featureId": "folder-mega-menu",
+      "sourcePatterns": [
+        "FolderToolbar/(MoreSettingsTabs|tabs/(ActionTab|DisplayTab|OtherTab))\\.svelte$"
+      ]
+    }
+  ]
+}

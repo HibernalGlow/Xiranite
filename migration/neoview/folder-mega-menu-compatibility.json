@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "featureId": "folder-mega-menu",
+  "legacyCardId": "folderMain",
+  "title": "File Card 更多菜单纵向语义列",
+  "sourceRoot": "D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri",
+  "sourceRevision": "f4f8f02d88acdf4f639749f185c83abb91a1aa86",
+  "completionRule": "Complete only when the reviewed Svelte/OXC prototype, legacy 1920x1080 characterization, four-column desktop menu, constrained fallback, all retained controls, direct refresh replacement, keyboard behavior and Browser Mode geometry evidence are present.",
+  "astPrototype": {
+    "generator": "bun run migrate:svelte -- generate D:/1VSCODE/Projects/ImageAll/NeeWaifu/neoview/neoview-tauri --out migration/neoview/frontend/folder-mega-menu-prototype --config migration/neoview/frontend/folder-mega-menu-prototype/migration-config.json --force",
+    "svelteCompiler": true,
+    "oxcValidated": true,
+    "root": "migration/neoview/frontend/folder-mega-menu-prototype/tsx-scaffold",
+    "sources": [
+      {
+        "path": "src/lib/components/panels/folderPanel/components/FolderToolbar/MoreSettingsTabs.svelte",
+        "hash": "sha256:05a7a9a12f95aa609d55bca6d5abe9d2a3da2fae7315ed47e7b330ae09849482",
+        "status": "review-scaffold",
+        "unsupported": ["Svelte $state tab selection"]
+      },
+      {
+        "path": "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/ActionTab.svelte",
+        "hash": "sha256:7de44077433611ca76e35aac095891751fcb9df7eb07b025311ff8caf64ae61e",
+        "status": "partial-scaffold",
+        "unsupported": ["Svelte runtime import", "thumbnail loader and legacy stores"]
+      },
+      {
+        "path": "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/DisplayTab.svelte",
+        "hash": "sha256:04d5473f3644d6c754368996f7bc0b1d2854cdffcfaff979cc4219226581d8dc",
+        "status": "review-scaffold",
+        "unsupported": ["legacy fileBrowser and hoverPreview stores"]
+      },
+      {
+        "path": "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/OtherTab.svelte",
+        "hash": "sha256:fc5db3e3e2e941966aec5fc77c03d0ed9b62bea1134d0791ca34cce92653cb41",
+        "status": "review-scaffold",
+        "unsupported": ["legacy fileBrowser and history stores"]
+      }
+    ]
+  },
+  "visualBaseline": {
+    "legacy": "artifacts/neoview-legacy-cards/folder-main-card.png",
+    "captureCommand": "node --experimental-strip-types scripts/capture-legacy-neoview-card.ts --url=<legacy-url> --output=artifacts/legacy-source/neoview-folder-mega-menu-1920x1080.png --legacy-card=folderMain --viewport=1920x1080",
+    "status": "pending-terminal-capture"
+  },
+  "sourceUiInventory": [
+    {
+      "id": "folder-mega-menu.legacy-tabs",
+      "title": "旧版更多设置三页",
+      "sourceEvidence": [
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/MoreSettingsTabs.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/ActionTab.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/DisplayTab.svelte",
+        "src/lib/components/panels/folderPanel/components/FolderToolbar/tabs/OtherTab.svelte"
+      ],
+      "controls": [
+        "快捷操作页：预热目录、递归显示、刷新树、清除历史、排除目录、重载全部或选中缩略图",
+        "显示设置页：悬停预览、延迟、多图预览、缩略图宽度、横幅宽度",
+        "其他页：工具栏提示、同步文件夹、默认评分、空白单击/双击和列表底部返回按钮"
+      ],
+      "replacement": "用户明确要求不使用标签页；现有 XR 功能按稳定语义分到一次展开的纵向列，废弃的 legacy store 命令不重新引入。"
+    },
+    {
+      "id": "folder-mega-menu.current-controls",
+      "title": "当前 File Card 更多菜单控制项",
+      "sourceEvidence": ["src/nodes/neoview/features/panels/cards/folder/FolderToolbar.tsx"],
+      "columns": [
+        {
+          "id": "display",
+          "title": "显示与筛选",
+          "controls": ["显示类型", "显示隐藏文件夹", "隐藏不存在的文件（EFU）", "文件信息显示", "标题换行"]
+        },
+        {
+          "id": "layout",
+          "title": "布局与预览",
+          "controls": ["内联树", "文件树位置", "悬停预览", "项目尺寸"]
+        },
+        {
+          "id": "behavior",
+          "title": "浏览行为",
+          "controls": ["穿透设置", "二次确认", "空白区域操作", "启动时恢复上次阅读", "排序记忆"]
+        },
+        {
+          "id": "maintenance",
+          "title": "数据与维护",
+          "controls": ["导入 EFU 文件列表", "重载可见缩略图", "重载选中缩略图", "取消缩略图重载"]
+        }
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "folder-mega-menu.ast-prototype",
+      "category": "ast-prototype",
+      "title": "审阅旧版更多设置原型",
+      "sourceEvidence": ["migration/neoview/frontend/folder-mega-menu-prototype/tsx-scaffold/manifest.json"],
+      "targetContract": "生成器记录四个旧组件的 source hash、DOM 层级、图标、条件、事件和 unsupported Svelte 运行时节点；生产代码不得 import scaffold。",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "complete", "cli": "not-applicable", "tui": "not-applicable", "evidence": "complete"},
+      "testIds": ["neoview.folder.mega-menu.ast-prototype"],
+      "plannedTestIds": [],
+      "notes": "生成器输出为 review/partial scaffold，不把旧 Svelte stores 复制进 XR。"
+    },
+    {
+      "id": "folder-mega-menu.layout",
+      "category": "ui-parity",
+      "title": "一次展开的三至四列菜单",
+      "sourceEvidence": ["MoreSettingsTabs.svelte", "ActionTab.svelte", "DisplayTab.svelte", "OtherTab.svelte"],
+      "targetContract": "更多按钮打开一个连续的 DropdownMenu Content。桌面宽度显示四个有稳定语义的纵列；中等宽度显示三列；窄宽度退化为两列或单列。列由显式 grid child 决定，不使用 CSS columns 自动流式重排。",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.folder.mega-menu.desktop-gui", "neoview.folder.mega-menu.constrained-gui"],
+      "notes": "列间只用分隔线，不嵌套卡片；顶层不再有标签页。"
+    },
+    {
+      "id": "folder-mega-menu.control-retention",
+      "category": "capabilities",
+      "title": "保留当前菜单控制语义",
+      "sourceEvidence": ["src/nodes/neoview/features/panels/cards/folder/FolderToolbar.tsx"],
+      "targetContract": "每个 current-controls 条目保持原标签、图标语义、禁用条件、子菜单选项、回调和持久化路径，仅改变顶层归属列。",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.folder.mega-menu.controls-gui", "neoview.file-card.startup-restore-menu-gui", "neoview.folder.tag-display-menu", "neoview.folder.filter-ui", "neoview.folder.view-size"],
+      "notes": "EFU 条件项、缩略图 pending 状态和排序记忆条件必须继续生效。"
+    },
+    {
+      "id": "folder-mega-menu.direct-refresh",
+      "category": "deviations",
+      "title": "取消更多菜单中的重复目录刷新",
+      "sourceEvidence": ["src/nodes/neoview/features/panels/cards/folder/FolderToolbar.tsx", "components/FolderToolbar/ActionTab.svelte"],
+      "targetContract": "移除更多菜单的“刷新当前目录”重复项；五向导航盘中央的“刷新”继续调用相同的 onRefresh，并始终保留为直接操作。",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.folder.mega-menu.no-duplicate-refresh-gui", "neoview.folder.home-refresh-ui"],
+      "notes": "这是已存在直接刷新控制的去重，不改变刷新命令或会话生命周期。"
+    },
+    {
+      "id": "folder-mega-menu.accessibility",
+      "category": "keyboard-accessibility",
+      "title": "菜单键盘与子菜单方向",
+      "sourceEvidence": ["src/components/ui/dropdown-menu.tsx"],
+      "targetContract": "保持 Menu、menuitem、menuitemcheckbox 和 menuitemradio 语义；菜单 DOM 顺序按列从上到下排列，ArrowUp/ArrowDown 在当前列移动，ArrowRight 打开子菜单，Escape 关闭并恢复更多按钮焦点。右侧碰撞时由 Radix 翻转子菜单方向。",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.folder.mega-menu.keyboard-gui"],
+      "notes": "不改用没有子菜单 roving focus 的 CSS 自动分栏。"
+    },
+    {
+      "id": "folder-mega-menu.visual-evidence",
+      "category": "tests",
+      "title": "桌面和受限宽度视觉证据",
+      "sourceEvidence": ["scripts/capture-legacy-neoview-card.ts", "vitest.browser.config.ts"],
+      "targetContract": "终端脚本捕获旧版 1920x1080，Vitest Browser Mode 在 1440px 和受限 760px 宽度证明列数、无重叠、无横向裁切、所有列均可操作。",
+      "surfaces": ["GUI"],
+      "capabilityStatus": {"core": "not-applicable", "transport": "not-applicable", "gui": "pending", "cli": "not-applicable", "tui": "not-applicable", "evidence": "pending"},
+      "testIds": [],
+      "plannedTestIds": ["neoview.folder.mega-menu.desktop-gui", "neoview.folder.mega-menu.constrained-gui", "neoview.folder.mega-menu.keyboard-gui"],
+      "notes": "遵循项目 Browser Mode 规范，不新增 Playwright spec 或应用内 Browser 探针。"
+    }
+  ]
+}
