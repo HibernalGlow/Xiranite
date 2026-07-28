@@ -39,7 +39,7 @@ The run passes only when:
 - selecting the source does not enter an indefinite preparing state;
 - backend discovery is single-pass and starts yielding before the complete source is known;
 - preview rows, selected rows, file-size records, result details, errors, events, and history payloads remain at their documented limits;
-- cancellation during discovery returns promptly and leaves no operation or listener running;
+- cancellation during both directory and EFU discovery returns promptly and leaves no operation or listener running;
 - memory reaches a bounded plateau rather than growing linearly with discovered count.
 
 ## Measurements
@@ -62,7 +62,9 @@ Record peak values and the end-of-run retained values. A lower peak obtained by 
 
 Use the same machine, corpus, destination volume, quality, thread count, warm/cold classification, and source-cache policy. Heavy runs are serial. Record tool, Xiranite commit, SlimG DLL hash/version, Bun version, and reference commit/tag.
 
-Run one cold diagnostic and at least three warmed measurements when runtime is practical. Compare warmed medians. A throughput difference inside 5% is treated as noise unless repeated evidence shows otherwise. The optimized implementation must not trade a meaningful throughput regression for a cosmetic memory reduction.
+Run one cold-runtime diagnostic and at least three warmed measurements. Record whether mandatory source hashing warmed the filesystem cache, and use the same cache policy for every comparison. Compare warmed medians. A throughput difference inside 5% is treated as noise unless repeated evidence shows otherwise. The optimized implementation must not trade a meaningful throughput regression for a cosmetic memory reduction.
+
+Build the Go reference baseline from the exact reference checkout with `scripts/benchmark-xlchemy-go-reference.ts`. The runner uses a Go overlay so it does not modify the reference tree, invokes that checkout's existing `SlimgDecodeFile` and `SlimgConvert` implementations against the same corpus, and records one cold plus three warm runs. The Bun conversion gate requires the resulting `go-reference/summary.json` through `--reference-summary`; a warmed median below 95% of the Go reference fails acceptance.
 
 The primary memory gate is no more than 4 GiB aggregate private bytes for the fixed 16-thread conversion corpus. The target is materially below that reference ceiling, and the report must separate renderer/list memory from the Bun/SlimG conversion process.
 
@@ -77,5 +79,6 @@ Store machine-readable artifacts outside source-control unless they are compact 
 - output-verification results;
 - process-cleanup audit;
 - final before/after comparison report with command lines and commit hashes.
+- Go reference overlay source, build output, process samples, decoded-output verification, and summary.
 
 Do not claim completion from a subset, a generated low-resolution corpus, a mocked DLL, a single-file probe, or output existence checks.

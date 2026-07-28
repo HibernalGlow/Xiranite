@@ -108,6 +108,7 @@
     "benchmark:neoview-sevenzip": "bun scripts/benchmark-neoview-sevenzip.ts",
     "benchmark:neoview-reader": "bun scripts/benchmark-neoview-reader.ts",
     "benchmark:runtime-contention": "bun scripts/benchmark-runtime-contention.ts",
+    "benchmark:xlchemy-large-batch": "bun scripts/verify-xlchemy-large-batch.ts",
     "benchmark:xlchemy-clip": "bun scripts/benchmark-xlchemy-clip.ts",
     "audit:neoview-performance": "bun scripts/verify-neoview-performance.ts",
     "benchmark:neoview-super-resolution": "bun scripts/benchmark-neoview-super-resolution.ts",
