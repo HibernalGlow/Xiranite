@@ -55,6 +55,51 @@ function useInlineBranchAvailableHeight(path: string) {
   return { panelRef, availableHeight }
 }
 
+function useInlineBranchContentHeight(
+  path: string,
+  catalog: DirectoryCatalog | undefined,
+  viewMode: ReaderFolderViewMode,
+) {
+  const contentRef = useRef<HTMLDivElement | null>(null)
+  const [contentHeight, setContentHeight] = useState<number>()
+
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    setContentHeight(undefined)
+    if (!content || !catalog || catalog.total <= 0) return
+
+    let frame = 0
+    let observedList: HTMLElement | undefined
+    const observer = new ResizeObserver(() => scheduleMeasure())
+    const measure = () => {
+      const itemList = content.querySelector<HTMLElement>('[data-testid="virtuoso-item-list"]')
+      if (!itemList) return
+      if (observedList !== itemList) {
+        if (observedList) observer.unobserve(observedList)
+        observedList = itemList
+        observer.observe(itemList)
+      }
+      const height = Math.ceil(Math.max(itemList.scrollHeight, itemList.getBoundingClientRect().height))
+      if (height > 0) setContentHeight((current) => current === height ? current : height)
+    }
+    const scheduleMeasure = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(measure)
+    }
+    const mutations = new MutationObserver(scheduleMeasure)
+    observer.observe(content)
+    mutations.observe(content, { childList: true, subtree: true })
+    scheduleMeasure()
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      mutations.disconnect()
+    }
+  }, [catalog?.generation, catalog?.sessionId, catalog?.total, path, viewMode])
+
+  return { contentRef, contentHeight }
+}
+
 export default function FolderInlineBranchPanel({
   client,
   path,
@@ -96,6 +141,7 @@ export default function FolderInlineBranchPanel({
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
   const [selectedPath, setSelectedPath] = useState<string>()
   const [error, setError] = useState<string>()
+  const { contentRef, contentHeight } = useInlineBranchContentHeight(path, catalog, viewMode)
   const thumbnailPipeline = useFolderThumbnailPipeline({
     client,
     catalog,
@@ -181,7 +227,9 @@ export default function FolderInlineBranchPanel({
   }
 
   const naturalHeight = catalog?.total && catalog.total > 0
-    ? inlineBranchViewportHeight(catalog.total, viewMode)
+    ? contentHeight === undefined
+      ? inlineBranchViewportHeight(catalog.total, viewMode)
+      : INLINE_BRANCH_HEADER_HEIGHT + contentHeight
     : INLINE_BRANCH_HEADER_HEIGHT + INLINE_BRANCH_STATE_HEIGHT
   const height = availableHeight === undefined
     ? naturalHeight
@@ -206,53 +254,55 @@ export default function FolderInlineBranchPanel({
           <X className="size-4" />
         </Button>
       </header>
-      {error ? <div className="grid min-h-0 flex-1 place-items-center px-3 text-xs text-destructive" role="status">{error}</div> : null}
-      {!error && !catalog ? <div className="grid min-h-0 flex-1 place-items-center text-xs text-muted-foreground" role="status">正在展开文件夹...</div> : null}
-      {!error && catalog?.total === 0 ? <div className="grid min-h-0 flex-1 place-items-center text-xs text-muted-foreground" role="status">此文件夹为空</div> : null}
-      {!error && catalog && catalog.total > 0 && viewMode === "details" ? (
-        <InlineDetailsList catalog={catalog} disabled={disabled} selectedPath={selectedPath} onRangeChange={requestRange} onSelect={selectEntry} />
-      ) : null}
-      {!error && catalog && catalog.total > 0 && viewMode === "mosaic-list" ? (
-        <VirtuosoGrid
-          style={{ height: "100%" }}
-          totalCount={catalog.total}
-          listClassName="grid gap-1 overflow-hidden p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),10rem),1fr))]"
-          itemClassName="min-w-0"
-          computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
-          rangeChanged={requestRange}
-          itemContent={(index) => {
-            const entry = directoryEntryAt(catalog, index)
-            return <DirectoryBannerItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={false} showCollectTagCount={false} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} hoverPreviewEnabled={false} hoverPreviewDelayMs={500} onSelect={selectEntry} />
-          }}
-        />
-      ) : null}
-      {!error && catalog && catalog.total > 0 && viewMode.endsWith("grid") ? (
-        <VirtuosoGrid
-          style={{ height: "100%" }}
-          totalCount={catalog.total}
-          listClassName="grid gap-1 overflow-hidden p-1 [grid-template-columns:repeat(auto-fill,minmax(7rem,1fr))]"
-          itemClassName="min-w-0"
-          computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
-          rangeChanged={requestRange}
-          itemContent={(index) => {
-            const entry = directoryEntryAt(catalog, index)
-            return <DirectoryGridItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={false} showCollectTagCount={false} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} hoverPreviewEnabled={false} hoverPreviewDelayMs={500} onSelect={selectEntry} />
-          }}
-        />
-      ) : null}
-      {!error && catalog && catalog.total > 0 && viewMode !== "details" && !viewMode.endsWith("grid") ? (
-        <Virtuoso
-          style={{ height: "100%" }}
-          totalCount={catalog.total}
-          fixedItemHeight={viewMode === "compact" ? 34 : 76}
-          computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
-          rangeChanged={requestRange}
-          itemContent={(index) => {
-            const entry = directoryEntryAt(catalog, index)
-            return <DirectoryListItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={false} showCollectTagCount={false} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} contentWidthPercent={35} hoverPreviewEnabled={false} hoverPreviewDelayMs={500} deleteMode={false} deleteStrategy="trash" confirmDelete onSelect={selectEntry} />
-          }}
-        />
-      ) : null}
+      <div ref={contentRef} className="min-h-0 flex-1" data-folder-inline-branch-content="true">
+        {error ? <div className="grid h-full min-h-0 place-items-center px-3 text-xs text-destructive" role="status">{error}</div> : null}
+        {!error && !catalog ? <div className="grid h-full min-h-0 place-items-center text-xs text-muted-foreground" role="status">正在展开文件夹...</div> : null}
+        {!error && catalog?.total === 0 ? <div className="grid h-full min-h-0 place-items-center text-xs text-muted-foreground" role="status">此文件夹为空</div> : null}
+        {!error && catalog && catalog.total > 0 && viewMode === "details" ? (
+          <InlineDetailsList catalog={catalog} disabled={disabled} selectedPath={selectedPath} onRangeChange={requestRange} onSelect={selectEntry} />
+        ) : null}
+        {!error && catalog && catalog.total > 0 && viewMode === "mosaic-list" ? (
+          <VirtuosoGrid
+            style={{ height: "100%" }}
+            totalCount={catalog.total}
+            listClassName="grid gap-1 overflow-hidden p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),10rem),1fr))]"
+            itemClassName="min-w-0"
+            computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
+            rangeChanged={requestRange}
+            itemContent={(index) => {
+              const entry = directoryEntryAt(catalog, index)
+              return <DirectoryBannerItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={false} showCollectTagCount={false} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} hoverPreviewEnabled={false} hoverPreviewDelayMs={500} onSelect={selectEntry} />
+            }}
+          />
+        ) : null}
+        {!error && catalog && catalog.total > 0 && viewMode.endsWith("grid") ? (
+          <VirtuosoGrid
+            style={{ height: "100%" }}
+            totalCount={catalog.total}
+            listClassName="grid gap-1 overflow-hidden p-1 [grid-template-columns:repeat(auto-fill,minmax(7rem,1fr))]"
+            itemClassName="min-w-0"
+            computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
+            rangeChanged={requestRange}
+            itemContent={(index) => {
+              const entry = directoryEntryAt(catalog, index)
+              return <DirectoryGridItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={false} showCollectTagCount={false} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} hoverPreviewEnabled={false} hoverPreviewDelayMs={500} onSelect={selectEntry} />
+            }}
+          />
+        ) : null}
+        {!error && catalog && catalog.total > 0 && viewMode !== "details" && !viewMode.endsWith("grid") ? (
+          <Virtuoso
+            style={{ height: "100%" }}
+            totalCount={catalog.total}
+            fixedItemHeight={viewMode === "compact" ? 34 : 76}
+            computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
+            rangeChanged={requestRange}
+            itemContent={(index) => {
+              const entry = directoryEntryAt(catalog, index)
+              return <DirectoryListItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={false} showCollectTagCount={false} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} contentWidthPercent={35} hoverPreviewEnabled={false} hoverPreviewDelayMs={500} deleteMode={false} deleteStrategy="trash" confirmDelete onSelect={selectEntry} />
+            }}
+          />
+        ) : null}
+      </div>
     </section>
   )
 }

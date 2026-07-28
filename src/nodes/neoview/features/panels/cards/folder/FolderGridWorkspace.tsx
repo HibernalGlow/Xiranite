@@ -1,11 +1,12 @@
 import {
   VirtuosoGrid,
+  type GridComponents,
   type GridItemProps,
   type GridStateSnapshot,
   type ListRange,
   type VirtuosoGridHandle,
 } from "react-virtuoso"
-import { forwardRef, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from "react"
+import { forwardRef, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from "react"
 
 import type { ReaderDirectoryEntryDto, ReaderFolderViewMode } from "../../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
@@ -14,10 +15,31 @@ import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from ".
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
-import { EMPTY_VIRTUOSO_COMPONENTS, FOLDER_GRID_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
+import { FOLDER_GRID_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 import { folderThumbnailIsLoading, type FolderThumbnailStore } from "./FolderThumbnailStore"
 import { useFolderThumbnail } from "./useFolderThumbnail"
 import { folderTitleClassName } from "./FolderViewPresentation"
+
+interface FolderGridContext extends FolderReturnFooterContext {
+  inlineBranchDrawerIndex?: number
+}
+
+const FolderGridItem = forwardRef<HTMLDivElement, GridItemProps & { context: FolderGridContext }>(function FolderGridItem(
+  { children, context, style, ...props },
+  ref,
+) {
+  const isDrawer = props["data-index"] === context.inlineBranchDrawerIndex
+  return <div ref={ref} {...props} style={isDrawer ? { ...style, gridColumn: "1 / -1" } : style}>{children}</div>
+})
+
+const FOLDER_GRID_COMPONENTS_WITH_DRAWER = {
+  ...FOLDER_GRID_COMPONENTS,
+  Item: FolderGridItem,
+} satisfies GridComponents<FolderGridContext>
+
+const EMPTY_GRID_COMPONENTS_WITH_DRAWER = {
+  Item: FolderGridItem,
+} satisfies GridComponents<FolderGridContext>
 
 export default function FolderGridWorkspace({
   virtualKey,
@@ -94,11 +116,7 @@ export default function FolderGridWorkspace({
   const inlineBranchIndex = inlineBranchPath && inlineBranch ? directoryEntryIndex(catalog, inlineBranchPath) : undefined
   const inlineBranchDrawerIndex = inlineBranchIndex === undefined ? undefined : inlineBranchIndex + 1
   const hasInlineBranch = inlineBranchDrawerIndex !== undefined
-  const InlineBranchGridItem = useMemo(() => createInlineBranchGridItem(inlineBranchDrawerIndex), [inlineBranchDrawerIndex])
-  const gridComponents = useMemo(() => ({
-    ...(showReturnFooter ? FOLDER_GRID_COMPONENTS : EMPTY_VIRTUOSO_COMPONENTS),
-    Item: InlineBranchGridItem,
-  }), [InlineBranchGridItem, showReturnFooter])
+  const gridContext: FolderGridContext = { ...returnFooterContext, inlineBranchDrawerIndex }
   onScrollTopChangeRef.current = onScrollTopChange
   if (restoreKeyRef.current !== virtualKey) {
     restoreKeyRef.current = virtualKey
@@ -149,8 +167,8 @@ export default function FolderGridWorkspace({
       data-folder-restore-scroll-top={initialScrollTop}
       style={{ height: "100%" }}
       totalCount={catalog.total + (hasInlineBranch ? 1 : 0)}
-      components={gridComponents}
-      context={showReturnFooter ? returnFooterContext : undefined}
+      components={showReturnFooter ? FOLDER_GRID_COMPONENTS_WITH_DRAWER : EMPTY_GRID_COMPONENTS_WITH_DRAWER}
+      context={gridContext}
       listClassName={banner
         ? "grid grid-flow-dense gap-1 p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),10rem),1fr))]"
         : "grid grid-flow-dense gap-1 p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),5.5rem),1fr))]"}
@@ -177,7 +195,7 @@ export default function FolderGridWorkspace({
             index={entryIndex}
             disabled={disabled}
             selected={Boolean(entry && selectedPaths.has(entry.path))}
-            focused={index === focusedIndex}
+            focused={entryIndex === focusedIndex}
             showRating={showRating}
             showCollectTagCount={showCollectTagCount}
             visualMode={viewMode}
@@ -203,13 +221,6 @@ export default function FolderGridWorkspace({
 function directoryIndexForGridIndex(index: number, inlineBranchIndex: number | undefined): number {
   if (inlineBranchIndex === undefined || index <= inlineBranchIndex) return index
   return index - 1
-}
-
-function createInlineBranchGridItem(inlineBranchDrawerIndex: number | undefined) {
-  return forwardRef<HTMLDivElement, GridItemProps>(function InlineBranchGridItem({ children, style, ...props }, ref) {
-    const isDrawer = props["data-index"] === inlineBranchDrawerIndex
-    return <div ref={ref} {...props} style={isDrawer ? { ...style, gridColumn: "1 / -1" } : style}>{children}</div>
-  })
 }
 
 interface DirectoryGridItemProps {
