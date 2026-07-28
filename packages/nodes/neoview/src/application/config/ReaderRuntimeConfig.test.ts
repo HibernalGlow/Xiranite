@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseNeoviewBoardLayoutPatch, parseNeoviewBookPatch, parseNeoviewBookmarkListPatch, parseNeoviewCardLayoutPatch, parseNeoviewEmmPatch, parseNeoviewFolderViewPatch, parseNeoviewHistoryListPatch, parseNeoviewPageListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewSystemMonitorPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
+import { parseNeoviewBoardLayoutPatch, parseNeoviewBookPatch, parseNeoviewBookmarkListPatch, parseNeoviewCardLayoutPatch, parseNeoviewEmmPatch, parseNeoviewFolderViewPatch, parseNeoviewHistoryListPatch, parseNeoviewPageListPatch, parseNeoviewPageTransitionPatch, parseNeoviewRuntimeConfig, parseNeoviewShellControlPatch, parseNeoviewSidebarLayoutPatch, parseNeoviewSlideshowPatch, parseNeoviewStartupPatch, parseNeoviewSystemMonitorPatch, parseNeoviewViewDefaultsPatch } from "./ReaderRuntimeConfig.js"
 
 describe("parseNeoviewRuntimeConfig", () => {
   it("[neoview.settings.runtime] maps schema v1 reader defaults", () => {
@@ -321,6 +321,18 @@ describe("ReaderRuntimeConfig system monitor", () => {
     })
     expect(() => parseNeoviewSystemMonitorPatch({ systemMonitor: { refreshIntervalMs: 750 } })).toThrow("must be one of")
     expect(() => parseNeoviewSystemMonitorPatch({ systemMonitor: { maxSamples: 1_000 } })).toThrow("between 10 and 600")
+  })
+})
+
+describe("ReaderRuntimeConfig startup restore", () => {
+  it("[neoview.startup-restore.config] defaults on and projects the canonical TOML patch", () => {
+    expect(parseNeoviewRuntimeConfig(undefined).startup).toEqual({ restoreLastBook: true })
+    expect(parseNeoviewRuntimeConfig({ startup: { restore_last_book: false } }).startup).toEqual({ restoreLastBook: false })
+    expect(parseNeoviewStartupPatch({ startup: { restoreLastBook: false } })).toEqual({
+      patch: { startup: { restoreLastBook: false } },
+      tomlPatch: { startup: { restore_last_book: false } },
+    })
+    expect(() => parseNeoviewStartupPatch({ startup: {} })).toThrow("must change at least one field")
   })
 })
 

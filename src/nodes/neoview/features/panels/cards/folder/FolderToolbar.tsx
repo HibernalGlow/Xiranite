@@ -76,6 +76,7 @@ import FolderTagDisplayMenu from "./FolderTagDisplayMenu"
 import FolderViewTitleWrapMenu from "./FolderViewTitleWrapMenu"
 import type { FolderDeleteStrategy } from "./FolderDeleteButton"
 import { ReaderFilePresentationMoreMenuItems } from "../shared/ReaderFilePresentationMoreMenu"
+import { FolderStartupRestoreMenuItem } from "./FolderStartupRestoreMenuItem"
 
 export type FolderToolbarViewModeOption = {
   value: ReaderFolderViewMode
@@ -332,9 +333,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
           onSetHome={onSetHome}
           onRefresh={onRefresh}
         />
-
         <ToolbarDivider />
-
       </div>
 
       <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-hidden" data-folder-toolbar-group="tools">
@@ -694,7 +693,6 @@ export default function FolderToolbar(props: FolderToolbarProps) {
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
-
             <ReaderFilePresentationMoreMenuItems
               presentation={{ viewMode, contentWidthPercent, thumbnailWidthPercent, bannerWidthPercent }}
               disabled={disabled}
@@ -710,7 +708,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
                 else onCommitBannerWidth(value)
               }}
             />
-
+            <FolderStartupRestoreMenuItem disabled={busy} />
             <DropdownMenuSeparator />
             <DropdownMenuItem
               disabled={!currentPath || busy}
@@ -745,7 +743,6 @@ export default function FolderToolbar(props: FolderToolbarProps) {
               <RefreshCw className="size-4" />
               取消缩略图重载
             </DropdownMenuItem>
-
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
               <MousePointerClick className="size-3.5" />

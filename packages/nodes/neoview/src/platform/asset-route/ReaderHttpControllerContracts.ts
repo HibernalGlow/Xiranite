@@ -125,6 +125,7 @@ import {
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
   DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
   DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
+  DEFAULT_NEOVIEW_STARTUP_CONFIG,
   parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
   parseNeoviewShellControlPatch,
@@ -135,6 +136,7 @@ import {
   parseNeoviewPageTransitionPatch,
   parseNeoviewSwitchToastPatch,
   parseNeoviewInfoOverlayPatch,
+  parseNeoviewStartupPatch,
   parseNeoviewSystemMonitorPatch,
   parseNeoviewEmmPatch,
   parseNeoviewAiTranslationPatch,
@@ -155,6 +157,8 @@ import {
   type NeoviewPageTransitionPatch,
   type NeoviewSwitchToastPatch,
   type NeoviewInfoOverlayPatch,
+  type NeoviewStartupConfig,
+  type NeoviewStartupPatch,
   type NeoviewSystemMonitorConfig,
   type NeoviewPreloadConfig,
   type NeoviewPreloadPatch,
@@ -300,6 +304,8 @@ export type ReaderHttpControllerOptions = ReaderAssetRouteOptions &
     updateSwitchToast?: (patch: NeoviewSwitchToastPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderSwitchToastSettings>
     infoOverlay?: ReaderInfoOverlaySettings
     updateInfoOverlay?: (patch: NeoviewInfoOverlayPatch, tomlPatch: Record<string, unknown>) => Promise<ReaderInfoOverlaySettings>
+    startup?: NeoviewStartupConfig
+    updateStartup?: (patch: NeoviewStartupPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewStartupConfig>
     systemMonitor?: NeoviewSystemMonitorConfig
     updateSystemMonitor?: (patch: NeoviewSystemMonitorPatch, tomlPatch: Record<string, unknown>) => Promise<NeoviewSystemMonitorConfig>
     preload?: NeoviewPreloadConfig

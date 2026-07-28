@@ -175,6 +175,12 @@ export interface ReaderImageProcessingConfigDto {
 export interface ReaderImageProcessingPatchDto {
   imageProcessing: Partial<ReaderImageProcessingConfigDto>
 }
+export interface ReaderStartupConfigDto {
+  restoreLastBook: boolean
+}
+export interface ReaderStartupConfigPatch {
+  startup: Partial<ReaderStartupConfigDto>
+}
 export interface ReaderRuntimeConfigDto {
   shell: ReaderShellConfigDto
   viewDefaults: {
@@ -209,6 +215,8 @@ export interface ReaderRuntimeConfigDto {
   pageTransition: ReaderPageTransitionSettings
   switchToast?: ReaderSwitchToastSettings
   infoOverlay?: ReaderInfoOverlaySettings
+  /** Optional because older backends did not expose startup preferences. */
+  startup?: ReaderStartupConfigDto
   systemMonitor: ReaderSystemMonitorConfigDto
   preload: {
     maxCandidatePages: number

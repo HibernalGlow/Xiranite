@@ -10,7 +10,6 @@ export class ReaderHttpError extends Error {
     this.name = "ReaderHttpError"
   }
 }
-
 export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig = resolveLocalBackendConfig): Contract.ReaderHttpClient {
   const request = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
     const config = resolveConfig()
@@ -22,9 +21,8 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
     if (response.status === 204) return undefined as T
     return (await response.json()) as T
   }
-
   return {
-    config: (signal) => request<Contract.ReaderRuntimeConfigDto>("/reader/config", { signal }),
+    config: (signal) => request<Contract.ReaderRuntimeConfigDto>("/reader/config", { signal }), startupState: (signal) => request<Contract.ReaderStartupStateDto>("/reader/startup-state", { signal }),
     updateSidebarLayout: (patch, signal) =>
       request<{ shell: Contract.ReaderShellConfigDto }>("/reader/config", {
         method: "PATCH",
@@ -189,6 +187,16 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
         body: JSON.stringify(patch),
         signal,
       }).then((value) => value.infoOverlay),
+    updateStartup: (patch, signal) =>
+      request<Contract.ReaderRuntimeConfigDto>("/reader/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+        signal,
+      }).then((value) => {
+        if (!value.startup) throw new ReaderHttpError("Reader startup preferences are unavailable", 501)
+        return value.startup
+      }),
     updateSystemMonitor: (patch, signal) =>
       request<Contract.ReaderRuntimeConfigDto>("/reader/config", {
         method: "PATCH",
@@ -874,7 +882,6 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
       }),
   }
 }
-
 type ReaderLibraryThumbnailWarmupEvent =
   | { type: "start"; total: number }
   | {
@@ -885,7 +892,6 @@ type ReaderLibraryThumbnailWarmupEvent =
       error?: string
     }
   | ({ type: "complete" } & Contract.ReaderLibraryThumbnailWarmupSummaryDto)
-
 async function requestLibraryThumbnailWarmup(
   resolveConfig: () => LocalBackendConfig,
   items: readonly Contract.ReaderLibraryThumbnailRegistrationDto[],
@@ -943,7 +949,6 @@ async function requestLibraryThumbnailWarmup(
   if (!summary) throw new Error("Thumbnail warmup stream ended before completion.")
   return summary
 }
-
 function consumeLibraryThumbnailWarmupEvent(
   event: ReaderLibraryThumbnailWarmupEvent,
   summary: Contract.ReaderLibraryThumbnailWarmupSummaryDto | undefined,
@@ -959,7 +964,6 @@ function consumeLibraryThumbnailWarmupEvent(
     failed: event.failed,
   }
 }
-
 type ReaderDirectorySearchEvent =
   | {
       type: "meta"
@@ -980,7 +984,6 @@ type ReaderDirectorySearchEvent =
     }
   | { type: "complete"; scanned: number; matched: number; truncated: boolean }
   | { type: "error"; error: string }
-
 async function requestDirectorySearch(
   url: URL,
   token: string | undefined,
@@ -1040,7 +1043,6 @@ async function requestDirectorySearch(
     matched: complete.matched,
     truncated: complete.truncated,
   }
-
   function consumeDirectorySearchEvent(event: ReaderDirectorySearchEvent) {
     if (complete) throw new Error("Reader search stream emitted data after completion.")
     if (event.type === "error") throw new Error(event.error)
@@ -1069,7 +1071,6 @@ async function requestDirectorySearch(
     complete = event
   }
 }
-
 async function responseError(response: Response): Promise<string> {
   const contentType = response.headers.get("content-type") ?? ""
   if (contentType.includes("application/json")) {
@@ -1078,7 +1079,6 @@ async function responseError(response: Response): Promise<string> {
   }
   return (await response.text().catch(() => "")) || `Reader backend returned ${response.status}.`
 }
-
 function libraryQueryParams(offset: number, limit: number, query?: Contract.ReaderLibraryQueryDto): URLSearchParams {
   const search = new URLSearchParams({
     offset: String(offset),
