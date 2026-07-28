@@ -27,6 +27,10 @@ export const VITE_EAGER_DEPENDENCIES = [
   "blueimp-md5/js/md5.js",
   "debug",
   "debug/src/browser.js",
+  // remark's legacy HTML entity decoder imports CommonJS `extend`. With
+  // discovery disabled, lazy Marku loading otherwise exposes its CommonJS
+  // default export directly to the browser.
+  "extend",
   "content-type",
   "ieee754",
   "dexie",
