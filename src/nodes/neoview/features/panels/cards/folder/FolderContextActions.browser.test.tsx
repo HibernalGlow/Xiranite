@@ -4,6 +4,7 @@ import { render } from "vitest-browser-react"
 import { useRef } from "react"
 
 import { ContextMenuProvider } from "@/components/context-menu"
+import { getNodeConfigFromBackend, saveNodeConfigToBackend } from "@/backend/configRpcClient"
 import { runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
 import type {
   ReaderDirectoryNavigationDto,
@@ -19,6 +20,35 @@ import { publishFolderEntryRemoved, publishFolderEntryRestored } from "./FolderN
 import { useFolderExternalDeletion } from "./useFolderExternalDeletion"
 
 vi.mock("@/backend/nodeRpcClient", () => ({ runNodeOnLocalBackend: vi.fn() }))
+vi.mock("@/backend/configRpcClient", () => ({ getNodeConfigFromBackend: vi.fn(), saveNodeConfigToBackend: vi.fn() }))
+
+test("[neoview.folder.classf-blacklist-gui] pre-fills a SameA label and persists the approved quick edit to ClassF", async () => {
+  const entry = { index: 0, path: "D:/library/[きゅうりのふかづめ (しぐれに)] review.cbz", name: "[きゅうりのふかづめ (しぐれに)] review.cbz", kind: "file" as const, readerSupported: true }
+  const copyText = vi.fn(async () => undefined)
+  vi.mocked(getNodeConfigFromBackend).mockResolvedValueOnce({ config: { blacklistKeywords: ["[OgoG]"] }, path: "D:/config/xiranite.config.toml" })
+
+  await render(
+    <ContextMenuProvider>
+      <FolderContextActions client={{} as ReaderHttpClient} copyText={copyText} disabled={false} onActivate={vi.fn()} onOpenInNewTab={vi.fn()} />
+      <button data-context-menu="neoview-folder-entry" data-folder-index={entry.index} data-folder-path={entry.path} data-folder-name={entry.name} data-folder-kind={entry.kind} data-folder-reader-supported="true">{entry.name}</button>
+    </ContextMenuProvider>,
+  )
+
+  await page.getByRole("button", { name: entry.name }).click({ button: "right" })
+  await page.getByRole("menuitem", { name: "加入 ClassF 黑名单" }).click()
+  await expect.element(page.getByText(entry.name, { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "复制文件名" }).click()
+  await expect.poll(() => copyText).toHaveBeenCalledWith(entry.name)
+  const draft = page.getByRole("textbox", { name: "classf blacklist quick add" })
+  await expect.element(draft).toHaveValue("[きゅうりのふかづめ (しぐれに)]")
+  await page.getByRole("button", { name: "拆分社团与作者" }).click()
+  await expect.element(draft).toHaveValue("[きゅうりのふかづめ]\n[しぐれに]")
+  await page.getByRole("button", { name: "保存到 ClassF 黑名单" }).click()
+
+  await expect.poll(() => saveNodeConfigToBackend).toHaveBeenCalledWith("classf", {
+    blacklistKeywords: ["[OgoG]", "[きゅうりのふかづめ]", "[しぐれに]"],
+  })
+})
 
 test("[neoview.folder.current-delete-binding-gui] routes every File Card deletion through bindings", async () => {
   const executeFileOperations = vi.fn(async () => ({

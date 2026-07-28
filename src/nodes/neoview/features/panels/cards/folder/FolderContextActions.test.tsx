@@ -23,6 +23,9 @@ describe("FolderContextActions", () => {
     const onEnterRawDirectory = vi.fn()
     const onOpenInNewTab = vi.fn()
     const onOpenAsBook = vi.fn()
+    const onAction = vi.fn((action: string, entry: { path: string }) => {
+      if (action === "copy-path") void copyText(entry.path)
+    })
     const user = userEvent.setup()
     render(
       <ContextMenuProvider>
@@ -79,11 +82,11 @@ describe("FolderContextActions", () => {
       canBookmark: false,
       canRename: false,
       canTrash: false,
-      onAction: (action, entry) => {
-        if (action === "copy-path") void copyText(entry.path)
-      },
+      onAction,
     })
     expect(findFolderContextMenuItem(built, "neoview-folder-copy-path")?.disabled).toBe(false)
+    await findFolderContextMenuItem(built, "neoview-folder-add-classf-blacklist")?.onSelect?.()
+    expect(onAction).toHaveBeenCalledWith("add-classf-blacklist", expect.objectContaining({ path: "D:/library/series" }))
     await findFolderContextMenuItem(built, "neoview-folder-copy-path")?.onSelect?.()
     expect(copyText).toHaveBeenCalledWith("D:/library/series")
 

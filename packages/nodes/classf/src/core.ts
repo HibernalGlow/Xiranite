@@ -5,7 +5,7 @@ import type { SameaData, SameaInput, SameaResult } from "@xiranite/node-samea/co
 import { isArchiveFile, selectSinglePackFolderSources } from "@xiranite/node-repacku/core"
 import { isClassfBlacklistedArtist } from "./blacklist.js"
 
-export { parseSameaArtistLabel, splitSameaArtistAndCircleKeywords, stripOuterKeywordBrackets } from "./blacklist.js"
+export { extractSameaArtistKeywords, mergeClassfBlacklistKeywords, parseSameaArtistLabel, splitSameaArtistAndCircleKeywords, stripOuterKeywordBrackets } from "./blacklist.js"
 
 export type ClassfAction = "plan" | "classify"
 export type ClassfTransferMode = "move" | "copy"

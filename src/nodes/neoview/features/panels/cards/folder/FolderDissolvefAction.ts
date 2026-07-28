@@ -1,9 +1,11 @@
 import type { DissolvefData, DissolvefInput } from "@xiranite/node-dissolvef/core"
 
-import { runNodeOnLocalBackend } from "@/backend/nodeRpcClient"
+import { externalNode } from "@/nodes/shared/externalNodeGateway"
+
+const dissolvef = externalNode("dissolvef")
 
 export async function runDissolvefFolder(path: string): Promise<DissolvefData | undefined> {
-  const result = await runNodeOnLocalBackend<DissolvefInput, DissolvefData>("dissolvef", {
+  const result = await dissolvef.run<DissolvefInput, DissolvefData>({
     action: "direct",
     path,
     preview: false,

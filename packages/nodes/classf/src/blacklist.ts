@@ -41,6 +41,16 @@ export function splitSameaArtistAndCircleKeywords(keywords: string[]): string[] 
   }))
 }
 
+/** Extract the first SameA artist label from each source name, preserving safe brackets. */
+export function extractSameaArtistKeywords(keywords: string[]): string[] {
+  return unique(keywords.flatMap((keyword) => parseSameaArtistLabel(keyword)?.label ?? keyword.trim()))
+}
+
+/** Append candidate labels without duplicating entries already persisted for ClassF. */
+export function mergeClassfBlacklistKeywords(existing: string[], additions: string[]): string[] {
+  return unique([...existing, ...additions])
+}
+
 export function isClassfBlacklistedArtist(artist: string, keywords: string[]): boolean {
   const parts = parseSameaArtistLabel(artist)
   const labels = [artist, parts?.circle && `[${parts.circle}]`, parts?.artist && `[${parts.artist}]`]
