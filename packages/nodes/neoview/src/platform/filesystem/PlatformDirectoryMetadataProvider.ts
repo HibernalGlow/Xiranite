@@ -1,4 +1,5 @@
 import { opendir, stat } from "node:fs/promises"
+import { join } from "node:path"
 import { Readable } from "node:stream"
 
 import type { ReaderDirectoryEntry } from "../../ports/ReaderDirectoryListingProvider.js"
@@ -86,20 +87,34 @@ async function hydrateDirectoryEmpty(
   const probed = await Readable.from(entries).map(async (entry) => {
     if (entry.kind !== "directory" || entry.directoryEmpty !== undefined) return undefined
     signal?.throwIfAborted()
+    const containsContent = await directoryTreeContainsContent(entry.path, signal)
+    return containsContent === undefined ? undefined : [normalizePath(entry.path), !containsContent] as const
+  }, { concurrency: DIRECTORY_EMPTY_CONCURRENCY }).toArray()
+  return new Map(probed.flatMap((entry) => entry ? [entry] : []))
+}
+
+async function directoryTreeContainsContent(rootPath: string, signal?: AbortSignal): Promise<boolean | undefined> {
+  const pendingPaths = [rootPath]
+  while (pendingPaths.length) {
+    signal?.throwIfAborted()
+    const path = pendingPaths.pop()!
     let directory: Awaited<ReturnType<typeof opendir>> | undefined
     try {
-      directory = await opendir(entry.path)
-      const first = await directory.read()
-      signal?.throwIfAborted()
-      return [normalizePath(entry.path), first === null] as const
+      directory = await opendir(path)
+      for await (const child of directory) {
+        signal?.throwIfAborted()
+        // Symlinks and special entries are content: do not follow them into cycles.
+        if (!child.isDirectory()) return true
+        pendingPaths.push(join(path, child.name))
+      }
     } catch (error) {
       if (signal?.aborted) throw error
       return undefined
     } finally {
       if (directory) await directory.close().catch(() => undefined)
     }
-  }, { concurrency: DIRECTORY_EMPTY_CONCURRENCY }).toArray()
-  return new Map(probed.flatMap((entry) => entry ? [entry] : []))
+  }
+  return false
 }
 
 async function hydrateStats(
