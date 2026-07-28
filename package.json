@@ -138,7 +138,7 @@
     "wails:build": "bun run build && bun run build:backend:js && bun run build:native-assets && bun run wails:syso && go build -mod=mod -tags production,devtools -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe . && bun run build:nexus:host",
     "wails:build:incremental": "bun run build:incremental && bun run build:backend:js && bun run build:native-assets && bun run wails:syso && go build -mod=mod -tags production,devtools -ldflags=\"-w -s -H windowsgui\" -o build/wails/Xiranite.exe . && bun run build:nexus:host",
     "wails:build:local": "bun scripts/build-wails-local.ts",
-    "scoopinstall": "cp build/wails/Xiranite.exe D:/scoop/apps/xiranite/current/Xiranite.exe && cp build/wails/xiranite-native-host.exe D:/scoop/apps/xiranite/current/xiranite-native-host.exe",
+    "scoopinstall": "bun scripts/scoop-install.ts",
     "wails:start": "go run -mod=mod .",
     "bs": "bun wails:build:incremental && bun scoopinstall"
   },
