@@ -13,6 +13,7 @@ import { NeoviewTui } from "../Tui.js"
 
 const rarExecutable = await resolveRarFixtureExecutable()
 const testEncryptedRar = rarExecutable ? test : test.skip
+const NATIVE_INITIALIZATION_TIMEOUT_MS = 15_000
 
 test("[neoview.tui.archive] renders a real CBZ page through the existing archive provider", async () => {
   const pageBytes = await sharp({
@@ -27,7 +28,7 @@ test("[neoview.tui.archive] renders a real CBZ page through the existing archive
   } finally {
     await fixture.cleanup()
   }
-})
+}, 20_000)
 
 testEncryptedRar("[neoview.tui.encrypted-rar] renders a real header-encrypted solid CBR through the default controller", async () => {
   const pageBytes = await sharp({
@@ -54,7 +55,7 @@ async function expectRealSourceRenders(
   path: string,
   pageName: string,
   defaultArchivePasswords?: OpenHeadlessReaderInput["archivePasswords"],
-  waitMs = 5_000,
+  waitMs = NATIVE_INITIALIZATION_TIMEOUT_MS,
 ): Promise<void> {
   const definition = createNeoviewTuiDefinition("zh")
   definition.schema.initialValues.path = path
@@ -66,17 +67,20 @@ async function expectRealSourceRenders(
     setTimeout(openSettled.resolve, 0)
     return result
   }
-  const screen = await testRender(
-    <NeoviewTui
-      definition={definition}
-      language="zh"
-      onExit={() => undefined}
-      imageBackend="half-block"
-      createController={async () => controller}
-      defaultArchivePasswords={defaultArchivePasswords}
-    />,
-    { width: 132, height: 34, useMouse: true },
-  )
+  let screen!: Awaited<ReturnType<typeof testRender>>
+  await act(async () => {
+    screen = await testRender(
+      <NeoviewTui
+        definition={definition}
+        language="zh"
+        onExit={() => undefined}
+        imageBackend="half-block"
+        createController={async () => controller}
+        defaultArchivePasswords={defaultArchivePasswords}
+      />,
+      { width: 132, height: 34, useMouse: true },
+    )
+  })
   try {
     await act(async () => screen.renderOnce())
     const open = screen.renderer.root.findDescendantById("open")

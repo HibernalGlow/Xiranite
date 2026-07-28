@@ -654,7 +654,7 @@ describe("ReaderHttpController", () => {
       expect(await reset.json()).toMatchObject({ pageTransition: DEFAULT_READER_PAGE_TRANSITION })
       expect(updatePageTransition).toHaveBeenLastCalledWith(
         { pageTransition: { reset: "defaults" } },
-        { image: { page_transition: { enabled: false, type: "none", duration: 0, easing: "easeOutQuad" } } },
+        { image: { page_transition: { enabled: false, type: "none", duration: 0, easing: "easeOutQuad", render_every_repeated_page: true } } },
       )
       expect((await controller.handle(jsonRequest("/reader/config", {
         pageTransition: { duration: 501 },
