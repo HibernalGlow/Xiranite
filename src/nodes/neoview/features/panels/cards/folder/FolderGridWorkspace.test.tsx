@@ -51,12 +51,13 @@ describe("FolderGridWorkspace banner entries", () => {
     expect(info?.textContent).not.toContain(entry.path)
   })
 
-  it("[neoview.folder.thumbnail-empty] leaves a folder thumbnail area empty when no content preview exists", () => {
+  it("[neoview.folder.thumbnail-empty] shows the empty-folder icon when no content preview exists", () => {
     const entry: ReaderDirectoryEntryDto = {
       name: "empty-folder",
       path: "D:/library/empty-folder",
       kind: "directory",
       readerSupported: true,
+      directoryEmpty: true,
     }
 
     render(
@@ -79,7 +80,39 @@ describe("FolderGridWorkspace banner entries", () => {
 
     const thumbnail = screen.getByRole("button").querySelector('[data-folder-thumbnail="true"]')
     expect(thumbnail).toBeTruthy()
-    expect(thumbnail?.children).toHaveLength(0)
+    expect(thumbnail?.querySelector('[data-folder-empty-icon="true"]')).toBeTruthy()
+  })
+
+  it("[neoview.folder.thumbnail-empty] hides a stale database thumbnail for an empty folder", () => {
+    const entry: ReaderDirectoryEntryDto = {
+      name: "empty-folder",
+      path: "D:/library/empty-folder",
+      kind: "directory",
+      readerSupported: true,
+      directoryEmpty: true,
+    }
+
+    render(
+      <DirectoryBannerItem
+        itemId="folder-item-0"
+        entry={entry}
+        index={0}
+        disabled={false}
+        selected={false}
+        focused={false}
+        showRating={false}
+        showCollectTagCount={false}
+        visualMode="mosaic-list"
+        thumbnailUrl="/reader/library/t/stale-folder"
+        hoverPreviewEnabled={false}
+        hoverPreviewDelayMs={500}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    const thumbnail = screen.getByRole("button").querySelector('[data-folder-thumbnail="true"]')!
+    expect(thumbnail.querySelector('[data-folder-empty-icon="true"]')).toBeTruthy()
+    expect(thumbnail.querySelector("img")).toBeNull()
   })
 
   it("[neoview.folder.thumbnail-error] hides a failed capability image instead of showing a broken image", () => {

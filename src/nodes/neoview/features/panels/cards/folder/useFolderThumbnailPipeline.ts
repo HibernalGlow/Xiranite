@@ -20,6 +20,7 @@ import {
   mergeThumbnailUrlSets,
   thumbnailProfile,
 } from "./FolderThumbnailState"
+import { folderEntryIsEmptyDirectory } from "./FolderEntryContentState"
 
 const MAX_THUMBNAILS = 24
 const MAX_CACHED_THUMBNAIL_URLS = 256
@@ -158,6 +159,7 @@ export function useFolderThumbnailPipeline({
       ? [...current.pages].flatMap(([cursor, entries]) => entries.map((entry, offset) => ({ index: cursor + offset, entry })))
       : directoryLoadedEntries(current, range.startIndex, range.endIndex, MAX_THUMBNAILS)
     const visible = candidates
+      .filter(({ entry }) => !folderEntryIsEmptyDirectory(entry))
       .filter(({ entry }) => entry.kind === "directory" || (entry.kind === "file" && entry.readerSupported))
       .filter(({ entry }) => !targetPaths || targetPaths.has(entry.path))
       .filter(({ entry }) => refresh || force || (

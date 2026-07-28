@@ -21,6 +21,7 @@ import type { ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-c
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
 import { directoryEntryAt, FOLDER_MOSAIC_GROUP_SIZE, type DirectoryCatalog } from "./DirectoryCatalog"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
+import { folderEntryIsEmptyDirectory } from "./FolderEntryContentState"
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
@@ -415,14 +416,15 @@ export function DirectoryMosaicItem({
   onDimensions(path: string, width: number, height: number): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }) {
-  const thumbnailEligible = entry.kind === "directory" || entry.readerSupported
+  const directoryEmpty = folderEntryIsEmptyDirectory(entry)
+  const thumbnailEligible = !directoryEmpty && (entry.kind === "directory" || entry.readerSupported)
   const storedThumbnail = useFolderThumbnail(thumbnailStore, entry.path, thumbnailEligible, thumbnailProbeEnabled)
   const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
   const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
-  const thumbnailLoading = Boolean(thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
+  const thumbnailLoading = Boolean(!directoryEmpty && thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
   const geometry = folderMosaicGeometry(span, previewReady, columnCount)
   return (
-    <FolderHoverPreview thumbnailUrl={resolvedThumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
+    <FolderHoverPreview thumbnailUrl={directoryEmpty ? undefined : resolvedThumbnailUrl} enabled={hoverPreviewEnabled && !directoryEmpty} delayMs={hoverPreviewDelayMs} label={entry.name}>
       <div
         className="relative size-full min-h-0 min-w-0"
         style={{ gridColumn: `span ${geometry.columns}`, gridRow: `span ${geometry.rows}` }}
@@ -449,9 +451,10 @@ export function DirectoryMosaicItem({
         data-folder-name={entry.name}
         data-folder-kind={entry.kind}
         data-folder-reader-supported={entry.readerSupported}
+        data-folder-empty-directory={directoryEmpty || undefined}
       >
         <span className="relative grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
-          {resolvedThumbnailUrl || thumbnailLoading
+          {directoryEmpty ? <FolderEntryIcon entry={entry} className="size-8" /> : resolvedThumbnailUrl || thumbnailLoading
             ? <ReaderThumbnailSurface
                 url={resolvedThumbnailUrl}
                 urls={resolvedThumbnailUrls}

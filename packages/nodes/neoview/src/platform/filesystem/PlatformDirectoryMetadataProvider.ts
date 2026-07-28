@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises"
+import { opendir, stat } from "node:fs/promises"
 import { Readable } from "node:stream"
 
 import type { ReaderDirectoryEntry } from "../../ports/ReaderDirectoryListingProvider.js"
@@ -16,6 +16,7 @@ import {
 } from "../emm/PlatformEmmCollectTagSource.js"
 
 const STAT_CONCURRENCY = 16
+const DIRECTORY_EMPTY_CONCURRENCY = 16
 const DEFAULT_EMM_RATING = 4.2
 
 export class PlatformDirectoryMetadataProvider implements ReaderDirectoryMetadataProvider {
@@ -30,6 +31,7 @@ export class PlatformDirectoryMetadataProvider implements ReaderDirectoryMetadat
     this.supportedFields = new Set<ReaderDirectoryMetadataField>([
       "date",
       "size",
+      "directoryEmpty",
       ...(emmStore?.directoryEmmAvailable ? ["rating", "collectTagCount", "tags", "pageCount"] as const : []),
       ...(mediaMetadataProvider?.supportedFields ?? []),
     ])
@@ -42,9 +44,11 @@ export class PlatformDirectoryMetadataProvider implements ReaderDirectoryMetadat
   ): Promise<readonly ReaderDirectoryEntry[]> {
     signal?.throwIfAborted()
     const wantsStat = fields.has("date") || fields.has("size")
+    const wantsDirectoryEmpty = fields.has("directoryEmpty")
     const wantsEmm = fields.has("rating") || fields.has("collectTagCount") || fields.has("tags") || fields.has("pageCount")
-    const [statEntries, emmRecords, collectTags] = await Promise.all([
+    const [statEntries, directoryEmpty, emmRecords, collectTags] = await Promise.all([
       wantsStat ? hydrateStats(entries, fields, signal) : entries,
+      wantsDirectoryEmpty ? hydrateDirectoryEmpty(entries, signal) : Promise.resolve(new Map<string, boolean>()),
       wantsEmm && this.emmStore
         ? this.emmStore.readDirectoryEmmRecords(entries.map((entry) => entry.path), signal)
         : Promise.resolve(new Map<string, ReaderDirectoryEmmRecord>()),
@@ -53,7 +57,7 @@ export class PlatformDirectoryMetadataProvider implements ReaderDirectoryMetadat
         : Promise.resolve({ tags: [], mixedGender: false } satisfies ReaderEmmCollectTagSnapshot),
     ])
     signal?.throwIfAborted()
-    if (!wantsEmm && !wantsMedia(fields)) return statEntries
+    if (!wantsEmm && !wantsMedia(fields) && !wantsDirectoryEmpty) return statEntries
     const records = new Map([...emmRecords].map(([path, record]) => [normalizePath(path), record]))
     const merged = statEntries.map((entry) => {
       const record = records.get(normalizePath(entry.path))
@@ -64,6 +68,7 @@ export class PlatformDirectoryMetadataProvider implements ReaderDirectoryMetadat
         rating: fields.has("rating") ? effectiveRating(record, this.defaultRating) : entry.rating,
         collectTagCount: fields.has("collectTagCount") ? tagSets.collect.length : entry.collectTagCount,
         pageCount: fields.has("pageCount") ? jsonPositiveInteger(emm, "page_count", "pageCount") ?? entry.pageCount : entry.pageCount,
+        directoryEmpty: wantsDirectoryEmpty ? directoryEmpty.get(normalizePath(entry.path)) ?? entry.directoryEmpty : entry.directoryEmpty,
         tags: fields.has("tags") ? tagSets.all : entry.tags,
         collectTags: fields.has("tags") ? tagSets.collect : entry.collectTags,
         manualTags: fields.has("tags") ? tagSets.manual : entry.manualTags,
@@ -72,6 +77,29 @@ export class PlatformDirectoryMetadataProvider implements ReaderDirectoryMetadat
     if (!this.mediaMetadataProvider || !wantsMedia(fields)) return merged
     return this.mediaMetadataProvider.hydrate(merged, fields, signal)
   }
+}
+
+async function hydrateDirectoryEmpty(
+  entries: readonly ReaderDirectoryEntry[],
+  signal?: AbortSignal,
+): Promise<ReadonlyMap<string, boolean>> {
+  const probed = await Readable.from(entries).map(async (entry) => {
+    if (entry.kind !== "directory" || entry.directoryEmpty !== undefined) return undefined
+    signal?.throwIfAborted()
+    let directory: Awaited<ReturnType<typeof opendir>> | undefined
+    try {
+      directory = await opendir(entry.path)
+      const first = await directory.read()
+      signal?.throwIfAborted()
+      return [normalizePath(entry.path), first === null] as const
+    } catch (error) {
+      if (signal?.aborted) throw error
+      return undefined
+    } finally {
+      if (directory) await directory.close().catch(() => undefined)
+    }
+  }, { concurrency: DIRECTORY_EMPTY_CONCURRENCY }).toArray()
+  return new Map(probed.flatMap((entry) => entry ? [entry] : []))
 }
 
 async function hydrateStats(

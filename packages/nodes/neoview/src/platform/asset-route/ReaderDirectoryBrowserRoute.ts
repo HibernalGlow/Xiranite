@@ -87,7 +87,7 @@ const BROWSER_REOPEN_PATH = /^\/reader\/browser\/s\/([^/]+)\/reopen$/
 const BROWSER_SESSION_PATH = /^\/reader\/browser\/s\/([^/]+)$/
 const DISPLAY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>(["rating", "collectTagCount", "tags"])
 const READER_DIRECTORY_METADATA_FIELDS = new Set<ReaderDirectoryMetadataField>([
-  "date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "tags",
+  "date", "size", "rating", "collectTagCount", "dimensions", "pageCount", "directoryEmpty", "tags",
 ])
 const DirectoryFilterCommandSchema = z.object({
   filter: z.enum(READER_DIRECTORY_FILTERS),

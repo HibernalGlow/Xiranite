@@ -12,6 +12,7 @@ export function readerDirectoryListingPayloadBytes(listing: ReaderDirectoryListi
 
 export function readerDirectoryEntryPayloadBytes(entry: ReaderDirectoryEntry): number {
   let bytes = textBytes(entry.name) + textBytes(entry.path) + textBytes(entry.kind) + BOOLEAN_BYTES
+  if (entry.directoryEmpty !== undefined) bytes += BOOLEAN_BYTES
   for (const value of [entry.modifiedAt, entry.size, entry.rating, entry.collectTagCount, entry.width, entry.height, entry.pageCount]) {
     if (value !== undefined) bytes += NUMBER_BYTES
   }

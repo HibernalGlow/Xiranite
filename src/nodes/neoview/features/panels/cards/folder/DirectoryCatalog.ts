@@ -216,9 +216,9 @@ export function directoryPageHasMetadata(
 }
 
 /**
- * Rich folder renderers show EMM fields in their visible rows. Keep compact
- * browsing free of metadata work and let the server advertise unsupported
- * fields through the page capabilities before requesting a visible page.
+ * Rich folder renderers show EMM fields and probe visible directory entries
+ * for emptiness. Keep compact browsing free of metadata work and let the
+ * server advertise unsupported fields through the page capabilities.
  */
 export function folderMetadataFieldsForView(
   mode: ReaderFolderViewMode,
@@ -226,8 +226,8 @@ export function folderMetadataFieldsForView(
 ): readonly ReaderDirectoryMetadataFieldDto[] {
   if (mode === "compact" || mode === "details") return []
   const fields = mode === "mosaic-grid"
-    ? ["dimensions", ...FOLDER_EMM_METADATA_FIELDS] as const
-    : FOLDER_EMM_METADATA_FIELDS
+    ? ["dimensions", ...FOLDER_EMM_METADATA_FIELDS, "directoryEmpty"] as const
+    : [...FOLDER_EMM_METADATA_FIELDS, "directoryEmpty"] as const
   return fields.filter((field) => capabilities.includes(field))
 }
 

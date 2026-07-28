@@ -516,6 +516,7 @@ export interface ReaderDirectoryEntryDto {
   height?: number
   pageCount?: number
   tags?: readonly string[]
+  directoryEmpty?: boolean
   collectTags?: readonly string[]
   manualTags?: readonly string[]
 }
@@ -591,7 +592,7 @@ export interface ReaderDirectoryEmmEditResultDto {
   failed: number
 }
 export type ReaderDirectorySortFieldDto = "name" | "date" | "size" | "type" | "random" | "rating" | "path" | "collectTagCount"
-export type ReaderDirectoryMetadataFieldDto = "date" | "size" | "rating" | "collectTagCount" | "dimensions" | "pageCount" | "tags"
+export type ReaderDirectoryMetadataFieldDto = "date" | "size" | "rating" | "collectTagCount" | "dimensions" | "pageCount" | "directoryEmpty" | "tags"
 export type ReaderDirectorySortOrderDto = "asc" | "desc"
 export interface ReaderDirectorySortDto {
   field: ReaderDirectorySortFieldDto

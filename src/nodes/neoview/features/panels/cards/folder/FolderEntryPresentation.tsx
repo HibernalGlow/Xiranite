@@ -1,8 +1,9 @@
-import { File, FileArchive, FileImage, FileText, Film, Folder, Heart, Music, Star, Tag } from "lucide-react"
+import { File, FileArchive, FileImage, FileText, Film, Folder, FolderOpen, Heart, Music, Star, Tag } from "lucide-react"
 import { createContext, useContext, type ReactNode } from "react"
 
 import type { ReaderDirectoryEntryDto, ReaderFolderTagDisplayConfig } from "../../../../adapters/reader-http-client"
 import { formatFolderRating } from "./DirectoryCatalog"
+import { folderEntryIsEmptyDirectory } from "./FolderEntryContentState"
 
 export const DEFAULT_FOLDER_TAG_DISPLAY: ReaderFolderTagDisplayConfig = {
   tagMode: "collect",
@@ -20,8 +21,9 @@ export function FolderEntryDisplayProvider({ value, children }: { value: ReaderF
 }
 
 export function FolderEntryIcon({ entry, className = "size-4" }: { entry: ReaderDirectoryEntryDto; className?: string }) {
-  const Icon = getFolderEntryIcon(entry)
-  return <Icon className={`${className} shrink-0 ${folderEntryIconClass(entry)}`} />
+  const directoryEmpty = folderEntryIsEmptyDirectory(entry)
+  const Icon = directoryEmpty ? FolderOpen : getFolderEntryIcon(entry)
+  return <Icon className={`${className} shrink-0 ${folderEntryIconClass(entry)}`} data-folder-empty-icon={directoryEmpty || undefined} aria-label={directoryEmpty ? "空文件夹" : undefined} />
 }
 
 export function getFolderEntryIcon(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name">) {
@@ -74,7 +76,8 @@ export function FolderEntryFileMetadata({ entry, className = "" }: { entry: Pick
   return <span className={`truncate text-[9px] text-muted-foreground ${className}`} title={[date, size].filter(Boolean).join(" · ")}>{[date, size].filter(Boolean).join(" · ")}</span>
 }
 
-function folderEntryIconClass(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name">): string {
+function folderEntryIconClass(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "directoryEmpty">): string {
+  if (folderEntryIsEmptyDirectory(entry)) return "text-muted-foreground"
   if (entry.kind === "directory") return "text-amber-500"
   const extension = folderEntryExtension(entry.name)
   if (IMAGE_EXTENSIONS.has(extension)) return "text-sky-500"
