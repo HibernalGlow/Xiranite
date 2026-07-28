@@ -1317,7 +1317,7 @@ describe("ReaderHttpController", () => {
       expect(readDirectoryEmmRecords).toHaveBeenCalledOnce()
 
       const closed = (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" })))!
-      expect(closed.status).toBe(204)
+      expect([closed.status, (await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`, { method: "DELETE" })))?.status, (await controller.handle(authorizedRequest("/reader/s/%E0%A4%A", { method: "DELETE" })))?.status]).toEqual([204, 204, 400])
       expect((await controller.handle(authorizedRequest(`/reader/s/${session.sessionId}`)))?.status).toBe(404)
     } finally {
       await controller[Symbol.asyncDispose]()

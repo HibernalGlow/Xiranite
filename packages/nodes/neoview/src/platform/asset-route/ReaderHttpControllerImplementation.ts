@@ -621,7 +621,7 @@ export class ReaderHttpController implements AsyncDisposable {
       },
     })
     this.#startupState = new ReaderStartupStateHttpController({
-      library: this.#libraryService,
+      library: this.#libraryService, pathStatus: this.#libraryService ? new PlatformReaderPathStatusProvider(resourceScheduler, "neoview:startup-restore") : undefined,
       store: options.startupStateStore,
     })
     this.#disposeStartupStateStore = options.disposeStartupStateStore
@@ -2057,10 +2057,10 @@ export class ReaderHttpController implements AsyncDisposable {
   }
 
   async #closeSession(encodedSessionId: string): Promise<Response> {
-    const session = this.#findSession(encodedSessionId)
-    if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
-    await this.#releaseSession(session)
-    await this.#hibernateIfIdle()
+    const sessionId = safeDecode(encodedSessionId)
+    if (!sessionId) return jsonResponse({ error: "Reader session id is invalid" }, 400)
+    const session = this.#service.getSession(sessionId)
+    if (session) await this.#releaseSession(session).then(() => this.#hibernateIfIdle())
     return new Response(null, { status: 204 })
   }
 

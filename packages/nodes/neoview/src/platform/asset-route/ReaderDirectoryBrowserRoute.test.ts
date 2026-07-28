@@ -409,6 +409,8 @@ describe("ReaderDirectoryBrowserRoute", () => {
       expect(cloned.sessionId).not.toBe(source.sessionId)
 
       expect((await route.handle(new Request(`http://localhost/reader/browser/s/${source.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
+      expect((await route.handle(new Request(`http://localhost/reader/browser/s/${source.sessionId}`, { method: "DELETE" })))?.status).toBe(204)
+      expect((await route.handle(new Request("http://localhost/reader/browser/s/%E0%A4%A", { method: "DELETE" })))?.status).toBe(400)
       expect((await route.handle(new Request(`http://localhost/reader/browser/s/${cloned.sessionId}/entries`)))?.status).toBe(200)
       expect((await route.handle(new Request("http://localhost/reader/browser/s/missing/clone", { method: "POST" })))?.status).toBe(404)
     } finally {

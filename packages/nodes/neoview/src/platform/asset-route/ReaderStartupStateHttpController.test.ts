@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 
 import type { ReaderLibraryService } from "../../application/library/ReaderLibraryService.js"
@@ -31,11 +34,14 @@ describe("ReaderStartupStateHttpController", () => {
   })
 
   it("[neoview.startup-state.http-composition] surfaces the last book through the reader controller", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "xiranite-startup-state-"))
+    const bookPath = join(directory, "last.cbz")
+    await writeFile(bookPath, "book")
     const store = fixtureStore()
     store.getLastFolder.mockResolvedValueOnce({ path: "D:/books", updatedAt: 2 })
     const listRecent = vi.fn(async () => [{
       bookId: "last-book",
-      source: { kind: "archive" as const, path: "D:/books/last.cbz" },
+      source: { kind: "archive" as const, path: bookPath },
       displayName: "Last",
       pageIndex: 0,
       pageCount: 1,
@@ -58,7 +64,30 @@ describe("ReaderStartupStateHttpController", () => {
       expect(listRecent).toHaveBeenCalledWith({ limit: 1, offset: 0 })
     } finally {
       await controller[Symbol.asyncDispose]()
+      await rm(directory, { recursive: true, force: true })
     }
+  })
+
+  it("[neoview.startup-state.missing-book-http] does not offer a missing recent source for automatic restore", async () => {
+    const lastBook = {
+      bookId: "missing-book",
+      source: { kind: "archive" as const, path: "D:/books/missing.cbz" },
+      displayName: "Missing",
+      pageIndex: 0,
+      pageCount: 1,
+      updatedAt: 3,
+    }
+    const check = vi.fn()
+      .mockResolvedValueOnce("missing" as const)
+      .mockResolvedValueOnce("unknown" as const)
+    const controller = new ReaderStartupStateHttpController({
+      library: { listRecent: vi.fn(async () => [lastBook]) },
+      pathStatus: { check },
+    })
+
+    await expect((await controller.handle(request("GET"))).json()).resolves.toMatchObject({ lastBook: null })
+    await expect((await controller.handle(request("GET"))).json()).resolves.toMatchObject({ lastBook })
+    expect(check).toHaveBeenCalledWith(lastBook.source.path, expect.any(AbortSignal))
   })
 })
 

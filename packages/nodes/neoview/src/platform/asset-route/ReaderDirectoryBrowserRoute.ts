@@ -209,7 +209,9 @@ export class ReaderDirectoryBrowserRoute implements AsyncDisposable {
     const sessionMatch = BROWSER_SESSION_PATH.exec(url.pathname)
     if (sessionMatch && request.method === "DELETE") {
       const sessionId = safeDecode(sessionMatch[1]!)
-      return sessionId && await this.#browser.close(sessionId, url.searchParams.get("remember") === "1") ? new Response(null, { status: 204 }) : errorResponse("Browser session not found", 404)
+      if (!sessionId) return errorResponse("Browser session id is invalid", 400)
+      await this.#browser.close(sessionId, url.searchParams.get("remember") === "1")
+      return new Response(null, { status: 204 })
     }
     return undefined
   }
