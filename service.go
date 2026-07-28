@@ -732,6 +732,54 @@ func (s *XiraniteService) WindowClose(id string) WindowCommandResult {
 	return WindowCommandResult{Success: true, Supported: true, ID: id, Message: "Window closed.", State: "closed"}
 }
 
+// WindowControl applies a caption action to one tracked component window. Main
+// window actions remain separate so they can preserve the system tray policy.
+func (s *XiraniteService) WindowControl(id string, action string) WindowCommandResult {
+	window, ok := getWindow(id)
+	if !ok {
+		return WindowCommandResult{Success: false, Supported: true, ID: id, Message: "Window is not tracked."}
+	}
+	return controlTrackedWindow(window, id, action)
+}
+
+type trackedWindowController interface {
+	Close()
+	Minimise() application.Window
+	ToggleMaximise()
+	IsMaximised() bool
+	ToggleFullscreen()
+	IsFullscreen() bool
+	Restore()
+}
+
+func controlTrackedWindow(window trackedWindowController, id string, action string) WindowCommandResult {
+	switch action {
+	case "minimize":
+		window.Minimise()
+		return WindowCommandResult{Success: true, Supported: true, ID: id, Message: "Window minimised.", State: "minimized"}
+	case "maximize":
+		window.ToggleMaximise()
+		if window.IsMaximised() {
+			return WindowCommandResult{Success: true, Supported: true, ID: id, Message: "Window maximised.", State: "maximized"}
+		}
+		return WindowCommandResult{Success: true, Supported: true, ID: id, Message: "Window restored.", State: "normal"}
+	case "toggle-fullscreen":
+		window.ToggleFullscreen()
+		if window.IsFullscreen() {
+			return WindowCommandResult{Success: true, Supported: true, ID: id, Message: "Window entered fullscreen.", State: "fullscreen"}
+		}
+		return WindowCommandResult{Success: true, Supported: true, ID: id, Message: "Window exited fullscreen.", State: "normal"}
+	case "restore":
+		window.Restore()
+		return WindowCommandResult{Success: true, Supported: true, ID: id, Message: "Window restored.", State: "normal"}
+	case "close":
+		window.Close()
+		return WindowCommandResult{Success: true, Supported: true, ID: id, Message: "Window closed.", State: "closed"}
+	default:
+		return WindowCommandResult{Success: false, Supported: true, ID: id, Message: fmt.Sprintf("Unsupported component window action %q.", action)}
+	}
+}
+
 func (s *XiraniteService) WindowOpenDevTools(id string) WindowCommandResult {
 	window, ok := getWindow(id)
 	if !ok {

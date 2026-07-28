@@ -5,6 +5,10 @@ import type { ReactNode } from "react"
 
 const mocks = vi.hoisted(() => ({
   moduleId: "melodeck",
+  nativeWindowControls: false,
+  controlMain: vi.fn(),
+  controlComponent: vi.fn().mockResolvedValue({ success: true, supported: true }),
+  closeComponent: vi.fn().mockResolvedValue({ success: true, supported: true }),
   ensureComponent: vi.fn(),
 }))
 
@@ -14,10 +18,17 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@/hooks/useWindowControls", () => ({
   useWindowControls: () => ({
-    capabilities: { nativeWindowControls: false },
-    controlMain: vi.fn().mockResolvedValue({ success: true, supported: true }),
+    capabilities: {
+      supported: true,
+      nativeWindowControls: mocks.nativeWindowControls,
+      frameless: mocks.nativeWindowControls,
+      componentWindows: mocks.nativeWindowControls ? "native" : "browser-popup",
+    },
+    controlMain: mocks.controlMain,
     controlMainPending: false,
-    closeComponent: vi.fn().mockResolvedValue({ success: true, supported: true }),
+    controlComponent: mocks.controlComponent,
+    controlComponentPending: false,
+    closeComponent: mocks.closeComponent,
   }),
 }))
 
@@ -58,6 +69,10 @@ import { FloatingComponentWindow } from "./FloatingComponentWindow"
 afterEach(() => {
   cleanup()
   mocks.moduleId = "melodeck"
+  mocks.nativeWindowControls = false
+  mocks.controlMain.mockClear()
+  mocks.controlComponent.mockClear()
+  mocks.closeComponent.mockClear()
   mocks.ensureComponent.mockClear()
 })
 
@@ -77,4 +92,25 @@ test("does not load the Melo deck provider for unrelated floating nodes", async 
 
   await expect.element(page.getByTestId("floating-module-renderer")).toBeVisible()
   expect(document.querySelector('[data-testid="workspace-melodeck-provider"]')).toBeNull()
+})
+
+test("minimizes and closes the owning component window without invoking main controls", async () => {
+  mocks.moduleId = "scratch"
+  mocks.nativeWindowControls = true
+  await render(<FloatingComponentWindow compId="component-1" windowId="component-component-1" />)
+
+  const minimize = document.querySelector<HTMLElement>('[data-window-control-action="minimize"]')
+  const close = document.querySelector<HTMLElement>('[data-window-control-action="close"]')
+  expect(minimize).not.toBeNull()
+  expect(close).not.toBeNull()
+
+  await page.elementLocator(minimize!).click()
+  await page.elementLocator(close!).click()
+
+  await expect.poll(() => mocks.controlComponent.mock.calls).toEqual([
+    ["component-component-1", "minimize"],
+    ["component-component-1", "close"],
+  ])
+  expect(mocks.controlMain).not.toHaveBeenCalled()
+  expect(mocks.closeComponent).not.toHaveBeenCalled()
 })

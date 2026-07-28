@@ -279,6 +279,10 @@ class WailsWindowRuntime implements WindowRuntime {
     return await callGo<WindowCommandResult>("WindowControlMain", action)
   }
 
+  async controlComponent(id: string, action: MainWindowAction): Promise<WindowCommandResult> {
+    return await callGo<WindowCommandResult>("WindowControl", id, action)
+  }
+
   async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {
     return await callGo<WindowCommandResult>("WindowOpenComponent", JSON.stringify(input))
   }

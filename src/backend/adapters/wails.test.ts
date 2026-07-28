@@ -56,6 +56,20 @@ describe("Wails window runtime", () => {
     expect(runtime.callByName).toHaveBeenNthCalledWith(2, "main.XiraniteService.WindowControlMain", "close")
   })
 
+  it("targets component window controls without invoking the main window policy", async () => {
+    runtime.callByName
+      .mockResolvedValueOnce({ success: true, supported: true, id: "component-1", state: "minimized" })
+      .mockResolvedValueOnce({ success: true, supported: true, id: "component-1", state: "closed" })
+
+    const windows = createWailsRuntime().windows
+
+    await expect(windows.controlComponent("component-1", "minimize")).resolves.toMatchObject({ state: "minimized" })
+    await expect(windows.controlComponent("component-1", "close")).resolves.toMatchObject({ state: "closed" })
+
+    expect(runtime.callByName).toHaveBeenNthCalledWith(1, "main.XiraniteService.WindowControl", "component-1", "minimize")
+    expect(runtime.callByName).toHaveBeenNthCalledWith(2, "main.XiraniteService.WindowControl", "component-1", "close")
+  })
+
   it("opens developer tools through the compiled host service", async () => {
     runtime.callByName.mockResolvedValueOnce({ success: true, supported: true, message: "Developer tools opened." })
 

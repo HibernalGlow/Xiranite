@@ -126,6 +126,7 @@ export interface OpenComponentWindowInput {
 export interface WindowRuntime {
   getCapabilities(): Promise<WindowCapabilities>
   controlMain(action: MainWindowAction): Promise<WindowCommandResult>
+  controlComponent(id: string, action: MainWindowAction): Promise<WindowCommandResult>
   openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult>
   focus(id: string): Promise<WindowCommandResult>
   close(id: string): Promise<WindowCommandResult>
