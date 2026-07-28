@@ -4,7 +4,8 @@ import type { ReaderActivationTraversalFrameDto } from "../../../../adapters/rea
 import { sameFolderPath } from "./FolderPathIdentity"
 
 export interface FolderInlineBranchState {
-  path: string
+  anchorPath: string
+  contentPath: string
   traversalFrames: readonly ReaderActivationTraversalFrameDto[]
 }
 
@@ -14,10 +15,19 @@ export function useFolderInlineBranchState(enabled: boolean) {
   const toggleInlineBranch = useCallback((
     path?: string,
     traversalFrames?: readonly ReaderActivationTraversalFrameDto[],
+    preserveAnchor = false,
   ) => {
-    setInlineBranch((current) => path === undefined || sameFolderPath(current?.path ?? "", path) || !traversalFrames?.length
-      ? undefined
-      : { path, traversalFrames: traversalFrames.map((frame) => ({ ...frame })) })
+    setInlineBranch((current) => {
+      if (path === undefined || !traversalFrames?.length) return undefined
+      if (!preserveAnchor && sameFolderPath(current?.anchorPath ?? "", path)) return undefined
+      return {
+        anchorPath: preserveAnchor
+          ? current?.anchorPath ?? traversalFrames[0]?.currentEntryPath ?? path
+          : path,
+        contentPath: path,
+        traversalFrames: traversalFrames.map((frame) => ({ ...frame })),
+      }
+    })
   }, [])
 
   useEffect(() => {
