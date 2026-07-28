@@ -12,6 +12,7 @@ describe("Vite dependency optimization policy", () => {
     expect(VITE_EAGER_DEPENDENCIES).toContain("debug/src/browser.js")
     expect(VITE_EAGER_DEPENDENCIES).toContain("blueimp-md5")
     expect(VITE_EAGER_DEPENDENCIES).toContain("blueimp-md5/js/md5.js")
+    expect(VITE_EAGER_DEPENDENCIES).toContain("extend")
     expect(VITE_EAGER_DEPENDENCIES).toContain("content-type")
     expect(VITE_EAGER_DEPENDENCIES).toContain("ieee754")
     expect(VITE_EAGER_DEPENDENCIES).toContain("dexie")
