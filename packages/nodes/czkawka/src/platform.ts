@@ -5,7 +5,6 @@ import { basename, dirname, join, parse, relative } from "node:path"
 import { promisify } from "node:util"
 import { cancelCzkawkaScan, createExifCandidate, createVideoOptimizerCandidate, getCzkawkaInfo, getCzkawkaScanProgress, scanBasicFiles, scanDuplicateFiles, scanExifFiles, scanMediaFiles, scanVideoOptimizer, trashPath, type BasicScanOptions, type CzkawkaScanProgress, type DuplicateScanOptions, type ExifScanOptions, type MediaScanOptions, type VideoOptimizerCandidateOptions, type VideoOptimizerScanOptions } from "@xiranite/czkawka-native"
 import { executeSingleFileMutation, type FileOperationExecutor } from "@xiranite/file-operations"
-import { extractSimiuImageFeatures } from "./simiu-features.js"
 import { toNativeVideoCropDetect } from "./similar-video-crop.js"
 import type { CzkawkaNativeProgress, CzkawkaNormalizedInput, CzkawkaRuntime, CzkawkaRuntimeInfo } from "./core.js"
 
@@ -173,7 +172,6 @@ export function createNodeCzkawkaRuntime(context: CzkawkaRuntimeContext = {}): C
     scanExif: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toExifScanOptions(input), input.threadCount, runtime, onProgress, scanExifFiles) },
     scanVideoOptimizer: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toVideoOptimizerScanOptions(input), input.threadCount, runtime, onProgress, scanVideoOptimizer) },
     scanMedia: (input, onProgress) => { configureCzkawkaCacheEnvironment(input); return runNativeScan(toMediaScanOptions(input), input.threadCount, runtime, onProgress, scanMediaFiles) },
-    extractSimiuFeatures: extractSimiuImageFeatures,
     createExifCandidate: (sourcePath, tags) => createExifCandidate({ sourcePath, tags }),
     createVideoOptimizerCandidate: (item, input) => runNativeVideoOptimizerCandidate(item, input, runtime),
     replaceWithCandidate: (candidatePath, sourcePath) => replaceWithCandidate(candidatePath, sourcePath, context.fileOperations),

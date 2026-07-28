@@ -71,9 +71,6 @@ function SimiuSetsFields(props: CzkawkaView) {
         </Select>
       </Field>
       {enabled ? <>
-        <Field label="Simiu 加权相似阈值">
-          <Input aria-label="simiu set threshold" type="number" min="0" max="1" step="0.01" value={props.data.simiuSetsThreshold ?? "0.17"} onChange={(event) => props.patch({ simiuSetsThreshold: event.currentTarget.value })} />
-        </Field>
         <Field label="集合目录前缀">
           <Input aria-label="simiu set directory prefix" value={props.data.simiuSetsNamePrefix ?? "simiu_set"} onChange={(event) => props.patch({ simiuSetsNamePrefix: event.currentTarget.value })} />
         </Field>

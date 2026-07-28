@@ -1,6 +1,6 @@
 import type { NodeRunEvent } from "@xiranite/contract"
-import { applySimiuSetOperations, scanSimiuSets, undoSimiuSetLog } from "./simiu-sets.js"
-import type { CzkawkaData, CzkawkaEntry, CzkawkaGroup, CzkawkaNormalizedInput, CzkawkaResult, CzkawkaRuntime } from "./core.js"
+import { applySimiuSetOperations, collectSimiuSetDirectories, normalizeSimiuSetOptions, scanSimiuSets, undoSimiuSetLog } from "./simiu-sets.js"
+import type { CzkawkaData, CzkawkaEntry, CzkawkaGroup, CzkawkaNativeProgress, CzkawkaNormalizedInput, CzkawkaResult, CzkawkaRuntime } from "./core.js"
 
 export interface CzkawkaSimiuSetRunnerHelpers {
   makeGroup(index: number, raw: Array<Partial<CzkawkaEntry> & { path: string; name: string; size: number; modifiedDate: number }>, runtime: Pick<CzkawkaRuntime, "basename">, reclaimable: boolean): CzkawkaGroup
@@ -10,19 +10,24 @@ export interface CzkawkaSimiuSetRunnerHelpers {
 }
 
 export async function runCzkawkaSimiuSetScan(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void, helpers: CzkawkaSimiuSetRunnerHelpers): Promise<CzkawkaResult> {
-  if (!runtime.extractSimiuFeatures) return helpers.fail(value, "The configured Czkawka runtime does not provide Simiu feature extraction.")
-  onEvent({ type: "progress", progress: 2, message: "Starting Simiu sets." })
-  const scanned = await scanSimiuSets({
+  const simiuOptions = {
     roots: value.includedDirectories,
     recursive: value.recursive,
     scanOrder: value.simiuSetsScanOrder,
     namePrefix: value.simiuSetsNamePrefix,
     minimumGroupSize: value.simiuSetsMinimumGroupSize,
-    threshold: value.simiuSetsThreshold,
-    maxWorkers: value.threadCount,
-  }, {
+  }
+  const directories = await collectSimiuSetDirectories(normalizeSimiuSetOptions(simiuOptions), runtime)
+  onEvent({ type: "progress", progress: 2, message: "Scanning similar images with Czkawka." })
+  const native = directories.length
+    ? await runtime.scanMedia({ ...value, includedDirectories: directories.map((directory) => directory.path), recursive: false }, (progress) => onEvent({
+      type: "progress",
+      progress: nativeScanProgress(progress),
+      message: `Czkawka: ${progress.stage}`,
+    }))
+    : { groups: [], messages: "", stopped: false }
+  const scanned = await scanSimiuSets(simiuOptions, native.groups, {
     listDirectory: runtime.listDirectory,
-    extractSimiuFeatures: runtime.extractSimiuFeatures,
     pathExists: runtime.pathExists,
     ensureDirectory: runtime.ensureDirectory,
     movePath: runtime.movePath,
@@ -39,8 +44,9 @@ export async function runCzkawkaSimiuSetScan(value: CzkawkaNormalizedInput, runt
   }, (progress, message) => onEvent({ type: "progress", progress, message }))
   let groups = scanned.groups.map((group, index) => helpers.makeGroup(index, group.files.map((entry) => ({ ...entry, name: runtime.basename(entry.path) })), runtime, false))
   groups = helpers.filterAndSort(groups, value)
+  const stopped = native.stopped || scanned.stopped
   const data: CzkawkaData = {
-    ...helpers.summarize(value, groups, scanned.messages.join("\n"), scanned.stopped),
+    ...helpers.summarize(value, groups, [native.messages, ...scanned.messages].filter(Boolean).join("\n"), stopped),
     simiuSets: {
       groups: scanned.groups,
       operations: scanned.operations,
@@ -49,10 +55,16 @@ export async function runCzkawkaSimiuSetScan(value: CzkawkaNormalizedInput, runt
     },
   }
   return {
-    success: !scanned.stopped,
-    message: scanned.stopped ? `Stopped Simiu sets; retained ${data.fileCount} partial item(s).` : `Found ${data.fileCount} item(s) in ${data.groupCount} Simiu set(s).`,
+    success: !stopped,
+    message: stopped ? `Stopped Simiu sets; retained ${data.fileCount} partial item(s).` : `Found ${data.fileCount} item(s) in ${data.groupCount} Simiu set(s).`,
     data,
   }
+}
+
+function nativeScanProgress(progress: CzkawkaNativeProgress): number {
+  if (progress.entriesTotal > 0) return Math.min(95, Math.max(2, Math.round((progress.entriesChecked / progress.entriesTotal) * 95)))
+  if (progress.stageCount > 0) return Math.min(95, Math.max(2, Math.round((progress.stageIndex / progress.stageCount) * 95)))
+  return 2
 }
 
 export async function runCzkawkaSimiuSetApply(value: CzkawkaNormalizedInput, runtime: CzkawkaRuntime, onEvent: (event: NodeRunEvent) => void, helpers: CzkawkaSimiuSetRunnerHelpers): Promise<CzkawkaResult> {

@@ -19,12 +19,12 @@ afterEach(async () => {
   await i18n.changeLanguage("zh")
 })
 
-test("persists the Simiu directory-local set mode and its scan contract", async () => {
+test("persists the Simiu directory-local set mode while using Czkawka image settings", async () => {
   const host = createHost({ tool: "similar-images", includedDirectoriesText: "D:/library", sourceSettingsTab: "algorithm", similarImagesMode: "simiu-sets" })
   await render(<Component compId="czkawka-simiu-sets-browser" host={host} />)
 
-  await expect.element(page.getByRole("spinbutton", { name: "simiu set threshold" })).toHaveValue(0.17)
-  await page.getByRole("spinbutton", { name: "simiu set threshold" }).fill("0.21")
+  await expect.element(page.getByRole("spinbutton", { name: "最大差异" })).toHaveValue(10)
+  await page.getByRole("spinbutton", { name: "最大差异" }).fill("7")
   await page.getByRole("textbox", { name: "simiu set directory prefix" }).fill("artist_set")
   await page.getByRole("spinbutton", { name: "simiu set minimum group size" }).fill("3")
   await page.getByRole("combobox", { name: "simiu set scan order" }).click()
@@ -32,7 +32,7 @@ test("persists the Simiu directory-local set mode and its scan contract", async 
 
   await expect.poll(() => host.stateValue).toMatchObject({
     similarImagesMode: "simiu-sets",
-    simiuSetsThreshold: "0.21",
+    similarity: "7",
     simiuSetsNamePrefix: "artist_set",
     simiuSetsMinimumGroupSize: "3",
     simiuSetsScanOrder: "deepest-first",
