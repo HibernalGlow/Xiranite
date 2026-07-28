@@ -3,11 +3,11 @@ import type { AppNodeEntry, ExternalNodeLaunchRequest, NodeHostApi } from "@xira
 
 import { PACKAGE_MODULES } from "@/components/modules/packageModules.generated"
 import { StandaloneNodeApp } from "@/node-app/StandaloneNodeApp"
+import { publishExternalNodeLaunch } from "./externalNodeLaunchDelivery"
 
 type HostInfo = { nodeId: string; snapshotId: string }
 type HostAcknowledgement = { requestId: string; accepted: boolean; message?: string }
 
-const externalNodeLaunchEvent = "xiranite:external-node-launch"
 const externalNodeLaunchPollIntervalMs = 250
 
 export function ExternalNodeLaunchHost() {
@@ -66,7 +66,10 @@ export function ExternalNodeLaunchHost() {
       setError(`The node host is missing required capabilities: ${missing.join(", ")}.`)
       return
     }
-    window.dispatchEvent(new CustomEvent<ExternalNodeLaunchRequest>(externalNodeLaunchEvent, { detail: request }))
+    // Keep the request outside the node subtree. A completed file launch can
+    // persist node state and recreate that subtree before a reused process
+    // delivers its next request.
+    publishExternalNodeLaunch(request)
   }, [declaration, nodeHost, request])
 
   if (error) {
@@ -83,8 +86,6 @@ export function ExternalNodeLaunchHost() {
 export async function acknowledgeExternalNodeLaunch(requestId: string, accepted: boolean, message?: string): Promise<HostAcknowledgement> {
   return await acknowledge({ requestId, accepted, message })
 }
-
-export { externalNodeLaunchEvent }
 
 async function loadHostInfo(): Promise<HostInfo | undefined> {
   return await callHost<HostInfo | null>("ExternalNodeLaunchHostInfo") ?? undefined

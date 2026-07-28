@@ -63,6 +63,7 @@ import { ReaderAppView } from "./ReaderAppView"
 import { useReaderSwimlaneSidebarDeferral } from "./useReaderSwimlaneSidebarDeferral"
 import type { ReaderAppActivationRootProps } from "./ReaderActivationRoot"
 import { useReaderActivationRoot } from "./useReaderActivationRoot"
+import { dispatchReaderFileCardDeleteBinding } from "./ReaderFileCardDeleteBinding"
 import { useReaderFolderNavigationEvents } from "./useReaderFolderNavigationEvents"
 import { useReaderExternalOpenRequest } from "./useReaderExternalOpenRequest"
 import { useReaderExternalFolderOpen } from "./useReaderExternalFolderOpen"
@@ -692,6 +693,7 @@ export function ReaderApp({
     if (request.kind === "file") return openPath(request.path)
     const directory = request.path.trim()
     if (!directory) return { opened: false, message: "Folder open target is empty." }
+    requestShellEdgeOpen("left", true)
     setError(undefined)
     setPath(directory)
     activeSourcePathRef.current = directory
@@ -907,7 +909,7 @@ export function ReaderApp({
   })
 
   const inputRouter = useReaderInputRouter({ config: inputBindings, disabled: busy, execute: executeInputAction })
-
+  const deleteThroughInputBinding = (sourcePath: string, strategy: "trash" | "delete") => dispatchReaderFileCardDeleteBinding(sourcePath, activationRootPathRef.current, strategy, inputRouter.dispatch)
   const runtimeWorkspace = shell ? readerWorkspaceWithSession(shell, swimlaneSession) : undefined
   const runtimeWorkspaceMode = runtimeWorkspace?.mode
   const shellPresent = Boolean(shell)
@@ -993,6 +995,6 @@ function requestShellEdgeOpen(edge: ReaderShellEdge, open: boolean) {
     if (Object.keys(persistent).length > 0) enqueueShellControl(persistent)
   }
 
-  Object.assign(actionContext, { inputRouter, handleInputPointerDown })
+  Object.assign(actionContext, { inputRouter, handleInputPointerDown, deleteThroughInputBinding })
   return <ReaderAppView context={actionContext} />
 }
