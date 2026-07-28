@@ -12,6 +12,7 @@ import type { ReaderDirectoryEntryDto, ReaderFolderViewMode } from "../../../../
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
 import { directoryEntryAt, directoryEntryIndex, viewUsesBanner, type DirectoryCatalog } from "./DirectoryCatalog"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
+import { folderEntryIsEmptyDirectory } from "./FolderEntryContentState"
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
@@ -248,14 +249,15 @@ interface DirectoryGridItemProps {
 }
 
 export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailStore, thumbnailUrl, thumbnailUrls, thumbnailProbeEnabled = true, hoverPreviewEnabled, hoverPreviewDelayMs, wrapTitle = false, penetrationFiles, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
-  const thumbnailEligible = Boolean(entry && (entry.kind === "directory" || entry.readerSupported))
+  const directoryEmpty = entry ? folderEntryIsEmptyDirectory(entry) : false
+  const thumbnailEligible = Boolean(entry && !directoryEmpty && (entry.kind === "directory" || entry.readerSupported))
   const storedThumbnail = useFolderThumbnail(thumbnailStore, entry?.path, thumbnailEligible, thumbnailProbeEnabled)
   const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
   const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
-  const thumbnailLoading = Boolean(thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
+  const thumbnailLoading = Boolean(!directoryEmpty && thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
   if (!entry) return <div className="h-24 animate-pulse rounded bg-muted/30" aria-hidden="true" />
   return (
-    <FolderHoverPreview thumbnailUrl={resolvedThumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
+    <FolderHoverPreview thumbnailUrl={directoryEmpty ? undefined : resolvedThumbnailUrl} enabled={hoverPreviewEnabled && !directoryEmpty} delayMs={hoverPreviewDelayMs} label={entry.name}>
     <div className="relative">
     {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} overlay confirm={confirmDelete} /> : null}
     <button
@@ -276,9 +278,10 @@ export function DirectoryBannerItem({ itemId, entry, index, disabled, selected, 
       data-folder-name={entry.name}
       data-folder-kind={entry.kind}
       data-folder-reader-supported={entry.readerSupported}
+      data-folder-empty-directory={directoryEmpty || undefined}
     >
       <span className="grid min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true">
-        {resolvedThumbnailUrl || thumbnailLoading
+        {directoryEmpty ? <FolderEntryIcon entry={entry} className="size-8" /> : resolvedThumbnailUrl || thumbnailLoading
           ? <ReaderThumbnailSurface url={resolvedThumbnailUrl} urls={resolvedThumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" imageLoading="eager" loading={thumbnailLoading && !resolvedThumbnailUrl} retryKey={storedThumbnail.availability === "ready" ? storedThumbnail.revision : undefined} className="size-full rounded-none bg-transparent" />
           : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
       </span>
@@ -301,11 +304,12 @@ const EMPTY_THUMBNAIL_URLS: ReadonlyMap<string, string> = new Map()
 const EMPTY_PENETRATION_FILES: ReadonlyMap<string, readonly FolderPenetrationFileName[]> = new Map()
 
 export function DirectoryGridItem({ itemId, entry, index, disabled, selected, focused, showRating, showCollectTagCount, visualMode, thumbnailStore, thumbnailUrl, thumbnailUrls, thumbnailProbeEnabled = true, hoverPreviewEnabled, hoverPreviewDelayMs, wrapTitle = false, penetrationFiles, deleteMode = false, deleteStrategy = "trash", confirmDelete = true, onSelect }: DirectoryGridItemProps) {
-  const thumbnailEligible = Boolean(entry && (entry.kind === "directory" || entry.readerSupported))
+  const directoryEmpty = entry ? folderEntryIsEmptyDirectory(entry) : false
+  const thumbnailEligible = Boolean(entry && !directoryEmpty && (entry.kind === "directory" || entry.readerSupported))
   const storedThumbnail = useFolderThumbnail(thumbnailStore, entry?.path, thumbnailEligible, thumbnailProbeEnabled)
   const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
   const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
-  const thumbnailLoading = Boolean(thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
+  const thumbnailLoading = Boolean(!directoryEmpty && thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
   if (!entry) return (
     <div className="grid w-full grid-rows-[auto_1.75rem] overflow-hidden rounded border bg-background" aria-hidden="true">
       <span className="aspect-[2/3] w-full animate-pulse bg-muted/30" />
@@ -314,7 +318,7 @@ export function DirectoryGridItem({ itemId, entry, index, disabled, selected, fo
   )
   const showMetadata = showRating || showCollectTagCount || Boolean(entry.tags?.length)
   return (
-    <FolderHoverPreview thumbnailUrl={resolvedThumbnailUrl} enabled={hoverPreviewEnabled} delayMs={hoverPreviewDelayMs} label={entry.name}>
+    <FolderHoverPreview thumbnailUrl={directoryEmpty ? undefined : resolvedThumbnailUrl} enabled={hoverPreviewEnabled && !directoryEmpty} delayMs={hoverPreviewDelayMs} label={entry.name}>
     <div className="relative">
     {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} overlay confirm={confirmDelete} /> : null}
     <button
@@ -335,9 +339,10 @@ export function DirectoryGridItem({ itemId, entry, index, disabled, selected, fo
       data-folder-name={entry.name}
       data-folder-kind={entry.kind}
       data-folder-reader-supported={entry.readerSupported}
+      data-folder-empty-directory={directoryEmpty || undefined}
     >
       <span className="relative grid aspect-[2/3] w-full min-h-0 place-items-center overflow-hidden bg-muted/30" data-folder-thumbnail="true" data-folder-thumbnail-orientation="portrait">
-        {resolvedThumbnailUrl || thumbnailLoading
+        {directoryEmpty ? <FolderEntryIcon entry={entry} className="size-8" /> : resolvedThumbnailUrl || thumbnailLoading
           ? <ReaderThumbnailSurface url={resolvedThumbnailUrl} urls={resolvedThumbnailUrls} kind={entry.kind === "directory" ? "folder" : "file"} fit="contain" imageLoading="eager" loading={thumbnailLoading && !resolvedThumbnailUrl} retryKey={storedThumbnail.availability === "ready" ? storedThumbnail.revision : undefined} className="size-full rounded-none bg-transparent" />
           : entry.kind === "directory" ? null : <FolderEntryIcon entry={entry} className="size-8" />}
         {penetrationFiles?.length ? <span className="absolute inset-x-1 bottom-1 max-h-20 overflow-hidden"><FolderPenetrationFileNames files={penetrationFiles} variant="overlay" /></span> : null}

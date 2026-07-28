@@ -7,6 +7,7 @@ export type ReaderDirectoryMetadataField =
   | "collectTagCount"
   | "dimensions"
   | "pageCount"
+  | "directoryEmpty"
   | "tags"
 
 export interface ReaderDirectoryMetadataProvider {

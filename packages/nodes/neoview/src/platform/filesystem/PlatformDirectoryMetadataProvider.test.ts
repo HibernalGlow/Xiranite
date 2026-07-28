@@ -29,6 +29,27 @@ describe("PlatformDirectoryMetadataProvider", () => {
     expect(entries[1]?.size).toBeUndefined()
   })
 
+  it("[neoview.folder.empty-directory] checks only the direct contents of visible directory entries", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-folder-empty-"))
+    directories.push(root)
+    const empty = join(root, "empty")
+    const populated = join(root, "populated")
+    await mkdir(empty)
+    await mkdir(populated)
+    await writeFile(join(populated, "cover.jpg"), "image")
+    const provider = new PlatformDirectoryMetadataProvider()
+
+    const entries = await provider.hydrate([
+      { name: "empty", path: empty, kind: "directory", readerSupported: true },
+      { name: "populated", path: populated, kind: "directory", readerSupported: true },
+    ], new Set(["directoryEmpty"]))
+
+    expect(entries).toEqual([
+      expect.objectContaining({ path: empty, directoryEmpty: true }),
+      expect.objectContaining({ path: populated, directoryEmpty: false }),
+    ])
+  })
+
   it("[neoview.folder.emm-batch] merges rating fallback and favorite tag counts in one batch", async () => {
     const readDirectoryEmmRecords = vi.fn(async () => new Map([
       ["D:/one.cbz", { ratingData: JSON.stringify({ value: 4.8 }), emmJson: JSON.stringify({ tags: [{ namespace: "female", tag: "glasses" }] }) }],

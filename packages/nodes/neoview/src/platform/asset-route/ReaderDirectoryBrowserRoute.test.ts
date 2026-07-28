@@ -902,9 +902,10 @@ describe("ReaderDirectoryBrowserRoute", () => {
       width: 1200,
       height: 1800,
       pageCount: 24,
+      directoryEmpty: false,
     })))
     const route = new ReaderDirectoryBrowserRoute(undefined, undefined, {
-      supportedFields: new Set(["dimensions", "pageCount"]),
+      supportedFields: new Set(["dimensions", "pageCount", "directoryEmpty"]),
       hydrate: mediaHydrate,
     } as never)
     try {
@@ -914,16 +915,16 @@ describe("ReaderDirectoryBrowserRoute", () => {
         body: JSON.stringify({ path: directory }),
       })))!
       const initial = await opened.json() as { sessionId: string; metadataCapabilities: string[]; entries: Array<{ width?: number }> }
-      expect(initial.metadataCapabilities).toEqual(expect.arrayContaining(["dimensions", "pageCount"]))
+      expect(initial.metadataCapabilities).toEqual(expect.arrayContaining(["dimensions", "pageCount", "directoryEmpty"]))
       expect(initial.entries[0]?.width).toBeUndefined()
       expect(mediaHydrate).not.toHaveBeenCalled()
 
       const details = (await route.handle(new Request(
-        `http://localhost/reader/browser/s/${initial.sessionId}/entries?cursor=0&limit=128&fields=date,size,dimensions,pageCount`,
+        `http://localhost/reader/browser/s/${initial.sessionId}/entries?cursor=0&limit=128&fields=date,size,dimensions,pageCount,directoryEmpty`,
       )))!
       await expect(details.json()).resolves.toMatchObject({
-        metadataFields: expect.arrayContaining(["date", "size", "dimensions", "pageCount"]),
-        entries: [expect.objectContaining({ width: 1200, height: 1800, pageCount: 24, size: 4 })],
+        metadataFields: expect.arrayContaining(["date", "size", "dimensions", "pageCount", "directoryEmpty"]),
+        entries: [expect.objectContaining({ width: 1200, height: 1800, pageCount: 24, directoryEmpty: false, size: 4 })],
       })
       expect(mediaHydrate).toHaveBeenCalledTimes(1)
 

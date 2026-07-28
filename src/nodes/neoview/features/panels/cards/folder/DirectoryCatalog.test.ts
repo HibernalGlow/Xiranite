@@ -53,13 +53,13 @@ describe("DirectoryCatalog", () => {
   })
 
   it("[neoview.folder.emm-visible-hydration] requests EMM fields only for rich visible renderers", () => {
-    const capabilities = ["rating", "collectTagCount", "tags", "dimensions"] as const
+    const capabilities = ["rating", "collectTagCount", "tags", "dimensions", "directoryEmpty"] as const
 
     expect(folderMetadataFieldsForView("compact", capabilities)).toEqual([])
-    expect(folderMetadataFieldsForView("cover-list", capabilities)).toEqual(["rating", "collectTagCount", "tags"])
-    expect(folderMetadataFieldsForView("mosaic-list", capabilities)).toEqual(["rating", "collectTagCount", "tags"])
-    expect(folderMetadataFieldsForView("cover-grid", ["rating", "tags"])).toEqual(["rating", "tags"])
-    expect(folderMetadataFieldsForView("mosaic-grid", capabilities)).toEqual(["dimensions", "rating", "collectTagCount", "tags"])
+    expect(folderMetadataFieldsForView("cover-list", capabilities)).toEqual(["rating", "collectTagCount", "tags", "directoryEmpty"])
+    expect(folderMetadataFieldsForView("mosaic-list", capabilities)).toEqual(["rating", "collectTagCount", "tags", "directoryEmpty"])
+    expect(folderMetadataFieldsForView("cover-grid", ["rating", "tags", "directoryEmpty"])).toEqual(["rating", "tags", "directoryEmpty"])
+    expect(folderMetadataFieldsForView("mosaic-grid", capabilities)).toEqual(["dimensions", "rating", "collectTagCount", "tags", "directoryEmpty"])
     expect(folderMetadataFieldsForView("details", capabilities)).toEqual([])
   })
 

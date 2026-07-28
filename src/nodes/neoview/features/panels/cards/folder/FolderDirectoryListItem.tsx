@@ -2,6 +2,7 @@ import { type MouseEvent as ReactMouseEvent } from "react"
 import { type ReaderDirectoryEntryDto } from "../../../../adapters/reader-http-client"
 import { ReaderThumbnailSurface } from "../../../thumbnails/ReaderThumbnailSurface"
 import { FolderEntryFileMetadata, FolderEntryIcon, FolderEntryMetadata } from "./FolderEntryPresentation"
+import { folderEntryIsEmptyDirectory } from "./FolderEntryContentState"
 import { FolderHoverPreview } from "./FolderHoverPreview"
 import { FolderPenetrationFileNames, type FolderPenetrationFileName } from "./FolderPenetrationFileNames"
 import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
@@ -49,14 +50,15 @@ export function DirectoryListItem({
   confirmDelete: boolean
 }) {
   const rich = visualMode !== "compact"
-  const thumbnailEligible = Boolean(rich && entry && (entry.kind === "directory" || entry.readerSupported))
+  const directoryEmpty = entry ? folderEntryIsEmptyDirectory(entry) : false
+  const thumbnailEligible = Boolean(rich && entry && !directoryEmpty && (entry.kind === "directory" || entry.readerSupported))
   const storedThumbnail = useFolderThumbnail(thumbnailStore, entry?.path, thumbnailEligible, thumbnailProbeEnabled)
   const resolvedThumbnailUrl = thumbnailStore ? storedThumbnail.thumbnailUrl : thumbnailUrl
   const resolvedThumbnailUrls = thumbnailStore ? storedThumbnail.thumbnailUrls : thumbnailUrls
-  const thumbnailLoading = Boolean(thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
+  const thumbnailLoading = Boolean(!directoryEmpty && thumbnailStore && folderThumbnailIsLoading(storedThumbnail.availability))
   if (!entry) return <div className={`${rich ? "h-[76px]" : "h-[34px]"} animate-pulse border-b bg-muted/30`} aria-hidden="true" />
   return (
-    <FolderHoverPreview thumbnailUrl={resolvedThumbnailUrl} enabled={hoverPreviewEnabled && rich} delayMs={hoverPreviewDelayMs} label={entry.name}>
+    <FolderHoverPreview thumbnailUrl={directoryEmpty ? undefined : resolvedThumbnailUrl} enabled={hoverPreviewEnabled && rich && !directoryEmpty} delayMs={hoverPreviewDelayMs} label={entry.name}>
       <div className="relative">
         {deleteMode ? (
           <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} placement="leading" confirm={confirmDelete} />
@@ -79,13 +81,14 @@ export function DirectoryListItem({
           data-folder-name={entry.name}
           data-folder-kind={entry.kind}
           data-folder-reader-supported={entry.readerSupported}
+          data-folder-empty-directory={directoryEmpty || undefined}
         >
           {rich ? (
             <span
               className="grid h-16 shrink-0 place-items-center overflow-hidden rounded bg-muted/30"
               style={{ width: `${contentWidthPercent}%`, maxWidth: "70%" }}
             >
-              {resolvedThumbnailUrl || thumbnailLoading ? (
+              {directoryEmpty ? <FolderEntryIcon entry={entry} className="size-7" /> : resolvedThumbnailUrl || thumbnailLoading ? (
                 <ReaderThumbnailSurface
                   url={resolvedThumbnailUrl}
                   urls={resolvedThumbnailUrls}
