@@ -519,6 +519,7 @@ export default function FolderToolbar(props: FolderToolbarProps) {
               <FileSpreadsheet className="size-4" />
               导入 EFU 文件列表
             </DropdownMenuItem>
+            <FolderStartupRestoreMenuItem disabled={busy} />
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
               <Settings2 className="size-3.5" />
@@ -708,7 +709,6 @@ export default function FolderToolbar(props: FolderToolbarProps) {
                 else onCommitBannerWidth(value)
               }}
             />
-            <FolderStartupRestoreMenuItem disabled={busy} />
             <DropdownMenuSeparator />
             <DropdownMenuItem
               disabled={!currentPath || busy}
