@@ -70,6 +70,7 @@ describe("checkLocalBackendStatus", () => {
       token: "stable-token",
       instanceId: "backend-instance-2",
     })
+    expect(window.__XIRANITE_BACKEND__).toEqual(status.config)
     expect(createXiraniteSystemClient).toHaveBeenCalledTimes(1)
     expect(createXiraniteSystemClient).toHaveBeenCalledWith("http://127.0.0.1:5173", { token: "stable-token" })
   })
