@@ -351,16 +351,16 @@ describe("RemoteReaderHeadlessController", () => {
     }
   })
 
-  it("[neoview.book-settings.wire-schema] rejects malformed settings without publishing them", async () => {
+  it("[neoview.book-settings.wire-schema] preserves a gateway base path while rejecting malformed settings", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
       if (request.method === "DELETE") return new Response(null, { status: 204 })
       if (request.url.endsWith("/book-settings")) {
         return Response.json({ settings: { schemaVersion: 1, bookId: "book-1", revision: -1, overrides: {}, effective: {}, inherited: [] } })
       }
-      return Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1"), { status: 201 })
+      return Response.json(sessionDto("http://127.0.0.1:41000/_xiranite/backend/reader/s/reader-1/page/page-1"), { status: 201 })
     }) as typeof fetch
-    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000/_xiranite/backend", token: "token", fetch: fetchMock })
     try {
       await remote.open({ path: "D:/book.cbz" })
       await expect(remote.getBookSettings()).rejects.toThrow("invalid book-settings response")
@@ -379,7 +379,7 @@ describe("RemoteReaderHeadlessController", () => {
       if (url.pathname.endsWith("/upscale-artifact")) {
         return Response.json({
           status: "generated",
-          artifactUrl: "http://127.0.0.1:41000/reader/s/reader-1/upscale-artifact/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA?version=sha256-test&token=token",
+          artifactUrl: "http://127.0.0.1:41000/_xiranite/backend/reader/s/reader-1/upscale-artifact/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA?version=sha256-test&token=token",
           contentType: "image/png",
           bytes: 123,
           version: "sha256-test",
@@ -393,9 +393,9 @@ describe("RemoteReaderHeadlessController", () => {
           : snapshot)
       }
       if (url.pathname.includes("/upscale-preload")) return Response.json({ snapshots: [preloadSnapshot(url.searchParams.get("mode") ?? "nearby")] }, { status: request.method === "POST" ? 202 : 200 })
-      return Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1"), { status: 201 })
+      return Response.json(sessionDto("http://127.0.0.1:41000/_xiranite/backend/reader/s/reader-1/page/page-1"), { status: 201 })
     }) as typeof fetch
-    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000/_xiranite/backend", token: "token", fetch: fetchMock })
     try {
       await remote.open({ path: "D:/book.cbz" })
       await expect(remote.generateUpscaleArtifact(0)).resolves.toMatchObject({ status: "generated", bytes: 123 })
@@ -415,13 +415,13 @@ describe("RemoteReaderHeadlessController", () => {
     }
     const controls = requests.filter((request) => request.url.includes("upscale-"))
     expect(controls.map((request) => [request.method, new URL(request.url).pathname, new URL(request.url).searchParams.get("mode")])).toEqual([
-      ["POST", "/reader/s/reader-1/pages/page-1/upscale-artifact", null],
-      ["GET", "/reader/s/reader-1/upscale-preload", null],
-      ["POST", "/reader/s/reader-1/upscale-preload/start", "progressive"],
-      ["POST", "/reader/s/reader-1/upscale-preload/pause", null],
-      ["POST", "/reader/s/reader-1/upscale-preload/retry", "nearby"],
-      ["GET", "/reader/s/reader-1/upscale-artifact-cache", null],
-      ["POST", "/reader/s/reader-1/upscale-artifact-cache", null],
+      ["POST", "/_xiranite/backend/reader/s/reader-1/pages/page-1/upscale-artifact", null],
+      ["GET", "/_xiranite/backend/reader/s/reader-1/upscale-preload", null],
+      ["POST", "/_xiranite/backend/reader/s/reader-1/upscale-preload/start", "progressive"],
+      ["POST", "/_xiranite/backend/reader/s/reader-1/upscale-preload/pause", null],
+      ["POST", "/_xiranite/backend/reader/s/reader-1/upscale-preload/retry", "nearby"],
+      ["GET", "/_xiranite/backend/reader/s/reader-1/upscale-artifact-cache", null],
+      ["POST", "/_xiranite/backend/reader/s/reader-1/upscale-artifact-cache", null],
     ])
     expect(controls.every((request) => request.headers.get("x-xiranite-token") === "token")).toBe(true)
   })
@@ -452,7 +452,7 @@ describe("RemoteReaderHeadlessController", () => {
 
   it("[neoview.subtitle.remote] lists and renders video subtitles through opaque backend assets", async () => {
     const requests: Request[] = []
-    const assetUrl = "http://127.0.0.1:41000/reader/s/reader-1/subtitle/page-1/subtitle-1?version=subtitle-v1&token=token"
+    const assetUrl = "http://127.0.0.1:41000/_xiranite/backend/reader/s/reader-1/subtitle/page-1/subtitle-1?version=subtitle-v1&token=token"
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
       requests.push(request.clone())
@@ -472,12 +472,12 @@ describe("RemoteReaderHeadlessController", () => {
           headers: { "content-type": "text/vtt; charset=utf-8", etag: '"neoview-subtitle-v1"' },
         })
       }
-      return Response.json(sessionDto("http://127.0.0.1:41000/reader/s/reader-1/page/page-1", {
+      return Response.json(sessionDto("http://127.0.0.1:41000/_xiranite/backend/reader/s/reader-1/page/page-1", {
         mediaKind: "video",
         name: "clip.mp4",
       }), { status: 201 })
     }) as typeof fetch
-    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000", token: "token", fetch: fetchMock })
+    const remote = new RemoteReaderHeadlessController({ baseUrl: "http://127.0.0.1:41000/_xiranite/backend", token: "token", fetch: fetchMock })
     try {
       await remote.open({ path: "D:/private/clip.mp4" })
       await expect(remote.listSubtitles(0)).resolves.toEqual([{
@@ -752,13 +752,13 @@ describe("RemoteReaderHeadlessController", () => {
       headers: { "content-type": "application/json" },
     }))
     const snapshot = await fetchRemoteReaderDiagnostics({
-      baseUrl: "http://127.0.0.1:41000",
+      baseUrl: "http://127.0.0.1:41000/_xiranite/backend",
       token: "diagnostics-token",
       fetch: fetchMock,
     })
     expect(snapshot).toMatchObject({ reader: { activeSessions: 3 }, scheduler: { cpu: { active: 2 } }, future: { metric: 7 } })
     const request = new Request(fetchMock.mock.calls[0]![0], fetchMock.mock.calls[0]![1])
-    expect(request.url).toBe("http://127.0.0.1:41000/reader/diagnostics")
+    expect(request.url).toBe("http://127.0.0.1:41000/_xiranite/backend/reader/diagnostics")
     expect(request.headers.get("x-xiranite-token")).toBe("diagnostics-token")
   })
 

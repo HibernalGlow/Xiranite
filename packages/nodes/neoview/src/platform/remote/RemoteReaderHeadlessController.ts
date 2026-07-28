@@ -30,6 +30,7 @@ import type { ReaderAdjacentBookDirection } from "../../application/reader/Reade
 import type { ReaderDirectorySortRule } from "../../application/browser/ReaderDirectorySort.js"
 import type { ReaderPageOrderPatch } from "../../application/reader/ReaderPageOrder.js"
 import type { ReaderSlideshowConfig } from "../../application/slideshow/ReaderSlideshow.js"
+import { appendUrlPath } from "@xiranite/shared"
 import { z } from "zod"
 
 export type RemoteSuperResolutionPreloadMode = "nearby" | "progressive"
@@ -301,7 +302,6 @@ interface ReaderPageListDto {
   nextCursor?: number
   total: number
 }
-
 export interface RemoteReaderHeadlessOptions {
   baseUrl: string
   token: string
@@ -316,7 +316,7 @@ export interface RemoteReaderDiagnosticsHistoryOptions extends RemoteReaderHeadl
 export async function fetchRemoteReaderDiagnostics(options: RemoteReaderHeadlessOptions): Promise<ReaderDiagnosticsSnapshot> {
   const baseUrl = normalizeLoopbackBaseUrl(options.baseUrl)
   const token = normalizeToken(options.token)
-  const response = await (options.fetch ?? globalThis.fetch)(new URL("/reader/diagnostics", baseUrl), {
+  const response = await (options.fetch ?? globalThis.fetch)(appendUrlPath(baseUrl, "/reader/diagnostics"), {
     headers: { "x-xiranite-token": token },
   })
   if (!response.ok) throw await responseError(response, "Reader diagnostics")
@@ -333,7 +333,7 @@ export async function fetchRemoteReaderDiagnosticsHistory(
   if (options.sinceMs !== undefined) query.set("sinceMs", String(diagnosticsHistoryInteger(options.sinceMs, "sinceMs")))
   if (options.limit !== undefined) query.set("limit", String(diagnosticsHistoryLimit(options.limit)))
   const path = query.size ? `/reader/diagnostics/history?${query}` : "/reader/diagnostics/history"
-  const response = await (options.fetch ?? globalThis.fetch)(new URL(path, baseUrl), {
+  const response = await (options.fetch ?? globalThis.fetch)(appendUrlPath(baseUrl, path), {
     headers: { "x-xiranite-token": token },
   })
   if (!response.ok) throw await responseError(response, "Reader diagnostics history")
@@ -685,9 +685,9 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     signal?: AbortSignal,
   ): Promise<HeadlessReaderSnapshot | undefined> {
     const current = this.#requireSession()
-    const response = await this.#fetch(new URL(
-      `/reader/s/${encodeURIComponent(current.sessionId)}/adjacent-book`,
+    const response = await this.#fetch(appendUrlPath(
       this.#baseUrl,
+      `/reader/s/${encodeURIComponent(current.sessionId)}/adjacent-book`,
     ), {
       method: "POST",
       headers: { ...this.#headers, "content-type": "application/json" },
@@ -1022,13 +1022,13 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     const headers = new Headers(init.headers)
     headers.set("x-xiranite-token", this.#headers["x-xiranite-token"]!)
     if (init.body !== undefined) headers.set("content-type", "application/json")
-    const response = await this.#fetch(new URL(path, this.#baseUrl), { ...init, headers })
+    const response = await this.#fetch(appendUrlPath(this.#baseUrl, path), { ...init, headers })
     if (!response.ok) throw await responseError(response, "Xiranite Reader request")
     return await response.json() as T
   }
 
   async #closeRemoteSession(sessionId: string): Promise<void> {
-    const response = await this.#fetch(new URL(`/reader/s/${encodeURIComponent(sessionId)}`, this.#baseUrl), {
+    const response = await this.#fetch(appendUrlPath(this.#baseUrl, `/reader/s/${encodeURIComponent(sessionId)}`), {
       method: "DELETE",
       headers: this.#headers,
       keepalive: true,
@@ -1047,7 +1047,7 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
   #assertAssetUrl(page: ReaderPageDto): void {
     let asset: URL
     try { asset = new URL(page.assetUrl) } catch { throw new Error("Xiranite Reader returned an invalid page asset URL.") }
-    if (asset.origin !== this.#baseUrl.origin || !asset.pathname.startsWith("/reader/s/")) {
+    if (asset.origin !== this.#baseUrl.origin || !asset.pathname.startsWith(appendUrlPath(this.#baseUrl, "/reader/s/").pathname)) {
       throw new Error("Xiranite Reader returned a page asset URL outside the connected backend.")
     }
   }
@@ -1055,7 +1055,7 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
   #assertBackendUrl(value: string, label: string, pathPrefix: string): void {
     let url: URL
     try { url = new URL(value) } catch { throw new Error(`Xiranite Reader returned an invalid ${label} URL.`) }
-    if (url.origin !== this.#baseUrl.origin || !url.pathname.startsWith(pathPrefix)) {
+    if (url.origin !== this.#baseUrl.origin || !url.pathname.startsWith(appendUrlPath(this.#baseUrl, pathPrefix).pathname)) {
       throw new Error(`Xiranite Reader returned a ${label} URL outside the connected backend.`)
     }
   }
@@ -1066,7 +1066,7 @@ export class RemoteReaderHeadlessController implements AsyncDisposable {
     if (url.origin !== this.#baseUrl.origin) {
       throw new Error("Xiranite Reader returned a subtitle asset URL outside the connected backend.")
     }
-    const expectedPath = `/reader/s/${encodeURIComponent(sessionId)}/subtitle/${encodeURIComponent(pageId)}/${encodeURIComponent(track.id)}`
+    const expectedPath = appendUrlPath(this.#baseUrl, `/reader/s/${encodeURIComponent(sessionId)}/subtitle/${encodeURIComponent(pageId)}/${encodeURIComponent(track.id)}`).pathname
     if (url.username || url.password || url.hash || url.pathname !== expectedPath) {
       throw new Error("Xiranite Reader returned a subtitle asset URL outside the connected backend.")
     }
@@ -1205,7 +1205,7 @@ async function remoteResponse(
   const headers = new Headers(init.headers)
   headers.set("x-xiranite-token", token)
   if (init.body !== undefined) headers.set("content-type", "application/json")
-  return await (options.fetch ?? globalThis.fetch)(new URL(path, baseUrl), { ...init, headers })
+  return await (options.fetch ?? globalThis.fetch)(appendUrlPath(baseUrl, path), { ...init, headers })
 }
 
 function parseRemoteLibraryResponse<T>(schema: z.ZodType<T>, value: unknown, operation: string): T {

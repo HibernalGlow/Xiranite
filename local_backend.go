@@ -26,9 +26,13 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-// Wails v3 intercepts the Windows virtual asset origin only for HTTP requests.
-// Using HTTPS bypasses WebResourceRequested and never reaches this gateway.
-const wailsBackendPublicURL = "http://wails.localhost"
+const (
+	// Wails v3 intercepts the Windows virtual asset origin only for HTTP requests.
+	// Using HTTPS bypasses WebResourceRequested and never reaches this gateway.
+	wailsFrontendOrigin      = "http://wails.localhost"
+	backendGatewayPathPrefix = "/_xiranite/backend"
+	wailsBackendPublicURL    = wailsFrontendOrigin + backendGatewayPathPrefix
+)
 
 type LocalBackendConfig struct {
 	BaseURL string `json:"baseUrl"`
@@ -188,7 +192,7 @@ func backendGatewayMiddleware(
 				next.ServeHTTP(rw, req)
 				return
 			}
-			if isBackendGatewayPath(req.URL.Path) {
+			if rewriteBackendGatewayPath(req.URL) {
 				proxyBackendRequest(rw, req, internalConfig())
 				return
 			}
@@ -235,29 +239,30 @@ func proxyBackendRequest(rw http.ResponseWriter, req *http.Request, config *Loca
 	proxy.ServeHTTP(rw, req)
 }
 
-func isBackendGatewayPath(path string) bool {
-	for _, prefix := range backendRoutePrefixes {
-		if path == prefix || strings.HasPrefix(path, prefix+"/") {
-			return true
+func rewriteBackendGatewayPath(requestURL *url.URL) bool {
+	targetPath, ok := backendGatewayTargetPath(requestURL.Path)
+	if !ok {
+		return false
+	}
+	requestURL.Path = targetPath
+	if requestURL.RawPath != "" {
+		if rawTargetPath, rawOK := backendGatewayTargetPath(requestURL.RawPath); rawOK {
+			requestURL.RawPath = rawTargetPath
+		} else {
+			requestURL.RawPath = ""
 		}
 	}
-	return false
+	return true
 }
 
-var backendRoutePrefixes = [...]string{
-	"/config",
-	"/health",
-	"/local-files",
-	"/logs",
-	"/melodeck",
-	"/nexus",
-	"/node-operations",
-	"/node-run-history",
-	"/nodes",
-	"/reader",
-	"/runtime-history",
-	"/system",
-	"/workspace",
+func backendGatewayTargetPath(path string) (string, bool) {
+	if path == backendGatewayPathPrefix {
+		return "/", true
+	}
+	if !strings.HasPrefix(path, backendGatewayPathPrefix+"/") {
+		return "", false
+	}
+	return strings.TrimPrefix(path, backendGatewayPathPrefix), true
 }
 
 func injectBackendConfig(html string, config *LocalBackendConfig) string {

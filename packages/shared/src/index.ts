@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+export { appendUrlPath } from "./http-url.js"
+
 export const workspaceSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),

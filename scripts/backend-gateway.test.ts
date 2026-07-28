@@ -4,6 +4,9 @@ import { tmpdir } from "node:os"
 import { afterEach, describe, expect, it } from "bun:test"
 
 import {
+  BACKEND_GATEWAY_PATH_PREFIX,
+  backendGatewayPublicUrl,
+  backendGatewayTargetUrl,
   backendGatewayTargetPath,
   isBackendGatewayPath,
   readBackendGatewayTarget,
@@ -17,18 +20,27 @@ afterEach(async () => {
 })
 
 describe("backend gateway", () => {
-  it("keeps backend routing separate from Vite and Wails asset paths", () => {
-    expect(isBackendGatewayPath("/reader/s/1/page/2")).toBe(true)
-    expect(isBackendGatewayPath("/workspace/snapshot")).toBe(true)
-    expect(isBackendGatewayPath("/local-files")).toBe(true)
-    expect(isBackendGatewayPath("/melodeck/library")).toBe(true)
-    expect(isBackendGatewayPath("/melodeck/metadata")).toBe(true)
-    expect(isBackendGatewayPath("/config")).toBe(true)
-    expect(isBackendGatewayPath("/config/webview2")).toBe(true)
+  it("owns one reserved backend namespace and leaves every legacy or asset path to the frontend", () => {
+    expect(isBackendGatewayPath(`${BACKEND_GATEWAY_PATH_PREFIX}/reader/s/1/page/2`)).toBe(true)
+    expect(isBackendGatewayPath(`${BACKEND_GATEWAY_PATH_PREFIX}/future-capability`)).toBe(true)
+    expect(isBackendGatewayPath(BACKEND_GATEWAY_PATH_PREFIX)).toBe(true)
+    expect(isBackendGatewayPath("/reader/s/1/page/2")).toBe(false)
+    expect(isBackendGatewayPath("/file-deletions")).toBe(false)
     expect(isBackendGatewayPath("/config/webview2-flags.json")).toBe(false)
     expect(isBackendGatewayPath("/src/main.tsx")).toBe(false)
     expect(isBackendGatewayPath("/wails/runtime")).toBe(false)
     expect(isBackendGatewayPath("/assets/app.js")).toBe(false)
+  })
+
+  it("builds and strips the public namespace without losing escaped paths or queries", () => {
+    expect(backendGatewayPublicUrl("http://127.0.0.1:5173/ignored?stale=1")).toBe(
+      "http://127.0.0.1:5173/_xiranite/backend",
+    )
+    expect(backendGatewayTargetUrl(
+      "/_xiranite/backend/file-deletions/id%2F1/restore?token=secret",
+      "http://127.0.0.1:43123/internal",
+    )?.href).toBe("http://127.0.0.1:43123/internal/file-deletions/id%2F1/restore?token=secret")
+    expect(backendGatewayTargetUrl("/assets/app.js", "http://127.0.0.1:43123")).toBeUndefined()
   })
 
   it("stores internal targets outside the public directory and validates reads", async () => {

@@ -5,6 +5,7 @@ import {
   hydrateLocalBackendConfig,
   hydrateLocalBackendConfigFromDenoDesktop,
   hydrateLocalBackendConfigFromWails,
+  localBackendUrl,
 } from "./localBackendConfig"
 import { createXiraniteSystemClient } from "@xiranite/api/client"
 
@@ -23,6 +24,15 @@ afterEach(() => {
   delete window.__XIRANITE_BACKEND__
   delete window.bindings
   delete window._wails
+})
+
+describe("localBackendUrl", () => {
+  test("preserves a gateway namespace while resolving backend paths", () => {
+    expect(localBackendUrl("/file-deletions?limit=20", {
+      baseUrl: "http://wails.localhost/_xiranite/backend",
+      token: "gateway-token",
+    }).href).toBe("http://wails.localhost/_xiranite/backend/file-deletions?limit=20")
+  })
 })
 
 describe("checkLocalBackendStatus", () => {

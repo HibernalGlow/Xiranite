@@ -1,6 +1,7 @@
 import type { Stats } from "node:fs"
 import { createHash } from "node:crypto"
 import { stat } from "node:fs/promises"
+import { appendUrlPath } from "@xiranite/shared"
 import { z } from "zod"
 
 import { DEFAULT_READER_LAYOUT, type FrameSnapshot, type ReaderLayout } from "../../domain/frame/frame.js"
@@ -2369,7 +2370,7 @@ export class ReaderHttpController implements AsyncDisposable {
   }
 
   #subtitleUrl(sessionId: string, pageId: string, assetId: string, version: string): string {
-    const url = new URL(`/reader/s/${encodeURIComponent(sessionId)}/subtitle/${encodeURIComponent(pageId)}/${encodeURIComponent(assetId)}`, this.#baseUrl)
+    const url = appendUrlPath(this.#baseUrl, `/reader/s/${encodeURIComponent(sessionId)}/subtitle/${encodeURIComponent(pageId)}/${encodeURIComponent(assetId)}`)
     url.searchParams.set("version", version)
     url.searchParams.set("token", this.#token)
     return url.href

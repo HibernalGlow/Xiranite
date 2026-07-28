@@ -13,14 +13,14 @@ describe("reader-http-client", () => {
       init?.method === "POST" ? Response.json(reloaded, { status: 201 }) : Response.json(change)
     ))
     vi.stubGlobal("fetch", fetchMock)
-    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000", token: "reader-token" }))
+    const client = createReaderHttpClient(() => ({ baseUrl: "http://127.0.0.1:41000/_xiranite/backend", token: "reader-token" }))
 
     await expect(client.waitForSourceChanges!("reader/1", 3)).resolves.toEqual(change)
     await expect(client.reload!("reader/1")).resolves.toEqual(reloaded)
 
-    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2F1/source-changes?after=3")
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("http://127.0.0.1:41000/_xiranite/backend/reader/s/reader%2F1/source-changes?after=3")
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ cache: "no-store" })
-    expect(String(fetchMock.mock.calls[1]?.[0])).toBe("http://127.0.0.1:41000/reader/s/reader%2F1/reload")
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe("http://127.0.0.1:41000/_xiranite/backend/reader/s/reader%2F1/reload")
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "POST", body: "{}" })
   })
 

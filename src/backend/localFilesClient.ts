@@ -1,4 +1,4 @@
-import { localBackendFileUrl, resolveLocalBackendConfig } from "./localBackendConfig"
+import { localBackendFileUrl, localBackendUrl, resolveLocalBackendConfig } from "./localBackendConfig"
 
 export interface LocalFileEntry {
   name: string
@@ -59,7 +59,7 @@ export async function listLocalFiles(
   } = {},
 ): Promise<LocalFileEntry[]> {
   const config = resolveLocalBackendConfig()
-  const url = new URL("/local-files/list", config.baseUrl)
+  const url = localBackendUrl("/local-files/list", config)
   url.searchParams.set("path", sourcePath)
   if (options.recursive) url.searchParams.set("recursive", "1")
   if (options.includeDirectories) url.searchParams.set("includeDirectories", "1")
@@ -82,7 +82,7 @@ export async function listLocalFiles(
 
 export async function pickLocalPaths(kind: "files" | "directory"): Promise<string[]> {
   const config = resolveLocalBackendConfig()
-  const url = new URL("/local-files/pick", config.baseUrl)
+  const url = localBackendUrl("/local-files/pick", config)
   if (config.token) url.searchParams.set("token", config.token)
   const response = await fetch(url.href, {
     method: "POST",
@@ -99,7 +99,7 @@ export async function stageLocalFiles(files: File[]): Promise<string[]> {
   const config = resolveLocalBackendConfig()
   const paths: string[] = []
   for (const file of files) {
-    const url = new URL("/local-files/stage", config.baseUrl)
+    const url = localBackendUrl("/local-files/stage", config)
     if (config.token) url.searchParams.set("token", config.token)
     const response = await fetch(url.href, {
       method: "POST",
@@ -121,7 +121,7 @@ export async function stageLocalFiles(files: File[]): Promise<string[]> {
 
 export async function copyLocalFilesToClipboard(paths: string[]): Promise<void> {
   const config = resolveLocalBackendConfig()
-  const url = new URL("/local-files/clipboard", config.baseUrl)
+  const url = localBackendUrl("/local-files/clipboard", config)
   const response = await fetch(url.href, {
     method: "POST",
     cache: "no-store",
@@ -138,7 +138,7 @@ export interface LocalFileClipboardState {
 
 export async function readLocalFilesFromClipboard(): Promise<LocalFileClipboardState> {
   const config = resolveLocalBackendConfig()
-  const url = new URL("/local-files/clipboard", config.baseUrl)
+  const url = localBackendUrl("/local-files/clipboard", config)
   if (config.token) url.searchParams.set("token", config.token)
   const response = await fetch(url.href, {
     cache: "no-store",
@@ -156,7 +156,7 @@ export async function readLocalFilesFromClipboard(): Promise<LocalFileClipboardS
 
 export async function clearLocalFilesClipboard(): Promise<boolean> {
   const config = resolveLocalBackendConfig()
-  const url = new URL("/local-files/clipboard", config.baseUrl)
+  const url = localBackendUrl("/local-files/clipboard", config)
   if (config.token) url.searchParams.set("token", config.token)
   const response = await fetch(url.href, {
     method: "DELETE",

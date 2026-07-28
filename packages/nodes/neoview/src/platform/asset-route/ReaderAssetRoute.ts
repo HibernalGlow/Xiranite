@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { appendUrlPath } from "@xiranite/shared"
 import {
   type ThumbnailAsset,
   type ThumbnailLease,
@@ -121,7 +122,7 @@ export class ReaderAssetRoute {
     const page = session?.getPage(pageId)
     if (!page || !this.#thumbnailPipeline.supportsPage(page)) return undefined
     const path = `/reader/s/${encodeURIComponent(sessionId)}/thumbnail/${encodeURIComponent(pageId)}`
-    const url = new URL(path, this.#baseUrl)
+    const url = appendUrlPath(this.#baseUrl, path)
     url.searchParams.set("version", page.contentVersion)
     url.searchParams.set("token", this.#token)
     return url.href
@@ -132,7 +133,7 @@ export class ReaderAssetRoute {
     const page = session?.getPage(pageId)
     if (!page) throw new Error(`Reader page was not found: ${sessionId}/${pageId}`)
     const path = `/reader/s/${encodeURIComponent(sessionId)}/page/${encodeURIComponent(pageId)}`
-    const url = new URL(path, this.#baseUrl)
+    const url = appendUrlPath(this.#baseUrl, path)
     url.searchParams.set("version", page.contentVersion)
     url.searchParams.set("token", this.#token)
     if (transform && this.#canTransform(page)) appendImageTransform(url.searchParams, transform)

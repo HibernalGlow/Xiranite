@@ -1,4 +1,5 @@
 import { getDenoDesktopBindings } from "../../desktop/bridge"
+import { appendUrlPath } from "@xiranite/shared"
 import { createLogger } from "@/lib/logger"
 
 const logger = createLogger("backend.config")
@@ -138,8 +139,12 @@ function warnHydrateFailure(error: unknown): void {
 
 export function localBackendFileUrl(path: string): string {
   const config = resolveLocalBackendConfig()
-  const url = new URL("/local-files", config.baseUrl)
+  const url = localBackendUrl("/local-files", config)
   url.searchParams.set("path", path)
   if (config.token) url.searchParams.set("token", config.token)
   return url.href
+}
+
+export function localBackendUrl(path: string, config: LocalBackendConfig = resolveLocalBackendConfig()): URL {
+  return appendUrlPath(config.baseUrl, path)
 }

@@ -1,10 +1,11 @@
 import { mkdtemp, rename, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { afterEach, describe, expect, it } from "bun:test"
 import { createServer, type ViteDevServer } from "vite"
 
 import { startIsolatedTestBackend, type IsolatedTestBackend } from "./test-backend"
+import { backendGatewayPublicUrl } from "./backend-gateway"
 import { backendGatewayPlugin } from "../vite.config"
 
 const cleanup: Array<() => Promise<void>> = []
@@ -19,8 +20,12 @@ describe("Vite backend gateway integration", () => {
     cleanup.push(() => rm(stateDirectory, { recursive: true, force: true }))
     const targetPath = join(stateDirectory, "target.json")
     const gateway = await startGateway(targetPath)
-    cleanup.push(() => gateway.close())
-    const publicBaseUrl = gateway.resolvedUrls!.local[0]!.replace(/\/$/, "")
+    cleanup.push(async () => {
+      gateway.httpServer?.closeAllConnections()
+      await gateway.close()
+    })
+    const frontendOrigin = gateway.resolvedUrls!.local[0]!.replace(/\/$/, "")
+    const publicBaseUrl = backendGatewayPublicUrl(frontendOrigin)
     const token = "stable-gateway-token"
 
     const first = await startIsolatedTestBackend({ token, publicBaseUrl })
@@ -29,6 +34,9 @@ describe("Vite backend gateway integration", () => {
 
     const firstHealth = await fetch(`${publicBaseUrl}/health`).then((response) => response.json()) as { instanceId: string }
     expect(firstHealth.instanceId).toBeString()
+    const deletions = await fetch(`${publicBaseUrl}/file-deletions?token=${token}`)
+    expect(deletions.status).toBe(200)
+    expect(await deletions.json()).toMatchObject({ items: [] })
 
     const mediaPath = join(first.dataDir, "range.bin")
     await writeFile(mediaPath, Buffer.from("0123456789"))
@@ -49,14 +57,18 @@ describe("Vite backend gateway integration", () => {
 
     expect(secondHealth.instanceId).toBeString()
     expect(secondHealth.instanceId).not.toBe(firstHealth.instanceId)
-    expect(new URL(publicBaseUrl).origin).toBe(new URL(gateway.resolvedUrls!.local[0]!).origin)
+    expect(new URL(publicBaseUrl).origin).toBe(new URL(frontendOrigin).origin)
+    expect(new URL(publicBaseUrl).pathname).toBe("/_xiranite/backend")
   }, 180_000)
 })
 
 async function startGateway(targetPath: string): Promise<ViteDevServer> {
   const server = await createServer({
+    root: dirname(targetPath),
     configFile: false,
+    appType: "custom",
     logLevel: "silent",
+    optimizeDeps: { noDiscovery: true },
     plugins: [backendGatewayPlugin(targetPath)],
     server: { host: "127.0.0.1", port: 0, strictPort: true },
   })

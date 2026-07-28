@@ -1,4 +1,5 @@
 import { treaty, type Treaty } from "@elysiajs/eden"
+import { appendUrlPath } from "@xiranite/shared"
 import type {
   FileDeletionExportFormat,
   FileDeletionList,
@@ -663,7 +664,7 @@ function requestHeaders(options: XiraniteClientOptions): Record<string, string> 
 }
 
 function apiUrl(baseUrl: string, path: string): URL {
-  return new URL(path, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`)
+  return appendUrlPath(baseUrl, path)
 }
 
 export interface NodePreset<TValues extends Record<string, unknown> = Record<string, unknown>> {

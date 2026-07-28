@@ -1,4 +1,4 @@
-import { resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
+import { localBackendUrl, resolveLocalBackendConfig, type LocalBackendConfig } from "@/backend/localBackendConfig"
 import { createReaderExplorerContextMenuClient } from "./reader-http-explorer-context-menu-client"
 import type * as Contract from "./reader-http-contract"
 export class ReaderHttpError extends Error {
@@ -14,7 +14,7 @@ export class ReaderHttpError extends Error {
 export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig = resolveLocalBackendConfig): Contract.ReaderHttpClient {
   const request = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
     const config = resolveConfig()
-    const url = new URL(path, config.baseUrl)
+    const url = localBackendUrl(path, config)
     const headers = new Headers(init.headers)
     if (config.token) headers.set("x-xiranite-token", config.token)
     const response = await fetch(url, { ...init, headers, cache: "no-store" })
@@ -340,7 +340,7 @@ export function createReaderHttpClient(resolveConfig: () => LocalBackendConfig =
       for (const tag of options.excludeTags ?? []) search.append("excludeTag", tag)
       if (options.tagMode) search.set("tagMode", options.tagMode)
       return requestDirectorySearch(
-        new URL(`/reader/browser/s/${encodeURIComponent(sessionId)}/search?${search}`, config.baseUrl),
+        localBackendUrl(`/reader/browser/s/${encodeURIComponent(sessionId)}/search?${search}`, config),
         config.token,
         options.maximumResults ?? 512,
         options.onEntries,
@@ -895,7 +895,7 @@ async function requestLibraryThumbnailWarmup(
   const config = resolveConfig()
   const headers = new Headers({ "content-type": "application/json" })
   if (config.token) headers.set("x-xiranite-token", config.token)
-  const response = await fetch(new URL("/reader/library/thumbnails/prewarm", config.baseUrl), {
+  const response = await fetch(localBackendUrl("/reader/library/thumbnails/prewarm", config), {
     method: "POST",
     headers,
     body: JSON.stringify({

@@ -1,5 +1,5 @@
 import type { LyricData } from "@hibernalglow/folia-player/parser"
-import { resolveLocalBackendConfig } from "./localBackendConfig"
+import { localBackendUrl, resolveLocalBackendConfig } from "./localBackendConfig"
 
 export interface MelodeckDatabaseTrack {
   path: string
@@ -125,7 +125,7 @@ export async function saveMelodeckDatabaseMetadata(
 
 export function melodeckDatabaseCoverUrl(path: string): string {
   const config = resolveLocalBackendConfig()
-  const url = new URL("/melodeck/cover", config.baseUrl)
+  const url = localBackendUrl("/melodeck/cover", config)
   url.searchParams.set("path", path)
   if (config.token) url.searchParams.set("token", config.token)
   return url.href
@@ -137,7 +137,7 @@ async function melodeckRequest(
   query: Record<string, string> = {},
 ): Promise<Response> {
   const config = resolveLocalBackendConfig()
-  const url = new URL(pathname, config.baseUrl)
+  const url = localBackendUrl(pathname, config)
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
   if (config.token) url.searchParams.set("token", config.token)
   const headers = new Headers(init.headers)
