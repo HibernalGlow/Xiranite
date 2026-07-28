@@ -39,4 +39,5 @@ describe("PlatformDirectoryMediaMetadataProvider", () => {
     await expect(provider.hydrate([entry], new Set(["dimensions", "pageCount"]))).resolves.toEqual([entry])
     expect(bookLoader).not.toHaveBeenCalled()
   })
+
 })

@@ -53,11 +53,18 @@ describe("ReaderInputBindings", () => {
     expect(readerInputDescriptorKey({ device: "touch", gesture: "swipe-left", fingers: 2 })).toBe("touch:2:swipe-left")
     expect(readerInputDescriptorKey({ device: "gamepad", button: 5 })).toBe("gamepad:5")
     expect(readerInputDescriptorKey({ device: "area", area: "bottom-right", button: 2, action: "double-click" })).toBe("area:bottom-right:2:double-click")
+    expect(readerInputDescriptorKey({ device: "area", area: "middle-center", button: 0, action: "hold", durationMs: 500 })).toBe("area:middle-center:0:hold")
+    expect(readerInputDescriptorKey({ device: "command", command: "file-card.trash-current" })).toBe("command:file-card.trash-current")
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "touch")).toBe(true)
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "wheel")).toBe(true)
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "area")).toBe(true)
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.action === "reader.page-left")).toBe(true)
     expect(DEFAULT_READER_INPUT_BINDINGS.bindings.some((current) => current.input.device === "gamepad")).toBe(false)
+    expect(matchingReaderInputBinding(
+      DEFAULT_READER_INPUT_BINDINGS.bindings,
+      { device: "command", command: "file-card.delete-current" },
+      ["reader"],
+    )).toMatchObject({ id: "system-file-card-delete-current", action: "file.delete-current" })
   })
 
   it("[neoview.bindings.action-sequence] expands one primary action followed by its configured actions", () => {
@@ -81,6 +88,17 @@ describe("ReaderInputBindings", () => {
     expect(readerViewAreaAtPoint(0, 0, 900, 600)).toBe("top-left")
     expect(readerViewAreaAtPoint(450, 300, 900, 600)).toBe("middle-center")
     expect(readerViewAreaAtPoint(900, 600, 900, 600)).toBe("bottom-right")
+  })
+
+  it("[neoview.bindings.area-hold] matches a timed area hold without making timing part of conflict identity", () => {
+    const binding = {
+      id: "area-hold",
+      action: "reader.next-page",
+      context: "reader",
+      enabled: true,
+      input: { device: "area", area: "middle-center", button: 0, action: "hold", durationMs: 750, moveTolerancePx: 10 },
+    } as const
+    expect(matchingReaderInputBinding([binding], { device: "area", area: "middle-center", button: 0, action: "hold" }, ["reader"])).toBe(binding)
   })
 
   it("[neoview.bindings.mouse-gesture-core] keeps one operation compatible with a bounded trajectory descriptor", () => {

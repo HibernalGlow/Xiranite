@@ -49,6 +49,14 @@ export interface DirectoryCatalog {
   pageMetadataFields: ReadonlyMap<number, ReadonlySet<ReaderDirectoryMetadataFieldDto>>
 }
 
+export function cloneDirectoryCatalog(source: DirectoryCatalog): DirectoryCatalog {
+  return {
+    ...source,
+    pages: new Map([...source.pages].map(([cursor, entries]) => [cursor, [...entries]])),
+    pageMetadataFields: new Map([...source.pageMetadataFields].map(([cursor, fields]) => [cursor, new Set(fields)])),
+  }
+}
+
 export function restoreDirectoryVisitState<T extends {
   selection: DirectorySelectionModel
   focusedPath?: string

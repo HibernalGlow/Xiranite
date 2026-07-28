@@ -3,13 +3,14 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react"
 
 import { useContextMenu, useContextMenuBuilder, type ContextMenuItemDef } from "@/components/context-menu"
 import { publishReaderLibraryMutation } from "../../../library/reader-library-mutations"
-import type { ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { ReaderFileUndoResultDto, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import type { ReaderDirectorySelectionDescriptorDto } from "../../../../adapters/reader-http-client"
 import type { ReaderFolderConfirmationConfig } from "../../../../adapters/reader-http-client"
-import type { ReaderFileMutationPreparation } from "../../registry"
+import type { ReaderPanelContext } from "../../registry"
 import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchToastStore"
 import { useFolderClipboard } from "./FolderClipboard"
 import type { FolderCatalogUpdater } from "./FolderEmmEditor"
+import { createOptimisticFolderDeletion } from "./FolderOptimisticDeletion"
 
 const FolderRenameDialog = lazy(() => import("./FolderRenameDialog"))
 const FolderEmmEditor = lazy(() => import("./FolderEmmEditor"))
@@ -36,13 +37,12 @@ export default function FolderContextActions({
   onEnterRawDirectory,
   onOpenInNewTab,
   onOpenAsBook,
-  onPrepareFileMutation,
+  onDeleteThroughBinding,
+  onUndoFileDeletion,
   switchToast,
   onRenamed,
   onDeleteStarted,
   onDeleteFailed,
-  onTrashed,
-  onUndoDelete,
   confirmations = { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true },
   onCatalogUpdate = () => undefined,
   onRefreshEmm = () => undefined,
@@ -66,13 +66,12 @@ export default function FolderContextActions({
   onEnterRawDirectory?(entry: FolderContextEntry): void | Promise<void>
   onOpenInNewTab(path: string): void
   onOpenAsBook?: (path: string) => void | Promise<void>
-  onPrepareFileMutation?(sourcePath: string, signal?: AbortSignal): Promise<ReaderFileMutationPreparation | undefined>
+  onDeleteThroughBinding?: ReaderPanelContext["onDeleteThroughBinding"]
+  onUndoFileDeletion?(): Promise<ReaderFileUndoResultDto>
   switchToast?: ReaderSwitchToastPort
   onRenamed?(destinationPath: string): void | Promise<void>
   onDeleteStarted?(entry: FolderContextEntry): void
   onDeleteFailed?(entry: FolderContextEntry): void | Promise<void>
-  onTrashed?(entry: FolderContextEntry): void | Promise<void>
-  onUndoDelete?(): void | Promise<void>
   confirmations?: ReaderFolderConfirmationConfig
   onCatalogUpdate?(update: FolderCatalogUpdater): void
   onRefreshEmm?(focusPath: string): Promise<void> | void
@@ -147,79 +146,41 @@ export default function FolderContextActions({
       return
     }
     if (action === "undo-delete") {
-      if (!client.undoLatestFileOperations) return
-      const operation = new AbortController()
-      operationRef.current?.abort()
-      operationRef.current = operation
+      if (!onUndoFileDeletion) return
       setPending(true)
       try {
-        const result = await client.undoLatestFileOperations(true, operation.signal)
-        if (result.failed > 0) throw new Error(`撤销完成 ${result.succeeded} 项，${result.failed} 项失败`)
-        await onUndoDelete?.()
-        switchToast?.show({ title: `已撤销 ${result.succeeded} 项回收站操作` })
+        await onUndoFileDeletion()
       } catch (error) {
         setFeedback({ kind: "alert", text: errorMessage(error) })
       } finally {
-        if (operationRef.current === operation) operationRef.current = undefined
         setPending(false)
       }
       return
     }
     if (action === "trash" || action === "delete") {
-      const execute = client.executeFileOperations
-      if (!execute) return
-      const operation = new AbortController()
-      operationRef.current?.abort()
-      operationRef.current = operation
+      if (!onDeleteThroughBinding) return
+      const optimisticDelete = createOptimisticFolderDeletion(entry, onDeleteStarted, onDeleteFailed)
       setPending(true)
       setFeedback(undefined)
-      let movedToTrash = false
-      let completed = false
-      let optimisticDeleteStarted = false
-      let preparation: ReaderFileMutationPreparation | undefined
+      optimisticDelete.start()
       try {
-        preparation = await onPrepareFileMutation?.(entry.path, operation.signal)
-        operation.signal.throwIfAborted()
-        onDeleteStarted?.(entry)
-        optimisticDeleteStarted = Boolean(onDeleteStarted)
-        const result = await execute([{ kind: action, sourcePath: entry.path }], true, operation.signal)
-        const failed = result.results.find((item) => item.status !== "succeeded")
-        if (failed || result.succeeded !== 1) throw new Error(fileOperationError(action, failed?.errorCode, failed?.error))
-        movedToTrash = action === "trash"
-        completed = true
-        preparation?.commit()
-        await onTrashed?.(entry)
-        operation.signal.throwIfAborted()
-        const message = action === "trash" ? `已将 ${entry.name} 移到回收站` : `已永久删除 ${entry.name}`
-        setFeedback({ kind: "status", text: message })
-        switchToast?.show({ title: message })
-      } catch (error) {
-        if (!completed) {
-          await preparation?.restore().catch(() => undefined)
-          if (optimisticDeleteStarted && !operation.signal.aborted) {
-            try {
-              await onDeleteFailed?.(entry)
-            } catch {
-              // Preserve the original file-operation failure as the actionable error.
-            }
-          }
-        }
-        if (!operation.signal.aborted) {
-          const message = movedToTrash
-            ? `已将 ${entry.name} 移到回收站，但列表刷新失败，请手动刷新。${errorMessage(error)}`
-            : completed ? `已永久删除 ${entry.name}，但列表刷新失败，请手动刷新。${errorMessage(error)}`
-              : action === "delete" ? `永久删除 ${entry.name} 失败：${errorMessage(error)}` : errorMessage(error)
-          setFeedback({
-            kind: "alert",
-            text: message,
-          })
+        const result = await onDeleteThroughBinding(entry.path, action)
+        if (!result || result.status !== "succeeded") {
+          await optimisticDelete.restore()
+          const failure = result?.status === "failed" && result.outcome.status === "failed"
+            ? result.outcome.error
+            : new Error("删除动作绑定不可用，文件未删除。")
+          const message = errorMessage(failure)
+          setFeedback({ kind: "alert", text: message })
           switchToast?.show({ title: message })
         }
+      } catch (error) {
+        await optimisticDelete.restore()
+        const message = errorMessage(error)
+        setFeedback({ kind: "alert", text: message })
+        switchToast?.show({ title: message })
       } finally {
-        if (operationRef.current === operation) {
-          operationRef.current = undefined
-          setPending(false)
-        }
+        setPending(false)
       }
       return
     }
@@ -319,7 +280,7 @@ export default function FolderContextActions({
         ? confirmations.permanentDelete
         : confirmations.trash
       const shouldConfirm = folderDeleteConfirmation(event.detail, defaultConfirmation)
-      const unavailable = disabled || pending || !client.executeFileOperations
+      const unavailable = disabled || pending || !onDeleteThroughBinding
       if (unavailable) return
       const item = strategy === "permanent"
         ? buildDeleteContextMenuItem(entry, { disabled: unavailable, confirm: shouldConfirm, onDelete: () => run("delete", entry) })
@@ -333,7 +294,7 @@ export default function FolderContextActions({
       window.removeEventListener("neoview-folder-trash-request", requestTrash)
       window.removeEventListener("neoview-folder-delete-request", requestTrash)
     }
-  }, [client.executeFileOperations, confirmations, contextMenu, disabled, pending])
+  }, [confirmations, contextMenu, disabled, onDeleteThroughBinding, pending])
 
   useEffect(() => {
     if (!renameRequest || disabled || pending || !client.executeFileOperations) return
@@ -357,9 +318,9 @@ export default function FolderContextActions({
       canEnterRawDirectory: Boolean(onEnterRawDirectory),
       canBookmark: Boolean(client.findBookmarkByPath && client.saveBookmark && client.removeBookmark),
       canRename: Boolean(client.executeFileOperations),
-      canTrash: Boolean(client.executeFileOperations),
-      canDelete: Boolean(client.executeFileOperations),
-      canUndoDelete: Boolean(client.undoLatestFileOperations),
+      canTrash: Boolean(onDeleteThroughBinding),
+      canDelete: Boolean(onDeleteThroughBinding),
+      canUndoDelete: Boolean(onUndoFileDeletion),
       confirmations,
       canEditMetadata: Boolean(sessionId && generation !== undefined && selection && client.resolveDirectorySelection && client.readDirectoryEmm && client.editDirectoryEmm),
       canRefresh: Boolean(onRefreshDirectory),
@@ -751,12 +712,6 @@ function feedbackText(action: FolderContextAction, entry: FolderContextEntry): s
   if (action === "new-tab") return `已在新标签页中打开 ${entry.name}`
   if (action === "open-as-book") return `已作为书籍打开 ${entry.name}`
   return `已打开 ${entry.name}`
-}
-
-function fileOperationError(action: "trash" | "delete", code?: string, message?: string): string {
-  if (code === "EPERM" || code === "EACCES") return action === "delete" ? "没有权限永久删除此项目。" : "没有权限将此项目移到回收站。"
-  if (code === "ENOENT") return "项目已经不存在，请刷新文件夹。"
-  return message || (action === "delete" ? "永久删除失败。" : "移到回收站失败。")
 }
 
 function errorMessage(error: unknown): string {

@@ -97,6 +97,27 @@ describe("ReaderHierarchicalBookTraversal", () => {
       cursor: child!.cursor,
     })).resolves.toMatchObject({ path: "C:/Library/artist" })
   })
+
+  it("does not reinterpret an invalid nested one-frame cursor as the first root entry", async () => {
+    const listing = provider({
+      "C:/Library": [directory("C:/Library/series"), directory("C:/Library/z-after")],
+      "C:/Library/series": [directory("C:/Library/series/Book 1"), directory("C:/Library/series/Book 2")],
+      "C:/Library/series/Book 1": [file("C:/Library/series/Book 1/1.jpg", false)],
+      "C:/Library/series/Book 2": [file("C:/Library/series/Book 2/1.jpg", false)],
+      "C:/Library/z-after": [file("C:/Library/z-after/book.cbz", true)],
+    })
+    const penetration = new ReaderFolderPenetrationResolver(listing)
+    const traversal = new ReaderHierarchicalBookTraversal(listing, undefined, isBook, penetration)
+
+    await expect(traversal.resolve({
+      source: { kind: "path", path: "C:/Library/series/Book 1" },
+      direction: "next",
+      cursor: {
+        rootPath: "C:/Library",
+        frames: [{ directoryPath: "C:/Library", currentEntryPath: "C:/Library/series/Book 1" }],
+      },
+    })).resolves.toBeUndefined()
+  })
 })
 
 function provider(entriesByPath: Record<string, readonly ReaderDirectoryEntry[]>): ReaderDirectoryListingProvider {

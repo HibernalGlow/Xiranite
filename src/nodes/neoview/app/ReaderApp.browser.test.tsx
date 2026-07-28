@@ -58,11 +58,47 @@ test("[neoview.workspace.startup-mode-gui] keeps the fallback swimlane usable wh
   expect(document.querySelector('[data-reader-workspace-loading="true"]')).toBeNull()
 })
 
+test("[neoview.startup-restore.gui] opens the latest book without an explicit launch target", async () => {
+  const open = vi.fn(async () => readerSession({
+    displayName: "latest.cbz",
+    readerSourcePath: "D:/books/latest.cbz",
+  }))
+  const startupState = vi.fn(async () => ({
+    lastFolder: { path: "D:/books", updatedAt: 1 },
+    lastBook: {
+      bookId: "latest-book",
+      source: { kind: "archive" as const, path: "D:/books/latest.cbz" },
+      displayName: "latest.cbz",
+      pageIndex: 3,
+      pageCount: 12,
+      updatedAt: 2,
+    },
+  }))
+  const client = {
+    config: vi.fn(async () => deleteNextRuntimeConfig()),
+    startupState,
+    open,
+    close: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 1200, height: 800 }}>
+      <ReaderApp sessionScopeId="browser-startup-restore" client={client} />
+    </div>,
+  )
+
+  await expect.poll(() => startupState).toHaveBeenCalledWith(expect.any(AbortSignal))
+  await expect.poll(() => open).toHaveBeenCalledWith("D:/books/latest.cbz", expect.any(AbortSignal), undefined)
+  await expect.element(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
+})
+
 test("[neoview.external-launch.gui] opens an external target and reports the accepted request only after Reader opens it", async () => {
   const open = vi.fn(async () => readerSession())
+  const startupState = vi.fn(async () => ({ lastFolder: null, lastBook: null }))
   const onExternalOpenResult = vi.fn()
   const client = {
     config: vi.fn(async () => deleteNextRuntimeConfig()),
+    startupState,
     open,
     close: vi.fn(async () => undefined),
   } as unknown as ReaderHttpClient
@@ -81,6 +117,7 @@ test("[neoview.external-launch.gui] opens an external target and reports the acc
   await expect.poll(() => open).toHaveBeenCalledWith("D:/books/external.cbz", expect.any(AbortSignal), undefined)
   await expect.element(page.getByRole("img", { name: "001.jpg" })).toBeVisible()
   await expect.poll(() => onExternalOpenResult).toHaveBeenCalledWith({ requestId: "launch-1", opened: true })
+  expect(startupState).not.toHaveBeenCalled()
 })
 
 test("[neoview.external-launch.gui] routes an external directory to Folder without creating a Reader session", async () => {
@@ -292,24 +329,38 @@ test("[neoview.workspace.startup-cache-race-gui] keeps a startup edit when the i
   expect(useReaderWorkspaceRestoreStore.getState().shellSnapshot?.workspace?.mode).toBe("edges")
 })
 
-test("[neoview.bindings.file-delete-next-gui] keeps the adjacent book visible after deleting the current file", async () => {
-  const opened = readerSession()
+test("[neoview.bindings.file-delete-next-gui] uses each adjacent book's activation identity across repeated delete-next commands", async () => {
+  const opened = readerSession({
+    readerSourcePath: "D:/books/series-a/deep/001.jpg",
+    activatedEntryPath: "D:/books/series-a",
+  })
   const replacement = readerSession({
     sessionId: "reader-browser-2",
     bookId: "book-browser-2",
-    displayName: "next.cbz",
+    displayName: "series-b",
     pageId: "page-browser-2",
     pageName: "002.jpg",
+    readerSourcePath: "D:/books/series-b/deep/002.jpg",
+    activatedEntryPath: "D:/books/series-b",
   })
-  const openAdjacentBook = vi.fn(async () => replacement)
-  const executeFileOperations = vi.fn(async () => ({
-    results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/books/demo.cbz" }, status: "succeeded" as const }],
-    succeeded: 1,
-    failed: 0,
-    cancelled: 0,
-    undoable: 1,
-    undoId: "browser-delete",
-  }))
+  const trailing = readerSession({
+    sessionId: "reader-browser-3",
+    bookId: "book-browser-3",
+    displayName: "series-c.cbz",
+    pageId: "page-browser-3",
+    pageName: "003.jpg",
+  })
+  const replacements = [replacement, trailing]
+  const openAdjacentBook = vi.fn(async () => replacements.shift())
+  let releaseFirstDelete!: () => void
+  const firstDeleteGate = new Promise<void>((resolve) => { releaseFirstDelete = resolve })
+  const executeFileOperations = vi.fn(async (operations: [{ kind: "trash"; sourcePath: string }]) => {
+    if (operations[0].sourcePath === "D:/books/series-a") await firstDeleteGate
+    return {
+      results: [{ index: 0, operation: operations[0], status: "succeeded" as const }],
+      succeeded: 1, failed: 0, cancelled: 0, undoable: 1, undoId: "browser-delete",
+    }
+  })
   const client = {
     config: vi.fn(async () => deleteNextRuntimeConfig()),
     open: vi.fn(async () => opened),
@@ -320,7 +371,7 @@ test("[neoview.bindings.file-delete-next-gui] keeps the adjacent book visible af
 
   await render(
     <div style={{ width: 1200, height: 800 }}>
-      <ReaderApp sessionScopeId="browser-delete-next" initialPath="D:/books/demo.cbz" client={client} />
+      <ReaderApp sessionScopeId="browser-delete-next" initialPath="D:/books/series-a/deep/001.jpg" client={client} />
     </div>,
   )
 
@@ -335,11 +386,29 @@ test("[neoview.bindings.file-delete-next-gui] keeps the adjacent book visible af
 
   await expect.poll(() => openAdjacentBook).toHaveBeenCalledWith("reader-browser-1", "next", expect.any(AbortSignal))
   await expect.poll(() => executeFileOperations).toHaveBeenCalledWith(
-    [{ kind: "trash", sourcePath: "D:/books/demo.cbz" }],
+    [{ kind: "trash", sourcePath: "D:/books/series-a" }],
     true,
     expect.any(AbortSignal),
   )
+  await expect.poll(() => document.querySelector('[data-reader-operation-busy="true"]')).not.toBeNull()
+  releaseFirstDelete()
   await expect.element(page.getByRole("img", { name: "002.jpg" })).toBeVisible()
+
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  document.querySelector<HTMLElement>("[data-reader-app]")!.dispatchEvent(new KeyboardEvent("keydown", {
+    bubbles: true,
+    code: "Delete",
+    key: "Delete",
+  }))
+
+  await expect.poll(() => openAdjacentBook).toHaveBeenNthCalledWith(2, "reader-browser-2", "next", expect.any(AbortSignal))
+  await expect.poll(() => executeFileOperations).toHaveBeenNthCalledWith(
+    2,
+    [{ kind: "trash", sourcePath: "D:/books/series-b" }],
+    true,
+    expect.any(AbortSignal),
+  )
+  await expect.element(page.getByRole("img", { name: "003.jpg" })).toBeVisible()
 })
 
 function readerSession({
@@ -348,15 +417,22 @@ function readerSession({
   displayName = "demo.cbz",
   pageId = "page-browser-1",
   pageName = "001.jpg",
+  readerSourcePath = `D:/books/${displayName}`,
+  activatedEntryPath = readerSourcePath,
+  traversalRootPath = "D:/books",
 }: {
   sessionId?: string
   bookId?: string
   displayName?: string
   pageId?: string
   pageName?: string
+  readerSourcePath?: string
+  activatedEntryPath?: string
+  traversalRootPath?: string
 } = {}): ReaderSessionDto {
   return {
     sessionId,
+    activationIdentity: { readerSourcePath, activatedEntryPath, traversalRootPath },
     book: { id: bookId, displayName, pageCount: 1 },
     frame: {
       generation: 0,

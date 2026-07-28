@@ -106,13 +106,41 @@ describe("ReaderInputActionExecutor", () => {
       index: 0,
       nextAction: "reader.next-book",
     })
-    expect(controls.deleteCurrentFile).toHaveBeenCalledWith("next")
+    expect(controls.deleteCurrentFile).toHaveBeenCalledWith({ adjacentDirection: "next" })
     await expect(executeReaderInputAction("reader.next-book", controls, {
       bindingId: "delete-next",
       index: 1,
       previousOutcome: deleted,
     })).resolves.toEqual({ status: "succeeded" })
     expect(controls.switchBook).not.toHaveBeenCalled()
+  })
+
+  it("[neoview.bindings.file-card-delete-commands] preserves both File Card deletion strategies without a second confirmation", async () => {
+    for (const [command, strategy] of [
+      ["file-card.trash-current", "trash"],
+      ["file-card.delete-current", "delete"],
+    ] as const) {
+      const controls = fixture()
+      controls.deleteCurrentFile = vi.fn(async () => ({ status: "succeeded" as const }))
+
+      await executeReaderInputAction("file.delete-current", controls, {
+        bindingId: `system-${command}`,
+        input: { device: "command", command },
+        index: 0,
+        invocation: {
+          kind: "file-entry-delete",
+          targetPath: "D:/books/selected-entry",
+          confirmationHandled: true,
+        },
+      })
+
+      expect(controls.deleteCurrentFile).toHaveBeenCalledWith({
+        strategy,
+        targetPath: "D:/books/selected-entry",
+        trigger: "file-card-command",
+        confirmationHandled: true,
+      })
+    }
   })
 
   it("[neoview.bindings.viewer-toggle-provider] routes persistent toast, overlay and cursor toggles", async () => {

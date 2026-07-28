@@ -6,6 +6,7 @@ import {
   type ReaderInputAction,
   type ReaderInputActionExecutionContext,
   type ReaderInputActionOutcome,
+  type ReaderInputActionSequenceResult,
   type ReaderInputBinding,
   type ReaderInputBindingsConfig,
   type ReaderInputContext,
@@ -13,11 +14,24 @@ import {
 } from "@xiranite/node-neoview/ui-core"
 import { useHotkeys } from "react-hotkeys-hook"
 import { useEffect, useMemo, useRef, type PointerEventHandler } from "react"
+import type { ReaderInputExecutionContext, ReaderInputInvocation } from "./ReaderInputInvocation"
 
 export interface ReaderInputRouterOptions {
   config: ReaderInputBindingsConfig
   disabled?: boolean
-  execute(action: ReaderInputAction, context: ReaderInputActionExecutionContext): ReaderInputActionOutcome | void | Promise<ReaderInputActionOutcome | void>
+  execute(action: ReaderInputAction, context: ReaderInputExecutionContext): ReaderInputActionOutcome | void | Promise<ReaderInputActionOutcome | void>
+}
+
+export const READER_POINTER_DOUBLE_CLICK_WINDOW_MS = 300
+const READER_POINTER_DOUBLE_CLICK_MOVE_TOLERANCE_PX = 12
+
+interface PendingPointerClick {
+  button: number
+  clickBinding?: ReaderInputBinding
+  clientX: number
+  clientY: number
+  doubleClickBindingId: string
+  timer?: ReturnType<typeof setTimeout>
 }
 
 export function useReaderInputRouter({ config, disabled = false, execute }: ReaderInputRouterOptions) {
@@ -26,10 +40,12 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
   const sequenceRunner = useRef(new ReaderInputActionSequenceRunner())
   const bindingsRef = useRef(config.bindings)
   bindingsRef.current = config.bindings
-  const handledAreaPressPointers = useRef(new Set<number>())
+  const handledPointers = useRef(new Set<number>())
+  const pendingPointerClick = useRef<PendingPointerClick | undefined>(undefined)
   const keyboardHoldTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   const keyboardRepeatBindings = useRef(new Map<string, ReaderInputBinding | null>())
   const keyboardRepeatBindingSource = useRef(config.bindings)
+  const invocationSequence = useRef(0)
 
   const keyboardKeys = useMemo(() => config.bindings.flatMap((binding) => {
     if (!binding.enabled || binding.input.device !== "keyboard") return []
@@ -100,6 +116,7 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
       for (const timer of keyboardHoldTimers.current.values()) clearTimeout(timer)
       keyboardHoldTimers.current.clear()
       keyboardRepeatBindings.current.clear()
+      clearPendingPointerClick()
     }
     window.addEventListener("blur", clear)
     if (disabled) clear()
@@ -111,28 +128,46 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
 
   const onPointerUp: PointerEventHandler<HTMLElement> = (event) => {
     if (disabled || event.pointerType !== "mouse" || isInteractive(event.target)) return
-    if (handledAreaPressPointers.current.delete(event.pointerId)) {
+    if (handledPointers.current.delete(event.pointerId)) {
       event.preventDefault()
       return
     }
-    const areaInput = readerAreaInput(event, event.detail > 1 ? "double-click" : "click")
-    if (areaInput && dispatch(areaInput, event.target)) {
+
+    const clickBinding = pointerBinding(event, "click")
+    const doubleClickBinding = pointerBinding(event, "double-click")
+    const pending = pendingPointerClick.current
+    if (pending && doubleClickBinding?.id === pending.doubleClickBindingId && samePointerClick(pending, event)) {
+      clearPendingPointerClick()
+      executeBinding(doubleClickBinding)
       event.preventDefault()
       return
     }
-    if (dispatch({ device: "mouse", button: event.button, action: event.detail > 1 ? "double-click" : "click" }, event.target)) event.preventDefault()
+
+    if (pending) commitPendingPointerClick()
+    if (doubleClickBinding) {
+      const next: PendingPointerClick = {
+        button: event.button,
+        clickBinding,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        doubleClickBindingId: doubleClickBinding.id,
+      }
+      next.timer = setTimeout(() => {
+        if (pendingPointerClick.current !== next) return
+        pendingPointerClick.current = undefined
+        executeBinding(next.clickBinding)
+      }, READER_POINTER_DOUBLE_CLICK_WINDOW_MS)
+      pendingPointerClick.current = next
+      event.preventDefault()
+      return
+    }
+    if (executeBinding(clickBinding)) event.preventDefault()
   }
 
   const onPointerDown: PointerEventHandler<HTMLElement> = (event) => {
     if (disabled || event.pointerType !== "mouse" || isInteractive(event.target)) return
-    const input = readerAreaInput(event, "press")
-    if (input && dispatch(input, event.target)) {
-      handledAreaPressPointers.current.add(event.pointerId)
-      event.preventDefault()
-      return
-    }
-    if (dispatch({ device: "mouse", button: event.button, action: "press" }, event.target)) {
-      handledAreaPressPointers.current.add(event.pointerId)
+    if (executeBinding(pointerBinding(event, "press"))) {
+      handledPointers.current.add(event.pointerId)
       event.preventDefault()
     }
   }
@@ -158,23 +193,82 @@ export function useReaderInputRouter({ config, disabled = false, execute }: Read
     }
   }, [config.bindings, disabled])
 
-  function dispatch(input: ReaderInputDescriptor, target: EventTarget | null): boolean {
+  function dispatch(input: ReaderInputDescriptor, target: EventTarget | null, invocation?: ReaderInputInvocation): boolean {
     const contexts = readerInputContexts(target)
     const binding = matchingReaderInputBinding(bindingsRef.current, input, contexts)
-    return executeBinding(binding)
+    return executeBinding(binding, false, invocation)
   }
 
-  function executeBinding(binding: ReaderInputBinding | null | undefined, repeat = false): boolean {
-    if (!binding || (repeat && binding.ignoreRepeat)) return false
-    void sequenceRunner.current.run(binding, executeRef.current)
+  function dispatchAndWait(
+    input: ReaderInputDescriptor,
+    target: EventTarget | null,
+    invocation?: ReaderInputInvocation,
+  ): Promise<ReaderInputActionSequenceResult | undefined> {
+    const contexts = readerInputContexts(target)
+    const binding = matchingReaderInputBinding(bindingsRef.current, input, contexts)
+    return runBinding(binding, false, invocation)
+  }
+
+  function pointerBinding(
+    event: Parameters<PointerEventHandler<HTMLElement>>[0],
+    action: "click" | "double-click" | "press",
+  ): ReaderInputBinding | undefined {
+    const contexts = readerInputContexts(event.target)
+    const areaInput = readerAreaInput(event, action)
+    return (areaInput ? matchingReaderInputBinding(bindingsRef.current, areaInput, contexts) : undefined)
+      ?? matchingReaderInputBinding(bindingsRef.current, { device: "mouse", button: event.button, action }, contexts)
+  }
+
+  function executeBinding(
+    binding: ReaderInputBinding | null | undefined,
+    repeat = false,
+    invocation?: ReaderInputInvocation,
+  ): boolean {
+    const running = runBinding(binding, repeat, invocation)
+    if (!running) return false
+    void running
     return true
   }
 
-  function claimPointer(pointerId: number): void {
-    handledAreaPressPointers.current.add(pointerId)
+  function runBinding(
+    binding: ReaderInputBinding | null | undefined,
+    repeat = false,
+    invocation?: ReaderInputInvocation,
+  ): Promise<ReaderInputActionSequenceResult> | undefined {
+    if (!binding || (repeat && binding.ignoreRepeat)) return undefined
+    const execute = invocation
+      ? (action: ReaderInputAction, context: ReaderInputActionExecutionContext) => executeRef.current(action, { ...context, invocation })
+      : executeRef.current
+    const singleFlightKey = invocation ? `${binding.id}:invocation:${++invocationSequence.current}` : binding.id
+    return sequenceRunner.current.run(binding, execute, singleFlightKey)
   }
 
-  return { claimPointer, dispatch, onPointerDown, onPointerUp }
+  function claimPointer(pointerId: number): void {
+    handledPointers.current.add(pointerId)
+  }
+
+  function clearPendingPointerClick(): void {
+    const pending = pendingPointerClick.current
+    if (pending?.timer) clearTimeout(pending.timer)
+    pendingPointerClick.current = undefined
+  }
+
+  function commitPendingPointerClick(): void {
+    const pending = pendingPointerClick.current
+    if (!pending) return
+    clearPendingPointerClick()
+    executeBinding(pending.clickBinding)
+  }
+
+  return { claimPointer, dispatch, dispatchAndWait, onPointerDown, onPointerUp }
+}
+
+function samePointerClick(
+  pending: PendingPointerClick,
+  event: Parameters<PointerEventHandler<HTMLElement>>[0],
+): boolean {
+  return pending.button === event.button
+    && Math.hypot(event.clientX - pending.clientX, event.clientY - pending.clientY) <= READER_POINTER_DOUBLE_CLICK_MOVE_TOLERANCE_PX
 }
 
 function keyboardEventKey(event: KeyboardEvent): string {

@@ -2,6 +2,7 @@ import { useGesture } from "@use-gesture/react"
 import { useEffect, useRef, type RefObject } from "react"
 import {
   matchingReaderInputBinding,
+  readerViewAreaAtPoint,
   type ReaderInputBinding,
   type ReaderInputBindingsConfig,
   type ReaderInputDescriptor,
@@ -22,6 +23,7 @@ interface DragMemo {
   cancelled: boolean
   fingers: number
   holdHandled: boolean
+  holdMoveTolerancePx: number
   holdTimer?: ReturnType<typeof setTimeout>
   pointerId: number
   startX: number
@@ -53,6 +55,9 @@ export function ReaderGestureInputRuntime({ config, disabled = false, target, cl
 
   function scheduleHold(memo: DragMemo, binding: ReaderInputBinding | undefined): void {
     clearHold(memo)
+    memo.holdMoveTolerancePx = binding && "moveTolerancePx" in binding.input
+      ? binding.input.moveTolerancePx ?? 12
+      : 12
     if (!binding || disabled) return
     const input = binding.input
     const durationMs = "durationMs" in input ? input.durationMs ?? 500 : 500
@@ -99,6 +104,7 @@ export function ReaderGestureInputRuntime({ config, disabled = false, target, cl
             cancelled: false,
             fingers: touches || 1,
             holdHandled: false,
+            holdMoveTolerancePx: 12,
             pointerId: pointer.pointerId,
             startX: initialX,
             startY: initialY,
@@ -109,18 +115,17 @@ export function ReaderGestureInputRuntime({ config, disabled = false, target, cl
       current.fingers = Math.max(current.fingers, touches || 1)
 
       if (first && !disabled && pointer.pointerType === "mouse") {
-        scheduleHold(current, matching({ device: "mouse", button: current.button, action: "hold" }, current.target))
+        const areaInput = readerAreaHoldInput(target.current, current.button, current.startX, current.startY)
+        scheduleHold(current,
+          (areaInput ? matching(areaInput, current.target) : undefined)
+          ?? matching({ device: "mouse", button: current.button, action: "hold" }, current.target))
       }
       if (first && !disabled && pointer.pointerType === "touch") {
         scheduleHold(current, matching({ device: "touch", gesture: "long-press", fingers: Math.min(3, current.fingers) as 1 | 2 | 3 }, current.target))
       }
 
       const distance = Math.hypot(clientX - current.startX, clientY - current.startY)
-      const holdInput = pointer.pointerType === "mouse"
-        ? matching({ device: "mouse", button: current.button, action: "hold" }, current.target)?.input
-        : matching({ device: "touch", gesture: "long-press", fingers: Math.min(3, current.fingers) as 1 | 2 | 3 }, current.target)?.input
-      const tolerance = holdInput && "moveTolerancePx" in holdInput ? holdInput.moveTolerancePx ?? 12 : 12
-      if (distance > tolerance) clearHold(current)
+      if (distance > current.holdMoveTolerancePx) clearHold(current)
 
       if (pointer.pointerType === "mouse") {
         const previousLength = current.trace.directions.length
@@ -167,4 +172,20 @@ export function ReaderGestureInputRuntime({ config, disabled = false, target, cl
   })
 
   return <span hidden data-reader-input-runtime="ready" />
+}
+
+function readerAreaHoldInput(
+  root: HTMLElement | null,
+  button: number,
+  clientX: number,
+  clientY: number,
+): ReaderInputDescriptor | undefined {
+  if (!root || button < 0 || button > 2) return undefined
+  const rect = root.getBoundingClientRect()
+  return {
+    device: "area",
+    area: readerViewAreaAtPoint(clientX - rect.left, clientY - rect.top, rect.width, rect.height),
+    button: button as 0 | 1 | 2,
+    action: "hold",
+  }
 }

@@ -26,7 +26,7 @@ it("[neoview.book-information.host-clipboard] passes only the host clipboard wri
   expect(readerProps.current).not.toHaveProperty("host")
 })
 
-it("[neoview.folder.penetration-browser-origin-state] restores and persists the File Card browser origin and activation root separately from the Reader path", () => {
+it("[neoview.folder.activation-identity-state] ignores guessed legacy activation roots and persists one canonical activation identity", () => {
   const patchData = vi.fn()
   const host = {
     state: {
@@ -41,16 +41,46 @@ it("[neoview.folder.penetration-browser-origin-state] restores and persists the 
   expect(readerProps.current).toMatchObject({
     initialPath: "D:/books/series/volume",
     initialBrowserOriginPath: "D:/books",
-    initialActivationRootPath: "D:/books/series",
   })
+  expect(readerProps.current).not.toHaveProperty("initialActivationRootPath")
 
-  const onPathCommitted = readerProps.current?.onPathCommitted as (path: string, browserOriginPath?: string, activationRootPath?: string) => void
-  onPathCommitted("D:/books/series/volume-2", "D:/books", "D:/books/series")
+  const onActivationIdentityCommitted = readerProps.current?.onActivationIdentityCommitted as (identity: unknown) => void
+  const identity = {
+    readerSourcePath: "D:/books/series/volume-2",
+    activatedEntryPath: "D:/books/series/Book 2",
+    traversalRootPath: "D:/books",
+    traversalFrames: [
+      { directoryPath: "D:/books", currentEntryPath: "D:/books/series" },
+      { directoryPath: "D:/books/series", currentEntryPath: "D:/books/series/Book 2" },
+    ],
+  }
+  onActivationIdentityCommitted(identity)
   expect(patchData).toHaveBeenCalledWith({
     path: "D:/books/series/volume-2",
-    browserOriginPath: "D:/books",
-    activationRootPath: "D:/books/series",
+    activationIdentity: identity,
+    browserOriginPath: null,
+    activationRootPath: null,
   })
+})
+
+it("restores a complete activation identity without flattening expanded traversal frames", () => {
+  const identity = {
+    readerSourcePath: "D:/books/series/Book 2",
+    activatedEntryPath: "D:/books/series/Book 2",
+    traversalRootPath: "D:/books",
+    traversalFrames: [
+      { directoryPath: "D:/books", currentEntryPath: "D:/books/series" },
+      { directoryPath: "D:/books/series", currentEntryPath: "D:/books/series/Book 2" },
+    ],
+  }
+  const host = {
+    state: { getData: () => ({ path: "stale", activationIdentity: identity }), patchData: vi.fn() },
+    clipboard: {},
+    localFiles: {},
+  } as unknown as NodeComponentProps<NeoViewCardState>["host"]
+
+  render(<Component compId="neoview-identity" host={host} />)
+  expect(readerProps.current).toMatchObject({ initialPath: identity.readerSourcePath, initialActivationIdentity: identity })
 })
 
 it("persists the two fullscreen states independently in the NeoView Card state", () => {

@@ -4,6 +4,7 @@ import { GalleryHorizontalEnd, Grid2X2, LayoutGrid, List, RefreshCw, Rows3, Tabl
 
 import { Button } from "@/components/ui/button"
 import type {
+  ReaderActivationTraversalFrameDto,
   ReaderDirectoryEntryDto,
   ReaderDirectoryFilterDto,
   ReaderDirectoryNavigationDto,
@@ -123,7 +124,8 @@ export interface FolderBrowserPaneViewProps {
     onOpenEfuInNewTab(path: string): void
     onOpenSearchInNewTab?(snapshot: FolderSearchTabSnapshot): void
     onOpen: ReaderPanelContext["onOpen"]
-    onPrepareFileMutation: ReaderPanelContext["onPrepareFileMutation"]
+    onDeleteThroughBinding: ReaderPanelContext["onDeleteThroughBinding"]
+    onUndoFileDeletion: ReaderPanelContext["onUndoFileDeletion"]
     pickEfuFile: ReaderPanelContext["pickEfuFile"]
     systemActions: ReaderPanelContext["systemActions"]
     switchToast: ReaderPanelContext["switchToast"]
@@ -173,6 +175,7 @@ export interface FolderBrowserPaneViewProps {
     searchRootPath?: string
     pendingSearchSnapshot?: FolderSearchTabSnapshot
     inlineBranchPath?: string
+    inlineBranchTraversalFrames?: readonly ReaderActivationTraversalFrameDto[]
   }
   refs: {
     catalogRef: RefObject<DirectoryCatalog | undefined>
@@ -191,7 +194,11 @@ export interface FolderBrowserPaneViewProps {
     navigate(navigation: ReaderDirectoryNavigationDto, options?: FolderNavigationOptions): Promise<void>
     applyWatchedPage(page: ReaderDirectoryPageDto): Promise<void>
     setError: Dispatch<SetStateAction<string | undefined>>
-    activate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported">, rawDirectory?: boolean): void
+    activate(
+      entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported">,
+      rawDirectory?: boolean,
+      inlineParentFrames?: readonly ReaderActivationTraversalFrameDto[],
+    ): void
     enterRawDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void
     commitCatalog(next: DirectoryCatalog): void
     updateSort(sort: ReaderDirectorySortDto): Promise<void>
@@ -244,7 +251,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
   const {
     client, disabled, active, sourcePath, browserPath, tabBar, folderTabCount, maxFolderTabs,
     onCreateTab, onOpenInNewTab, onOpenEfuInNewTab, onOpenSearchInNewTab, onOpen,
-    onPrepareFileMutation, pickEfuFile, systemActions, switchToast, onFolderView,
+    onDeleteThroughBinding, onUndoFileDeletion, pickEfuFile, systemActions, switchToast, onFolderView,
   } = runtime
   const {
     catalog, folderView, selection, selectedPaths, viewMode, previewGridEnabled, previewCount,
@@ -254,7 +261,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     restoreState, restoreIndex, shouldLocateRestore, thumbnailStore, thumbnailProbesEnabled,
     thumbnailRefreshPending, loading, error, searchOpen, treeOpen, inlineTreeOpen, treeLayout,
     treeSize, renameRequest, focusedPath, focusedIndex, itemIdPrefix, clipboard, canRetry,
-    sessionId, searchRootPath, pendingSearchSnapshot, inlineBranchPath,
+    sessionId, searchRootPath, pendingSearchSnapshot, inlineBranchPath, inlineBranchTraversalFrames,
   } = state
   const {
     catalogRef, focusedIndexRef, chainAnchorIndexRef, listRef, gridRef, mosaicRef, listHostRef,
@@ -303,17 +310,14 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
     <Suspense fallback={<div className="h-32 animate-pulse border-t bg-muted/30" aria-label="正在加载展开文件夹" />}>
       <FolderInlineBranchPanel
         client={client}
-        path={inlineBranchPath}
-        viewMode={viewMode}
-        filter={catalog.filter}
-        sort={catalog.sort}
-        showHiddenFolders={catalog.showHiddenFolders}
-        hideMissingEfuEntries={catalog.hideMissingEfuEntries}
-        previewGridEnabled={previewGridEnabled}
-        previewCount={previewCount}
-        penetration={penetration}
+        path={inlineBranchPath} viewMode={viewMode} filter={catalog.filter} sort={catalog.sort}
+        showHiddenFolders={catalog.showHiddenFolders} hideMissingEfuEntries={catalog.hideMissingEfuEntries}
+        previewGridEnabled={previewGridEnabled} previewCount={previewCount} penetration={penetration}
+        thumbnailProbeEnabled={thumbnailProbesEnabled} contentWidthPercent={contentWidthPercent} wrapTitle={wrapTitle}
+        hoverPreviewEnabled={active && hoverPreviewEnabled} hoverPreviewDelayMs={hoverPreviewDelayMs}
+        deleteMode={deleteMode} deleteStrategy={deleteStrategy} confirmDelete={activeDeleteConfirmation}
         disabled={disabled || loading}
-        onActivate={activate}
+        onActivate={(entry) => activate(entry, false, inlineBranchTraversalFrames)}
         onEnterDirectory={enterRawDirectory}
         onUpdatePenetration={(patch) => void updatePenetration(patch)}
         onClose={closeInlineBranch}
@@ -395,7 +399,8 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
               onEnterRawDirectory={enterRawDirectory}
               onOpenInNewTab={onOpenInNewTab}
               onOpenAsBook={onOpen}
-              onPrepareFileMutation={onPrepareFileMutation}
+              onDeleteThroughBinding={onDeleteThroughBinding}
+              onUndoFileDeletion={onUndoFileDeletion}
               switchToast={switchToast}
               onRenamed={(destinationPath) =>
                 navigate(
@@ -424,29 +429,6 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                   {
                     keepTree: true,
                     focusPath: sourcePath || entry.path,
-                    preserveThumbnailCache: true,
-                  },
-                )
-              }
-              onTrashed={(entry) =>
-                navigate(
-                  { action: "refresh" },
-                  {
-                    keepTree: true,
-                    // Keep the active Reader source selected when another entry is removed.
-                    // If the source itself was removed, its missing path intentionally leaves
-                    // the saved index in place so the next (or final previous) entry is focused.
-                    focusPath: sourcePath || entry.path,
-                    preserveThumbnailCache: true,
-                  },
-                )
-              }
-              onUndoDelete={() =>
-                navigate(
-                  { action: "refresh" },
-                  {
-                    keepTree: true,
-                    focusPath: focusedPath,
                     preserveThumbnailCache: true,
                   },
                 )
@@ -660,6 +642,7 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
                         },
                       )
                     }
+                    onUndoFileDeletion={onUndoFileDeletion}
                   />
                 </Suspense>
               ) : null}

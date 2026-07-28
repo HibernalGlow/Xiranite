@@ -399,12 +399,16 @@ test("[neoview.folder.open-keeps-scroll-gui] keeps the File Card viewport when o
   await expect.poll(() => onOpen).toHaveBeenCalledWith("C:/books/item-40.cbz", {
     browserOriginPath: "C:/books",
     browserOriginEntryPath: "C:/books/item-40.cbz",
+    browserOriginTraversalFrames: [{
+      directoryPath: "C:/books",
+      currentEntryPath: "C:/books/item-40.cbz",
+    }],
   })
   await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
   expect(scroller!.scrollTop).toBe(scrollTopBeforeOpen)
 })
 
-test("[neoview.folder.delete-sibling-keeps-reader-gui] deleting an earlier sibling keeps the current reader file focused", async () => {
+test("[neoview.folder.delete-sibling-keeps-reader-gui] deleting an earlier sibling through bindings keeps the current reader file focused", async () => {
   const opened = directoryPage({
     entries: [
       { name: "earlier.cbz", path: "C:/books/earlier.cbz", kind: "file", readerSupported: true },
@@ -414,42 +418,15 @@ test("[neoview.folder.delete-sibling-keeps-reader-gui] deleting an earlier sibli
     total: 3,
     suggestedSelection: { path: "C:/books/current.cbz", index: 1 },
   })
-  const refreshed = directoryPage({
-    generation: 2,
-    entries: [
-      { name: "current.cbz", path: "C:/books/current.cbz", kind: "file", readerSupported: true },
-      { name: "later.cbz", path: "C:/books/later.cbz", kind: "file", readerSupported: true },
-    ],
-    total: 2,
-    suggestedSelection: { path: "C:/books/current.cbz", index: 0 },
-  })
-  let resolveDeletion!: () => void
-  const executeFileOperations = vi.fn(() => new Promise<{
-    results: [{ index: number; operation: { kind: "trash"; sourcePath: string }; status: "succeeded" }]
-    succeeded: number
-    failed: number
-    cancelled: number
-    undoable: number
-  }>((resolve) => {
-    resolveDeletion = () => resolve({
-      results: [{
-        index: 0,
-        operation: { kind: "trash", sourcePath: "C:/books/earlier.cbz" },
-        status: "succeeded",
-      }],
-      succeeded: 1,
-      failed: 0,
-      cancelled: 0,
-      undoable: 1,
-    })
+  let resolveDeletion!: (value: ReturnType<typeof successfulDeleteSequence>) => void
+  const onDeleteThroughBinding = vi.fn(() => new Promise<ReturnType<typeof successfulDeleteSequence>>((resolve) => {
+    resolveDeletion = resolve
   }))
-  const navigateDirectoryBrowser = vi.fn(async () => refreshed)
-  const onPrepareFileMutation = vi.fn(async () => undefined)
+  const navigateDirectoryBrowser = vi.fn()
   const onOpen = vi.fn()
   const client = {
     openDirectoryBrowser: vi.fn(async () => opened),
     navigateDirectoryBrowser,
-    executeFileOperations,
     closeDirectoryBrowser: vi.fn(async () => undefined),
   } as unknown as ReaderHttpClient
 
@@ -461,7 +438,7 @@ test("[neoview.folder.delete-sibling-keeps-reader-gui] deleting an earlier sibli
             client={client}
             disabled={false}
             sourcePath="C:/books/current.cbz"
-            onPrepareFileMutation={onPrepareFileMutation}
+            onDeleteThroughBinding={onDeleteThroughBinding}
             onOpen={onOpen}
             onGoTo={vi.fn()}
           />
@@ -476,28 +453,19 @@ test("[neoview.folder.delete-sibling-keeps-reader-gui] deleting an earlier sibli
   )
 
   await expect.poll(() => document.querySelector('[data-folder-path="C:/books/current.cbz"]')?.getAttribute("data-focused")).toBe("true")
-  await expect.poll(() => document.querySelectorAll("button").length, { timeout: 5_000 }).toBeGreaterThan(4)
   document.querySelector<HTMLButtonElement>('[data-folder-delete-button="true"]')!.click()
 
-  await expect.poll(() => executeFileOperations).toHaveBeenCalledOnce()
+  await expect.poll(() => onDeleteThroughBinding).toHaveBeenCalledWith("C:/books/earlier.cbz", "trash")
   await expect.poll(() => document.querySelector('[data-folder-path="C:/books/earlier.cbz"]')).toBeNull()
-  expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
   expect(document.querySelector('[data-folder-path="C:/books/current.cbz"]')?.getAttribute("data-focused")).toBe("true")
 
-  resolveDeletion()
-  await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
-    "browser-1",
-    { action: "refresh" },
-    expect.any(AbortSignal),
-    "C:/books/current.cbz",
-  )
-  await expect.poll(() => document.querySelector('[data-folder-path="C:/books/current.cbz"]')?.getAttribute("data-focused")).toBe("true")
-  expect(document.querySelector('[data-folder-path="C:/books/later.cbz"]')?.getAttribute("data-focused")).not.toBe("true")
-  expect(onPrepareFileMutation).toHaveBeenCalledWith("C:/books/earlier.cbz", expect.any(AbortSignal))
+  resolveDeletion(successfulDeleteSequence())
+  await expect.poll(() => onDeleteThroughBinding).toHaveBeenCalledOnce()
+  expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
   expect(onOpen).not.toHaveBeenCalled()
 })
 
-test("[neoview.folder.delete-current-advances-gui] deleting the current reader file keeps the adjacent focus fallback", async () => {
+test("[neoview.folder.delete-current-advances-gui] deleting the current reader file through bindings keeps the adjacent focus fallback", async () => {
   const opened = directoryPage({
     entries: [
       { name: "earlier.cbz", path: "C:/books/earlier.cbz", kind: "file", readerSupported: true },
@@ -507,34 +475,10 @@ test("[neoview.folder.delete-current-advances-gui] deleting the current reader f
     total: 3,
     suggestedSelection: { path: "C:/books/current.cbz", index: 1 },
   })
-  const refreshed = directoryPage({
-    generation: 2,
-    entries: [
-      { name: "earlier.cbz", path: "C:/books/earlier.cbz", kind: "file", readerSupported: true },
-      { name: "later.cbz", path: "C:/books/later.cbz", kind: "file", readerSupported: true },
-    ],
-    total: 2,
-    suggestedSelection: { path: "C:/books/later.cbz", index: 1 },
-  })
-  const executeFileOperations = vi.fn(async () => ({
-    results: [{
-      index: 0,
-      operation: { kind: "trash" as const, sourcePath: "C:/books/current.cbz" },
-      status: "succeeded" as const,
-    }],
-    succeeded: 1,
-    failed: 0,
-    cancelled: 0,
-    undoable: 1,
-  }))
-  const navigateDirectoryBrowser = vi.fn(async () => refreshed)
-  const commit = vi.fn()
-  const restore = vi.fn(async () => undefined)
-  const onPrepareFileMutation = vi.fn(async () => ({ commit, restore }))
+  const onDeleteThroughBinding = vi.fn(async () => successfulDeleteSequence())
   const client = {
     openDirectoryBrowser: vi.fn(async () => opened),
-    navigateDirectoryBrowser,
-    executeFileOperations,
+    navigateDirectoryBrowser: vi.fn(),
     closeDirectoryBrowser: vi.fn(async () => undefined),
   } as unknown as ReaderHttpClient
 
@@ -546,7 +490,7 @@ test("[neoview.folder.delete-current-advances-gui] deleting the current reader f
             client={client}
             disabled={false}
             sourcePath="C:/books/current.cbz"
-            onPrepareFileMutation={onPrepareFileMutation}
+            onDeleteThroughBinding={onDeleteThroughBinding}
             onOpen={vi.fn()}
             onGoTo={vi.fn()}
           />
@@ -563,21 +507,12 @@ test("[neoview.folder.delete-current-advances-gui] deleting the current reader f
   await expect.poll(() => document.querySelector('[data-folder-path="C:/books/current.cbz"]')?.getAttribute("data-focused")).toBe("true")
   document.querySelector<HTMLButtonElement>('[data-folder-delete-button="true"]')!.click()
 
-  await expect.poll(() => executeFileOperations).toHaveBeenCalledOnce()
-  await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
-    "browser-1",
-    { action: "refresh" },
-    expect.any(AbortSignal),
-    "C:/books/current.cbz",
-  )
+  await expect.poll(() => onDeleteThroughBinding).toHaveBeenCalledWith("C:/books/current.cbz", "trash")
   await expect.poll(() => document.querySelector('[data-folder-path="C:/books/later.cbz"]')?.getAttribute("data-focused")).toBe("true")
   expect(document.querySelector('[data-folder-path="C:/books/earlier.cbz"]')?.getAttribute("data-focused")).not.toBe("true")
-  expect(onPrepareFileMutation).toHaveBeenCalledWith("C:/books/current.cbz", expect.any(AbortSignal))
-  expect(commit).toHaveBeenCalledOnce()
-  expect(restore).not.toHaveBeenCalled()
 })
 
-test("[neoview.folder.optimistic-delete-rollback-gui] restores the hidden entry when deletion fails", async () => {
+test("[neoview.folder.optimistic-delete-rollback-gui] restores the hidden entry when a binding deletion fails", async () => {
   const opened = directoryPage({
     entries: [
       { name: "earlier.cbz", path: "C:/books/earlier.cbz", kind: "file", readerSupported: true },
@@ -589,16 +524,13 @@ test("[neoview.folder.optimistic-delete-rollback-gui] restores the hidden entry 
   })
   const refreshed = directoryPage({ ...opened, generation: 2 })
   let rejectDeletion!: () => void
-  const executeFileOperations = vi.fn(() => new Promise<never>((_resolve, reject) => {
+  const onDeleteThroughBinding = vi.fn(() => new Promise<never>((_resolve, reject) => {
     rejectDeletion = () => reject(new Error("recycle bin unavailable"))
   }))
   const navigateDirectoryBrowser = vi.fn(async () => refreshed)
-  const commit = vi.fn()
-  const restore = vi.fn(async () => undefined)
   const client = {
     openDirectoryBrowser: vi.fn(async () => opened),
     navigateDirectoryBrowser,
-    executeFileOperations,
     closeDirectoryBrowser: vi.fn(async () => undefined),
   } as unknown as ReaderHttpClient
 
@@ -610,7 +542,7 @@ test("[neoview.folder.optimistic-delete-rollback-gui] restores the hidden entry 
             client={client}
             disabled={false}
             sourcePath="C:/books/current.cbz"
-            onPrepareFileMutation={vi.fn(async () => ({ commit, restore }))}
+            onDeleteThroughBinding={onDeleteThroughBinding}
             onOpen={vi.fn()}
             onGoTo={vi.fn()}
           />
@@ -627,9 +559,8 @@ test("[neoview.folder.optimistic-delete-rollback-gui] restores the hidden entry 
   await expect.element(page.getByText("earlier.cbz", { exact: true })).toBeVisible()
   document.querySelector<HTMLButtonElement>('[data-folder-delete-button="true"]')!.click()
 
-  await expect.poll(() => executeFileOperations).toHaveBeenCalledOnce()
+  await expect.poll(() => onDeleteThroughBinding).toHaveBeenCalledWith("C:/books/earlier.cbz", "trash")
   await expect.poll(() => document.querySelector('[data-folder-path="C:/books/earlier.cbz"]')).toBeNull()
-  expect(navigateDirectoryBrowser).not.toHaveBeenCalled()
 
   rejectDeletion()
   await expect.poll(() => navigateDirectoryBrowser).toHaveBeenCalledWith(
@@ -639,8 +570,6 @@ test("[neoview.folder.optimistic-delete-rollback-gui] restores the hidden entry 
     "C:/books/current.cbz",
   )
   await expect.element(page.getByText("earlier.cbz", { exact: true })).toBeVisible()
-  expect(restore).toHaveBeenCalledOnce()
-  expect(commit).not.toHaveBeenCalled()
 })
 
 test("[neoview.folder.reader-delete-event-gui] removes the penetrated activation root after a Reader action and refreshes the File Card", async () => {
@@ -735,5 +664,16 @@ function createPixelThumbnailRegistration() {
     dispose: () => {
       for (const url of urls.values()) URL.revokeObjectURL(url)
     },
+  }
+}
+
+
+function successfulDeleteSequence() {
+  return {
+    bindingId: "system-file-card",
+    status: "succeeded" as const,
+    completedActions: 1,
+    action: "file.delete-current" as const,
+    outcome: { status: "succeeded" as const },
   }
 }

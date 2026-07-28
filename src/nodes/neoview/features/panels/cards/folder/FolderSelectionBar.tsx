@@ -6,6 +6,7 @@ import { useContextMenu } from "@/components/context-menu"
 import type {
   ReaderDirectorySelectionDescriptorDto,
   ReaderDirectorySelectionOperationSnapshotDto,
+  ReaderFileUndoResultDto,
   ReaderFileUndoStateDto,
   ReaderHttpClient,
 } from "../../../../adapters/reader-http-client"
@@ -13,7 +14,7 @@ import type { ReaderSwitchToastPort } from "../../../switch-toast/ReaderSwitchTo
 import type { ReaderFolderConfirmationConfig } from "../../../../adapters/reader-http-client"
 import { useFolderClipboard } from "./FolderClipboard"
 
-export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, currentPath, canPasteToCurrentDirectory = true, disabled, chainSelectMode, clickBehavior, switchToast, confirmations = { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true }, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted, onDeleteCompleted }: {
+export default function FolderSelectionBar({ client, sessionId, selection, selectedCount, total, currentPath, canPasteToCurrentDirectory = true, disabled, chainSelectMode, clickBehavior, switchToast, confirmations = { trash: false, permanentDelete: true, batchTrash: false, batchPermanentDelete: true }, onSelectAll, onInvert, onToggleChain, onToggleClickBehavior, onClear, onClose, onTrashCompleted, onDeleteCompleted, onUndoFileDeletion }: {
   client: ReaderHttpClient
   sessionId: string
   selection: ReaderDirectorySelectionDescriptorDto
@@ -34,6 +35,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
   onClose(): void
   onTrashCompleted(snapshot: ReaderDirectorySelectionOperationSnapshotDto): void | Promise<void>
   onDeleteCompleted?(snapshot: ReaderDirectorySelectionOperationSnapshotDto): void | Promise<void>
+  onUndoFileDeletion?(): Promise<ReaderFileUndoResultDto>
 }) {
   const clipboard = useFolderClipboard()
   const contextMenu = useContextMenu()
@@ -137,25 +139,20 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
   }
 
   async function undoLatestTrash() {
-    if (undoPending || !undoState?.available || !client.undoLatestFileOperations) return
-    const controller = new AbortController()
+    if (undoPending || !undoState?.available || !onUndoFileDeletion) return
     setUndoPending(true)
     setFeedback(undefined)
     try {
-      const result = await client.undoLatestFileOperations(true, controller.signal)
+      const result = await onUndoFileDeletion()
       if (result.failed > 0) throw new Error(`撤销完成 ${result.succeeded} 项，${result.failed} 项失败。`)
-      const completed = operation
-      if (completed) await completedRef.current(completed)
       setUndoState(undefined)
       const message = `已撤销 ${result.succeeded} 项回收站操作`
       setFeedback({ kind: "status", text: message })
       switchToast?.show({ title: message })
     } catch (error) {
-      if (!controller.signal.aborted) {
-        const message = errorMessage(error)
-        setFeedback({ kind: "alert", text: `撤销失败：${message}` })
-        switchToast?.show({ title: `撤销失败：${message}` })
-      }
+      const message = errorMessage(error)
+      setFeedback({ kind: "alert", text: `撤销失败：${message}` })
+      switchToast?.show({ title: `撤销失败：${message}` })
     } finally {
       setUndoPending(false)
     }
@@ -255,7 +252,7 @@ export default function FolderSelectionBar({ client, sessionId, selection, selec
               else void item.onSelect()
             }}
           ><Trash /></Action>
-          {undoState?.available && client.undoLatestFileOperations ? (
+          {undoState?.available && onUndoFileDeletion ? (
             <Action
               label="撤销上次移到回收站"
               disabled={disabled || undoPending}

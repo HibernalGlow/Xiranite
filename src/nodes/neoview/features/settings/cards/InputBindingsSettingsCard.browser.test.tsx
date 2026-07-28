@@ -78,3 +78,71 @@ test("[neoview.bindings.radial-action-editor] shows a radial binding with its ac
   await expect.element(page.getByText("轮盘 default / delete").first()).toBeVisible()
   await expect.element(page.getByRole("combobox", { name: "后续动作 1" })).toHaveValue("reader.next-book")
 })
+
+test("[neoview.bindings.file-card-command-editor] exposes fixed File Card commands with independently editable follow-up actions", async () => {
+  const save = vi.fn(async ({ bindings }) => ({ bindings: bindings ?? [] }))
+  await render(
+    <div style={{ width: 960 }}>
+      <InputBindingsEditor
+        value={{ bindings: [
+          {
+            id: "system-file-card-trash-current",
+            action: "file.delete-current",
+            context: "reader",
+            enabled: true,
+            input: { device: "command", command: "file-card.trash-current" },
+          },
+          {
+            id: "system-file-card-delete-current",
+            action: "file.delete-current",
+            context: "reader",
+            enabled: true,
+            input: { device: "command", command: "file-card.delete-current" },
+          },
+        ] }}
+        onSave={save}
+      />
+    </div>,
+  )
+
+  await expect.element(page.getByText("文件卡 · 移到回收站").first()).toBeVisible()
+  await expect.element(page.getByText("文件卡 · 永久删除").first()).toBeVisible()
+  const enabledSwitches = page.getByRole("switch", { name: "删除文件启用" })
+  await expect.element(enabledSwitches.nth(0)).toBeDisabled()
+  await expect.element(enabledSwitches.nth(1)).toBeDisabled()
+
+  const followUps = page.getByRole("button", { name: "添加", exact: true })
+  await followUps.nth(0).click()
+  await page.getByRole("combobox", { name: "后续动作 1" }).first().selectOptions("reader.next-book")
+  await expect.poll(() => save).toHaveBeenCalledWith({ bindings: expect.arrayContaining([
+    expect.objectContaining({ id: "system-file-card-trash-current", followUpActions: ["reader.next-book"] }),
+    expect.objectContaining({ id: "system-file-card-delete-current" }),
+  ]) })
+})
+
+test("[neoview.bindings.area-hold-editor] exposes configurable timing for a nine-area hold", async () => {
+  const save = vi.fn(async ({ bindings }) => ({ bindings: bindings ?? [] }))
+  await render(
+    <div style={{ width: 960 }}>
+      <InputBindingsEditor
+        value={{ bindings: [{
+          id: "area-binding",
+          action: "reader.next-page",
+          context: "reader",
+          enabled: true,
+          input: { device: "area", area: "middle-center", button: 0, action: "click" },
+        }] }}
+        onSave={save}
+      />
+    </div>,
+  )
+
+  await page.getByRole("combobox", { name: "区域点击方式" }).selectOptions("hold")
+  const duration = page.getByRole("spinbutton", { name: "持续毫秒" })
+  await expect.element(duration).toHaveValue(500)
+  await duration.fill("750")
+  await expect.poll(() => save).toHaveBeenLastCalledWith({ bindings: [expect.objectContaining({
+    id: "area-binding",
+    input: { device: "area", area: "middle-center", button: 0, action: "hold", durationMs: 750, moveTolerancePx: 12 },
+  })] })
+})

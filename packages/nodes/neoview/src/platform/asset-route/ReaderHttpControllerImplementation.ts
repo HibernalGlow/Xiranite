@@ -3,7 +3,6 @@ import { createHash } from "node:crypto"
 import { stat } from "node:fs/promises"
 import { appendUrlPath } from "@xiranite/shared"
 import { z } from "zod"
-
 import { DEFAULT_READER_LAYOUT, type FrameSnapshot, type ReaderLayout } from "../../domain/frame/frame.js"
 import type { ViewSource } from "../../domain/book/book.js"
 import type { ReaderPage } from "../../domain/page/page.js"
@@ -33,6 +32,7 @@ import type { ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStor
 import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
 import { ReaderHierarchicalBookTraversal, type ReaderBookTraversalCursor } from "../../application/reader/ReaderHierarchicalBookTraversal.js"
+import { resolveReaderActivationIdentity } from "../../application/reader/ReaderActivationIdentity.js"
 import { ReaderFolderPenetrationResolver } from "../../application/browser/ReaderFolderPenetrationResolver.js"
 import { ReaderEmmMetadataRevisionConflict, ReaderEmmMetadataService } from "../../application/metadata/ReaderEmmMetadataService.js"
 import { legacyEmmBookPathKey } from "../../application/metadata/LegacyEmmBookMetadataCodec.js"
@@ -128,6 +128,7 @@ import {
   DEFAULT_NEOVIEW_VIEW_DEFAULTS,
   DEFAULT_NEOVIEW_SUPER_RESOLUTION_CONFIG,
   DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG,
+  DEFAULT_NEOVIEW_STARTUP_CONFIG,
   DEFAULT_NEOVIEW_PRELOAD_CONFIG,
   parseNeoviewBoardLayoutPatch,
   parseNeoviewCardLayoutPatch,
@@ -139,6 +140,7 @@ import {
   parseNeoviewPageTransitionPatch,
   parseNeoviewSwitchToastPatch,
   parseNeoviewInfoOverlayPatch,
+  parseNeoviewStartupPatch,
   parseNeoviewSystemMonitorPatch,
   parseNeoviewPreloadPatch,
   parseNeoviewEmmPatch,
@@ -160,6 +162,8 @@ import {
   type NeoviewPageTransitionPatch,
   type NeoviewSwitchToastPatch,
   type NeoviewInfoOverlayPatch,
+  type NeoviewStartupConfig,
+  type NeoviewStartupPatch,
   type NeoviewSystemMonitorConfig,
   type NeoviewPreloadConfig,
   type NeoviewPreloadPatch,
@@ -199,7 +203,6 @@ import {
   type ReaderVoiceControlConfig,
 } from "../../application/config/ReaderVoiceControlConfig.js"
 import { DEFAULT_READER_INPUT_BINDINGS, cloneReaderInputBindings, type ReaderInputBindingsConfig } from "../../domain/input/ReaderInputBindings.js"
-
 const SESSION_PATH = /^\/reader\/s\/([^/]+)$/
 const SESSION_RELOAD_PATH = /^\/reader\/s\/([^/]+)\/reload$/
 const SESSION_SOURCE_CHANGES_PATH = /^\/reader\/s\/([^/]+)\/source-changes$/
@@ -225,7 +228,6 @@ const PRESENTATION_CACHE_PATH = "/reader/cache/presentation"
 const PRESENTATION_CACHE_CLEANUP_PATH = "/reader/cache/presentation/cleanup"
 const MAX_CONTROL_BODY_BYTES = 64 * 1024
 const PRELOAD_CONTEXT_FIELDS = new Set(["mode", "velocityPagesPerSecond", "stableForMs", "focused"])
-
 import type {
   ReaderEmmConnectionProbeResult,
   ReaderEmmConnectionProbeSource,
@@ -334,6 +336,7 @@ export class ReaderHttpController implements AsyncDisposable {
   #pageTransition: ReaderPageTransitionSettings
   #switchToast: ReaderSwitchToastSettings
   #infoOverlay: ReaderInfoOverlaySettings
+  #startup: NeoviewStartupConfig
   #systemMonitor: NeoviewSystemMonitorConfig
   #preload: NeoviewPreloadConfig
   #emm: NeoviewEmmConfig
@@ -359,6 +362,7 @@ export class ReaderHttpController implements AsyncDisposable {
   readonly #updatePageTransition?: ReaderHttpControllerOptions["updatePageTransition"]
   readonly #updateSwitchToast?: ReaderHttpControllerOptions["updateSwitchToast"]
   readonly #updateInfoOverlay?: ReaderHttpControllerOptions["updateInfoOverlay"]
+  readonly #updateStartup?: ReaderHttpControllerOptions["updateStartup"]
   readonly #updateSystemMonitor?: ReaderHttpControllerOptions["updateSystemMonitor"]
   readonly #updatePreload?: ReaderHttpControllerOptions["updatePreload"]
   readonly #updateEmm?: ReaderHttpControllerOptions["updateEmm"]
@@ -379,7 +383,6 @@ export class ReaderHttpController implements AsyncDisposable {
       promise: Promise<ReaderBookStaticMetadata>
     }
   >()
-
   constructor(options: ReaderHttpControllerOptions) {
     if (Boolean(options.superResolutionArtifactPages) !== Boolean(options.superResolutionArtifactStore)) {
       throw new TypeError("superResolutionArtifactPages and superResolutionArtifactStore must be provided together")
@@ -689,6 +692,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#pageTransition = options.pageTransition ?? DEFAULT_READER_PAGE_TRANSITION
     this.#switchToast = options.switchToast ?? DEFAULT_READER_SWITCH_TOAST
     this.#infoOverlay = options.infoOverlay ?? DEFAULT_READER_INFO_OVERLAY
+    this.#startup = options.startup ?? DEFAULT_NEOVIEW_STARTUP_CONFIG
     this.#systemMonitor = options.systemMonitor ?? DEFAULT_NEOVIEW_SYSTEM_MONITOR_CONFIG
     this.#preload = options.preload ?? DEFAULT_NEOVIEW_PRELOAD_CONFIG
     this.#emm = options.emm ?? DEFAULT_NEOVIEW_EMM_CONFIG
@@ -718,6 +722,7 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updatePageTransition = options.updatePageTransition
     this.#updateSwitchToast = options.updateSwitchToast
     this.#updateInfoOverlay = options.updateInfoOverlay
+    this.#updateStartup = options.updateStartup
     this.#updateSystemMonitor = options.updateSystemMonitor
     this.#updatePreload = options.updatePreload
     this.#updateEmm = options.updateEmm
@@ -730,12 +735,10 @@ export class ReaderHttpController implements AsyncDisposable {
     this.#updateRadialMenu = options.updateRadialMenu
     this.#updateVoiceControl = options.updateVoiceControl
   }
-
   async handle(request: Request): Promise<Response | undefined> {
     const url = new URL(request.url)
     if (!url.pathname.startsWith("/reader/")) return undefined
     if (!this.#isAuthorized(request, url)) return jsonResponse({ error: "Unauthorized" }, 401)
-
     const assetResponse = await this.#assets.handle(request)
     if (assetResponse) return assetResponse
     const superResolutionArtifactResponse = await this.#superResolutionArtifacts?.handle(request)
@@ -762,7 +765,6 @@ export class ReaderHttpController implements AsyncDisposable {
     if (aiResponse) return aiResponse
     const opdsResponse = await this.#opds.handle(request)
     if (opdsResponse) return opdsResponse
-
     if (url.pathname === PRESENTATION_CACHE_PATH && request.method === "GET") {
       return jsonResponse(await this.#cacheService.status())
     }
@@ -833,7 +835,6 @@ export class ReaderHttpController implements AsyncDisposable {
       }
       return jsonResponse(await this.#cacheService.cleanup(reason))
     }
-
     if (url.pathname === "/reader/sessions" && request.method === "POST") {
       return this.#openSession(request)
     }
@@ -847,7 +848,6 @@ export class ReaderHttpController implements AsyncDisposable {
     if (url.pathname === "/reader/config" && request.method === "PATCH") {
       return this.#patchShellConfig(request)
     }
-
     const pagesMatch = SESSION_PAGES_PATH.exec(url.pathname)
     if (pagesMatch && request.method === "GET") return this.#listPages(pagesMatch[1]!, url, request.signal)
     const frameWindowMatch = SESSION_FRAME_WINDOW_PATH.exec(url.pathname)
@@ -915,7 +915,6 @@ export class ReaderHttpController implements AsyncDisposable {
     if (sessionMatch && request.method === "DELETE") return this.#closeSession(sessionMatch[1]!)
     return jsonResponse({ error: "Reader route not found" }, 404)
   }
-
   async [Symbol.asyncDispose](): Promise<void> {
     for (const load of this.#bookMetadataLoads.values()) load.controller.abort()
     this.#bookMetadataLoads.clear()
@@ -1032,7 +1031,6 @@ export class ReaderHttpController implements AsyncDisposable {
     }
     if (errors.length) throw new AggregateError(errors, "Failed to close the reader HTTP controller.")
   }
-
   async #openSession(request: Request): Promise<Response> {
     const body = await readControlJson(request)
     if (!body || typeof body.path !== "string" || !body.path.trim()) {
@@ -1077,17 +1075,7 @@ export class ReaderHttpController implements AsyncDisposable {
         signal: request.signal,
         archivePasswords,
       })
-      if (provenance)
-        this.#bookTraversalCursors.set(session.id, {
-          rootPath: provenance.browserOriginPath,
-          frames: [
-            {
-              directoryPath: provenance.browserOriginPath,
-              currentEntryPath: provenance.browserOriginEntryPath,
-              selfTerminal: provenance.browserOriginSelfTerminal,
-            },
-          ],
-        })
+      if (provenance) this.#bookTraversalCursors.set(session.id, provenance)
       this.#retainSessionFrame(session, session.snapshot())
       return jsonResponse(this.#sessionDto(session), 201)
     } catch (error) {
@@ -1095,7 +1083,6 @@ export class ReaderHttpController implements AsyncDisposable {
       return jsonResponse({ error: errorMessage(error) }, 400)
     }
   }
-
   async #patchShellConfig(request: Request): Promise<Response> {
     const rawBody = await readControlJson(request)
     if (!rawBody) return jsonResponse({ error: "Reader config patch must be a JSON object" }, 400)
@@ -1269,6 +1256,25 @@ export class ReaderHttpController implements AsyncDisposable {
       }
       const operation = this.#configUpdateQueue.then(async () => {
         this.#systemMonitor = await this.#updateSystemMonitor!(parsed.patch, parsed.tomlPatch)
+      })
+      this.#configUpdateQueue = operation.catch(() => undefined)
+      try {
+        await operation
+        return jsonResponse(this.#configDto())
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 500)
+      }
+    }
+    if (Object.hasOwn(body, "startup")) {
+      if (!this.#updateStartup) return jsonResponse({ error: "Reader startup config is read-only" }, 405)
+      let parsed: ReturnType<typeof parseNeoviewStartupPatch>
+      try {
+        parsed = parseNeoviewStartupPatch(body)
+      } catch (error) {
+        return jsonResponse({ error: errorMessage(error) }, 400)
+      }
+      const operation = this.#configUpdateQueue.then(async () => {
+        this.#startup = await this.#updateStartup!(parsed.patch, parsed.tomlPatch)
       })
       this.#configUpdateQueue = operation.catch(() => undefined)
       try {
@@ -1584,7 +1590,6 @@ export class ReaderHttpController implements AsyncDisposable {
       return jsonResponse({ error: errorMessage(error) }, 500)
     }
   }
-
   #configDto() {
     return {
       schemaVersion: 1 as const,
@@ -1605,6 +1610,7 @@ export class ReaderHttpController implements AsyncDisposable {
       pageTransition: this.#pageTransition,
       switchToast: this.#switchToast,
       infoOverlay: this.#infoOverlay,
+      startup: this.#startup,
       systemMonitor: this.#systemMonitor,
       preload: this.#preload,
       emm: this.#emm,
@@ -1622,12 +1628,10 @@ export class ReaderHttpController implements AsyncDisposable {
       voiceControl: this.#voiceControl,
     }
   }
-
   #getSession(encodedSessionId: string): Response {
     const session = this.#findSession(encodedSessionId)
     return session ? jsonResponse(this.#sessionDto(session)) : jsonResponse({ error: "Reader session not found" }, 404)
   }
-
   async #listPages(encodedSessionId: string, url: URL, signal?: AbortSignal): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
@@ -1649,7 +1653,6 @@ export class ReaderHttpController implements AsyncDisposable {
     const nextCursor = cursor + pages.length < catalog.length ? cursor + pages.length : undefined
     return jsonResponse({ pages, nextCursor, total: catalog.length })
   }
-
   async #frameWindow(encodedSessionId: string, url: URL, signal?: AbortSignal): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
@@ -1675,7 +1678,6 @@ export class ReaderHttpController implements AsyncDisposable {
       return jsonResponse({ error: errorMessage(error) }, 400)
     }
   }
-
   async #metadata(encodedSessionId: string, signal?: AbortSignal): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
@@ -1702,7 +1704,6 @@ export class ReaderHttpController implements AsyncDisposable {
       page: page ? pageMetadata(page, pageStats ?? (!page.timestamps && !page.entryPath ? bookStats : undefined)) : undefined,
     })
   }
-
   async #pageMediaInformationResponse(encodedSessionId: string, signal?: AbortSignal): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
@@ -1715,7 +1716,6 @@ export class ReaderHttpController implements AsyncDisposable {
       return jsonResponse({ error: errorMessage(error) }, 503)
     }
   }
-
   async #emmMetadataResponse(encodedSessionId: string, request: Request): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
@@ -1750,7 +1750,6 @@ export class ReaderHttpController implements AsyncDisposable {
       return jsonResponse({ error: errorMessage(error) }, 500)
     }
   }
-
   async #navigate(encodedSessionId: string, request: Request): Promise<Response> {
     const session = this.#findSession(encodedSessionId)
     if (!session) return jsonResponse({ error: "Reader session not found" }, 404)
@@ -2402,6 +2401,7 @@ export class ReaderHttpController implements AsyncDisposable {
     const frame = session.snapshot()
     return {
       sessionId: session.id,
+      activationIdentity: resolveReaderActivationIdentity(session.book.source.path, this.#bookTraversalCursors.get(session.id)),
       book: {
         id: session.book.id,
         displayName: session.book.displayName,

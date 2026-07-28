@@ -103,9 +103,10 @@ export class ReaderHierarchicalBookTraversal {
       }
       const entries = await this.#entries(frame.directoryPath, sort, request.randomSeed, signal)
       const currentIndex = entries.findIndex((entry) => this.pathIdentity(entry.path) === this.pathIdentity(frame.currentEntryPath))
+      if (currentIndex < 0) continue
       const start = request.direction === "next"
-        ? (currentIndex < 0 ? 0 : currentIndex + 1)
-        : (currentIndex < 0 ? entries.length - 1 : currentIndex - 1)
+        ? currentIndex + 1
+        : currentIndex - 1
       const parentFrames = frames.slice(0, frameIndex)
       const candidate = await this.#scan(
         entries,

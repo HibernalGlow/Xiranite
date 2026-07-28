@@ -1,6 +1,6 @@
 import type { PageDimensions, PageMediaKind, ViewSource } from "@xiranite/node-neoview/ui-core"
 import type { ReaderFolderPenetrationTerminalKindDto } from "./reader-folder-penetration-contract"
-import type { ReaderFileOperationResultDto } from "./reader-http-core-contract"
+import type { ReaderActivationTraversalFrameDto, ReaderFileOperationResultDto } from "./reader-http-core-contract"
 
 export interface ReaderExplorerContextMenuPlanItemDto {
   entryKey: string
@@ -68,6 +68,7 @@ export interface ReaderActivationProvenanceDto {
   browserOriginPath: string
   browserOriginEntryPath: string
   browserOriginSelfTerminal?: boolean
+  browserOriginTraversalFrames?: readonly ReaderActivationTraversalFrameDto[]
 }
 export interface ReaderDirectorySelectionOperationSnapshotDto {
   id: string

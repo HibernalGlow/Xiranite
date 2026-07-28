@@ -7,7 +7,6 @@ import {
   READER_INPUT_ACTION_LABELS,
   ReaderSlideshow,
   type ReaderPresentation,
-  type ReaderInputAction,
   type ReaderInputActionExecutionContext,
   type ReaderInputActionOutcome,
   type ReaderInputBindingsConfig,
@@ -65,7 +64,8 @@ import { useReaderAdjacentPagePreloader } from "../features/reader/useReaderAdja
 import { useReaderSpeculativePreloadGate } from "../features/reader/useReaderSpeculativePreloadGate"
 import { mergeReaderFolderViewPatch } from "./ReaderFolderViewPersistence"
 import { persistReaderRadialMenu } from "./ReaderRadialMenuPersistence"
-import { publishFolderEntryRemoved } from "../features/panels/cards/folder/FolderNavigationEvents"
+import { publishFolderEntryRemoved, publishFolderEntryRestored } from "../features/panels/cards/folder/FolderNavigationEvents"
+import { publishReaderLibraryMutation } from "../features/library/reader-library-mutations"
 import { useReaderImagePreloader } from "../features/reader/useReaderImagePreloader"
 import { watchReaderSourceChanges } from "../features/reader/watchReaderSourceChanges"
 import { neoviewDebug, neoviewDebugAsync } from "../neoviewDebug"
@@ -76,8 +76,14 @@ import { ReaderWindowBar } from "../features/shell/ReaderWindowBar"
 import { ThumbnailStrip } from "../features/thumbnails/ThumbnailStrip"
 import { useReaderInputRouter } from "../features/input/ReaderInputRouter"
 import { createReaderCursorAutoHideActionPort, mergeReaderViewDefaults } from "./ReaderViewDefaultsPersistence"
-import { executeReaderInputAction } from "../features/input/ReaderInputActionExecutor"
+import { executeReaderInputAction, type ReaderCurrentFileDeleteOptions } from "../features/input/ReaderInputActionExecutor"
 import { readerCurrentFileDeleteConfirmation } from "../features/input/ReaderCurrentFileDeleteConfirmation"
+import {
+  type ReaderDeletionCommand,
+  type ReaderDeletionPreparation,
+  type ReaderDeletionTransactionCoordinator,
+} from "../features/files/ReaderDeletionTransactionCoordinator"
+import { cloneReaderActivationIdentity, readerActivationProvenanceFromIdentity } from "./ReaderActivationIdentity"
 import { createReaderColorFilterStore } from "../features/color-filter/ReaderColorFilterStore"
 import { migrateLegacyReaderColorFilter } from "../features/color-filter/LegacyReaderColorFilterMigration"
 import { commitReaderNavigation, createReaderPageTransitionStore } from "../features/page-transition/ReaderPageTransitionStore"
@@ -99,7 +105,7 @@ import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
 import { workspaceConfigEqual, readerWorkspaceWithSession, splitReaderWorkspacePatch, INITIAL_VIEW_DEFAULTS, INITIAL_HISTORY_LIST_PREFERENCES, INITIAL_BOOKMARK_LIST_PREFERENCES, INITIAL_PAGE_LIST_PREFERENCES, INITIAL_BOOK_DEFAULTS, INITIAL_SLIDESHOW_CONFIG, INITIAL_PRELOAD_CONFIG, INITIAL_FOLDER_VIEW_CONFIG, loadReaderSidebar, LazyReaderSidebar, LazyReaderGestureInputRuntime, LazyReaderRadialMenuOverlay, LazyReaderSettingsWindow, loadReaderFrame, LazyReaderFrame, LazyReaderBackgroundLayer, LazyReaderViewToolbar, LazyReaderSwitchToastRuntime, LazyReaderInfoOverlayRuntime, loadReaderPresentation, DeferredSidebarFloatingController, shellControlHydration, shellControlSnapshot, defaultShellControlSnapshot, edgeSurfaceStyle, readerPathSegments, fileMutationContainsSource, applyNavigation, waitForReaderOperationIdle, errorMessage } from "./ReaderAppModules"
 import type { ReaderAppProps } from "./ReaderAppModules"
 
-export function createReaderAppFileActions(context: any) {
+export function attachReaderAppFileActions(context: any) {
   const {
     surface,
     floatingFrame,
@@ -116,8 +122,9 @@ export function createReaderAppFileActions(context: any) {
     operationRef,
     openOperationRef,
     activeSourcePathRef,
-    activationRootPathRef,
-    commitPath,
+    activationIdentityRef,
+    commitOpenedSession,
+    clearActivationIdentity,
     navigationPendingRef,
     slideshowSessionRef,
     slideshow,
@@ -149,7 +156,6 @@ export function createReaderAppFileActions(context: any) {
     presentationTouchedRef,
     path,
     setPath,
-    browserOriginPath,
     setBrowserOriginPath,
     session,
     setSession,
@@ -263,9 +269,10 @@ export function createReaderAppFileActions(context: any) {
     persistVoiceControl,
     inspectLegacySettings,
     importLegacySettings,
+    deletionCoordinator,
   } = context
 
-  const switchAdjacentBook = (direction: "next" | "previous") => context.switchAdjacentBook(direction)
+  const switchAdjacentBook = (direction: "next" | "previous") => context.switchAdjacentBook(direction, { manageBusy: false })
 
   async function persistSlideshow(patch: ReaderSlideshowPatch["slideshow"]) {
       slideshow.configure(patch)
@@ -342,141 +349,171 @@ export function createReaderAppFileActions(context: any) {
       if (sessionId) await clientRef.current.close(sessionId).catch(() => undefined)
     }
 
-  async function prepareFileMutation(targetPath: string, signal?: AbortSignal): Promise<import("../features/panels/registry").ReaderFileMutationPreparation | undefined> {
-      signal?.throwIfAborted()
+  async function requestDeleteCurrentFile(options?: ReaderCurrentFileDeleteOptions): Promise<ReaderInputActionOutcome> {
       const sessionId = sessionRef.current
-      const sourcePath = activeSourcePathRef.current.trim()
-      const activationRootPath = activationRootPathRef.current
-      if (!sessionId || !sourcePath || !fileMutationContainsSource(targetPath, sourcePath)) return undefined
-  
-      slideshow.stop()
-      await clientRef.current.close(sessionId)
-      if (sessionRef.current !== sessionId) return undefined
-  
-      sessionRef.current = undefined
-      setSession(undefined)
-      setSlideshowFadeFrame(undefined)
-      setMagnifierEnabled(false)
-      let settled = false
-      return {
-        commit: () => {
-          if (settled || sessionRef.current) return
-          settled = true
-          activeSourcePathRef.current = ""
-          activationRootPathRef.current = ""
-          setPath("")
-          commitPath("", browserOriginPath)
-        },
-        restore: async () => {
-          if (settled || sessionRef.current) return
-          settled = true
-          const reopened = await clientRef.current.open(sourcePath)
-          if (sessionRef.current) {
-            void clientRef.current.close(reopened.sessionId).catch(() => undefined)
-            return
-          }
-          sessionRef.current = reopened.sessionId
-          activeSourcePathRef.current = sourcePath
-          activationRootPathRef.current = activationRootPath
-          setPath(sourcePath)
-          setSession(reopened)
-          commitPath(sourcePath, browserOriginPath)
-        },
-      }
-    }
-
-  async function requestDeleteCurrentFile(adjacentDirection?: "next" | "previous"): Promise<ReaderInputActionOutcome> {
-      const sessionId = sessionRef.current
-      const readerSourcePath = activeSourcePathRef.current.trim()
-      const activationRootPath = activationRootPathRef.current.trim()
-      if (!sessionId || !readerSourcePath || !activationRootPath || operationRef.current || !clientRef.current.executeFileOperations) return { status: "unavailable" }
-      const confirmTrash = folderViewRef.current.confirmations.trash
-      if (confirmTrash && !contextMenu) {
+      const activationIdentity = cloneReaderActivationIdentity(activationIdentityRef.current)
+      const targetPath = options?.targetPath?.trim() || activationIdentity.activatedEntryPath.trim()
+      if (!targetPath || operationRef.current || !clientRef.current.executeFileOperations) return { status: "unavailable" }
+      const strategy = options?.strategy ?? "trash"
+      const confirmationRequired = !options?.confirmationHandled && (strategy === "trash" ? folderViewRef.current.confirmations.trash : folderViewRef.current.confirmations.permanentDelete)
+      if (confirmationRequired && !contextMenu) {
         setError("当前界面无法打开删除确认框，文件未删除。")
         return { status: "unavailable" }
       }
-      const confirmed = !confirmTrash || await contextMenu!.confirm(readerCurrentFileDeleteConfirmation(activationRootPath))
-      if (!confirmed) return { status: "cancelled" }
-      const switched = adjacentDirection ? await switchAdjacentBook(adjacentDirection) : false
-      const consumedAction = switched ? adjacentDirection === "next" ? "reader.next-book" : "reader.previous-book" : undefined
-      return deleteCurrentFile(sessionId, activationRootPath, readerSourcePath, consumedAction, switched ? sessionRef.current : undefined)
+      const activeSession = sessionId && fileMutationContainsSource(targetPath, activationIdentity.readerSourcePath)
+        ? { sessionId, activationIdentity }
+        : undefined
+      const command: ReaderDeletionCommand = {
+        trigger: options?.trigger ?? "reader-input",
+        targetPath,
+        strategy,
+        confirmationRequired,
+        ...(options?.adjacentDirection ? { adjacentDirection: options.adjacentDirection } : {}),
+        ...(activeSession ? { activeSession } : {}),
+      }
+      const coordinator = deletionCoordinator as ReaderDeletionTransactionCoordinator
+      setError(undefined)
+      const outcome = await coordinator.delete(command, {
+        started: () => setBusy(true),
+        settled: () => setBusy(false),
+        confirm: async (captured) => !captured.confirmationRequired
+          || await contextMenu!.confirm(readerCurrentFileDeleteConfirmation(captured.targetPath, captured.strategy)),
+        prepare: prepareDeletion,
+        mutate: mutateDeletion,
+        commit: commitDeletion,
+        rollback: rollbackDeletion,
+      })
+      if (outcome.status === "failed") setError(errorMessage(outcome.error))
+      return outcome
     }
 
-  async function deleteCurrentFile(
-    sessionId: string,
-    targetPath: string,
-    readerSourcePath: string,
-    consumedAction?: ReaderInputAction,
-    replacementSessionId?: string,
-  ): Promise<ReaderInputActionOutcome> {
-      const execute = clientRef.current.executeFileOperations
-      if (!execute || sessionRef.current !== (replacementSessionId ?? sessionId) || operationRef.current) return { status: "unavailable" }
-      slideshow.stop()
-      const controller = new AbortController()
-      operationRef.current = controller
-      setBusy(true)
-      setError(undefined)
-      let released = Boolean(replacementSessionId)
-      try {
-        if (!replacementSessionId) {
-          await clientRef.current.close(sessionId)
-          released = true
-          controller.signal.throwIfAborted()
-          if (sessionRef.current !== sessionId) return { status: "cancelled" }
-          sessionRef.current = undefined
-          setSession(undefined)
-          setSlideshowFadeFrame(undefined)
-          setMagnifierEnabled(false)
-        }
-        const result = await execute([{ kind: "trash", sourcePath: targetPath }], true, controller.signal)
-        const failed = result.results.find((item) => item.status !== "succeeded")
-        if (result.succeeded !== 1 || failed) {
-          throw new Error(failed?.error ?? failed?.errorCode ?? "移动到回收站失败")
-        }
-        if (!replacementSessionId) {
-          setPath("")
-          activeSourcePathRef.current = ""
-          activationRootPathRef.current = ""
-          commitPath("", browserOriginPath)
-        }
-        publishFolderEntryRemoved(folderNavigationEvents, targetPath)
-        switchToast.show({ title: "已移到回收站", description: targetPath })
-        return { status: "succeeded", ...(consumedAction ? { consumedAction } : {}) }
-      } catch (cause) {
-        if (controller.signal.aborted) return { status: "cancelled" }
-        if (released) {
-          try {
-            if (replacementSessionId && sessionRef.current === replacementSessionId) {
-              await clientRef.current.close(replacementSessionId)
-              sessionRef.current = undefined
-              setSession(undefined)
-            }
-            if (sessionRef.current) throw new Error("Reader session changed during delete recovery.")
-            const reopened = await clientRef.current.open(readerSourcePath, controller.signal)
-            sessionRef.current = reopened.sessionId
-            setSession(reopened)
-            setPath(readerSourcePath)
-            activeSourcePathRef.current = readerSourcePath
-            activationRootPathRef.current = targetPath
-            commitPath(readerSourcePath, browserOriginPath)
-          } catch {
-            // Preserve the original operation error; reopening is best-effort recovery.
+  async function prepareDeletion(
+    command: Readonly<ReaderDeletionCommand>,
+    signal: AbortSignal,
+  ): Promise<ReaderDeletionPreparation> {
+      const activeSession = command.activeSession
+      if (!activeSession || sessionRef.current !== activeSession.sessionId) return { releasedSession: false }
+      signal.throwIfAborted()
+      if (command.adjacentDirection) {
+        const switched = await switchAdjacentBook(command.adjacentDirection)
+        signal.throwIfAborted()
+        if (switched && sessionRef.current) {
+          return {
+            releasedSession: true,
+            replacementSessionId: sessionRef.current,
+            consumedAction: command.adjacentDirection === "next" ? "reader.next-book" : "reader.previous-book",
           }
         }
-        setError(errorMessage(cause))
-        return { status: "failed", error: cause }
+      }
+      slideshow.stop()
+      await clientRef.current.close(activeSession.sessionId)
+      signal.throwIfAborted()
+      if (sessionRef.current === activeSession.sessionId) {
+        sessionRef.current = undefined
+        setSession(undefined)
+        setSlideshowFadeFrame(undefined)
+        setMagnifierEnabled(false)
+      }
+      return { releasedSession: true }
+    }
+
+  async function mutateDeletion(command: Readonly<ReaderDeletionCommand>, signal: AbortSignal): Promise<void> {
+      const execute = clientRef.current.executeFileOperations
+      if (!execute || operationRef.current) throw new Error("Reader file operation is unavailable.")
+      const controller = new AbortController()
+      operationRef.current = controller
+      const abort = () => controller.abort()
+      signal.addEventListener("abort", abort, { once: true })
+      try {
+        const result = await execute([{ kind: command.strategy, sourcePath: command.targetPath }], true, controller.signal)
+        const failed = result.results.find((item) => item.status !== "succeeded")
+        if (result.succeeded !== 1 || failed) {
+          throw new Error(failed?.error ?? failed?.errorCode ?? (command.strategy === "trash" ? "移动到回收站失败" : "永久删除失败"))
+        }
       } finally {
+        signal.removeEventListener("abort", abort)
         if (operationRef.current === controller) operationRef.current = undefined
-        if (!controller.signal.aborted) setBusy(false)
       }
     }
 
-  return {
+  async function commitDeletion(
+    command: Readonly<ReaderDeletionCommand>,
+    preparation: ReaderDeletionPreparation,
+  ): Promise<void> {
+        if (preparation.releasedSession && !preparation.replacementSessionId) {
+          setPath("")
+          activeSourcePathRef.current = ""
+          clearActivationIdentity()
+        }
+        publishFolderEntryRemoved(folderNavigationEvents, command.targetPath)
+        publishReaderLibraryMutation()
+        switchToast.show({
+          title: command.strategy === "trash" ? "已移到回收站" : "已永久删除",
+          description: command.targetPath,
+        })
+    }
+
+  async function rollbackDeletion(
+    command: Readonly<ReaderDeletionCommand>,
+    preparation: ReaderDeletionPreparation,
+  ): Promise<void> {
+      const activeSession = command.activeSession
+      if (!preparation.releasedSession || !activeSession) return
+      if (preparation.replacementSessionId && sessionRef.current === preparation.replacementSessionId) {
+        await clientRef.current.close(preparation.replacementSessionId).catch(() => undefined)
+        sessionRef.current = undefined
+        setSession(undefined)
+      }
+      if (sessionRef.current) return
+      const reopened = await clientRef.current.open(
+        activeSession.activationIdentity.readerSourcePath,
+        undefined,
+        readerActivationProvenanceFromIdentity(activeSession.activationIdentity),
+      )
+      if (sessionRef.current) {
+        void clientRef.current.close(reopened.sessionId).catch(() => undefined)
+        return
+      }
+      sessionRef.current = reopened.sessionId
+      setSession(reopened)
+      setPath(reopened.activationIdentity.readerSourcePath)
+      activeSourcePathRef.current = reopened.activationIdentity.readerSourcePath
+      setBrowserOriginPath(reopened.activationIdentity.traversalRootPath)
+      commitOpenedSession(reopened)
+    }
+
+  async function undoFileDeletion() {
+      const undo = clientRef.current.undoLatestFileOperations
+      if (!undo) throw new Error("Reader file-operation undo is unavailable.")
+      const coordinator = deletionCoordinator as ReaderDeletionTransactionCoordinator
+      setError(undefined)
+      try {
+        return await coordinator.undo({
+          started: () => setBusy(true),
+          settled: () => setBusy(false),
+          undo: (signal) => undo(true, signal),
+          commit: async (result) => {
+            for (const item of result.results) {
+              if (item.status === "succeeded" && (item.operation.kind === "trash" || item.operation.kind === "delete")) {
+                publishFolderEntryRestored(folderNavigationEvents, item.operation.sourcePath)
+              }
+            }
+            publishReaderLibraryMutation()
+          },
+        })
+      } catch (cause) {
+        setError(errorMessage(cause))
+        throw cause
+      }
+    }
+
+  const actions = {
     persistSlideshow,
     persistFolderView,
     closeSession,
-    prepareFileMutation,
     requestDeleteCurrentFile,
-    deleteCurrentFile,
+    undoFileDeletion,
   }
+  Object.assign(context, actions)
+  return actions
 }

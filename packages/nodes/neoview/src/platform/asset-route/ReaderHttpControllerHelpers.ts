@@ -31,6 +31,7 @@ import type { ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStor
 import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
 import { ReaderHierarchicalBookTraversal, type ReaderBookTraversalCursor } from "../../application/reader/ReaderHierarchicalBookTraversal.js"
+import { readerPathIdentity } from "../../application/reader/ReaderAdjacentBookService.js"
 import { ReaderFolderPenetrationResolver } from "../../application/browser/ReaderFolderPenetrationResolver.js"
 import { ReaderEmmMetadataRevisionConflict, ReaderEmmMetadataService } from "../../application/metadata/ReaderEmmMetadataService.js"
 import { legacyEmmBookPathKey } from "../../application/metadata/LegacyEmmBookMetadataCodec.js"
@@ -305,25 +306,48 @@ export function parseAdjacentBookRequest(body: Record<string, unknown> | undefin
 }
 
 export function parseReaderActivationProvenance(value: unknown):
-  | {
-      browserOriginPath: string
-      browserOriginEntryPath: string
-      browserOriginSelfTerminal?: boolean
-    }
+  | ReaderBookTraversalCursor
   | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
-  const record = value as Record<string, unknown>
-  if (Object.keys(record).some((key) => key !== "browserOriginPath" && key !== "browserOriginEntryPath" && key !== "browserOriginSelfTerminal"))
-    return undefined
-  if (typeof record.browserOriginPath !== "string" || !record.browserOriginPath.trim()) return undefined
-  if (typeof record.browserOriginEntryPath !== "string" || !record.browserOriginEntryPath.trim()) return undefined
-  if (record.browserOriginSelfTerminal !== undefined && typeof record.browserOriginSelfTerminal !== "boolean") return undefined
+  const parsed = readerActivationProvenanceSchema.safeParse(value)
+  if (!parsed.success) return undefined
+  const provenance = parsed.data
   return {
-    browserOriginPath: record.browserOriginPath,
-    browserOriginEntryPath: record.browserOriginEntryPath,
-    ...(record.browserOriginSelfTerminal === true ? { browserOriginSelfTerminal: true } : {}),
+    rootPath: provenance.browserOriginPath,
+    frames: provenance.browserOriginTraversalFrames ?? [{
+      directoryPath: provenance.browserOriginPath,
+      currentEntryPath: provenance.browserOriginEntryPath,
+      ...(provenance.browserOriginSelfTerminal ? { selfTerminal: true } : {}),
+    }],
   }
 }
+
+const readerActivationTraversalFrameSchema = z.strictObject({
+  directoryPath: z.string().trim().min(1),
+  currentEntryPath: z.string().trim().min(1),
+  selfTerminal: z.boolean().optional(),
+})
+
+const readerActivationProvenanceSchema = z.strictObject({
+  browserOriginPath: z.string().trim().min(1),
+  browserOriginEntryPath: z.string().trim().min(1),
+  browserOriginSelfTerminal: z.boolean().optional(),
+  browserOriginTraversalFrames: z.array(readerActivationTraversalFrameSchema).min(1).max(32).optional(),
+}).superRefine((provenance, context) => {
+  const frames = provenance.browserOriginTraversalFrames
+  if (!frames) return
+  if (readerPathIdentity(frames[0]!.directoryPath) !== readerPathIdentity(provenance.browserOriginPath)) {
+    context.addIssue({ code: "custom", message: "Traversal frames must start at browserOriginPath." })
+  }
+  if (readerPathIdentity(frames.at(-1)!.currentEntryPath) !== readerPathIdentity(provenance.browserOriginEntryPath)) {
+    context.addIssue({ code: "custom", message: "Traversal frames must end at browserOriginEntryPath." })
+  }
+  for (let index = 1; index < frames.length; index += 1) {
+    if (readerPathIdentity(frames[index - 1]!.currentEntryPath) !== readerPathIdentity(frames[index]!.directoryPath)) {
+      context.addIssue({ code: "custom", message: "Traversal frames must form one continuous path." })
+      return
+    }
+  }
+})
 
 export function boundedInteger(value: string | null, minimum: number, maximum: number, fallback: number): number {
   if (value === null) return fallback

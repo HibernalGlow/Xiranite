@@ -3,9 +3,11 @@ import {
   DEFAULT_READER_INPUT_BINDINGS,
   MAX_READER_INPUT_ACTION_SEQUENCE_LENGTH,
   READER_INPUT_ACTIONS,
+  READER_INPUT_COMMANDS,
   READER_INPUT_CONTEXTS,
   READER_MOUSE_GESTURE_DIRECTIONS,
   READER_VIEW_AREAS,
+  normalizeReaderSystemInputBindings,
   readerInputConflicts,
   type ReaderInputAction,
   type ReaderInputBinding,
@@ -49,7 +51,7 @@ export function parseNeoviewInputBindingsPatch(value: unknown): {
 function parseBindings(value: unknown, label: string): ReaderInputBinding[] {
   if (!Array.isArray(value)) throw new Error(`${label} must be an array.`)
   if (value.length > 256) throw new Error(`${label} must not contain more than 256 bindings.`)
-  const bindings = value.map((entry, index) => parseBinding(entry, `${label}[${index}]`))
+  const bindings = normalizeReaderSystemInputBindings(value.map((entry, index) => parseBinding(entry, `${label}[${index}]`)))
   const ids = new Set<string>()
   for (const current of bindings) {
     if (ids.has(current.id)) throw new Error(`${label} contains duplicate id ${current.id}.`)
@@ -84,7 +86,7 @@ function parseFollowUpActions(value: unknown, label: string): ReaderInputAction[
 
 function parseInput(value: unknown, label: string): ReaderInputDescriptor {
   const source = requireRecord(value, label)
-  const device = requiredEnum(source.device, ["keyboard", "mouse", "mouse-gesture", "wheel", "touch", "gamepad", "area", "radial"] as const, `${label}.device`)
+  const device = requiredEnum(source.device, ["keyboard", "mouse", "mouse-gesture", "wheel", "touch", "gamepad", "area", "radial", "command"] as const, `${label}.device`)
   if (device === "keyboard") {
     rejectUnknown(source, ["device", "code", "trigger", "durationMs", "ctrl", "alt", "shift", "meta"], label)
     const trigger = source.trigger === undefined ? "down" : requiredEnum(source.trigger, ["down", "hold"] as const, `${label}.trigger`)
@@ -150,12 +152,18 @@ function parseInput(value: unknown, label: string): ReaderInputDescriptor {
     rejectUnknown(source, ["device", "menuId", "itemId"], label)
     return { device, menuId: identifier(source.menuId, `${label}.menuId`), itemId: identifier(source.itemId, `${label}.itemId`) }
   }
-  rejectUnknown(source, ["device", "area", "button", "action"], label)
+  if (device === "command") {
+    rejectUnknown(source, ["device", "command"], label)
+    return { device, command: requiredEnum(source.command, READER_INPUT_COMMANDS, `${label}.command`) }
+  }
+  rejectUnknown(source, ["device", "area", "button", "action", "durationMs", "moveTolerancePx"], label)
+  const action = requiredEnum(source.action, ["click", "double-click", "press", "hold"] as const, `${label}.action`)
   return {
     device,
     area: requiredEnum(source.area, READER_VIEW_AREAS, `${label}.area`),
     button: requiredEnum(source.button, [0, 1, 2] as const, `${label}.button`),
-    action: requiredEnum(source.action, ["click", "double-click", "press"] as const, `${label}.action`),
+    action,
+    ...timing(source, label, action === "hold"),
   }
 }
 

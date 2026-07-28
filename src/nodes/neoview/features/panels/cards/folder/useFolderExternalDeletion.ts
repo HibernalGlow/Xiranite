@@ -4,7 +4,12 @@ import type { ReaderDirectoryNavigationDto } from "../../../../adapters/reader-h
 import type { DirectoryCatalog } from "./DirectoryCatalog"
 import type { DirectorySelectionModel } from "./DirectorySelection"
 import { removeFolderCatalogEntry } from "./FolderCatalogRemoval"
-import { FOLDER_ENTRY_REMOVED_EVENT, folderEntryRemovedPath } from "./FolderNavigationEvents"
+import {
+  FOLDER_ENTRY_REMOVED_EVENT,
+  FOLDER_ENTRY_RESTORED_EVENT,
+  folderEntryRemovedPath,
+  folderEntryRestoredPath,
+} from "./FolderNavigationEvents"
 
 type FolderNavigationOptions = {
   keepTree?: boolean
@@ -84,7 +89,20 @@ export function useFolderExternalDeletion({
         { keepTree: true, focusPath: removal.focusedPath, preserveThumbnailCache: true },
       )
     }
+    const entryRestored = (event: Event) => {
+      const targetPath = folderEntryRestoredPath(event)
+      if (!targetPath) return
+      const handlers = handlersRef.current
+      void handlers.navigate(
+        { action: "refresh" },
+        { keepTree: true, focusPath: targetPath, preserveThumbnailCache: true },
+      )
+    }
     events.addEventListener(FOLDER_ENTRY_REMOVED_EVENT, entryRemoved)
-    return () => events.removeEventListener(FOLDER_ENTRY_REMOVED_EVENT, entryRemoved)
+    events.addEventListener(FOLDER_ENTRY_RESTORED_EVENT, entryRestored)
+    return () => {
+      events.removeEventListener(FOLDER_ENTRY_REMOVED_EVENT, entryRemoved)
+      events.removeEventListener(FOLDER_ENTRY_RESTORED_EVENT, entryRestored)
+    }
   }, [enabled, events])
 }

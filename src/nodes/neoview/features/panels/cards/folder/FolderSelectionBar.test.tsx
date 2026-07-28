@@ -155,6 +155,13 @@ describe("FolderSelectionBar", () => {
       failed: 0,
       remaining: 0,
     }))
+    const onUndoFileDeletion = vi.fn(async () => ({
+      undoId: "undo-1",
+      results: [],
+      succeeded: 2,
+      failed: 0,
+      remaining: 0,
+    }))
     const onTrashCompleted = vi.fn(async () => undefined)
     const contextMenu: ContextMenuAPI = {
       register: () => () => undefined,
@@ -187,6 +194,7 @@ describe("FolderSelectionBar", () => {
           onClear={vi.fn()}
           onClose={vi.fn()}
           onTrashCompleted={onTrashCompleted}
+          onUndoFileDeletion={onUndoFileDeletion}
         />
       </ContextMenuBuilderContext.Provider>,
     )
@@ -195,8 +203,9 @@ describe("FolderSelectionBar", () => {
     await waitFor(() => expect(directorySelectionOperation).toHaveBeenCalledWith(running.id, expect.any(AbortSignal)))
     await waitFor(() => expect(screen.getByLabelText("撤销上次移到回收站")).toBeTruthy())
     fireEvent.click(screen.getByLabelText("撤销上次移到回收站"))
-    await waitFor(() => expect(undoLatestFileOperations).toHaveBeenCalledWith(true, expect.any(AbortSignal)))
-    await waitFor(() => expect(onTrashCompleted).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(onUndoFileDeletion).toHaveBeenCalledOnce())
+    expect(undoLatestFileOperations).not.toHaveBeenCalled()
+    expect(onTrashCompleted).toHaveBeenCalledOnce()
     expect(screen.getByRole("status").textContent).toContain("已撤销 2 项回收站操作")
   })
 
