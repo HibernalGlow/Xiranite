@@ -7,7 +7,7 @@ import type {
   ReaderFolderViewMode,
   ReaderFolderViewPatch,
 } from "../../../../adapters/reader-http-client"
-import type { ReaderPanelContext } from "../../registry"
+import type { ReaderFolderExternalOpenRequest, ReaderFolderExternalOpenResult, ReaderPanelContext } from "../../registry"
 import type { FolderBrowserCloneProvider, FolderBrowserCloneSnapshot } from "../FolderMainCard"
 import { folderTabReplacementPolicy, type FolderTabKind } from "./FolderTabNavigationPolicy"
 import { isVirtualSearchPath, searchTabTitle, virtualSearchLabel, type FolderSearchTabSnapshot } from "./search/folderSearchModel"
@@ -30,6 +30,7 @@ interface FolderTabDescriptor {
   viewDirty: boolean
   pinned: boolean
   initialClone?: FolderBrowserCloneSnapshot
+  externalOpenRequest?: ReaderFolderExternalOpenRequest
   /** Session-only search workspace restored when this tab activates. */
   searchSnapshot?: FolderSearchTabSnapshot
 }
@@ -62,6 +63,7 @@ export type FolderBrowserPaneProps = ReaderPanelContext & {
   currentFolderTabKind: FolderTabKind
   initialSearchSnapshot?: FolderSearchTabSnapshot
   onCloneProvider(provider?: FolderBrowserCloneProvider): void
+  onExternalOpenResult?(result: ReaderFolderExternalOpenResult): void
 }
 
 export default function FolderTabsHost({ context, folderView, BrowserPane }: {
@@ -86,6 +88,7 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
   const tabsRef = useRef(tabs)
   const activeTabIdRef = useRef(activeTabId)
   const recentlyClosedRef = useRef<readonly RecentlyClosedFolderTab[]>([])
+  const handledExternalRequestIdRef = useRef<string>()
   const [recentlyClosed, setRecentlyClosed] = useState<readonly RecentlyClosedFolderTab[]>([])
   tabsRef.current = tabs
   activeTabIdRef.current = activeTabId
@@ -123,6 +126,32 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
       return { ...tab, sourcePath: context.sourcePath! }
     }))
   }, [context.sourcePath])
+
+  useEffect(() => {
+    const request = context.externalFolderOpenRequest
+    if (!request || handledExternalRequestIdRef.current === request.requestId) return
+    handledExternalRequestIdRef.current = request.requestId
+    const active = tabsRef.current.find((tab) => tab.id === activeTabIdRef.current)
+    if (!active) {
+      context.onExternalFolderOpenResult?.({ requestId: request.requestId, opened: false, message: "Folder has no active tab." })
+      return
+    }
+    if (folderTabReplacementPolicy(active.kind) === "protected") {
+      if (tabsRef.current.length >= MAX_FOLDER_TABS) {
+        context.onExternalFolderOpenResult?.({ requestId: request.requestId, opened: false, message: "Folder cannot open another tab." })
+        return
+      }
+      const id = `folder-tab-${++tabSequenceRef.current}`
+      const next = { ...createFolderTab(id, request.path, folderView), externalOpenRequest: request }
+      tabAccessHistoryRef.current = recordTabVisit(tabAccessHistoryRef.current, id)
+      setTabs((current) => [...current, next])
+      setActiveTabId(id)
+      return
+    }
+    setTabs((current) => current.map((tab) => tab.id === active.id
+      ? { ...tab, sourcePath: request.path, currentPath: request.path, title: folderTabTitle(request.path), externalOpenRequest: request }
+      : tab))
+  }, [context.externalFolderOpenRequest?.requestId, folderView])
 
   useEffect(() => {
     setTabs((current) => current.map((tab) => tab.viewDirty
@@ -481,6 +510,13 @@ export default function FolderTabsHost({ context, folderView, BrowserPane }: {
                 if (latest) void reopenTab(latest.id)
               }}
               initialClone={tab.initialClone}
+              externalOpenRequest={tab.externalOpenRequest}
+              onExternalOpenResult={(result) => {
+                setTabs((current) => current.map((currentTab) => currentTab.id === tab.id
+                  ? { ...currentTab, externalOpenRequest: undefined }
+                  : currentTab))
+                context.onExternalFolderOpenResult?.(result)
+              }}
               initialSearchSnapshot={tab.searchSnapshot}
               onCurrentPathChange={(path) => updateTabPath(tab.id, path)}
               onOpenInNewTab={openPathInNewTab}

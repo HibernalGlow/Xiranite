@@ -54,8 +54,7 @@ import { useDeferredFinalCleanup } from "../features/settings/useDeferredFinalCl
 import { readerWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
 import { createInitialReaderShellConfig } from "./ReaderShellSnapshot"
 import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
-import { workspaceConfigEqual, readerWorkspaceWithSession, splitReaderWorkspacePatch, INITIAL_VIEW_DEFAULTS, INITIAL_HISTORY_LIST_PREFERENCES, INITIAL_BOOKMARK_LIST_PREFERENCES, INITIAL_PAGE_LIST_PREFERENCES, INITIAL_BOOK_DEFAULTS, INITIAL_SLIDESHOW_CONFIG, INITIAL_PRELOAD_CONFIG, INITIAL_FOLDER_VIEW_CONFIG, loadReaderSidebar, LazyReaderSidebar, LazyReaderGestureInputRuntime, LazyReaderRadialMenuOverlay, LazyReaderSettingsWindow, loadReaderFrame, LazyReaderFrame, LazyReaderBackgroundLayer, LazyReaderViewToolbar, LazyReaderSwitchToastRuntime, LazyReaderInfoOverlayRuntime, loadReaderPresentation, DeferredSidebarFloatingController, shellControlHydration, shellControlSnapshot, defaultShellControlSnapshot, edgeSurfaceStyle, readerPathSegments, fileMutationContainsSource, applyNavigation, waitForReaderOperationIdle, errorMessage } from "./ReaderAppModules"
-import type { ReaderAppProps } from "./ReaderAppModules"
+import { workspaceConfigEqual, readerWorkspaceWithSession, splitReaderWorkspacePatch, INITIAL_VIEW_DEFAULTS, INITIAL_HISTORY_LIST_PREFERENCES, INITIAL_BOOKMARK_LIST_PREFERENCES, INITIAL_PAGE_LIST_PREFERENCES, INITIAL_BOOK_DEFAULTS, INITIAL_SLIDESHOW_CONFIG, INITIAL_PRELOAD_CONFIG, INITIAL_FOLDER_VIEW_CONFIG, loadReaderSidebar, LazyReaderSidebar, LazyReaderGestureInputRuntime, LazyReaderRadialMenuOverlay, LazyReaderSettingsWindow, loadReaderFrame, LazyReaderFrame, LazyReaderBackgroundLayer, LazyReaderViewToolbar, LazyReaderSwitchToastRuntime, LazyReaderInfoOverlayRuntime, loadReaderPresentation, DeferredSidebarFloatingController, shellControlHydration, shellControlSnapshot, defaultShellControlSnapshot, edgeSurfaceStyle, readerPathSegments, fileMutationContainsSource, applyNavigation, waitForReaderOperationIdle, errorMessage, type ReaderAppProps, type ReaderExternalOpenRequest } from "./ReaderAppModules"
 import { createReaderAppSettingsActions } from "./ReaderAppSettingsActions"
 import { createReaderAppFileActions } from "./ReaderAppFileActions"
 import { createReaderAppWorkspaceActions } from "./ReaderAppWorkspaceActions"
@@ -65,13 +64,14 @@ import { useReaderSwimlaneSidebarDeferral } from "./useReaderSwimlaneSidebarDefe
 import type { ReaderAppActivationRootProps } from "./ReaderActivationRoot"
 import { useReaderActivationRoot } from "./useReaderActivationRoot"
 import { useReaderFolderNavigationEvents } from "./useReaderFolderNavigationEvents"
-export { fileMutationContainsSource } from "./ReaderAppModules"
-export type { ReaderAppProps } from "./ReaderAppModules"
-
+import { useReaderExternalOpenRequest } from "./useReaderExternalOpenRequest"
+import { useReaderExternalFolderOpen } from "./useReaderExternalFolderOpen"
+import { createReaderNavigationActions } from "./ReaderNavigationActions"
+export { fileMutationContainsSource, type ReaderAppProps } from "./ReaderAppModules"
 export function ReaderApp({
   sessionScopeId = "standalone",
   initialPath = "",
-  initialBrowserOriginPath, initialActivationRootPath,
+  initialBrowserOriginPath, initialActivationRootPath, externalOpenRequest, onExternalOpenResult,
   initialSwimlaneSoloLaneId,
   initialReaderViewFullscreen,
   client: injectedClient,
@@ -152,6 +152,7 @@ export function ReaderApp({
   const presentationTouchedRef = useRef(false)
   const [path, setPath] = useState(initialPath)
   const [browserOriginPath, setBrowserOriginPath] = useState(initialBrowserOriginPath)
+  const { externalFolderOpenRequest, beginExternalFolderOpen, completeExternalFolderOpen } = useReaderExternalFolderOpen()
   const [session, setSession] = useState<ReaderSessionDto | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
@@ -565,7 +566,6 @@ export function ReaderApp({
       document.removeEventListener("visibilitychange", update)
     }
   }, [client, session?.frame?.generation, session?.frame?.layout?.panorama, session?.sessionId, speculativePreloadAllowed])
-
   async function openPath(nextPath = path, provenance?: import("../adapters/reader-http-client").ReaderActivationProvenanceDto) {
     const normalizedPath = nextPath.trim()
     if (!normalizedPath || busy || openOperationRef.current) {
@@ -574,7 +574,7 @@ export function ReaderApp({
         path: normalizedPath || undefined,
         reason: !normalizedPath ? "empty" : openOperationRef.current ? "open-active" : "busy",
       })
-      return
+      return { opened: false, message: !normalizedPath ? "Reader open target is empty." : "Reader is busy opening another target." }
     }
     if (sessionRef.current && activeSourcePathRef.current === normalizedPath) {
       neoviewDebug("reader:open:skipped", {
@@ -583,7 +583,7 @@ export function ReaderApp({
         reason: "same-active-source",
         sessionId: sessionRef.current,
       })
-      return
+      return { opened: true }
     }
     slideshow.stop()
     operationRef.current?.abort()
@@ -614,7 +614,7 @@ export function ReaderApp({
       }
       if (controller.signal.aborted) {
         void clientRef.current.close(opened.sessionId).catch(() => undefined)
-        return
+        return { opened: false, message: "Reader open was aborted." }
       }
       sessionRef.current = opened.sessionId
       presentationTouchedRef.current = false
@@ -649,16 +649,20 @@ export function ReaderApp({
           sinceOpenMs: Math.round((performance.now() - openStartedAt) * 10) / 10,
         })
       })
+      return { opened: true }
     } catch (cause) {
       if (!controller.signal.aborted) {
+        const message = errorMessage(cause)
         neoviewDebug("reader:open:failed", {
           sessionScopeId,
           path: normalizedPath,
           durationMs: Math.round((performance.now() - openStartedAt) * 10) / 10,
-          error: cause instanceof Error ? cause.message : String(cause),
+          error: message,
         })
-        setError(errorMessage(cause))
+        setError(message)
+        return { opened: false, message }
       }
+      return { opened: false, message: "Reader open was aborted." }
     } finally {
       if (openOperationRef.current === controller) openOperationRef.current = undefined
       if (operationRef.current === controller) operationRef.current = undefined
@@ -668,38 +672,33 @@ export function ReaderApp({
 
   const { folderNavigationEvents, browsePath, activateInFolderCard, openFolderPathInNewTab } = useReaderFolderNavigationEvents()
 
-  async function navigate(action: "next" | "previous", slideshowAction = false, presentEachPage = false): Promise<boolean> {
-    const current = slideshowSessionRef.current
-    const atBoundary = action === "next" ? current?.frame.atEnd : current?.frame.atStart
-    // Continuous-book overflow is resolved here, not on the hot page-turn path:
-    // only a boundary pays the adjacent-book cost, while normal page turns stay
-    // a single small JSON control call. It is intentionally symmetric so the
-    // first page returns to the previous book's final page.
-    if (atBoundary && tailOverflowRef.current === "next-book") {
-      // Guard with the same pending ref as updateNavigation so a repeated key
-      // cannot start a second switch while the first is still resolving.
-      if (navigationPendingRef.current || busy) return false
-      const switched = await switchAdjacentBook(action)
-      if (switched) {
-        if (!slideshowAction) slideshow.resetOnUserAction()
-        return true
-      }
-      // Fall through to the boundary toast when no candidate is available.
-    }
-    if (atBoundary && !slideshowAction && switchToast.getSnapshot().enableBoundaryToast) {
-      switchToast.show({ title: action === "next" ? "已是最后一页" : "已是第一页" })
-    }
-    const updated = await updateNavigation((sessionId, signal) => clientRef.current.navigate(sessionId, action, signal), slideshowAction, presentEachPage)
-    if (updated && !slideshowAction) slideshow.resetOnUserAction()
-    return updated
-  }
+  const { navigate, goTo } = createReaderNavigationActions({
+    currentAnchorPage: () => slideshowSessionRef.current?.frame.anchorPageIndex,
+    isAtBoundary: (action) => action === "next" ? Boolean(slideshowSessionRef.current?.frame.atEnd) : Boolean(slideshowSessionRef.current?.frame.atStart),
+    tailOverflow: () => tailOverflowRef.current,
+    isNavigationPending: () => navigationPendingRef.current,
+    isBusy: () => busy,
+    // The input action factory creates this function later in the render. Keep
+    // the reference lazy so ReaderApp does not read a temporal-dead-zone value.
+    switchAdjacentBook: (action) => switchAdjacentBook(action),
+    boundaryToastEnabled: () => switchToast.getSnapshot().enableBoundaryToast,
+    showBoundaryToast: (action) => switchToast.show({ title: action === "next" ? "已是最后一页" : "已是第一页" }),
+    updateNavigation: (action, slideshowAction, presentEachPage) => updateNavigation((sessionId, signal) => clientRef.current.navigate(sessionId, action, signal), slideshowAction, presentEachPage),
+    goToPage: (pageIndex, slideshowAction, presentEachPage) => updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal), slideshowAction, presentEachPage),
+    resetSlideshow: () => slideshow.resetOnUserAction(),
+  })
 
-  async function goTo(pageIndex: number, slideshowAction = false, presentEachPage = false): Promise<boolean> {
-    if (pageIndex === slideshowSessionRef.current?.frame.anchorPageIndex) return false
-    const updated = await updateNavigation((sessionId, signal) => clientRef.current.goTo(sessionId, pageIndex, signal), slideshowAction, presentEachPage)
-    if (updated && !slideshowAction) slideshow.resetOnUserAction()
-    return updated
-  }
+  useReaderExternalOpenRequest(externalOpenRequest, async (request) => {
+    if (request.kind === "file") return openPath(request.path)
+    const directory = request.path.trim()
+    if (!directory) return { opened: false, message: "Folder open target is empty." }
+    setError(undefined)
+    setPath(directory)
+    activeSourcePathRef.current = directory
+    setBrowserOriginPath(undefined)
+    readerActivation.commitOpenedPath(directory, undefined, directory)
+    return await beginExternalFolderOpen({ ...request, path: directory })
+  }, onExternalOpenResult)
 
   const actionContext: any = {
     sessionScopeId, pickFile, pickDirectory, pickEfuFile, copyText, copyFiles, onPathCommitted, onSwimlaneSoloLaneIdCommitted, onReaderViewFullscreenCommitted, surface, floatingFrame, contextMenu,
@@ -743,6 +742,8 @@ export function ReaderApp({
     prefetchController, speculativePreloadAllowed, cancelledPreloadFrame,
     setCancelledPreloadFrame, openPath, folderNavigationEvents,
     browsePath, activateInFolderCard, openFolderPathInNewTab,
+    externalFolderOpenRequest,
+    onExternalFolderOpenResult: completeExternalFolderOpen,
     navigate, goTo, requestShellEdgeOpen,
     setShellEdgePinned, cycleShellEdgeLock, setShellEdgeLock,
     setShellFloatingControl, setShellEdgeTriggerSize, resetShellControl,

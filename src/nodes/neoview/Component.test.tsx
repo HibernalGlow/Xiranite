@@ -1,9 +1,11 @@
-import { cleanup, render } from "@testing-library/react"
+import { act, cleanup, render, waitFor } from "@testing-library/react"
 import { afterEach, expect, it, vi } from "vitest"
 import type { NodeComponentProps } from "@xiranite/contract"
 
 const readerProps = vi.hoisted(() => ({ current: undefined as Record<string, unknown> | undefined }))
+const acknowledge = vi.hoisted(() => vi.fn(async () => undefined))
 vi.mock("./app/ReaderApp", () => ({ ReaderApp: (props: Record<string, unknown>) => { readerProps.current = props; return null } }))
+vi.mock("@wailsio/runtime", () => ({ Call: { ByName: acknowledge } }))
 import { Component, type NeoViewCardState } from "./Component"
 
 afterEach(cleanup)
@@ -71,4 +73,42 @@ it("persists the two fullscreen states independently in the NeoView Card state",
   const onReaderViewFullscreenCommitted = readerProps.current?.onReaderViewFullscreenCommitted as (fullscreen: boolean) => void
   onReaderViewFullscreenCommitted(false)
   expect(patchData).toHaveBeenCalledWith({ readerViewFullscreen: false })
+})
+
+it("queues an external launch and acknowledges the Reader result instead of accepting before the target opens", async () => {
+  const patchData = vi.fn()
+  const host = {
+    state: { getData: () => ({ path: "D:/books/current.cbz" }), patchData },
+    clipboard: {},
+    localFiles: {},
+  } as unknown as NodeComponentProps<NeoViewCardState>["host"]
+  Object.assign(window, { _wails: {} })
+  acknowledge.mockClear()
+
+  render(<Component compId="neoview-external" host={host} />)
+  await act(async () => {
+    window.dispatchEvent(new CustomEvent("xiranite:external-node-launch", {
+      detail: {
+        version: 1,
+        requestId: "external-1",
+        nodeId: "neoview",
+        intent: "open",
+        targets: [{ kind: "file", uri: "file:///D:/books/external.cbz" }],
+      },
+    }))
+  })
+
+  expect(readerProps.current).toMatchObject({
+    initialPath: "D:/books/current.cbz",
+    externalOpenRequest: { requestId: "external-1", path: "D:/books/external.cbz" },
+  })
+  expect(acknowledge).not.toHaveBeenCalled()
+
+  const onExternalOpenResult = readerProps.current?.onExternalOpenResult as (result: { requestId: string; opened: boolean; message?: string }) => void
+  await act(async () => onExternalOpenResult({ requestId: "external-1", opened: false, message: "Unsupported file type." }))
+  await waitFor(() => expect(acknowledge).toHaveBeenCalledWith(
+    "main.XiraniteService.AcknowledgeExternalNodeLaunch",
+    { requestId: "external-1", accepted: false, message: "Unsupported file type." },
+  ))
+  expect(patchData).not.toHaveBeenCalled()
 })
