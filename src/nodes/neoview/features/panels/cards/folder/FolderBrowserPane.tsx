@@ -236,7 +236,6 @@ export function FolderBrowserPane({
     openReaderEntry,
     enterRawDirectory,
     toggleInlineBranch,
-    reportError: setError,
   })
   const selectionController = useFolderSelectionController({
     catalog,
