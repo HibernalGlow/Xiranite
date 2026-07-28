@@ -11,6 +11,7 @@
  * 每个 mutation 都暴露 mutateAsync 与 isPending，便于调用方 await 结果与显示 loading。
  */
 import { useMutation, useQuery } from "@tanstack/react-query"
+import { useCallback } from "react"
 import { getBackend } from "@/backend/client"
 import { resolveComponentWindowSize } from "@/backend/workspaceRpcClient"
 import { createLogger } from "@/lib/logger"
@@ -67,6 +68,18 @@ export function useWindowControls() {
     },
   })
 
+  const controlComponentMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: MainWindowAction }): Promise<WindowCommandResult> => {
+      const backend = await getBackend()
+      return backend.windows.controlComponent(id, action)
+    },
+  })
+  const controlComponentMutateAsync = controlComponentMutation.mutateAsync
+  const controlComponent = useCallback(
+    (id: string, action: MainWindowAction) => controlComponentMutateAsync({ id, action }),
+    [controlComponentMutateAsync],
+  )
+
   const openComponentMutation = useMutation({
     mutationFn: async (input: OpenComponentWindowInput): Promise<WindowCommandResult> => {
       return openComponentOnce(input, async (request) => {
@@ -102,6 +115,8 @@ export function useWindowControls() {
     capabilitiesPending: capabilitiesQuery.isPending,
     controlMain: controlMainMutation.mutateAsync,
     controlMainPending: controlMainMutation.isPending,
+    controlComponent,
+    controlComponentPending: controlComponentMutation.isPending,
     openComponent: openComponentMutation.mutateAsync,
     openComponentPending: openComponentMutation.isPending,
     closeComponent: closeComponentMutation.mutateAsync,

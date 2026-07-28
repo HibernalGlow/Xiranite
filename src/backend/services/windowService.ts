@@ -46,6 +46,19 @@ export class WindowService implements Service<"windows"> {
     }
   }
 
+  async controlComponent(id: string, action: MainWindowAction): Promise<WindowCommandResult> {
+    try {
+      return await this.ctx.runtime.windows.controlComponent(id, action)
+    } catch (error) {
+      return {
+        success: false,
+        supported: false,
+        id,
+        message: errorMessage(error),
+      }
+    }
+  }
+
   async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {
     try {
       return await this.ctx.runtime.windows.openComponent(input)

@@ -34,6 +34,16 @@ class DenoDesktopWindowRuntime implements WindowRuntime {
     return toWindowCommandResult(await requireBindings().xiraniteDesktopWindowControl(action))
   }
 
+  async controlComponent(id: string, action: MainWindowAction): Promise<WindowCommandResult> {
+    if (action === "close") return await this.close(id)
+    return {
+      success: false,
+      supported: false,
+      id,
+      message: "Deno Desktop does not expose component window controls.",
+    }
+  }
+
   async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {
     const result = toWindowCommandResult(await requireBindings().xiraniteDesktopWindowOpen(JSON.stringify(input)))
     if (result.success || result.supported === false || typeof window === "undefined") return result

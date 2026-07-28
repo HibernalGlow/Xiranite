@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   nativeWindowControls: false,
   ensureComponent: vi.fn(),
   controlMain: vi.fn().mockResolvedValue({ success: true, supported: true }),
+  controlComponent: vi.fn().mockResolvedValue({ success: true, supported: true }),
   closeComponent: vi.fn().mockResolvedValue({ success: true, supported: true }),
 }))
 
@@ -26,6 +27,8 @@ vi.mock("@/hooks/useWindowControls", () => ({
     },
     controlMain: mocks.controlMain,
     controlMainPending: false,
+    controlComponent: mocks.controlComponent,
+    controlComponentPending: false,
     closeComponent: mocks.closeComponent,
   }),
 }))

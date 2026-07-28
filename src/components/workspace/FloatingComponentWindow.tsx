@@ -39,7 +39,7 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
   const [isMaximized, setIsMaximized] = useState(false)
   const [maximizeAction, setMaximizeAction] = useState<MainWindowAction>("maximize")
   const [integratedTitlebars, setIntegratedTitlebars] = useState(0)
-  const { capabilities, controlMain, controlMainPending, closeComponent } = useWindowControls()
+  const { capabilities, controlComponent, controlComponentPending, closeComponent } = useWindowControls()
   const moduleId = comp?.moduleId ?? moduleIdFallback ?? ""
   const showNativeWindowChrome = capabilities?.nativeWindowControls === true
 
@@ -88,24 +88,28 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
   }, [activeWorkspaceId, comp, compId, moduleId, workspaceActions, zCounter])
 
   const controlWindow = useCallback(async (action: MainWindowAction) => {
+    const targetWindowId = windowId ?? compId
     try {
-      const result = await controlMain(action)
+      const result = await controlComponent(targetWindowId, action)
       if (result.success && result.state) {
         setIsMaximized(result.state === "maximized" || result.state === "fullscreen")
       }
       if (result.success) return
-
-      if (action === "close") {
-        await closeComponent(windowId ?? compId)
-      }
     } catch {
       // Browser fallback windows may not be tracked by the backend.
     }
 
-    if (action === "close") {
-      window.close()
+    if (action !== "close") return
+
+    try {
+      const result = await closeComponent(targetWindowId)
+      if (result.success) return
+    } catch {
+      // Browser fallback windows may not be tracked by the backend.
     }
-  }, [closeComponent, compId, controlMain, windowId])
+
+    window.close()
+  }, [closeComponent, compId, controlComponent, windowId])
 
   const handleTitleBarDoubleClick = useCallback((event: MouseEvent<HTMLElement>) => {
     if (event.target instanceof Element && event.target.closest(".xiranite-app-region-no-drag")) return
@@ -126,11 +130,11 @@ export function FloatingComponentWindow({ compId, windowId, moduleIdFallback }: 
       autoCollapse: floatingWindowCaptionAutoCollapse,
     },
     isMaximized,
-    pending: controlMainPending,
+    pending: controlComponentPending,
     control: (action: MainWindowAction) => void controlWindow(action === "maximize" ? maximizeAction : action),
     handleTitlebarDoubleClick: handleTitleBarDoubleClick,
     registerIntegratedTitlebar,
-  }), [controlMainPending, controlWindow, floatingWindowCaptionAutoCollapse, floatingWindowCaptionPosition, floatingWindowCaptionStyle, handleTitleBarDoubleClick, isMaximized, maximizeAction, moduleId, registerIntegratedTitlebar])
+  }), [controlComponentPending, controlWindow, floatingWindowCaptionAutoCollapse, floatingWindowCaptionPosition, floatingWindowCaptionStyle, handleTitleBarDoubleClick, isMaximized, maximizeAction, moduleId, registerIntegratedTitlebar])
 
   const content = (
     <div

@@ -186,6 +186,15 @@ class WebWindowRuntime implements WindowRuntime {
     }
   }
 
+  async controlComponent(id: string): Promise<WindowCommandResult> {
+    return {
+      success: false,
+      supported: false,
+      id,
+      message: "Browser runtime cannot control component popup windows.",
+    }
+  }
+
   async openComponent(input: OpenComponentWindowInput): Promise<WindowCommandResult> {
     const url = new URL(window.location.href)
     url.searchParams.set("floatingComponent", input.componentId)

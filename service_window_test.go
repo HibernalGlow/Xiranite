@@ -2,7 +2,28 @@ package main
 
 import (
 	"testing"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
+
+type trackedWindowControllerStub struct {
+	closed     bool
+	minimized  bool
+	maximized  bool
+	fullscreen bool
+	restored   bool
+}
+
+func (s *trackedWindowControllerStub) Close() { s.closed = true }
+func (s *trackedWindowControllerStub) Minimise() application.Window {
+	s.minimized = true
+	return nil
+}
+func (s *trackedWindowControllerStub) ToggleMaximise()    { s.maximized = !s.maximized }
+func (s *trackedWindowControllerStub) IsMaximised() bool  { return s.maximized }
+func (s *trackedWindowControllerStub) ToggleFullscreen()  { s.fullscreen = !s.fullscreen }
+func (s *trackedWindowControllerStub) IsFullscreen() bool { return s.fullscreen }
+func (s *trackedWindowControllerStub) Restore()           { s.restored = true }
 
 func TestComponentWindowIDUsesComponentIdentity(t *testing.T) {
 	first := componentWindowID("alphabet-window-enginev-1")
@@ -29,5 +50,19 @@ func TestComponentWindowFrameEventUsesWorkspaceIdentityAndNormalSize(t *testing.
 
 	if _, ok := newComponentWindowFrameEvent(input, 120, 100); ok {
 		t.Fatal("undersized frames must not be persisted")
+	}
+}
+
+func TestControlTrackedWindowUsesOnlyTheRequestedWindow(t *testing.T) {
+	window := &trackedWindowControllerStub{}
+
+	minimized := controlTrackedWindow(window, "component-1", "minimize")
+	if !window.minimized || minimized.ID != "component-1" || minimized.State != "minimized" {
+		t.Fatalf("minimize must target the component window: %+v", minimized)
+	}
+
+	closed := controlTrackedWindow(window, "component-1", "close")
+	if !window.closed || closed.ID != "component-1" || closed.State != "closed" {
+		t.Fatalf("close must target the component window: %+v", closed)
 	}
 }
