@@ -2635,7 +2635,7 @@ describe("FolderMainCard", () => {
     expect(folderCard?.getAttribute("data-selection-total")).toBe("1")
 
     fireEvent.click(ui.getByRole("button", { name: "点击返回上级目录" }))
-    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "back" }, expect.any(AbortSignal), undefined))
+    await waitFor(() => expect(navigateDirectoryBrowser).toHaveBeenCalledWith("browser-1", { action: "up" }, expect.any(AbortSignal), undefined))
   })
 
   it("[neoview.folder.penetration-toolbar] exposes a top-level toggle and opens complete settings directly from More", async () => {
