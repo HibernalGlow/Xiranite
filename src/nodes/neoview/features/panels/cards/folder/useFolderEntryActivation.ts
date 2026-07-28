@@ -18,7 +18,6 @@ export function useFolderEntryActivation({
   openReaderEntry,
   enterRawDirectory,
   toggleInlineBranch,
-  reportError,
 }: {
   client: ReaderHttpClient
   catalogRef: RefObject<DirectoryCatalog | undefined>
@@ -36,7 +35,6 @@ export function useFolderEntryActivation({
     traversalFrames?: readonly ReaderActivationTraversalFrameDto[],
     preserveAnchor?: boolean,
   ): void
-  reportError(message: string): void
 }) {
   const pendingRef = useRef<{
     path: string
@@ -66,6 +64,7 @@ export function useFolderEntryActivation({
       ? appendReaderActivationTraversalFrame(current.path, entry.path, inlineParentFrames)
       : undefined
     if (entry.kind !== "directory") {
+      cancelPendingActivation()
       toggleInlineBranch()
       if (entry.readerSupported) openReaderEntry(entry, entry.path, false, traversalFrames)
       else void client.openSystemPath?.(entry.path)
@@ -128,7 +127,10 @@ export function useFolderEntryActivation({
         }
         if (resolution.status === "blocked" && (resolution.reason === "permission" || resolution.reason === "cycle")) {
           toggleInlineBranch()
-          reportError(`无法穿透此文件夹：${resolution.reason === "permission" ? "没有读取权限" : "检测到目录循环"}`)
+          switchToast?.show({
+            title: "无法穿透此文件夹",
+            description: resolution.reason === "permission" ? "没有读取权限" : "检测到目录循环",
+          })
           return
         }
         enterRawDirectory(entry)
@@ -136,9 +138,10 @@ export function useFolderEntryActivation({
       .catch((cause) => {
         if (controller.signal.aborted || pendingRef.current !== pending) return
         pendingRef.current = undefined
-        reportError(`穿透解析失败：${folderErrorMessage(cause)}`)
+        if (catalogRef.current?.sessionId !== pending.sessionId || catalogRef.current?.generation !== pending.generation) return
+        switchToast?.show({ title: "穿透解析失败", description: folderErrorMessage(cause) })
       })
-  }, [cancelPendingActivation, catalogRef, client, enterRawDirectory, openReaderEntry, penetration, reportError, switchToast, toggleInlineBranch])
+  }, [cancelPendingActivation, catalogRef, client, enterRawDirectory, openReaderEntry, penetration, switchToast, toggleInlineBranch])
 
   return { activate, cancelPendingActivation }
 }
