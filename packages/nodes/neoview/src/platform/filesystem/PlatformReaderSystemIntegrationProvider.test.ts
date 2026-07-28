@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -26,6 +26,29 @@ describe("PlatformReaderSystemIntegrationProvider", () => {
     expect(openPath).toHaveBeenCalledWith(path)
     expect(revealPath).toHaveBeenCalledWith(path)
     await expect(provider.open(join(root, "missing"))).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
+  it("[neoview.file-operations.system-reveal-directory] opens Windows directories in Explorer instead of selecting them", async () => {
+    const root = await mkdtemp(join(tmpdir(), "neoview-system-reveal-directory-"))
+    roots.push(root)
+    const file = join(root, "page.jpg")
+    const directory = join(root, "series")
+    await writeFile(file, "reader")
+    await mkdir(directory)
+    const revealPath = vi.fn(async () => undefined)
+    const openDirectoryInExplorer = vi.fn(async () => undefined)
+    const provider = new PlatformReaderSystemIntegrationProvider({
+      platform: "win32",
+      revealPath,
+      openDirectoryInExplorer,
+    })
+
+    await provider.reveal(file)
+    await provider.reveal(directory)
+
+    expect(revealPath).toHaveBeenCalledWith(file)
+    expect(revealPath).not.toHaveBeenCalledWith(directory)
+    expect(openDirectoryInExplorer).toHaveBeenCalledWith(directory)
   })
 
   it("[neoview.file-operations.system-scheduler] uses one interactive IO lease", async () => {
