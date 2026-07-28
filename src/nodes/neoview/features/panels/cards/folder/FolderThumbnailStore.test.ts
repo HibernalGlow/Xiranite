@@ -148,17 +148,21 @@ describe("FolderThumbnailStore", () => {
     release()
   })
 
-  it("invalidates managed readiness when its backend context is released", () => {
+  it("removes managed URLs and profiles when their backend context is released", () => {
     const store = new FolderThumbnailStore()
-    store.replace(thumbnailSnapshot([[FIRST_PATH, MANAGED_URL]]))
-    const revision = store.entry(FIRST_PATH).revision
-    store.reportProbeReady(FIRST_PATH, revision)
+    const fallbackUrl = "blob:first-fallback"
+    store.replace({
+      thumbnailUrls: new Map([[FIRST_PATH, MANAGED_URL], [SECOND_PATH, "blob:second"]]),
+      thumbnailUrlSets: new Map([[FIRST_PATH, [MANAGED_URL, fallbackUrl]], [SECOND_PATH, ["blob:second"]]]),
+      thumbnailProfiles: new Map([[FIRST_PATH, "first-profile"], [SECOND_PATH, "second-profile"]]),
+    })
 
-    store.invalidateManagedEntries()
+    store.clearManagedEntries()
 
-    expect(store.entry(FIRST_PATH).availability).toBe("checking")
-    expect(store.entry(FIRST_PATH).revision).toBeGreaterThan(revision)
-    expect(new FolderThumbnailStore().queryScope).not.toBe(store.queryScope)
+    expect(store.entry(FIRST_PATH)).toMatchObject({ availability: "ready", thumbnailUrl: fallbackUrl, thumbnailUrls: [fallbackUrl] })
+    expect(store.snapshot().thumbnailProfiles.has(FIRST_PATH)).toBe(false)
+    expect(store.entry(SECOND_PATH).thumbnailUrl).toBe("blob:second")
+    expect(store.snapshot().thumbnailProfiles.get(SECOND_PATH)).toBe("second-profile")
   })
 })
 

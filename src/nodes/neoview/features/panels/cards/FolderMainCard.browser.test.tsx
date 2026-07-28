@@ -11,6 +11,31 @@ import FolderDeleteButton from "./folder/FolderDeleteButton"
 import { DEFAULT_FOLDER_VIEW } from "./folder/FolderBrowserPane"
 import { publishFolderEntryRemoved } from "./folder/FolderNavigationEvents"
 
+test("[neoview.folder.legacy-tag-display-gui] renders a legacy folder config without tag display settings", async () => {
+  const client = {
+    openDirectoryBrowser: vi.fn(async () => directoryPage({ entries: [], total: 0 })),
+    closeDirectoryBrowser: vi.fn(async () => undefined),
+  } as unknown as ReaderHttpClient
+
+  await render(
+    <div style={{ width: 900, height: 600 }}>
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 288, itemHeight: 34 }}>
+        <FolderMainCard
+          client={client}
+          disabled={false}
+          sourcePath="C:/books"
+          folderView={{ ...DEFAULT_FOLDER_VIEW, tagDisplay: undefined }}
+          onOpen={vi.fn()}
+          onGoTo={vi.fn()}
+        />
+      </VirtuosoMockContext.Provider>
+    </div>,
+  )
+
+  await expect.element(page.getByRole("button", { name: "更多" })).toBeVisible()
+  expect(document.querySelector("[data-neoview-folder-list-shell='true']")).not.toBeNull()
+})
+
 test("[neoview.folder.keyboard-passthrough-gui] leaves file-card keys available to global bindings", async () => {
   const client = {
     openDirectoryBrowser: vi.fn(async () => directoryPage({
