@@ -56,6 +56,57 @@ describe("marku CLI", () => {
     expect(host.stdoutText()).toContain("Text processed: changed.")
     expect(host.stdoutText()).toContain("# Messy Title")
   })
+
+  test("runs a supplied JSON workflow over inline text and reports step results", async () => {
+    const host = createHost()
+    const workflow = JSON.stringify({
+      id: "wf-cli",
+      name: "cli pipeline",
+      steps: [
+        { id: "s1", module: "content_replace", config: { patterns: [{ from: "alpha", to: "beta" }] } },
+        { id: "s2", module: "content_replace", config: { patterns: [{ from: "beta", to: "gamma" }] } },
+      ],
+    })
+
+    await runProgram(["workflow", "--workflow", workflow, "--input", "alpha", "--json"], host)
+
+    expect(process.exitCode).toBe(0)
+    const result = JSON.parse(host.stdoutText()) as MarkuResult
+    expect(result.success).toBe(true)
+    expect(result.data?.outputText).toBe("gamma")
+    expect(result.data?.workflow?.workflowId).toBe("wf-cli")
+    expect(result.data?.workflow?.sources).toHaveLength(1)
+    expect(result.data?.workflow?.sources[0]?.steps.map((step) => step.outputText)).toEqual(["beta", "gamma"])
+  })
+
+  test("reads a workflow JSON file and fails cleanly on unknown modules", async () => {
+    const fixture = await createFixture("workflow-file")
+    const host = createHost()
+    const workflowPath = resolve(fixture, "workflow.json")
+    await writeFile(workflowPath, JSON.stringify({ id: "wf-bad", name: "bad", steps: [{ id: "s1", module: "ghost_module", config: {} }] }), "utf8")
+
+    await runProgram(["workflow", "--workflowFile", workflowPath, "--input", "alpha", "--json"], host)
+
+    const exitCode = process.exitCode
+    process.exitCode = 0
+    expect(exitCode).toBe(1)
+    const result = JSON.parse(host.stdoutText()) as MarkuResult
+    expect(result.success).toBe(false)
+    expect(result.message).toContain("unknown module: ghost_module")
+  })
+
+  test("reports the canonical failure when no workflow definition is supplied", async () => {
+    const host = createHost()
+
+    await runProgram(["workflow", "--input", "alpha", "--json"], host)
+
+    const exitCode = process.exitCode
+    process.exitCode = 0
+    expect(exitCode).toBe(1)
+    const result = JSON.parse(host.stdoutText()) as MarkuResult
+    expect(result.success).toBe(false)
+    expect(result.message).toContain("missing or malformed")
+  })
 })
 
 async function createFixture(name: string): Promise<string> {
