@@ -21,11 +21,11 @@ import {
   chainDirectorySelection,
   createDirectorySelection,
   extendDirectorySelection,
-  selectDirectorySingle,
   toggleDirectorySelection,
   type DirectorySelectionModel,
 } from "./DirectorySelection"
 import type { FolderContextEntry } from "./FolderContextActions"
+import type { FolderEntrySelectionSpec } from "./FolderEntryViewSpec"
 import type { FolderViewMode } from "./FolderBrowserState"
 
 export function useFolderSelectionController({
@@ -37,6 +37,7 @@ export function useFolderSelectionController({
   gridRef,
   mosaicRef,
   activate,
+  interaction,
 }: {
   catalog: DirectoryCatalog | undefined
   catalogRef: RefObject<DirectoryCatalog | undefined>
@@ -45,6 +46,7 @@ export function useFolderSelectionController({
   listRef: RefObject<VirtuosoHandle | null>
   gridRef: RefObject<VirtuosoGridHandle | null>
   mosaicRef: RefObject<VirtuosoHandle | null>
+  interaction?: FolderEntrySelectionSpec
   activate(
     entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported">,
     rawDirectory?: boolean,
@@ -59,6 +61,9 @@ export function useFolderSelectionController({
   const [renameRequest, setRenameRequest] = useState<FolderContextEntry>()
   const [focusedPath, setFocusedPath] = useState<string>()
   const [focusedIndex, setFocusedIndex] = useState<number>()
+  const effectiveMultiSelectMode = interaction?.multiSelectMode ?? multiSelectMode
+  const effectiveChainSelectMode = interaction?.chainSelectMode ?? chainSelectMode
+  const effectiveCheckModeClickBehavior = interaction?.checkModeClickBehavior ?? checkModeClickBehavior
 
   function toggleMultiSelectMode(): void {
     if (multiSelectMode) {
@@ -75,7 +80,7 @@ export function useFolderSelectionController({
     setFocusedIndex(index)
     setFocusedPath(entry.path)
     const generation = catalogRef.current?.generation ?? selection.generation
-    if (multiSelectMode && chainSelectMode) {
+    if (effectiveMultiSelectMode && effectiveChainSelectMode) {
       const chainAnchorIndex = chainAnchorIndexRef.current
       setSelection((current) =>
         chainDirectorySelection(current, generation, index, {
@@ -94,7 +99,7 @@ export function useFolderSelectionController({
           endPath: entry.path,
         }),
       )
-    } else if (readerEntryClickIntent(event, multiSelectMode && checkModeClickBehavior === "select") === "select") {
+    } else if (readerEntryClickIntent(event, effectiveMultiSelectMode && effectiveCheckModeClickBehavior === "select") === "select") {
       setSelection((current) => toggleDirectorySelection(current, generation, entry.path, index))
     } else if (entry.kind === "directory" && penetrationEnabled && event.detail >= 2) {
       activate(entry, true)
@@ -119,11 +124,11 @@ export function useFolderSelectionController({
   return {
     selection,
     setSelection,
-    multiSelectMode,
+    multiSelectMode: effectiveMultiSelectMode,
     setMultiSelectMode,
-    chainSelectMode,
+    chainSelectMode: effectiveChainSelectMode,
     setChainSelectMode,
-    checkModeClickBehavior,
+    checkModeClickBehavior: effectiveCheckModeClickBehavior,
     setCheckModeClickBehavior,
     renameRequest,
     setRenameRequest,

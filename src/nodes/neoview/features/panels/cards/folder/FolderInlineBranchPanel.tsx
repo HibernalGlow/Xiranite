@@ -1,25 +1,25 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { ChevronDown, FolderInput, SlidersHorizontal, X } from "lucide-react"
-import { Virtuoso, VirtuosoGrid, type ListRange } from "react-virtuoso"
+import { type ListRange, type VirtuosoGridHandle, type VirtuosoHandle } from "react-virtuoso"
 
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Switch } from "@/components/ui/switch"
-import type { ReaderDirectoryEntryDto, ReaderDirectoryFilterDto, ReaderDirectorySortDto, ReaderFolderPenetrationConfig, ReaderFolderViewMode, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { ReaderDirectoryEntryDto, ReaderDirectoryFilterDto, ReaderDirectorySortDto, ReaderFolderPenetrationConfig, ReaderFolderViewMode, ReaderFolderViewPatch, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import {
   createDirectoryCatalog,
-  directoryEntryAt,
+  FOLDER_MOSAIC_GROUP_SIZE,
   folderErrorMessage,
   mergeDirectoryPage,
   trimDirectoryPages,
   type DirectoryCatalog,
 } from "./DirectoryCatalog"
-import { DirectoryBannerItem, DirectoryGridItem } from "./FolderGridWorkspace"
-import { DirectoryListItem, folderEntryName } from "./FolderDirectoryListItem"
-import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
+import { createDirectorySelection, selectedLoadedDirectoryPaths } from "./DirectorySelection"
+import { folderEntryName } from "./FolderDirectoryListItem"
+import FolderEntryViewport from "./FolderEntryViewport"
+import { folderEntryGridWidthPercent, type FolderEntryViewSpec } from "./FolderEntryViewSpec"
 import { FolderInlineBranchLimitInputs } from "./FolderInlineBranchLimitFields"
-import type { FolderPreviewCount } from "./FolderBrowserState"
-import { folderTitleClassName } from "./FolderViewPresentation"
+import { useFolderSelectionController } from "./useFolderSelectionController"
 import { useFolderThumbnailPipeline } from "./useFolderThumbnailPipeline"
 
 const PAGE_SIZE = 128
@@ -27,6 +27,7 @@ const MAX_CACHED_PAGES = 6
 const EMPTY_SELECTED_PATHS: ReadonlySet<string> = new Set()
 const INLINE_BRANCH_HEADER_HEIGHT = 40
 const INLINE_BRANCH_STATE_HEIGHT = 76
+const INLINE_RETURN_FOOTER_CONTEXT = { disabled: true, onReturn: () => undefined }
 
 export function inlineBranchViewportHeight(total: number, viewMode: ReaderFolderViewMode): number {
   const usesGrid = viewMode === "mosaic-list" || viewMode.endsWith("grid")
@@ -81,7 +82,18 @@ function useInlineBranchContentHeight(
         observedList = itemList
         observer.observe(itemList)
       }
-      const height = Math.ceil(Math.max(itemList.scrollHeight, itemList.getBoundingClientRect().height))
+      const items = Array.from(itemList.children).filter((item): item is HTMLElement => item instanceof HTMLElement)
+      const expectedItems = viewMode === "mosaic-grid"
+        ? Math.ceil(catalog.total / FOLDER_MOSAIC_GROUP_SIZE)
+        : catalog.total
+      const contentTop = content.getBoundingClientRect().top
+      const renderedHeight = items.reduce(
+        (maximum, item) => Math.max(maximum, item.getBoundingClientRect().bottom - contentTop),
+        0,
+      )
+      const height = Math.ceil(items.length >= expectedItems && renderedHeight > 0
+        ? renderedHeight
+        : Math.max(itemList.scrollHeight, itemList.getBoundingClientRect().height))
       if (height > 0) setContentHeight((current) => current === height ? current : height)
     }
     const scheduleMeasure = () => {
@@ -105,74 +117,86 @@ function useInlineBranchContentHeight(
 export default function FolderInlineBranchPanel({
   client,
   path,
-  viewMode,
   filter,
   sort,
   showHiddenFolders,
   hideMissingEfuEntries,
-  previewGridEnabled,
-  previewCount,
   penetration,
-  thumbnailProbeEnabled,
-  contentWidthPercent,
-  hoverPreviewEnabled,
-  hoverPreviewDelayMs,
-  wrapTitle,
-  deleteMode,
-  deleteStrategy,
-  confirmDelete,
+  viewSpec,
   disabled,
   onActivate,
   onEnterDirectory,
-  onUpdatePenetration,
+  onUpdateView,
   onClose,
 }: {
   client: ReaderHttpClient
   path: string
-  viewMode: ReaderFolderViewMode
   filter: ReaderDirectoryFilterDto
   sort: ReaderDirectorySortDto
   showHiddenFolders: boolean
   hideMissingEfuEntries: boolean
-  previewGridEnabled: boolean
-  previewCount: FolderPreviewCount
   penetration: ReaderFolderPenetrationConfig
-  thumbnailProbeEnabled: boolean
-  contentWidthPercent: number
-  hoverPreviewEnabled: boolean
-  hoverPreviewDelayMs: number
-  wrapTitle: boolean
-  deleteMode: boolean
-  deleteStrategy: FolderDeleteStrategy
-  confirmDelete: boolean
+  viewSpec: FolderEntryViewSpec
   disabled: boolean
   onActivate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported">): void
   onEnterDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void
-  onUpdatePenetration(patch: Partial<ReaderFolderPenetrationConfig>): void
+  onUpdateView(patch: ReaderFolderViewPatch["folderView"]): void
   onClose(): void
 }) {
+  const { config, selection: interaction } = viewSpec
+  const { viewMode } = config
   const { panelRef, availableHeight } = useInlineBranchAvailableHeight(path)
   const catalogRef = useRef<DirectoryCatalog>()
+  const listRef = useRef<VirtuosoHandle>(null)
+  const gridRef = useRef<VirtuosoGridHandle>(null)
+  const mosaicRef = useRef<VirtuosoHandle>(null)
   const pendingCursorsRef = useRef(new Set<number>())
   const listingRequestRef = useRef<AbortController>()
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: PAGE_SIZE - 1 })
   const [catalog, setCatalog] = useState<DirectoryCatalog>()
-  const [selectedPath, setSelectedPath] = useState<string>()
   const [error, setError] = useState<string>()
   const { contentRef, contentHeight } = useInlineBranchContentHeight(path, catalog, viewMode)
+  const selectionController = useFolderSelectionController({
+    catalog,
+    catalogRef,
+    viewMode,
+    penetrationEnabled: penetration.enabled,
+    listRef,
+    gridRef,
+    mosaicRef,
+    interaction,
+    activate: (entry) => entry.kind === "directory" ? onEnterDirectory(entry) : onActivate(entry),
+  })
+  const {
+    selection: branchSelection,
+    setSelection: setBranchSelection,
+    focusedIndex: branchFocusedIndex,
+    selectEntry: selectBranchEntry,
+    chainAnchorIndexRef: branchChainAnchorIndexRef,
+  } = selectionController
+  const selectedPaths = useMemo(
+    () => catalog ? selectedLoadedDirectoryPaths(branchSelection, catalog.pages) : EMPTY_SELECTED_PATHS,
+    [branchSelection, catalog],
+  )
   const thumbnailPipeline = useFolderThumbnailPipeline({
     client,
     catalog,
     catalogRef,
-    thumbnailsVisible: thumbnailProbeEnabled,
+    thumbnailsVisible: viewSpec.thumbnailProbeEnabled,
     viewMode,
-    previewGridEnabled,
-    previewCount,
+    previewGridEnabled: config.previewGridEnabled ?? false,
+    previewCount: config.previewCount,
     visibleRangeRef,
-    selectedPaths: EMPTY_SELECTED_PATHS,
+    selectedPaths,
   })
   const thumbnailPipelineRef = useRef(thumbnailPipeline)
   thumbnailPipelineRef.current = thumbnailPipeline
+
+  useEffect(() => {
+    if (interaction.multiSelectMode) return
+    branchChainAnchorIndexRef.current = undefined
+    setBranchSelection(createDirectorySelection(catalog?.generation ?? 0))
+  }, [branchChainAnchorIndexRef, catalog?.generation, interaction.multiSelectMode, setBranchSelection])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -181,7 +205,7 @@ export default function FolderInlineBranchPanel({
     pendingCursorsRef.current.clear()
     catalogRef.current = undefined
     setCatalog(undefined)
-    setSelectedPath(undefined)
+    setBranchSelection(createDirectorySelection(0))
     setError(undefined)
     if (!client.openDirectoryBrowser) {
       setError("当前后端不支持展开文件夹")
@@ -213,7 +237,7 @@ export default function FolderInlineBranchPanel({
       thumbnailPipelineRef.current.releaseContext()
       if (sessionId) void client.closeDirectoryBrowser?.(sessionId).catch(() => undefined)
     }
-  }, [client, filter, hideMissingEfuEntries, path, showHiddenFolders, sort])
+  }, [client, filter, hideMissingEfuEntries, path, setBranchSelection, showHiddenFolders, sort])
 
   function requestRange(range: ListRange): void {
     const current = catalogRef.current
@@ -238,14 +262,6 @@ export default function FolderInlineBranchPanel({
     }
   }
 
-  function selectEntry(entry: ReaderDirectoryEntryDto, _index: number, _event: ReactMouseEvent): void {
-    setSelectedPath(entry.path)
-    if (entry.kind === "directory") onEnterDirectory(entry)
-    else onActivate(entry)
-  }
-
-  const showRating = catalog?.metadataFields.includes("rating") ?? false
-  const showCollectTagCount = catalog?.metadataFields.includes("collectTagCount") ?? false
   const naturalHeight = catalog?.total && catalog.total > 0
     ? contentHeight === undefined
       ? inlineBranchViewportHeight(catalog.total, viewMode)
@@ -258,15 +274,21 @@ export default function FolderInlineBranchPanel({
     <section
       ref={panelRef}
       className="flex shrink-0 flex-col border-t bg-muted/20"
-      style={{ height: `${height}px` }}
+      style={{
+        height: `${height}px`,
+        "--folder-grid-width": `${folderEntryGridWidthPercent(viewSpec)}%`,
+      } as CSSProperties}
       data-folder-inline-branch="true"
       data-folder-inline-branch-path={path}
       data-folder-inline-view-mode={viewMode}
+      data-folder-inline-content-width={config.contentWidthPercent}
+      data-folder-inline-thumbnail-width={config.thumbnailWidthPercent}
+      data-folder-inline-banner-width={config.bannerWidthPercent}
     >
       <header className="flex h-10 shrink-0 items-center gap-2 border-b bg-background/80 px-2">
         <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate text-xs font-medium" title={path}>展开：{folderEntryName(path)}</span>
-        <FolderInlineBranchQuickLimits disabled={disabled} penetration={penetration} onUpdate={onUpdatePenetration} />
+        <FolderInlineBranchQuickLimits disabled={disabled} penetration={penetration} onUpdate={(patch) => onUpdateView({ penetration: patch })} />
         <Button type="button" variant="ghost" size="icon-sm" aria-label="进入此文件夹" title="进入此文件夹" disabled={disabled} onClick={() => onEnterDirectory({ path })}>
           <FolderInput className="size-4" />
         </Button>
@@ -278,48 +300,18 @@ export default function FolderInlineBranchPanel({
         {error ? <div className="grid h-full min-h-0 place-items-center px-3 text-xs text-destructive" role="status">{error}</div> : null}
         {!error && !catalog ? <div className="grid h-full min-h-0 place-items-center text-xs text-muted-foreground" role="status">正在展开文件夹...</div> : null}
         {!error && catalog?.total === 0 ? <div className="grid h-full min-h-0 place-items-center text-xs text-muted-foreground" role="status">此文件夹为空</div> : null}
-        {!error && catalog && catalog.total > 0 && viewMode === "details" ? (
-          <InlineDetailsList catalog={catalog} disabled={disabled} selectedPath={selectedPath} wrapTitle={wrapTitle} deleteMode={deleteMode} deleteStrategy={deleteStrategy} confirmDelete={confirmDelete} onRangeChange={requestRange} onSelect={selectEntry} />
-        ) : null}
-        {!error && catalog && catalog.total > 0 && viewMode === "mosaic-list" ? (
-          <VirtuosoGrid
-            style={{ height: "100%" }}
-            totalCount={catalog.total}
-            listClassName="grid gap-1 overflow-hidden p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),10rem),1fr))]"
-            itemClassName="min-w-0"
-            computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
-            rangeChanged={requestRange}
-            itemContent={(index) => {
-              const entry = directoryEntryAt(catalog, index)
-              return <DirectoryBannerItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={showRating} showCollectTagCount={showCollectTagCount} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} thumbnailProbeEnabled={thumbnailProbeEnabled} hoverPreviewEnabled={hoverPreviewEnabled} hoverPreviewDelayMs={hoverPreviewDelayMs} wrapTitle={wrapTitle} deleteMode={deleteMode} deleteStrategy={deleteStrategy} confirmDelete={confirmDelete} onSelect={selectEntry} />
-            }}
-          />
-        ) : null}
-        {!error && catalog && catalog.total > 0 && viewMode.endsWith("grid") ? (
-          <VirtuosoGrid
-            style={{ height: "100%" }}
-            totalCount={catalog.total}
-            listClassName="grid gap-1 overflow-hidden p-1 [grid-template-columns:repeat(auto-fill,minmax(7rem,1fr))]"
-            itemClassName="min-w-0"
-            computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
-            rangeChanged={requestRange}
-            itemContent={(index) => {
-              const entry = directoryEntryAt(catalog, index)
-              return <DirectoryGridItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={showRating} showCollectTagCount={showCollectTagCount} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} thumbnailProbeEnabled={thumbnailProbeEnabled} hoverPreviewEnabled={hoverPreviewEnabled} hoverPreviewDelayMs={hoverPreviewDelayMs} wrapTitle={wrapTitle} deleteMode={deleteMode} deleteStrategy={deleteStrategy} confirmDelete={confirmDelete} onSelect={selectEntry} />
-            }}
-          />
-        ) : null}
-        {!error && catalog && catalog.total > 0 && viewMode !== "details" && !viewMode.endsWith("grid") ? (
-          <Virtuoso
-            style={{ height: "100%" }}
-            totalCount={catalog.total}
-            fixedItemHeight={wrapTitle ? undefined : viewMode === "compact" ? 34 : 76}
-            computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
-            rangeChanged={requestRange}
-            itemContent={(index) => {
-              const entry = directoryEntryAt(catalog, index)
-              return <DirectoryListItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={showRating} showCollectTagCount={showCollectTagCount} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} thumbnailProbeEnabled={thumbnailProbeEnabled} contentWidthPercent={contentWidthPercent} hoverPreviewEnabled={hoverPreviewEnabled} hoverPreviewDelayMs={hoverPreviewDelayMs} wrapTitle={wrapTitle} deleteMode={deleteMode} deleteStrategy={deleteStrategy} confirmDelete={confirmDelete} onSelect={selectEntry} />
-            }}
+        {!error && catalog && catalog.total > 0 ? (
+          <FolderEntryViewport
+            catalog={catalog} viewSpec={viewSpec}
+            virtualKey={`inline:${catalog.sessionId}:${catalog.generation}:${viewMode}`}
+            disabled={disabled} selectedPaths={selectedPaths} focusedIndex={branchFocusedIndex}
+            itemIdPrefix={`folder-inline-${catalog.sessionId}`}
+            thumbnailStore={thumbnailPipeline.thumbnailStore}
+            listRef={listRef} gridRef={gridRef} mosaicRef={mosaicRef}
+            showReturnFooter={false} returnFooterContext={INLINE_RETURN_FOOTER_CONTEXT}
+            onRangeChange={requestRange}
+            onDetailsLayoutChange={(details) => onUpdateView({ details })}
+            onSelect={selectBranchEntry}
           />
         ) : null}
       </div>
@@ -365,46 +357,5 @@ function FolderInlineBranchQuickLimits({
         </PopoverContent>
       </Popover>
     </div>
-  )
-}
-
-function InlineDetailsList({
-  catalog,
-  disabled,
-  selectedPath,
-  wrapTitle,
-  deleteMode,
-  deleteStrategy,
-  confirmDelete,
-  onRangeChange,
-  onSelect,
-}: {
-  catalog: DirectoryCatalog
-  disabled: boolean
-  selectedPath?: string
-  wrapTitle: boolean
-  deleteMode: boolean
-  deleteStrategy: FolderDeleteStrategy
-  confirmDelete: boolean
-  onRangeChange(range: ListRange): void
-  onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
-}) {
-  return (
-    <Virtuoso
-      style={{ height: "100%" }}
-      totalCount={catalog.total}
-      fixedItemHeight={42}
-      computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
-      rangeChanged={onRangeChange}
-      itemContent={(index) => {
-        const entry = directoryEntryAt(catalog, index)
-        return entry ? (
-          <div className="relative h-[42px]">
-            {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} placement="leading" confirm={confirmDelete} /> : null}
-            <button type="button" className={`grid h-[42px] w-full grid-cols-[minmax(8rem,1fr)_minmax(10rem,2fr)_5rem] items-center gap-2 border-b pr-2 text-left text-xs hover:bg-muted aria-selected:bg-accent ${deleteMode ? "pl-9" : "pl-2"}`} aria-selected={entry.path === selectedPath} disabled={disabled} onClick={(event) => onSelect(entry, index, event)}><span className={`${folderTitleClassName(wrapTitle)} font-medium`}>{entry.name}</span><span className="truncate text-muted-foreground">{entry.path}</span><span className="truncate text-muted-foreground">{entry.kind === "directory" ? "文件夹" : "文件"}</span></button>
-          </div>
-        ) : <div className="h-[42px] animate-pulse border-b bg-muted/30" />
-      }}
-    />
   )
 }

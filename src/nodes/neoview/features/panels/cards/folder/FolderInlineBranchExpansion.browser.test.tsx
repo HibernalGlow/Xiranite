@@ -4,7 +4,7 @@ import { page } from "vitest/browser"
 import { render } from "vitest-browser-react"
 import { VirtuosoMockContext } from "react-virtuoso"
 
-import type { ReaderDirectoryPageDto, ReaderFolderViewMode, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { ReaderDirectoryPageDto, ReaderFolderViewConfig, ReaderFolderViewMode, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import FolderMainCard from "../FolderMainCard"
 import { DEFAULT_FOLDER_VIEW } from "./FolderBrowserPane"
 import { inlineBranchViewportHeight } from "./FolderInlineBranchPanel"
@@ -261,6 +261,49 @@ test("[neoview.folder.inline-branch-state-browser] inherits delete mode in the e
 
   await expect.poll(() => document.querySelectorAll('[data-folder-inline-branch="true"] [data-folder-delete-button="true"]').length).toBe(2)
   expect(Array.from(document.querySelectorAll('[data-folder-inline-branch="true"] [data-folder-delete-button="true"]')).every((button) => button.getAttribute("data-folder-delete-strategy") === "trash")).toBe(true)
+})
+
+test("[neoview.folder.inline-branch-view-spec-browser] shares the resolved presentation sizes with the root viewport", async () => {
+  await renderExpandedBranch("cover-list", {
+    folderViewPatch: {
+      contentWidthPercent: 43,
+      thumbnailWidthPercent: 37,
+      bannerWidthPercent: 64,
+      titleWrap: { ...DEFAULT_FOLDER_VIEW.titleWrap, "cover-list": true },
+      hoverPreviewEnabled: true,
+      hoverPreviewDelayMs: 1200,
+    },
+  })
+
+  const rootShell = document.querySelector<HTMLElement>('[data-neoview-folder-list-shell="true"]')
+  const drawer = document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')
+  const rootThumbnail = document.querySelector<HTMLElement>('[data-folder-path="C:/books/series"] [data-folder-thumbnail="true"]')
+  const inlineThumbnail = drawer?.querySelector<HTMLElement>('[data-folder-path="C:/books/series/chapter-one"] [data-folder-thumbnail="true"]')
+  expect(rootShell?.style.getPropertyValue("--folder-grid-width")).toBe("37%")
+  expect(drawer?.style.getPropertyValue("--folder-grid-width")).toBe("37%")
+  expect(drawer?.getAttribute("data-folder-inline-content-width")).toBe("43")
+  expect(drawer?.getAttribute("data-folder-inline-thumbnail-width")).toBe("37")
+  expect(drawer?.getAttribute("data-folder-inline-banner-width")).toBe("64")
+  expect(rootThumbnail?.style.width).toBe("43%")
+  expect(inlineThumbnail?.style.width).toBe("43%")
+  expect(drawer?.querySelector('[data-folder-entry-title-wrap="true"]')).not.toBeNull()
+})
+
+test("[neoview.folder.inline-branch-interaction-spec-browser] inherits multi-select click behavior", async () => {
+  await renderExpandedBranch("cover-list")
+  await page.getByRole("button", { name: "多选模式" }).click()
+  await page.getByRole("button", { name: "点击行为：点开" }).click()
+
+  const drawer = document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')
+  const child = drawer?.querySelector<HTMLElement>('[data-folder-entry][data-folder-path="C:/books/series/chapter-one"]')
+  if (!child) throw new Error("Expected the expanded child entry")
+  child.click()
+
+  await expect.poll(() => child.getAttribute("aria-selected")).toBe("true")
+  expect(document.querySelector('[data-folder-inline-branch="true"]')).toBe(drawer)
+
+  await page.getByRole("button", { name: "关闭多选模式" }).click()
+  await expect.poll(() => child.getAttribute("aria-selected")).toBe("false")
 })
 
 test("[neoview.folder.inline-branch-setting-browser] enables the optional branch-expansion setting from penetration controls", async () => {
@@ -551,13 +594,16 @@ test("[neoview.folder.inline-branch-cover-list] preserves the current scroll pos
 })
 
 test("[neoview.folder.inline-branch-banner] keeps the banner renderer inside the drawer", async () => {
-  await renderExpandedBranch("mosaic-list")
+  await renderExpandedBranch("mosaic-list", { folderViewPatch: { bannerWidthPercent: 64 } })
   await expect.poll(() => document.querySelector('[data-folder-inline-branch="true"] [data-preview-mode="mosaic-list"]')).not.toBeNull()
+  expect(document.querySelector<HTMLElement>('[data-neoview-folder-list-shell="true"]')?.style.getPropertyValue("--folder-grid-width")).toBe("64%")
+  expect(document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')?.style.getPropertyValue("--folder-grid-width")).toBe("64%")
 })
 
 test("[neoview.folder.inline-branch-mosaic] reserves a full mosaic row for the drawer", async () => {
-  await renderExpandedBranch("mosaic-grid")
+  await renderExpandedBranch("mosaic-grid", { folderViewPatch: { thumbnailWidthPercent: 37 } })
   await expect.poll(() => document.querySelector('[data-folder-inline-branch="true"]')?.parentElement?.getAttribute("data-folder-inline-mosaic-drawer")).toBe("true")
+  await expect.poll(() => Array.from(document.querySelectorAll('[data-folder-mosaic-grid="true"]')).map((viewport) => viewport.getAttribute("data-folder-mosaic-tile-size"))).toEqual(["129", "129"])
 })
 
 test("[neoview.folder.inline-branch-height] uses the content height for a small expanded folder", async () => {
@@ -566,11 +612,11 @@ test("[neoview.folder.inline-branch-height] uses the content height for a small 
 })
 
 test("[neoview.folder.inline-branch-height] adapts grid height to the number of rows at the current width", async () => {
-  const narrowView = await renderExpandedBranch("cover-grid", { width: 360, childEntryCount: 8 })
+  const narrowView = await renderExpandedBranch("cover-grid", { width: 360, childEntryCount: 8, folderViewPatch: { thumbnailWidthPercent: 10 } })
   const narrowHeight = Number.parseFloat(document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')?.style.height ?? "0")
   await narrowView.unmount()
 
-  await renderExpandedBranch("cover-grid", { width: 960, childEntryCount: 8 })
+  await renderExpandedBranch("cover-grid", { width: 960, childEntryCount: 8, folderViewPatch: { thumbnailWidthPercent: 10 } })
   const wideHeight = Number.parseFloat(document.querySelector<HTMLElement>('[data-folder-inline-branch="true"]')?.style.height ?? "0")
 
   expect(narrowHeight).toBeGreaterThan(wideHeight)
@@ -594,6 +640,7 @@ async function renderExpandedBranch(
     childEntryCount = 2,
     branchIndex = 0,
     initialScrollTop = 0,
+    folderViewPatch,
     beforeExpand,
   }: {
     width?: number
@@ -601,6 +648,7 @@ async function renderExpandedBranch(
     childEntryCount?: number
     branchIndex?: number
     initialScrollTop?: number
+    folderViewPatch?: Partial<ReaderFolderViewConfig>
     beforeExpand?(branch: HTMLElement): void
   } = {},
 ) {
@@ -659,8 +707,10 @@ async function renderExpandedBranch(
           onGoTo={vi.fn()}
           folderView={{
             ...DEFAULT_FOLDER_VIEW,
+            ...folderViewPatch,
             viewMode,
-            penetration: { ...DEFAULT_FOLDER_VIEW.penetration, enabled: true, expandBranchesInline: true },
+            titleWrap: { ...DEFAULT_FOLDER_VIEW.titleWrap, ...folderViewPatch?.titleWrap },
+            penetration: { ...DEFAULT_FOLDER_VIEW.penetration, ...folderViewPatch?.penetration, enabled: true, expandBranchesInline: true },
           }}
         />
       </VirtuosoMockContext.Provider>

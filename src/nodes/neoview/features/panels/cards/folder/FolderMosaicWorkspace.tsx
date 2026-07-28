@@ -179,6 +179,7 @@ export default function FolderMosaicWorkspace({
       }}
       data-folder-navigation-entry-id={catalog.navigationEntryId}
       data-folder-mosaic-grid="true"
+      data-folder-mosaic-tile-size={tileSize}
       data-folder-restore-scroll-top={initialScrollTop}
       style={{ height: "100%" }}
       totalCount={Math.ceil(catalog.total / FOLDER_MOSAIC_GROUP_SIZE)}

@@ -19,6 +19,7 @@ import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteBut
 import { FOLDER_GRID_COMPONENTS, type FolderReturnFooterContext } from "./FolderEmptyAreaBehavior"
 import { folderThumbnailIsLoading, type FolderThumbnailStore } from "./FolderThumbnailStore"
 import { useFolderThumbnail } from "./useFolderThumbnail"
+import { folderEntryGridListClassName } from "./FolderEntryViewSpec"
 import { folderTitleClassName } from "./FolderViewPresentation"
 
 interface FolderGridContext extends FolderReturnFooterContext {
@@ -170,9 +171,7 @@ export default function FolderGridWorkspace({
       totalCount={catalog.total + (hasInlineBranch ? 1 : 0)}
       components={showReturnFooter ? FOLDER_GRID_COMPONENTS_WITH_DRAWER : EMPTY_GRID_COMPONENTS_WITH_DRAWER}
       context={gridContext}
-      listClassName={banner
-        ? "grid grid-flow-dense gap-1 p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),10rem),1fr))]"
-        : "grid grid-flow-dense gap-1 p-1 [grid-template-columns:repeat(auto-fill,minmax(max(var(--folder-grid-width),5.5rem),1fr))]"}
+      listClassName={folderEntryGridListClassName(viewMode)}
       itemClassName="min-w-0"
       increaseViewportBy={{ top: 144, bottom: 288 }}
       computeItemKey={(index) => index === inlineBranchDrawerIndex
