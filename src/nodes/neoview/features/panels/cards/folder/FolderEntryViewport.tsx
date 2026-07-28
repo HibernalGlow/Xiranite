@@ -33,6 +33,7 @@ export interface FolderEntryViewportProps {
   thumbnailStore?: FolderThumbnailStore
   penetrationFiles?: ReadonlyMap<string, readonly FolderPenetrationFileName[]>
   listRef: RefObject<VirtuosoHandle | null>
+  listScrollerRef?: RefObject<HTMLElement | null>
   gridRef: RefObject<VirtuosoGridHandle | null>
   mosaicRef: RefObject<VirtuosoHandle | null>
   restoreState?: SavedDirectoryState
@@ -62,6 +63,7 @@ export default function FolderEntryViewport({
   thumbnailStore,
   penetrationFiles = EMPTY_PENETRATION_FILES,
   listRef,
+  listScrollerRef,
   gridRef,
   mosaicRef,
   restoreState,
@@ -87,6 +89,9 @@ export default function FolderEntryViewport({
         <Virtuoso
           key={virtualKey}
           ref={listRef}
+          scrollerRef={(element) => {
+            if (listScrollerRef) listScrollerRef.current = element instanceof HTMLElement ? element : null
+          }}
           style={{ height: "100%" }}
           totalCount={catalog.total}
           components={showReturnFooter ? FOLDER_LIST_COMPONENTS : EMPTY_VIRTUOSO_COMPONENTS}

@@ -1,11 +1,5 @@
 import { type GridStateSnapshot, type ListRange, type StateSnapshot, type VirtuosoGridHandle, type VirtuosoHandle } from "react-virtuoso"
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import type {
   ReaderActivationTraversalFrameDto,
@@ -77,6 +71,7 @@ import { useFolderNavigationEvents } from "./useFolderNavigationEvents"
 import { useFolderExternalDeletion } from "./useFolderExternalDeletion"
 import { openFolderBrowser } from "./FolderBrowserOpen"
 import { useFolderExternalOpenRequest } from "./useFolderExternalOpenRequest"
+import { useFolderViewportRestorer } from "./useFolderViewportRestorer"
 import { FolderBrowserPaneView } from "./FolderBrowserPaneView"
 export { DirectoryListItem } from "./FolderDirectoryListItem"
 export { isSameFolderNavigationEntry } from "./FolderPathIdentity"
@@ -173,6 +168,7 @@ export function FolderBrowserPane({
   const clipboardCompletionRef = useRef<string>()
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
   const listRef = useRef<VirtuosoHandle>(null)
+  const listScrollerRef = useRef<HTMLElement>(null)
   const gridRef = useRef<VirtuosoGridHandle>(null)
   const mosaicRef = useRef<VirtuosoHandle>(null)
   const listHostRef = useRef<HTMLDivElement>(null)
@@ -196,6 +192,7 @@ export function FolderBrowserPane({
   const [treeLayout, setTreeLayout] = useState(folderView.tree.layout)
   const [treeSize, setTreeSize] = useState(folderView.tree.size)
   const [viewMode, setViewMode] = useState<FolderViewMode>(folderView.viewMode)
+  const restoreViewport = useFolderViewportRestorer({ viewMode, listRef, listScrollerRef, gridRef, mosaicRef, listHostRef })
   const [previewGridEnabled, setPreviewGridEnabled] = useState(folderView.previewGridEnabled ?? false)
   const [previewCount, setPreviewCount] = useState<FolderPreviewCount>(folderView.previewCount)
   const [contentWidthPercent, setContentWidthPercent] = useState(folderView.contentWidthPercent ?? 35)
@@ -917,6 +914,7 @@ export function FolderBrowserPane({
     const preferredState = await captureRefreshState()
     const latest = catalogRef.current
     if (!latest || latest.sessionId !== page.sessionId || latest.generation >= page.generation) return
+    restoreViewport(preferredState)
     applyPage(page, preferredState, false, { preserveThumbnailCache: true })
   }
 
@@ -1299,6 +1297,7 @@ export function FolderBrowserPane({
         focusedIndexRef,
         chainAnchorIndexRef,
         listRef,
+        listScrollerRef,
         gridRef,
         mosaicRef,
         listHostRef,
