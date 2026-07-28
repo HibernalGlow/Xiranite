@@ -8,6 +8,7 @@ import {
 } from "react"
 
 import type {
+  ReaderActivationTraversalFrameDto,
   ReaderDirectoryEntryDto,
   ReaderDirectoryFilterDto,
   ReaderDirectoryMetadataFieldDto,
@@ -26,6 +27,7 @@ import {
 import type { FolderSearchListingUpdate } from "./FolderSearchPanel"
 import {
   createDirectoryCatalog,
+  cloneDirectoryCatalog,
   directoryEntryAt,
   directoryPageHasMetadata,
   directoryPageCursors,
@@ -106,7 +108,7 @@ export function FolderBrowserPane({
   disabled,
   sourcePath,
   onOpen,
-  onPrepareFileMutation,
+  onDeleteThroughBinding, onUndoFileDeletion,
   pickEfuFile,
   systemActions,
   switchToast,
@@ -207,7 +209,11 @@ export function FolderBrowserPane({
   const [restoreState, setRestoreState] = useState<SavedDirectoryState>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
-  const [inlineBranchPath, setInlineBranchPath] = useState<string>()
+  const [inlineBranch, setInlineBranch] = useState<{
+    path: string
+    traversalFrames: readonly ReaderActivationTraversalFrameDto[]
+  }>()
+  const inlineBranchPath = inlineBranch?.path
   const {
     penetration,
     descriptions: penetrationDescriptions,
@@ -234,7 +240,7 @@ export function FolderBrowserPane({
     reportError: setError,
   })
   useEffect(() => {
-    if (!active || !penetration.enabled || !penetration.expandBranchesInline) setInlineBranchPath(undefined)
+    if (!active || !penetration.enabled || !penetration.expandBranchesInline) setInlineBranch(undefined)
   }, [active, penetration.enabled, penetration.expandBranchesInline])
   const selectionController = useFolderSelectionController({
     catalog,
@@ -1023,7 +1029,12 @@ export function FolderBrowserPane({
     void onFolderView?.({ tree: { size } })
   }
 
-  function openReaderEntry(entry: Pick<ReaderDirectoryEntryDto, "path">, browserOriginEntryPath = entry.path, browserOriginSelfTerminal = false): void {
+  function openReaderEntry(
+    entry: Pick<ReaderDirectoryEntryDto, "path">,
+    browserOriginEntryPath = entry.path,
+    browserOriginSelfTerminal = false,
+    browserOriginTraversalFrames?: readonly ReaderActivationTraversalFrameDto[],
+  ): void {
     const current = catalogRef.current
     void onOpen?.(
       entry.path,
@@ -1032,6 +1043,7 @@ export function FolderBrowserPane({
             browserOriginPath: current.path,
             browserOriginEntryPath,
             ...(browserOriginSelfTerminal ? { browserOriginSelfTerminal: true } : {}),
+            ...(browserOriginTraversalFrames?.length ? { browserOriginTraversalFrames } : {}),
           }
         : undefined,
     )
@@ -1039,12 +1051,14 @@ export function FolderBrowserPane({
 
   function enterRawDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void {
     cancelPendingActivation()
-    setInlineBranchPath(undefined)
+    setInlineBranch(undefined)
     void navigate({ action: "path", path: entry.path }, { focusPath: entry.path })
   }
 
-  function toggleInlineBranch(path: string): void {
-    setInlineBranchPath((current) => sameFolderPath(current ?? "", path) ? undefined : path)
+  function toggleInlineBranch(path?: string, traversalFrames?: readonly ReaderActivationTraversalFrameDto[]): void {
+    setInlineBranch((current) => path === undefined || sameFolderPath(current?.path ?? "", path) || !traversalFrames?.length
+      ? undefined
+      : { path, traversalFrames: traversalFrames.map((frame) => ({ ...frame })) })
   }
 
   /**
@@ -1087,7 +1101,7 @@ export function FolderBrowserPane({
 
   function beginNavigation(): number {
     cancelPendingActivation()
-    setInlineBranchPath(undefined)
+    setInlineBranch(undefined)
     navigationRequestRef.current?.abort()
     catalogRequestRef.current?.abort()
     navigationRequestRef.current = new AbortController()
@@ -1101,14 +1115,6 @@ export function FolderBrowserPane({
     catalogRef.current = next
     setCatalog(next)
     onCurrentPathChange(next.path)
-  }
-
-  function cloneDirectoryCatalog(source: DirectoryCatalog): DirectoryCatalog {
-    return {
-      ...source,
-      pages: new Map([...source.pages].map(([cursor, entries]) => [cursor, [...entries]])),
-      pageMetadataFields: new Map([...source.pageMetadataFields].map(([cursor, fields]) => [cursor, new Set(fields)])),
-    }
   }
 
   function clearSearchSession(options: { restoreOrigin?: boolean } = {}) {
@@ -1201,7 +1207,7 @@ export function FolderBrowserPane({
   function disposeBrowser() {
     navigationGenerationRef.current += 1
     cancelPendingActivation()
-    setInlineBranchPath(undefined)
+    setInlineBranch(undefined)
     navigationRequestRef.current?.abort()
     catalogRequestRef.current?.abort()
     releaseThumbnailContext()
@@ -1246,7 +1252,7 @@ export function FolderBrowserPane({
         onOpenEfuInNewTab,
         onOpenSearchInNewTab,
         onOpen,
-        onPrepareFileMutation,
+        onDeleteThroughBinding, onUndoFileDeletion,
         pickEfuFile,
         systemActions,
         switchToast,
@@ -1268,6 +1274,7 @@ export function FolderBrowserPane({
         penetration,
         penetrationDescriptions,
         inlineBranchPath,
+        inlineBranchTraversalFrames: inlineBranch?.traversalFrames,
         multiSelectMode,
         chainSelectMode,
         checkModeClickBehavior,
@@ -1336,7 +1343,7 @@ export function FolderBrowserPane({
         updateHiddenFolders,
         updateMissingEfuEntries,
         updatePenetration,
-        closeInlineBranch: () => setInlineBranchPath(undefined),
+        closeInlineBranch: () => setInlineBranch(undefined),
         toggleTree,
         switchTreeLayout,
         toggleInlineTree,

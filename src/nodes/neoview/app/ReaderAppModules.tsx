@@ -1,7 +1,7 @@
 import { lazy, Suspense, useSyncExternalStore } from "react"
 import { DEFAULT_READER_PRESENTATION } from "@xiranite/node-neoview/ui-core"
 import type { SwimlaneWorkspaceSessionState } from "@xiranite/shared/swimlane"
-import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderBookmarkListPreferencesDto, type ReaderHistoryListPreferencesDto, type ReaderNavigationDto, type ReaderBookDefaultsDto, type ReaderRuntimeConfigDto, type ReaderPageListPreferencesDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderFolderViewConfig, type ReaderSlideshowConfig, type ReaderShellEdge, type ReaderSwimlaneId } from "../adapters/reader-http-client"
+import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderActivationIdentityDto, type ReaderHttpClient, type ReaderBookmarkListPreferencesDto, type ReaderHistoryListPreferencesDto, type ReaderNavigationDto, type ReaderBookDefaultsDto, type ReaderRuntimeConfigDto, type ReaderPageListPreferencesDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderFolderViewConfig, type ReaderSlideshowConfig, type ReaderShellEdge, type ReaderSwimlaneId } from "../adapters/reader-http-client"
 import { neoviewDebug } from "../neoviewDebug"
 import type { ReaderShellControlHydration, ReaderShellControlSnapshot } from "../features/shell/ReaderShellControlStore"
 import type { ReaderShellControlPort } from "../features/shell/ReaderShellControlPort"
@@ -196,6 +196,8 @@ export function loadReaderPresentation(): Promise<unknown> {
 export interface ReaderAppProps {
   sessionScopeId?: string
   initialPath?: string
+  initialActivationIdentity?: ReaderActivationIdentityDto
+  /** Legacy Card state read compatibility. */
   initialBrowserOriginPath?: string
   externalOpenRequest?: ReaderExternalOpenRequest
   onExternalOpenResult?: (result: ReaderExternalOpenResult) => void
@@ -207,7 +209,7 @@ export interface ReaderAppProps {
   pickEfuFile?: () => Promise<string | undefined>
   copyText?: (text: string) => Promise<void>
   copyFiles?: (paths: string[]) => Promise<void>
-  onPathCommitted?: (path: string, browserOriginPath?: string) => void
+  onActivationIdentityCommitted?: (identity: ReaderActivationIdentityDto | undefined) => void
   onSwimlaneSoloLaneIdCommitted?: (laneId: string | null) => void
   onReaderViewFullscreenCommitted?: (fullscreen: boolean) => void
 }

@@ -115,8 +115,7 @@ export function createReaderAppInputActions(context: any) {
     operationRef,
     openOperationRef,
     activeSourcePathRef,
-    activationRootPathRef,
-    commitPath,
+    commitOpenedSession,
     navigationPendingRef,
     adjacentBookPendingRef,
     slideshowSessionRef,
@@ -266,9 +265,7 @@ export function createReaderAppInputActions(context: any) {
     persistSlideshow,
     persistFolderView,
     closeSession,
-    prepareFileMutation,
     requestDeleteCurrentFile,
-    deleteCurrentFile,
     toggleWorkspaceMode,
     focusAdjacentWorkspaceLane,
     toggleActiveWorkspaceLaneFullscreen,
@@ -349,7 +346,10 @@ export function createReaderAppInputActions(context: any) {
       setPresentation(next)
     }
 
-  async function switchAdjacentBook(direction: "next" | "previous"): Promise<boolean> {
+  async function switchAdjacentBook(
+    direction: "next" | "previous",
+    { manageBusy = true }: { manageBusy?: boolean } = {},
+  ): Promise<boolean> {
       const sessionId = sessionRef.current
       const openAdjacentBook = clientRef.current.openAdjacentBook
       // Prefer refs over React `busy` state so concurrent key handlers from the
@@ -361,28 +361,21 @@ export function createReaderAppInputActions(context: any) {
       operationRef.current = controller
       navigationPendingRef.current = true
       adjacentBookPendingRef.current = true
-      setBusy(true)
+      if (manageBusy) setBusy(true)
       setError(undefined)
       try {
         const replacement = await openAdjacentBook(sessionId, direction, controller.signal)
         if (!replacement || controller.signal.aborted) return false
         sessionRef.current = replacement.sessionId
-        // Do not let a quick follow-up delete target the previous book's penetration root.
-        activationRootPathRef.current = ""
+        const identity = replacement.activationIdentity
         setSlideshowFadeFrame(undefined)
         setSession(replacement)
         setPresentation({ ...DEFAULT_READER_PRESENTATION, ...viewDefaultsRef.current })
         presentationTouchedRef.current = false
-        const metadata = clientRef.current.metadata
-          ? await clientRef.current.metadata(replacement.sessionId, controller.signal).catch(() => undefined)
-          : undefined
-        const sourcePath = metadata?.book.sourcePath.trim()
-        if (sourcePath && sessionRef.current === replacement.sessionId) {
-          setPath(sourcePath)
-          activeSourcePathRef.current = sourcePath
-          activationRootPathRef.current = sourcePath
-          commitPath(sourcePath, browserOriginPath)
-        }
+        setPath(identity.readerSourcePath)
+        activeSourcePathRef.current = identity.readerSourcePath
+        setBrowserOriginPath(identity.traversalRootPath)
+        commitOpenedSession(replacement)
         // Book-switch toast is owned by ReaderSwitchToastRuntime via book.id change.
         return true
       } catch (cause) {
@@ -392,7 +385,7 @@ export function createReaderAppInputActions(context: any) {
         if (operationRef.current === controller) operationRef.current = undefined
         navigationPendingRef.current = false
         adjacentBookPendingRef.current = false
-        if (!controller.signal.aborted) setBusy(false)
+        if (manageBusy && !controller.signal.aborted) setBusy(false)
       }
     }
 

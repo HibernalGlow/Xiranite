@@ -94,6 +94,7 @@ import { ReaderSwimlaneErrorBoundary, ReaderSwimlaneWorkspace } from "../feature
 import { applyReaderWorkspacePatch, fitReaderSwimlanesToViewport, readerWorkspaceConfig, type ReaderWorkspaceConfig, type ReaderWorkspacePatch } from "../features/workspace/ReaderWorkspaceLayout"
 import { createInitialReaderShellConfig, readerShellSnapshotsEqual } from "./ReaderShellSnapshot"
 import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
+import { ReaderStartupRestorePreferenceProvider } from "./ReaderStartupRestorePreferenceContext"
 import { workspaceConfigEqual, readerWorkspaceWithSession, splitReaderWorkspacePatch, INITIAL_VIEW_DEFAULTS, INITIAL_HISTORY_LIST_PREFERENCES, INITIAL_BOOKMARK_LIST_PREFERENCES, INITIAL_PAGE_LIST_PREFERENCES, INITIAL_BOOK_DEFAULTS, INITIAL_SLIDESHOW_CONFIG, INITIAL_PRELOAD_CONFIG, INITIAL_FOLDER_VIEW_CONFIG, loadReaderSidebar, LazyReaderSidebar, LazyReaderGestureInputRuntime, LazyReaderRadialMenuOverlay, LazyReaderSettingsWindow, loadReaderFrame, LazyReaderFrame, LazyReaderBackgroundLayer, LazyReaderViewToolbar, LazyReaderSwitchToastRuntime, LazyReaderInfoOverlayRuntime, loadReaderPresentation, DeferredSidebarFloatingController, shellControlHydration, shellControlSnapshot, defaultShellControlSnapshot, edgeSurfaceStyle, readerPathSegments, fileMutationContainsSource, applyNavigation, waitForReaderOperationIdle, errorMessage } from "./ReaderAppModules"
 import type { ReaderAppProps } from "./ReaderAppModules"
 
@@ -277,10 +278,9 @@ export function ReaderAppView({ context }: { context: any }) {
     persistSlideshow,
     persistFolderView,
     closeSession,
-    prepareFileMutation,
     deleteThroughInputBinding,
+    undoFileDeletion,
     requestDeleteCurrentFile,
-    deleteCurrentFile,
     toggleWorkspaceMode,
     focusAdjacentWorkspaceLane,
     toggleActiveWorkspaceLaneFullscreen,
@@ -530,8 +530,8 @@ export function ReaderAppView({ context }: { context: any }) {
       },
       onOpen: openPath,
       onBrowsePath: browsePath,
-      onPrepareFileMutation: prepareFileMutation,
       onDeleteThroughBinding: deleteThroughInputBinding,
+      onUndoFileDeletion: undoFileDeletion,
       onActivateInFolderCard: activateInFolderCard,
       onOpenInNewTab: openFolderPathInNewTab,
       folderNavigationEvents,
@@ -673,12 +673,13 @@ export function ReaderAppView({ context }: { context: any }) {
             />
           </Suspense>
         )}
-        {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white"><LoaderCircle className="size-4 animate-spin" /></div> : null}
+        {busy && session ? <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/55 p-2 text-white" data-reader-operation-busy="true"><LoaderCircle className="size-4 animate-spin" /></div> : null}
         {workspaceMode === "edges" && shell ? <DeferredSidebarFloatingController control={shellControl} shell={shell} disabled={busy} /> : null}
       </div>
     )
   
     return (
+      <ReaderStartupRestorePreferenceProvider preference={context.startupRestore}>
       <div
         ref={surface.ref}
         data-reader-app="true"
@@ -800,5 +801,6 @@ export function ReaderAppView({ context }: { context: any }) {
           </Suspense>
         ) : null}
       </div>
+      </ReaderStartupRestorePreferenceProvider>
     )
 }

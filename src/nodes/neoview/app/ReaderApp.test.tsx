@@ -7,8 +7,9 @@ import { DEFAULT_READER_INPUT_BINDINGS, DEFAULT_READER_RADIAL_MENU_CONFIG } from
 
 import { ContextMenuProvider } from "@/components/context-menu"
 import { useSwimlaneSessionStore } from "@/store/swimlaneSessionStore"
-import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderPreloadPlanDto, type ReaderRuntimeConfigDto, type ReaderSessionDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
+import { READER_FOLDER_DETAIL_DEFAULT_WIDTHS, type ReaderHttpClient, type ReaderPreloadPlanDto, type ReaderRuntimeConfigDto, type ReaderShellConfigDto, type ReaderSlideshowPatch, type ReaderViewDefaultsPatch } from "../adapters/reader-http-client"
 import { fileMutationContainsSource, ReaderApp } from "./ReaderApp"
+import { session } from "./ReaderApp.test-fixtures"
 import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
 
 beforeEach(() => {
@@ -72,14 +73,14 @@ describe("ReaderApp", () => {
       close: vi.fn(async () => undefined),
     }
     const committed = vi.fn()
-    const view = render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} onPathCommitted={committed} />)
+    const view = render(<ReaderApp initialPath="D:/books/demo.cbz" client={client} onActivationIdentityCommitted={committed} />)
 
     fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     const firstImage = await screen.findByRole("img", { name: "001.jpg" })
     expect(firstImage.tagName).toBe("IMG")
     expect(firstImage.getAttribute("src")).toContain("page-1")
     expect(document.querySelector("canvas")).toBeNull()
-    expect(committed).toHaveBeenCalledWith("D:/books/demo.cbz", undefined)
+    expect(committed).toHaveBeenCalledWith(opened.activationIdentity)
 
     // After open, the path textbox is replaced by the breadcrumb; page turns
     // are driven by the reader surface keybindings.
@@ -282,7 +283,11 @@ describe("ReaderApp", () => {
 
   it("[neoview.bindings.action-executor-react] routes configured actions through the shared Reader executor", async () => {
     const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
-    const replacement = { ...session("page-2", "http://127.0.0.1:41000/reader/page-2", 0), sessionId: "reader-2", book: { id: "book-2", displayName: "Book 2", pageCount: 1 } }
+    const replacement = {
+      ...session("page-2", "http://127.0.0.1:41000/reader/page-2", 0, { readerSourcePath: "D:/books/Book 2.cbz" }),
+      sessionId: "reader-2",
+      book: { id: "book-2", displayName: "Book 2", pageCount: 1 },
+    }
     const goTo = vi.fn(async () => opened)
     const openAdjacentBook = vi.fn(async () => replacement)
     const committed = vi.fn()
@@ -329,7 +334,7 @@ describe("ReaderApp", () => {
       updateSessionOptions: vi.fn(),
       close: vi.fn(async () => undefined),
     }
-    render(<ReaderApp initialPath="D:/books/demo.cbz" initialBrowserOriginPath="D:/books" client={client} onPathCommitted={committed} />)
+    render(<ReaderApp initialPath="D:/books/demo.cbz" initialBrowserOriginPath="D:/books" client={client} onActivationIdentityCommitted={committed} />)
 
     fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
@@ -346,11 +351,18 @@ describe("ReaderApp", () => {
     fireEvent.keyDown(reader, { key: "b", code: "KeyB" })
     await screen.findByRole("img", { name: "001.jpg" })
     await waitFor(() => expect(openAdjacentBook).toHaveBeenCalledWith("reader-1", "next", expect.any(AbortSignal)))
-    await waitFor(() => expect(committed).toHaveBeenLastCalledWith("D:/books/Book 2.cbz", "D:/books"))
+    await waitFor(() => expect(committed).toHaveBeenLastCalledWith(expect.objectContaining({
+      readerSourcePath: "D:/books/Book 2.cbz",
+      traversalRootPath: "D:/books",
+    })))
   })
 
-  it("[neoview.bindings.file-delete-activation-root] releases the Reader terminal and trashes its selected activation root", async () => {
-    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0)
+  it("[neoview.bindings.file-delete-activation-identity] releases the Reader terminal and trashes its activated entry", async () => {
+    const opened = session("page-1", "http://127.0.0.1:41000/reader/page-1", 0, {
+      readerSourcePath: "D:/books/series/inside/001.jpg",
+      activatedEntryPath: "D:/books/series",
+      traversalRootPath: "D:/books",
+    })
     const close = vi.fn(async () => undefined)
     const executeFileOperations = vi.fn(async () => ({
       results: [{ index: 0, operation: { kind: "trash" as const, sourcePath: "D:/books/series" }, status: "succeeded" as const }],
@@ -385,7 +397,7 @@ describe("ReaderApp", () => {
       executeFileOperations,
       close,
     }
-    render(<ContextMenuProvider><ReaderApp initialPath="D:/books/series/inside/001.jpg" initialBrowserOriginPath="D:/books" initialActivationRootPath="D:/books/series" client={client} /></ContextMenuProvider>)
+    render(<ContextMenuProvider><ReaderApp initialPath="D:/books/series/inside/001.jpg" initialBrowserOriginPath="D:/books" client={client} /></ContextMenuProvider>)
 
     fireEvent.click(await screen.findByRole("button", { name: "打开书籍" }))
     await screen.findByRole("img", { name: "001.jpg" })
@@ -1291,33 +1303,6 @@ describe("ReaderApp", () => {
     ))
   })
 })
-
-function session(pageId: string, assetUrl: string, index: number): ReaderSessionDto {
-  return {
-    sessionId: "reader-1",
-    book: { id: "book-1", displayName: "demo.cbz", pageCount: 2 },
-    frame: {
-      generation: 0,
-      anchorPageIndex: index,
-      direction: "left-to-right",
-      layout: { pageMode: "single", panorama: false, singleFirstPage: true, singleLastPage: true, treatWidePageAsSingle: true },
-      pages: [{ pageId, pageIndex: index, side: "single" }],
-      pageCount: 2,
-      atStart: index === 0,
-      atEnd: index === 1,
-    },
-    visiblePages: [{
-      id: pageId,
-      index,
-      name: "001.jpg",
-      mediaKind: "image",
-      mimeType: "image/jpeg",
-      byteLength: 10,
-      contentVersion: "v1",
-      assetUrl,
-    }],
-  }
-}
 
 function preloadPlan(generation: number, pageIndex: number): ReaderPreloadPlanDto {
   return {

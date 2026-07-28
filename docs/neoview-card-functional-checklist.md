@@ -2217,11 +2217,11 @@
 | Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|---|
 | `systemMonitor` | 系统资源监控 | integration | complete | `core=C transport=C gui=C cli=N/A tui=N/A evidence=C` | `src/lib/cards/monitor/SystemMonitorCard.svelte` | 性能设置、基准、系统监控和诊断；XR `system-monitor` |
-| `dailyTrend` | 最近 7 日阅读趋势 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/DailyTrendCard.svelte` | 历史、书签、阅读进度和数据洞察 |
-| `readingStreak` | 连续阅读 Streak | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/ReadingStreakCard.svelte` | 历史、书签、阅读进度和数据洞察 |
-| `readingHeatmap` | 阅读时段热力图 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/ReadingHeatmapCard.svelte` | 历史、书签、阅读进度和数据洞察 |
-| `bookmarkOverview` | 书签概览 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/BookmarkOverviewCard.svelte` | 历史、书签、阅读进度和数据洞察 |
-| `sourceBreakdown` | 来源拆分 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/SourceBreakdownCard.svelte` | 历史、书签、阅读进度和数据洞察 |
+| `dailyTrend` | 最近 7 日阅读趋势 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/DailyTrendCard.svelte` | 历史、书签、阅读进度和数据洞察；XR `daily-trend` |
+| `readingStreak` | 连续阅读 Streak | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/ReadingStreakCard.svelte` | 历史、书签、阅读进度和数据洞察；XR `reading-streak` |
+| `readingHeatmap` | 阅读时段热力图 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/ReadingHeatmapCard.svelte` | 历史、书签、阅读进度和数据洞察；XR `reading-heatmap` |
+| `bookmarkOverview` | 书签概览 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/BookmarkOverviewCard.svelte` | 历史、书签、阅读进度和数据洞察；XR `bookmark-overview` |
+| `sourceBreakdown` | 来源拆分 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/SourceBreakdownCard.svelte` | 历史、书签、阅读进度和数据洞察；XR `source-breakdown` |
 | `emmTagsHot` | EMM 标签热度 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/insights/EmmTagsHotCard.svelte` | 历史、书签、阅读进度和数据洞察 |
 
 #### `systemMonitor` 系统资源监控
@@ -3964,7 +3964,7 @@
 |---|---|---:|---:|---|---|---|
 | `emmTags` | EMM 标签 | integration | complete | `core=C transport=C gui=C cli=N/A tui=N/A evidence=C` | `src/lib/cards/properties/EmmTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-tags` |
 | `bookSettings` | 本书设置 | core | partial | `core=C transport=C gui=C cli=P tui=P evidence=P` | `src/lib/cards/properties/BookSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `book-settings` |
-| `folderRatings` | 文件夹平均评分 | integration | partial | `core=- transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/FolderRatingsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `folder-ratings` |
+| `folderRatings` | 文件夹平均评分 | integration | partial | `core=C transport=C gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/FolderRatingsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `folder-ratings` |
 | `favoriteTags` | 收藏标签快选 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/FavoriteTagsCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `favorite-tags` |
 | `emmSync` | EMM 同步 | integration | partial | `core=P transport=P gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/properties/EmmSyncCard.svelte` | EMM 数据库、评分、标签、收藏和翻译；XR `emm-sync` |
 | `thumbnailArchMetrics` | 缩略图架构指标 | integration | complete | `core=C transport=C gui=C cli=N/A tui=N/A evidence=C` | `src/lib/cards/properties/ThumbnailArchitectureMetricsCard.svelte` | 统一缩略图生成、持久化、数据库维护与迁移；XR `thumbnail-architecture-metrics` |
@@ -4499,12 +4499,12 @@
   - 计划测试：`neoview.favorite-tags.boundary`
   - 备注：The current slice is a read-only suggestion projection and does not imply the remaining legacy management or interaction controls.
 - [ ] `favorite-tags.manual` 全局唯一手动标签区域
-  - 六维：`core=P transport=P gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
+  - 六维：`core=P transport=C gui=P cli=N/A tui=N/A evidence=P`；阻塞：`core`、`gui`、`evidence`
   - 目标：List unique manual tags with namespace, translation, color and matching-file counts, refresh them explicitly and keep their dashed visual identity distinct from EMM favorites.
   - 源码：`src/lib/cards/properties/FavoriteTagsCard.svelte`、`src/lib/stores/emm/manualTagStore.svelte.ts`
-  - 测试：待补
-  - 计划测试：`neoview.favorite-tags.manual`
-  - 备注：Manual tags exist in the shared EMM domain, but this Card does not request or render the legacy manual-tag section.
+  - 测试：`neoview.favorite-tags.manual-http`、`neoview.favorite-tags.card`、`neoview.emm-cards.lifecycle`
+  - 计划测试：`neoview.favorite-tags.manual-translation-color`、`neoview.favorite-tags.manual-refresh`
+  - 备注：The Card reads bounded unique manual-tag summaries through the canonical readonly route and renders their counts with the legacy dashed distinction. Translation/color metadata and a manual-only refresh remain absent because external EMM has no XR write ownership.
 - [ ] `favorite-tags.mixed-gender` 性别命名空间混合变体
   - 六维：`core=- transport=- gui=- cli=N/A tui=N/A evidence=-`；阻塞：`core`、`transport`、`gui`、`evidence`
   - 目标：Persist the mixed-gender toggle and generate deduplicated female, male and mixed namespace variants with stable query identities and distinct visual treatment.
@@ -5414,15 +5414,14 @@
 - `history-ui.views-thumbnails` 四种视图、密度与可见缩略图
   - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`、`src/lib/components/panels/file/components/FileItemListView.svelte`、`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`
   - 映射：`history.views`、`history.thumbnails`、`history.lifecycle`、`history.performance`、`history.image-stability`
-  - [x] list
-  - [x] content
-  - [x] banner
-  - [x] thumbnail
-  - [x] 活动视图图标
+  - [ ] list
+  - [ ] content
+  - [ ] banner
+  - [ ] thumbnail
+  - [ ] 活动视图图标
   - [ ] thumbnail 紧凑模式
-  - [x] 缩略图宽度 10..90
-  - [x] 响应式列数
-  - [x] 与 File Card 共用“更多 -> 项目尺寸”菜单项
+  - [ ] 缩略图宽度 10..90
+  - [ ] 响应式列数
   - [ ] 可见范围虚拟化
   - [ ] lazy img
   - [ ] async decode
@@ -5431,7 +5430,7 @@
   - [ ] hover 大图预览
   - [ ] folder 1/4/9/16 多图预览
   - [ ] 切换视图取消旧缩略图
-  - [x] History 展示字段默认继承 File Card，并仅持久化显式覆盖
+  - [ ] History 视图独立持久化
 - `history-ui.selection` 多选、链选与批量移除
   - 源码：`src/lib/cards/shared/FileListPanel.svelte`、`src/lib/components/panels/folderPanel/components/SelectionBar.svelte`、`src/lib/components/panels/file/components/VirtualizedFileListV2.svelte`
   - 映射：`history.selection`、`history.actions`、`history.accessibility`、`history.performance`
@@ -5508,7 +5507,7 @@
   - [ ] showMigrationBar=false
   - [ ] penetrateMode=false
   - [ ] inlineTreeMode=false
-  - [x] thumbnailWidthPercent 默认继承 File Card，可稀疏覆盖并恢复继承
+  - [ ] thumbnailWidthPercent=20
   - [ ] folderTreeVisible=false
   - [ ] folderTreeLayout=left
   - [ ] folderTreeSize=200
@@ -5654,11 +5653,11 @@
   - 备注：The current React Card exposes only backend updated-time order and refresh.
 - [ ] `history.views` 切换四种共享文件视图
   - 六维：`core=C transport=C gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
-  - 目标：List, content, banner and thumbnail modes retain their legacy icons and active state while shared presentation fields inherit File Card defaults and persist only History overrides.
+  - 目标：List, content, banner and thumbnail modes retain their legacy icons, active state, compact thumbnail option and History-specific size preference.
   - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
   - 测试：`neoview.history.views`、`neoview.history.view-settings-config`、`neoview.settings.shell-http`、`neoview.history.view-settings`、`neoview.history.view-settings-rollback`、`neoview.history.thumbnail-e2e`
   - 计划测试：无
-  - 备注：The four legacy labels and active icon states drive one- and multi-column virtual layouts. View mode and content/thumbnail/banner sizing resolve through the shared File Presentation contract, round-trip as sparse [nodes.neoview.history_list.view_overrides], support null reset, and retain old history_list.view_mode read compatibility. Desktop and constrained-card screenshot evidence remains pending.
+  - 备注：The four legacy labels and active icon states drive one- and multi-column virtual layouts, while the selected mode now round-trips through bounded [nodes.neoview.history_list], authenticated config PATCH and GUI rollback. Compact-thumbnail control and width sizing remain pending.
 - [ ] `history.thumbnails` 显示可见历史缩略图与文件夹预览
   - 六维：`core=N/A transport=N/A gui=C cli=P tui=P evidence=P`；阻塞：`cli`、`tui`、`evidence`
   - 目标：Only the virtual visible history window requests authenticated file or folder thumbnails, including bounded multi-image folder previews, and releases stale contexts on mode, query or mount changes.
@@ -5915,17 +5914,16 @@
 - `bookmark-ui.views` 四种文件视图与尺寸设置
   - 源码：`src/lib/components/panels/folderPanel/components/FolderToolbar/ViewPanel.svelte`、`src/lib/cards/folder/cards/FileListCard.svelte`
   - 映射：`bookmark.shared-renderer`、`bookmark.thumbnails`、`bookmark.persistence`、`bookmark.ui-parity`
-  - [x] list
-  - [x] content
-  - [x] banner
-  - [x] thumbnail
-  - [x] 活动视图图标
+  - [ ] list
+  - [ ] content
+  - [ ] banner
+  - [ ] thumbnail
+  - [ ] 活动视图图标
   - [ ] 紧凑网格
-  - [x] 缩略图宽度 10..90
-  - [x] 响应式列数
-  - [x] 列表尺寸 Slider
-  - [x] 书签展示字段默认继承 File Card，并仅持久化显式覆盖
-  - [x] 与 File Card 共用“更多 -> 项目尺寸”菜单项
+  - [ ] 缩略图宽度 10..90
+  - [ ] 响应式列数
+  - [ ] 列表尺寸 Slider
+  - [ ] 书签视图独立持久化
 - `bookmark-ui.thumbnail-detail` 可见缩略图与文件夹多图预览
   - 源码：`src/lib/utils/thumbnail/VisibleThumbnailLoader.ts`、`src/lib/components/panels/file/components/FolderPreviewGrid.svelte`、`src/lib/components/panels/file/components/folderPreviewLoader.ts`
   - 映射：`bookmark.thumbnails`、`bookmark.lifecycle`、`bookmark.performance`、`bookmark.image-stability`
@@ -6625,14 +6623,14 @@
 
 | Card | 功能 | 优先级 | 总体 | 六维 | 旧版源组件 | 功能域 / 当前映射 |
 |---|---|---:|---:|---|---|---|
-| `aiTags` | AI 标签推断 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/AiTagsCard.svelte` | Ollama、AI 面板和翻译服务 |
-| `aiApiConfig` | AI API 配置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/AiApiConfigCard.svelte` | Ollama、AI 面板和翻译服务 |
-| `aiTitleTranslation` | 标题翻译 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/AiTitleTranslationCard.svelte` | Ollama、AI 面板和翻译服务 |
-| `aiServiceConfig` | 翻译服务配置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/AiServiceConfigCard.svelte` | Ollama、AI 面板和翻译服务 |
-| `aiTranslationCache` | 翻译缓存 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/AiTranslationCacheCard.svelte` | Ollama、AI 面板和翻译服务 |
-| `aiTranslationTest` | 翻译测试 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/AiTranslationTestCard.svelte` | Ollama、AI 面板和翻译服务 |
-| `translationOverlay` | 翻译叠加层 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/TranslationOverlayCard.svelte` | Ollama、AI 面板和翻译服务 |
-| `voiceControl` | 语音控制 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/VoiceControlCard.svelte` | Ollama、AI 面板和翻译服务 |
+| `aiTags` | AI 标签推断 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/AiTagsCard.svelte` | Ollama、AI 面板和翻译服务；XR `ai-tags` |
+| `aiApiConfig` | AI API 配置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/properties/AiApiConfigCard.svelte` | Ollama、AI 面板和翻译服务；XR `ai-api-config` |
+| `aiTitleTranslation` | 标题翻译 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/AiTitleTranslationCard.svelte` | Ollama、AI 面板和翻译服务；XR `ai-title-translation` |
+| `aiServiceConfig` | 翻译服务配置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/AiServiceConfigCard.svelte` | Ollama、AI 面板和翻译服务；XR `ai-service-config` |
+| `aiTranslationCache` | 翻译缓存 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/AiTranslationCacheCard.svelte` | Ollama、AI 面板和翻译服务；XR `ai-translation-cache` |
+| `aiTranslationTest` | 翻译测试 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/AiTranslationTestCard.svelte` | Ollama、AI 面板和翻译服务；XR `ai-translation-test` |
+| `translationOverlay` | 翻译叠加层 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/TranslationOverlayCard.svelte` | Ollama、AI 面板和翻译服务；XR `translation-overlay` |
+| `voiceControl` | 语音控制 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/ai/VoiceControlCard.svelte` | Ollama、AI 面板和翻译服务；XR `voice-control` |
 
 #### `aiTags` AI 标签推断
 
@@ -6697,9 +6695,9 @@
 | `settingsGeneral` | 通用设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/GeneralSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `slideshow-settings` |
 | `settingsSystem` | 系统设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/SystemSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
 | `settingsView` | 视图设置 | deferred | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/ViewSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `view-defaults-settings` |
-| `settingsImage` | 影像设置 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/ImageSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `media-settings` |
-| `settingsBook` | 书籍设置 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/BookSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
-| `settingsPerformance` | 性能设置 | integration | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/PerformanceSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
+| `settingsImage` | 影像设置 | integration | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/ImageSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `media-settings` |
+| `settingsBook` | 书籍设置 | integration | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/BookSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `folder-main` |
+| `settingsPerformance` | 性能设置 | integration | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/PerformanceSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `preload-settings` |
 | `settingsTheme` | 外观设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/ThemeSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `reader-material-settings` |
 | `settingsNotification` | 通知设置 | deferred | pending | `core=N/A transport=N/A gui=- cli=N/A tui=N/A evidence=-` | `src/lib/cards/settings/NotificationSettingsCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一 |
 | `settingsPanels` | 边栏管理 | deferred | partial | `core=N/A transport=N/A gui=P cli=N/A tui=N/A evidence=P` | `src/lib/cards/settings/PanelManagementCard.svelte` | 设置、完整导入导出、备份、Gist 和 TOML 统一；XR `board-layout-settings` |
@@ -6785,7 +6783,7 @@
 - [ ] 导入导出并提供无障碍等价操作
 - UI 基线：`src/lib/cards/settings/BindingsSettingsCard.svelte`；保持旧层级、控件、图标语义、密度和交互状态，偏离必须单独记录。
 
-##### 专用逐控件库存（9 组，82 项）
+##### 专用逐控件库存（9 组，83 项）
 
 - `bindings-ui.shell` 设置 Card 与统一面板
   - 源码：`src/lib/cards/settings/BindingsSettingsCard.svelte`、`src/lib/components/dialogs/UnifiedBindingPanel.svelte`
@@ -6805,6 +6803,7 @@
   - [ ] 修饰键
   - [ ] 录制开始/取消/完成
   - [ ] 禁用
+  - [ ] 忽略重复输入
   - [ ] 删除
   - [ ] 恢复默认
   - [ ] IME 与输入框隔离
@@ -6915,11 +6914,11 @@
   - 备注：The browser route derives editor/modal/panel/video/reader mode, maps legacy viewer/videoPlayer contexts without flattening them, suppresses global fallback in editor/modal contexts, and excludes interactive controls from pointer/gesture dispatch. Desktop and 420x360 Chromium prove Reader navigation, binding persistence and editor isolation in the real settings flow. The native video surface advertises the video context, routes multiple bindings plus seek-mode remapping through the shared executor, and preserves interactive media controls in the DOM context at desktop and 420x360; those video/modal edge cases keep GUI evidence partial. Headless, CLI and TUI now consume the same ordered context stack and preserve editor/modal isolation.
 - [ ] `bindings.keyboard` 键盘与修饰键绑定
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
-  - 目标：Dynamic keyboard bindings use a maintained hotkey engine, preserve physical codes/modifiers, ignore repeat/composition and remain disabled in incompatible contexts.
+  - 目标：Every binding independently persists whether to ignore repeated input (default false). Dynamic keyboard bindings use a maintained hotkey engine, preserve physical codes/modifiers, ignore composition and remain disabled in incompatible contexts.
   - 源码：`src/lib/components/dialogs/KeyBindingPanel.svelte`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
   - 测试：`neoview.bindings.devices`、`neoview.bindings.editor`、`neoview.bindings.recording-focus`、`neoview.bindings.keyboard-hold`、`neoview.bindings.keyboard-hold-editor`、`neoview.bindings.keyboard-hold-runtime`
   - 计划测试：无
-  - 备注：react-hotkeys-hook owns runtime matching, key-down/key-up lifecycle and capture-phase chord recording. The editor exposes physical codes, modifiers and bounded hold timing; Enter hold opens the radial menu after 450 ms and key-up/blur/unmount cancel pending timers.
+  - 备注：react-hotkeys-hook owns runtime matching, key-down/key-up lifecycle and capture-phase chord recording. Each binding exposes a default-off repeat-input switch; keyboard repeats dispatch unless its binding opts out. The editor exposes physical codes, modifiers and bounded hold timing; Enter hold opens the radial menu after 450 ms and key-up/blur/unmount cancel pending timers.
 - [ ] `bindings.mouse` 鼠标按键绑定
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：Left/middle/right/side buttons and click/double-click/press/hold variants resolve through the same action/context route without stealing unbound pointer input.
@@ -6936,11 +6935,11 @@
   - 备注：@use-gesture/react owns runtime and recording; direction and all four modifiers are editable, and interactive controls are excluded. Desktop and 420x360 Chromium prove Ctrl+wheel dispatch; modifier recording remains pending.
 - [ ] `bindings.area-click` 九宫格区域点击
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
-  - 目标：Configurable viewport areas resolve clicks without coupling bindings to pixel coordinates.
+  - 目标：Configurable viewport areas resolve distinct click, double-click, press and timed hold input without coupling bindings to pixel coordinates; click, double-click and hold do not consume one another.
   - 源码：`src/lib/components/dialogs/MouseRecordingArea.svelte`、`src/lib/stores/keybindings/keyHandlers.svelte.ts`
-  - 测试：`neoview.bindings.area-grid`、`neoview.bindings.area-editor`、`neoview.bindings.area-runtime`、`neoview.bindings.devices-e2e`
+  - 测试：`neoview.bindings.area-grid`、`neoview.bindings.area-editor`、`neoview.bindings.area-hold`、`neoview.bindings.area-hold-editor`、`neoview.bindings.area-double-click-gui`、`neoview.bindings.area-hold-gui`、`neoview.bindings.area-runtime`、`neoview.bindings.devices-e2e`
   - 计划测试：无
-  - 备注：The shared bounded 3x3 geometry, visual selector and Reader pointer route support left/middle/right click, double-click and press with area precedence over generic mouse bindings. Desktop and 420x360 Chromium prove top-left area press routing; per-area visual regression remains pending.
+  - 备注：The shared bounded 3x3 geometry and visual selector support left/middle/right click, double-click, press and configurable hold with area precedence over generic mouse bindings. Hold fires at its threshold and suppresses release click; the pointer release arbiter delays a competing single-click only when a double-click binding exists. Chromium proves double-click exclusivity and timed hold routing; per-area visual regression remains pending.
 - [ ] `bindings.touch` 触控滑动绑定
   - 六维：`core=C transport=N/A gui=C cli=N/A tui=N/A evidence=P`；阻塞：`evidence`
   - 目标：One-to-three-finger directional swipes, taps and configurable long-press use the maintained gesture engine, respect active context and release all pointer work on unmount.

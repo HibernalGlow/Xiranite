@@ -36,6 +36,9 @@ export type ReaderViewArea = typeof READER_VIEW_AREAS[number]
 export const READER_MOUSE_GESTURE_DIRECTIONS = ["left", "right", "up", "down"] as const
 export type ReaderMouseGestureDirection = typeof READER_MOUSE_GESTURE_DIRECTIONS[number]
 
+export const READER_INPUT_COMMANDS = ["file-card.trash-current", "file-card.delete-current"] as const
+export type ReaderInputCommand = typeof READER_INPUT_COMMANDS[number]
+
 export type ReaderInputDescriptor =
   | { device: "keyboard"; code: string; trigger?: "down" | "hold"; durationMs?: number; ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean }
   | { device: "mouse"; button: number; action: "click" | "double-click" | "press" | "hold"; durationMs?: number; moveTolerancePx?: number }
@@ -43,8 +46,9 @@ export type ReaderInputDescriptor =
   | { device: "wheel"; direction: "up" | "down"; ctrl?: boolean; alt?: boolean; shift?: boolean; meta?: boolean }
   | { device: "touch"; gesture: "swipe-left" | "swipe-right" | "swipe-up" | "swipe-down" | "tap" | "long-press"; fingers: 1 | 2 | 3; durationMs?: number; moveTolerancePx?: number }
   | { device: "gamepad"; button: number }
-  | { device: "area"; area: ReaderViewArea; button: 0 | 1 | 2; action: "click" | "double-click" | "press" }
+  | { device: "area"; area: ReaderViewArea; button: 0 | 1 | 2; action: "click" | "double-click" | "press" | "hold"; durationMs?: number; moveTolerancePx?: number }
   | { device: "radial"; menuId: string; itemId: string }
+  | { device: "command"; command: ReaderInputCommand }
 
 export interface ReaderInputBinding {
   id: string
@@ -64,6 +68,15 @@ export interface ReaderInputConflict {
   key: string
   bindingIds: string[]
 }
+
+type ReaderSystemInputBinding = Omit<ReaderInputBinding, "input"> & {
+  input: Extract<ReaderInputDescriptor, { device: "command" }>
+}
+
+export const READER_SYSTEM_INPUT_BINDINGS = [
+  { id: "system-file-card-trash-current", action: "file.delete-current", context: "reader", enabled: true, input: { device: "command", command: "file-card.trash-current" } },
+  { id: "system-file-card-delete-current", action: "file.delete-current", context: "reader", enabled: true, input: { device: "command", command: "file-card.delete-current" } },
+] as const satisfies readonly ReaderSystemInputBinding[]
 
 export const READER_INPUT_CONTEXT_PRIORITY: Readonly<Record<ReaderInputContext, number>> = {
   global: 0,
@@ -152,6 +165,9 @@ export const DEFAULT_READER_INPUT_BINDINGS: ReaderInputBindingsConfig = {
     binding("radial-default-last-page", "reader.last-page", "reader", { device: "radial", menuId: "default", itemId: "radial-last-page" }),
     binding("radial-default-bottom-thumb-pin", "shell.toggle-bottom-thumbnail-pin", "reader", { device: "radial", menuId: "default", itemId: "radial-bottom-thumb-pin" }),
 
+    // File Card commands are fixed bindings; users only configure their follow-up actions.
+    ...READER_SYSTEM_INPUT_BINDINGS,
+
     // video (legacy videoPlayer context → video)
     binding("legacy-video-play-pause-video-0", "video.play-pause", "video", { device: "area", area: "middle-center", button: 0, action: "click" }),
     binding("legacy-video-seek-forward-global-0", "video.seek-forward", "global", { device: "keyboard", code: "MediaTrackNext" }),
@@ -188,6 +204,8 @@ export function readerInputDescriptorKey(input: ReaderInputDescriptor): string {
       return `area:${input.area}:${input.button}:${input.action}`
     case "radial":
       return `radial:${input.menuId}:${input.itemId}`
+    case "command":
+      return `command:${input.command}`
   }
 }
 
@@ -264,6 +282,8 @@ function readerInputDescriptorsEqual(left: ReaderInputDescriptor, right: ReaderI
       const candidate = right as Extract<ReaderInputDescriptor, { device: "radial" }>
       return left.menuId === candidate.menuId && left.itemId === candidate.itemId
     }
+    case "command":
+      return left.command === (right as Extract<ReaderInputDescriptor, { device: "command" }>).command
   }
 }
 
@@ -283,6 +303,31 @@ export function cloneReaderInputBindings(config: ReaderInputBindingsConfig): Rea
     ...(current.followUpActions?.length ? { followUpActions: [...current.followUpActions] } : {}),
     input: { ...current.input },
   })) }
+}
+
+export function isReaderSystemInputBinding(binding: Pick<ReaderInputBinding, "input">): boolean {
+  return binding.input.device === "command"
+}
+
+/** Restores system-owned fields while retaining the only user-owned field: follow-up actions. */
+export function normalizeReaderSystemInputBindings(bindings: readonly ReaderInputBinding[]): ReaderInputBinding[] {
+  const systemByCommand = new Map(READER_SYSTEM_INPUT_BINDINGS.map((binding) => [binding.input.command, binding]))
+  const found = new Set<ReaderInputCommand>()
+  const normalized = bindings.map((current) => {
+    if (current.input.device !== "command") return current
+    const system = systemByCommand.get(current.input.command)
+    if (!system) return current
+    found.add(current.input.command)
+    return {
+      ...system,
+      ...(current.followUpActions?.length ? { followUpActions: [...current.followUpActions] } : {}),
+      input: { ...system.input },
+    }
+  })
+  for (const system of READER_SYSTEM_INPUT_BINDINGS) {
+    if (!found.has(system.input.command)) normalized.push({ ...system, input: { ...system.input } })
+  }
+  return normalized
 }
 
 export function readerInputBindingActions(binding: Pick<ReaderInputBinding, "action" | "followUpActions">): readonly ReaderInputAction[] {

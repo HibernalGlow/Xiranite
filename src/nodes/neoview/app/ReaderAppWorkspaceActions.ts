@@ -263,7 +263,6 @@ export function createReaderAppWorkspaceActions(context: any) {
     persistSlideshow,
     persistFolderView,
     closeSession,
-    prepareFileMutation,
     requestDeleteCurrentFile,
     deleteCurrentFile,
   } = context

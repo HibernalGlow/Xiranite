@@ -427,7 +427,7 @@
         "src/lib/components/dialogs/MouseRecordingArea.svelte",
         "src/lib/stores/keybindings/keyHandlers.svelte.ts"
       ],
-      "targetContract": "Configurable viewport areas resolve clicks without coupling bindings to pixel coordinates.",
+      "targetContract": "Configurable viewport areas resolve distinct click, double-click, press and timed hold input without coupling bindings to pixel coordinates; click, double-click and hold do not consume one another.",
       "surfaces": [
         "GUI"
       ],
@@ -442,11 +442,15 @@
       "testIds": [
         "neoview.bindings.area-grid",
         "neoview.bindings.area-editor",
+        "neoview.bindings.area-hold",
+        "neoview.bindings.area-hold-editor",
+        "neoview.bindings.area-double-click-gui",
+        "neoview.bindings.area-hold-gui",
         "neoview.bindings.area-runtime",
         "neoview.bindings.devices-e2e"
       ],
       "plannedTestIds": [],
-      "notes": "The shared bounded 3x3 geometry, visual selector and Reader pointer route support left/middle/right click, double-click and press with area precedence over generic mouse bindings. Desktop and 420x360 Chromium prove top-left area press routing; per-area visual regression remains pending."
+      "notes": "The shared bounded 3x3 geometry and visual selector support left/middle/right click, double-click, press and configurable hold with area precedence over generic mouse bindings. Hold fires at its threshold and suppresses release click; the pointer release arbiter delays a competing single-click only when a double-click binding exists. Chromium proves double-click exclusivity and timed hold routing; per-area visual regression remains pending."
     },
     {
       "id": "bindings.touch",

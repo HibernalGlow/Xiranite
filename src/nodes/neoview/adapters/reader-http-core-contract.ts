@@ -12,8 +12,21 @@ export interface ReaderPageDto {
   assetUrl: string
   thumbnailUrl?: string
 }
+export interface ReaderActivationIdentityDto {
+  readerSourcePath: string
+  activatedEntryPath: string
+  traversalRootPath: string
+  traversalFrames?: readonly ReaderActivationTraversalFrameDto[]
+  selfTerminal?: boolean
+}
+export interface ReaderActivationTraversalFrameDto {
+  directoryPath: string
+  currentEntryPath: string
+  selfTerminal?: boolean
+}
 export interface ReaderSessionDto {
   sessionId: string
+  activationIdentity: ReaderActivationIdentityDto
   book: { id: string; displayName: string; pageCount: number }
   frame: FrameSnapshot
   visiblePages: ReaderPageDto[]

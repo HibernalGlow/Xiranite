@@ -1,5 +1,5 @@
 import type { ReaderInputAction } from "../../domain/input/ReaderInputActions.js"
-import { readerInputBindingActions, type ReaderInputBinding } from "../../domain/input/ReaderInputBindings.js"
+import { readerInputBindingActions, type ReaderInputBinding, type ReaderInputDescriptor } from "../../domain/input/ReaderInputBindings.js"
 
 export type ReaderInputActionOutcome =
   | { status: "succeeded"; consumedAction?: ReaderInputAction }
@@ -9,6 +9,7 @@ export type ReaderInputActionOutcome =
 
 export interface ReaderInputActionExecutionContext {
   bindingId: string
+  input?: ReaderInputDescriptor
   index: number
   nextAction?: ReaderInputAction
   previousOutcome?: ReaderInputActionOutcome
@@ -48,6 +49,7 @@ export async function executeReaderInputActionSequence(
     try {
       outcome = await execute(action, {
         bindingId: binding.id,
+        input: binding.input,
         index,
         nextAction: actions[index + 1],
         previousOutcome,
@@ -89,14 +91,18 @@ export async function executeReaderInputActionSequence(
 export class ReaderInputActionSequenceRunner {
   readonly #inFlight = new Map<string, Promise<ReaderInputActionSequenceResult>>()
 
-  run(binding: ReaderInputBinding, execute: ReaderInputActionOperation): Promise<ReaderInputActionSequenceResult> {
+  run(
+    binding: ReaderInputBinding,
+    execute: ReaderInputActionOperation,
+    singleFlightKey = binding.id,
+  ): Promise<ReaderInputActionSequenceResult> {
     if (!binding.followUpActions?.length) return executeReaderInputActionSequence(binding, execute)
-    const current = this.#inFlight.get(binding.id)
+    const current = this.#inFlight.get(singleFlightKey)
     if (current) return current
     const running = executeReaderInputActionSequence(binding, execute)
-    this.#inFlight.set(binding.id, running)
+    this.#inFlight.set(singleFlightKey, running)
     void running.finally(() => {
-      if (this.#inFlight.get(binding.id) === running) this.#inFlight.delete(binding.id)
+      if (this.#inFlight.get(singleFlightKey) === running) this.#inFlight.delete(singleFlightKey)
     })
     return running
   }

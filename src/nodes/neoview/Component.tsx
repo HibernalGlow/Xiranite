@@ -6,13 +6,16 @@ import {
   externalNodeLaunchSnapshot,
   subscribeToExternalNodeLaunches,
 } from "@/external-node-host/externalNodeLaunchDelivery"
+import type { ReaderActivationIdentityDto } from "./adapters/reader-http-client"
 import { ReaderApp } from "./app/ReaderApp"
+import { parseReaderActivationIdentity } from "./app/ReaderActivationIdentity"
 import { neoviewDebug, noteNeoviewMount, noteNeoviewUnmount } from "./neoviewDebug"
 
 export interface NeoViewCardState extends Record<string, unknown> {
   path?: string
+  activationIdentity?: ReaderActivationIdentityDto | null
+  /** Legacy read compatibility; canonical writes use activationIdentity. */
   browserOriginPath?: string | null
-  activationRootPath?: string | null
   swimlaneSoloLaneId?: string | null
   readerViewFullscreen?: boolean
   keepAliveOnViewSwitch?: boolean
@@ -21,9 +24,9 @@ export interface NeoViewCardState extends Record<string, unknown> {
 export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>) {
   "use no memo"
   const initialState = host.state.getData()
-  const initialPath = initialState?.path
+  const initialActivationIdentity = parseReaderActivationIdentity(initialState?.activationIdentity)
+  const initialPath = initialActivationIdentity?.readerSourcePath ?? initialState?.path
   const initialBrowserOriginPath = initialState?.browserOriginPath ?? undefined
-  const initialActivationRootPath = initialState?.activationRootPath ?? undefined
   const initialSwimlaneSoloLaneId = initialState?.swimlaneSoloLaneId
   const initialReaderViewFullscreen = initialState?.readerViewFullscreen
   const externalRequest = useSyncExternalStore(
@@ -78,8 +81,8 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
     <ReaderApp
       sessionScopeId={compId}
       initialPath={initialPath}
+      initialActivationIdentity={initialActivationIdentity}
       initialBrowserOriginPath={initialBrowserOriginPath}
-      initialActivationRootPath={initialActivationRootPath}
       externalOpenRequest={externalLaunch}
       onExternalOpenResult={(result) => {
         void acknowledgeExternalLaunch(result.requestId!, result.opened, result.message)
@@ -102,10 +105,11 @@ export function Component({ compId, host }: NodeComponentProps<NeoViewCardState>
         : undefined}
       copyText={host.clipboard?.writeText}
       copyFiles={host.clipboard?.writeFiles}
-      onPathCommitted={(path, browserOriginPath, activationRootPath) => host.state.patchData({
-        path,
-        browserOriginPath: browserOriginPath ?? null,
-        activationRootPath: activationRootPath ?? (path || null),
+      onActivationIdentityCommitted={(identity) => host.state.patchData({
+        path: identity?.readerSourcePath ?? "",
+        activationIdentity: identity ?? null,
+        browserOriginPath: null,
+        activationRootPath: null,
       })}
       onSwimlaneSoloLaneIdCommitted={(swimlaneSoloLaneId) => host.state.patchData({ swimlaneSoloLaneId })}
       onReaderViewFullscreenCommitted={(readerViewFullscreen) => host.state.patchData({ readerViewFullscreen })}

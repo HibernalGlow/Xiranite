@@ -25,6 +25,7 @@ describe("ReaderInputActionSequenceRunner", () => {
       "start:reader.first-page", "end:reader.first-page",
     ])
     expect(execute.mock.calls[0]?.[1]).toMatchObject({ index: 0, nextAction: "reader.next-book" })
+    expect(execute.mock.calls[0]?.[1].input).toEqual({ device: "keyboard", code: "Delete" })
     expect(execute.mock.calls[1]?.[1]).toMatchObject({ index: 1, nextAction: "reader.first-page", previousOutcome: { status: "succeeded" } })
   })
 

@@ -16,8 +16,10 @@ import {
 } from "./DirectoryCatalog"
 import { DirectoryBannerItem, DirectoryGridItem } from "./FolderGridWorkspace"
 import { DirectoryListItem, folderEntryName } from "./FolderDirectoryListItem"
+import FolderDeleteButton, { type FolderDeleteStrategy } from "./FolderDeleteButton"
 import { FolderInlineBranchLimitInputs } from "./FolderInlineBranchLimitFields"
 import type { FolderPreviewCount } from "./FolderBrowserState"
+import { folderTitleClassName } from "./FolderViewPresentation"
 import { useFolderThumbnailPipeline } from "./useFolderThumbnailPipeline"
 
 const PAGE_SIZE = 128
@@ -111,6 +113,14 @@ export default function FolderInlineBranchPanel({
   previewGridEnabled,
   previewCount,
   penetration,
+  thumbnailProbeEnabled,
+  contentWidthPercent,
+  hoverPreviewEnabled,
+  hoverPreviewDelayMs,
+  wrapTitle,
+  deleteMode,
+  deleteStrategy,
+  confirmDelete,
   disabled,
   onActivate,
   onEnterDirectory,
@@ -127,6 +137,14 @@ export default function FolderInlineBranchPanel({
   previewGridEnabled: boolean
   previewCount: FolderPreviewCount
   penetration: ReaderFolderPenetrationConfig
+  thumbnailProbeEnabled: boolean
+  contentWidthPercent: number
+  hoverPreviewEnabled: boolean
+  hoverPreviewDelayMs: number
+  wrapTitle: boolean
+  deleteMode: boolean
+  deleteStrategy: FolderDeleteStrategy
+  confirmDelete: boolean
   disabled: boolean
   onActivate(entry: Pick<ReaderDirectoryEntryDto, "kind" | "name" | "path" | "readerSupported">): void
   onEnterDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void
@@ -146,7 +164,7 @@ export default function FolderInlineBranchPanel({
     client,
     catalog,
     catalogRef,
-    thumbnailsVisible: true,
+    thumbnailsVisible: thumbnailProbeEnabled,
     viewMode,
     previewGridEnabled,
     previewCount,
@@ -226,6 +244,8 @@ export default function FolderInlineBranchPanel({
     else onActivate(entry)
   }
 
+  const showRating = catalog?.metadataFields.includes("rating") ?? false
+  const showCollectTagCount = catalog?.metadataFields.includes("collectTagCount") ?? false
   const naturalHeight = catalog?.total && catalog.total > 0
     ? contentHeight === undefined
       ? inlineBranchViewportHeight(catalog.total, viewMode)
@@ -259,7 +279,7 @@ export default function FolderInlineBranchPanel({
         {!error && !catalog ? <div className="grid h-full min-h-0 place-items-center text-xs text-muted-foreground" role="status">正在展开文件夹...</div> : null}
         {!error && catalog?.total === 0 ? <div className="grid h-full min-h-0 place-items-center text-xs text-muted-foreground" role="status">此文件夹为空</div> : null}
         {!error && catalog && catalog.total > 0 && viewMode === "details" ? (
-          <InlineDetailsList catalog={catalog} disabled={disabled} selectedPath={selectedPath} onRangeChange={requestRange} onSelect={selectEntry} />
+          <InlineDetailsList catalog={catalog} disabled={disabled} selectedPath={selectedPath} wrapTitle={wrapTitle} deleteMode={deleteMode} deleteStrategy={deleteStrategy} confirmDelete={confirmDelete} onRangeChange={requestRange} onSelect={selectEntry} />
         ) : null}
         {!error && catalog && catalog.total > 0 && viewMode === "mosaic-list" ? (
           <VirtuosoGrid
@@ -271,7 +291,7 @@ export default function FolderInlineBranchPanel({
             rangeChanged={requestRange}
             itemContent={(index) => {
               const entry = directoryEntryAt(catalog, index)
-              return <DirectoryBannerItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={false} showCollectTagCount={false} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} hoverPreviewEnabled={false} hoverPreviewDelayMs={500} onSelect={selectEntry} />
+              return <DirectoryBannerItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={showRating} showCollectTagCount={showCollectTagCount} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} thumbnailProbeEnabled={thumbnailProbeEnabled} hoverPreviewEnabled={hoverPreviewEnabled} hoverPreviewDelayMs={hoverPreviewDelayMs} wrapTitle={wrapTitle} deleteMode={deleteMode} deleteStrategy={deleteStrategy} confirmDelete={confirmDelete} onSelect={selectEntry} />
             }}
           />
         ) : null}
@@ -285,7 +305,7 @@ export default function FolderInlineBranchPanel({
             rangeChanged={requestRange}
             itemContent={(index) => {
               const entry = directoryEntryAt(catalog, index)
-              return <DirectoryGridItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={false} showCollectTagCount={false} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} hoverPreviewEnabled={false} hoverPreviewDelayMs={500} onSelect={selectEntry} />
+              return <DirectoryGridItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={showRating} showCollectTagCount={showCollectTagCount} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} thumbnailProbeEnabled={thumbnailProbeEnabled} hoverPreviewEnabled={hoverPreviewEnabled} hoverPreviewDelayMs={hoverPreviewDelayMs} wrapTitle={wrapTitle} deleteMode={deleteMode} deleteStrategy={deleteStrategy} confirmDelete={confirmDelete} onSelect={selectEntry} />
             }}
           />
         ) : null}
@@ -293,12 +313,12 @@ export default function FolderInlineBranchPanel({
           <Virtuoso
             style={{ height: "100%" }}
             totalCount={catalog.total}
-            fixedItemHeight={viewMode === "compact" ? 34 : 76}
+            fixedItemHeight={wrapTitle ? undefined : viewMode === "compact" ? 34 : 76}
             computeItemKey={(index) => directoryEntryAt(catalog, index)?.path ?? `${catalog.generation}:${index}`}
             rangeChanged={requestRange}
             itemContent={(index) => {
               const entry = directoryEntryAt(catalog, index)
-              return <DirectoryListItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={false} showCollectTagCount={false} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} contentWidthPercent={35} hoverPreviewEnabled={false} hoverPreviewDelayMs={500} deleteMode={false} deleteStrategy="trash" confirmDelete onSelect={selectEntry} />
+              return <DirectoryListItem itemId={`folder-inline-${catalog.sessionId}-${index}`} entry={entry} index={index} disabled={disabled} selected={entry?.path === selectedPath} focused={false} showRating={showRating} showCollectTagCount={showCollectTagCount} visualMode={viewMode} thumbnailStore={thumbnailPipeline.thumbnailStore} thumbnailProbeEnabled={thumbnailProbeEnabled} contentWidthPercent={contentWidthPercent} hoverPreviewEnabled={hoverPreviewEnabled} hoverPreviewDelayMs={hoverPreviewDelayMs} wrapTitle={wrapTitle} deleteMode={deleteMode} deleteStrategy={deleteStrategy} confirmDelete={confirmDelete} onSelect={selectEntry} />
             }}
           />
         ) : null}
@@ -352,12 +372,20 @@ function InlineDetailsList({
   catalog,
   disabled,
   selectedPath,
+  wrapTitle,
+  deleteMode,
+  deleteStrategy,
+  confirmDelete,
   onRangeChange,
   onSelect,
 }: {
   catalog: DirectoryCatalog
   disabled: boolean
   selectedPath?: string
+  wrapTitle: boolean
+  deleteMode: boolean
+  deleteStrategy: FolderDeleteStrategy
+  confirmDelete: boolean
   onRangeChange(range: ListRange): void
   onSelect(entry: ReaderDirectoryEntryDto, index: number, event: ReactMouseEvent): void
 }) {
@@ -370,7 +398,12 @@ function InlineDetailsList({
       rangeChanged={onRangeChange}
       itemContent={(index) => {
         const entry = directoryEntryAt(catalog, index)
-        return entry ? <button type="button" className="grid h-[42px] w-full grid-cols-[minmax(8rem,1fr)_minmax(10rem,2fr)_5rem] items-center gap-2 border-b px-2 text-left text-xs hover:bg-muted aria-selected:bg-accent" aria-selected={entry.path === selectedPath} disabled={disabled} onClick={(event) => onSelect(entry, index, event)}><span className="truncate font-medium">{entry.name}</span><span className="truncate text-muted-foreground">{entry.path}</span><span className="truncate text-muted-foreground">{entry.kind === "directory" ? "文件夹" : "文件"}</span></button> : <div className="h-[42px] animate-pulse border-b bg-muted/30" />
+        return entry ? (
+          <div className="relative h-[42px]">
+            {deleteMode ? <FolderDeleteButton entry={{ index, ...entry }} strategy={deleteStrategy} disabled={disabled} placement="leading" confirm={confirmDelete} /> : null}
+            <button type="button" className={`grid h-[42px] w-full grid-cols-[minmax(8rem,1fr)_minmax(10rem,2fr)_5rem] items-center gap-2 border-b pr-2 text-left text-xs hover:bg-muted aria-selected:bg-accent ${deleteMode ? "pl-9" : "pl-2"}`} aria-selected={entry.path === selectedPath} disabled={disabled} onClick={(event) => onSelect(entry, index, event)}><span className={`${folderTitleClassName(wrapTitle)} font-medium`}>{entry.name}</span><span className="truncate text-muted-foreground">{entry.path}</span><span className="truncate text-muted-foreground">{entry.kind === "directory" ? "文件夹" : "文件"}</span></button>
+          </div>
+        ) : <div className="h-[42px] animate-pulse border-b bg-muted/30" />
       }}
     />
   )

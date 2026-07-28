@@ -9,6 +9,7 @@ import {
 } from "@xiranite/node-neoview/ui-core"
 import type { ReaderVideoActionPort } from "../video/ReaderVideoController"
 import type { ReaderViewerTogglePort } from "../viewer/ReaderViewerToggleStore"
+import type { ReaderInputExecutionContext } from "./ReaderInputInvocation"
 
 interface ReaderSwitchToastActionPort {
   getSnapshot(): { enableBook: boolean; enablePage: boolean; enableBoundaryToast: boolean }
@@ -37,6 +38,14 @@ export interface ReaderInputActionSession {
   pageMode: "single" | "double"
 }
 
+export interface ReaderCurrentFileDeleteOptions {
+  adjacentDirection?: "next" | "previous"
+  strategy?: "trash" | "delete"
+  confirmationHandled?: boolean
+  targetPath?: string
+  trigger?: "reader-input" | "file-card-command"
+}
+
 export interface ReaderInputActionControls {
   session(): ReaderInputActionSession | undefined
   presentation(): ReaderPresentation
@@ -62,7 +71,7 @@ export interface ReaderInputActionControls {
   }
   openFile(): void | Promise<unknown>
   closeFile(): void | Promise<unknown>
-  deleteCurrentFile?(adjacentDirection?: "next" | "previous"): Promise<ReaderInputActionOutcome>
+  deleteCurrentFile?(options?: ReaderCurrentFileDeleteOptions): Promise<ReaderInputActionOutcome>
   openSettings(): void
   openRadialMenu(): void
   video?: ReaderVideoActionPort
@@ -81,7 +90,7 @@ export interface ReaderInputActionControls {
 export async function executeReaderInputAction(
   action: ReaderInputAction,
   controls: ReaderInputActionControls,
-  context?: ReaderInputActionExecutionContext,
+  context?: ReaderInputExecutionContext,
 ): Promise<ReaderInputActionOutcome> {
   action = remapVideoSeekAction(action, controls.video)
   const session = controls.session()
@@ -159,8 +168,12 @@ export async function executeReaderInputAction(
     case "file.open": return outcomeOf(controls.openFile())
     case "file.close": return outcomeOf(controls.closeFile())
     case "file.delete-current":
-      if (!controls.session() || !controls.deleteCurrentFile) return UNAVAILABLE
-      return controls.deleteCurrentFile(context?.nextAction === "reader.next-book" ? "next" : context?.nextAction === "reader.previous-book" ? "previous" : undefined)
+      if (!controls.deleteCurrentFile) return UNAVAILABLE
+      {
+        const options = currentFileDeleteOptions(context)
+        if (!controls.session() && !options?.targetPath) return UNAVAILABLE
+        return controls.deleteCurrentFile(options)
+      }
     case "reader.open-settings": controls.openSettings(); return SUCCEEDED
     case "radial.open-default": controls.openRadialMenu(); return SUCCEEDED
     case "radial.confirm": return SUCCEEDED
@@ -181,6 +194,22 @@ export async function executeReaderInputAction(
     case "slideshow.skip": return outcomeOf(controls.slideshow.skip())
     default: return UNAVAILABLE
   }
+}
+
+function currentFileDeleteOptions(context: ReaderInputExecutionContext | undefined): ReaderCurrentFileDeleteOptions | undefined {
+  const adjacentDirection = context?.nextAction === "reader.next-book" ? "next" : context?.nextAction === "reader.previous-book" ? "previous" : undefined
+  const command = context?.input?.device === "command" ? context.input.command : undefined
+  const strategy = command === "file-card.delete-current" ? "delete" : command === "file-card.trash-current" ? "trash" : undefined
+  const invocation = context?.invocation?.kind === "file-entry-delete" ? context.invocation : undefined
+  return adjacentDirection || strategy || invocation ? {
+    ...(adjacentDirection ? { adjacentDirection } : {}),
+    ...(strategy ? { strategy } : {}),
+    ...(invocation ? {
+      targetPath: invocation.targetPath,
+      trigger: "file-card-command" as const,
+      confirmationHandled: invocation.confirmationHandled,
+    } : {}),
+  } : undefined
 }
 
 const SUCCEEDED = { status: "succeeded" } as const

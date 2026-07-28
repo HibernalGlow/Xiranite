@@ -15,6 +15,54 @@ afterEach(async () => {
 })
 
 describe("Reader adjacent-book HTTP", () => {
+  it("[neoview.control.expanded-adjacent-book] advances within an expanded branch from its actual selected entry", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-expanded-adjacent-http-"))
+    roots.push(root)
+    const series = join(root, "series")
+    const first = join(series, "Book 1")
+    const second = join(series, "Book 2")
+    const third = join(series, "Book 3")
+    await Promise.all([mkdir(first, { recursive: true }), mkdir(second, { recursive: true }), mkdir(third, { recursive: true })])
+    await Promise.all([
+      writeFile(join(first, "1.jpg"), Uint8Array.of(1)),
+      writeFile(join(second, "1.jpg"), Uint8Array.of(2)),
+      writeFile(join(third, "1.jpg"), Uint8Array.of(3)),
+    ])
+    const controller = createController()
+    try {
+      const opened = await request(controller, "/reader/sessions", "POST", {
+        path: second,
+        provenance: {
+          browserOriginPath: root,
+          browserOriginEntryPath: second,
+          browserOriginTraversalFrames: [
+            { directoryPath: root, currentEntryPath: series },
+            { directoryPath: series, currentEntryPath: second },
+          ],
+        },
+      })
+      expect(opened.status).toBe(201)
+      const current = await opened.json() as { sessionId: string }
+
+      const switched = await request(controller, `/reader/s/${current.sessionId}/adjacent-book`, "POST", { direction: "next" })
+      expect(switched.status).toBe(201)
+      const adjacent = await switched.json() as {
+        book: { displayName: string }
+        activationIdentity: { activatedEntryPath: string; traversalFrames?: readonly { directoryPath: string; currentEntryPath: string }[] }
+      }
+      expect(adjacent.book.displayName).toBe("Book 3")
+      expect(adjacent.activationIdentity).toMatchObject({
+        activatedEntryPath: third,
+        traversalFrames: [
+          { directoryPath: root, currentEntryPath: series },
+          { directoryPath: series, currentEntryPath: third },
+        ],
+      })
+    } finally {
+      await controller[Symbol.asyncDispose]()
+    }
+  })
+
   it("[neoview.control.hierarchical-book] preserves non-penetrable branches and restores progress through hierarchical traversal", async () => {
     const root = await mkdtemp(join(tmpdir(), "xiranite-neoview-hierarchical-http-"))
     roots.push(root)
@@ -39,15 +87,28 @@ describe("Reader adjacent-book HTTP", () => {
         provenance: { browserOriginPath: root, browserOriginEntryPath: a, browserOriginSelfTerminal: true },
       })
       expect(opened.status).toBe(201)
-      let current = await opened.json() as { sessionId: string; book: { displayName: string }; frame: { anchorPageIndex: number } }
+      let current = await opened.json() as {
+        sessionId: string
+        activationIdentity: { readerSourcePath: string; activatedEntryPath: string; traversalRootPath: string }
+        book: { displayName: string }
+        frame: { anchorPageIndex: number }
+      }
+      expect(current.activationIdentity).toMatchObject({
+        readerSourcePath: a,
+        activatedEntryPath: a,
+        traversalRootPath: root,
+      })
       const names: string[] = []
+      const activatedEntries: string[] = []
       for (let index = 0; index < 4; index += 1) {
         const switched = await request(controller, `/reader/s/${current.sessionId}/adjacent-book`, "POST", { direction: "next" })
         expect(switched.status).toBe(201)
         current = await switched.json() as typeof current
         names.push(current.book.displayName)
+        activatedEntries.push(current.activationIdentity.activatedEntryPath)
       }
       expect(names).toEqual(["4", "Book 1", "Book 2", "nested"])
+      expect(activatedEntries).toEqual([aChild, b1, b2, join(root, "C")])
 
       const previous = await request(controller, `/reader/s/${current.sessionId}/adjacent-book`, "POST", { direction: "previous" })
       expect(previous.status).toBe(201)

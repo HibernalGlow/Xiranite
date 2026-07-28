@@ -11,6 +11,7 @@ import {
   READER_PANEL_MANIFEST,
   type FrameSnapshot,
   type ReaderCardId,
+  type ReaderInputActionSequenceResult,
   type ReaderPanelId,
   type ReaderPresentation,
 } from "@xiranite/node-neoview/ui-core"
@@ -46,6 +47,7 @@ import type {
   ReaderSlideshowPatch,
   ReaderViewDefaultsPatch,
   ReaderFolderViewPatch,
+  ReaderFileUndoResultDto,
 } from "../../adapters/reader-http-client"
 import type { ReaderShellControlPort } from "../shell/ReaderShellControlPort"
 import type { ReaderColorFilterPort } from "../color-filter/ReaderColorFilterStore"
@@ -57,11 +59,6 @@ import type { ReaderWorkspacePatch } from "../workspace/ReaderWorkspaceLayout"
 
 export type ReaderPanelSide = "left" | "right"
 export type LegacyPanelId = ReaderPanelId
-
-export interface ReaderFileMutationPreparation {
-  commit(): void
-  restore(): Promise<void>
-}
 
 export interface ReaderFolderExternalOpenRequest {
   requestId: string
@@ -96,8 +93,10 @@ export interface ReaderPanelContext {
   browserOriginPath?: string
   onOpen?(path: string, provenance?: import("../../adapters/reader-http-client").ReaderActivationProvenanceDto): void | Promise<void>
   onBrowsePath?(path: string): void
-  /** Releases an active Reader source before a File Card mutation moves or removes it. */
-  onPrepareFileMutation?(sourcePath: string, signal?: AbortSignal): Promise<ReaderFileMutationPreparation | undefined>
+  /** Routes deletion through its binding sequence and reports the terminal action outcome. */
+  onDeleteThroughBinding?(sourcePath: string, strategy: "trash" | "delete"): Promise<ReaderInputActionSequenceResult | undefined>
+  /** Runs persistent file-operation undo through the shared deletion transaction queue. */
+  onUndoFileDeletion?(): Promise<ReaderFileUndoResultDto>
   /** Activate a folder entry through the live File Card (reuse session + penetration). Returns true if handled. */
   onActivateInFolderCard?(path: string): boolean | void
   onOpenInNewTab?(path: string): void

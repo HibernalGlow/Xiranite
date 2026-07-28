@@ -32,6 +32,7 @@ import type { ReaderBookSettingsStore } from "../../ports/ReaderBookSettingsStor
 import type { ReaderEmmOverrideStore } from "../../ports/ReaderEmmOverrideStore.js"
 import { ReaderSearchHistoryService } from "../../application/browser/ReaderSearchHistoryService.js"
 import { ReaderHierarchicalBookTraversal, type ReaderBookTraversalCursor } from "../../application/reader/ReaderHierarchicalBookTraversal.js"
+import type { ReaderActivationIdentity } from "../../application/reader/ReaderActivationIdentity.js"
 import { ReaderFolderPenetrationResolver } from "../../application/browser/ReaderFolderPenetrationResolver.js"
 import { ReaderEmmMetadataRevisionConflict, ReaderEmmMetadataService } from "../../application/metadata/ReaderEmmMetadataService.js"
 import { legacyEmmBookPathKey } from "../../application/metadata/LegacyEmmBookMetadataCodec.js"
@@ -213,6 +214,7 @@ export interface ReaderPageDto {
 
 export interface ReaderSessionDto {
   sessionId: string
+  activationIdentity: ReaderActivationIdentity
   book: {
     id: string
     displayName: string

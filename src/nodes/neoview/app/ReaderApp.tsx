@@ -56,23 +56,25 @@ import { createInitialReaderShellConfig } from "./ReaderShellSnapshot"
 import { useReaderWorkspaceRestoreStore } from "./ReaderWorkspaceRestoreStore"
 import { workspaceConfigEqual, readerWorkspaceWithSession, splitReaderWorkspacePatch, INITIAL_VIEW_DEFAULTS, INITIAL_HISTORY_LIST_PREFERENCES, INITIAL_BOOKMARK_LIST_PREFERENCES, INITIAL_PAGE_LIST_PREFERENCES, INITIAL_BOOK_DEFAULTS, INITIAL_SLIDESHOW_CONFIG, INITIAL_PRELOAD_CONFIG, INITIAL_FOLDER_VIEW_CONFIG, loadReaderSidebar, LazyReaderSidebar, LazyReaderGestureInputRuntime, LazyReaderRadialMenuOverlay, LazyReaderSettingsWindow, loadReaderFrame, LazyReaderFrame, LazyReaderBackgroundLayer, LazyReaderViewToolbar, LazyReaderSwitchToastRuntime, LazyReaderInfoOverlayRuntime, loadReaderPresentation, DeferredSidebarFloatingController, shellControlHydration, shellControlSnapshot, defaultShellControlSnapshot, edgeSurfaceStyle, readerPathSegments, fileMutationContainsSource, applyNavigation, waitForReaderOperationIdle, errorMessage, type ReaderAppProps, type ReaderExternalOpenRequest } from "./ReaderAppModules"
 import { createReaderAppSettingsActions } from "./ReaderAppSettingsActions"
-import { createReaderAppFileActions } from "./ReaderAppFileActions"
+import { attachReaderAppFileActions } from "./ReaderAppFileActions"
 import { createReaderAppWorkspaceActions } from "./ReaderAppWorkspaceActions"
 import { createReaderAppInputActions } from "./ReaderAppInputActions"
 import { ReaderAppView } from "./ReaderAppView"
 import { useReaderSwimlaneSidebarDeferral } from "./useReaderSwimlaneSidebarDeferral"
-import type { ReaderAppActivationRootProps } from "./ReaderActivationRoot"
-import { useReaderActivationRoot } from "./useReaderActivationRoot"
+import { readerActivationIdentityMatchesProvenance, type ReaderAppActivationIdentityProps } from "./ReaderActivationIdentity"
+import { useReaderActivationIdentity } from "./useReaderActivationIdentity"
 import { dispatchReaderFileCardDeleteBinding } from "./ReaderFileCardDeleteBinding"
 import { useReaderFolderNavigationEvents } from "./useReaderFolderNavigationEvents"
 import { useReaderExternalOpenRequest } from "./useReaderExternalOpenRequest"
 import { useReaderExternalFolderOpen } from "./useReaderExternalFolderOpen"
+import { useReaderStartupRestore } from "./useReaderStartupRestore"
 import { createReaderNavigationActions } from "./ReaderNavigationActions"
+import { ReaderDeletionTransactionCoordinator } from "../features/files/ReaderDeletionTransactionCoordinator"
 export { fileMutationContainsSource, type ReaderAppProps } from "./ReaderAppModules"
 export function ReaderApp({
   sessionScopeId = "standalone",
   initialPath = "",
-  initialBrowserOriginPath, initialActivationRootPath, externalOpenRequest, onExternalOpenResult,
+  initialActivationIdentity, initialBrowserOriginPath, externalOpenRequest, onExternalOpenResult,
   initialSwimlaneSoloLaneId,
   initialReaderViewFullscreen,
   client: injectedClient,
@@ -81,10 +83,10 @@ export function ReaderApp({
   pickEfuFile,
   copyText,
   copyFiles,
-  onPathCommitted,
+  onActivationIdentityCommitted,
   onSwimlaneSoloLaneIdCommitted,
   onReaderViewFullscreenCommitted,
-}: Omit<ReaderAppProps, "onPathCommitted"> & ReaderAppActivationRootProps) {
+}: Omit<ReaderAppProps, "onActivationIdentityCommitted"> & ReaderAppActivationIdentityProps) {
   const surface = useNodeSurface()
   const floatingFrame = useFloatingWindowFrame()
   const contextMenu = useContextMenu()
@@ -102,13 +104,19 @@ export function ReaderApp({
     return created
   })
   const clientRef = useRef(client)
+  const startupRestoreHydrateRef = useRef<(config: ReaderRuntimeConfigDto["startup"]) => void>()
   const shellRef = useRef<ReaderShellConfigDto | undefined>(undefined)
   const readerInteractionRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<string | undefined>(undefined)
   const operationRef = useRef<AbortController | undefined>(undefined)
   const openOperationRef = useRef<AbortController | undefined>(undefined)
   const activeSourcePathRef = useRef(initialPath.trim())
-  const readerActivation = useReaderActivationRoot({ initialPath, initialActivationRootPath, onPathCommitted })
+  const readerActivation = useReaderActivationIdentity({
+    initialPath,
+    initialActivationIdentity,
+    initialBrowserOriginPath,
+    onActivationIdentityCommitted,
+  })
   const navigationPendingRef = useRef(false)
   const adjacentBookPendingRef = useRef(false)
   const slideshowSessionRef = useRef<ReaderSessionDto | undefined>(undefined)
@@ -125,6 +133,7 @@ export function ReaderApp({
     goToPage: (pageIndex) => goTo(pageIndex, true),
     onError: (cause) => setError(errorMessage(cause)),
   }))
+  const [deletionCoordinator] = useState(() => new ReaderDeletionTransactionCoordinator())
   const viewDefaultsRef = useRef<ReaderRuntimeConfigDto["viewDefaults"]>({ ...INITIAL_VIEW_DEFAULTS })
   const confirmedViewDefaultsRef = useRef<ReaderRuntimeConfigDto["viewDefaults"]>({ ...INITIAL_VIEW_DEFAULTS })
   const tailOverflowRef = useRef<"do-nothing" | "stay-on-last-page" | "next-book" | "loop" | "seamless-loop">("stay-on-last-page")
@@ -152,7 +161,7 @@ export function ReaderApp({
   const pendingWorkspaceWritesRef = useRef<Array<{ generation: number; patch: ReaderWorkspacePatch; base: ReaderShellConfigDto }>>([])
   const presentationTouchedRef = useRef(false)
   const [path, setPath] = useState(initialPath)
-  const [browserOriginPath, setBrowserOriginPath] = useState(initialBrowserOriginPath)
+  const [browserOriginPath, setBrowserOriginPath] = useState(initialActivationIdentity?.traversalRootPath ?? initialBrowserOriginPath)
   const { externalFolderOpenRequest, beginExternalFolderOpen, completeExternalFolderOpen } = useReaderExternalFolderOpen()
   const [session, setSession] = useState<ReaderSessionDto | undefined>(undefined)
   const [busy, setBusy] = useState(false)
@@ -254,7 +263,6 @@ export function ReaderApp({
   const [cancelledPreloadFrame, setCancelledPreloadFrame] = useState<{ sessionId: string; generation: number }>()
   slideshowSessionRef.current = session
   shellRef.current = shell
-
   useEffect(() => {
     if (!session?.sessionId) {
       setReaderFrameAllowed(false)
@@ -302,7 +310,6 @@ export function ReaderApp({
       if (timeoutHandle !== undefined) window.clearTimeout(timeoutHandle)
     }
   }, [session?.book.pageCount, session?.sessionId, session?.visiblePages.length, sessionScopeId])
-
   useDeferredFinalCleanup(() => {
     neoviewDebug("reader:dispose", {
       sessionScopeId,
@@ -349,6 +356,7 @@ export function ReaderApp({
       setMedia(config.media)
       setImageProcessing(config.imageProcessing)
       setPreloadConfig(config.preload ?? INITIAL_PRELOAD_CONFIG)
+      startupRestoreHydrateRef.current?.(config.startup)
       setBookDefaults(config.book ?? INITIAL_BOOK_DEFAULTS)
       setSuperResolution(config.superResolution)
       videoController.configure(config.media)
@@ -577,7 +585,10 @@ export function ReaderApp({
       })
       return { opened: false, message: !normalizedPath ? "Reader open target is empty." : "Reader is busy opening another target." }
     }
-    if (sessionRef.current && activeSourcePathRef.current === normalizedPath) {
+    const currentIdentity = readerActivation.activationIdentityRef.current
+    if (sessionRef.current
+      && activeSourcePathRef.current === normalizedPath
+      && (!provenance || currentIdentity && readerActivationIdentityMatchesProvenance(currentIdentity, provenance))) {
       neoviewDebug("reader:open:skipped", {
         sessionScopeId,
         path: normalizedPath,
@@ -602,9 +613,10 @@ export function ReaderApp({
     try {
       const previousSession = sessionRef.current
       const presentationReady = loadReaderPresentation()
+      const openProvenance = readerActivation.provenanceForOpen(normalizedPath, provenance)
       const opened = await neoviewDebugAsync(
         "reader:open:http",
-        () => clientRef.current.open(normalizedPath, controller.signal, provenance),
+        () => clientRef.current.open(normalizedPath, controller.signal, openProvenance),
         { sessionScopeId, path: normalizedPath },
       )
       try {
@@ -619,14 +631,13 @@ export function ReaderApp({
       }
       sessionRef.current = opened.sessionId
       presentationTouchedRef.current = false
-      const nextBrowserOriginPath = provenance?.browserOriginPath ?? browserOriginPath
-      const nextActivationRootPath = readerActivation.activationRootForOpen(normalizedPath, provenance)
+      const identity = opened.activationIdentity
       // Path chrome can update urgently; session/frame work is transitioned so the
       // main thread is not monopolized by LazyReaderFrame + decode in one turn.
-      setPath(normalizedPath)
-      activeSourcePathRef.current = normalizedPath
-      setBrowserOriginPath(nextBrowserOriginPath)
-      readerActivation.commitOpenedPath(normalizedPath, nextBrowserOriginPath, nextActivationRootPath)
+      setPath(identity.readerSourcePath)
+      activeSourcePathRef.current = identity.readerSourcePath
+      setBrowserOriginPath(identity.traversalRootPath)
+      readerActivation.commitOpenedSession(opened)
       startTransition(() => {
         setSlideshowFadeFrame(undefined)
         setSession(opened)
@@ -670,7 +681,8 @@ export function ReaderApp({
       if (!controller.signal.aborted) setBusy(false)
     }
   }
-
+  const startupRestore = useReaderStartupRestore({ client, initialPath, externalOpenRequest, open: openPath, onError: (cause) => setError(errorMessage(cause)) })
+  startupRestoreHydrateRef.current = startupRestore.hydrate
   const { folderNavigationEvents, browsePath, activateInFolderCard, openFolderPathInNewTab } = useReaderFolderNavigationEvents()
 
   const { navigate, goTo } = createReaderNavigationActions({
@@ -698,16 +710,18 @@ export function ReaderApp({
     setPath(directory)
     activeSourcePathRef.current = directory
     setBrowserOriginPath(undefined)
-    readerActivation.commitOpenedPath(directory, undefined, directory)
+    readerActivation.commitStandalonePath(directory, undefined, directory)
     return await beginExternalFolderOpen({ ...request, path: directory })
   }, onExternalOpenResult)
-
   const actionContext: any = {
-    sessionScopeId, pickFile, pickDirectory, pickEfuFile, copyText, copyFiles, onPathCommitted, onSwimlaneSoloLaneIdCommitted, onReaderViewFullscreenCommitted, surface, floatingFrame, contextMenu,
+    sessionScopeId, pickFile, pickDirectory, pickEfuFile, copyText, copyFiles, onActivationIdentityCommitted, onSwimlaneSoloLaneIdCommitted, onReaderViewFullscreenCommitted, surface, floatingFrame, contextMenu,
     swimlaneSessionScopeId, swimlaneSession, patchSwimlaneSession,
     readerBootedAtRef, client, clientRef,
     shellRef, readerInteractionRef, sessionRef,
-    operationRef, openOperationRef, activeSourcePathRef, activationRootPathRef: readerActivation.activationRootPathRef, commitPath: readerActivation.commitPath,
+    operationRef, openOperationRef, activeSourcePathRef,
+    activationIdentityRef: readerActivation.activationIdentityRef,
+    commitOpenedSession: readerActivation.commitOpenedSession,
+    clearActivationIdentity: readerActivation.clear,
     navigationPendingRef, adjacentBookPendingRef, slideshowSessionRef, slideshow,
     viewDefaultsRef, confirmedViewDefaultsRef, tailOverflowRef,
     viewDefaultsWriteQueueRef, viewDefaultsGenerationRef, pageListPreferencesRef,
@@ -726,6 +740,7 @@ export function ReaderApp({
     viewerToggles, shell, setShell,
     readerChromeReady, setReaderChromeReady, shellControlStore,
     shellControl, viewDefaults, setViewDefaults,
+    deletionCoordinator,
     bookDefaults, setBookDefaults, pageListPreferences,
     setPageListPreferences, bookmarkListPreferences, setBookmarkListPreferences,
     historyListPreferences, setHistoryListPreferences, folderView,
@@ -820,23 +835,7 @@ export function ReaderApp({
     importLegacySettings,
   })
 
-  const {
-    persistSlideshow,
-    persistFolderView,
-    closeSession,
-    prepareFileMutation,
-    requestDeleteCurrentFile,
-    deleteCurrentFile,
-  } = createReaderAppFileActions(actionContext)
-
-  Object.assign(actionContext, {
-    persistSlideshow,
-    persistFolderView,
-    closeSession,
-    prepareFileMutation,
-    requestDeleteCurrentFile,
-    deleteCurrentFile,
-  })
+  const { undoFileDeletion } = attachReaderAppFileActions(actionContext)
 
   const {
     toggleWorkspaceMode,
@@ -909,7 +908,8 @@ export function ReaderApp({
   })
 
   const inputRouter = useReaderInputRouter({ config: inputBindings, disabled: busy, execute: executeInputAction })
-  const deleteThroughInputBinding = (sourcePath: string, strategy: "trash" | "delete") => dispatchReaderFileCardDeleteBinding(sourcePath, activationRootPathRef.current, strategy, inputRouter.dispatch)
+  const deleteThroughInputBinding = (sourcePath: string, strategy: "trash" | "delete") =>
+    dispatchReaderFileCardDeleteBinding(sourcePath, strategy, inputRouter.dispatchAndWait)
   const runtimeWorkspace = shell ? readerWorkspaceWithSession(shell, swimlaneSession) : undefined
   const runtimeWorkspaceMode = runtimeWorkspace?.mode
   const shellPresent = Boolean(shell)
@@ -994,7 +994,6 @@ function requestShellEdgeOpen(edge: ReaderShellEdge, open: boolean) {
     if (workspace) commitWorkspace(workspace)
     if (Object.keys(persistent).length > 0) enqueueShellControl(persistent)
   }
-
-  Object.assign(actionContext, { inputRouter, handleInputPointerDown, deleteThroughInputBinding })
+  Object.assign(actionContext, { inputRouter, handleInputPointerDown, deleteThroughInputBinding, startupRestore })
   return <ReaderAppView context={actionContext} />
 }

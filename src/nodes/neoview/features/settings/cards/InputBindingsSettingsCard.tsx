@@ -9,6 +9,7 @@
  */
 import {
   cloneReaderInputBindings,
+  isReaderSystemInputBinding,
   READER_INPUT_ACTION_CATEGORIES,
   READER_INPUT_ACTION_CATEGORY_LABELS,
   READER_INPUT_ACTION_LABELS,
@@ -35,6 +36,7 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDot,
+  Command,
   Copy,
   Eye,
   Film,
@@ -548,7 +550,7 @@ export function InputBindingsEditor({
                     onRecord={(event) => {
                       recordingFocusRef.current = event.currentTarget
                       if (binding.input.device === "keyboard") toggleRecording(binding.id)
-                      else if (binding.input.device !== "area") setDeviceRecording((current) => current?.id === binding.id ? undefined : { id: binding.id, device: binding.input.device })
+                       else if (isRecordableReaderDevice(binding.input.device)) setDeviceRecording((current) => current?.id === binding.id ? undefined : { id: binding.id, device: binding.input.device })
                     }}
                     onChange={(next) => replace(binding.id, () => next)}
                     onRemove={() => applyDraft((current) => ({ bindings: current.bindings.filter((item) => item.id !== binding.id) }))}
@@ -646,6 +648,7 @@ function BindingRow({
 }) {
   const DeviceIcon = deviceIcon(binding.input.device)
   const radial = binding.input.device === "radial"
+  const systemOwned = isReaderSystemInputBinding(binding)
   const contextVisual = CONTEXT_VISUAL[binding.context]
   const ContextIcon = contextVisual.icon
   const summary = `${READER_INPUT_CONTEXT_LABELS[binding.context]} · ${formatInputSummary(binding.input)}`
@@ -656,7 +659,7 @@ function BindingRow({
       data-binding-id={binding.id}
     >
       <div className="grid gap-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_auto] sm:items-center">
-        <Switch checked={binding.enabled} disabled={disabled} onCheckedChange={(enabled) => onChange({ ...binding, enabled })} aria-label={`${READER_INPUT_ACTION_LABELS[binding.action]}启用`} />
+        <Switch checked={binding.enabled} disabled={disabled || systemOwned} onCheckedChange={(enabled) => onChange({ ...binding, enabled })} aria-label={`${READER_INPUT_ACTION_LABELS[binding.action]}启用`} />
         <Button type="button" size="icon-sm" variant="ghost" disabled={disabled && !recording} onClick={onToggleExpand} aria-expanded={expanded} aria-label={expanded ? "收起绑定详情" : "展开绑定详情"}>
           {expanded ? <ChevronDown /> : <ChevronRight />}
         </Button>
@@ -692,26 +695,26 @@ function BindingRow({
               id={`binding-context-${binding.id}`}
               className="h-8 appearance-none rounded-md border border-input bg-background py-0 pl-7 pr-6 text-xs"
               value={binding.context}
-              disabled={disabled || radial}
+              disabled={disabled || radial || systemOwned}
               onChange={(event) => onChange({ ...binding, context: event.currentTarget.value as ReaderInputBinding["context"] })}
               aria-label="上下文"
             >
               {READER_INPUT_CONTEXTS.map((item) => <option key={item} value={item}>{READER_INPUT_CONTEXT_LABELS[item]}</option>)}
             </select>
           </div>
-          {!radial ? <Button type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={onRemove} title="删除绑定" aria-label={`删除${READER_INPUT_ACTION_LABELS[binding.action]}绑定`}><Trash2 /></Button> : null}
+          {!radial && !systemOwned ? <Button type="button" size="icon-sm" variant="ghost" disabled={disabled} onClick={onRemove} title="删除绑定" aria-label={`删除${READER_INPUT_ACTION_LABELS[binding.action]}绑定`}><Trash2 /></Button> : null}
         </div>
       </div>
 
       {expanded ? (
         <div className="grid gap-3 rounded-lg border border-dashed bg-muted/20 p-3">
           <InputDescriptorEditor input={binding.input} disabled={disabled} recording={recording} onRecord={onRecord} onChange={(input) => onChange({ ...binding, input })} />
-          <label className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-2.5 py-2 text-xs">
+          {!systemOwned ? <label className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-2.5 py-2 text-xs">
             <span>忽略重复输入</span>
             <Switch checked={Boolean(binding.ignoreRepeat)} disabled={disabled} onCheckedChange={(ignoreRepeat) => onChange({ ...binding, ignoreRepeat: ignoreRepeat || undefined })} aria-label="忽略重复输入" />
-          </label>
+          </label> : null}
           <BindingActionSequenceEditor actions={binding.followUpActions} disabled={disabled} onChange={(followUpActions) => onChange({ ...binding, followUpActions })} />
-          {!radial ? <div className="flex flex-wrap items-center gap-2">
+          {!radial && !systemOwned ? <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Copy className="size-3" />复制到</span>
             {READER_INPUT_CONTEXTS.filter((context) => context !== binding.context).map((context) => {
               const visual = CONTEXT_VISUAL[context]
@@ -739,6 +742,9 @@ function InputDescriptorEditor({ input, disabled, recording, onRecord, onChange 
 }) {
   if (input.device === "radial") {
     return <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/20 px-2.5 py-2 text-xs text-muted-foreground"><CircleDot className="size-3.5" />轮盘 {input.menuId} / {input.itemId}</div>
+  }
+  if (input.device === "command") {
+    return <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/20 px-2.5 py-2 text-xs text-muted-foreground"><Command className="size-3.5" />{formatInputSummary(input)}</div>
   }
   const DeviceIcon = deviceIcon(input.device)
   return (
@@ -806,7 +812,7 @@ function MouseButtonSelect({ value, disabled, onChange }: { value: number; disab
   return <select className="h-8 rounded border border-input bg-background px-1 text-xs" value={value} disabled={disabled} onChange={(event) => onChange(Number(event.currentTarget.value))} aria-label="鼠标按钮">{Array.from({ length: 8 }, (_, button) => <option key={button} value={button}>{mouseButtonLabel(button)}</option>)}</select>
 }
 
-function TimingEditor<T extends Extract<ReaderInputDescriptor, { device: "mouse" | "mouse-gesture" | "touch" }>>({ input, disabled, onChange }: { input: T; disabled: boolean; onChange(input: T): void }) {
+function TimingEditor<T extends Extract<ReaderInputDescriptor, { device: "mouse" | "mouse-gesture" | "touch" | "area" }>>({ input, disabled, onChange }: { input: T; disabled: boolean; onChange(input: T): void }) {
   return <div className="grid grid-cols-2 gap-1"><label className="grid gap-0.5 text-[10px] text-muted-foreground">持续毫秒<Input className="h-8 text-xs" type="number" min={100} max={5000} value={input.durationMs ?? 500} disabled={disabled} onChange={(event) => onChange({ ...input, durationMs: Number(event.currentTarget.value) })} /></label><label className="grid gap-0.5 text-[10px] text-muted-foreground">移动容差<Input className="h-8 text-xs" type="number" min={1} max={100} value={input.moveTolerancePx ?? 12} disabled={disabled} onChange={(event) => onChange({ ...input, moveTolerancePx: Number(event.currentTarget.value) })} /></label></div>
 }
 
@@ -823,7 +829,10 @@ function AreaInputEditor({ input, disabled, onChange }: {
   disabled: boolean
   onChange(input: ReaderInputDescriptor): void
 }) {
-  return <div className="grid gap-2"><div className="grid aspect-[3/2] grid-cols-3 gap-1" aria-label="九宫格区域">{READER_VIEW_AREAS.map((area) => <button key={area} type="button" className={`min-h-8 rounded border text-[10px] ${input.area === area ? "border-primary bg-primary/15 text-primary" : "border-border bg-muted/30"}`} disabled={disabled} onClick={() => onChange({ ...input, area })} aria-pressed={input.area === area}>{areaLabel(area)}</button>)}</div><div className="grid grid-cols-2 gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.button} disabled={disabled} onChange={(event) => onChange({ ...input, button: Number(event.currentTarget.value) as 0 | 1 | 2 })} aria-label="区域鼠标按钮"><option value={0}>左键</option><option value={1}>中键</option><option value={2}>右键</option></select><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.action} disabled={disabled} onChange={(event) => onChange({ ...input, action: event.currentTarget.value as typeof input.action })} aria-label="区域点击方式"><option value="click">单击</option><option value="double-click">双击</option><option value="press">按下</option></select></div></div>
+  return <div className="grid gap-2"><div className="grid aspect-[3/2] grid-cols-3 gap-1" aria-label="九宫格区域">{READER_VIEW_AREAS.map((area) => <button key={area} type="button" className={`min-h-8 rounded border text-[10px] ${input.area === area ? "border-primary bg-primary/15 text-primary" : "border-border bg-muted/30"}`} disabled={disabled} onClick={() => onChange({ ...input, area })} aria-pressed={input.area === area}>{areaLabel(area)}</button>)}</div><div className="grid grid-cols-2 gap-1"><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.button} disabled={disabled} onChange={(event) => onChange({ ...input, button: Number(event.currentTarget.value) as 0 | 1 | 2 })} aria-label="区域鼠标按钮"><option value={0}>左键</option><option value={1}>中键</option><option value={2}>右键</option></select><select className="h-8 rounded border border-input bg-background px-1 text-xs" value={input.action} disabled={disabled} onChange={(event) => {
+    const action = event.currentTarget.value as typeof input.action
+    onChange(action === "hold" ? { ...input, action, durationMs: input.durationMs ?? 500, moveTolerancePx: input.moveTolerancePx ?? 12 } : { device: "area", area: input.area, button: input.button, action })
+  }} aria-label="区域点击方式"><option value="click">单击</option><option value="double-click">双击</option><option value="press">按下</option><option value="hold">长按</option></select></div>{input.action === "hold" ? <TimingEditor input={input} disabled={disabled} onChange={onChange} /> : null}</div>
 }
 
 function newBinding(bindings: readonly ReaderInputBinding[], action: ReaderInputAction, device: DeviceKind = "keyboard"): ReaderInputBinding {
@@ -861,7 +870,12 @@ function defaultInput(device: ReaderInputDescriptor["device"]): ReaderInputDescr
   if (device === "touch") return { device, gesture: "swipe-left", fingers: 1 }
   if (device === "gamepad") return { device, button: 5 }
   if (device === "radial") throw new Error("轮盘输入由轮盘设置管理。")
+  if (device === "command") throw new Error("系统命令输入不可新增。")
   return { device, area: "middle-center", button: 0, action: "click" }
+}
+
+function isRecordableReaderDevice(device: DeviceKind): device is RecordableReaderDevice {
+  return device === "mouse" || device === "mouse-gesture" || device === "wheel" || device === "touch" || device === "gamepad"
 }
 
 function mouseButtonLabel(button: number): string {
@@ -881,11 +895,13 @@ function deviceLabel(device: RecordableReaderDevice): string {
 
 function deviceOptionLabel(device: DeviceKind): string {
   if (device === "radial") return "轮盘"
+  if (device === "command") return "文件卡命令"
   return DEVICE_OPTIONS.find((option) => option.value === device)?.label ?? device
 }
 
 function deviceIcon(device: DeviceKind): LucideIcon {
   if (device === "radial") return CircleDot
+  if (device === "command") return Command
   return DEVICE_OPTIONS.find((option) => option.value === device)?.icon ?? Keyboard
 }
 
@@ -915,9 +931,11 @@ function formatInputSummary(input: ReaderInputDescriptor): string {
     case "gamepad":
       return `手柄 ${input.button}`
     case "area":
-      return `区域 ${areaLabel(input.area)}`
+      return `区域 ${areaLabel(input.area)} ${input.action === "click" ? "单击" : input.action === "double-click" ? "双击" : input.action === "press" ? "按下" : "长按"}`
     case "radial":
       return `轮盘 ${input.menuId} / ${input.itemId}`
+    case "command":
+      return input.command === "file-card.trash-current" ? "文件卡 · 移到回收站" : "文件卡 · 永久删除"
   }
 }
 
@@ -939,6 +957,8 @@ function formatInputChip(input: ReaderInputDescriptor): string {
       return "▣"
     case "radial":
       return "轮盘"
+    case "command":
+      return "文件卡"
   }
 }
 

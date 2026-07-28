@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react"
 
-import type { ReaderDirectoryEntryDto, ReaderFolderPenetrationConfig, ReaderHttpClient } from "../../../../adapters/reader-http-client"
+import type { ReaderActivationTraversalFrameDto, ReaderDirectoryEntryDto, ReaderFolderPenetrationConfig, ReaderHttpClient } from "../../../../adapters/reader-http-client"
 import type { ReaderPanelContext } from "../../../registry"
 import { folderErrorMessage, type DirectoryCatalog } from "./DirectoryCatalog"
 import { canExpandPenetratedBranchInline } from "./FolderInlineBranchPolicy"
+import { appendReaderActivationTraversalFrame } from "./ReaderActivationTraversalFrames"
 
 const PENETRATION_CLICK_DELAY_MS = 180
 
@@ -23,9 +24,14 @@ export function useFolderEntryActivation({
   catalogRef: RefObject<DirectoryCatalog | undefined>
   penetration: ReaderFolderPenetrationConfig
   switchToast: ReaderPanelContext["switchToast"]
-  openReaderEntry(entry: Pick<ReaderDirectoryEntryDto, "path">, browserOriginEntryPath?: string, browserOriginSelfTerminal?: boolean): void
+  openReaderEntry(
+    entry: Pick<ReaderDirectoryEntryDto, "path">,
+    browserOriginEntryPath?: string,
+    browserOriginSelfTerminal?: boolean,
+    browserOriginTraversalFrames?: readonly ReaderActivationTraversalFrameDto[],
+  ): void
   enterRawDirectory(entry: Pick<ReaderDirectoryEntryDto, "path">): void
-  toggleInlineBranch(path: string): void
+  toggleInlineBranch(path?: string, traversalFrames?: readonly ReaderActivationTraversalFrameDto[]): void
   reportError(message: string): void
 }) {
   const pendingRef = useRef<{
@@ -46,9 +52,18 @@ export function useFolderEntryActivation({
 
   useEffect(() => cancelPendingActivation, [cancelPendingActivation])
 
-  const activate = useCallback((entry: DirectoryActivationEntry, rawDirectory = false) => {
+  const activate = useCallback((
+    entry: DirectoryActivationEntry,
+    rawDirectory = false,
+    inlineParentFrames?: readonly ReaderActivationTraversalFrameDto[],
+  ) => {
+    const current = catalogRef.current
+    const traversalFrames = current
+      ? appendReaderActivationTraversalFrame(current.path, entry.path, inlineParentFrames)
+      : undefined
     if (entry.kind !== "directory") {
-      if (entry.readerSupported) openReaderEntry(entry)
+      toggleInlineBranch()
+      if (entry.readerSupported) openReaderEntry(entry, entry.path, false, traversalFrames)
       else void client.openSystemPath?.(entry.path)
       return
     }
@@ -56,7 +71,6 @@ export function useFolderEntryActivation({
       enterRawDirectory(entry)
       return
     }
-    const current = catalogRef.current
     if (!current) return
     cancelPendingActivation()
     const controller = new AbortController()
@@ -86,6 +100,7 @@ export function useFolderEntryActivation({
         pendingRef.current = undefined
         if (catalogRef.current?.sessionId !== pending.sessionId || catalogRef.current?.generation !== pending.generation) return
         if (resolution.status === "resolved" && resolution.terminal) {
+          toggleInlineBranch()
           const mixedMedia = resolution.reason === "mixed-media-directory"
           if (mixedMedia) {
             switchToast?.show({
@@ -93,14 +108,22 @@ export function useFolderEntryActivation({
               description: `当前层 ${resolution.directMediaCount ?? 0} 张图片；发现 ${resolution.deferredDirectoryCount ?? 0} 个子文件夹，可继续作为“下一本”。`,
             })
           }
-          openReaderEntry({ path: resolution.terminal.path }, entry.path, mixedMedia)
+          openReaderEntry(
+            { path: resolution.terminal.path },
+            entry.path,
+            mixedMedia,
+            traversalFrames?.map((frame, index) => index === traversalFrames.length - 1 && mixedMedia
+              ? { ...frame, selfTerminal: true }
+              : frame),
+          )
           return
         }
         if (canExpandPenetratedBranchInline(penetration, resolution)) {
-          toggleInlineBranch(entry.path)
+          toggleInlineBranch(entry.path, traversalFrames)
           return
         }
         if (resolution.status === "blocked" && (resolution.reason === "permission" || resolution.reason === "cycle")) {
+          toggleInlineBranch()
           reportError(`无法穿透此文件夹：${resolution.reason === "permission" ? "没有读取权限" : "检测到目录循环"}`)
           return
         }
