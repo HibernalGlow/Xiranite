@@ -295,9 +295,9 @@ export function FolderBrowserPaneView({ runtime, state, refs, actions }: FolderB
   const wrapTitle = resolveFolderTitleWrap(folderTitleWrap, viewMode)
   const entryViewSpec = createFolderEntryViewSpec(state, active, wrapTitle)
   const returnFooterContext = {
-    disabled: disabled || loading || !catalog || (!catalog.canGoBack && !catalog.parentPath),
+    disabled: disabled || loading || !catalog?.parentPath,
     onReturn: () =>
-      runFolderNavigation("return", catalogRef.current, (command) => {
+      runFolderNavigation("goUp", catalogRef.current, (command) => {
         void navigate(command)
       }),
   }

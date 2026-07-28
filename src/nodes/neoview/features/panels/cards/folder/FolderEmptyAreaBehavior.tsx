@@ -29,12 +29,12 @@ interface FolderNavigationState {
 }
 
 export function runFolderNavigation(
-  action: "goUp" | "goBack" | "return",
+  action: "goUp" | "goBack",
   catalog: FolderNavigationState | undefined,
   navigate: (command: ReaderDirectoryNavigationDto) => void,
 ) {
-  if ((action === "goBack" || action === "return") && catalog?.canGoBack) navigate({ action: "back" })
-  else if ((action === "goUp" || action === "return") && catalog?.parentPath) navigate({ action: "up" })
+  if (action === "goBack" && catalog?.canGoBack) navigate({ action: "back" })
+  else if (action === "goUp" && catalog?.parentPath) navigate({ action: "up" })
 }
 
 export function useFolderEmptyAreaNavigation(value: ReaderFolderEmptyAreaConfig, onAction: (action: "goUp" | "goBack") => void) {
